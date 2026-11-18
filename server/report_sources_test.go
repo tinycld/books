@@ -55,6 +55,7 @@ var booksSourceKeys = []string{
 	"books.journal_entries",
 	"books.journal_lines",
 	"books.products",
+	"books.receivable_items",
 	"books.sales_documents",
 	"books.sales_lines",
 	"books.sales_tax_lines",
@@ -489,6 +490,35 @@ func expectedCatalog(t *testing.T) []wantSource {
 			},
 		},
 		{
+			// A union of the two receivable item views (A/R Aging spec §4):
+			// each part maps the same keys to the view's own columns.
+			key: "books.receivable_items", label: "Receivable items",
+			fields: []wantField{
+				{key: "date", typ: reports.Date, textDay: true, aggs: reports.MinMax},
+				{key: "due_date", typ: reports.Date, textDay: true, aggs: reports.MinMax},
+				money("debit"), money("credit"), text("currency"), text("item"),
+				{key: "item_kind", typ: reports.Select, options: []reports.Option{
+					{Value: "invoice", Label: "Invoice"}, {Value: "payment", Label: "Payment"},
+					{Value: "credit_memo", Label: "Credit memo"}, {Value: "entry", Label: "Journal entry"},
+				}},
+				textMinMax("item_number"),
+			},
+			links: []wantLink{
+				toOne("customer", "books.customers", "customer"),
+				toOne("entry", "books.journal_entries", "entry"),
+			},
+			parts: []wantPart{
+				{
+					collection: "books_receivable_lines",
+					columns:    identity("customer", "entry", "date", "due_date", "debit", "credit", "currency", "item", "item_kind", "item_number"),
+				},
+				{
+					collection: "books_receivable_applications",
+					columns:    identity("customer", "entry", "date", "due_date", "debit", "credit", "currency", "item", "item_kind", "item_number"),
+				},
+			},
+		},
+		{
 			// Purchase fields, form columns and the name and sort keys are left
 			// out (sales-reports spec §5).
 			key: "books.products", collection: "books_products", label: "Products and services",
@@ -585,6 +615,7 @@ func TestReportSourcesCatalog(t *testing.T) {
 			if slices.Contains([]string{
 				"books.journal_entries", "books.journal_lines", "books.basis_lines", "books.account_balances",
 				"books.sales_documents", "books.sales_tax_lines", "books.sales_lines", "books.products",
+				"books.receivable_items",
 			}, want.key) {
 				wantCurrency = "USD"
 			}

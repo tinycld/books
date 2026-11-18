@@ -25,12 +25,10 @@
 with the reason, and shown to the human at the end)
 
 ## Design notes
-(none yet — gate-2 NOTEs the loop did not act on, as
-`cp N · <shot>: <where> — <what>`; shown to the human at each checkpoint
-and again at the end)
+- cp 1 · reviewers A and B: the spec's approved Live bullet was changed by the runner in unattended mode (see Out-of-plan changes) — the human must see this spec change at the eval gate. Checkpoint 2's `TestARAgingTopics` lost the clause "a run with an item opened also holds `collection/books_journal_entries`"; it still holds because `books_journal_entries` is one of the six base topics of every run — checkpoint 2's reviewers confirm it for a run with an item opened.
 
 ## Out-of-plan changes
-(none yet — every file touched that no checkpoint's Files block named, with why)
+- cp 1 · `docs/specs/ar-aging-design.md` (Live bullet) and `docs/plans/ar-aging-checkpoints.md` (the quoted Live bullet, `TestReceivableItemsEngine`'s topics, checkpoint 2's `TestARAgingTopics`): a run's topics are the views' six base collections, not the views' own topics (core `core/server/changesignal/topics.go:18-20`). Edited by the runner after the cp 1 test dispute, so checkpoint 2 does not repeat it.
 
 ## Performance
 (none yet — the results of spec §9, written by checkpoint 3 and again after each change to the views, the indexes or the spec)
@@ -108,6 +106,24 @@ and again at the end)
     - Confirmed by the review: core `relationCheck` accepts a union of views, a select over a view text column and the two links while their view columns stay bare relations; D6 is true; every named path and consumed name exists.
     - Report: lane staging folder, `plan-review.md` (not committed).
 - review mode switches: none
+
+## Checkpoint 1
+- test writer: `server/receivable_items_test.go` (new; `arBook`, `newARBook`, `arInvoice`, `arPayment`, `arCreditMemo`), `server/report_sources_test.go`, `server/oauth_scopes_test.go`, `server/registrations_test.go`, `tests/migration-prefixes.test.ts`, `tests/seed-node.test.ts`; stub `server/receivable_items.go`; 15 tests (11 Go, 4 vitest) red for the right reason: yes; untestable: none
+- implementer: two views in `pb-migrations/2100000026_create_books_receivable_items.js` (the SQL of Do 1 unchanged), `registerReceivableItems`, OAuth read entries, source `books.receivable_items`, fixture `satisfies` types, `seedArAging`. First dispatch stopped on an API usage limit with no report; a fresh implementer continued from the tree. DONE (NEEDS-RUN for the Do 9 e2e).
+- engine pins: core accepts the union over two view collections and the `min(item_kind)` / `min(item_number)` group label (`CheckSources`, `Load`, `Validate`, `Run` pass in `TestReceivableItemsEngine`); no core checkpoint 0.
+- test disputes: 1 — `TestReceivableItemsEngine` expected `collection/books_receivable_lines` and `collection/books_receivable_applications` in the run's Topics. Settled: the test was wrong. Core `core/server/changesignal/topics.go:18-20`: "A view's own topic is not listed, because SQLite reads the view's base tables, and their topics carry every change the view shows." A fresh test writer changed the assertion to the six base collections; re-staged. Spec Live bullet and plan corrected (Out-of-plan changes).
+- self-declared differences: 5 — `AR_AGING_SEED` lost `as const` (each row `satisfies` its local type); `postCustomerBalanceInvoice` takes an optional `{ due_date, terms }` (the A/R invoice is `net_30`); `CustomerBalanceInvoice` typed from `BooksInvoices`; seed customer lookup helpers `arAgingFixtureId` / `arAgingCustomer`; `receivableItemColumns` shared var in `report_sources.go`.
+- gate 1: tests unedited: yes · `go test ./...` pass · `packages:generate` + `tinycld-pkg check` pass · e2e (Do 9, driver NEEDS-RUN: books-customer-balance, books-sales-reports, customer-form-list, customer-form-page in one command): 28 passed, exit 0 · gate 1 pass
+- gate 2: n/a (logic checkpoint, nothing renders)
+- ripple (Do 8): `command grep -rlE 'Accounts receivable|Undeposited|1100|1200' tests/e2e` → 20 files, each read by the implementer (cp1-impl.md): account-picker labels only (products-services-form, vendor-form-page, transfer-form); own rows (opening-balances, receive-payment-keyboard, credit-memo-form, account-register-table); title or drawer only (account-register-drawer:246, journal-entries-read-only:129); row set with no figure (trial-balance:70-75, balance-sheet:46/67); comments only (profit-and-loss, books-sales-tax-liability, pay-bills-sales-tax-cash); settings flow (sales-receipt-form, sales-receipt-form-settings); the helpers and the step-9 specs. No figure the new seed moves; no spec changed. Reviewer A read the same hits and agreed.
+- gate 3 A (correctness): 0 BLOCK, 4 NOTE — (1) migration listed out-of-plan: false positive, the Files block names `pb-migrations/<number>_create_books_receivable_items.js`; no action · (2) spec/plan edit: to Design notes for the human · (3) `TestReceivableItemsEngine` counts map entries, not group rows: accepted (weak test) → fix r1 item 1 · (4) seed-node `filteringPb` ignores `status = "posted"`: accepted (weak test) → fix r1 item 2
+- gate 3 B (conformance): script lines: 0 real, 3 false positive (tests/seed-node.test.ts:236, :282, :344 — the fake client of a Node unit test of the superuser seed; reasons in cp1-review-B.md) · (1)(2) spec/plan out-of-plan edits: recorded, to Design notes · (3) migration out-of-plan: false positive, as A (1) · (4) Do 8 grep not in the ledger: accepted → recorded in the ripple row above from cp1-impl.md · (5) seed-node `seedArAging` cast with an early return passes silently when the export is missing: accepted (weak test) → fix r1 item 3
+- deferrals: none (A and B: none found)
+- fix r1 (cp1-fix-r1.md, 3 weak-test items, test files only): one helix-test-writer dispatch; it stopped before it wrote its report, and a fresh runner read its edits against each item: (1) `TestReceivableItemsEngine` counts the KindGroup rows and requires 4 · (2) `filteringPb` replaced by `servedPb` (a real SDK client over a stand-in server whose list read honors every filter clause, `status = "posted"` too) and a new case: a draft with the gala memo and customer, written first, gets no application · (3) `seedArAging` imported directly, cast and early return gone. Files changed: `server/receivable_items_test.go`, `tests/seed-node.test.ts` only.
+- gate 1 after fix r1: `go test -count=1 ./...` pass · `packages:generate` + `tinycld-pkg check` pass (361 files, 7195 tests) · no e2e (no source changed)
+- fix review: n/a (round 1 touched tests only) · rounds: 1
+- gate 3 A notes: 1 (NOTE 2, spec/plan edit) under Design notes
+- reviewer-caught deferrals: none
 
 ## Final review
 - eval: (not reached)

@@ -166,6 +166,7 @@ func reportSources() []reports.Source {
 			},
 		},
 		basisLinesSource(),
+		receivableItemsSource(),
 		salesDocumentsSource(),
 		salesTaxLinesSource(),
 		salesLinesSource(),
@@ -243,6 +244,47 @@ func basisLinesSource() reports.Source {
 			{Key: "account", Label: "Account", Target: "books.accounts", Cardinality: reports.ToOne, Field: "account"},
 			{Key: "customer", Label: "Customer", Target: "books.customers", Cardinality: reports.ToOne, Field: "customer"},
 			{Key: "vendor", Label: "Vendor", Target: "books.vendors", Cardinality: reports.ToOne, Field: "vendor"},
+		},
+	}
+}
+
+// receivableItemColumns are the columns both receivable item views share, by
+// the same name in each.
+var receivableItemColumns = []string{
+	"customer", "entry", "date", "due_date", "debit", "credit", "currency", "item", "item_kind", "item_number",
+}
+
+// receivableItemsSource is every part of every open receivable item (A/R
+// Aging spec §4), one union of the two receivable item views (core
+// SourcePart): the posted A/R lines, with a payment's own line at its
+// unapplied part, and the applications of posted payments. item is the open
+// item a row belongs to; a report groups by it to add up an item's open
+// amount.
+func receivableItemsSource() reports.Source {
+	return reports.Source{
+		Key: "books.receivable_items", Label: "Receivable items",
+		Parts: []reports.SourcePart{
+			{Collection: receivableLinesView, Columns: sameNames(receivableItemColumns...)},
+			{Collection: receivableApplicationsView, Columns: sameNames(receivableItemColumns...)},
+		},
+		Fields: []reports.Field{
+			{Key: "date", Label: "Date", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
+			{Key: "due_date", Label: "Due date", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
+			{Key: "debit", Label: "Debit", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "credit", Label: "Credit", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "currency", Label: "Currency", Type: reports.Text},
+			{Key: "item", Label: "Item", Type: reports.Text},
+			{Key: "item_kind", Label: "Item type", Type: reports.Select, Options: []reports.Option{
+				{Value: "invoice", Label: "Invoice"},
+				{Value: "payment", Label: "Payment"},
+				{Value: "credit_memo", Label: "Credit memo"},
+				{Value: "entry", Label: "Journal entry"},
+			}},
+			{Key: "item_number", Label: "Number", Type: reports.Text, Aggregates: reports.MinMax},
+		},
+		Links: []reports.Link{
+			{Key: "customer", Label: "Customer", Target: "books.customers", Cardinality: reports.ToOne, Field: "customer"},
+			{Key: "entry", Label: "Entry", Target: "books.journal_entries", Cardinality: reports.ToOne, Field: "entry"},
 		},
 	}
 }
