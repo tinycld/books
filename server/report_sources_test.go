@@ -502,6 +502,9 @@ func expectedCatalog(t *testing.T) []wantSource {
 					{Value: "credit_memo", Label: "Credit memo"}, {Value: "entry", Label: "Journal entry"},
 				}},
 				textMinMax("item_number"),
+				// The integer the item's number formats (server/numbering.go):
+				// items sort by it, since "JE-10" sorts before "JE-9" as text.
+				{key: "item_seq", typ: reports.Number, aggs: reports.MinMax},
 			},
 			links: []wantLink{
 				toOne("customer", "books.customers", "customer"),
@@ -510,11 +513,11 @@ func expectedCatalog(t *testing.T) []wantSource {
 			parts: []wantPart{
 				{
 					collection: "books_receivable_lines",
-					columns:    identity("customer", "entry", "date", "due_date", "debit", "credit", "currency", "item", "item_kind", "item_number"),
+					columns:    identity("customer", "entry", "date", "due_date", "debit", "credit", "currency", "item", "item_kind", "item_number", "item_seq"),
 				},
 				{
 					collection: "books_receivable_applications",
-					columns:    identity("customer", "entry", "date", "due_date", "debit", "credit", "currency", "item", "item_kind", "item_number"),
+					columns:    identity("customer", "entry", "date", "due_date", "debit", "credit", "currency", "item", "item_kind", "item_number", "item_seq"),
 				},
 			},
 		},

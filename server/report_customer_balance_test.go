@@ -2,6 +2,8 @@ package books
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"reflect"
 	"slices"
@@ -1408,6 +1410,19 @@ func TestCustomerBalanceOrder(t *testing.T) {
 	slices.Sort(wantLabels)
 	if len(gotLabels) != 3 || !reflect.DeepEqual(gotLabels, wantLabels) {
 		t.Errorf("bravo's lines under a heading sort on Customer (asc) = %q, want its three lines by label", gotLabels)
+	}
+}
+
+// customerBalanceSpecSHA256 is the sha256 of mustJSON(customerBalanceSpec())
+// before p5-ar-aging moved its groups and sort into customerFamilyGroups and
+// customerFamilySort: the move must not change the shipped JSON, so the
+// Revision stays 1 (core re-stores a spec only on a higher revision).
+const customerBalanceSpecSHA256 = "3c883d02327cfa6b62bace7df9f9cc2e44536c6928aef0baa9923a5daff4e4c5"
+
+func TestCustomerBalanceSpecJSONUnchanged(t *testing.T) {
+	sum := sha256.Sum256(mustJSON(customerBalanceSpec()))
+	if got := hex.EncodeToString(sum[:]); got != customerBalanceSpecSHA256 {
+		t.Errorf("sha256 of the Customer Balance spec JSON = %s, want %s: a change of the shipped JSON needs a new revision", got, customerBalanceSpecSHA256)
 	}
 }
 

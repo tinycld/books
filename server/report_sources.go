@@ -251,7 +251,7 @@ func basisLinesSource() reports.Source {
 // receivableItemColumns are the columns both receivable item views share, by
 // the same name in each.
 var receivableItemColumns = []string{
-	"customer", "entry", "date", "due_date", "debit", "credit", "currency", "item", "item_kind", "item_number",
+	"customer", "entry", "date", "due_date", "debit", "credit", "currency", "item", "item_kind", "item_number", "item_seq",
 }
 
 // receivableItemsSource is every part of every open receivable item (A/R
@@ -281,6 +281,9 @@ func receivableItemsSource() reports.Source {
 				{Value: "entry", Label: "Journal entry"},
 			}},
 			{Key: "item_number", Label: "Number", Type: reports.Text, Aggregates: reports.MinMax},
+			// The integer item_number formats (server/numbering.go): items sort
+			// by it, since "JE-10" sorts before "JE-9" as text.
+			{Key: "item_seq", Label: "Sequence", Type: reports.Number, Aggregates: reports.MinMax},
 		},
 		Links: []reports.Link{
 			{Key: "customer", Label: "Customer", Target: "books.customers", Cardinality: reports.ToOne, Field: "customer"},

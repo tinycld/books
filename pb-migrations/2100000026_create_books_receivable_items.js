@@ -3,7 +3,9 @@
 // over the ledger. Each row is a part of one open item (`item`): the invoice,
 // the payment's unapplied part, the credit memo, or the manual journal line it
 // belongs to. Debit less credit is the row's share of the item in integer
-// cents, so a credit is negative.
+// cents, so a credit is negative. item_number is the item's entry number as
+// shown ("JE-10"); item_seq is the integer it formats (server/numbering.go),
+// so items sort by number as an integer, not as text.
 //
 // - books_receivable_lines: one row per posted journal line on an
 //   accounts-receivable account. A reversal's line belongs to the item of the
@@ -47,6 +49,7 @@ const LINES_QUERY = [
     `CAST(${LINE_ITEM} AS TEXT) AS item,`,
     `CAST(CASE WHEN ${IS_DOC} THEN e.doc_type ELSE 'entry' END AS TEXT) AS item_kind,`,
     'CAST(COALESCE(r.number, e.number) AS TEXT) AS item_number,',
+    'CAST(COALESCE(r.sequence, e.sequence) AS INTEGER) AS item_seq,',
     `CAST(CASE WHEN ${IS_DOC} AND e.doc_type = 'invoice' THEN i.due_date ELSE COALESCE(r.date, e.date) END AS TEXT) AS due_date`,
     'FROM books_journal_lines l',
     'JOIN books_accounts a ON a.id = l.account',
@@ -63,6 +66,7 @@ const APPLICATIONS_QUERY = [
     'CAST(pa.invoice AS TEXT) AS item,',
     "CAST('invoice' AS TEXT) AS item_kind,",
     'CAST(ie.number AS TEXT) AS item_number,',
+    'CAST(ie.sequence AS INTEGER) AS item_seq,',
     'i.due_date AS due_date',
     'FROM books_payment_applications pa',
     'JOIN books_payments p ON p.id = pa.payment',
