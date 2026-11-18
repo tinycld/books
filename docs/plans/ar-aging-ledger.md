@@ -202,6 +202,7 @@ with the reason, and shown to the human at the end)
 - gate 3 A notes: 2 (NOTE 6, 7) under Design notes
 - reviewer-caught deferrals: none
 - human: review mode C (unattended), no message
+- commit: 296c624b
 
 ## Final review
 - eval: (not reached)
