@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
     DEFAULT_VENDOR_TAB,
+    SHOWN_VENDOR_TABS,
     VENDOR_TAB_ORDER,
     vendorPageControls,
     vendorTabOf,
@@ -70,5 +71,24 @@ describe('vendorTabOf', () => {
 
     it('the default tab is the first of the order', () => {
         expect(DEFAULT_VENDOR_TAB).toBe(VENDOR_TAB_ORDER[0])
+    })
+
+    // Vendor pages §2, §3.4: Transactions is the default tab (no `tab` param).
+    it('the default tab is Transactions', () => {
+        expect(DEFAULT_VENDOR_TAB).toBe('transactions')
+        expect(vendorTabOf(undefined)).toBe('transactions')
+        expect(vendorTabOf('transactions')).toBe('transactions')
+        expect(vendorTabOf('statements')).toBe('transactions')
+    })
+})
+
+describe('SHOWN_VENDOR_TABS', () => {
+    it('draws Transactions, Contacts, Details and Notes with ⌥1 to ⌥4', () => {
+        expect(SHOWN_VENDOR_TABS).toEqual([
+            { key: 'transactions', label: 'Transactions', keys: 'Alt+1' },
+            { key: 'contacts', label: 'Contacts', keys: 'Alt+2' },
+            { key: 'details', label: 'Details', keys: 'Alt+3' },
+            { key: 'notes', label: 'Notes', keys: 'Alt+4' },
+        ])
     })
 })
