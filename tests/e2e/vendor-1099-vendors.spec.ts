@@ -9,7 +9,14 @@ import {
     trackedVendorsSnapshot,
     visible,
 } from './vendor-1099-helpers'
-import { DESKTOP, openBooksPage, PHONE, uniqueName, viewportName } from './vendor-form-helpers'
+import {
+    DESKTOP,
+    openBooksPage,
+    PHONE,
+    uniqueName,
+    vendorPath,
+    viewportName,
+} from './vendor-form-helpers'
 
 // Settings → 1099s, the 1099 vendors card.
 //
@@ -95,9 +102,10 @@ test.describe('vendor-1099: 1099 vendors', () => {
             }
 
             await row.click()
-            await expect(page).toHaveURL(new RegExp(`/books/vendors/${id}$`))
+            await expect(page).toHaveURL(vendorPath(id))
             await expect(visible(page, 'vendor-page')).toBeVisible()
-            await expect(visible(page, 'vendor-title')).toHaveText('Edit vendor')
+            // The row opens the vendor's page, titled with its name.
+            await expect(visible(page, 'vendor-title')).toHaveText(name)
 
             await visible(page, 'vendor-back').click()
             await expect(visible(page, 'vendors-list')).toBeVisible()

@@ -2,7 +2,6 @@ import { LoadingState } from '@tinycld/core/components/LoadingState'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useWritesAvailable } from '@tinycld/core/lib/use-writes-available'
-import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { ConfirmDialog } from '@tinycld/core/ui/ConfirmDialog'
 import { ShortcutButton } from '@tinycld/core/ui/shortcut-button'
 import { useState } from 'react'
@@ -395,39 +394,39 @@ function ContactsList({ tab, canWrite, fits }: ContactsListProps) {
 
 interface AddButtonProps {
     isVisible: boolean
+    isEmpty: boolean
     onPress: () => void
     testIdPrefix: string
 }
 
-// The empty state's button has no key: ⌥C belongs to the header button, which shows
-// only while the list has rows, so the key is registered only while that action shows.
-function EmptyAddContactButton({ isVisible, onPress, testIdPrefix }: AddButtonProps) {
+// One button in the empty state and above the rows, so it stays mounted when the first
+// contact arrives: the dialog returns the focus to the element that opened it. Only its
+// look and test id change; ⌥C presses it in both states.
+function AddContactButton({ isVisible, isEmpty, onPress, testIdPrefix }: AddButtonProps) {
     if (!isVisible) return null
-    return (
-        <Button
-            testID={`${testIdPrefix}-contacts-empty-add`}
-            size="sm"
-            onPress={onPress}
-            style={{ minHeight: 44 }}
-        >
-            <ButtonText>Add contact</ButtonText>
-        </Button>
-    )
-}
-
-function HeaderAddContactButton({ isVisible, onPress, testIdPrefix }: AddButtonProps) {
-    if (!isVisible) return null
+    const testID = isEmpty ? `${testIdPrefix}-contacts-empty-add` : `${testIdPrefix}-contacts-add`
+    const variant = isEmpty ? 'default' : 'outline'
     return (
         <ShortcutButton
-            testID={`${testIdPrefix}-contacts-add`}
+            testID={testID}
             label="Add contact"
             shortcut={ADD_CONTACT_KEY}
-            variant="outline"
+            variant={variant}
             size="sm"
             className="min-h-11"
             onPress={onPress}
         />
     )
+}
+
+function EmptyText({ isVisible }: { isVisible: boolean }) {
+    if (!isVisible) return null
+    return <Text className="text-base font-medium text-foreground">No contacts yet</Text>
+}
+
+function VisibleContactsList({ isVisible, ...props }: ContactsListProps & { isVisible: boolean }) {
+    if (!isVisible) return null
+    return <ContactsList {...props} />
 }
 
 interface BodyProps {
@@ -459,28 +458,25 @@ function ContactsBody({ tab, canWrite, fits, gutterClass }: BodyProps) {
             </View>
         )
     }
-    if (contacts.length === 0) {
-        return (
-            <View testID={`${testIdPrefix}-contacts-empty`} className="items-center gap-4 p-8">
-                <Text className="text-base font-medium text-foreground">No contacts yet</Text>
-                <EmptyAddContactButton
-                    isVisible={canWrite}
-                    onPress={tab.openAdd}
-                    testIdPrefix={testIdPrefix}
-                />
-            </View>
-        )
-    }
+    // The empty state and the header row share one wrapper, so the Add contact button
+    // inside it is the same element in both.
+    const isEmpty = contacts.length === 0
+    const wrapperTestId = isEmpty ? `${testIdPrefix}-contacts-empty` : undefined
+    const wrapperClass = isEmpty
+        ? 'items-center gap-4 p-8'
+        : `flex-row justify-end py-3 ${gutterClass}`
     return (
         <>
-            <View className={`flex-row justify-end py-3 ${gutterClass}`}>
-                <HeaderAddContactButton
+            <View testID={wrapperTestId} className={wrapperClass}>
+                <EmptyText isVisible={isEmpty} />
+                <AddContactButton
                     isVisible={canWrite}
+                    isEmpty={isEmpty}
                     onPress={tab.openAdd}
                     testIdPrefix={testIdPrefix}
                 />
             </View>
-            <ContactsList tab={tab} canWrite={canWrite} fits={fits} />
+            <VisibleContactsList isVisible={!isEmpty} tab={tab} canWrite={canWrite} fits={fits} />
         </>
     )
 }

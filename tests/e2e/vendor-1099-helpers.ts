@@ -5,6 +5,7 @@ import {
     field,
     insertAnswered,
     openNewVendor,
+    openVendorsList,
     searchVendors,
     vendorIdOf,
     vendorSurface,
@@ -51,7 +52,7 @@ export async function chooseTaxIdType(page: Page, label: string): Promise<void> 
 }
 
 // Creates a vendor tracked for 1099 through the New vendor form, waits for the server
-// to store it and for the list to show, and returns its id.
+// to store it and for its page to open, goes back to the list, and returns its id.
 export async function createTrackedVendor(
     page: Page,
     values: {
@@ -73,6 +74,9 @@ export async function createTrackedVendor(
     const inserted = insertAnswered(page)
     await page.getByTestId('vendor-save').click()
     expect((await inserted).status()).toBe(200)
+    // Save opens the new vendor's page; the list is behind it.
+    await expect(page.getByTestId('vendor-title')).toHaveText(values.name)
+    await openVendorsList(page)
     await expect(page.getByTestId('vendors-list')).toBeVisible()
     await expect(vendorSurface(page)).toBeHidden()
     await searchVendors(page, values.name)

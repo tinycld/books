@@ -51,6 +51,14 @@ export function listLayoutFor(
     return 'table'
 }
 
+// On the page surface an open record covers the list, which stays mounted under it (so
+// it keeps its scroll and filters). Covered, it must not take Tab stops or be read out:
+// `inert` does both on web; `aria-hidden` hides it from VoiceOver and TalkBack on native
+// (React Native maps it to accessibilityElementsHidden / no-hide-descendants).
+export function isListCovered(surface: DetailSurface, isDetailOpen: boolean) {
+    return surface === 'page' && isDetailOpen
+}
+
 const PAGE_CONTAINER: ViewStyle = {
     position: 'absolute',
     top: 0,
