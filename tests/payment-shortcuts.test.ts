@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { FORM_KEYS } from '../tinycld/books/lib/entry-shortcuts'
+import { PAYMENT_FLOW } from '../tinycld/books/lib/payment-flow'
 import { PAYMENT_CHROME } from '../tinycld/books/lib/payment-kind'
 import {
     PAYMENT_FORM_KEYS,
     PAYMENT_READ_KEYS,
     type PaymentFormKeyState,
+    paymentFormDescriptions,
     paymentFormKeysOffered,
 } from '../tinycld/books/lib/payment-shortcuts'
 
@@ -46,6 +48,32 @@ describe('the payment key map', () => {
 
     it('is listed in the group Receive payment', () => {
         expect(PAYMENT_CHROME.shortcutGroup).toBe('Receive payment')
+        expect(PAYMENT_FLOW.chrome.shortcutGroup).toBe('Receive payment')
+    })
+
+    // The three descriptions that name the document come from the flow (vendor refund spec
+    // §3.2); the received payment's are today's texts.
+    it('describes Pay all, Clear payments and the row toggle with today’s texts', () => {
+        expect(PAYMENT_FLOW.texts.payAllDescription).toBe('Pay every listed invoice in full')
+        expect(PAYMENT_FLOW.texts.clearDescription).toBe('Clear payments')
+        expect(PAYMENT_FLOW.texts.toggleRowDescription).toBe(
+            'Pay this invoice in full, or clear it'
+        )
+    })
+
+    // The texts of the record PAYMENT_FORM_DESCRIPTIONS held before the flow (read from
+    // lib/payment-shortcuts.ts at the commit before checkpoint 2).
+    it('describes every form key of the received payment as before the flow', () => {
+        expect(paymentFormDescriptions(PAYMENT_FLOW.texts)).toEqual({
+            post: 'Post',
+            postAndNew: 'Post & new',
+            saveDraft: 'Save draft',
+            cancel: 'Cancel',
+            deleteDraft: 'Delete draft',
+            clearPayments: 'Clear payments',
+            payAll: 'Pay every listed invoice in full',
+            toggleRow: 'Pay this invoice in full, or clear it',
+        })
     })
 })
 

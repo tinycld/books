@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { paymentReadActions } from '../tinycld/books/lib/payment-read-actions'
+import { paymentReadActions, voidWriteCollection } from '../tinycld/books/lib/payment-read-actions'
 
 // The read view's actions (spec §3.7): a writer on a posted payment gets Edit, Void and
 // View journal entry; a writer on a void payment and every reader only View journal entry.
@@ -28,5 +28,17 @@ describe('paymentReadActions', () => {
     it('gives a draft no read action', () => {
         expect(paymentReadActions('draft', true)).toEqual([])
         expect(paymentReadActions('draft', false)).toEqual([])
+    })
+})
+
+// Void writes `status: 'void'` on the read view's own collection (vendor refund spec §3.7):
+// a vendor refund's void must not land on another payment collection.
+describe('voidWriteCollection', () => {
+    it.each([
+        'books_payments',
+        'books_bill_payments',
+        'books_vendor_refunds',
+    ] as const)('voids a row of %s in that collection', collection => {
+        expect(voidWriteCollection(collection)).toBe(collection)
     })
 })

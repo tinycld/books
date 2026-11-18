@@ -9,6 +9,8 @@ import { PAYMENT_MESSAGES } from './payment-texts'
 
 export const PAY_BILLS_MESSAGES = {
     title: 'Pay bills',
+    // The link under the list that clears every payment.
+    clearLabel: 'Clear payments',
     // The form's rules (lib/pay-bills-schema.ts), each the Books wording of the same rule.
     paidFromRequired: 'Choose the account you paid from',
     dateInvalid: PAYMENT_MESSAGES.dateInvalid,
