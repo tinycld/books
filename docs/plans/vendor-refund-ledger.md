@@ -184,6 +184,7 @@
 - gate 3 A notes: 3 (NOTEs 2, 3, 5), listed under Design notes
 - reviewer-caught deferrals: none kept · A DEFERRALs 1-2 and B DEFERRALs 1-3 fixed in round 1 (capture manifest, fix 6)
 - human: n/a (review mode C)
+- commit: 4346c259
 
 ## Final review
 - eval:
