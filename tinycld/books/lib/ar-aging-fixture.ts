@@ -11,7 +11,7 @@ import type {
     ResultRow,
     RunResult,
 } from '@tinycld/core/reports/lib/types'
-import type { BooksCustomers } from '../types'
+import type { BooksCustomers, BooksInvoices, BooksPayments } from '../types'
 import { CUSTOMERS } from './customer-form-fixture'
 
 // "Today" for the reference captures: the As of param's default.
@@ -21,8 +21,9 @@ export const AR_AGING_TITLE = 'A/R Aging'
 // The shipped report's description (server/report_ar_aging.go).
 export const AR_AGING_DESCRIPTION =
     'What each customer owes on one day, by how long each open invoice is past due.'
-// A day before every posted Accounts receivable line: the empty report.
-export const AR_AGING_EMPTY_DAY = '2025-12-31'
+// A day before every posted Accounts receivable line of the seeded book, which has one
+// two years back (PRIOR_YEAR_SEED, trial-balance-fixture.ts): the empty report.
+export const AR_AGING_EMPTY_DAY = '2020-01-01'
 const CURRENCY = 'USD'
 const NO_CUSTOMER_LABEL = 'No customer'
 const INACTIVE_SUFFIX = ' (inactive)'
@@ -30,30 +31,45 @@ const INACTIVE_SUFFIX = ' (inactive)'
 // What the seed adds to the seeded book (spec §4 Seed, Q16), with fixed 2026 dates so
 // the book fills several age columns: a part payment on the seeded gala invoice
 // (customer-balance-fixture.ts `galaInvoice`), one payment applied to no invoice, and
-// one more posted invoice that is long past due. The checkpoint that wires seed.ts
-// reads these; before it does, it greps tests/ and tests/e2e/ for the figures of these
-// customers. Cents.
+// one more posted invoice that is long past due. seedArAging (seed.ts) sends these: a
+// customer by its display name in CUSTOMERS, a payment's deposit account by its number
+// (as PAYMENT_SEED). Cents.
+type ArAgingSeedPayment = Pick<
+    BooksPayments,
+    'date' | 'memo' | 'payment_method' | 'reference_no'
+> & { customer: string; cents: number; depositNumber: string }
+type ArAgingSeedInvoice = Pick<BooksInvoices, 'date' | 'due_date' | 'memo'> & {
+    customer: string
+    cents: number
+}
+
 export const AR_AGING_SEED = {
     partPayment: {
         customer: 'St. Jude Annual Spring Gala and Silent Auction Catering',
         date: '2026-11-05',
         memo: 'Seed A/R aging: check 118204, part payment',
+        payment_method: 'check',
+        reference_no: '118204',
+        depositNumber: '1200',
         cents: 300000,
-    },
+    } satisfies ArAgingSeedPayment,
     unappliedPayment: {
         customer: 'Cedar & Pine Landscaping',
         date: '2026-10-02',
         memo: 'Seed A/R aging: deposit, not yet applied',
+        payment_method: 'check',
+        reference_no: 'DEP-0932',
+        depositNumber: '1200',
         cents: 15000,
-    },
+    } satisfies ArAgingSeedPayment,
     invoice: {
         customer: 'Aspen Ridge Dental',
         date: '2026-08-04',
-        dueDate: '2026-09-03',
+        due_date: '2026-09-03',
         memo: 'Seed A/R aging: waiting room signage',
         cents: 180000,
-    },
-} as const
+    } satisfies ArAgingSeedInvoice,
+}
 
 export type OrderChoice = 'name' | 'balance'
 

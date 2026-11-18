@@ -220,6 +220,32 @@ func TestOAuth_PartyContactsAndBalances(t *testing.T) {
 	}
 }
 
+// A/R Aging spec §4: a token only reads the two receivable item views, which
+// nothing writes, as the balances view.
+func TestOAuth_ReceivableViews(t *testing.T) {
+	collections := oauthPackage().Collections
+	views := []string{"books_receivable_lines", "books_receivable_applications"}
+	for _, c := range views {
+		got, ok := collections[c]
+		if !ok {
+			t.Errorf("%s has no OAuth entry", c)
+			continue
+		}
+		if !reflect.DeepEqual(got.Read, []string{scopeRead}) || len(got.Write) != 0 {
+			t.Errorf("%s OAuth access = %+v, want Read [%s] and no Write", c, got, scopeRead)
+		}
+	}
+
+	t.Cleanup(oauth.ResetRegistry)
+	oauth.RegisterPackage(oauthPackage())
+	for _, c := range views {
+		path := "/api/collections/" + c + "/records"
+		if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("GET %s: books:read must read", path)
+		}
+	}
+}
+
 // Spec §4.3: a token only reads the public view (nothing writes a view), and
 // reads and writes the customers' responses. The public PDF route is not in
 // the registration.
