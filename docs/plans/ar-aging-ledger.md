@@ -124,6 +124,8 @@ with the reason, and shown to the human at the end)
 - fix review: n/a (round 1 touched tests only) · rounds: 1
 - gate 3 A notes: 1 (NOTE 2, spec/plan edit) under Design notes
 - reviewer-caught deferrals: none
+- commit: 30616027
+- human: review mode C (unattended), no message
 
 ## Final review
 - eval: (not reached)
