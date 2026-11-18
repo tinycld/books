@@ -106,7 +106,12 @@ export function useVendorRefundRecord(id: string): PaymentRecordView {
         },
         queryKey: ['books.vendorRefund.lines', id],
     })
-    const rows = id ? (linesQuery.data ?? NO_ROWS) : NO_ROWS
+    // One row type, not `Row[] | readonly never[]`: `.map()` on that union gives its
+    // callback no contextual type under `noImplicitAny: false` (the app's tsconfig), so the
+    // destructured row falls back to `{ credit: any }` and loses the line's fields.
+    const rows: readonly NonNullable<typeof linesQuery.data>[number][] = id
+        ? (linesQuery.data ?? NO_ROWS)
+        : NO_ROWS
     // The record shape's flat line: the credit's fields beside the line's.
     const lines = useMemo(
         () =>
