@@ -34,6 +34,8 @@ interface TransferDraftScreenProps {
     accounts: TransferDetail['accounts']
     // Reports a running delete to the screen, which keeps this screen up through it.
     onDeleteBusyChange(isBusy: boolean): void
+    // The delete runs or succeeded (held until the screen is gone): its leave asks nothing.
+    isDeleting: boolean
 }
 
 function FlippedReadView({ detail }: { detail: ReadyTransferDetail | null }) {
@@ -46,6 +48,7 @@ export function TransferDraftScreen({
     flipped,
     accounts,
     onDeleteBusyChange,
+    isDeleting,
 }: TransferDraftScreenProps) {
     const orgHref = useOrgHref()
     const { onBack } = useBackToEntries()
@@ -73,6 +76,7 @@ export function TransferDraftScreen({
                     onSaved={onSaved}
                     onCancel={onBack}
                     onDeleteDraft={del.open}
+                    isDeleting={isDeleting}
                 />
             </View>
             <FlippedReadView detail={flipped} />

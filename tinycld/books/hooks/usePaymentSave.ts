@@ -14,6 +14,7 @@ import { writeRefusalText } from '../lib/refusal'
 import { tableWriteSteps } from '../lib/table-writes'
 import { usePaymentSaveStore } from '../stores/payment-save-store'
 import { useBackToEntries } from './useBackToEntries'
+import { useDeleteDraftDocument } from './useDeleteDraftDocument'
 import type { PaymentFormState } from './usePaymentForm'
 
 const LOG_CONTEXT = 'books.payment'
@@ -84,6 +85,7 @@ export function usePaymentSave({
         'books_payments',
         'books_payment_applications'
     )
+    const deleteDraft = useDeleteDraftDocument()
     const orgHref = useOrgHref()
     const back = useBackToEntries()
     const { form, outstanding } = paymentForm
@@ -98,6 +100,9 @@ export function usePaymentSave({
     const [isDiscardOpen, setDiscardOpen] = useState(false)
     const [isDeleteOpen, setDeleteOpen] = useState(false)
     const [deleteError, setDeleteError] = useState<string | null>(null)
+    // A new payment's refused post handed its draft to the draft's own route: the store
+    // holds the hand-off (set before the move), so the move asks nothing.
+    const isHandingOff = usePaymentSaveStore(state => isNew && state.refused?.id === id)
     useEffect(() => {
         isLive.current = true
         return () => {
@@ -184,12 +189,15 @@ export function usePaymentSave({
             if (input.applicationIds.length > 0) {
                 yield input.applicationIds.map(rowId => applicationsCollection.delete(rowId))
             }
-            yield paymentsCollection.delete(input.id)
+            yield deleteDraft('payment', input.id)
         },
         // The Delete draft dialog shows the refusal (or it is logged once the user left).
         onError: () => {},
     })
 
+    // `left`: the user asked to leave while a write runs, so the write neither moves nor
+    // shows its refusal. The leave guard can hold that move (a dirty form) and the user
+    // can keep editing, so each write clears `left` when it starts.
     const leave = () => {
         left.current = true
         back.onBack()
@@ -259,6 +267,9 @@ export function usePaymentSave({
     }
 
     const confirmDelete = async () => {
+        // As in `submit`: a leave the guard held and the user then kept editing set `left`
+        // although the form stayed, so the delete's own leave starts from "not left".
+        left.current = false
         setDeleteError(null)
         usePaymentSaveStore.getState().hold(id)
         try {
@@ -278,6 +289,10 @@ export function usePaymentSave({
     return {
         isPending: save.isPending || remove.isPending,
         isDeletePending: remove.isPending,
+        // A write that leaves the form succeeded or handed off: its move is under way. The
+        // delete's success is true from the update that ends `isPending`.
+        isLeaving: remove.isSuccess || isHandingOff,
+        isDirty,
         isDiscardOpen,
         isDeleteOpen,
         deleteError,

@@ -36,6 +36,8 @@ interface DraftScreenProps {
     flipped: ReadyEntryDetail | null
     onSaveBusyChange(isBusy: boolean): void
     onDeleteBusyChange(isBusy: boolean): void
+    // The delete runs or succeeded (held until the screen is gone): its leave asks nothing.
+    isDeleting: boolean
     // Reads the draft again and takes it from the store, after another session changed
     // it. It rejects, and changes nothing, when the read fails.
     onReload(): Promise<void>
@@ -50,6 +52,7 @@ function DraftScreen({
     flipped,
     onSaveBusyChange,
     onDeleteBusyChange,
+    isDeleting,
     onReload,
 }: DraftScreenProps) {
     const { entryId, currency, revision, initialValues, replacesNumber } = held
@@ -101,6 +104,7 @@ function DraftScreen({
                     onSaved={onSaved}
                     onCancel={onBack}
                     onBusyChange={onSaveBusyChange}
+                    isDeleting={isDeleting}
                     onDeleteDraft={del.open}
                     auditHistoryId={entryId}
                     header={header}
@@ -176,6 +180,7 @@ export function EntryScreenSwitch({ entryId }: { entryId: string }) {
                 flipped={isReady && !isDraftRow ? detail : null}
                 onSaveBusyChange={setSaving}
                 onDeleteBusyChange={setDeleting}
+                isDeleting={isDeleting}
             />
         )
     }

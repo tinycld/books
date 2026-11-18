@@ -20,6 +20,7 @@ import {
 import { formatDay } from '../../../lib/register-range'
 import { ListBanner } from '../../ListBanner'
 import { ListCards } from '../../ListCards'
+import { ListFilterChip } from '../../ListFilterChips'
 import { ListHeaderCell, ListHeaderRow, ListTable } from '../../ListTable'
 import { StatusBadge } from '../../StatusBadge'
 
@@ -53,32 +54,6 @@ function dueDateText(row: PartyTransactionRow) {
 
 // ── Chips ──
 
-interface ChipProps {
-    label: string
-    isOn: boolean
-    testID: string
-    onPress: () => void
-}
-
-function Chip({ label, isOn, testID, onPress }: ChipProps) {
-    const box = isOn ? 'border-primary bg-primary' : 'border-border bg-background'
-    const text = isOn ? 'text-primary-foreground' : 'text-foreground'
-    return (
-        <Pressable
-            testID={testID}
-            accessibilityRole="button"
-            accessibilityState={{ selected: isOn }}
-            // react-native-web draws `aria-pressed` from the aria prop only.
-            aria-pressed={isOn}
-            onPress={onPress}
-            className={`justify-center rounded-full border px-3 ${box}`}
-            style={{ minHeight: 36 }}
-        >
-            <Text className={`text-sm ${text}`}>{label}</Text>
-        </Pressable>
-    )
-}
-
 interface FilterChipsProps {
     filter: TransactionFilter
     onSelect: (filter: TransactionFilter) => void
@@ -89,12 +64,13 @@ function FilterChips({ filter, onSelect, gutterClass }: FilterChipsProps) {
     const chips = TRANSACTION_FILTERS.map(item => {
         const select = () => onSelect(item.key)
         return (
-            <Chip
+            <ListFilterChip
                 key={item.key}
                 label={item.label}
                 isOn={item.key === filter}
                 testID={filterTestId(item.key)}
                 onPress={select}
+                size="compact"
             />
         )
     })

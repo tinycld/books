@@ -1,14 +1,13 @@
-import { Landmark, List, Percent } from 'lucide-react-native'
+import { Landmark, List, Percent, Receipt } from 'lucide-react-native'
 import { describe, expect, it } from 'vitest'
 import { accessFromRow } from '../tinycld/books/lib/access'
+import { NEW_ACTIONS, type NewAction } from '../tinycld/books/lib/new-actions'
 import {
     availableOnly,
     hidesNewFab,
     isActivePath,
     isNewActionAvailable,
     LIST_ENTRIES,
-    NEW_ACTIONS,
-    type NewAction,
     newMenuColumns,
     newMenuForAccess,
     SIDEBAR_ENTRIES,
@@ -360,6 +359,7 @@ describe('banking sidebar entry', () => {
         expect(SIDEBAR_ENTRIES[0]?.group).toBeUndefined()
         expect(sidebarSections(availableOnly(SIDEBAR_ENTRIES)).top.map(e => e.id)).toEqual([
             'banking',
+            'sales',
             'lists',
             'reports',
         ])
@@ -368,6 +368,60 @@ describe('banking sidebar entry', () => {
             expect(item.href).not.toBe('books/banking')
         }
         expect(hidesNewFab('/a/books/banking')).toBe(false)
+    })
+})
+
+// Sales lists spec §2: the Sales entry sits between Banking and Lists, opens All sales,
+// and is active on the six list routes and on every sales document.
+describe('sales sidebar entry', () => {
+    function salesEntry(): SidebarEntry {
+        const sales = SIDEBAR_ENTRIES.find(e => e.id === 'sales')
+        if (!sales) throw new Error('SIDEBAR_ENTRIES has no sales entry')
+        return sales
+    }
+
+    it('is the second top entry, between Banking and Lists, at books/sales', () => {
+        expect(SIDEBAR_ENTRIES[1]).toEqual({
+            id: 'sales',
+            label: 'Sales',
+            icon: Receipt,
+            href: 'books/sales',
+            activePaths: [
+                'books/invoices',
+                'books/estimates',
+                'books/sales-receipts',
+                'books/payments',
+                'books/credit-memos',
+            ],
+            available: true,
+        })
+        const top = sidebarSections(availableOnly(SIDEBAR_ENTRIES)).top.map(e => e.id)
+        expect(top.slice(0, 3)).toEqual(['banking', 'sales', 'lists'])
+    })
+
+    it.each([
+        '/a/org/books/sales',
+        '/a/org/books/invoices',
+        '/a/org/books/invoices/abc',
+        '/a/org/books/payments/new',
+        '/a/org/books/credit-memos/abc',
+    ])('is active on %s', pathname => {
+        expect(isActivePath(pathname, salesEntry())).toBe(true)
+    })
+
+    it.each([
+        '/a/org/books/bill-payments/abc',
+        '/a/org/books/bills',
+    ])('is not active on %s', pathname => {
+        expect(isActivePath(pathname, salesEntry())).toBe(false)
+    })
+
+    it.each([
+        '/a/books/sales',
+        '/a/books/invoices',
+        '/a/books/payments',
+    ])('keeps the New button on the list route %s', pathname => {
+        expect(hidesNewFab(pathname)).toBe(false)
     })
 })
 

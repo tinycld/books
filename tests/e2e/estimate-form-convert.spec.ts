@@ -484,9 +484,7 @@ test.describe('estimate-form: convert and delete', () => {
             })
             .toBeLessThanOrEqual(2)
 
-        // The saved estimate has no changes, so Convert writes nothing; the invoice's read
-        // of its estimate's lines fails and offers Retry. The estimate row itself is already
-        // in the store (the estimate screen below holds it), so only the lines read fetches.
+        // The saved estimate has no changes, so Convert writes nothing.
         let estimateWrites = 0
         // A write of an estimate or its lines: a request of its own, or an operation of
         // a batch.
@@ -500,24 +498,23 @@ test.describe('estimate-form: convert and delete', () => {
             if (isDirect || isBatched) estimateWrites += 1
         }
         page.on('request', countWrite)
-        await page.route('**/api/collections/books_estimate_lines/records*', route =>
-            route.request().method() === 'GET' ? route.fulfill({ status: 400 }) : route.continue()
-        )
         expect(await convertEstimate(page)).toBe(id)
-        await expect(page.getByTestId('invoice-error')).toBeVisible()
-        await expect(page.getByTestId('invoice-retry')).toBeVisible()
-        await expect(page.getByTestId('invoice-form')).toHaveCount(0)
         expect(estimateWrites).toBe(0)
         page.off('request', countWrite)
-        await page.unrouteAll({ behavior: 'wait' })
 
-        // Retry: the invoice form from the estimate, its read-only Customer above the link.
-        await page.getByTestId('invoice-retry').click()
-        await expect(page.getByTestId('invoice-form')).toBeVisible()
+        // The invoice form fills from the estimate: its customer, read-only above the
+        // "From estimate" link, and its line.
+        const invoiceForm = page.getByTestId('invoice-form')
+        await expect(invoiceForm).toBeVisible()
         const customer = page.getByTestId('invoice-customer-read-only')
         const link = page.getByTestId('invoice-from-estimate')
         await expect(customer).toContainText(HARBORVIEW)
         await expect(link).toHaveText(`From estimate ${number}`)
+        await expect(lineRows(page)).toHaveCount(1)
+        const invoiceLine = await lineRowId(page, 0)
+        await expect(invoiceForm.getByTestId(lineCellTestId(invoiceLine, 'product'))).toContainText(
+            ACCESS_POINT
+        )
         await expect
             .poll(async () => {
                 const top = await customer.boundingBox()
@@ -543,5 +540,35 @@ test.describe('estimate-form: convert and delete', () => {
         await expect(dialog).toHaveCount(0)
         await expect(page).toHaveURL(estimateUrlOf(id))
         await expect(page.getByTestId('estimate-form')).toBeVisible()
+    })
+
+    // A refused read must not make the invoice screen send its reads again and again
+    // while it mounts: a change of the refused-load count alone must not re-render the
+    // app shell (core connection notice). The screen may settle on the error or, when
+    // the store holds the lines the estimate screen loaded a moment ago, on the form;
+    // both are correct, so only the number of lines reads is checked.
+    test('convert with a refused lines read sends few reads', async ({ page }) => {
+        const memo = uniqueMemo('Estimate refused convert')
+        await openBooks(page)
+        await page.setViewportSize(PHONE)
+        await fillNewEstimate(page, memo)
+        await page.getByTestId('estimate-more').click()
+        await page.getByTestId('estimate-save').click()
+        await expect(page).toHaveURL(ESTIMATE_URL)
+        await expect(page.getByTestId('estimate-form')).toBeVisible()
+
+        let linesReads = 0
+        await page.route('**/api/collections/books_estimate_lines/records*', route => {
+            if (route.request().method() !== 'GET') return route.continue()
+            linesReads += 1
+            return route.fulfill({ status: 400 })
+        })
+        await convertEstimate(page)
+        await expect(
+            page.getByTestId('invoice-error').or(page.getByTestId('invoice-form'))
+        ).toBeVisible()
+        const readsUntilSettled = linesReads
+        await page.unrouteAll({ behavior: 'wait' })
+        expect(readsUntilSettled).toBeLessThanOrEqual(6)
     })
 })

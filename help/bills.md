@@ -42,6 +42,7 @@ Under the lines, Books shows the Account lines and Products and services subtota
 - Post gives the bill the next number, such as 1001, and records it in your books. An admin can change the next number in Settings, under Numbering, on the Bills card.
 - Post & new posts the bill and opens a new one. On a phone, it is in the More menu.
 - Cancel leaves the form. If you changed something, Books asks "Discard changes?" first.
+- Any other way out of a form with unsaved changes asks the same question first: the Back link and the browser's Back or Forward button. Choose Keep editing to stay with your changes, or Discard to go on. If you reload or close the browser tab, the browser asks.
 - To remove a saved draft, choose More and then Delete draft, at every screen width. This cannot be undone.
 
 Books refuses to post into a closed period, a bill whose vendor is inactive, a line whose account or product is inactive, a product without "I purchase this", a product whose expense account is inactive, and a bill whose total is zero. The message shows on the form; the draft that you saved stays.

@@ -1,5 +1,6 @@
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
-import { router, useNavigation } from 'expo-router'
+import { router } from 'expo-router'
+import { usePopToScreenBelow } from './useStackScreens'
 
 const CHART_ROUTE = 'accounts/index'
 
@@ -8,14 +9,9 @@ const CHART_ROUTE = 'accounts/index'
 // reload), there is nothing to pop to, so the chart replaces the register.
 export function useBackToChart() {
     const orgHref = useOrgHref()
-    const navigation = useNavigation()
+    const popToChart = usePopToScreenBelow(CHART_ROUTE)
     return () => {
-        const state = navigation.getState()
-        const previous = state ? state.routes[state.index - 1] : undefined
-        if (previous?.name === CHART_ROUTE) {
-            router.back()
-            return
-        }
+        if (popToChart()) return
         router.replace(orgHref('books/accounts'))
     }
 }
