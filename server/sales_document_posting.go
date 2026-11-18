@@ -111,6 +111,9 @@ func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 		return err
 	}
 	if !ownLines {
+		if err := checkTaxableNotNegative(kind, totals, taxes); err != nil {
+			return err
+		}
 		postingLines, err = salesDocPostingLines(tx, kind, doc, lines, totals, taxes)
 		if err != nil {
 			return err
@@ -171,6 +174,33 @@ func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 	// After the Replace step: a correction's balance is its total less the
 	// payments it took over from its original.
 	return setPostedDocumentBalance(tx, kind.balanceKind(), doc, totals.Total)
+}
+
+// checkTaxableNotNegative refuses, before any tax line is written, a document
+// of a kind with a TaxableNegative text whose taxable lines net below zero, or
+// any of whose component taxes is below zero (a taxable negative line that
+// untaxed lines keep the total above): its tax lines, which hold the figures
+// negated, cannot store a positive one. A document with no component tax
+// (no header rate) writes no tax line and passes. Then, for a kind with a
+// SubtotalNegative text, a subtotal below zero is refused too: the tax lines
+// store the subtotal negated as their gross amount.
+func checkTaxableNotNegative(kind salesDocKind, totals documentTotalsResult, taxes []componentTax) error {
+	if kind.Msgs.TaxableNegative == "" || len(taxes) == 0 {
+		return nil
+	}
+	negative := totals.TaxableTotal < 0
+	for _, t := range taxes {
+		if t.Amount < 0 {
+			negative = true
+		}
+	}
+	if negative {
+		return refuse("%s", kind.Msgs.TaxableNegative)
+	}
+	if kind.Msgs.SubtotalNegative != "" && totals.Subtotal < 0 {
+		return refuse("%s", kind.Msgs.SubtotalNegative)
+	}
+	return nil
 }
 
 // kindPostingLines asks the kind's PostingLines hook for the entry's lines;

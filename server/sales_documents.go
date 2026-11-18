@@ -176,6 +176,16 @@ type salesDocMessages struct {
 	// RevisionConflict refuses a save or a post of a document that changed after
 	// the caller loaded it (revision.go), with status 409.
 	RevisionConflict string
+	// TaxableNegative refuses, at Post, a document whose tax snapshot would
+	// hold a taxable amount or a component tax below zero, which its tax lines
+	// cannot store (checkTaxableNotNegative). "" is no check: only the refund
+	// receipt sets it, whose tax lines hold the figures negated (−MAX..0).
+	TaxableNegative string
+	// SubtotalNegative refuses, at Post and after the TaxableNegative check, a
+	// document with a component tax whose subtotal is below zero, which its tax
+	// lines' gross amount (−MAX..0) cannot store. "" is no check: only the
+	// refund receipt sets it.
+	SubtotalNegative string
 }
 
 // The lines built-in of every sales document host, whose row kinds say which
@@ -594,6 +604,11 @@ func transitionSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record, 
 		// An invoice correction moves the link of a posted or void credit memo
 		// to itself (moveCreditMemoLinks); nothing else may change with it.
 		if isMovingCreditMemoLink(tx, r.Id) && len(changedFields(stored, r, invoiceOnly)) == 0 {
+			return nil
+		}
+		// A sales receipt or credit memo correction moves the source link of a
+		// posted or void refund receipt to itself (refund_receipt_links.go).
+		if isMovingRefundLink(tx, r.Id) && len(changedFields(stored, r, refundLinkFields)) == 0 {
 			return nil
 		}
 		unlinks, err := onlySalesDocUnlinks(tx, stored, r)

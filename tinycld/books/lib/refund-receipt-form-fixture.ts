@@ -303,7 +303,7 @@ function lines(refundId: string, tag: string, seeds: LineSeed[]): RefundReceiptL
 }
 
 const LONG_VISIT =
-    'A technician visited, found the fault and left a written plan, but the fix did not hold and the client asked for the money back. Travel inside the Portland metro area was included; this refund covers the whole visit, billed in fifteen-minute steps.'
+    'A technician visited, found the fault and left a written plan, but the fix did not hold and the client asked for the money back. Travel inside the Portland metro area was included; this refund covers the whole visit as one flat amount.'
 
 // Every line kind: three items (two taxable), a subtotal, a -10% discount on it, a
 // description line and an item with a long description. Taxable total 48 300:
@@ -348,12 +348,15 @@ export const REFUND_RECEIPT_LINES = [
             kind: 'description',
             description: 'Hardware came back to the front office on November 11. Paid by check.',
         },
+        // One unit, not the 1.5 the seeded invoice, sales receipt and credit memo carry:
+        // with 1.5 the long-named product's seeded quantity nets to 0, and Sales by
+        // product blanks its Quantity and Avg price (D13), the figures the phone e2e reads.
         {
             kind: 'item',
             product: PRODUCT_IDS.networkVisit,
             description: LONG_VISIT,
-            quantity: 1.5,
-            rate: 28_000,
+            quantity: 1,
+            rate: 42_000,
             amount: 42_000,
         },
     ]),
