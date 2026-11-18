@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { BILL_OUTSTANDING, INVOICE_OUTSTANDING } from '../tinycld/books/lib/outstanding-documents'
+import {
+    BILL_OUTSTANDING,
+    CREDIT_OUTSTANDING,
+    INVOICE_OUTSTANDING,
+} from '../tinycld/books/lib/outstanding-documents'
 import {
     BILL_PAYMENT_APPLIED_COLUMNS,
     BILL_PAYMENT_APPLIED_MIN_WIDTH,
     BILL_PAYMENT_COLUMNS,
     BILL_PAYMENT_GRID_MIN_WIDTH,
+    CREDIT_APPLY_COLUMNS,
+    CREDIT_APPLY_GRID_MIN_WIDTH,
     PAYMENT_APPLIED_MIN_WIDTH,
     PAYMENT_COLUMNS,
     PAYMENT_GRID_MIN_WIDTH,
@@ -64,10 +70,23 @@ describe('payment column widths', () => {
         expect(BILL_PAYMENT_APPLIED_MIN_WIDTH).toBe(539)
     })
 
+    it('makes every apply dialog data column flex 1 with a least width of 95', () => {
+        expect(CREDIT_APPLY_COLUMNS).toEqual({
+            tick: 44,
+            bill: DATA,
+            dueDate: DATA,
+            open: DATA,
+            payment: DATA,
+        })
+        // Tick 44 + 4 × 95, 4 gaps of 12, 2 × 8 padding.
+        expect(CREDIT_APPLY_GRID_MIN_WIDTH).toBe(488)
+    })
+
     it('gives each descriptor its grids’ least widths for the grid/card switch', () => {
         expect(INVOICE_OUTSTANDING.gridMinWidth).toBe(595)
         expect(INVOICE_OUTSTANDING.appliedMinWidth).toBe(432)
         expect(BILL_OUTSTANDING.gridMinWidth).toBe(702)
         expect(BILL_OUTSTANDING.appliedMinWidth).toBe(539)
+        expect(CREDIT_OUTSTANDING.gridMinWidth).toBe(488)
     })
 })

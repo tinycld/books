@@ -3,6 +3,7 @@ import { isPhone } from './account-register-helpers'
 import { openBooksMenu } from './books-report-helpers'
 import { openEntriesList } from './journal-entries-helpers'
 import { visibleTestId } from './sales-receipt-helpers'
+import { pickFromSearchPicker } from './search-picker-helpers'
 
 // A bill's own screen: `books/bills/<id>`, never `books/bills/new`.
 export const BILL_URL = /\/books\/bills\/(?!new(?:[?#]|$))[^/?#]+$/
@@ -32,19 +33,6 @@ export async function openNewBill(page: Page) {
     await expect(page.getByTestId('bill-form')).toBeVisible()
     await expect(page.getByTestId('bill-title')).toHaveText('New bill')
     await expect(page.getByTestId('form-input-vendor')).toBeFocused()
-}
-
-// A Books SearchPicker: the trigger opens a menu whose search field takes the term, and
-// each option is a menu item named by its label.
-async function pickFromSearchPicker(page: Page, triggerTestId: string, label: string) {
-    const trigger = page.getByTestId(triggerTestId)
-    await trigger.click()
-    const search = page.getByTestId(`${triggerTestId}-search`)
-    await expect(search).toBeFocused()
-    await search.fill(label)
-    await page.getByRole('menuitem', { name: label, exact: true }).click()
-    await expect(page.getByRole('menuitem', { name: label, exact: true })).toHaveCount(0)
-    await expect(trigger).toContainText(label)
 }
 
 export async function pickBillVendor(page: Page, name: string) {
@@ -165,10 +153,14 @@ export async function openBillBySearch(page: Page, term: string) {
     ).toBeVisible()
 }
 
-// Settings → Purchases → Bills and expenses (expense spec §3.10). Only the bill and
-// expense tests whose describe title ends in "lines setting" may change the setting: it
-// is the shared books_settings row, and those tests run in their own Playwright project
-// before every other test (playwright.config.ts).
+// Settings → Purchases → Bills, expenses and vendor credits (expense spec §3.10, vendor
+// credit spec §3.8). Only the bill, expense and vendor credit tests whose describe title
+// ends in "lines setting" may change the setting: it is the shared books_settings row, and
+// those tests run in their own Playwright project before every other test
+// (playwright.config.ts).
+
+// The Purchases card's title (vendor credit spec §3.8).
+export const PURCHASES_CARD_TITLE = 'Bills, expenses and vendor credits'
 
 export const SETTINGS_ROW_PATH = '/api/collections/books_settings/records/bookssettings01'
 
@@ -189,6 +181,10 @@ export async function openPurchasesSettings(page: Page) {
     await expect(page).toHaveURL(/\/books\/settings$/)
     await visibleTestId(page, 'books-settings-section-purchases').click()
     await expect(page).toHaveURL(/\/books\/settings\/purchases$/)
+    // The card is found by its title, then the setting inside it.
+    await expect(
+        page.getByText(PURCHASES_CARD_TITLE, { exact: true }).filter({ visible: true })
+    ).toBeVisible()
     await expect(visibleTestId(page, 'books-settings-purchase-lines')).toBeVisible()
 }
 

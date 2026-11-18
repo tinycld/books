@@ -301,8 +301,10 @@ func componentTaxes(tx core.App, totals documentTotalsResult) ([]componentTax, e
 // with the sum of the item and percent amounts of the products that name it;
 // a bill's expenseByAccount), in chart order; then each tax component
 // credited to its agency's liability account, in the rate's order (a zero tax
-// no line). A Credit kind (a credit memo) posts the mirror: the total credited
-// to its credit account, the line accounts and the tax components debited.
+// no line). A Credit kind posts the mirror of its line accounts and tax
+// components: a credit memo's total is on its CreditAccount, with the income
+// accounts and the tax components debited; a vendor credit's total is on its
+// DebitAccount, with the expense accounts credited.
 func salesDocPostingLines(tx core.App, kind salesDocKind, doc *core.Record, lines []*core.Record, totals documentTotalsResult, taxes []componentTax) ([]postingLine, error) {
 	var out []postingLine
 	if kind.CreditAccount != nil {

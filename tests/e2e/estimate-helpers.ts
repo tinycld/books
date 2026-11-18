@@ -2,6 +2,7 @@ import { expect, type Page } from '@playwright/test'
 import { isPhone } from './account-register-helpers'
 import { lineCellTestId } from './invoice-helpers'
 import { openEntriesList } from './journal-entries-helpers'
+import { pickFromSearchPicker } from './search-picker-helpers'
 
 // An estimate's own screen: `books/estimates/<id>`, never `books/estimates/new`.
 export const ESTIMATE_URL = /\/books\/estimates\/(?!new(?:[?#]|$))[^/?#]+$/
@@ -30,19 +31,6 @@ export async function openNewEstimate(page: Page) {
     await page.getByTestId('books-new-estimate').click()
     await expect(page).toHaveURL(NEW_ESTIMATE_URL)
     await expect(page.getByTestId('estimate-title')).toHaveText('New estimate')
-}
-
-// A Books SearchPicker: the trigger opens a menu whose search field takes the term, and
-// each option is a menu item named by its label.
-async function pickFromSearchPicker(page: Page, triggerTestId: string, label: string) {
-    const trigger = page.getByTestId(triggerTestId)
-    await trigger.click()
-    const search = page.getByTestId(`${triggerTestId}-search`)
-    await expect(search).toBeFocused()
-    await search.fill(label)
-    await page.getByRole('menuitem', { name: label, exact: true }).click()
-    await expect(page.getByRole('menuitem', { name: label, exact: true })).toHaveCount(0)
-    await expect(trigger).toContainText(label)
 }
 
 export async function pickEstimateCustomer(page: Page, name: string) {

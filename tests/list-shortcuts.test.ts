@@ -1,5 +1,5 @@
 import type { Shortcut } from '@tinycld/core/lib/shortcuts/types'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, type Mock, vi } from 'vitest'
 import {
     LIST_KEY_LABELS,
     LIST_KEYS,
@@ -47,10 +47,10 @@ function sorted(actions: readonly string[]): string[] {
     return [...actions].sort()
 }
 
-function handlers(): Record<ListKeyAction, ReturnType<typeof vi.fn>> {
-    return Object.fromEntries(ALL_ACTIONS.map(action => [action, vi.fn()])) as Record<
+function handlers(): Record<ListKeyAction, Mock<() => void>> {
+    return Object.fromEntries(ALL_ACTIONS.map(action => [action, vi.fn<() => void>()])) as Record<
         ListKeyAction,
-        ReturnType<typeof vi.fn>
+        Mock<() => void>
     >
 }
 

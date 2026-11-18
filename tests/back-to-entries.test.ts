@@ -24,7 +24,13 @@ describe('popDepth', () => {
     })
 
     it('goes back one screen on every form route of the same name', () => {
-        for (const route of ['invoices/[id]', 'entries/[id]', 'payments/[id]', 'expenses/[id]']) {
+        for (const route of [
+            'invoices/[id]',
+            'entries/[id]',
+            'payments/[id]',
+            'expenses/[id]',
+            'vendor-credits/[id]',
+        ]) {
             expect(popDepth(stack('entries/index', route, route), 'k2'), route).toBe(1)
         }
     })
@@ -81,6 +87,7 @@ describe('backTarget', () => {
             ['credit-memos/[id]', 'Credit memo'],
             ['estimates/[id]', 'Estimate'],
             ['expenses/[id]', 'Expense'],
+            ['vendor-credits/[id]', 'Vendor credit'],
             ['payments/[id]', 'Payment'],
             ['entries/[id]', 'Journal entry'],
             ['transfers/[id]', 'Transfer'],
@@ -101,6 +108,14 @@ describe('backTarget', () => {
                 'k3'
             )
         ).toEqual({ route: 'bills/[id]', label: 'Bill', depth: 2 })
+    })
+
+    // Vendor credit spec §2, as the bill's case: a vendor credit right below is popped to
+    // and named.
+    it('pops a draft vendor credit opened over a draft vendor credit back to that draft', () => {
+        expect(
+            backTarget(stack('entries/index', 'vendor-credits/[id]', 'vendor-credits/[id]'), 'k2')
+        ).toEqual({ route: 'vendor-credits/[id]', label: 'Vendor credit', depth: 1 })
     })
 
     it('pops a draft bill opened over a draft bill back to that draft', () => {

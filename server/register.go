@@ -29,8 +29,10 @@ func Register(app *pocketbase.PocketBase) {
 	registerSalesDocGuards(app, creditMemoKind)
 	registerSalesDocGuards(app, billKind)
 	registerSalesDocGuards(app, expenseKind)
+	registerSalesDocGuards(app, vendorCreditKind)
 	registerPaymentGuards(app)
 	registerBillPaymentGuards(app)
+	registerVendorCreditApplications(app)
 	registerPartyBalances()
 	registerEstimateResponses(app)
 	// Declare the public view's source tables so CheckViews and the change

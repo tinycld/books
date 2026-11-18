@@ -28,8 +28,9 @@ import (
 // It takes the app because these labels read another row: an admin grant is
 // labeled by the user it grants, a line by its account or its document, a
 // bundle row by its bundle and product, a bank connection by its account, a
-// bank import by its file, a customer's response by its estimate, and an
-// attachment by its bill or expense.
+// bank import by its file, a customer's response by its estimate, a vendor
+// credit application by its credit and its bill, and an attachment by its
+// bill, expense or vendor credit.
 //
 // A tax ID (an SSN for a sole proprietor) is redacted: it must not stay
 // readable in the audit log after it is corrected or the vendor is deleted.
@@ -73,6 +74,13 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		"books_expense_lines": {
 			ExtractLabel: func(r *core.Record) string { return expenseLineLabel(app, r) },
 		},
+		vendorCreditsCollection: {ExtractLabel: vendorCreditLabel, Redact: []string{"sort_key"}},
+		vendorCreditLinesCollection: {
+			ExtractLabel: func(r *core.Record) string { return vendorCreditLineLabel(app, r) },
+		},
+		vendorCreditApplicationsCollection: {
+			ExtractLabel: func(r *core.Record) string { return vendorCreditApplicationLabel(app, r) },
+		},
 		"books_payments": {ExtractLabel: paymentLabel, Redact: []string{"sort_key"}},
 		"books_payment_applications": {
 			ExtractLabel: func(r *core.Record) string { return paymentApplicationLabel(app, r) },
@@ -103,21 +111,23 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 }
 
 // auditParentFields maps each line collection to the field that names its
-// document. The books_audit_log view (migration 2100000023) reads the same
+// document. The books_audit_log view (migration 2100000024) reads the same
 // collections to give a line's audit row its document, and Register declares them
 // as the view's sources, because a line write can change that document.
 var auditParentFields = map[string]string{
-	"books_journal_lines":        "entry",
-	"books_invoice_lines":        "invoice",
-	"books_sales_receipt_lines":  "sales_receipt",
-	"books_estimate_lines":       "estimate",
-	"books_credit_memo_lines":    "credit_memo",
-	"books_bill_lines":           "bill",
-	"books_expense_lines":        "expense",
-	"books_bundle_items":         "bundle",
-	"books_estimate_responses":   "estimate",
-	"books_payment_applications": "payment",
-	billPaymentLinesCollection:   "payment",
+	"books_journal_lines":              "entry",
+	"books_invoice_lines":              "invoice",
+	"books_sales_receipt_lines":        "sales_receipt",
+	"books_estimate_lines":             "estimate",
+	"books_credit_memo_lines":          "credit_memo",
+	"books_bill_lines":                 "bill",
+	"books_expense_lines":              "expense",
+	"books_bundle_items":               "bundle",
+	"books_estimate_responses":         "estimate",
+	"books_payment_applications":       "payment",
+	billPaymentLinesCollection:         "payment",
+	vendorCreditLinesCollection:        "vendor_credit",
+	vendorCreditApplicationsCollection: "vendor_credit",
 }
 
 // auditLineCollections are the keys of auditParentFields in name order.
@@ -139,6 +149,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_credit_memos", Label: "Credit memo"},
 		{Value: "books_bills", Label: "Bill"},
 		{Value: "books_expenses", Label: "Expense"},
+		{Value: vendorCreditsCollection, Label: "Vendor credit"},
 		{Value: "books_payments", Label: "Payment"},
 		{Value: billPaymentsCollection, Label: "Bill payment"},
 		{Value: "books_journal_entries", Label: "Journal entry"},
@@ -148,8 +159,10 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_credit_memo_lines", Label: "Credit memo line"},
 		{Value: "books_bill_lines", Label: "Bill line"},
 		{Value: "books_expense_lines", Label: "Expense line"},
+		{Value: vendorCreditLinesCollection, Label: "Vendor credit line"},
 		{Value: "books_payment_applications", Label: "Payment application"},
 		{Value: billPaymentLinesCollection, Label: "Bill payment line"},
+		{Value: vendorCreditApplicationsCollection, Label: "Vendor credit application"},
 		{Value: "books_journal_lines", Label: "Journal line"},
 		{Value: "books_attachments", Label: "Attachment"},
 		{Value: "books_accounts", Label: "Account"},
@@ -342,6 +355,45 @@ func expenseLineLabel(app core.App, r *core.Record) string {
 		return fmt.Sprintf("%s: line %d", expense, r.GetInt("position")+1)
 	}
 	return expense + ": " + lineRowLabel(expenseKind, withLine(lines, r), r)
+}
+
+// vendorCreditLabel names a vendor credit by its number: "Vendor credit 1002".
+// A draft has no number: "Draft vendor credit".
+func vendorCreditLabel(r *core.Record) string {
+	noun, _, draft := entryNouns(docTypeVendorCredit)
+	if n := r.GetString("number"); n != "" {
+		return noun + " " + n
+	}
+	return draft
+}
+
+// vendorCreditLineLabel is billLineLabel for a vendor credit's line: "Vendor
+// credit 1002: Account line 2".
+func vendorCreditLineLabel(app core.App, r *core.Record) string {
+	credit := r.GetString("vendor_credit")
+	if rec, err := app.FindRecordById(vendorCreditsCollection, credit); err == nil {
+		credit = vendorCreditLabel(rec)
+	}
+	lines, err := salesDocLines(app, vendorCreditKind, r.GetString("vendor_credit"))
+	if err != nil {
+		return fmt.Sprintf("%s: line %d", credit, r.GetInt("position")+1)
+	}
+	return credit + ": " + lineRowLabel(vendorCreditKind, withLine(lines, r), r)
+}
+
+// vendorCreditApplicationLabel names an application by its vendor credit and
+// its bill: "Vendor credit 1002: Bill 1003". A credit or a bill that cannot be
+// read falls back to its id, so the audit row is still written.
+func vendorCreditApplicationLabel(app core.App, r *core.Record) string {
+	credit := r.GetString("vendor_credit")
+	if rec, err := app.FindRecordById(vendorCreditsCollection, credit); err == nil {
+		credit = vendorCreditLabel(rec)
+	}
+	bill := r.GetString("bill")
+	if b, err := app.FindRecordById("books_bills", bill); err == nil {
+		bill = billLabel(b)
+	}
+	return credit + ": " + bill
 }
 
 // paymentLabel names a payment by its number: "Payment 1004". A draft has no

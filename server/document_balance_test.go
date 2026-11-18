@@ -152,6 +152,126 @@ func TestVerifyDocumentBalances_FindsAndRebuildFixesAnInvoiceDrift(t *testing.T)
 	}
 }
 
+// Each balance kind lists what lowers its balance (spec §4, Q20): a payer with
+// a payment collection is a payment's lines, of which only a posted payment's
+// count; a payer without one is a credit application, of which every row
+// counts.
+func TestBalanceKinds_ListTheirPayers(t *testing.T) {
+	invoicePayer := balancePayer{
+		LinesCollection: applicationsCollection, LineField: "invoice",
+		PaymentCollection: paymentsCollection, PaymentField: "payment",
+	}
+	billPayment := balancePayer{
+		LinesCollection: billPaymentLinesCollection, LineField: "bill",
+		PaymentCollection: billPaymentsCollection, PaymentField: "payment",
+	}
+	billCredit := balancePayer{
+		LinesCollection: vendorCreditApplicationsCollection, LineField: "bill",
+		EntryField: "vendor_credit", EntryCollection: vendorCreditsCollection,
+		CashMemo: "Bill %s paid by vendor credit (cash basis)",
+	}
+	creditApplied := balancePayer{
+		LinesCollection: vendorCreditApplicationsCollection, LineField: "vendor_credit",
+		EntryField: "vendor_credit", EntryCollection: vendorCreditsCollection,
+	}
+	for _, c := range []struct {
+		kind balanceKind
+		want []balancePayer
+	}{
+		{invoiceBalanceKind, []balancePayer{invoicePayer}},
+		{billBalanceKind, []balancePayer{billPayment, billCredit}},
+		{vendorCreditBalanceKind, []balancePayer{creditApplied}},
+		{creditMemoBalanceKind, nil},
+	} {
+		if len(c.kind.Payers) != len(c.want) {
+			t.Errorf("%s has %d payers %+v, want %d", c.kind.Noun, len(c.kind.Payers), c.kind.Payers, len(c.want))
+			continue
+		}
+		for i := range c.want {
+			if c.kind.Payers[i] != c.want[i] {
+				t.Errorf("%s payer %d = %+v, want %+v", c.kind.Noun, i, c.kind.Payers[i], c.want[i])
+			}
+		}
+	}
+
+	for _, c := range []struct {
+		kind balanceKind
+		want balancePayer
+		ok   bool
+	}{
+		{invoiceBalanceKind, invoicePayer, true},
+		{billBalanceKind, billPayment, true},
+		{vendorCreditBalanceKind, balancePayer{}, false},
+		{creditMemoBalanceKind, balancePayer{}, false},
+	} {
+		got, ok := c.kind.paymentPayer()
+		if ok != c.ok || (ok && got != c.want) {
+			t.Errorf("%s paymentPayer() = %+v, %v; want %+v, %v", c.kind.Noun, got, ok, c.want, c.ok)
+		}
+	}
+}
+
+// A bill's balance is its total less posted bill payments and less credit
+// applications. A bill payment has no draft (its status is posted or void), so
+// the payment that does not count here is a void one, whose lines were
+// released.
+func TestDocumentBalance_ABillLessPostedPaymentsAndCredits(t *testing.T) {
+	ae := newApplyEnv(t)
+	actor := ae.users.bookkeeper.Id
+	ae.pay(t, ae.pacificPower, nil, payLine{ae.large, 4000})
+	voided := ae.pay(t, ae.pacificPower, nil, payLine{ae.large, 1000})
+	if err := voidBillPaymentAs(ae.app, voided.Id, actor); err != nil {
+		t.Fatalf("void the 10.00 payment: %v", err)
+	}
+	ae.apply(t, ae.credit, ae.large, 3000, applyDay)
+
+	if got, err := postedAppliedTo(ae.app, billBalanceKind, ae.large.Id); err != nil || got != 7000 {
+		t.Errorf("postedAppliedTo of the bill = %d, err %v; want 7000 (the posted 4000 and the credit's 3000)", got, err)
+	}
+	if got, err := documentBalance(ae.app, billBalanceKind, ae.large.Id); err != nil || got != 3000 {
+		t.Errorf("documentBalance of the 10000 bill = %d, err %v; want 3000", got, err)
+	}
+	if got, err := postedAppliedTo(ae.app, vendorCreditBalanceKind, ae.credit.Id); err != nil || got != 3000 {
+		t.Errorf("postedAppliedTo of the credit = %d, err %v; want 3000", got, err)
+	}
+	requireBillBalance(t, ae.app, ae.large, 3000)
+	requireVendorCreditBalance(t, ae.app, ae.credit.Id, 2000)
+	if drifts, err := verifyDocumentBalances(ae.app); err != nil || len(drifts) != 0 {
+		t.Fatalf("verifyDocumentBalances = %+v, err %v; want none", drifts, err)
+	}
+
+	setDocumentBalanceRaw(t, ae.app, "books_bills", ae.large.Id, 10000)
+	drifts, err := verifyDocumentBalances(ae.app)
+	if err != nil {
+		t.Fatalf("verifyDocumentBalances: %v", err)
+	}
+	if len(drifts) != 1 || drifts[0].Document != ae.large.Id || drifts[0].Want != 3000 {
+		t.Fatalf("drifts = %+v, want one that names bill %s and wants 3000", drifts, ae.large.Id)
+	}
+
+	setDocumentBalanceRaw(t, ae.app, vendorCreditsCollection, ae.credit.Id, 5000)
+	drifts, err = verifyDocumentBalances(ae.app)
+	if err != nil {
+		t.Fatalf("verifyDocumentBalances: %v", err)
+	}
+	wants := map[string]int64{}
+	for _, d := range drifts {
+		wants[d.Document] = d.Want
+	}
+	if len(drifts) != 2 || wants[ae.large.Id] != 3000 || wants[ae.credit.Id] != 2000 {
+		t.Fatalf("drifts = %+v, want the bill (3000) and the credit (2000)", drifts)
+	}
+
+	if fixed, err := rebuildDocumentBalances(ae.app); err != nil || fixed != 2 {
+		t.Fatalf("rebuildDocumentBalances fixed %d, err %v; want 2", fixed, err)
+	}
+	requireBillBalance(t, ae.app, ae.large, 3000)
+	requireVendorCreditBalance(t, ae.app, ae.credit.Id, 2000)
+	if drifts, err := verifyDocumentBalances(ae.app); err != nil || len(drifts) != 0 {
+		t.Fatalf("after the rebuild: %+v, err %v; want none", drifts, err)
+	}
+}
+
 // A bill's balance is verified and rebuilt from its posted bill payment lines
 // as an invoice's is from its applications.
 func TestVerifyDocumentBalances_FindsAndRebuildFixesABillDrift(t *testing.T) {

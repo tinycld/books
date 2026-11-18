@@ -12,7 +12,7 @@ import type { DocumentLifecycle } from './sales-document-kinds'
 
 export type DocumentStatus = BooksInvoices['status'] | BooksEstimates['status']
 
-type PostingStatus = BooksJournalEntries['status']
+export type PostingStatus = BooksJournalEntries['status']
 
 function isPostingStatus(status: DocumentStatus): status is PostingStatus {
     return status === 'draft' || status === 'posted' || status === 'void'
@@ -77,19 +77,37 @@ export function statusBadgeOf(
     return { label: estimateStatusLabel(status), tone: QUOTE_TONES[status] }
 }
 
-// The badge of a document that is paid (receive-payment spec §3.9, pay-bills spec §3.9):
-// a posted invoice or bill reads Paid (success) when nothing is open and Partly paid
-// (warning) while part of its total is open; otherwise its posting badge. `balance` and
-// `total` are in cents.
-export function paidBadge(
+// The read view's badge of a kind whose posted documents keep an open balance
+// (DocumentKind.balanceBadge). `balance` and `total` are in cents.
+export type BalanceBadge = (
     status: PostingStatus,
     balance: number,
     total: number
-): { label: string; tone: StatusTone } {
-    if (status === 'posted' && balance <= 0) return { label: 'Paid', tone: 'success' }
-    if (status === 'posted' && balance < total) return { label: 'Partly paid', tone: 'warning' }
-    return { label: entryStatusText(status), tone: POSTING_TONES[status] }
+) => { label: string; tone: StatusTone }
+
+// The one rule of a balance badge, with the kind's words: a posted document reads `done`
+// (success) when nothing is open and `partly` (warning) while part of its total is open;
+// otherwise its posting badge.
+function balanceBadgeWith(words: { done: string; partly: string }): BalanceBadge {
+    return (status, balance, total) => {
+        if (status === 'posted' && balance <= 0) return { label: words.done, tone: 'success' }
+        if (status === 'posted' && balance < total) {
+            return { label: words.partly, tone: 'warning' }
+        }
+        return { label: entryStatusText(status), tone: POSTING_TONES[status] }
+    }
 }
+
+// The badge of a document that is paid (receive-payment spec §3.9, pay-bills spec §3.9):
+// a posted invoice or bill reads Paid or Partly paid.
+export const paidBadge: BalanceBadge = balanceBadgeWith({ done: 'Paid', partly: 'Partly paid' })
+
+// The badge of a vendor credit (vendor credit spec §3.7): a posted credit reads Applied
+// when nothing is left to apply and Partly applied while part of it is applied.
+export const appliedBadge: BalanceBadge = balanceBadgeWith({
+    done: 'Applied',
+    partly: 'Partly applied',
+})
 
 // The read view's actions of a quote (a closed estimate, or any estimate for a reader):
 // Open invoice first for everyone on a closed estimate that names its invoice, Copy for

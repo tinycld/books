@@ -20,7 +20,11 @@ In a web browser, the Paid from field has focus when the screen opens.
 5. Tick each bill you pay, or type the amount in its Payment cell.
 6. Choose Pay.
 
-The list shows every posted bill with an open balance, the earliest due date first. A bill due before today shows "Overdue".
+The list shows every posted bill with an open balance, the earliest due date first. A bill due before today shows "Overdue". The Open balance of a bill is what is still owed after its payments and the vendor credits applied to it, so a bill that credits cover in full is not in the list.
+
+## Unapplied vendor credits
+
+When a vendor of the open bills in the list has a posted vendor credit that is not fully applied, a notice above the open bills lists each such vendor credit with its unapplied part, for example "Vendor credit 1002 · Office Supply World · $50.00 unapplied". Choose one to open the credit, then choose Apply to bills to lower what you owe that vendor before you pay. Pay bills does not apply credits itself: there is no credit column, and a payment is still at most the bill's open balance. When no vendor in the list has unapplied credit, the notice does not show. See [Vendor credits](help://books:vendor-credits).
 
 ## Select bills and pay part of a bill
 

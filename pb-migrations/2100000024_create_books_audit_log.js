@@ -12,14 +12,16 @@
 // otherwise, and "Unknown user" when the user row is gone. event reads an
 // update whose status became posted or void as posted or voided.
 //
-// A line row (the eleven collections below) names its document in parent_type
-// and parent_id, read from the live line, else from its delete snapshot;
-// history_type and history_id are the record whose history the row opens: the
-// document for a line, the record itself otherwise. server/audit.go
-// auditParentFields lists the same eleven. The view reads the payment
-// applications, bill payment lines and credit memo lines tables, so it comes
-// after 2100000019_create_books_payments, 2100000021_create_books_bill_payments
-// and 2100000022_create_books_credit_memos.
+// A line row (the thirteen collections below) names its document in
+// parent_type and parent_id, read from the live line, else from its delete
+// snapshot; history_type and history_id are the record whose history the row
+// opens: the document for a line, the record itself otherwise. server/audit.go
+// auditParentFields lists the same thirteen. The view reads the payment
+// applications, bill payment lines, credit memo lines, vendor credit lines and
+// vendor credit applications tables, so it comes after
+// 2100000019_create_books_payments, 2100000021_create_books_bill_payments,
+// 2100000022_create_books_credit_memos and
+// 2100000023_create_books_vendor_credits.
 //
 // The query is one SELECT: PocketBase's view parser refuses UNION ALL. Every
 // computed column is cast to TEXT, because PocketBase types an uncast
@@ -51,6 +53,8 @@ const LINES = [
     ['books_journal_lines', 'books_journal_entries', 'entry'],
     ['books_payment_applications', 'books_payments', 'payment'],
     ['books_sales_receipt_lines', 'books_sales_receipts', 'sales_receipt'],
+    ['books_vendor_credit_applications', 'books_vendor_credits', 'vendor_credit'],
+    ['books_vendor_credit_lines', 'books_vendor_credits', 'vendor_credit'],
 ]
 
 const CHANGES = 'CASE WHEN json_valid(a.changes) THEN a.changes END'

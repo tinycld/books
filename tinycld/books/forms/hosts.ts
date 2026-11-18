@@ -2,7 +2,7 @@ import type { FormHostDefInput } from '@tinycld/core/lib/forms/host'
 import { BUNDLE_ITEM_COLUMNS } from '../lib/bundle-items'
 import { DOCUMENT_LINE_COLUMNS, DOCUMENT_ROW_KINDS } from '../lib/document-line-columns'
 import { DOCUMENT_NOTE_LABELS, MEMO_ONLY_LABEL } from '../lib/document-notes'
-import { EXPENSE_REF_HINT, VENDOR_REF_HINT } from '../lib/document-texts'
+import { EXPENSE_REF_HINT, VENDOR_CREDIT_REF_HINT, VENDOR_REF_HINT } from '../lib/document-texts'
 import {
     ACCOUNT_ROW_KIND,
     PURCHASE_ACCOUNT_COLUMNS,
@@ -228,10 +228,28 @@ const BILL_LAYOUT = {
 
 export const EXPENSE_HOST_KEY = 'books:expense'
 
-// A custom File field on a bill or expense form stores its files in books_attachments
-// (spec §3.8), keyed by the document; the Attachments section's rows share the
-// collection with an empty `field`. No column is added to the host collection.
-function attachmentFiles(recordColumn: 'bill' | 'expense') {
+export const VENDOR_CREDIT_HOST_KEY = 'books:vendor_credit'
+
+// The default Vendor credit form (vendor credit spec §3.3): one page. Vendor, Credit date
+// and Vendor's credit no. share the header band's one row, a third each, the full row
+// below 640 px. Custom fields follow Vendor's credit no.; the account lines, the product
+// lines and the internal memo follow. A vendor credit has no mailing address, terms, due
+// date or message.
+export const VENDOR_CREDIT_LAYOUT = {
+    pages: [{ key: 'main', title: 'Vendor credit' }],
+    fields: {
+        vendor: { width: 'third', narrowWidth: 'full' },
+        date: { width: 'third', narrowWidth: 'full' },
+        ref_no: { width: 'third', narrowWidth: 'full', description: VENDOR_CREDIT_REF_HINT },
+        memo: { description: MEMO_HINT },
+    },
+    rules: [],
+} satisfies FormHostDefInput['layout']
+
+// A custom File field on a bill, expense or vendor credit form stores its files in
+// books_attachments (spec §3.8), keyed by the document; the Attachments section's rows
+// share the collection with an empty `field`. No column is added to the host collection.
+function attachmentFiles(recordColumn: 'bill' | 'expense' | 'vendor_credit') {
     return {
         collection: 'books_attachments',
         recordColumn,
@@ -278,9 +296,9 @@ const DOCUMENT_LINES_BUILTIN = {
     insertShortcuts: { below: 'Alt+Enter' },
 } satisfies FormHostDefInput['builtin'][number]
 
-// The two line tables the purchase documents (a bill, an expense) share: the same
-// columns, row kinds and keys, so the server's line guard checks a bill or expense line
-// alike. Not required, unlike the sales `lines`: the Purchase lines setting hides one
+// The two line tables the purchase documents (a bill, an expense, a vendor credit) share:
+// the same columns, row kinds and keys, so the server's line guard checks a bill, expense
+// or vendor credit line alike. Not required, unlike the sales `lines`: the Purchase lines setting hides one
 // table, and a required built-in cannot be hidden. The kind's schema holds the post's
 // line-count rule. The server's line guard finds a line's row kind in either table.
 const PURCHASE_LINE_BUILTINS = [
@@ -1519,6 +1537,86 @@ const hosts: FormHostDefInput[] = [
         ],
         insertCustomBefore: 'account_lines',
         layout: EXPENSE_LAYOUT,
+    },
+    {
+        key: VENDOR_CREDIT_HOST_KEY,
+        label: 'Vendor credit',
+        collection: 'books_vendor_credits',
+        formColumn: 'form',
+        fieldsColumn: 'fields',
+        files: attachmentFiles('vendor_credit'),
+        // Every column, the server-written ones too: a custom key must never shadow a
+        // column.
+        columns: [
+            'id',
+            'vendor',
+            'status',
+            'number',
+            'sequence',
+            'date',
+            'ref_no',
+            'memo',
+            'subtotal',
+            'total',
+            'balance',
+            'revision',
+            'currency',
+            'entry',
+            'posted_at',
+            'posted_by',
+            'voided_at',
+            'voided_by',
+            'replaces',
+            'replaced_by',
+            'form',
+            'fields',
+            'sort_key',
+            'created',
+            'updated',
+        ],
+        builtin: [
+            {
+                key: 'vendor',
+                label: 'Vendor',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                locked: true,
+                component: 'VendorField',
+                chrome: 'cell',
+            },
+            {
+                key: 'date',
+                label: 'Credit date',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                locked: true,
+                component: 'DocumentDateField',
+                chrome: 'cell',
+            },
+            // As the bill's ref_no: VendorRefField draws the input and the layout's
+            // description as its hint; the cell draws the label and the error.
+            {
+                key: 'ref_no',
+                label: "Vendor's credit no.",
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'VendorRefField',
+                chrome: 'cell',
+            },
+            ...PURCHASE_LINE_BUILTINS,
+            {
+                key: 'memo',
+                label: MEMO_ONLY_LABEL,
+                kind: 'textarea',
+                storage: 'column',
+                required: false,
+            },
+        ],
+        insertCustomBefore: 'account_lines',
+        layout: VENDOR_CREDIT_LAYOUT,
     },
 ]
 

@@ -418,6 +418,48 @@ func TestVendor_DeleteRefusedWhileOnExpenses(t *testing.T) {
 	})
 }
 
+// Vendor credit spec §4: a vendor on any vendor credit, draft or posted,
+// cannot be deleted. The vendor credits check comes after the expenses one.
+func TestVendor_DeleteRefusedWhileOnVendorCredits(t *testing.T) {
+	wantOnVendorCredits := func(name string) string { return name + " is on vendor credits. Make it inactive instead." }
+	wantOnBills := func(name string) string { return name + " is on bills. Make it inactive instead." }
+
+	t.Run("on one draft vendor credit and no other document", func(t *testing.T) {
+		ve := newVendorCreditEnv(t)
+		vc := ve.mkVendorCredit(t, ve.officeSupply, nil)
+		mkVendorCreditLine(t, ve.app, vc, 0, accountLine(ve.designTools, 4000))
+		requireMessageOnlyRefusal(t, ve.app.Delete(reload(t, ve.app, "books_vendors", ve.officeSupply.Id)),
+			wantOnVendorCredits("Office Supply World"))
+		reload(t, ve.app, "books_vendors", ve.officeSupply.Id)
+	})
+
+	t.Run("on a bill, an expense and a vendor credit gets the bills text", func(t *testing.T) {
+		env := newLedgerEnv(t)
+		registerSalesDocGuards(env.app, billKind)
+		registerSalesDocGuards(env.app, expenseKind)
+		registerSalesDocGuards(env.app, vendorCreditKind)
+		bindHostsByKey(t, env.app, billKind.HostKey, expenseKind.HostKey, vendorCreditHostKey)
+		ee := expenseEnvOn(t, env)
+		vc := mkVendorCreditOn(t, ee.app, ee.summit, nil)
+		mkVendorCreditLine(t, ee.app, vc, 0, accountLine(ee.software, 3000))
+		exp := ee.mkExpense(t, map[string]any{"vendor": ee.summit.Id})
+		mkExpenseLine(t, ee.app, exp, 0, accountLine(ee.software, 12500))
+		bill := mkBill(t, ee.app, ee.summit, nil)
+		mkBillLine(t, ee.app, bill, 0, accountLine(ee.software, 8000))
+		requireMessageOnlyRefusal(t, ee.app.Delete(reload(t, ee.app, "books_vendors", ee.summit.Id)),
+			wantOnBills("Summit IT Services"))
+		reload(t, ee.app, "books_vendors", ee.summit.Id)
+
+		// With no bill, the expenses text comes before the vendor credits one.
+		if err := ee.app.Delete(reload(t, ee.app, "books_bills", bill.Id)); err != nil {
+			t.Fatalf("delete the draft bill: %v", err)
+		}
+		requireMessageOnlyRefusal(t, ee.app.Delete(reload(t, ee.app, "books_vendors", ee.summit.Id)),
+			"Summit IT Services is on expenses. Make it inactive instead.")
+		reload(t, ee.app, "books_vendors", ee.summit.Id)
+	})
+}
+
 func TestVendor_DeletingItsAccountClearsTheExpenseAccount(t *testing.T) {
 	app := newGuardedApp(t)
 	rent := mkAccount(t, app, "Rent", "expense", "rent_lease")
