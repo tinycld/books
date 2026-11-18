@@ -117,6 +117,8 @@ with the reason, and shown to the human at the end)
 - fix review: round 1 (`cp/cp3-fix-review.md`): 0 BLOCK, 1 NOTE, 7 of 7 FIXED · NOTE (redundant `defaultValues` reset in `usePaymentFormControl`) to Design notes · fresh critic on read-reader 1280/390 light (`evidence/cp3/critique-fix.md`): 0 INVALID, 0 BLOCKING, 2 NOTE; the gate-2 BLOCKING (credit no. under the link at 1280) resolved; NOTE band Vendor link offset is the existing Design note; NOTE 390 credit no. in the link tone to Design notes. Rounds: 1.
 - gate 3 A notes: 3 (empty-amount Not placed, list-error sum refusal, dead `partyEmpty` text), listed under Design notes, with the help-topic note of A and B
 - reviewer-caught deferrals: the form ran `paymentSchemaWith`, not `vendorRefundSchema` (reviewer A; the implementer did not declare it) · the tautological "same schema result" test (reviewer A) · both fixed in round 1 (fix 4, T-a).
+- commit: cdb875b4
+- human: n/a (review mode C)
 
 ## Final review
 - eval:
