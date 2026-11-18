@@ -1,0 +1,266 @@
+{
+    "outDir": "sales-lists-reference",
+    "shots": [
+        {
+            "name": "all",
+            "url": "/a/books/helix-mockup?tab=all",
+            "ready": "sales-row-slinv0000001048",
+            "widths": [1280]
+        },
+        {
+            "name": "all-mid",
+            "url": "/a/books/helix-mockup?tab=all",
+            "ready": "sales-row-slinv0000001048",
+            "widths": [900]
+        },
+        {
+            "name": "all-phone",
+            "url": "/a/books/helix-mockup?tab=all",
+            "ready": "sales-row-slinv0000001048",
+            "widths": [390]
+        },
+        {
+            "name": "all-ticked",
+            "url": "/a/books/helix-mockup?tab=all&state=ticked",
+            "ready": "sales-row-slinv0000001048",
+            "widths": [1280]
+        },
+        {
+            "name": "all-ticked-phone",
+            "url": "/a/books/helix-mockup?tab=all&state=ticked",
+            "ready": "sales-row-slinv0000001048",
+            "widths": [390]
+        },
+        {
+            "name": "invoices",
+            "url": "/a/books/helix-mockup?tab=invoices",
+            "ready": "sales-row-slinv0000001048",
+            "widths": [1280]
+        },
+        {
+            "name": "invoices-phone",
+            "url": "/a/books/helix-mockup?tab=invoices",
+            "ready": "sales-row-slinv0000001048",
+            "widths": [390]
+        },
+        {
+            "name": "invoices-sorted",
+            "url": "/a/books/helix-mockup?tab=invoices&state=sorted",
+            "ready": "sales-row-slinv0000001048",
+            "widths": [1280]
+        },
+        {
+            "name": "estimates",
+            "url": "/a/books/helix-mockup?tab=estimates",
+            "ready": "sales-row-slest0000000088",
+            "widths": [1280]
+        },
+        {
+            "name": "sales-receipts",
+            "url": "/a/books/helix-mockup?tab=sales-receipts",
+            "ready": "sales-row-slsr00000000205",
+            "widths": [1280]
+        },
+        {
+            "name": "payments",
+            "url": "/a/books/helix-mockup?tab=payments",
+            "ready": "sales-row-slpay0000000312",
+            "widths": [1280]
+        },
+        {
+            "name": "payments-phone",
+            "url": "/a/books/helix-mockup?tab=payments",
+            "ready": "sales-row-slpay0000000312",
+            "widths": [390]
+        },
+        {
+            "name": "credit-memos",
+            "url": "/a/books/helix-mockup?tab=credit-memos",
+            "ready": "sales-row-slcm00000000027",
+            "widths": [1280]
+        },
+        {
+            "name": "beside",
+            "url": "/a/books/helix-mockup?state=beside",
+            "ready": "sales-name-row-slinv0000001047",
+            "widths": [1440]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?tab=invoices&state=loading",
+            "ready": "sales-loading",
+            "widths": [1280]
+        },
+        {
+            "name": "loading-phone",
+            "url": "/a/books/helix-mockup?tab=invoices&state=loading",
+            "ready": "sales-loading",
+            "widths": [390]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/helix-mockup?tab=invoices&state=empty",
+            "ready": "sales-empty",
+            "widths": [1280]
+        },
+        {
+            "name": "empty-phone",
+            "url": "/a/books/helix-mockup?tab=invoices&state=empty",
+            "ready": "sales-empty",
+            "widths": [390]
+        },
+        {
+            "name": "empty-all",
+            "url": "/a/books/helix-mockup?tab=all&state=empty",
+            "ready": "sales-empty",
+            "widths": [1280]
+        },
+        {
+            "name": "no-match",
+            "url": "/a/books/helix-mockup?tab=invoices&state=no-match",
+            "ready": "sales-no-match",
+            "widths": [1280]
+        },
+        {
+            "name": "no-match-phone",
+            "url": "/a/books/helix-mockup?tab=invoices&state=no-match",
+            "ready": "sales-no-match",
+            "widths": [390]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?tab=invoices&state=error",
+            "ready": "sales-banner",
+            "widths": [1280]
+        },
+        {
+            "name": "error-phone",
+            "url": "/a/books/helix-mockup?tab=invoices&state=error",
+            "ready": "sales-banner",
+            "widths": [390]
+        },
+        {
+            "name": "read-only",
+            "url": "/a/books/helix-mockup?tab=all&state=read-only",
+            "ready": "sales-row-slinv0000001048",
+            "widths": [1280]
+        },
+        {
+            "name": "read-only-phone",
+            "url": "/a/books/helix-mockup?tab=all&state=read-only",
+            "ready": "sales-row-slinv0000001048",
+            "widths": [390]
+        },
+        {
+            "name": "new-menu",
+            "url": "/a/books/helix-mockup?tab=all",
+            "ready": "sales-new",
+            "widths": [1280],
+            "actions": [{ "click": "sales-new" }, { "waitFor": "sales-new-estimate" }]
+        },
+        {
+            "name": "new-menu-phone",
+            "url": "/a/books/helix-mockup?tab=all",
+            "ready": "sales-new",
+            "widths": [390],
+            "stable": "sales-new-estimate",
+            "actions": [{ "click": "sales-new" }, { "waitFor": "sales-new-estimate" }]
+        },
+        {
+            "name": "row-menu",
+            "url": "/a/books/helix-mockup?tab=invoices",
+            "ready": "sales-row-menu-slinv0000001047",
+            "widths": [1280],
+            "actions": [
+                { "click": "sales-row-menu-slinv0000001047" },
+                { "waitFor": "sales-row-action-receive-payment" }
+            ]
+        },
+        {
+            "name": "row-menu-phone",
+            "url": "/a/books/helix-mockup?tab=invoices",
+            "ready": "sales-row-menu-slinv0000001047",
+            "widths": [390],
+            "stable": "sales-row-action-receive-payment",
+            "actions": [
+                { "click": "sales-row-menu-slinv0000001047" },
+                { "waitFor": "sales-row-action-receive-payment" }
+            ]
+        },
+        {
+            "name": "batch-menu",
+            "url": "/a/books/helix-mockup?tab=all&state=ticked",
+            "ready": "sales-batch-actions",
+            "widths": [1280],
+            "actions": [
+                { "click": "sales-batch-actions" },
+                { "waitFor": "sales-batch-delete-drafts" }
+            ]
+        },
+        {
+            "name": "batch-menu-phone",
+            "url": "/a/books/helix-mockup?tab=all&state=ticked",
+            "ready": "sales-batch-actions",
+            "widths": [390],
+            "stable": "sales-batch-delete-drafts",
+            "actions": [
+                { "click": "sales-batch-actions" },
+                { "waitFor": "sales-batch-delete-drafts" }
+            ]
+        },
+        {
+            "name": "sort-menu-phone",
+            "url": "/a/books/helix-mockup?tab=invoices",
+            "ready": "sales-sort",
+            "widths": [390],
+            "actions": [{ "click": "sales-sort" }, { "waitFor": "sales-sort-balance-up" }]
+        },
+        {
+            "name": "range-menu",
+            "url": "/a/books/helix-mockup?tab=invoices",
+            "ready": "sales-range",
+            "widths": [1280],
+            "actions": [{ "click": "sales-range" }, { "waitFor": "sales-range-this-quarter" }]
+        },
+        {
+            "name": "customer-picker",
+            "url": "/a/books/helix-mockup?tab=invoices",
+            "ready": "sales-customer",
+            "widths": [1280],
+            "actions": [{ "click": "sales-customer" }, { "waitFor": "sales-customer-all" }]
+        },
+        {
+            "name": "batch-confirm",
+            "url": "/a/books/helix-mockup?tab=all&state=batch-confirm",
+            "ready": "sales-batch-dialog",
+            "opaque": "sales-batch-dialog",
+            "widths": [1280]
+        },
+        {
+            "name": "batch-confirm-phone",
+            "url": "/a/books/helix-mockup?tab=all&state=batch-confirm",
+            "ready": "sales-batch-dialog",
+            "opaque": "sales-batch-dialog",
+            "widths": [390]
+        },
+        {
+            "name": "batch-none",
+            "url": "/a/books/helix-mockup?tab=all&state=batch-none",
+            "ready": "sales-batch-dialog",
+            "opaque": "sales-batch-dialog",
+            "widths": [1280]
+        },
+        {
+            "name": "batch-result",
+            "url": "/a/books/helix-mockup?tab=all&state=batch-result",
+            "ready": "sales-banner",
+            "widths": [1280]
+        },
+        {
+            "name": "batch-result-phone",
+            "url": "/a/books/helix-mockup?tab=all&state=batch-result",
+            "ready": "sales-banner",
+            "widths": [390]
+        }
+    ]
+}

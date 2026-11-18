@@ -1,0 +1,167 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "all",
+            "url": "/a/books/sales",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [1280]
+        },
+        {
+            "name": "all-mid",
+            "url": "/a/books/sales",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [900]
+        },
+        {
+            "name": "all-phone",
+            "url": "/a/books/sales",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [390]
+        },
+        {
+            "name": "invoices",
+            "url": "/a/books/invoices",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [1280]
+        },
+        {
+            "name": "invoices-phone",
+            "url": "/a/books/invoices",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [390]
+        },
+        {
+            "name": "estimates",
+            "url": "/a/books/estimates",
+            "ready": "sales-table",
+            "widths": [1280]
+        },
+        {
+            "name": "sales-receipts",
+            "url": "/a/books/sales-receipts",
+            "ready": "sales-row-slsr000000draft",
+            "widths": [1280]
+        },
+        {
+            "name": "payments",
+            "url": "/a/books/payments",
+            "ready": "sales-row-slpay00000draft",
+            "widths": [1280]
+        },
+        {
+            "name": "payments-phone",
+            "url": "/a/books/payments",
+            "ready": "sales-row-slpay00000draft",
+            "widths": [390]
+        },
+        {
+            "name": "credit-memos",
+            "url": "/a/books/credit-memos",
+            "ready": "sales-row-slcm000000draft",
+            "widths": [1280]
+        },
+        {
+            "name": "beside",
+            "url": "/a/books/invoices",
+            "ready": "sales-table",
+            "widths": [1440],
+            "stable": "sales-names",
+            "actions": [
+                { "clickText": "Paid" },
+                { "waitFor": "sales-names" },
+                { "waitFor": "invoice-read-only" }
+            ]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/invoices",
+            "ready": "sales-loading",
+            "widths": [1280],
+            "fakeRecords": { "collection": "books_invoices", "hold": true }
+        },
+        {
+            "name": "loading-phone",
+            "url": "/a/books/invoices",
+            "ready": "sales-loading",
+            "widths": [390],
+            "fakeRecords": { "collection": "books_invoices", "hold": true }
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/invoices",
+            "ready": "sales-empty",
+            "widths": [1280],
+            "emptyRecords": "books_invoices"
+        },
+        {
+            "name": "empty-phone",
+            "url": "/a/books/invoices",
+            "ready": "sales-empty",
+            "widths": [390],
+            "emptyRecords": "books_invoices"
+        },
+        {
+            "name": "empty-all",
+            "url": "/a/books/sales",
+            "ready": "sales-empty",
+            "widths": [1280],
+            "fakeRecords": [
+                { "collection": "books_invoices" },
+                { "collection": "books_estimates" },
+                { "collection": "books_sales_receipts" },
+                { "collection": "books_payments" },
+                { "collection": "books_credit_memos" }
+            ]
+        },
+        {
+            "name": "no-match",
+            "url": "/a/books/invoices",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [1280],
+            "actions": [
+                { "fill": "sales-search", "value": "qqzx nothing holds this" },
+                { "waitFor": "sales-no-match" }
+            ]
+        },
+        {
+            "name": "no-match-phone",
+            "url": "/a/books/invoices",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [390],
+            "actions": [
+                { "fill": "sales-search", "value": "qqzx nothing holds this" },
+                { "waitFor": "sales-no-match" }
+            ]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/invoices",
+            "ready": "sales-banner",
+            "widths": [1280],
+            "fakeRecords": { "collection": "books_invoices", "status": 400 }
+        },
+        {
+            "name": "error-phone",
+            "url": "/a/books/invoices",
+            "ready": "sales-banner",
+            "widths": [390],
+            "fakeRecords": { "collection": "books_invoices", "status": 400 }
+        },
+        {
+            "name": "new-menu",
+            "url": "/a/books/sales",
+            "ready": "sales-new",
+            "widths": [1280],
+            "actions": [{ "click": "sales-new" }, { "waitFor": "sales-new-estimate" }]
+        },
+        {
+            "name": "new-menu-phone",
+            "url": "/a/books/sales",
+            "ready": "sales-new",
+            "widths": [390],
+            "stable": "sales-new-estimate",
+            "actions": [{ "click": "sales-new" }, { "waitFor": "sales-new-estimate" }]
+        }
+    ]
+}

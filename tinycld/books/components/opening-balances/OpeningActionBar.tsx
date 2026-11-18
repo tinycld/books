@@ -2,8 +2,8 @@ import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { Menu } from '@tinycld/core/ui/menu'
 import { Ellipsis } from 'lucide-react-native'
-import type { ReactNode } from 'react'
-import { type GestureResponderEvent, Pressable, View } from 'react-native'
+import { Pressable, View } from 'react-native'
+import { PressBoundary } from '../PressBoundary'
 
 const TOUCH_TARGET = { minHeight: 44 }
 
@@ -18,20 +18,6 @@ interface OpeningActionBarProps {
     onSave: () => void
     onPost: () => void
     onDiscard: () => void
-}
-
-function swallow(event: GestureResponderEvent) {
-    event.stopPropagation()
-}
-
-// The menu's content is portaled, but React still bubbles its presses up the
-// tree; a Pressable swallows the presses that reach it.
-function PressBoundary({ children }: { children: ReactNode }) {
-    return (
-        <Pressable accessible={false} focusable={false} onPress={swallow}>
-            {children}
-        </Pressable>
-    )
 }
 
 function DiscardButton({ isVisible, onPress }: { isVisible: boolean; onPress: () => void }) {

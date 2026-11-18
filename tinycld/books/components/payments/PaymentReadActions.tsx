@@ -7,6 +7,7 @@ import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { router } from 'expo-router'
 import { useState } from 'react'
 import type { DocumentReadItem } from '../../hooks/useDocumentReadActions'
+import { useVoidDocument } from '../../hooks/useVoidDocument'
 import type { PaymentReadAction } from '../../lib/payment-read-actions'
 import { PAYMENT_READ_DESCRIPTIONS, PAYMENT_READ_KEYS } from '../../lib/payment-shortcuts'
 import { writeRefusalText } from '../../lib/refusal'
@@ -33,18 +34,13 @@ export interface PaymentReadTarget {
 }
 
 // Void as a write to the named collection: `status: 'void'` (the server posts the
-// reversing entry and opens the paid documents again).
+// reversing entry and opens the paid documents again). A customer payment voids through
+// the write the sales lists share.
 function useVoidWrite(collection: PaymentCollectionName) {
-    const [paymentsCollection, billPaymentsCollection] = useStore(
-        'books_payments',
-        'books_bill_payments'
-    )
+    const [billPaymentsCollection] = useStore('books_bill_payments')
+    const voidSales = useVoidDocument()
     return (id: string) => {
-        if (collection === 'books_payments') {
-            return paymentsCollection.update(id, draft => {
-                draft.status = 'void'
-            })
-        }
+        if (collection === 'books_payments') return voidSales('payment', id)
         return billPaymentsCollection.update(id, draft => {
             draft.status = 'void'
         })

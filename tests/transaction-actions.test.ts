@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { NEW_ACTIONS, type NewAction } from '../tinycld/books/lib/shell-nav'
+import { NEW_ACTIONS, type NewAction } from '../tinycld/books/lib/new-actions'
 import { transactionActions, transactionHref } from '../tinycld/books/lib/transaction-actions'
 
 // The customer page's New transaction menu (spec §3.3): the transactions of NEW_ACTIONS

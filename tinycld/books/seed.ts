@@ -43,6 +43,7 @@ import { JOURNAL_SEED } from './lib/journal-entries-fixture'
 import { BILL_PAYMENT_SEED, PAY_BILLS_SEED_BILLS } from './lib/pay-bills-fixture'
 import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
 import { PAYMENT_SEED } from './lib/receive-payment-fixture'
+import { SALES_LIST_SEED_DRAFTS } from './lib/sales-lists-fixture'
 import {
     DEPOSIT_ACCOUNTS,
     SALES_RECEIPT_IDS,
@@ -252,6 +253,7 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedSalesTaxLiability(pb, ctx, accountIds, customerIds)
     await retireSeededTax(pb)
     await seedEstimates(pb, customerIds)
+    await seedSalesListDrafts(pb, accountIds, customerIds)
     await seedPartyContacts(pb, customerIds)
     await seedDeclinedEstimates(pb, customerIds)
     const billIds = await seedBills(pb, ctx, accountIds)
@@ -861,6 +863,68 @@ export async function seedEstimates(
         createdIds.set(id, created.id)
     }
     await seedConvertedInvoice(pb, customerIds, createdIds)
+}
+
+function salesListCustomer(customerIds: Map<string, string>, fixtureId: string, owner: string) {
+    if (fixtureId === '') return ''
+    const customer = customerIds.get(fixtureId)
+    if (customer === undefined) {
+        throw new Error(`seed: ${owner} names customer ${fixtureId}, which was not created`)
+    }
+    return customer
+}
+
+// Creates the sales lists' draft documents (SALES_LIST_SEED_DRAFTS) with the create call
+// each kind's seed makes for its draft step, and no post: a draft moves no ledger total
+// and takes no number. The fixture ids are valid PocketBase ids and are sent as-is;
+// `customerIds` maps a customer-form fixture id to the created customer's id. A sales
+// receipt needs a deposit account even as a draft, so it takes 1200 Undeposited funds, as
+// the seeded receipt drafts do; a draft payment has none and no application row.
+export async function seedSalesListDrafts(
+    pb: PocketBase,
+    accountIds: Map<string, string>,
+    customerIds: Map<string, string>
+): Promise<void> {
+    for (const row of SALES_LIST_SEED_DRAFTS.invoices) {
+        await pb.collection('books_invoices').create({
+            id: row.id,
+            customer: salesListCustomer(customerIds, row.customer, `invoice ${row.id}`),
+            status: 'draft',
+            date: row.date,
+            due_date: row.due_date,
+            memo: row.memo,
+        })
+    }
+    const depositTo = seededAccountId(accountIds, '1200', 'the sales list receipt drafts')
+    for (const row of SALES_LIST_SEED_DRAFTS.salesReceipts) {
+        await pb.collection('books_sales_receipts').create({
+            id: row.id,
+            customer: salesListCustomer(customerIds, row.customer, `sales receipt ${row.id}`),
+            status: 'draft',
+            date: row.date,
+            deposit_to: depositTo,
+            memo: row.memo,
+        })
+    }
+    for (const row of SALES_LIST_SEED_DRAFTS.payments) {
+        await pb.collection('books_payments').create({
+            id: row.id,
+            customer: salesListCustomer(customerIds, row.customer, `payment ${row.id}`),
+            status: 'draft',
+            date: row.date,
+            amount: row.amount,
+            memo: row.memo,
+        })
+    }
+    for (const row of SALES_LIST_SEED_DRAFTS.creditMemos) {
+        await pb.collection('books_credit_memos').create({
+            id: row.id,
+            customer: salesListCustomer(customerIds, row.customer, `credit memo ${row.id}`),
+            status: 'draft',
+            date: row.date,
+            memo: row.memo,
+        })
+    }
 }
 
 // Creates the customer page's contacts (CUSTOMER_PAGE_CONTACTS) as the contact dialog

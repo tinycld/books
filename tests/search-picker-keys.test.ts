@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { searchPickerKeyAction } from '../tinycld/books/lib/search-picker-keys'
+import {
+    isLateSearchCharacter,
+    searchPickerKeyAction,
+} from '../tinycld/books/lib/search-picker-keys'
 
 function key(
     name: string,
@@ -45,5 +48,29 @@ describe('searchPickerKeyAction', () => {
         expect(searchPickerKeyAction(key(' '), true)).toBe('none')
         expect(searchPickerKeyAction(key('ArrowDown'), true)).toBe('none')
         expect(searchPickerKeyAction(key('a'), true)).toBe('none')
+    })
+})
+
+describe('isLateSearchCharacter', () => {
+    it('takes a letter, a digit, Space, ? and / as search text', () => {
+        expect(isLateSearchCharacter(key('a'))).toBe(true)
+        expect(isLateSearchCharacter(key('7'))).toBe(true)
+        expect(isLateSearchCharacter(key(' '))).toBe(true)
+        expect(isLateSearchCharacter(key('?'))).toBe(true)
+        expect(isLateSearchCharacter(key('/'))).toBe(true)
+    })
+
+    it('does not take Enter, ArrowDown, Escape, Tab or Shift', () => {
+        expect(isLateSearchCharacter(key('Enter'))).toBe(false)
+        expect(isLateSearchCharacter(key('ArrowDown'))).toBe(false)
+        expect(isLateSearchCharacter(key('Escape'))).toBe(false)
+        expect(isLateSearchCharacter(key('Tab'))).toBe(false)
+        expect(isLateSearchCharacter(key('Shift'))).toBe(false)
+    })
+
+    it('leaves a letter with ⌘, Ctrl or Alt to the shortcuts', () => {
+        expect(isLateSearchCharacter(key('a', { metaKey: true }))).toBe(false)
+        expect(isLateSearchCharacter(key('a', { ctrlKey: true }))).toBe(false)
+        expect(isLateSearchCharacter(key('a', { altKey: true }))).toBe(false)
     })
 })
