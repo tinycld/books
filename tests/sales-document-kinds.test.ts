@@ -103,6 +103,7 @@ describe('PURCHASE_LINE_TABLES', () => {
 })
 
 describe('DOCUMENT_PARTIES', () => {
+    // Vendor pages: "Edit vendor" opens the vendor's page on its Details tab.
     it("names the vendor's field, address, edit link, route and inactive text", () => {
         expect(DOCUMENT_PARTIES.vendor).toEqual({
             field: 'vendor',
@@ -111,6 +112,7 @@ describe('DOCUMENT_PARTIES', () => {
             addressLabel: 'Mailing address',
             editLabel: 'Edit vendor',
             routeBase: 'books/vendors',
+            editParams: { tab: 'details' },
             inactiveText: '%s is inactive. Choose an active vendor.',
         })
     })

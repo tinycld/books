@@ -1,13 +1,11 @@
-export type CustomerTab = 'transactions' | 'contacts' | 'details' | 'notes'
+import { PARTY_TABS, type PartyTab, partyTabOf, shownPartyTabs } from './party-page-tabs'
 
-// Every tab of the customer page, with its fixed key. A tab shows only once it is in
-// CUSTOMER_TAB_ORDER, so a key never moves when a later tab is built.
-export const CUSTOMER_TABS: readonly { key: CustomerTab; label: string; keys: string }[] = [
-    { key: 'transactions', label: 'Transactions', keys: 'Alt+1' },
-    { key: 'contacts', label: 'Contacts', keys: 'Alt+2' },
-    { key: 'details', label: 'Details', keys: 'Alt+3' },
-    { key: 'notes', label: 'Notes', keys: 'Alt+4' },
-]
+export type CustomerTab = PartyTab
+
+// Every tab of the customer page, with its fixed key (the party page's tabs). A tab shows
+// only once it is in CUSTOMER_TAB_ORDER, so a key never moves when a later tab is built.
+export const CUSTOMER_TABS: readonly { key: CustomerTab; label: string; keys: string }[] =
+    PARTY_TABS
 
 // The tabs built so far, in strip order; the first is the default (no `tab` param).
 export const CUSTOMER_TAB_ORDER: readonly CustomerTab[] = [
@@ -20,18 +18,11 @@ export const CUSTOMER_TAB_ORDER: readonly CustomerTab[] = [
 export const DEFAULT_CUSTOMER_TAB: CustomerTab = CUSTOMER_TAB_ORDER[0] ?? 'transactions'
 
 // The tabs the strip draws, in CUSTOMER_TAB_ORDER.
-export const SHOWN_CUSTOMER_TABS = CUSTOMER_TAB_ORDER.flatMap(key =>
-    CUSTOMER_TABS.filter(tab => tab.key === key)
-)
-
-function isShownTab(value: string): value is CustomerTab {
-    return (CUSTOMER_TAB_ORDER as readonly string[]).includes(value)
-}
+export const SHOWN_CUSTOMER_TABS = shownPartyTabs(CUSTOMER_TAB_ORDER)
 
 // The `tab` search param: a missing, unknown or unbuilt value selects the first tab.
 export function customerTabOf(param: string | undefined): CustomerTab {
-    if (param === undefined || !isShownTab(param)) return DEFAULT_CUSTOMER_TAB
-    return param
+    return partyTabOf(CUSTOMER_TAB_ORDER, param)
 }
 
 export type CustomerPageControls = {

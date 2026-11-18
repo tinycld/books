@@ -10,5 +10,9 @@ declare module 'react-native' {
         /** react-native-web only: each entry renders as a `data-<kebab-key>` DOM attribute.
          *  No-op on native. */
         dataSet?: Record<string, string | number | undefined>
+        /** react-native-web forwards it as the DOM `inert` attribute: the subtree leaves the
+         *  Tab order and the accessibility tree. Native drops it; pair it with `aria-hidden`,
+         *  which hides the subtree from VoiceOver and TalkBack. */
+        inert?: boolean
     }
 }

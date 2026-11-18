@@ -43,6 +43,16 @@ function openCustomerId(page: Page) {
     return new URL(page.url()).pathname.split('/').pop() ?? ''
 }
 
+// The window at which the customer page sits beside the names column (the record surface),
+// and a tablet width that is not a phone.
+const RECORD_SURFACE = { width: 1360, height: 900 }
+const TABLET = { width: 800, height: 900 }
+
+// How far a table's own scroller reaches past its box; above 0 it scrolls sideways.
+function sideOverflow(scroller: Locator) {
+    return scroller.evaluate(el => el.scrollWidth - el.clientWidth)
+}
+
 function isFocused(locator: Locator) {
     return locator.evaluate(el => el === document.activeElement)
 }
@@ -186,6 +196,18 @@ test.describe('customer-pages: contacts tab', () => {
         const phoneLink = page.getByTestId(`customer-contact-phone-${id}`)
         await expect(phoneLink).toHaveRole('link')
         await expect(phoneLink).toHaveText(phone)
+
+        // The own-width rule (vendor-pages checkpoint 2): on the record surface the table
+        // fits the page's content with no sideways scroll; at a tablet width the list is
+        // narrower than the table's minimum, so it draws cards.
+        const table = page.getByTestId('customer-contacts-table')
+        await page.setViewportSize(RECORD_SURFACE)
+        await expect(table).toBeVisible()
+        await expect(contact(page, id)).toContainText(person)
+        await expect.poll(() => sideOverflow(table)).toBeLessThanOrEqual(0)
+        await page.setViewportSize(TABLET)
+        await expect(page.getByTestId('customer-contacts-cards')).toBeVisible()
+        await expect(table).toBeHidden()
     })
 
     test('edits a contact from the keyboard only, and Escape keeps the stored values', async ({

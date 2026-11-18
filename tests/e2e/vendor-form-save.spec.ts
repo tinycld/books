@@ -5,6 +5,7 @@ import {
     DESKTOP,
     discardDialog,
     exactText,
+    expectVendorEditSaved,
     field,
     holdLoads,
     insertAnswered,
@@ -24,14 +25,17 @@ import {
     vendorEntries,
     vendorEntry,
     vendorIdOf,
+    vendorPageUrl,
+    vendorPath,
     vendorSurface,
     viewportName,
 } from './vendor-form-helpers'
 
-// Save, Save and new, a search hit that opens a saved vendor, server refusals on a field
-// and on the form, an edit save that writes only the dirty keys, and the "Discard
+// Save (opens the new vendor's page), Save and new, a search hit that opens a saved
+// vendor, server refusals on a field and on the form, an edit save on the vendor page's
+// Details tab that writes only the dirty keys (stays on the page), and the "Discard
 // changes?" guard on Cancel, Escape, the page's back button and the browser's Back
-// button, with the leave paths held and one press at a time while a save is in flight.
+// button, with Save and Cancel held and one press at a time while a save is in flight.
 //
 // Each test logs in and creates, through the form, the vendors it needs, each with a
 // unique name. No seeded vendor is edited. Every test runs on desktop only: the save,
@@ -155,8 +159,8 @@ test.describe('vendor-form: save and discard', () => {
         await searchVendors(page, name)
         const id = await vendorIdOf(page, name)
         await openVendor(page, name)
-        await expect(page).toHaveURL(new RegExp(`/books/vendors/${id}$`))
-        await expect(title).toHaveText('Edit vendor')
+        await expect(page).toHaveURL(vendorPath(id))
+        await expect(title).toHaveText(name)
         await expect(field(page, 'company')).toHaveValue('Helix Supply')
         await expect(field(page, 'phone')).toHaveValue(phone)
         await expect(field(page, 'mobile')).toHaveValue(mobile)
@@ -166,7 +170,9 @@ test.describe('vendor-form: save and discard', () => {
         await expect(page.getByTestId('form-input-terms')).toContainText('Net 30')
         await expect(field(page, 'account_number')).toHaveValue(accountNumber)
         await expect(page.getByTestId('form-input-expense_account')).toContainText('6100 Rent')
-        await expect(field(page, 'notes')).toHaveValue(notes)
+        // Notes are on the page's Notes tab.
+        await page.getByTestId('vendor-tab-notes').click()
+        await expect(page.getByTestId('vendor-notes-input')).toHaveValue(notes)
 
         // (6) A search hit from outside the list pushes the vendor; Back returns.
         const hubCard = page.getByTestId('books-list-card-vendors')
@@ -189,8 +195,8 @@ test.describe('vendor-form: save and discard', () => {
         await page.keyboard.type(name)
         await searched
         await page.getByRole('option').filter({ hasText: name }).click()
-        await expect(title).toHaveText('Edit vendor')
-        await expect(page).toHaveURL(new RegExp(`/books/vendors/${id}$`))
+        await expect(title).toHaveText(name)
+        await expect(page).toHaveURL(vendorPath(id))
         await page.goBack()
         await expect(hubCard).toBeVisible()
         await expect(vendorSurface(page)).toBeHidden()
@@ -209,7 +215,8 @@ test.describe('vendor-form: save and discard', () => {
         // (1)
         await createVendor(page, { name })
 
-        // (2) An email the server refuses lands on the Email field; fixed, Save leaves.
+        // (2) An email the server refuses lands on the Email field; fixed, Save opens the
+        // new vendor's page.
         await openNewVendor(page)
         await field(page, 'display_name').fill(secondName)
         await field(page, 'email').fill('not-an-email')
@@ -218,7 +225,9 @@ test.describe('vendor-form: save and discard', () => {
         await expect(page).toHaveURL(/\/new$/)
         await field(page, 'email').fill(`helix.${digits}.two@example.com`)
         await save.click()
-        await expectListShown(page)
+        await expect(page).toHaveURL(vendorPageUrl)
+        await expect(page.getByTestId('vendor-title')).toHaveText(secondName)
+        await openVendorsList(page)
         await searchVendors(page, prefix)
         await expect(vendorEntry(page, name)).toBeVisible()
         await expect(vendorEntry(page, secondName)).toBeVisible()
@@ -242,7 +251,7 @@ test.describe('vendor-form: save and discard', () => {
         await searchVendors(page, prefix)
         const id = await vendorIdOf(page, name)
         const recordRoute = isRecordUrl(id)
-        const recordPath = new RegExp(`/books/vendors/${id}$`)
+        const recordPath = vendorPath(id)
         const newPhone = `(555) 011-${digits}`
         await openVendor(page, name)
         await field(page, 'phone').fill(newPhone)
@@ -251,7 +260,9 @@ test.describe('vendor-form: save and discard', () => {
         )
         await save.click()
         expect(Object.keys((await patch).postDataJSON())).toEqual(['phone'])
-        await expectListShown(page)
+        await expectVendorEditSaved(page)
+        await openVendorsList(page)
+        await searchVendors(page, prefix)
         await expect(vendorEntry(page, name)).toContainText(newPhone)
 
         // (5) A refusal with no field on an edit save shows in the form's summary and
@@ -268,7 +279,7 @@ test.describe('vendor-form: save and discard', () => {
         await expect(field(page, 'mobile')).toHaveValue(newMobile)
         await page.unroute(recordRoute, patches.handler)
         await save.click()
-        await expectListShown(page)
+        await expectVendorEditSaved(page)
         await expect(dialog.title).toBeHidden()
         await openVendor(page, name)
         await expect(field(page, 'mobile')).toHaveValue(newMobile)
@@ -286,10 +297,11 @@ test.describe('vendor-form: save and discard', () => {
 
         // (1)
         await createVendor(page, { name, phone })
+        await openVendorsList(page)
         await searchVendors(page, name)
         const id = await vendorIdOf(page, name)
         const recordRoute = isRecordUrl(id)
-        const recordPath = new RegExp(`/books/vendors/${id}$`)
+        const recordPath = vendorPath(id)
 
         // (2) An address part typed and emptied again leaves the form clean: an all-empty
         // address is stored as null, the form's seed. Typed, Escape asks; emptied again,
@@ -339,8 +351,9 @@ test.describe('vendor-form: save and discard', () => {
         await expect(page).toHaveURL(recordPath)
         await expect(field(page, 'phone')).toHaveValue(newPhone)
 
-        // (4) One press at a time, the leave paths held, and an edit typed during the
-        // write is kept: the page stays, still guarded.
+        // (4) One press at a time, Save and Cancel held, and an edit typed during the
+        // write is kept: the page stays, still guarded. A save in flight turns the leave
+        // guard off, so the page's back button stays enabled (the page leaves on it).
         const passed = refusedWrites(ROOT_REFUSAL)
         await page.route(recordRoute, passed.handler)
         passed.hold()
@@ -352,8 +365,8 @@ test.describe('vendor-form: save and discard', () => {
         await afterNextFrames(page)
         expect(passed.urls.length).toBe(1)
         await expect.poll(() => isDisabled(cancel)).toBe(true)
-        await expect.poll(() => isDisabled(back)).toBe(true)
         await pressEscapeOutsideInputs(page)
+        await expect(dialog.title).toBeHidden()
         await expect(vendorSurface(page)).toBeVisible()
         await expect(page).toHaveURL(recordPath)
         const mobile = `(555) 012-${digits}`
@@ -373,15 +386,21 @@ test.describe('vendor-form: save and discard', () => {
         await expectListShown(page)
         await page.unroute(recordRoute, passed.handler)
 
-        // (5) A saved form leaves without asking.
+        // (5) A save stays on the page and leaves it clean: Back then leaves without asking.
         const notes = `Guard notes ${digits}`
+        const notesTab = page.getByTestId('vendor-tab-notes')
+        const notesInput = page.getByTestId('vendor-notes-input')
         await openVendor(page, name)
-        await field(page, 'notes').fill(notes)
+        await notesTab.click()
+        await notesInput.fill(notes)
         await save.click()
+        await expectVendorEditSaved(page)
+        await back.click()
         await expectListShown(page)
         await expect(dialog.title).toBeHidden()
         await openVendor(page, name)
-        await expect(field(page, 'notes')).toHaveValue(notes)
+        await notesTab.click()
+        await expect(notesInput).toHaveValue(notes)
         await back.click()
         await expectListShown(page)
         await expect(dialog.title).toBeHidden()
