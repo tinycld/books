@@ -77,6 +77,8 @@ func oauthPackage() oauth.Package {
 			vendorCreditsCollection:            rw,
 			vendorCreditLinesCollection:        rw,
 			vendorCreditApplicationsCollection: rw,
+			vendorRefundsCollection:            rw,
+			vendorRefundLinesCollection:        rw,
 			"books_cash_basis_lines":           ro,
 			"books_cash_basis_tax_lines":       ro,
 			"books_party_contacts":             rw,

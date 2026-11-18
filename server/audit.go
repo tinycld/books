@@ -29,7 +29,8 @@ import (
 // labeled by the user it grants, a line by its account or its document, a
 // bundle row by its bundle and product, a bank connection by its account, a
 // bank import by its file, a customer's response by its estimate, a vendor
-// credit application by its credit and its bill, and an attachment by its
+// credit application by its credit and its bill, a vendor refund line by its
+// refund and its credit, and an attachment by its
 // bill, expense or vendor credit.
 //
 // A tax ID (an SSN for a sole proprietor) is redacted: it must not stay
@@ -89,6 +90,10 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		billPaymentLinesCollection: {
 			ExtractLabel: func(r *core.Record) string { return billPaymentLineLabel(app, r) },
 		},
+		vendorRefundsCollection: {ExtractLabel: vendorRefundName, Redact: []string{"sort_key"}},
+		vendorRefundLinesCollection: {
+			ExtractLabel: func(r *core.Record) string { return vendorRefundLineLabel(app, r) },
+		},
 		"books_settings": {
 			ExtractLabel: func(*core.Record) string { return "Books settings" },
 			Redact:       []string{"tax_id"},
@@ -111,7 +116,7 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 }
 
 // auditParentFields maps each line collection to the field that names its
-// document. The books_audit_log view (migration 2100000024) reads the same
+// document. The books_audit_log view (migration 2100000025) reads the same
 // collections to give a line's audit row its document, and Register declares them
 // as the view's sources, because a line write can change that document.
 var auditParentFields = map[string]string{
@@ -128,6 +133,7 @@ var auditParentFields = map[string]string{
 	billPaymentLinesCollection:         "payment",
 	vendorCreditLinesCollection:        "vendor_credit",
 	vendorCreditApplicationsCollection: "vendor_credit",
+	vendorRefundLinesCollection:        "refund",
 }
 
 // auditLineCollections are the keys of auditParentFields in name order.
@@ -152,6 +158,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: vendorCreditsCollection, Label: "Vendor credit"},
 		{Value: "books_payments", Label: "Payment"},
 		{Value: billPaymentsCollection, Label: "Bill payment"},
+		{Value: vendorRefundsCollection, Label: "Vendor refund"},
 		{Value: "books_journal_entries", Label: "Journal entry"},
 		{Value: "books_invoice_lines", Label: "Invoice line"},
 		{Value: "books_sales_receipt_lines", Label: "Sales receipt line"},
@@ -163,6 +170,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_payment_applications", Label: "Payment application"},
 		{Value: billPaymentLinesCollection, Label: "Bill payment line"},
 		{Value: vendorCreditApplicationsCollection, Label: "Vendor credit application"},
+		{Value: vendorRefundLinesCollection, Label: "Vendor refund line"},
 		{Value: "books_journal_lines", Label: "Journal line"},
 		{Value: "books_attachments", Label: "Attachment"},
 		{Value: "books_accounts", Label: "Account"},
@@ -394,6 +402,22 @@ func vendorCreditApplicationLabel(app core.App, r *core.Record) string {
 		bill = billLabel(b)
 	}
 	return credit + ": " + bill
+}
+
+// vendorRefundLineLabel names a refund line by its refund and the vendor
+// credit it refunds: "Vendor refund 1001: Vendor credit 1002". A refund or a
+// credit that cannot be read (deleted with a draft refund) falls back to its
+// id, so the audit row is still written.
+func vendorRefundLineLabel(app core.App, r *core.Record) string {
+	refund := r.GetString("refund")
+	if rec, err := app.FindRecordById(vendorRefundsCollection, refund); err == nil {
+		refund = vendorRefundName(rec)
+	}
+	credit := r.GetString("vendor_credit")
+	if rec, err := app.FindRecordById(vendorCreditsCollection, credit); err == nil {
+		credit = vendorCreditLabel(rec)
+	}
+	return refund + ": " + credit
 }
 
 // paymentLabel names a payment by its number: "Payment 1004". A draft has no

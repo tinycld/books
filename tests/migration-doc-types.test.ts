@@ -59,4 +59,12 @@ describe('doc_type select values against the client lists', () => {
         expect(DOC_TYPE).toContainEqual({ value: 'vendor_credit', label: 'Vendor credit' })
         expect(ROUTED_DOC_TYPES).toContain('vendor_credit')
     })
+
+    // Vendor refund spec §4: migrations 2100000001 and 2100000002 are edited in place.
+    it('holds vendor_refund in both selects, in DOC_TYPE and in ROUTED_DOC_TYPES', () => {
+        expect(valuesOf('books_doc_sequences')).toContain('vendor_refund')
+        expect(valuesOf('books_journal_entries')).toContain('vendor_refund')
+        expect(DOC_TYPE).toContainEqual({ value: 'vendor_refund', label: 'Vendor refund' })
+        expect(ROUTED_DOC_TYPES).toContain('vendor_refund')
+    })
 })

@@ -256,6 +256,25 @@ describe('a vendor credit entry', () => {
     })
 })
 
+// A vendor refund's entry (vendor refund spec §3.11): it opens on its refund, is edited
+// as a correction of it, and is never reversed by itself.
+describe('a vendor refund entry', () => {
+    it('opens on its vendor refund, edits as a correction of it, opens its void reversal as an entry, and offers no Reverse', () => {
+        expect(entryHref(entry('vendor_refund', 'document', 'r1'))).toBe('books/vendor-refunds/r1')
+        expect(entryEditHref(entry('vendor_refund', 'document', 'r1'))).toBe(
+            'books/vendor-refunds/new?replaces=r1'
+        )
+        expect(entryHref(entry('vendor_refund', 'void_reversal'))).toBe('books/entries/a')
+        const actions = entryActions(
+            { status: 'posted', origin: 'document', doc_type: 'vendor_refund', isReversed: false },
+            { canWrite: true }
+        )
+        expect(actions).toContain('open')
+        expect(actions).toContain('edit')
+        expect(actions).not.toContain('reverse')
+    })
+})
+
 // A bill payment's entry (pay-bills spec §4.2): it opens on its bill payment.
 describe('a bill payment entry', () => {
     it('opens on its bill payment', () => {

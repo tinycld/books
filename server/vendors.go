@@ -37,10 +37,17 @@ const msgVendorOnExpenses = "%s is on expenses. Make it inactive instead."
 // so PocketBase would refuse the delete with a generic reference error.
 const msgVendorOnVendorCredits = "%s is on vendor credits. Make it inactive instead."
 
+// msgVendorOnVendorRefunds refuses deleting a vendor that a vendor refund,
+// draft, posted or void, names (vendor refund spec §3.11). The refund's vendor
+// is a required relation, so PocketBase would refuse the delete with a generic
+// reference error.
+const msgVendorOnVendorRefunds = "%s is on vendor refunds. Make it inactive instead."
+
 // The vendor guard reads other vendors and the expense account inside
 // serialized, so no other write can commit between the check and the write
 // it allows. The delete guard counts the bills, the expenses, the vendor
-// credits and the journal lines that name the vendor inside serialized, so no
+// credits, the vendor refunds and the journal lines that name the vendor
+// inside serialized, so no
 // document or line write can commit between the count and the delete.
 func registerVendorGuard(app core.App) {
 	bindSerializedGuard(app, "books_vendors", validateVendor)
@@ -52,7 +59,8 @@ func registerVendorGuard(app core.App) {
 }
 
 // checkVendorDelete counts the vendor's bills, then its expenses, then its
-// vendor credits, before its journal lines: a posted document's entry names
+// vendor credits, then its vendor refunds, before its journal lines: a posted
+// document's entry names
 // the vendor on every line, and the document text says what holds the vendor.
 func checkVendorDelete(tx core.App, vendor *core.Record) error {
 	bills, err := tx.CountRecords(billKind.Collection, dbx.HashExp{"vendor": vendor.Id})
@@ -75,6 +83,13 @@ func checkVendorDelete(tx core.App, vendor *core.Record) error {
 	}
 	if credits > 0 {
 		return refuseNamed(msgVendorOnVendorCredits, vendor.GetString("display_name"))
+	}
+	refunds, err := tx.CountRecords(vendorRefundsCollection, dbx.HashExp{"vendor": vendor.Id})
+	if err != nil {
+		return fmt.Errorf("books: count the vendor refunds of vendor %s: %w", vendor.Id, err)
+	}
+	if refunds > 0 {
+		return refuseNamed(msgVendorOnVendorRefunds, vendor.GetString("display_name"))
 	}
 	return refusePartyOnLines(tx, "vendor", vendor)
 }

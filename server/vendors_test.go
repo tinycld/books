@@ -460,6 +460,29 @@ func TestVendor_DeleteRefusedWhileOnVendorCredits(t *testing.T) {
 	})
 }
 
+// Vendor refund spec §3.11: a vendor on any vendor refund, draft included,
+// cannot be deleted. The vendor refunds check comes after the vendor credits
+// one.
+func TestVendor_DeleteRefusedWhileOnVendorRefunds(t *testing.T) {
+	t.Run("on one draft vendor refund and no other document", func(t *testing.T) {
+		re := newRefundEnv(t)
+		re.mkRefund(t, map[string]any{"vendor": re.officeSupply.Id})
+		requireMessageOnlyRefusal(t, re.app.Delete(reload(t, re.app, "books_vendors", re.officeSupply.Id)),
+			"Office Supply World is on vendor refunds. Make it inactive instead.")
+		reload(t, re.app, "books_vendors", re.officeSupply.Id)
+	})
+
+	t.Run("on a vendor credit and a vendor refund gets the vendor credits text", func(t *testing.T) {
+		re := newRefundEnv(t)
+		vc := mkVendorCreditOn(t, re.app, re.officeSupply, nil)
+		mkVendorCreditLine(t, re.app, vc, 0, accountLine(re.rent, 3000))
+		re.mkRefund(t, map[string]any{"vendor": re.officeSupply.Id})
+		requireMessageOnlyRefusal(t, re.app.Delete(reload(t, re.app, "books_vendors", re.officeSupply.Id)),
+			"Office Supply World is on vendor credits. Make it inactive instead.")
+		reload(t, re.app, "books_vendors", re.officeSupply.Id)
+	})
+}
+
 func TestVendor_DeletingItsAccountClearsTheExpenseAccount(t *testing.T) {
 	app := newGuardedApp(t)
 	rent := mkAccount(t, app, "Rent", "expense", "rent_lease")

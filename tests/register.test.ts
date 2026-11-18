@@ -573,6 +573,7 @@ describe('entry type labels match server/entry_type_labels.json', () => {
             payment: 'Payment',
             bill_payment: 'Bill payment',
             vendor_credit: 'Vendor credit',
+            vendor_refund: 'Vendor refund',
         })
     })
 
@@ -588,6 +589,7 @@ describe('entry type labels match server/entry_type_labels.json', () => {
             'sales_receipt',
             'transfer',
             'vendor_credit',
+            'vendor_refund',
         ])
         for (const [docType, label] of docTypes) {
             expect(entryTypeLabel('manual', '', docType), docType).toBe(label)
@@ -698,6 +700,17 @@ describe('entryTypeLabel for vendor credits', () => {
         expect(detail?.typeLabel).toBe('Vendor credit')
         expect(detail?.docType).toBe('vendor_credit')
         expect(detail?.document).toBe('vcrd1001pacpw01')
+    })
+})
+
+// The vendor refund's entry (vendor refund spec §3.11): Type "Vendor refund" and
+// "Void reversal of 1001".
+describe('entryTypeLabel for vendor refunds', () => {
+    it('labels a vendor refund entry "Vendor refund" and keeps the reversal suffix', () => {
+        expect(entryTypeLabel('document', '', 'vendor_refund')).toBe('Vendor refund')
+        expect(entryTypeLabel('void_reversal', '1001', 'vendor_refund')).toBe(
+            'Void reversal of 1001'
+        )
     })
 })
 
