@@ -1,0 +1,65 @@
+{
+    "outDir": ".",
+    "widths": [1280],
+    "shots": [
+        {
+            "name": "customer-populated",
+            "url": "/a/reports?package=books",
+            "height": 1800,
+            "actions": [
+                { "idFromText": "Sales by Customer", "goto": "/a/reports/$urlId" },
+                { "waitFor": "report-table" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "customer-opened",
+            "url": "/a/reports?package=books",
+            "height": 2100,
+            "actions": [
+                { "idFromText": "Sales by Customer", "goto": "/a/reports/$urlId" },
+                { "waitFor": "report-table" },
+                { "clickText": "Harborview Kitchen" },
+                { "pause": 2000 }
+            ]
+        },
+        {
+            "name": "customer-by-sales",
+            "url": "/a/reports?package=books",
+            "height": 1800,
+            "actions": [
+                { "idFromText": "Sales by Customer", "goto": "/a/reports/$urlId?p-order=sales" },
+                { "waitFor": "report-table" },
+                { "pause": 1000 }
+            ]
+        },
+        {
+            "name": "customer-filtered",
+            "url": "/a/reports?package=books",
+            "actions": [
+                { "idFromText": "Sales by Customer", "goto": "/a/reports/$urlId" },
+                { "waitFor": "report-table" },
+                { "click": "report-add-filter" },
+                { "click": "report-add-filter-customers" },
+                { "waitFor": "report-filter-options" },
+                { "fill": "report-filter-search", "value": "Harborview" },
+                { "click": "report-filter-group-Harborview Hospitality Group" },
+                { "click": "report-filter-apply" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitFor": "Customer: All Harborview Hospitality Group sub-customers" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "customer-empty",
+            "url": "/a/reports?package=books",
+            "actions": [
+                {
+                    "idFromText": "Sales by Customer",
+                    "goto": "/a/reports/$urlId?p-period=2020-01-01..2020-12-31"
+                },
+                { "waitFor": "report-empty" }
+            ]
+        }
+    ]
+}

@@ -74,6 +74,27 @@ describe('help/credit-memos.md', () => {
         expect(body).not.toMatch(/\b(Cmd|Alt|Shift)\b/)
     })
 
+    // Sales reports checkpoint 3 (spec §3 "Help").
+    it('links the sales reports section', () => {
+        const links = [...body.matchAll(/\[([^\]]+)\]\(help:\/\/books:reports\)/g)].map(m => m[1])
+        expect(links.some(text => /\bsales reports?\b|\bSales by\b/i.test(text))).toBe(true)
+    })
+
+    it('says a posted credit memo lowers both sales reports on its date', () => {
+        const sentences = body.split(/(?<=[.!?])\s+/)
+        expect(
+            sentences.some(
+                sentence =>
+                    /\bposted credit memo\b/i.test(sentence) &&
+                    /\blowers?\b/i.test(sentence) &&
+                    /\bboth\b.*\bsales reports?\b|\bSales by Customer\b.*\bSales by Product\/Service\b/i.test(
+                        sentence
+                    ) &&
+                    /\b(its|the memo['’]s|the credit memo['’]s) date\b/i.test(sentence)
+            )
+        ).toBe(true)
+    })
+
     it.each([
         'help://books:invoices',
         'help://books:customer-pages',

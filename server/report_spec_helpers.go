@@ -153,6 +153,26 @@ func customersParam() reports.ParamDef {
 	}
 }
 
+// productsParam is the Product param of Sales by Product/Service: any number
+// of products and services, inactive ones included, grouped by type with a
+// pick of a whole type ("All Service items"). Bundles are left out: a bundle
+// is never on a line. The document header names the picks under the period
+// ("Product: Monthly bookkeeping").
+func productsParam() reports.ParamDef {
+	return reports.ParamDef{
+		ID: "products", Type: reports.ParamChoice, Label: "Product", Multiple: true,
+		Header: "Product: {label}",
+		OptionsFrom: &reports.OptionsFrom{
+			Source:     "books.products",
+			Value:      path("id"),
+			Label:      path("name"),
+			Group:      path("type"),
+			GroupLabel: "All {group} items",
+			Where:      op("ne", fld("type"), lit("bundle")),
+		},
+	}
+}
+
 // receivableLines are the filter terms of the posted Accounts receivable
 // lines on or before asOf. The Customer Balance reads them; the A/R aging
 // report (p5-ar-aging) and customer statements (p2-statements) read the same
@@ -164,6 +184,26 @@ func receivableLines(asOf *reports.Node) []*reports.Node {
 		op("lte", fld("date"), asOf),
 	}
 }
+
+// postedSaleLines are the filter terms of the sale lines in period (spec §3
+// What counts): the item and percent lines of a posted document dated in the
+// period. Description and subtotal lines never count: a subtotal line repeats
+// the lines above it. The document link is required, so a line whose
+// document the reader cannot read drops out. Paths start at a sale line.
+func postedSaleLines(period *reports.Node) []*reports.Node {
+	return []*reports.Node{
+		op("in", fld("kind"), lit([]string{"item", "percent"})),
+		op("eq", &reports.Node{Path: reports.Path{{Link: "document", With: "required"}, {Field: "status"}}}, lit(statusPosted)),
+		op("between", fld("document", "date"), period),
+	}
+}
+
+// saleAmount is a sale line's amount times its sign: below zero on a credit
+// memo.
+func saleAmount() *reports.Node { return op("mul", fld("sign"), fld("amount")) }
+
+// saleQuantity is a sale line's quantity times its sign.
+func saleQuantity() *reports.Node { return op("mul", fld("sign"), fld("quantity")) }
 
 // methodParam is the Method param of the statements on books.basis_lines
 // (pay-bills spec §3.10): Accrual (the default) or Cash, printed in the

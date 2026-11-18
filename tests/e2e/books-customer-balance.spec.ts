@@ -33,6 +33,7 @@ import {
 } from './customer-balance-helpers'
 import {
     createCustomer,
+    customerEntries,
     customerPageUrl,
     customerPath,
     field,
@@ -500,10 +501,12 @@ test.describe('customer-balance: report', () => {
         await fakeReadOnlyAccess(page)
         await openBooks(page, DESKTOP)
         await openCustomersList(page)
-        const button = page.getByTestId('customers-balance-report')
-        await expect(button).toHaveText('Balance report')
+        // The list's Reports menu (sales-reports plan D9): its Customer Balance item.
+        const button = page.getByTestId('customers-reports')
+        await expect(button).toHaveText('Reports')
         await expect(page.getByTestId('customer-new-header')).toHaveCount(0)
         await button.click()
+        await page.getByTestId('customers-reports-balance').click()
         await expect(page.getByTestId('report-screen')).toBeVisible()
         const snapshot = await snapshotWhen(
             page,
@@ -516,28 +519,33 @@ test.describe('customer-balance: report', () => {
         // A fresh page whose reports list read answers no row, so it has no shipped report
         // to open. Realtime is cut first, so no row arrives by another path.
         const fresh = await page.context().newPage()
-        const asked: string[] = []
+        // The filters of the reads that were answered: one is added only after its answer
+        // was sent to the page.
+        const answered: string[] = []
         await fresh.route('**/api/realtime*', route => route.abort())
-        await fresh.route('**/api/collections/reports/records**', route => {
-            asked.push(new URL(route.request().url()).searchParams.get('filter') ?? '')
-            return route.fulfill({
+        await fresh.route('**/api/collections/reports/records**', async route => {
+            const filter = new URL(route.request().url()).searchParams.get('filter') ?? ''
+            await route.fulfill({
                 status: 200,
                 contentType: 'application/json',
                 body: noReportRows(),
             })
+            answered.push(filter)
         })
         await openBooks(fresh, DESKTOP)
         await openCustomersList(fresh)
         await expect(fresh.getByTestId('customers-title')).toBeVisible()
-        // The list asked for the shipped report and got none: without this the absent
-        // button below would prove nothing.
+        // The read of the shipped report was answered with no row, and the list's own rows
+        // show: the list's report href is also null while its read loads, so without this
+        // the absent button below would prove nothing.
         await expect
             .poll(
-                () => asked.some(filter => filter.includes(CUSTOMER_BALANCE_SHIPPED_KEY)),
-                'the Customers list asks for the shipped Customer Balance'
+                () => answered.some(filter => filter.includes(CUSTOMER_BALANCE_SHIPPED_KEY)),
+                'the Customers list got its answer for the shipped Customer Balance'
             )
             .toBe(true)
-        await expect(fresh.getByTestId('customers-balance-report')).toHaveCount(0)
+        await expect(customerEntries(fresh).first()).toBeVisible()
+        await expect(fresh.getByTestId('customers-reports')).toHaveCount(0)
     })
 
     // A phone run: the report's phone path is other code (core's phone row layout from the

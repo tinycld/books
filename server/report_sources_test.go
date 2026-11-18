@@ -54,7 +54,9 @@ var booksSourceKeys = []string{
 	"books.customers",
 	"books.journal_entries",
 	"books.journal_lines",
+	"books.products",
 	"books.sales_documents",
+	"books.sales_lines",
 	"books.sales_tax_lines",
 	"books.tax_agencies",
 	"books.tax_rates",
@@ -358,6 +360,8 @@ func expectedCatalog(t *testing.T) []wantSource {
 			links: []wantLink{
 				toOne("customer", "books.customers", "customer"),
 				toOne("entry", "books.journal_entries", "entry"),
+				// The back link of books.sales_lines' document, for the builder.
+				toMany("lines", "books.sales_lines", "document"),
 			},
 			parts: []wantPart{
 				{
@@ -432,6 +436,77 @@ func expectedCatalog(t *testing.T) []wantSource {
 					columns:    identity("gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency", "date", "document", "payment_entry"),
 					values:     map[string]any{"layer": "cash"},
 				},
+			},
+		},
+		{
+			// A union of the three sales line collections (sales-reports spec
+			// §5): the document link reads each part's own parent column, and
+			// sign is each part's constant. The lines have no currency column, so
+			// the Money fields name none and read the source's Currency.
+			key: "books.sales_lines", label: "Sales lines",
+			fields: []wantField{
+				{key: "kind", typ: reports.Select, options: []reports.Option{
+					{Value: "item", Label: "Item"}, {Value: "description", Label: "Description"},
+					{Value: "subtotal", Label: "Subtotal"}, {Value: "percent", Label: "Percent"},
+				}},
+				{key: "description", typ: reports.Text, anyAggs: true},
+				{key: "quantity", typ: reports.Number, anyAggs: true},
+				{key: "rate", typ: reports.Money, anyAggs: true},
+				{key: "amount", typ: reports.Money, aggs: reports.SumAll},
+				boolField("taxable"),
+				{key: "position", typ: reports.Number, anyAggs: true},
+				{key: "sign", typ: reports.Number, anyAggs: true},
+			},
+			links: []wantLink{
+				toOne("document", "books.sales_documents", "document"),
+				toOne("product", "books.products", "product"),
+			},
+			parts: []wantPart{
+				{
+					collection: "books_invoice_lines",
+					columns: mergeColumns(
+						identity("kind", "description", "quantity", "rate", "amount", "taxable", "position", "product"),
+						map[string]string{"document": "invoice"},
+					),
+					values: map[string]any{"sign": 1},
+				},
+				{
+					collection: "books_sales_receipt_lines",
+					columns: mergeColumns(
+						identity("kind", "description", "quantity", "rate", "amount", "taxable", "position", "product"),
+						map[string]string{"document": "sales_receipt"},
+					),
+					values: map[string]any{"sign": 1},
+				},
+				{
+					collection: "books_credit_memo_lines",
+					columns: mergeColumns(
+						identity("kind", "description", "quantity", "rate", "amount", "taxable", "position", "product"),
+						map[string]string{"document": "credit_memo"},
+					),
+					values: map[string]any{"sign": -1},
+				},
+			},
+		},
+		{
+			// Purchase fields, form columns and the name and sort keys are left
+			// out (sales-reports spec §5).
+			key: "books.products", collection: "books_products", label: "Products and services",
+			fields: []wantField{
+				{key: "name", typ: reports.Text, anyAggs: true},
+				{key: "sku", typ: reports.Text, anyAggs: true},
+				{key: "type", typ: reports.Select, options: []reports.Option{
+					{Value: "service", Label: "Service"}, {Value: "non_inventory", Label: "Non-inventory"},
+					{Value: "bundle", Label: "Bundle"},
+				}},
+				{key: "sales_description", typ: reports.Text, anyAggs: true},
+				{key: "price", typ: reports.Money, currency: "currency", anyAggs: true},
+				text("currency"),
+				boolField("inactive"),
+			},
+			links: []wantLink{
+				toOne("income_account", "books.accounts", "income_account"),
+				toMany("sales_lines", "books.sales_lines", "product"),
 			},
 		},
 	}
@@ -509,7 +584,7 @@ func TestReportSourcesCatalog(t *testing.T) {
 			wantCurrency := ""
 			if slices.Contains([]string{
 				"books.journal_entries", "books.journal_lines", "books.basis_lines", "books.account_balances",
-				"books.sales_documents", "books.sales_tax_lines",
+				"books.sales_documents", "books.sales_tax_lines", "books.sales_lines", "books.products",
 			}, want.key) {
 				wantCurrency = "USD"
 			}
@@ -591,7 +666,9 @@ func checkParts(t *testing.T, src reports.Source, want []wantPart) {
 		if !reflect.DeepEqual(p.Columns, w.columns) {
 			t.Errorf("part %s columns = %v\nwant %v", w.collection, p.Columns, w.columns)
 		}
-		if (len(p.Values) != 0 || len(w.values) != 0) && !reflect.DeepEqual(p.Values, w.values) {
+		// Compared as JSON, so a number constant matches whatever Go number
+		// type the source writes it with (1, int64(1), 1.0).
+		if (len(p.Values) != 0 || len(w.values) != 0) && string(mustJSON(p.Values)) != string(mustJSON(w.values)) {
 			t.Errorf("part %s values = %v, want %v", w.collection, p.Values, w.values)
 		}
 	}

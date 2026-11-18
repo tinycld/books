@@ -6,6 +6,7 @@ import { useProductNavigation } from '../../hooks/useProductNavigation'
 import { type ProductRecord, useProductsQuery } from '../../hooks/useProductsQuery'
 import { useRecordList } from '../../hooks/useRecordList'
 import { useRecordRowMenus } from '../../hooks/useRecordRowMenus'
+import { useShippedReportHref } from '../../hooks/useShippedReportHref'
 import { productListCopy } from '../../lib/product-display'
 import {
     PRODUCT_COLUMNS,
@@ -22,10 +23,12 @@ import {
     recordMenuItems,
     recordMenuTestIds,
 } from '../../lib/record-menu'
+import { SALES_BY_PRODUCT_SHIPPED_KEY } from '../../lib/shipped-reports'
 import { useProductFormStore } from '../../stores/product-form-store'
 import { ListCards } from '../ListCards'
 import { ListHeaderCell, ListHeaderRow, ListTable } from '../ListTable'
 import { RecordListFrame } from '../RecordListFrame'
+import { ShippedReportButton } from '../reports/ShippedReportButton'
 import { DeleteProductDialog } from './DeleteProductDialog'
 import { ProductCard } from './ProductCard'
 import { ProductRow } from './ProductRow'
@@ -89,6 +92,18 @@ export function ProductsList({ openId }: { openId: string }) {
             onDeleted={menus.deleteDialog.onDeleted}
         />
     )
+    // Null while the report loads, when its read fails and when the reader has none: the
+    // list then shows no button and stays usable; the live query shows it once it loads.
+    const salesHref = useShippedReportHref(SALES_BY_PRODUCT_SHIPPED_KEY)
+    // Undefined, not a button that renders null, so the header draws no empty button group.
+    const salesButton =
+        salesHref === null ? undefined : (
+            <ShippedReportButton
+                href={salesHref}
+                label="Sales report"
+                testID="products-sales-report"
+            />
+        )
     // Unwrapped, the press event would reach `openNew(type?)` as the type.
     const openChooser = () => navigation.openNew()
     const renderTable = (selectedId: string) => (
@@ -144,6 +159,7 @@ export function ProductsList({ openId }: { openId: string }) {
             renderTable={renderTable}
             renderCards={renderCards}
             dialog={dialog}
+            headerAction={salesButton}
         />
     )
 }

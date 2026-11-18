@@ -273,7 +273,7 @@ On a phone, each row wraps onto three lines in the table: the name; then Gross t
 
 ## Read the Customer Balance report
 
-To see what each customer owes on a day, open Reports and choose Customer Balance. You can also press Balance report at the top of the Customers list. The heading shows your business name, Customer Balance, and the day, for example "As of November 16, 2026".
+To see what each customer owes on a day, open Reports and choose Customer Balance. You can also press Reports at the top of the Customers list, then Customer Balance. The heading shows your business name, Customer Balance, and the day, for example "As of November 16, 2026".
 
 The report adds the posted transactions on your Accounts receivable accounts, dated on or before the As of day. A draft does not count. A voided document does not count, because its void reversal cancels the original. A customer's balance is its debits minus its credits on those accounts.
 
@@ -299,6 +299,36 @@ The report stays current. When someone posts or voids a transaction or renames a
 
 On a phone, each row keeps its name and its Balance on one line. A long name or transaction wraps to at most three lines, and the Balance is never cut. Customize and Export are under **⋯**.
 
+## Read the sales reports
+
+To see what you sold in a period, open Reports and choose Sales by Customer or Sales by Product/Service. You can also press Reports at the top of the Customers list, then Sales by Customer. On the Products and services list, press Sales report at the top to open Sales by Product/Service. The heading shows your business name, the report's title and the period.
+
+Sales by Customer shows what each customer bought, and Sales by Product/Service shows what you sold of each product and service.
+
+- Only posted invoices and posted sales receipts count, less posted credit memos. A draft does not count, and a voided document does not count. When you edit a posted document, Books voids the original, so only the new version counts.
+- A sale counts on its document's date. A posted credit memo lowers sales on its own date, whether or not its credit is used, so its lines show as negative figures and lower its customer's and its products' figures.
+- Each figure is the line amount before sales tax. Description lines and subtotal lines do not count.
+- Both reports read the same lines, so their two Totals are equal for the same period and filters. Each Total equals the Subtotals of the period's posted invoices and sales receipts, less the Subtotals of its posted credit memos.
+- % of sales is the row's sales as a share of the Total, with two decimal places; the Total shows 100.00%. A row below zero has a share below zero. When the Total is 0, the column is blank.
+- The reports are on the accrual basis: a sale counts on its date, not the day it is paid. Thus they can differ from Income on a cash-basis Profit and Loss. They can also differ from Income on an accrual-basis Profit and Loss, because a product's income account can be any account.
+- An inactive customer or product with sales in the period shows with "(inactive)" after its name, in lighter text.
+
+In Sales by Customer, a customer with no sub-customer sales is one row. A customer whose sub-customers have sales shows as a family: a heading with the customer's name, then the customer's own row (when it has sales), then a row for each sub-customer, then "Total" and the customer's name, which adds the rows of the family. Each customer's % of sales is its share of the report's Total, and the family's total shows the family's share. The No customer row holds the sales receipts that name no customer, and it shows after every customer.
+
+In Sales by Product/Service, each product or service with a sale in the period has one row with its Quantity, Amount, % of sales and Avg price. Avg price is the Amount divided by the Quantity. A discount (a percent line, such as the Discount product) counts on its own product's row, not on the product it discounts, which keeps its full amount. A discount has no quantity, so its row has no Quantity and no Avg price. The Total row shows the Amount and 100.00%, but the Total has no Quantity and no Avg price, because the units of different products do not add up. A product whose quantities add up to 0 in the period, for example one sold and then fully credited, also has a blank Quantity and Avg price.
+
+To see the sales behind a figure, press a customer or product row: it opens into its sale lines, in date order, then by document, then by line. Each sale line shows its date, its type and number, and the product (in Sales by Customer) or the customer (in Sales by Product/Service), for example "2026-10-14 · Invoice 1042 · Network visit". A sales receipt with no customer ends after its number. The sale lines add up to the row's figure, and their % of sales is blank. To open the invoice, sales receipt or credit memo, press a sale line: its document opens as its own screen. To fold a family, press its heading.
+
+To change the dates, press the Period chip. The default is This fiscal year to date. When no posted sale is in the period, the report shows "No rows for" and the period.
+
+To show only some customers or products, press Add filter, then Customer or Product, and pick from the filter's list. Inactive customers and products are in the lists. A sub-customer is listed under its parent's name, and "All" with the parent's name and "sub-customers" picks the whole family. Products are listed by type, and "All Service items" or "All Non-inventory items" picks a whole type. With customers picked, the No customer row does not show, and a line under the period names your picks.
+
+To change the order, press the Order chip and pick Name or Largest sales. Name, the default, orders the rows by name. Largest sales puts the largest sales first; a family counts by its total, inside a family the parent's own row stays first, and the No customer row stays last.
+
+The reports stay current. When someone posts or voids an invoice, a sales receipt or a credit memo, or renames a customer or a product, the open report runs again.
+
+On a phone, a Sales by Customer row shows the name on the first line, then Sales and % of sales. A Sales by Product/Service row shows the name, then Quantity and Amount, then % of sales and Avg price. A long name wraps to at most three lines, and a figure is never cut. Customize and Export are under **⋯**.
+
 ## Download or email a report
 
 To keep or send a copy of a report, press **Export** on a Books report (on a phone, the entries are under **⋯**) and choose a PDF, an Excel or a CSV file, or **Email report…**. The file is named after the report and its period or as-of day, for example `profit-and-loss-2026-01-01-to-2026-11-15.pdf`. For what each file holds and how to email it, see [Download or email a report](help://core:reports).
@@ -309,7 +339,7 @@ The Audit Log lists every change that people made to Books records: when, who, w
 
 ## Who sees Books reports
 
-Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month, Transaction Detail by Account, the Sales Tax Liability and the Audit Log, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
+Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month, Transaction Detail by Account, the Sales Tax Liability, the Customer Balance, Sales by Customer, Sales by Product/Service and the Audit Log, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
 
 A reader can change the chips and Customize for the run, copy a link with Copy link, and keep a copy with Save as. Each reader sees only the data that the reader can access.
 
