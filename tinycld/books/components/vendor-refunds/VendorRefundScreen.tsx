@@ -1,25 +1,28 @@
 import { useMemo, useState } from 'react'
 import { VENDOR_REFUND_READS } from '../../hooks/useVendorRefundReads'
-import type { PaymentReadAction } from '../../lib/payment-read-actions'
+import { useVendorRefundWrites } from '../../hooks/useVendorRefundWrites'
 import { paymentRefusalErrors } from '../../lib/payment-refusals'
 import { type PaymentFormMode, startRowOf, titleOf } from '../../lib/payment-start'
 import { draftPaymentValues, newPaymentValues } from '../../lib/payment-values'
 import { defaultRefundAccount } from '../../lib/refund-accounts'
-import { refundStoredLines, storedOpenOf } from '../../lib/refundable-credits'
+import {
+    refundCorrectionStart,
+    refundStoredLines,
+    storedOpenOf,
+} from '../../lib/refundable-credits'
 import { todayIso } from '../../lib/register-range'
 import { VENDOR_REFUND_FLOW } from '../../lib/vendor-refund-flow'
 import { type PaymentFormRouteProps, PaymentSurface } from '../payments/PaymentSurface'
 import { VendorRefundForm } from './VendorRefundForm'
+import { VendorRefundReadActions } from './VendorRefundReadActions'
 
 const FLOW = VENDOR_REFUND_FLOW
 
-// This checkpoint's read view offers View journal entry only, to every role; Edit and Void
-// arrive with the correction and the void.
-const READ_ACTIONS: readonly PaymentReadAction[] = ['entry']
-
+// A saved correction (a draft with `replaces`) keeps the correction's title, "Edit vendor
+// refund 1001": it opens again as the correction (spec §3.6).
 function modeOf(isDraft: boolean, hasOriginal: boolean): PaymentFormMode {
-    if (isDraft) return 'draft'
-    return hasOriginal ? 'correction' : 'new'
+    if (hasOriginal) return 'correction'
+    return isDraft ? 'draft' : 'new'
 }
 
 type StoredLine = PaymentFormRouteProps['lines'][number]
@@ -64,22 +67,30 @@ function VendorRefundFormRoute({
         [isDraft, lines]
     )
     const openedWith = input.party ?? ''
+    // A correction and a saved correction keep the original's vendor.
+    const isVendorLocked = original !== null
     const startValues = () => {
-        if (refused) return refused.values
-        const open = storedOpenOf(storedCredits)
-        if (isDraft && payment) return draftPaymentValues(payment, startEntriesOf(lines, open))
-        if (original) return draftPaymentValues(original, startEntriesOf(originalLines, open))
-        return newPaymentValues({
+        if (refused) return { values: refused.values, isVendorLocked }
+        if (isDraft && payment) {
+            const open = storedOpenOf(storedCredits)
+            return {
+                values: draftPaymentValues(payment, startEntriesOf(lines, open)),
+                isVendorLocked,
+            }
+        }
+        if (original) return refundCorrectionStart(original, originalLines)
+        const values = newPaymentValues({
             today: todayIso(),
             party: openedWith,
             document: startRowOf(screen.startDocument, openedWith),
             account: defaultRefundAccount(screen.depositAccounts),
         })
+        return { values, isVendorLocked }
     }
     // The form reads its start values, and a handed-off refusal as its start errors, once,
     // at mount.
     const [start] = useState(() => ({
-        values: startValues(),
+        ...startValues(),
         errors: refused ? paymentRefusalErrors(refused.error, refused.stored, FLOW) : undefined,
     }))
     const title = titleOf(FLOW, modeOf(isDraft, original !== null), original?.number)
@@ -96,7 +107,7 @@ function VendorRefundFormRoute({
             storedLines={storedLines}
             storedCredits={storedCredits}
             replaces={input.replaces}
-            isVendorLocked={original !== null}
+            isVendorLocked={start.isVendorLocked}
             openedWithVendor={openedWith}
             canWrite={screen.canWrite}
             scopeOwner={scopeOwner}
@@ -129,8 +140,9 @@ export function VendorRefundScreen({ id, replaces, vendor, credit }: VendorRefun
             reads={VENDOR_REFUND_READS}
             collection="books_vendor_refunds"
             input={input}
+            useWrites={useVendorRefundWrites}
             FormRoute={VendorRefundFormRoute}
-            readActions={READ_ACTIONS}
+            ReadBar={VendorRefundReadActions}
         />
     )
 }

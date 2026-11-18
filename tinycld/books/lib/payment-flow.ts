@@ -141,6 +141,10 @@ export interface PaymentFlow {
     lineKey: 'applications' | 'lines'
     // The server's field names of the party and the account.
     serverFields: { party: string; account: string }
+    // The server refuses every save of a stored correction draft once its original is no
+    // longer posted (the vendor refund): such a draft opens as "cannot be edited". Where
+    // false, the draft stays saveable and only its Post is refused (the received payment).
+    draftNeedsPostedOriginal: boolean
     ids: PaymentFlowIds
     texts: PaymentFlowTexts
     widths: PaymentBandWidths
@@ -208,6 +212,7 @@ export const PAYMENT_FLOW: PaymentFlow = {
     sumRule: 'credit',
     lineKey: 'applications',
     serverFields: { party: 'customer', account: 'deposit_to' },
+    draftNeedsPostedOriginal: false,
     ids: {
         party: 'customer',
         account: 'deposit-to',

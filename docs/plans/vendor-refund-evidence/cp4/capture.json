@@ -1,0 +1,193 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "read",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "height": 1300,
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                {
+                    "fill": "entries-search",
+                    "value": "First of two refund checks for the cancelled fleet cards"
+                },
+                { "clickText": "First of two refund checks for the cancelled fleet cards" },
+                { "waitFor": "vendor-refund-read-only" },
+                { "waitFor": "vendor-refund-read-edit" },
+                { "waitFor": "vendor-refund-applied" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "read-reader",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "height": 1200,
+            "schemes": ["light"],
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                {
+                    "fill": "entries-search",
+                    "value": "First of two refund checks for the cancelled fleet cards"
+                },
+                { "clickText": "First of two refund checks for the cancelled fleet cards" },
+                { "waitFor": "vendor-refund-read-only" },
+                { "waitFor": "vendor-refund-applied" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "read-void",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "height": 1200,
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                {
+                    "fill": "entries-search",
+                    "value": "Check 20431 was stopped by Cascade before it cleared"
+                },
+                { "clickText": "Check 20431 was stopped by Cascade before it cleared" },
+                { "waitFor": "vendor-refund-read-only" },
+                { "waitFor": "vendor-refund-voided-by" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "cannot-edit",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "schemes": ["light"],
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                {
+                    "fill": "entries-search",
+                    "value": "Check 20431 was stopped by Cascade before it cleared"
+                },
+                { "clickText": "Check 20431 was stopped by Cascade before it cleared" },
+                { "waitFor": "vendor-refund-read-only" },
+                { "pushPath": "/a/books/vendor-refunds/new?replaces=$urlId" },
+                { "waitFor": "vendor-refund-cannot-edit" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "correction",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "height": 1400,
+            "schemes": ["light"],
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                {
+                    "fill": "entries-search",
+                    "value": "First of two refund checks for the cancelled fleet cards"
+                },
+                { "clickText": "First of two refund checks for the cancelled fleet cards" },
+                { "waitFor": "vendor-refund-read-only" },
+                { "click": "vendor-refund-read-edit" },
+                { "waitFor": "vendor-refund-form" },
+                { "waitFor": "vendor-refund-on-credits" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "read-replaced",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "height": 1200,
+            "schemes": ["light"],
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                {
+                    "fill": "entries-search",
+                    "value": "First of two refund checks for the cancelled fleet cards"
+                },
+                { "clickText": "First of two refund checks for the cancelled fleet cards" },
+                { "waitFor": "vendor-refund-read-only" },
+                { "click": "vendor-refund-read-edit" },
+                { "waitFor": "vendor-refund-on-credits" },
+                {
+                    "fill": "vendor-refund-memo",
+                    "value": "First refund check, reference corrected"
+                },
+                { "click": "vendor-refund-post" },
+                { "waitFor": "vendor-refund-read-only" },
+                { "waitFor": "vendor-refund-read-edit" },
+                { "click": "entry-back" },
+                { "waitFor": "entries-screen" },
+                { "clickText": "First of two refund checks for the cancelled fleet cards" },
+                { "waitFor": "vendor-refund-replaced-by" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "cannot-edit-draft",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "widths": [1280, 390],
+            "schemes": ["light"],
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "First refund check, reference corrected" },
+                { "clickText": "First refund check, reference corrected" },
+                { "waitFor": "vendor-refund-read-only" },
+                { "click": "vendor-refund-read-edit" },
+                { "waitFor": "vendor-refund-on-credits" },
+                {
+                    "fill": "vendor-refund-memo",
+                    "value": "Draft fix of the corrected fleet card refund check"
+                },
+                { "click": "vendor-refund-save-draft" },
+                { "waitFor": "vendor-refund-more" },
+                { "click": "entry-back" },
+                { "waitFor": "entries-screen" },
+                { "fill": "entries-search", "value": "First refund check, reference corrected" },
+                { "clickText": "First refund check, reference corrected" },
+                { "waitFor": "vendor-refund-read-only" },
+                { "click": "vendor-refund-read-void" },
+                { "click": "void-confirm" },
+                { "waitFor": "vendor-refund-voided-by" },
+                { "click": "entry-back" },
+                { "waitFor": "entries-screen" },
+                { "press": "/" },
+                { "pause": 500 },
+                { "type": "Draft fix of the corrected fleet card refund check" },
+                { "clickText": "Draft vendor refund · Cascade Fuel & Fleet" },
+                { "waitFor": "vendor-refund-cannot-edit" },
+                { "waitFor": "vendor-refund-cannot-edit-delete-draft" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}

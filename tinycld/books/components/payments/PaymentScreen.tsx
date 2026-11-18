@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { PaymentScreenInput } from '../../hooks/usePaymentScreen'
+import { usePaymentWrites } from '../../hooks/usePaymentWrites'
 import { RECEIVED_PAYMENT_READS } from '../../hooks/useReceivedPaymentReads'
 import { paymentDefaultDeposit } from '../../lib/payment-deposit'
 import { PAYMENT_FLOW } from '../../lib/payment-flow'
@@ -114,6 +115,7 @@ export function PaymentScreen(input: PaymentScreenInput) {
             reads={RECEIVED_PAYMENT_READS}
             collection="books_payments"
             input={input}
+            useWrites={usePaymentWrites}
             FormRoute={PaymentFormRoute}
         />
     )

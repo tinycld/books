@@ -76,10 +76,10 @@ test.describe('vendor-refund: keyboard create', () => {
         const refundId = vendorRefundIdFromUrl(page)
         await expect(page.getByTestId('vendor-refund-read-only')).toBeVisible()
 
-        // This checkpoint's read view offers View journal entry only.
+        // A writer's posted refund offers Edit, Void and View journal entry.
         await expect(page.getByTestId('vendor-refund-read-entry')).toBeVisible()
-        await expect(page.getByTestId('vendor-refund-read-edit')).toHaveCount(0)
-        await expect(page.getByTestId('vendor-refund-read-void')).toHaveCount(0)
+        await expect(page.getByTestId('vendor-refund-read-edit')).toBeVisible()
+        await expect(page.getByTestId('vendor-refund-read-void')).toBeVisible()
 
         await expect(page.getByTestId('vendor-refund-title')).toHaveText(/^Vendor refund \d+$/)
         await expect(page.getByTestId('vendor-refund-badge')).toHaveText('Posted')

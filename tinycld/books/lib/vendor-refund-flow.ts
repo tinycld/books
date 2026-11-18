@@ -49,6 +49,8 @@ export const VENDOR_REFUND_FLOW: PaymentFlow = {
     sumRule: 'exact',
     lineKey: 'lines',
     serverFields: { party: 'vendor', account: 'refunded_to' },
+    // server/vendor_refunds.go checks a correction's original on every draft write.
+    draftNeedsPostedOriginal: true,
     ids: {
         party: 'vendor',
         account: 'account',

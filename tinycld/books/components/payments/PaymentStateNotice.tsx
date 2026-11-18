@@ -1,5 +1,6 @@
 import { LoadingState } from '@tinycld/core/components/LoadingState'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
+import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import type { PaymentFlow } from '../../lib/payment-flow'
 import type { PaymentScreenState } from '../../lib/payment-screen-state'
@@ -39,16 +40,20 @@ function RetryButton({
  * The screen's states other than the form and the read view (spec §3.8): loading, a
  * failed read with Retry, a payment that does not exist, no write access, and a
  * correction of a payment that is not posted. Each but loading has the back link. The
- * flow gives the texts and the test ids (`<flow.testId>-<state>`).
+ * flow gives the texts and the test ids (`<flow.testId>-<state>`); `children` draws under
+ * the message.
  */
 export function PaymentStateNotice({
     flow,
     state,
     onRetry,
+    children,
 }: {
     flow: PaymentFlow
     state: PaymentNoticeState
     onRetry: () => void
+    // Actions under the message (a stored draft's Delete draft).
+    children?: ReactNode
 }) {
     if (state === 'loading') {
         return (
@@ -75,6 +80,7 @@ export function PaymentStateNotice({
                     onRetry={onRetry}
                     testID={`${flow.testId}-retry`}
                 />
+                {children}
             </View>
         </View>
     )

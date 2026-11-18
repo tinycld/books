@@ -27,8 +27,9 @@ export type PaymentScreenInput = {
     // A post of this draft runs (the save store holds it): its optimistic `posted` status
     // must not swap the form for the read view, or a refusal is lost.
     isHeld: boolean
-    // `?replaces`: undefined without it; else the original's status, null when no row has
-    // the id.
+    // `?replaces`, or the `replaces` of a stored draft whose flow refuses every save once
+    // its original is no longer posted: undefined without one; else the original's status,
+    // null when no row has the id.
     replacesStatus: PaymentStatus | null | undefined
     replacesReady: boolean
     replacesError: boolean
@@ -40,8 +41,17 @@ export function paymentScreenState(input: PaymentScreenInput): PaymentScreenStat
     if (!input.isReady || (hasReplaces && !input.replacesReady)) return 'loading'
     if (input.isNew) return newState(input, hasReplaces)
     if (input.status === null) return 'not-found'
-    if (input.status === 'draft' || input.isHeld) return input.canWrite ? 'form' : 'no-access'
+    if (input.status === 'draft' || input.isHeld) return draftState(input, hasReplaces)
     return 'read'
+}
+
+// A stored correction draft whose original was voided or replaced since it was saved
+// cannot be saved again (vendor refund spec §3.8). While this form's own post holds it, the
+// post voids the original itself, so the form stays.
+function draftState(input: PaymentScreenInput, hasReplaces: boolean): PaymentScreenState {
+    if (!input.canWrite) return 'no-access'
+    if (!input.isHeld && hasReplaces && input.replacesStatus !== 'posted') return 'cannot-edit'
+    return 'form'
 }
 
 function newState(input: PaymentScreenInput, hasReplaces: boolean): PaymentScreenState {

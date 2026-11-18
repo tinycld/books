@@ -95,9 +95,16 @@ export function usePaymentScreen(
     const deposit = reads.useAccounts()
     const record = reads.useRecord(input.id ?? '')
     const start = reads.useStartDocument(input.id === null ? (input.document ?? '') : '')
-    const isHeld = usePaymentSaveStore(
-        s => s.holding[flow.key] !== null && s.holding[flow.key] === input.id
-    )
+    const isHeld = usePaymentSaveStore(s => {
+        const hold = s.holding[flow.key]
+        return hold !== null && hold.id === input.id
+    })
+    // Only a save or post keeps the form over "cannot be edited" (its post voids the
+    // original itself); a delete from that notice keeps the notice.
+    const isSaveHeld = usePaymentSaveStore(s => {
+        const hold = s.holding[flow.key]
+        return hold !== null && hold.id === input.id && hold.purpose === 'save'
+    })
     const payment = useHeldPayment(record.payment, isHeld)
     // A saved correction is a draft that replaces a posted payment: its form reads the
     // original too (its applications widen the open balances).
@@ -132,14 +139,18 @@ export function usePaymentScreen(
         original.isReady &&
         start.isReady &&
         !(partyId !== '' && party.isLoading)
+    // A stored correction draft of a flow whose server refuses its saves once the original
+    // is no longer posted is checked against its original as `?replaces` is.
+    const checksOriginal =
+        Boolean(input.replaces) || (flow.draftNeedsPostedOriginal && draftReplaces !== '')
     const computed = paymentScreenState({
         isReady,
         isError,
         canWrite: access.canWrite,
         isNew: input.id === null,
         status: payment?.status ?? null,
-        isHeld,
-        replacesStatus: input.replaces ? (original.payment?.status ?? null) : undefined,
+        isHeld: isSaveHeld,
+        replacesStatus: checksOriginal ? (original.payment?.status ?? null) : undefined,
         replacesReady: original.isReady,
         replacesError: original.isError,
     })
