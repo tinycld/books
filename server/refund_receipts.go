@@ -51,6 +51,13 @@ const (
 	msgRefundLineUnknownKind    = "Line %d: a refund receipt line is an item, description, subtotal or percent line."
 	msgRefundEditMissing        = "The refund receipt being edited does not exist."
 	msgRefundRevisionConflict   = "This refund receipt changed after you opened it. Load it again, then review it before you save or post."
+	// A plain refund whose taxable lines net below zero (checkTaxableNotNegative).
+	msgRefundTaxableNegative = "The taxable lines of a refund receipt cannot total below zero. Make a negative line not taxable, or lower it."
+	// A plain refund with tax whose subtotal is below zero (checkTaxableNotNegative).
+	msgRefundSubtotalNegative = "The subtotal of a refund receipt cannot be below zero. Lower the negative lines."
+	// checkAccountDelete's texts for the Refund from account of refund receipts.
+	msgAccountRefundOfOneRefundReceipt = "This account is the refund account of 1 refund receipt and cannot be deleted. Make it inactive instead."
+	msgAccountRefundOfRefundReceipts   = "This account is the refund account of %d refund receipts and cannot be deleted. Make it inactive instead."
 )
 
 // refundReceiptKind is the refund receipt as a sales document: an optional
@@ -92,6 +99,8 @@ var refundReceiptKind = salesDocKind{
 		CustomerOnDocs:   msgCustomerOnRefundReceipts,
 		RevisionConflict: msgRefundRevisionConflict,
 		PartyInactive:    msgCustomerInactive,
+		TaxableNegative:  msgRefundTaxableNegative,
+		SubtotalNegative: msgRefundSubtotalNegative,
 	},
 	CheckHeader:   checkRefundReceiptHeader,
 	CreditAccount: func(_ core.App, doc *core.Record) (string, error) { return doc.GetString("refund_from"), nil },
@@ -162,8 +171,13 @@ func checkRefundFromAccount(tx core.App, id string) error {
 // credit_memo and customer passes, so a draft whose source was voided after
 // the link was stored still saves (a void keeps the link, spec Q13). A
 // correction that keeps its original's three fields passes for the same
-// reason.
+// reason. A link a source correction moves (refund_receipt_links.go) passes
+// too: that Replace step runs before the correction is posted, so the link
+// names a source that is not posted yet.
 func checkRefundReceiptLinks(tx core.App, stored, r *core.Record) error {
+	if isMovingRefundLink(tx, r.Id) {
+		return nil
+	}
 	receiptID, memoID, customer := r.GetString("sales_receipt"), r.GetString("credit_memo"), r.GetString("customer")
 	if receiptID != "" && memoID != "" {
 		return refuse("%s", msgRefundOneSource)

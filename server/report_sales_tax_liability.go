@@ -67,11 +67,14 @@ func salesTaxLiabilitySpec() *reports.Spec {
 	}
 }
 
-// stlDocumentKinds are the kinds of a tax line's document with the words of
-// its row; the last one is the formula's fallback.
+// stlDocumentKinds are the kinds of a tax line's or a sale line's document
+// with the words of its row; the last one is the formula's fallback. A payout
+// refund receipt has no tax lines and no sale lines, so only a plain refund's
+// rows read "Refund receipt".
 var stlDocumentKinds = []struct{ kind, noun string }{
 	{"invoice", "Invoice"},
 	{"credit_memo", "Credit memo"},
+	{"refund_receipt", "Refund receipt"},
 	{"sales_receipt", "Sales receipt"},
 }
 
@@ -87,20 +90,21 @@ func byDocumentKind(value func(kind, noun string) *reports.Node) *reports.Node {
 	return out
 }
 
-// stlDetailOpen is the read view of a document row's invoice, credit memo or
-// sales receipt, by the document's kind and id. Only detail rows carry it:
-// rate, agency and total rows open nothing. The route segments come from
-// entry_routes.json, the one list of document screens.
+// stlDetailOpen is the read view of a document row's invoice, credit memo,
+// refund receipt or sales receipt, by the document's kind and id. Only detail
+// rows carry it: rate, agency and total rows open nothing. The route segments
+// come from entry_routes.json, the one list of document screens.
 func stlDetailOpen() *reports.Node {
 	return byDocumentKind(func(kind, _ string) *reports.Node {
 		return op("concat", lit("books/"+entryRoutes[kind]+"/"), fld("document", "id"))
 	})
 }
 
-// stlDetailLabel is "<date> · <Invoice|Credit memo|Sales receipt> <number> ·
-// <customer>", the date the line's own (the day it counts on); a document
-// with no customer ends after its number. The kind is a constant select, and
-// a formula reads its value, so the words are written here (D6).
+// stlDetailLabel is "<date> · <Invoice|Credit memo|Refund receipt|Sales
+// receipt> <number> · <customer>", the date the line's own (the day it counts
+// on); a document with no customer ends after its number. The kind is a
+// constant select, and a formula reads its value, so the words are written
+// here (D6).
 func stlDetailLabel() *reports.Node {
 	customer := fld("document", "customer", "display_name")
 	return op("concat",

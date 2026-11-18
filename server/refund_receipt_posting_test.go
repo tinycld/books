@@ -383,3 +383,85 @@ func TestRefundReceiptSaleLines_ListsAPlainRefundsLines(t *testing.T) {
 		}
 	}
 }
+
+const wantRefundTaxableNegative = "The taxable lines of a refund receipt cannot total below zero. Make a negative line not taxable, or lower it."
+
+// negativeTaxableLines saves on r a non-taxable Item line of 20000 and then an
+// Item line of -5000 (taxable as given), so no saved state totals below zero.
+// Under Denver combined with the first line
+// taxable: taxable -5000, state -145, RTD -50, city -240.5 -> -241; tax -436,
+// subtotal 15000, total 14564. With it not taxable: tax 0, total 15000.
+func (rr *refundReceiptEnv) negativeTaxableLines(t testing.TB, r *core.Record, taxable bool) {
+	t.Helper()
+	mkRefundReceiptLine(t, rr.app, r, 0, item(rr.accessPoint, 1, 20000, false))
+	mkRefundReceiptLine(t, rr.app, r, 1, item(rr.service, 1, -5000, taxable))
+}
+
+// A plain refund whose taxable lines net below zero (its total above zero)
+// saves as a draft, and its Post is refused with a root refusal before any tax
+// line is written; the same lines with the negative line not taxable post.
+func TestRefundReceiptPost_RefusesTaxableLinesBelowZero(t *testing.T) {
+	rr := newRefundReceiptEnv(t)
+	r := rr.mkRefundReceipt(t, map[string]any{"tax_rate": rr.denver.Id})
+	rr.negativeTaxableLines(t, r, true)
+	requireRefundReceiptTotals(t, rr.app, r.Id, 15000, -436, 14564)
+
+	err := postRefundReceiptAs(rr.app, r.Id, rr.users.bookkeeper.Id)
+	requireMessageOnlyRefusal(t, err, wantRefundTaxableNegative)
+	requireRefundReceiptNotPosted(t, rr.app, r.Id, 1001)
+
+	t.Run("the negative line not taxable posts", func(t *testing.T) {
+		ok := rr.mkRefundReceipt(t, map[string]any{"tax_rate": rr.denver.Id})
+		rr.negativeTaxableLines(t, ok, false)
+		requireRefundReceiptTotals(t, rr.app, ok.Id, 15000, 0, 15000)
+		posted := mustPostRefundReceipt(t, rr.app, ok.Id, rr.users.bookkeeper.Id)
+		if posted.GetString("status") != statusPosted || posted.GetString("number") != "1001" {
+			t.Errorf("refund receipt status %q number %q, want posted, 1001", posted.GetString("status"), posted.GetString("number"))
+		}
+		requireNoDrift(t, rr.app)
+	})
+}
+
+const wantRefundSubtotalNegative = "The subtotal of a refund receipt cannot be below zero. Lower the negative lines."
+
+// A plain refund whose taxable lines are above zero but whose subtotal is below
+// zero (its total above zero) saves as a draft, and its Post is refused with a
+// root refusal before any tax line is written: the tax line's gross_amount is
+// bounded -MAX..0 and would get the raw schema error. Under Denver combined: a
+// taxable Item of 10000 and an untaxed Item of -10500 give subtotal -500, tax
+// 290 + 100 + 481 = 871, total 371.
+func TestRefundReceiptPost_RefusesSubtotalBelowZero(t *testing.T) {
+	rr := newRefundReceiptEnv(t)
+	r := rr.mkRefundReceipt(t, map[string]any{"tax_rate": rr.denver.Id})
+	mkRefundReceiptLine(t, rr.app, r, 0, item(rr.accessPoint, 1, 10000, true))
+	mkRefundReceiptLine(t, rr.app, r, 1, item(rr.service, 1, -10500, false))
+	requireRefundReceiptTotals(t, rr.app, r.Id, -500, 871, 371)
+
+	err := postRefundReceiptAs(rr.app, r.Id, rr.users.bookkeeper.Id)
+	requireMessageOnlyRefusal(t, err, wantRefundSubtotalNegative)
+	requireRefundReceiptNotPosted(t, rr.app, r.Id, 1001)
+}
+
+// A payout writes no tax lines, so the same lines under the same rate are not
+// refused by the taxable-below-zero rule.
+func TestRefundReceiptPayout_TaxableLinesBelowZeroPost(t *testing.T) {
+	rr := newRefundReceiptEnv(t)
+	memo := rr.postedMemoFor(t, rr.customer, 20000)
+	r := rr.mkRefundReceipt(t, map[string]any{"credit_memo": memo.Id, "tax_rate": rr.denver.Id, "memo": "Credit paid out"})
+	rr.negativeTaxableLines(t, r, true)
+	requireRefundReceiptTotals(t, rr.app, r.Id, 15000, -436, 14564)
+
+	if err := postRefundReceiptAs(rr.app, r.Id, rr.users.bookkeeper.Id); err != nil {
+		t.Fatalf("post a payout whose taxable lines net below zero: %v, want it posted", err)
+	}
+	posted := reload(t, rr.app, refundReceiptsCollection, r.Id)
+	if posted.GetString("status") != statusPosted {
+		t.Errorf("payout status %q, want posted", posted.GetString("status"))
+	}
+	if n, err := rr.app.CountRecords("books_refund_receipt_tax_lines", dbx.HashExp{"refund_receipt": r.Id}); err != nil || n != 0 {
+		t.Errorf("%d tax lines on the payout (err %v), want 0", n, err)
+	}
+	requireCreditMemoBalance(t, rr.app, memo.Id, 20000-14564)
+	requireNoDrift(t, rr.app)
+	requireNoDocumentDrift(t, rr.app)
+}

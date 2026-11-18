@@ -35,6 +35,9 @@ const (
 	msgReceiptLineUnknownKind  = "Line %d: a sales receipt line is an item, description, subtotal or percent line."
 	msgReceiptEditMissing      = "The sales receipt being edited does not exist."
 	msgReceiptRevisionConflict = "This sales receipt changed after you opened it. Load it again, then review it before you save or post."
+	// moveRefundSalesReceiptLinks refuses, under customer, a correction that
+	// changes the customer while a draft or posted refund receipt names it.
+	msgSalesReceiptCorrectionRefunds = "Refund receipts are made from this sales receipt, so its customer cannot change."
 )
 
 // docTypeSalesReceipt is the doc type of a sales receipt's sequence and of the
@@ -43,7 +46,9 @@ const docTypeSalesReceipt = "sales_receipt"
 
 // salesReceiptKind is the sales receipt as a sales document: an optional
 // customer, one date, a deposit account (sales_deposit.go) that the posting
-// debits for the total. Posting never creates an account.
+// debits for the total. Posting never creates an account. A correction's post
+// moves the link of every refund receipt that names the original
+// (moveRefundSalesReceiptLinks); a void keeps those links.
 var salesReceiptKind = salesDocKind{
 	DocType:            docTypeSalesReceipt,
 	Lifecycle:          lifecyclePosting,
@@ -78,6 +83,7 @@ var salesReceiptKind = salesDocKind{
 	CheckHeader:  checkSalesReceiptHeader,
 	BeforePost:   checkReceiptDepositToPost,
 	DebitAccount: func(_ core.App, doc *core.Record) (string, error) { return doc.GetString("deposit_to"), nil },
+	Replace:      moveRefundSalesReceiptLinks,
 }
 
 // checkSalesReceiptHeader is the receipt's own header guard on a draft write:
