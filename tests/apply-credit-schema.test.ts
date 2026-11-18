@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+    APPLY_CREDIT_MESSAGES,
     type ApplyCreditValues,
     appliedToastText,
     applyCreditSchema,
@@ -7,7 +8,7 @@ import {
 } from '../tinycld/books/lib/apply-credit-schema'
 import { closedThroughMessage } from '../tinycld/books/lib/opening-balances-messages'
 import { amountToApply, type OutstandingRow } from '../tinycld/books/lib/payment-allocation'
-import { PAYMENT_MESSAGES } from '../tinycld/books/lib/payment-texts'
+import { fillPaymentText, PAYMENT_MESSAGES } from '../tinycld/books/lib/payment-texts'
 
 // The apply dialog's one zod schema (vendor credit spec §3.9): the Apply date, each row
 // against its open balance (under its Credit to apply cell), the sum against the unapplied
@@ -172,6 +173,16 @@ describe('applySummaryText', () => {
     it('says "1 bill" for one bill', () => {
         expect(applySummaryText(3_000, 1, 2_000, USD)).toBe(
             'Applying $30.00 to 1 bill · $20.00 stays unapplied'
+        )
+    })
+})
+
+// Vendor refund spec §3.9: the dialog's text for a vendor with no open bill names the
+// refund as the other way to use the credit.
+describe('the no-open-bills text', () => {
+    it('names the vendor and says the credit stays until a bill or a refund', () => {
+        expect(fillPaymentText(APPLY_CREDIT_MESSAGES.noOpenBills, 'Pacific Power')).toBe(
+            'Pacific Power has no open bills. The credit stays on the vendor until you post a bill or record a refund.'
         )
     })
 })

@@ -53,7 +53,7 @@ To hide a vendor that you no longer buy from, open the menu on its row and choos
 
 To delete a vendor, open the menu on its row and choose Delete, then choose Delete in the dialog. A deleted vendor cannot be restored, so the delete cannot be undone. If you delete the vendor that is open with changes that are not saved, the dialog tells you that those changes will be lost.
 
-A vendor that is on a bill, draft, posted or void, cannot be deleted: make it inactive instead. A vendor that is on an expense, in any status, cannot be deleted either: make it inactive instead. The same is true for a vendor that a journal line names.
+A vendor that is on a bill, draft, posted or void, cannot be deleted: make it inactive instead. A vendor that is on an expense, in any status, cannot be deleted either: make it inactive instead. The same is true for a vendor that a journal line names, and for a vendor that is on a vendor credit or a vendor refund. See [Vendor credits](help://books:vendor-credits) and [Vendor refunds](help://books:vendor-refunds).
 
 If you only want to stop using a vendor, make it inactive instead.
 

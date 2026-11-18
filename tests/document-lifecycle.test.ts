@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { VENDOR_CREDIT_DOCUMENT } from '../tinycld/books/components/documents/document-kinds'
 import {
     appliedBadge,
     type BalanceBadge,
@@ -8,6 +9,7 @@ import {
     paidBadge,
     quoteReadActions,
     statusBadgeOf,
+    vendorCreditBadge,
 } from '../tinycld/books/lib/document-lifecycle'
 
 // The sales document layer's lifecycles (spec §3.1): `posting` (invoice, sales receipt:
@@ -139,6 +141,95 @@ describe('appliedBadge', () => {
         expect(appliedBadge('draft', 0, 5000)).toEqual({ label: 'Draft', tone: 'muted' })
         expect(appliedBadge('void', 0, 5000)).toEqual({ label: 'Void', tone: 'destructive' })
         expect(appliedBadge('void', 2000, 5000)).toEqual({ label: 'Void', tone: 'destructive' })
+    })
+})
+
+// Vendor refund spec §3.9 (Q4): a posted vendor credit reads Refunded (success) when its
+// balance is 0 and nothing is applied to a bill; otherwise appliedBadge's words, where a
+// refund counts as use of the credit. The arguments are appliedBadge's (status, balance,
+// total) and the cents applied to bills.
+describe('vendorCreditBadge', () => {
+    it('reads Refunded, success, at balance 0 with nothing applied to a bill', () => {
+        expect(vendorCreditBadge('posted', 0, 30_000, 0)).toEqual({
+            label: 'Refunded',
+            tone: 'success',
+        })
+    })
+
+    it('reads Applied, success, at balance 0 with part applied to bills', () => {
+        expect(vendorCreditBadge('posted', 0, 30_000, 10_000)).toEqual({
+            label: 'Applied',
+            tone: 'success',
+        })
+        expect(vendorCreditBadge('posted', 0, 30_000, 30_000)).toEqual({
+            label: 'Applied',
+            tone: 'success',
+        })
+    })
+
+    it('reads Partly applied, warning, while 0 < balance < total with only refunds', () => {
+        expect(vendorCreditBadge('posted', 18_000, 30_000, 0)).toEqual({
+            label: 'Partly applied',
+            tone: 'warning',
+        })
+    })
+
+    it('reads Partly applied, warning, while 0 < balance < total with applications', () => {
+        expect(vendorCreditBadge('posted', 18_000, 30_000, 12_000)).toEqual({
+            label: 'Partly applied',
+            tone: 'warning',
+        })
+    })
+
+    it('reads Posted on a posted credit nothing has used', () => {
+        expect(vendorCreditBadge('posted', 30_000, 30_000, 0)).toEqual({
+            label: 'Posted',
+            tone: 'success',
+        })
+    })
+
+    it('keeps the status badges of a draft and a void credit', () => {
+        expect(vendorCreditBadge('draft', 0, 30_000, 0)).toEqual({ label: 'Draft', tone: 'muted' })
+        expect(vendorCreditBadge('void', 0, 30_000, 0)).toEqual({
+            label: 'Void',
+            tone: 'destructive',
+        })
+        expect(vendorCreditBadge('void', 18_000, 30_000, 0)).toEqual({
+            label: 'Void',
+            tone: 'destructive',
+        })
+    })
+})
+
+// The vendor credit read view's badge (VENDOR_CREDIT_DOCUMENT.balanceBadge): the refunded
+// cents come from the posted refunds' read, null while that read has failed. With them
+// unknown the used credit cannot be split into applied and refunded, so a credit used in
+// full shows its status badge, not a split it does not know; Partly applied needs no split.
+describe('VENDOR_CREDIT_DOCUMENT.balanceBadge', () => {
+    const badgeOf = (
+        ...args: Parameters<NonNullable<typeof VENDOR_CREDIT_DOCUMENT.balanceBadge>>
+    ) => {
+        const badge = VENDOR_CREDIT_DOCUMENT.balanceBadge
+        if (badge === undefined) throw new Error('the vendor credit kind has no balance badge')
+        return badge(...args)
+    }
+
+    it('reads Refunded at balance 0 when the refunds read gave the whole total', () => {
+        expect(badgeOf('posted', 0, 30_000, 30_000)).toEqual({
+            label: 'Refunded',
+            tone: 'success',
+        })
+    })
+
+    it('reads the status badge (Posted), not Applied, at balance 0 while the refunds read has failed', () => {
+        expect(badgeOf('posted', 0, 30_000, null)).toEqual({ label: 'Posted', tone: 'success' })
+    })
+
+    it('reads Partly applied, warning, at a balance above 0 while the refunds read has failed', () => {
+        expect(badgeOf('posted', 18_000, 30_000, null)).toEqual({
+            label: 'Partly applied',
+            tone: 'warning',
+        })
     })
 })
 

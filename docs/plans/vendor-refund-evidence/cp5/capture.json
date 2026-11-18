@@ -1,0 +1,123 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "credit",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "height": 1100,
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                {
+                    "fill": "entries-search",
+                    "value": "Fleet cards cancelled; prepaid fuel returned"
+                },
+                { "clickText": "Fleet cards cancelled; prepaid fuel returned" },
+                { "waitFor": "vendor-credit-read-only" },
+                { "waitFor": "vendor-credit-refunded" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "apply-empty",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-empty",
+            "settleMs": 800,
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                {
+                    "fill": "entries-search",
+                    "value": "Fleet cards cancelled; prepaid fuel returned"
+                },
+                { "clickText": "Fleet cards cancelled; prepaid fuel returned" },
+                { "waitFor": "vendor-credit-read-only" },
+                { "waitFor": "vendor-credit-refunded" },
+                { "click": "vendor-credit-read-apply" },
+                { "waitFor": "apply-credit-empty" },
+                { "waitFor": "apply-credit-record-refund" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "credit-applied-refunded",
+            "url": "/a/books/vendor-refunds/new?vendor=vendironclad001",
+            "ready": "vendor-refund-form",
+            "widths": [1280, 390],
+            "height": 1100,
+            "hideLabels": ["New"],
+            "actions": [
+                { "clickLabel": "Refund vendor credit 1002" },
+                { "waitFor": "vendor-refund-on-credits" },
+                { "pause": 500 },
+                { "click": "vendor-refund-post" },
+                { "waitFor": "vendor-refund-read-only" },
+                { "clickText": "Vendor credit 1002" },
+                { "waitFor": "vendor-credit-read-only" },
+                { "waitFor": "vendor-credit-applications" },
+                { "waitFor": "vendor-credit-refunded" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "credit-more",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "widths": [390],
+            "schemes": ["light"],
+            "height": 1100,
+            "hideLabels": ["New"],
+            "stable": "vendor-credit-read-record-refund",
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                {
+                    "fill": "entries-search",
+                    "value": "Fleet cards cancelled; prepaid fuel returned"
+                },
+                { "clickText": "Fleet cards cancelled; prepaid fuel returned" },
+                { "waitFor": "vendor-credit-read-only" },
+                { "waitFor": "vendor-credit-refunded" },
+                { "click": "vendor-credit-read-more" },
+                { "waitFor": "vendor-credit-read-record-refund" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "credit-refunded",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "height": 1100,
+            "hideLabels": ["New"],
+            "actions": [
+                { "press": "/" },
+                { "pause": 500 },
+                { "type": "Second check, waiting for the deposit slip" },
+                { "clickText": "Draft vendor refund · Cascade Fuel & Fleet" },
+                { "waitFor": "vendor-refund-form" },
+                { "waitFor": "vendor-refund-on-credits" },
+                { "click": "vendor-refund-post" },
+                { "waitFor": "vendor-refund-read-only" },
+                { "waitFor": "vendor-refund-read-edit" },
+                { "click": "entry-back" },
+                { "waitFor": "entries-screen" },
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                {
+                    "fill": "entries-search",
+                    "value": "Fleet cards cancelled; prepaid fuel returned"
+                },
+                { "clickText": "Fleet cards cancelled; prepaid fuel returned" },
+                { "waitFor": "vendor-credit-read-only" },
+                { "waitFor": "vendor-credit-refunded" },
+                { "waitForHidden": "vendor-credit-read-apply" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}
