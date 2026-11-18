@@ -88,6 +88,9 @@ function FlowTotalLine({ line, testID, partyName, noteTestID }: FlowTotalLinePro
 
 interface PaymentTotalsProps {
     isVisible: boolean
+    // The lines are drawn; false draws the sum refusal alone (an 'exact' flow's party
+    // with no open document: nothing to total, but Post is still refused).
+    hasLines: boolean
     flow: PaymentFlow
     // The flow's lines (`flow.totals`), and the party's name their notes name.
     lines: readonly PaymentTotalLine[]
@@ -98,9 +101,24 @@ interface PaymentTotalsProps {
 }
 
 // Under the list, right-aligned under the Payment column (spec §3.3).
-export function PaymentTotals({ isVisible, flow, lines, partyName, sumError }: PaymentTotalsProps) {
+export function PaymentTotals({
+    isVisible,
+    hasLines,
+    flow,
+    lines,
+    partyName,
+    sumError,
+}: PaymentTotalsProps) {
     if (!isVisible) return null
     const prefix = flow.testId
+    const sumErrorID = `${prefix}-${flow.ids.sumError}`
+    if (!hasLines) {
+        return (
+            <View className="self-end" style={{ minWidth: 320 }}>
+                <FieldError message={sumError} testID={sumErrorID} />
+            </View>
+        )
+    }
     const drawn = lines.map(line => (
         <FlowTotalLine
             key={line.id}
@@ -113,7 +131,7 @@ export function PaymentTotals({ isVisible, flow, lines, partyName, sumError }: P
     return (
         <View testID={`${prefix}-totals`} className="gap-1 self-end" style={{ minWidth: 320 }}>
             {drawn}
-            <FieldError message={sumError} testID={`${prefix}-${flow.ids.sumError}`} />
+            <FieldError message={sumError} testID={sumErrorID} />
         </View>
     )
 }

@@ -7,7 +7,11 @@ import { paymentText } from '../../lib/deposit-accounts'
 import { formatMoney } from '../../lib/money'
 import type { AppliedDocumentRow } from '../../lib/outstanding-documents'
 import type { PaymentFlow } from '../../lib/payment-flow'
-import { type PaymentCollectionName, paymentReadActions } from '../../lib/payment-read-actions'
+import {
+    type PaymentCollectionName,
+    type PaymentReadAction,
+    paymentReadActions,
+} from '../../lib/payment-read-actions'
 import { fillPaymentText, PAYMENT_MESSAGES } from '../../lib/payment-texts'
 import { formatDay } from '../../lib/register-range'
 import { DocumentHeader } from '../documents/DocumentHeader'
@@ -96,6 +100,8 @@ interface PaymentReadViewProps {
     scopeOwner: ScopeOwner
     // The flow's header collection, which the read actions void through.
     collection: PaymentCollectionName
+    // The actions this screen offers; the bar shows those the read rule also allows.
+    actions: readonly PaymentReadAction[]
 }
 
 /**
@@ -114,6 +120,7 @@ export function PaymentReadView({
     canWrite,
     scopeOwner,
     collection,
+    actions,
 }: PaymentReadViewProps) {
     const orgHref = useOrgHref()
     const { texts, testId, ids } = flow
@@ -130,7 +137,9 @@ export function PaymentReadView({
     const figure = formatMoney(payment.amount, currency)
     const date = formatDay(payment.date.slice(0, 10))
     const appliedRows = appliedRowsOf(lines)
-    const offered = paymentReadActions(payment.status, canWrite, payment.entry !== '')
+    const offered = paymentReadActions(payment.status, canWrite, payment.entry !== '').filter(
+        action => actions.includes(action)
+    )
     const editHref = `${flow.routeBase}/new?replaces=${payment.id}`
     return (
         <View testID={`${testId}-read-only`} className="flex-1 bg-background">

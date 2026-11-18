@@ -1,13 +1,6 @@
-import { type ScopeOwner, ScopeProvider, useShortcutScope } from '@tinycld/core/lib/shortcuts'
 import { useMemo, useState } from 'react'
-import type { PaymentRecordView } from '../../hooks/usePaymentRecord'
-import {
-    type PaymentScreenData,
-    type PaymentScreenInput,
-    usePaymentScreen,
-} from '../../hooks/usePaymentScreen'
+import type { PaymentScreenInput } from '../../hooks/usePaymentScreen'
 import { RECEIVED_PAYMENT_READS } from '../../hooks/useReceivedPaymentReads'
-import type { DepositAccountRow } from '../../lib/deposit-accounts'
 import { paymentDefaultDeposit } from '../../lib/payment-deposit'
 import { PAYMENT_FLOW } from '../../lib/payment-flow'
 import { paymentRefusalErrors } from '../../lib/payment-refusals'
@@ -15,7 +8,6 @@ import {
     draftApplicationsOf,
     originalApplicationsOf,
     type PaymentFormMode,
-    readyApplicationsOf,
     startRowOf,
     storedDocumentsOf,
     titleOf,
@@ -26,32 +18,10 @@ import {
     newPaymentValues,
 } from '../../lib/payment-values'
 import { todayIso } from '../../lib/register-range'
-import { type PaymentRefusedSave, refusedSaveOf } from '../../stores/payment-save-store'
-import { DocumentChromeContext } from '../documents/document-chrome'
 import { PaymentForm } from './PaymentForm'
-import { PaymentReadView } from './PaymentReadView'
-import { PaymentStateNotice } from './PaymentStateNotice'
+import { type PaymentFormRouteProps, PaymentSurface } from './PaymentSurface'
 
 const FLOW = PAYMENT_FLOW
-
-function depositLabelOf(accounts: readonly DepositAccountRow[], id: string): string {
-    const account = accounts.find(row => row.id === id)
-    if (!account) return ''
-    return account.number ? `${account.number} ${account.name}` : account.name
-}
-
-interface PaymentSurfaceProps {
-    screen: PaymentScreenData
-    input: PaymentScreenInput
-    refused: PaymentRefusedSave | null
-    scopeOwner: ScopeOwner
-}
-
-interface PaymentFormRouteProps extends PaymentSurfaceProps {
-    // The draft's lines and the posted original's, each with its invoice.
-    lines: PaymentRecordView['lines']
-    originalLines: PaymentRecordView['lines']
-}
 
 function modeOf(isDraft: boolean, hasOriginal: boolean): PaymentFormMode {
     if (isDraft) return 'draft'
@@ -132,69 +102,19 @@ function PaymentFormRoute({
     )
 }
 
-// The original's lines widen the open balances only while it is posted: once another
-// correction of it posts, it is void and its lines no longer hold any invoice's balance
-// down.
-function heldOriginalLines(screen: PaymentScreenData) {
-    return screen.original?.status === 'posted' ? screen.originalLines : []
-}
-
-function PaymentSurface({ screen, input, refused, scopeOwner }: PaymentSurfaceProps) {
-    const lines = readyApplicationsOf(screen.lines)
-    const originalLines = readyApplicationsOf(heldOriginalLines(screen))
-    const isFormReady = lines !== null && originalLines !== null
-    if (screen.state === 'form' && isFormReady) {
-        return (
-            <PaymentFormRoute
-                screen={screen}
-                input={input}
-                refused={refused}
-                scopeOwner={scopeOwner}
-                lines={lines}
-                originalLines={originalLines}
-            />
-        )
-    }
-    if (screen.state === 'read' && screen.payment) {
-        return (
-            <PaymentReadView
-                flow={FLOW}
-                payment={screen.payment}
-                lines={screen.lines}
-                partyName={screen.partyName}
-                accountLabel={depositLabelOf(screen.depositAccounts, screen.payment.account)}
-                currency={screen.currency}
-                canWrite={screen.canWrite}
-                scopeOwner={scopeOwner}
-                collection="books_payments"
-            />
-        )
-    }
-    const notice = screen.state === 'read' || screen.state === 'form' ? 'loading' : screen.state
-    return <PaymentStateNotice flow={FLOW} state={notice} onRetry={screen.retry} />
-}
-
 /**
  * The receive-payment screen at `books/payments/new` and `books/payments/<id>`: the shared
- * document chrome reads PAYMENT_FLOW's chrome, and the screen's `compose` scope holds the
- * keys of the form or the read view. A draft opens in the form, a posted or void payment
- * in the read view.
+ * payment surface under PAYMENT_FLOW, with the received payment's reads and form. A draft
+ * opens in the form, a posted or void payment in the read view.
  */
 export function PaymentScreen(input: PaymentScreenInput) {
-    const scopeOwner = useShortcutScope('compose')
-    const screen = usePaymentScreen(FLOW, input, RECEIVED_PAYMENT_READS)
-    // A refusal the new form handed over when it moved to this draft's route.
-    const [refused] = useState(() => refusedSaveOf(FLOW.key, input.id))
     return (
-        <DocumentChromeContext.Provider value={FLOW.chrome}>
-            <ScopeProvider owner={scopeOwner}>
-                <PaymentSurface
-                    screen={screen}
-                    input={input}
-                    refused={refused}
-                    scopeOwner={scopeOwner}
-                />
-            </ScopeProvider>
-        </DocumentChromeContext.Provider>
+        <PaymentSurface
+            flow={FLOW}
+            reads={RECEIVED_PAYMENT_READS}
+            collection="books_payments"
+            input={input}
+            FormRoute={PaymentFormRoute}
+        />
     )
 }

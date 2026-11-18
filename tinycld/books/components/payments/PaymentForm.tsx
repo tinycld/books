@@ -3,7 +3,7 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import type { ScopeOwner } from '@tinycld/core/lib/shortcuts'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { SelectInput } from '@tinycld/core/ui/form'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { FieldErrors } from 'react-hook-form'
 import { Platform } from 'react-native'
 import {
@@ -18,6 +18,7 @@ import { usePaymentWrites } from '../../hooks/usePaymentWrites'
 import type { DepositAccountRow } from '../../lib/deposit-accounts'
 import { paymentDepositOptions } from '../../lib/payment-deposit'
 import { PAYMENT_FLOW } from '../../lib/payment-flow'
+import { paymentSchema } from '../../lib/payment-schema'
 import type { PaymentFormValues } from '../../lib/payment-values'
 import { FindInvoiceField, useFindInvoiceField } from './FindInvoiceField'
 import { PaymentCustomerField } from './PaymentCustomerField'
@@ -81,13 +82,12 @@ export function PaymentForm({
         [depositAccounts, depositStoredId]
     )
     const depositValues = useMemo(() => deposit.options.map(option => option.value), [deposit])
-    const formValues = usePaymentFormValues({
-        flow: FLOW,
-        initial,
-        currency,
-        accountOptions: depositValues,
-        initialErrors,
-    })
+    // The received payment has no row-date rule, so its schema ignores the row dates.
+    const schemaOf = useCallback(
+        () => paymentSchema(currency, depositValues),
+        [currency, depositValues]
+    )
+    const formValues = usePaymentFormValues({ initial, schemaOf, initialErrors })
     const party = formValues.values.party
     const outstanding = useOutstandingInvoices(party, storedInvoices, extraOpen)
     const loadOutstanding = useOutstandingLoader(storedInvoices, extraOpen)

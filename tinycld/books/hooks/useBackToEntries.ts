@@ -19,8 +19,11 @@ const ESTIMATE_ROUTE = documentStackRouteName(ESTIMATE_KIND)
 
 // The screens Back pops to when one is right below this screen, each with the back link's
 // text: the list, a register, and every record route (a document, a bill payment, a
-// payment, an entry, a transfer), so Back leads to the record the user came from and the
-// label names it. Any other screen below (or none) is replaced with the list.
+// payment, a vendor refund, an entry, a transfer), so Back leads to the record the user
+// came from and the label names it. A new vendor refund is one too: its "New vendor
+// credit" pushes the credit form over it, and that form's Back, Cancel and post return to
+// the refund with what was typed in it. Any other screen below (or none) is replaced with
+// the list.
 const LABELS: Record<string, string> = {
     [LIST_ROUTE]: 'Journal entries',
     [REGISTER_ROUTE]: 'Register',
@@ -28,6 +31,8 @@ const LABELS: Record<string, string> = {
     'transfers/[id]': 'Transfer',
     'payments/[id]': 'Payment',
     'bill-payments/[id]': 'Bill payment',
+    'vendor-refunds/[id]': 'Vendor refund',
+    'vendor-refunds/new': 'Vendor refund',
     ...Object.fromEntries(
         [
             INVOICE_KIND,

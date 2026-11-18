@@ -1,7 +1,14 @@
 import { log } from '@tinycld/core/lib/logger'
-import { useForm, zodResolver } from '@tinycld/core/ui/form'
-import { useMemo, useRef } from 'react'
-import { type FieldErrors, type PathValue, useWatch } from 'react-hook-form'
+import { useForm, type z, zodResolver } from '@tinycld/core/ui/form'
+import { useMemo, useRef, useState } from 'react'
+import {
+    createFormControl,
+    type FieldErrors,
+    type PathValue,
+    type Resolver,
+    type UseFormReturn,
+    useWatch,
+} from 'react-hook-form'
 import type { PressableInstance, TextInputInstance } from 'react-native'
 import { moneyInputCents } from '../lib/money-input'
 import {
@@ -20,53 +27,80 @@ import {
     untickRow,
 } from '../lib/payment-allocation'
 import { type PaymentFlow, sumErrorOf } from '../lib/payment-flow'
-import { paymentSchemaWith } from '../lib/payment-schema'
 import type { PaymentFormValues } from '../lib/payment-values'
 
+// A row's document date by id, for a flow's row-date rule; null runs no date rule.
+export type PaymentRowDates = Readonly<Record<string, string>> | null
+
+// What the form's resolver reads besides the values: the row dates of the render that
+// last ran useForm.
+type PaymentFormContext = { rowDates: PaymentRowDates }
+
+// The flow's one schema for Save draft and Post, built from the row dates.
+export type PaymentSchemaOf = (
+    rowDates: PaymentRowDates
+) => z.ZodType<PaymentFormValues, PaymentFormValues>
+
+export type PaymentFormControl = Omit<
+    UseFormReturn<PaymentFormValues, PaymentFormContext>,
+    'formState'
+>
+
+/**
+ * A payment form's control, made before its rules: a flow whose rules need a read that
+ * follows the drawn party (the vendor refund's credit dates) reads `party` here, runs that
+ * read, then hands the control and the read's result to usePaymentFormValues in the same
+ * render.
+ */
+export function usePaymentFormControl(initial: PaymentFormValues) {
+    const [formControl] = useState<PaymentFormControl>(
+        () =>
+            createFormControl<PaymentFormValues, PaymentFormContext>({ defaultValues: initial })
+                .formControl
+    )
+    const party = useWatch({ control: formControl.control, name: 'party' })
+    return { formControl, party }
+}
+
 interface PaymentFormValuesInput {
-    flow: PaymentFlow
     initial: PaymentFormValues
-    currency: string
-    // The values the account field lists.
-    accountOptions: readonly string[]
-    // A row's document date by id, for the flow's row-date rule; null runs none.
-    rowDates?: Readonly<Record<string, string>> | null
+    // The flow's schema (`schemaOf(rowDates)`), the same for Save draft and Post.
+    schemaOf: PaymentSchemaOf
+    // The row dates the schema's date rule reads; null (the default) runs none.
+    rowDates?: PaymentRowDates
+    // usePaymentFormControl's control, when the caller made it first; absent, the form
+    // makes its own.
+    formControl?: PaymentFormControl
     // The refusal a new payment's form handed to this draft's form, as form errors; it
     // keeps one identity for the form's life, so the form applies it once.
     initialErrors?: FieldErrors<PaymentFormValues>
 }
 
 /**
- * A payment form's values under the flow's rules (`paymentSchemaWith`), and the values as
- * drawn. The first hook of a flow's form: its reads (the party's open documents, the
- * party's name) follow the drawn party.
+ * A payment form's values under the flow's schema, and the values as drawn. The row dates
+ * reach the schema through the resolver's context, which useForm takes from this render.
+ * The first hook of a flow's form after usePaymentFormControl: its reads (the party's open
+ * documents, the party's name) follow the drawn party.
  */
 export function usePaymentFormValues({
-    flow,
     initial,
-    currency,
-    accountOptions,
+    schemaOf,
     rowDates = null,
+    formControl,
     initialErrors,
 }: PaymentFormValuesInput) {
-    const optionsKey = accountOptions.join('\n')
-    const resolver = useMemo(
-        () =>
-            zodResolver(
-                paymentSchemaWith({
-                    currency,
-                    accountOptions: optionsKey.split('\n'),
-                    texts: flow.texts,
-                    sumRule: flow.sumRule,
-                    rowDates,
-                })
-            ),
-        [currency, optionsKey, flow, rowDates]
+    const resolver = useMemo<Resolver<PaymentFormValues, PaymentFormContext>>(
+        () => (values, context, options) =>
+            zodResolver(schemaOf(context?.rowDates ?? null))(values, context, options),
+        [schemaOf]
     )
-    const form = useForm<PaymentFormValues>({
+    const context = useMemo(() => ({ rowDates }), [rowDates])
+    const form = useForm<PaymentFormValues, PaymentFormContext>({
         defaultValues: initial,
         resolver,
+        context,
         errors: initialErrors,
+        formControl,
     })
     const values = useWatch({ control: form.control }) as PaymentFormValues
     return { form, values }
@@ -173,6 +207,14 @@ export function usePaymentForm({
         revalidate(before)
     }
 
+    // A date change (RHF checks the date itself): under a flow with a row-date rule each
+    // row is checked against the date, so after a submit the rows are checked again too.
+    // A flow with no such rule checks nothing more.
+    const onDateChanged = () => {
+        if (flow.texts.datedAfter === null) return
+        revalidate(getValues('payments'))
+    }
+
     const onRowTick = (row: OutstandingRow) => {
         const payments = getValues('payments')
         const isPaid = entryCents(payments[row.id], currency) > 0
@@ -275,6 +317,7 @@ export function usePaymentForm({
         rowRef,
         focusedRowRef,
         onAmountTyped,
+        onDateChanged,
         onRowTick,
         onRowType,
         onRowToggle,

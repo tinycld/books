@@ -6,6 +6,7 @@ import {
     gridDocumentLabel,
     type OutstandingDocument,
     outstandingTexts,
+    refText,
     totalTexts,
 } from '../../lib/outstanding-documents'
 import {
@@ -15,7 +16,7 @@ import {
     REFUND_COLUMNS,
 } from '../../lib/payment-columns'
 import { type AppliedDateField, AppliedInvoiceCards, appliedDayOf } from './AppliedInvoiceCards'
-import { AppliedDocumentLink } from './OutstandingGrid'
+import { AppliedDocumentLink, RefLine } from './OutstandingGrid'
 
 const HEAD = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 const MONEY_CELL = 'text-right text-sm text-foreground tabular-nums'
@@ -23,6 +24,9 @@ const MONEY_CELL = 'text-right text-sm text-foreground tabular-nums'
 type AppliedLayout = {
     // A Vendor's bill no. column (bills only).
     hasRef: boolean
+    // The vendor's document no. muted under the link (vendor credits only, as the
+    // refund form's grid draws it).
+    hasRefUnderLink: boolean
     // Which day the date column shows.
     dateField: AppliedDateField
     // Every column grows with the grid from its least width.
@@ -39,10 +43,12 @@ type AppliedLayout = {
 // (Invoice, Due date, Original amount, Applied), a bill payment's "Bills paid" (Bill,
 // Vendor's bill no., Due date, Bill total, Paid), a vendor refund's "Vendor credits
 // refunded" (Vendor credit, Credit date, Credit total, Refunded). Only a bill has a ref
-// column: the others' `ref` style is never drawn.
+// column: the others' `ref` style is never drawn. A vendor credit's no. shows under its
+// link, as in the refund form's grid.
 const LAYOUTS: Record<OutstandingDocument['noun'], AppliedLayout> = {
     Invoice: {
         hasRef: false,
+        hasRefUnderLink: false,
         dateField: 'dueDate',
         columns: {
             document: PAYMENT_COLUMNS.invoice,
@@ -54,6 +60,7 @@ const LAYOUTS: Record<OutstandingDocument['noun'], AppliedLayout> = {
     },
     Bill: {
         hasRef: true,
+        hasRefUnderLink: false,
         dateField: 'dueDate',
         columns: {
             document: BILL_PAYMENT_APPLIED_COLUMNS.bill,
@@ -65,6 +72,7 @@ const LAYOUTS: Record<OutstandingDocument['noun'], AppliedLayout> = {
     },
     'Vendor credit': {
         hasRef: false,
+        hasRefUnderLink: true,
         dateField: 'date',
         columns: {
             document: REFUND_COLUMNS.credit,
@@ -112,6 +120,7 @@ function AppliedRow({
     const layout = appliedLayoutOf(doc)
     const col = layout.columns
     const label = gridDocumentLabel(doc, row)
+    const refUnderLink = layout.hasRefUnderLink ? refText(row.ref) : ''
     const due = appliedDayOf(layout.dateField, row)
     const original = formatMoney(row.total, currency)
     const applied = formatMoney(row.amount, currency)
@@ -127,6 +136,7 @@ function AppliedRow({
                     label={label}
                     testID={`${testIdPrefix}-read-link-${row.documentId}`}
                 />
+                <RefLine text={refUnderLink} />
             </View>
             <RefCell isVisible={layout.hasRef} text={row.ref} style={col.ref} />
             <Text className="text-sm text-foreground" style={col.dueDate}>

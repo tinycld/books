@@ -13,6 +13,9 @@ import type { PaymentRecordHeader, PaymentRecordView } from './usePaymentRecord'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 
+// A flow whose account field shows no balance reads none.
+const NO_BALANCE = (_id: string): number | null | undefined => undefined
+
 type ReadState = { isReady: boolean; isError: boolean; recovery: LiveRecovery }
 
 /**
@@ -24,8 +27,12 @@ type ReadState = { isReady: boolean; isError: boolean; recovery: LiveRecovery }
 export type PaymentScreenReads = {
     // The flow's record by id (an empty id reads nothing and is ready).
     useRecord: (id: string) => PaymentRecordView
-    // The accounts the account field lists.
-    useAccounts: () => ReadState & { rows: DepositAccountRow[] }
+    // The accounts the account field lists, and, where the field shows it, an account's
+    // posted balance by id (the vendor refund's Refunded to).
+    useAccounts: () => ReadState & {
+        rows: DepositAccountRow[]
+        balanceOf?: (id: string) => number | null | undefined
+    }
     // The document a new form ticks (`?invoice`, `?credit`); an empty id reads nothing.
     useStartDocument: (id: string) => ReadState & { document: StartDocument | null }
     // The party's display name; '' while it loads or with no party.
@@ -149,6 +156,7 @@ export function usePaymentScreen(
         canWrite: access.canWrite,
         currency: settings.settings?.currency ?? 'USD',
         depositAccounts: deposit.rows,
+        accountBalanceOf: deposit.balanceOf ?? NO_BALANCE,
         payment,
         lines: record.lines,
         original: original.payment,

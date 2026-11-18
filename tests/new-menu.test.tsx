@@ -110,6 +110,25 @@ describe('NewMenu', () => {
         )
     })
 
+    // The real registry: Vendor refund follows Vendor credit in the Vendors column (vendor
+    // refund spec §2).
+    it('draws Vendor refund right after Vendor credit and opens books/vendor-refunds/new from it', () => {
+        const { onSelect } = renderOpenMenu(newMenuForAccess(access, NEW_ACTIONS))
+        const credit = byTestId(document.body, 'books-new-vendor-credit')
+        const refund = byTestId(document.body, 'books-new-vendor-refund')
+        expect(credit).not.toBeNull()
+        expect(refund).not.toBeNull()
+        if (!credit || !refund) return
+        expect(refund.textContent).toContain('Vendor refund')
+        expect(
+            credit.compareDocumentPosition(refund) & Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy()
+        fireEvent.click(refund)
+        expect(onSelect).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'vendor_refund', href: 'books/vendor-refunds/new' })
+        )
+    })
+
     // The real registry: Receive payment follows Sales receipt in the Customers column
     // (receive payment spec §2).
     it('draws Receive payment right after Sales receipt and opens books/payments/new from it', () => {

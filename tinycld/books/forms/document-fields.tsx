@@ -354,9 +354,10 @@ function CustomerPickerField({ value, onChange, disabled, label }: BuiltinFieldP
  * A bill's Vendor picker options: active vendors by name, the stored vendor too when it
  * is now inactive (a correction keeps its original's vendor; vendorPickerOptions marks
  * it), searched on the client on the name. The query runs only while the picker is open;
- * the server limit applies only while not searching, so a limit never cuts matches.
+ * the server limit applies only while not searching, so a limit never cuts matches. The
+ * vendor refund's Vendor picker reads the same options (with no stored vendor).
  */
-function useVendorOptions(term: string, isOpen: boolean, storedId: string) {
+export function useVendorOptions(term: string, isOpen: boolean, storedId: string) {
     const [vendorsCollection] = useStore('books_vendors')
     const isSearching = term.trim() !== ''
     const query = useLiveQuery({
