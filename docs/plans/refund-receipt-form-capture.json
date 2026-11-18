@@ -1,0 +1,269 @@
+{
+    "outDir": "refund-receipt-form-reference",
+    "shots": [
+        {
+            "name": "new",
+            "url": "/a/books/helix-mockup?state=new",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "from-sales-receipt",
+            "url": "/a/books/helix-mockup?state=from-sales-receipt",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1900
+        },
+        {
+            "name": "from-sales-receipt-phone",
+            "url": "/a/books/helix-mockup?state=from-sales-receipt",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 4600
+        },
+        {
+            "name": "payout",
+            "url": "/a/books/helix-mockup?state=payout",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1900
+        },
+        {
+            "name": "payout-phone",
+            "url": "/a/books/helix-mockup?state=payout",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 4600
+        },
+        {
+            "name": "payout-errors",
+            "url": "/a/books/helix-mockup?state=payout-errors",
+            "ready": "refund-receipt-link-error",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "no-refund-from",
+            "url": "/a/books/helix-mockup?state=no-refund-from",
+            "ready": "refund-receipt-refund-from-error",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "draft",
+            "url": "/a/books/helix-mockup?state=draft",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1500
+        },
+        {
+            "name": "draft-phone",
+            "url": "/a/books/helix-mockup?state=draft",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 2800
+        },
+        {
+            "name": "correction",
+            "url": "/a/books/helix-mockup?state=correction",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New"],
+            "height": 1600
+        },
+        {
+            "name": "errors",
+            "url": "/a/books/helix-mockup?state=errors",
+            "ready": "refund-receipt-error-summary",
+            "hideLabels": ["New"],
+            "height": 1400
+        },
+        {
+            "name": "link-error",
+            "url": "/a/books/helix-mockup?state=link-error",
+            "ready": "refund-receipt-link-error",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1000
+        },
+        {
+            "name": "pdf-unsaved",
+            "url": "/a/books/helix-mockup?state=pdf-unsaved",
+            "ready": "refund-receipt-pdf-unsaved",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "pdf-stale",
+            "url": "/a/books/helix-mockup?state=pdf-stale",
+            "ready": "refund-receipt-pdf-stale",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "posted",
+            "url": "/a/books/helix-mockup?state=posted",
+            "ready": "refund-receipt-read-only",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1700
+        },
+        {
+            "name": "posted-phone",
+            "url": "/a/books/helix-mockup?state=posted",
+            "ready": "refund-receipt-read-only",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 3600
+        },
+        {
+            "name": "phone-more",
+            "url": "/a/books/helix-mockup?state=posted",
+            "ready": "refund-receipt-read-only",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "actions": [{ "click": "refund-receipt-read-more" }, { "waitFor": "Void" }]
+        },
+        {
+            "name": "payout-read",
+            "url": "/a/books/helix-mockup?state=payout-read",
+            "ready": "refund-receipt-read-only",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "walk-in",
+            "url": "/a/books/helix-mockup?state=walk-in",
+            "ready": "refund-receipt-read-only",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1200
+        },
+        {
+            "name": "exempt",
+            "url": "/a/books/helix-mockup?state=exempt",
+            "ready": "refund-receipt-read-only",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1200
+        },
+        {
+            "name": "void",
+            "url": "/a/books/helix-mockup?state=void",
+            "ready": "refund-receipt-read-only",
+            "hideLabels": ["New"],
+            "height": 1400
+        },
+        {
+            "name": "void-link",
+            "url": "/a/books/helix-mockup?state=void-link",
+            "ready": "refund-receipt-read-only",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1300
+        },
+        {
+            "name": "reader",
+            "url": "/a/books/helix-mockup?state=reader",
+            "ready": "refund-receipt-read-only",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1700
+        },
+        {
+            "name": "credit-memo-read",
+            "url": "/a/books/helix-mockup?state=credit-memo-read",
+            "ready": "credit-memo-read-only",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1900
+        },
+        {
+            "name": "credit-memo-read-phone",
+            "url": "/a/books/helix-mockup?state=credit-memo-read",
+            "ready": "credit-memo-read-only",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 4000
+        },
+        {
+            "name": "credit-memo-more-phone",
+            "url": "/a/books/helix-mockup?state=credit-memo-read",
+            "ready": "credit-memo-read-only",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "actions": [{ "click": "credit-memo-read-more" }, { "waitFor": "Refund credit" }]
+        },
+        {
+            "name": "sales-receipt-read",
+            "url": "/a/books/helix-mockup?state=sales-receipt-read",
+            "ready": "sales-receipt-read-only",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1900
+        },
+        {
+            "name": "sales-receipt-read-phone",
+            "url": "/a/books/helix-mockup?state=sales-receipt-read",
+            "ready": "sales-receipt-read-only",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 4000
+        },
+        {
+            "name": "sales-receipt-more-phone",
+            "url": "/a/books/helix-mockup?state=sales-receipt-read",
+            "ready": "sales-receipt-read-only",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "actions": [{ "click": "sales-receipt-read-more" }, { "waitFor": "Refund" }]
+        },
+        {
+            "name": "cannot-refund-receipt",
+            "url": "/a/books/helix-mockup?state=cannot-refund-receipt",
+            "ready": "refund-receipt-cannot-refund-receipt",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "cannot-refund-memo",
+            "url": "/a/books/helix-mockup?state=cannot-refund-memo",
+            "ready": "refund-receipt-cannot-refund-memo",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "not-found",
+            "url": "/a/books/helix-mockup?state=not-found",
+            "ready": "refund-receipt-not-found",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "cannot-edit",
+            "url": "/a/books/helix-mockup?state=cannot-edit",
+            "ready": "refund-receipt-cannot-edit",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "no-access",
+            "url": "/a/books/helix-mockup?state=no-access",
+            "ready": "refund-receipt-no-access",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "hideLabels": ["New"],
+            "settleMs": 500
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "hideLabels": ["New"],
+            "actions": [{ "waitFor": "Books could not load this refund receipt." }]
+        }
+    ]
+}
