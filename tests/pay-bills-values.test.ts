@@ -47,7 +47,8 @@ function correctionRows(paymentId: string, vendor: string): PayBillsRow[] {
         due_date: bill.due_date,
         total: bill.total,
         balance: bill.balance,
-        customer: bill.vendor,
+        party: bill.vendor,
+        ref: bill.ref_no,
     })
     const open = PAY_BILLS_BILLS.filter(
         bill => bill.vendor === vendor && bill.status === 'posted' && bill.balance > 0
@@ -181,5 +182,43 @@ describe('newPayBillsValues', () => {
             payment_method: 'check',
             reference_no: '',
         })
+    })
+})
+
+// The merge carries each document's own no. (`ref`), so a screen needs no second map back
+// from the stored documents to show it.
+describe('mergeOutstanding', () => {
+    it('keeps the ref of an open document and of a stored one the open set no longer holds', () => {
+        const open = [
+            {
+                id: 'billopen0000001',
+                number: '1003',
+                date: '2026-10-01 00:00:00.000Z',
+                due_date: '2026-10-31 00:00:00.000Z',
+                total: 40_000,
+                balance: 15_000,
+                party: 'vendor000000001',
+                ref: 'INV-77',
+            },
+        ]
+        const stored = [
+            {
+                id: 'billpaid0000001',
+                number: '1004',
+                date: '2026-10-02 00:00:00.000Z',
+                due_date: '2026-11-01 00:00:00.000Z',
+                total: 25_000,
+                balance: 0,
+                party: 'vendor000000001',
+                ref: 'CM-8841',
+            },
+        ]
+        const rows = mergeOutstanding(open, stored, 'vendor000000001', {
+            billpaid0000001: 25_000,
+        })
+        expect(rows.map(row => [row.id, row.ref, row.open])).toEqual([
+            ['billopen0000001', 'INV-77', 15_000],
+            ['billpaid0000001', 'CM-8841', 25_000],
+        ])
     })
 })

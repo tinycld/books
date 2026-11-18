@@ -13,7 +13,7 @@ import type {
 import type { StatusTone } from './document-lifecycle'
 import { statusBadgeOf } from './document-lifecycle'
 import { estimateStatusLabel, isExpired } from './estimate-status'
-import { formatMoney } from './money'
+import { formatMoney, MINUS } from './money'
 import {
     CREDIT_MEMO_KIND,
     ESTIMATE_KIND,
@@ -72,6 +72,25 @@ export const TRANSACTION_DOC_KINDS: Record<
     sales_receipt: SALES_RECEIPT_KIND,
     payment: { routeBase: 'books/payments' },
     credit_memo: CREDIT_MEMO_KIND,
+}
+
+const TRANSACTION_KINDS: readonly TransactionKind[] = [
+    'invoice',
+    'estimate',
+    'sales_receipt',
+    'payment',
+    'credit_memo',
+]
+
+// The inverse of TRANSACTION_DOC_KINDS: the transaction kind of a document kind, by its
+// route; null for a kind no sales list holds (a bill, an expense).
+export function transactionKindOf(
+    doc: Pick<SalesDocumentKind, 'routeBase'>
+): TransactionKind | null {
+    return (
+        TRANSACTION_KINDS.find(kind => TRANSACTION_DOC_KINDS[kind].routeBase === doc.routeBase) ??
+        null
+    )
 }
 
 type InvoiceInput = Pick<
@@ -225,12 +244,9 @@ export function creditMemoRow(row: CreditMemoInput): PartyTransactionRow {
     }
 }
 
-// U+2212: a typographic minus, not the hyphen `formatMoney` writes for a negative amount.
-const MINUS_SIGN = '−'
-
 export function transactionTotalText(row: PartyTransactionRow, currency: string): string {
     if (row.total >= 0) return formatMoney(row.total, currency)
-    return `${MINUS_SIGN}${formatMoney(-row.total, currency)}`
+    return `${MINUS}${formatMoney(-row.total, currency)}`
 }
 
 // A void original that a correction replaced is left out: the correction carries its
@@ -249,11 +265,13 @@ function newestFirst(a: PartyTransactionRow, b: PartyTransactionRow): number {
 
 // Each list is one source's first `n` rows in the same order, so the merged first `n` rows
 // are exact. A list that reached `n` may have more behind it, so the window can grow.
-export function mergeTransactions(
-    lists: PartyTransactionRow[][],
-    n: number
-): { rows: PartyTransactionRow[]; hasMore: boolean } {
-    const rows = lists.flat().sort(newestFirst).slice(0, n)
+// `compare` must be the order every list is in (the sales lists pass their sort's).
+export function mergeTransactions<Row extends PartyTransactionRow>(
+    lists: Row[][],
+    n: number,
+    compare: (a: Row, b: Row) => number = newestFirst
+): { rows: Row[]; hasMore: boolean } {
+    const rows = lists.flat().sort(compare).slice(0, n)
     const hasMore = lists.some(list => list.length >= n)
     return { rows, hasMore }
 }

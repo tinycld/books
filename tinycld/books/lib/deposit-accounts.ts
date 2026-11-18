@@ -47,14 +47,20 @@ export function defaultDepositAccount(accounts: readonly DepositAccountRow[]): s
     return (undeposited ?? offered[0])?.id ?? ''
 }
 
-// The read view's payment line, "Check · 43567 · deposited to 1010 Business Savings":
-// the method's label, the reference and the deposit account, each left out when empty.
+// The word before the account in a payment line: a receipt or a received payment
+// deposits, a bill payment or an expense pays from, a vendor refund is refunded to.
+export type PaymentVerb = 'deposited to' | 'paid from' | 'refunded to'
+
+// A read view's payment line, "Check · 43567 · deposited to 1010 Business Savings": the
+// method's label, the reference and the account after its verb, each left out when empty
+// (a bill payment and an expense pass no account: they show it on its own).
 export function paymentText(input: {
     method: string
     reference: string
     depositLabel: string
+    verb: PaymentVerb
 }): string {
-    const deposit = input.depositLabel ? `deposited to ${input.depositLabel}` : ''
+    const deposit = input.depositLabel ? `${input.verb} ${input.depositLabel}` : ''
     return [paymentMethodLabel(input.method), input.reference.trim(), deposit]
         .filter(part => part !== '')
         .join(' · ')

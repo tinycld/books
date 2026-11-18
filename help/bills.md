@@ -28,13 +28,13 @@ A bill has two tables of lines, with up to 250 lines in all:
 - Account details: account lines. Use an account line for a cost that is not a product you track, such as rent, utilities or a repair. Pick an expense or cost of goods account, type a description if you want one, and type the Amount. When you pick a vendor and the first account line has no account, Books puts the vendor's default expense account on it, if that account is active and is an expense or cost of goods account; otherwise the line stays empty.
 - Product and service details: product lines. Use a product line when you buy a product or service that you track, so you see what you bought. Only active products and services with "I purchase this" turned on are in the list. Books fills the description and the Rate from the product's purchase description and cost; you can change them. Books calculates the Amount as Qty × Rate, rounded to the cent. When you post, the amount goes to the product's expense account.
 
-To record a discount the vendor gave you, add a negative account line for the discount, for example −25.00 on the account of the cost it reduces. The bill total cannot be below zero. For money a vendor owes you back, use a vendor credit.
+To record a discount the vendor gave you, add a negative account line for the discount, for example −25.00 on the account of the cost it reduces. The bill total cannot be below zero: Books says "A bill total cannot be below zero. Use a vendor credit." For a return, an overcharge or a credit note from the vendor, enter a vendor credit and apply it to the bill. See [Vendor credits](help://books:vendor-credits).
 
 To add an account line, choose Add account line. To add a product line, choose Add product line. When you press Enter in the Amount of the last account line, Books adds an account line; when you press Enter in the Rate of the last product line, Books adds a product line.
 
 Each line has a menu (⋮) with Insert line above, Insert line below, Move up, Move down, Duplicate and Remove. An empty line at the end of a table is dropped when you save.
 
-Under the lines, Books shows the Account lines and Products and services subtotals (each when its table has a line with an amount), the Total and the Balance due.
+Under the lines, Books shows the Account lines and Products and services subtotals (each when its table has a line with an amount), the Total and the Balance due. On a posted bill, the Payments and Credits applied rows show between them while payments or vendor credits apply.
 
 ## Save and post
 
@@ -42,6 +42,7 @@ Under the lines, Books shows the Account lines and Products and services subtota
 - Post gives the bill the next number, such as 1001, and records it in your books. An admin can change the next number in Settings, under Numbering, on the Bills card.
 - Post & new posts the bill and opens a new one. On a phone, it is in the More menu.
 - Cancel leaves the form. If you changed something, Books asks "Discard changes?" first.
+- Any other way out of a form with unsaved changes asks the same question first: the Back link and the browser's Back or Forward button. Choose Keep editing to stay with your changes, or Discard to go on. If you reload or close the browser tab, the browser asks.
 - To remove a saved draft, choose More and then Delete draft, at every screen width. This cannot be undone.
 
 Books refuses to post into a closed period, a bill whose vendor is inactive, a line whose account or product is inactive, a product without "I purchase this", a product whose expense account is inactive, and a bill whose total is zero. The message shows on the form; the draft that you saved stays.
@@ -68,21 +69,25 @@ To see the entry a bill posted, open it and choose View journal entry. A posted 
 
 ## Pay a bill and see what is paid
 
-A posted bill shows **Balance due** as its big figure: what you still owe, the Total less the bill payments that pay it. Under the lines, a Payments row (for example "Payments −$200.00") shows above Balance due while payments apply.
+A posted bill shows **Balance due** as its big figure: what you still owe, the Total less the bill payments and the vendor credits applied to it. Under the lines, a Payments row (for example "Payments −$200.00") shows while payments apply, and a Credits applied row (for example "Credits applied −$30.00") shows above Balance due while vendor credits apply.
 
 The badge of a posted bill follows its balance:
 
-- **Paid**: nothing is open, because payments paid the bill in full.
-- **Partly paid**: payments paid part of the bill, and some of it is still open.
-- **Posted**: no payment applies yet.
+- **Paid**: nothing is open, because payments and credits paid the bill in full.
+- **Partly paid**: payments or credits paid part of the bill, and some of it is still open.
+- **Posted**: no payment or credit applies yet.
 
 The **Payments** section under the memo lists each posted bill payment that pays the bill, for example "Bill payment 1004 · Nov 5, 2026 · $100.00". Choose one to open that bill payment. A void bill payment is not listed, and its amount is open again.
 
+The Payments section also lists each vendor credit applied to the bill, for example "Vendor credit 1002 · Nov 16, 2026 · $30.00", in date order with the payments. Choose one to open that vendor credit. To take a credit off the bill, choose Remove on its row, then confirm: the bill's Balance due goes up by the amount, and the vendor credit is unapplied again. Remove shows for a bookkeeper or admin on a posted bill. Books refuses it when the apply date is in a closed period.
+
 To pay a posted bill that has a balance due, open it and choose **Pay bill** (or press P). On a phone, Pay bill is the button beside More, and Edit is in More. Pay bills opens with this bill selected for its full balance and its vendor in the Vendor filter. Change the amount to pay part of it, then choose Pay. When you come back, the bill shows the new Balance due. Pay bill is not offered on a paid, draft or void bill. See [Pay bills](help://books:pay-bills).
 
-You cannot void a bill that posted payments pay. Books shows "Payments are applied to this bill. Void or edit those payments first." Void or edit those bill payments first, then void the bill.
+You cannot void a bill that posted payments pay. Books shows "Payments are applied to this bill. Void or edit those payments first." Void or edit those bill payments first, then void the bill. You also cannot void a bill that vendor credits are applied to. Books shows "Vendor credits are applied to this bill. Remove them first." Remove those credits in the Payments section first, then void the bill.
 
 You can edit a bill that payments pay. When you post the edit, its payments move to the edit. Books refuses the edit when its total is below the payments ("Payments of $300.00 are applied to this bill. Its total cannot be below that.") or when it changes the vendor ("Payments are applied to this bill, so its vendor cannot change.").
+
+You can also edit a bill that vendor credits are applied to. When you post the edit, the credits move to the edit with the payments. Books refuses the edit when its total is below the payments and credits together ("Payments and credits of $300.00 are applied to this bill. Its total cannot be below that.") or when it changes the vendor ("Vendor credits are applied to this bill, so its vendor cannot change.").
 
 ## Attach the vendor's bill
 
@@ -90,7 +95,7 @@ To keep the vendor's bill (a PDF or a photo) with the bill, add it in the Attach
 
 ## The Purchase lines setting
 
-To choose which tables a new bill shows, open Settings → Purchases and set **Purchase lines** on the Bills and expenses card: Accounts and products (the default), Accounts only, or Products only. The same setting decides the tables of a new expense. Only a Books admin can change Purchase lines; everyone else sees the setting.
+To choose which tables a new bill shows, open Settings → Purchases and set **Purchase lines** on the Bills, expenses and vendor credits card: Accounts and products (the default), Accounts only, or Products only. The same setting decides the tables of a new expense and a new vendor credit. Only a Books admin can change Purchase lines; everyone else sees the setting.
 
 The setting only changes what the form shows. A table that the setting hides still shows on a bill that already has lines in it (a saved draft, an edit or a copy), so you never lose lines. Once a table shows on a form, it stays until you leave the form, even after you remove its last line. A posted bill shows every table that has lines. See [Settings](help://books:settings).
 

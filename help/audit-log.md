@@ -16,7 +16,7 @@ The Audit Log lists one row for each change that a person, or Books itself, made
 Each row shows:
 
 - Date changed: the day and the time to the minute, in your time zone, for example "Nov 14, 2026, 4:07 PM".
-- User: the person who made the change. "System" is a change that no person made, such as a scheduled reversal that Books posted. A person who has been offboarded reads "Deleted user".
+- User: the person who made the change. "System" is a change that no person made, such as a scheduled reversal that Books posted. A person who has been removed keeps their name.
 - Event: what happened to the record.
 - Record type: the kind of record, for example Invoice, Invoice line, Bill payment, Customer or Books settings.
 - Record: the record's name when the change was made, for example "Invoice 1001" or "Invoice 1001: line 2".

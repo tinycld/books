@@ -2,11 +2,11 @@ import { planTableWrites } from '@tinycld/core/lib/forms/table-rows'
 import { log } from '@tinycld/core/lib/logger'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
-import { useStore } from '@tinycld/core/lib/pocketbase'
 import { router } from 'expo-router'
 import { newRecordId } from 'pbtsdb/core'
 import { useEffect, useRef, useState } from 'react'
 import { moneyInputCents } from '../lib/money-input'
+import type { PaymentFlow } from '../lib/payment-flow'
 import { paymentRefusalHandler, type StoredApplication } from '../lib/payment-refusals'
 import type { PaymentFormValues, PaymentWriteRow } from '../lib/payment-values'
 import { paymentWriteRows } from '../lib/payment-values'
@@ -14,9 +14,10 @@ import { writeRefusalText } from '../lib/refusal'
 import { tableWriteSteps } from '../lib/table-writes'
 import { usePaymentSaveStore } from '../stores/payment-save-store'
 import { useBackToEntries } from './useBackToEntries'
+import { useFormLeaveGuard } from './useFormLeaveGuard'
+import { usePaymentDraftDelete } from './usePaymentDraftDelete'
 import type { PaymentFormState } from './usePaymentForm'
-
-const LOG_CONTEXT = 'books.payment'
+import type { PaymentWrites } from './usePaymentWrites'
 
 export type PaymentSaveMode = 'draft' | 'post' | 'post-new'
 
@@ -25,12 +26,13 @@ interface PaymentSaveInput {
     currency: string
     // The saved draft's id; null for a new payment (new or a correction).
     paymentId: string | null
-    // The draft's stored applications, live, in position order.
-    storedApplications: readonly { id: string; invoice: string; amount: number }[]
+    // The draft's stored lines, live, in position order.
+    storedLines: readonly { id: string; document: string; amount: number }[]
     // The posted payment a new form corrects.
     replaces?: string
-    // `?customer` of a new form: Post & new keeps it, and only it.
-    openedWithCustomer?: string
+    // The party a new form opened with (`?customer`, `?vendor`): Post & new keeps it, and
+    // only it.
+    openedWithParty?: string
     // This form started from a refusal a new payment's save handed off (the store's
     // `refused`); the hand-off is cleared when this form goes, so a later open of the
     // draft starts from the stored payment.
@@ -57,33 +59,31 @@ function copyValues(values: PaymentFormValues): PaymentFormValues {
 
 function rowOf(rows: readonly PaymentWriteRow[], id: string): PaymentWriteRow {
     const row = rows.find(item => item.id === id)
-    if (!row) throw new Error(`no payment application ${id} in the save`)
+    if (!row) throw new Error(`no payment line ${id} in the save`)
     return row
 }
 
 /**
- * The receive-payment form's saves (spec §3.6). Write order: (1) remove the stored
- * applications the form no longer holds, (2) insert or update the payment, (3) update and
- * insert the applications in list order (`position` from 0), (4) for Post, set
- * `status: 'posted'`. The save store holds the payment from before the mutation, so the
- * optimistic `posted` status does not swap the form for the read view. A refusal shows
- * on the form (paymentRefusalHandler); when a new payment's draft was written before the
- * refusal, the route moves to the draft, whose form shows it. After the user left, a
- * refusal is logged.
+ * A payment form's saves (receive-payment spec §3.6, vendor refund spec §3.6), through the
+ * flow's writes. Write order: (1) remove the stored lines the form no longer holds,
+ * (2) insert or update the header, (3) update and insert the lines in list order
+ * (`position` from 0), (4) for Post, set `status: 'posted'`. The save store holds the
+ * payment (under the flow's key) from before the mutation, so the optimistic `posted`
+ * status does not swap the form for the read view. A refusal shows on the form
+ * (paymentRefusalHandler, with the flow's keys); when a new payment's draft was written
+ * before the refusal, the route moves to the draft, whose form shows it. After the user
+ * left, a refusal is logged under the flow's log context.
  */
-export function usePaymentSave({
-    paymentForm,
-    currency,
-    paymentId,
-    storedApplications,
-    replaces = '',
-    openedWithCustomer = '',
-    holdsHandOff,
-}: PaymentSaveInput) {
-    const [paymentsCollection, applicationsCollection] = useStore(
-        'books_payments',
-        'books_payment_applications'
-    )
+export function usePaymentSave(flow: PaymentFlow, writes: PaymentWrites, input: PaymentSaveInput) {
+    const {
+        paymentForm,
+        currency,
+        paymentId,
+        storedLines,
+        replaces = '',
+        openedWithParty = '',
+        holdsHandOff,
+    } = input
     const orgHref = useOrgHref()
     const back = useBackToEntries()
     const { form, outstanding } = paymentForm
@@ -96,115 +96,108 @@ export function usePaymentSave({
     const isLive = useRef(true)
     const left = useRef(false)
     const [isDiscardOpen, setDiscardOpen] = useState(false)
-    const [isDeleteOpen, setDeleteOpen] = useState(false)
-    const [deleteError, setDeleteError] = useState<string | null>(null)
+    const flowKey = flow.key
+    // A new payment's refused post handed its draft to the draft's own route: the store
+    // holds the hand-off (set before the move), so the move asks nothing.
+    const isHandingOff = usePaymentSaveStore(state => isNew && state.refused[flowKey]?.id === id)
     useEffect(() => {
         isLive.current = true
         return () => {
             isLive.current = false
             const store = usePaymentSaveStore.getState()
-            if (holdsHandOff && store.refused?.id === id) store.clearRefused()
+            if (holdsHandOff && store.refused[flowKey]?.id === id) store.clearRefused(flowKey)
         }
-    }, [holdsHandOff, id])
+    }, [holdsHandOff, id, flowKey])
     // A correction's save that worked keeps `correcting` until this form goes, so the form
     // does not show "cannot be edited" (its original is void now) while it moves on.
     useEffect(() => {
         if (!replaces) return
-        return () => usePaymentSaveStore.getState().stopCorrecting(replaces)
-    }, [replaces])
+        return () => usePaymentSaveStore.getState().stopCorrecting(flowKey, replaces)
+    }, [replaces, flowKey])
 
     const save = useMutation({
-        mutationFn: function* (input: SaveVariables) {
-            const { values, rows } = input
-            const before = storedApplications.map(row => ({
+        mutationFn: function* (variables: SaveVariables) {
+            const { values, rows } = variables
+            const before = storedLines.map(row => ({
                 id: row.id,
-                invoice: row.invoice,
+                document: row.document,
                 amount: row.amount,
             }))
             const plan = planTableWrites(before, rows, [])
             const steps = tableWriteSteps(plan, {
                 insert: write => {
                     const row = rowOf(rows, write.row.id)
-                    return applicationsCollection.insert({
+                    return writes.insertLine({
                         id: row.id,
-                        payment: input.id,
-                        invoice: row.invoice,
+                        header: variables.id,
+                        document: row.document,
                         amount: row.amount,
                         position: write.position,
                     })
                 },
                 update: write => {
                     const row = rowOf(rows, write.row.id)
-                    return applicationsCollection.update(row.id, draft => {
-                        draft.amount = row.amount
-                        draft.position = write.position
+                    return writes.updateLine(row.id, {
+                        amount: row.amount,
+                        position: write.position,
                     })
                 },
-                remove: rowId => applicationsCollection.delete(rowId),
+                remove: rowId => writes.deleteLine(rowId),
             })
             const removes = steps.filter(step => step.itemNumber === null)
-            const writes = steps.filter(step => step.itemNumber !== null)
+            const lineWrites = steps.filter(step => step.itemNumber !== null)
             for (const step of removes) yield step.run()
             const header = {
-                customer: values.customer,
+                party: values.party,
                 date: values.date,
                 payment_method: values.payment_method,
                 reference_no: values.reference_no,
-                deposit_to: values.deposit_to,
+                account: values.account,
                 amount: moneyInputCents(values.amount, currency) ?? 0,
                 memo: values.memo,
             }
-            if (input.isNew) {
-                yield paymentsCollection.insert({
-                    id: input.id,
-                    status: 'draft',
-                    replaces,
-                    ...header,
-                })
+            if (variables.isNew) {
+                yield writes.insertHeader(variables.id, { ...header, replaces })
             } else {
-                yield paymentsCollection.update(input.id, draft => {
-                    Object.assign(draft, header)
-                })
+                yield writes.updateHeader(variables.id, header)
             }
-            input.progress.isHeaderWritten = true
-            for (const step of writes) yield step.run()
-            if (input.isPost) {
-                yield paymentsCollection.update(input.id, draft => {
-                    draft.status = 'posted'
-                })
-            }
+            variables.progress.isHeaderWritten = true
+            for (const step of lineWrites) yield step.run()
+            if (variables.isPost) yield writes.postHeader(variables.id)
         },
         // Each refusal is shown by the submit that awaited it (on the form, or logged once
         // the user left), so the default toast would repeat it.
         onError: () => {},
     })
 
-    const remove = useMutation({
-        mutationFn: function* (input: { id: string; applicationIds: string[] }) {
-            if (input.applicationIds.length > 0) {
-                yield input.applicationIds.map(rowId => applicationsCollection.delete(rowId))
-            }
-            yield paymentsCollection.delete(input.id)
-        },
-        // The Delete draft dialog shows the refusal (or it is logged once the user left).
-        onError: () => {},
-    })
-
+    // `left`: the user asked to leave while a write runs, so the write neither moves nor
+    // shows its refusal. The leave guard can hold that move (a dirty form) and the user
+    // can keep editing, so each write clears `left` when it starts.
     const leave = () => {
         left.current = true
         back.onBack()
     }
 
+    const draftDelete = usePaymentDraftDelete(flow, writes, {
+        id,
+        lineIds: storedLines.map(row => row.id),
+        hasLeft: () => left.current,
+        onStart: () => {
+            left.current = false
+        },
+        onDeleted: leave,
+    })
+
     const afterSave = (mode: PaymentSaveMode) => {
         if (mode === 'post-new') {
-            const customer = openedWithCustomer
-                ? `&customer=${encodeURIComponent(openedWithCustomer)}`
+            const party = openedWithParty
+                ? `&${flow.partyParam}=${encodeURIComponent(openedWithParty)}`
                 : ''
-            router.replace(orgHref(`books/payments/new?fresh=${newRecordId()}${customer}`))
+            router.replace(orgHref(`${flow.routeBase}/new?fresh=${newRecordId()}${party}`))
             return
         }
         // A saved or posted new payment moves to its own route; a draft's route already is.
-        if (isNew) router.replace(orgHref(`books/payments/${id}`))
+        if (isNew) router.replace(orgHref(`${flow.routeBase}/${id}`))
     }
 
     const submit = (mode: PaymentSaveMode) => async () => {
@@ -215,17 +208,17 @@ export function usePaymentSave({
         try {
             await form.handleSubmit(async () => {
                 const order = outstanding.rows.map(row => row.id)
-                const rows = paymentWriteRows(submitted, storedApplications, order)
+                const rows = paymentWriteRows(submitted, storedLines, order)
                 const stored: StoredApplication[] = rows.map((row, position) => ({
                     id: row.id,
-                    invoice: row.invoice,
+                    document: row.document,
                     position,
                 }))
                 const progress = { isHeaderWritten: !isNew }
                 const store = usePaymentSaveStore.getState()
                 const isCorrection = isNew && replaces !== ''
-                if (isCorrection) store.startCorrecting(replaces)
-                store.hold(id)
+                if (isCorrection) store.startCorrecting(flowKey, replaces)
+                store.hold(flowKey, { id, purpose: 'save' })
                 try {
                     await save.mutateAsync({
                         id,
@@ -240,17 +233,17 @@ export function usePaymentSave({
                         afterSave(mode)
                     }
                 } catch (error) {
-                    if (isCorrection) store.stopCorrecting(replaces)
+                    if (isCorrection) store.stopCorrecting(flowKey, replaces)
                     if (!isLive.current || left.current) {
-                        log.warn(LOG_CONTEXT, writeRefusalText(error))
+                        log.warn(flow.logContext, writeRefusalText(error))
                     } else if (isNew && progress.isHeaderWritten) {
-                        store.handOff({ id, values: submitted, error, stored })
-                        router.replace(orgHref(`books/payments/${id}`))
+                        store.handOff(flowKey, { id, values: submitted, error, stored })
+                        router.replace(orgHref(`${flow.routeBase}/${id}`))
                     } else {
-                        paymentRefusalHandler(form, stored)(error)
+                        paymentRefusalHandler(form, stored, flow)(error)
                     }
                 } finally {
-                    usePaymentSaveStore.getState().release()
+                    usePaymentSaveStore.getState().release(flowKey)
                 }
             })()
         } finally {
@@ -258,29 +251,13 @@ export function usePaymentSave({
         }
     }
 
-    const confirmDelete = async () => {
-        setDeleteError(null)
-        usePaymentSaveStore.getState().hold(id)
-        try {
-            await remove.mutateAsync({
-                id,
-                applicationIds: storedApplications.map(row => row.id),
-            })
-            if (!left.current) leave()
-        } catch (error) {
-            if (isLive.current && !left.current) setDeleteError(writeRefusalText(error))
-            else log.warn(LOG_CONTEXT, writeRefusalText(error))
-        } finally {
-            usePaymentSaveStore.getState().release()
-        }
-    }
-
     return {
-        isPending: save.isPending || remove.isPending,
-        isDeletePending: remove.isPending,
+        ...draftDelete,
+        isPending: save.isPending || draftDelete.isDeletePending,
+        // A write that leaves the form succeeded or handed off: its move is under way.
+        isLeaving: draftDelete.isDeleteDone || isHandingOff,
+        isDirty,
         isDiscardOpen,
-        isDeleteOpen,
-        deleteError,
         saveDraft: submit('draft'),
         post: submit('post'),
         postAndNew: submit('post-new'),
@@ -290,14 +267,28 @@ export function usePaymentSave({
             setDiscardOpen(false)
             leave()
         },
-        openDeleteDraft: () => {
-            setDeleteError(null)
-            setDeleteOpen(true)
-        },
-        closeDeleteDraft: () => setDeleteOpen(false),
-        confirmDelete,
         leave,
     }
 }
 
 export type PaymentSave = ReturnType<typeof usePaymentSave>
+
+/**
+ * A payment form's leave guard (useFormLeaveGuard) over its save: every payment flow's
+ * form asks before a dirty form is left by any way, with the form's one Discard dialog.
+ */
+export function usePaymentLeaveGuard(save: PaymentSave) {
+    return useFormLeaveGuard({
+        isDirty: save.isDirty,
+        isWriting: save.isPending || save.isLeaving,
+        cancel: save.cancel,
+        leave: save.leave,
+        question: {
+            isOpen: save.isDiscardOpen,
+            discard: save.discard,
+            keepEditing: save.keepEditing,
+        },
+    })
+}
+
+export type PaymentLeaveGuard = ReturnType<typeof usePaymentLeaveGuard>

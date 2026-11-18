@@ -50,6 +50,27 @@ describe('BooksSidebar rendering', () => {
         expect(ids[ids.length - 1]).toBe('books-nav-settings')
     })
 
+    it('draws the Sales entry right after Banking and before Lists', () => {
+        const { container } = render(<BooksSidebar />)
+        const ids = items(container).map(i => i.id)
+        expect(ids.slice(0, 3)).toEqual(['books-nav-banking', 'books-nav-sales', 'books-nav-lists'])
+    })
+
+    it.each([
+        '/a/books/sales',
+        '/a/books/invoices',
+        '/a/books/invoices/abc',
+        '/a/books/payments/new',
+        '/a/books/credit-memos/abc',
+    ])('marks only Sales active on %s', pathname => {
+        url.pathname = pathname
+        const { container } = render(<BooksSidebar />)
+        const active = items(container)
+            .filter(i => i.isActive)
+            .map(i => i.id)
+        expect(active).toEqual(['books-nav-sales'])
+    })
+
     it.each([
         '/a/books/settings',
         '/a/books/settings/company',

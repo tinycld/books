@@ -9,6 +9,7 @@ import {
     attachmentDetailText,
     attachmentIssue,
     attachmentMimeOf,
+    attachmentParentColumn,
     attachmentPreviewSource,
     attachmentsHeading,
     attachmentsNotSavedText,
@@ -28,7 +29,11 @@ import {
 } from '../tinycld/books/lib/attachments-fixture'
 import { BILL_IDS } from '../tinycld/books/lib/bill-form-fixture'
 import { writeRefusalText } from '../tinycld/books/lib/refusal'
-import { BILL_KIND, EXPENSE_KIND } from '../tinycld/books/lib/sales-document-kinds'
+import {
+    BILL_KIND,
+    EXPENSE_KIND,
+    VENDOR_CREDIT_KIND,
+} from '../tinycld/books/lib/sales-document-kinds'
 import { useAttachmentsStore } from '../tinycld/books/stores/attachments-store'
 
 function fixtureRow(id: string) {
@@ -90,6 +95,24 @@ describe('attachmentIssue', () => {
 
     it('takes the 25th attachment', () => {
         expect(attachmentIssue(PDF, BILL_KIND, 24)).toBeNull()
+    })
+
+    // Vendor credit spec §3.12: a vendor credit is the third parent, with its own limit text.
+    it('refuses the 26th attachment of a vendor credit with the vendor credit text', () => {
+        expect(attachmentIssue(PDF, VENDOR_CREDIT_KIND, 25)).toBe(
+            'A vendor credit holds at most 25 attachments.'
+        )
+        expect(attachmentIssue(PDF, VENDOR_CREDIT_KIND, 24)).toBeNull()
+    })
+})
+
+// The column of books_attachments that names a document of the kind (vendor credit spec
+// §3.12): the bill's, the expense's, and the vendor credit's own.
+describe('attachmentParentColumn', () => {
+    it('names bill, expense and vendor_credit by the kind', () => {
+        expect(attachmentParentColumn(BILL_KIND)).toBe('bill')
+        expect(attachmentParentColumn(EXPENSE_KIND)).toBe('expense')
+        expect(attachmentParentColumn(VENDOR_CREDIT_KIND)).toBe('vendor_credit')
     })
 })
 
@@ -294,6 +317,28 @@ describe('splitAttachmentRows', () => {
             ATTACHMENT_IDS.billLong,
         ])
     })
+
+    // A vendor credit's rows name it in `vendor_credit` (the third parent), and a
+    // correction's group reads its original's rows the same way.
+    it("splits a vendor credit's rows and its original's by the vendor_credit column", () => {
+        const onCredit = (id: string, credit: string) => ({
+            ...fixtureRow(id),
+            bill: '',
+            expense: '',
+            vendor_credit: credit,
+        })
+        const credit = 'vcrd1002ironc01'
+        const original = 'vcrd1001pacpw01'
+        const rows = [
+            onCredit(ATTACHMENT_IDS.summitPdf, original),
+            onCredit(ATTACHMENT_IDS.billPdf, credit),
+            onCredit(ATTACHMENT_IDS.billCustomField, credit),
+        ]
+        const split = splitAttachmentRows(rows, credit, original)
+        expect(split.rows.map(r => r.id)).toEqual([ATTACHMENT_IDS.billPdf])
+        expect(split.fromRows.map(r => r.id)).toEqual([ATTACHMENT_IDS.summitPdf])
+        expect(split.allCount).toBe(3)
+    })
 })
 
 // The server and the client say the same words (plan Decisions "Messages"). `%s` is the
@@ -323,6 +368,7 @@ describe('server/attachments.go texts', () => {
         ],
         ['msgAttachmentBillLimit', () => attachmentIssue(PDF, BILL_KIND, 25)],
         ['msgAttachmentExpenseLimit', () => attachmentIssue(PDF, EXPENSE_KIND, 25)],
+        ['msgAttachmentVCLimit', () => attachmentIssue(PDF, VENDOR_CREDIT_KIND, 25)],
     ])('%s says what the client says', (name, clientText) => {
         expect(clientText()).toBe(goConst(name))
     })

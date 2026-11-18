@@ -488,6 +488,26 @@ describe('mergeTransactions', () => {
         expect(merged.hasMore).toBe(true)
     })
 
+    it('orders by a given compare function, still cut to n', () => {
+        // Every id is distinct, so this compare has no ties and the expected order
+        // does not depend on the input order of the lists.
+        const byIdAscending = (
+            a: ReturnType<typeof invoiceRow>,
+            b: ReturnType<typeof invoiceRow>
+        ): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+        const lists = harborviewLists()
+        const ids = lists.flat().map(r => r.id)
+        const expected = [...ids].sort()
+        expect(new Set(ids).size).toBe(ids.length)
+        const newest = mergeTransactions(lists, TRANSACTION_PAGE).rows.map(r => r.id)
+        expect(newest).not.toEqual(expected)
+        const merged = mergeTransactions(lists, TRANSACTION_PAGE, byIdAscending)
+        expect(merged.rows.map(r => r.id)).toEqual(expected)
+        const cut = mergeTransactions(lists, 2, byIdAscending)
+        expect(cut.rows.map(r => r.id)).toEqual(expected.slice(0, 2))
+        expect(cut.hasMore).toBe(true)
+    })
+
     it('starts with a window of 50', () => {
         expect(TRANSACTION_PAGE).toBe(50)
     })

@@ -4,11 +4,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// The line checks the purchase documents share (a bill, an expense): two line
+// The line checks the purchase documents share (a bill, an expense, a vendor
+// credit): two line
 // tables, account lines (row kind account, a typed amount) and product lines
 // (row kind item, Qty x Rate), named "Account line n" and "Product line n".
 
@@ -66,6 +69,48 @@ func checkPurchaseAccountLine(tx core.App, r *core.Record, n int) error {
 		return refuseNamed(msgPurchaseAccountNotExpense, n, account.GetString("name"))
 	}
 	return nil
+}
+
+// checkVendorRef stores a purchase document's vendor's number (ref_no) trimmed
+// and refuses one that another document of collection of the same vendor
+// already has, unless that document is void or is the posted document this one
+// corrects (the correction takes its place). An empty number never clashes.
+// The refusal, under ref_no, is message with the vendor's name, the number and
+// the other document: its noun and number (entryNouns of docType), or
+// draftName while it has no number. It runs inside the header guard's
+// transaction, so no other write commits between the check and the write.
+func checkVendorRef(tx core.App, r *core.Record, collection, docType, draftName, message string) error {
+	ref := strings.TrimSpace(r.GetString("ref_no"))
+	r.Set("ref_no", ref)
+	vendorID := r.GetString("vendor")
+	if ref == "" || vendorID == "" {
+		return nil
+	}
+	others, err := tx.FindRecordsByFilter(collection,
+		"vendor = {:vendor} && ref_no = {:ref} && status != {:void} && id != {:id} && id != {:replaces}",
+		"-sequence,id", 1, 0, dbx.Params{
+			"vendor": vendorID, "ref": ref, "void": statusVoid, "id": r.Id, "replaces": r.GetString("replaces"),
+		})
+	if err != nil {
+		return fmt.Errorf("books: read the vendor's %s: %w", collection, err)
+	}
+	if len(others) == 0 {
+		return nil
+	}
+	vendor, err := tx.FindRecordById("books_vendors", vendorID)
+	if errors.Is(err, sql.ErrNoRows) {
+		// The schema refuses a vendor that does not exist.
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("books: read the vendor of a %s row: %w", collection, err)
+	}
+	other := draftName
+	if n := others[0].GetString("number"); n != "" {
+		noun, _, _ := entryNouns(docType)
+		other = noun + " " + n
+	}
+	return refuseNamedField("ref_no", message, vendor.GetString("display_name"), ref, other)
 }
 
 // checkPurchaseLinesToPost refuses to post a purchase document of kind whose

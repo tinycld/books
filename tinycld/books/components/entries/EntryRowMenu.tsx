@@ -1,10 +1,10 @@
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Menu } from '@tinycld/core/ui/menu'
 import { EllipsisVertical } from 'lucide-react-native'
-import type { ReactNode } from 'react'
-import { type GestureResponderEvent, Pressable } from 'react-native'
+import { Pressable } from 'react-native'
 import type { EntryActionId } from '../../lib/entry-actions'
 import { entryNumberText } from '../../lib/entry-display'
+import { PressBoundary, stopPress } from '../PressBoundary'
 import type { EntryListItem } from './EntryRow'
 
 interface EntryRowMenuProps {
@@ -44,7 +44,7 @@ export function EntryRowMenu({ entry, actions, onAction }: EntryRowMenuProps) {
                         accessibilityRole="button"
                         accessibilityLabel="Entry actions"
                         // The trigger sits inside the pressable row; it must not also open the entry.
-                        onPress={swallow}
+                        onPress={stopPress}
                         className="items-center justify-center"
                         style={{ width: 44, minHeight: 44 }}
                     >
@@ -56,18 +56,4 @@ export function EntryRowMenu({ entry, actions, onAction }: EntryRowMenuProps) {
             </Menu>
         </PressBoundary>
     )
-}
-
-// The menu's content is portaled, but React still bubbles its presses to the row's
-// Pressable, which would open the entry behind the action just chosen.
-function PressBoundary({ children }: { children: ReactNode }) {
-    return (
-        <Pressable accessible={false} focusable={false} onPress={swallow}>
-            {children}
-        </Pressable>
-    )
-}
-
-function swallow(event: GestureResponderEvent) {
-    event.stopPropagation()
 }

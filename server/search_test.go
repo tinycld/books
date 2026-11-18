@@ -1149,6 +1149,137 @@ func TestSearch_FindsBills(t *testing.T) {
 	requireOnly([]string{"summit"})
 }
 
+// Vendor credit spec §4 (the server half of search, checkpoint 1): search
+// finds vendor credits, drafts included, by number, the vendor's credit no.,
+// memo and the vendor's name. A row opens the credit (id
+// vendor_credit:<id>, kind vendor_credit) and is titled "Vendor credit <n> ·
+// <Vendor>" or "Draft vendor credit · <Vendor>".
+func TestSearch_FindsVendorCredits(t *testing.T) {
+	env := newSearchEnv(t)
+	registerSalesDocGuards(env.app, vendorCreditKind)
+	bindVendorCreditHost(t, env.app)
+	ve := vendorCreditEnvOn(t, env)
+	app, actor := env.app, env.users.bookkeeper.Id
+
+	postedDraft := ve.mkVendorCredit(t, ve.pacificPower, map[string]any{"ref_no": "CM-zx88417", "memo": "overbilled meridian kilowatts"})
+	mkVendorCreditLine(t, app, postedDraft, 0, accountLine(ve.rent, 5000))
+	posted := mustPostVendorCredit(t, app, postedDraft.Id, actor)
+	draft := ve.mkVendorCredit(t, ve.officeSupply, map[string]any{"memo": "returned capybara toner"})
+	mkVendorCreditLine(t, app, draft, 0, accountLine(ve.designTools, 4000))
+
+	postedNumber := posted.GetString("number")
+	if postedNumber == "" {
+		t.Fatal("the posted vendor credit has no number")
+	}
+	titles := map[string]string{
+		"vendor_credit:" + posted.Id: "Vendor credit " + postedNumber + " · Pacific Power",
+		"vendor_credit:" + draft.Id:  "Draft vendor credit · Office Supply World",
+	}
+
+	requireOnly := func(terms []string, ids ...string) {
+		t.Helper()
+		res, err := searchBooks(app, env.users.readOnly.Id, search.Query{Include: terms, Limit: 20})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows := map[string]search.Row{}
+		for _, r := range res.Rows {
+			if strings.HasPrefix(r.ID, "vendor_credit:") {
+				rows[r.ID] = r
+			}
+		}
+		if len(rows) != len(ids) {
+			t.Errorf("%q found vendor credit rows %v, want %d", terms, rows, len(ids))
+		}
+		for _, id := range ids {
+			r, ok := rows[id]
+			if !ok {
+				t.Errorf("%q did not find %s", terms, id)
+				continue
+			}
+			if r.Title != titles[id] || r.Fields["kind"] != "vendor_credit" {
+				t.Errorf("%q row %s title %q kind %v, want %q, vendor_credit", terms, id, r.Title, r.Fields["kind"], titles[id])
+			}
+		}
+	}
+
+	requireOnly([]string{"pacific", postedNumber}, "vendor_credit:"+posted.Id)
+	requireOnly([]string{"zx88417"}, "vendor_credit:"+posted.Id)
+	requireOnly([]string{"meridian"}, "vendor_credit:"+posted.Id)
+	requireOnly([]string{"pacific", "power"}, "vendor_credit:"+posted.Id)
+	requireOnly([]string{"office", "supply"}, "vendor_credit:"+draft.Id)
+	requireOnly([]string{"capybara"}, "vendor_credit:"+draft.Id)
+}
+
+// Vendor refund spec §3.11: search finds vendor refunds, drafts included, by
+// number, reference no., memo and the vendor's name. A row opens the refund
+// (id vendor_refund:<id>, kind vendor_refund) and is titled "Vendor refund
+// <n> · <Vendor>" or "Draft vendor refund · <Vendor>". The index follows an
+// update: a draft found as a draft is found by its number once posted.
+func TestSearch_FindsVendorRefunds(t *testing.T) {
+	re := newRefundEnv(t)
+	registerSearchIndex(&pocketbase.PocketBase{App: re.app})
+	app := re.app
+	// The FTS sync indexes a record only when it is written, and newRefundEnv
+	// wrote the vendors before the index existed, so write each one again.
+	for _, v := range []*core.Record{re.pacificPower, re.officeSupply} {
+		if err := app.Save(reload(t, app, v.Collection().Name, v.Id)); err != nil {
+			t.Fatalf("re-save vendor %s: %v", v.Id, err)
+		}
+	}
+	credit := re.postedCredit(t, re.pacificPower, vendorCreditDay, billAmount{re.rent, 30000})
+
+	toPost := re.mkRefund(t, map[string]any{"amount": 15000, "reference_no": "RF-zx55120", "memo": "returned walrus deposit"})
+	mkRefundLine(t, app, toPost, credit, 0, 15000)
+	draft := re.mkRefund(t, map[string]any{"vendor": re.officeSupply.Id, "memo": "overpaid narwhal invoice"})
+
+	titles := map[string]string{
+		"vendor_refund:" + toPost.Id: "Draft vendor refund · Pacific Power",
+		"vendor_refund:" + draft.Id:  "Draft vendor refund · Office Supply World",
+	}
+	requireOnly := func(terms []string, ids ...string) {
+		t.Helper()
+		res, err := searchBooks(app, re.users.readOnly.Id, search.Query{Include: terms, Limit: 20})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows := map[string]search.Row{}
+		for _, r := range res.Rows {
+			if strings.HasPrefix(r.ID, "vendor_refund:") {
+				rows[r.ID] = r
+			}
+		}
+		if len(rows) != len(ids) {
+			t.Errorf("%q found vendor refund rows %v, want %d", terms, rows, len(ids))
+		}
+		for _, id := range ids {
+			r, ok := rows[id]
+			if !ok {
+				t.Errorf("%q did not find %s", terms, id)
+				continue
+			}
+			if r.Title != titles[id] || r.Fields["kind"] != "vendor_refund" {
+				t.Errorf("%q row %s title %q kind %v, want %q, vendor_refund", terms, id, r.Title, r.Fields["kind"], titles[id])
+			}
+		}
+	}
+
+	requireOnly([]string{"walrus"}, "vendor_refund:"+toPost.Id)
+	requireOnly([]string{"narwhal"}, "vendor_refund:"+draft.Id)
+	requireOnly([]string{"office", "supply"}, "vendor_refund:"+draft.Id)
+
+	posted := mustPostRefund(t, app, toPost.Id, re.users.bookkeeper.Id)
+	number := posted.GetString("number")
+	if number != "1001" {
+		t.Fatalf("the posted refund's number %q, want 1001", number)
+	}
+	titles["vendor_refund:"+toPost.Id] = "Vendor refund 1001 · Pacific Power"
+	requireOnly([]string{"pacific", number}, "vendor_refund:"+toPost.Id)
+	requireOnly([]string{"zx55120"}, "vendor_refund:"+toPost.Id)
+	requireOnly([]string{"walrus"}, "vendor_refund:"+toPost.Id)
+	requireOnly([]string{"pacific", "power"}, "vendor_refund:"+toPost.Id)
+}
+
 func expenseRows(rows []search.Row) map[string]search.Row {
 	out := map[string]search.Row{}
 	for _, r := range rows {

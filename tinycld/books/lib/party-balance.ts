@@ -1,8 +1,6 @@
-import { formatMoney, maxStoredAmount, TOO_LARGE_TEXT } from './money'
+import { formatMoney, MINUS, maxStoredAmount, TOO_LARGE_TEXT } from './money'
 
 const LOADING_TEXT = '—'
-// U+2212, not the ASCII hyphen formatMoney writes for a negative amount.
-const MINUS = '−'
 
 export interface BalanceFigures {
     openText: string

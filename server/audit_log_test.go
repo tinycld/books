@@ -36,6 +36,12 @@ var wantAuditParentFields = map[string]string{
 	"books_payment_applications": "payment",
 	"books_bill_payment_lines":   "payment",
 	"books_credit_memo_lines":    "credit_memo",
+	// A vendor credit's line and its application each name the credit
+	// (vendor credit spec §4).
+	"books_vendor_credit_lines":        "vendor_credit",
+	"books_vendor_credit_applications": "vendor_credit",
+	// A vendor refund's line names its refund (vendor refund spec §3.11).
+	"books_vendor_refund_lines": "refund",
 }
 
 // auditGolden is server/testdata/audit_log_spec.json, which the vitest

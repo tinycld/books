@@ -1,14 +1,13 @@
-import { Landmark, List, Percent } from 'lucide-react-native'
+import { Landmark, List, Percent, Receipt } from 'lucide-react-native'
 import { describe, expect, it } from 'vitest'
 import { accessFromRow } from '../tinycld/books/lib/access'
+import { NEW_ACTIONS, type NewAction } from '../tinycld/books/lib/new-actions'
 import {
     availableOnly,
     hidesNewFab,
     isActivePath,
     isNewActionAvailable,
     LIST_ENTRIES,
-    NEW_ACTIONS,
-    type NewAction,
     newMenuColumns,
     newMenuForAccess,
     SIDEBAR_ENTRIES,
@@ -125,6 +124,8 @@ describe('registries', () => {
             'bill',
             'pay_bills',
             'expense',
+            'vendor_credit',
+            'vendor_refund',
         ])
     })
 
@@ -159,13 +160,37 @@ describe('registries', () => {
         })
     })
 
-    it('the New menu Vendors column lists Vendor, Bill, Pay bills, then Expense', () => {
+    // Vendor credit spec §2: + New → Vendors → "Vendor credit", after "Expense".
+    it('NEW_ACTIONS has an available Vendor credit action in the vendors column at books/vendor-credits/new', () => {
+        expect(NEW_ACTIONS.find(a => a.id === 'vendor_credit')).toEqual({
+            id: 'vendor_credit',
+            label: 'Vendor credit',
+            href: 'books/vendor-credits/new',
+            column: 'vendors',
+            available: true,
+        })
+    })
+
+    // Vendor refund spec §2: + New → Vendors → "Vendor refund", after "Vendor credit".
+    it('NEW_ACTIONS has an available Vendor refund action in the vendors column at books/vendor-refunds/new', () => {
+        expect(NEW_ACTIONS.find(a => a.id === 'vendor_refund')).toEqual({
+            id: 'vendor_refund',
+            label: 'Vendor refund',
+            href: 'books/vendor-refunds/new',
+            column: 'vendors',
+            available: true,
+        })
+    })
+
+    it('the New menu Vendors column lists Vendor, Bill, Pay bills, Expense, Vendor credit, then Vendor refund', () => {
         const vendors = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Vendors')
         expect(vendors?.actions.map(a => a.label)).toEqual([
             'Vendor',
             'Bill',
             'Pay bills',
             'Expense',
+            'Vendor credit',
+            'Vendor refund',
         ])
     })
 
@@ -347,6 +372,7 @@ describe('banking sidebar entry', () => {
         expect(SIDEBAR_ENTRIES[0]?.group).toBeUndefined()
         expect(sidebarSections(availableOnly(SIDEBAR_ENTRIES)).top.map(e => e.id)).toEqual([
             'banking',
+            'sales',
             'lists',
             'reports',
         ])
@@ -355,6 +381,60 @@ describe('banking sidebar entry', () => {
             expect(item.href).not.toBe('books/banking')
         }
         expect(hidesNewFab('/a/books/banking')).toBe(false)
+    })
+})
+
+// Sales lists spec §2: the Sales entry sits between Banking and Lists, opens All sales,
+// and is active on the six list routes and on every sales document.
+describe('sales sidebar entry', () => {
+    function salesEntry(): SidebarEntry {
+        const sales = SIDEBAR_ENTRIES.find(e => e.id === 'sales')
+        if (!sales) throw new Error('SIDEBAR_ENTRIES has no sales entry')
+        return sales
+    }
+
+    it('is the second top entry, between Banking and Lists, at books/sales', () => {
+        expect(SIDEBAR_ENTRIES[1]).toEqual({
+            id: 'sales',
+            label: 'Sales',
+            icon: Receipt,
+            href: 'books/sales',
+            activePaths: [
+                'books/invoices',
+                'books/estimates',
+                'books/sales-receipts',
+                'books/payments',
+                'books/credit-memos',
+            ],
+            available: true,
+        })
+        const top = sidebarSections(availableOnly(SIDEBAR_ENTRIES)).top.map(e => e.id)
+        expect(top.slice(0, 3)).toEqual(['banking', 'sales', 'lists'])
+    })
+
+    it.each([
+        '/a/org/books/sales',
+        '/a/org/books/invoices',
+        '/a/org/books/invoices/abc',
+        '/a/org/books/payments/new',
+        '/a/org/books/credit-memos/abc',
+    ])('is active on %s', pathname => {
+        expect(isActivePath(pathname, salesEntry())).toBe(true)
+    })
+
+    it.each([
+        '/a/org/books/bill-payments/abc',
+        '/a/org/books/bills',
+    ])('is not active on %s', pathname => {
+        expect(isActivePath(pathname, salesEntry())).toBe(false)
+    })
+
+    it.each([
+        '/a/books/sales',
+        '/a/books/invoices',
+        '/a/books/payments',
+    ])('keeps the New button on the list route %s', pathname => {
+        expect(hidesNewFab(pathname)).toBe(false)
     })
 })
 
@@ -580,6 +660,12 @@ describe('hidesNewFab', () => {
         '/a/books/expenses/new',
         '/a/books/expenses/abc',
         '/a/acme/books/expenses/abc123/',
+        '/a/books/vendor-credits/new',
+        '/a/books/vendor-credits/abc',
+        '/a/acme/books/vendor-credits/abc123/',
+        '/a/books/vendor-refunds/new',
+        '/a/books/vendor-refunds/abc',
+        '/a/acme/books/vendor-refunds/abc123/',
         '/a/books/payments/new',
         '/a/books/payments/x',
         '/a/acme/books/payments/abc123/',

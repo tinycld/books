@@ -5,7 +5,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { NewMenu } from '../tinycld/books/components/NewMenu'
 import { accessFromRow } from '../tinycld/books/lib/access'
 import { NEW_ACTIONS_FIXTURE } from '../tinycld/books/lib/books-shell-fixture'
-import { NEW_ACTIONS, newMenuForAccess } from '../tinycld/books/lib/shell-nav'
+import { NEW_ACTIONS } from '../tinycld/books/lib/new-actions'
+import { newMenuForAccess } from '../tinycld/books/lib/shell-nav'
 import { byTestId } from './accounts-test-rows'
 
 function renderOpenMenu(
@@ -88,6 +89,44 @@ describe('NewMenu', () => {
         fireEvent.click(expense)
         expect(onSelect).toHaveBeenCalledWith(
             expect.objectContaining({ id: 'expense', href: 'books/expenses/new' })
+        )
+    })
+
+    // The real registry: Vendor credit follows Expense in the Vendors column (vendor
+    // credit spec §2).
+    it('draws Vendor credit right after Expense and opens books/vendor-credits/new from it', () => {
+        const { onSelect } = renderOpenMenu(newMenuForAccess(access, NEW_ACTIONS))
+        const expense = byTestId(document.body, 'books-new-expense')
+        const credit = byTestId(document.body, 'books-new-vendor-credit')
+        expect(expense).not.toBeNull()
+        expect(credit).not.toBeNull()
+        if (!expense || !credit) return
+        expect(credit.textContent).toContain('Vendor credit')
+        expect(
+            expense.compareDocumentPosition(credit) & Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy()
+        fireEvent.click(credit)
+        expect(onSelect).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'vendor_credit', href: 'books/vendor-credits/new' })
+        )
+    })
+
+    // The real registry: Vendor refund follows Vendor credit in the Vendors column (vendor
+    // refund spec §2).
+    it('draws Vendor refund right after Vendor credit and opens books/vendor-refunds/new from it', () => {
+        const { onSelect } = renderOpenMenu(newMenuForAccess(access, NEW_ACTIONS))
+        const credit = byTestId(document.body, 'books-new-vendor-credit')
+        const refund = byTestId(document.body, 'books-new-vendor-refund')
+        expect(credit).not.toBeNull()
+        expect(refund).not.toBeNull()
+        if (!credit || !refund) return
+        expect(refund.textContent).toContain('Vendor refund')
+        expect(
+            credit.compareDocumentPosition(refund) & Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy()
+        fireEvent.click(refund)
+        expect(onSelect).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'vendor_refund', href: 'books/vendor-refunds/new' })
         )
     })
 

@@ -1,8 +1,12 @@
-// The receive-payment keys (spec §3.1). Pure, so the key map and when each key is
-// registered are unit-tested. Core's ⇧? list shows every registered key and ignores
-// `when`, so a key is registered only while its action is offered.
+// The keys of a payment form and its read view (receive-payment spec §3.1, vendor refund
+// spec §3.2). Pure, so the key map and when each key is registered are unit-tested. The
+// keys are the same for every flow; the ⇧? group is the flow's chrome's and the three
+// descriptions that name the document are the flow's texts. Core's ⇧? list shows every
+// registered key and ignores `when`, so a key is registered only while its action is
+// offered.
 
 import { FORM_KEYS, type FormKeyAction } from './entry-shortcuts'
+import type { PaymentFlowTexts } from './payment-flow'
 
 export type PaymentFormKey = FormKeyAction | 'clearPayments' | 'payAll' | 'toggleRow'
 
@@ -13,15 +17,23 @@ export const PAYMENT_FORM_KEYS: Record<PaymentFormKey, string> = {
     toggleRow: 'Alt+Enter',
 }
 
-export const PAYMENT_FORM_DESCRIPTIONS: Record<PaymentFormKey, string> = {
-    post: 'Post',
-    postAndNew: 'Post & new',
-    saveDraft: 'Save draft',
-    cancel: 'Cancel',
-    deleteDraft: 'Delete draft',
-    clearPayments: 'Clear payments',
-    payAll: 'Pay every listed invoice in full',
-    toggleRow: 'Pay this invoice in full, or clear it',
+type DescriptionTexts = Pick<
+    PaymentFlowTexts,
+    'payAllDescription' | 'clearDescription' | 'toggleRowDescription'
+>
+
+// The ⇧? description of each form key, with the flow's words for the document.
+export function paymentFormDescriptions(texts: DescriptionTexts): Record<PaymentFormKey, string> {
+    return {
+        post: 'Post',
+        postAndNew: 'Post & new',
+        saveDraft: 'Save draft',
+        cancel: 'Cancel',
+        deleteDraft: 'Delete draft',
+        clearPayments: texts.clearDescription,
+        payAll: texts.payAllDescription,
+        toggleRow: texts.toggleRowDescription,
+    }
 }
 
 export type PaymentReadKey = 'edit' | 'void' | 'entry'

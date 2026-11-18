@@ -17,8 +17,9 @@ interface DocumentAttachmentsInput {
 }
 
 /**
- * The attachment rows of a bill or an expense, oldest first, with the uploader's name:
- * one live query over the document and the one it replaces, split by
+ * The attachment rows of a bill, an expense or a vendor credit, oldest first, with the
+ * uploader's name: one live query over the document and the one it replaces, filtered by
+ * the kind's parent column (`attachmentParentColumn`) and split by
  * `splitAttachmentRows`. A new form that corrects nothing reads nothing. A failed read
  * hands its `recovery` to the screen's one Retry; it is not the screen's error, so the
  * document still shows.

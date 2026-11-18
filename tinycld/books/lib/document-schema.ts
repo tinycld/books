@@ -3,10 +3,11 @@
 // resolver. Core already checks each row kind's required cells; these are the rules core
 // cannot read from the host: the quantity's bounds and decimals, the typed rate and
 // percent, the text lengths in code points, an invoice's and a bill's due date against
-// its date, a bill's Vendor's bill no., a sales receipt's Deposit to and Reference no.,
-// an expense's Ref no., an estimate's Expiration date, Accepted date and Accepted by, the percent target and
-// the totals. The texts are the kind's (`kind.messages`). The host's columns carry no
-// bounds, so each cell shows one message, from here.
+// its date, a bill's Vendor's bill no. and a vendor credit's Vendor's credit no., a sales
+// receipt's Deposit to and Reference no., an expense's Ref no., an estimate's Expiration
+// date, Accepted date and Accepted by, the percent target and the totals. The texts are the
+// kind's (`kind.messages`). The host's columns carry no bounds, so each cell shows one message,
+// from here.
 //
 // Each line table's rows are checked under the table's key; a kind with several tables
 // (a bill's account and product lines) sums them into one set of totals. An account
@@ -170,16 +171,18 @@ function dueDateIssues(kind: SalesDocumentKind, values: Record<string, unknown>)
     return [{ path: ['due_date'], message }]
 }
 
-// The books_bills schema's `ref_no` max, in code points as the server counts it. The
-// server trims the number before it stores it (server/bills.go), so the bound is on the
-// trimmed text.
-const MAX_BILL_REF = 40
+// The books_bills and books_vendor_credits schemas' `ref_no` max, in code points as the
+// server counts it. The server trims the number before it stores it (server/bills.go,
+// server/vendor_credits.go), so the bound is on the trimmed text.
+const MAX_VENDOR_REF = 40
 
-// Only a bill has Vendor's bill no.
-function billRefIssues(kind: SalesDocumentKind, values: Record<string, unknown>): Issue[] {
+// Only a kind with a `refTooLong` text has a vendor's number (a bill's Vendor's bill no.,
+// a vendor credit's Vendor's credit no.).
+function vendorRefIssues(kind: SalesDocumentKind, values: Record<string, unknown>): Issue[] {
+    const message = kind.messages.refTooLong
     const ref = textOf(values.ref_no).trim()
-    if (kind.key !== 'bill' || [...ref].length <= MAX_BILL_REF) return []
-    return [{ path: ['ref_no'], message: BILL_MESSAGES.refTooLong }]
+    if (message === undefined || [...ref].length <= MAX_VENDOR_REF) return []
+    return [{ path: ['ref_no'], message }]
 }
 
 // The books_estimates schema's `accepted_by` max, in code points as the server counts it.
@@ -273,7 +276,7 @@ function documentIssues(
     )
     const issues: Issue[] = [
         ...dueDateIssues(kind, values),
-        ...billRefIssues(kind, values),
+        ...vendorRefIssues(kind, values),
         ...paymentIssues(kind, values, deposit),
         ...estimateIssues(kind, values),
         ...cells,

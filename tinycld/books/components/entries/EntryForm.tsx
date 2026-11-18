@@ -6,6 +6,7 @@ import { useAccountOptions } from '../../hooks/useAccountOptions'
 import { useEntryForm } from '../../hooks/useEntryForm'
 import { useEntryFormShortcuts } from '../../hooks/useEntryFormShortcuts'
 import { type SaveOutcome, useEntrySubmit } from '../../hooks/useEntrySubmit'
+import { useFormLeaveGuard } from '../../hooks/useFormLeaveGuard'
 import { useOpenHistory } from '../../hooks/useOpenHistory'
 import type { EntryFormLine, LineTotals } from '../../lib/entry-lines'
 import type { EntryFormValues } from '../../lib/entry-schema'
@@ -34,6 +35,8 @@ interface EntryFormProps {
     onSaved(id: string, outcome: SaveOutcome): void
     onCancel(): void
     onBusyChange?(isBusy: boolean): void
+    // The screen's delete of this draft runs or succeeded: its leave asks nothing.
+    isDeleting?: boolean
     // A saved draft's delete: the ⌘⌫ key, and Delete draft in the action bar's More (the
     // header menu keeps its own Delete draft too).
     onDeleteDraft?: () => void
@@ -138,6 +141,7 @@ export function EntryForm({
     onSaved,
     onCancel,
     onBusyChange,
+    isDeleting = false,
     onDeleteDraft,
     auditHistoryId,
 }: EntryFormProps) {
@@ -158,6 +162,17 @@ export function EntryForm({
         onCancel,
         onBusyChange,
     })
+    const leaveGuard = useFormLeaveGuard({
+        isDirty: entryForm.isDirty,
+        isWriting: submit.isPending || isDeleting,
+        cancel: submit.cancel,
+        leave: submit.leave,
+        question: {
+            isOpen: submit.isDiscardOpen,
+            discard: submit.discard,
+            keepEditing: submit.keepEditing,
+        },
+    })
     useEntryFormShortcuts({
         group: 'Journal entry',
         isPending: submit.isPending,
@@ -166,7 +181,7 @@ export function EntryForm({
             post: submit.post,
             postAndNew: submit.postAndNew,
             saveDraft: submit.saveDraft,
-            cancel: submit.cancel,
+            cancel: leaveGuard.cancel,
             deleteDraft: onDeleteDraft ?? noop,
         },
     })
@@ -182,7 +197,7 @@ export function EntryForm({
     const lineIds = entryForm.fields.map(field => field.key)
     return (
         <FormProvider {...entryForm.form}>
-            <EntryLeaveContext.Provider value={submit.cancel}>
+            <EntryLeaveContext.Provider value={leaveGuard.cancel}>
                 <View testID="entry-screen" className="min-w-0 flex-1 bg-background">
                     {header(entryForm.totals)}
                     <EntryConflictNotice isVisible={submit.isConflict} onReload={submit.reload} />
@@ -204,18 +219,14 @@ export function EntryForm({
                     <EntryActionBar
                         isWide={isWide}
                         isPending={submit.isPending}
-                        onCancel={submit.cancel}
+                        onCancel={leaveGuard.cancel}
                         onSaveDraft={submit.saveDraft}
                         onPost={submit.post}
                         onPostAndNew={submit.postAndNew}
                         onDeleteDraft={onDeleteDraft}
                         onAuditHistory={onAuditHistory}
                     />
-                    <DiscardDialog
-                        isVisible={submit.isDiscardOpen}
-                        onDiscard={submit.discard}
-                        onKeepEditing={submit.keepEditing}
-                    />
+                    <DiscardDialog {...leaveGuard.dialog} />
                 </View>
             </EntryLeaveContext.Provider>
         </FormProvider>

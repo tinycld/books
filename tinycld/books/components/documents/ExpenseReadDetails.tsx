@@ -29,6 +29,7 @@ export function ExpensePaymentRow({ record }: DocumentReadBandRowProps) {
         method: fields.payment_method,
         reference: fields.reference_no,
         depositLabel: '',
+        verb: 'paid from',
     })
     if (text === '') return null
     return (

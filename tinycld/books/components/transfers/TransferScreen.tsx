@@ -63,6 +63,7 @@ export function TransferScreen({ entryId }: { entryId: string }) {
                 flipped={isReady && !isDraftRow ? detail : null}
                 accounts={detail.accounts}
                 onDeleteBusyChange={setDeleting}
+                isDeleting={isDeleting}
             />
         )
     }

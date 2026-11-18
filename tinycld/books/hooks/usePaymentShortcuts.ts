@@ -1,15 +1,16 @@
 import { type ScopeOwner, type Shortcut, useRegisterShortcuts } from '@tinycld/core/lib/shortcuts'
 import { useWritesAvailable } from '@tinycld/core/lib/use-writes-available'
 import { useId, useMemo, useRef } from 'react'
-import { PAYMENT_CHROME } from '../lib/payment-kind'
+import type { PaymentFlow } from '../lib/payment-flow'
 import {
-    PAYMENT_FORM_DESCRIPTIONS,
     PAYMENT_FORM_KEYS,
     type PaymentFormKey,
+    paymentFormDescriptions,
     paymentFormKeysOffered,
 } from '../lib/payment-shortcuts'
 
 interface PaymentShortcutsInput {
+    flow: PaymentFlow
     scopeOwner: ScopeOwner
     canWrite: boolean
     // A save, post or delete runs.
@@ -33,15 +34,17 @@ interface PaymentShortcutsInput {
 const OWN_KEYS: readonly PaymentFormKey[] = ['payAll', 'toggleRow', 'deleteDraft']
 
 /**
- * The receive-payment form's keys that have no button of their own, in the screen's
- * `compose` scope (a dialog pushes a modal scope above it): ⌥A Pay all, ⌥↵ toggle the
- * focused row, ⌘⌫ Delete draft (its row sits in More) and, on a phone, ⌘⇧↵ Post & new.
- * Each is registered only while offered (`paymentFormKeysOffered`), as core's ⇧? list
- * ignores `when`. ⌘S is always taken: while the bar's Save draft is idle (a save runs, or
+ * A payment form's keys that have no button of their own, in the screen's `compose`
+ * scope (a dialog pushes a modal scope above it): ⌥A pay all, ⌥↵ toggle the focused row,
+ * ⌘⌫ Delete draft (its row sits in More) and, on a phone, ⌘⇧↵ Post & new; the ⇧? group
+ * is the flow's chrome's and the descriptions name the flow's document. Each is
+ * registered only while offered (`paymentFormKeysOffered`), as core's ⇧? list ignores
+ * `when`. ⌘S is always taken: while the bar's Save draft is idle (a save runs, or
  * offline) an idle registration takes it, so the browser's Save Page never opens.
  * Returns the offered keys, so ClearPaymentsLink follows the same rule.
  */
 export function usePaymentShortcuts({
+    flow,
     scopeOwner,
     canWrite,
     isPending,
@@ -68,30 +71,32 @@ export function usePaymentShortcuts({
     const withPostAndNew = isPhone && offered.includes('postAndNew')
     const names = [...ownKeys, ...(withPostAndNew ? ['postAndNew' as const] : [])].join(',')
     const shortcuts = useMemo<Shortcut[]>(() => {
-        const group = PAYMENT_CHROME.shortcutGroup
+        const group = flow.chrome.shortcutGroup
+        const descriptions = paymentFormDescriptions(flow.texts)
+        const base = `books.${flow.key}.form.${instance}`
         const keys =
             names === '' ? [] : (names.split(',') as (keyof PaymentShortcutsInput['run'])[])
         const own: Shortcut[] = keys.map(key => ({
-            id: `books.payment.form.${instance}.${key}`,
+            id: `${base}.${key}`,
             keys: PAYMENT_FORM_KEYS[key],
             scope: 'compose',
-            description: PAYMENT_FORM_DESCRIPTIONS[key],
+            description: descriptions[key],
             group,
             allowInInputs: true,
             run: () => runRef.current[key](),
         }))
         const idleSave: Shortcut = {
-            id: `books.payment.form.${instance}.saveIdle`,
+            id: `${base}.saveIdle`,
             keys: PAYMENT_FORM_KEYS.saveDraft,
             scope: 'compose',
-            description: PAYMENT_FORM_DESCRIPTIONS.saveDraft,
+            description: descriptions.saveDraft,
             group,
             allowInInputs: true,
             when: () => idleRef.current,
             run: () => {},
         }
         return [...own, idleSave]
-    }, [instance, names])
+    }, [instance, names, flow])
     useRegisterShortcuts(shortcuts, scopeOwner)
     return { offered }
 }

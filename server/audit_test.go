@@ -379,6 +379,119 @@ func TestAudit_LabelsAnExpenseAndItsLines(t *testing.T) {
 	}
 }
 
+// Vendor refund spec §3.11: a vendor refund's audit row is "Vendor refund
+// 1001", or "Draft vendor refund" while it has no number; a line's row names
+// the refund and the credit it refunds ("Vendor refund 1001: Vendor credit
+// 1002").
+func TestAudit_LabelsAVendorRefundAndItsLines(t *testing.T) {
+	re := newRefundEnv(t)
+	audited := auditedCollections(re.app)
+	refunds, ok := audited[refundsCol]
+	if !ok {
+		t.Fatal("books_vendor_refunds is not audited")
+	}
+	lines, ok := audited[refundLinesCol]
+	if !ok {
+		t.Fatal("books_vendor_refund_lines is not audited")
+	}
+	if err := setFields(t, re.app, "books_doc_sequences", vendorCreditSequenceID, map[string]any{"next_number": 1002}); err != nil {
+		t.Fatalf("move the vendor credit sequence to 1002: %v", err)
+	}
+	credit := re.postedCredit(t, re.pacificPower, vendorCreditDay, billAmount{re.rent, 30000})
+	if got := credit.GetString("number"); got != "1002" {
+		t.Fatalf("the credit's number %q, want 1002", got)
+	}
+	r := re.mkRefund(t, nil)
+	line := mkRefundLine(t, re.app, r, credit, 0, 15000)
+
+	if got, want := refunds.ExtractLabel(reload(t, re.app, refundsCol, r.Id)), "Draft vendor refund"; got != want {
+		t.Errorf("draft vendor refund audit label = %q, want %q", got, want)
+	}
+	posted := mustPostRefund(t, re.app, r.Id, re.users.bookkeeper.Id)
+	if got, want := refunds.ExtractLabel(posted), "Vendor refund 1001"; got != want {
+		t.Errorf("posted vendor refund audit label = %q, want %q", got, want)
+	}
+	if got, want := lines.ExtractLabel(reload(t, re.app, refundLinesCol, line.Id)), "Vendor refund 1001: Vendor credit 1002"; got != want {
+		t.Errorf("posted vendor refund line audit label = %q, want %q", got, want)
+	}
+}
+
+// Vendor credit spec §4: a vendor credit's audit row is "Vendor credit 1002",
+// or "Draft vendor credit" while it has no number; a line's row follows its
+// credit and names its table and its place in that table ("Vendor credit
+// 1002: Account line 2"); an application's row names the credit and the bill
+// ("Vendor credit 1002: Bill 1003").
+func TestAudit_LabelsAVendorCreditItsLinesAndItsApplications(t *testing.T) {
+	ve := newBillAndVendorCreditEnv(t)
+	audited := auditedCollections(ve.app)
+	credits, ok := audited["books_vendor_credits"]
+	if !ok {
+		t.Fatal("books_vendor_credits is not audited")
+	}
+	lines, ok := audited["books_vendor_credit_lines"]
+	if !ok {
+		t.Fatal("books_vendor_credit_lines is not audited")
+	}
+	applications, ok := audited["books_vendor_credit_applications"]
+	if !ok {
+		t.Fatal("books_vendor_credit_applications is not audited")
+	}
+	vc := ve.mkVendorCredit(t, ve.officeSupply, nil)
+	mkVendorCreditLine(t, ve.app, vc, 0, accountLine(ve.software, 12500))
+	accountLine2 := mkVendorCreditLine(t, ve.app, vc, 1, accountLine(ve.designTools, 2500))
+	productLine1 := mkVendorCreditLine(t, ve.app, vc, 2, productLine(ve.patchCable, 2, 310))
+
+	draft := reload(t, ve.app, "books_vendor_credits", vc.Id)
+	if got, want := vendorCreditLabel(draft), "Draft vendor credit"; got != want {
+		t.Errorf("vendorCreditLabel of a draft = %q, want %q", got, want)
+	}
+	if got, want := credits.ExtractLabel(draft), "Draft vendor credit"; got != want {
+		t.Errorf("draft vendor credit audit label = %q, want %q", got, want)
+	}
+	if got, want := lines.ExtractLabel(reload(t, ve.app, "books_vendor_credit_lines", accountLine2.Id)), "Draft vendor credit: Account line 2"; got != want {
+		t.Errorf("draft vendor credit line label = %q, want %q", got, want)
+	}
+
+	if err := setFields(t, ve.app, "books_doc_sequences", vendorCreditSequenceID, map[string]any{"next_number": 1002}); err != nil {
+		t.Fatalf("move the vendor credit sequence to 1002: %v", err)
+	}
+	posted := mustPostVendorCredit(t, ve.app, vc.Id, ve.users.bookkeeper.Id)
+	if got, want := vendorCreditLabel(posted), "Vendor credit 1002"; got != want {
+		t.Errorf("vendorCreditLabel of a posted credit = %q, want %q", got, want)
+	}
+	if got, want := credits.ExtractLabel(posted), "Vendor credit 1002"; got != want {
+		t.Errorf("posted vendor credit audit label = %q, want %q", got, want)
+	}
+	second := reload(t, ve.app, "books_vendor_credit_lines", accountLine2.Id)
+	if got, want := vendorCreditLineLabel(ve.app, second), "Vendor credit 1002: Account line 2"; got != want {
+		t.Errorf("vendorCreditLineLabel of the second account line = %q, want %q", got, want)
+	}
+	if got, want := lines.ExtractLabel(second), "Vendor credit 1002: Account line 2"; got != want {
+		t.Errorf("posted vendor credit account line audit label = %q, want %q", got, want)
+	}
+	if got, want := lines.ExtractLabel(reload(t, ve.app, "books_vendor_credit_lines", productLine1.Id)), "Vendor credit 1002: Product line 1"; got != want {
+		t.Errorf("posted vendor credit product line audit label = %q, want %q", got, want)
+	}
+
+	// The application row is written by the test app: no guard of this
+	// checkpoint writes one.
+	if err := setFields(t, ve.app, "books_doc_sequences", "booksseqbill000", map[string]any{"next_number": 1003}); err != nil {
+		t.Fatalf("move the bill sequence to 1003: %v", err)
+	}
+	bill := mkBill(t, ve.app, ve.officeSupply, nil)
+	mkBillLine(t, ve.app, bill, 0, accountLine(ve.software, 20000))
+	mustPostBill(t, ve.app, bill.Id, ve.users.bookkeeper.Id)
+	application := saveRecord(t, ve.app, "books_vendor_credit_applications", map[string]any{
+		"vendor_credit": vc.Id, "bill": bill.Id, "amount": 3000, "date": "2026-11-16",
+	})
+	if got, want := vendorCreditApplicationLabel(ve.app, application), "Vendor credit 1002: Bill 1003"; got != want {
+		t.Errorf("vendorCreditApplicationLabel = %q, want %q", got, want)
+	}
+	if got, want := applications.ExtractLabel(reload(t, ve.app, "books_vendor_credit_applications", application.Id)), "Vendor credit 1002: Bill 1003"; got != want {
+		t.Errorf("vendor credit application audit label = %q, want %q", got, want)
+	}
+}
+
 // Spec §3.9: an attachment's audit row names the file and its document
 // ("Attachment OSW-invoice-1002.pdf on Bill 1002", "Attachment receipt.jpg on
 // Draft expense"), and the file alone once its document is gone (the delete

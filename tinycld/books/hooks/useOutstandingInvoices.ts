@@ -10,11 +10,13 @@ import type { BooksInvoices } from '../types'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 
-// An invoice as the list reads it.
+// An open document as the list reads it: an invoice, or a bill or vendor credit in the
+// same shape. `party` is its customer or vendor; `ref` the vendor's no. (none on an
+// invoice).
 export type OutstandingInvoice = Pick<
     BooksInvoices,
-    'id' | 'number' | 'date' | 'due_date' | 'total' | 'balance' | 'customer'
->
+    'id' | 'number' | 'date' | 'due_date' | 'total' | 'balance'
+> & { party: string; ref?: string }
 
 const byNumber = new Intl.Collator('en', { numeric: true })
 
@@ -24,31 +26,32 @@ function listOrder(a: OutstandingRow, b: OutstandingRow): number {
 }
 
 /**
- * The customer's open invoices, then the invoices a stored payment names that the open
- * set no longer holds (paid off since), each once; the stored ones only while they are
- * the customer's. `open` is the balance plus what the payment being corrected applied
- * (`extraOpen`). Oldest due date first, then number.
+ * The party's open documents, then the documents a stored payment names that the open set
+ * no longer holds (paid off since), each once; the stored ones only while they are the
+ * party's. `open` is the balance plus what the payment being corrected applied
+ * (`extraOpen`); `ref` is kept. Oldest due date first, then number.
  */
 export function mergeOutstanding(
     open: readonly OutstandingInvoice[],
     stored: readonly OutstandingInvoice[],
-    customerId: string,
+    partyId: string,
     extraOpen: Readonly<Record<string, number>>
 ): OutstandingRow[] {
-    const byId = new Map(open.map(invoice => [invoice.id, invoice]))
-    for (const invoice of stored) {
-        if (invoice.customer === customerId && !byId.has(invoice.id)) {
-            byId.set(invoice.id, invoice)
+    const byId = new Map(open.map(document => [document.id, document]))
+    for (const document of stored) {
+        if (document.party === partyId && !byId.has(document.id)) {
+            byId.set(document.id, document)
         }
     }
     return [...byId.values()]
-        .map(invoice => ({
-            id: invoice.id,
-            number: invoice.number,
-            date: invoice.date.slice(0, 10),
-            due_date: invoice.due_date.slice(0, 10),
-            total: invoice.total,
-            open: invoice.balance + (extraOpen[invoice.id] ?? 0),
+        .map(document => ({
+            id: document.id,
+            number: document.number,
+            date: document.date.slice(0, 10),
+            due_date: document.due_date.slice(0, 10),
+            total: document.total,
+            open: document.balance + (extraOpen[document.id] ?? 0),
+            ref: document.ref,
         }))
         .sort(listOrder)
 }
@@ -88,7 +91,7 @@ export function useOutstandingInvoices(
                     due_date: invoice.due_date,
                     total: invoice.total,
                     balance: invoice.balance,
-                    customer: invoice.customer,
+                    party: invoice.customer,
                 }))
         },
         queryKey: ['books.payment.outstanding', customerId],
@@ -142,7 +145,7 @@ export function useOutstandingLoader(
                         due_date: invoice.due_date,
                         total: invoice.total,
                         balance: invoice.balance,
-                        customer: invoice.customer,
+                        party: invoice.customer,
                     })),
         })
         return mergeOutstanding(open, storedInvoices, customerId, extraOpen)

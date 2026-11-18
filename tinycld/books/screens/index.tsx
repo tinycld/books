@@ -1,6 +1,5 @@
-import { useFocusEffect, useNavigation } from 'expo-router'
-import { StackActions } from 'expo-router/react-navigation'
-import { useCallback } from 'react'
+import { useFocusEffect } from 'expo-router'
+import { useLandOnRoute } from '../hooks/useStackScreens'
 
 /**
  * The bare `/a/books` lands on the Lists hub. The move replaces this screen in
@@ -15,14 +14,7 @@ import { useCallback } from 'react'
  * already there; it then pops back to that hub, so the stack never holds two.
  */
 export default function BooksIndex() {
-    const navigation = useNavigation()
-    useFocusEffect(
-        useCallback(() => {
-            const hasLists = navigation.getState()?.routes.some(route => route.name === 'lists')
-            navigation.dispatch(
-                hasLists ? StackActions.popTo('lists') : StackActions.replace('lists')
-            )
-        }, [navigation])
-    )
+    const landOnLists = useLandOnRoute('lists')
+    useFocusEffect(landOnLists)
     return null
 }
