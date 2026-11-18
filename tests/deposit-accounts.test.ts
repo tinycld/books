@@ -97,19 +97,63 @@ describe('paymentText', () => {
                 method: 'check',
                 reference: '43567',
                 depositLabel: '1010 Business Savings',
+                verb: 'deposited to',
             })
         ).toBe('Check · 43567 · deposited to 1010 Business Savings')
     })
 
     it('leaves out a missing method', () => {
         expect(
-            paymentText({ method: '', reference: '43567', depositLabel: '1010 Business Savings' })
+            paymentText({
+                method: '',
+                reference: '43567',
+                depositLabel: '1010 Business Savings',
+                verb: 'deposited to',
+            })
         ).toBe('43567 · deposited to 1010 Business Savings')
     })
 
     it('is only the deposit account with no method and no reference', () => {
         expect(
-            paymentText({ method: '', reference: '', depositLabel: '1010 Business Savings' })
+            paymentText({
+                method: '',
+                reference: '',
+                depositLabel: '1010 Business Savings',
+                verb: 'deposited to',
+            })
         ).toBe('deposited to 1010 Business Savings')
+    })
+
+    // The bill payment's and the expense's read views name no account in the line (they
+    // show it on its own), so their present sentence is the method and the reference.
+    it('gives the bill payment’s and the expense’s sentence for "paid from"', () => {
+        expect(
+            paymentText({ method: 'check', reference: '1001', depositLabel: '', verb: 'paid from' })
+        ).toBe('Check · 1001')
+        expect(
+            paymentText({ method: '', reference: '', depositLabel: '', verb: 'paid from' })
+        ).toBe('')
+    })
+
+    it('names the refund account after "refunded to"', () => {
+        expect(
+            paymentText({
+                method: 'check',
+                reference: '20417',
+                depositLabel: '1010 Business checking',
+                verb: 'refunded to',
+            })
+        ).toBe('Check · 20417 · refunded to 1010 Business checking')
+    })
+
+    it('puts the verb it is given before the account', () => {
+        expect(
+            paymentText({
+                method: '',
+                reference: '',
+                depositLabel: '1000 Business Checking',
+                verb: 'paid from',
+            })
+        ).toBe('paid from 1000 Business Checking')
     })
 })

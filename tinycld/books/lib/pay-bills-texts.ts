@@ -9,6 +9,8 @@ import { PAYMENT_MESSAGES } from './payment-texts'
 
 export const PAY_BILLS_MESSAGES = {
     title: 'Pay bills',
+    // The link under the list that clears every payment.
+    clearLabel: 'Clear payments',
     // The form's rules (lib/pay-bills-schema.ts), each the Books wording of the same rule.
     paidFromRequired: 'Choose the account you paid from',
     dateInvalid: PAYMENT_MESSAGES.dateInvalid,
@@ -81,6 +83,18 @@ export function hiddenText(count: number): string {
 // bills it paid, so its count reads the same.
 export function openCountText(count: number, _mode: 'new' | 'replaces'): string {
     return `${count} open ${plural(count, 'bill', 'bills')}`
+}
+
+// A line of the notice of unapplied vendor credits above the open bills (vendor credit
+// spec §3.10): "Vendor credit 1002 · Office Supply World · $50.00 unapplied".
+export function unappliedCreditText(credit: {
+    number: string
+    vendorName: string
+    balance: number
+    currency: string
+}): string {
+    const balance = formatMoney(credit.balance, credit.currency)
+    return `Vendor credit ${credit.number} · ${credit.vendorName} · ${balance} unapplied`
 }
 
 const NO_AMOUNT = '—'

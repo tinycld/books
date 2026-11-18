@@ -24,7 +24,13 @@ describe('popDepth', () => {
     })
 
     it('goes back one screen on every form route of the same name', () => {
-        for (const route of ['invoices/[id]', 'entries/[id]', 'payments/[id]', 'expenses/[id]']) {
+        for (const route of [
+            'invoices/[id]',
+            'entries/[id]',
+            'payments/[id]',
+            'expenses/[id]',
+            'vendor-credits/[id]',
+        ]) {
             expect(popDepth(stack('entries/index', route, route), 'k2'), route).toBe(1)
         }
     })
@@ -81,6 +87,8 @@ describe('backTarget', () => {
             ['credit-memos/[id]', 'Credit memo'],
             ['estimates/[id]', 'Estimate'],
             ['expenses/[id]', 'Expense'],
+            ['vendor-credits/[id]', 'Vendor credit'],
+            ['vendor-refunds/[id]', 'Vendor refund'],
             ['payments/[id]', 'Payment'],
             ['entries/[id]', 'Journal entry'],
             ['transfers/[id]', 'Transfer'],
@@ -101,6 +109,14 @@ describe('backTarget', () => {
                 'k3'
             )
         ).toEqual({ route: 'bills/[id]', label: 'Bill', depth: 2 })
+    })
+
+    // Vendor credit spec §2, as the bill's case: a vendor credit right below is popped to
+    // and named.
+    it('pops a draft vendor credit opened over a draft vendor credit back to that draft', () => {
+        expect(
+            backTarget(stack('entries/index', 'vendor-credits/[id]', 'vendor-credits/[id]'), 'k2')
+        ).toEqual({ route: 'vendor-credits/[id]', label: 'Vendor credit', depth: 1 })
     })
 
     it('pops a draft bill opened over a draft bill back to that draft', () => {
@@ -133,6 +149,51 @@ describe('backTarget', () => {
         expect(backTarget(stack('invoices/[id]'), 'k0', 'estimate1234567')).toEqual({
             route: 'estimates/[id]',
             label: 'Estimate',
+            depth: 0,
+        })
+    })
+})
+
+// The Sales lists (sales-lists checkpoint 2): a document opened from a list is a screen of
+// its kind's child stack, read as flat screens (lib/stack-screens.ts) whose list screens
+// are named `<tab path without books/>/index`. Back pops to the list and names it.
+describe('backTarget over the Sales lists', () => {
+    it('pops an invoice opened from the Invoices list back to it, named "Invoices"', () => {
+        expect(backTarget(stack('invoices/index', 'invoices/[id]'), 'k1')).toEqual({
+            route: 'invoices/index',
+            label: 'Invoices',
+            depth: 1,
+        })
+    })
+
+    it('pops an invoice opened from All sales back to it, named "Sales"', () => {
+        expect(backTarget(stack('sales/index', 'invoices/[id]'), 'k1')).toEqual({
+            route: 'sales/index',
+            label: 'Sales',
+            depth: 1,
+        })
+    })
+
+    it('pops a payment opened from the Payments list back to it, named "Payments"', () => {
+        expect(backTarget(stack('payments/index', 'payments/[id]'), 'k1')).toEqual({
+            route: 'payments/index',
+            label: 'Payments',
+            depth: 1,
+        })
+    })
+
+    it('pops an entry opened from an Invoices row menu (View journal entry) back to the list', () => {
+        expect(backTarget(stack('invoices/index', 'entries/[id]'), 'k1')).toEqual({
+            route: 'invoices/index',
+            label: 'Invoices',
+            depth: 1,
+        })
+    })
+
+    it('replaces an invoice with nothing below with the list route, depth 0', () => {
+        expect(backTarget(stack('invoices/[id]'), 'k0')).toEqual({
+            route: 'entries/index',
+            label: 'Journal entries',
             depth: 0,
         })
     })

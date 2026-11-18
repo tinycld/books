@@ -15,6 +15,8 @@ To bring in your bank statements, choose Banking in the sidebar; see [Banking](h
 
 To see Books reports, choose Reports in the sidebar: it opens Reports with only Books reports shown; see [Reports](help://books:reports).
 
+To find, filter and act on your invoices, estimates, sales receipts, payments and credit memos, choose Sales in the sidebar; see [Sales lists](help://books:sales-lists).
+
 To keep the people and companies you sell to, see [Customers](help://books:customers).
 
 To keep the people and companies you buy from, see [Vendors](help://books:vendors).

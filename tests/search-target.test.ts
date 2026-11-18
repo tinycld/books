@@ -89,6 +89,24 @@ describe('searchTarget', () => {
         expect(searchTarget('expense:')).toBeNull()
     })
 
+    // Vendor credit spec §3.12: a vendor credit hit (kind vendor_credit) opens the credit.
+    it('routes a vendor credit hit to the vendor credit screen', () => {
+        expect(searchTarget('vendor_credit:abc')).toEqual({
+            path: 'books/vendor-credits/[id]',
+            id: 'abc',
+        })
+        expect(searchTarget('vendor_credit:')).toBeNull()
+    })
+
+    // Vendor refund spec §3.11: a vendor refund hit (kind vendor_refund) opens the refund.
+    it('routes a vendor refund hit to the vendor refund screen', () => {
+        expect(searchTarget('vendor_refund:abc')).toEqual({
+            path: 'books/vendor-refunds/[id]',
+            id: 'abc',
+        })
+        expect(searchTarget('vendor_refund:')).toBeNull()
+    })
+
     // Receive payment spec §3.9: a payment hit (kind payment) opens the payment.
     it('routes a payment hit to the payment screen', () => {
         expect(searchTarget('payment:abc')).toEqual({

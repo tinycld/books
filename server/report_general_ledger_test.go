@@ -117,6 +117,26 @@ func entryLineOn(t *testing.T, app core.App, entryID string, account *core.Recor
 	return line
 }
 
+// Vendor refund spec §3.11: a posted vendor refund's entry reads Type "Vendor
+// refund", No. 1001 and the vendor's name on both lines (Refunded to and
+// Accounts payable).
+func TestGeneralLedger_AVendorRefundReadsItsTypeNumberAndVendor(t *testing.T) {
+	re := newRefundEnv(t)
+	registerBooksSources(t)
+	credit := re.postedCredit(t, re.pacificPower, vendorCreditDay, billAmount{re.rent, 30000})
+	posted := re.refund(t, nil, refundLine{credit, 15000})
+	entryID := posted.GetString("entry")
+
+	res := runGL(t, re.app, re.users.readOnly, map[string]any{"period": glPeriod("2026-11-01", "2026-11-30")}, reports.Options{Today: glToday})
+	for _, account := range []*core.Record{re.checking1000, re.payable} {
+		row := lineRow(t, res, entryLineOn(t, re.app, entryID, account))
+		if got, want := [3]string{textCell(t, row, "type"), textCell(t, row, "number"), textCell(t, row, "name")},
+			[3]string{"Vendor refund", "1001", "Pacific Power"}; got != want {
+			t.Errorf("the refund's line on %s type/number/name = %v, want %v", account.GetString("name"), got, want)
+		}
+	}
+}
+
 // glSection is one account's section: its heading row, then the rows that
 // name it as their section, in the order the result holds them.
 type glSection struct {
@@ -1297,7 +1317,13 @@ const generalLedgerSpecGolden = "" +
 	`{"value":"Payment"},{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"sales_receipt"}]},` +
 	`{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},` +
 	`{"value":"Sales receipt"},{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"transfer"}]},` +
-	`{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},{"value":"Transfer"},{"op":"eq","args":[{"path":[{"link":"entry` +
+	`{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},{"value":"Transfer"},` +
+	`{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"vendor_credit"}]},` +
+	`{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},` +
+	`{"value":"Vendor credit"},` +
+	`{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"vendor_refund"}]},` +
+	`{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},` +
+	`{"value":"Vendor refund"},{"op":"eq","args":[{"path":[{"link":"entry` +
 	`"},{"field":"origin"}]},{"value":"reversal"}]},{"op":"if","args":[{"op":"isEmpty","args":[{"path":[{"link":"entry"},{"link":"reverses"},{"field":"number"}]}]},{` +
 	`"value":"Reversal"},{"op":"concat","args":[{"value":"Reversal"},{"value":" of "},{"path":[{"link":"entry"},{"link":"reverses"},{"field":"number"}]}]}]},{"op":"e` +
 	`q","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":"void_reversal"}]},{"op":"if","args":[{"op":"isEmpty","args":[{"path":[{"link":"entry"},{"lin` +

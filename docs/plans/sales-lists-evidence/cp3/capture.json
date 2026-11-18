@@ -1,0 +1,100 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "all",
+            "url": "/a/books/sales",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [1280]
+        },
+        {
+            "name": "all-mid",
+            "url": "/a/books/sales",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [900]
+        },
+        {
+            "name": "all-phone",
+            "url": "/a/books/sales",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [390]
+        },
+        {
+            "name": "invoices",
+            "url": "/a/books/invoices",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [1280]
+        },
+        {
+            "name": "invoices-phone",
+            "url": "/a/books/invoices",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [390]
+        },
+        {
+            "name": "invoices-sorted",
+            "url": "/a/books/invoices",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [1280],
+            "stable": "sales-table",
+            "actions": [{ "click": "sales-header-number" }]
+        },
+        {
+            "name": "payments-phone",
+            "url": "/a/books/payments",
+            "ready": "sales-row-slpay00000draft",
+            "widths": [390]
+        },
+        {
+            "name": "sort-menu-phone",
+            "url": "/a/books/invoices",
+            "ready": "sales-sort",
+            "widths": [390],
+            "actions": [{ "click": "sales-sort" }, { "waitFor": "sales-sort-balance-up" }]
+        },
+        {
+            "name": "range-menu",
+            "url": "/a/books/invoices",
+            "ready": "sales-range",
+            "widths": [1280],
+            "actions": [{ "click": "sales-range" }, { "waitFor": "sales-range-this-quarter" }]
+        },
+        {
+            "name": "customer-picker",
+            "url": "/a/books/invoices",
+            "ready": "sales-customer",
+            "widths": [1280],
+            "actions": [{ "click": "sales-customer" }, { "waitFor": "sales-customer-all" }]
+        },
+        {
+            "name": "no-match",
+            "url": "/a/books/invoices",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [1280],
+            "actions": [
+                { "click": "sales-chip-overdue" },
+                { "click": "sales-range" },
+                { "click": "sales-range-this-quarter" },
+                { "click": "sales-customer" },
+                { "fill": "sales-customer-search", "value": "Northwind" },
+                { "clickText": "Northwind Traders" },
+                { "waitFor": "sales-no-match" }
+            ]
+        },
+        {
+            "name": "no-match-phone",
+            "url": "/a/books/invoices",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [390],
+            "actions": [
+                { "click": "sales-chip-overdue" },
+                { "click": "sales-range" },
+                { "click": "sales-range-this-quarter" },
+                { "click": "sales-customer" },
+                { "fill": "sales-customer-search", "value": "Northwind" },
+                { "clickText": "Northwind Traders" },
+                { "waitFor": "sales-no-match" }
+            ]
+        }
+    ]
+}

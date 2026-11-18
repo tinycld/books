@@ -62,13 +62,17 @@ var productReferences = []productReference{
 	{collection: "books_estimate_lines", field: "product", distinct: "estimate", message: productOnEstimatesMessage},
 	{collection: billLinesCollection, field: "product", distinct: "bill", message: productOnBillsMessage},
 	{collection: expenseLinesCollection, field: "product", distinct: "expense", message: productOnExpensesMessage},
+	{collection: vendorCreditLinesCollection, field: "product", distinct: "vendor_credit", message: productOnVendorCreditsMessage},
 }
 
 // The delete refusals of a product on invoice lines, counted by invoice, on
 // sales receipt lines, counted by sales receipt, on credit memo lines, counted
 // by credit memo, on estimate lines, counted by estimate, on bill lines,
-// counted by bill, and on expense lines, counted by expense.
+// counted by bill, on expense lines, counted by expense, and on vendor credit
+// lines, counted by vendor credit.
 const (
+	msgProductOnOneVendorCredit = "This product or service is on 1 vendor credit. Make it inactive instead."
+	msgProductOnVendorCredits   = "This product or service is on %d vendor credits. Make it inactive instead."
 	msgProductOnOneBill         = "This product or service is on 1 bill. Make it inactive instead."
 	msgProductOnBills           = "This product or service is on %d bills. Make it inactive instead."
 	msgProductOnOneExpense      = "This product or service is on 1 expense. Make it inactive instead."
@@ -328,6 +332,15 @@ func productOnExpensesMessage(count int) string {
 		return msgProductOnOneExpense
 	}
 	return fmt.Sprintf(msgProductOnExpenses, count)
+}
+
+// productOnVendorCreditsMessage counts vendor credits, draft, posted or void,
+// not their product lines.
+func productOnVendorCreditsMessage(count int) string {
+	if count == 1 {
+		return msgProductOnOneVendorCredit
+	}
+	return fmt.Sprintf(msgProductOnVendorCredits, count)
 }
 
 // productTypeLabel is a product type as a person reads it; an unknown type

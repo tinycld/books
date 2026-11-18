@@ -15,7 +15,7 @@ import {
     View,
 } from 'react-native'
 import { SEARCH_DELAY_MS } from '../lib/list-search'
-import { searchPickerKeyAction } from '../lib/search-picker-keys'
+import { isLateSearchCharacter, searchPickerKeyAction } from '../lib/search-picker-keys'
 
 // `group` puts the option under a heading of that name; options of one group are
 // consecutive in the list the caller passes. `indent` is a depth the menu item draws as
@@ -40,18 +40,24 @@ function groupRuns(options: readonly SearchPickerOption[]): OptionRun[] {
 // Local, synchronous UI state that nothing else reads. Closing the menu clears the
 // search, so the next open starts from the full list. `openWithText` is type-to-open:
 // it opens the menu with the typed character in the search, and a character typed
-// before the search field takes the focus is added to it.
+// before the search field takes the focus is added to it. `isOpen` and `term` are one
+// state, so the updater decides append or replace from the latest state: keys typed
+// before the menu's render are kept.
 export function useSearchPicker() {
-    const [isOpen, setIsOpen] = useState(false)
-    const [term, setTerm] = useState('')
+    const [state, setState] = useState({ isOpen: false, term: '' })
+    const { isOpen, term } = state
     const debouncedTerm = useDebouncedValue(term, SEARCH_DELAY_MS)
     const onOpenChange = (next: boolean) => {
-        setIsOpen(next)
-        if (!next) setTerm('')
+        setState(current => ({ isOpen: next, term: next ? current.term : '' }))
     }
     const openWithText = (text: string) => {
-        setTerm(current => (isOpen ? current + text : text))
-        setIsOpen(true)
+        setState(current => ({
+            isOpen: true,
+            term: current.isOpen ? current.term + text : text,
+        }))
+    }
+    const setTerm = (next: string) => {
+        setState(current => ({ ...current, term: next }))
     }
     return { isOpen, onOpenChange, openWithText, term, setTerm, debouncedTerm }
 }
@@ -73,9 +79,8 @@ function useTriggerKeys(picker: PickerState, disabled: boolean) {
             if (isDisabled) return
             const action = searchPickerKeyAction(event, current.isOpen)
             // The menu opened on an earlier key and the search field has not taken the
-            // focus yet: the character still belongs to the search.
-            const isLateCharacter =
-                current.isOpen && searchPickerKeyAction(event, false) === 'open-with-text'
+            // focus yet: the character (a space too) still belongs to the search.
+            const isLateCharacter = current.isOpen && isLateSearchCharacter(event)
             if (action === 'none' && !isLateCharacter) return
             event.preventDefault()
             event.stopPropagation()
@@ -208,6 +213,7 @@ interface TriggerProps {
     isPlaceholder: boolean
     suffix?: string
     disabled: boolean
+    isReadOnly: boolean
     onPress?: () => void
     onFocus?: () => void
     onBlur?: () => void
@@ -243,6 +249,7 @@ const PickerTrigger = forwardRef<PressableInstance, TriggerProps>(function Picke
         isPlaceholder,
         suffix,
         disabled,
+        isReadOnly,
         onPress,
         onFocus,
         onBlur,
@@ -250,7 +257,9 @@ const PickerTrigger = forwardRef<PressableInstance, TriggerProps>(function Picke
     ref
 ) {
     const chevron = useThemeColor('muted-foreground')
-    const look = disabled ? 'opacity-60' : ''
+    const look = disabled || isReadOnly ? 'opacity-60' : ''
+    // Only a read-only trigger carries the attribute.
+    const readOnlyAttr = isReadOnly ? true : undefined
     // A ring on every focus, not only a focus-visible one: the trigger takes the focus
     // by script when a form opens (autoFocus), often right after a pointer press, and
     // the browser then draws no ring of its own.
@@ -265,6 +274,7 @@ const PickerTrigger = forwardRef<PressableInstance, TriggerProps>(function Picke
             testID={testID}
             accessibilityRole="button"
             accessibilityLabel={accessibilityLabel}
+            aria-readonly={readOnlyAttr}
             disabled={disabled}
             className={`min-h-11 flex-row items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2.5 ${focusRing} ${look}`}
         >
@@ -415,6 +425,9 @@ interface SearchPickerProps {
     isPlaceholder?: boolean
     triggerSuffix?: string
     disabled: boolean
+    // The trigger stays focusable (and takes `autoFocus`), but a press, Enter, Space or
+    // typing does not open the menu; it carries `aria-readonly`. `disabled` is not focusable.
+    isReadOnly?: boolean
     searchPlaceholder: string
     searchTestId: string
     options: readonly SearchPickerOption[]
@@ -464,6 +477,7 @@ export function SearchPicker({
     isPlaceholder = false,
     triggerSuffix,
     disabled,
+    isReadOnly = false,
     searchPlaceholder,
     searchTestId,
     options,
@@ -481,9 +495,14 @@ export function SearchPicker({
     onTriggerBlur,
     onPicked,
 }: SearchPickerProps) {
-    const triggerKeys = useTriggerKeys(picker, disabled)
+    const triggerKeys = useTriggerKeys(picker, disabled || isReadOnly)
     const triggerRefs = useTriggerRef(autoFocus && !disabled, triggerRef, triggerKeys.attach)
-    const onOpenChange = useReturnFocus(picker, triggerKeys.node)
+    const changeOpen = useReturnFocus(picker, triggerKeys.node)
+    // A read-only trigger never opens the menu; it still closes one (none is open).
+    const onOpenChange = (next: boolean) => {
+        if (next && isReadOnly) return
+        changeOpen(next)
+    }
     const pick = (id: string) => {
         onChange(id)
         onPicked?.()
@@ -512,6 +531,7 @@ export function SearchPicker({
             isPlaceholder={isPlaceholder}
             suffix={triggerSuffix}
             disabled={disabled}
+            isReadOnly={isReadOnly}
         />
     )
     return (

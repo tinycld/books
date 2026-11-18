@@ -2,6 +2,7 @@ import { expect, type Page } from '@playwright/test'
 import { isPhone } from './account-register-helpers'
 import { lineCellTestId } from './invoice-helpers'
 import { openEntriesList } from './journal-entries-helpers'
+import { pickFromSearchPicker } from './search-picker-helpers'
 
 // A credit memo's own screen: `books/credit-memos/<id>`, never `.../new`.
 export const CREDIT_MEMO_URL = /\/books\/credit-memos\/(?!new(?:[?#]|$))[^/?#]+$/
@@ -30,21 +31,6 @@ export async function openNewCreditMemo(page: Page) {
     await page.getByTestId('books-new-credit-memo').click()
     await expect(page).toHaveURL(NEW_CREDIT_MEMO_URL)
     await expect(page.getByTestId('credit-memo-title')).toHaveText('New credit memo')
-}
-
-// A Books SearchPicker: the trigger opens a menu whose search field takes the term, and
-// each option is a menu item named by its label. A form pushed over another form of the
-// same kind (a memo started from an invoice over a reopened memo) keeps the lower one
-// mounted but hidden, so only the visible trigger is the top form's.
-async function pickFromSearchPicker(page: Page, triggerTestId: string, label: string) {
-    const trigger = page.getByTestId(triggerTestId).filter({ visible: true })
-    await trigger.click()
-    const search = page.getByTestId(`${triggerTestId}-search`)
-    await expect(search).toBeFocused()
-    await search.fill(label)
-    await page.getByRole('menuitem', { name: label, exact: true }).click()
-    await expect(page.getByRole('menuitem', { name: label, exact: true })).toHaveCount(0)
-    await expect(trigger).toContainText(label)
 }
 
 export async function pickCreditMemoCustomer(page: Page, name: string) {

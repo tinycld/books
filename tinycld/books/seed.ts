@@ -43,6 +43,7 @@ import { JOURNAL_SEED } from './lib/journal-entries-fixture'
 import { BILL_PAYMENT_SEED, PAY_BILLS_SEED_BILLS } from './lib/pay-bills-fixture'
 import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
 import { PAYMENT_SEED } from './lib/receive-payment-fixture'
+import { SALES_LIST_SEED_DRAFTS } from './lib/sales-lists-fixture'
 import {
     DEPOSIT_ACCOUNTS,
     SALES_RECEIPT_IDS,
@@ -70,7 +71,24 @@ import {
 import { TRANSFER_SEED } from './lib/transfer-fixture'
 import { PRIOR_YEAR_SEED } from './lib/trial-balance-fixture'
 import { ACCOUNT_BOXES, VENDOR_1099_PATCHES } from './lib/vendor-1099-fixture'
+import {
+    VENDOR_CREDIT_APPLICATIONS,
+    VENDOR_CREDIT_LINES,
+    VENDOR_CREDIT_SEED_APPLICATION_IDS,
+    VENDOR_CREDIT_SEED_BILL,
+    VENDOR_CREDIT_SEED_IDS,
+    VENDOR_CREDITS,
+} from './lib/vendor-credit-form-fixture'
 import { VENDORS } from './lib/vendor-form-fixture'
+import {
+    linesOfRefund,
+    REFUND_ACCOUNTS,
+    refundCreditById,
+    VENDOR_REFUND_SEED_CREDIT_IDS,
+    VENDOR_REFUND_SEED_CREDIT_LINE,
+    VENDOR_REFUND_SEED_IDS,
+    VENDOR_REFUNDS,
+} from './lib/vendor-refund-fixture'
 
 // Seed function invoked by core/scripts/seed-db.ts with a superuser `pb` and
 // the seeded user. Entries are posted through the same update the app makes,
@@ -161,7 +179,8 @@ async function postSeedDocument(
         | 'books_sales_receipts'
         | 'books_credit_memos'
         | 'books_bills'
-        | 'books_expenses',
+        | 'books_expenses'
+        | 'books_vendor_credits',
     id: string,
     userId: string
 ): Promise<void> {
@@ -244,11 +263,15 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedSalesTaxLiability(pb, ctx, accountIds, customerIds)
     await retireSeededTax(pb)
     await seedEstimates(pb, customerIds)
+    await seedSalesListDrafts(pb, accountIds, customerIds)
     await seedPartyContacts(pb, customerIds)
     await seedDeclinedEstimates(pb, customerIds)
     const billIds = await seedBills(pb, ctx, accountIds)
     await seedBillPayments(pb, ctx, accountIds)
     const expenseIds = await seedExpenses(pb, ctx, accountIds)
+    const creditIds = await seedVendorCredits(pb, ctx, accountIds)
+    await seedVendorCreditApplications(pb, ctx, accountIds, creditIds)
+    await seedVendorRefunds(pb, ctx, accountIds)
     await seedAttachments(pb, ctx, billIds, expenseIds)
     // Last among the document seeds, so the earlier seeded documents keep their numbers.
     await seedCustomerBalance(pb, ctx, ids, customerIds)
@@ -854,6 +877,68 @@ export async function seedEstimates(
     await seedConvertedInvoice(pb, customerIds, createdIds)
 }
 
+function salesListCustomer(customerIds: Map<string, string>, fixtureId: string, owner: string) {
+    if (fixtureId === '') return ''
+    const customer = customerIds.get(fixtureId)
+    if (customer === undefined) {
+        throw new Error(`seed: ${owner} names customer ${fixtureId}, which was not created`)
+    }
+    return customer
+}
+
+// Creates the sales lists' draft documents (SALES_LIST_SEED_DRAFTS) with the create call
+// each kind's seed makes for its draft step, and no post: a draft moves no ledger total
+// and takes no number. The fixture ids are valid PocketBase ids and are sent as-is;
+// `customerIds` maps a customer-form fixture id to the created customer's id. A sales
+// receipt needs a deposit account even as a draft, so it takes 1200 Undeposited funds, as
+// the seeded receipt drafts do; a draft payment has none and no application row.
+export async function seedSalesListDrafts(
+    pb: PocketBase,
+    accountIds: Map<string, string>,
+    customerIds: Map<string, string>
+): Promise<void> {
+    for (const row of SALES_LIST_SEED_DRAFTS.invoices) {
+        await pb.collection('books_invoices').create({
+            id: row.id,
+            customer: salesListCustomer(customerIds, row.customer, `invoice ${row.id}`),
+            status: 'draft',
+            date: row.date,
+            due_date: row.due_date,
+            memo: row.memo,
+        })
+    }
+    const depositTo = seededAccountId(accountIds, '1200', 'the sales list receipt drafts')
+    for (const row of SALES_LIST_SEED_DRAFTS.salesReceipts) {
+        await pb.collection('books_sales_receipts').create({
+            id: row.id,
+            customer: salesListCustomer(customerIds, row.customer, `sales receipt ${row.id}`),
+            status: 'draft',
+            date: row.date,
+            deposit_to: depositTo,
+            memo: row.memo,
+        })
+    }
+    for (const row of SALES_LIST_SEED_DRAFTS.payments) {
+        await pb.collection('books_payments').create({
+            id: row.id,
+            customer: salesListCustomer(customerIds, row.customer, `payment ${row.id}`),
+            status: 'draft',
+            date: row.date,
+            amount: row.amount,
+            memo: row.memo,
+        })
+    }
+    for (const row of SALES_LIST_SEED_DRAFTS.creditMemos) {
+        await pb.collection('books_credit_memos').create({
+            id: row.id,
+            customer: salesListCustomer(customerIds, row.customer, `credit memo ${row.id}`),
+            status: 'draft',
+            date: row.date,
+            memo: row.memo,
+        })
+    }
+}
+
 // Creates the customer page's contacts (CUSTOMER_PAGE_CONTACTS) as the contact dialog
 // does, with server-assigned ids. `customerIds` maps a customer-form fixture id to the
 // created customer's id. Saving a primary contact clears the flag on its customer's
@@ -1164,6 +1249,206 @@ export async function seedExpenses(
         }
     }
     return expenseIds
+}
+
+// Saves the VENDOR_CREDIT_SEED_IDS fixture credits, in order, through the writes the vendor
+// credit form makes, as seedBills does: create the draft, create its lines, then post it, so
+// the server numbers each (1001 unapplied, 1002 partly, 1003 void on a fresh book, as the
+// fixture shows), computes every product line's amount, the totals and the balance, and
+// writes the journal entry; the void one is then voided, and the draft stays a draft. No
+// application is written here. An account line names its account by seed account number;
+// `accountIds` maps it to the created account's id. Returns the created id of each fixture
+// credit, by fixture id.
+export async function seedVendorCredits(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>
+): Promise<Map<string, string>> {
+    const creditIds = new Map<string, string>()
+    for (const id of VENDOR_CREDIT_SEED_IDS) {
+        const fixture = VENDOR_CREDITS.find(row => row.id === id)
+        if (fixture === undefined)
+            throw new Error(`seed: vendor credit ${id} is not in VENDOR_CREDITS`)
+        const created = await pb.collection('books_vendor_credits').create({
+            vendor: fixture.vendor,
+            status: 'draft',
+            date: fixture.date,
+            ref_no: fixture.ref_no,
+            memo: fixture.memo,
+        })
+        creditIds.set(id, created.id)
+        for (const line of VENDOR_CREDIT_LINES.filter(row => row.vendor_credit === id)) {
+            const account = seededAccountId(
+                accountIds,
+                line.account_number,
+                `vendor credit line ${line.id}`
+            )
+            const typed =
+                line.kind === 'account'
+                    ? { account, amount: line.amount }
+                    : { product: line.product, quantity: line.quantity, rate: line.rate }
+            await pb.collection('books_vendor_credit_lines').create({
+                vendor_credit: created.id,
+                position: line.position,
+                kind: line.kind,
+                description: line.description,
+                ...typed,
+            })
+        }
+        if (fixture.status === 'draft') continue
+        await postSeedDocument(pb, 'books_vendor_credits', created.id, ctx.user.id)
+        if (fixture.status === 'void') {
+            await pb
+                .collection('books_vendor_credits')
+                .update(created.id, { status: 'void', voided_by: ctx.user.id })
+        }
+    }
+    return creditIds
+}
+
+// Posts VENDOR_CREDIT_SEED_BILL through the writes seedBills makes (one account line), then
+// applies the partly applied credit to it with the VENDOR_CREDIT_SEED_APPLICATION_IDS rows,
+// through the REST create the apply dialog makes, so the server checks each application and
+// lowers the credit's and the bill's balance. The bill is of a vendor with no other open
+// bill and the application covers it in full, so it reads Paid and no Pay Bills row
+// changes. `creditIds` maps a fixture credit id to the created one. The fixture's appliers
+// are reference users the seed does not create: the superuser names the seeded user, and
+// the request hook keeps the applier a superuser sends.
+export async function seedVendorCreditApplications(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>,
+    creditIds: Map<string, string>
+): Promise<void> {
+    const vendor = VENDORS.find(row => row.id === VENDOR_CREDIT_SEED_BILL.vendor)
+    if (vendor === undefined) {
+        throw new Error(
+            `seed: bill ${VENDOR_CREDIT_SEED_BILL.id} names vendor ${VENDOR_CREDIT_SEED_BILL.vendor}, not in VENDORS`
+        )
+    }
+    const bill = await pb.collection('books_bills').create({
+        vendor: VENDOR_CREDIT_SEED_BILL.vendor,
+        status: 'draft',
+        date: VENDOR_CREDIT_SEED_BILL.date,
+        due_date: VENDOR_CREDIT_SEED_BILL.due_date,
+        terms: vendor.terms,
+        ref_no: VENDOR_CREDIT_SEED_BILL.ref_no,
+        memo: VENDOR_CREDIT_SEED_BILL.memo,
+        mailing_address: vendor.address,
+    })
+    await pb.collection('books_bill_lines').create({
+        bill: bill.id,
+        position: 0,
+        kind: 'account',
+        description: VENDOR_CREDIT_SEED_BILL.description,
+        account: seededAccountId(
+            accountIds,
+            VENDOR_CREDIT_SEED_BILL.account_number,
+            `bill ${VENDOR_CREDIT_SEED_BILL.id}`
+        ),
+        amount: VENDOR_CREDIT_SEED_BILL.total,
+    })
+    await postSeedDocument(pb, 'books_bills', bill.id, ctx.user.id)
+    const billIds = new Map<string, string>([[VENDOR_CREDIT_SEED_BILL.id, bill.id]])
+    for (const id of VENDOR_CREDIT_SEED_APPLICATION_IDS) {
+        const fixture = VENDOR_CREDIT_APPLICATIONS.find(row => row.id === id)
+        if (fixture === undefined) {
+            throw new Error(`seed: application ${id} is not in VENDOR_CREDIT_APPLICATIONS`)
+        }
+        const credit = creditIds.get(fixture.vendor_credit)
+        const appliedTo = billIds.get(fixture.bill)
+        if (credit === undefined || appliedTo === undefined) {
+            throw new Error(
+                `seed: application ${id} names a credit or a bill the seed did not post`
+            )
+        }
+        await pb.collection('books_vendor_credit_applications').create({
+            id,
+            vendor_credit: credit,
+            bill: appliedTo,
+            amount: fixture.amount,
+            date: fixture.date,
+            applied_by: ctx.user.id,
+        })
+    }
+}
+
+// Posts the one vendor credit of VENDOR_REFUND_SEED_CREDIT_IDS (Cascade Fuel & Fleet: no
+// other seeded credit and no open bill) through the writes seedVendorCredits makes (draft,
+// its one account line, then posted), then writes VENDOR_REFUND_SEED_IDS in that order as
+// seedPayments writes a payment: the draft, its lines on the created credit, then the post
+// with the seeded user as poster. The server numbers the posted ones (1001, 1002 on a fresh
+// book), writes their entries and lowers the credit's balance; the void one is then voided,
+// which gives its amount back, and the draft stays a draft. The credit ends with 275.00
+// unapplied. A refund's Refunded to resolves by the fixture account's number in
+// `accountIds`.
+export async function seedVendorRefunds(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>
+): Promise<void> {
+    const creditIds = new Map<string, string>()
+    for (const id of VENDOR_REFUND_SEED_CREDIT_IDS) {
+        const fixture = refundCreditById(id)
+        if (fixture === undefined)
+            throw new Error(`seed: vendor credit ${id} is not in the fixture`)
+        const created = await pb.collection('books_vendor_credits').create({
+            vendor: fixture.vendor,
+            status: 'draft',
+            date: fixture.date,
+            ref_no: fixture.ref_no,
+            memo: fixture.memo,
+        })
+        creditIds.set(id, created.id)
+        const line = VENDOR_REFUND_SEED_CREDIT_LINE
+        await pb.collection('books_vendor_credit_lines').create({
+            vendor_credit: created.id,
+            position: 0,
+            kind: 'account',
+            description: line.description,
+            account: seededAccountId(accountIds, line.account_number, `vendor credit ${id}`),
+            amount: line.amount,
+        })
+        await postSeedDocument(pb, 'books_vendor_credits', created.id, ctx.user.id)
+    }
+    for (const id of VENDOR_REFUND_SEED_IDS) {
+        const fixture = VENDOR_REFUNDS.find(row => row.id === id)
+        if (fixture === undefined)
+            throw new Error(`seed: vendor refund ${id} is not in VENDOR_REFUNDS`)
+        const accountNumber = REFUND_ACCOUNTS.find(row => row.id === fixture.refunded_to)?.number
+        const refundedTo = seededAccountId(accountIds, accountNumber ?? '', `vendor refund ${id}`)
+        const created = await pb.collection('books_vendor_refunds').create({
+            vendor: fixture.vendor,
+            status: 'draft',
+            date: fixture.date,
+            payment_method: fixture.payment_method,
+            reference_no: fixture.reference_no,
+            refunded_to: refundedTo,
+            amount: fixture.amount,
+            memo: fixture.memo,
+        })
+        for (const line of linesOfRefund(id)) {
+            const credit = creditIds.get(line.vendor_credit)
+            if (credit === undefined) {
+                throw new Error(`seed: vendor refund ${id} names a credit the seed did not post`)
+            }
+            await pb.collection('books_vendor_refund_lines').create({
+                refund: created.id,
+                vendor_credit: credit,
+                amount: line.amount,
+                position: line.position,
+            })
+        }
+        if (fixture.status === 'draft') continue
+        await pb
+            .collection('books_vendor_refunds')
+            .update(created.id, { status: 'posted', posted_by: ctx.user.id })
+        if (fixture.status === 'void') {
+            await pb
+                .collection('books_vendor_refunds')
+                .update(created.id, { status: 'void', voided_by: ctx.user.id })
+        }
+    }
 }
 
 // The seeded bytes of one attachment, decoded with atob so the seed runs in plain node and

@@ -20,7 +20,11 @@ In a web browser, the Paid from field has focus when the screen opens.
 5. Tick each bill you pay, or type the amount in its Payment cell.
 6. Choose Pay.
 
-The list shows every posted bill with an open balance, the earliest due date first. A bill due before today shows "Overdue".
+The list shows every posted bill with an open balance, the earliest due date first. A bill due before today shows "Overdue". The Open balance of a bill is what is still owed after its payments and the vendor credits applied to it, so a bill that credits cover in full is not in the list.
+
+## Unapplied vendor credits
+
+When a vendor of the open bills in the list has a posted vendor credit that is not fully applied, a notice above the open bills lists each such vendor credit with its unapplied part, for example "Vendor credit 1002 · Office Supply World · $50.00 unapplied". Choose one to open the credit, then choose Apply to bills to lower what you owe that vendor before you pay. Pay bills does not apply credits itself: there is no credit column, and a payment is still at most the bill's open balance. When no vendor in the list has unapplied credit, the notice does not show. See [Vendor credits](help://books:vendor-credits).
 
 ## Select bills and pay part of a bill
 
@@ -48,6 +52,7 @@ The bills you select of each vendor make one bill payment. When you select bills
 - Pay posts the payments and goes back to the screen you came from.
 - Pay & new posts the payments and keeps Pay bills open: the paid bills leave the list, and Paid from, the date and the method stay. A starting check number moves on to the number after the last one used. On a phone, Pay & new is in the More menu.
 - Cancel leaves the screen. If you entered a payment, Books asks "Discard this payment? The bills stay open." first.
+- Any other way out of the screen with a payment entered asks the same question first: the Back link and the browser's Back or Forward button. Choose Keep editing to stay with your payments, or Discard to go on. If you reload or close the browser tab, the browser asks.
 
 Books posts every payment or none. It refuses a payment into a closed period, a Paid from account that is inactive, a check number that is already on another expense or bill payment from the same account, and a payment more than a bill's open balance (for example when another payment paid it first). The message shows under the bill, the field or the list, and what you typed stays.
 

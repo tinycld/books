@@ -1,6 +1,7 @@
 import { expect, type Page } from '@playwright/test'
 import { isPhone } from './account-register-helpers'
 import { openEntriesList } from './journal-entries-helpers'
+import { pickFromSearchPicker } from './search-picker-helpers'
 
 // An expense's own screen: `books/expenses/<id>`, never `books/expenses/new`.
 export const EXPENSE_URL = /\/books\/expenses\/(?!new(?:[?#]|$))[^/?#]+$/
@@ -36,19 +37,6 @@ export async function openNewExpense(page: Page) {
     await expect(page.getByTestId('expense-form')).toBeVisible()
     await expect(page.getByTestId('expense-title')).toHaveText('New expense')
     await expect(page.getByTestId('form-input-vendor')).toBeFocused()
-}
-
-// A Books SearchPicker: the trigger opens a menu whose search field takes the term, and
-// each option is a menu item named by its label.
-async function pickFromSearchPicker(page: Page, triggerTestId: string, label: string) {
-    const trigger = page.getByTestId(triggerTestId)
-    await trigger.click()
-    const search = page.getByTestId(`${triggerTestId}-search`)
-    await expect(search).toBeFocused()
-    await search.fill(label)
-    await page.getByRole('menuitem', { name: label, exact: true }).click()
-    await expect(page.getByRole('menuitem', { name: label, exact: true })).toHaveCount(0)
-    await expect(trigger).toContainText(label)
 }
 
 export async function pickExpenseVendor(page: Page, name: string) {

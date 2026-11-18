@@ -1,7 +1,7 @@
-import { Platform } from 'react-native'
 import { useDocumentCustomerOptions } from '../../hooks/useDocumentCustomerOptions'
-import { SearchPicker, useSearchPicker } from '../SearchPicker'
-import { FieldError } from './PaymentMoneyField'
+import { PAYMENT_FLOW } from '../../lib/payment-flow'
+import { useSearchPicker } from '../SearchPicker'
+import { PaymentPartyField } from './PaymentPartyField'
 
 interface PaymentCustomerFieldProps {
     value: string
@@ -16,12 +16,12 @@ interface PaymentCustomerFieldProps {
     onPicked: () => void
 }
 
-const AUTO_FOCUS = Platform.OS === 'web'
+const TEXTS = PAYMENT_FLOW.texts
 
 /**
- * Customer: Books SearchPicker over the active customers (sub-customers "Parent:
- * Child"), with the options' loading and failed states. It has focus on open, on web,
- * unless `hasFocusOnOpen` is false.
+ * Customer: the payment party field over the active customers (sub-customers "Parent:
+ * Child"), with the options' loading and failed states. A correction disables it (it
+ * keeps its customer); it is never read-only.
  */
 export function PaymentCustomerField({
     value,
@@ -34,31 +34,26 @@ export function PaymentCustomerField({
 }: PaymentCustomerFieldProps) {
     const picker = useSearchPicker()
     const customers = useDocumentCustomerOptions(picker.debouncedTerm, picker.isOpen)
-    const label = name || 'Choose a customer'
     return (
-        <>
-            <SearchPicker
-                picker={picker}
-                title="Customer"
-                triggerLabel={label}
-                triggerAccessibilityLabel={`Customer: ${label}`}
-                triggerTestId="payment-customer"
-                isPlaceholder={value === ''}
-                disabled={isDisabled}
-                searchPlaceholder="Search customers"
-                searchTestId="payment-customer-search"
-                options={customers.options}
-                optionTestIdPrefix="payment-customer-option"
-                value={value}
-                onChange={onPick}
-                isLoading={customers.isLoading}
-                loadFailed={customers.loadFailed}
-                onRetry={customers.retry}
-                emptyText="No active customer matches"
-                autoFocus={AUTO_FOCUS && hasFocusOnOpen}
-                onPicked={onPicked}
-            />
-            <FieldError message={error} testID="payment-customer-error" />
-        </>
+        <PaymentPartyField
+            picker={picker}
+            options={customers.options}
+            isLoading={customers.isLoading}
+            loadFailed={customers.loadFailed}
+            onRetry={customers.retry}
+            title={TEXTS.partyLabel}
+            placeholder={TEXTS.partyPlaceholder}
+            searchPlaceholder={TEXTS.partySearchPlaceholder}
+            emptyText={TEXTS.partyEmpty}
+            testId={`${PAYMENT_FLOW.testId}-${PAYMENT_FLOW.ids.party}`}
+            value={value}
+            name={name}
+            error={error}
+            isDisabled={isDisabled}
+            isReadOnly={false}
+            hasFocusOnOpen={hasFocusOnOpen}
+            onPick={onPick}
+            onPicked={onPicked}
+        />
     )
 }

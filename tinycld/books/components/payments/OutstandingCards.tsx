@@ -8,6 +8,7 @@ import {
     rowTickLabel,
 } from '../../lib/outstanding-documents'
 import { entryCents } from '../../lib/payment-allocation'
+import { formatDay } from '../../lib/register-range'
 import { SelectBox, type SelectBoxState } from '../SelectBox'
 import {
     DocumentLink,
@@ -55,6 +56,47 @@ function CardLinkLine({ doc, link }: { doc: OutstandingDocument; link: ReactNode
     return <View className="min-w-0">{link}</View>
 }
 
+// The card's date as a line of its own (a due date, with its overdue mark); nothing where
+// the descriptor draws the date as a pair (`cardDateLabel`).
+function CardDueLine({
+    doc,
+    day,
+    today,
+}: {
+    doc: OutstandingDocument
+    day: string
+    today: string
+}) {
+    if (outstandingTexts(doc).cardDateLabel !== null) return null
+    return <DueText dueDate={day} today={today} marksOverdue={doc.marksOverdue} />
+}
+
+// The card's label-value pairs: the date (where the descriptor labels it), the total
+// (where the descriptor has a total column) and the open amount (`doc.openCardLabel`).
+function CardMoney({
+    doc,
+    day,
+    original,
+    open,
+}: {
+    doc: OutstandingDocument
+    day: string
+    original: string
+    open: string
+}) {
+    const { total, cardDateLabel } = outstandingTexts(doc)
+    const datePair =
+        cardDateLabel === null ? null : <CardPair label={cardDateLabel} value={formatDay(day)} />
+    const totalPair = total === null ? null : <CardPair label={total.card} value={original} />
+    return (
+        <View className="flex-row gap-3">
+            {datePair}
+            {totalPair}
+            <CardPair label={doc.openCardLabel} value={open} />
+        </View>
+    )
+}
+
 function DocumentCard({
     doc,
     row,
@@ -71,7 +113,6 @@ function DocumentCard({
     rowRef,
 }: GridRowProps) {
     const prefix = doc.testIdPrefix
-    const texts = outstandingTexts(doc)
     const entry = payments[row.id]
     const tick: SelectBoxState = entryCents(entry, currency) > 0 ? 'checked' : 'empty'
     const handleTick = () => onTick(row)
@@ -79,6 +120,7 @@ function DocumentCard({
     const open = formatMoney(row.open, currency)
     const value = entry?.amount ?? ''
     const cellRef = rowRef(row.id)
+    const tickLabel = rowTickLabel(doc, row.number)
     const link = (
         <DocumentLink
             routeBase={doc.openKind.routeBase}
@@ -92,7 +134,7 @@ function DocumentCard({
             <View className="flex-row items-center gap-1">
                 <SelectBox
                     state={tick}
-                    label={rowTickLabel(doc, row.number)}
+                    label={tickLabel}
                     testID={`${prefix}-row-tick-${row.id}`}
                     onPress={handleTick}
                     isDisabled={isDisabled}
@@ -101,11 +143,8 @@ function DocumentCard({
                 <CardTitle doc={doc} party={row.party ?? ''} link={link} />
             </View>
             <CardLinkLine doc={doc} link={link} />
-            <DueText dueDate={row.due_date} today={today} />
-            <View className="flex-row gap-3">
-                <CardPair label={texts.totalCard} value={original} />
-                <CardPair label="Open balance" value={open} />
-            </View>
+            <CardDueLine doc={doc} day={row.due_date} today={today} />
+            <CardMoney doc={doc} day={row.due_date} original={original} open={open} />
             <PaymentCell
                 doc={doc}
                 row={row}
@@ -123,7 +162,9 @@ function DocumentCard({
 }
 
 // The cards' touch path to the wide grid's header tick box: the same state and handler,
-// so it pays every row it covers, or clears them all when every one is paid.
+// so it pays every row it covers, or clears them all when every one is paid. The box and
+// its text ("Pay all", "Refund all") are one press target. Nothing where the descriptor
+// has no Pay all.
 function TickAllBar({
     doc,
     tick,
@@ -135,28 +176,31 @@ function TickAllBar({
     isDisabled: boolean
     onTickAll: () => void
 }) {
+    const { payAllLabel: label, payAllText: text } = outstandingTexts(doc)
+    if (!doc.hasPayAll || label === null || text === null) return null
     return (
-        <View className="flex-row items-center gap-1">
-            <SelectBox
-                state={tick}
-                label={outstandingTexts(doc).payAllLabel}
-                testID={`${doc.testIdPrefix}-tick-all`}
-                onPress={onTickAll}
-                isDisabled={isDisabled}
-                tabIndex={-1}
-            />
-            <Text className="text-sm text-foreground">Pay all</Text>
-        </View>
+        <SelectBox
+            state={tick}
+            label={label}
+            text={text}
+            testID={`${doc.testIdPrefix}-tick-all`}
+            onPress={onTickAll}
+            isDisabled={isDisabled}
+            tabIndex={-1}
+        />
     )
 }
 
 /**
  * The open-document list while the list is narrower than the grid's least width
- * (`doc.gridMinWidth`; spec §3.3, pay-bills spec §3.3): a "Pay all" tick
- * box over the cards, then one card per document: the tick box and "Invoice 1004" on the
- * first line (a bill card: the tick box and the vendor, then "Bill 1003 · No. 88412"), the
- * due date, the total and Open balance as a label-value pair, and the Payment input at
- * full width. The tick boxes are press targets only; the card's one Tab stop is its
+ * (`doc.gridMinWidth`; spec §3.3, pay-bills spec §3.3, vendor credit spec §3.9): a tick
+ * box with the descriptor's `payAllText` ("Pay all", "Refund all") over the cards where
+ * the descriptor has one, then one card per document:
+ * the tick box and "Invoice 1004" on the first line (a bill card with a Vendor column: the
+ * tick box and the vendor, then "Bill 1003 · No. 88412"), the due date, the total (where
+ * the descriptor has a total column) and Open balance (a vendor refund card: Credit date,
+ * Credit total and Unapplied credit as label-value pairs), and the payment input at full
+ * width. The tick boxes are press targets only; the card's one Tab stop is its
  * Payment input.
  */
 export function OutstandingCards(props: OutstandingGridProps) {

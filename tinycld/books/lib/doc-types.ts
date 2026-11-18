@@ -7,8 +7,10 @@ export const DOC_TYPES: Record<string, { label: string; noun: string }> = {
     estimate: { label: 'Estimates', noun: 'estimate' },
     bill: { label: 'Bills', noun: 'bill' },
     expense: { label: 'Expenses', noun: 'expense' },
+    vendor_credit: { label: 'Vendor credits', noun: 'vendor credit' },
     payment: { label: 'Payments', noun: 'payment' },
     bill_payment: { label: 'Bill payments', noun: 'bill payment' },
+    vendor_refund: { label: 'Vendor refunds', noun: 'vendor refund' },
 }
 
 export function docTypeLabel(docType: string): string {

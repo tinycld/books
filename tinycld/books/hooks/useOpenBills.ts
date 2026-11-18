@@ -9,7 +9,7 @@ import {
     type PayBillsVendorOption,
     payBillsVendorOptions,
 } from '../lib/pay-bills-rows'
-import type { BooksBills } from '../types'
+import type { BooksBills, BooksVendors } from '../types'
 import { mergeOutstanding, type OutstandingInvoice } from './useOutstandingInvoices'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
@@ -26,18 +26,25 @@ export type ReplacedLine = {
     >
 }
 
+export type ReplacedPayment = { vendorName: string; lines: readonly ReplacedLine[] }
+
 export type OpenBillsInput = {
-    // `?replaces`: the payment's vendor, the only vendor listed; null until it is read.
-    // Read only with `replaces`.
+    // The only vendor listed: on `?replaces` the payment's (null until it is read), in the
+    // apply dialog and its notice the credit's. null lists every vendor's bills (a new Pay
+    // Bills screen).
     vendor: string | null
     // `?replaces`: the payment being corrected, its vendor's display name, and the lines
-    // whose amounts it still holds (none once it is no longer posted). null on a new screen.
-    replaces: { vendorName: string; lines: readonly ReplacedLine[] } | null
+    // whose amounts it still holds (none once it is no longer posted). null or absent
+    // elsewhere.
+    replaces?: ReplacedPayment | null
+    // false reads nothing and is ready with no rows (a view that can never show them).
+    isEnabled?: boolean
 }
 
 const NO_LINES: readonly ReplacedLine[] = []
+const NO_BILLS: readonly OpenBillQueryRow[] = []
 
-// A bill as mergeOutstanding reads it: the vendor stands in its `customer`.
+// A bill as mergeOutstanding reads it: the vendor is its `party`, the bill no. its `ref`.
 function outstandingOf(bill: NonNullable<ReplacedLine['billRow']>): OutstandingInvoice {
     return {
         id: bill.id,
@@ -46,7 +53,8 @@ function outstandingOf(bill: NonNullable<ReplacedLine['billRow']>): OutstandingI
         due_date: bill.due_date,
         total: bill.total,
         balance: bill.balance,
-        customer: bill.vendor,
+        party: bill.vendor,
+        ref: bill.ref_no,
     }
 }
 
@@ -62,51 +70,76 @@ export function correctionRowsOf(
     vendor: string,
     vendorName: string
 ): PayBillsRow[] {
-    const refs = new Map<string, string>()
-    const openBills = open.map(row => {
-        refs.set(row.id, row.ref)
-        return {
-            id: row.id,
-            number: row.number,
-            date: row.date,
-            due_date: row.due_date,
-            total: row.total,
-            balance: row.open,
-            customer: row.vendor,
-        }
-    })
-    const stored = lines.flatMap(line => {
-        if (!line.billRow) return []
-        refs.set(line.bill, refs.get(line.bill) ?? line.billRow.ref_no)
-        return [outstandingOf(line.billRow)]
-    })
+    const openBills = open.map(row => ({
+        id: row.id,
+        number: row.number,
+        date: row.date,
+        due_date: row.due_date,
+        total: row.total,
+        balance: row.open,
+        party: row.vendor,
+        ref: row.ref,
+    }))
+    const stored = lines.flatMap(line => (line.billRow ? [outstandingOf(line.billRow)] : []))
     const extraOpen: Record<string, number> = {}
     for (const line of lines) extraOpen[line.bill] = (extraOpen[line.bill] ?? 0) + line.amount
     return mergeOutstanding(openBills, stored, vendor, extraOpen).map(row => ({
         ...row,
         vendor,
         party: vendorName,
-        ref: refs.get(row.id) ?? '',
+        ref: row.ref ?? '',
     }))
 }
 
+// A row of the open-bills query: a posted bill with a balance, with its vendor's row
+// (undefined when it is missing).
+export type OpenBillQueryRow = Omit<PayBillsRow, 'party'> & {
+    vendorRow: Pick<BooksVendors, 'display_name'> | undefined
+}
+
 /**
- * The open bills of Pay Bills (spec §4.4): one query over the posted bills with a balance
- * (and, on `?replaces`, the payment's vendor), each with its vendor through
- * `materialize()`, as `PayBillsRow`s in list order (`sortPayBillsRows` sorts them for the
- * view). A bill whose vendor row is missing is dropped after the query (the useMailboxes
- * pattern). On `?replaces` the original's lines are merged in (`correctionRowsOf`). Also
- * the Vendor filter's options (`payBillsVendorOptions`: the active vendors and every
- * vendor with an open bill). Each read reports its own state and recovery, which the
- * screen merges into one Retry.
+ * The open bills' rows (pay-bills spec §4.4, vendor credit spec §4): what the select
+ * cannot express. A bill whose vendor row is missing is dropped (the useMailboxes
+ * pattern), the vendor's name is lifted out of its row, and each date is cut to its ISO
+ * day (TanStack DB has no substring function). A given vendor keeps only its bills; with
+ * `replaces` the original's lines are merged in (`correctionRowsOf`). Pure.
  */
-export function useOpenBills({ vendor, replaces }: OpenBillsInput) {
+export function openBillRowsOf(
+    bills: readonly OpenBillQueryRow[],
+    input: { vendor: string | null; replaces: ReplacedPayment | null }
+): PayBillsRow[] {
+    const { vendor, replaces } = input
+    const open = bills.flatMap(({ vendorRow, ...bill }) => {
+        if (!vendorRow) return []
+        if (vendor !== null && bill.vendor !== vendor) return []
+        return [
+            {
+                ...bill,
+                date: bill.date.slice(0, 10),
+                due_date: bill.due_date.slice(0, 10),
+                party: vendorRow.display_name,
+            },
+        ]
+    })
+    if (replaces === null || vendor === null) return open
+    return correctionRowsOf(open, replaces.lines, vendor, replaces.vendorName)
+}
+
+/**
+ * The open bills of Pay Bills (spec §4.4), of the apply dialog and of its notice (vendor
+ * credit spec §3.9, §4): one query over the posted bills with a balance (and, with a
+ * vendor, that vendor's), each with its vendor through `materialize()`, as `PayBillsRow`s
+ * in list order (`sortPayBillsRows` sorts them for the view) through `openBillRowsOf`.
+ * The read reports its own state and recovery, which the screen merges into one Retry.
+ */
+export function useOpenBills({ vendor, replaces = null, isEnabled = true }: OpenBillsInput) {
     const [billsCollection, vendorsCollection] = useStore('books_bills', 'books_vendors')
-    // A correction lists its own vendor's bills only; a new screen lists every vendor's and
-    // filters on the client (the Vendor filter is screen state). A correction whose
-    // payment is not read yet (or does not exist) reads nothing and is ready.
-    const vendorId = replaces === null ? null : vendor
-    const isWaiting = replaces !== null && !vendor
+    // A given vendor lists its own bills only; a new Pay Bills screen lists every vendor's
+    // and filters on the client (the Vendor filter is screen state). A correction whose
+    // payment is not read yet (or does not exist) reads nothing and is ready, as does a
+    // disabled read.
+    const vendorId = vendor
+    const isWaiting = !isEnabled || (replaces !== null && !vendor)
     const billsQuery = useLiveQuery({
         query: q => {
             if (isWaiting) return undefined
@@ -138,53 +171,21 @@ export function useOpenBills({ vendor, replaces }: OpenBillsInput) {
                     ),
                 }))
         },
-        queryKey: ['books.payBills.openBills', vendorId ?? 'all'],
-    })
-    const vendorsQuery = useLiveQuery({
-        query: q => q.from({ v: vendorsCollection }),
-        queryKey: ['books.payBills.vendors'],
+        queryKey: ['books.payBills.openBills', vendorId ?? 'all', isWaiting],
     })
 
-    // What the select cannot express: the drop of a bill whose vendor row is missing, the
-    // vendor's name lifted out of its row, and the ISO day cut from each date (TanStack DB
-    // has no substring function).
+    // The memo reads the correction's parts, not its object, which the caller builds anew
+    // on each render.
     const billData = isWaiting ? undefined : billsQuery.data
-    const openRows = useMemo<PayBillsRow[]>(
-        () =>
-            (billData ?? []).flatMap(({ vendorRow, ...bill }) => {
-                if (!vendorRow) return []
-                return [
-                    {
-                        ...bill,
-                        date: bill.date.slice(0, 10),
-                        due_date: bill.due_date.slice(0, 10),
-                        party: vendorRow.display_name,
-                    },
-                ]
-            }),
-        [billData]
-    )
+    const hasReplaces = replaces !== null
     const replacedLines = replaces?.lines ?? NO_LINES
     const vendorName = replaces?.vendorName ?? ''
-    const rows = useMemo<PayBillsRow[]>(
-        () =>
-            vendorId === null
-                ? openRows
-                : correctionRowsOf(openRows, replacedLines, vendorId, vendorName),
-        [openRows, replacedLines, vendorId, vendorName]
-    )
+    const rows = useMemo<PayBillsRow[]>(() => {
+        const correction = hasReplaces ? { vendorName, lines: replacedLines } : null
+        return openBillRowsOf(billData ?? NO_BILLS, { vendor: vendorId, replaces: correction })
+    }, [billData, vendorId, hasReplaces, vendorName, replacedLines])
 
-    const vendorData = vendorsQuery.data
-    const vendorOptions = useMemo<PayBillsVendorOption[]>(
-        () =>
-            payBillsVendorOptions(
-                vendorData ?? [],
-                rows.map(row => row.vendor)
-            ),
-        [vendorData, rows]
-    )
-
-    const bills: OpenBillsRead = {
+    const read: OpenBillsRead = {
         isReady: isWaiting || billsQuery.isReady,
         isError: !isWaiting && billsQuery.isError,
         recovery:
@@ -195,14 +196,37 @@ export function useOpenBills({ vendor, replaces }: OpenBillsInput) {
                   }
                 : NO_RECOVERY,
     }
-    const vendors: OpenBillsRead = {
+    return { rows, read }
+}
+
+export type OpenBills = ReturnType<typeof useOpenBills>
+
+/**
+ * Pay Bills' Vendor filter options (spec §4.4): every vendor through one query, as
+ * `payBillsVendorOptions` (the active vendors and every vendor with an open bill in
+ * `rows`), with the read's state and recovery for the screen's one Retry.
+ */
+export function usePayBillsVendors(rows: readonly PayBillsRow[]) {
+    const [vendorsCollection] = useStore('books_vendors')
+    const vendorsQuery = useLiveQuery({
+        query: q => q.from({ v: vendorsCollection }),
+        queryKey: ['books.payBills.vendors'],
+    })
+    const vendorData = vendorsQuery.data
+    const vendorOptions = useMemo<PayBillsVendorOption[]>(
+        () =>
+            payBillsVendorOptions(
+                vendorData ?? [],
+                rows.map(row => row.vendor)
+            ),
+        [vendorData, rows]
+    )
+    const read: OpenBillsRead = {
         isReady: vendorsQuery.isReady,
         isError: vendorsQuery.isError,
         recovery: vendorsQuery.isError
             ? { queries: [vendorsQuery.collection], sources: [vendorsCollection] }
             : NO_RECOVERY,
     }
-    return { rows, vendorOptions, reads: [bills, vendors] as const }
+    return { vendorOptions, read }
 }
-
-export type OpenBills = ReturnType<typeof useOpenBills>

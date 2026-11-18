@@ -3,10 +3,12 @@ import type { ScopeOwner } from '@tinycld/core/lib/shortcuts'
 import { FormErrorSummary } from '@tinycld/core/ui/form'
 import { ScrollView, View } from 'react-native'
 import { useBackToEntries } from '../../hooks/useBackToEntries'
+import { useFormLeaveGuard } from '../../hooks/useFormLeaveGuard'
 import { usePayBillsForm } from '../../hooks/usePayBillsForm'
 import { usePayBillsSave } from '../../hooks/usePayBillsSave'
 import type { PayBillsScreenData } from '../../hooks/usePayBillsScreen'
 import { usePayBillsShortcuts } from '../../hooks/usePayBillsShortcuts'
+import { creditsOfVendors } from '../../hooks/useUnappliedVendorCredits'
 import {
     PAY_BILLS_KEY_DESCRIPTIONS,
     PAY_BILLS_SAVE_DESCRIPTION,
@@ -21,6 +23,7 @@ import { EntryBackLink } from '../entries/EntryHeader'
 import { EntryLeaveContext } from '../entries/EntryLeaveContext'
 import { ClearPaymentsLink } from '../payments/ClearPaymentsLink'
 import { PayBillsBand } from './PayBillsBand'
+import { PayBillsCreditsNotice } from './PayBillsCreditsNotice'
 import { PayBillsOpenBills } from './PayBillsOpenBills'
 import { PayBillsSummary } from './PayBillsSummary'
 
@@ -84,8 +87,10 @@ interface PayBillsFormProps {
 }
 
 /**
- * The Pay Bills form (spec §3.2–§3.5): header with Total payment, the band, the filters
- * and the open bills, Clear payments, the summary with the balance lines, and the bar,
+ * The Pay Bills form (spec §3.2–§3.5): header with Total payment, the band, the filters,
+ * the notice of unapplied vendor credits (vendor credit spec §3.10; after the filters, so
+ * its links are Tab stops between the filters and the first row) and the open bills, Clear
+ * payments, the summary with the balance lines, and the bar,
  * with the Discard dialog. Every text, list and handler comes from the hooks.
  */
 export function PayBillsForm({ screen, scopeOwner }: PayBillsFormProps) {
@@ -111,14 +116,27 @@ export function PayBillsForm({ screen, scopeOwner }: PayBillsFormProps) {
         replaces: screen.original?.payment ?? null,
     })
     const isBusy = save.isPending || payForm.isHolding
+    // The hold lasts from before the batch to after Pay asks to leave; the pay's success
+    // keeps the guard off until the move lands, so Pay's leave asks nothing.
+    const leaveGuard = useFormLeaveGuard({
+        isDirty: save.hasChanges,
+        isWriting: isBusy || save.isSuccess,
+        cancel: save.cancel,
+        leave: save.leave,
+        question: {
+            isOpen: save.isDiscardOpen,
+            discard: save.discard,
+            keepEditing: save.keepEditing,
+        },
+    })
     const pay = () => void save.pay()
     const payAndNew = () => void save.payAndNew()
-    const barActions = barActionsOf(screen.mode, save.cancel, pay, payAndNew)
+    const barActions = barActionsOf(screen.mode, leaveGuard.cancel, pay, payAndNew)
     const shortcuts = usePayBillsShortcuts({
         scopeOwner,
         canWrite: screen.canWrite,
         isPending: isBusy,
-        isDialogOpen: save.isDiscardOpen,
+        isDialogOpen: leaveGuard.dialog.isVisible,
         mode: screen.mode,
         hasShownRows: payForm.hasShownRows,
         hasPaidRows: payForm.hasPaidRows,
@@ -129,12 +147,18 @@ export function PayBillsForm({ screen, scopeOwner }: PayBillsFormProps) {
             postAndNew: payAndNew,
         },
     })
+    // The notice lists the unapplied credits of the vendors of the shown bills.
+    const shownVendors = new Set(payForm.shown.map(row => row.vendor))
+    const shownCredits = creditsOfVendors(screen.unappliedCredits, shownVendors)
+    const creditsNotice = (
+        <PayBillsCreditsNotice isVisible={shownCredits.length > 0} credits={shownCredits} />
+    )
     const summaryErrors = rootErrorOnly(payForm.form.formState.errors)
     const hasRows = payForm.list === 'rows'
     const isClearDisabled = isBusy || !shortcuts.offered.includes('clearPayments')
     const isSummaryVisible = payForm.list !== 'empty'
     return (
-        <EntryLeaveContext.Provider value={save.cancel}>
+        <EntryLeaveContext.Provider value={leaveGuard.cancel}>
             <View testID="pay-bills-form" className="min-w-0 flex-1 bg-background">
                 <ScrollView
                     className="flex-1"
@@ -168,6 +192,7 @@ export function PayBillsForm({ screen, scopeOwner }: PayBillsFormProps) {
                         currency={screen.currency}
                         today={screen.today}
                         isDisabled={isBusy}
+                        notice={creditsNotice}
                     />
                     <ClearPaymentsLink
                         isVisible={hasRows}
@@ -175,6 +200,8 @@ export function PayBillsForm({ screen, scopeOwner }: PayBillsFormProps) {
                         onPress={payForm.onClear}
                         scopeOwner={scopeOwner}
                         linkRef={payForm.clearRef}
+                        label={PAY_BILLS_MESSAGES.clearLabel}
+                        description={PAY_BILLS_KEY_DESCRIPTIONS.clearPayments}
                     />
                     <PayBillsSummary
                         payForm={payForm}
@@ -188,12 +215,7 @@ export function PayBillsForm({ screen, scopeOwner }: PayBillsFormProps) {
                     isPhone={isPhone}
                     scopeOwner={scopeOwner}
                 />
-                <DiscardDialog
-                    title={PAY_BILLS_MESSAGES.discard}
-                    isVisible={save.isDiscardOpen}
-                    onDiscard={save.discard}
-                    onKeepEditing={save.keepEditing}
-                />
+                <DiscardDialog title={PAY_BILLS_MESSAGES.discard} {...leaveGuard.dialog} />
             </View>
         </EntryLeaveContext.Provider>
     )

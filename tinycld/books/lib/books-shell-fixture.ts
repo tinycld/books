@@ -1,7 +1,8 @@
 // Synthetic data for the helix reference route and the shell's gate-2 captures.
 // Full columns, so the three-column layout and long labels are exercised even
 // though phase 1 ships only the Other column's journal entry.
-import type { ListEntry, NewAction } from './shell-nav'
+import type { NewAction } from './new-actions'
+import type { ListEntry } from './shell-nav'
 
 export const NEW_ACTIONS_FIXTURE = [
     {

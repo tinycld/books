@@ -7,55 +7,61 @@ import { useState } from 'react'
 import type { DocumentMoreItem } from '../components/documents/DocumentActionBar'
 import type { DocumentKind } from '../components/documents/document-kinds'
 import {
+    applyCreditOffered,
     creditMemoOffered,
     DOCUMENT_READ_ACTION_KEYS,
+    DOCUMENT_READ_LABELS,
     type DocumentReadAction,
     documentReadActions,
     payBillOffered,
     receivePaymentOffered,
+    refundOffered,
 } from '../lib/document-actions'
 import { quoteReadActions } from '../lib/document-lifecycle'
 import { documentNewHref } from '../lib/document-routes'
+import { transactionKindOf } from '../lib/party-transactions'
 import { writeRefusalText } from '../lib/refusal'
 import { CREDIT_MEMO_KIND, INVOICE_KIND, type SalesDocumentKind } from '../lib/sales-document-kinds'
+import { useApplyCreditStore } from '../stores/apply-credit-store'
 import type { DocumentRecord } from './document-data'
 import { useOpenDocument } from './useOpenDocument'
 import { usePdfDownload } from './usePdfDownload'
+import { useVoidDocument } from './useVoidDocument'
 
 type ReadRecord = Pick<
     DocumentRecord,
     'id' | 'status' | 'number' | 'entry' | 'customer' | 'kindFields'
 >
 
-const LABELS: Record<DocumentReadAction, string> = {
-    pay_bill: 'Pay bill',
-    receive_payment: 'Receive payment',
-    edit: 'Edit',
-    void: 'Void',
-    copy: 'Copy',
-    credit_memo: 'Create credit memo',
-    entry: 'View journal entry',
-    invoice: 'Open invoice',
-    pdf: 'Download PDF',
-}
-
 // The invoice made from a closed estimate; '' for any other record.
 function invoiceIdOf(record: ReadRecord): string {
     return record.kindFields.kind === 'estimate' ? record.kindFields.invoice : ''
 }
 
+// The vendor of a vendor credit; '' for any other record, which offers no Record refund.
+function vendorIdOf(record: ReadRecord): string {
+    return record.kindFields.kind === 'vendor_credit' ? record.kindFields.vendor : ''
+}
+
 // A bar or More row of the read view, with the action it runs (its key comes from it).
 export type DocumentReadItem = DocumentMoreItem & { action: DocumentReadAction }
 
-// The open balance of an invoice or a bill; 0 for any other record, which takes no payment.
+// The open balance of an invoice or a bill, the unapplied credit of a vendor credit; 0 for
+// any other record, which takes no payment and is not applied.
 function balanceOf(record: ReadRecord): number {
     const fields = record.kindFields
-    if (fields.kind === 'invoice' || fields.kind === 'bill') return fields.balance
+    if (fields.kind === 'invoice' || fields.kind === 'bill' || fields.kind === 'vendor_credit') {
+        return fields.balance
+    }
     return 0
 }
 
-// The ids that are not the action's name: Pay bill is `read-pay` (pay-bills spec test ids).
-const READ_ACTION_IDS: Partial<Record<DocumentReadAction, string>> = { pay_bill: 'read-pay' }
+// The ids that are not the action's name: Pay bill is `read-pay` (pay-bills spec test ids),
+// Apply to bills `read-apply` (vendor credit spec test ids).
+const READ_ACTION_IDS: Partial<Record<DocumentReadAction, string>> = {
+    pay_bill: 'read-pay',
+    apply_credit: 'read-apply',
+}
 
 // The bar and More row id of an action: `read-<action>`, with dashes (`read-receive-payment`).
 function readActionId(action: DocumentReadAction): string {
@@ -75,6 +81,9 @@ function offeredActionsOf(
         canReceivePayment: receivePaymentOffered(kind, record.status, balance),
         canPayBill: payBillOffered(kind, record.status, balance),
         canCreateCreditMemo: creditMemoOffered(kind, record.status),
+        canApplyCredit: applyCreditOffered(kind, record.status, balance),
+        canRecordRefund:
+            kind === 'vendor_credit' && refundOffered(record.status, canWrite, balance),
     }
     const actions =
         doc.lifecycle === 'quote'
@@ -92,8 +101,11 @@ function offeredActionsOf(
  * on a bill that offers it and Edit on the other posting documents), and the Void dialog.
  * Receive payment (a posted invoice with an open balance) pushes a new payment for its
  * customer with the invoice ticked, so Back returns to the invoice; Pay bill (a posted bill
- * with an open balance) pushes Pay bills with the bill selected, so Back returns to the bill.
- * Edit, Copy and View journal entry replace the read view (a pushed screen would stay
+ * with an open balance) pushes Pay bills with the bill selected, so Back returns to the bill;
+ * Apply to bills (a posted vendor credit with unapplied credit) opens the apply dialog
+ * through `useApplyCreditStore`; Record refund (a writer on a posted vendor credit with
+ * unapplied credit) pushes a new vendor refund for its vendor with the credit ticked, so Back
+ * returns to the credit. Edit, Copy and View journal entry replace the read view (a pushed screen would stay
  * mounted under the new one); Download PDF saves the server's PDF through usePdfDownload.
  * Void writes `status: 'void'` through the kind's data source; the dialog's open state
  * lives here, on the read view, which stays mounted while the optimistic void changes the
@@ -107,10 +119,14 @@ export function useDocumentReadActions(
     const { doc } = documentKind
     const orgHref = useOrgHref()
     const writes = documentKind.data.useWrites()
+    const voidSales = useVoidDocument()
+    // A sales kind voids through the write the sales lists share; a purchase kind (bill,
+    // expense) through its own data source.
+    const salesKind = transactionKindOf(doc)
     const [isVoidOpen, setVoidOpen] = useState(false)
     const voidDocument = useMutation({
         mutationFn: function* (id: string) {
-            yield writes.voidRecord(id)
+            yield salesKind === null ? writes.voidRecord(id) : voidSales(salesKind, id)
         },
         onSuccess: () => setVoidOpen(false),
         // The dialog shows the refusal; without this core reports it again as a toast.
@@ -120,7 +136,17 @@ export function useDocumentReadActions(
     const voidState = useServerActionState({ isDisabled: isVoiding })
     const download = usePdfDownload()
     const openInvoice = useOpenDocument(INVOICE_KIND, invoiceIdOf(record))
+    const openApplyDialog = useApplyCreditStore(state => state.open)
     const run: Record<DocumentReadAction, () => void> = {
+        // The apply dialog, drawn by the vendor credit's read section (vendor credit spec
+        // §3.9).
+        apply_credit: () => openApplyDialog(record.id),
+        // Pushed, so Back returns to the vendor credit (vendor refund spec §3.9): the refund
+        // form opens with the credit's vendor and the credit ticked.
+        record_refund: () =>
+            router.push(
+                orgHref(`books/vendor-refunds/new?vendor=${vendorIdOf(record)}&credit=${record.id}`)
+            ),
         // Pushed, so Back returns to the bill (pay-bills spec §2): Pay bills opens with the
         // bill paid in full and its vendor filtered.
         pay_bill: () => router.push(orgHref(`books/pay-bills?bill=${record.id}`)),
@@ -159,7 +185,7 @@ export function useDocumentReadActions(
     const actions: DocumentReadItem[] = offeredActionsOf(doc, record, canWrite).map(action => ({
         action,
         id: readActionId(action),
-        label: LABELS[action],
+        label: DOCUMENT_READ_LABELS[action],
         keys: formatHint(DOCUMENT_READ_ACTION_KEYS[action]).text,
         isDisabled: disabledOf(action),
         isDestructive: action === 'void',

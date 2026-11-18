@@ -39,8 +39,9 @@ const (
 // its refusal texts and the parts of its guards and posting that differ by
 // kind. Every guard and the posting below take a kind; invoiceKind
 // (invoices.go), salesReceiptKind (sales_receipts.go), estimateKind
-// (estimates.go), creditMemoKind (credit_memos.go), billKind (bills.go) and
-// expenseKind (expenses.go) are the kinds.
+// (estimates.go), creditMemoKind (credit_memos.go), billKind (bills.go),
+// expenseKind (expenses.go) and vendorCreditKind (vendor_credits.go) are the
+// kinds.
 type salesDocKind struct {
 	// DocType is the doc type of the kind's sequence and of the entry it posts.
 	DocType string
@@ -88,10 +89,12 @@ type salesDocKind struct {
 	// writes balance (its total less what payments already apply), a void
 	// writes 0, and only document_balance.go changes it in between.
 	TracksBalance bool
-	// Credit is true for a kind that posts the mirror of a sale (a credit
-	// memo): the total is credited to CreditAccount, the income accounts and
-	// each tax component's liability account are debited, and the tax snapshot
-	// holds the gross, taxable and tax figures negated.
+	// Credit is true for a kind that posts the mirror of its document: a
+	// credit memo, the mirror of an invoice, credits the total to
+	// CreditAccount, debits the income accounts and each tax component's
+	// liability account, and its tax snapshot holds the gross, taxable and tax
+	// figures negated; a vendor credit, the mirror of a bill, debits the total
+	// to DebitAccount and credits its expense accounts.
 	Credit bool
 	Msgs   salesDocMessages
 	// CheckHeader runs the kind's own header guards on a draft write; stored
@@ -189,7 +192,7 @@ const (
 // come only from posting the document (entries.go).
 var documentDocTypes = map[string]bool{
 	docTypeInvoice: true, docTypeSalesReceipt: true, docTypeBill: true, docTypeExpense: true, docTypePayment: true,
-	docTypeBillPayment: true, docTypeCreditMemo: true,
+	docTypeBillPayment: true, docTypeCreditMemo: true, docTypeVendorCredit: true, docTypeVendorRefund: true,
 }
 
 // maxDocumentLines is the most lines one sales document holds; the client's

@@ -54,6 +54,33 @@ describe('help/pay-bills.md', () => {
         expect(existsSync(path.join(helpDir, `${id}.md`)), `help/${id}.md`).toBe(true)
     })
 
+    // Vendor credit spec §3.10, §3.13: the notice of unapplied vendor credits above the open
+    // bills, and Open balance after the credits applied.
+    describe('vendor credits', () => {
+        const lines = body.split('\n')
+        const lineWith = (...parts: RegExp[]) =>
+            lines.find(line => parts.every(part => part.test(line)))
+
+        it('names the notice of unapplied vendor credits above the open bills', () => {
+            expect(
+                lineWith(/\bvendor credits?\b/i, /\bunapplied\b/i, /\bopen bills\b/i),
+                'a line on the unapplied vendor credits notice'
+            ).toBeDefined()
+        })
+
+        it('says Open balance is after the credits applied', () => {
+            expect(
+                lineWith(/\bOpen balance\b/, /\bcredits?\b/i),
+                'a line saying Open balance is what is left after payments and credits'
+            ).toBeDefined()
+        })
+
+        it('links the vendor credits topic, which exists', () => {
+            expect(source).toContain('help://books:vendor-credits')
+            expect(existsSync(path.join(helpDir, 'vendor-credits.md'))).toBe(true)
+        })
+    })
+
     it('links only to topics that exist', () => {
         expect(exists).toBe(true)
         const ids = [...source.matchAll(/help:\/\/books:([a-z0-9-]+)/g)].map(m => m[1])

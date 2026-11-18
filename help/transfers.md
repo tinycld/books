@@ -40,6 +40,10 @@ Books refuses to post into a closed period, which is any day on or before the cl
 
 To post and start the next transfer at once, choose Post & new. On a phone, it is in the More menu. If you opened the form with a register's Transfer button and did not save it as a draft, the new transfer keeps that account in Transfer from.
 
+## Leave without saving
+
+Cancel leaves the form. If you changed something, Books asks "Discard changes?" first. Any other way out of a form with unsaved changes asks the same question first: the Back link and the browser's Back or Forward button. Choose Keep editing to stay with your changes, or Discard to go on. If you reload or close the browser tab, the browser asks.
+
 ## Find a transfer
 
 A posted transfer shows in the Journal Entries list with the Type Transfer and its number. It also shows in the [Account register](help://books:account-register) of both accounts. To open a transfer from Journal Entries, press its row. In a register, press its row and choose Open entry in the drawer. To see the two lines of a posted or void transfer, open it and choose View journal entry.

@@ -114,7 +114,10 @@ const PURCHASE_LINE_KIND = [
     { value: 'account', label: 'Account' },
     { value: 'item', label: 'Product or service' },
 ]
-const DOC_TYPE = [
+// Every doc_type of the entries and the sequences (migrations 2100000001 and
+// 2100000002); tests/migration-doc-types.test.ts fails when a migration gains one this
+// list lacks.
+export const DOC_TYPE = [
     { value: 'journal', label: 'Journal entry' },
     { value: 'transfer', label: 'Transfer' },
     { value: 'invoice', label: 'Invoice' },
@@ -123,7 +126,10 @@ const DOC_TYPE = [
     { value: 'estimate', label: 'Estimate' },
     { value: 'bill', label: 'Bill' },
     { value: 'expense', label: 'Expense' },
+    { value: 'vendor_credit', label: 'Vendor credit' },
     { value: 'payment', label: 'Payment' },
+    { value: 'bill_payment', label: 'Bill payment' },
+    { value: 'vendor_refund', label: 'Vendor refund' },
 ]
 const ENTRY_ORIGIN = [
     ...Object.entries(ENTRY_TYPE_LABELS).map(([value, label]) => ({ value, label })),
@@ -205,7 +211,7 @@ function salesLineFields(parent: string, parentLabel: string): AuditFieldMap {
     }
 }
 
-// A purchase document's line (bill, expense).
+// A purchase document's line (bill, expense, vendor credit).
 function purchaseLineFields(parent: string, parentLabel: string): AuditFieldMap {
     return {
         [parent]: relation(parentLabel, `books_${parent}s`),
@@ -327,6 +333,23 @@ const AUDIT_FIELD_MAPS = {
         ...postingFields('books_expenses'),
         date: day('Payment date'),
     },
+    books_vendor_credits: {
+        vendor: relation('Vendor', 'books_vendors'),
+        ...postingFields('books_vendor_credits'),
+        date: day('Credit date'),
+        ref_no: text('Vendor’s credit no.'),
+        balance: money('Unapplied credit'),
+    },
+    books_vendor_credit_applications: {
+        vendor_credit: relation('Vendor credit', 'books_vendor_credits'),
+        bill: relation('Bill', 'books_bills'),
+        amount: money('Credit applied'),
+        date: day('Apply date'),
+        applied_by: relation('Applied by', 'users'),
+        close_override: relation('Close date override', 'books_close_overrides'),
+        id: STAMPS.id,
+        created: STAMPS.created,
+    },
     books_payments: {
         customer: relation('Customer', 'books_customers'),
         status: select('Status', DOCUMENT_STATUS),
@@ -386,9 +409,39 @@ const AUDIT_FIELD_MAPS = {
         position: internal('Position'),
         ...STAMPS,
     },
+    books_vendor_refunds: {
+        vendor: relation('Vendor', 'books_vendors'),
+        status: select('Status', DOCUMENT_STATUS),
+        number: text('Number'),
+        sequence: text('Sequence'),
+        date: day('Refund date'),
+        payment_method: select('Payment method', PAYMENT_METHOD),
+        reference_no: text('Reference no.'),
+        refunded_to: relation('Refunded to', 'books_accounts'),
+        amount: money('Amount refunded'),
+        memo: text('Memo'),
+        currency: text('Currency'),
+        entry: relation('Journal entry', 'books_journal_entries'),
+        posted_at: datetime('Posted at'),
+        posted_by: relation('Posted by', 'users'),
+        voided_at: datetime('Voided at'),
+        voided_by: relation('Voided by', 'users'),
+        sort_key: internal('Sort key'),
+        replaces: relation('Replaces', 'books_vendor_refunds'),
+        replaced_by: relation('Replaced by', 'books_vendor_refunds'),
+        ...STAMPS,
+    },
+    books_vendor_refund_lines: {
+        refund: relation('Vendor refund', 'books_vendor_refunds'),
+        vendor_credit: relation('Vendor credit', 'books_vendor_credits'),
+        amount: money('Refund'),
+        position: internal('Position'),
+        ...STAMPS,
+    },
     books_attachments: {
         bill: relation('Bill', 'books_bills'),
         expense: relation('Expense', 'books_expenses'),
+        vendor_credit: relation('Vendor credit', 'books_vendor_credits'),
         field: text('Custom field'),
         file: text('File'),
         thumbnail: internal('Thumbnail'),
@@ -426,6 +479,7 @@ const AUDIT_FIELD_MAPS = {
     books_credit_memo_lines: salesLineFields('credit_memo', 'Credit memo'),
     books_bill_lines: purchaseLineFields('bill', 'Bill'),
     books_expense_lines: purchaseLineFields('expense', 'Expense'),
+    books_vendor_credit_lines: purchaseLineFields('vendor_credit', 'Vendor credit'),
     books_journal_lines: {
         entry: relation('Journal entry', 'books_journal_entries'),
         account: relation('Account', 'books_accounts'),

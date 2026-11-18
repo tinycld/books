@@ -73,6 +73,32 @@ describe('credit_memo doc type', () => {
     })
 })
 
+// The seeded `vendor_credit` row (booksseqvcredit) gets the "Vendor credits" card;
+// registers and the ledger read "Vendor credit" as its Type (vendor credit spec §3.12).
+describe('vendor_credit doc type', () => {
+    it('names the Numbering card "Vendor credits", previews the next vendor credit and labels the Type "Vendor credit"', () => {
+        expect(DOC_TYPES.vendor_credit).toEqual({ label: 'Vendor credits', noun: 'vendor credit' })
+        expect(DOC_TYPE_LABELS.vendor_credit).toBe('Vendor credit')
+        expect(nextNumberPreview('vendor_credit', '', '1001')).toBe('Next vendor credit: 1001')
+        expect(sequenceHelper('vendor_credit')).toContain(
+            'applies to vendor credits posted from now on.'
+        )
+    })
+})
+
+// The seeded `vendor_refund` row (booksseqvrefund) gets the "Vendor refunds" card;
+// registers and the ledger read "Vendor refund" as its Type (vendor refund spec §3.11).
+describe('vendor_refund doc type', () => {
+    it('names the Numbering card "Vendor refunds", previews the next vendor refund and labels the Type "Vendor refund"', () => {
+        expect(DOC_TYPES.vendor_refund).toEqual({ label: 'Vendor refunds', noun: 'vendor refund' })
+        expect(DOC_TYPE_LABELS.vendor_refund).toBe('Vendor refund')
+        expect(nextNumberPreview('vendor_refund', '', '1001')).toBe('Next vendor refund: 1001')
+        expect(sequenceHelper('vendor_refund')).toContain(
+            'applies to vendor refunds posted from now on.'
+        )
+    })
+})
+
 describe('sequenceHelper', () => {
     it('says a new estimate prefix applies to estimates saved from now on', () => {
         expect(sequenceHelper('estimate')).toBe(

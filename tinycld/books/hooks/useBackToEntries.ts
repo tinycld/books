@@ -1,6 +1,5 @@
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
-import { router, useRoute } from 'expo-router'
-import { useNavigationState } from 'expo-router/react-navigation'
+import { router } from 'expo-router'
 import { documentHref, documentStackRouteName } from '../lib/document-routes'
 import {
     BILL_KIND,
@@ -9,24 +8,43 @@ import {
     EXPENSE_KIND,
     INVOICE_KIND,
     SALES_RECEIPT_KIND,
+    VENDOR_CREDIT_KIND,
 } from '../lib/sales-document-kinds'
+import { SALES_TABS } from '../lib/sales-lists'
 import { isReadOnlyRoute } from '../lib/search-target'
+import { usePopScreens, useStackPosition } from './useStackScreens'
 
 const LIST_ROUTE = 'entries/index'
 const REGISTER_ROUTE = 'accounts/[id]'
 const ESTIMATE_ROUTE = documentStackRouteName(ESTIMATE_KIND)
 
+// The flat screen name of a Sales list (lib/stack-screens.ts): its tab path without
+// `books/`, then the list screen of its route (`invoices/index`, `sales/index`). The back
+// link names a kind tab by its label and All sales by the area's title, "Sales".
+const SALES_LIST_LABELS = Object.fromEntries(
+    SALES_TABS.map(tab => [
+        `${tab.path.replace(/^books\//, '')}/index`,
+        tab.key === 'all' ? 'Sales' : tab.label,
+    ])
+)
+
 // The screens Back pops to when one is right below this screen, each with the back link's
-// text: the list, a register, and every record route (a document, a bill payment, a
-// payment, an entry, a transfer), so Back leads to the record the user came from and the
-// label names it. Any other screen below (or none) is replaced with the list.
+// text: the journal entry list, a Sales list, a register, and every record route (a
+// document, a bill payment, a payment, a vendor refund, an entry, a transfer), so Back
+// leads to the screen the user came from and the label names it. A new vendor refund is
+// one too: its "New vendor credit" pushes the credit form over it, and that form's Back,
+// Cancel and post return to the refund with what was typed in it. Any other screen below
+// (or none) is replaced with the journal entry list.
 const LABELS: Record<string, string> = {
     [LIST_ROUTE]: 'Journal entries',
+    ...SALES_LIST_LABELS,
     [REGISTER_ROUTE]: 'Register',
     'entries/[id]': 'Journal entry',
     'transfers/[id]': 'Transfer',
     'payments/[id]': 'Payment',
     'bill-payments/[id]': 'Bill payment',
+    'vendor-refunds/[id]': 'Vendor refund',
+    'vendor-refunds/new': 'Vendor refund',
     ...Object.fromEntries(
         [
             INVOICE_KIND,
@@ -35,6 +53,7 @@ const LABELS: Record<string, string> = {
             ESTIMATE_KIND,
             BILL_KIND,
             EXPENSE_KIND,
+            VENDOR_CREDIT_KIND,
         ].map(kind => [documentStackRouteName(kind), kind.noun])
     ),
 }
@@ -81,29 +100,24 @@ export function backTarget(
     return { route, label: LABELS[route], depth: 0 }
 }
 
-// An entry is opened from the list, from an account register or from another record (Pay
-// bill on a bill, a payment row of a bill or an invoice, an invoice made from an estimate),
-// and Back pops to that screen, which keeps one copy of it, its scroll position and any
-// input typed in it (a draft bill opened by search over another draft bill). A read view
-// opened from others of its own route pops past them. Opened any other way (a deep link, a
-// reload), there is nothing to pop to: an invoice made from an estimate (`estimateId`)
-// replaces itself with that estimate, any other entry with the list (lesson 15).
-// The stack comes from useNavigationState, not navigation.getState(): during a render
-// getState() still returns the state before the push that mounted this screen. Each
-// selector returns a primitive, so the selection is stable between renders.
+// An entry is opened from a list (journal entries, a Sales list), from an account register
+// or from another record (Pay bill on a bill, a payment row of a bill or an invoice, an
+// invoice made from an estimate), and Back pops to that screen, which keeps one copy of
+// it, its scroll position, its filters and any input typed in it (a draft bill opened by
+// search over another draft bill). A read view opened from others of its own route pops
+// past them. Opened any other way (a deep link, a reload), there is nothing to pop to: an
+// invoice made from an estimate (`estimateId`) replaces itself with that estimate, any
+// other entry with the journal entry list (lesson 15). The stack is read as flat screens
+// (hooks/useStackScreens.ts), so a document of a kind's child stack sees the list below it.
 export function useBackToEntries(estimateId = '') {
     const orgHref = useOrgHref()
-    const { key } = useRoute()
-    const route = useNavigationState(state => backTarget(state, key, estimateId).route)
-    const depth = useNavigationState(state => backTarget(state, key, estimateId).depth)
+    const route = useStackPosition((state, key) => backTarget(state, key, estimateId).route)
+    const depth = useStackPosition((state, key) => backTarget(state, key, estimateId).depth)
+    const popScreens = usePopScreens()
     const label = LABELS[route]
     const onBack = () => {
-        if (depth > 1) {
-            router.dismiss(depth)
-            return
-        }
-        if (depth === 1) {
-            router.back()
+        if (depth > 0) {
+            popScreens(depth)
             return
         }
         const href = estimateId ? documentHref(ESTIMATE_KIND, estimateId) : 'books/entries'

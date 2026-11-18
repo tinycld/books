@@ -49,6 +49,11 @@ const NAMES = [
     'books_credit_memos',
     'books_credit_memo_lines',
     'books_credit_memo_tax_lines',
+    'books_vendor_credits',
+    'books_vendor_credit_lines',
+    'books_vendor_credit_applications',
+    'books_vendor_refunds',
+    'books_vendor_refund_lines',
 ]
 
 function register() {
@@ -273,6 +278,97 @@ describe('registerCollections', () => {
         expect(log?.syncMode).toBe('on-demand')
         expect(log?.liveTopics).toEqual(['collection/books_audit_log'])
         expect(log?.relations).toBeUndefined()
+    })
+
+    // Vendor credit spec §4: as the bill's two collections and the bill payment lines.
+    // The server writes the number, the totals, the unapplied balance and the posting
+    // stamps of a credit, and who applied an application; the client never sends them.
+    it('never inserts a vendor credit or application column the server writes', () => {
+        const { calls } = register()
+        const credits = calls.get('books_vendor_credits')?.omitOnInsert
+        expect(credits).toEqual(
+            expect.arrayContaining([
+                'created',
+                'updated',
+                'number',
+                'sequence',
+                'subtotal',
+                'total',
+                'balance',
+                'revision',
+                'currency',
+                'entry',
+                'replaced_by',
+                'posted_by',
+                'posted_at',
+                'voided_by',
+                'voided_at',
+                'sort_key',
+            ])
+        )
+        for (const written of ['vendor', 'status', 'date', 'ref_no', 'memo', 'replaces']) {
+            expect(credits, written).not.toContain(written)
+        }
+        // An account line's amount is typed by the writer, as on a bill line.
+        expect(calls.get('books_vendor_credit_lines')?.omitOnInsert).toEqual(['created', 'updated'])
+        const applications = calls.get('books_vendor_credit_applications')?.omitOnInsert
+        expect(applications).toEqual(expect.arrayContaining(['created', 'applied_by']))
+        for (const written of ['vendor_credit', 'bill', 'amount', 'date']) {
+            expect(applications, written).not.toContain(written)
+        }
+    })
+
+    // Vendor refund spec §4: the refund names its vendor, its Refunded to account, its
+    // entry, its poster and voider and the refund it replaces or is replaced by; a line
+    // names its refund and the vendor credit it refunds. The server writes the number,
+    // the entry and the posting and void stamps.
+    it('registers the vendor refunds and their lines with their relations', () => {
+        const { calls } = register()
+        const refunds = calls.get('books_vendor_refunds')
+        expect(refunds?.relations).toEqual({
+            vendor: { name: 'books_vendors' },
+            refunded_to: { name: 'books_accounts' },
+            entry: { name: 'books_journal_entries' },
+            posted_by: { name: 'users' },
+            voided_by: { name: 'users' },
+            replaces: { name: 'books_vendor_refunds' },
+            replaced_by: { name: 'books_vendor_refunds' },
+        })
+        expect(refunds?.omitOnInsert).toEqual(
+            expect.arrayContaining([
+                'created',
+                'updated',
+                'number',
+                'sequence',
+                'entry',
+                'replaced_by',
+                'posted_by',
+                'posted_at',
+                'voided_by',
+                'voided_at',
+            ])
+        )
+        for (const written of [
+            'vendor',
+            'status',
+            'date',
+            'payment_method',
+            'reference_no',
+            'refunded_to',
+            'amount',
+            'memo',
+            'replaces',
+        ]) {
+            expect(refunds?.omitOnInsert, written).not.toContain(written)
+        }
+        const lines = calls.get('books_vendor_refund_lines')
+        expect(lines?.relations).toEqual({
+            refund: { name: 'books_vendor_refunds' },
+            vendor_credit: { name: 'books_vendor_credits' },
+        })
+        for (const written of ['refund', 'vendor_credit', 'amount', 'position']) {
+            expect(lines?.omitOnInsert, written).not.toContain(written)
+        }
     })
 
     // The contacts tab reads the contacts of one customer; nothing else enters

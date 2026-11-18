@@ -99,8 +99,8 @@ test.describe('bank-connection: page', () => {
         await navigateToPackage(page, 'books')
         await page.setViewportSize(BANKING_DESKTOP)
         await expect
-            .poll(async () => (await sidebarNavIds(page)).slice(0, 2))
-            .toEqual(['books-nav-banking', 'books-nav-lists'])
+            .poll(async () => (await sidebarNavIds(page)).slice(0, 3))
+            .toEqual(['books-nav-banking', 'books-nav-sales', 'books-nav-lists'])
         await openBanking(page)
 
         const checking = bankCard(page, CHECKING)

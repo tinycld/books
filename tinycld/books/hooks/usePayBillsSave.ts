@@ -6,7 +6,7 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useToastStore } from '@tinycld/core/lib/stores/toast-store'
 import { router } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
-import type { UseFormReturn } from 'react-hook-form'
+import { type UseFormReturn, useWatch } from 'react-hook-form'
 import {
     nextStartCheckNo,
     type PayBillsWritePlan,
@@ -114,6 +114,7 @@ export function usePayBillsSave({
     const [isDiscardOpen, setDiscardOpen] = useState(false)
     // Read in render: react-hook-form tracks isDirty only once it is read.
     const isDirty = form.formState.isDirty
+    const payments = useWatch({ control: form.control, name: 'payments' })
     useEffect(() => {
         isLive.current = true
         return () => {
@@ -224,6 +225,8 @@ export function usePayBillsSave({
         })
         resetFilters?.()
         focusPaidFrom?.()
+        // Pay & new stays on the form, so the pay's success no longer turns the guard off.
+        save.reset()
     }
 
     const showRefusal = (plan: PayBillsWritePlan, error: unknown) => {
@@ -273,14 +276,12 @@ export function usePayBillsSave({
     }
 
     // A correction starts with the original's amounts, so only a change asks to discard; a
-    // new screen asks once any bill has a payment.
-    const hasChanges = () => {
-        if (replacesId !== null) return isDirty
-        return hasPayment(listedPayments(form.getValues('payments'), rows), currency)
-    }
+    // new screen asks once any bill has a payment. Cancel and the leave guard ask by it.
+    const hasChanges =
+        replacesId !== null ? isDirty : hasPayment(listedPayments(payments, rows), currency)
 
     const cancel = () => {
-        if (hasChanges()) setDiscardOpen(true)
+        if (hasChanges) setDiscardOpen(true)
         else leave()
     }
 
@@ -288,6 +289,10 @@ export function usePayBillsSave({
         pay: submit('pay'),
         payAndNew: submit('pay-new'),
         isPending: save.isPending,
+        // The batch succeeded and Pay leaves: true from the update that ends `isPending`
+        // (Pay & new resets it in `startNext`).
+        isSuccess: save.isSuccess,
+        hasChanges,
         isDiscardOpen,
         cancel,
         keepEditing: () => setDiscardOpen(false),

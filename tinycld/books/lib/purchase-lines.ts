@@ -1,6 +1,7 @@
-// The Purchase lines setting (Settings → Purchases → Bills and expenses,
-// books_settings.purchase_lines, expense form spec §3.10) and what it decides on the bill
-// and expense forms: the line tables they show and Post's line-count text. Plain data
+// The Purchase lines setting (Settings → Purchases → Bills, expenses and vendor credits,
+// books_settings.purchase_lines, expense form spec §3.10, vendor credit spec §3.8) and what
+// it decides on the bill, expense and vendor credit forms: the line tables they show and
+// Post's line-count text. Plain data
 // with type imports only: the bill fixture re-exports from here and the seed graph runs
 // in plain node (tests/seed-node.test.ts).
 

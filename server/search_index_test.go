@@ -58,14 +58,22 @@ func TestSearchIndex_TablesHoldTheConfiguredColumns(t *testing.T) {
 			t.Errorf("%s indexes %s: %v", cfg.Table, cfg.Collection, err)
 		}
 	}
-	if len(searchIndexes) != 13 {
-		t.Fatalf("%d indexes, want one per search source (13)", len(searchIndexes))
+	if len(searchIndexes) != 15 {
+		t.Fatalf("%d indexes, want one per search source (15)", len(searchIndexes))
+	}
+	if vendorCreditsIndex != "fts_books_vendor_credits" {
+		t.Errorf("vendorCreditsIndex = %q, want fts_books_vendor_credits", vendorCreditsIndex)
+	}
+	if vendorRefundsIndex != "fts_books_vendor_refunds" {
+		t.Errorf("vendorRefundsIndex = %q, want fts_books_vendor_refunds", vendorRefundsIndex)
 	}
 	for table, collection := range map[string]string{
-		"fts_books_expenses":      "books_expenses",
-		"fts_books_payments":      "books_payments",
-		"fts_books_bill_payments": "books_bill_payments",
-		"fts_books_credit_memos":  "books_credit_memos",
+		"fts_books_expenses":       "books_expenses",
+		"fts_books_payments":       "books_payments",
+		"fts_books_bill_payments":  "books_bill_payments",
+		"fts_books_credit_memos":   "books_credit_memos",
+		"fts_books_vendor_credits": "books_vendor_credits",
+		"fts_books_vendor_refunds": "books_vendor_refunds",
 	} {
 		var indexed []string
 		for _, cfg := range searchIndexes {

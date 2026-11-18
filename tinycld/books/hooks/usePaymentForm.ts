@@ -1,15 +1,18 @@
 import { log } from '@tinycld/core/lib/logger'
-import { useStore } from '@tinycld/core/lib/pocketbase'
-import { useRecord } from '@tinycld/core/lib/use-record'
-import { useForm, zodResolver } from '@tinycld/core/ui/form'
-import { useMemo, useRef } from 'react'
-import { type FieldErrors, type PathValue, useWatch } from 'react-hook-form'
+import { useForm, type z, zodResolver } from '@tinycld/core/ui/form'
+import { useMemo, useRef, useState } from 'react'
+import {
+    createFormControl,
+    type FieldErrors,
+    type PathValue,
+    type Resolver,
+    type UseFormReturn,
+    useWatch,
+} from 'react-hook-form'
 import type { PressableInstance, TextInputInstance } from 'react-native'
-import { formatMoney } from '../lib/money'
 import { moneyInputCents } from '../lib/money-input'
 import {
     amountToApply,
-    amountToCredit,
     clearPayments,
     entryCents,
     followedAmount,
@@ -23,86 +26,139 @@ import {
     typeRowPayment,
     untickRow,
 } from '../lib/payment-allocation'
-import { paymentSchema } from '../lib/payment-schema'
-import { fillPaymentText, PAYMENT_MESSAGES } from '../lib/payment-texts'
+import { type PaymentFlow, sumErrorOf } from '../lib/payment-flow'
 import type { PaymentFormValues } from '../lib/payment-values'
-import {
-    type OutstandingInvoice,
-    useOutstandingInvoices,
-    useOutstandingLoader,
-} from './useOutstandingInvoices'
 
-interface PaymentFormInput {
+// A row's document date by id, for a flow's row-date rule; null runs no date rule.
+export type PaymentRowDates = Readonly<Record<string, string>> | null
+
+// What the form's resolver reads besides the values: the row dates of the render that
+// last ran useForm.
+type PaymentFormContext = { rowDates: PaymentRowDates }
+
+// The flow's one schema for Save draft and Post, built from the row dates.
+export type PaymentSchemaOf = (
+    rowDates: PaymentRowDates
+) => z.ZodType<PaymentFormValues, PaymentFormValues>
+
+export type PaymentFormControl = Omit<
+    UseFormReturn<PaymentFormValues, PaymentFormContext>,
+    'formState'
+>
+
+/**
+ * A payment form's control, made before its rules: a flow whose rules need a read that
+ * follows the drawn party (the vendor refund's credit dates) reads `party` here, runs that
+ * read, then hands the control and the read's result to usePaymentFormValues in the same
+ * render.
+ */
+export function usePaymentFormControl(initial: PaymentFormValues) {
+    const [formControl] = useState<PaymentFormControl>(
+        () =>
+            createFormControl<PaymentFormValues, PaymentFormContext>({ defaultValues: initial })
+                .formControl
+    )
+    const party = useWatch({ control: formControl.control, name: 'party' })
+    return { formControl, party }
+}
+
+interface PaymentFormValuesInput {
     initial: PaymentFormValues
-    currency: string
-    // The values Deposit to lists (`paymentDepositOptions`).
-    depositOptions: readonly string[]
-    // The invoices the stored applications name, and what a corrected original applied.
-    storedInvoices: readonly OutstandingInvoice[]
-    extraOpen?: Readonly<Record<string, number>>
+    // The flow's schema (`schemaOf(rowDates)`), the same for Save draft and Post.
+    schemaOf: PaymentSchemaOf
+    // The row dates the schema's date rule reads; null (the default) runs none.
+    rowDates?: PaymentRowDates
+    // usePaymentFormControl's control, when the caller made it first; absent, the form
+    // makes its own.
+    formControl?: PaymentFormControl
     // The refusal a new payment's form handed to this draft's form, as form errors; it
     // keeps one identity for the form's life, so the form applies it once.
     initialErrors?: FieldErrors<PaymentFormValues>
 }
 
-// The figures under the list, from the values; the refusal line is live, before any submit.
-function totalsOf(values: PaymentFormValues, currency: string, customerName: string) {
-    const applyCents = amountToApply(values.payments, currency)
-    const amountCents = moneyInputCents(values.amount, currency)
-    const creditCents = amountToCredit(amountCents, applyCents)
-    const isOver = amountCents !== null && amountCents > 0 && applyCents > amountCents
-    const over = isOver
-        ? fillPaymentText(
-              PAYMENT_MESSAGES.sumOverAmount,
-              formatMoney(applyCents, currency),
-              formatMoney(amountCents, currency)
-          )
-        : ''
-    return {
-        apply: formatMoney(applyCents, currency),
-        credit: creditCents > 0 ? formatMoney(creditCents, currency) : '',
-        creditNote: fillPaymentText(PAYMENT_MESSAGES.keptAsCredit, customerName),
-        over,
+/**
+ * A payment form's values under the flow's schema, and the values as drawn. The row dates
+ * reach the schema through the resolver's context, which useForm takes from this render.
+ * The first hook of a flow's form after usePaymentFormControl: its reads (the party's open
+ * documents, the party's name) follow the drawn party.
+ */
+export function usePaymentFormValues({
+    initial,
+    schemaOf,
+    rowDates = null,
+    formControl,
+    initialErrors,
+}: PaymentFormValuesInput) {
+    const resolver = useMemo<Resolver<PaymentFormValues, PaymentFormContext>>(
+        () => (values, context, options) =>
+            zodResolver(schemaOf(context?.rowDates ?? null))(values, context, options),
+        [schemaOf]
+    )
+    const context = useMemo(() => ({ rowDates }), [rowDates])
+    const form = useForm<PaymentFormValues, PaymentFormContext>({
+        defaultValues: initial,
+        resolver,
+        context,
+        errors: initialErrors,
+        formControl,
+    })
+    const values = useWatch({ control: form.control }) as PaymentFormValues
+    return { form, values }
+}
+
+export type PaymentFormValuesState = ReturnType<typeof usePaymentFormValues>
+
+// The open documents of the drawn party, as the flow's own read gives them.
+export type PaymentOutstanding = {
+    rows: OutstandingRow[]
+    isReady: boolean
+    isError: boolean
+    retry: () => void
+}
+
+interface PaymentFormInput {
+    flow: PaymentFlow
+    formValues: PaymentFormValuesState
+    currency: string
+    outstanding: PaymentOutstanding
+    // A one-time read of a party's open documents, for the pick that re-applies a typed
+    // amount in the event (the flow's loader); a failed read rejects.
+    loadOutstanding: (partyId: string) => Promise<OutstandingRow[]>
+    partyName: string
+}
+
+// The lines under the list (the flow's totals) and the live sum refusal, before any
+// submit: the flow's sum rule (`sumErrorOf`), the same one the schema refuses with.
+function totalsOf(flow: PaymentFlow, values: PaymentFormValues, currency: string) {
+    const input = {
+        amountCents: moneyInputCents(values.amount, currency),
+        rowsCents: amountToApply(values.payments, currency),
+        currency,
     }
+    return { lines: flow.totals(input), sumError: sumErrorOf(flow, input) }
 }
 
 /**
- * The receive-payment form: its values under `paymentSchema`, the outstanding list of the
- * chosen customer, and the allocation handlers (lib/payment-allocation.ts). While Amount
- * received was not typed it follows the rows after every row change; typing it spreads it
- * over the rows. The header tick box pays every row, or clears them all when every row is
- * paid. A pick of another customer clears the rows; with a typed amount it reads the new
- * customer's list once and spreads the amount in the same event, and a pick that a later
- * pick overtook drops its result.
+ * A payment form's allocation handlers (lib/payment-allocation.ts) over the flow's open
+ * documents. While the amount was not typed it follows the rows after every row change;
+ * typing it spreads it over the rows. The header tick box pays every row, or clears them
+ * all when every row is paid. A pick of another party clears the rows; with a typed
+ * amount it reads the new party's list once and spreads the amount in the same event, and
+ * a pick that a later pick overtook drops its result.
  */
 export function usePaymentForm({
-    initial,
+    flow,
+    formValues,
     currency,
-    depositOptions,
-    storedInvoices,
-    extraOpen,
-    initialErrors,
+    outstanding,
+    loadOutstanding,
+    partyName,
 }: PaymentFormInput) {
-    const optionsKey = depositOptions.join('\n')
-    const resolver = useMemo(
-        () => zodResolver(paymentSchema(currency, optionsKey.split('\n'))),
-        [currency, optionsKey]
-    )
-    const form = useForm<PaymentFormValues>({
-        defaultValues: initial,
-        resolver,
-        errors: initialErrors,
-    })
-    const { control, setValue, getValues, setError, trigger } = form
+    const { form, values } = formValues
+    const { setValue, getValues, setError, trigger } = form
     // Read in render: the form state proxy updates `isSubmitted` only once it is read here.
     const { isSubmitted } = form.formState
-    const values = useWatch({ control }) as PaymentFormValues
-    const outstanding = useOutstandingInvoices(values.customer, storedInvoices, extraOpen)
-    const loadOutstanding = useOutstandingLoader(storedInvoices, extraOpen)
-    const [customersCollection] = useStore('books_customers')
-    const customerRow = useRecord(customersCollection, values.customer || null)
-    const customerName = customerRow.record?.display_name ?? ''
-    const totals = totalsOf(values, currency, customerName)
+    const totals = totalsOf(flow, values, currency)
 
     const dateRef = useRef<TextInputInstance | null>(null)
     const clearRef = useRef<PressableInstance | null>(null)
@@ -110,7 +166,7 @@ export function usePaymentForm({
     // The row whose Payment cell has focus, for ⌥↵.
     const focusedRowRef = useRef<string | null>(null)
 
-    const write = <K extends 'payments' | 'amount' | 'amountTyped' | 'customer'>(
+    const write = <K extends 'payments' | 'amount' | 'amountTyped' | 'party'>(
         name: K,
         value: PathValue<PaymentFormValues, K>
     ) => {
@@ -121,15 +177,15 @@ export function usePaymentForm({
     // leaf paths (each row's amount and the sum rule's `payments.root`): RHF drops every
     // nested error of an object path that it triggers as a whole. `before` names the rows a
     // change removed, so their errors go too.
-    const revalidate = (before: Payments, withCustomer = false) => {
+    const revalidate = (before: Payments, withParty = false) => {
         if (!isSubmitted) return
         const ids = new Set([...Object.keys(before), ...Object.keys(getValues('payments'))])
         const rowNames = [...ids].map(id => `payments.${id}.amount` as const)
-        const customer = withCustomer ? (['customer'] as const) : []
-        void trigger(['amount', 'payments.root', ...customer, ...rowNames])
+        const party = withParty ? (['party'] as const) : []
+        void trigger(['amount', 'payments.root', ...party, ...rowNames])
     }
 
-    // A row change: Amount received follows it unless the user typed it.
+    // A row change: the amount follows it unless the user typed it.
     const setRows = (next: Payments) => {
         const before = getValues('payments')
         write('payments', next)
@@ -149,6 +205,14 @@ export function usePaymentForm({
         write('amountTyped', !isEmpty)
         write('payments', isEmpty ? clearPayments() : spread)
         revalidate(before)
+    }
+
+    // A date change (RHF checks the date itself): under a flow with a row-date rule each
+    // row is checked against the date, so after a submit the rows are checked again too.
+    // A flow with no such rule checks nothing more.
+    const onDateChanged = () => {
+        if (flow.texts.datedAfter === null) return
+        revalidate(getValues('payments'))
     }
 
     const onRowTick = (row: OutstandingRow) => {
@@ -172,18 +236,18 @@ export function usePaymentForm({
 
     const onClear = () => setRows(clearPayments())
 
-    // The header tick box: with every row paid it clears them all (as Clear payments
-    // does), else it pays every row (as Pay all does).
+    // The header tick box: with every row paid it clears them all (as the clear link
+    // does), else it pays every row (as ⌥A does).
     const onTickAll = () => {
         const isAllPaid = isEveryRowPaid(outstanding.rows, getValues('payments'), currency)
         setRows(isAllPaid ? clearPayments() : payAll(outstanding.rows))
     }
 
-    const onCustomerPicked = async (id: string) => {
-        // Picking the chosen customer again changes nothing; the picker still moves focus.
-        if (id === getValues('customer')) return
+    const onPartyPicked = async (id: string) => {
+        // Picking the chosen party again changes nothing; the picker still moves focus.
+        if (id === getValues('party')) return
         const before = getValues('payments')
-        write('customer', id)
+        write('party', id)
         write('payments', clearPayments())
         const isTyped = getValues('amountTyped')
         if (!isTyped) write('amount', '')
@@ -193,31 +257,31 @@ export function usePaymentForm({
         if (cents === null || cents <= 0 || id === '') return
         try {
             const rows = await loadOutstanding(id)
-            if (getValues('customer') !== id) return
+            if (getValues('party') !== id) return
             const cleared = getValues('payments')
             write('payments', spreadAmount(rows, cents))
             revalidate(cleared)
         } catch (err) {
-            log.error('books.payment', err)
-            if (getValues('customer') !== id) return
-            setError('root', { type: 'server', message: PAYMENT_MESSAGES.listLoadFailed })
+            log.error(flow.logContext, err)
+            if (getValues('party') !== id) return
+            setError('root', { type: 'server', message: flow.texts.listLoadFailed })
         }
     }
 
     // Find invoice no. found the invoice while no customer was chosen: its customer becomes
-    // the form's. A typed Amount received above zero keeps its value and is re-applied to
-    // the invoice, up to its open balance (the rest is Amount to credit). Else the invoice
-    // is paid in full and Amount received follows that payment.
-    const onFindPicked = (invoice: OutstandingRow, customer: string) => {
-        if (getValues('customer') !== '') return
+    // the form's. A typed amount above zero keeps its value and is re-applied to the
+    // invoice, up to its open balance (the rest is Amount to credit). Else the invoice is
+    // paid in full and the amount follows that payment.
+    const onFindPicked = (document: OutstandingRow, party: string) => {
+        if (getValues('party') !== '') return
         const before = getValues('payments')
         const cents = moneyInputCents(getValues('amount'), currency)
         const isTyped = getValues('amountTyped') && cents !== null && cents > 0
-        write('customer', customer)
+        write('party', party)
         if (isTyped) {
-            write('payments', spreadAmount([invoice], cents))
+            write('payments', spreadAmount([document], cents))
         } else {
-            const payments = tickRow(clearPayments(), invoice)
+            const payments = tickRow(clearPayments(), document)
             write('payments', payments)
             write('amountTyped', false)
             write('amount', followedAmount(payments, currency))
@@ -226,7 +290,7 @@ export function usePaymentForm({
     }
 
     // Enter in a Payment cell: the next drawn row's cell (a row the find filter hides has
-    // no cell), or Clear payments after the last.
+    // no cell), or the clear link after the last.
     const focusAfterRow = (rowId: string) => {
         const index = outstanding.rows.findIndex(row => row.id === rowId)
         const next = outstanding.rows
@@ -246,20 +310,21 @@ export function usePaymentForm({
         form,
         values,
         outstanding,
-        customerName,
+        partyName,
         totals,
         dateRef,
         clearRef,
         rowRef,
         focusedRowRef,
         onAmountTyped,
+        onDateChanged,
         onRowTick,
         onRowType,
         onRowToggle,
         onPayAll,
         onClear,
         onTickAll,
-        onCustomerPicked,
+        onPartyPicked,
         onFindPicked,
         focusAfterRow,
         focusDate: () => dateRef.current?.focus(),

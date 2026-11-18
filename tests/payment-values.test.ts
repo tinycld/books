@@ -21,7 +21,9 @@ import {
 } from '../tinycld/books/lib/receive-payment-fixture'
 
 // The form's start values (new, draft) and the application rows a save writes
-// (spec §3.4, §3.6; plan decisions on `amountTyped` and the write order).
+// (spec §3.4, §3.6; plan decisions on `amountTyped` and the write order). The form names
+// the party and the account by role (`party`, `account`) and a row's document `document`
+// (vendor refund spec §3.1), so one form serves the received payment and the refund.
 
 const ROW: OutstandingRow = {
     id: PAYMENT_INVOICE_IDS.partly,
@@ -36,8 +38,15 @@ function active(rows: readonly Omit<DepositAccountRow, 'parent' | 'inactive'>[])
     return rows.map(row => ({ ...row, parent: '', inactive: false }))
 }
 
-const DRAFT = PAYMENTS.find(row => row.id === PAYMENT_IDS.draft)
-if (!DRAFT) throw new Error('no draft payment in the fixture')
+// A stored payment as the form reads it: the row, with its party and account by role.
+function headerOf(row: (typeof PAYMENTS)[number]) {
+    const header = { ...row, party: row.customer, account: row.deposit_to }
+    return header
+}
+
+const DRAFT_ROW = PAYMENTS.find(row => row.id === PAYMENT_IDS.draft)
+if (!DRAFT_ROW) throw new Error('no draft payment in the fixture')
+const DRAFT = headerOf(DRAFT_ROW)
 
 // The draft's applications as the form reads them: each with its invoice's number and
 // open balance (a draft changes no balance, so open is the invoice's balance).
@@ -45,7 +54,7 @@ const DRAFT_APPLICATIONS = applicationsOf(PAYMENT_IDS.draft).map(application => 
     const invoice = PAYMENT_INVOICES.find(row => row.id === application.invoice)
     if (!invoice) throw new Error(`no invoice ${application.invoice}`)
     return {
-        invoice: application.invoice,
+        document: application.invoice,
         amount: application.amount,
         open: invoice.balance,
         number: invoice.number,
@@ -56,9 +65,9 @@ describe('newPaymentValues', () => {
     it('ticks a given invoice for its open balance, the amount following it', () => {
         const values = newPaymentValues({
             today: PAYMENT_TODAY,
-            customer: 'cust_harbor_001',
-            invoice: ROW,
-            depositTo: 'acctfixundep001',
+            party: 'cust_harbor_001',
+            document: ROW,
+            account: 'acctfixundep001',
         })
         expect(values.payments).toEqual({
             [ROW.id]: { amount: '750.00', open: 75_000, number: '1009' },
@@ -66,7 +75,7 @@ describe('newPaymentValues', () => {
         expect(values.amountTyped).toBe(false)
         expect(values.amount).toBe('750.00')
         expect(values).toMatchObject({
-            customer: 'cust_harbor_001',
+            party: 'cust_harbor_001',
             date: PAYMENT_TODAY,
             payment_method: '',
             reference_no: '',
@@ -77,11 +86,11 @@ describe('newPaymentValues', () => {
     it('starts with no payments and no amount without a customer', () => {
         const values = newPaymentValues({
             today: PAYMENT_TODAY,
-            customer: '',
-            invoice: null,
-            depositTo: 'acctfixundep001',
+            party: '',
+            document: null,
+            account: 'acctfixundep001',
         })
-        expect(values.customer).toBe('')
+        expect(values.party).toBe('')
         expect(values.payments).toEqual({})
         expect(values.amount).toBe('')
         expect(values.amountTyped).toBe(false)
@@ -92,11 +101,11 @@ describe('newPaymentValues', () => {
             const depositTo = paymentDefaultDeposit(active(chart))
             const values = newPaymentValues({
                 today: PAYMENT_TODAY,
-                customer: '',
-                invoice: null,
-                depositTo,
+                party: '',
+                document: null,
+                account: depositTo,
             })
-            expect(values.deposit_to).toBe(depositTo)
+            expect(values.account).toBe(depositTo)
         }
         expect(paymentDefaultDeposit(active(DEPOSIT_ACCOUNTS_NO_UNDEPOSITED))).toBe('')
     })
@@ -111,13 +120,13 @@ describe('draftPaymentValues', () => {
             [PAYMENT_INVOICE_IDS.open]: { amount: '13.56', open: 211_177, number: '1011' },
         })
         expect(values).toMatchObject({
-            customer: DRAFT.customer,
-            date: DRAFT.date,
+            party: DRAFT_ROW.customer,
+            date: DRAFT_ROW.date,
             payment_method: 'check',
             reference_no: '10518',
-            deposit_to: DRAFT.deposit_to,
+            account: DRAFT_ROW.deposit_to,
             amount: centsToText(124_356),
-            memo: DRAFT.memo,
+            memo: DRAFT_ROW.memo,
         })
     })
 
@@ -140,7 +149,7 @@ describe('draftPaymentValues', () => {
 function postedPayment(id: string) {
     const row = PAYMENTS.find(p => p.id === id)
     if (row?.status !== 'posted') throw new Error(`no posted payment ${id} in the fixture`)
-    return row
+    return headerOf(row)
 }
 
 // The original's applications as the correction reads them: each with its invoice's
@@ -150,7 +159,7 @@ function postedApplications(paymentId: string) {
         const invoice = PAYMENT_INVOICES.find(row => row.id === application.invoice)
         if (!invoice) throw new Error(`no invoice ${application.invoice}`)
         return {
-            invoice: application.invoice,
+            document: application.invoice,
             amount: application.amount,
             number: invoice.number,
             balance: invoice.balance,
@@ -163,11 +172,11 @@ describe('correctionPaymentValues', () => {
         const original = postedPayment(PAYMENT_IDS.partial)
         const values = correctionPaymentValues(original, postedApplications(PAYMENT_IDS.partial))
         expect(values).toMatchObject({
-            customer: original.customer,
+            party: original.customer,
             date: original.date,
             payment_method: 'bank_transfer',
             reference_no: 'ACH 7781-2290',
-            deposit_to: original.deposit_to,
+            account: original.deposit_to,
             amount: centsToText(50_000),
             memo: original.memo,
         })
@@ -223,14 +232,14 @@ describe('correctionPaymentValues', () => {
 
 describe('paymentWriteRows', () => {
     const stored = [
-        { id: 'pmapstoredrow01', invoice: PAYMENT_INVOICE_IDS.overdue },
-        { id: 'pmapstoredrow02', invoice: PAYMENT_INVOICE_IDS.open },
+        { id: 'pmapstoredrow01', document: PAYMENT_INVOICE_IDS.overdue },
+        { id: 'pmapstoredrow02', document: PAYMENT_INVOICE_IDS.open },
     ]
     const values = newPaymentValues({
         today: PAYMENT_TODAY,
-        customer: 'cust_harbor_001',
-        invoice: null,
-        depositTo: 'acctfixundep001',
+        party: 'cust_harbor_001',
+        document: null,
+        account: 'acctfixundep001',
     })
     values.payments = {
         [PAYMENT_INVOICE_IDS.overdue]: { amount: '480.00', open: 48_000, number: '1006' },
@@ -240,16 +249,16 @@ describe('paymentWriteRows', () => {
 
     it('keeps a stored application’s id for its invoice', () => {
         const rows = paymentWriteRows(values, stored)
-        expect(rows.find(row => row.invoice === PAYMENT_INVOICE_IDS.overdue)).toEqual({
+        expect(rows.find(row => row.document === PAYMENT_INVOICE_IDS.overdue)).toEqual({
             id: 'pmapstoredrow01',
-            invoice: PAYMENT_INVOICE_IDS.overdue,
+            document: PAYMENT_INVOICE_IDS.overdue,
             amount: 48_000,
         })
     })
 
     it('gives a new invoice a fresh 15-character id, in cents', () => {
         const row = paymentWriteRows(values, stored).find(
-            r => r.invoice === PAYMENT_INVOICE_IDS.partly
+            r => r.document === PAYMENT_INVOICE_IDS.partly
         )
         expect(row?.amount).toBe(1_250)
         expect(row?.id).toMatch(/^[a-z0-9]{15}$/)
@@ -257,8 +266,8 @@ describe('paymentWriteRows', () => {
     })
 
     it('drops a row at zero', () => {
-        const invoices = paymentWriteRows(values, stored).map(row => row.invoice)
-        expect(invoices).not.toContain(PAYMENT_INVOICE_IDS.open)
-        expect(invoices).toHaveLength(2)
+        const documents = paymentWriteRows(values, stored).map(row => row.document)
+        expect(documents).not.toContain(PAYMENT_INVOICE_IDS.open)
+        expect(documents).toHaveLength(2)
     })
 })

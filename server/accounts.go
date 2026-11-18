@@ -44,9 +44,8 @@ const (
 )
 
 // accountLineReferences are the document tables that hold an account, in the
-// order their refusals are checked. Later purchase documents (vendor credits)
-// append theirs here. A bill's or an
-// expense's product line names no account (its account is the product's
+// order their refusals are checked. A bill's, an expense's or a vendor
+// credit's product line names no account (its account is the product's
 // expense account, which the product guard holds).
 var accountLineReferences = []accountLineReference{
 	{
@@ -66,6 +65,11 @@ var accountLineReferences = []accountLineReference{
 	{
 		collection: billPaymentsCollection, field: "paid_from", distinct: "id",
 		one: msgAccountPaidOneBillPayment, many: msgAccountPaidBillPayments,
+	},
+	{
+		collection: vendorCreditLinesCollection, field: "account", distinct: "vendor_credit",
+		one:  "This account is on 1 vendor credit and cannot be deleted. Make it inactive instead.",
+		many: "This account is on %d vendor credits and cannot be deleted. Make it inactive instead.",
 	},
 }
 
@@ -632,6 +636,19 @@ func checkAccountDelete(app core.App, r *core.Record) error {
 	}
 	if payments > 1 {
 		return refuse(msgAccountDepositOfPayments, payments)
+	}
+	// A vendor refund's refunded_to is a required relation, so PocketBase
+	// refuses the delete with a generic message; this one says what to do
+	// instead. Drafts count too.
+	refunds, err := app.CountRecords(vendorRefundsCollection, dbx.HashExp{"refunded_to": r.Id})
+	if err != nil {
+		return err
+	}
+	if refunds == 1 {
+		return refuse(msgAccountRefundOfOneRefund)
+	}
+	if refunds > 1 {
+		return refuse(msgAccountRefundOfRefunds, refunds)
 	}
 	children, err := app.CountRecords("books_accounts", dbx.HashExp{"parent": r.Id})
 	if err != nil {

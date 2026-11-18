@@ -13,11 +13,15 @@ import {
     storedPartyAddressOf,
 } from '../../hooks/document-data'
 import { useReadAttachmentSession } from '../../hooks/useAttachmentUpload'
+import { type CreditApplicationRow, useCreditApplications } from '../../hooks/useCreditApplications'
+import { useCreditRefunds } from '../../hooks/useCreditRefunds'
 import { useDocumentReadActions } from '../../hooks/useDocumentReadActions'
 import type { DocumentScreenData } from '../../hooks/useDocumentScreen'
 import { useHistoryItem } from '../../hooks/useHistoryItem'
+import { useRemoveApplication } from '../../hooks/useRemoveApplication'
 import { formatAddressLines, isCustomerAddress } from '../../lib/address'
-import { paidBadge } from '../../lib/document-lifecycle'
+import { billCreditsApplied } from '../../lib/bill-values'
+import { removeApplicationOffered } from '../../lib/document-actions'
 import { DOCUMENT_NOTE_LABELS, memoLabelFor } from '../../lib/document-notes'
 import { type DocumentTab, documentHref } from '../../lib/document-routes'
 import { documentTaxOf } from '../../lib/document-tax'
@@ -25,15 +29,17 @@ import { NO_PARTY_TEXT } from '../../lib/document-texts'
 import { lineTableSubtotals } from '../../lib/document-values'
 import { stampText } from '../../lib/entry-display'
 import { DOCUMENT_COLLECTIONS } from '../../lib/history-route'
-import { formatMoney } from '../../lib/money'
+import { formatMoney, MINUS } from '../../lib/money'
 import { formatDay, todayIso } from '../../lib/register-range'
 import { DOCUMENT_PARTIES, type SalesDocumentKind } from '../../lib/sales-document-kinds'
 import { groupPpm, ratePercentText } from '../../lib/sales-tax'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { VoidDialog } from '../entries/VoidDialog'
 import { AttachmentsSection } from './AttachmentsSection'
+import { RemoveApplicationDialog } from './DocumentApplications'
 import { DocumentDetail } from './DocumentDetail'
 import { DocumentHeader } from './DocumentHeader'
+import { DocumentLoading } from './DocumentLoading'
 import { DocumentPayments } from './DocumentPayments'
 import { DocumentPdfView } from './DocumentPdfView'
 import { DocumentReadActions } from './DocumentReadActions'
@@ -41,7 +47,13 @@ import { DOCUMENT_READ_TRAILING_WIDTH, DocumentReadLines } from './DocumentReadL
 import { DocumentTabs, TabPanel } from './DocumentTabs'
 import { DocumentTotalsPanel, type DocumentTotalsView } from './DocumentTotalsPanel'
 import { useDocumentKind } from './document-kind-context'
-import { type DocumentKind, storedLineTableRows } from './document-kinds'
+import {
+    type DocumentKind,
+    type DocumentReadFrameProps,
+    type ReadBalanceBadge,
+    type ReadRefunded,
+    storedLineTableRows,
+} from './document-kinds'
 
 const LINK_STYLE = { minHeight: 44 }
 
@@ -101,14 +113,28 @@ function openBalanceOf(record: DocumentRecord): number | undefined {
     return undefined
 }
 
+// The credit applied to a bill (billCreditsApplied, from its stored total, its posted
+// payments and its stored balance; vendor credit spec §3.10); 0 for every other kind.
+function creditsAppliedOf(record: DocumentRecord, paymentsCents: number): number {
+    const fields = record.kindFields
+    if (fields.kind !== 'bill') return 0
+    const { status, total } = record
+    return billCreditsApplied({ status, total, balance: fields.balance }, paymentsCents)
+}
+
 // The last row and the big figure: an invoice's or a bill's Balance due is its open
 // balance, which the server keeps (receive-payment spec §3.9, pay-bills spec §3.9), with a
 // Payments row above it while any posted payment applies; every other kind's is its
 // total, posted or void.
+// The kind's rows after Total: a bill's Credits applied (creditsAppliedOf, from the stored
+// record, so the rows add up while its applications read loads or has failed); a vendor
+// credit's Applied, Refunded and Unapplied credit, which read its stored total and balance
+// and the posted refunds' cents (`refunded`).
 function readTotals(
     data: DocumentScreenData,
     record: DocumentRecord,
-    documentKind: Pick<DocumentKind, 'doc' | 'lineSpecs'>
+    documentKind: Pick<DocumentKind, 'doc' | 'lineSpecs' | 'readTotals'>,
+    refunded: ReadRefunded
 ): DocumentTotalsView {
     const { doc } = documentKind
     const money = (cents: number) => formatMoney(cents, data.currency)
@@ -118,7 +144,11 @@ function readTotals(
     const balance = openBalanceOf(record)
     const last = balance === undefined ? total : money(balance)
     const applied = appliedCents(data)
-    const payments = applied > 0 ? `−${money(applied)}` : null
+    const payments = applied > 0 ? `${MINUS}${money(applied)}` : null
+    const after = documentKind.readTotals?.(record, {
+        applied: creditsAppliedOf(record, applied),
+        refunded,
+    })
     return {
         subtotal,
         tableSubtotals: readTableSubtotals(data, documentKind),
@@ -126,17 +156,40 @@ function readTotals(
         total,
         payments,
         last,
+        after,
     }
 }
 
-// An invoice's or a bill's badge follows its open balance (Paid, Partly paid); undefined
-// for every other kind, whose header shows its status's badge.
-function readBadgeOf(record: DocumentRecord) {
-    const balance = openBalanceOf(record)
+// The balance the server keeps on a kind that has one (an invoice's or a bill's open
+// balance, a credit memo's or a vendor credit's unapplied credit); undefined for every
+// other kind. The badge reads it; the big figure reads openBalanceOf.
+function storedBalanceOf(record: DocumentRecord): number | undefined {
+    const fields = record.kindFields
+    if (fields.kind === 'invoice' || fields.kind === 'bill') return fields.balance
+    if (fields.kind === 'credit_memo' || fields.kind === 'vendor_credit') return fields.balance
+    return undefined
+}
+
+// The badge of a kind with a balance badge (an invoice's or a bill's Paid / Partly paid, a
+// vendor credit's Applied / Partly applied / Refunded) follows its stored balance (and a
+// vendor credit's refunded cents); undefined for every other kind, whose header shows its
+// status's badge.
+function readBadgeOf(
+    record: DocumentRecord,
+    balanceBadge: ReadBalanceBadge | undefined,
+    refunded: ReadRefunded
+) {
+    const balance = storedBalanceOf(record)
     const { status } = record
-    if (balance === undefined) return undefined
+    if (!balanceBadge || balance === undefined) return undefined
     if (status !== 'draft' && status !== 'posted' && status !== 'void') return undefined
-    return paidBadge(status, balance, record.total)
+    return balanceBadge(status, balance, record.total, refunded)
+}
+
+// The posted vendor refunds a vendor credit's read view reads (`DocumentKind.readRefunds`);
+// for every other kind no id, so the query is off and ready with no rows.
+function useReadRefunds(record: DocumentRecord, readRefunds: boolean | undefined) {
+    return useCreditRefunds(readRefunds ? record.id : '')
 }
 
 // What the Payments block names and opens on an invoice and on a bill; null for every
@@ -148,7 +201,18 @@ const PAYMENTS_BLOCKS: Partial<
     bill: { noun: 'Bill payment', routeBase: 'books/bill-payments' },
 }
 
-function PaymentsBlock({ data, record }: { data: DocumentScreenData; record: DocumentRecord }) {
+interface PaymentsBlockProps {
+    data: DocumentScreenData
+    record: DocumentRecord
+    // A bill's credit applications (empty on every other kind), their read's failure, and
+    // the read view's one Retry.
+    credits: Pick<CreditApplications, 'applications' | 'isError'>
+    onRetry: () => void
+    // Remove on each credit row; undefined where it is not offered.
+    onRemove: ((application: CreditApplicationRow) => void) | undefined
+}
+
+function PaymentsBlock({ data, record, credits, onRetry, onRemove }: PaymentsBlockProps) {
     const { doc } = useDocumentKind()
     const target = PAYMENTS_BLOCKS[record.kindFields.kind]
     if (!target) return null
@@ -159,9 +223,22 @@ function PaymentsBlock({ data, record }: { data: DocumentScreenData; record: Doc
             noun={target.noun}
             routeBase={target.routeBase}
             testIdPrefix={doc.testId}
+            applications={credits.applications}
+            onRemove={onRemove}
+            isApplicationsError={credits.isError}
+            onRetry={onRetry}
         />
     )
 }
+
+// The credits a bill's read view reads (`DocumentKind.readApplications`): the record's
+// applications, the Payments block's credit rows; for every other kind no id, so the query
+// is off and ready with no rows.
+function useReadCredits(record: DocumentRecord, readApplications: boolean | undefined) {
+    return useCreditApplications({ bill: readApplications ? record.id : undefined })
+}
+
+type CreditApplications = ReturnType<typeof useCreditApplications>
 
 // The party's address as the document stored it (storedPartyAddressOf: a sales kind's
 // Bill to, a bill's Mailing address); none for a kind without a party address.
@@ -355,6 +432,20 @@ function ReadStamps({ record, isPosting }: StampsProps) {
     )
 }
 
+// The Details panel of a kind without its own ReadFrame: the body, the kind's ReadSection
+// (an invoice's Credit memos), then the stamps.
+function SectionReadFrame({ record, body, stamps }: DocumentReadFrameProps) {
+    const { ReadSection } = useDocumentKind()
+    const section = ReadSection ? <ReadSection record={record} /> : null
+    return (
+        <>
+            {body}
+            {section}
+            {stamps}
+        </>
+    )
+}
+
 interface DocumentReadViewProps {
     data: DocumentScreenData
     record: DocumentRecord
@@ -363,11 +454,15 @@ interface DocumentReadViewProps {
 
 /**
  * A posted or void sales document, or a quote shown read only (a closed estimate, or any
- * estimate for a reader): the header, Customer, Bill to, Email, the date and the kind's
+ * estimate for a reader): the header, the kind's notice (in its ReadFrame: a vendor
+ * credit's Apply to bills), Customer, Bill to, Email, the date and the kind's
  * own details, Tax, the lines with their stored amounts, the stored totals with the tax
  * snapshot (an invoice's or a bill's with its Payments row and its Balance due from its
- * open balance), Message and Memo, an invoice's or a bill's Payments block, the kind's own
- * section after it (ReadSection: an invoice's Credit memos), the kind's line under them
+ * open balance; a bill's with Credits applied), Message and Memo, an invoice's or a bill's
+ * Payments block (a bill's with its credit rows and their Remove, whose confirm this view
+ * owns), the kind's own
+ * section after it (ReadSection: an invoice's Credit memos; in its ReadFrame: a vendor
+ * credit's Applied to), the kind's line under them
  * (ReadStampRow)
  * and, for the posting lifecycle only, the Posted by / Voided by stamps around it and, for
  * a replaced original, the link to its replacement; or, on the PDF view tab, its PDF. The
@@ -383,7 +478,19 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     const historyItem = useHistoryItem(DOCUMENT_COLLECTIONS[doc.key], record.id)
     const writes = useServerActionState()
     useReadAttachmentSession(record.id, doc.features.attachments)
-    const totals = readTotals(data, record, documentKind)
+    const credits = useReadCredits(record, documentKind.readApplications)
+    const canRemove = removeApplicationOffered(data.canWrite, record.status)
+    const removal = useRemoveApplication({ applications: credits.applications, canRemove })
+    const refunds = useReadRefunds(record, documentKind.readRefunds)
+    // null while the refunds read has failed (ReadRefunded).
+    const refunded = refunds.isError ? null : refunds.refunded
+    // Every Retry of the read view is one call over the screen's failed reads, the credits
+    // read and the refunds read.
+    const creditsRecovery = credits.recovery
+    const refundsRecovery = refunds.recovery
+    const retry = () => data.retryWith([creditsRecovery, refundsRecovery])
+    const onRemove = canRemove ? removal.ask : undefined
+    const totals = readTotals(data, record, documentKind, refunded)
     const ReadLines = documentKind.ReadLines ?? DocumentReadLines
     // A kind without a message to the customer shows none (an empty detail is not drawn).
     const message = doc.features.message ? record.message : ''
@@ -409,12 +516,46 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
             isDisabled={writes.isDisabled}
             mode="read"
             scopeOwner={scopeOwner}
-            onRetry={data.retry}
+            onRetry={retry}
         />
     ) : null
-    const badge = readBadgeOf(record)
-    const { ReadSection } = documentKind
-    const section = ReadSection ? <ReadSection record={record} /> : null
+    const badge = readBadgeOf(record, documentKind.balanceBadge, refunded)
+    const ReadFrame = documentKind.ReadFrame ?? SectionReadFrame
+    const body = (
+        <>
+            <ReadBand
+                isPhone={isPhone}
+                record={record}
+                partyName={partyName}
+                address={address}
+                date={date}
+                tax={tax}
+            />
+            <ReadLines lines={data.lines} currency={data.currency} isPhone={isPhone} />
+            <ReadFooter
+                isPhone={isPhone}
+                totals={totals}
+                message={message}
+                memo={record.memo}
+                memoLabel={memoLabel}
+                attachments={attachments}
+            />
+            <PaymentsBlock
+                data={data}
+                record={record}
+                credits={credits}
+                onRetry={retry}
+                onRemove={onRemove}
+            />
+        </>
+    )
+    const stamps = <ReadStamps record={record} isPosting={isPosting} />
+    // The Payments block waits for the credits read, so it never draws its payments without
+    // its credit rows; a failed read shows its notice with Retry in the block, and the
+    // totals still read Credits applied from the stored record. A vendor credit waits for its
+    // refunds read too, so its totals and badge never draw a refund as applied to a bill.
+    if (!credits.isReady && !credits.isError) return <DocumentLoading />
+    if (!refunds.isReady && !refunds.isError) return <DocumentLoading />
     return (
         <ScopeProvider owner={scopeOwner}>
             <View testID={readOnlyId} className="flex-1 bg-background">
@@ -429,26 +570,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                     />
                     <DocumentTabs selected={tab} firstLabel="Details" scopeOwner={scopeOwner} />
                     <TabPanel isVisible={isDetailsTab}>
-                        <ReadBand
-                            isPhone={isPhone}
-                            record={record}
-                            partyName={partyName}
-                            address={address}
-                            date={date}
-                            tax={tax}
-                        />
-                        <ReadLines lines={data.lines} currency={data.currency} isPhone={isPhone} />
-                        <ReadFooter
-                            isPhone={isPhone}
-                            totals={totals}
-                            message={message}
-                            memo={record.memo}
-                            memoLabel={memoLabel}
-                            attachments={attachments}
-                        />
-                        <PaymentsBlock data={data} record={record} />
-                        {section}
-                        <ReadStamps record={record} isPosting={isPosting} />
+                        <ReadFrame record={record} body={body} stamps={stamps} refunds={refunds} />
                     </TabPanel>
                     <TabPanel isVisible={isPdfTab}>
                         <DocumentPdfView
@@ -469,6 +591,15 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                     scopeOwner={scopeOwner}
                 />
                 <VoidDialog {...read.voidDialog} />
+                <RemoveApplicationDialog
+                    application={removal.target}
+                    isVisible={removal.isVisible}
+                    currency={data.currency}
+                    isPending={removal.isPending}
+                    errorMessage={removal.errorMessage}
+                    onConfirm={removal.confirm}
+                    onCancel={removal.cancel}
+                />
             </View>
         </ScopeProvider>
     )

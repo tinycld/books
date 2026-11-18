@@ -16,6 +16,7 @@ import {
     CREDIT_MEMO_MESSAGES,
     ESTIMATE_MESSAGES,
     EXPENSE_MESSAGES,
+    VENDOR_CREDIT_MESSAGES,
 } from '../tinycld/books/lib/document-texts'
 import { INVOICE_REFUSALS } from '../tinycld/books/lib/invoice-form-fixture'
 import { maxLineAmount, maxStoredAmount } from '../tinycld/books/lib/money-text'
@@ -26,6 +27,7 @@ import {
     EXPENSE_KIND,
     INVOICE_KIND,
     SALES_RECEIPT_KIND,
+    VENDOR_CREDIT_KIND,
 } from '../tinycld/books/lib/sales-document-kinds'
 
 const invoiceRefusalTarget = (message: string) => documentRefusalTarget(message, INVOICE_KIND)
@@ -602,6 +604,126 @@ describe('documentRefusalTarget with the expense kind', () => {
         for (const text of [BILL_MESSAGES.totalNegative, BILL_MESSAGES.totalTooLarge]) {
             expect(labelledLineRefusal('Account line 1', text)).toBe(text)
             expect(billTarget(text)).toBe('root')
+        }
+    })
+})
+
+// The vendor credit's texts the client and the server both show (plan, Decisions:
+// Messages), whose Go constants live in server/vendor_credits.go, the inactive vendor
+// text it shares with the bill in server/bills.go, and the line texts it shares with the
+// bill in server/purchase_lines.go. `%s` and `%d` are compared as written.
+const VENDOR_CREDIT_SHARED = [
+    'A vendor credit total cannot be below zero. Use a bill.',
+    'A vendor credit total must be more than zero to post.',
+    'The vendor credit total is more than Books can store.',
+    'A vendor credit holds at most 250 lines.',
+    '%s is inactive. Choose an active vendor.',
+    '%s already has credit no. %s (%s).',
+    'Account line %d: %s is inactive. Choose an active account.',
+    'Account line %d: %s is not an expense account. Choose an expense or cost of goods account.',
+    'Product line %d: %s is inactive. Choose an active product or service.',
+    'Product line %d: %s is not purchased. Turn on “I purchase this” for it first.',
+    'Account line %d: Enter an amount other than 0.',
+] as const
+
+const VENDOR_CREDIT_CLIENT_ONLY = {
+    noAccess: 'You need bookkeeper access to create vendor credits',
+    notFound: 'This vendor credit does not exist',
+    cannotEdit: 'This vendor credit cannot be edited',
+    loadFailed: 'Books could not load this vendor credit.',
+    voidBody: 'A reversing entry is posted in the original period. The number is kept.',
+} as const
+
+function vendorCreditServerSource() {
+    const server = join(__dirname, '..', 'server')
+    return ['vendor_credits.go', 'bills.go', 'purchase_lines.go']
+        .map(file => readFileSync(join(server, file), 'utf8'))
+        .join('\n')
+}
+
+describe('VENDOR_CREDIT_MESSAGES', () => {
+    it('is the vendor credit kind’s texts', () => {
+        expect(VENDOR_CREDIT_MESSAGES).toBeDefined()
+        expect(VENDOR_CREDIT_KIND.messages).toBe(VENDOR_CREDIT_MESSAGES)
+    })
+
+    it('holds the client texts under their keys', () => {
+        expect(VENDOR_CREDIT_MESSAGES).toMatchObject(VENDOR_CREDIT_CLIENT_ONLY)
+        expect(Object.values(VENDOR_CREDIT_MESSAGES)).toContain(
+            "Vendor's credit no. can be at most 40 characters"
+        )
+        // The delete-draft confirm: "Delete this draft vendor credit? This can't be undone."
+        expect(VENDOR_CREDIT_MESSAGES).toMatchObject({
+            deleteTitle: 'Delete this draft vendor credit?',
+            deleteBody: "This can't be undone.",
+        })
+    })
+
+    // Every VENDOR_CREDIT_MESSAGES text that names a server refusal is one of the shared
+    // texts, so a text changed on one side only fails here.
+    it('holds every shared text the server refuses with', () => {
+        const client = Object.values(VENDOR_CREDIT_MESSAGES).map(text =>
+            withoutFinalPeriod(String(text))
+        )
+        for (const text of VENDOR_CREDIT_SHARED) {
+            expect(client, text).toContain(withoutFinalPeriod(text))
+        }
+    })
+})
+
+describe('server/vendor_credits.go', () => {
+    for (const text of VENDOR_CREDIT_SHARED) {
+        it(`holds the vendor credit's "${text}" verbatim as a Go string`, () => {
+            const source = vendorCreditServerSource()
+            const hasText =
+                source.includes(`"${text}"`) || source.includes(`"${withoutFinalPeriod(text)}"`)
+            expect(hasText, text).toBe(true)
+        })
+    }
+})
+
+// The vendor credit's refusals (spec §3.6): Vendor and Vendor's credit no. under their
+// fields, line texts under their rows, the totals in the summary. Server texts carry
+// PocketBase's final period.
+describe('documentRefusalTarget with the vendor credit kind', () => {
+    const creditTarget = (message: string) => documentRefusalTarget(message, VENDOR_CREDIT_KIND)
+
+    it('sends an inactive vendor refusal to Vendor', () => {
+        expect(creditTarget('Pacific Power is inactive. Choose an active vendor.')).toBe('vendor')
+    })
+
+    it("sends the duplicate credit no. refusal to Vendor's credit no.", () => {
+        expect(
+            creditTarget('Pacific Power already has credit no. CM-8841 (Vendor credit 1001).')
+        ).toBe('ref_no')
+        expect(
+            creditTarget('Pacific Power already has credit no. CM-8841 (a draft vendor credit).')
+        ).toBe('ref_no')
+    })
+
+    it('sends an account line or product line refusal to its row', () => {
+        expect(
+            tableLineRefusal(
+                'Account line 2: Rent is inactive. Choose an active account.',
+                VENDOR_CREDIT_KIND.lineTables
+            )
+        ).toEqual({ table: 'account_lines', line: 1 })
+        expect(
+            tableLineRefusal(
+                'Product line 1: Cat6 patch cable, 10 ft is inactive. Choose an active product or service.',
+                VENDOR_CREDIT_KIND.lineTables
+            )
+        ).toEqual({ table: 'item_lines', line: 0 })
+    })
+
+    it('sends the total texts to the summary with no line prefix', () => {
+        for (const text of [
+            'A vendor credit total cannot be below zero. Use a bill.',
+            'The vendor credit total is more than Books can store.',
+            'A vendor credit total must be more than zero to post.',
+        ]) {
+            expect(labelledLineRefusal('Account line 1', text), text).toBe(text)
+            expect(creditTarget(labelledLineRefusal('Account line 1', text)), text).toBe('root')
         }
     })
 })

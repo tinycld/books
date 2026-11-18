@@ -5,11 +5,14 @@
 import type { FormValues } from '@tinycld/core/lib/forms/logic'
 import type { TableRow } from '@tinycld/core/lib/forms/values'
 import type { BooksExpenses, BooksVendors } from '../types'
-import { rowsOf } from './form-values'
 import type { PaymentMethodKey } from './payment-methods'
 import type { PurchaseLineRow } from './purchase-line-columns'
 import type { PurchaseLines } from './purchase-lines'
-import { purchaseLinesWithNewIds, purchaseStartLines, vendorAccountFill } from './purchase-values'
+import {
+    purchaseLinesWithNewIds,
+    purchaseStartLines,
+    vendorAccountLineFills,
+} from './purchase-values'
 
 // The `books:expense` host's built-in values, keyed as the engine keys them. `replaces` is
 // no built-in: a correction's save writes it with the new expense.
@@ -28,19 +31,9 @@ export type ExpenseFormValues = FormValues & {
 // What a vendor pick reads: its default expense account.
 type ExpenseVendorFill = Pick<BooksVendors, 'id' | 'expense_account'>
 
-// What picking a vendor fills (spec §3.3): nothing in the band. When the account table
-// holds a first line with no account, that line gets the vendor's default expense account,
-// only when the Account picker lists it (`accountIsListed`, vendorAccountFill); otherwise
-// the fills are empty.
-export function expenseVendorFills(
-    vendor: Pick<BooksVendors, 'expense_account'>,
-    accountIsListed: boolean,
-    current: FormValues
-): Partial<Pick<ExpenseFormValues, 'account_lines'>> {
-    const accountLines = vendorAccountFill(vendor, accountIsListed, rowsOf(current.account_lines))
-    if (!accountLines) return {}
-    return { account_lines: accountLines }
-}
+// What picking a vendor fills (spec §3.3): nothing in the band, and the first account
+// line's empty Account (vendorAccountLineFills).
+export const expenseVendorFills = vendorAccountLineFills
 
 // A new form: an empty band paid today, with the setting's starting lines. With a vendor
 // (the `?vendor` route param) the first account line is filled as a pick fills it.

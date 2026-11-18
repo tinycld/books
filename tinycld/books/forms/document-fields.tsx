@@ -41,7 +41,6 @@ import {
     NO_CUSTOMER_TEXT,
     NO_PARTY_TEXT,
     NO_VENDOR_TEXT,
-    VENDOR_REF_HINT,
 } from '../lib/document-texts'
 import { textOf } from '../lib/form-values'
 import type { PaymentTermKey } from '../lib/payment-terms'
@@ -355,9 +354,10 @@ function CustomerPickerField({ value, onChange, disabled, label }: BuiltinFieldP
  * A bill's Vendor picker options: active vendors by name, the stored vendor too when it
  * is now inactive (a correction keeps its original's vendor; vendorPickerOptions marks
  * it), searched on the client on the name. The query runs only while the picker is open;
- * the server limit applies only while not searching, so a limit never cuts matches.
+ * the server limit applies only while not searching, so a limit never cuts matches. The
+ * vendor refund's Vendor picker reads the same options (with no stored vendor).
  */
-function useVendorOptions(term: string, isOpen: boolean, storedId: string) {
+export function useVendorOptions(term: string, isOpen: boolean, storedId: string) {
     const [vendorsCollection] = useStore('books_vendors')
     const isSearching = term.trim() !== ''
     const query = useLiveQuery({
@@ -661,9 +661,9 @@ export function MailingAddressField(props: BuiltinFieldProps) {
 
 // The hint's line under the input, in the classes of core's cell description; on an error
 // the cell's error line (under it) takes its place.
-function RefHintLine({ isVisible }: { isVisible: boolean }) {
+function RefHintLine({ text, isVisible }: { text: string; isVisible: boolean }) {
     if (!isVisible) return null
-    return <Text className="text-muted-foreground text-xs mt-1">{VENDOR_REF_HINT}</Text>
+    return <Text className="text-muted-foreground text-xs mt-1">{text}</Text>
 }
 
 // No bottom margin of its own: the field cell has it.
@@ -675,21 +675,28 @@ const REF_INPUT_WRAPPER = { className: 'gap-1.5' }
 export const SELF_HINTED_FIELDS: ReadonlySet<string> = new Set(['ref_no'])
 
 /**
- * Vendor's bill no.: optional text in core's labelled cell (`chrome: 'cell'`). The cell
- * draws the label and, under the input, the field's error (`form-field-ref_no-error`).
- * This component draws the input, bound to the document form's own field so a client rule
- * and a server refusal (setError on `ref_no`) give it core's error border, and the hint
- * "The number on the vendor's bill" while the field has no error. The document form drops
- * the definition's description of this field (SELF_HINTED_FIELDS), so the hint shows once.
- * The 40-character bound is the bill schema's, counted on the trimmed text in code points
- * as the server counts it, so the input sets no maxLength (which counts untrimmed UTF-16
- * units) that could disagree with it.
+ * Vendor's bill no. (a bill) or Vendor's credit no. (a vendor credit): optional text in
+ * core's labelled cell (`chrome: 'cell'`). The cell draws the label and, under the input,
+ * the field's error (`form-field-ref_no-error`). This component draws the input, bound to
+ * the document form's own field so a client rule and a server refusal (setError on
+ * `ref_no`) give it core's error border, and the hint while the field has no error. The
+ * hint is the definition's description of the field, or the form's own host layout
+ * default when a stored form has none (the bill layout's VENDOR_REF_HINT, the vendor
+ * credit layout's VENDOR_CREDIT_REF_HINT). The document form drops that description from
+ * the cell (SELF_HINTED_FIELDS) and hands it here through its scope, so the hint shows
+ * once. Outside a document form (a design canvas) the scope has no hint and core's cell
+ * draws the description itself. The 40-character bound is the
+ * schema's, counted on the trimmed text in code points as the server counts it, so the
+ * input sets no maxLength (which counts untrimmed UTF-16 units) that could disagree with
+ * it.
  */
 export function VendorRefField({ fieldKey, label, disabled }: BuiltinFieldProps) {
     const { control } = useFormContext<FormValues>()
     const { errors } = useFormState({ control, name: fieldKey })
     const hasError = errors[fieldKey] !== undefined
-    const { kind } = useDocumentFormScope()
+    const { kind, hints } = useDocumentFormScope()
+    const hint = hints[fieldKey] ?? ''
+    const showsHint = !hasError && hint !== ''
     const testID = `${kind.testId}-${fieldKey.replaceAll('_', '-')}`
     return (
         <View testID={testID}>
@@ -705,7 +712,7 @@ export function VendorRefField({ fieldKey, label, disabled }: BuiltinFieldProps)
                 autoComplete="off"
                 editable={!disabled}
             />
-            <RefHintLine isVisible={!hasError} />
+            <RefHintLine text={hint} isVisible={showsHint} />
         </View>
     )
 }

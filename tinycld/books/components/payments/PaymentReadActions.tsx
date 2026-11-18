@@ -1,3 +1,4 @@
+import type { Transaction } from '@tanstack/db'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
@@ -7,19 +8,27 @@ import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { router } from 'expo-router'
 import { useState } from 'react'
 import type { DocumentReadItem } from '../../hooks/useDocumentReadActions'
-import type { PaymentReadAction } from '../../lib/payment-read-actions'
+import type { PaymentRecordHeader } from '../../hooks/usePaymentRecord'
+import { useVoidDocument } from '../../hooks/useVoidDocument'
+import type { PaymentFlow } from '../../lib/payment-flow'
+import {
+    type PaymentCollectionName,
+    type PaymentReadAction,
+    paymentReadActions,
+    voidWriteCollection,
+} from '../../lib/payment-read-actions'
 import { PAYMENT_READ_DESCRIPTIONS, PAYMENT_READ_KEYS } from '../../lib/payment-shortcuts'
 import { writeRefusalText } from '../../lib/refusal'
-import type { BooksBillPayments, BooksPayments } from '../../types'
+import type { BooksBillPayments, BooksPayments, BooksVendorRefunds } from '../../types'
 import type { DocumentMoreItem } from '../documents/DocumentActionBar'
 import { DocumentReadActions } from '../documents/DocumentReadActions'
 import { VoidDialog } from '../entries/VoidDialog'
 
 type ReadField = 'id' | 'status' | 'number' | 'entry'
-type ReadPayment = Pick<BooksPayments, ReadField> | Pick<BooksBillPayments, ReadField>
-
-// The payment collections a read view voids: a customer payment or a bill payment.
-export type PaymentCollectionName = 'books_payments' | 'books_bill_payments'
+type ReadPayment =
+    | Pick<BooksPayments, ReadField>
+    | Pick<BooksBillPayments, ReadField>
+    | Pick<BooksVendorRefunds, ReadField>
 
 export interface PaymentReadTarget {
     collection: PaymentCollectionName
@@ -32,23 +41,28 @@ export interface PaymentReadTarget {
     entryNoun: string
 }
 
-// Void as a write to the named collection: `status: 'void'` (the server posts the
-// reversing entry and opens the paid documents again).
+// Void as a write to the read view's own collection (`voidWriteCollection`):
+// `status: 'void'` (the server posts the reversing entry and opens the paid documents
+// again). One write per collection name, so a name with no write is a type error. A
+// customer payment voids through the write the sales lists share (useVoidDocument).
 function useVoidWrite(collection: PaymentCollectionName) {
-    const [paymentsCollection, billPaymentsCollection] = useStore(
-        'books_payments',
-        'books_bill_payments'
+    const [billPaymentsCollection, vendorRefundsCollection] = useStore(
+        'books_bill_payments',
+        'books_vendor_refunds'
     )
-    return (id: string) => {
-        if (collection === 'books_payments') {
-            return paymentsCollection.update(id, draft => {
+    const voidSales = useVoidDocument()
+    const writes: Record<PaymentCollectionName, (id: string) => Transaction> = {
+        books_payments: id => voidSales('payment', id),
+        books_bill_payments: id =>
+            billPaymentsCollection.update(id, draft => {
                 draft.status = 'void'
-            })
-        }
-        return billPaymentsCollection.update(id, draft => {
-            draft.status = 'void'
-        })
+            }),
+        books_vendor_refunds: id =>
+            vendorRefundsCollection.update(id, draft => {
+                draft.status = 'void'
+            }),
     }
+    return writes[voidWriteCollection(collection)]
 }
 
 /**
@@ -149,5 +163,44 @@ export function PaymentReadActions({
             />
             <VoidDialog {...voidDialog} />
         </>
+    )
+}
+
+// What a flow's read view bar receives: the flow, its header collection, the shown record,
+// the role and the screen's scope.
+export interface PaymentReadBarProps {
+    flow: PaymentFlow
+    collection: PaymentCollectionName
+    payment: PaymentRecordHeader
+    canWrite: boolean
+    scopeOwner: ScopeOwner
+}
+
+/**
+ * The read view bar from the flow's descriptor alone (the received payment): the actions
+ * the read rule allows, Edit on the flow's `?replaces` route, the flow's Void texts, and no
+ * Audit history row.
+ */
+export function PaymentFlowReadBar({
+    flow,
+    collection,
+    payment,
+    canWrite,
+    scopeOwner,
+}: PaymentReadBarProps) {
+    const offered = paymentReadActions(payment.status, canWrite, payment.entry !== '')
+    const editHref = `${flow.routeBase}/new?replaces=${payment.id}`
+    return (
+        <PaymentReadActions
+            payment={payment}
+            offered={offered}
+            historyItem={null}
+            scopeOwner={scopeOwner}
+            collection={collection}
+            editHref={editHref}
+            voidBody={flow.texts.voidBody}
+            confirmLabel={flow.texts.voidConfirm}
+            entryNoun={flow.texts.voidNoun}
+        />
     )
 }
