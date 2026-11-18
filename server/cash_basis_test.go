@@ -710,3 +710,27 @@ func TestRebuildBalances_RebuildsTheCashRows(t *testing.T) {
 	}
 	requireCashRows(t, "the rows after rebuildBalances", cashRowsOf(t, ce.app, nil), before)
 }
+
+// The refund payer of a vendor credit sets its own memo on the rows it brings
+// back; a bill paid on the same day keeps "Bill <n> paid (cash basis)" on the
+// rows its payment brings back (the invoice's "Invoice <n> paid (cash basis)"
+// is pinned by TestCashBasis_InvoicePaidWithUnappliedCredit).
+func TestCashBasis_ABillPaidBesideARefundKeepsItsMemo(t *testing.T) {
+	re := newRefundCashBook(t)
+	bill := re.postedBillOn(t, re.pacificPower, billDay, billAmount{re.designTools, 10000})
+	credit := re.postedCredit(t, re.pacificPower, vendorCreditDay, billAmount{re.rent, 5000})
+	payment := re.payOn(t, re.pacificPower, refundDay, payLine{bill, 4000})
+	refund := re.refund(t, nil, refundLine{credit, 5000})
+	payEntry, refundEntry := payment.GetString("entry"), refund.GetString("entry")
+
+	requireCashRows(t, "the bill's rows the payment brought back", shareRows(t, re.app, payEntry), []cashRow{
+		{kind: "bill", account: re.designTools.Id, debit: 4000, date: refundDay, memo: billPaidMemo(bill.GetString("number")), entry: payEntry, paymentEntry: payEntry},
+		{kind: "bill", account: re.payable.Id, credit: 4000, date: refundDay, memo: billPaidMemo(bill.GetString("number")), entry: payEntry, paymentEntry: payEntry},
+	})
+	requireCashRows(t, "the credit's rows the refund brought back", shareRows(t, re.app, refundEntry), []cashRow{
+		{kind: "vendor_credit", account: re.rent.Id, credit: 5000, date: refundDay, memo: creditRefundedMemo(credit.GetString("number")), entry: refundEntry, paymentEntry: refundEntry},
+		{kind: "vendor_credit", account: re.payable.Id, debit: 5000, date: refundDay, memo: creditRefundedMemo(credit.GetString("number")), entry: refundEntry, paymentEntry: refundEntry},
+	})
+	requireCashRowsBalancePerDate(t, re.app)
+	requireNoCashDrift(t, re.app)
+}

@@ -57,8 +57,9 @@ const vendorCreditDraftName = "a draft vendor credit"
 // and posting debits Accounts payable (which posting creates when the chart
 // has none, ensurePayables) for the total and credits each line's expense
 // account (expenseByAccount, mirrored). Its balance is the credit not yet
-// applied to bills (vendorCreditBalanceKind); a void is refused while it is
-// applied, and a correction takes its applications and its original's files
+// applied to bills nor refunded (vendorCreditBalanceKind); a void is refused
+// while it is applied or a posted refund names it, and a correction takes its
+// applications, its posted refunds' lines and its original's files
 // (replaceVendorCredit). Its BeforePost is set in init: it
 // reads the kind's own lines, and a field of vendorCreditKind that names
 // vendorCreditKind is an initialization cycle.
@@ -116,12 +117,43 @@ const (
 	msgVendorCreditCorrectionVendor = "This credit is applied to bills, so its vendor cannot change."
 )
 
+// Refusals of a vendor credit that a posted vendor refund names (vendor refund
+// spec §3.9). %s is the amount its applications and refunds take together.
+const (
+	msgVendorCreditVoidRefunded       = "A vendor refund is recorded on this credit. Void the refund first."
+	msgVendorCreditCorrectionBelowAll = "%s of this credit is applied or refunded. Its total cannot be below that."
+	msgVendorCreditCorrectionRefunded = "A vendor refund is recorded on this credit, so its vendor cannot change."
+)
+
+// vendorCreditTaken is what a vendor credit's two payers take from it: the
+// sum of its applications to bills and the sum of its posted refunds' lines,
+// read apart because each holds the credit with its own text.
+func vendorCreditTaken(tx core.App, creditID string) (applied, refunded int64, err error) {
+	for _, p := range vendorCreditBalanceKind.Payers {
+		n, err := appliedByPayer(tx, vendorCreditBalanceKind, p, creditID)
+		if err != nil {
+			return 0, 0, err
+		}
+		if p.PaymentCollection == vendorRefundsCollection {
+			refunded += n
+		} else {
+			applied += n
+		}
+	}
+	return applied, refunded, nil
+}
+
 // refuseVendorCreditVoidApplied is the vendor credit's CheckVoid: a credit
-// applied to bills stays posted until those applications are removed.
+// that a posted vendor refund names stays posted until that refund is void,
+// and a credit applied to bills until those applications are removed. The
+// refund's text wins when both hold it: the refund must go first.
 func refuseVendorCreditVoidApplied(tx core.App, doc *core.Record) error {
-	applied, err := postedAppliedTo(tx, vendorCreditBalanceKind, doc.Id)
+	applied, refunded, err := vendorCreditTaken(tx, doc.Id)
 	if err != nil {
 		return err
+	}
+	if refunded > 0 {
+		return refuse(msgVendorCreditVoidRefunded)
 	}
 	if applied > 0 {
 		return refuse(msgVendorCreditVoidApplied)
@@ -136,22 +168,33 @@ func init() {
 }
 
 // replaceVendorCredit is the vendor credit's Replace step: while applications
-// apply the original, the correction keeps a total of at least what they
-// apply and keeps the vendor; then the applications move to the correction,
-// whose balance postSalesDoc then sets to its total less them, and the
-// correction takes every file of the original. The bills those applications
-// pay rebuild their cash-basis rows: the rows an application brings back
-// name the credit's posted entry, which is now the correction's
-// (moveLinesWhere rebuilds only the credits' own rows).
+// or posted vendor refunds take from the original, the correction keeps a
+// total of at least what they take and keeps the vendor (with the refund's
+// texts when a refund is among them); then the applications and the posted
+// refunds' lines move to the correction (movePostedLines), whose balance
+// postSalesDoc then sets to its total less them, and the correction takes
+// every file of the original. The bills those applications pay rebuild their
+// cash-basis rows: the rows an application brings back name the credit's
+// posted entry, which is now the correction's (moveLinesWhere rebuilds only
+// the credits' own rows).
 func replaceVendorCredit(tx core.App, original, correction *core.Record) error {
-	applied, err := postedAppliedTo(tx, vendorCreditBalanceKind, original.Id)
+	applied, refunded, err := vendorCreditTaken(tx, original.Id)
 	if err != nil {
 		return err
+	}
+	currency := correction.GetString("currency")
+	if refunded > 0 {
+		if taken := applied + refunded; int64(correction.GetInt("total")) < taken {
+			return refuse(msgVendorCreditCorrectionBelowAll, formatMoney(taken, currency))
+		}
+		if correction.GetString("vendor") != original.GetString("vendor") {
+			return refuse(msgVendorCreditCorrectionRefunded)
+		}
 	}
 	var bills []string
 	if applied > 0 {
 		if int64(correction.GetInt("total")) < applied {
-			return refuse(msgVendorCreditCorrectionBelow, formatMoney(applied, correction.GetString("currency")))
+			return refuse(msgVendorCreditCorrectionBelow, formatMoney(applied, currency))
 		}
 		if correction.GetString("vendor") != original.GetString("vendor") {
 			return refuse(msgVendorCreditCorrectionVendor)

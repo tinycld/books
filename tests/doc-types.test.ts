@@ -86,6 +86,19 @@ describe('vendor_credit doc type', () => {
     })
 })
 
+// The seeded `vendor_refund` row (booksseqvrefund) gets the "Vendor refunds" card;
+// registers and the ledger read "Vendor refund" as its Type (vendor refund spec §3.11).
+describe('vendor_refund doc type', () => {
+    it('names the Numbering card "Vendor refunds", previews the next vendor refund and labels the Type "Vendor refund"', () => {
+        expect(DOC_TYPES.vendor_refund).toEqual({ label: 'Vendor refunds', noun: 'vendor refund' })
+        expect(DOC_TYPE_LABELS.vendor_refund).toBe('Vendor refund')
+        expect(nextNumberPreview('vendor_refund', '', '1001')).toBe('Next vendor refund: 1001')
+        expect(sequenceHelper('vendor_refund')).toContain(
+            'applies to vendor refunds posted from now on.'
+        )
+    })
+})
+
 describe('sequenceHelper', () => {
     it('says a new estimate prefix applies to estimates saved from now on', () => {
         expect(sequenceHelper('estimate')).toBe(

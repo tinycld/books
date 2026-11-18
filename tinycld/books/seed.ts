@@ -78,6 +78,15 @@ import {
     VENDOR_CREDITS,
 } from './lib/vendor-credit-form-fixture'
 import { VENDORS } from './lib/vendor-form-fixture'
+import {
+    linesOfRefund,
+    REFUND_ACCOUNTS,
+    refundCreditById,
+    VENDOR_REFUND_SEED_CREDIT_IDS,
+    VENDOR_REFUND_SEED_CREDIT_LINE,
+    VENDOR_REFUND_SEED_IDS,
+    VENDOR_REFUNDS,
+} from './lib/vendor-refund-fixture'
 
 // Seed function invoked by core/scripts/seed-db.ts with a superuser `pb` and
 // the seeded user. Entries are posted through the same update the app makes,
@@ -259,6 +268,7 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     const expenseIds = await seedExpenses(pb, ctx, accountIds)
     const creditIds = await seedVendorCredits(pb, ctx, accountIds)
     await seedVendorCreditApplications(pb, ctx, accountIds, creditIds)
+    await seedVendorRefunds(pb, ctx, accountIds)
     await seedAttachments(pb, ctx, billIds, expenseIds)
     // Last among the document seeds, so the earlier seeded documents keep their numbers.
     await seedCustomerBalance(pb, ctx, ids, customerIds)
@@ -1294,6 +1304,84 @@ export async function seedVendorCreditApplications(
             date: fixture.date,
             applied_by: ctx.user.id,
         })
+    }
+}
+
+// Posts the one vendor credit of VENDOR_REFUND_SEED_CREDIT_IDS (Cascade Fuel & Fleet: no
+// other seeded credit and no open bill) through the writes seedVendorCredits makes (draft,
+// its one account line, then posted), then writes VENDOR_REFUND_SEED_IDS in that order as
+// seedPayments writes a payment: the draft, its lines on the created credit, then the post
+// with the seeded user as poster. The server numbers the posted ones (1001, 1002 on a fresh
+// book), writes their entries and lowers the credit's balance; the void one is then voided,
+// which gives its amount back, and the draft stays a draft. The credit ends with 275.00
+// unapplied. A refund's Refunded to resolves by the fixture account's number in
+// `accountIds`.
+export async function seedVendorRefunds(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>
+): Promise<void> {
+    const creditIds = new Map<string, string>()
+    for (const id of VENDOR_REFUND_SEED_CREDIT_IDS) {
+        const fixture = refundCreditById(id)
+        if (fixture === undefined)
+            throw new Error(`seed: vendor credit ${id} is not in the fixture`)
+        const created = await pb.collection('books_vendor_credits').create({
+            vendor: fixture.vendor,
+            status: 'draft',
+            date: fixture.date,
+            ref_no: fixture.ref_no,
+            memo: fixture.memo,
+        })
+        creditIds.set(id, created.id)
+        const line = VENDOR_REFUND_SEED_CREDIT_LINE
+        await pb.collection('books_vendor_credit_lines').create({
+            vendor_credit: created.id,
+            position: 0,
+            kind: 'account',
+            description: line.description,
+            account: seededAccountId(accountIds, line.account_number, `vendor credit ${id}`),
+            amount: line.amount,
+        })
+        await postSeedDocument(pb, 'books_vendor_credits', created.id, ctx.user.id)
+    }
+    for (const id of VENDOR_REFUND_SEED_IDS) {
+        const fixture = VENDOR_REFUNDS.find(row => row.id === id)
+        if (fixture === undefined)
+            throw new Error(`seed: vendor refund ${id} is not in VENDOR_REFUNDS`)
+        const accountNumber = REFUND_ACCOUNTS.find(row => row.id === fixture.refunded_to)?.number
+        const refundedTo = seededAccountId(accountIds, accountNumber ?? '', `vendor refund ${id}`)
+        const created = await pb.collection('books_vendor_refunds').create({
+            vendor: fixture.vendor,
+            status: 'draft',
+            date: fixture.date,
+            payment_method: fixture.payment_method,
+            reference_no: fixture.reference_no,
+            refunded_to: refundedTo,
+            amount: fixture.amount,
+            memo: fixture.memo,
+        })
+        for (const line of linesOfRefund(id)) {
+            const credit = creditIds.get(line.vendor_credit)
+            if (credit === undefined) {
+                throw new Error(`seed: vendor refund ${id} names a credit the seed did not post`)
+            }
+            await pb.collection('books_vendor_refund_lines').create({
+                refund: created.id,
+                vendor_credit: credit,
+                amount: line.amount,
+                position: line.position,
+            })
+        }
+        if (fixture.status === 'draft') continue
+        await pb
+            .collection('books_vendor_refunds')
+            .update(created.id, { status: 'posted', posted_by: ctx.user.id })
+        if (fixture.status === 'void') {
+            await pb
+                .collection('books_vendor_refunds')
+                .update(created.id, { status: 'void', voided_by: ctx.user.id })
+        }
     }
 }
 

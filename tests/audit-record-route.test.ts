@@ -90,6 +90,29 @@ describe('auditRecordHref', () => {
         expect(auditOpenLabel('books_vendor_credits')).toBe('Open vendor credit')
     })
 
+    // Vendor refund spec §3.11: a vendor refund's lines are filed under their refund
+    // (parent_type books_vendor_refunds, parent_id the refund id: migration 2100000025's
+    // LINES), so the history of a line is the refund's, and its Open is the refund's read
+    // view; a refund's entry opens on its refund, and its void reversal as an entry.
+    it('a vendor refund record, the refund id a line’s history is filed under, and its entry open books/vendor-refunds/<id>', () => {
+        const refund = 'vrfd1001cascf01'
+        expect(auditRecordHref('books_vendor_refunds', refund, { id: refund })).toBe(
+            `books/vendor-refunds/${refund}`
+        )
+        expect(auditOpenLabel('books_vendor_refunds')).toBe('Open vendor refund')
+        const posted = {
+            id: ID,
+            doc_type: 'vendor_refund',
+            origin: 'document',
+            document: refund,
+        } as const
+        expect(auditRecordHref('books_journal_entries', ID, posted)).toBe(
+            `books/vendor-refunds/${refund}`
+        )
+        const reversal = { ...posted, origin: 'void_reversal', document: '' } as const
+        expect(auditRecordHref('books_journal_entries', ID, reversal)).toBe(`books/entries/${ID}`)
+    })
+
     it('opens a journal entry where its live row says (entryHref)', () => {
         const manual = { id: ID, doc_type: 'journal', origin: 'manual', document: '' } as const
         expect(auditRecordHref('books_journal_entries', ID, manual)).toBe(entryHref(manual))

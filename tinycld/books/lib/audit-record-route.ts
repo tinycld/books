@@ -50,6 +50,7 @@ const RECORD_PATHS: Record<string, (id: string) => string> = {
     books_accounts: id => `books/accounts/${id}`,
     books_payments: id => `books/payments/${id}`,
     books_bill_payments: id => `books/bill-payments/${id}`,
+    books_vendor_refunds: id => `books/vendor-refunds/${id}`,
 }
 
 // Records shown on a screen that holds a group of them, and that screen's Open label.
@@ -88,6 +89,7 @@ export const ROUTED_DOC_TYPES: readonly string[] = [
     'vendor_credit',
     'payment',
     'bill_payment',
+    'vendor_refund',
 ] satisfies readonly RoutedEntry['doc_type'][]
 const ROUTED_ORIGINS: readonly string[] = [
     'manual',

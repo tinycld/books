@@ -369,7 +369,11 @@ func TestOAuth_ExpensesAreReadWrite(t *testing.T) {
 func TestOAuth_VendorCreditsAreReadWrite(t *testing.T) {
 	collections := oauthPackage().Collections
 	rw := oauth.Access{Read: []string{scopeRead}, Write: []string{scopeWrite}}
-	vendorCredits := []string{"books_vendor_credits", "books_vendor_credit_lines", "books_vendor_credit_applications"}
+	// Vendor refund spec §3.11: the vendor refunds and their lines, the same way.
+	vendorCredits := []string{
+		"books_vendor_credits", "books_vendor_credit_lines", "books_vendor_credit_applications",
+		"books_vendor_refunds", "books_vendor_refund_lines",
+	}
 	for _, c := range vendorCredits {
 		got, ok := collections[c]
 		if !ok {

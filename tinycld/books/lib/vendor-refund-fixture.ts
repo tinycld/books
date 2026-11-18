@@ -6,17 +6,20 @@
 // §3.5: a refund is on vendor credits in full). A vendor credit's `balance` is its total
 // less its applications and less the lines of posted refunds (spec §3.9).
 //
-// `VendorRefundRecord` and `VendorRefundLineRecord` are local interfaces that mirror the
-// spec's Data section (§4): the collections do not exist yet. The migration checkpoint
-// (checkpoint 1, `<next>_create_books_vendor_refunds.js`) must replace them with the
-// generated `BooksVendorRefunds` and `BooksVendorRefundLines` from '../types', so the
+// `VendorRefundRecord` and `VendorRefundLineRecord` are the generated `BooksVendorRefunds`
+// and `BooksVendorRefundLines` (migration 2100000024_create_books_vendor_refunds.js), so the
 // `satisfies` checks below hold the rows to the real schema.
 //
 // A refund names its account by a fixture id (`REFUND_ACCOUNT_IDS`); the seed maps it to
 // the seeded account by number, since the relation id is known only after the seed creates
 // the accounts.
 
-import type { BooksAccounts, BooksVendorCredits } from '../types'
+import type {
+    BooksAccounts,
+    BooksVendorCredits,
+    BooksVendorRefundLines,
+    BooksVendorRefunds,
+} from '../types'
 import type { PaymentMethodKey } from './payment-methods'
 import { DEPOSIT_ACCOUNT_IDS, DEPOSIT_ACCOUNTS } from './sales-receipt-form-fixture'
 import {
@@ -37,44 +40,9 @@ const STAMP = '2026-11-17 09:00:00.000Z'
 export const VENDOR_REFUND_USER_IDS = VENDOR_CREDIT_USER_IDS
 export const VENDOR_REFUND_USER_NAMES = VENDOR_CREDIT_USER_NAMES
 
-// Spec §4 `books_vendor_refunds`. Replaced by the generated type at checkpoint 1.
-export interface VendorRefundRecord {
-    id: string
-    vendor: string
-    status: 'draft' | 'posted' | 'void'
-    number: string
-    sequence: number
-    // An ISO day.
-    date: string
-    payment_method: PaymentMethodKey | ''
-    reference_no: string
-    refunded_to: string
-    amount: number
-    memo: string
-    currency: string
-    entry: string
-    replaces: string
-    replaced_by: string
-    posted_by: string
-    posted_at: string
-    voided_by: string
-    voided_at: string
-    sort_key: string
-    created: string
-    updated: string
-}
+export type VendorRefundRecord = BooksVendorRefunds
 export type VendorRefundStatus = VendorRefundRecord['status']
-
-// Spec §4 `books_vendor_refund_lines`. Replaced by the generated type at checkpoint 1.
-export interface VendorRefundLineRecord {
-    id: string
-    refund: string
-    vendor_credit: string
-    amount: number
-    position: number
-    created: string
-    updated: string
-}
+export type VendorRefundLineRecord = BooksVendorRefundLines
 
 function vendorIdByName(name: string): string {
     const vendor = VENDORS.find(row => row.display_name === name)
@@ -393,7 +361,7 @@ export const VENDOR_REFUNDS = [
         posted_by: VENDOR_REFUND_USER_IDS.ana,
         posted_at: '2026-11-17 18:30:00.000Z',
     }),
-] satisfies VendorRefundRecord[]
+] satisfies BooksVendorRefunds[]
 
 // What the seed writes (spec §4 seed), in this order, so posting numbers them 1001 and
 // 1002 in the seeded book: `posted` is posted, `voided` is posted and then voided, `draft`
@@ -427,7 +395,7 @@ export const VENDOR_REFUND_LINES = [
         { vendor_credit: CREDIT.pacific1006, amount: 12_000 },
         { vendor_credit: CREDIT.pacific1009, amount: 3_000 },
     ]),
-] satisfies VendorRefundLineRecord[]
+] satisfies BooksVendorRefundLines[]
 
 export function linesOfRefund(refundId: string): VendorRefundLineRecord[] {
     return VENDOR_REFUND_LINES.filter(row => row.refund === refundId).sort(

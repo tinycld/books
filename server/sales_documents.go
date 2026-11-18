@@ -192,7 +192,7 @@ const (
 // come only from posting the document (entries.go).
 var documentDocTypes = map[string]bool{
 	docTypeInvoice: true, docTypeSalesReceipt: true, docTypeBill: true, docTypeExpense: true, docTypePayment: true,
-	docTypeBillPayment: true, docTypeCreditMemo: true, docTypeVendorCredit: true,
+	docTypeBillPayment: true, docTypeCreditMemo: true, docTypeVendorCredit: true, docTypeVendorRefund: true,
 }
 
 // maxDocumentLines is the most lines one sales document holds; the client's
