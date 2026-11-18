@@ -1,10 +1,10 @@
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Menu } from '@tinycld/core/ui/menu'
 import { EllipsisVertical } from 'lucide-react-native'
-import type { ReactNode } from 'react'
-import { type GestureResponderEvent, Pressable } from 'react-native'
+import { Pressable } from 'react-native'
 import type { AccountRow } from '../../hooks/useAccountsQuery'
 import type { AccountMenuHandlers } from '../../hooks/useAccountsScreen'
+import { PressBoundary } from '../PressBoundary'
 
 interface AccountRowMenuProps {
     row: AccountRow
@@ -47,19 +47,4 @@ export function AccountRowMenu({ row, menu, isDisabled }: AccountRowMenuProps) {
             </Menu>
         </PressBoundary>
     )
-}
-
-// The menu's content is portaled, but React still bubbles its presses to the
-// row's Pressable, which would open the Edit panel behind the action just chosen.
-// A Pressable swallows the presses that reach it.
-function PressBoundary({ children }: { children: ReactNode }) {
-    return (
-        <Pressable accessible={false} focusable={false} onPress={swallow}>
-            {children}
-        </Pressable>
-    )
-}
-
-function swallow(event: GestureResponderEvent) {
-    event.stopPropagation()
 }

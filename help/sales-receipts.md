@@ -42,6 +42,7 @@ An admin can set a **Default message to customer** in Settings → Sales. Each n
 - Save draft keeps the sales receipt without a number. A draft does not change your books.
 - Post gives the sales receipt the next number and records it in your books.
 - Post & new posts it and opens a new one. On a phone, it is in the More menu.
+- Cancel leaves the form. If you changed something, Books asks "Discard changes?" first. Any other way out of a form with unsaved changes asks the same question first: the Back link, the browser's Back or Forward button, and a key or a row of the Sales list beside the form. Choose Keep editing to stay with your changes, or Discard to go on. If you reload or close the browser tab, the browser asks.
 
 Books refuses to post a sales receipt whose total is zero, whose customer is inactive, or whose Deposit to is not an active bank or Undeposited funds account. A refusal about one field shows under that field (the inactive customer under Customer, the Deposit to refusal under Deposit to, or at the top of the form when Deposit to is not shown). Any other refusal, such as the zero total, shows at the top of the form.
 

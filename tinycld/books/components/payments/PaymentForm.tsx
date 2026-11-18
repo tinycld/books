@@ -12,7 +12,7 @@ import {
     useOutstandingLoader,
 } from '../../hooks/useOutstandingInvoices'
 import { usePaymentForm, usePaymentFormValues } from '../../hooks/usePaymentForm'
-import { usePaymentSave } from '../../hooks/usePaymentSave'
+import { usePaymentLeaveGuard, usePaymentSave } from '../../hooks/usePaymentSave'
 import { usePaymentShortcuts } from '../../hooks/usePaymentShortcuts'
 import { usePaymentWrites } from '../../hooks/usePaymentWrites'
 import type { DepositAccountRow } from '../../lib/deposit-accounts'
@@ -55,7 +55,8 @@ const AUTO_FOCUS = Platform.OS === 'web'
  * The receive-payment form (spec §3): the received payment's reads (the customer's open
  * invoices, the customer's name), its Customer, Deposit to and Find invoice no. fields,
  * and the shared form view under PAYMENT_FLOW. The hooks run in the fixed order: the
- * form's values, the flow's reads, usePaymentForm, usePaymentSave, usePaymentShortcuts.
+ * form's values, the flow's reads, usePaymentForm, usePaymentSave, usePaymentLeaveGuard,
+ * usePaymentShortcuts.
  */
 export function PaymentForm({
     initial,
@@ -113,12 +114,13 @@ export function PaymentForm({
         holdsHandOff,
     })
     const isSavedDraft = paymentId !== null
+    const leaveGuard = usePaymentLeaveGuard(save)
     const shortcuts = usePaymentShortcuts({
         flow: FLOW,
         scopeOwner,
         canWrite,
         isPending: save.isPending,
-        isDialogOpen: save.isDiscardOpen || save.isDeleteOpen,
+        isDialogOpen: leaveGuard.dialog.isVisible || save.isDeleteOpen,
         isSavedDraft,
         isPhone,
         run: {
@@ -168,6 +170,7 @@ export function PaymentForm({
     const view = {
         paymentForm,
         save,
+        leaveGuard,
         offered: shortcuts.offered,
         title,
         currency,

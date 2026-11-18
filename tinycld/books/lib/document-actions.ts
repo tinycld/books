@@ -40,6 +40,21 @@ export const DOCUMENT_READ_KEYS = {
     record_refund: 'r',
 } as const
 
+// The read view's words for each action; a sales list's row menu shows the same.
+export const DOCUMENT_READ_LABELS: Record<DocumentReadAction, string> = {
+    apply_credit: 'Apply to bills',
+    record_refund: 'Record refund',
+    pay_bill: 'Pay bill',
+    receive_payment: 'Receive payment',
+    edit: 'Edit',
+    void: 'Void',
+    copy: 'Copy',
+    credit_memo: 'Create credit memo',
+    entry: 'View journal entry',
+    invoice: 'Open invoice',
+    pdf: 'Download PDF',
+}
+
 export type DocumentReadKeyAction = keyof typeof DOCUMENT_READ_KEYS
 
 // Download PDF on the form and the read view. Always taken while the screen holds the

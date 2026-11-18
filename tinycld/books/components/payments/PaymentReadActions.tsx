@@ -9,6 +9,7 @@ import { router } from 'expo-router'
 import { useState } from 'react'
 import type { DocumentReadItem } from '../../hooks/useDocumentReadActions'
 import type { PaymentRecordHeader } from '../../hooks/usePaymentRecord'
+import { useVoidDocument } from '../../hooks/useVoidDocument'
 import type { PaymentFlow } from '../../lib/payment-flow'
 import {
     type PaymentCollectionName,
@@ -42,18 +43,16 @@ export interface PaymentReadTarget {
 
 // Void as a write to the read view's own collection (`voidWriteCollection`):
 // `status: 'void'` (the server posts the reversing entry and opens the paid documents
-// again). One write per collection name, so a name with no write is a type error.
+// again). One write per collection name, so a name with no write is a type error. A
+// customer payment voids through the write the sales lists share (useVoidDocument).
 function useVoidWrite(collection: PaymentCollectionName) {
-    const [paymentsCollection, billPaymentsCollection, vendorRefundsCollection] = useStore(
-        'books_payments',
+    const [billPaymentsCollection, vendorRefundsCollection] = useStore(
         'books_bill_payments',
         'books_vendor_refunds'
     )
+    const voidSales = useVoidDocument()
     const writes: Record<PaymentCollectionName, (id: string) => Transaction> = {
-        books_payments: id =>
-            paymentsCollection.update(id, draft => {
-                draft.status = 'void'
-            }),
+        books_payments: id => voidSales('payment', id),
         books_bill_payments: id =>
             billPaymentsCollection.update(id, draft => {
                 draft.status = 'void'

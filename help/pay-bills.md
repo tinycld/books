@@ -52,6 +52,7 @@ The bills you select of each vendor make one bill payment. When you select bills
 - Pay posts the payments and goes back to the screen you came from.
 - Pay & new posts the payments and keeps Pay bills open: the paid bills leave the list, and Paid from, the date and the method stay. A starting check number moves on to the number after the last one used. On a phone, Pay & new is in the More menu.
 - Cancel leaves the screen. If you entered a payment, Books asks "Discard this payment? The bills stay open." first.
+- Any other way out of the screen with a payment entered asks the same question first: the Back link and the browser's Back or Forward button. Choose Keep editing to stay with your payments, or Discard to go on. If you reload or close the browser tab, the browser asks.
 
 Books posts every payment or none. It refuses a payment into a closed period, a Paid from account that is inactive, a check number that is already on another expense or bill payment from the same account, and a payment more than a bill's open balance (for example when another payment paid it first). The message shows under the bill, the field or the list, and what you typed stays.
 

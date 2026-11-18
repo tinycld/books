@@ -1,6 +1,7 @@
 import type { Transaction } from '@tanstack/react-db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import type { PaymentMethodKey } from '../lib/payment-methods'
+import { useDeleteDraftDocument } from './useDeleteDraftDocument'
 
 // A payment header as a save writes it, its party and account by role (vendor refund spec
 // §3.1); each flow's writes map them to its own fields. Money in cents.
@@ -44,13 +45,15 @@ export interface PaymentWrites {
 
 /**
  * The received payment's writes, over `books_payments` (party `customer`, account
- * `deposit_to`) and `books_payment_applications` (document `invoice`).
+ * `deposit_to`) and `books_payment_applications` (document `invoice`). A draft's delete
+ * is the one the sales lists share (useDeleteDraftDocument).
  */
 export function usePaymentWrites(): PaymentWrites {
     const [paymentsCollection, applicationsCollection] = useStore(
         'books_payments',
         'books_payment_applications'
     )
+    const deleteDraft = useDeleteDraftDocument()
     const fieldsOf = (header: Omit<PaymentHeaderWrite, 'replaces'>) => ({
         customer: header.party,
         date: header.date,
@@ -76,7 +79,7 @@ export function usePaymentWrites(): PaymentWrites {
             paymentsCollection.update(id, draft => {
                 draft.status = 'posted'
             }),
-        deleteHeader: id => paymentsCollection.delete(id),
+        deleteHeader: id => deleteDraft('payment', id),
         insertLine: line =>
             applicationsCollection.insert({
                 id: line.id,

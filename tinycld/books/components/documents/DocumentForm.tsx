@@ -25,11 +25,13 @@ import { SELF_HINTED_FIELDS } from '../../forms/document-fields'
 import { type DocumentWrites, estimateNumberOf, expiredOnOf } from '../../hooks/document-data'
 import { useBackToEntries } from '../../hooks/useBackToEntries'
 import { useCopyEstimateLink } from '../../hooks/useCopyEstimateLink'
+import { useDeleteDraftDocument } from '../../hooks/useDeleteDraftDocument'
 import { useDocumentAttachments } from '../../hooks/useDocumentAttachments'
 import { type DocumentFormState, useDocumentForm } from '../../hooks/useDocumentForm'
 import { useDocumentSave } from '../../hooks/useDocumentSave'
 import type { DocumentScreenData } from '../../hooks/useDocumentScreen'
 import { useDocumentShortcuts } from '../../hooks/useDocumentShortcuts'
+import { useFormLeaveGuard } from '../../hooks/useFormLeaveGuard'
 import { usePdfDownload } from '../../hooks/usePdfDownload'
 import { invoiceLinkLabel } from '../../lib/credit-memo-link'
 import { DOCUMENT_PDF_KEY } from '../../lib/document-actions'
@@ -49,6 +51,7 @@ import { documentTaxOf, lineAmountViews, shownDocumentTotals } from '../../lib/d
 import { lineTableRows } from '../../lib/document-values'
 import { TOO_LARGE_TEXT } from '../../lib/entry-lines'
 import { formatMoney } from '../../lib/money'
+import { transactionKindOf } from '../../lib/party-transactions'
 import { todayIso } from '../../lib/register-range'
 import { documentConflictText } from '../../lib/revision'
 import { rootErrorOnly } from '../../lib/root-errors'
@@ -224,17 +227,22 @@ function useDocumentTotals(form: EngineForm, scope: DocumentFormScope) {
 // row from the store at once, so the screen holds the form (and this dialog) before it
 // starts: a refusal stays in the dialog, with the user's edits behind it, until the next
 // attempt. A success leaves; the hold ends when the screen goes (useScreenHoldRelease).
+// A sales kind deletes through the write the sales lists share; a purchase kind (bill,
+// expense) through its own data source.
 function useDocumentDelete(
     writes: DocumentWrites,
+    kind: SalesDocumentKind,
     documentId: string | undefined,
     leave: () => void
 ) {
     const hold = useDocumentSaveStore(s => s.hold)
     const release = useDocumentSaveStore(s => s.release)
+    const deleteSales = useDeleteDraftDocument()
+    const salesKind = transactionKindOf(kind)
     const [isOpen, setOpen] = useState(false)
     const remove = useMutation({
         mutationFn: function* (id: string) {
-            yield writes.deleteRecord(id)
+            yield salesKind === null ? writes.deleteRecord(id) : deleteSales(salesKind, id)
         },
         onSuccess: () => {
             setOpen(false)
@@ -255,6 +263,9 @@ function useDocumentDelete(
     return {
         isOpen,
         isPending: remove.isPending,
+        // The delete succeeded and its `leave()` runs: true from the same update that ends
+        // `isPending`, until `open()` resets it.
+        isSuccess: remove.isSuccess,
         errorMessage,
         open,
         confirm,
@@ -762,7 +773,7 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
     const writes = documentKind.data.useWrites()
     const serverState = useServerActionState()
     const formAttachments = useFormAttachments(data, kind, save.writtenId, state.replaces)
-    // Pending files and pending removals are an edit: Cancel asks first.
+    // Pending files and pending removals are an edit: leaving asks first.
     const hasAttachmentChanges = useAttachmentsStore(s =>
         hasSessionChanges(s.sessions[attachmentSession])
     )
@@ -828,7 +839,7 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
     // The stored draft: the route's own, or the one a new form wrote before its post was
     // refused.
     const draftId = state.recordId ?? save.writtenId ?? undefined
-    const deletion = useDocumentDelete(writes, draftId, leave)
+    const deletion = useDocumentDelete(writes, kind, draftId, leave)
     useScreenHoldRelease(draftId)
     const canDelete = canDeleteOf(kind, state.isNew, data.record?.status, save.writtenId)
     const convertStatus = useWatch({ control: form.control, name: 'status' })
@@ -847,6 +858,29 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
         void save.convert()
     }
     const isBusy = save.isSaving || deletion.isPending
+    const isEdited = save.isDirty || hasAttachmentChanges
+    // Discard drops the pending files and restores the rows marked for removal: the
+    // session is emptied, not dropped, as another mounted screen of the same document
+    // may hold it.
+    const clearAttachments = () => {
+        if (attachmentSession !== '') useAttachmentsStore.getState().clear(attachmentSession)
+    }
+    const leaveGuard = useFormLeaveGuard({
+        isDirty: isEdited,
+        isWriting: isBusy || deletion.isSuccess,
+        cancel: () => (isEdited ? setDiscardOpen(true) : leave()),
+        leave,
+        question: {
+            isOpen: isDiscardOpen,
+            discard: () => {
+                setDiscardOpen(false)
+                clearAttachments()
+                leave()
+            },
+            keepEditing: () => setDiscardOpen(false),
+        },
+        onDiscard: clearAttachments,
+    })
     const customerLink = useCopyEstimateLink(publicTokenOf(data.record))
     const pdf = useDraftPdf(kind, draftId, isBusy)
     const pdfVersion = documentKind.data.useVersion(draftId)
@@ -878,17 +912,7 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
 
     if (!state.isReady || !parts) return <DocumentLoading />
 
-    const isEdited = save.isDirty || hasAttachmentChanges
-    const cancel = () => (isEdited ? setDiscardOpen(true) : leave())
-    // Discard drops the pending files and restores the rows marked for removal: the
-    // session is emptied, not dropped, as another mounted screen of the same document
-    // may hold it.
-    const discard = () => {
-        setDiscardOpen(false)
-        if (attachmentSession !== '') useAttachmentsStore.getState().clear(attachmentSession)
-        leave()
-    }
-    const keepEditing = () => setDiscardOpen(false)
+    const cancel = leaveGuard.cancel
     const onSaveDraft = () => {
         void save.saveDraft()
     }
@@ -1054,12 +1078,7 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
                                 moreItems={moreItems}
                                 scopeOwner={shortcuts.scopeOwner}
                             />
-                            <DiscardDialog
-                                isVisible={isDiscardOpen}
-                                onDiscard={discard}
-                                onKeepEditing={keepEditing}
-                                title="Discard changes?"
-                            />
+                            <DiscardDialog title="Discard changes?" {...leaveGuard.dialog} />
                             <DeleteDraftDialog
                                 isVisible={deletion.isOpen}
                                 onConfirm={deletion.confirm}

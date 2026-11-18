@@ -14,6 +14,7 @@ import { writeRefusalText } from '../lib/refusal'
 import { tableWriteSteps } from '../lib/table-writes'
 import { usePaymentSaveStore } from '../stores/payment-save-store'
 import { useBackToEntries } from './useBackToEntries'
+import { useFormLeaveGuard } from './useFormLeaveGuard'
 import { usePaymentDraftDelete } from './usePaymentDraftDelete'
 import type { PaymentFormState } from './usePaymentForm'
 import type { PaymentWrites } from './usePaymentWrites'
@@ -96,6 +97,9 @@ export function usePaymentSave(flow: PaymentFlow, writes: PaymentWrites, input: 
     const left = useRef(false)
     const [isDiscardOpen, setDiscardOpen] = useState(false)
     const flowKey = flow.key
+    // A new payment's refused post handed its draft to the draft's own route: the store
+    // holds the hand-off (set before the move), so the move asks nothing.
+    const isHandingOff = usePaymentSaveStore(state => isNew && state.refused[flowKey]?.id === id)
     useEffect(() => {
         isLive.current = true
         return () => {
@@ -166,6 +170,9 @@ export function usePaymentSave(flow: PaymentFlow, writes: PaymentWrites, input: 
         onError: () => {},
     })
 
+    // `left`: the user asked to leave while a write runs, so the write neither moves nor
+    // shows its refusal. The leave guard can hold that move (a dirty form) and the user
+    // can keep editing, so each write clears `left` when it starts.
     const leave = () => {
         left.current = true
         back.onBack()
@@ -175,6 +182,9 @@ export function usePaymentSave(flow: PaymentFlow, writes: PaymentWrites, input: 
         id,
         lineIds: storedLines.map(row => row.id),
         hasLeft: () => left.current,
+        onStart: () => {
+            left.current = false
+        },
         onDeleted: leave,
     })
 
@@ -244,6 +254,9 @@ export function usePaymentSave(flow: PaymentFlow, writes: PaymentWrites, input: 
     return {
         ...draftDelete,
         isPending: save.isPending || draftDelete.isDeletePending,
+        // A write that leaves the form succeeded or handed off: its move is under way.
+        isLeaving: draftDelete.isDeleteDone || isHandingOff,
+        isDirty,
         isDiscardOpen,
         saveDraft: submit('draft'),
         post: submit('post'),
@@ -259,3 +272,23 @@ export function usePaymentSave(flow: PaymentFlow, writes: PaymentWrites, input: 
 }
 
 export type PaymentSave = ReturnType<typeof usePaymentSave>
+
+/**
+ * A payment form's leave guard (useFormLeaveGuard) over its save: every payment flow's
+ * form asks before a dirty form is left by any way, with the form's one Discard dialog.
+ */
+export function usePaymentLeaveGuard(save: PaymentSave) {
+    return useFormLeaveGuard({
+        isDirty: save.isDirty,
+        isWriting: save.isPending || save.isLeaving,
+        cancel: save.cancel,
+        leave: save.leave,
+        question: {
+            isOpen: save.isDiscardOpen,
+            discard: save.discard,
+            keepEditing: save.keepEditing,
+        },
+    })
+}
+
+export type PaymentLeaveGuard = ReturnType<typeof usePaymentLeaveGuard>

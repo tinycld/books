@@ -3,7 +3,7 @@ import { FormErrorSummary, TextAreaInput } from '@tinycld/core/ui/form'
 import type { ReactNode } from 'react'
 import { ScrollView, Text, View } from 'react-native'
 import type { PaymentFormState } from '../../hooks/usePaymentForm'
-import type { PaymentSave } from '../../hooks/usePaymentSave'
+import type { PaymentLeaveGuard, PaymentSave } from '../../hooks/usePaymentSave'
 import type { PaymentFlow } from '../../lib/payment-flow'
 import type { PaymentFormKey } from '../../lib/payment-shortcuts'
 import { paymentFigureText } from '../../lib/payment-texts'
@@ -26,6 +26,9 @@ import { PaymentTotals } from './PaymentTotals'
 export interface PaymentFormViewState {
     paymentForm: PaymentFormState
     save: PaymentSave
+    // The leave guard over the save (usePaymentLeaveGuard): Cancel, Back and the Discard
+    // dialog go through it.
+    leaveGuard: PaymentLeaveGuard
     // The form keys offered now (usePaymentShortcuts).
     offered: readonly PaymentFormKey[]
     title: string
@@ -75,7 +78,8 @@ export function PaymentFormView({
     accountField,
     findField,
 }: PaymentFormViewProps) {
-    const { paymentForm, save, offered, title, currency, isPhone, isSavedDraft, scopeOwner } = form
+    const { paymentForm, save, leaveGuard, offered, title, currency, isPhone, isSavedDraft } = form
+    const { scopeOwner } = form
     const { texts, testId } = flow
     const { values, outstanding, totals } = paymentForm
     // A running save, delete or post: every control waits for it, so an edit made during
@@ -117,7 +121,7 @@ export function PaymentFormView({
         rowRef: paymentForm.rowRef,
     }
     return (
-        <EntryLeaveContext.Provider value={save.cancel}>
+        <EntryLeaveContext.Provider value={leaveGuard.cancel}>
             <View testID={`${testId}-form`} className="min-w-0 flex-1 bg-background">
                 <ScrollView
                     className="flex-1"
@@ -191,19 +195,14 @@ export function PaymentFormView({
                     isSaving={save.isPending}
                     canDeleteDraft={isSavedDraft}
                     isPhone={isPhone}
-                    onCancel={save.cancel}
+                    onCancel={leaveGuard.cancel}
                     onSaveDraft={save.saveDraft}
                     onPost={save.post}
                     onPostAndNew={save.postAndNew}
                     onDeleteDraft={save.openDeleteDraft}
                     scopeOwner={scopeOwner}
                 />
-                <DiscardDialog
-                    title="Discard changes?"
-                    isVisible={save.isDiscardOpen}
-                    onDiscard={save.discard}
-                    onKeepEditing={save.keepEditing}
-                />
+                <DiscardDialog title="Discard changes?" {...leaveGuard.dialog} />
                 <DeleteDraftDialog
                     isVisible={save.isDeleteOpen}
                     onConfirm={save.confirmDelete}

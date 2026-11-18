@@ -6,29 +6,23 @@ import {
     Landmark,
     List,
     Percent,
+    Receipt,
     Settings,
 } from 'lucide-react-native'
 import type { BooksAccessState } from './access'
+import { NEW_ACTIONS, type NewAction } from './new-actions'
 
 export interface SidebarEntry {
     id: string
     label: string
     icon: LucideIcon
     href: string
+    // Other paths the entry is active on, as `href` is: the path itself and every path
+    // under it.
+    activePaths?: readonly string[]
     params?: Record<string, string>
     group?: 'accounting' | 'settings'
     available: boolean
-}
-
-export interface NewAction {
-    id: string
-    label: string
-    href: string
-    column: 'customers' | 'vendors' | 'other'
-    available: boolean
-    // A transaction for one customer: the customer page's New transaction menu lists it
-    // and opens it with `?customer=<id>`.
-    takesCustomer?: true
 }
 
 export interface ListEntry {
@@ -46,6 +40,21 @@ export interface NewMenuColumn {
 
 export const SIDEBAR_ENTRIES: SidebarEntry[] = [
     { id: 'banking', label: 'Banking', icon: Landmark, href: 'books/banking', available: true },
+    // All sales; the five kind tabs and every sales document keep the entry active.
+    {
+        id: 'sales',
+        label: 'Sales',
+        icon: Receipt,
+        href: 'books/sales',
+        activePaths: [
+            'books/invoices',
+            'books/estimates',
+            'books/sales-receipts',
+            'books/payments',
+            'books/credit-memos',
+        ],
+        available: true,
+    },
     { id: 'lists', label: 'Lists', icon: List, href: 'books/lists', available: true },
     {
         id: 'reports',
@@ -85,119 +94,6 @@ export const SIDEBAR_ENTRIES: SidebarEntry[] = [
         icon: Settings,
         href: 'books/settings',
         group: 'settings',
-        available: true,
-    },
-]
-
-export const NEW_ACTIONS: NewAction[] = [
-    {
-        id: 'customer',
-        label: 'Customer',
-        href: 'books/customers/new',
-        column: 'customers',
-        available: true,
-    },
-    {
-        id: 'invoice',
-        label: 'Invoice',
-        href: 'books/invoices/new',
-        column: 'customers',
-        available: true,
-        takesCustomer: true,
-    },
-    {
-        id: 'estimate',
-        label: 'Estimate',
-        href: 'books/estimates/new',
-        column: 'customers',
-        available: true,
-        takesCustomer: true,
-    },
-    {
-        id: 'sales_receipt',
-        label: 'Sales receipt',
-        href: 'books/sales-receipts/new',
-        column: 'customers',
-        available: true,
-        takesCustomer: true,
-    },
-    {
-        id: 'receive_payment',
-        label: 'Receive payment',
-        href: 'books/payments/new',
-        column: 'customers',
-        available: true,
-        takesCustomer: true,
-    },
-    {
-        id: 'credit_memo',
-        label: 'Credit memo',
-        href: 'books/credit-memos/new',
-        column: 'customers',
-        available: true,
-        takesCustomer: true,
-    },
-    {
-        id: 'vendor',
-        label: 'Vendor',
-        href: 'books/vendors/new',
-        column: 'vendors',
-        available: true,
-    },
-    {
-        id: 'bill',
-        label: 'Bill',
-        href: 'books/bills/new',
-        column: 'vendors',
-        available: true,
-    },
-    {
-        id: 'pay_bills',
-        label: 'Pay bills',
-        href: 'books/pay-bills',
-        column: 'vendors',
-        available: true,
-    },
-    {
-        id: 'expense',
-        label: 'Expense',
-        href: 'books/expenses/new',
-        column: 'vendors',
-        available: true,
-    },
-    {
-        id: 'vendor_credit',
-        label: 'Vendor credit',
-        href: 'books/vendor-credits/new',
-        column: 'vendors',
-        available: true,
-    },
-    {
-        id: 'vendor_refund',
-        label: 'Vendor refund',
-        href: 'books/vendor-refunds/new',
-        column: 'vendors',
-        available: true,
-    },
-    {
-        id: 'journal-entry',
-        label: 'Journal entry',
-        href: 'books/entries/new',
-        column: 'other',
-        available: true,
-    },
-    {
-        id: 'transfer',
-        label: 'Transfer',
-        href: 'books/transfers/new',
-        column: 'other',
-        available: true,
-    },
-    {
-        id: 'product',
-        label: 'Product or service',
-        href: 'books/products/new',
-        column: 'other',
         available: true,
     },
 ]
@@ -277,19 +173,24 @@ export function sidebarSections(entries: readonly SidebarEntry[]) {
     }
 }
 
+function isOnPath(pathname: string, path: string): boolean {
+    return pathname.endsWith(`/${path}`) || pathname.includes(`/${path}/`)
+}
+
 export function isActivePath(pathname: string, entry: SidebarEntry): boolean {
-    return pathname.endsWith(`/${entry.href}`) || pathname.includes(`/${entry.href}/`)
+    const paths = [entry.href, ...(entry.activePaths ?? [])]
+    return paths.some(path => isOnPath(pathname, path))
 }
 
 // The entry, customer, vendor, product, transfer, invoice, sales receipt, credit memo,
 // estimate, bill, expense, vendor credit, vendor refund and payment forms, Pay Bills, and
 // the entry, transfer, invoice, sales receipt, credit memo, estimate, bill, expense,
 // vendor credit, vendor refund, payment and bill payment views own the bottom of the
-// phone screen, so the New button stays off them. `/entries`, `/customers`, `/vendors`
-// and `/products` alone are the lists, which keep it; transfers, invoices, sales
-// receipts, credit memos, estimates, bills, expenses, vendor credits, vendor refunds,
-// payments and bill payments have no list, and their bare path is no screen to hide it
-// on. Pay Bills has no id: `/pay-bills` itself is the form.
+// phone screen, so the New button stays off them. A bare path is a list (`/entries`,
+// `/customers`, `/vendors`, `/products`, and the Sales lists `/invoices`, `/estimates`,
+// `/sales-receipts`, `/payments`, `/credit-memos`), which keeps it, or no screen at all
+// (transfers, bills, expenses, vendor credits, vendor refunds and bill payments have no
+// list). Pay Bills has no id: `/pay-bills` itself is the form.
 const FAB_FREE_SCREEN =
     /\/books\/((entries|customers|vendors|products|transfers|invoices|sales-receipts|credit-memos|estimates|bills|expenses|vendor-credits|vendor-refunds|payments|bill-payments)\/[^/]+|pay-bills)\/?$/
 

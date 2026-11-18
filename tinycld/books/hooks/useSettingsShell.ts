@@ -2,7 +2,7 @@ import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { log } from '@tinycld/core/lib/logger'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
-import { router, useNavigation } from 'expo-router'
+import { router } from 'expo-router'
 import { mergeRecoveries } from '../lib/live-recovery'
 import {
     SETTINGS_SECTIONS,
@@ -16,6 +16,7 @@ import { useBooksSettings } from './useBooksSettings'
 import { useDepositAccounts } from './useDepositAccounts'
 import { useDocSequences } from './useDocSequences'
 import { useExpenseGroupAccounts } from './useForm1099Section'
+import { usePopToScreenBelow } from './useStackScreens'
 
 export type ShellPart = 'loading' | 'error' | 'list' | 'detail'
 
@@ -27,13 +28,8 @@ export function sectionFromParam(value: string | undefined): SectionId | undefin
 const LIST_ROUTE = 'settings/index'
 
 export function useSettingsShell(section: SectionId | undefined) {
-    const navigation = useNavigation()
-    // Whether the screen right below this one in its stack is the section list (as
-    // useBackToChart). A screen outside a stack has no state.
-    const isListBelow = (state: ReturnType<typeof navigation.getState>) => {
-        if (!state) return false
-        return state.routes[state.index - 1]?.name === LIST_ROUTE
-    }
+    // Pops back to the section list when it is the screen right below (as useBackToChart).
+    const popToList = usePopToScreenBelow(LIST_ROUTE)
     const access = useBooksAccess()
     const booksSettings = useBooksSettings()
     const docSequences = useDocSequences()
@@ -94,8 +90,7 @@ export function useSettingsShell(section: SectionId | undefined) {
         // browser history) holds the list once. A section with no list below it (the wide
         // rail replaced it in, or a link opened it) is replaced with the list.
         back: () => {
-            if (isListBelow(navigation.getState?.())) router.back()
-            else router.replace(orgHref('books/settings'))
+            if (!popToList()) router.replace(orgHref('books/settings'))
         },
         // One call over every failed query, so a retry rebuilds them together.
         retry: () => {

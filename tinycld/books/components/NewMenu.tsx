@@ -1,7 +1,8 @@
 import { Popover, usePopoverContext } from '@tinycld/core/ui/popover'
 import type { ReactElement } from 'react'
 import { Pressable, Text, View } from 'react-native'
-import type { NewAction, NewMenuColumn } from '../lib/shell-nav'
+import type { NewAction } from '../lib/new-actions'
+import type { NewMenuColumn } from '../lib/shell-nav'
 
 interface NewMenuProps {
     columns: NewMenuColumn[]
