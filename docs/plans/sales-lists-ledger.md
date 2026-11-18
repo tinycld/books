@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/sales-lists-checkpoints.md
 - reference: docs/plans/sales-lists-reference/
 - evidence: docs/plans/sales-lists-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs, 2026-11-17)
 - capture manifest: docs/plans/sales-lists-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -303,3 +303,4 @@
 - fix review (Books, `review-diff.mjs … 5 --fix`, input `cp/revise1-fix3-input.md`: SearchPicker late-key fix + its unit cases): round 1: 0 BLOCK, 3 NOTE (NOTE 2 → Design notes; NOTE 1 no action; NOTE 3 the critique file is evidence). Earlier Books source fixes of revise 1 (write-guard, `goToTab` revert, picker state, `usePaymentSave` `left`) were in the full gate-3 diff (`revise1-review-input.md`). Rounds: 1.
 - counts for revise 1: deferrals 0 · rebuttals 0 · design notes 9 (Design notes, `revise 1 ·` lines) · out-of-plan files 14 (Out-of-plan changes, `revise 1 ·` lines).
 - commit: Books `fix(books): ask before leaving a dirty form` — the commit that adds this row is the eval fix sha.
+- eval: approved (2026-11-17) after revise 1 (fix sha a8477c30; main merged a1a3cdd6, core 21176712). E2E sha a1a3cdd6: CI of PR #64 green (5/5), core #493 green (14/14).
