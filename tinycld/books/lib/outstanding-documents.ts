@@ -1,9 +1,10 @@
-// The open-document payment table (receive-payment's grid and cards) serves three lists:
-// the invoices a customer payment pays, the bills Pay Bills pays (pay-bills spec §3.3, §9)
-// and the bills a vendor credit is applied to (vendor credit spec §3.9). A descriptor names
-// what differs: the noun, where a row's link opens, the test-id prefix, whether a party
-// (vendor) column, a total column and a header tick box show, the last column's header,
-// and the column widths.
+// The open-document payment table (receive-payment's grid and cards) serves four lists:
+// the invoices a customer payment pays, the bills Pay Bills pays (pay-bills spec §3.3, §9),
+// the bills a vendor credit is applied to (vendor credit spec §3.9) and the vendor credits
+// a vendor refund refunds (vendor refund spec §3.4). A descriptor names what differs: the
+// noun, where a row's link opens, the test-id prefix, whether a party (vendor) column, a
+// total column and a header tick box show, the last column's header, the date and open
+// columns' texts, the overdue mark, and the column widths.
 
 import {
     BILL_PAYMENT_APPLIED_MIN_WIDTH,
@@ -15,9 +16,12 @@ import {
     PAYMENT_APPLIED_MIN_WIDTH,
     PAYMENT_COLUMNS,
     PAYMENT_GRID_MIN_WIDTH,
+    REFUND_APPLIED_MIN_WIDTH,
+    REFUND_COLUMNS,
+    REFUND_GRID_MIN_WIDTH,
 } from './payment-columns'
 import { formatDay } from './register-range'
-import { BILL_KIND, INVOICE_KIND } from './sales-document-kinds'
+import { BILL_KIND, INVOICE_KIND, VENDOR_CREDIT_KIND } from './sales-document-kinds'
 
 // One width set for the grid's header and rows: a fixed tick column and data columns that
 // grow with the grid. `party` is null where no party column shows (an invoice list is one
@@ -37,21 +41,36 @@ export type OutstandingSort = { column: OutstandingSortColumn; descending: boole
 
 export type OutstandingDocument = {
     // Which list: the texts table is keyed by it.
-    key: 'invoice' | 'bill' | 'credit'
-    noun: 'Invoice' | 'Bill'
-    openKind: typeof INVOICE_KIND | typeof BILL_KIND
+    key: 'invoice' | 'bill' | 'credit' | 'refund'
+    noun: 'Invoice' | 'Bill' | 'Vendor credit'
+    openKind: typeof INVOICE_KIND | typeof BILL_KIND | typeof VENDOR_CREDIT_KIND
     testIdPrefix: string
     party: 'none' | 'vendor'
     // A header tick box (and the cards' "Pay all") that pays every row.
     hasPayAll: boolean
     // The last column's header, and the base of its cell's name.
     paymentHeader: string
+    // The date column's header, the open column's header and its card label.
+    dateHeader: string
+    openHeader: string
+    openCardLabel: string
+    // A row whose date is before today is marked overdue (a due date is; a credit date
+    // is not).
+    marksOverdue: boolean
     columns: OutstandingColumns
     // The least list width that shows the outstanding grid, and the read view's applied
     // grid; a narrower list shows cards.
     gridMinWidth: number
     appliedMinWidth: number
 }
+
+// The date and open column texts of a list of documents that fall due.
+const DUE_DATE_TEXTS = {
+    dateHeader: 'Due date',
+    openHeader: 'Open balance',
+    openCardLabel: 'Open balance',
+    marksOverdue: true,
+} as const
 
 export const INVOICE_OUTSTANDING: OutstandingDocument = {
     key: 'invoice',
@@ -61,6 +80,7 @@ export const INVOICE_OUTSTANDING: OutstandingDocument = {
     party: 'none',
     hasPayAll: true,
     paymentHeader: 'Payment',
+    ...DUE_DATE_TEXTS,
     columns: {
         tick: PAYMENT_COLUMNS.tick,
         party: null,
@@ -82,6 +102,7 @@ export const BILL_OUTSTANDING: OutstandingDocument = {
     party: 'vendor',
     hasPayAll: true,
     paymentHeader: 'Payment',
+    ...DUE_DATE_TEXTS,
     columns: {
         tick: BILL_PAYMENT_COLUMNS.tick,
         party: BILL_PAYMENT_COLUMNS.party,
@@ -106,6 +127,7 @@ export const CREDIT_OUTSTANDING: OutstandingDocument = {
     party: 'none',
     hasPayAll: false,
     paymentHeader: 'Credit to apply',
+    ...DUE_DATE_TEXTS,
     columns: {
         tick: CREDIT_APPLY_COLUMNS.tick,
         party: null,
@@ -119,6 +141,34 @@ export const CREDIT_OUTSTANDING: OutstandingDocument = {
     appliedMinWidth: BILL_PAYMENT_APPLIED_MIN_WIDTH,
 }
 
+// The vendor refund's credits (vendor refund spec §3.4): one vendor's unapplied vendor
+// credits, so no Vendor column; a Credit total column, a header tick box and "Refund all",
+// "Credit date" and "Unapplied credit" in place of the due-date texts, and no overdue mark.
+export const REFUND_OUTSTANDING: OutstandingDocument = {
+    key: 'refund',
+    noun: 'Vendor credit',
+    openKind: VENDOR_CREDIT_KIND,
+    testIdPrefix: 'vendor-refund',
+    party: 'none',
+    hasPayAll: true,
+    paymentHeader: 'Refund',
+    dateHeader: 'Credit date',
+    openHeader: 'Unapplied credit',
+    openCardLabel: 'Unapplied credit',
+    marksOverdue: false,
+    columns: {
+        tick: REFUND_COLUMNS.tick,
+        party: null,
+        document: REFUND_COLUMNS.credit,
+        dueDate: REFUND_COLUMNS.creditDate,
+        original: REFUND_COLUMNS.total,
+        open: REFUND_COLUMNS.open,
+        payment: REFUND_COLUMNS.refund,
+    },
+    gridMinWidth: REFUND_GRID_MIN_WIDTH,
+    appliedMinWidth: REFUND_APPLIED_MIN_WIDTH,
+}
+
 // The total column's header and the card's label for it.
 type TotalTexts = { header: string; card: string }
 
@@ -130,8 +180,14 @@ type OutstandingTexts = {
     cellJoin: string
     // null where the list draws no total column.
     total: TotalTexts | null
-    // The header tick box's and "Pay all"'s accessible name; null where there is none.
+    // The card's label for the date, drawn as a label-value pair beside the money (vendor
+    // refund spec §3.4); null draws the date as a line of its own (a due date, with its
+    // overdue mark).
+    cardDateLabel: string | null
+    // The header tick box's and "Pay all"'s accessible name, and the text the cards draw
+    // beside their tick box ("Pay all", "Refund all"); null where there is none.
     payAllLabel: string | null
+    payAllText: string | null
     // A read view's list of the paid documents: its heading, and the paid column's header
     // and card label.
     appliedHeading: string
@@ -143,7 +199,9 @@ const TEXTS: Record<OutstandingDocument['key'], OutstandingTexts> = {
         tickVerb: 'Pay',
         cellJoin: 'for',
         total: { header: 'Original amount', card: 'Original' },
+        cardDateLabel: null,
         payAllLabel: 'Pay every listed invoice',
+        payAllText: 'Pay all',
         appliedHeading: 'Applied to',
         appliedLabel: 'Applied',
     },
@@ -151,7 +209,9 @@ const TEXTS: Record<OutstandingDocument['key'], OutstandingTexts> = {
         tickVerb: 'Pay',
         cellJoin: 'for',
         total: { header: 'Bill total', card: 'Bill total' },
+        cardDateLabel: null,
         payAllLabel: 'Pay every shown bill',
+        payAllText: 'Pay all',
         appliedHeading: 'Bills paid',
         appliedLabel: 'Paid',
     },
@@ -159,9 +219,21 @@ const TEXTS: Record<OutstandingDocument['key'], OutstandingTexts> = {
         tickVerb: 'Apply to',
         cellJoin: 'to',
         total: null,
+        cardDateLabel: null,
         payAllLabel: null,
+        payAllText: null,
         appliedHeading: 'Applied to',
         appliedLabel: 'Applied',
+    },
+    refund: {
+        tickVerb: 'Refund',
+        cellJoin: 'for',
+        total: { header: 'Credit total', card: 'Credit total' },
+        cardDateLabel: 'Credit date',
+        payAllLabel: 'Refund all',
+        payAllText: 'Refund all',
+        appliedHeading: 'Vendor credits refunded',
+        appliedLabel: 'Refunded',
     },
 }
 

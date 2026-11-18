@@ -112,10 +112,15 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 	if err != nil {
 		return search.Result{}, err
 	}
+	vendorRefunds, vendorRefundTotal, err := searchSalesDocs(ctx, app, vendorRefundSearch, q.Include, q.Exclude, window)
+	if err != nil {
+		return search.Result{}, err
+	}
 	rows := interleave(accounts, entries, customers, vendors, products, invoices, receipts, creditMemos, estimates,
-		bills, expenses, vendorCredits, payments, billPayments)
+		bills, expenses, vendorCredits, payments, billPayments, vendorRefunds)
 	total := accountTotal + entryTotal + customerTotal + vendorTotal + productTotal + invoiceTotal + receiptTotal +
-		creditMemoTotal + estimateTotal + billTotal + expenseTotal + vendorCreditTotal + paymentTotal + billPaymentTotal
+		creditMemoTotal + estimateTotal + billTotal + expenseTotal + vendorCreditTotal + paymentTotal + billPaymentTotal +
+		vendorRefundTotal
 	return search.Result{Rows: page(rows, offset, limit), Total: total}, nil
 }
 
@@ -463,9 +468,19 @@ var billPaymentSearch = salesDocSearch{
 	subtitle: "reference_no",
 }
 
+// vendorRefundSearch names its vendor: "Vendor refund 1001 · Pacific Power" /
+// "Draft vendor refund · Pacific Power" (vendor refund spec §3.11), drafts
+// included. A word matches the refund's number, reference no. and memo, or the
+// vendor's display name, company, email and legal name.
+var vendorRefundSearch = salesDocSearch{
+	table: vendorRefundsCollection, index: vendorRefundsIndex, docType: docTypeVendorRefund, kind: "vendor_refund",
+	partyField: "vendor", partyTable: "books_vendors", partyIdx: vendorsIndex,
+}
+
 // salesDocTermMatch is true when one query word matches a document's own
 // index row (number, memo, message; a sales receipt's, an expense's, a
-// payment's and a bill payment's reference no., a bill's vendor's bill no. and
+// payment's, a bill payment's and a vendor refund's reference no., a bill's
+// vendor's bill no. and
 // a vendor credit's vendor's credit no. too) or its party's (a
 // customer's display name, company, email; a vendor's legal name too).
 // Reading the party's row at query time lets a renamed party find its

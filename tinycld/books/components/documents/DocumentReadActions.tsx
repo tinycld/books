@@ -127,7 +127,8 @@ const PHONE_PRIMARY_ACTIONS: ReadonlySet<DocumentReadItem['action']> = new Set([
 // The one button a phone's bar keeps beside More. A lone action is the bar button, since a
 // menu of one row only hides it. A bill with a balance keeps Pay bill, its primary action
 // (pay-bills spec §2), and a vendor credit with unapplied credit keeps Apply to bills (vendor
-// credit spec §3.7). Otherwise a posting document keeps Edit (a voided one has none, so all
+// credit spec §3.7), so its Record refund, which comes after it, goes to More (vendor refund
+// spec §3.9). Otherwise a posting document keeps Edit (a voided one has none, so all
 // its actions are in More) and a quote keeps its primary action, the first.
 function phoneButtonOf(
     lifecycle: DocumentChrome['lifecycle'],
@@ -140,7 +141,8 @@ function phoneButtonOf(
 }
 
 /**
- * The read view's bar. Wide: a ShortcutButton per action (Apply to bills A, Edit E, Void V,
+ * The read view's bar. Wide: a ShortcutButton per action (Apply to bills A, Record refund R
+ * right after it, Edit E, Void V,
  * Copy C, View journal entry J, Download PDF ⌘P), the first one primary. Phone: one button
  * (the only action when there is one, else Pay bill or Apply to bills on a bill or vendor
  * credit that offers it, Edit on any other posting

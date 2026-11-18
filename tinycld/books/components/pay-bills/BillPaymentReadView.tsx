@@ -82,6 +82,7 @@ function BillPaymentReadView({
         method: payment.payment_method,
         reference: payment.reference_no,
         depositLabel: '',
+        verb: 'paid from',
     })
     const vendorName = payment.vendorRow?.display_name ?? ''
     const openVendor = () => router.push(orgHref(`books/vendors/${payment.vendor}`))

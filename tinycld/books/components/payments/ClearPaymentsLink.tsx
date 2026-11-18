@@ -2,7 +2,7 @@ import type { ScopeOwner } from '@tinycld/core/lib/shortcuts'
 import { useButtonShortcut } from '@tinycld/core/ui/shortcut-button/useButtonShortcut'
 import { type Ref, useMemo } from 'react'
 import { Pressable, type PressableInstance, Text } from 'react-native'
-import { PAYMENT_FORM_DESCRIPTIONS, PAYMENT_FORM_KEYS } from '../../lib/payment-shortcuts'
+import { PAYMENT_FORM_KEYS } from '../../lib/payment-shortcuts'
 import { useDocumentChrome } from '../documents/document-chrome'
 
 const TAP = { minHeight: 44 }
@@ -14,10 +14,13 @@ interface ClearPaymentsLinkProps {
     scopeOwner: ScopeOwner
     // The last row's Enter moves focus here.
     linkRef: Ref<PressableInstance>
+    // The link's text ("Clear payments", "Clear refunds") and its ⇧? description.
+    label: string
+    description: string
 }
 
 /**
- * "Clear payments" under the list: a link-styled button with a ref (core ShortcutButton
+ * The clear link under the list: a link-styled button with a ref (core ShortcutButton
  * takes none), whose ⌥⌫ is registered through the hook ShortcutButton uses, so the key,
  * the ⇧? entry and the disabled rule match a ShortcutButton. The screen's document chrome
  * gives its test id (`<chrome>-clear`) and its ⇧? group (receive payment, Pay Bills).
@@ -28,6 +31,8 @@ export function ClearPaymentsLink({
     onPress,
     scopeOwner,
     linkRef,
+    label,
+    description,
 }: ClearPaymentsLinkProps) {
     const chrome = useDocumentChrome()
     const group = chrome.shortcutGroup
@@ -42,7 +47,7 @@ export function ClearPaymentsLink({
         [group]
     )
     useButtonShortcut({
-        label: PAYMENT_FORM_DESCRIPTIONS.clearPayments,
+        label: description,
         shortcut,
         isDisabled: isDisabled || !isVisible,
         onPress,
@@ -51,7 +56,7 @@ export function ClearPaymentsLink({
     if (!isVisible) return null
     return (
         <ClearLink
-            label="Clear payments"
+            label={label}
             testID={`${chrome.testId}-clear`}
             isDisabled={isDisabled}
             onPress={onPress}

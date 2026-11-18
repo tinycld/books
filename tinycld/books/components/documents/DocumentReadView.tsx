@@ -14,6 +14,7 @@ import {
 } from '../../hooks/document-data'
 import { useReadAttachmentSession } from '../../hooks/useAttachmentUpload'
 import { type CreditApplicationRow, useCreditApplications } from '../../hooks/useCreditApplications'
+import { useCreditRefunds } from '../../hooks/useCreditRefunds'
 import { useDocumentReadActions } from '../../hooks/useDocumentReadActions'
 import type { DocumentScreenData } from '../../hooks/useDocumentScreen'
 import { useHistoryItem } from '../../hooks/useHistoryItem'
@@ -21,7 +22,6 @@ import { useRemoveApplication } from '../../hooks/useRemoveApplication'
 import { formatAddressLines, isCustomerAddress } from '../../lib/address'
 import { billCreditsApplied } from '../../lib/bill-values'
 import { removeApplicationOffered } from '../../lib/document-actions'
-import type { BalanceBadge } from '../../lib/document-lifecycle'
 import { DOCUMENT_NOTE_LABELS, memoLabelFor } from '../../lib/document-notes'
 import { type DocumentTab, documentHref } from '../../lib/document-routes'
 import { documentTaxOf } from '../../lib/document-tax'
@@ -50,6 +50,8 @@ import { useDocumentKind } from './document-kind-context'
 import {
     type DocumentKind,
     type DocumentReadFrameProps,
+    type ReadBalanceBadge,
+    type ReadRefunded,
     storedLineTableRows,
 } from './document-kinds'
 
@@ -126,11 +128,13 @@ function creditsAppliedOf(record: DocumentRecord, paymentsCents: number): number
 // total, posted or void.
 // The kind's rows after Total: a bill's Credits applied (creditsAppliedOf, from the stored
 // record, so the rows add up while its applications read loads or has failed); a vendor
-// credit's Applied and Unapplied credit, which read its stored total and balance.
+// credit's Applied, Refunded and Unapplied credit, which read its stored total and balance
+// and the posted refunds' cents (`refunded`).
 function readTotals(
     data: DocumentScreenData,
     record: DocumentRecord,
-    documentKind: Pick<DocumentKind, 'doc' | 'lineSpecs' | 'readTotals'>
+    documentKind: Pick<DocumentKind, 'doc' | 'lineSpecs' | 'readTotals'>,
+    refunded: ReadRefunded
 ): DocumentTotalsView {
     const { doc } = documentKind
     const money = (cents: number) => formatMoney(cents, data.currency)
@@ -141,7 +145,10 @@ function readTotals(
     const last = balance === undefined ? total : money(balance)
     const applied = appliedCents(data)
     const payments = applied > 0 ? `${MINUS}${money(applied)}` : null
-    const after = documentKind.readTotals?.(record, { applied: creditsAppliedOf(record, applied) })
+    const after = documentKind.readTotals?.(record, {
+        applied: creditsAppliedOf(record, applied),
+        refunded,
+    })
     return {
         subtotal,
         tableSubtotals: readTableSubtotals(data, documentKind),
@@ -164,14 +171,25 @@ function storedBalanceOf(record: DocumentRecord): number | undefined {
 }
 
 // The badge of a kind with a balance badge (an invoice's or a bill's Paid / Partly paid, a
-// vendor credit's Applied / Partly applied) follows its stored balance; undefined for every
-// other kind, whose header shows its status's badge.
-function readBadgeOf(record: DocumentRecord, balanceBadge: BalanceBadge | undefined) {
+// vendor credit's Applied / Partly applied / Refunded) follows its stored balance (and a
+// vendor credit's refunded cents); undefined for every other kind, whose header shows its
+// status's badge.
+function readBadgeOf(
+    record: DocumentRecord,
+    balanceBadge: ReadBalanceBadge | undefined,
+    refunded: ReadRefunded
+) {
     const balance = storedBalanceOf(record)
     const { status } = record
     if (!balanceBadge || balance === undefined) return undefined
     if (status !== 'draft' && status !== 'posted' && status !== 'void') return undefined
-    return balanceBadge(status, balance, record.total)
+    return balanceBadge(status, balance, record.total, refunded)
+}
+
+// The posted vendor refunds a vendor credit's read view reads (`DocumentKind.readRefunds`);
+// for every other kind no id, so the query is off and ready with no rows.
+function useReadRefunds(record: DocumentRecord, readRefunds: boolean | undefined) {
+    return useCreditRefunds(readRefunds ? record.id : '')
 }
 
 // What the Payments block names and opens on an invoice and on a bill; null for every
@@ -463,12 +481,16 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     const credits = useReadCredits(record, documentKind.readApplications)
     const canRemove = removeApplicationOffered(data.canWrite, record.status)
     const removal = useRemoveApplication({ applications: credits.applications, canRemove })
-    // Every Retry of the read view is one call over the screen's failed reads and the
-    // credits read.
+    const refunds = useReadRefunds(record, documentKind.readRefunds)
+    // null while the refunds read has failed (ReadRefunded).
+    const refunded = refunds.isError ? null : refunds.refunded
+    // Every Retry of the read view is one call over the screen's failed reads, the credits
+    // read and the refunds read.
     const creditsRecovery = credits.recovery
-    const retry = () => data.retryWith([creditsRecovery])
+    const refundsRecovery = refunds.recovery
+    const retry = () => data.retryWith([creditsRecovery, refundsRecovery])
     const onRemove = canRemove ? removal.ask : undefined
-    const totals = readTotals(data, record, documentKind)
+    const totals = readTotals(data, record, documentKind, refunded)
     const ReadLines = documentKind.ReadLines ?? DocumentReadLines
     // A kind without a message to the customer shows none (an empty detail is not drawn).
     const message = doc.features.message ? record.message : ''
@@ -497,7 +519,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
             onRetry={retry}
         />
     ) : null
-    const badge = readBadgeOf(record, documentKind.balanceBadge)
+    const badge = readBadgeOf(record, documentKind.balanceBadge, refunded)
     const ReadFrame = documentKind.ReadFrame ?? SectionReadFrame
     const body = (
         <>
@@ -530,8 +552,10 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     const stamps = <ReadStamps record={record} isPosting={isPosting} />
     // The Payments block waits for the credits read, so it never draws its payments without
     // its credit rows; a failed read shows its notice with Retry in the block, and the
-    // totals still read Credits applied from the stored record.
+    // totals still read Credits applied from the stored record. A vendor credit waits for its
+    // refunds read too, so its totals and badge never draw a refund as applied to a bill.
     if (!credits.isReady && !credits.isError) return <DocumentLoading />
+    if (!refunds.isReady && !refunds.isError) return <DocumentLoading />
     return (
         <ScopeProvider owner={scopeOwner}>
             <View testID={readOnlyId} className="flex-1 bg-background">
@@ -546,7 +570,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                     />
                     <DocumentTabs selected={tab} firstLabel="Details" scopeOwner={scopeOwner} />
                     <TabPanel isVisible={isDetailsTab}>
-                        <ReadFrame record={record} body={body} stamps={stamps} />
+                        <ReadFrame record={record} body={body} stamps={stamps} refunds={refunds} />
                     </TabPanel>
                     <TabPanel isVisible={isPdfTab}>
                         <DocumentPdfView

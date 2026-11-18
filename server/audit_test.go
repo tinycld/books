@@ -379,6 +379,43 @@ func TestAudit_LabelsAnExpenseAndItsLines(t *testing.T) {
 	}
 }
 
+// Vendor refund spec §3.11: a vendor refund's audit row is "Vendor refund
+// 1001", or "Draft vendor refund" while it has no number; a line's row names
+// the refund and the credit it refunds ("Vendor refund 1001: Vendor credit
+// 1002").
+func TestAudit_LabelsAVendorRefundAndItsLines(t *testing.T) {
+	re := newRefundEnv(t)
+	audited := auditedCollections(re.app)
+	refunds, ok := audited[refundsCol]
+	if !ok {
+		t.Fatal("books_vendor_refunds is not audited")
+	}
+	lines, ok := audited[refundLinesCol]
+	if !ok {
+		t.Fatal("books_vendor_refund_lines is not audited")
+	}
+	if err := setFields(t, re.app, "books_doc_sequences", vendorCreditSequenceID, map[string]any{"next_number": 1002}); err != nil {
+		t.Fatalf("move the vendor credit sequence to 1002: %v", err)
+	}
+	credit := re.postedCredit(t, re.pacificPower, vendorCreditDay, billAmount{re.rent, 30000})
+	if got := credit.GetString("number"); got != "1002" {
+		t.Fatalf("the credit's number %q, want 1002", got)
+	}
+	r := re.mkRefund(t, nil)
+	line := mkRefundLine(t, re.app, r, credit, 0, 15000)
+
+	if got, want := refunds.ExtractLabel(reload(t, re.app, refundsCol, r.Id)), "Draft vendor refund"; got != want {
+		t.Errorf("draft vendor refund audit label = %q, want %q", got, want)
+	}
+	posted := mustPostRefund(t, re.app, r.Id, re.users.bookkeeper.Id)
+	if got, want := refunds.ExtractLabel(posted), "Vendor refund 1001"; got != want {
+		t.Errorf("posted vendor refund audit label = %q, want %q", got, want)
+	}
+	if got, want := lines.ExtractLabel(reload(t, re.app, refundLinesCol, line.Id)), "Vendor refund 1001: Vendor credit 1002"; got != want {
+		t.Errorf("posted vendor refund line audit label = %q, want %q", got, want)
+	}
+}
+
 // Vendor credit spec §4: a vendor credit's audit row is "Vendor credit 1002",
 // or "Draft vendor credit" while it has no number; a line's row follows its
 // credit and names its table and its place in that table ("Vendor credit

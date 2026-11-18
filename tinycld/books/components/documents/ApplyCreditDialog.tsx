@@ -100,26 +100,41 @@ function SkeletonRows() {
     )
 }
 
-// No open bill for the vendor: the text and New bill, which opens a bill for the vendor.
-function NoOpenBills({ text, vendor }: { text: string; vendor: string }) {
+// No open bill for the vendor (vendor refund spec §3.9): the text, New bill, which opens a
+// bill for the vendor, and Record refund beside it, which opens a vendor refund for the
+// vendor with this credit ticked. Both close the dialog and push, so Back returns to the
+// credit.
+function NoOpenBills({ text, credit }: { text: string; credit: ApplyCreditTarget }) {
     const orgHref = useOrgHref()
     const close = useApplyCreditStore(state => state.close)
-    const newBill = () => {
+    const openPushed = (href: string) => {
         close()
-        router.push(orgHref(`books/bills/new?vendor=${vendor}`))
+        router.push(orgHref(href))
     }
+    const newBill = () => openPushed(`books/bills/new?vendor=${credit.vendor}`)
+    const recordRefund = () =>
+        openPushed(`books/vendor-refunds/new?vendor=${credit.vendor}&credit=${credit.id}`)
     return (
         <View testID={`${TEST_ID_PREFIX}-empty`} className="gap-3">
             <Text className="text-sm text-foreground">{text}</Text>
-            <Button
-                testID={`${TEST_ID_PREFIX}-new-bill`}
-                variant="outline"
-                style={TAP}
-                className="self-start"
-                onPress={newBill}
-            >
-                <ButtonText>New bill</ButtonText>
-            </Button>
+            <View className="flex-row flex-wrap gap-2">
+                <Button
+                    testID={`${TEST_ID_PREFIX}-new-bill`}
+                    variant="outline"
+                    style={TAP}
+                    onPress={newBill}
+                >
+                    <ButtonText>New bill</ButtonText>
+                </Button>
+                <Button
+                    testID={`${TEST_ID_PREFIX}-record-refund`}
+                    variant="outline"
+                    style={TAP}
+                    onPress={recordRefund}
+                >
+                    <ButtonText>Record refund</ButtonText>
+                </Button>
+            </View>
         </View>
     )
 }
@@ -193,7 +208,7 @@ function ApplyBody({ apply, credit }: { apply: ApplyCreditState; credit: ApplyCr
             />
         )
     }
-    if (apply.isEmpty) return <NoOpenBills text={apply.emptyText} vendor={credit.vendor} />
+    if (apply.isEmpty) return <NoOpenBills text={apply.emptyText} credit={credit} />
     return <BillRows apply={apply} currency={credit.currency} />
 }
 
@@ -201,7 +216,8 @@ function ApplyBody({ apply, credit }: { apply: ApplyCreditState; credit: ApplyCr
  * The apply dialog of a posted vendor credit (vendor credit spec §3.9): a core Dialog (a
  * Sheet on a phone) with the unapplied credit, the Apply date, and the vendor's open bills
  * as the shared grid (its content at least `CREDIT_OUTSTANDING.gridMinWidth`) or cards
- * (below it), Clear and the summary; Cancel (Esc) and Apply credit (⌘↵, disabled unless
+ * (below it), Clear and the summary, or, for a vendor with no open bill, the text with New
+ * bill and Record refund; Cancel (Esc) and Apply credit (⌘↵, disabled unless
  * the rows are listed). The first cell has focus when the measured list first draws it
  * (web). The vendor credit's read section mounts it while the store names the credit or
  * holds a write, and hands it `sectionRecovery` (its own failed open-bills read), which

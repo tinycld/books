@@ -14,6 +14,8 @@ The page opens on For review. To upload or import a file, open the Files tab fir
 
 A sale that a customer pays at once is recorded with a [sales receipt](help://books:sales-receipts), which deposits the money to a bank account or to Undeposited funds.
 
+Money that a vendor sends back for a vendor credit is recorded with a [vendor refund](help://books:vendor-refunds), which puts the money in a bank account, a credit card account or Undeposited funds.
+
 ![Banking: a strip of connected accounts above the selected account's tabs, with the Files tab and its upload area open.](images/banking-1.png)
 
 ## Connect an account

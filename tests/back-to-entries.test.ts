@@ -88,6 +88,7 @@ describe('backTarget', () => {
             ['estimates/[id]', 'Estimate'],
             ['expenses/[id]', 'Expense'],
             ['vendor-credits/[id]', 'Vendor credit'],
+            ['vendor-refunds/[id]', 'Vendor refund'],
             ['payments/[id]', 'Payment'],
             ['entries/[id]', 'Journal entry'],
             ['transfers/[id]', 'Transfer'],

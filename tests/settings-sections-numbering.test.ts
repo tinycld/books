@@ -52,3 +52,24 @@ describe('the Vendor credits numbering card', () => {
         )
     })
 })
+
+// Vendor refund spec §3.11: the seeded `vendor_refund` row is the "Vendor refunds" card,
+// with no prefix, next 1001.
+describe('the Vendor refunds numbering card', () => {
+    it('is seeded as booksseqvrefund: vendor_refund, no prefix, next 1001', () => {
+        expect(seededSequence('booksseqvrefund')).toEqual({
+            id: 'booksseqvrefund',
+            doc_type: 'vendor_refund',
+            prefix: '',
+            next_number: '1001',
+        })
+    })
+
+    it('reads "Vendor refunds" and previews "Next vendor refund: 1001"', () => {
+        const row = seededSequence('booksseqvrefund')
+        expect(docTypeLabel(row.doc_type ?? '')).toBe('Vendor refunds')
+        expect(nextNumberPreview(row.doc_type ?? '', row.prefix ?? '', row.next_number ?? '')).toBe(
+            'Next vendor refund: 1001'
+        )
+    })
+})

@@ -1,0 +1,151 @@
+{
+    "outDir": "vendor-refund-reference",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "vendor-refund-form",
+            "height": 2400,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/helix-mockup?state=empty",
+            "ready": "vendor-refund-form",
+            "height": 1300,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "no-credit",
+            "url": "/a/books/helix-mockup?state=no-credit",
+            "ready": "vendor-refund-list-empty",
+            "height": 1400,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "not-placed",
+            "url": "/a/books/helix-mockup?state=not-placed",
+            "ready": "vendor-refund-not-placed",
+            "height": 2500,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "errors",
+            "url": "/a/books/helix-mockup?state=errors",
+            "ready": "vendor-refund-sum-error",
+            "height": 2600,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "draft",
+            "url": "/a/books/helix-mockup?state=draft",
+            "ready": "vendor-refund-form",
+            "height": 1400,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "correction",
+            "url": "/a/books/helix-mockup?state=correction",
+            "ready": "vendor-refund-form",
+            "height": 1400,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "vendor-refund-list-loading",
+            "height": 1400,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "list-error",
+            "url": "/a/books/helix-mockup?state=list-error",
+            "ready": "vendor-refund-list-error",
+            "height": 1400,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "vendor-refund-error",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "not-found",
+            "url": "/a/books/helix-mockup?state=not-found",
+            "ready": "vendor-refund-not-found",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "cannot-edit",
+            "url": "/a/books/helix-mockup?state=cannot-edit",
+            "ready": "vendor-refund-cannot-edit",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "no-access",
+            "url": "/a/books/helix-mockup?state=no-access",
+            "ready": "vendor-refund-no-access",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read",
+            "url": "/a/books/helix-mockup?state=read",
+            "ready": "vendor-refund-read-only",
+            "height": 1300,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read-void",
+            "url": "/a/books/helix-mockup?state=read-void",
+            "ready": "vendor-refund-read-only",
+            "height": 1200,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read-replaced",
+            "url": "/a/books/helix-mockup?state=read-replaced",
+            "ready": "vendor-refund-read-only",
+            "height": 1200,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read-reader",
+            "url": "/a/books/helix-mockup?state=read-reader",
+            "ready": "vendor-refund-read-only",
+            "height": 1200,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "credit",
+            "url": "/a/books/helix-mockup?state=credit",
+            "ready": "vendor-credit-read-mockup",
+            "height": 1100,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "credit-refunded",
+            "url": "/a/books/helix-mockup?state=credit-refunded",
+            "ready": "vendor-credit-read-mockup",
+            "height": 1100,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "apply-empty",
+            "url": "/a/books/helix-mockup?state=apply-empty",
+            "ready": "apply-credit-empty",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-empty",
+            "hideLabels": ["New"]
+        }
+    ]
+}

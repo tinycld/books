@@ -99,6 +99,37 @@ export const CREDIT_APPLY_GRID_MIN_WIDTH = gridMinWidth(
     ]
 )
 
+// The vendor refund's credits (vendor refund spec §3.4): Tick, Vendor credit (with the
+// vendor's credit no. under it), Credit date, Credit total, Unapplied credit, Refund. No
+// Vendor column (the credits are one vendor's); the Vendor credit column takes two shares,
+// so its link label fits.
+export const REFUND_COLUMNS = {
+    tick: 44,
+    credit: WIDE_DATA_COLUMN,
+    creditDate: DATA_COLUMN,
+    total: DATA_COLUMN,
+    open: DATA_COLUMN,
+    refund: DATA_COLUMN,
+} as const
+
+export const REFUND_GRID_MIN_WIDTH = gridMinWidth(
+    [REFUND_COLUMNS.tick],
+    [
+        REFUND_COLUMNS.credit,
+        REFUND_COLUMNS.creditDate,
+        REFUND_COLUMNS.total,
+        REFUND_COLUMNS.open,
+        REFUND_COLUMNS.refund,
+    ]
+)
+
+// The vendor refund read view's refunded credits (vendor refund spec §3.7): Vendor credit,
+// Credit date, Credit total, Refunded.
+export const REFUND_APPLIED_MIN_WIDTH = gridMinWidth(
+    [],
+    [REFUND_COLUMNS.credit, REFUND_COLUMNS.creditDate, REFUND_COLUMNS.total, REFUND_COLUMNS.refund]
+)
+
 // The bill payment read view's Bills paid grid (pay-bills spec §3.8): Bill, Vendor's bill
 // no., Due date, Bill total, Paid.
 export const BILL_PAYMENT_APPLIED_COLUMNS = {

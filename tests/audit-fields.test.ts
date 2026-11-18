@@ -140,6 +140,51 @@ describe('the vendor credit fields', () => {
     })
 })
 
+// The vendor refund's history (vendor refund spec §3.11), as the vendor credit's: the
+// refund and its lines are audited, a line links to its refund and to the credit it
+// refunds, and an entry of type vendor_refund reads "Vendor refund".
+const VENDOR_REFUND_COLLECTIONS = ['books_vendor_refunds', 'books_vendor_refund_lines']
+
+describe('the vendor refund fields', () => {
+    it('audits the vendor refund and its lines', () => {
+        expect(AUDITED).toEqual(expect.arrayContaining(VENDOR_REFUND_COLLECTIONS))
+        expect(recordTypeLabel('books_vendor_refunds')).toBe('Vendor refund')
+        expect(recordTypeLabel('books_vendor_refund_lines')).toBe('Vendor refund line')
+    })
+
+    it.each(
+        VENDOR_REFUND_COLLECTIONS
+    )('%s: every field of the generated schema has an entry, and no entry names a missing field', collection => {
+        expect(Object.keys(AUDIT_FIELDS[collection] ?? {}).sort()).toEqual(schemaFields(collection))
+    })
+
+    it('links a refund to its vendor and Refunded to account, and a line to its refund and credit', () => {
+        expect(AUDIT_FIELDS.books_vendor_refunds?.vendor).toMatchObject({
+            kind: 'relation',
+            target: 'books_vendors',
+        })
+        expect(AUDIT_FIELDS.books_vendor_refunds?.refunded_to).toMatchObject({
+            kind: 'relation',
+            target: 'books_accounts',
+        })
+        expect(AUDIT_FIELDS.books_vendor_refunds?.amount?.kind).toBe('money')
+        expect(AUDIT_FIELDS.books_vendor_refund_lines?.refund).toMatchObject({
+            kind: 'relation',
+            target: 'books_vendor_refunds',
+        })
+        expect(AUDIT_FIELDS.books_vendor_refund_lines?.vendor_credit).toMatchObject({
+            kind: 'relation',
+            target: 'books_vendor_credits',
+        })
+        expect(AUDIT_FIELDS.books_vendor_refund_lines?.amount?.kind).toBe('money')
+    })
+
+    it('reads an entry of type vendor_refund as "Vendor refund"', () => {
+        const options = AUDIT_FIELDS.books_journal_entries?.doc_type?.options ?? []
+        expect(options).toContainEqual({ value: 'vendor_refund', label: 'Vendor refund' })
+    })
+})
+
 describe('a field with no entry', () => {
     it('reads its key in words', () => {
         const rows = changedFieldRows('books_not_audited', {

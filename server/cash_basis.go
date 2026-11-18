@@ -85,15 +85,17 @@ var (
 		TaxLines:   "books_credit_memo_tax_lines",
 	}
 	// vendorCreditCashDeferral takes a vendor credit's lines out of the cash
-	// layer on its date, and each application to a bill brings back its share
-	// at the apply date (vendorCreditBalanceKind's one payer). No payment pays
-	// it, so it has no payment doc type.
+	// layer on its date; each application to a bill brings back its share at
+	// the apply date, and each line of a posted vendor refund its share at the
+	// refund date, naming the refund's entry (vendorCreditBalanceKind's two
+	// payers; the refund payer's CashMemo is its rows' memo).
 	vendorCreditCashDeferral = cashDeferral{
-		Kind:       "vendor_credit",
-		DocType:    docTypeVendorCredit,
-		Balance:    vendorCreditBalanceKind,
-		UnpaidMemo: "Unapplied vendor credit (cash basis)",
-		PaidMemo:   "Vendor credit %s applied (cash basis)",
+		Kind:           "vendor_credit",
+		DocType:        docTypeVendorCredit,
+		PaymentDocType: docTypeVendorRefund,
+		Balance:        vendorCreditBalanceKind,
+		UnpaidMemo:     "Unapplied vendor credit (cash basis)",
+		PaidMemo:       "Vendor credit %s applied (cash basis)",
 	}
 	// cashDeferrals are the deferred kinds. A customer payment's unapplied
 	// credit is not deferred: it is cash received on its own date.
@@ -210,7 +212,9 @@ func documentPayments(tx core.App, d cashDeferral, docID string) ([]cashPayment,
 }
 
 // postedPaymentsOf reads the posted payments whose lines (of payer p) pay the
-// document: whether a payment counts is read from its entry.
+// document: whether a payment counts is read from its entry, of the deferral's
+// PaymentDocType. Each takes the payer's CashMemo; a payer with none (a bill
+// payment, a received payment) leaves its rows the deferral's PaidMemo.
 func postedPaymentsOf(tx core.App, d cashDeferral, p balancePayer, docID string) ([]cashPayment, error) {
 	var payments []cashPayment
 	err := tx.DB().NewQuery(`
@@ -224,6 +228,9 @@ func postedPaymentsOf(tx core.App, d cashDeferral, p balancePayer, docID string)
 		Bind(dbx.Params{"doc": docID, "type": d.PaymentDocType}).All(&payments)
 	if err != nil {
 		return nil, fmt.Errorf("books: read the payments of %s %s: %w", d.Kind, docID, err)
+	}
+	for i := range payments {
+		payments[i].Memo = p.CashMemo
 	}
 	return payments, nil
 }

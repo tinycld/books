@@ -6,6 +6,7 @@ import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
+import { creditUseRows } from '../lib/credit-uses'
 import { mergeRecoveries } from '../lib/live-recovery'
 import { columnsOrThrow } from '../lib/record-save'
 import { VENDOR_CREDIT_KIND } from '../lib/sales-document-kinds'
@@ -37,6 +38,7 @@ import {
     usePurchaseStart,
 } from './purchase-data'
 import { useCreditApplications } from './useCreditApplications'
+import type { CreditRefunds } from './useCreditRefunds'
 import { useOpenBills } from './useOpenBills'
 
 const LOG_CONTEXT = 'books.vendor-credit'
@@ -294,12 +296,15 @@ function useVendorCreditReload(): () => Promise<void> {
 }
 
 /**
- * The reads of the vendor credit's read view parts (vendor credit spec §4 Client reads),
- * run once by its ReadFrame: the credit's applications (its Applied to block) and its
- * vendor's open bills (the notice above the band reads its rows and state; the apply dialog
- * runs its own query). Neither is the screen's read: the credit still shows when one fails.
- * The block's Retry recovers both failed reads in one call, as the screen's Retry does for
- * its own; the apply dialog's Retry takes the open-bills read's recovery too
+ * The reads of the vendor credit's read view parts (vendor credit spec §4 Client reads,
+ * vendor refund spec §3.9), run once by its ReadFrame: the credit's applications and its
+ * posted vendor refunds (`refunds`, the read view's one read of them, which its totals and
+ * badge read too), merged into the Applied to block's rows in date order (`uses`,
+ * creditUseRows), and its vendor's open bills (the notice above the band reads its rows and
+ * state; the apply dialog runs its own query). None is the screen's read: the credit still
+ * shows when one fails. The block waits for both of its reads and shows one load error when
+ * either fails; its Retry recovers every failed read in one call, as the screen's Retry does
+ * for its own; the apply dialog's Retry takes the open-bills read's recovery too
  * (`openBills.read.recovery`), so either Retry brings the notice back. The open-bills read
  * runs only while Apply can be offered (`canApply`: a writer on a posted credit).
  */
@@ -307,17 +312,28 @@ export function useVendorCreditSectionReads(credit: {
     id: string
     vendor: string
     canApply: boolean
+    refunds: CreditRefunds
 }) {
+    const { refunds } = credit
     const applications = useCreditApplications({ credit: credit.id })
     const openBills = useOpenBills({ vendor: credit.vendor, isEnabled: credit.canApply })
     const bills = openBills.read
+    const rows = useMemo(
+        () => creditUseRows(applications.applications, refunds.refunds),
+        [applications.applications, refunds.refunds]
+    )
+    const uses = {
+        rows,
+        isReady: applications.isReady && refunds.isReady,
+        isError: applications.isError || refunds.isError,
+    }
     const retry = () => {
         void recoverLiveQueries({
-            ...mergeRecoveries([applications.recovery, bills.recovery]),
+            ...mergeRecoveries([applications.recovery, refunds.recovery, bills.recovery]),
             onError: error => log.error(LOG_CONTEXT, error),
         })
     }
-    return { applications, openBills, retry }
+    return { applications, uses, openBills, retry }
 }
 
 // The vendor credit kind's data source: every `useStore` of a vendor credit collection.

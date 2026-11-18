@@ -20,8 +20,8 @@
 //
 // DOCUMENT ENTRIES. An entry with origin 'document' is the posting of a sales
 // or purchase document, or of a received or bill payment (doc_type 'invoice',
-// 'sales_receipt', 'credit_memo', 'bill', 'expense', 'vendor_credit', 'payment'
-// or 'bill_payment'); document is that document's id. Only the document's Go hooks create, post and void such
+// 'sales_receipt', 'credit_memo', 'bill', 'expense', 'vendor_credit', 'payment',
+// 'bill_payment' or 'vendor_refund'); document is that document's id. Only the document's Go hooks create, post and void such
 // an entry, so document is server-owned and origin 'document' is not among the
 // origins a client may create. A client creates no entry with a document's
 // doc_type either: a manual one would post and take a number from the
@@ -185,6 +185,7 @@ migrate(
                             'bill_payment',
                             'credit_memo',
                             'vendor_credit',
+                            'vendor_refund',
                         ],
                     },
                     {

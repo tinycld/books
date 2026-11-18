@@ -57,7 +57,7 @@ function ApplySection({
     isOffered: boolean
     reads: SectionReads
 }) {
-    const { applications, openBills } = reads
+    const { applications, uses, openBills } = reads
     const canRemove = removeApplicationOffered(canWrite, status)
     const removal = useRemoveApplication({ applications: applications.applications, canRemove })
     const openFor = useApplyCreditStore(state => state.openFor)
@@ -81,9 +81,9 @@ function ApplySection({
     return (
         <View className="gap-4">
             <DocumentApplications
-                applications={applications.applications}
-                isReady={applications.isReady}
-                isError={applications.isError}
+                uses={uses.rows}
+                isReady={uses.isReady}
+                isError={uses.isError}
                 onRetry={reads.retry}
                 currency={credit.currency}
                 testIdPrefix="vendor-credit"
@@ -139,17 +139,21 @@ function CreditReadFrame({
     status,
     body,
     stamps,
-}: {
+    refunds,
+}: Omit<DocumentReadFrameProps, 'record'> & {
     credit: ApplyCreditTarget
     status: DocumentRecord['status']
-    body: DocumentReadFrameProps['body']
-    stamps: DocumentReadFrameProps['stamps']
 }) {
     const { canWrite } = useBooksAccess()
     // Apply is offered only to a writer on a posted credit; elsewhere the open-bills read
     // never runs.
     const canApply = canWrite && status === 'posted'
-    const reads = useVendorCreditSectionReads({ id: credit.id, vendor: credit.vendor, canApply })
+    const reads = useVendorCreditSectionReads({
+        id: credit.id,
+        vendor: credit.vendor,
+        canApply,
+        refunds,
+    })
     const isOffered = canWrite && applyCreditOffered('vendor_credit', status, credit.balance)
     return (
         <>
@@ -171,12 +175,13 @@ function CreditReadFrame({
  * The vendor credit's read view Details panel (the kind's ReadFrame): the notice above the
  * band (vendor credit spec §3.7: "<vendor> has <n> open bills." with Apply to bills, which
  * opens the apply dialog through `useApplyCreditStore`), the body, then the section (spec
- * §3.9: the Applied to block with Remove and its confirm, and the apply dialog that the read
- * action, its key A and the notice open), then the stamps. The notice and the section share
- * one run of `useVendorCreditSectionReads`. Both read `useBooksAccess()` here, as the read
- * actions do.
+ * §3.9: the Applied to block with the applications' Remove and its confirm and, vendor
+ * refund spec §3.9, the posted refunds' links (`refunds`, the read view's read), and the
+ * apply dialog that the read action, its key A and the notice open), then the stamps. The
+ * notice and the section share one run of `useVendorCreditSectionReads`. Both read
+ * `useBooksAccess()` here, as the read actions do.
  */
-export function VendorCreditReadFrame({ record, body, stamps }: DocumentReadFrameProps) {
+export function VendorCreditReadFrame({ record, body, stamps, refunds }: DocumentReadFrameProps) {
     const credit = applyTargetOf(record)
     if (credit === null) {
         return (
@@ -186,5 +191,13 @@ export function VendorCreditReadFrame({ record, body, stamps }: DocumentReadFram
             </>
         )
     }
-    return <CreditReadFrame credit={credit} status={record.status} body={body} stamps={stamps} />
+    return (
+        <CreditReadFrame
+            credit={credit}
+            status={record.status}
+            body={body}
+            stamps={stamps}
+            refunds={refunds}
+        />
+    )
 }

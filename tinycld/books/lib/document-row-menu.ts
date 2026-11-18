@@ -61,12 +61,17 @@ function paymentStatusOf(status: DocumentStatus): PaymentStatus | null {
     return null
 }
 
-// A read-view action as a row-menu action: every one but Edit, Pay bill (a bill's) and
-// Apply to bills (a vendor credit's), which are never on a sales list.
+// A read-view action as a row-menu action: every one but Edit, Pay bill (a bill's), and
+// Apply to bills and Record refund (a vendor credit's), which are never on a sales list.
 function isRowMenuAction(
     action: DocumentReadAction
-): action is Exclude<DocumentReadAction, 'edit' | 'pay_bill' | 'apply_credit'> {
-    return action !== 'edit' && action !== 'pay_bill' && action !== 'apply_credit'
+): action is Exclude<DocumentReadAction, 'edit' | 'pay_bill' | 'apply_credit' | 'record_refund'> {
+    return (
+        action !== 'edit' &&
+        action !== 'pay_bill' &&
+        action !== 'apply_credit' &&
+        action !== 'record_refund'
+    )
 }
 
 // The read view's actions of the row, without Edit; View journal entry only with an entry.

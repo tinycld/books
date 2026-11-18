@@ -80,16 +80,27 @@ var (
 		Collection: "books_credit_memos",
 		Noun:       "credit memo",
 	}
-	// vendorCreditBalanceKind: the vendor credit not yet applied to bills.
-	// Each application lowers it.
+	// vendorCreditBalanceKind: the vendor credit not yet applied to bills nor
+	// refunded. Each application lowers it, and so does each line of a posted
+	// vendor refund (vendor refund spec §3.9), which on the cash basis brings
+	// back its share at the refund date with the refund's entry (§3.10).
 	vendorCreditBalanceKind = balanceKind{
 		Collection: vendorCreditsCollection,
-		Payers: []balancePayer{{
-			LinesCollection: vendorCreditApplicationsCollection,
-			LineField:       "vendor_credit",
-			EntryField:      "vendor_credit",
-			EntryCollection: vendorCreditsCollection,
-		}},
+		Payers: []balancePayer{
+			{
+				LinesCollection: vendorCreditApplicationsCollection,
+				LineField:       "vendor_credit",
+				EntryField:      "vendor_credit",
+				EntryCollection: vendorCreditsCollection,
+			},
+			{
+				LinesCollection:   vendorRefundLinesCollection,
+				LineField:         "vendor_credit",
+				PaymentCollection: vendorRefundsCollection,
+				PaymentField:      "refund",
+				CashMemo:          "Vendor credit %s refunded (cash basis)",
+			},
+		},
 		Noun: "vendor credit",
 	}
 	// balanceKinds are verified and rebuilt by the ledger rebuild.
@@ -119,8 +130,9 @@ func isBalancing(tx core.App, kind balanceKind, docID string) bool {
 	return hasTxMark(tx, kind.Noun+".balancing", docID)
 }
 
-// paymentPayer is the kind's payer whose rows are a payment's lines, and false
-// for a kind that no payment pays (a credit memo, a vendor credit). The
+// paymentPayer is the kind's payer whose rows are a payment's lines (a vendor
+// credit's is its vendor refunds' lines), and false for a kind that no payment
+// pays (a credit memo). The
 // per-payment functions (paymentLines, applyToDocuments, releaseLines,
 // markMovingLines, rebuildPaidCashBasis) read it.
 func (k balanceKind) paymentPayer() (balancePayer, bool) {
@@ -185,7 +197,7 @@ func appliedByPayer(tx core.App, kind balanceKind, payer balancePayer, docID str
 }
 
 // postedAppliedTo is the sum, over every payer of the kind, of the rows that
-// count for the document (appliedSQL). A kind with no payer has nothing
+// count for the document (appliedByPayer). A kind with no payer has nothing
 // applied: 0.
 func postedAppliedTo(tx core.App, kind balanceKind, docID string) (int64, error) {
 	var applied int64

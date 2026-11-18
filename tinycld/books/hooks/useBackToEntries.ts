@@ -30,9 +30,11 @@ const SALES_LIST_LABELS = Object.fromEntries(
 
 // The screens Back pops to when one is right below this screen, each with the back link's
 // text: the journal entry list, a Sales list, a register, and every record route (a
-// document, a bill payment, a payment, an entry, a transfer), so Back leads to the screen
-// the user came from and the label names it. Any other screen below (or none) is replaced
-// with the journal entry list.
+// document, a bill payment, a payment, a vendor refund, an entry, a transfer), so Back
+// leads to the screen the user came from and the label names it. A new vendor refund is
+// one too: its "New vendor credit" pushes the credit form over it, and that form's Back,
+// Cancel and post return to the refund with what was typed in it. Any other screen below
+// (or none) is replaced with the journal entry list.
 const LABELS: Record<string, string> = {
     [LIST_ROUTE]: 'Journal entries',
     ...SALES_LIST_LABELS,
@@ -41,6 +43,8 @@ const LABELS: Record<string, string> = {
     'transfers/[id]': 'Transfer',
     'payments/[id]': 'Payment',
     'bill-payments/[id]': 'Bill payment',
+    'vendor-refunds/[id]': 'Vendor refund',
+    'vendor-refunds/new': 'Vendor refund',
     ...Object.fromEntries(
         [
             INVOICE_KIND,

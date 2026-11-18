@@ -20,6 +20,7 @@ export function SalesReceiptPaymentRow({ record }: DocumentReadBandRowProps) {
         method: fields.payment_method,
         reference: fields.reference_no,
         depositLabel,
+        verb: 'deposited to',
     })
     if (text === '') return null
     return (

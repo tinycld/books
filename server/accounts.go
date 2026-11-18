@@ -637,6 +637,19 @@ func checkAccountDelete(app core.App, r *core.Record) error {
 	if payments > 1 {
 		return refuse(msgAccountDepositOfPayments, payments)
 	}
+	// A vendor refund's refunded_to is a required relation, so PocketBase
+	// refuses the delete with a generic message; this one says what to do
+	// instead. Drafts count too.
+	refunds, err := app.CountRecords(vendorRefundsCollection, dbx.HashExp{"refunded_to": r.Id})
+	if err != nil {
+		return err
+	}
+	if refunds == 1 {
+		return refuse(msgAccountRefundOfOneRefund)
+	}
+	if refunds > 1 {
+		return refuse(msgAccountRefundOfRefunds, refunds)
+	}
 	children, err := app.CountRecords("books_accounts", dbx.HashExp{"parent": r.Id})
 	if err != nil {
 		return err
