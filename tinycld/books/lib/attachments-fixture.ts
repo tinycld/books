@@ -62,6 +62,7 @@ function attachment(seed: AttachmentSeed): AttachmentFixtureRow {
     return {
         bill: '',
         expense: '',
+        vendor_credit: '',
         field: '',
         file: seed.name.toLowerCase().replaceAll(' ', '_'),
         // The server stores a generated thumbnail after the upload; fixture rows have none.

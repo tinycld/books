@@ -1,4 +1,5 @@
 import { useContainerWidth } from '@tinycld/core/ui/forms/use-container-width'
+import type { ReactNode } from 'react'
 import { get } from 'react-hook-form'
 import { View } from 'react-native'
 import type { PayBillsFormState } from '../../hooks/usePayBillsForm'
@@ -84,10 +85,13 @@ interface PayBillsOpenBillsProps {
     today: string
     // A Pay runs: the filters, tick boxes and cells wait for it.
     isDisabled: boolean
+    // Drawn between the filters and the bills (the notice of unapplied vendor credits).
+    notice: ReactNode
 }
 
 /**
- * The open bills (spec §3.3): the filter chips, then the shown bills as receive-payment's
+ * The open bills (spec §3.3): the filter chips, the `notice` (unapplied vendor credits),
+ * then the shown bills as receive-payment's
  * grid (its own width at least the grid's least width, `BILL_OUTSTANDING.gridMinWidth`) or
  * cards (below), or the empty and filtered-empty states. One list in the page scroller, no
  * paging, no sideways scroll.
@@ -97,6 +101,7 @@ export function PayBillsOpenBills({
     currency,
     today,
     isDisabled,
+    notice,
 }: PayBillsOpenBillsProps) {
     const { width, onLayout } = useContainerWidth()
     const isCards = width > 0 && width < BILL_OUTSTANDING.gridMinWidth
@@ -104,6 +109,7 @@ export function PayBillsOpenBills({
     return (
         <View testID="pay-bills-open" className="gap-3" onLayout={onLayout}>
             <PayBillsFilters payForm={payForm} isDisabled={isDisabled} isSortVisible={isCards} />
+            {notice}
             <PayBillsEmpty
                 list={payForm.list}
                 onClearFilters={payForm.clearFilters}

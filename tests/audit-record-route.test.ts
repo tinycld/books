@@ -13,13 +13,15 @@ import {
     EXPENSE_KIND,
     INVOICE_KIND,
     SALES_RECEIPT_KIND,
+    VENDOR_CREDIT_KIND,
 } from '../tinycld/books/lib/sales-document-kinds'
 
 const ID = 'bkrecord0000001'
 
-// An attachment's live row: on a bill, or on an expense.
-const ON_BILL = { id: ID, bill: 'bkbill00001001', expense: '' }
-const ON_EXPENSE = { id: ID, bill: '', expense: 'bkexpense001001' }
+// An attachment's live row: on a bill, on an expense, or on a vendor credit.
+const ON_BILL = { id: ID, bill: 'bkbill00001001', expense: '', vendor_credit: '' }
+const ON_EXPENSE = { id: ID, bill: '', expense: 'bkexpense001001', vendor_credit: '' }
+const ON_VENDOR_CREDIT = { id: ID, bill: '', expense: '', vendor_credit: 'vcrd1001pacpw01' }
 
 const DOCUMENTS = [
     { collection: 'books_invoices', kind: INVOICE_KIND, path: 'books/invoices' },
@@ -28,6 +30,7 @@ const DOCUMENTS = [
     { collection: 'books_estimates', kind: ESTIMATE_KIND, path: 'books/estimates' },
     { collection: 'books_bills', kind: BILL_KIND, path: 'books/bills' },
     { collection: 'books_expenses', kind: EXPENSE_KIND, path: 'books/expenses' },
+    { collection: 'books_vendor_credits', kind: VENDOR_CREDIT_KIND, path: 'books/vendor-credits' },
 ]
 
 // Records with a screen of their own: the filled path, never the `[id]` route pattern.
@@ -67,12 +70,24 @@ describe('auditRecordHref', () => {
     })
 
     // A credit memo line's audit rows are filed under its memo (parent_type
-    // books_credit_memos, parent_id the memo id: migration 2100000023), so the history of a
+    // books_credit_memos, parent_id the memo id: migration 2100000024), so the history of a
     // line is the memo's, and its Open is the memo's read view.
     it('a credit memo record, and the memo id a line’s history is filed under, open books/credit-memos/<id>', () => {
         expect(auditRecordHref('books_credit_memos', ID, { id: ID })).toBe(
             `books/credit-memos/${ID}`
         )
+    })
+
+    // A vendor credit's lines and applications are filed under their credit (parent_type
+    // books_vendor_credits, parent_id the credit id: migration 2100000024's LINES), so the
+    // history of a line or an application is the credit's, and its Open is the credit's
+    // read view.
+    it('a vendor credit record, and the credit id a line’s or an application’s history is filed under, open books/vendor-credits/<id>', () => {
+        const credit = 'vcrd1002ironc01'
+        expect(auditRecordHref('books_vendor_credits', credit, { id: credit })).toBe(
+            `books/vendor-credits/${credit}`
+        )
+        expect(auditOpenLabel('books_vendor_credits')).toBe('Open vendor credit')
     })
 
     it('opens a journal entry where its live row says (entryHref)', () => {
@@ -102,10 +117,29 @@ describe('auditRecordHref', () => {
         )
     })
 
-    it('opens an attachment’s bill or expense', () => {
+    // Vendor credit spec §3.12: a vendor credit's entry opens on its credit, and its void
+    // reversal as an entry.
+    it('opens a vendor credit’s entry on its credit, and its void reversal as an entry', () => {
+        const posted = {
+            id: ID,
+            doc_type: 'vendor_credit',
+            origin: 'document',
+            document: 'vcrd1001pacpw01',
+        } as const
+        expect(auditRecordHref('books_journal_entries', ID, posted)).toBe(
+            'books/vendor-credits/vcrd1001pacpw01'
+        )
+        const reversal = { ...posted, origin: 'void_reversal', document: '' } as const
+        expect(auditRecordHref('books_journal_entries', ID, reversal)).toBe(`books/entries/${ID}`)
+    })
+
+    it('opens an attachment’s bill, expense or vendor credit', () => {
         expect(auditRecordHref('books_attachments', ID, ON_BILL)).toBe('books/bills/bkbill00001001')
         expect(auditRecordHref('books_attachments', ID, ON_EXPENSE)).toBe(
             'books/expenses/bkexpense001001'
+        )
+        expect(auditRecordHref('books_attachments', ID, ON_VENDOR_CREDIT)).toBe(
+            'books/vendor-credits/vcrd1001pacpw01'
         )
         expect(auditRecordHref('books_attachments', ID, undefined)).toBeNull()
     })
@@ -175,6 +209,9 @@ describe('auditRecordOpenLabel', () => {
     it('names an attachment by the document screen it opens', () => {
         expect(auditRecordOpenLabel('books_attachments', ON_BILL)).toBe('Open bill')
         expect(auditRecordOpenLabel('books_attachments', ON_EXPENSE)).toBe('Open expense')
+        expect(auditRecordOpenLabel('books_attachments', ON_VENDOR_CREDIT)).toBe(
+            'Open vendor credit'
+        )
     })
 
     it('names any other record by its own type', () => {

@@ -12,9 +12,23 @@ import type { SalesDocumentKind } from './sales-document-kinds'
 
 export const ATTACHMENTS_COLLECTION = 'books_attachments'
 
+type AttachmentParentColumn = 'bill' | 'expense' | 'vendor_credit'
+
 // The relation column an attachment of this kind's document sets.
-export function attachmentParentColumn(kind: Pick<SalesDocumentKind, 'key'>): 'bill' | 'expense' {
-    return kind.key === 'expense' ? 'expense' : 'bill'
+export function attachmentParentColumn(
+    kind: Pick<SalesDocumentKind, 'key'>
+): AttachmentParentColumn {
+    if (kind.key === 'expense') return 'expense'
+    if (kind.key === 'vendor_credit') return 'vendor_credit'
+    return 'bill'
+}
+
+// The 26th attachment's refusal, by the parent's noun (msgAttachmentBillLimit,
+// msgAttachmentExpenseLimit and msgAttachmentVCLimit in server/attachments.go).
+const LIMIT_NOUNS: Record<AttachmentParentColumn, string> = {
+    bill: 'A bill',
+    expense: 'An expense',
+    vendor_credit: 'A vendor credit',
 }
 
 // Whether an upload's answer is a stored attachment row, before it goes to the store.
@@ -114,9 +128,8 @@ export function attachmentIssue(
     const isKeptType = file.type === '' || ATTACHMENT_MIME_TYPES.includes(file.type)
     if (extensionMime(file.name) === '' || !isKeptType) return `${file.name} ${TYPE_TEXT}`
     if (count >= MAX_ATTACHMENTS_PER_DOCUMENT) {
-        return kind.key === 'expense'
-            ? `An expense holds at most ${MAX_ATTACHMENTS_PER_DOCUMENT} attachments.`
-            : `A bill holds at most ${MAX_ATTACHMENTS_PER_DOCUMENT} attachments.`
+        const noun = LIMIT_NOUNS[attachmentParentColumn(kind)]
+        return `${noun} holds at most ${MAX_ATTACHMENTS_PER_DOCUMENT} attachments.`
     }
     return null
 }
@@ -231,7 +244,7 @@ export function attachmentControls(state: {
     }
 }
 
-type SplitRow = Pick<BooksAttachments, 'bill' | 'expense' | 'field'>
+type SplitRow = Pick<BooksAttachments, 'bill' | 'expense' | 'vendor_credit' | 'field'>
 
 // One query reads every attachment row of a document and of the one it replaces. The
 // section lists only rows of no custom File field (`field` empty): this document's in
@@ -242,7 +255,7 @@ export function splitAttachmentRows<T extends SplitRow>(
     recordId: string | undefined,
     replaces: string | undefined
 ): { rows: T[]; fromRows: T[]; allCount: number } {
-    const parentOf = (row: T) => row.bill || row.expense
+    const parentOf = (row: T) => row.bill || row.expense || row.vendor_credit
     const isOf = (row: T, id: string | undefined) => Boolean(id) && parentOf(row) === id
     const rows = all.filter(row => row.field === '' && isOf(row, recordId))
     const fromRows = all.filter(row => row.field === '' && isOf(row, replaces))

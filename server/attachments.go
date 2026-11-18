@@ -1,6 +1,7 @@
-// Attachments are the files a writer keeps with a bill or an expense (the
-// vendor's bill, a receipt), and the files of a custom File field on the bill
-// and expense forms (books_attachments, 2100000020). The rules decide who may
+// Attachments are the files a writer keeps with a bill, an expense or a vendor
+// credit (the vendor's bill, a receipt, the vendor's credit note), and the
+// files of a custom File field on those forms (books_attachments, 2100000020;
+// the vendor_credit parent, 2100000023). The rules decide who may
 // act; the hooks here decide whether the write is valid.
 
 package books
@@ -9,6 +10,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -72,16 +74,25 @@ const (
 	msgAttachmentType         = "%s is not a file type Books keeps. Attach a PDF, an image, or an office or text file."
 	msgAttachmentBillLimit    = "A bill holds at most 25 attachments."
 	msgAttachmentExpenseLimit = "An expense holds at most 25 attachments."
+	msgAttachmentVCLimit      = "A vendor credit holds at most 25 attachments."
 	msgAttachmentBillVoid     = "This bill is void. Its attachments can't change."
 	msgAttachmentExpenseVoid  = "This expense is void. Its attachments can't change."
-	msgAttachmentOneParent    = "An attachment belongs to one bill or one expense."
+	msgAttachmentVCVoid       = "This vendor credit is void. Its attachments can't change."
+	msgAttachmentOneParent    = "An attachment belongs to one bill, one expense or one vendor credit."
 	msgAttachmentNotChanged   = "An attachment is not changed. Remove it and attach the file again."
 )
 
+// attachmentParentFields are the fields of an attachment that name its
+// document, one per parent kind.
+var attachmentParentFields = []string{"bill", "expense", "vendor_credit"}
+
 // attachmentTexts are the void and limit refusals of a parent kind.
 func attachmentTexts(kind salesDocKind) (void, limit string) {
-	if kind.Collection == expensesCollection {
+	switch kind.Collection {
+	case expensesCollection:
 		return msgAttachmentExpenseVoid, msgAttachmentExpenseLimit
+	case vendorCreditsCollection:
+		return msgAttachmentVCVoid, msgAttachmentVCLimit
 	}
 	return msgAttachmentBillVoid, msgAttachmentBillLimit
 }
@@ -163,16 +174,24 @@ func checkAttachmentUpload(f *filesystem.File) error {
 }
 
 // attachmentParent is the kind and the row of the document r belongs to,
-// refusing a row that names both a bill and an expense, or neither.
+// refusing a row that names more than one of a bill, an expense and a vendor
+// credit, or none.
 func attachmentParent(tx core.App, r *core.Record) (kind salesDocKind, parent *core.Record, err error) {
-	bill, expense := r.GetString("bill"), r.GetString("expense")
+	set := 0
+	for _, field := range attachmentParentFields {
+		if r.GetString(field) != "" {
+			set++
+		}
+	}
 	switch {
-	case (bill == "") == (expense == ""):
+	case set != 1:
 		return salesDocKind{}, nil, refuse(msgAttachmentOneParent)
-	case bill != "":
+	case r.GetString("bill") != "":
 		kind = billKind
-	default:
+	case r.GetString("expense") != "":
 		kind = expenseKind
+	default:
+		kind = vendorCreditKind
 	}
 	parent, err = tx.FindRecordById(kind.Collection, r.GetString(kind.ParentField))
 	if err != nil {
@@ -267,7 +286,7 @@ func isThumbnailStored(r *core.Record) bool {
 // its size are as stored.
 func isStoredFile(r *core.Record) bool {
 	stored := r.Original()
-	for _, field := range []string{"bill", "expense", "field", "file", "name"} {
+	for _, field := range append(slices.Clone(attachmentParentFields), "field", "file", "name") {
 		if r.GetString(field) != stored.GetString(field) {
 			return false
 		}
@@ -281,7 +300,7 @@ func isThumbnailKept(r *core.Record) bool {
 }
 
 // moveAttachments re-points every row whose parentField is from to to: the
-// files of a corrected bill or expense move to its correction when the
+// files of a corrected bill, expense or vendor credit move to its correction when the
 // correction posts (spec §3.6). The rows keep their ids and stored files. It
 // runs in tx's transaction (the posting's), or in its own when tx has none,
 // so the move commits with the post or not at all.
@@ -320,6 +339,12 @@ func attachmentLabel(app core.App, r *core.Record) string {
 	if id := r.GetString("expense"); id != "" {
 		if expense, err := app.FindRecordById(expenseKind.Collection, id); err == nil {
 			return label + " on " + expenseLabel(expense)
+		}
+		return label
+	}
+	if id := r.GetString("vendor_credit"); id != "" {
+		if credit, err := app.FindRecordById(vendorCreditsCollection, id); err == nil {
+			return label + " on " + vendorCreditLabel(credit)
 		}
 	}
 	return label

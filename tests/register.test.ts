@@ -572,6 +572,7 @@ describe('entry type labels match server/entry_type_labels.json', () => {
             expense: 'Expense',
             payment: 'Payment',
             bill_payment: 'Bill payment',
+            vendor_credit: 'Vendor credit',
         })
     })
 
@@ -586,6 +587,7 @@ describe('entry type labels match server/entry_type_labels.json', () => {
             'payment',
             'sales_receipt',
             'transfer',
+            'vendor_credit',
         ])
         for (const [docType, label] of docTypes) {
             expect(entryTypeLabel('manual', '', docType), docType).toBe(label)
@@ -664,6 +666,38 @@ describe('entryTypeLabel for credit memos', () => {
         expect(detail?.typeLabel).toBe('Credit memo')
         expect(detail?.docType).toBe('credit_memo')
         expect(detail?.document).toBe('crmp1001every01')
+    })
+})
+
+// The vendor credit's entry (vendor credit spec §3.12): Type "Vendor credit", "Void
+// reversal of 1002", and the drawer's Open picks the credit by the entry's document.
+describe('entryTypeLabel for vendor credits', () => {
+    it('labels a vendor credit entry "Vendor credit"', () => {
+        expect(entryTypeLabel('document', '', 'vendor_credit')).toBe('Vendor credit')
+    })
+
+    it("keeps the reversal suffix on a vendor credit's void reversal", () => {
+        expect(entryTypeLabel('void_reversal', '1002', 'vendor_credit')).toBe(
+            'Void reversal of 1002'
+        )
+    })
+
+    it("gives the drawer detail of a vendor credit entry the credit's id", () => {
+        const base = synthetic('v', { debit: 65_000 })
+        const line = {
+            ...base,
+            entryRecord: {
+                ...entryOf('e_v', '2026-11-12 09:00:00.000Z'),
+                number: '1001',
+                doc_type: 'vendor_credit',
+                origin: 'document',
+                document: 'vcrd1001pacpw01',
+            },
+        } satisfies RegisterSourceLine
+        const detail = entryDetail(line, ME)
+        expect(detail?.typeLabel).toBe('Vendor credit')
+        expect(detail?.docType).toBe('vendor_credit')
+        expect(detail?.document).toBe('vcrd1001pacpw01')
     })
 })
 

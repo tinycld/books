@@ -24,10 +24,12 @@ import { ESTIMATE_DATA } from '../../hooks/estimate-data'
 import { EXPENSE_DATA } from '../../hooks/expense-data'
 import { INVOICE_DATA } from '../../hooks/invoice-data'
 import { SALES_RECEIPT_DATA } from '../../hooks/sales-receipt-data'
+import { VENDOR_CREDIT_DATA } from '../../hooks/vendor-credit-data'
 import { billColumnsFrom, EMPTY_BILL_COLUMNS } from '../../lib/bill-columns'
 import {
     type BillFormValues,
     billCorrectionValues,
+    billReadTotals,
     copyBillValues,
     newBillValues,
     vendorBillFills,
@@ -40,6 +42,7 @@ import {
     newCreditMemoValues,
 } from '../../lib/credit-memo-values'
 import type { TaxRateFill } from '../../lib/document-fills'
+import { appliedBadge, type BalanceBadge, paidBadge } from '../../lib/document-lifecycle'
 import {
     DOCUMENT_LINE_COLUMNS,
     DOCUMENT_LINE_MAPPER,
@@ -47,6 +50,7 @@ import {
     type DocumentLineRow,
     type DocumentLineValues,
 } from '../../lib/document-line-columns'
+import type { DocumentTotalRow } from '../../lib/document-total-rows'
 import type { DocumentFormValuesBase } from '../../lib/document-values'
 import { EMPTY_ESTIMATE_COLUMNS, estimateColumnsFrom } from '../../lib/estimate-columns'
 import { copyEstimateValues, newEstimateValues } from '../../lib/estimate-values'
@@ -85,6 +89,7 @@ import {
     INVOICE_KIND,
     SALES_RECEIPT_KIND,
     type SalesDocumentKind,
+    VENDOR_CREDIT_KIND,
 } from '../../lib/sales-document-kinds'
 import {
     EMPTY_SALES_RECEIPT_COLUMNS,
@@ -96,6 +101,18 @@ import {
     newSalesReceiptValues,
     salesReceiptCorrectionValues,
 } from '../../lib/sales-receipt-values'
+import {
+    EMPTY_VENDOR_CREDIT_COLUMNS,
+    vendorCreditColumnsFrom,
+} from '../../lib/vendor-credit-columns'
+import { vendorCreditReadTotals } from '../../lib/vendor-credit-totals'
+import {
+    copyVendorCreditValues,
+    newVendorCreditValues,
+    type VendorCreditFormValues,
+    vendorCreditCorrectionValues,
+    vendorCreditVendorFills,
+} from '../../lib/vendor-credit-values'
 import type { BooksVendors } from '../../types'
 import { BillReadDetails } from './BillReadDetails'
 import { CreditMemoLinkRow } from './CreditMemoLinkRow'
@@ -107,6 +124,8 @@ import { InvoiceCreditMemos } from './InvoiceCreditMemos'
 import { InvoiceFromEstimateLink, InvoiceReadDetails } from './InvoiceReadDetails'
 import { PurchaseReadLines } from './PurchaseReadLines'
 import { SalesReceiptPaymentRow, SalesReceiptReadDetails } from './SalesReceiptReadDetails'
+import { VendorCreditReadFrame } from './VendorCreditApplySection'
+import { VendorCreditReadDetails } from './VendorCreditReadDetails'
 
 export type DocumentReadDetailsProps = {
     record: DocumentRecord
@@ -116,6 +135,15 @@ export type DocumentReadDetailsProps = {
 }
 
 export type DocumentReadBandRowProps = { record: DocumentRecord }
+
+// The read view's Details panel as two parts: `body` is the band through the Payments block,
+// `stamps` the stamps under it. A kind's ReadFrame draws them in order with its own parts
+// around them (a notice before the band, a section before the stamps).
+export type DocumentReadFrameProps = {
+    record: DocumentRecord
+    body: ReactNode
+    stamps: ReactNode
+}
 
 // How a kind's stored line rows map to a line table's form rows and back: the sales
 // kinds' lines are DocumentLineRow, a purchase kind's PurchaseLineRow. `lines` tags which,
@@ -184,9 +212,13 @@ export function storedLineTableRows(
     return Object.fromEntries(entries)
 }
 
-// A form's start values: a sales kind's, or a purchase kind's (a bill's or an expense's:
-// its party is `vendor` and it has two line tables).
-export type DocumentStartValues = DocumentFormValuesBase | BillFormValues | ExpenseFormValues
+// A form's start values: a sales kind's, or a purchase kind's (a bill's, an expense's or a
+// vendor credit's: its party is `vendor` and it has two line tables).
+export type DocumentStartValues =
+    | DocumentFormValuesBase
+    | BillFormValues
+    | ExpenseFormValues
+    | VendorCreditFormValues
 
 // What a vendor pick fills besides the vendor itself, keyed by built-in; the Vendor field
 // sets each returned key. `accountIsListed` says whether the Account picker lists the
@@ -260,6 +292,11 @@ export type DocumentKind = {
     ReadStampRow?: ComponentType<DocumentReadBandRowProps>
     // A section of the read view after the Payments block (an invoice's Credit memos).
     ReadSection?: ComponentType<DocumentReadBandRowProps>
+    // The read view's Details panel around its body, for a kind whose parts before the band
+    // and after the Payments block share reads (a vendor credit's Apply to bills notice and
+    // its Applied to section read the open bills once). A kind without it draws the body,
+    // its ReadSection and the stamps.
+    ReadFrame?: ComponentType<DocumentReadFrameProps>
     // A row of the form's band between its first row and the date (a credit memo's invoice
     // link). It reads the form's scope; a kind without it draws the band in one piece.
     FormBandRow?: ComponentType
@@ -269,6 +306,19 @@ export type DocumentKind = {
     ReadLines?: ComponentType<DocumentReadLinesProps>
     // What a vendor pick fills (a vendor kind's); a kind without it fills nothing.
     partyFills?: PartyFills
+    // The read view's badge of a kind whose posted documents keep an open balance (Paid on
+    // an invoice and a bill, Applied on a vendor credit), from the stored balance; a kind
+    // without it shows its status badge.
+    balanceBadge?: BalanceBadge
+    // The rows the read view draws after Total (a bill's Credits applied, a vendor credit's
+    // Applied and Unapplied credit). `applied` is the credit applied to a posted bill, read
+    // from its stored record (billCreditsApplied: the total less its posted payments and its
+    // stored balance), so the rows add up while the applications read is loading or failed;
+    // 0 for every other kind.
+    readTotals?: (record: DocumentRecord, extra: { applied: number }) => DocumentTotalRow[]
+    // True makes the read view read the record's credit applications, the rows its Payments
+    // block lists with Remove.
+    readApplications?: boolean
 }
 
 // The source row with the invoice's own columns back at the top level. The invoice's
@@ -311,6 +361,7 @@ export const INVOICE_DOCUMENT: DocumentKind = {
     ReadStampRow: InvoiceFromEstimateLink,
     ReadSection: InvoiceCreditMemos,
     lineSpecs: SALES_LINE_SPECS,
+    balanceBadge: paidBadge,
 }
 
 // The source row with the credit memo's own columns back at the top level, as
@@ -472,15 +523,27 @@ function billVendorOf(party: DocumentPartyRow | null) {
     return vendor
 }
 
-// The bill's start: the Purchase lines setting a new form starts from and whether the Account
-// picker lists the `?vendor` vendor's default expense account. A form given no start (a
-// unit test's) shows both tables, the setting's default, and lists no vendor account.
-function billStartOf(start: DocumentStart | undefined): {
+const PURCHASE_FORM_NOUNS = {
+    bill: 'a bill',
+    expense: 'an expense',
+    vendor_credit: 'a vendor credit',
+} as const
+
+// A purchase document's start: the Purchase lines setting a new form starts from and whether
+// the Account picker lists the `?vendor` vendor's default expense account. A form given no
+// start (a unit test's) shows both tables, the setting's default, and lists no vendor account.
+function purchaseStartOf(
+    start: DocumentStart | undefined,
+    key: keyof typeof PURCHASE_FORM_NOUNS
+): {
     purchaseLines: PurchaseLines
     accountIsListed: boolean
 } {
     if (!start) return { purchaseLines: 'both', accountIsListed: false }
-    if (start.kind !== 'bill') throw new Error(`a bill form has a ${start.kind} start`)
+    // Only purchase starts carry `purchaseLines`; the `in` test narrows the union for TS.
+    if (start.kind !== key || !('purchaseLines' in start)) {
+        throw new Error(`${PURCHASE_FORM_NOUNS[key]} form has a ${start.kind} start`)
+    }
     return {
         purchaseLines: start.purchaseLines,
         accountIsListed: start.vendorAccountListed ?? false,
@@ -503,7 +566,7 @@ export const BILL_DOCUMENT: DocumentKind = {
         new: ({ party, today, start }) =>
             newBillValues({
                 today,
-                ...billStartOf(start),
+                ...purchaseStartOf(start, 'bill'),
                 vendor: vendorPartyOf(party),
             }),
         copy: (source, lines, today, party) =>
@@ -525,6 +588,12 @@ export const BILL_DOCUMENT: DocumentKind = {
             date: textOf(current.date),
             account_lines: rowsOf(current.account_lines),
         }),
+    balanceBadge: paidBadge,
+    // "Credits applied" above Balance due while vendor credits are applied to the bill: the
+    // read view passes the credit its stored record holds as `applied` (billCreditsApplied),
+    // and reads the bill's credit applications for its Payments block.
+    readTotals: billReadTotals,
+    readApplications: true,
 }
 
 // The source row with the expense's own columns back at the top level, as invoiceRowOf.
@@ -543,15 +612,10 @@ function expenseStartOf(start: DocumentStart | undefined): {
     accountIsListed: boolean
     activePaidFromIds: ReadonlySet<string>
 } {
-    if (!start) {
-        return { purchaseLines: 'both', accountIsListed: false, activePaidFromIds: new Set() }
-    }
-    if (start.kind !== 'expense') throw new Error(`an expense form has a ${start.kind} start`)
-    return {
-        purchaseLines: start.purchaseLines,
-        accountIsListed: start.vendorAccountListed ?? false,
-        activePaidFromIds: start.activePaidFromIds,
-    }
+    const purchase = purchaseStartOf(start, 'expense')
+    const activePaidFromIds =
+        start?.kind === 'expense' ? start.activePaidFromIds : new Set<string>()
+    return { ...purchase, activePaidFromIds }
 }
 
 // Money paid from a bank or credit card account (spec §3.1): the party is an optional
@@ -593,4 +657,58 @@ export const EXPENSE_DOCUMENT: DocumentKind = {
     lineSpecs: PURCHASE_LINE_SPECS,
     // The first account line's empty Account; nothing in the band.
     partyFills: expenseVendorFills,
+}
+
+// The source row with the vendor credit's own columns back at the top level, as
+// invoiceRowOf.
+function vendorCreditRowOf(source: DocumentSource) {
+    const fields = source.kindFields
+    if (fields.kind !== 'vendor_credit') {
+        throw new Error(`a vendor credit source has ${fields.kind} columns`)
+    }
+    return { ...source, ...fields }
+}
+
+// The read view's rows after Total, from the stored balance (vendorCreditReadTotals). A
+// record of another kind has no vendor credit balance, so it draws none.
+function vendorCreditTotalsOf(record: DocumentRecord): DocumentTotalRow[] {
+    const fields = record.kindFields
+    if (fields.kind !== 'vendor_credit') return []
+    return vendorCreditReadTotals({ ...record, balance: fields.balance })
+}
+
+// A credit a vendor gave (vendor credit spec §3.1): the party is a required vendor, the
+// lines are the bill's two tables, and it has no tax, message, email, PDF or party address.
+// A copied vendor, account or product that is now inactive stays in the form, and Post
+// refuses it with the purchase texts. Its badge is Applied / Partly applied, and the read
+// view's rows after Total are Applied and Unapplied credit. Its read section holds the Apply
+// to bills notice, the Applied to block and the apply dialog.
+export const VENDOR_CREDIT_DOCUMENT: DocumentKind = {
+    doc: VENDOR_CREDIT_KIND,
+    data: VENDOR_CREDIT_DATA,
+    columnsFrom: vendorCreditColumnsFrom,
+    emptyColumns: EMPTY_VENDOR_CREDIT_COLUMNS,
+    values: {
+        // `?vendor` fills the first account line's Account with the vendor's default
+        // expense account when the Account picker lists it (the start read it,
+        // VENDOR_CREDIT_DATA).
+        new: ({ party, today, start }) =>
+            newVendorCreditValues({
+                today,
+                ...purchaseStartOf(start, 'vendor_credit'),
+                vendor: vendorPartyOf(party),
+            }),
+        copy: (source, lines, today) =>
+            copyVendorCreditValues(vendorCreditRowOf(source), lines.filter(isPurchaseLine), today),
+        correction: (source, lines) =>
+            vendorCreditCorrectionValues(vendorCreditRowOf(source), lines.filter(isPurchaseLine)),
+    },
+    ReadDetails: VendorCreditReadDetails,
+    ReadLines: PurchaseReadLines,
+    lineSpecs: PURCHASE_LINE_SPECS,
+    // The first account line's empty Account; nothing in the band.
+    partyFills: vendorCreditVendorFills,
+    balanceBadge: appliedBadge,
+    readTotals: vendorCreditTotalsOf,
+    ReadFrame: VendorCreditReadFrame,
 }

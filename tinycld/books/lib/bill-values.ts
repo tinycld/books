@@ -8,6 +8,8 @@ import type { TableRow } from '@tinycld/core/lib/forms/values'
 import type { BooksBills, BooksVendors } from '../types'
 import type { CustomerAddress } from './address'
 import { dueDateFor } from './document-dates'
+import type { DocumentTotalRow } from './document-total-rows'
+import { formatMoney, MINUS } from './money'
 import type { PurchaseLineRow } from './purchase-line-columns'
 import type { PurchaseLines } from './purchase-lines'
 import { purchaseLinesWithNewIds, purchaseStartLines, vendorAccountFill } from './purchase-values'
@@ -106,6 +108,37 @@ export function copyBillValues(
         ...purchaseLinesWithNewIds(lines),
         memo: bill.memo,
     }
+}
+
+// The vendor credit applied to a bill, in cents, from its stored record (vendor credit spec
+// §3.10): a posted bill's total less its posted payments (`paymentsCents`, the Payments
+// row) and its stored balance, which the server lowers by each payment and each credit
+// application. So Total, Payments, Credits applied and Balance due always add up, also
+// while the applications read loads or has failed. 0 for a draft or a void bill, whose
+// balance is not an open balance. Pure.
+export function billCreditsApplied(
+    record: { status: string; total: number; balance: number },
+    paymentsCents: number
+): number {
+    if (record.status !== 'posted') return 0
+    return Math.max(0, record.total - paymentsCents - record.balance)
+}
+
+// The bill read view's rows between Payments and Balance due (vendor credit spec §3.10):
+// "Credits applied" with a minus sign while vendor credits are applied to the bill
+// (`applied`, billCreditsApplied), and no row while none is.
+export function billReadTotals(
+    record: { currency: string },
+    extra: { applied: number }
+): DocumentTotalRow[] {
+    if (extra.applied <= 0) return []
+    return [
+        {
+            label: 'Credits applied',
+            amount: `${MINUS}${formatMoney(extra.applied, record.currency)}`,
+            testId: 'bill-total-credits',
+        },
+    ]
 }
 
 // Read view "Edit" (`?replaces=<id>`): a correction keeps every value of the posted bill,

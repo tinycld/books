@@ -76,6 +76,12 @@ describe('help/expenses.md', () => {
         expect(body).toMatch(word)
     })
 
+    // Vendor credit spec §3.8: the Purchases card names all three forms.
+    it('names the Bills, expenses and vendor credits card, not the old card title', () => {
+        expect(body).toContain('Bills, expenses and vendor credits')
+        expect(body).not.toContain('Bills and expenses card')
+    })
+
     it('explains the duplicate check number refusal', () => {
         expect(
             lineWith(/\bcheck (no\.|number)/i, /\b(already|same|duplicate)\b/i),

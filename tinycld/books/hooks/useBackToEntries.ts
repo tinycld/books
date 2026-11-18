@@ -9,6 +9,7 @@ import {
     EXPENSE_KIND,
     INVOICE_KIND,
     SALES_RECEIPT_KIND,
+    VENDOR_CREDIT_KIND,
 } from '../lib/sales-document-kinds'
 import { isReadOnlyRoute } from '../lib/search-target'
 
@@ -35,6 +36,7 @@ const LABELS: Record<string, string> = {
             ESTIMATE_KIND,
             BILL_KIND,
             EXPENSE_KIND,
+            VENDOR_CREDIT_KIND,
         ].map(kind => [documentStackRouteName(kind), kind.noun])
     ),
 }

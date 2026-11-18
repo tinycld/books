@@ -57,9 +57,10 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
-    // A bill's or an expense's file. A row is created by core's uploadRecordWithFile (the
-    // file bytes), never by an insert here; the server stamps name, size and uploaded_by
-    // from the upload.
+    // A bill's, an expense's or a vendor credit's file. A row is created by core's
+    // uploadRecordWithFile (the file bytes), never by an insert here; the server stamps
+    // name, size and uploaded_by from the upload. A reader filters by the parent's id
+    // column and never reads the parent through the row, so no parent relation is declared.
     const books_attachments = newCollection('books_attachments', {
         omitOnInsert: ['created', 'updated', 'name', 'size', 'uploaded_by'] as const,
         ...onDemand,
@@ -538,6 +539,52 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // As the bill's: server-owned fields below the omit line (balance is the
+    // unapplied credit), no relations (the vendor credit screen reads its
+    // vendor, accounts, products and users through their own queries).
+    const books_vendor_credits = newCollection('books_vendor_credits', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'number',
+            'sequence',
+            'subtotal',
+            'total',
+            'balance',
+            'revision',
+            'currency',
+            'entry',
+            'replaced_by',
+            'posted_by',
+            'posted_at',
+            'voided_by',
+            'voided_at',
+            'sort_key',
+        ] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // As the bill's lines: an account line's amount is typed by the writer;
+    // the server computes a product line's and refuses one sent with it.
+    const books_vendor_credit_lines = newCollection('books_vendor_credit_lines', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // One row per bill a credit is applied to; the client writes the credit, the
+    // bill, the amount and the apply date, and the server stamps applied_by and
+    // close_override (the create rule refuses a client value of either). The
+    // credit and the bill file into their collections, where the Applied to
+    // rows read them through materialize() (useCreditApplications).
+    const books_vendor_credit_applications = newCollection('books_vendor_credit_applications', {
+        omitOnInsert: ['created', 'applied_by', 'close_override'] as const,
+        ...onDemand,
+        relations: { vendor_credit: books_vendor_credits, bill: books_bills },
+        collectionOptions: indexed,
+    })
+
     // Written by the server from payments (the cash basis); clients only read them.
     const books_cash_basis_lines = newCollection('books_cash_basis_lines', {
         omitOnInsert: ['created', 'updated'] as const,
@@ -621,6 +668,9 @@ export function registerCollections(
         books_payment_applications,
         books_bill_payments,
         books_bill_payment_lines,
+        books_vendor_credits,
+        books_vendor_credit_lines,
+        books_vendor_credit_applications,
         books_cash_basis_lines,
         books_cash_basis_tax_lines,
         books_party_balances,

@@ -10,18 +10,21 @@ import (
 )
 
 // The cash basis (pay-bills spec §3.10). A document of a deferred kind (a bill,
-// an invoice, a credit memo) counts on the cash basis when and as far as it is
-// paid (a credit memo: applied or refunded, which no write does yet). Its rows
+// an invoice, a credit memo, a vendor credit) counts on the cash basis when and
+// as far as it is paid (a vendor credit: applied to bills; a credit memo:
+// applied or refunded, which no write does yet). Its rows
 // in books_cash_basis_lines are derived from the ledger and the payments:
 //
 //   - taken out: each posted line of the document's entries (its entry and the
 //     void reversal of it) negated, at the line's own date;
-//   - brought back: for each posted payment, in payment order (date, then
-//     number), that payment's share of every line of the document's current
-//     entry at the payment's date. The lines other than the control line (A/P,
-//     A/R) take amount × paid ÷ total, cumulative over the payments, by largest
-//     remainder; the control line takes the payment's amount, so a share
-//     balances and a document paid in full brings back exactly its lines.
+//   - brought back: for each posted payment and each credit application, in
+//     order (date, then entry sequence, then id), its share of every line of
+//     the document's current entry at its date. The lines other than the
+//     control line (A/P, A/R) take amount × paid ÷ total, cumulative over the
+//     payments, by largest remainder; the control line takes the payment's
+//     amount, so a share balances and a document paid in full brings back
+//     exactly its lines. An application's rows name the vendor credit's
+//     posted entry, on the credit and on the bill.
 //
 // Every write that changes a document's entries or payments rebuilds that
 // document's rows in its own transaction (rebuildCashBasisFor); the ledger
@@ -34,8 +37,8 @@ import (
 const cashLinesCollection = "books_cash_basis_lines"
 
 // cashDeferral is one deferred kind: Kind is the document_kind value and the
-// cash row's field that names the document; Balance holds the document, its
-// payment lines and its payments (document_balance.go); DocType and
+// cash row's field that names the document; Balance holds the document and
+// its payers (document_balance.go); DocType and
 // PaymentDocType are the doc types of the document's and the payment's
 // entries; UnpaidMemo is a taken-out row's memo, PaidMemo a share row's, with
 // the document's number. TaxLines is the collection of the document's posted
@@ -81,9 +84,20 @@ var (
 		PaidMemo:   "Credit memo %s applied (cash basis)",
 		TaxLines:   "books_credit_memo_tax_lines",
 	}
+	// vendorCreditCashDeferral takes a vendor credit's lines out of the cash
+	// layer on its date, and each application to a bill brings back its share
+	// at the apply date (vendorCreditBalanceKind's one payer). No payment pays
+	// it, so it has no payment doc type.
+	vendorCreditCashDeferral = cashDeferral{
+		Kind:       "vendor_credit",
+		DocType:    docTypeVendorCredit,
+		Balance:    vendorCreditBalanceKind,
+		UnpaidMemo: "Unapplied vendor credit (cash basis)",
+		PaidMemo:   "Vendor credit %s applied (cash basis)",
+	}
 	// cashDeferrals are the deferred kinds. A customer payment's unapplied
 	// credit is not deferred: it is cash received on its own date.
-	cashDeferrals = []cashDeferral{billCashDeferral, invoiceCashDeferral, creditMemoCashDeferral}
+	cashDeferrals = []cashDeferral{billCashDeferral, invoiceCashDeferral, creditMemoCashDeferral, vendorCreditCashDeferral}
 )
 
 // cashDeferralOf is the deferred kind of a document collection, and false for
@@ -121,13 +135,19 @@ type cashSourceLine struct {
 	Currency string `db:"currency"`
 }
 
-// cashPayment is one posted payment of a document: its entry, the entry's
-// date and sequence, and what its lines pay on the document.
+// cashPayment is one posted payment or one application of a document: the
+// entry its brought-back rows name (the payment's, or the posted entry of the
+// document an application applies), its date (the payment entry's, or the
+// apply date) and that entry's sequence, what it pays on the document, the id
+// it sorts by last (the entry's, or the application's), and the memo of its
+// rows ("" = the deferral's PaidMemo).
 type cashPayment struct {
+	ID       string `db:"id"`
 	Entry    string `db:"entry"`
 	Date     string `db:"date"`
 	Sequence int    `db:"sequence"`
 	Amount   int64  `db:"amount"`
+	Memo     string `db:"-"`
 }
 
 // documentEntryLines reads the posted lines of the document's entries (origin
@@ -154,27 +174,84 @@ func documentEntryLines(tx core.App, d cashDeferral, docID string) ([]cashSource
 	return lines, nil
 }
 
-// documentPayments reads the posted payments that pay the document, in
-// payment order: date, then number. A kind with no payment lines (a credit
+// documentPayments reads what pays the document, from every payer of its
+// balance kind, in one order: date, then entry sequence, then id. A payment
+// payer gives one cashPayment per posted payment (its entry, the sum of its
+// lines on the document); an application payer gives one per application, at
+// the apply date, naming the posted entry of the document the application's
+// EntryField names, with the payer's memo. A kind with no payer (a credit
 // memo, which nothing applies yet) has none.
 func documentPayments(tx core.App, d cashDeferral, docID string) ([]cashPayment, error) {
-	k := d.Balance
-	if k.LinesCollection == "" {
-		return nil, nil
+	var payments []cashPayment
+	for _, p := range d.Balance.Payers {
+		var found []cashPayment
+		var err error
+		if p.PaymentCollection != "" {
+			found, err = postedPaymentsOf(tx, d, p, docID)
+		} else {
+			found, err = applicationsOf(tx, d, p, docID)
+		}
+		if err != nil {
+			return nil, err
+		}
+		payments = append(payments, found...)
 	}
+	sort.SliceStable(payments, func(i, j int) bool {
+		a, b := payments[i], payments[j]
+		if a.Date != b.Date {
+			return a.Date < b.Date
+		}
+		if a.Sequence != b.Sequence {
+			return a.Sequence < b.Sequence
+		}
+		return a.ID < b.ID
+	})
+	return payments, nil
+}
+
+// postedPaymentsOf reads the posted payments whose lines (of payer p) pay the
+// document: whether a payment counts is read from its entry.
+func postedPaymentsOf(tx core.App, d cashDeferral, p balancePayer, docID string) ([]cashPayment, error) {
 	var payments []cashPayment
 	err := tx.DB().NewQuery(`
-		SELECT pe.id AS entry, pe.date AS date, CAST(pe.sequence AS INTEGER) AS sequence,
+		SELECT pe.id AS id, pe.id AS entry, pe.date AS date, CAST(pe.sequence AS INTEGER) AS sequence,
 		       CAST(SUM(pl.amount) AS INTEGER) AS amount
-		FROM ` + k.LinesCollection + ` pl
-		JOIN books_journal_entries pe ON pe.document = pl.` + k.PaymentField + `
-		WHERE pl.` + k.LineField + ` = {:doc} AND pe.doc_type = {:type}
+		FROM ` + p.LinesCollection + ` pl
+		JOIN books_journal_entries pe ON pe.document = pl.` + p.PaymentField + `
+		WHERE pl.` + p.LineField + ` = {:doc} AND pe.doc_type = {:type}
 		  AND pe.origin = 'document' AND pe.status = 'posted'
-		GROUP BY pe.id
-		ORDER BY pe.date, pe.sequence, pe.id`).
+		GROUP BY pe.id`).
 		Bind(dbx.Params{"doc": docID, "type": d.PaymentDocType}).All(&payments)
 	if err != nil {
 		return nil, fmt.Errorf("books: read the payments of %s %s: %w", d.Kind, docID, err)
+	}
+	return payments, nil
+}
+
+// applicationsOf reads the applications (rows of payer p) that name the
+// document, each with the posted origin-document entry of the document its
+// EntryField names: a vendor credit's entry, for the credit's own rows and for
+// the bill's. The doc type of that entry is the one of the deferral whose
+// documents live in EntryCollection.
+func applicationsOf(tx core.App, d cashDeferral, p balancePayer, docID string) ([]cashPayment, error) {
+	source, ok := cashDeferralOf(p.EntryCollection)
+	if !ok {
+		return nil, fmt.Errorf("books: %s is not a deferred collection", p.EntryCollection)
+	}
+	var payments []cashPayment
+	err := tx.DB().NewQuery(`
+		SELECT a.id AS id, pe.id AS entry, a.date AS date, CAST(pe.sequence AS INTEGER) AS sequence,
+		       CAST(a.amount AS INTEGER) AS amount
+		FROM ` + p.LinesCollection + ` a
+		JOIN books_journal_entries pe ON pe.document = a.` + p.EntryField + `
+		WHERE a.` + p.LineField + ` = {:doc} AND pe.doc_type = {:type}
+		  AND pe.origin = 'document' AND pe.status = 'posted'`).
+		Bind(dbx.Params{"doc": docID, "type": source.DocType}).All(&payments)
+	if err != nil {
+		return nil, fmt.Errorf("books: read the applications of %s %s: %w", d.Kind, docID, err)
+	}
+	for i := range payments {
+		payments[i].Memo = p.CashMemo
 	}
 	return payments, nil
 }
@@ -236,11 +313,16 @@ func paymentShareRows(tx core.App, d cashDeferral, docID string, current []cashS
 	for i, l := range others {
 		amounts[i] = sign * (l.Debit - l.Credit)
 	}
-	memo := fmt.Sprintf(d.PaidMemo, control.Number)
+	memoOf := func(p cashPayment) string {
+		if p.Memo != "" {
+			return fmt.Sprintf(p.Memo, control.Number)
+		}
+		return fmt.Sprintf(d.PaidMemo, control.Number)
+	}
 	row := func(l cashSourceLine, p cashPayment, signed int64) cashLine {
 		r := cashLine{
 			Entry: p.Entry, PaymentEntry: p.Entry, Account: l.Account, Vendor: l.Vendor, Customer: l.Customer,
-			Date: p.Date, Memo: memo, Currency: l.Currency,
+			Date: p.Date, Memo: memoOf(p), Currency: l.Currency,
 		}
 		if signed > 0 {
 			r.Debit = signed
@@ -443,6 +525,7 @@ func rebuildCashBasisOf(tx core.App, collection string, docIDs ...string) error 
 func rebuildPaidCashBasis(tx core.App, kind balanceKind, paymentIDs ...string) error {
 	var docs []string
 	seen := map[string]bool{}
+	p, _ := kind.paymentPayer()
 	for _, id := range paymentIDs {
 		if id == "" {
 			continue
@@ -452,7 +535,7 @@ func rebuildPaidCashBasis(tx core.App, kind balanceKind, paymentIDs ...string) e
 			return err
 		}
 		for _, l := range lines {
-			doc := l.GetString(kind.LineField)
+			doc := l.GetString(p.LineField)
 			if !seen[doc] {
 				seen[doc] = true
 				docs = append(docs, doc)

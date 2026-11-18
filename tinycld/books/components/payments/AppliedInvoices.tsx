@@ -6,6 +6,7 @@ import {
     gridDocumentLabel,
     type OutstandingDocument,
     outstandingTexts,
+    totalTexts,
 } from '../../lib/outstanding-documents'
 import {
     BILL_PAYMENT_APPLIED_COLUMNS,
@@ -175,6 +176,7 @@ function GridTotal({
 function AppliedGrid({ doc, rows, currency, testIdPrefix, total }: AppliedListProps) {
     const layout = appliedLayoutOf(doc)
     const texts = outstandingTexts(doc)
+    const totalHeader = totalTexts(doc).header
     const col = layout.columns
     const drawn = rows.map(row => (
         <AppliedRow
@@ -196,7 +198,7 @@ function AppliedGrid({ doc, rows, currency, testIdPrefix, total }: AppliedListPr
                     Due date
                 </Text>
                 <Text className={`${HEAD} text-right`} style={col.original}>
-                    {texts.totalHeader}
+                    {totalHeader}
                 </Text>
                 <Text className={`${HEAD} text-right`} style={col.applied}>
                     {texts.appliedLabel}
