@@ -24,6 +24,7 @@ import { ESTIMATE_DATA } from '../../hooks/estimate-data'
 import { EXPENSE_DATA } from '../../hooks/expense-data'
 import { INVOICE_DATA } from '../../hooks/invoice-data'
 import { SALES_RECEIPT_DATA } from '../../hooks/sales-receipt-data'
+import type { CreditRefunds } from '../../hooks/useCreditRefunds'
 import { VENDOR_CREDIT_DATA } from '../../hooks/vendor-credit-data'
 import { billColumnsFrom, EMPTY_BILL_COLUMNS } from '../../lib/bill-columns'
 import {
@@ -42,7 +43,7 @@ import {
     newCreditMemoValues,
 } from '../../lib/credit-memo-values'
 import type { TaxRateFill } from '../../lib/document-fills'
-import { appliedBadge, type BalanceBadge, paidBadge } from '../../lib/document-lifecycle'
+import { type BalanceBadge, paidBadge, vendorCreditBadge } from '../../lib/document-lifecycle'
 import {
     DOCUMENT_LINE_COLUMNS,
     DOCUMENT_LINE_MAPPER,
@@ -105,7 +106,7 @@ import {
     EMPTY_VENDOR_CREDIT_COLUMNS,
     vendorCreditColumnsFrom,
 } from '../../lib/vendor-credit-columns'
-import { vendorCreditReadTotals } from '../../lib/vendor-credit-totals'
+import { vendorCreditAppliedToBills, vendorCreditReadTotals } from '../../lib/vendor-credit-totals'
 import {
     copyVendorCreditValues,
     newVendorCreditValues,
@@ -139,11 +140,26 @@ export type DocumentReadBandRowProps = { record: DocumentRecord }
 // The read view's Details panel as two parts: `body` is the band through the Payments block,
 // `stamps` the stamps under it. A kind's ReadFrame draws them in order with its own parts
 // around them (a notice before the band, a section before the stamps).
+// `refunds` is the read view's one read of the record's posted vendor refunds
+// (`DocumentKind.readRefunds`; off, ready and empty for every other kind), which a vendor
+// credit's Applied to block lists and its Retry recovers.
 export type DocumentReadFrameProps = {
     record: DocumentRecord
     body: ReactNode
     stamps: ReactNode
+    refunds: CreditRefunds
 }
+
+// The cents of the posted vendor refunds on a vendor credit (DocumentKind.readRefunds); null
+// while their read has failed, so the parts that split the used credit into Applied and
+// Refunded do not guess; 0 for every other kind.
+export type ReadRefunded = number | null
+
+// The read view's badge of a kind with a balance badge: the kind's BalanceBadge, with the
+// refunded cents a vendor credit's badge also reads.
+export type ReadBalanceBadge = (
+    ...args: [...Parameters<BalanceBadge>, refunded: ReadRefunded]
+) => ReturnType<BalanceBadge>
 
 // How a kind's stored line rows map to a line table's form rows and back: the sales
 // kinds' lines are DocumentLineRow, a purchase kind's PurchaseLineRow. `lines` tags which,
@@ -307,18 +323,26 @@ export type DocumentKind = {
     // What a vendor pick fills (a vendor kind's); a kind without it fills nothing.
     partyFills?: PartyFills
     // The read view's badge of a kind whose posted documents keep an open balance (Paid on
-    // an invoice and a bill, Applied on a vendor credit), from the stored balance; a kind
-    // without it shows its status badge.
-    balanceBadge?: BalanceBadge
+    // an invoice and a bill, Applied, Partly applied or Refunded on a vendor credit), from the
+    // stored balance (and a vendor credit's refunded cents); a kind without it shows its
+    // status badge.
+    balanceBadge?: ReadBalanceBadge
     // The rows the read view draws after Total (a bill's Credits applied, a vendor credit's
-    // Applied and Unapplied credit). `applied` is the credit applied to a posted bill, read
-    // from its stored record (billCreditsApplied: the total less its posted payments and its
-    // stored balance), so the rows add up while the applications read is loading or failed;
-    // 0 for every other kind.
-    readTotals?: (record: DocumentRecord, extra: { applied: number }) => DocumentTotalRow[]
+    // Applied, Refunded and Unapplied credit). `applied` is the credit applied to a posted
+    // bill, read from its stored record (billCreditsApplied: the total less its posted
+    // payments and its stored balance), so the rows add up while the applications read is
+    // loading or failed; 0 for every other kind. `refunded` is the vendor credit's
+    // (ReadRefunded); a caller that does not pass it means 0.
+    readTotals?: (
+        record: DocumentRecord,
+        extra: { applied: number; refunded?: ReadRefunded }
+    ) => DocumentTotalRow[]
     // True makes the read view read the record's credit applications, the rows its Payments
     // block lists with Remove.
     readApplications?: boolean
+    // True makes the read view read the record's posted vendor refunds (useCreditRefunds):
+    // the Refunded row and badge read their sum, the ReadFrame's Applied to block their rows.
+    readRefunds?: boolean
 }
 
 // The source row with the invoice's own columns back at the top level. The invoice's
@@ -669,20 +693,40 @@ function vendorCreditRowOf(source: DocumentSource) {
     return { ...source, ...fields }
 }
 
-// The read view's rows after Total, from the stored balance (vendorCreditReadTotals). A
-// record of another kind has no vendor credit balance, so it draws none.
-function vendorCreditTotalsOf(record: DocumentRecord): DocumentTotalRow[] {
+// The read view's rows after Total, from the stored balance and the posted refunds' cents
+// (vendorCreditReadTotals). While the refunds read has failed only Unapplied credit is
+// drawn: the used credit cannot be split into Applied and Refunded. A record of another
+// kind has no vendor credit balance, so it draws none.
+function vendorCreditTotalsOf(
+    record: DocumentRecord,
+    { refunded = 0 }: { refunded?: ReadRefunded }
+): DocumentTotalRow[] {
     const fields = record.kindFields
     if (fields.kind !== 'vendor_credit') return []
-    return vendorCreditReadTotals({ ...record, balance: fields.balance })
+    const rows = vendorCreditReadTotals({ ...record, balance: fields.balance }, refunded ?? 0)
+    if (refunded !== null) return rows
+    return rows.filter(row => row.testId === 'vendor-credit-total-unapplied')
 }
+
+// The vendor credit's badge (vendorCreditBadge): Refunded when its balance is 0 and nothing
+// of it is applied to a bill. While the refunds read has failed the split is not known: a
+// credit with nothing left shows its status badge (Posted), one with a balance Partly
+// applied or Posted.
+const vendorCreditBadgeOf: ReadBalanceBadge = (status, balance, total, refunded) =>
+    vendorCreditBadge(
+        status,
+        balance,
+        total,
+        refunded === null ? null : vendorCreditAppliedToBills({ total, balance }, refunded)
+    )
 
 // A credit a vendor gave (vendor credit spec §3.1): the party is a required vendor, the
 // lines are the bill's two tables, and it has no tax, message, email, PDF or party address.
 // A copied vendor, account or product that is now inactive stays in the form, and Post
-// refuses it with the purchase texts. Its badge is Applied / Partly applied, and the read
-// view's rows after Total are Applied and Unapplied credit. Its read section holds the Apply
-// to bills notice, the Applied to block and the apply dialog.
+// refuses it with the purchase texts. Its badge is Applied / Partly applied / Refunded, and
+// the read view's rows after Total are Applied, Refunded and Unapplied credit; the read view
+// reads its posted vendor refunds for them. Its read section holds the Apply to bills
+// notice, the Applied to block (applications and refunds) and the apply dialog.
 export const VENDOR_CREDIT_DOCUMENT: DocumentKind = {
     doc: VENDOR_CREDIT_KIND,
     data: VENDOR_CREDIT_DATA,
@@ -708,7 +752,8 @@ export const VENDOR_CREDIT_DOCUMENT: DocumentKind = {
     lineSpecs: PURCHASE_LINE_SPECS,
     // The first account line's empty Account; nothing in the band.
     partyFills: vendorCreditVendorFills,
-    balanceBadge: appliedBadge,
+    balanceBadge: vendorCreditBadgeOf,
     readTotals: vendorCreditTotalsOf,
+    readRefunds: true,
     ReadFrame: VendorCreditReadFrame,
 }

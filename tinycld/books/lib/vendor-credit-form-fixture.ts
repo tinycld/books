@@ -404,7 +404,7 @@ export const APPLY_CREDIT_TEXTS = {
     rowServerOver: 'Bill 1004: the credit is more than its open balance of $420.00.',
     rowNotOpen: 'Bill 1007 is not open. Clear it to continue.',
     noOpenBills:
-        'Ironclad Equipment Rentals has no open bills. The credit stays on the vendor until you post a bill.',
+        'Ironclad Equipment Rentals has no open bills. The credit stays on the vendor until you post a bill or record a refund.',
     toast: 'Applied $650.00 to 2 bills',
     // The dialog's failed read: Pay Bills' words for the same open-bills query.
     loadFailed: 'Books could not load the open bills.',

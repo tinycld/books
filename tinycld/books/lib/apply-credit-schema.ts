@@ -25,7 +25,8 @@ export const APPLY_CREDIT_MESSAGES = {
     selectOne: 'Select at least one bill.',
     // Pay Bills' words for the same open-bills read.
     loadFailed: 'Books could not load the open bills.',
-    noOpenBills: '%s has no open bills. The credit stays on the vendor until you post a bill.',
+    noOpenBills:
+        '%s has no open bills. The credit stays on the vendor until you post a bill or record a refund.',
     // The first `%s` is the bill's number, the second the amount the credit gives back.
     removeBody:
         "Remove this credit from Bill %s? The bill's balance goes up by %s and the credit is unapplied again.",

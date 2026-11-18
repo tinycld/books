@@ -172,6 +172,67 @@ describe('help/vendor-credits.md', () => {
         }
     })
 
+    // Vendor refund spec §3.12: Record refund, the Refunded row and badge, the void and
+    // correction rules, and the link to the vendor refunds topic.
+    describe('vendor refunds', () => {
+        it('names Record refund', () => {
+            expect(body).toContain('Record refund')
+        })
+
+        it('names the read-view key R with Record refund', () => {
+            const line = lines.find(
+                l => /(^|[^\w⌘⌥⇧])R([^\w]|$)/.test(l) && /Record refund/.test(l)
+            )
+            expect(line, 'a line with R and Record refund').toBeDefined()
+        })
+
+        it('names the Refunded row under the Total, with Unapplied credit', () => {
+            expect(
+                lineWith(/\bRefunded\b/, /\bUnapplied credit\b/),
+                'a line on the Refunded row and the Unapplied credit'
+            ).toBeDefined()
+        })
+
+        it('lists the Refunded badge with the other badges', () => {
+            expect(
+                lines.some(l => /^\s*[-*]\s+\*\*Refunded\*\*/.test(l)),
+                'a badge list item "**Refunded**"'
+            ).toBe(true)
+        })
+
+        it('says the Applied to section lists the refunds, which open the refund', () => {
+            expect(
+                lineWith(/\bApplied to\b/, /\bvendor refunds?\b/i),
+                'a line on the refunds in the Applied to section'
+            ).toBeDefined()
+        })
+
+        it('says a credit with a refund is voided only after the refund is voided', () => {
+            expect(body).toContain(
+                'A vendor refund is recorded on this credit. Void the refund first.'
+            )
+            expect(
+                lineWith(/\bVoid\b/, /\brefund\b/i, /\bfirst\b/i),
+                'a line on voiding the refund first'
+            ).toBeDefined()
+        })
+
+        it('gives the correction rules of a credit with a refund in their words', () => {
+            expect(body).toMatch(/is applied or refunded\. Its total cannot be below that\./)
+            expect(body).toContain(
+                'A vendor refund is recorded on this credit, so its vendor cannot change.'
+            )
+        })
+
+        it('links the vendor refunds topic, which exists', () => {
+            expect(body).toContain('help://books:vendor-refunds')
+            expect(
+                existsSync(path.join(helpDir, 'vendor-refunds.md')),
+                'help/vendor-refunds.md'
+            ).toBe(true)
+        })
+    })
+
     it('hand-writes no hostname other than {{server-host}}', () => {
         expect(exists).toBe(true)
         const stripped = body.replaceAll('{{server-host}}', '')
