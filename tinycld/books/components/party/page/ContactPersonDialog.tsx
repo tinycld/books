@@ -12,11 +12,14 @@ import { useRef } from 'react'
 import { Text, type TextInputInstance, View } from 'react-native'
 import { type ContactPersonValues, contactPersonSchema } from '../../../lib/contact-person-schema'
 import { rootErrorOnly } from '../../../lib/root-errors'
+import type { DocumentPartyKey } from '../../../lib/sales-document-kinds'
 import type { BooksPartyContacts } from '../../../types'
 import { ListBanner } from '../../ListBanner'
 
 interface ContactPersonDialogProps {
-    customerId: string
+    party: DocumentPartyKey
+    // The customer or vendor the contact belongs to.
+    partyId: string
     // The row the tab rendered, or null for Add.
     contact: BooksPartyContacts | null
     isOpen: boolean
@@ -32,6 +35,12 @@ const EMPTY_CONTACT: ContactPersonValues = {
     email: '',
     phone: '',
     is_primary: false,
+}
+
+// A contact belongs to one party: the other party's field is empty.
+function ownerOf(party: DocumentPartyKey, partyId: string) {
+    if (party === 'customer') return { customer: partyId, vendor: '' }
+    return { vendor: partyId, customer: '' }
 }
 
 function valuesOf(contact: BooksPartyContacts | null): ContactPersonValues {
@@ -50,7 +59,7 @@ function valuesOf(contact: BooksPartyContacts | null): ContactPersonValues {
 // row is deleted elsewhere while the dialog is open: the dialog then says so and Save is
 // off. The row is already in the store (the tab's list holds it), so the read sends no
 // request unless it has to.
-function useContactPersonDialog({ customerId, contact, onClose }: ContactPersonDialogProps) {
+function useContactPersonDialog({ party, partyId, contact, onClose }: ContactPersonDialogProps) {
     const [contactsCollection] = useStore('books_party_contacts')
     const contactId = contact?.id ?? ''
     const storedQuery = useLiveQuery({
@@ -61,7 +70,7 @@ function useContactPersonDialog({ customerId, contact, onClose }: ContactPersonD
                       .where(({ c }) => eq(c.id, contactId))
                       .findOne()
                 : undefined,
-        queryKey: ['books.customer-page.contact', contactId],
+        queryKey: [`books.${party}-page.contact`, contactId],
     })
     const form = useForm<ContactPersonValues>({
         resolver: zodResolver(contactPersonSchema),
@@ -73,8 +82,7 @@ function useContactPersonDialog({ customerId, contact, onClose }: ContactPersonD
             if (contact === null) {
                 yield contactsCollection.insert({
                     id: newRecordId(),
-                    customer: customerId,
-                    vendor: '',
+                    ...ownerOf(party, partyId),
                     ...values,
                 })
                 return
@@ -108,7 +116,7 @@ function useContactPersonDialog({ customerId, contact, onClose }: ContactPersonD
         void recoverLiveQueries({
             queries: [storedQuery.collection],
             sources: [contactsCollection],
-            onError: err => log.warn('books.customer-page', 'retry failed', { err }),
+            onError: err => log.warn(`books.${party}-page`, 'retry failed', { err }),
         })
     }
 

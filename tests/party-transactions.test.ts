@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
     CUSTOMER_PAGE_ESTIMATES,
     CUSTOMER_PAGE_INVOICES,
@@ -16,12 +16,15 @@ import {
     invoiceRow,
     isListedTransaction,
     mergeTransactions,
+    type PartyTransactionRow,
+    partyFilterTestId,
     paymentRow,
     salesReceiptRow,
     TRANSACTION_DOC_KINDS,
     TRANSACTION_FILTERS,
     TRANSACTION_PAGE,
     TRANSACTION_TYPE_LABELS,
+    type TransactionKind,
     transactionTotalText,
 } from '../tinycld/books/lib/party-transactions'
 import { PAYMENT_IDS, PAYMENTS } from '../tinycld/books/lib/receive-payment-fixture'
@@ -535,5 +538,64 @@ describe('filterTestId and TRANSACTION_DOC_KINDS', () => {
         expect(TRANSACTION_DOC_KINDS.estimate).toEqual(ESTIMATE_KIND)
         expect(TRANSACTION_DOC_KINDS.sales_receipt).toEqual(SALES_RECEIPT_KIND)
         expect(TRANSACTION_DOC_KINDS.payment).toMatchObject({ routeBase: 'books/payments' })
+    })
+})
+
+// Vendor pages §2: the transactions list is a shared part, so its chip ids take the
+// party's prefix, and its rows take another party's kind union.
+describe('partyFilterTestId', () => {
+    it('writes <prefix>-transactions-filter-<filter> with every underscore as a dash', () => {
+        expect(partyFilterTestId('vendor', 'bill_payment')).toBe(
+            'vendor-transactions-filter-bill-payment'
+        )
+        expect(partyFilterTestId('vendor', 'all')).toBe('vendor-transactions-filter-all')
+        expect(partyFilterTestId('customer', 'sales_receipt')).toBe(
+            'customer-transactions-filter-sales-receipt'
+        )
+    })
+
+    it('leaves filterTestId as it was for the customer page', () => {
+        expect(filterTestId('sales_receipt')).toBe('customer-transactions-filter-sales-receipt')
+        expect(filterTestId('sales_receipt')).toBe(partyFilterTestId('customer', 'sales_receipt'))
+    })
+})
+
+describe('mergeTransactions over another kind union', () => {
+    type PurchaseKind = 'bill' | 'expense'
+    const purchaseRow = (
+        id: string,
+        kind: PurchaseKind,
+        date: string,
+        total: number
+    ): PartyTransactionRow<PurchaseKind> => ({
+        id,
+        kind,
+        number: id.toUpperCase(),
+        date,
+        dueDate: '',
+        total,
+        currency: 'USD',
+        created: `${date} 09:00:00.000Z`,
+        status: { label: 'Paid', tone: 'success' },
+    })
+
+    it('merges rows of a purchase kind union, newest first, and keeps their row type', () => {
+        const bills = [purchaseRow('b1', 'bill', '2026-11-01', 10_000)]
+        const expenses = [
+            purchaseRow('e1', 'expense', '2026-11-04', 2_500),
+            purchaseRow('e2', 'expense', '2026-10-20', 900),
+        ]
+        const merged = mergeTransactions([bills, expenses], TRANSACTION_PAGE)
+        expectTypeOf(merged.rows).toEqualTypeOf<PartyTransactionRow<PurchaseKind>[]>()
+        expectTypeOf<PartyTransactionRow['kind']>().toEqualTypeOf<TransactionKind>()
+        expect(merged.rows.map(r => r.id)).toEqual(['e1', 'b1', 'e2'])
+        expect(merged.hasMore).toBe(false)
+        expect(mergeTransactions([bills, expenses], 1).hasMore).toBe(true)
+    })
+
+    it('writes a purchase row total like a sales row total', () => {
+        const row = purchaseRow('b1', 'bill', '2026-11-01', 25_000)
+        expect(transactionTotalText(row, 'USD')).toBe('$250.00')
+        expect(transactionTotalText({ ...row, total: -25_000 }, 'USD')).toBe(`${MINUS}$250.00`)
     })
 })

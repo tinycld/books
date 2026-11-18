@@ -26,12 +26,14 @@ export type TransactionKind = 'invoice' | 'estimate' | 'sales_receipt' | 'paymen
 
 export type TransactionFilter = 'all' | TransactionKind
 
-export interface PartyTransactionRow {
+// One row of a party page's Transactions list. `Kind` is the party's kind union: the
+// sales kinds for a customer (the default), the purchase kinds for a vendor.
+export interface PartyTransactionRow<Kind extends string = TransactionKind> {
     id: string
-    kind: TransactionKind
+    kind: Kind
     number: string
     date: string
-    // Invoices only; '' for the other kinds.
+    // Set by the kinds with a due date (invoice, bill); '' for every other kind.
     dueDate: string
     // A credit memo's total is its stored total negated: the credit lowers what is owed.
     total: number
@@ -244,7 +246,7 @@ export function creditMemoRow(row: CreditMemoInput): PartyTransactionRow {
     }
 }
 
-export function transactionTotalText(row: PartyTransactionRow, currency: string): string {
+export function transactionTotalText(row: PartyTransactionRow<string>, currency: string): string {
     if (row.total >= 0) return formatMoney(row.total, currency)
     return `${MINUS}${formatMoney(-row.total, currency)}`
 }
@@ -257,7 +259,7 @@ export function isListedTransaction(row: { status: string; replaced_by?: string 
 }
 
 // Newest first: date desc, then created desc.
-function newestFirst(a: PartyTransactionRow, b: PartyTransactionRow): number {
+function newestFirst(a: PartyTransactionRow<string>, b: PartyTransactionRow<string>): number {
     if (a.date !== b.date) return a.date < b.date ? 1 : -1
     if (a.created !== b.created) return a.created < b.created ? 1 : -1
     return 0
@@ -266,7 +268,7 @@ function newestFirst(a: PartyTransactionRow, b: PartyTransactionRow): number {
 // Each list is one source's first `n` rows in the same order, so the merged first `n` rows
 // are exact. A list that reached `n` may have more behind it, so the window can grow.
 // `compare` must be the order every list is in (the sales lists pass their sort's).
-export function mergeTransactions<Row extends PartyTransactionRow>(
+export function mergeTransactions<Row extends PartyTransactionRow<string>>(
     lists: Row[][],
     n: number,
     compare: (a: Row, b: Row) => number = newestFirst
@@ -289,6 +291,12 @@ export function emptyText(filter: TransactionFilter): string {
     return `No ${EMPTY_NOUNS[filter]} for this customer`
 }
 
+// A chip's test id: `<prefix>-transactions-filter-<filter>`. A test id never holds an
+// underscore.
+export function partyFilterTestId(prefix: string, filter: string): string {
+    return `${prefix}-transactions-filter-${filter.replaceAll('_', '-')}`
+}
+
 export function filterTestId(filter: TransactionFilter): string {
-    return `customer-transactions-filter-${filter.replace('_', '-')}`
+    return partyFilterTestId('customer', filter)
 }

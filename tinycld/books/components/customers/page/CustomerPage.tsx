@@ -3,21 +3,25 @@ import { View } from 'react-native'
 import { type CustomerPageState, useCustomerPage } from '../../../hooks/useCustomerPage'
 import { useDetailSurface } from '../../../hooks/useDetailSurface'
 import { CUSTOMER_DISCARD_MESSAGE } from '../../../lib/customer-messages'
-import type { CustomerTab } from '../../../lib/customer-page-tabs'
+import { type CustomerTab, SHOWN_CUSTOMER_TABS } from '../../../lib/customer-page-tabs'
 import type { DetailSurface } from '../../../lib/detail-surface'
 import type { BooksCustomers } from '../../../types'
 import { ListBanner } from '../../ListBanner'
+import { NewTransactionMenu } from '../../party/page/NewTransactionMenu'
+import { PartyBalance } from '../../party/page/PartyBalance'
+import { PartyContactsTab } from '../../party/page/PartyContactsTab'
+import { PartyDetailsTab } from '../../party/page/PartyDetailsTab'
+import { PartyNotesTab } from '../../party/page/PartyNotesTab'
+import { PartyPageHeader } from '../../party/page/PartyPageHeader'
+import { PartyPageSaveBar } from '../../party/page/PartyPageSaveBar'
+import { PartyTabs } from '../../party/page/PartyTabs'
 import { DiscardDialog } from '../../RecordChild'
 import { RecordSurface } from '../../RecordSurface'
-import { CustomerBalance } from './CustomerBalance'
-import { CustomerContactsTab } from './CustomerContactsTab'
-import { CustomerDetailsTab } from './CustomerDetailsTab'
-import { CustomerNotesTab } from './CustomerNotesTab'
-import { CustomerPageHeader } from './CustomerPageHeader'
-import { CustomerPageSaveBar } from './CustomerPageSaveBar'
-import { CustomerTabs } from './CustomerTabs'
+import { CustomerIdentity } from './CustomerIdentity'
+import { CustomerMoreMenu } from './CustomerMoreMenu'
 import { CustomerTransactionsTab } from './CustomerTransactionsTab'
-import { NewTransactionMenu } from './NewTransactionMenu'
+
+const PREFIX = 'customer'
 
 interface TabBodyProps {
     tab: CustomerTab
@@ -44,24 +48,32 @@ function TabBody({ tab, record, page, surface, rowClassName, gutterClass }: TabB
     }
     if (tab === 'contacts') {
         return (
-            <CustomerContactsTab
-                customerId={record.id}
+            <PartyContactsTab
+                party="customer"
+                id={record.id}
                 canWrite={page.canWrite}
                 gutterClass={gutterClass}
+                testIdPrefix={PREFIX}
             />
         )
     }
     if (tab === 'notes') {
         return (
-            <CustomerNotesTab
+            <PartyNotesTab
                 notes={page.notes}
                 readOnly={page.readOnly}
                 rowClassName={rowClassName}
+                testIdPrefix={PREFIX}
             />
         )
     }
     return (
-        <CustomerDetailsTab details={page.details} surface={surface} rowClassName={rowClassName} />
+        <PartyDetailsTab
+            details={page.details}
+            surface={surface}
+            rowClassName={rowClassName}
+            testIdPrefix={PREFIX}
+        />
     )
 }
 
@@ -69,6 +81,52 @@ function TabBody({ tab, record, page, surface, rowClassName, gutterClass }: TabB
 function columnsFor(isPhone: boolean) {
     if (isPhone) return { gutterClass: 'px-4', rowClassName: 'w-full px-4' }
     return { gutterClass: 'px-6', rowClassName: 'w-full max-w-[720px] px-6' }
+}
+
+interface HeaderProps {
+    record: BooksCustomers
+    page: CustomerPageState
+    surface: DetailSurface
+    isPhone: boolean
+}
+
+// The shared header with the customer's slots: its identity lines, balance, New
+// transaction menu and More menu. Call uses the phone, else the mobile.
+function CustomerHeader({ record, page, surface, isPhone }: HeaderProps) {
+    const { navigation, controls } = page
+    const identity = <CustomerIdentity record={record} onOpenParent={navigation.open} />
+    const balance = <PartyBalance party="customer" id={record.id} testIdPrefix={PREFIX} />
+    const newTransaction = (
+        <NewTransactionMenu
+            party="customer"
+            id={record.id}
+            isVisible={controls.showNewTransaction}
+            isDisabled={controls.newTransactionDisabled}
+            isFullWidth={isPhone}
+            isOpen={page.newMenuOpen}
+            onOpenChange={page.setNewMenuOpen}
+            testIdPrefix={PREFIX}
+        />
+    )
+    const more = <CustomerMoreMenu record={record} page={page} isPhone={isPhone} />
+    const phone = record.phone || record.mobile
+    return (
+        <PartyPageHeader
+            title={record.display_name}
+            email={record.email}
+            phone={phone}
+            isInactive={record.inactive}
+            surface={surface}
+            backLabel="Customers"
+            onBack={navigation.leave}
+            identity={identity}
+            right={balance}
+            action={newTransaction}
+            more={more}
+            party="customer"
+            testIdPrefix={PREFIX}
+        />
+    )
 }
 
 /**
@@ -82,33 +140,16 @@ export function CustomerPage({ record }: { record: BooksCustomers }) {
     const isPhone = useBreakpoint() === 'mobile'
     const { gutterClass, rowClassName } = columnsFor(isPhone)
     const page = useCustomerPage(record)
-    const { navigation, actions, controls } = page
-    const balance = <CustomerBalance customerId={record.id} />
-    const newTransaction = (
-        <NewTransactionMenu
-            customerId={record.id}
-            isVisible={controls.showNewTransaction}
-            isDisabled={controls.newTransactionDisabled}
-            isFullWidth={isPhone}
-            isOpen={page.newMenuOpen}
-            onOpenChange={page.setNewMenuOpen}
-        />
-    )
+    const { navigation, actions } = page
     const header = (
-        <CustomerPageHeader
-            record={record}
-            surface={surface}
-            right={balance}
-            action={newTransaction}
-            page={page}
-        />
+        <CustomerHeader record={record} page={page} surface={surface} isPhone={isPhone} />
     )
     const dismissBanner = () => actions.clearActionError()
     const save = () => void page.save()
     return (
         <RecordSurface
             surface={surface}
-            testIdPrefix="customer"
+            testIdPrefix={PREFIX}
             backLabel="Customers"
             title={record.display_name}
             onLeave={navigation.leave}
@@ -125,7 +166,14 @@ export function CustomerPage({ record }: { record: BooksCustomers }) {
                     isFlush
                 />
             </View>
-            <CustomerTabs selected={page.tab} onSelect={page.selectTab} gutterClass={gutterClass} />
+            <PartyTabs
+                tabs={SHOWN_CUSTOMER_TABS}
+                selected={page.tab}
+                onSelect={page.selectTab}
+                gutterClass={gutterClass}
+                testIdPrefix={PREFIX}
+                shortcutGroup="Customer"
+            />
             <View className="flex-1">
                 <TabBody
                     tab={page.tab}
@@ -136,13 +184,14 @@ export function CustomerPage({ record }: { record: BooksCustomers }) {
                     gutterClass={gutterClass}
                 />
             </View>
-            <CustomerPageSaveBar
+            <PartyPageSaveBar
                 isVisible={page.isDirty}
                 isSaving={page.isSaving}
                 onSave={save}
                 onCancel={page.cancel}
                 rootError={page.rootError}
                 gutterClass={gutterClass}
+                testIdPrefix={PREFIX}
             />
             <DiscardDialog guard={page.guard} message={CUSTOMER_DISCARD_MESSAGE} />
             <DiscardDialog guard={page.cancelQuestion} message={CUSTOMER_DISCARD_MESSAGE} />

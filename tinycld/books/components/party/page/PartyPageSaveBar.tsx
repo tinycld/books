@@ -8,7 +8,7 @@ import { rootErrorOnly } from '../../../lib/root-errors'
 const CANCEL_KEY = { keys: 'Escape', scope: 'modal', allowInInputs: true } as const
 const SAVE_KEY = { keys: '$mod+s', scope: 'modal', allowInInputs: true } as const
 
-interface CustomerPageSaveBarProps {
+interface PartyPageSaveBarProps {
     isVisible: boolean
     isSaving: boolean
     onSave: () => void
@@ -16,6 +16,7 @@ interface CustomerPageSaveBarProps {
     // A refusal with no field the user can see on the current tab.
     rootError: string | null
     gutterClass: string
+    testIdPrefix: string
 }
 
 /**
@@ -23,23 +24,24 @@ interface CustomerPageSaveBarProps {
  * "Unsaved changes", Cancel (Esc) and Save (⌘S). Mounted only while it shows, so its keys
  * are registered only then.
  */
-export function CustomerPageSaveBar({
+export function PartyPageSaveBar({
     isVisible,
     isSaving,
     onSave,
     onCancel,
     rootError,
     gutterClass,
-}: CustomerPageSaveBarProps) {
+    testIdPrefix,
+}: PartyPageSaveBarProps) {
     if (!isVisible) return null
     const errors = rootErrorOnly({ root: { message: rootError ?? undefined } })
     return (
         <View
-            testID="customer-save-bar"
+            testID={`${testIdPrefix}-save-bar`}
             className={`border-t border-border bg-background py-3 ${gutterClass}`}
         >
             <FormErrorSummary
-                testID="customer-save-error-summary"
+                testID={`${testIdPrefix}-save-error-summary`}
                 errors={errors}
                 showFieldNames={false}
                 isEnabled={rootError !== null}
@@ -47,7 +49,7 @@ export function CustomerPageSaveBar({
             <View className="flex-row items-center justify-end gap-2">
                 <Text className="flex-1 text-sm text-muted-foreground">Unsaved changes</Text>
                 <ShortcutButton
-                    testID="customer-cancel"
+                    testID={`${testIdPrefix}-cancel`}
                     label="Cancel"
                     variant="outline"
                     shortcut={CANCEL_KEY}
@@ -55,7 +57,7 @@ export function CustomerPageSaveBar({
                     onPress={onCancel}
                 />
                 <ShortcutButton
-                    testID="customer-save"
+                    testID={`${testIdPrefix}-save`}
                     label="Save"
                     shortcut={SAVE_KEY}
                     isDisabled={isSaving}
