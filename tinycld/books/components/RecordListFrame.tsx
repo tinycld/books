@@ -78,9 +78,10 @@ function NewButton({
 }
 
 // An empty row would still take the header's gap, so it renders only with a button in it.
-// With a header action it takes the width the title leaves and wraps its buttons, so they
-// fit beside the title in the narrow names layout; with the New button alone it keeps the
-// button's width and the title wraps instead (G8).
+// With a header action the group keeps its buttons' width and the title row wraps it onto
+// its own line, right-aligned, when it does not fit beside the title; it shrinks and wraps
+// its buttons only when even that line is too narrow. With the New button alone the title
+// row does not wrap, so the button stays beside the title and the title wraps (G8).
 function HeaderButtons({
     isVisible,
     hasAction,
@@ -92,7 +93,7 @@ function HeaderButtons({
 }) {
     if (!isVisible) return null
     const className = hasAction
-        ? 'flex-row flex-wrap items-center justify-end gap-2 min-w-0 flex-1'
+        ? 'ml-auto min-w-0 shrink flex-row flex-wrap items-center justify-end gap-2'
         : 'flex-row flex-wrap items-center justify-end gap-2'
     return <View className={className}>{children}</View>
 }
@@ -122,10 +123,15 @@ function ListHeader({
     const newLabel = `New ${copy.singular}`
     const hasAction = headerAction !== undefined
     const hasButtons = showNewButton || hasAction
+    // Wrapping is decided by layout: the title and the buttons never overlap, because the
+    // buttons move under the title when the two do not fit on one line.
+    const titleRowClass = hasAction
+        ? 'flex-row flex-wrap items-center justify-between gap-3'
+        : 'flex-row items-center justify-between gap-3'
     return (
         <View className="gap-2 px-4 pb-3 pt-4">
             <BackLink testID={`${listPrefix}-back`} onPress={onBack} />
-            <View className="flex-row items-center justify-between gap-3">
+            <View className={titleRowClass}>
                 {/* A long title wraps to two lines beside the New button on a phone (G8). */}
                 <Text
                     testID={`${listPrefix}-title`}

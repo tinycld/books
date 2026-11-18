@@ -52,6 +52,7 @@ import {
     SALES_RECEIPT_SEED_IDS,
     SALES_RECEIPTS,
 } from './lib/sales-receipt-form-fixture'
+import { SALES_REPORTS_SEED } from './lib/sales-reports-fixture'
 import {
     SALES_TAX_DOCUMENTS,
     SALES_TAX_LIABILITY_VOID_TARGET,
@@ -274,6 +275,7 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedAttachments(pb, ctx, billIds, expenseIds)
     // Last among the document seeds, so the earlier seeded documents keep their numbers.
     await seedCustomerBalance(pb, ctx, ids, customerIds)
+    await seedSalesReports(pb, ctx, accountIds, customerIds)
     // Created active and deactivated last, because the app makes an account
     // inactive by updating it, and the vendor and product guards refuse a row
     // that names an inactive account when it is saved.
@@ -1736,6 +1738,57 @@ export async function seedCustomerBalance(
     await pb.collection('books_customers').update(oldMill, { inactive: false })
     await postCustomerBalanceEntry(pb, ctx, ids, oldMill, inactiveEntry)
     await pb.collection('books_customers').update(oldMill, { inactive: true })
+}
+
+// The sales reports' seed row (SALES_REPORTS_SEED, plan D4): the one sale of an inactive
+// product, a posted sales receipt of Fax line setup for the inactive Old Mill Bakery, with
+// no tax rate, deposited where the seeded posted receipt with a customer deposits. The
+// line guard refuses an inactive product (server/products.go) and the document guard an
+// inactive customer (checkLineParty, server/lines.go), so both are made active for the
+// post and inactive again after it, as seedCustomerBalance does. `accountIds` maps a seed
+// account number to the created account; `customerIds` maps a customer-form fixture id to
+// the created customer.
+export async function seedSalesReports(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>,
+    customerIds: Map<string, string>
+): Promise<void> {
+    const sale = SALES_REPORTS_SEED.inactiveSale
+    const customer = customerIds.get(sale.customerId)
+    if (customer === undefined) {
+        throw new Error(
+            `seed: sales reports receipt names customer ${sale.customerId}, which was not created`
+        )
+    }
+    const withCustomer = SALES_RECEIPTS.find(row => row.id === SALES_RECEIPT_SEED_IDS[0])
+    const number = DEPOSIT_ACCOUNTS.find(row => row.id === withCustomer?.deposit_to)?.number
+    const depositTo = number === undefined ? undefined : accountIds.get(number)
+    if (depositTo === undefined) {
+        throw new Error('seed: the sales reports receipt has no deposit account')
+    }
+    await pb.collection('books_customers').update(customer, { inactive: false })
+    await pb.collection('books_products').update(sale.productId, { inactive: false })
+    const created = await pb.collection('books_sales_receipts').create({
+        customer,
+        status: 'draft',
+        date: sale.date,
+        payment_method: 'check',
+        deposit_to: depositTo,
+        memo: sale.memo,
+    })
+    await pb.collection('books_sales_receipt_lines').create({
+        sales_receipt: created.id,
+        position: 0,
+        kind: 'item',
+        product: sale.productId,
+        quantity: 1,
+        rate: sale.cents,
+        taxable: false,
+    })
+    await postSeedDocument(pb, 'books_sales_receipts', created.id, ctx.user.id)
+    await pb.collection('books_products').update(sale.productId, { inactive: true })
+    await pb.collection('books_customers').update(customer, { inactive: true })
 }
 
 type CustomerBalanceInvoice = (typeof CUSTOMER_BALANCE_SEED)['kitchenInvoice' | 'galaInvoice']

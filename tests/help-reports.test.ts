@@ -39,6 +39,7 @@ describe('help/reports.md', () => {
         '## See the transactions behind an amount',
         '## Download or email a report',
         '## Read the Customer Balance report',
+        '## Read the sales reports',
     ])('has the heading "%s"', heading => {
         expect(body).toMatch(new RegExp(`^${heading}$`, 'm'))
     })
@@ -516,6 +517,119 @@ describe('help/reports.md', () => {
                 .split(',')
                 .map(tag => tag.trim().replace(/^["']|["']$/g, ''))
             expect(tags).toContain('customer balance')
+        })
+    })
+
+    // Sales reports checkpoint 3 (spec §3 "Help").
+    describe('the "Read the sales reports" section', () => {
+        const sales = section('## Read the sales reports')
+        const sentences = sales.split(/(?<=[.!?])\s+/)
+        const oneSentence = (...phrases: RegExp[]) =>
+            sentences.some(sentence => phrases.every(phrase => phrase.test(sentence)))
+
+        it('comes right after "Read the Customer Balance report"', () => {
+            const headings = [...body.matchAll(/^## .*$/gm)].map(m => m[0])
+            const balance = headings.indexOf('## Read the Customer Balance report')
+            expect(balance).toBeGreaterThanOrEqual(0)
+            expect(headings[balance + 1]).toBe('## Read the sales reports')
+        })
+
+        it('starts with the task: open Reports and choose a sales report', () => {
+            const first = sentences.find(sentence => sentence.trim() !== '') ?? ''
+            expect(first).toMatch(/\bReports\b/)
+            expect(first).toMatch(/\bSales by Customer\b/)
+            expect(first).toMatch(/\bSales by Product\/Service\b/)
+        })
+
+        it.each([
+            ['Sales by Customer', /\bSales by Customer\b/],
+            ['Sales by Product/Service', /\bSales by Product\/Service\b/],
+            ['posted invoices', /\bposted invoices\b/i],
+            ['sales receipts', /\bsales receipts\b/i],
+            ['credit memos', /\bcredit memos?\b/i],
+            ['before sales tax', /\bbefore sales tax\b/i],
+            ['% of sales', /% of sales/],
+            ['No customer', /\bNo customer\b/],
+            ['Discount', /\bDiscount\b/],
+            ['Period', /\bPeriod\b/],
+            ['Order', /\bOrder\b/],
+            ['Largest sales', /\bLargest sales\b/],
+        ])('names %s', (_name, phrase) => {
+            expect(sales).toMatch(phrase)
+        })
+
+        it("says a sale counts on its document's date, and posted credit memos lower sales", () => {
+            expect(oneSentence(/\bdocument['’]s date\b/i)).toBe(true)
+            expect(oneSentence(/\bcredit memos?\b/i, /\b(less|lowers?|subtract(s|ed)?)\b/i)).toBe(
+                true
+            )
+        })
+
+        it("says the two reports' Totals are equal and equal the documents' Subtotals", () => {
+            expect(oneSentence(/\bTotals?\b/, /\b(equal|same)\b/i, /\bboth\b|\btwo\b/i)).toBe(true)
+            expect(oneSentence(/\bSubtotals?\b/, /\bTotals?\b/)).toBe(true)
+        })
+
+        it('says what % of sales is: a share of the Total', () => {
+            expect(oneSentence(/% of sales/, /\bTotal\b/)).toBe(true)
+        })
+
+        it('says the reports are on the accrual basis, so they can differ from a cash-basis Profit and Loss', () => {
+            expect(oneSentence(/\baccrual basis\b/i)).toBe(true)
+            expect(oneSentence(/\bcash[- ]basis\b/i, /\bProfit and Loss\b/)).toBe(true)
+        })
+
+        it('says how a family reads: a header, its sub-customers and its total', () => {
+            expect(oneSentence(/\bsub-customers?\b/i, /\bTotal\b/)).toBe(true)
+        })
+
+        it('says the No customer row holds sales receipts with no customer', () => {
+            expect(oneSentence(/\bNo customer\b/, /\bsales receipts?\b/i)).toBe(true)
+        })
+
+        it("says a percent line counts on its own product's row, with no quantity and no average price", () => {
+            expect(oneSentence(/\b(percent line|discount)\b/i, /\bown\b/i, /\bproduct\b/i)).toBe(
+                true
+            )
+            expect(
+                oneSentence(
+                    /\b(percent line|discount)\b/i,
+                    /\b(no )?quantity\b/i,
+                    /\b(average price|Avg price)\b/i
+                )
+            ).toBe(true)
+        })
+
+        it('says why the Total has no Quantity and no Avg price', () => {
+            expect(
+                oneSentence(/\bTotal\b/, /\bQuantity\b/i, /\b(Avg price|average price)\b/i)
+            ).toBe(true)
+            expect(sales).toMatch(/\b(do not|don['’]t) add up\b|\bunits\b/i)
+        })
+
+        it('says a row opens into its sale lines, and a sale line opens its document', () => {
+            expect(oneSentence(/\bopens?\b/i, /\brow\b/i, /\bsale lines\b/i)).toBe(true)
+            expect(oneSentence(/\bsale line\b/i, /\bopens?\b/i, /\bdocument\b/i)).toBe(true)
+        })
+
+        it('names the Customer and Product filters', () => {
+            expect(oneSentence(/\bfilters?\b/i, /\bCustomer\b/, /\bProduct\b(?!\/)/)).toBe(true)
+        })
+
+        it('names the Order choice with Largest sales', () => {
+            expect(oneSentence(/\bOrder\b/, /\bLargest sales\b/)).toBe(true)
+        })
+
+        it("names the lists' entry points: the Reports button and the Sales report button", () => {
+            expect(oneSentence(/\bReports\b/, /\bCustomers list\b/)).toBe(true)
+            expect(oneSentence(/\bSales report\b/, /\bProducts and services\b/i)).toBe(true)
+        })
+
+        it('writes no "Ctrl" and no hand-written host name', () => {
+            expect(sales).not.toBe('')
+            expect(sales).not.toMatch(/\bCtrl\b/)
+            expect(sales).not.toMatch(/\b[a-z0-9-]+\.(com|org|net|io|app)\b/i)
+            expect(sales).not.toMatch(/\blocalhost\b/)
         })
     })
 
