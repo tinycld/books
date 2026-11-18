@@ -1,26 +1,11 @@
-import { useRoute } from 'expo-router'
-import { useNavigationState } from 'expo-router/react-navigation'
-import { useMemo } from 'react'
 import { useDetailSurface } from '../../hooks/useDetailSurface'
 import { useOpenRecord } from '../../hooks/useRecordNavigation'
 import { listLayoutFor } from '../../lib/detail-surface'
 import { RECORD_DETAIL_SCREENS } from '../../lib/record-route'
 import { salesTabOf } from '../../lib/sales-lists'
-import { screenBelowRoute } from '../../lib/stack-screens'
 import { ListDetailLayout } from '../ListDetailLayout'
 import { DocumentListScreen } from './DocumentListScreen'
-import { KindStackContext } from './kind-stack-context'
-
-// The top screen of the Books root route below this kind route, for the Back of the
-// documents in its child stack. Read with useNavigationState, not getState(): during a
-// render getState() still returns the state before the push that mounted this route. Two
-// selectors that return strings keep the selection stable between renders.
-function useScreenBelow(): { belowName: string; belowId: string } {
-    const { key } = useRoute()
-    const belowName = useNavigationState(state => screenBelowRoute(state, key)?.name ?? '')
-    const belowId = useNavigationState(state => screenBelowRoute(state, key)?.id ?? '')
-    return { belowName, belowId }
-}
+import { KindStackContext, useKindStackValue } from './kind-stack-context'
 
 /**
  * A sales kind's route — `/a/books/invoices` and the other kinds — and its documents open
@@ -38,12 +23,7 @@ export function SalesKindLayout({ tabKey }: { tabKey: string }) {
     const surface = useDetailSurface()
     const isDetailOpen = open.kind !== 'none'
     const layout = listLayoutFor(surface, 'record', isDetailOpen)
-    const { belowName, belowId } = useScreenBelow()
-    const kindRoute = tab.path.replace(/^books\//, '')
-    const kindStack = useMemo(
-        () => ({ kindRoute, belowName, belowId }),
-        [kindRoute, belowName, belowId]
-    )
+    const kindStack = useKindStackValue(tab.path.replace(/^books\//, ''))
     // Below 1360 px the document is a page pushed over the list, which stays mounted under
     // it; beside the 320 px column the list is in view.
     const isCovered = isDetailOpen && layout !== 'names'

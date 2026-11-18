@@ -1,0 +1,747 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "new",
+            "widths": [390],
+            "url": "/a/books/refund-receipts/new",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "./new",
+            "widths": [1280],
+            "url": "/a/books/refund-receipts/new",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "walk-in",
+            "widths": [1280],
+            "url": "/a/books/refund-receipts/new",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New"],
+            "height": 1200,
+            "actions": [
+                { "click": "form-input-customer" },
+                { "clickMenuItem": "No customer" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Cat6 patch cable, 10 ft" },
+                { "fillLabel": "Qty, row 1, line 1", "value": "4" },
+                { "click": "form-input-payment_method" },
+                { "clickMenuItem": "Cash" },
+                { "fill": "form-input-memo", "value": "Counter return, cables unopened" },
+                { "pause": 300 },
+                { "click": "refund-receipt-post" },
+                { "waitFor": "refund-receipt-read-only" },
+                { "click": "refund-receipt-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "exempt",
+            "widths": [1280],
+            "url": "/a/books/refund-receipts/new",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New"],
+            "height": 1200,
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Northwind Traders" },
+                { "clickMenuItem": "Northwind Traders" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "fillLabel": "Qty, row 1, line 1", "value": "2" },
+                { "click": "form-input-payment_method" },
+                { "clickMenuItem": "Debit card" },
+                {
+                    "fill": "form-input-message",
+                    "value": "Resale certificate CO-98-01234-0000 on file."
+                },
+                { "pause": 300 },
+                { "click": "refund-receipt-post" },
+                { "waitFor": "refund-receipt-read-only" },
+                { "click": "refund-receipt-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "draft",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1500,
+            "actions": [
+                { "press": "/" },
+                { "pause": 300 },
+                { "type": "Seed refund receipt draft" },
+                {
+                    "waitFor": "Draft refund receipt · St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "clickText": "Draft refund receipt · St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                { "waitFor": "refund-receipt-form" },
+                { "click": "refund-receipt-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "draft-phone",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 2800,
+            "actions": [
+                { "press": "/" },
+                { "pause": 300 },
+                { "type": "Seed refund receipt draft" },
+                {
+                    "waitFor": "Draft refund receipt · St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "clickText": "Draft refund receipt · St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                { "waitFor": "refund-receipt-form" },
+                { "click": "refund-receipt-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "correction",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 2600,
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed refund receipt refund" },
+                { "clickText": "Seed refund receipt refund" },
+                { "waitFor": "refund-receipt-read-only" },
+                { "pushPath": "/a/books/refund-receipts/new?replaces=$urlId" },
+                { "waitFor": "refund-receipt-replace-note" },
+                { "click": "refund-receipt-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./correction",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1600,
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed refund receipt refund" },
+                { "clickText": "Seed refund receipt refund" },
+                { "waitFor": "refund-receipt-read-only" },
+                { "pushPath": "/a/books/refund-receipts/new?replaces=$urlId" },
+                { "waitFor": "refund-receipt-replace-note" },
+                { "click": "refund-receipt-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "errors",
+            "widths": [390],
+            "url": "/a/books/refund-receipts/new",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New"],
+            "height": 2600,
+            "writes": {
+                "collection": "books_refund_receipts",
+                "answers": [400],
+                "message": "Choose an active bank or Undeposited funds account."
+            },
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "pause": 300 },
+                { "click": "refund-receipt-post" },
+                { "waitFor": "form-field-refund_from-error" },
+                { "click": "refund-receipt-title" },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "./errors",
+            "widths": [1280],
+            "url": "/a/books/refund-receipts/new",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New"],
+            "height": 1400,
+            "writes": {
+                "collection": "books_refund_receipts",
+                "answers": [400],
+                "message": "Choose an active bank or Undeposited funds account."
+            },
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "pause": 300 },
+                { "click": "refund-receipt-post" },
+                { "waitFor": "form-field-refund_from-error" },
+                { "click": "refund-receipt-title" },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "no-refund-from",
+            "widths": [390],
+            "url": "/a/books/refund-receipts/new",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 1300,
+            "emptyRecords": "books_accounts",
+            "actions": [{ "waitFor": "refund-receipt-refund-from-error" }, { "pause": 300 }]
+        },
+        {
+            "name": "./no-refund-from",
+            "widths": [1280],
+            "url": "/a/books/refund-receipts/new",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 1300,
+            "emptyRecords": "books_accounts",
+            "actions": [{ "waitFor": "refund-receipt-refund-from-error" }, { "pause": 300 }]
+        },
+        {
+            "name": "pdf-unsaved",
+            "widths": [390],
+            "url": "/a/books/refund-receipts/new?tab=pdf",
+            "ready": "refund-receipt-pdf-unsaved",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "./pdf-unsaved",
+            "widths": [1280],
+            "url": "/a/books/refund-receipts/new?tab=pdf",
+            "ready": "refund-receipt-pdf-unsaved",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "pdf-stale",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                { "press": "/" },
+                { "pause": 300 },
+                { "type": "Seed refund receipt draft" },
+                {
+                    "waitFor": "Draft refund receipt · St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "clickText": "Draft refund receipt · St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                { "waitFor": "refund-receipt-form" },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Seed refund receipt draft, checked with the customer"
+                },
+                { "click": "refund-receipt-tab-pdf" },
+                { "waitFor": "refund-receipt-pdf-stale" },
+                { "waitFor": "refund-receipt-pdf" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "./pdf-stale",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                { "press": "/" },
+                { "pause": 300 },
+                { "type": "Seed refund receipt draft" },
+                {
+                    "waitFor": "Draft refund receipt · St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "clickText": "Draft refund receipt · St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                { "waitFor": "refund-receipt-form" },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Seed refund receipt draft, checked with the customer"
+                },
+                { "click": "refund-receipt-tab-pdf" },
+                { "waitFor": "refund-receipt-pdf-stale" },
+                { "waitFor": "refund-receipt-pdf" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "posted",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1700,
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed refund receipt refund" },
+                { "clickText": "Seed refund receipt refund" },
+                { "waitFor": "refund-receipt-read-only" },
+                { "click": "refund-receipt-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "posted-phone",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 3600,
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed refund receipt refund" },
+                { "clickText": "Seed refund receipt refund" },
+                { "waitFor": "refund-receipt-read-only" },
+                { "click": "refund-receipt-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "phone-more",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "stable": "refund-receipt-read-void",
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed refund receipt refund" },
+                { "clickText": "Seed refund receipt refund" },
+                { "waitFor": "refund-receipt-read-only" },
+                { "click": "refund-receipt-read-more" },
+                { "waitFor": "refund-receipt-read-void" }
+            ]
+        },
+        {
+            "name": "void",
+            "widths": [390],
+            "url": "/a/books/refund-receipts/new",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New"],
+            "height": 2600,
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "pause": 300 },
+                { "click": "refund-receipt-post" },
+                { "waitFor": "refund-receipt-read-only" },
+                { "click": "refund-receipt-read-more" },
+                { "click": "refund-receipt-read-void" },
+                { "click": "void-confirm" },
+                { "waitForHidden": "void-dialog" },
+                { "waitFor": "refund-receipt-voided-by" },
+                { "click": "refund-receipt-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./void",
+            "widths": [1280],
+            "url": "/a/books/refund-receipts/new",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New"],
+            "height": 1400,
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "pause": 300 },
+                { "click": "refund-receipt-post" },
+                { "waitFor": "refund-receipt-read-only" },
+                { "click": "refund-receipt-read-void" },
+                { "click": "void-confirm" },
+                { "waitForHidden": "void-dialog" },
+                { "waitFor": "refund-receipt-voided-by" },
+                { "click": "refund-receipt-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "reader",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New", "Reconnecting…"],
+            "height": 1700,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed refund receipt refund" },
+                { "clickText": "Seed refund receipt refund" },
+                { "waitFor": "refund-receipt-read-only" },
+                { "click": "refund-receipt-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "no-access",
+            "widths": [390],
+            "url": "/a/books/refund-receipts/new",
+            "ready": "refund-receipt-no-access",
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "./no-access",
+            "widths": [1280],
+            "url": "/a/books/refund-receipts/new",
+            "ready": "refund-receipt-no-access",
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "cannot-edit",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "actions": [
+                { "press": "/" },
+                { "pause": 300 },
+                { "type": "Seed refund receipt draft" },
+                {
+                    "waitFor": "Draft refund receipt · St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "clickText": "Draft refund receipt · St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                { "waitFor": "refund-receipt-form" },
+                { "pause": 500 },
+                { "pushPath": "/a/books/refund-receipts/new?replaces=$urlId" },
+                { "waitFor": "refund-receipt-cannot-edit" }
+            ]
+        },
+        {
+            "name": "./cannot-edit",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "actions": [
+                { "press": "/" },
+                { "pause": 300 },
+                { "type": "Seed refund receipt draft" },
+                {
+                    "waitFor": "Draft refund receipt · St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "clickText": "Draft refund receipt · St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                { "waitFor": "refund-receipt-form" },
+                { "pause": 500 },
+                { "pushPath": "/a/books/refund-receipts/new?replaces=$urlId" },
+                { "waitFor": "refund-receipt-cannot-edit" }
+            ]
+        },
+        {
+            "name": "not-found",
+            "widths": [390],
+            "url": "/a/books/refund-receipts/doesnotexist000",
+            "ready": "refund-receipt-not-found",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "./not-found",
+            "widths": [1280],
+            "url": "/a/books/refund-receipts/doesnotexist000",
+            "ready": "refund-receipt-not-found",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "loading",
+            "widths": [390],
+            "url": "/a/books/refund-receipts/doesnotexist000",
+            "ready": "refund-receipt-loading",
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": { "collection": "books_refund_receipts", "hold": true }
+        },
+        {
+            "name": "./loading",
+            "widths": [1280],
+            "url": "/a/books/refund-receipts/doesnotexist000",
+            "ready": "refund-receipt-loading",
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": { "collection": "books_refund_receipts", "hold": true }
+        },
+        {
+            "name": "error",
+            "widths": [390],
+            "url": "/a/books/refund-receipts/doesnotexist000",
+            "ready": "refund-receipt-error",
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": { "collection": "books_refund_receipts", "status": 400 }
+        },
+        {
+            "name": "./error",
+            "widths": [1280],
+            "url": "/a/books/refund-receipts/doesnotexist000",
+            "ready": "refund-receipt-error",
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": { "collection": "books_refund_receipts", "status": 400 }
+        },
+        {
+            "name": "pdf-posted",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed refund receipt refund" },
+                { "clickText": "Seed refund receipt refund" },
+                { "waitFor": "refund-receipt-read-only" },
+                { "click": "refund-receipt-tab-pdf" },
+                { "waitFor": "refund-receipt-pdf" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "./pdf-posted",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed refund receipt refund" },
+                { "clickText": "Seed refund receipt refund" },
+                { "waitFor": "refund-receipt-read-only" },
+                { "click": "refund-receipt-tab-pdf" },
+                { "waitFor": "refund-receipt-pdf" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "void-dialog",
+            "widths": [390],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "opaque": "void-dialog",
+            "stable": "void-confirm",
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed refund receipt refund" },
+                { "clickText": "Seed refund receipt refund" },
+                { "waitFor": "refund-receipt-read-only" },
+                { "click": "refund-receipt-read-more" },
+                { "click": "refund-receipt-read-void" },
+                { "waitFor": "void-dialog" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./void-dialog",
+            "widths": [1280],
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "opaque": "void-dialog",
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                { "fill": "entries-search", "value": "Seed refund receipt refund" },
+                { "clickText": "Seed refund receipt refund" },
+                { "waitFor": "refund-receipt-read-only" },
+                { "click": "refund-receipt-read-void" },
+                { "waitFor": "void-dialog" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "customer-inactive",
+            "widths": [390],
+            "url": "/a/books/refund-receipts/new",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New"],
+            "height": 2600,
+            "writes": {
+                "collection": "books_refund_receipts",
+                "answers": [400],
+                "message": "Harborview Hospitality Group is inactive. Choose an active customer."
+            },
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "pause": 300 },
+                { "click": "refund-receipt-post" },
+                { "waitFor": "form-field-customer-error" },
+                { "click": "refund-receipt-title" },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "./customer-inactive",
+            "widths": [1280],
+            "url": "/a/books/refund-receipts/new",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New"],
+            "height": 1400,
+            "writes": {
+                "collection": "books_refund_receipts",
+                "answers": [400],
+                "message": "Harborview Hospitality Group is inactive. Choose an active customer."
+            },
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "pause": 300 },
+                { "click": "refund-receipt-post" },
+                { "waitFor": "form-field-customer-error" },
+                { "click": "refund-receipt-title" },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "line-refusal",
+            "widths": [390],
+            "url": "/a/books/refund-receipts/new",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New"],
+            "height": 2600,
+            "writes": {
+                "collection": "books_refund_receipts",
+                "answers": [400],
+                "message": "Line 1: Wireless access point is inactive. Choose an active product or service."
+            },
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "pause": 300 },
+                { "click": "refund-receipt-post" },
+                {
+                    "waitFor": "Line 1: Wireless access point is inactive. Choose an active product or service."
+                },
+                { "click": "refund-receipt-title" },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "./line-refusal",
+            "widths": [1280],
+            "url": "/a/books/refund-receipts/new",
+            "ready": "refund-receipt-form",
+            "hideLabels": ["New"],
+            "height": 1400,
+            "writes": {
+                "collection": "books_refund_receipts",
+                "answers": [400],
+                "message": "Line 1: Wireless access point is inactive. Choose an active product or service."
+            },
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "pause": 300 },
+                { "click": "refund-receipt-post" },
+                {
+                    "waitFor": "Line 1: Wireless access point is inactive. Choose an active product or service."
+                },
+                { "click": "refund-receipt-title" },
+                { "pause": 300 }
+            ]
+        }
+    ]
+}

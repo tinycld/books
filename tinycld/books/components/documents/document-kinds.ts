@@ -23,6 +23,7 @@ import {
 import { ESTIMATE_DATA } from '../../hooks/estimate-data'
 import { EXPENSE_DATA } from '../../hooks/expense-data'
 import { INVOICE_DATA } from '../../hooks/invoice-data'
+import { REFUND_RECEIPT_DATA } from '../../hooks/refund-receipt-data'
 import { SALES_RECEIPT_DATA } from '../../hooks/sales-receipt-data'
 import type { CreditRefunds } from '../../hooks/useCreditRefunds'
 import { VENDOR_CREDIT_DATA } from '../../hooks/vendor-credit-data'
@@ -83,11 +84,21 @@ import {
 import type { PurchaseLines } from '../../lib/purchase-lines'
 import type { ColumnsParse } from '../../lib/record-columns'
 import {
+    EMPTY_REFUND_RECEIPT_COLUMNS,
+    refundReceiptColumnsFrom,
+} from '../../lib/refund-receipt-columns'
+import {
+    copyRefundReceiptValues,
+    newRefundReceiptValues,
+    refundReceiptCorrectionValues,
+} from '../../lib/refund-receipt-values'
+import {
     BILL_KIND,
     CREDIT_MEMO_KIND,
     ESTIMATE_KIND,
     EXPENSE_KIND,
     INVOICE_KIND,
+    REFUND_RECEIPT_KIND,
     SALES_RECEIPT_KIND,
     type SalesDocumentKind,
     VENDOR_CREDIT_KIND,
@@ -124,6 +135,7 @@ import { ExpensePaymentRow, ExpenseReadDetails } from './ExpenseReadDetails'
 import { InvoiceCreditMemos } from './InvoiceCreditMemos'
 import { InvoiceFromEstimateLink, InvoiceReadDetails } from './InvoiceReadDetails'
 import { PurchaseReadLines } from './PurchaseReadLines'
+import { RefundReceiptBandRows, RefundReceiptReadDetails } from './RefundReceiptReadDetails'
 import { SalesReceiptPaymentRow, SalesReceiptReadDetails } from './SalesReceiptReadDetails'
 import { VendorCreditReadFrame } from './VendorCreditApplySection'
 import { VendorCreditReadDetails } from './VendorCreditReadDetails'
@@ -529,6 +541,57 @@ export const SALES_RECEIPT_DOCUMENT: DocumentKind = {
     },
     ReadDetails: SalesReceiptReadDetails,
     ReadBandRow: SalesReceiptPaymentRow,
+    lineSpecs: SALES_LINE_SPECS,
+}
+
+// The source row with the refund's own columns back at the top level, as invoiceRowOf.
+function refundReceiptRowOf(source: DocumentSource) {
+    const fields = source.kindFields
+    if (fields.kind !== 'refund_receipt') {
+        throw new Error(`a refund receipt source has ${fields.kind} columns`)
+    }
+    return { ...source, ...fields }
+}
+
+// How the refund's Refund from is chosen, from its data source's start.
+function refundFromStartOf(start: DocumentStart | undefined): CopyDeposit {
+    if (!start) return NO_DEPOSIT_START
+    if (start.kind !== 'refund_receipt') {
+        throw new Error(`a refund receipt form has a ${start.kind} start`)
+    }
+    return start.refundFrom
+}
+
+// A new refund's message starts empty (Q8): the "Default message to customer" setting the
+// screen passes is not used. A copied customer, product, tax rate or Refund from account
+// that is now inactive is handled as on a sales receipt copy.
+export const REFUND_RECEIPT_DOCUMENT: DocumentKind = {
+    doc: REFUND_RECEIPT_KIND,
+    data: REFUND_RECEIPT_DATA,
+    columnsFrom: refundReceiptColumnsFrom,
+    emptyColumns: EMPTY_REFUND_RECEIPT_COLUMNS,
+    values: {
+        new: ({ start, party, today, rates, defaultRateId }) =>
+            newRefundReceiptValues({
+                today,
+                rates,
+                defaultRateId,
+                customer: customerPartyOf(party),
+                refundFrom: refundFromStartOf(start),
+            }),
+        copy: (source, lines, today, party, start) =>
+            copyRefundReceiptValues(
+                refundReceiptRowOf(source),
+                lines.filter(isSalesLine),
+                today,
+                customerPartyOf(party),
+                refundFromStartOf(start)
+            ),
+        correction: (source, lines) =>
+            refundReceiptCorrectionValues(refundReceiptRowOf(source), lines.filter(isSalesLine)),
+    },
+    ReadDetails: RefundReceiptReadDetails,
+    ReadBandRow: RefundReceiptBandRows,
     lineSpecs: SALES_LINE_SPECS,
 }
 

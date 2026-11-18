@@ -61,6 +61,15 @@ export const NEW_ACTIONS: NewAction[] = [
         available: true,
         takesCustomer: true,
     },
+    // No takesCustomer yet: lib/sales-lists.ts's SALES_NEW_ITEMS refuses an action that
+    // takes a customer but is no TransactionKind, and refund_receipt is none yet.
+    {
+        id: 'refund_receipt',
+        label: 'Refund receipt',
+        href: 'books/refund-receipts/new',
+        column: 'customers',
+        available: true,
+    },
     {
         id: 'vendor',
         label: 'Vendor',

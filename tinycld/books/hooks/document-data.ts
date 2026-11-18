@@ -30,6 +30,7 @@ import type {
     BooksPaymentApplications,
     BooksPayments,
     BooksProducts,
+    BooksRefundReceipts,
     BooksSalesReceipts,
     BooksTaxRates,
     BooksVendorCredits,
@@ -113,6 +114,10 @@ export type VendorCreditKindFields = { kind: 'vendor_credit' } & Pick<
     BooksVendorCredits,
     'vendor' | 'ref_no' | 'balance'
 >
+export type RefundReceiptKindFields = { kind: 'refund_receipt' } & Pick<
+    BooksRefundReceipts,
+    'payment_method' | 'reference_no' | 'refund_from' | 'sales_receipt' | 'credit_memo'
+>
 export type DocumentKindFields =
     | InvoiceKindFields
     | SalesReceiptKindFields
@@ -121,6 +126,7 @@ export type DocumentKindFields =
     | ExpenseKindFields
     | CreditMemoKindFields
     | VendorCreditKindFields
+    | RefundReceiptKindFields
 
 // A header row without the people and the rate it names: the source of a correction or
 // a copy.
@@ -134,7 +140,8 @@ export type DocumentSource = SharedColumns & { kindFields: DocumentKindFields }
 // fields add its vendor's name and its open balance (Balance due, the badge). A credit
 // memo's own fields add the invoice it is for ("For invoice <n>") and its unapplied credit.
 // A vendor credit's own fields (its unapplied credit, `balance`, among them) add its
-// vendor's name.
+// vendor's name. A refund receipt's own fields add its Refund from account, which its
+// payment line names, and the sales receipt or credit memo it refunds.
 export type DocumentRecord = SharedColumns & {
     kindFields:
         | (InvoiceKindFields & {
@@ -164,6 +171,13 @@ export type DocumentRecord = SharedColumns & {
           })
         | (VendorCreditKindFields & {
               vendorRow: Pick<BooksVendors, 'display_name'> | undefined
+          })
+        | (RefundReceiptKindFields & {
+              refundFromRow: Pick<BooksAccounts, 'number' | 'name'> | undefined
+              salesReceiptRow: Pick<BooksSalesReceipts, 'number' | 'status'> | undefined
+              creditMemoRow:
+                  | Pick<BooksCreditMemos, 'number' | 'status' | 'balance' | 'date'>
+                  | undefined
           })
     postedBy: Pick<Users, 'name'> | undefined
     voidedBy: Pick<Users, 'name'> | undefined
@@ -231,9 +245,10 @@ export type DocumentStart =
           activePaidFromIds: ReadonlySet<string>
       }
     | { kind: 'vendor_credit'; purchaseLines: PurchaseLines; vendorAccountListed?: boolean }
+    | { kind: 'refund_receipt'; refundFrom: CopyDeposit }
 
 // What a kind's form starts from besides the document: its start input and the Deposit
-// to rule of its schema (none for an invoice).
+// to rule of its schema (none for an invoice; a refund receipt's checks Refund from).
 export type DocumentFormStart = { start: DocumentStart; deposit: DepositRule | undefined }
 
 // A stored line of any kind: a sales kind's (DocumentLineRow) or a purchase kind's

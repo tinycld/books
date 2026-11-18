@@ -5,6 +5,7 @@ import {
     CREDIT_MEMOS,
 } from '../tinycld/books/lib/credit-memo-form-fixture'
 import { type DocumentTax, documentTotals } from '../tinycld/books/lib/document-lines'
+import { REFUND_RECEIPT_MESSAGES } from '../tinycld/books/lib/document-texts'
 import {
     REFUND_PAYOUT_NOTICE,
     REFUND_RECEIPT_CREDITS,
@@ -247,5 +248,23 @@ describe('REFUND_RECEIPT_REFUSALS and REFUND_PAYOUT_NOTICE', () => {
         expect(REFUND_PAYOUT_NOTICE).toBe(
             'This refund pays out a credit. It lowers what Books owes the customer; income and sales tax were lowered by the credit memo.'
         )
+    })
+
+    // Checkpoint 3: the client's texts (REFUND_RECEIPT_MESSAGES) and the fixture's are the
+    // same words; a change to one side fails here.
+    it('equal the texts of REFUND_RECEIPT_MESSAGES', () => {
+        const m = REFUND_RECEIPT_MESSAGES
+        expect(m.totalNegative).toBe(REFUND_RECEIPT_REFUSALS.negativeTotal)
+        expect(m.totalTooLarge).toBe(REFUND_RECEIPT_REFUSALS.tooLarge)
+        expect(m.needItemLine).toBe(REFUND_RECEIPT_REFUSALS.noLines)
+        expect(m.noAccess).toBe(REFUND_RECEIPT_REFUSALS.noAccess)
+        expect(m.notFound).toBe(REFUND_RECEIPT_REFUSALS.notFound)
+        expect(m.cannotEdit).toBe(REFUND_RECEIPT_REFUSALS.cannotEdit)
+        expect(m.cannotRefundReceipt).toBe(REFUND_RECEIPT_REFUSALS.cannotRefundReceipt)
+        expect(m.cannotRefundMemo).toBe(REFUND_RECEIPT_REFUSALS.cannotRefundMemo)
+        // Refund from's two texts, under whichever keys the layer's payment rule reads.
+        const texts: unknown[] = Object.values(m)
+        expect(texts).toContain(REFUND_RECEIPT_REFUSALS.refundFrom)
+        expect(texts).toContain(REFUND_RECEIPT_REFUSALS.noRefundFrom)
     })
 })

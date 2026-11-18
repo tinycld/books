@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { documentTotals } from '../tinycld/books/lib/document-lines'
 import { bigFigureText } from '../tinycld/books/lib/document-messages'
-import { CREDIT_MEMO_MESSAGES, VENDOR_CREDIT_MESSAGES } from '../tinycld/books/lib/document-texts'
+import {
+    CREDIT_MEMO_MESSAGES,
+    REFUND_RECEIPT_MESSAGES,
+    VENDOR_CREDIT_MESSAGES,
+} from '../tinycld/books/lib/document-texts'
 import { maxLineAmount } from '../tinycld/books/lib/money-text'
 import {
     BILL_KIND,
@@ -12,6 +16,7 @@ import {
     INVOICE_KIND,
     MEMO_HINT,
     PURCHASE_LINE_TABLES,
+    REFUND_RECEIPT_KIND,
     SALES_FEATURES,
     SALES_LINE_TABLES,
     SALES_RECEIPT_KIND,
@@ -283,6 +288,54 @@ describe('CREDIT_MEMO_KIND', () => {
     it('names its PDF credit-memo-<number>, or draft-credit-memo before a number', () => {
         expect(CREDIT_MEMO_KIND.pdfStem('1001')).toBe('credit-memo-1001')
         expect(CREDIT_MEMO_KIND.pdfStem('')).toBe('draft-credit-memo')
+    })
+})
+
+// The refund receipt kind (refund receipt spec §3.1, §3.2, §3.6; plan Decisions "TS names").
+describe('REFUND_RECEIPT_KIND', () => {
+    it('has the values of spec §3.1', () => {
+        expect(REFUND_RECEIPT_KIND.key).toBe('refund_receipt')
+        expect(REFUND_RECEIPT_KIND.lifecycle).toBe('posting')
+        expect(REFUND_RECEIPT_KIND.hostKey).toBe('books:refund_receipt')
+        expect(REFUND_RECEIPT_KIND.testId).toBe('refund-receipt')
+        expect(REFUND_RECEIPT_KIND.routeBase).toBe('books/refund-receipts')
+        expect(REFUND_RECEIPT_KIND.noun).toBe('Refund receipt')
+        expect(REFUND_RECEIPT_KIND.thisNoun).toBe('This refund receipt')
+        expect(REFUND_RECEIPT_KIND.draftTitle).toBe('Draft refund receipt')
+        expect(REFUND_RECEIPT_KIND.newTitle).toBe('New refund receipt')
+        expect(REFUND_RECEIPT_KIND.shortcutGroup).toBe('Refund receipt')
+        expect(REFUND_RECEIPT_KIND.party).toBe('customer')
+        expect(REFUND_RECEIPT_KIND.customerRequired).toBe(false)
+        expect(REFUND_RECEIPT_KIND.lineTables).toBe(SALES_LINE_TABLES)
+        expect(REFUND_RECEIPT_KIND.features).toBe(SALES_FEATURES)
+        expect(REFUND_RECEIPT_KIND.helpTopic).toBe('books:refund-receipts')
+        expect(REFUND_RECEIPT_KIND.bandSplitAt).toBe('payment_method')
+        expect(REFUND_RECEIPT_KIND.keepsEmptyLinesOnRefusal).toBe(false)
+        expect(REFUND_RECEIPT_KIND.messages).toBe(REFUND_RECEIPT_MESSAGES)
+    })
+
+    // Q7: the big figure and the last totals row both read Amount refunded.
+    it('labels the big figure and the last totals row Amount refunded', () => {
+        expect(REFUND_RECEIPT_KIND.figure).toEqual({
+            label: 'Amount refunded',
+            testId: 'amount-refunded',
+        })
+        expect(REFUND_RECEIPT_KIND.lastTotal).toEqual({
+            label: 'Amount refunded',
+            testId: 'total-refunded',
+        })
+    })
+
+    it('hints that the message prints on the refund receipt', () => {
+        expect(REFUND_RECEIPT_KIND.noteHints).toEqual({
+            message: 'Shown on the refund receipt and its PDF.',
+            memo: MEMO_HINT,
+        })
+    })
+
+    it('names its PDF refund-receipt-<number>, or draft-refund-receipt before a number', () => {
+        expect(REFUND_RECEIPT_KIND.pdfStem('1003')).toBe('refund-receipt-1003')
+        expect(REFUND_RECEIPT_KIND.pdfStem('')).toBe('draft-refund-receipt')
     })
 })
 
