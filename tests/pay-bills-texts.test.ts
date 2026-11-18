@@ -7,6 +7,7 @@ import {
     postedToastText,
     selectedText,
     totalFigureText,
+    unappliedCreditText,
 } from '../tinycld/books/lib/pay-bills-texts'
 
 // The texts of the Pay Bills screen (spec §3.2–§3.5) and where a Pay goes after it.
@@ -72,6 +73,32 @@ describe('totalFigureText', () => {
             billtwo00000001: { amount: centsToText(half), open: half, number: '1005' },
         }
         expect(totalFigureText(payments, USD)).toBe('Too large')
+    })
+})
+
+// Vendor credit spec §3.10: a line of the notice of unapplied vendor credits above the open
+// bills.
+describe('unappliedCreditText', () => {
+    it('names the credit, its vendor and its unapplied balance as money', () => {
+        expect(
+            unappliedCreditText({
+                number: '1002',
+                vendorName: 'Office Supply World',
+                balance: 5_000,
+                currency: USD,
+            })
+        ).toBe('Vendor credit 1002 · Office Supply World · $50.00 unapplied')
+    })
+
+    it('writes a larger balance with thousands', () => {
+        expect(
+            unappliedCreditText({
+                number: '1017',
+                vendorName: 'Pacific Power',
+                balance: 123_456,
+                currency: USD,
+            })
+        ).toBe('Vendor credit 1017 · Pacific Power · $1,234.56 unapplied')
     })
 })
 

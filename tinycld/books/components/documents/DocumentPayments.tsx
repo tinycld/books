@@ -1,10 +1,17 @@
 import { Pressable, Text, View } from 'react-native'
 import type { DocumentPayment } from '../../hooks/document-data'
+import type { CreditApplicationRow } from '../../hooks/useCreditApplications'
 import { useOpenDocument } from '../../hooks/useOpenDocument'
 import { formatMoney } from '../../lib/money'
 import { formatDay } from '../../lib/register-range'
+import { ListBanner } from '../ListBanner'
+import { ApplicationRow } from './DocumentApplications'
 
 const TAP = { minHeight: 44 }
+
+const NO_APPLICATIONS: readonly CreditApplicationRow[] = []
+
+export const BILL_CREDITS_LOAD_FAILED = 'Books could not load the credits applied to this bill.'
 
 // What the block names and opens: the payment's noun ("Payment", "Bill payment"), the
 // route of its read view and the test id prefix of the document it sits on.
@@ -44,15 +51,99 @@ function PaymentLink({ payment, currency, noun, routeBase, testIdPrefix }: Payme
     )
 }
 
+// One row of the block: a posted payment or a credit application.
+type BlockRow =
+    | { kind: 'payment'; key: string; day: string; payment: DocumentPayment }
+    | { kind: 'credit'; key: string; day: string; application: CreditApplicationRow }
+
+// The payments and the applications in one list by date; on the same day the payments
+// come first, each list keeping its own order (both are oldest first).
+export function paymentBlockRows(
+    payments: readonly DocumentPayment[],
+    applications: readonly CreditApplicationRow[]
+): BlockRow[] {
+    const rows: BlockRow[] = [
+        ...payments.map(payment => ({
+            kind: 'payment' as const,
+            key: `payment-${payment.id}`,
+            day: payment.date.slice(0, 10),
+            payment,
+        })),
+        ...applications.map(application => ({
+            kind: 'credit' as const,
+            key: `credit-${application.id}`,
+            day: application.date.slice(0, 10),
+            application,
+        })),
+    ]
+    return rows.sort((a, b) => a.day.localeCompare(b.day))
+}
+
+interface BlockRowViewProps extends PaymentsTarget {
+    row: BlockRow
+    currency: string
+    onRemove: ((application: CreditApplicationRow) => void) | undefined
+}
+
+function ignore() {}
+
+function BlockRowView({ row, currency, onRemove, ...target }: BlockRowViewProps) {
+    if (row.kind === 'payment') {
+        return <PaymentLink payment={row.payment} currency={currency} {...target} />
+    }
+    return (
+        <ApplicationRow
+            application={row.application}
+            target="credit"
+            currency={currency}
+            testIdPrefix={target.testIdPrefix}
+            canRemove={onRemove !== undefined}
+            onRemove={onRemove ?? ignore}
+        />
+    )
+}
+
+function CreditsLoadError({
+    isVisible,
+    testIdPrefix,
+    onRetry,
+}: {
+    isVisible: boolean
+    testIdPrefix: string
+    onRetry: () => void
+}) {
+    if (!isVisible) return null
+    return (
+        <ListBanner
+            testIdPrefix={`${testIdPrefix}-payments-credits`}
+            message={BILL_CREDITS_LOAD_FAILED}
+            onRetry={onRetry}
+            isFlush
+        />
+    )
+}
+
 interface DocumentPaymentsProps extends PaymentsTarget {
     payments: readonly DocumentPayment[]
     currency: string
+    // The vendor credits applied to a bill (vendor credit spec §3.10), in the list by date
+    // with the payments; left out on an invoice.
+    applications?: readonly CreditApplicationRow[]
+    // Remove on each application row; left out where Remove is not offered (a reader, a
+    // void bill).
+    onRemove?: (application: CreditApplicationRow) => void
+    // The applications read failed: a notice with Retry in the block, never "no credits".
+    isApplicationsError?: boolean
+    onRetry?: () => void
 }
 
 /**
  * The Payments block of an invoice's or a bill's read view (receive-payment spec §3.9,
- * pay-bills spec §3.9): a link per posted payment applied to the document, oldest first,
- * each opening the payment. Nothing while no payment applies.
+ * pay-bills spec §3.9, vendor credit spec §3.10): a link per posted payment applied to the
+ * document and, on a bill, a row per vendor credit applied to it (ApplicationRow: "Vendor
+ * credit 1002 · Nov 16, 2026 · $30.00", opening the credit, with Remove for a writer), in
+ * one list by date, oldest first. A failed applications read shows its notice with Retry
+ * in the block. Nothing while no row applies and no read failed.
  */
 export function DocumentPayments({
     payments,
@@ -60,13 +151,19 @@ export function DocumentPayments({
     noun,
     routeBase,
     testIdPrefix,
+    applications = NO_APPLICATIONS,
+    onRemove,
+    isApplicationsError = false,
+    onRetry = ignore,
 }: DocumentPaymentsProps) {
-    if (payments.length === 0) return null
-    const links = payments.map(payment => (
-        <PaymentLink
-            key={payment.id}
-            payment={payment}
+    const rows = paymentBlockRows(payments, applications)
+    if (rows.length === 0 && !isApplicationsError) return null
+    const drawn = rows.map(row => (
+        <BlockRowView
+            key={row.key}
+            row={row}
             currency={currency}
+            onRemove={onRemove}
             noun={noun}
             routeBase={routeBase}
             testIdPrefix={testIdPrefix}
@@ -75,7 +172,12 @@ export function DocumentPayments({
     return (
         <View testID={`${testIdPrefix}-payments`} className="gap-1">
             <Text className="text-sm font-semibold text-foreground">Payments</Text>
-            {links}
+            {drawn}
+            <CreditsLoadError
+                isVisible={isApplicationsError}
+                testIdPrefix={testIdPrefix}
+                onRetry={onRetry}
+            />
         </View>
     )
 }

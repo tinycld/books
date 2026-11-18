@@ -929,6 +929,33 @@ func TestAccount_DeleteRefusedWhileOnExpenses(t *testing.T) {
 	})
 }
 
+// Vendor credit spec §4: an account on a vendor credit's account line, draft
+// or posted, cannot be deleted; the count is of vendor credits, not of lines.
+func TestAccount_DeleteRefusedWhileOnVendorCredits(t *testing.T) {
+	ve := newVendorCreditEnv(t)
+	app := ve.app
+	utilities := mkNumberedAccount(t, app, "Utilities", "6300", "expense", "utilities")
+	deleteUtilities := func() error {
+		return app.Delete(reload(t, app, "books_accounts", utilities.Id))
+	}
+
+	// Two account lines of one draft credit count one vendor credit.
+	first := ve.mkVendorCredit(t, ve.pacificPower, nil)
+	mkVendorCreditLine(t, app, first, 0, accountLine(utilities, 8000))
+	mkVendorCreditLine(t, app, first, 1, accountLine(utilities, 2500))
+	requireMessageOnlyRefusal(t, deleteUtilities(),
+		"This account is on 1 vendor credit and cannot be deleted. Make it inactive instead.")
+	reload(t, app, "books_accounts", utilities.Id)
+
+	for _, vendor := range []*core.Record{ve.officeSupply, ve.summit} {
+		vc := ve.mkVendorCredit(t, vendor, nil)
+		mkVendorCreditLine(t, app, vc, 0, accountLine(utilities, 1500))
+	}
+	requireMessageOnlyRefusal(t, deleteUtilities(),
+		"This account is on 3 vendor credits and cannot be deleted. Make it inactive instead.")
+	reload(t, app, "books_accounts", utilities.Id)
+}
+
 // Pay-bills spec §4.2: an account a bill payment paid from cannot be deleted
 // (its journal lines would lose their account); the text counts the payments.
 func TestAccount_DeleteRefusedWhileBillPaymentsPayFromIt(t *testing.T) {

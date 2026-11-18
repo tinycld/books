@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+    appliedBadge,
+    type BalanceBadge,
     canDeleteStatus,
     isFormStatus,
     isReadOnlyStatus,
@@ -100,6 +102,43 @@ describe('paidBadge', () => {
         expect(paidBadge('posted', 500, 500)).toEqual(statusBadgeOf('posting', 'posted'))
         expect(paidBadge('draft', 0, 500)).toEqual({ label: 'Draft', tone: 'muted' })
         expect(paidBadge('void', 200, 500)).toEqual({ label: 'Void', tone: 'destructive' })
+    })
+})
+
+// Vendor credit spec §3.7: a posted vendor credit's badge follows its unapplied balance,
+// by paidBadge's rule with the vendor credit's words. Applied when nothing is left,
+// Partly applied while part of the total is applied, otherwise the posting badge.
+describe('appliedBadge', () => {
+    // Both are a kind's balanceBadge; the same balances give each kind its own words.
+    it('shares paidBadge rule with its own words', () => {
+        const badges: BalanceBadge[] = [paidBadge, appliedBadge]
+        expect(badges.map(badge => badge('posted', 2000, 5000).label)).toEqual([
+            'Partly paid',
+            'Partly applied',
+        ])
+        expect(badges.map(badge => badge('posted', 0, 5000).label)).toEqual(['Paid', 'Applied'])
+    })
+
+    it('reads Posted on a posted credit nothing is applied from', () => {
+        expect(appliedBadge('posted', 5000, 5000)).toEqual({ label: 'Posted', tone: 'success' })
+        expect(appliedBadge('posted', 5000, 5000)).toEqual(statusBadgeOf('posting', 'posted'))
+    })
+
+    it('reads Partly applied, warning, while 0 < balance < total', () => {
+        expect(appliedBadge('posted', 2000, 5000)).toEqual({
+            label: 'Partly applied',
+            tone: 'warning',
+        })
+    })
+
+    it('reads Applied, success, at balance 0', () => {
+        expect(appliedBadge('posted', 0, 5000)).toEqual({ label: 'Applied', tone: 'success' })
+    })
+
+    it('keeps the posting badges of a draft and a void credit, whatever the balance', () => {
+        expect(appliedBadge('draft', 0, 5000)).toEqual({ label: 'Draft', tone: 'muted' })
+        expect(appliedBadge('void', 0, 5000)).toEqual({ label: 'Void', tone: 'destructive' })
+        expect(appliedBadge('void', 2000, 5000)).toEqual({ label: 'Void', tone: 'destructive' })
     })
 })
 

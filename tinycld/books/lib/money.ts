@@ -65,6 +65,10 @@ export function formatMoney(cents: number, currency: string): string {
     return currency === '' ? plain : `${plain} ${currency}`
 }
 
+// The minus sign (U+2212) of an amount shown as taken off ("−$30.00"), not the ASCII
+// hyphen formatMoney writes for a negative amount.
+export const MINUS = '−'
+
 // A zero side of a line shows nothing, so a debit-only line has a blank credit cell.
 export function amountText(cents: number, currency: string): string {
     return cents === 0 ? '' : formatMoney(cents, currency)

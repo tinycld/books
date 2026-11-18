@@ -68,7 +68,7 @@ To keep the receipt (a PDF or a photo) with the expense, add it in the Attachmen
 
 ## The Purchase lines setting
 
-To choose which tables a new expense shows, open Settings → Purchases and set **Purchase lines** on the Bills and expenses card: Accounts and products (the default), Accounts only, or Products only. The same setting decides the tables of a new bill. Only a Books admin can change Purchase lines; everyone else sees the setting.
+To choose which tables a new expense shows, open Settings → Purchases and set **Purchase lines** on the Bills, expenses and vendor credits card: Accounts and products (the default), Accounts only, or Products only. The same setting decides the tables of a new bill and a new vendor credit. Only a Books admin can change Purchase lines; everyone else sees the setting.
 
 A table that the setting hides still shows on an expense that already has lines in it (a saved draft, an edit or a copy), so you never lose lines. Once a table shows on a form, it stays until you leave the form, even after you remove its last line. A posted expense shows every table that has lines. See [Settings](help://books:settings).
 

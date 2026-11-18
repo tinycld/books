@@ -103,6 +103,22 @@ function withoutDrawnHint(field: DefinitionFields[number]) {
     return { ...field, description: undefined }
 }
 
+// The descriptions withoutDrawnHint drops, by field key, for the host component that
+// draws them (DocumentFormScope.hints). A field whose stored description is empty (an
+// admin cleared it) gets the default description of the form's own host layout, so a
+// kind never shows another kind's words.
+function drawnHintsOf(
+    definition: FormDefinition | null | undefined,
+    host: DocumentFormState['host']
+): Readonly<Record<string, string>> {
+    const entries = (definition?.fields ?? []).flatMap(field => {
+        if (!SELF_HINTED_FIELDS.has(field.key)) return []
+        const hint = field.description || host.layout?.fields[field.key]?.description
+        return hint ? [[field.key, hint] as const] : []
+    })
+    return Object.fromEntries(entries)
+}
+
 // The definition around the line tables: the header band (every field before the first
 // line table, an admin's custom fields included; split in two rows at the kind's
 // `bandSplitAt` when it names a band field), the lines (every field from the first line
@@ -764,6 +780,10 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
         () => ({ id: invoiceLinkId, label: invoiceLinkText, remove: removeInvoiceLink }),
         [invoiceLinkId, invoiceLinkText, removeInvoiceLink]
     )
+    const hints = useMemo(
+        () => drawnHintsOf(state.definition, state.host),
+        [state.definition, state.host]
+    )
     const scope = useMemo<DocumentFormScope>(
         () => ({
             kind,
@@ -779,6 +799,7 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
             estimateNumber,
             estimateId,
             invoiceLink,
+            hints,
         }),
         [
             kind,
@@ -794,6 +815,7 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
             estimateNumber,
             estimateId,
             invoiceLink,
+            hints,
         ]
     )
     const totals = useDocumentTotals(form, scope)

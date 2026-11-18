@@ -19,9 +19,14 @@ export const NO_PARTY_TEXT: Record<DocumentPartyKey, string> = {
     vendor: NO_VENDOR_TEXT,
 }
 
-// The hint under a bill's Vendor's bill no.: the layout's description (the design canvas)
-// and the text VendorRefField draws on the record.
+// The hint under a bill's Vendor's bill no.: the bill layout's description
+// (forms/hosts.ts), which VendorRefField draws, also when a stored form has none.
 export const VENDOR_REF_HINT = "The number on the vendor's bill"
+
+// The hint under a vendor credit's Vendor's credit no.: the vendor credit layout's
+// description (forms/hosts.ts), which VendorRefField draws, also when a stored form has
+// none.
+export const VENDOR_CREDIT_REF_HINT = "The number on the vendor's credit note"
 
 // The hint under an expense's Ref no.: the layout's description (forms/hosts.ts).
 export const EXPENSE_REF_HINT = 'Check number or card reference'
@@ -80,6 +85,8 @@ export type DocumentMessages = {
     depositLoadFailed?: string
     depositRequired?: string
     referenceTooLong?: string
+    // A kind with a Vendor's <document> no. (`ref_no`): its text over 40 characters.
+    refTooLong?: string
 }
 
 // The Amount cell of an account line (a bill's), the same on every kind that has one. The
@@ -349,6 +356,68 @@ export const EXPENSE_MESSAGES = {
     accountAmountZero: string
     voidBody: string
     referenceTooLong: string
+}
+
+// The vendor credit's texts (vendor credit spec §3.5, §3.6). The first group is shown by
+// the client and refused by the server with the same words (server/vendor_credits.go, the
+// vendor text in server/bills.go and the line texts in server/purchase_lines.go);
+// tests/document-messages.test.ts fails when they drift. The zero-total Post rule is the
+// server's only: the client shows its refusal. A vendor credit's party is a vendor: the
+// `customer…` keys of the shared layer hold the vendor's texts. It has no percent lines,
+// bundles or PDF; the type's texts for them are the invoice's and never show.
+export const VENDOR_CREDIT_MESSAGES = {
+    totalNegative: 'A vendor credit total cannot be below zero. Use a bill.',
+    totalZero: 'A vendor credit total must be more than zero to post.',
+    totalTooLarge: 'The vendor credit total is more than Books can store.',
+    tooManyLines: 'A vendor credit holds at most 250 lines.',
+    customerInactive: BILL_MESSAGES.customerInactive,
+    customerOnInvoices: '%s is on vendor credits. Make it inactive instead.',
+    // The first `%s` is the vendor's name, the second the credit no., the third the credit
+    // that has it: "Vendor credit 1002", or "a draft vendor credit" while it has no number.
+    duplicateRef: '%s already has credit no. %s (%s).',
+    accountInactive: BILL_MESSAGES.accountInactive,
+    accountNotExpense: BILL_MESSAGES.accountNotExpense,
+    productInactive: BILL_MESSAGES.productInactive,
+    productNotPurchased: BILL_MESSAGES.productNotPurchased,
+    accountAmountZero: BILL_MESSAGES.accountAmountZero,
+
+    // Client only.
+    percentTarget: INVOICE_MESSAGES.percentTarget,
+    needItemLine: BILL_MESSAGES.needItemLine,
+    quantityNotPositive: INVOICE_MESSAGES.quantityNotPositive,
+    quantityDecimals: INVOICE_MESSAGES.quantityDecimals,
+    quantityTooLarge: INVOICE_MESSAGES.quantityTooLarge,
+    rateMalformed: INVOICE_MESSAGES.rateMalformed,
+    rateTooLarge: INVOICE_MESSAGES.rateTooLarge,
+    // books_vendor_credit_lines.rate has min 0, as a bill line's.
+    rateNegative: BILL_MESSAGES.rateNegative,
+    percentRange: INVOICE_MESSAGES.percentRange,
+    percentDecimals: INVOICE_MESSAGES.percentDecimals,
+    noAccess: 'You need bookkeeper access to create vendor credits',
+    notFound: 'This vendor credit does not exist',
+    cannotEdit: 'This vendor credit cannot be edited',
+    loadFailed: 'Books could not load this vendor credit.',
+    customerLoadFailed: BILL_MESSAGES.customerLoadFailed,
+    bundleEmpty: INVOICE_MESSAGES.bundleEmpty,
+    bundleLoadFailed: INVOICE_MESSAGES.bundleLoadFailed,
+    pdfUnsaved: INVOICE_MESSAGES.pdfUnsaved,
+    pdfUnsavedSave: INVOICE_MESSAGES.pdfUnsavedSave,
+    pdfStale: INVOICE_MESSAGES.pdfStale,
+    voidBody: INVOICE_MESSAGES.voidBody,
+    refTooLong: "Vendor's credit no. can be at most 40 characters",
+    // The delete-draft confirm's title and body (the draft dialog's own action and ids).
+    deleteTitle: 'Delete this draft vendor credit?',
+    deleteBody: "This can't be undone.",
+} as const satisfies DocumentMessages & {
+    totalZero: string
+    duplicateRef: string
+    accountInactive: string
+    accountNotExpense: string
+    productInactive: string
+    productNotPurchased: string
+    accountAmountZero: string
+    voidBody: string
+    refTooLong: string
 }
 
 // The estimate's texts. The first group is shown by the client and refused by the server

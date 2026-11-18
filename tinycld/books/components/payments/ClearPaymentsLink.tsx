@@ -5,6 +5,8 @@ import { Pressable, type PressableInstance, Text } from 'react-native'
 import { PAYMENT_FORM_DESCRIPTIONS, PAYMENT_FORM_KEYS } from '../../lib/payment-shortcuts'
 import { useDocumentChrome } from '../documents/document-chrome'
 
+const TAP = { minHeight: 44 }
+
 interface ClearPaymentsLinkProps {
     isVisible: boolean
     isDisabled: boolean
@@ -47,19 +49,40 @@ export function ClearPaymentsLink({
         scopeOwner,
     })
     if (!isVisible) return null
+    return (
+        <ClearLink
+            label="Clear payments"
+            testID={`${chrome.testId}-clear`}
+            isDisabled={isDisabled}
+            onPress={onPress}
+            linkRef={linkRef}
+        />
+    )
+}
+
+interface ClearLinkProps {
+    label: string
+    testID: string
+    isDisabled: boolean
+    onPress: () => void
+    linkRef: Ref<PressableInstance>
+}
+
+// The link-styled button under a list of amounts: primary, muted while disabled.
+export function ClearLink({ label, testID, isDisabled, onPress, linkRef }: ClearLinkProps) {
     const tone = isDisabled ? 'text-muted-foreground' : 'text-primary'
     return (
         <Pressable
             ref={linkRef}
-            testID={`${chrome.testId}-clear`}
+            testID={testID}
             accessibilityRole="button"
             accessibilityState={{ disabled: isDisabled }}
             disabled={isDisabled}
             onPress={onPress}
             className="justify-center self-start"
-            style={{ minHeight: 44 }}
+            style={TAP}
         >
-            <Text className={`text-sm underline ${tone}`}>Clear payments</Text>
+            <Text className={`text-sm underline ${tone}`}>{label}</Text>
         </Pressable>
     )
 }
