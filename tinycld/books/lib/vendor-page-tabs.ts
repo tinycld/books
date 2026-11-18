@@ -1,11 +1,16 @@
 import { selectRecordTab } from '../components/RecordTabs'
 import { type PartyTab, partyTabOf, shownPartyTabs } from './party-page-tabs'
 
-// The vendor page's tabs built so far, in strip order; the first is the default (no `tab`
-// param). A vendor page has no Statements tab: a statement goes to a customer.
-export const VENDOR_TAB_ORDER: readonly PartyTab[] = ['contacts', 'details', 'notes']
+// The vendor page's tabs, in strip order; the first is the default (no `tab` param). A
+// vendor page has no Statements tab: a statement goes to a customer.
+export const VENDOR_TAB_ORDER: readonly PartyTab[] = [
+    'transactions',
+    'contacts',
+    'details',
+    'notes',
+]
 
-export const DEFAULT_VENDOR_TAB: PartyTab = VENDOR_TAB_ORDER[0] ?? 'contacts'
+export const DEFAULT_VENDOR_TAB: PartyTab = VENDOR_TAB_ORDER[0] ?? 'transactions'
 
 // The tabs the strip draws, in VENDOR_TAB_ORDER.
 export const SHOWN_VENDOR_TABS = shownPartyTabs(VENDOR_TAB_ORDER)

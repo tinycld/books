@@ -7,6 +7,8 @@ import { VENDOR_DISCARD_MESSAGE } from '../../../lib/vendor-messages'
 import { SHOWN_VENDOR_TABS } from '../../../lib/vendor-page-tabs'
 import type { BooksVendors } from '../../../types'
 import { ListBanner } from '../../ListBanner'
+import { NewTransactionMenu } from '../../party/page/NewTransactionMenu'
+import { PartyBalance } from '../../party/page/PartyBalance'
 import { PartyPageHeader } from '../../party/page/PartyPageHeader'
 import { PartyPageSaveBar } from '../../party/page/PartyPageSaveBar'
 import { PartyTabBody } from '../../party/page/PartyTabBody'
@@ -16,6 +18,7 @@ import { DiscardDialog } from '../../RecordChild'
 import { RecordSurface } from '../../RecordSurface'
 import { VendorIdentity } from './VendorIdentity'
 import { VendorMoreMenu } from './VendorMoreMenu'
+import { VendorTransactionsTab } from './VendorTransactionsTab'
 
 const PREFIX = 'vendor'
 
@@ -26,11 +29,24 @@ interface HeaderProps {
     isPhone: boolean
 }
 
-// The shared header with the vendor's slots: its identity lines and More menu. The
-// balance (`right`) and New transaction (`action`) slots are empty here. Call uses the
-// phone, else the mobile.
+// The shared header with the vendor's slots: its identity lines, balance, New transaction
+// menu and More menu. Call uses the phone, else the mobile.
 function VendorHeader({ record, page, surface, isPhone }: HeaderProps) {
+    const { controls } = page
     const identity = <VendorIdentity record={record} />
+    const balance = <PartyBalance party="vendor" id={record.id} testIdPrefix={PREFIX} />
+    const newTransaction = (
+        <NewTransactionMenu
+            party="vendor"
+            id={record.id}
+            isVisible={controls.showNewTransaction}
+            isDisabled={controls.newTransactionDisabled}
+            isFullWidth={isPhone}
+            isOpen={page.newMenuOpen}
+            onOpenChange={page.setNewMenuOpen}
+            testIdPrefix={PREFIX}
+        />
+    )
     const more = <VendorMoreMenu record={record} page={page} isPhone={isPhone} />
     const phone = record.phone || record.mobile
     return (
@@ -43,8 +59,8 @@ function VendorHeader({ record, page, surface, isPhone }: HeaderProps) {
             backLabel="Vendors"
             onBack={page.navigation.leave}
             identity={identity}
-            right={null}
-            action={null}
+            right={balance}
+            action={newTransaction}
             more={more}
             party="vendor"
             testIdPrefix={PREFIX}
@@ -65,6 +81,9 @@ export function VendorPage({ record }: { record: BooksVendors }) {
     const page = useVendorPage(record)
     const { navigation, actions } = page
     const header = <VendorHeader record={record} page={page} surface={surface} isPhone={isPhone} />
+    const transactions = (
+        <VendorTransactionsTab record={record} page={page} gutterClass={gutterClass} />
+    )
     const dismissBanner = () => actions.clearActionError()
     const save = () => void page.save()
     return (
@@ -101,7 +120,7 @@ export function VendorPage({ record }: { record: BooksVendors }) {
                     party="vendor"
                     id={record.id}
                     page={page}
-                    transactions={null}
+                    transactions={transactions}
                     surface={surface}
                     rowClassName={rowClassName}
                     gutterClass={gutterClass}

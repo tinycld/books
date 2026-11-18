@@ -106,11 +106,14 @@ describe('help/vendors.md', () => {
         expect(body).toMatch(/Settings\s*(→|>)\s*Forms/)
     })
 
-    it('says the vendor opens beside the list on a very wide window and as a page otherwise', () => {
+    // Vendor pages §3.11: an open vendor is its page, never a form; the topic links the page's.
+    it('says the vendor opens its page, beside the names on a very wide window, and links Vendor pages', () => {
         expect(body).toMatch(
             /beside the list[^\n]*very wide window|very wide window[^\n]*beside the list/i
         )
         expect(body).toMatch(/\bown page\b/i)
+        expect(body).toContain('[Vendor pages](help://books:vendor-pages)')
+        expect(body).not.toMatch(/the vendor opens in a panel beside the list/i)
     })
 
     it('says display names are unique among vendors, case ignored', () => {

@@ -340,11 +340,13 @@ function TransactionsBody<Kind extends string>(props: BodyProps<Kind>) {
         const showAll = () => props.onFilter('all')
         const noMatchText = props.texts.noMatch(filter)
         return (
-            <View
-                testID={`${testIdPrefix}-transactions-no-match`}
-                className="items-center gap-4 p-8"
-            >
-                <Text className="text-base font-medium text-foreground">{noMatchText}</Text>
+            <View className="items-center gap-4 p-8">
+                <Text
+                    testID={`${testIdPrefix}-transactions-no-match`}
+                    className="text-base font-medium text-foreground"
+                >
+                    {noMatchText}
+                </Text>
                 <ShowAllButton onPress={showAll} testIdPrefix={testIdPrefix} />
             </View>
         )

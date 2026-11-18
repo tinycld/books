@@ -23,7 +23,7 @@ Choose Save to save the vendor and open the vendor's page. To save it and start 
 
 ## Edit a vendor
 
-To edit a vendor, choose its row in the list to open the vendor's page, or open the menu on its row and choose Edit to open the page on the Details tab. You edit the Details and Notes tabs in place. When you change a field, Save and Cancel show in a bar at the bottom of the page, on every tab. Choose Save, or press ⌘S, to write your changes and stay on the page. Only the fields you changed are written. To select the Contacts tab press ⌥2, to select the Details tab press ⌥3, and to select the Notes tab press ⌥4.
+To edit a vendor, choose its row in the list to open the vendor's page, or open the menu on its row and choose Edit to open the page on the Details tab. You edit the Details and Notes tabs in place. When you change a field, Save and Cancel show in a bar at the bottom of the page, on every tab. Choose Save, or press ⌘S, to write your changes and stay on the page. Only the fields you changed are written. To select the Transactions tab press ⌥1, to select the Contacts tab press ⌥2, to select the Details tab press ⌥3, and to select the Notes tab press ⌥4. For the whole page, its balance and its New transaction menu, see [Vendor pages](help://books:vendor-pages).
 
 To throw your changes away, choose Cancel or press Esc, then choose Discard. If you try to leave a vendor that has changes that are not saved, Books asks "Discard changes?" first. Choose Keep editing to go back to the page, or Discard to leave without saving. When nothing is changed, Esc goes back to the list.
 

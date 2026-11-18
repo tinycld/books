@@ -116,21 +116,48 @@ type CreditMemoInput = Pick<
     'id' | 'status' | 'number' | 'date' | 'total' | 'balance' | 'currency' | 'created'
 >
 
-const DRAFT = { label: 'Draft', tone: 'muted' } as const
-const VOID = { label: 'Void', tone: 'muted' } as const
+type StatusBadge = PartyTransactionRow['status']
 
-// Draft and Void are muted. A posted invoice's status follows its open balance
-// (receive-payment spec §3.9), the first rule that applies winning: Paid when nothing is
-// open, Partly paid while part of the total is open, Overdue when due before today, else
-// Open. Days are YYYY-MM-DD text, so they compare as strings.
-function invoiceStatus(row: InvoiceInput, today: string): PartyTransactionRow['status'] {
-    if (row.status === 'draft') return { ...DRAFT }
-    if (row.status === 'void') return { ...VOID }
+const DRAFT: StatusBadge = { label: 'Draft', tone: 'muted' }
+const VOID: StatusBadge = { label: 'Void', tone: 'muted' }
+
+// The one lifecycle rule of every party document kind, customer and vendor: a draft reads
+// Draft and a void Void (both muted); a posted document shows `posted`, the kind's own badge.
+export function lifecycleStatus(status: string, posted: StatusBadge): StatusBadge {
+    if (status === 'draft') return { ...DRAFT }
+    if (status === 'void') return { ...VOID }
+    return { ...posted }
+}
+
+// A posted credit (credit memo, vendor credit) shows `open` while credit is left on it,
+// else `closed`; the kinds name the closed badge differently.
+export function creditStatus(
+    row: { status: string; balance: number },
+    badges: { open: StatusBadge; closed: StatusBadge }
+): StatusBadge {
+    return lifecycleStatus(row.status, row.balance > 0 ? badges.open : badges.closed)
+}
+
+// A posted invoice's or bill's status follows its open balance (receive-payment spec §3.9,
+// vendor pages §3.5), the first rule that applies winning: Paid when nothing is open,
+// Partly paid while part of the total is open, Overdue when due before today, else Open.
+// Days are YYYY-MM-DD text, so they compare as strings.
+function postedDueBadge(
+    row: { balance: number; total: number; due_date: string },
+    today: string
+): StatusBadge {
     if (row.balance <= 0) return { label: 'Paid', tone: 'success' }
     if (row.balance < row.total) return { label: 'Partly paid', tone: 'warning' }
     if (row.due_date !== '' && row.due_date < today)
         return { label: 'Overdue', tone: 'destructive' }
     return { label: 'Open', tone: 'warning' }
+}
+
+export function dueDocumentStatus(
+    row: { status: string; balance: number; total: number; due_date: string },
+    today: string
+): StatusBadge {
+    return lifecycleStatus(row.status, postedDueBadge(row, today))
 }
 
 // Expired replaces a Pending or Accepted estimate's status once it is past its date, as the
@@ -145,32 +172,26 @@ function estimateStatus(row: EstimateInput, today: string): PartyTransactionRow[
     )
 }
 
-function receiptStatus(row: SalesReceiptInput): PartyTransactionRow['status'] {
-    if (row.status === 'draft') return { ...DRAFT }
-    if (row.status === 'void') return { ...VOID }
-    return { label: 'Paid', tone: 'success' }
+function receiptStatus(row: SalesReceiptInput): StatusBadge {
+    return lifecycleStatus(row.status, { label: 'Paid', tone: 'success' })
 }
 
 // A posted payment reads Applied when nothing was kept as a credit, else Credit $x.
-function paymentStatus(row: PaymentInput): PartyTransactionRow['status'] {
-    if (row.status === 'draft') return { ...DRAFT }
-    if (row.status === 'void') return { ...VOID }
-    if (row.credited > 0) {
-        return { label: `Credit ${formatMoney(row.credited, row.currency)}`, tone: 'warning' }
-    }
-    return { label: 'Applied', tone: 'success' }
+function paymentStatus(row: PaymentInput): StatusBadge {
+    const posted: StatusBadge =
+        row.credited > 0
+            ? { label: `Credit ${formatMoney(row.credited, row.currency)}`, tone: 'warning' }
+            : { label: 'Applied', tone: 'success' }
+    return lifecycleStatus(row.status, posted)
 }
 
 // A posted credit memo reads Unapplied while credit is left on it, else Applied (credit
 // memo spec §3.10). The Transactions tab and the invoice's Credit memos section both use it.
-export function creditMemoStatus(row: { status: string; balance: number }): {
-    label: string
-    tone: StatusTone
-} {
-    if (row.status === 'draft') return { ...DRAFT }
-    if (row.status === 'void') return { ...VOID }
-    if (row.balance > 0) return { label: 'Unapplied', tone: 'warning' }
-    return { label: 'Applied', tone: 'success' }
+export function creditMemoStatus(row: { status: string; balance: number }): StatusBadge {
+    return creditStatus(row, {
+        open: { label: 'Unapplied', tone: 'warning' },
+        closed: { label: 'Applied', tone: 'success' },
+    })
 }
 
 export function invoiceRow(row: InvoiceInput, today: string): PartyTransactionRow {
@@ -183,7 +204,7 @@ export function invoiceRow(row: InvoiceInput, today: string): PartyTransactionRo
         total: row.total,
         currency: row.currency,
         created: row.created,
-        status: invoiceStatus(row, today),
+        status: dueDocumentStatus(row, today),
     }
 }
 
