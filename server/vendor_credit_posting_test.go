@@ -564,3 +564,281 @@ func TestVendorCreditPost_ABillOfTheSameLinesKeepsItsSides(t *testing.T) {
 		t.Errorf("bill number %q, want 1001 from the bill sequence", got)
 	}
 }
+
+// The vendor credit refusals a posted vendor refund adds (vendor refund spec
+// §3.9), written out so a change of wording fails here too.
+const (
+	wantCreditVoidRefunded       = "A vendor refund is recorded on this credit. Void the refund first."
+	wantCreditCorrectionRefunded = "A vendor refund is recorded on this credit, so its vendor cannot change."
+)
+
+func wantCreditCorrectionBelowAppliedOrRefunded(sum string) string {
+	return fmt.Sprintf("%s of this credit is applied or refunded. Its total cannot be below that.", sum)
+}
+
+// A credit of 425.00 (Pacific Power, 6100 Rent) that a posted vendor refund
+// and a bill application may name.
+func refundedCredit(t *testing.T, applied, refunded int64) (re *refundEnv, credit *core.Record) {
+	t.Helper()
+	re = newRefundEnv(t)
+	credit = re.postedCredit(t, re.pacificPower, vendorCreditDay, billAmount{re.rent, 42500})
+	if applied > 0 {
+		re.apply(t, credit, re.postedBill(t, re.pacificPower, 50000), applied, applyDay)
+	}
+	if refunded > 0 {
+		re.refund(t, nil, refundLine{credit, refunded})
+	}
+	return re, credit
+}
+
+func TestVendorCreditVoid_RefusesWhileAPostedRefundNamesIt(t *testing.T) {
+	for _, c := range []struct {
+		name              string
+		applied, refunded int64
+		want              string
+	}{
+		{"applied only", 10000, 0, wantCreditVoidApplied},
+		{"refunded only", 0, 15000, wantCreditVoidRefunded},
+		// The refund must go first, so its text wins.
+		{"applied and refunded", 10000, 15000, wantCreditVoidRefunded},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			re, credit := refundedCredit(t, c.applied, c.refunded)
+			requireRefusalText(t, voidVendorCreditAs(re.app, credit.Id, re.users.bookkeeper.Id), c.want)
+			after := reload(t, re.app, "books_vendor_credits", credit.Id)
+			if after.GetString("status") != statusPosted || after.GetInt("balance") != int(42500-c.applied-c.refunded) {
+				t.Errorf("credit status %q balance %d after a refused void, want posted, %d",
+					after.GetString("status"), after.GetInt("balance"), 42500-c.applied-c.refunded)
+			}
+		})
+	}
+}
+
+// A credit named only by a void refund and a draft refund voids.
+func TestVendorCreditVoid_AVoidOrDraftRefundDoesNotHoldIt(t *testing.T) {
+	re, credit := refundedCredit(t, 0, 0)
+	voided := re.refund(t, nil, refundLine{credit, 15000})
+	if err := voidRefundAs(re.app, voided.Id, re.users.bookkeeper.Id); err != nil {
+		t.Fatalf("void the refund: %v", err)
+	}
+	draft := re.mkRefund(t, map[string]any{"amount": 5000})
+	mkRefundLine(t, re.app, draft, credit, 0, 5000)
+
+	if err := voidVendorCreditAs(re.app, credit.Id, re.users.bookkeeper.Id); err != nil {
+		t.Fatalf("void a credit that only a void and a draft refund name: %v", err)
+	}
+	if s := reload(t, re.app, "books_vendor_credits", credit.Id).GetString("status"); s != statusVoid {
+		t.Errorf("credit status %q, want void", s)
+	}
+}
+
+// A correction takes the lines of the posted refunds that name the original,
+// with its applications: the refund line names the correction, and the
+// correction's balance is its total less both. The server's move passes the
+// line guard; a person's write of that line is still refused.
+func TestVendorCreditCorrection_MovesThePostedRefundLines(t *testing.T) {
+	re, credit := refundedCredit(t, 10000, 15000)
+	refund, err := re.app.FindFirstRecordByFilter(refundsCol, "status = 'posted'")
+	if err != nil {
+		t.Fatalf("find the posted refund: %v", err)
+	}
+	line, err := re.app.FindFirstRecordByFilter(refundLinesCol, "refund = {:r}", dbx.Params{"r": refund.Id})
+	if err != nil {
+		t.Fatalf("find the refund line: %v", err)
+	}
+
+	draft := re.creditCorrectionOf(t, credit, re.pacificPower, billAmount{re.rent, 40000})
+	corrected := mustPostVendorCredit(t, re.app, draft.Id, re.users.bookkeeper.Id)
+	if corrected.GetString("status") != statusPosted || corrected.GetString("number") != credit.GetString("number") {
+		t.Errorf("correction status %q number %q, want posted, %s", corrected.GetString("status"), corrected.GetString("number"), credit.GetString("number"))
+	}
+	if got := reload(t, re.app, refundLinesCol, line.Id).GetString("vendor_credit"); got != draft.Id {
+		t.Errorf("the refund line names vendor credit %q, want the correction %q", got, draft.Id)
+	}
+	requireVendorCreditBalance(t, re.app, draft.Id, 15000)
+	if after := reload(t, re.app, "books_vendor_credits", credit.Id); after.GetString("status") != statusVoid || after.GetString("replaced_by") != draft.Id {
+		t.Errorf("original status %q replaced_by %q, want void and the correction", after.GetString("status"), after.GetString("replaced_by"))
+	}
+	if s := reload(t, re.app, refundsCol, refund.Id).GetString("status"); s != statusPosted {
+		t.Errorf("the refund's status %q after the credit's correction, want posted", s)
+	}
+	requireNoDocumentDrift(t, re.app)
+	requireNoDrift(t, re.app)
+
+	err = setFields(t, re.app, refundLinesCol, line.Id, map[string]any{"amount": 14000})
+	requireRefusalText(t, err, wantRefundLinesFixed)
+	if got := reload(t, re.app, refundLinesCol, line.Id).GetInt("amount"); got != 15000 {
+		t.Errorf("refund line amount %d after a refused write, want 15000", got)
+	}
+}
+
+// correctCredit saves a correction of original for vendor with one 6100 line
+// of total and posts it, and returns the first refusal.
+func (re *refundEnv) correctCredit(original, vendor *core.Record, total int64) error {
+	draft, err := newVendorCreditOn(re.app, vendor, map[string]any{"replaces": original.Id})
+	if err != nil {
+		return err
+	}
+	if _, err := newVendorCreditLine(re.app, draft, 0, accountLine(re.rent, total)); err != nil {
+		return err
+	}
+	return postVendorCreditAs(re.app, draft.Id, re.users.bookkeeper.Id)
+}
+
+func TestVendorCreditCorrection_RefusesATotalBelowAppliedAndRefunded(t *testing.T) {
+	for _, c := range []struct {
+		name              string
+		applied, refunded int64
+		want              string
+	}{
+		{"applied and refunded", 10000, 15000, wantCreditCorrectionBelowAppliedOrRefunded("$250.00")},
+		{"refunded only", 0, 15000, wantCreditCorrectionBelowAppliedOrRefunded("$150.00")},
+		{"applied only", 10000, 0, wantCreditCorrectionBelowApplied("$100.00")},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			re, credit := refundedCredit(t, c.applied, c.refunded)
+			requireRefusalText(t, re.correctCredit(credit, re.pacificPower, c.applied+c.refunded-1), c.want)
+			after := reload(t, re.app, "books_vendor_credits", credit.Id)
+			if after.GetString("status") != statusPosted || after.GetString("replaced_by") != "" {
+				t.Errorf("original status %q replaced_by %q after a refused correction, want posted, none",
+					after.GetString("status"), after.GetString("replaced_by"))
+			}
+			requireVendorCreditBalance(t, re.app, credit.Id, int(42500-c.applied-c.refunded))
+		})
+	}
+}
+
+func TestVendorCreditCorrection_RefusesAnotherVendorWhileRefunded(t *testing.T) {
+	for _, c := range []struct {
+		name              string
+		applied, refunded int64
+		want              string
+	}{
+		{"refunded only", 0, 15000, wantCreditCorrectionRefunded},
+		{"applied and refunded", 10000, 15000, wantCreditCorrectionRefunded},
+		{"applied only", 10000, 0, wantCreditCorrectionVendor},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			re, credit := refundedCredit(t, c.applied, c.refunded)
+			requireRefusalText(t, re.correctCredit(credit, re.summit, 42500), c.want)
+			if s := reload(t, re.app, "books_vendor_credits", credit.Id).GetString("status"); s != statusPosted {
+				t.Errorf("original status %q after a refused correction, want posted", s)
+			}
+			requireVendorCreditBalance(t, re.app, credit.Id, int(42500-c.applied-c.refunded))
+		})
+	}
+}
+
+// The refusal of a correction dated after a posted refund of the credit
+// (revise 1 of the vendor refund unit), written out so a change of wording
+// fails here too. day is the refund's date as the server writes it in a
+// message ("Nov 14, 2026").
+func wantCreditCorrectionAfterRefund(number, day string) string {
+	return fmt.Sprintf("Vendor refund %s refunds this credit on %s. Date the credit on or before that day.", number, day)
+}
+
+// correctCreditDated saves a correction of original (Pacific Power, one 6100
+// line of 425.00) dated day and posts it; it returns the correction draft and
+// the post's refusal.
+func (re *refundEnv) correctCreditDated(t *testing.T, original *core.Record, day string) (*core.Record, error) {
+	t.Helper()
+	draft, err := newVendorCreditOn(re.app, re.pacificPower, map[string]any{"replaces": original.Id, "date": day})
+	if err != nil {
+		t.Fatalf("save the correction draft dated %s: %v", day, err)
+	}
+	if _, err := newVendorCreditLine(re.app, draft, 0, accountLine(re.rent, 42500)); err != nil {
+		t.Fatalf("save the correction's line: %v", err)
+	}
+	return draft, postVendorCreditAs(re.app, draft.Id, re.users.bookkeeper.Id)
+}
+
+// requireCorrectionPosted asserts that the correction posted, dated day, and
+// replaced original.
+func requireCorrectionPosted(t *testing.T, re *refundEnv, original, draft *core.Record, day string, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("post a correction dated %s: %v", day, err)
+	}
+	corrected := reload(t, re.app, "books_vendor_credits", draft.Id)
+	if corrected.GetString("status") != statusPosted || !strings.HasPrefix(corrected.GetString("date"), day) {
+		t.Errorf("correction status %q date %q, want posted on %s", corrected.GetString("status"), corrected.GetString("date"), day)
+	}
+	if after := reload(t, re.app, "books_vendor_credits", original.Id); after.GetString("replaced_by") != draft.Id {
+		t.Errorf("original replaced_by %q, want the correction %q", after.GetString("replaced_by"), draft.Id)
+	}
+}
+
+// A correction may not move the credit's date after the earliest posted
+// refund that names it: the refusal is keyed date, names that refund and its
+// day, and the original stays posted with its refund lines.
+func TestVendorCreditCorrection_RefusesADateAfterTheEarliestPostedRefund(t *testing.T) {
+	for _, c := range []struct{ name, day string }{
+		{"between the two refunds", "2026-11-16"},
+		{"after both refunds", "2026-11-25"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			re, credit := refundedCredit(t, 0, 0)
+			// The later refund posts first, so the earliest is not the first posted.
+			re.refund(t, map[string]any{"date": "2026-11-20"}, refundLine{credit, 5000})
+			earliest := re.refund(t, map[string]any{"date": "2026-11-14"}, refundLine{credit, 10000})
+
+			draft, err := re.correctCreditDated(t, credit, c.day)
+			requireFieldRefusal(t, err, "date", wantCreditCorrectionAfterRefund(earliest.GetString("number"), "Nov 14, 2026"))
+
+			after := reload(t, re.app, "books_vendor_credits", credit.Id)
+			if after.GetString("status") != statusPosted || after.GetString("replaced_by") != "" {
+				t.Errorf("original status %q replaced_by %q after a refused correction, want posted, none",
+					after.GetString("status"), after.GetString("replaced_by"))
+			}
+			if s := reload(t, re.app, "books_vendor_credits", draft.Id).GetString("status"); s == statusPosted {
+				t.Errorf("correction status %q after its refusal, want not posted", s)
+			}
+			requireVendorCreditBalance(t, re.app, credit.Id, 42500-15000)
+			moved, err := re.app.CountRecords(refundLinesCol, dbx.HashExp{"vendor_credit": draft.Id})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if moved != 0 {
+				t.Errorf("%d refund lines name the refused correction, want 0", moved)
+			}
+		})
+	}
+}
+
+// The same day as the earliest posted refund and an earlier day are allowed.
+func TestVendorCreditCorrection_MayBeDatedOnOrBeforeThePostedRefund(t *testing.T) {
+	for _, c := range []struct{ name, day string }{
+		{"the refund's day", "2026-11-14"},
+		{"the day before the refund", "2026-11-13"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			re, credit := refundedCredit(t, 0, 0)
+			re.refund(t, map[string]any{"date": "2026-11-14"}, refundLine{credit, 10000})
+			draft, err := re.correctCreditDated(t, credit, c.day)
+			requireCorrectionPosted(t, re, credit, draft, c.day, err)
+			requireVendorCreditBalance(t, re.app, draft.Id, 42500-10000)
+		})
+	}
+}
+
+// Only a posted refund holds the credit's date: a void refund and a draft
+// refund dated before the correction do not refuse it (a draft is checked at
+// its own Post).
+func TestVendorCreditCorrection_AVoidOrDraftRefundDoesNotHoldItsDate(t *testing.T) {
+	t.Run("void refund", func(t *testing.T) {
+		re, credit := refundedCredit(t, 0, 0)
+		voided := re.refund(t, map[string]any{"date": "2026-11-14"}, refundLine{credit, 10000})
+		if err := voidRefundAs(re.app, voided.Id, re.users.bookkeeper.Id); err != nil {
+			t.Fatalf("void the refund: %v", err)
+		}
+		draft, err := re.correctCreditDated(t, credit, "2026-11-16")
+		requireCorrectionPosted(t, re, credit, draft, "2026-11-16", err)
+	})
+	t.Run("draft refund", func(t *testing.T) {
+		re, credit := refundedCredit(t, 0, 0)
+		pending := re.mkRefund(t, map[string]any{"date": "2026-11-14", "amount": 10000})
+		mkRefundLine(t, re.app, pending, credit, 0, 10000)
+		draft, err := re.correctCreditDated(t, credit, "2026-11-16")
+		requireCorrectionPosted(t, re, credit, draft, "2026-11-16", err)
+	})
+}

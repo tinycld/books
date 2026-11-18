@@ -61,6 +61,22 @@ describe('books manifest', () => {
         expect(text).toMatch(/^---\n[\s\S]*^title: Vendor credits$[\s\S]*^summary: \S.*$/m)
     })
 
+    // Vendor refund spec §2: the two routes' screens are reached through the exports map's
+    // `./screens/*` wildcard (package.json does not change).
+    it('resolves the vendor refund screens through package.json exports', () => {
+        const exportsMap: Record<string, string> = pkg.exports
+        for (const screen of ['screens/vendor-refunds/new', 'screens/vendor-refunds/[id]']) {
+            const subpath = `./${screen}`
+            const key = Object.keys(exportsMap).find(
+                k => k.endsWith('/*') && subpath.startsWith(k.slice(0, -1))
+            )
+            expect(key, screen).toBe('./screens/*')
+            const wildcard = subpath.slice((key as string).length - 1)
+            const target = exportsMap[key as string].replace('*', wildcard)
+            expect(existsSync(join(__dirname, '..', target)), target).toBe(true)
+        }
+    })
+
     it('declares the forms host modules, each resolved through package.json exports', () => {
         expect(manifest.forms).toEqual({ hosts: 'forms', ui: 'forms-ui' })
         const exportsMap: Record<string, string> = pkg.exports

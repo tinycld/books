@@ -109,6 +109,28 @@ export const appliedBadge: BalanceBadge = balanceBadgeWith({
     partly: 'Partly applied',
 })
 
+// The badge of a vendor credit after vendor refunds (vendor refund spec §3.9, Q4): a posted
+// credit with nothing left reads Refunded (success) when nothing of it is applied to a
+// bill; otherwise appliedBadge's words, where a refund counts as use of the credit.
+// `appliedToBills` is in cents, or null while the refunds are not known (their read
+// failed): a credit with nothing left then shows its status badge, because Applied and
+// Refunded would each state a split that is not known.
+export function vendorCreditBadge(
+    status: PostingStatus,
+    balance: number,
+    total: number,
+    appliedToBills: number | null
+): { label: string; tone: StatusTone } {
+    const isUsedUp = status === 'posted' && balance <= 0
+    if (isUsedUp && appliedToBills === null) {
+        return { label: entryStatusText(status), tone: POSTING_TONES[status] }
+    }
+    if (isUsedUp && appliedToBills !== null && appliedToBills <= 0) {
+        return { label: 'Refunded', tone: 'success' }
+    }
+    return appliedBadge(status, balance, total)
+}
+
 // The read view's actions of a quote (a closed estimate, or any estimate for a reader):
 // Open invoice first for everyone on a closed estimate that names its invoice, Copy for
 // writers, then Download PDF for everyone. No Edit, no Void and no journal entry: a

@@ -59,17 +59,28 @@ To apply it, open the vendor credit and choose **Apply to bills** (or press A). 
 
 Under the list, Books shows what you apply, for example "Applying $50.00 to 2 bills · $0.00 stays unapplied". You can apply part of a credit: the rest stays unapplied on the vendor credit, and you can apply it later to another bill of the same vendor. After you apply, each bill's Balance due goes down, and a bill that the credit pays in full shows Paid and leaves Pay bills. See [Pay bills](help://books:pay-bills).
 
-When the vendor has no open bill, the dialog says so, for example "Pacific Power has no open bills. The credit stays on the vendor until you post a bill." Choose New bill to enter one.
+When the vendor has no open bill, the dialog says so, for example "Pacific Power has no open bills. The credit stays on the vendor until you post a bill or record a refund." Choose New bill to enter one, or Record refund when the vendor sends the money back (see below).
 
 An application posts no journal entry: the credit and the bill already changed Accounts payable for the same vendor.
 
-The badge of a posted vendor credit follows its unapplied credit:
+## Record a refund of the credit
 
-- **Posted**: nothing is applied yet.
-- **Partly applied**: part of the credit is applied, and some of it is still unapplied.
-- **Applied**: the whole credit is applied to bills.
+When the vendor sends you money back for the credit instead of taking it off a bill, open the vendor credit and choose **Record refund** (or press R). On a phone, Record refund is in the More menu; Apply to bills stays the button beside More. The vendor refund form opens with the vendor chosen and this credit ticked for its unapplied credit. Record refund shows on a posted credit with unapplied credit, for bookkeepers and admins. See [Vendor refunds](help://books:vendor-refunds).
 
-Under the Total, a posted vendor credit shows the Applied part and the Unapplied credit. The **Applied to** section lists each bill the credit is applied to, for example "Bill 1003 · Nov 16, 2026 · $30.00". Choose one to open that bill.
+A posted vendor refund lowers the credit's unapplied credit, in the same way as an application to a bill. A credit that is refunded in full leaves the Pay bills notice of unapplied credits.
+
+## The badge, the totals and Applied to
+
+The badge of a posted vendor credit follows its unapplied credit. A refund counts as use of the credit, in the same way as an application:
+
+- **Posted**: nothing is applied or refunded yet.
+- **Partly applied**: part of the credit is applied or refunded, and some of it is still unapplied.
+- **Applied**: nothing is left, and part of the credit is applied to bills.
+- **Refunded**: nothing is left, and none of the credit is applied to a bill: the vendor refunded all of it.
+
+Under the Total, a posted vendor credit shows the Applied part (applied to bills), the Refunded part (only when a posted vendor refund names the credit) and the Unapplied credit, in that order.
+
+The **Applied to** section lists each bill the credit is applied to, for example "Bill 1003 · Nov 16, 2026 · $30.00", and each posted vendor refund of the credit, for example "Vendor refund 1001 · Nov 17, 2026 · $50.00", in date order. Choose one to open that bill or vendor refund. A refund row has no Remove: to undo a refund, void or edit the vendor refund on its own page.
 
 ## Remove a credit from a bill
 
@@ -79,7 +90,11 @@ To take a credit off a bill, choose **Remove** on the bill's row in the Applied 
 
 To change a posted vendor credit, open it and choose Edit. The form opens with a notice. When you post, the edit replaces the original under the same number, and the original becomes Void, with a link to the new one. The bills the credit is applied to move to the edit. Books refuses the edit when its total is below what is applied ("$30.00 of this credit is applied to bills. Its total cannot be below that.") or when it changes the vendor ("This credit is applied to bills, so its vendor cannot change.").
 
+The posted vendor refunds of the credit move to the edit too; a draft vendor refund stays on the original. When a vendor refund names the credit, Books refuses an edit whose total is below what is applied and refunded ("$80.00 of this credit is applied or refunded. Its total cannot be below that.") or that changes the vendor ("A vendor refund is recorded on this credit, so its vendor cannot change."). The edit's credit date must be on or before the date of the earliest posted vendor refund of the credit; a later date is refused under Credit date, for example "Vendor refund 1003 refunds this credit on Nov 15, 2026. Date the credit on or before that day."
+
 To cancel a posted vendor credit, open it and choose Void, then confirm. Books posts a reversing entry in the original period. The vendor credit keeps its number and shows Void. You cannot Void a credit that is applied to bills: Books shows "This credit is applied to bills. Remove it from those bills first." Remove it from each bill first, then void it.
+
+You cannot Void a credit that a posted vendor refund names either: Books shows "A vendor refund is recorded on this credit. Void the refund first." Void the vendor refund first, then void the credit.
 
 To start a new vendor credit from one that you already have, open it and choose Copy. The new draft has the same vendor, lines and memo, today's credit date, an empty vendor's credit no., and no attachments.
 
@@ -95,7 +110,7 @@ The Purchase lines setting in Settings → Purchases decides which tables a new 
 
 ## Cash basis
 
-On the cash basis, an unapplied vendor credit changes no figure in your reports: Books takes it out on its credit date, and each time you apply it to a bill, the applied share counts on the apply date, for the credit and as a payment of the bill. So a credit applied in full to a bill shows the bill's cost less the credit on the apply date. On the accrual basis, a vendor credit counts on its credit date. See [Reports](help://books:reports).
+On the cash basis, an unapplied vendor credit changes no figure in your reports: Books takes it out on its credit date, and each time you apply it to a bill, the applied share counts on the apply date, for the credit and as a payment of the bill. So a credit applied in full to a bill shows the bill's cost less the credit on the apply date. A vendor refund of the credit counts the refunded share on the refund date. On the accrual basis, a vendor credit counts on its credit date. See [Reports](help://books:reports).
 
 ## Keyboard shortcuts
 
@@ -115,6 +130,7 @@ On the vendor credit form (a new vendor credit, a draft, an edit or a copy):
 On a posted or void vendor credit:
 
 - A: Apply to bills (a posted credit with unapplied credit)
+- R: Record refund (a posted credit with unapplied credit)
 - E: Edit
 - V: Void
 - C: Copy to a new vendor credit
@@ -129,8 +145,8 @@ In the Apply to bills dialog:
 | Cancel | Esc |
 | Tick or untick the bill (in a Credit to apply cell) | ⌥↵ |
 
-The form keys and ⌥A also work while the cursor is in a text box. A, E, V, C and J do not. A key does nothing while its action is not offered. If a menu or dialog is open, Esc first closes it. To see all shortcuts, press ? when the cursor is not in a text box.
+The form keys and ⌥A also work while the cursor is in a text box. A, R, E, V, C and J do not. A key does nothing while its action is not offered. If a menu or dialog is open, Esc first closes it. To see all shortcuts, press ? when the cursor is not in a text box.
 
 ## Who can do what
 
-With bookkeeper or admin access you can create, post, edit, void, copy and delete draft vendor credits, apply them to bills and remove them from bills. With read-only access you can open a posted or void vendor credit and view its journal entry. To work with vendors, see [Vendors](help://books:vendors).
+With bookkeeper or admin access you can create, post, edit, void, copy and delete draft vendor credits, apply them to bills, remove them from bills and record vendor refunds of them. With read-only access you can open a posted or void vendor credit and view its journal entry. To work with vendors, see [Vendors](help://books:vendors).

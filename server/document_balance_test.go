@@ -174,13 +174,19 @@ func TestBalanceKinds_ListTheirPayers(t *testing.T) {
 		LinesCollection: vendorCreditApplicationsCollection, LineField: "vendor_credit",
 		EntryField: "vendor_credit", EntryCollection: vendorCreditsCollection,
 	}
+	// A posted vendor refund's line lowers the credit (vendor refund spec §4).
+	creditRefund := balancePayer{
+		LinesCollection: "books_vendor_refund_lines", LineField: "vendor_credit",
+		PaymentCollection: "books_vendor_refunds", PaymentField: "refund",
+		CashMemo: "Vendor credit %s refunded (cash basis)",
+	}
 	for _, c := range []struct {
 		kind balanceKind
 		want []balancePayer
 	}{
 		{invoiceBalanceKind, []balancePayer{invoicePayer}},
 		{billBalanceKind, []balancePayer{billPayment, billCredit}},
-		{vendorCreditBalanceKind, []balancePayer{creditApplied}},
+		{vendorCreditBalanceKind, []balancePayer{creditApplied, creditRefund}},
 		{creditMemoBalanceKind, nil},
 	} {
 		if len(c.kind.Payers) != len(c.want) {
@@ -201,7 +207,7 @@ func TestBalanceKinds_ListTheirPayers(t *testing.T) {
 	}{
 		{invoiceBalanceKind, invoicePayer, true},
 		{billBalanceKind, billPayment, true},
-		{vendorCreditBalanceKind, balancePayer{}, false},
+		{vendorCreditBalanceKind, creditRefund, true},
 		{creditMemoBalanceKind, balancePayer{}, false},
 	} {
 		got, ok := c.kind.paymentPayer()
@@ -209,6 +215,48 @@ func TestBalanceKinds_ListTheirPayers(t *testing.T) {
 			t.Errorf("%s paymentPayer() = %+v, %v; want %+v, %v", c.kind.Noun, got, ok, c.want, c.ok)
 		}
 	}
+}
+
+// A vendor credit's balance is its total less its applications and less the
+// lines of posted vendor refunds; a draft refund's line and a void refund's
+// line do not count (vendor refund spec §3.9).
+func TestDocumentBalance_AVendorCreditLessApplicationsAndPostedRefunds(t *testing.T) {
+	re := newRefundEnv(t)
+	actor := re.users.bookkeeper.Id
+	credit := re.postedCredit(t, re.pacificPower, vendorCreditDay, billAmount{re.rent, 42500})
+	bill := re.postedBill(t, re.pacificPower, 20000)
+	re.apply(t, credit, bill, 10000, applyDay)
+	re.refund(t, nil, refundLine{credit, 15000})
+	voided := re.refund(t, nil, refundLine{credit, 10000})
+	if err := voidRefundAs(re.app, voided.Id, actor); err != nil {
+		t.Fatalf("void the 100.00 refund: %v", err)
+	}
+	draft := re.mkRefund(t, map[string]any{"amount": 5000})
+	mkRefundLine(t, re.app, draft, credit, 0, 5000)
+
+	if got, err := postedAppliedTo(re.app, vendorCreditBalanceKind, credit.Id); err != nil || got != 25000 {
+		t.Errorf("postedAppliedTo of the credit = %d, err %v; want 25000 (the 10000 application and the posted 15000 refund)", got, err)
+	}
+	if got, err := documentBalance(re.app, vendorCreditBalanceKind, credit.Id); err != nil || got != 17500 {
+		t.Errorf("documentBalance of the 42500 credit = %d, err %v; want 17500", got, err)
+	}
+	requireVendorCreditBalance(t, re.app, credit.Id, 17500)
+	requireNoDocumentDrift(t, re.app)
+
+	// A hand change is found and the rebuild puts 17500 back.
+	setDocumentBalanceRaw(t, re.app, "books_vendor_credits", credit.Id, 42500)
+	drifts, err := verifyDocumentBalances(re.app)
+	if err != nil {
+		t.Fatalf("verifyDocumentBalances: %v", err)
+	}
+	if len(drifts) != 1 || !strings.Contains(fmt.Sprintf("%+v", drifts[0]), credit.Id) {
+		t.Fatalf("drifts = %+v, want one that names vendor credit %s", drifts, credit.Id)
+	}
+	if fixed, err := rebuildDocumentBalances(re.app); err != nil || fixed != 1 {
+		t.Fatalf("rebuildDocumentBalances fixed %d, err %v; want 1", fixed, err)
+	}
+	requireVendorCreditBalance(t, re.app, credit.Id, 17500)
+	requireNoDocumentDrift(t, re.app)
 }
 
 // A bill's balance is its total less posted bill payments and less credit

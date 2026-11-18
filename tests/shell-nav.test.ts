@@ -125,6 +125,7 @@ describe('registries', () => {
             'pay_bills',
             'expense',
             'vendor_credit',
+            'vendor_refund',
         ])
     })
 
@@ -170,7 +171,18 @@ describe('registries', () => {
         })
     })
 
-    it('the New menu Vendors column lists Vendor, Bill, Pay bills, Expense, then Vendor credit', () => {
+    // Vendor refund spec §2: + New → Vendors → "Vendor refund", after "Vendor credit".
+    it('NEW_ACTIONS has an available Vendor refund action in the vendors column at books/vendor-refunds/new', () => {
+        expect(NEW_ACTIONS.find(a => a.id === 'vendor_refund')).toEqual({
+            id: 'vendor_refund',
+            label: 'Vendor refund',
+            href: 'books/vendor-refunds/new',
+            column: 'vendors',
+            available: true,
+        })
+    })
+
+    it('the New menu Vendors column lists Vendor, Bill, Pay bills, Expense, Vendor credit, then Vendor refund', () => {
         const vendors = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Vendors')
         expect(vendors?.actions.map(a => a.label)).toEqual([
             'Vendor',
@@ -178,6 +190,7 @@ describe('registries', () => {
             'Pay bills',
             'Expense',
             'Vendor credit',
+            'Vendor refund',
         ])
     })
 
@@ -650,6 +663,9 @@ describe('hidesNewFab', () => {
         '/a/books/vendor-credits/new',
         '/a/books/vendor-credits/abc',
         '/a/acme/books/vendor-credits/abc123/',
+        '/a/books/vendor-refunds/new',
+        '/a/books/vendor-refunds/abc',
+        '/a/acme/books/vendor-refunds/abc123/',
         '/a/books/payments/new',
         '/a/books/payments/x',
         '/a/acme/books/payments/abc123/',

@@ -53,6 +53,19 @@ describe('audit log fixture against the Go golden spec', () => {
         expect(AUDIT_RECORD_TYPE_OPTIONS).toEqual(paramOptions('types'))
     })
 
+    // Vendor refund spec §3.11: the Record type chip grows by the refund and its line.
+    it('offers the vendor refund and the vendor refund line as record types', () => {
+        expect(AUDIT_RECORD_TYPE_OPTIONS).toContainEqual({
+            value: 'books_vendor_refunds',
+            label: 'Vendor refund',
+        })
+        expect(AUDIT_RECORD_TYPE_OPTIONS).toContainEqual({
+            value: 'books_vendor_refund_lines',
+            label: 'Vendor refund line',
+        })
+        expect(golden.recordTypeOptions).toEqual(AUDIT_RECORD_TYPE_OPTIONS)
+    })
+
     it('draws the rows with the display the report ships with', () => {
         expect(AUDIT_LOG_DISPLAY).toEqual(golden.display)
         expect(AUDIT_LOG_DISPLAY).toEqual(golden.spec.display)

@@ -591,6 +591,16 @@ var tdDocumentPosters = map[string]func(t *testing.T) tdPosted{
 		entry := mustPostVendorCredit(t, pe.app, vc.Id, pe.users.bookkeeper.Id).GetString("entry")
 		return tdPosted{pe.app, pe.users.readOnly, entry, pe.software, vc.Id}
 	},
+	// Vendor refund spec §3.11: a refund's entry opens the refund.
+	"vendor_refund": func(t *testing.T) tdPosted {
+		re := newRefundEnv(t)
+		registerBooksSources(t)
+		credit := re.postedCredit(t, re.pacificPower, vendorCreditDay, billAmount{re.rent, 42500})
+		r := re.mkRefund(t, map[string]any{"amount": 15000})
+		mkRefundLine(t, re.app, r, credit, 0, 15000)
+		entry := mustPostRefund(t, re.app, r.Id, re.users.bookkeeper.Id).GetString("entry")
+		return tdPosted{re.app, re.users.readOnly, entry, re.checking1000, r.Id}
+	},
 	// A bill payment posts only from its batch (bill_payments_test.go).
 	"bill_payment": func(t *testing.T) tdPosted {
 		bp := newBillPayEnv(t)
@@ -621,6 +631,9 @@ func TestTransactionDetailPostersHaveRoutes(t *testing.T) {
 	}
 	if got := routes["vendor_credit"]; got != "vendor-credits" {
 		t.Errorf("entry_routes.json vendor_credit = %q, want vendor-credits", got)
+	}
+	if got := routes["vendor_refund"]; got != "vendor-refunds" {
+		t.Errorf("entry_routes.json vendor_refund = %q, want vendor-refunds", got)
 	}
 }
 

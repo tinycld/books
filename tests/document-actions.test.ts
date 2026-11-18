@@ -8,6 +8,7 @@ import {
     documentReadActions,
     payBillOffered,
     receivePaymentOffered,
+    refundOffered,
     removeApplicationOffered,
 } from '../tinycld/books/lib/document-actions'
 import {
@@ -43,7 +44,7 @@ describe('documentReadActions', () => {
 })
 
 describe('DOCUMENT_READ_KEYS', () => {
-    it('matches the key map: Edit E, Void V, Copy C, View journal entry J, Open invoice I, Receive payment R, Pay bill P, Create credit memo M, Apply to bills A', () => {
+    it('matches the key map: Edit E, Void V, Copy C, View journal entry J, Open invoice I, Receive payment R, Pay bill P, Create credit memo M, Apply to bills A, Record refund R', () => {
         expect(DOCUMENT_READ_KEYS).toEqual({
             edit: 'e',
             void: 'v',
@@ -54,6 +55,7 @@ describe('DOCUMENT_READ_KEYS', () => {
             pay_bill: 'p',
             credit_memo: 'm',
             apply_credit: 'a',
+            record_refund: 'r',
         })
     })
 })
@@ -264,6 +266,7 @@ describe('the sales receipt read view', () => {
             pay_bill: 'p',
             credit_memo: 'm',
             apply_credit: 'a',
+            record_refund: 'r',
             pdf: '$mod+p',
         })
         expect(DOCUMENT_TAB_KEYS).toEqual({ edit: 'Alt+1', pdf: 'Alt+2' })
@@ -508,6 +511,74 @@ describe('Apply to bills', () => {
         for (const [action, key] of others) {
             expect(key.toLowerCase(), action).not.toBe('a')
         }
+    })
+})
+
+// Record refund (vendor refund spec §3.2, §3.9): a writer's action on a posted vendor credit
+// with a balance above zero, key R, right after Apply to bills. The read view sets
+// `canRecordRefund` from refundOffered (which already holds the writer rule).
+describe('refundOffered', () => {
+    it('is true for a writer on a posted credit with a balance above zero', () => {
+        expect(refundOffered('posted', true, 1)).toBe(true)
+        expect(refundOffered('posted', true, 18_000)).toBe(true)
+    })
+
+    it('is false for a reader', () => {
+        expect(refundOffered('posted', false, 18_000)).toBe(false)
+    })
+
+    it('is false on a void or draft credit', () => {
+        expect(refundOffered('void', true, 18_000)).toBe(false)
+        expect(refundOffered('draft', true, 18_000)).toBe(false)
+    })
+
+    it('is false at a balance of 0', () => {
+        expect(refundOffered('posted', true, 0)).toBe(false)
+    })
+})
+
+describe('Record refund', () => {
+    const NONE = { canReceivePayment: false, canPayBill: false, canCreateCreditMemo: false }
+    const credit = (status: 'posted' | 'void' | 'draft', canWrite: boolean, balance: number) =>
+        documentReadActions(status, canWrite, VENDOR_CREDIT_KIND.features, {
+            ...NONE,
+            canApplyCredit: applyCreditOffered('vendor_credit', status, balance),
+            canRecordRefund: refundOffered(status, canWrite, balance),
+        })
+
+    it('comes right after Apply to bills for a writer on a posted credit with a balance', () => {
+        expect(credit('posted', true, 5_000)).toEqual([
+            'apply_credit',
+            'record_refund',
+            'edit',
+            'void',
+            'copy',
+            'entry',
+        ])
+    })
+
+    it('is gone, with Apply to bills, once the credit is used in full', () => {
+        expect(credit('posted', true, 0)).toEqual(['edit', 'void', 'copy', 'entry'])
+    })
+
+    it('is never offered on a void or draft credit', () => {
+        expect(credit('void', true, 5_000)).toEqual(['copy', 'entry'])
+        expect(credit('draft', true, 5_000)).toEqual([])
+    })
+
+    it('is never offered to a reader, even when canRecordRefund is set', () => {
+        expect(
+            documentReadActions('posted', false, VENDOR_CREDIT_KIND.features, {
+                ...NONE,
+                canApplyCredit: true,
+                canRecordRefund: true,
+            })
+        ).toEqual(['entry'])
+    })
+
+    it('has the key R', () => {
+        expect(DOCUMENT_READ_KEYS.record_refund).toBe('r')
+        expect(DOCUMENT_READ_ACTION_KEYS.record_refund).toBe('r')
     })
 })
 

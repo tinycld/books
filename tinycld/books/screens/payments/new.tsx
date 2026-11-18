@@ -16,8 +16,8 @@ export default function NewPaymentRoute() {
         <PaymentScreen
             key={key}
             id={null}
-            customer={params.customer}
-            invoice={params.invoice}
+            party={params.customer}
+            document={params.invoice}
             replaces={params.replaces}
         />
     )

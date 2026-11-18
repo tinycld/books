@@ -200,6 +200,8 @@ export function PayBillsForm({ screen, scopeOwner }: PayBillsFormProps) {
                         onPress={payForm.onClear}
                         scopeOwner={scopeOwner}
                         linkRef={payForm.clearRef}
+                        label={PAY_BILLS_MESSAGES.clearLabel}
+                        description={PAY_BILLS_KEY_DESCRIPTIONS.clearPayments}
                     />
                     <PayBillsSummary
                         payForm={payForm}

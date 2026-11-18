@@ -421,7 +421,7 @@ test.describe('vendor-credit-form: remove and empty states', () => {
         const dialog = applyDialog(page)
         await expect(dialog).toBeVisible()
         await expect(page.getByTestId('apply-credit-empty')).toContainText(
-            `${vendor.name} has no open bills. The credit stays on the vendor until you post a bill.`
+            `${vendor.name} has no open bills. The credit stays on the vendor until you post a bill or record a refund.`
         )
         const submit = page.getByTestId('apply-credit-submit')
         if ((await submit.count()) > 0) await expect(submit).toBeDisabled()

@@ -15,7 +15,8 @@
         "expense": "Expense",
         "payment": "Payment",
         "bill_payment": "Bill payment",
-        "vendor_credit": "Vendor credit"
+        "vendor_credit": "Vendor credit",
+        "vendor_refund": "Vendor refund"
     },
     "reversalOrigins": ["reversal", "void_reversal", "auto_reversal"]
 }

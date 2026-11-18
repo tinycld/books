@@ -15,6 +15,7 @@ import {
     documentReadActions,
     payBillOffered,
     receivePaymentOffered,
+    refundOffered,
 } from '../lib/document-actions'
 import { quoteReadActions } from '../lib/document-lifecycle'
 import { documentNewHref } from '../lib/document-routes'
@@ -35,6 +36,11 @@ type ReadRecord = Pick<
 // The invoice made from a closed estimate; '' for any other record.
 function invoiceIdOf(record: ReadRecord): string {
     return record.kindFields.kind === 'estimate' ? record.kindFields.invoice : ''
+}
+
+// The vendor of a vendor credit; '' for any other record, which offers no Record refund.
+function vendorIdOf(record: ReadRecord): string {
+    return record.kindFields.kind === 'vendor_credit' ? record.kindFields.vendor : ''
 }
 
 // A bar or More row of the read view, with the action it runs (its key comes from it).
@@ -76,6 +82,8 @@ function offeredActionsOf(
         canPayBill: payBillOffered(kind, record.status, balance),
         canCreateCreditMemo: creditMemoOffered(kind, record.status),
         canApplyCredit: applyCreditOffered(kind, record.status, balance),
+        canRecordRefund:
+            kind === 'vendor_credit' && refundOffered(record.status, canWrite, balance),
     }
     const actions =
         doc.lifecycle === 'quote'
@@ -95,7 +103,9 @@ function offeredActionsOf(
  * customer with the invoice ticked, so Back returns to the invoice; Pay bill (a posted bill
  * with an open balance) pushes Pay bills with the bill selected, so Back returns to the bill;
  * Apply to bills (a posted vendor credit with unapplied credit) opens the apply dialog
- * through `useApplyCreditStore`. Edit, Copy and View journal entry replace the read view (a pushed screen would stay
+ * through `useApplyCreditStore`; Record refund (a writer on a posted vendor credit with
+ * unapplied credit) pushes a new vendor refund for its vendor with the credit ticked, so Back
+ * returns to the credit. Edit, Copy and View journal entry replace the read view (a pushed screen would stay
  * mounted under the new one); Download PDF saves the server's PDF through usePdfDownload.
  * Void writes `status: 'void'` through the kind's data source; the dialog's open state
  * lives here, on the read view, which stays mounted while the optimistic void changes the
@@ -131,6 +141,12 @@ export function useDocumentReadActions(
         // The apply dialog, drawn by the vendor credit's read section (vendor credit spec
         // §3.9).
         apply_credit: () => openApplyDialog(record.id),
+        // Pushed, so Back returns to the vendor credit (vendor refund spec §3.9): the refund
+        // form opens with the credit's vendor and the credit ticked.
+        record_refund: () =>
+            router.push(
+                orgHref(`books/vendor-refunds/new?vendor=${vendorIdOf(record)}&credit=${record.id}`)
+            ),
         // Pushed, so Back returns to the bill (pay-bills spec §2): Pay bills opens with the
         // bill paid in full and its vendor filtered.
         pay_bill: () => router.push(orgHref(`books/pay-bills?bill=${record.id}`)),

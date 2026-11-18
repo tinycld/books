@@ -585,6 +585,55 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // As the payment's: server-owned fields below the omit line (the number at
+    // posting, who and when by the request). The read view materializes its vendor,
+    // Refunded to account, entry, poster and voider, and the correction reads the
+    // refund it replaces or is replaced by, so each files into its collection. The
+    // self-relations replaces and replaced_by are added once the collection exists
+    // (Object.assign, as the journal lines' entry: typing the keys would make the
+    // collection's type refer to itself).
+    const refundRelations = {
+        vendor: books_vendors,
+        refunded_to: books_accounts,
+        entry: books_journal_entries,
+        posted_by: coreStores.users,
+        voided_by: coreStores.users,
+    }
+    const books_vendor_refunds = newCollection('books_vendor_refunds', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'number',
+            'sequence',
+            'currency',
+            'entry',
+            'replaced_by',
+            'posted_by',
+            'posted_at',
+            'voided_by',
+            'voided_at',
+            'sort_key',
+        ] as const,
+        ...onDemand,
+        relations: refundRelations,
+        collectionOptions: indexed,
+    })
+
+    Object.assign(refundRelations, {
+        replaces: books_vendor_refunds,
+        replaced_by: books_vendor_refunds,
+    })
+
+    // One row per vendor credit a refund refunds; the client writes every column but
+    // the autodates. The refund and the credit file into their collections, where the
+    // credit's Refunded rows and the refund's credits list read them through materialize().
+    const books_vendor_refund_lines = newCollection('books_vendor_refund_lines', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        relations: { refund: books_vendor_refunds, vendor_credit: books_vendor_credits },
+        collectionOptions: indexed,
+    })
+
     // Written by the server from payments (the cash basis); clients only read them.
     const books_cash_basis_lines = newCollection('books_cash_basis_lines', {
         omitOnInsert: ['created', 'updated'] as const,
@@ -671,6 +720,8 @@ export function registerCollections(
         books_vendor_credits,
         books_vendor_credit_lines,
         books_vendor_credit_applications,
+        books_vendor_refunds,
+        books_vendor_refund_lines,
         books_cash_basis_lines,
         books_cash_basis_tax_lines,
         books_party_balances,

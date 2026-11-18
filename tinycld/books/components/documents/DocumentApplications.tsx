@@ -5,12 +5,15 @@ import { autoFocusDataSet } from '@tinycld/core/ui/overlay/focus'
 import { useButtonShortcut } from '@tinycld/core/ui/shortcut-button/useButtonShortcut'
 import { Pressable, Text, View } from 'react-native'
 import type { CreditApplicationRow } from '../../hooks/useCreditApplications'
+import type { CreditRefundRow } from '../../hooks/useCreditRefunds'
 import { useOpenDocument } from '../../hooks/useOpenDocument'
 import { APPLY_CREDIT_MESSAGES } from '../../lib/apply-credit-schema'
+import type { CreditUseRow } from '../../lib/credit-uses'
 import { formatMoney } from '../../lib/money'
 import { fillPaymentText } from '../../lib/payment-texts'
 import { formatDay } from '../../lib/register-range'
 import { BILL_KIND, VENDOR_CREDIT_KIND } from '../../lib/sales-document-kinds'
+import { VENDOR_REFUND_FLOW } from '../../lib/vendor-refund-flow'
 import { RefusalSummary } from '../entries/RefusalSummary'
 import { ListBanner } from '../ListBanner'
 
@@ -115,10 +118,76 @@ export function ApplicationRow({
     )
 }
 
+/**
+ * One posted vendor refund on a vendor credit's Applied to block (vendor refund spec §3.9):
+ * "Vendor refund 1001 · Nov 17, 2026 · $50.00", a link that opens the refund (back to its
+ * screen when it is below, else pushed, as ApplicationRow), laid out as an application row.
+ * It has no Remove: the refund is voided or edited on its own page. The row's id is
+ * `<prefix>-refund-<refundId>`.
+ */
+function RefundUseRow({
+    refund,
+    currency,
+    testIdPrefix,
+}: {
+    refund: CreditRefundRow
+    currency: string
+    testIdPrefix: string
+}) {
+    const open = useOpenDocument(VENDOR_REFUND_FLOW, refund.refundId)
+    const amount = formatMoney(refund.amount, currency)
+    const text = `Vendor refund ${refund.number} · ${formatDay(refund.date)} · ${amount}`
+    return (
+        <View
+            testID={`${testIdPrefix}-refund-${refund.refundId}`}
+            className="flex-row flex-wrap items-center gap-3"
+        >
+            <Pressable
+                accessibilityRole="link"
+                onPress={open}
+                className="min-w-0 justify-center self-start"
+                style={TAP}
+            >
+                <Text className="text-sm text-primary underline" numberOfLines={1}>
+                    {text}
+                </Text>
+            </Pressable>
+        </View>
+    )
+}
+
+export type CreditUse = CreditUseRow<CreditApplicationRow, CreditRefundRow>
+
+type UseRowProps = {
+    use: CreditUse
+    currency: string
+    testIdPrefix: string
+    canRemove: boolean
+    onRemove: (application: CreditApplicationRow) => void
+}
+
+// A row of the block: an application (with Remove for a writer) or a refund (none).
+function UseRow({ use, currency, testIdPrefix, canRemove, onRemove }: UseRowProps) {
+    if (use.kind === 'refund') {
+        return <RefundUseRow refund={use} currency={currency} testIdPrefix={testIdPrefix} />
+    }
+    return (
+        <ApplicationRow
+            application={use}
+            target="bill"
+            currency={currency}
+            testIdPrefix={testIdPrefix}
+            canRemove={canRemove && use.removable}
+            onRemove={onRemove}
+        />
+    )
+}
+
 const APPLICATIONS_LOAD_FAILED = 'Books could not load where this credit is applied.'
 
 interface DocumentApplicationsProps {
-    applications: readonly CreditApplicationRow[]
+    // The applications and the posted refunds, in date order (creditUseRows).
+    uses: readonly CreditUse[]
     isReady: boolean
     isError: boolean
     onRetry: () => void
@@ -130,13 +199,14 @@ interface DocumentApplicationsProps {
 }
 
 /**
- * A vendor credit's Applied to block (vendor credit spec §3.9): one row per application
- * (ApplicationRow), oldest apply date first. Nothing while the read loads or when nothing
- * is applied; a failed read shows its notice with Retry inside the block and no rows, so it
- * never reads as "nothing applied" (lesson 14).
+ * A vendor credit's Applied to block (vendor credit spec §3.9, vendor refund spec §3.9): one
+ * row per application (ApplicationRow) and per posted vendor refund (RefundUseRow), oldest
+ * date first, an application before a refund on one day. Nothing while the reads load or
+ * when the credit has no use; a failed read shows its notice with Retry inside the block
+ * and no rows, so it never reads as "nothing applied" (lesson 14).
  */
 export function DocumentApplications({
-    applications,
+    uses,
     isReady,
     isError,
     onRetry,
@@ -145,7 +215,7 @@ export function DocumentApplications({
     canRemove,
     onRemove,
 }: DocumentApplicationsProps) {
-    const isHidden = !isError && (!isReady || applications.length === 0)
+    const isHidden = !isError && (!isReady || uses.length === 0)
     if (isHidden) return null
     const body = isError ? (
         <ListBanner
@@ -155,11 +225,10 @@ export function DocumentApplications({
             isFlush
         />
     ) : (
-        applications.map(application => (
-            <ApplicationRow
-                key={application.id}
-                application={application}
-                target="bill"
+        uses.map(use => (
+            <UseRow
+                key={`${use.kind}-${use.id}`}
+                use={use}
                 currency={currency}
                 testIdPrefix={testIdPrefix}
                 canRemove={canRemove}

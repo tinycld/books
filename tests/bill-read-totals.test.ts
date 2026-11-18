@@ -198,12 +198,15 @@ describe('totalRowOrder', () => {
                 isStrong: true,
             },
             payments: null,
-            after: vendorCreditReadTotals({
-                status: 'posted',
-                total: 5_000,
-                balance: 2_000,
-                currency: 'USD',
-            }),
+            after: vendorCreditReadTotals(
+                {
+                    status: 'posted',
+                    total: 5_000,
+                    balance: 2_000,
+                    currency: 'USD',
+                },
+                0
+            ),
             last: null,
         })
         expect(rows.map(row => [row.label, row.testId, row.amount])).toEqual([

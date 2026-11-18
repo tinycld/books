@@ -140,8 +140,18 @@ function DocumentLinkText({
     )
 }
 
-export function DueText({ dueDate, today }: { dueDate: string; today: string }) {
-    const isOverdue = dueDate !== '' && dueDate < today
+// The row's date; with `marksOverdue`, a day before today in the danger tone with
+// "· Overdue" (a due date is; a vendor credit's date is not).
+export function DueText({
+    dueDate,
+    today,
+    marksOverdue,
+}: {
+    dueDate: string
+    today: string
+    marksOverdue: boolean
+}) {
+    const isOverdue = marksOverdue && dueDate !== '' && dueDate < today
     const tone = isOverdue ? 'text-destructive' : 'text-foreground'
     const overdue = isOverdue ? ' · Overdue' : ''
     const text = `${formatDay(dueDate)}${overdue}`
@@ -298,7 +308,7 @@ function GridHeader({
             <PartyHeader doc={doc} col={col} sort={sort} onSort={onSort} />
             <HeaderLabel label={doc.noun} style={col.document} />
             <HeaderLabel
-                label="Due date"
+                label={doc.dateHeader}
                 style={col.dueDate}
                 column="due"
                 sort={sort}
@@ -307,7 +317,7 @@ function GridHeader({
             />
             <TotalHeader doc={doc} />
             <Text className={`${HEAD} text-right`} style={col.open}>
-                Open balance
+                {doc.openHeader}
             </Text>
             <Text className={`${HEAD} text-right`} style={col.payment}>
                 {doc.paymentHeader}
@@ -349,8 +359,8 @@ function TotalCell({ doc, text }: { doc: OutstandingDocument; text: string }) {
     )
 }
 
-// The vendor's bill no. under the bill link, muted; nothing without one.
-function RefLine({ text }: { text: string }) {
+// The vendor's document no. under the document link, muted; nothing without one.
+export function RefLine({ text }: { text: string }) {
     if (text === '') return null
     return (
         <Text className="text-xs text-muted-foreground" numberOfLines={1}>
@@ -412,7 +422,7 @@ function GridRow({
                 <RefLine text={ref} />
             </View>
             <View className="justify-center" style={[col.dueDate, TAP]}>
-                <DueText dueDate={row.due_date} today={today} />
+                <DueText dueDate={row.due_date} today={today} marksOverdue={doc.marksOverdue} />
             </View>
             <TotalCell doc={doc} text={original} />
             <View className="justify-center" style={[col.open, TAP]}>
@@ -485,10 +495,11 @@ function GridTotals({
 /**
  * The wide open-document list: a header tick box where the descriptor has Pay all (pays
  * every row, or clears them all when every row is paid), the descriptor's party column
- * (Vendor on Pay Bills), the document link, Due date, the total where the descriptor has a
- * total column, Open balance and the payment column (the descriptor's `paymentHeader`),
- * sharing the column widths with the header and the totals row. The columns grow to fill the list and never scroll sideways:
- * the list shows this grid only while it is at least `doc.gridMinWidth` wide, cards below.
+ * (Vendor on Pay Bills), the document link, the date (`doc.dateHeader`), the total where the
+ * descriptor has a total column, the open amount (`doc.openHeader`) and the payment column
+ * (the descriptor's `paymentHeader`), sharing the column widths with the header and the
+ * totals row. The columns grow to fill the list and never scroll sideways: the list shows
+ * this grid only while it is at least `doc.gridMinWidth` wide, cards below.
  * With `onSort` the Vendor and Due date headers sort; with `totals` a totals row closes the
  * list.
  */

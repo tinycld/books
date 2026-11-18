@@ -213,6 +213,7 @@ interface TriggerProps {
     isPlaceholder: boolean
     suffix?: string
     disabled: boolean
+    isReadOnly: boolean
     onPress?: () => void
     onFocus?: () => void
     onBlur?: () => void
@@ -248,6 +249,7 @@ const PickerTrigger = forwardRef<PressableInstance, TriggerProps>(function Picke
         isPlaceholder,
         suffix,
         disabled,
+        isReadOnly,
         onPress,
         onFocus,
         onBlur,
@@ -255,7 +257,9 @@ const PickerTrigger = forwardRef<PressableInstance, TriggerProps>(function Picke
     ref
 ) {
     const chevron = useThemeColor('muted-foreground')
-    const look = disabled ? 'opacity-60' : ''
+    const look = disabled || isReadOnly ? 'opacity-60' : ''
+    // Only a read-only trigger carries the attribute.
+    const readOnlyAttr = isReadOnly ? true : undefined
     // A ring on every focus, not only a focus-visible one: the trigger takes the focus
     // by script when a form opens (autoFocus), often right after a pointer press, and
     // the browser then draws no ring of its own.
@@ -270,6 +274,7 @@ const PickerTrigger = forwardRef<PressableInstance, TriggerProps>(function Picke
             testID={testID}
             accessibilityRole="button"
             accessibilityLabel={accessibilityLabel}
+            aria-readonly={readOnlyAttr}
             disabled={disabled}
             className={`min-h-11 flex-row items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2.5 ${focusRing} ${look}`}
         >
@@ -420,6 +425,9 @@ interface SearchPickerProps {
     isPlaceholder?: boolean
     triggerSuffix?: string
     disabled: boolean
+    // The trigger stays focusable (and takes `autoFocus`), but a press, Enter, Space or
+    // typing does not open the menu; it carries `aria-readonly`. `disabled` is not focusable.
+    isReadOnly?: boolean
     searchPlaceholder: string
     searchTestId: string
     options: readonly SearchPickerOption[]
@@ -469,6 +477,7 @@ export function SearchPicker({
     isPlaceholder = false,
     triggerSuffix,
     disabled,
+    isReadOnly = false,
     searchPlaceholder,
     searchTestId,
     options,
@@ -486,9 +495,14 @@ export function SearchPicker({
     onTriggerBlur,
     onPicked,
 }: SearchPickerProps) {
-    const triggerKeys = useTriggerKeys(picker, disabled)
+    const triggerKeys = useTriggerKeys(picker, disabled || isReadOnly)
     const triggerRefs = useTriggerRef(autoFocus && !disabled, triggerRef, triggerKeys.attach)
-    const onOpenChange = useReturnFocus(picker, triggerKeys.node)
+    const changeOpen = useReturnFocus(picker, triggerKeys.node)
+    // A read-only trigger never opens the menu; it still closes one (none is open).
+    const onOpenChange = (next: boolean) => {
+        if (next && isReadOnly) return
+        changeOpen(next)
+    }
     const pick = (id: string) => {
         onChange(id)
         onPicked?.()
@@ -517,6 +531,7 @@ export function SearchPicker({
             isPlaceholder={isPlaceholder}
             suffix={triggerSuffix}
             disabled={disabled}
+            isReadOnly={isReadOnly}
         />
     )
     return (

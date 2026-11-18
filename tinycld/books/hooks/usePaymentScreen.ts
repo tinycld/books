@@ -1,99 +1,118 @@
-import { eq } from '@tanstack/db'
-import { useLiveQuery } from '@tanstack/react-db'
 import { log } from '@tinycld/core/lib/logger'
-import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
-import { useRecord } from '@tinycld/core/lib/use-record'
 import { useRef } from 'react'
+import type { DepositAccountRow } from '../lib/deposit-accounts'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
+import type { PaymentFlow } from '../lib/payment-flow'
 import { type PaymentScreenState, paymentScreenState } from '../lib/payment-screen-state'
+import type { StartDocument } from '../lib/payment-start'
 import { usePaymentSaveStore } from '../stores/payment-save-store'
 import { useBooksAccess } from './useBooksAccess'
 import { useBooksSettings } from './useBooksSettings'
-import { useDepositAccounts } from './useDepositAccounts'
-import { type PaymentRow, usePaymentRecord } from './usePaymentRecord'
+import type { PaymentRecordHeader, PaymentRecordView } from './usePaymentRecord'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 
+// A flow whose account field shows no balance reads none.
+const NO_BALANCE = (_id: string): number | null | undefined => undefined
+
+type ReadState = { isReady: boolean; isError: boolean; recovery: LiveRecovery }
+
+/**
+ * A flow's own reads, which its screen passes as module-constant hooks; usePaymentScreen
+ * calls each once per render in a fixed order (the accounts, the record at the id, the
+ * start document, the original's record, the party's name), so no hook comes from the
+ * flow's descriptor.
+ */
+export type PaymentScreenReads = {
+    // The flow's record by id (an empty id reads nothing and is ready).
+    useRecord: (id: string) => PaymentRecordView
+    // The accounts the account field lists, and, where the field shows it, an account's
+    // posted balance by id (the vendor refund's Refunded to).
+    useAccounts: () => ReadState & {
+        rows: DepositAccountRow[]
+        balanceOf?: (id: string) => number | null | undefined
+    }
+    // The document a new form ticks (`?invoice`, `?credit`); an empty id reads nothing.
+    useStartDocument: (id: string) => ReadState & { document: StartDocument | null }
+    // The party's display name; '' while it loads or with no party.
+    usePartyName: (id: string) => { name: string; isLoading: boolean }
+}
+
 export type PaymentScreenInput = {
-    // The payment's id; null at `books/payments/new`.
+    // The payment's id; null at `<routeBase>/new`.
     id: string | null
     // `?replaces`: the posted payment a new form corrects.
     replaces?: string
-    // `?customer` and `?invoice` start a new form.
-    customer?: string
-    invoice?: string
-}
-
-// The invoice `?invoice` names, which a new form ticks for its open balance.
-function useStartInvoice(invoiceId: string) {
-    const [invoicesCollection] = useStore('books_invoices')
-    const query = useLiveQuery({
-        query: q => {
-            if (!invoiceId) return undefined
-            return q
-                .from({ invoice: invoicesCollection })
-                .where(({ invoice }) => eq(invoice.id, invoiceId))
-                .findOne()
-        },
-        queryKey: ['books.payment.startInvoice', invoiceId],
-    })
-    const isError = !!invoiceId && query.isError
-    return {
-        invoice: invoiceId ? (query.data ?? null) : null,
-        isReady: !invoiceId || query.isReady || isError,
-        isError,
-        recovery: isError
-            ? { queries: [query.collection], sources: [invoicesCollection] }
-            : NO_RECOVERY,
-    }
+    // The party (`?customer`) and the document to tick (`?invoice`) a new form starts with.
+    party?: string
+    document?: string
 }
 
 // While a post or delete holds the payment, the last row read stands in for an optimistic
 // change (a delete removes the row before the server answers), so the form stays up and
 // a refusal lands on it.
-function useHeldPayment(payment: PaymentRow | null, isHeld: boolean): PaymentRow | null {
-    const lastRef = useRef<PaymentRow | null>(payment)
+function useHeldPayment(
+    payment: PaymentRecordHeader | null,
+    isHeld: boolean
+): PaymentRecordHeader | null {
+    const lastRef = useRef<PaymentRecordHeader | null>(payment)
     if (payment) lastRef.current = payment
     return isHeld ? (payment ?? lastRef.current) : payment
 }
 
 // Posting a correction voids its original in the same transaction, and realtime can bring
 // the void before the post's answer: while this form's own save corrects the original
-// (the save store's `correcting`), the form keeps its place, so it moves on to the posted
-// correction or shows a refusal. A void or correction by anyone else shows "cannot be
-// edited".
+// (the save store's `correcting` of the flow), the form keeps its place, so it moves on
+// to the posted correction or shows a refusal. A void or correction by anyone else shows
+// "cannot be edited".
 function useCorrectionFormKept(
+    flow: PaymentFlow,
     state: PaymentScreenState,
     input: PaymentScreenInput
 ): PaymentScreenState {
     const original = input.id === null ? (input.replaces ?? '') : ''
-    const isOwnSave = usePaymentSaveStore(s => original !== '' && s.correcting === original)
+    const isOwnSave = usePaymentSaveStore(
+        s => original !== '' && s.correcting[flow.key] === original
+    )
     return state === 'cannot-edit' && isOwnSave ? 'form' : state
 }
 
 /**
- * Every read of the receive-payment screen: access, settings, the deposit accounts, the
- * payment and its applications (at an id), the original of a correction (`?replaces`),
- * the customer, and the invoice `?invoice` names. Returns which surface to show and one
- * Retry over the failed reads (merged recoveries).
+ * Every read of a payment flow's screen: access, settings, and the flow's own reads
+ * (`reads`): the accounts, the record and its lines (at an id), the original of a
+ * correction (`?replaces`), the party's name, and the document a new form ticks. Returns
+ * which surface to show and one Retry over the failed reads (merged recoveries). The save
+ * store's hold and correction are the flow's.
  */
-export function usePaymentScreen(input: PaymentScreenInput) {
+export function usePaymentScreen(
+    flow: PaymentFlow,
+    input: PaymentScreenInput,
+    reads: PaymentScreenReads
+) {
     const access = useBooksAccess()
     const settings = useBooksSettings()
-    const deposit = useDepositAccounts()
-    const record = usePaymentRecord(input.id ?? '')
-    const start = useStartInvoice(input.id === null ? (input.invoice ?? '') : '')
-    const isHeld = usePaymentSaveStore(s => s.holding !== null && s.holding === input.id)
+    const deposit = reads.useAccounts()
+    const record = reads.useRecord(input.id ?? '')
+    const start = reads.useStartDocument(input.id === null ? (input.document ?? '') : '')
+    const isHeld = usePaymentSaveStore(s => {
+        const hold = s.holding[flow.key]
+        return hold !== null && hold.id === input.id
+    })
+    // Only a save or post keeps the form over "cannot be edited" (its post voids the
+    // original itself); a delete from that notice keeps the notice.
+    const isSaveHeld = usePaymentSaveStore(s => {
+        const hold = s.holding[flow.key]
+        return hold !== null && hold.id === input.id && hold.purpose === 'save'
+    })
     const payment = useHeldPayment(record.payment, isHeld)
     // A saved correction is a draft that replaces a posted payment: its form reads the
     // original too (its applications widen the open balances).
     const isDraftForm = payment?.status === 'draft' || isHeld
     const draftReplaces = isDraftForm ? (payment?.replaces ?? '') : ''
-    const original = usePaymentRecord(input.replaces ?? draftReplaces)
-    const customerId = payment?.customer ?? original.payment?.customer ?? input.customer ?? ''
-    const [customersCollection] = useStore('books_customers')
-    const customer = useRecord(customersCollection, customerId)
+    const original = reads.useRecord(input.replaces ?? draftReplaces)
+    const partyId = payment?.party ?? original.payment?.party ?? input.party ?? ''
+    const party = reads.usePartyName(partyId)
     const accessRecovery: LiveRecovery = access.isError
         ? { queries: [access.collection], sources: [] }
         : NO_RECOVERY
@@ -119,23 +138,27 @@ export function usePaymentScreen(input: PaymentScreenInput) {
         record.isReady &&
         original.isReady &&
         start.isReady &&
-        !(customerId !== '' && customer.isLoading)
+        !(partyId !== '' && party.isLoading)
+    // A stored correction draft of a flow whose server refuses its saves once the original
+    // is no longer posted is checked against its original as `?replaces` is.
+    const checksOriginal =
+        Boolean(input.replaces) || (flow.draftNeedsPostedOriginal && draftReplaces !== '')
     const computed = paymentScreenState({
         isReady,
         isError,
         canWrite: access.canWrite,
         isNew: input.id === null,
         status: payment?.status ?? null,
-        isHeld,
-        replacesStatus: input.replaces ? (original.payment?.status ?? null) : undefined,
+        isHeld: isSaveHeld,
+        replacesStatus: checksOriginal ? (original.payment?.status ?? null) : undefined,
         replacesReady: original.isReady,
         replacesError: original.isError,
     })
-    const state = useCorrectionFormKept(computed, input)
+    const state = useCorrectionFormKept(flow, computed, input)
     const retry = () => {
         void recoverLiveQueries({
             ...recovery,
-            onError: err => log.error('books.payment', err),
+            onError: err => log.error(flow.logContext, err),
         })
     }
     return {
@@ -144,12 +167,13 @@ export function usePaymentScreen(input: PaymentScreenInput) {
         canWrite: access.canWrite,
         currency: settings.settings?.currency ?? 'USD',
         depositAccounts: deposit.rows,
+        accountBalanceOf: deposit.balanceOf ?? NO_BALANCE,
         payment,
-        applications: record.applications,
+        lines: record.lines,
         original: original.payment,
-        originalApplications: original.applications,
-        customerName: customer.record?.display_name ?? '',
-        startInvoice: start.invoice,
+        originalLines: original.lines,
+        partyName: party.name,
+        startDocument: start.document,
     }
 }
 
