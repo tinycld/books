@@ -1,36 +1,42 @@
 import { useMemo } from 'react'
-import type { CustomerPageState } from '../../../hooks/useCustomerPage'
+import type { PartyPageState } from '../../../hooks/usePartyPage'
 import type { DetailSurface } from '../../../lib/detail-surface'
 import { hideBuiltins } from '../../../lib/form-definition'
 import { RecordFormBody } from '../../RecordChild'
 import { RecordLoadingBody } from '../../RecordSurface'
 
-interface CustomerDetailsTabProps {
-    details: CustomerPageState['details']
+interface PartyDetailsTabProps {
+    details: PartyPageState['details']
     surface: DetailSurface
     rowClassName: string
+    testIdPrefix: string
 }
 
 // The notes live in the Notes tab only, so the Details form never draws them.
 const HIDDEN_ON_DETAILS = ['notes'] as const
 
 /**
- * The customer form, edited in place: live inputs for a writer, the same form read-only
+ * The party's form, edited in place: live inputs for a writer, the same form read-only
  * for a reader. Its state lives in the page, so leaving the tab keeps the edits.
  */
-export function CustomerDetailsTab({ details, surface, rowClassName }: CustomerDetailsTabProps) {
+export function PartyDetailsTab({
+    details,
+    surface,
+    rowClassName,
+    testIdPrefix,
+}: PartyDetailsTabProps) {
     const { isReady, definition, host } = details
     const shown = useMemo(
         () => (definition ? hideBuiltins(definition, HIDDEN_ON_DETAILS, host) : undefined),
         [definition, host]
     )
-    if (!isReady || !shown) return <RecordLoadingBody testIdPrefix="customer" />
+    if (!isReady || !shown) return <RecordLoadingBody testIdPrefix={testIdPrefix} />
     return (
         <RecordFormBody
             state={details}
             definition={shown}
             surface={surface}
-            testIdPrefix="customer"
+            testIdPrefix={testIdPrefix}
             rowClassName={rowClassName}
         />
     )

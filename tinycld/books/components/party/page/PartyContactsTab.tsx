@@ -1,5 +1,4 @@
 import { LoadingState } from '@tinycld/core/components/LoadingState'
-import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useWritesAvailable } from '@tinycld/core/lib/use-writes-available'
@@ -8,36 +7,51 @@ import { ConfirmDialog } from '@tinycld/core/ui/ConfirmDialog'
 import { ShortcutButton } from '@tinycld/core/ui/shortcut-button'
 import { useState } from 'react'
 import { Pressable, Text, View, type ViewStyle } from 'react-native'
+import { useFitsTable } from '../../../hooks/useFitsTable'
 import { usePartyContacts } from '../../../hooks/usePartyContacts'
 import { reportUnexpected } from '../../../hooks/useRecordActions'
+import type { PartyRef } from '../../../lib/party-page-tabs'
 import { writeRefusalText } from '../../../lib/refusal'
+import type { DocumentPartyKey } from '../../../lib/sales-document-kinds'
 import { ListBanner } from '../../ListBanner'
 import { ListCards } from '../../ListCards'
 import { ListHeaderCell, ListHeaderRow, ListTable } from '../../ListTable'
 import { RecordRowMenu } from '../../RecordRowMenu'
 import { StatusBadge } from '../../StatusBadge'
 import { ContactPersonDialog } from './ContactPersonDialog'
-import { openLink } from './CustomerContactActions'
+import { openLink } from './PartyContactActions'
 
 type Contact = ReturnType<typeof usePartyContacts>['contacts'][number]
 
-// Header and rows share these, so the columns line up; the menu column is fixed so the
-// other columns share the rest of the width.
+// Header and rows share these, so the columns line up; the flex columns grow above their
+// minimums, and the menu column is fixed so the others share the rest of the width.
 const COLUMNS = {
-    name: { flex: 1.3 },
-    role: { flex: 1.3 },
-    email: { flex: 1.6 },
-    phone: { flex: 1 },
+    name: { flex: 1.3, minWidth: 142 },
+    role: { flex: 1.3, minWidth: 142 },
+    email: { flex: 1.6, minWidth: 175 },
+    phone: { flex: 1, minWidth: 109 },
     menu: { width: 48 },
 } satisfies Record<string, ViewStyle>
 
+// A row's horizontal padding (`pl-4 pr-2`).
+const ROW_PADDING = 24
 const ROW_HEIGHT = 56
 const CARD_HEIGHT = 96
-const TABLE_MIN_WIDTH = 720
-const LOG_CONTEXT = 'books.customer-page.contacts'
+// The table's own minimum (640 px): the columns at their minimums plus the row padding.
+// It fits a record page's content beside the names column (668 px at a 1360 px window);
+// below it (plus the scrollbar gutter) the list draws cards.
+const TABLE_MIN_WIDTH =
+    COLUMNS.name.minWidth +
+    COLUMNS.role.minWidth +
+    COLUMNS.email.minWidth +
+    COLUMNS.phone.minWidth +
+    COLUMNS.menu.width +
+    ROW_PADDING
 // Inside RecordSurface the modal scope is the top one; an open dialog pushes its own, so
 // the key does not reach the page while the contact dialog is open.
 const ADD_CONTACT_KEY = { keys: 'Alt+c', scope: 'modal', allowInInputs: true } as const
+
+const PARTY_NOUN: Record<DocumentPartyKey, string> = { customer: 'customer', vendor: 'vendor' }
 
 const keyOfContact = (contact: Contact) => contact.id
 const cardHeightOf = () => CARD_HEIGHT
@@ -51,14 +65,17 @@ const MENU_LABELS: Record<MenuItem, string> = {
     primary: 'Make primary',
     delete: 'Delete',
 }
-const MENU_TEST_IDS: Record<MenuItem, string> = {
-    edit: 'customer-contact-edit',
-    primary: 'customer-contact-primary',
-    delete: 'customer-contact-delete',
-}
 const MENU_WRITES: ReadonlySet<string> = new Set<MenuItem>(['primary', 'delete'])
 const PRIMARY_ITEMS: readonly MenuItem[] = ['edit', 'delete']
 const OTHER_ITEMS: readonly MenuItem[] = ['edit', 'primary', 'delete']
+
+function menuTestIds(testIdPrefix: string): Record<MenuItem, string> {
+    return {
+        edit: `${testIdPrefix}-contact-edit`,
+        primary: `${testIdPrefix}-contact-primary`,
+        delete: `${testIdPrefix}-contact-delete`,
+    }
+}
 
 // The Add / Edit dialog: a new `session` for each open mounts a new form; the dialog
 // stays mounted after it closes, so a sheet can slide out.
@@ -69,10 +86,11 @@ type DialogState = { session: number; contact: Contact | null; isOpen: boolean }
  * writes. One write runs at a time; a refused Make primary or Delete shows in the
  * action banner until it is dismissed or the next write starts.
  */
-function useContactsTab(customerId: string) {
+function useContactsTab(ref: PartyRef, testIdPrefix: string) {
     const [contactsCollection] = useStore('books_party_contacts')
-    const list = usePartyContacts(customerId)
+    const list = usePartyContacts(ref)
     const writes = useWritesAvailable()
+    const logContext = `books.${ref.party}-page.contacts`
 
     const [dialog, setDialog] = useState<DialogState>({
         session: 0,
@@ -92,14 +110,14 @@ function useContactsTab(customerId: string) {
         // Fails at once offline instead of pausing, so a lost connection shows its reason
         // in the banner rather than leaving the menu's writes disabled.
         networkMode: 'always',
-        onError: error => reportUnexpected(LOG_CONTEXT, error),
+        onError: error => reportUnexpected(logContext, error),
     })
     const remove = useMutation({
         mutationFn: function* (id: string) {
             yield contactsCollection.delete(id)
         },
         networkMode: 'always',
-        onError: error => reportUnexpected(LOG_CONTEXT, error),
+        onError: error => reportUnexpected(logContext, error),
     })
     const failed = makePrimary.error ?? remove.error
     const actionError = failed ? writeRefusalText(failed) : null
@@ -134,6 +152,8 @@ function useContactsTab(customerId: string) {
     }
 
     return {
+        party: ref.party,
+        testIdPrefix,
         list,
         dialog,
         openAdd: () => openDialog(null),
@@ -152,13 +172,13 @@ type ContactsTab = ReturnType<typeof useContactsTab>
 
 // ── Cells ──
 
-function PrimaryBadge({ contact }: { contact: Contact }) {
+function PrimaryBadge({ contact, tab }: { contact: Contact; tab: ContactsTab }) {
     if (!contact.is_primary) return null
     return (
         <StatusBadge
             label="Primary"
             tone="info"
-            testID={`customer-contact-primary-${contact.id}`}
+            testID={`${tab.testIdPrefix}-contact-primary-${contact.id}`}
         />
     )
 }
@@ -167,14 +187,15 @@ interface LinkTextProps {
     text: string
     url: string
     label: string
+    party: DocumentPartyKey
     testID: string
     textClassName: string
 }
 
 // Email and Phone open the device's mail or phone app; a value that is empty shows no link.
-function LinkText({ text, url, label, testID, textClassName }: LinkTextProps) {
+function LinkText({ text, url, label, party, testID, textClassName }: LinkTextProps) {
     if (text === '') return null
-    const open = () => openLink(url)
+    const open = () => openLink(party, url)
     return (
         <Pressable
             testID={testID}
@@ -190,25 +211,33 @@ function LinkText({ text, url, label, testID, textClassName }: LinkTextProps) {
     )
 }
 
-function EmailLink({ contact, textClassName }: { contact: Contact; textClassName: string }) {
+interface ContactLinkProps {
+    contact: Contact
+    tab: ContactsTab
+    textClassName: string
+}
+
+function EmailLink({ contact, tab, textClassName }: ContactLinkProps) {
     return (
         <LinkText
             text={contact.email}
             url={`mailto:${contact.email}`}
             label={`Email ${contact.name}`}
-            testID={`customer-contact-email-${contact.id}`}
+            party={tab.party}
+            testID={`${tab.testIdPrefix}-contact-email-${contact.id}`}
             textClassName={textClassName}
         />
     )
 }
 
-function PhoneLink({ contact, textClassName }: { contact: Contact; textClassName: string }) {
+function PhoneLink({ contact, tab, textClassName }: ContactLinkProps) {
     return (
         <LinkText
             text={contact.phone}
             url={`tel:${contact.phone}`}
             label={`Call ${contact.name}`}
-            testID={`customer-contact-phone-${contact.id}`}
+            party={tab.party}
+            testID={`${tab.testIdPrefix}-contact-phone-${contact.id}`}
             textClassName={textClassName}
         />
     )
@@ -225,14 +254,15 @@ function ContactRowMenu({ contact, tab, canWrite }: RowMenuProps) {
     if (!canWrite) return null
     const items = contact.is_primary ? PRIMARY_ITEMS : OTHER_ITEMS
     const select = (item: MenuItem) => tab.onMenu(contact, item)
+    const testIds = menuTestIds(tab.testIdPrefix)
     return (
         <RecordRowMenu
             title={contact.name}
-            triggerTestId={`customer-contact-menu-${contact.id}`}
+            triggerTestId={`${tab.testIdPrefix}-contact-menu-${contact.id}`}
             triggerLabel={`Actions for ${contact.name}`}
             items={items}
             labels={MENU_LABELS}
-            testIds={MENU_TEST_IDS}
+            testIds={testIds}
             onSelect={select}
             isWriting={tab.isWriting}
             writes={MENU_WRITES}
@@ -245,7 +275,7 @@ function ContactRowMenu({ contact, tab, canWrite }: RowMenuProps) {
 function ContactTableRow({ contact, tab, canWrite }: RowMenuProps) {
     return (
         <View
-            testID={`customer-contact-${contact.id}`}
+            testID={`${tab.testIdPrefix}-contact-${contact.id}`}
             className="flex-row items-center border-b border-border pl-4 pr-2"
             style={{ height: ROW_HEIGHT }}
         >
@@ -253,7 +283,7 @@ function ContactTableRow({ contact, tab, canWrite }: RowMenuProps) {
                 <Text numberOfLines={1} className="shrink text-sm text-foreground">
                     {contact.name}
                 </Text>
-                <PrimaryBadge contact={contact} />
+                <PrimaryBadge contact={contact} tab={tab} />
             </View>
             <View className="min-w-0 pr-3" style={COLUMNS.role}>
                 <Text numberOfLines={1} className="text-sm text-foreground">
@@ -261,10 +291,10 @@ function ContactTableRow({ contact, tab, canWrite }: RowMenuProps) {
                 </Text>
             </View>
             <View className="min-w-0 pr-3" style={COLUMNS.email}>
-                <EmailLink contact={contact} textClassName="text-sm" />
+                <EmailLink contact={contact} tab={tab} textClassName="text-sm" />
             </View>
             <View className="min-w-0 pr-3" style={COLUMNS.phone}>
-                <PhoneLink contact={contact} textClassName="text-sm" />
+                <PhoneLink contact={contact} tab={tab} textClassName="text-sm" />
             </View>
             <View style={COLUMNS.menu}>
                 <ContactRowMenu contact={contact} tab={tab} canWrite={canWrite} />
@@ -273,15 +303,17 @@ function ContactTableRow({ contact, tab, canWrite }: RowMenuProps) {
     )
 }
 
-const TABLE_HEADER = (
-    <ListHeaderRow testID="customer-contacts-header">
-        <ListHeaderCell label="Name" style={COLUMNS.name} />
-        <ListHeaderCell label="Role" style={COLUMNS.role} />
-        <ListHeaderCell label="Email" style={COLUMNS.email} />
-        <ListHeaderCell label="Phone" style={COLUMNS.phone} />
-        <View style={COLUMNS.menu} />
-    </ListHeaderRow>
-)
+function TableHeader({ testIdPrefix }: { testIdPrefix: string }) {
+    return (
+        <ListHeaderRow testID={`${testIdPrefix}-contacts-header`}>
+            <ListHeaderCell label="Name" style={COLUMNS.name} />
+            <ListHeaderCell label="Role" style={COLUMNS.role} />
+            <ListHeaderCell label="Email" style={COLUMNS.email} />
+            <ListHeaderCell label="Phone" style={COLUMNS.phone} />
+            <View style={COLUMNS.menu} />
+        </ListHeaderRow>
+    )
+}
 
 function RoleLine({ role }: { role: string }) {
     if (role === '') return null
@@ -295,7 +327,7 @@ function RoleLine({ role }: { role: string }) {
 function ContactCard({ contact, tab, canWrite, height }: RowMenuProps & { height: number }) {
     return (
         <View
-            testID={`customer-contact-${contact.id}`}
+            testID={`${tab.testIdPrefix}-contact-${contact.id}`}
             className="flex-row items-start border-b border-border py-3 pl-4 pr-2"
             style={{ height }}
         >
@@ -304,32 +336,34 @@ function ContactCard({ contact, tab, canWrite, height }: RowMenuProps & { height
                     <Text numberOfLines={1} className="shrink text-sm font-medium text-foreground">
                         {contact.name}
                     </Text>
-                    <PrimaryBadge contact={contact} />
+                    <PrimaryBadge contact={contact} tab={tab} />
                 </View>
                 <RoleLine role={contact.role} />
-                <EmailLink contact={contact} textClassName="text-xs" />
-                <PhoneLink contact={contact} textClassName="text-xs" />
+                <EmailLink contact={contact} tab={tab} textClassName="text-xs" />
+                <PhoneLink contact={contact} tab={tab} textClassName="text-xs" />
             </View>
             <ContactRowMenu contact={contact} tab={tab} canWrite={canWrite} />
         </View>
     )
 }
 
+type Fits = ReturnType<typeof useFitsTable>
+
 interface ContactsListProps {
     tab: ContactsTab
     canWrite: boolean
-    isPhone: boolean
+    fits: Fits
 }
 
-function ContactsList({ tab, canWrite, isPhone }: ContactsListProps) {
+function ContactsList({ tab, canWrite, fits }: ContactsListProps) {
     const { contacts } = tab.list
-    if (isPhone) {
+    if (fits.showCards) {
         const renderCard = (contact: Contact, height: number) => (
             <ContactCard contact={contact} tab={tab} canWrite={canWrite} height={height} />
         )
         return (
             <ListCards
-                testID="customer-contacts-cards"
+                testID={`${tab.testIdPrefix}-contacts-cards`}
                 rows={contacts}
                 heightOf={cardHeightOf}
                 keyOf={keyOfContact}
@@ -341,16 +375,18 @@ function ContactsList({ tab, canWrite, isPhone }: ContactsListProps) {
     const renderRow = (contact: Contact) => (
         <ContactTableRow contact={contact} tab={tab} canWrite={canWrite} />
     )
+    const header = <TableHeader testIdPrefix={tab.testIdPrefix} />
     return (
         <ListTable
-            testID="customer-contacts-table"
+            testID={`${tab.testIdPrefix}-contacts-table`}
             minWidth={TABLE_MIN_WIDTH}
             rowHeight={ROW_HEIGHT}
-            header={TABLE_HEADER}
+            header={header}
             rows={contacts}
             keyOf={keyOfContact}
             renderRow={renderRow}
             onNearEnd={noMoreRows}
+            onGutter={fits.onGutter}
         />
     )
 }
@@ -360,15 +396,16 @@ function ContactsList({ tab, canWrite, isPhone }: ContactsListProps) {
 interface AddButtonProps {
     isVisible: boolean
     onPress: () => void
+    testIdPrefix: string
 }
 
 // The empty state's button has no key: ⌥C belongs to the header button, which shows
 // only while the list has rows, so the key is registered only while that action shows.
-function EmptyAddContactButton({ isVisible, onPress }: AddButtonProps) {
+function EmptyAddContactButton({ isVisible, onPress, testIdPrefix }: AddButtonProps) {
     if (!isVisible) return null
     return (
         <Button
-            testID="customer-contacts-empty-add"
+            testID={`${testIdPrefix}-contacts-empty-add`}
             size="sm"
             onPress={onPress}
             style={{ minHeight: 44 }}
@@ -378,11 +415,11 @@ function EmptyAddContactButton({ isVisible, onPress }: AddButtonProps) {
     )
 }
 
-function HeaderAddContactButton({ isVisible, onPress }: AddButtonProps) {
+function HeaderAddContactButton({ isVisible, onPress, testIdPrefix }: AddButtonProps) {
     if (!isVisible) return null
     return (
         <ShortcutButton
-            testID="customer-contacts-add"
+            testID={`${testIdPrefix}-contacts-add`}
             label="Add contact"
             shortcut={ADD_CONTACT_KEY}
             variant="outline"
@@ -396,17 +433,18 @@ function HeaderAddContactButton({ isVisible, onPress }: AddButtonProps) {
 interface BodyProps {
     tab: ContactsTab
     canWrite: boolean
-    isPhone: boolean
+    fits: Fits
     gutterClass: string
 }
 
-function ContactsBody({ tab, canWrite, isPhone, gutterClass }: BodyProps) {
+function ContactsBody({ tab, canWrite, fits, gutterClass }: BodyProps) {
     const { contacts, isLoading, isError, retry } = tab.list
+    const { testIdPrefix } = tab
     if (isError) {
         return (
             <View className={`pt-2 ${gutterClass}`}>
                 <ListBanner
-                    testIdPrefix="customer-contacts"
+                    testIdPrefix={`${testIdPrefix}-contacts`}
                     message="Contacts could not load."
                     onRetry={retry}
                     isFlush
@@ -416,25 +454,33 @@ function ContactsBody({ tab, canWrite, isPhone, gutterClass }: BodyProps) {
     }
     if (isLoading) {
         return (
-            <View testID="customer-contacts-loading" className="flex-1">
+            <View testID={`${testIdPrefix}-contacts-loading`} className="flex-1">
                 <LoadingState />
             </View>
         )
     }
     if (contacts.length === 0) {
         return (
-            <View testID="customer-contacts-empty" className="items-center gap-4 p-8">
+            <View testID={`${testIdPrefix}-contacts-empty`} className="items-center gap-4 p-8">
                 <Text className="text-base font-medium text-foreground">No contacts yet</Text>
-                <EmptyAddContactButton isVisible={canWrite} onPress={tab.openAdd} />
+                <EmptyAddContactButton
+                    isVisible={canWrite}
+                    onPress={tab.openAdd}
+                    testIdPrefix={testIdPrefix}
+                />
             </View>
         )
     }
     return (
         <>
             <View className={`flex-row justify-end py-3 ${gutterClass}`}>
-                <HeaderAddContactButton isVisible={canWrite} onPress={tab.openAdd} />
+                <HeaderAddContactButton
+                    isVisible={canWrite}
+                    onPress={tab.openAdd}
+                    testIdPrefix={testIdPrefix}
+                />
             </View>
-            <ContactsList tab={tab} canWrite={canWrite} isPhone={isPhone} />
+            <ContactsList tab={tab} canWrite={canWrite} fits={fits} />
         </>
     )
 }
@@ -444,7 +490,7 @@ function ActionBanner({ tab, gutterClass }: { tab: ContactsTab; gutterClass: str
     return (
         <View className={`pt-2 ${gutterClass}`}>
             <ListBanner
-                testIdPrefix="customer-contacts-action"
+                testIdPrefix={`${tab.testIdPrefix}-contacts-action`}
                 message={tab.actionError}
                 onDismiss={tab.clearActionError}
                 isFlush
@@ -453,40 +499,39 @@ function ActionBanner({ tab, gutterClass }: { tab: ContactsTab; gutterClass: str
     )
 }
 
-interface CustomerContactsTabProps {
-    customerId: string
+interface PartyContactsTabProps extends PartyRef {
     canWrite: boolean
     gutterClass: string
+    testIdPrefix: string
 }
 
 /**
- * The people at this customer (spec §3.6), primary first, then by name: a table on a wide
- * window, cards on a phone. A writer adds, edits, makes primary and deletes them; a reader
- * sees the list with no Add contact and no row menu. Making one primary clears the others
- * on the server, in the same transaction.
+ * The people at this customer or vendor, primary first, then by name: a table when the
+ * tab's own width holds it, cards on a phone or below the table's minimum width. A writer
+ * adds, edits, makes primary and deletes them; a reader sees the list with no Add contact
+ * and no row menu. Making one primary clears the others on the server, in the same
+ * transaction.
  */
-export function CustomerContactsTab({
-    customerId,
+export function PartyContactsTab({
+    party,
+    id,
     canWrite,
     gutterClass,
-}: CustomerContactsTabProps) {
-    const tab = useContactsTab(customerId)
-    const isPhone = useBreakpoint() === 'mobile'
+    testIdPrefix,
+}: PartyContactsTabProps) {
+    const tab = useContactsTab({ party, id }, testIdPrefix)
+    const fits = useFitsTable(TABLE_MIN_WIDTH)
     const { dialog, deleting } = tab
-    const deleteMessage = `Delete ${deleting?.name ?? ''} from this customer's contacts?`
+    const deleteMessage = `Delete ${deleting?.name ?? ''} from this ${PARTY_NOUN[party]}'s contacts?`
     const isDeleteOpen = deleting !== null
     return (
-        <View testID="customer-contacts" className="flex-1">
+        <View testID={`${testIdPrefix}-contacts`} className="flex-1" onLayout={fits.onLayout}>
             <ActionBanner tab={tab} gutterClass={gutterClass} />
-            <ContactsBody
-                tab={tab}
-                canWrite={canWrite}
-                isPhone={isPhone}
-                gutterClass={gutterClass}
-            />
+            <ContactsBody tab={tab} canWrite={canWrite} fits={fits} gutterClass={gutterClass} />
             <ContactPersonDialog
                 key={dialog.session}
-                customerId={customerId}
+                party={party}
+                partyId={id}
                 contact={dialog.contact}
                 isOpen={dialog.isOpen}
                 onClose={tab.closeDialog}

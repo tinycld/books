@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { customerNotesSchema } from '../tinycld/books/lib/customer-notes-schema'
+import { type PartyNotesValues, partyNotesSchema } from '../tinycld/books/lib/party-notes-schema'
 
-describe('customerNotesSchema', () => {
+describe('partyNotesSchema', () => {
     it('accepts 5000 characters', () => {
         const notes = 'a'.repeat(5000)
-        expect(customerNotesSchema.parse({ notes })).toEqual({ notes })
+        const values: PartyNotesValues = partyNotesSchema.parse({ notes })
+        expect(values).toEqual({ notes })
     })
 
     it('refuses 5001 characters with the max-length message', () => {
-        const result = customerNotesSchema.safeParse({ notes: 'a'.repeat(5001) })
+        const result = partyNotesSchema.safeParse({ notes: 'a'.repeat(5001) })
         expect(result.success).toBe(false)
         expect(result.error?.issues.map(issue => issue.message)).toEqual([
             'Notes can be at most 5000 characters',
@@ -17,6 +18,6 @@ describe('customerNotesSchema', () => {
     })
 
     it('accepts an empty string', () => {
-        expect(customerNotesSchema.parse({ notes: '' })).toEqual({ notes: '' })
+        expect(partyNotesSchema.parse({ notes: '' })).toEqual({ notes: '' })
     })
 })
