@@ -39,13 +39,16 @@ describe('pb-migrations prefixes', () => {
     })
 
     // Vendor credit spec §4: the vendor credits take 2100000023. Vendor refund spec §4:
-    // the vendor refunds take 2100000024 and the audit view moves to 2100000025, the
-    // highest.
-    it('holds the vendor credits at 2100000023 and the vendor refunds at 2100000024, before the audit log at 2100000025', () => {
+    // the vendor refunds take 2100000024. Refund receipt spec §4.1: the refund receipts
+    // take 2100000025, 2100000026 stays free for p5-ar-aging, and the audit view moves
+    // to 2100000027, the highest.
+    it('holds the vendor credits at 2100000023, the vendor refunds at 2100000024 and the refund receipts at 2100000025, before the audit log at 2100000027', () => {
         expect(MIGRATIONS).toContain('2100000023_create_books_vendor_credits.js')
         expect(MIGRATIONS).toContain('2100000024_create_books_vendor_refunds.js')
-        expect(MIGRATIONS).toContain('2100000025_create_books_audit_log.js')
-        expect(MIGRATIONS).not.toContain('2100000024_create_books_audit_log.js')
-        expect(MIGRATIONS[MIGRATIONS.length - 1]).toBe('2100000025_create_books_audit_log.js')
+        expect(MIGRATIONS).toContain('2100000025_create_books_refund_receipts.js')
+        expect(MIGRATIONS.filter(file => prefixOf(file) === '2100000026')).toEqual([])
+        expect(MIGRATIONS).toContain('2100000027_create_books_audit_log.js')
+        expect(MIGRATIONS).not.toContain('2100000025_create_books_audit_log.js')
+        expect(MIGRATIONS[MIGRATIONS.length - 1]).toBe('2100000027_create_books_audit_log.js')
     })
 })

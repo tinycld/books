@@ -33,15 +33,15 @@ const (
 )
 
 // salesDocKind is one kind of document of the shared layer: the sales
-// documents (an invoice, a sales receipt, an estimate, a credit memo) and the
-// purchase documents (a bill, an expense). It holds the collections the kind
-// writes, the forms host of its lines, its doc type, its lifecycle, its party,
-// its refusal texts and the parts of its guards and posting that differ by
-// kind. Every guard and the posting below take a kind; invoiceKind
-// (invoices.go), salesReceiptKind (sales_receipts.go), estimateKind
-// (estimates.go), creditMemoKind (credit_memos.go), billKind (bills.go),
-// expenseKind (expenses.go) and vendorCreditKind (vendor_credits.go) are the
-// kinds.
+// documents (an invoice, a sales receipt, an estimate, a credit memo, a refund
+// receipt) and the purchase documents (a bill, an expense). It holds the
+// collections the kind writes, the forms host of its lines, its doc type, its
+// lifecycle, its party, its refusal texts and the parts of its guards and
+// posting that differ by kind. Every guard and the posting below take a kind;
+// invoiceKind (invoices.go), salesReceiptKind (sales_receipts.go),
+// estimateKind (estimates.go), creditMemoKind (credit_memos.go),
+// refundReceiptKind (refund_receipts.go), billKind (bills.go), expenseKind
+// (expenses.go) and vendorCreditKind (vendor_credits.go) are the kinds.
 type salesDocKind struct {
 	// DocType is the doc type of the kind's sequence and of the entry it posts.
 	DocType string
@@ -134,6 +134,18 @@ type salesDocKind struct {
 	// opposite the total's; nil is incomeByAccount (the sales kinds' credits,
 	// turned to debits on a Credit kind).
 	LineAccounts func(tx core.App, lines []*core.Record, totals documentTotalsResult) ([]postingLine, error)
+	// PostingLines replaces the whole posting of a document that does not post
+	// its lines (a refund receipt that pays out a credit memo posts the total
+	// against Accounts receivable): true answers every line of the entry, and
+	// postSalesDoc writes no tax snapshot; false keeps salesDocPostingLines and
+	// the tax snapshot. nil is false. Only refundReceiptKind sets it.
+	PostingLines func(tx core.App, doc *core.Record, totals documentTotalsResult) ([]postingLine, bool, error)
+	// AfterPost runs in the posting transaction after the entry is posted and
+	// a correction's original is voided, before the cash-basis rows are
+	// rebuilt (a payout rebuilds its credit memo's rows, which read the
+	// payout's posted entry); original is nil for a first post. nil is no
+	// step. Only refundReceiptKind sets it.
+	AfterPost func(tx core.App, doc, original *core.Record) error
 }
 
 // isEditableStatus reports whether a person may change a document in status
@@ -193,6 +205,7 @@ const (
 var documentDocTypes = map[string]bool{
 	docTypeInvoice: true, docTypeSalesReceipt: true, docTypeBill: true, docTypeExpense: true, docTypePayment: true,
 	docTypeBillPayment: true, docTypeCreditMemo: true, docTypeVendorCredit: true, docTypeVendorRefund: true,
+	docTypeRefundReceipt: true,
 }
 
 // maxDocumentLines is the most lines one sales document holds; the client's

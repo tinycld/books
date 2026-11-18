@@ -36,6 +36,10 @@ var serverOnly = map[string]bool{
 	"books_credit_memo_tax_lines":   true,
 	"books_invoice_tax_lines":       true,
 	"books_sales_receipt_tax_lines": true,
+	// A refund receipt's tax lines are its posting snapshot, and its credits
+	// row is written by the payout's post (refund receipt spec §4.1).
+	"books_refund_receipt_tax_lines": true,
+	"books_refund_receipt_credits":   true,
 }
 
 func booksCollections(t testing.TB, app core.App, kinds ...string) []*core.Collection {
@@ -909,6 +913,7 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 	registerSalesDocGuards(parts, billKind)
 	registerSalesDocGuards(parts, expenseKind)
 	registerSalesDocGuards(parts, vendorCreditKind)
+	registerSalesDocGuards(parts, refundReceiptKind)
 	registerPaymentGuards(parts)
 	registerBillPaymentGuards(parts)
 	registerVendorCreditApplications(parts)

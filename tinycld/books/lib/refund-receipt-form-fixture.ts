@@ -7,7 +7,14 @@
 // in sales-receipt-form-fixture.ts. The posted tax snapshot (REFUND_RECEIPT_TAX_LINES)
 // holds each figure negated (spec §4.1, §4.3), and a payout of a credit memo has none.
 
-import type { BooksCreditMemoTaxLines, BooksSalesReceiptLines, BooksSalesReceipts } from '../types'
+import type {
+    BooksCreditMemoLines,
+    BooksCreditMemos,
+    BooksRefundReceiptCredits,
+    BooksRefundReceiptLines,
+    BooksRefundReceipts,
+    BooksRefundReceiptTaxLines,
+} from '../types'
 import {
     CREDIT_MEMO_IDS,
     CREDIT_MEMO_LINES,
@@ -35,29 +42,13 @@ export const REFUND_RECEIPT_TODAY = '2026-11-18'
 
 const STAMP = '2026-11-18 09:00:00.000Z'
 
-// The collections of spec §4.1 do not exist yet: these types mirror them from the
-// generated types of the collections they copy. The migration checkpoint
-// (2100000025_create_books_refund_receipts.js) must replace them with the generated
-// BooksRefundReceipts, BooksRefundReceiptLines, BooksRefundReceiptTaxLines and
-// BooksRefundReceiptCredits, so a fixture row that drifts from the schema fails tsc.
-export type RefundReceiptRecord = Omit<BooksSalesReceipts, 'deposit_to'> & {
-    refund_from: string
-    sales_receipt: string
-    credit_memo: string
-}
-export type RefundReceiptLineRecord = Omit<BooksSalesReceiptLines, 'sales_receipt'> & {
-    refund_receipt: string
-}
-export type RefundReceiptTaxLineRecord = Omit<BooksCreditMemoTaxLines, 'credit_memo'> & {
-    refund_receipt: string
-}
-// The server-written payer row of a credit memo's balance: one for each posted payout.
-export type RefundReceiptCreditRecord = {
-    id: string
-    refund_receipt: string
-    credit_memo: string
-    amount: number
-}
+// The generated record types (migration 2100000025_create_books_refund_receipts.js), so a
+// fixture row that drifts from the schema fails tsc. A credits row is the server-written
+// payer row of a credit memo's balance: one for each posted payout.
+export type RefundReceiptRecord = BooksRefundReceipts
+export type RefundReceiptLineRecord = BooksRefundReceiptLines
+export type RefundReceiptTaxLineRecord = BooksRefundReceiptTaxLines
+export type RefundReceiptCreditRecord = BooksRefundReceiptCredits
 export type RefundReceiptStatus = RefundReceiptRecord['status']
 
 // Refund from lists the sales receipt's deposit accounts (spec §3.2, Q3): every active
@@ -282,11 +273,13 @@ export const REFUND_RECEIPTS = [
     }),
 ] satisfies RefundReceiptRecord[]
 
-// What the seed posts (spec §4.6: one refund from a seeded posted sales receipt, Check
-// from 1000 Business Checking; a payout of part of a new credit memo) and the draft it
-// keeps. The plan picks the customer, the receipt and the days after it greps the specs
-// that read them; the fixture's are for the reference.
-export const REFUND_RECEIPT_SEED_IDS = [IDS.posted, IDS.payout] as const
+// The seed's payout of part of its own credit memo (REFUND_SEED_PAYOUT, below).
+const SEED_PAYOUT_ID = 'rfrpseedpayout1'
+
+// What the seed posts (spec §4.6, plan decision "Seed pick"): the refund of the seeded
+// sales receipt 1004 (Harborview, 2026-11-12, Check 20417 from 1000 Business Checking),
+// then the payout of part of the seed-only credit memo; and the draft it keeps.
+export const REFUND_RECEIPT_SEED_IDS = [IDS.posted, SEED_PAYOUT_ID] as const
 export const REFUND_RECEIPT_SEED_DRAFT_ID = IDS.draft
 
 type LineSeed = Pick<RefundReceiptLineRecord, 'kind'> & Partial<RefundReceiptLineRecord>
@@ -499,8 +492,104 @@ export const REFUND_RECEIPT_CREDITS = [
         refund_receipt: IDS.payout,
         credit_memo: CREDIT_MEMO_IDS.posted,
         amount: 41_092,
+        position: 0,
+        created: STAMP,
+        updated: STAMP,
     },
 ] satisfies RefundReceiptCreditRecord[]
+
+// The seed's payout (plan decision "Seed pick"): the payout row above names credit memo
+// 1001 of Harborview, which p2-credit-memo seeds and this seed must not touch. So the seed
+// posts a credit memo of its own, of a customer no seeded credit memo names, and pays out
+// part of it. Seed-only: the reference does not show these rows.
+const SEED_MEMO_ID = 'crmpseedaspen01'
+
+// Three access points, taxable, Denver combined: 56 700 + (1 644 + 567 + 2 727) = 61 638.
+export const REFUND_SEED_CREDIT_MEMO_LINES = [
+    {
+        id: 'crmlseedasp0000',
+        credit_memo: SEED_MEMO_ID,
+        kind: 'item',
+        product: PRODUCT_IDS.accessPoint,
+        description: 'Wi-Fi 6E ceiling-mount access point, returned unopened.',
+        quantity: 3,
+        rate: 18_900,
+        percent_ppm: 0,
+        amount: 56_700,
+        taxable: true,
+        position: 0,
+        created: STAMP,
+        updated: STAMP,
+    },
+] satisfies BooksCreditMemoLines[]
+
+// One of the three access points, paid back by bank transfer from 1000 Business
+// Checking: 18 900 + (548 + 189 + 909) = 20 546.
+export const REFUND_SEED_PAYOUT_LINES = lines(SEED_PAYOUT_ID, 'spay', [
+    {
+        kind: 'item',
+        product: PRODUCT_IDS.accessPoint,
+        description: 'Wi-Fi 6E ceiling-mount access point: part of the credit, paid back.',
+        quantity: 1,
+        rate: 18_900,
+        amount: 18_900,
+        taxable: true,
+    },
+]) satisfies RefundReceiptLineRecord[]
+
+export const REFUND_SEED_PAYOUT = refund({
+    id: SEED_PAYOUT_ID,
+    customer: ASPEN_RIDGE,
+    status: 'posted',
+    date: '2026-11-17',
+    tax_rate: TAX_IDS.denverCombined,
+    payment_method: 'bank_transfer',
+    refund_from: REFUND_FROM_ACCOUNT_IDS.checking,
+    credit_memo: SEED_MEMO_ID,
+    memo: 'Aspen Ridge asked for part of the access point credit back by transfer',
+    subtotal: 18_900,
+    tax_total: 1_646,
+    total: 20_546,
+}) satisfies RefundReceiptRecord
+
+const SEED_MEMO_CUSTOMER = CUSTOMERS.find(row => row.id === ASPEN_RIDGE)
+if (!SEED_MEMO_CUSTOMER)
+    throw new Error('refund receipt fixture: the seed memo customer is missing')
+
+// Posted, dated 2026-11-16, no invoice link. `balance` is what the server leaves after the
+// seed payout: the total less the payout.
+export const REFUND_SEED_CREDIT_MEMO = {
+    id: SEED_MEMO_ID,
+    customer: ASPEN_RIDGE,
+    status: 'posted',
+    number: '',
+    sequence: 0,
+    date: '2026-11-16',
+    bill_to: SEED_MEMO_CUSTOMER.billing_address,
+    email: SEED_MEMO_CUSTOMER.email,
+    tax_rate: TAX_IDS.denverCombined,
+    message: '',
+    memo: 'Three access points came back unopened',
+    subtotal: 56_700,
+    tax_total: 4_938,
+    total: 61_638,
+    balance: 61_638 - REFUND_SEED_PAYOUT.total,
+    revision: 1,
+    currency: REFUND_RECEIPT_CURRENCY,
+    entry: '',
+    invoice: '',
+    replaces: '',
+    replaced_by: '',
+    posted_by: '',
+    posted_at: '',
+    voided_by: '',
+    voided_at: '',
+    form: '',
+    fields: null,
+    sort_key: '',
+    created: STAMP,
+    updated: STAMP,
+} satisfies BooksCreditMemos
 
 // What a refund's link row reads from its source (spec §3.2, §3.3, §3.8): the number,
 // whether the source is void now, and for a credit memo its live unapplied credit.
@@ -634,12 +723,19 @@ for (const line of [
     ...REFUND_RECEIPT_LINES,
     ...REFUND_FROM_SALES_RECEIPT_LINES,
     ...REFUND_PAYOUT_START_LINES,
+    ...REFUND_SEED_PAYOUT_LINES,
+    ...REFUND_SEED_CREDIT_MEMO_LINES,
 ]) {
     if (line.product !== '' && !KNOWN_PRODUCTS.has(line.product)) {
         throw new Error(`refund receipt fixture: line ${line.id} names an unknown product`)
     }
 }
-for (const row of [...REFUND_RECEIPTS, REFUND_FROM_SALES_RECEIPT, REFUND_PAYOUT_START]) {
+for (const row of [
+    ...REFUND_RECEIPTS,
+    REFUND_SEED_PAYOUT,
+    REFUND_FROM_SALES_RECEIPT,
+    REFUND_PAYOUT_START,
+]) {
     const name = row.id || 'a start form'
     if (row.tax_rate !== '' && !TAX_RATE_ROWS.some(rate => rate.id === row.tax_rate)) {
         throw new Error(`refund receipt fixture: ${name} names an unknown tax rate`)
@@ -663,7 +759,9 @@ for (const row of [...REFUND_RECEIPTS, REFUND_FROM_SALES_RECEIPT, REFUND_PAYOUT_
         }
     }
     if (row.credit_memo !== '') {
-        const source = CREDIT_MEMOS.find(memo => memo.id === row.credit_memo)
+        const source = [...CREDIT_MEMOS, REFUND_SEED_CREDIT_MEMO].find(
+            memo => memo.id === row.credit_memo
+        )
         if (!source || source.customer !== row.customer) {
             throw new Error(`refund receipt fixture: ${name} names a memo of another customer`)
         }

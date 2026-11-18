@@ -8,6 +8,19 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { CUSTOMERS } from '../tinycld/books/lib/customer-form-fixture'
+import {
+    REFUND_FROM_ACCOUNTS,
+    REFUND_RECEIPT_IDS,
+    REFUND_RECEIPT_LINES,
+    REFUND_RECEIPT_SEED_DRAFT_ID,
+    REFUND_RECEIPTS,
+    REFUND_SEED_CREDIT_MEMO,
+    REFUND_SEED_CREDIT_MEMO_LINES,
+    REFUND_SEED_PAYOUT,
+    REFUND_SEED_PAYOUT_LINES,
+} from '../tinycld/books/lib/refund-receipt-form-fixture'
+import { SALES_RECEIPT_IDS } from '../tinycld/books/lib/sales-receipt-form-fixture'
 import { SEED_ACCOUNTS } from '../tinycld/books/lib/seed-accounts'
 import { VENDOR_REFUND_VENDOR_IDS } from '../tinycld/books/lib/vendor-refund-fixture'
 import * as seedModule from '../tinycld/books/seed'
@@ -220,5 +233,146 @@ describe('seedVendorRefunds', () => {
             )
             .reduce((sum, w) => sum + Number(w.data.amount), 0)
         expect(42_500 - refunded).toBe(27_500)
+    })
+})
+
+// Refund receipt plan, decision "Seed pick" (spec §4.6): the refund of the seeded
+// receipt 1004 is posted, then the seed-only credit memo of Aspen Ridge Dental is
+// posted and the payout that names it is posted, then the draft stays a draft. Each
+// goes through the writes the form makes: header create, lines in order, then the post.
+describe('seedRefundReceipts', () => {
+    it('runs after the sales receipts and the credit memos in the seed', () => {
+        const source = readFileSync(seedPath, 'utf8')
+        const body = source.slice(source.indexOf('export default async function seed('))
+        const receipts = body.indexOf('seedSalesReceipts(')
+        const memos = body.indexOf('seedCreditMemos(')
+        const refunds = body.indexOf('seedRefundReceipts(')
+        expect(receipts).toBeGreaterThan(-1)
+        expect(memos).toBeGreaterThan(-1)
+        expect(refunds).toBeGreaterThan(receipts)
+        expect(refunds).toBeGreaterThan(memos)
+    })
+
+    it('posts the refund of receipt 1004, posts the seed memo then its payout, and keeps the draft', async () => {
+        const seedRefundReceipts = (seedModule as Record<string, unknown>).seedRefundReceipts
+        expect(typeof seedRefundReceipts).toBe('function')
+        if (typeof seedRefundReceipts !== 'function') return
+        const { pb, writes } = recordingPb()
+        const accounts = seededAccounts()
+        const customerIds = new Map(
+            CUSTOMERS.map((row, i) => [row.id, `cust${String(i).padStart(11, '0')}`])
+        )
+        const salesReceiptIds = new Map([
+            [SALES_RECEIPT_IDS.posted, 'srseed000000004'],
+            [SALES_RECEIPT_IDS.walkIn, 'srseed000000005'],
+        ])
+        await seedRefundReceipts(pb, { user: USER }, accounts, customerIds, salesReceiptIds)
+
+        const accountOf = (refundFrom: string) =>
+            accounts.get(REFUND_FROM_ACCOUNTS.find(row => row.id === refundFrom)?.number ?? '')
+        const fixtureOf = (id: string) => {
+            const row = REFUND_RECEIPTS.find(r => r.id === id)
+            if (!row) throw new Error(`no refund fixture row ${id}`)
+            return row
+        }
+        const posted = fixtureOf(REFUND_RECEIPT_IDS.posted)
+        const draft = fixtureOf(REFUND_RECEIPT_SEED_DRAFT_ID)
+
+        const memos = writes.filter(w => w.collection === 'books_credit_memos' && w.op === 'create')
+        expect(memos).toHaveLength(1)
+        const memo = memos[0]
+        if (!memo) return
+        expect(REFUND_SEED_CREDIT_MEMO.customer).toBe('cust_aspen_0001')
+        expect(memo.data).toMatchObject({
+            customer: customerIds.get(REFUND_SEED_CREDIT_MEMO.customer),
+            status: 'draft',
+            date: REFUND_SEED_CREDIT_MEMO.date,
+            tax_rate: REFUND_SEED_CREDIT_MEMO.tax_rate,
+        })
+        expect(memo.data.invoice ?? '').toBe('')
+        const memoLines = writes.filter(w => w.collection === 'books_credit_memo_lines')
+        expect(memoLines.map(w => [w.data.credit_memo, w.data.rate, w.data.taxable])).toEqual(
+            REFUND_SEED_CREDIT_MEMO_LINES.map(line => [memo.id, line.rate, line.taxable])
+        )
+        expect(finalStatus(writes, 'books_credit_memos', memo.id)).toBe('posted')
+
+        const refunds = writes.filter(
+            w => w.collection === 'books_refund_receipts' && w.op === 'create'
+        )
+        expect(
+            refunds.map(w => ({
+                customer: w.data.customer,
+                status: w.data.status,
+                date: String(w.data.date).slice(0, 10),
+                refund_from: w.data.refund_from,
+                sales_receipt: w.data.sales_receipt ?? '',
+                credit_memo: w.data.credit_memo ?? '',
+            }))
+        ).toEqual([
+            {
+                customer: customerIds.get(posted.customer),
+                status: 'draft',
+                date: '2026-11-12',
+                refund_from: accounts.get('1000'),
+                sales_receipt: 'srseed000000004',
+                credit_memo: '',
+            },
+            {
+                customer: customerIds.get(REFUND_SEED_CREDIT_MEMO.customer),
+                status: 'draft',
+                date: '2026-11-17',
+                refund_from: accounts.get('1000'),
+                sales_receipt: '',
+                credit_memo: memo.id,
+            },
+            {
+                customer: customerIds.get(draft.customer),
+                status: 'draft',
+                date: String(draft.date).slice(0, 10),
+                refund_from: accountOf(draft.refund_from),
+                sales_receipt: draft.sales_receipt === '' ? '' : expect.any(String),
+                credit_memo: '',
+            },
+        ])
+        expect(refunds[1]?.data.payment_method).toBe(REFUND_SEED_PAYOUT.payment_method)
+        expect(refunds.map(w => finalStatus(writes, 'books_refund_receipts', w.id))).toEqual([
+            'posted',
+            'posted',
+            'draft',
+        ])
+
+        // Each refund's lines come in order after its header and before its post, and
+        // the payout comes after the post of its memo.
+        const fixtureLines = [
+            REFUND_RECEIPT_LINES.filter(line => line.refund_receipt === REFUND_RECEIPT_IDS.posted),
+            REFUND_SEED_PAYOUT_LINES,
+            REFUND_RECEIPT_LINES.filter(
+                line => line.refund_receipt === REFUND_RECEIPT_SEED_DRAFT_ID
+            ),
+        ]
+        const lines = writes.filter(w => w.collection === 'books_refund_receipt_lines')
+        const at = (w: Write | undefined) => (w ? writes.indexOf(w) : -1)
+        const postOf = (collection: string, id: string | undefined) =>
+            writes.find(
+                w => w.collection === collection && w.id === id && w.data.status === 'posted'
+            )
+        refunds.forEach((refund, i) => {
+            const own = lines.filter(w => w.data.refund_receipt === refund.id)
+            expect(
+                own.map(w => [w.data.position, w.data.kind, w.data.rate]),
+                refund.id
+            ).toEqual(
+                [...(fixtureLines[i] ?? [])]
+                    .sort((a, b) => a.position - b.position)
+                    .map(line => [line.position, line.kind, line.rate])
+            )
+            for (const line of own) expect(at(line)).toBeGreaterThan(at(refund))
+            const post = postOf('books_refund_receipts', refund.id)
+            if (i < 2) {
+                expect(post?.data.posted_by).toBe(USER.id)
+                for (const line of own) expect(at(post)).toBeGreaterThan(at(line))
+            }
+        })
+        expect(at(refunds[1])).toBeGreaterThan(at(postOf('books_credit_memos', memo.id)))
     })
 })
