@@ -77,6 +77,10 @@
 - cp 5 · fix reviewer NOTE (D3) · `evidence/cp5/capture.json` `credit-applied-refunded` — posts a refund on seeded credit 1002, which `tests/e2e/vendor-credit-form.spec.ts:717-727` reads (badge Partly applied, Unapplied = total − $30.00); the capture therefore runs in its own e2e command, never with that spec. Scratch capture only; not in the PR.
 - cp 5 · fix critic · apply-empty-*: dialog body, above the text — the required field "Apply date *" shows in the empty state, where no bill can be applied; the reference draws the empty state with no field (Unapplied credit, the text, the two buttons).
 - cp 5 · fix critic, not verified · credit-applied-refunded-390-*: the Applied to block (application row with Remove next to a refund row without Remove) is below the shot's bottom edge; the mixed list was checked at 1280 only. credit-more is captured in light only.
+- revise 1 · reviewer A NOTE 2 · `tests/e2e/vendor-refund-credit.spec.ts:355,357` — the credit form's `form-input-date` / `form-field-date-error` are found with `shownRefund` (same `filter({ visible: true })` as `shown`); a naming matter only.
+- revise 1 · reviewer A NOTE 4 · `tests/help-vendor-credits.test.ts`, `tests/help-vendor-refunds.test.ts` — no help test pins the new date-rule sentence ("Date the credit on or before that day.").
+- revise 1 · reviewer A NOTE 5 · `server/vendor_credits.go` `replaceVendorCredit` — the date check runs after the total and vendor refusals, so a correction that breaks two rules shows the date refusal only on the second Post (declared difference 3).
+- revise 1 · reviewer A NOTE 6 · `server/vendor_credits.go` refund-date query — writes the literal `'posted'`, not a bound `statusPosted`; the same literal is in 8 other server queries (`document_balance.go`, `cash_basis.go`, `cash_basis_tax.go`, `invoices.go`), so a rename would need one sweep.
 
 ## Out-of-plan changes
 - cp 1 · `tinycld/books/types.ts` — re-exports `BooksVendorRefunds`, `BooksVendorRefundLines`; the fixture and its test import them from `../types` (implementer part 1).
@@ -187,6 +191,15 @@
 - commit: 4346c259
 
 ## Final review
-- eval:
+- eval: revised 2026-11-18 → revise 1 (staging revise-1.md): cp1 NOTE 4 decided (a) — refuse a vendor credit correction dated after the earliest posted refund of that credit; cp1 NOTE 5 spec §4 audit LINES field text `refund`
 - human comments and what changed
+- revise 1 · findings file `cp/rev1-fix.md` (2 items: 1 cause spec-logic, 2 cause other: spec text)
+  - test writer: `server/vendor_credit_posting_test.go` (refused after the earliest posted refund, keyed `date`; same day, day before, void refund, draft refund allowed), `tests/e2e/vendor-refund-credit.spec.ts` (a correction dated after a posted refund is refused under Date); red for the right reason: yes (the refusal test and the e2e; the four allowed cases are guards, green before the change)
+  - implementer: `refuseCreditDatedAfterRefund` in `replaceVendorCredit` (`refunded > 0`, before `movePostedLines`, inside `serialized`), `refuseField("date", …)`; help sentences in `help/vendor-credits.md` and `help/vendor-refunds.md`; spec §3.9 rule, spec §4 and plan line 34 `LINES` row → `refund`. DONE. Declared differences: help sentence in vendor-refunds §"A draft refund on an edited vendor credit"; help names the field "Credit date" (the form label); the date check runs after the total and vendor checks; an unparsable correction date gets the shared day text. Disputes: none
+  - gate 1: tests unedited: yes · `go test ./...` pass · `packages:generate` + `tinycld-pkg check` pass · e2e `vendor-refund-credit.spec.ts vendor-credit-form.spec.ts` 8 passed
+  - gate 2: n/a (no shot changes; help and server only)
+  - gate 3 A: 0 BLOCK, 6 NOTE · NOTE 1 (out-of-plan files) all named by the revise · NOTE 3 = B 1 (fixed) · NOTEs 2, 4, 5, 6 → Design notes
+  - gate 3 B: script lines: 0 · finding 1 (the vendor-refunds help heading no longer describes its section) accepted → `cp/rev1-fix-2.md` item 1 (cause help-text) → heading renamed (implementer, DONE); `tinycld-pkg check` pass
+  - fix review: round 1: clean (`cp/rev1-fix-review.md`)
+  - deferrals: none · rebuttals: none · out-of-plan: none beyond the files the revise names
 - native: not executed in this run

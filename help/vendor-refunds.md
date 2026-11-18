@@ -56,7 +56,9 @@ A posted vendor refund opens in its read view: the vendor, the refund date, the 
 
 A saved edit draft whose original was voided or replaced since then opens with "This vendor refund cannot be edited". On "This vendor refund cannot be edited", the only action is Delete draft (⌘⌫).
 
-## A draft refund on an edited vendor credit
+## Edit a vendor credit that a refund names
+
+An edit of a vendor credit that a posted vendor refund names cannot move the credit date after that refund's date: Books refuses it under Credit date with, for example, "Vendor refund 1003 refunds this credit on Nov 15, 2026. Date the credit on or before that day." A draft or void refund does not hold the date.
 
 When you edit a posted vendor credit, its posted vendor refunds move to the edit, but a draft vendor refund stays on the original vendor credit, which becomes Void. Posting that draft is then refused with "Vendor credit 1002 is not open. Clear it to continue." To go on, clear that credit's row or delete the draft, then record the refund on the edited vendor credit.
 
