@@ -252,7 +252,10 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
     const accessRecovery: LiveRecovery = access.isError
         ? { queries: [access.collection], sources: [accessCollection] }
         : NO_RECOVERY
-    const retry = () => {
+    // `extra`: the recoveries of a read a screen part runs itself (a bill read view's credit
+    // applications), so that part's Retry and the screen's are one call over every failed
+    // read.
+    const retryWith = (extra: readonly LiveRecovery[]) => {
         void recoverLiveQueries({
             ...mergeRecoveries([
                 ...kindReads.map(read => read.recovery),
@@ -260,11 +263,13 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
                 accessRecovery,
                 settings.recovery,
                 attachments.recovery,
+                ...extra,
             ]),
             onError: err => log.error(`books.${documentKind.doc.key}`, err),
         })
         if (taxOptions.isError) taxOptions.retry()
     }
+    const retry = () => retryWith([])
 
     return {
         state,
@@ -286,6 +291,7 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         // number and status label the link row.
         invoiceSource,
         retry,
+        retryWith,
         attachments,
         canWrite: access.canWrite,
         currency: settings.settings?.currency ?? 'USD',

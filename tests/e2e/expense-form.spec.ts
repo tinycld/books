@@ -1200,7 +1200,7 @@ test.describe('expense-form: across Books', () => {
 const SAVE_REFUSAL = 'Books could not save this setting.'
 const ITEM_HEADING = 'Product and service details'
 const PURCHASE_LINES_NOTE =
-    'Which line tables new bills and expenses show. A form still shows a table its record already has lines in.'
+    'Which line tables new bills, expenses and vendor credits show. A form still shows a table its record already has lines in.'
 
 // Every line row of a table anywhere on the page, so a table that is not drawn counts 0.
 function anyLineRows(page: Page, table: 'account_lines' | 'item_lines') {
@@ -1233,10 +1233,12 @@ test.describe('expense-form: purchase lines setting', () => {
         const originalId = expenseIdFromUrl(page)
         await expect(page.getByTestId('expense-read-only')).toContainText(PATCH_CABLE)
 
-        // The card, the select and the note name bills and expenses.
+        // The card, the select and the note name bills, expenses and vendor credits.
         await openPurchasesSettings(page)
         await expect(
-            page.getByText('Bills and expenses', { exact: true }).filter({ visible: true })
+            page
+                .getByText('Bills, expenses and vendor credits', { exact: true })
+                .filter({ visible: true })
         ).toBeVisible()
         await expect(
             page.getByText('Purchase lines', { exact: true }).filter({ visible: true })

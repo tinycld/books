@@ -32,6 +32,7 @@ import type {
     BooksProducts,
     BooksSalesReceipts,
     BooksTaxRates,
+    BooksVendorCredits,
     BooksVendors,
 } from '../types'
 
@@ -108,6 +109,10 @@ export type ExpenseKindFields = { kind: 'expense' } & Pick<
     'vendor' | 'paid_from' | 'payment_method' | 'reference_no'
 >
 export type CreditMemoKindFields = { kind: 'credit_memo' } & Pick<BooksCreditMemos, 'invoice'>
+export type VendorCreditKindFields = { kind: 'vendor_credit' } & Pick<
+    BooksVendorCredits,
+    'vendor' | 'ref_no' | 'balance'
+>
 export type DocumentKindFields =
     | InvoiceKindFields
     | SalesReceiptKindFields
@@ -115,6 +120,7 @@ export type DocumentKindFields =
     | BillKindFields
     | ExpenseKindFields
     | CreditMemoKindFields
+    | VendorCreditKindFields
 
 // A header row without the people and the rate it names: the source of a correction or
 // a copy.
@@ -127,6 +133,8 @@ export type DocumentSource = SharedColumns & { kindFields: DocumentKindFields }
 // fields add the invoice that was made from it ("Converted to invoice <n>"). A bill's own
 // fields add its vendor's name and its open balance (Balance due, the badge). A credit
 // memo's own fields add the invoice it is for ("For invoice <n>") and its unapplied credit.
+// A vendor credit's own fields (its unapplied credit, `balance`, among them) add its
+// vendor's name.
 export type DocumentRecord = SharedColumns & {
     kindFields:
         | (InvoiceKindFields & {
@@ -153,6 +161,9 @@ export type DocumentRecord = SharedColumns & {
               invoiceRow: Pick<BooksInvoices, 'number' | 'status'> | undefined
               // The credit not yet applied, which the server keeps.
               balance: BooksCreditMemos['balance']
+          })
+        | (VendorCreditKindFields & {
+              vendorRow: Pick<BooksVendors, 'display_name'> | undefined
           })
     postedBy: Pick<Users, 'name'> | undefined
     voidedBy: Pick<Users, 'name'> | undefined
@@ -206,7 +217,7 @@ export function copyNeedsPartyRow(
 // default expense account (only then does the first account line start with it;
 // undefined without `?vendor`); for an expense, the same and the ids of the active bank
 // and credit card accounts (a copy keeps its source's Paid from only when it is one of
-// them).
+// them); for a vendor credit, the bill's.
 export type DocumentStart =
     | { kind: 'invoice' }
     | { kind: 'sales_receipt'; deposit: CopyDeposit }
@@ -219,6 +230,7 @@ export type DocumentStart =
           vendorAccountListed?: boolean
           activePaidFromIds: ReadonlySet<string>
       }
+    | { kind: 'vendor_credit'; purchaseLines: PurchaseLines; vendorAccountListed?: boolean }
 
 // What a kind's form starts from besides the document: its start input and the Deposit
 // to rule of its schema (none for an invoice).

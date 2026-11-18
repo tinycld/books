@@ -5,6 +5,7 @@ import {
     EXPENSE_MESSAGES,
     INVOICE_MESSAGES,
     SALES_RECEIPT_MESSAGES,
+    VENDOR_CREDIT_MESSAGES,
 } from './document-texts'
 import { TOO_LARGE_TEXT } from './entry-lines'
 import { formatMoney } from './money'
@@ -72,6 +73,8 @@ const ACCEPTED_DATE_REFUSAL = /^Enter the accepted date\b/
 // the duplicate vendor's bill no. ("%s already has bill no. %s (%s).").
 const VENDOR_REFUSAL = /is inactive\. Choose an active vendor\.?$/
 const DUPLICATE_REF_REFUSAL = / already has bill no\. .+ \(.+\)\.?$/
+// server/vendor_credits.go msgVendorCreditDuplicateRef ("%s already has credit no. %s (%s).").
+const DUPLICATE_CREDIT_REF_REFUSAL = / already has credit no\. .+ \(.+\)\.?$/
 // server/expenses.go msgExpensePaidFromType and msgExpensePaidFromInactive (a line's
 // "Account line n: … is inactive." text numbers a row and never reaches this test).
 const PAID_FROM_REFUSAL =
@@ -116,9 +119,9 @@ function isTableLineText(message: string, kind: Pick<SalesDocumentKind, 'lineTab
 // memo), only a credit memo has the invoice link row, only an invoice's correction is
 // refused for the credit memos that name it, only a sales receipt has Deposit to, only an
 // estimate has
-// Expiration date and Accepted date, only a bill has Vendor's bill no., only an expense
-// has Paid from and Ref no., and a kind whose party is a vendor has Vendor (and no
-// customer or tax).
+// Expiration date and Accepted date, only a bill has Vendor's bill no., only a vendor
+// credit has Vendor's credit no., only an expense has Paid from and Ref no., and a kind
+// whose party is a vendor has Vendor (and no customer or tax).
 export function documentRefusalTarget(
     message: string,
     kind: Pick<SalesDocumentKind, 'key' | 'party' | 'lineTables'>
@@ -137,6 +140,9 @@ function vendorKindRefusalTarget(
     if (VENDOR_REFUSAL.test(message)) return 'vendor'
     if (kind.key === 'bill') return billRefusalTarget(message) ?? 'root'
     if (kind.key === 'expense') return expenseRefusalTarget(message) ?? 'root'
+    if (kind.key === 'vendor_credit' && DUPLICATE_CREDIT_REF_REFUSAL.test(message)) {
+        return 'ref_no'
+    }
     return 'root'
 }
 
@@ -201,8 +207,10 @@ const TOTALS_REFUSALS = new Set<string>([
         ESTIMATE_MESSAGES,
         BILL_MESSAGES,
         EXPENSE_MESSAGES,
+        VENDOR_CREDIT_MESSAGES,
     ].flatMap(messages => [messages.totalNegative, messages.totalTooLarge]),
     EXPENSE_MESSAGES.totalZero,
+    VENDOR_CREDIT_MESSAGES.totalZero,
 ])
 
 const NO_TOTAL = '—'

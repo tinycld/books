@@ -100,6 +100,10 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 	if err != nil {
 		return search.Result{}, err
 	}
+	vendorCredits, vendorCreditTotal, err := searchSalesDocs(ctx, app, vendorCreditSearch, q.Include, q.Exclude, window)
+	if err != nil {
+		return search.Result{}, err
+	}
 	payments, paymentTotal, err := searchSalesDocs(ctx, app, paymentSearch, q.Include, q.Exclude, window)
 	if err != nil {
 		return search.Result{}, err
@@ -109,9 +113,9 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 		return search.Result{}, err
 	}
 	rows := interleave(accounts, entries, customers, vendors, products, invoices, receipts, creditMemos, estimates,
-		bills, expenses, payments, billPayments)
+		bills, expenses, vendorCredits, payments, billPayments)
 	total := accountTotal + entryTotal + customerTotal + vendorTotal + productTotal + invoiceTotal + receiptTotal +
-		creditMemoTotal + estimateTotal + billTotal + expenseTotal + paymentTotal + billPaymentTotal
+		creditMemoTotal + estimateTotal + billTotal + expenseTotal + vendorCreditTotal + paymentTotal + billPaymentTotal
 	return search.Result{Rows: page(rows, offset, limit), Total: total}, nil
 }
 
@@ -430,6 +434,15 @@ var expenseSearch = salesDocSearch{
 	partyField: "vendor", partyTable: "books_vendors", partyIdx: vendorsIndex,
 }
 
+// vendorCreditSearch names its vendor: "Vendor credit 1002 · Pacific Power" /
+// "Draft vendor credit · Pacific Power". A word matches the credit's number,
+// vendor's credit no. and memo, or the vendor's display name, company, email
+// and legal name.
+var vendorCreditSearch = salesDocSearch{
+	table: vendorCreditsCollection, index: vendorCreditsIndex, docType: docTypeVendorCredit, kind: "vendor_credit",
+	partyField: "vendor", partyTable: "books_vendors", partyIdx: vendorsIndex,
+}
+
 // paymentSearch names its customer: "Payment 1004 · Harborview Dental" /
 // "Draft payment · Harborview Dental". A word matches the payment's number,
 // reference no. and memo, or the customer's display name, company and email.
@@ -452,8 +465,8 @@ var billPaymentSearch = salesDocSearch{
 
 // salesDocTermMatch is true when one query word matches a document's own
 // index row (number, memo, message; a sales receipt's, an expense's, a
-// payment's and a bill payment's reference no. and a bill's vendor's bill no.
-// too) or its party's (a
+// payment's and a bill payment's reference no., a bill's vendor's bill no. and
+// a vendor credit's vendor's credit no. too) or its party's (a
 // customer's display name, company, email; a vendor's legal name too).
 // Reading the party's row at query time lets a renamed party find its
 // documents with no reindex. %[1]s is the bound word, %[2]s the document's

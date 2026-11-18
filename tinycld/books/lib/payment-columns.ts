@@ -78,6 +78,27 @@ export const BILL_PAYMENT_GRID_MIN_WIDTH = gridMinWidth(
     ]
 )
 
+// The vendor credit's apply dialog (vendor credit spec §3.9): Tick, Bill (with the vendor's
+// bill no. under it), Due date, Open balance, Credit to apply. No Vendor column (the bills
+// are the credit's vendor's) and no Bill total column; every data column takes one share.
+export const CREDIT_APPLY_COLUMNS = {
+    tick: 44,
+    bill: DATA_COLUMN,
+    dueDate: DATA_COLUMN,
+    open: DATA_COLUMN,
+    payment: DATA_COLUMN,
+} as const
+
+export const CREDIT_APPLY_GRID_MIN_WIDTH = gridMinWidth(
+    [CREDIT_APPLY_COLUMNS.tick],
+    [
+        CREDIT_APPLY_COLUMNS.bill,
+        CREDIT_APPLY_COLUMNS.dueDate,
+        CREDIT_APPLY_COLUMNS.open,
+        CREDIT_APPLY_COLUMNS.payment,
+    ]
+)
+
 // The bill payment read view's Bills paid grid (pay-bills spec §3.8): Bill, Vendor's bill
 // no., Due date, Bill total, Paid.
 export const BILL_PAYMENT_APPLIED_COLUMNS = {

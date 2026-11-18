@@ -37,7 +37,7 @@ import { nameOnDraftLine } from './journal-entries-helpers'
 // a unique name; it reads the seeded Old Mill Bakery and Northwind customers only. The
 // delete refusal is the server's own: another tab puts the customer on a line of a draft
 // journal entry, and deletes that draft before the delete that goes through. The last
-// step holds a delete through `page.route` while the user goes to the Lists hub.
+// test holds a delete through `page.route` while the user goes to the Lists hub.
 //
 // Not covered here: there is no 390 run, because the panel surface does not exist below
 // a 1360 px window (spec Surfaces: `panel` at 1360 px or more, `page` below). The phone
@@ -83,11 +83,19 @@ async function recordPlacement(page: Page) {
     }
 }
 
+// Each test starts at the customers list in a window wide enough for the panel. The
+// flows are separate tests because one test that ran them all took 20 to 27 s of its
+// 30 s budget, and went over it on a slow runner.
+async function openWideCustomers(page: Page) {
+    await login(page)
+    await navigateToPackage(page, 'books')
+    await page.setViewportSize(WIDE)
+    await openCustomersList(page)
+}
+
 test.describe('customer-form: side panel', () => {
     test('opens customers beside the list and survives a resize', async ({ page }) => {
-        await login(page)
-        await navigateToPackage(page, 'books')
-        await page.setViewportSize(WIDE)
+        await openWideCustomers(page)
         const panel = page.getByTestId('customer-panel')
         const customerPage = page.getByTestId('customer-page')
         const title = page.getByTestId('customer-title')
@@ -98,7 +106,6 @@ test.describe('customer-form: side panel', () => {
         const nameCell = page.getByTestId('form-field-display_name')
 
         // (1) No customer open: no panel, and the list spans the content area.
-        await openCustomersList(page)
         await expect(panel).toBeHidden()
         await expect.poll(() => listSpansContent(page)).toBe(true)
 
@@ -335,10 +342,17 @@ test.describe('customer-form: side panel', () => {
         await expect(showInactive).toHaveAttribute('aria-checked', 'false')
         await expect(customerEntry(page, OLD_MILL)).toHaveCount(0)
         await expect(panel).toBeVisible()
+    })
 
-        // (13) The open, dirty customer deleted from its page's More menu: the dialog warns
-        // of the unsaved changes, a refusal keeps the page and its typed notes, and the
-        // delete leaves the page with no second question and no not-found.
+    // The open, dirty customer deleted from its page's More menu: the dialog warns of the
+    // unsaved changes, a refusal keeps the page and its typed notes, and the delete leaves
+    // the page with no second question and no not-found.
+    test('deletes the open, dirty customer from its More menu', async ({ page }) => {
+        await openWideCustomers(page)
+        const panel = page.getByTestId('customer-panel')
+        const title = page.getByTestId('customer-title')
+        const dialog = discardDialog(page)
+        const prefix = uniqueName(`Panel delete ${viewportName(page)}`)
         const nameD = `${prefix} D`
         const typedNotes = `${prefix} notes`
         const notesInput = page.getByTestId('customer-notes-input')
@@ -388,19 +402,24 @@ test.describe('customer-form: side panel', () => {
         await searchCustomers(page, nameD)
         await expect(customerEntry(page, nameD)).toHaveCount(0)
         expect(await seenNotFoundOrDiscard(page)).toEqual({ notFound: false, discard: false })
+    })
 
-        // (14) The delete's follow-up acts only while the user still sees that customer: a
-        // delete of the open customer that lands after the user went on to the Lists hub
-        // leaves them there.
-        const nameE = `${prefix} E`
+    // The delete's follow-up acts only while the user still sees that customer: a delete of
+    // the open customer that lands after the user went on to the Lists hub leaves them
+    // there.
+    test('a delete that lands after the user left keeps them on the Lists hub', async ({
+        page,
+    }) => {
+        await openWideCustomers(page)
+        const nameE = `${uniqueName(`Panel held ${viewportName(page)}`)} E`
         await createCustomer(page, { name: nameE })
-        await expect(panel).toBeVisible()
+        await expect(page.getByTestId('customer-panel')).toBeVisible()
         const idE = openCustomerId(page)
         const heldDelete = await holdRecordWrite(page, idE, 'DELETE')
         await page.getByTestId('customer-more').click()
         await page.getByTestId('customer-more-delete').click()
-        await expect(deleteDialog).toBeVisible()
-        await deleteConfirm.click()
+        await expect(page.getByTestId('delete-customer-dialog')).toBeVisible()
+        await page.getByTestId('delete-customer-confirm').click()
         await heldDelete.arrived
         await jumpToBooksLists(page)
         const deleted = page.waitForResponse(

@@ -90,6 +90,13 @@ export const NEW_ACTIONS: NewAction[] = [
         available: true,
     },
     {
+        id: 'vendor_credit',
+        label: 'Vendor credit',
+        href: 'books/vendor-credits/new',
+        column: 'vendors',
+        available: true,
+    },
+    {
         id: 'journal-entry',
         label: 'Journal entry',
         href: 'books/entries/new',

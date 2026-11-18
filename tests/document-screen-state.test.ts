@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
     BILL_DOCUMENT,
     EXPENSE_DOCUMENT,
+    VENDOR_CREDIT_DOCUMENT,
 } from '../tinycld/books/components/documents/document-kinds'
 import type { DocumentScreenInput } from '../tinycld/books/hooks/document-data'
 import { useDocumentScreen } from '../tinycld/books/hooks/useDocumentScreen'
@@ -21,7 +22,13 @@ import {
     CREDIT_MEMO_KIND,
     EXPENSE_KIND,
     SALES_RECEIPT_KIND,
+    VENDOR_CREDIT_KIND,
 } from '../tinycld/books/lib/sales-document-kinds'
+import {
+    VENDOR_CREDIT_IDS,
+    VENDOR_CREDIT_LINES,
+    VENDOR_CREDITS,
+} from '../tinycld/books/lib/vendor-credit-form-fixture'
 import { VENDOR_IDS, VENDORS } from '../tinycld/books/lib/vendor-form-fixture'
 import type {
     BooksBillLines,
@@ -32,6 +39,8 @@ import type {
     BooksExpenses,
     BooksProducts,
     BooksSettings,
+    BooksVendorCreditLines,
+    BooksVendorCredits,
     BooksVendors,
 } from '../tinycld/books/types'
 import {
@@ -937,5 +946,197 @@ describe('useDocumentScreen(EXPENSE_DOCUMENT)', () => {
         expect(start.activePaidFromIds.has(paidFromId('1000'))).toBe(true)
         expect(start.activePaidFromIds.has(paidFromId('2100'))).toBe(true)
         expect(start.activePaidFromIds.has('acct_ar_00001')).toBe(false)
+    })
+})
+
+// The vendor credit's states (vendor credit spec §3.7) and the texts its screen shows for
+// them.
+describe('documentScreenState for a vendor credit', () => {
+    // Read inside each test, so a missing kind fails those tests and not the file.
+    const texts = () => VENDOR_CREDIT_KIND.messages
+
+    it('a non-writer at books/vendor-credits/new gets no-access with the vendor credit text', () => {
+        expect(documentScreenState({ ...NEW, canWrite: false })).toBe('no-access')
+        expect(texts().noAccess).toBe('You need bookkeeper access to create vendor credits')
+    })
+
+    it('an id with no row is not-found with the vendor credit text', () => {
+        expect(documentScreenState({ ...DRAFT, status: null })).toBe('not-found')
+        expect(texts().notFound).toBe('This vendor credit does not exist')
+    })
+
+    it('a correction of a draft cannot be edited, with the vendor credit text', () => {
+        expect(documentScreenState({ ...NEW, replacesStatus: 'draft' })).toBe('cannot-edit')
+        expect(texts().cannotEdit).toBe('This vendor credit cannot be edited')
+    })
+
+    it('a failed load is the error with the vendor credit text', () => {
+        expect(documentScreenState({ ...DRAFT, isError: true })).toBe('error')
+        expect(texts().loadFailed).toBe('Books could not load this vendor credit.')
+    })
+
+    it('posts: the vendor credit kind has the posting lifecycle', () => {
+        expect(VENDOR_CREDIT_KIND.lifecycle).toBe('posting')
+        expect(VENDOR_CREDIT_DOCUMENT.doc).toBe(VENDOR_CREDIT_KIND)
+    })
+})
+
+// The vendor credit screen's reads over the harness's real collections (vendor credit
+// spec §3.7, §4 Client reads): each failing read is the error state with the vendor
+// credit's text, and Retry recovers exactly it.
+describe('useDocumentScreen(VENDOR_CREDIT_DOCUMENT)', () => {
+    const accountId = (number: string) => `acc-${number}`
+
+    const CREDIT_ROWS: BooksVendorCredits[] = VENDOR_CREDITS
+    const LINE_ROWS: BooksVendorCreditLines[] = VENDOR_CREDIT_LINES.map(
+        ({ account_number, ...line }) => ({
+            ...line,
+            account: account_number ? accountId(account_number) : '',
+        })
+    )
+    const VENDOR_ROWS: BooksVendors[] = VENDORS.map(({ expense_account_number, ...vendor }) => ({
+        ...vendor,
+        expense_account: expense_account_number ? accountId(expense_account_number) : '',
+        name_key: '',
+        sort_key: '',
+    }))
+    const NO_PRODUCTS: BooksProducts[] = []
+
+    type Refusals = {
+        credit?: string
+        lines?: string
+        vendor?: string
+    }
+
+    function seed(
+        opts: { level?: 'read_only' | 'bookkeeper' } & Refusals & {
+                settingsFailsOnce?: boolean
+                purchaseLines?: BooksSettings['purchase_lines']
+            } = {}
+    ) {
+        const settings = { ...SETTINGS, purchase_lines: opts.purchaseLines ?? 'both' }
+        seedBooks({
+            level: opts.level,
+            settingsFailsOnce: opts.settingsFailsOnce,
+            ledger: { lines: [], entries: [], balances: [], settings: [settings] },
+        })
+        const credits = onDemandStore<BooksVendorCredits>(
+            'books_vendor_credits',
+            CREDIT_ROWS,
+            opts.credit
+        )
+        const lines = onDemandStore<BooksVendorCreditLines>(
+            'books_vendor_credit_lines',
+            LINE_ROWS,
+            opts.lines === undefined ? undefined : { field: 'vendor_credit', value: opts.lines }
+        )
+        const vendors = onDemandStore<BooksVendors>('books_vendors', VENDOR_ROWS, opts.vendor)
+        onDemandStore<BooksProducts>('books_products', NO_PRODUCTS)
+        return { credits, lines, vendors }
+    }
+
+    function renderScreen(input: DocumentScreenInput) {
+        return renderHook(() => useDocumentScreen(VENDOR_CREDIT_DOCUMENT, input))
+    }
+
+    const draftId = VENDOR_CREDIT_IDS.draft
+    const postedId = VENDOR_CREDIT_IDS.unapplied
+    const draftVendor = VENDOR_CREDITS.find(row => row.id === draftId)?.vendor ?? ''
+    const postedVendor = VENDOR_CREDITS.find(row => row.id === postedId)?.vendor ?? ''
+
+    it('opens a writer’s draft in the form and a posted credit in the read view', async () => {
+        seed()
+        const draft = renderScreen({ id: draftId })
+        await waitFor(() => expect(draft.result.current.state).toBe('form'))
+        const posted = renderScreen({ id: postedId })
+        await waitFor(() => expect(posted.result.current.state).toBe('read'))
+    })
+
+    it('gives a non-writer at new the no-access state', async () => {
+        seed({ level: 'read_only' })
+        const hook = renderScreen({ id: null })
+        await waitFor(() => expect(hook.result.current.state).toBe('no-access'))
+    })
+
+    it('gives a missing id the not-found state', async () => {
+        seed()
+        const hook = renderScreen({ id: 'vcrdmissing0001' })
+        await waitFor(() => expect(hook.result.current.state).toBe('not-found'))
+    })
+
+    it('gives ?replaces of a draft the cannot-edit state', async () => {
+        seed()
+        const hook = renderScreen({ id: null, replaces: draftId })
+        await waitFor(() => expect(hook.result.current.state).toBe('cannot-edit'))
+    })
+
+    it('shows a refused read of the credit as the error, and Retry recovers it', async () => {
+        const { credits } = seed({ credit: draftId })
+        expectLiveQueryError(credits.id)
+        const hook = renderScreen({ id: draftId })
+        await waitFor(() => expect(hook.result.current.state).toBe('error'))
+        expect(hook.result.current.errorText).toBe('Books could not load this vendor credit.')
+        act(() => hook.result.current.retry())
+        await waitFor(() => expect(hook.result.current.state).toBe('form'))
+        expect(hook.result.current.record?.id).toBe(draftId)
+    })
+
+    it('shows a refused read of the credit’s lines as the error, and Retry recovers it', async () => {
+        const { lines } = seed({ lines: draftId })
+        expectLiveQueryError(lines.id)
+        const hook = renderScreen({ id: draftId })
+        await waitFor(() => expect(hook.result.current.state).toBe('error'))
+        act(() => hook.result.current.retry())
+        await waitFor(() => expect(hook.result.current.state).toBe('form'))
+        expect(hook.result.current.lines?.map(line => line.id)).toEqual(
+            LINE_ROWS.filter(line => line.vendor_credit === draftId).map(line => line.id)
+        )
+    })
+
+    it('shows a refused read of the vendor as the error, and Retry recovers it', async () => {
+        const { vendors } = seed({ vendor: draftVendor })
+        expectLiveQueryError(vendors.id)
+        const hook = renderScreen({ id: draftId })
+        await waitFor(() => expect(hook.result.current.state).toBe('error'))
+        act(() => hook.result.current.retry())
+        await waitFor(() => expect(hook.result.current.state).toBe('form'))
+        expect(hook.result.current.party?.id).toBe(draftVendor)
+    })
+
+    it('shows a refused read of the ?copy source as the error, and Retry recovers it', async () => {
+        const { credits } = seed({ credit: postedId })
+        expectLiveQueryError(credits.id)
+        const hook = renderScreen({ id: null, copy: postedId })
+        await waitFor(() => expect(hook.result.current.state).toBe('error'))
+        act(() => hook.result.current.retry())
+        await waitFor(() => expect(hook.result.current.state).toBe('form'))
+        expect(hook.result.current.startValues).toMatchObject({ vendor: postedVendor, ref_no: '' })
+    })
+
+    it('shows a refused read of the ?replaces source as the error, and Retry recovers it', async () => {
+        const { credits } = seed({ credit: postedId })
+        expectLiveQueryError(credits.id)
+        const hook = renderScreen({ id: null, replaces: postedId })
+        await waitFor(() => expect(hook.result.current.state).toBe('error'))
+        act(() => hook.result.current.retry())
+        await waitFor(() => expect(hook.result.current.state).toBe('form'))
+        expect(hook.result.current.startValues).toMatchObject({
+            vendor: postedVendor,
+            replaces: postedId,
+            ref_no: 'CM-8841',
+        })
+    })
+
+    it('shows a refused settings read as the error, and Retry recovers it', async () => {
+        seed({ settingsFailsOnce: true, purchaseLines: 'products' })
+        expectLiveQueryError(settingsStore().id)
+        const hook = renderScreen({ id: null })
+        await waitFor(() => expect(hook.result.current.state).toBe('error'))
+        act(() => hook.result.current.retry())
+        await waitFor(() => expect(hook.result.current.state).toBe('form'))
+        expect(hook.result.current.start).toMatchObject({
+            kind: 'vendor_credit',
+            purchaseLines: 'products',
+        })
     })
 })

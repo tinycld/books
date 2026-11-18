@@ -3,6 +3,7 @@ import { accountItem, DESKTOP, isPhone, openChart } from './account-register-hel
 import { openBooksMenu } from './books-report-helpers'
 import { lineCellTestId } from './invoice-helpers'
 import { openEntriesList } from './journal-entries-helpers'
+import { pickFromSearchPicker } from './search-picker-helpers'
 
 // A sales receipt's own screen: `books/sales-receipts/<id>`, never `.../new`.
 export const SALES_RECEIPT_URL = /\/books\/sales-receipts\/(?!new(?:[?#]|$))[^/?#]+$/
@@ -31,19 +32,6 @@ export async function openNewSalesReceipt(page: Page) {
     await page.getByTestId('books-new-sales-receipt').click()
     await expect(page).toHaveURL(NEW_SALES_RECEIPT_URL)
     await expect(page.getByTestId('sales-receipt-title')).toHaveText('New sales receipt')
-}
-
-// A Books SearchPicker: the trigger opens a menu whose search field takes the term, and
-// each option is a menu item named by its label.
-async function pickFromSearchPicker(page: Page, triggerTestId: string, label: string) {
-    const trigger = page.getByTestId(triggerTestId)
-    await trigger.click()
-    const search = page.getByTestId(`${triggerTestId}-search`)
-    await expect(search).toBeFocused()
-    await search.fill(label)
-    await page.getByRole('menuitem', { name: label, exact: true }).click()
-    await expect(page.getByRole('menuitem', { name: label, exact: true })).toHaveCount(0)
-    await expect(trigger).toContainText(label)
 }
 
 export async function pickReceiptCustomer(page: Page, name: string) {

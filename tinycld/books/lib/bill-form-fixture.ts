@@ -23,9 +23,9 @@ import { PURCHASE_LINES_LABELS, type PurchaseLines } from './purchase-lines'
 import { SEED_ACCOUNTS } from './seed-accounts'
 import { VENDOR_IDS, VENDORS } from './vendor-form-fixture'
 
-// Settings → Purchases → Bills and expenses → "Purchase lines" (expense form spec
-// §3.10), and the account types an account line may charge (spec §3.4), from the
-// modules the bill form reads.
+// Settings → Purchases → Bills, expenses and vendor credits → "Purchase lines" (expense
+// form spec §3.10, vendor credit spec §3.8), and the account types an account line may
+// charge (spec §3.4), from the modules the bill form reads.
 export { PURCHASE_ACCOUNT_TYPES, PURCHASE_LINES_LABELS, type PurchaseLines }
 
 export const BILL_CURRENCY = 'USD'

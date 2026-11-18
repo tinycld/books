@@ -39,6 +39,11 @@ export type DocumentFormScope = {
     // and on every other kind), its link label ("For invoice <n>", with "(void)" on a void
     // one; '' until the invoice is read), and Remove link (the link row, a customer pick).
     invoiceLink: { id: string; label: string; remove: () => void }
+    // The definition's description of each field whose host component draws its own hint
+    // (SELF_HINTED_FIELDS), by field key: the form drops it from the cell, so the component
+    // reads it here. A field whose stored description is empty gets the host layout's
+    // default; a field with neither has no entry.
+    hints: Readonly<Record<string, string>>
 }
 
 export const DocumentFormContext = createContext<DocumentFormScope | null>(null)
@@ -59,6 +64,7 @@ const EMPTY_SCOPE: DocumentFormScope = {
     estimateNumber: '',
     estimateId: '',
     invoiceLink: { id: '', label: '', remove: () => {} },
+    hints: {},
 }
 
 export function useDocumentFormScope(): DocumentFormScope {

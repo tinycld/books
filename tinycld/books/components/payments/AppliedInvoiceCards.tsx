@@ -5,6 +5,7 @@ import {
     cardDocumentLabel,
     type OutstandingDocument,
     outstandingTexts,
+    totalTexts,
 } from '../../lib/outstanding-documents'
 import { formatDay } from '../../lib/register-range'
 import { CARD, CardPair } from './OutstandingCards'
@@ -27,6 +28,7 @@ function AppliedCard({
     testIdPrefix,
 }: Omit<AppliedCardsProps, 'rows' | 'total'> & { row: AppliedDocumentRow }) {
     const texts = outstandingTexts(doc)
+    const totalLabel = totalTexts(doc).card
     const label = cardDocumentLabel(doc, row)
     const due = row.dueDate ? `Due ${formatDay(row.dueDate)}` : ''
     const original = formatMoney(row.total, currency)
@@ -41,7 +43,7 @@ function AppliedCard({
             />
             <Text className="text-sm text-foreground">{due}</Text>
             <View className="flex-row gap-3">
-                <CardPair label={texts.totalCard} value={original} />
+                <CardPair label={totalLabel} value={original} />
                 <CardPair label={texts.appliedLabel} value={applied} />
             </View>
         </View>

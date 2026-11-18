@@ -11,6 +11,7 @@ import {
     payAll,
     spreadAmount,
     tickRow,
+    tickRowCapped,
     toggleRow,
     typeRowPayment,
     untickRow,
@@ -193,6 +194,65 @@ describe('filterRowsByNumber', () => {
         expect(ids(shown)).toEqual([OPEN.id])
         expect(payments).toEqual(before)
         expect(amountToApply(payments, USD)).toBe(48_000 + 1_234_567_890)
+    })
+})
+
+// The apply dialog of a vendor credit (vendor credit spec §3.9): ticking a row sets it to
+// the lesser of its open balance and the credit not yet placed; with nothing left the row
+// stays unticked. tickRow (receive payment, Pay Bills) keeps paying the open balance.
+describe('tickRowCapped', () => {
+    const SMALL_BILL: OutstandingRow = {
+        id: 'billsmall000001',
+        number: '1003',
+        date: '2026-11-01',
+        due_date: '2026-11-20',
+        total: 3_000,
+        open: 3_000,
+    }
+    const BIG_BILL: OutstandingRow = {
+        id: 'billbig00000001',
+        number: '1004',
+        date: '2026-11-02',
+        due_date: '2026-12-02',
+        total: 10_000,
+        open: 10_000,
+    }
+
+    it('sets the row to its open balance when more credit is left', () => {
+        expect(centsById(tickRowCapped({}, SMALL_BILL, 5_000, USD))).toEqual({
+            [SMALL_BILL.id]: 3_000,
+        })
+    })
+
+    it('sets the row to the credit left when that is smaller', () => {
+        expect(centsById(tickRowCapped({}, BIG_BILL, 2_000, USD))).toEqual({
+            [BIG_BILL.id]: 2_000,
+        })
+    })
+
+    it('leaves the row unticked when no credit is left', () => {
+        const others = tickRow({}, SMALL_BILL)
+        const result = tickRowCapped(others, BIG_BILL, 0, USD)
+        expect(result[BIG_BILL.id]).toBeUndefined()
+        expect(centsById(result)).toEqual({ [SMALL_BILL.id]: 3_000 })
+    })
+
+    it('keeps the other rows and each entry’s open balance and number', () => {
+        const others = tickRow({}, SMALL_BILL)
+        const result = tickRowCapped(others, BIG_BILL, 2_000, USD)
+        expect(centsById(result)).toEqual({ [SMALL_BILL.id]: 3_000, [BIG_BILL.id]: 2_000 })
+        expect(result[BIG_BILL.id]).toMatchObject({ open: 10_000, number: '1004' })
+    })
+
+    it('leaves tickRow paying the open balance, whatever is left', () => {
+        expect(centsById(tickRow({}, BIG_BILL))).toEqual({ [BIG_BILL.id]: 10_000 })
+    })
+
+    it('spreadAmount puts $50.00 on bills of $30.00 and $100.00 as $30.00 and $20.00', () => {
+        expect(centsById(spreadAmount([SMALL_BILL, BIG_BILL], 5_000))).toEqual({
+            [SMALL_BILL.id]: 3_000,
+            [BIG_BILL.id]: 2_000,
+        })
     })
 })
 

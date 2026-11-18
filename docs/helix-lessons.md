@@ -60,3 +60,4 @@
 - Start `page.waitForResponse` before the action and await the promise after it; a helper that returns the wait is never awaited before the press. — sales-lists, retro, p2-sales-lists
 - A lib module that an e2e helper imports stays free of React Native and icon imports; run the helper's import in Node once before the first e2e run. — sales-lists, retro, p2-sales-lists
 - A data-entry form asks before ANY navigation away while dirty (core `useLeaveGuard` + its Discard dialog, as `RecordChild` does), never only on Cancel; a new navigation path (a list key, a row beside the form) then needs no guard of its own. — sales-lists, human, eval revise 1
+- A core Menu item holds its key hint in its accessible name ("Void v"): match it with a pattern. Copy and Edit replace the read view, so Cancel goes below it. A forced read error needs a fresh page: a row already in the store sends no GET (credit-memo-form.spec.ts:333). — vendor-credit-form, retro, p3-vendor-credit

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { documentTotals } from '../tinycld/books/lib/document-lines'
 import { bigFigureText } from '../tinycld/books/lib/document-messages'
-import { CREDIT_MEMO_MESSAGES } from '../tinycld/books/lib/document-texts'
+import { CREDIT_MEMO_MESSAGES, VENDOR_CREDIT_MESSAGES } from '../tinycld/books/lib/document-texts'
 import { maxLineAmount } from '../tinycld/books/lib/money-text'
 import {
     BILL_KIND,
@@ -15,6 +15,7 @@ import {
     SALES_FEATURES,
     SALES_LINE_TABLES,
     SALES_RECEIPT_KIND,
+    VENDOR_CREDIT_KIND,
 } from '../tinycld/books/lib/sales-document-kinds'
 
 // The layer per kind (spec §3.1; plan Decisions "TS names"): the party, the line tables
@@ -42,7 +43,7 @@ describe('the sales kinds: party, line tables and features', () => {
 
 // Attachments (attachments spec §2): only the bill and the expense keep files.
 describe('features.attachments', () => {
-    for (const kind of [BILL_KIND, EXPENSE_KIND]) {
+    for (const kind of [BILL_KIND, EXPENSE_KIND, VENDOR_CREDIT_KIND]) {
         it(`is on for ${kind.key}`, () => {
             expect(kind.features.attachments).toBe(true)
         })
@@ -282,6 +283,47 @@ describe('CREDIT_MEMO_KIND', () => {
     it('names its PDF credit-memo-<number>, or draft-credit-memo before a number', () => {
         expect(CREDIT_MEMO_KIND.pdfStem('1001')).toBe('credit-memo-1001')
         expect(CREDIT_MEMO_KIND.pdfStem('')).toBe('draft-credit-memo')
+    })
+})
+
+// The vendor credit kind (vendor credit plan, Decisions "TS names"; spec §3.1-§3.5).
+describe('VENDOR_CREDIT_KIND', () => {
+    it('has the values of the Decisions', () => {
+        expect(VENDOR_CREDIT_KIND.key).toBe('vendor_credit')
+        expect(VENDOR_CREDIT_KIND.lifecycle).toBe('posting')
+        expect(VENDOR_CREDIT_KIND.hostKey).toBe('books:vendor_credit')
+        expect(VENDOR_CREDIT_KIND.testId).toBe('vendor-credit')
+        expect(VENDOR_CREDIT_KIND.routeBase).toBe('books/vendor-credits')
+        expect(VENDOR_CREDIT_KIND.noun).toBe('Vendor credit')
+        expect(VENDOR_CREDIT_KIND.thisNoun).toBe('This vendor credit')
+        expect(VENDOR_CREDIT_KIND.draftTitle).toBe('Draft vendor credit')
+        expect(VENDOR_CREDIT_KIND.newTitle).toBe('New vendor credit')
+        expect(VENDOR_CREDIT_KIND.shortcutGroup).toBe('Vendor credit')
+        expect(VENDOR_CREDIT_KIND.figure).toEqual({
+            label: 'Credit amount',
+            testId: 'credit-amount',
+        })
+        expect(VENDOR_CREDIT_KIND.lastTotal).toBeNull()
+        expect(VENDOR_CREDIT_KIND.customerRequired).toBe(true)
+        expect(VENDOR_CREDIT_KIND.noteHints).toEqual({ message: '', memo: MEMO_HINT })
+        expect(VENDOR_CREDIT_KIND.messages).toBe(VENDOR_CREDIT_MESSAGES)
+        expect(VENDOR_CREDIT_KIND.bandSplitAt).toBeNull()
+        expect(VENDOR_CREDIT_KIND.helpTopic).toBe('books:vendor-credits')
+        expect(VENDOR_CREDIT_KIND.party).toBe('vendor')
+        expect(VENDOR_CREDIT_KIND.lineTables).toBe(PURCHASE_LINE_TABLES)
+        expect(VENDOR_CREDIT_KIND.keepsEmptyLinesOnRefusal).toBe(true)
+    })
+
+    // Spec §3.1: no tabs, no PDF, no email, no address; attachments as on the bill.
+    it('has no tax, message, email, PDF or party address, and keeps attachments', () => {
+        expect(VENDOR_CREDIT_KIND.features).toEqual({
+            tax: false,
+            message: false,
+            email: false,
+            pdf: false,
+            partyAddress: false,
+            attachments: true,
+        })
     })
 })
 

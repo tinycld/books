@@ -32,11 +32,16 @@ const msgVendorOnBills = "%s is on bills. Make it inactive instead."
 // otherwise clear it and the expense would lose its vendor silently.
 const msgVendorOnExpenses = "%s is on expenses. Make it inactive instead."
 
+// msgVendorOnVendorCredits refuses deleting a vendor that a vendor credit,
+// draft, posted or void, names. The credit's vendor is a required relation,
+// so PocketBase would refuse the delete with a generic reference error.
+const msgVendorOnVendorCredits = "%s is on vendor credits. Make it inactive instead."
+
 // The vendor guard reads other vendors and the expense account inside
 // serialized, so no other write can commit between the check and the write
-// it allows. The delete guard counts the bills, the expenses and the journal
-// lines that name the vendor inside serialized, so no bill, expense or line
-// write can commit between the count and the delete.
+// it allows. The delete guard counts the bills, the expenses, the vendor
+// credits and the journal lines that name the vendor inside serialized, so no
+// document or line write can commit between the count and the delete.
 func registerVendorGuard(app core.App) {
 	bindSerializedGuard(app, "books_vendors", validateVendor)
 	app.OnRecordDelete("books_vendors").BindFunc(func(e *core.RecordEvent) error {
@@ -46,9 +51,9 @@ func registerVendorGuard(app core.App) {
 	})
 }
 
-// checkVendorDelete counts the vendor's bills, then its expenses, before its
-// journal lines: a posted bill's or expense's entry names the vendor on every
-// line, and the document text says what holds the vendor.
+// checkVendorDelete counts the vendor's bills, then its expenses, then its
+// vendor credits, before its journal lines: a posted document's entry names
+// the vendor on every line, and the document text says what holds the vendor.
 func checkVendorDelete(tx core.App, vendor *core.Record) error {
 	bills, err := tx.CountRecords(billKind.Collection, dbx.HashExp{"vendor": vendor.Id})
 	if err != nil {
@@ -63,6 +68,13 @@ func checkVendorDelete(tx core.App, vendor *core.Record) error {
 	}
 	if expenses > 0 {
 		return refuseNamed(msgVendorOnExpenses, vendor.GetString("display_name"))
+	}
+	credits, err := tx.CountRecords(vendorCreditsCollection, dbx.HashExp{"vendor": vendor.Id})
+	if err != nil {
+		return fmt.Errorf("books: count the vendor credits of vendor %s: %w", vendor.Id, err)
+	}
+	if credits > 0 {
+		return refuseNamed(msgVendorOnVendorCredits, vendor.GetString("display_name"))
 	}
 	return refusePartyOnLines(tx, "vendor", vendor)
 }

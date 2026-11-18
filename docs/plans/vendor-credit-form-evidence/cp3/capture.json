@@ -1,0 +1,248 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "new",
+            "url": "/a/books/vendor-credits/new",
+            "ready": "vendor-credit-form",
+            "hideLabels": ["New"],
+            "height": 1300
+        },
+        {
+            "name": "draft",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1300,
+            "actions": [
+                { "press": "/" },
+                { "type": "confirm the cable count" },
+                { "clickOption": "^Draft vendor credit · Office Supply World" },
+                { "waitFor": "vendor-credit-form" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "draft-phone",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 2000,
+            "actions": [
+                { "press": "/" },
+                { "type": "confirm the cable count" },
+                { "clickOption": "^Draft vendor credit · Office Supply World" },
+                { "waitFor": "vendor-credit-form" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "correction",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1500,
+            "actions": [
+                { "press": "/" },
+                { "type": "Meter 4471" },
+                { "clickOption": "^Vendor credit \\d+ · Pacific Power" },
+                { "waitFor": "vendor-credit-read-only" },
+                { "pushPath": "/a/books/vendor-credits/new?replaces=$urlId" },
+                { "waitFor": "vendor-credit-replace-note" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "correction-phone",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 2600,
+            "actions": [
+                { "press": "/" },
+                { "type": "Meter 4471" },
+                { "clickOption": "^Vendor credit \\d+ · Pacific Power" },
+                { "waitFor": "vendor-credit-read-only" },
+                { "pushPath": "/a/books/vendor-credits/new?replaces=$urlId" },
+                { "waitFor": "vendor-credit-replace-note" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "errors",
+            "url": "/a/books/vendor-credits/new",
+            "ready": "vendor-credit-form",
+            "hideLabels": ["New"],
+            "height": 1500,
+            "actions": [
+                { "click": "vendor-credit-post" },
+                { "waitFor": "form-field-vendor-error" },
+                { "click": "vendor-credit-title" },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "posted",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                { "press": "/" },
+                { "type": "Meter 4471" },
+                { "clickOption": "^Vendor credit \\d+ · Pacific Power" },
+                { "waitFor": "vendor-credit-read-only" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "partly",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [1280],
+            "height": 1500,
+            "actions": [
+                { "press": "/" },
+                { "type": "RMA 5521" },
+                { "clickOption": "^Vendor credit \\d+ · Ironclad Equipment Rentals" },
+                { "waitFor": "vendor-credit-read-only" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "partly-phone",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "height": 2400,
+            "actions": [
+                { "press": "/" },
+                { "type": "RMA 5521" },
+                { "clickOption": "^Vendor credit \\d+ · Ironclad Equipment Rentals" },
+                { "waitFor": "vendor-credit-read-only" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "phone-more",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "widths": [390],
+            "actions": [
+                { "press": "/" },
+                { "type": "RMA 5521" },
+                { "clickOption": "^Vendor credit \\d+ · Ironclad Equipment Rentals" },
+                { "waitFor": "vendor-credit-read-only" },
+                { "click": "vendor-credit-read-more" },
+                { "waitFor": "vendor-credit-read-void" }
+            ],
+            "stable": "vendor-credit-read-void"
+        },
+        {
+            "name": "void",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "height": 1300,
+            "actions": [
+                { "press": "/" },
+                { "type": "Entered for the wrong vendor" },
+                { "clickOption": "^Vendor credit \\d+( \\(void\\))? · Summit IT Services" },
+                { "waitFor": "vendor-credit-read-only" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "reader",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New", "Reconnecting…"],
+            "widths": [1280],
+            "height": 1500,
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                { "press": "/" },
+                { "type": "RMA 5521" },
+                { "clickOption": "^Vendor credit \\d+ · Ironclad Equipment Rentals" },
+                { "waitFor": "vendor-credit-read-only" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "no-access",
+            "url": "/a/books/vendor-credits/new",
+            "ready": "vendor-credit-no-access",
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "not-found",
+            "url": "/a/books/vendor-credits/doesnotexist000",
+            "ready": "vendor-credit-not-found",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "cannot-edit",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "hideLabels": ["New"],
+            "actions": [
+                { "press": "/" },
+                { "type": "Entered for the wrong vendor" },
+                { "clickOption": "^Vendor credit \\d+( \\(void\\))? · Summit IT Services" },
+                { "waitFor": "vendor-credit-read-only" },
+                { "pushPath": "/a/books/vendor-credits/new?replaces=$urlId" },
+                { "waitFor": "vendor-credit-cannot-edit" }
+            ]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/vendor-credits/doesnotexist000",
+            "ready": "vendor-credit-loading",
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": { "collection": "books_vendor_credits", "hold": true }
+        },
+        {
+            "name": "error",
+            "url": "/a/books/vendor-credits/doesnotexist000",
+            "ready": "vendor-credit-error",
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": { "collection": "books_vendor_credits", "status": 400 }
+        }
+    ]
+}

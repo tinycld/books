@@ -28,7 +28,9 @@ const attachmentsURL = "/api/collections/books_attachments/records"
 // of wording fails this file too. Each ends with a period, so PocketBase adds
 // none.
 const (
-	wantAttachmentOneParent  = "An attachment belongs to one bill or one expense."
+	wantAttachmentOneParent  = "An attachment belongs to one bill, one expense or one vendor credit."
+	wantAttachmentVCVoid     = "This vendor credit is void. Its attachments can't change."
+	wantAttachmentVCLimit    = "A vendor credit holds at most 25 attachments."
 	wantAttachmentBillVoid   = "This bill is void. Its attachments can't change."
 	wantAttachmentExpVoid    = "This expense is void. Its attachments can't change."
 	wantAttachmentBillLimit  = "A bill holds at most 25 attachments."
@@ -869,4 +871,119 @@ func TestRace_TwoAttachmentsAddedToABillHolding24(t *testing.T) {
 	}
 	requireRefused(t, racing(), wantAttachmentBillLimit)
 	requireAttachmentCount(t, ae.app, "bill", bill.Id, 25)
+}
+
+// newVendorCreditAttachEnv is the attach env with the vendor credit guards and
+// its generated forms host bound too: books_attachments relates to a bill, an
+// expense or a vendor credit (vendor credit spec §4).
+func newVendorCreditAttachEnv(t *testing.T) *attachEnv {
+	t.Helper()
+	env := newLedgerEnv(t)
+	registerSalesDocGuards(env.app, billKind)
+	registerSalesDocGuards(env.app, expenseKind)
+	registerSalesDocGuards(env.app, vendorCreditKind)
+	bindHostsByKey(t, env.app, billKind.HostKey, expenseKind.HostKey, vendorCreditHostKey)
+	return &attachEnv{expenseEnv: expenseEnvOn(t, env)}
+}
+
+// draftVendorCredit is an Office Supply World draft with one account line.
+func (ae *attachEnv) draftVendorCredit(t testing.TB) *core.Record {
+	t.Helper()
+	vc := mkVendorCreditOn(t, ae.app, ae.officeSupply, map[string]any{"memo": "Returned toner"})
+	mkVendorCreditLine(t, ae.app, vc, 0, accountLine(ae.designTools, 6418))
+	return vc
+}
+
+func (ae *attachEnv) postedVendorCredit(t testing.TB) *core.Record {
+	t.Helper()
+	return mustPostVendorCredit(t, ae.app, ae.draftVendorCredit(t).Id, ae.users.bookkeeper.Id)
+}
+
+func onVendorCredit(id string) map[string]any { return map[string]any{"vendor_credit": id} }
+
+func TestAttachmentUpload_AVendorCreditTakesFiles(t *testing.T) {
+	ae := newVendorCreditAttachEnv(t)
+	vc := ae.draftVendorCredit(t)
+	req := ae.attach(t, "vendor_credit", vc.Id, "OSW-credit-CM-8841.pdf", pdfBytes(2048))
+	req.want = http.StatusOK
+	req.after = func(t testing.TB, app *tests.TestApp) {
+		row := onlyAttachment(t, app, "vendor_credit", vc.Id)
+		if row.GetString("name") != "OSW-credit-CM-8841.pdf" || row.GetString("bill") != "" || row.GetString("expense") != "" {
+			t.Errorf("attachment name %q bill %q expense %q, want the file on the vendor credit only",
+				row.GetString("name"), row.GetString("bill"), row.GetString("expense"))
+		}
+		if !storedFileExists(t, app, row) {
+			t.Error("the vendor credit's file is not in storage")
+		}
+	}
+	req.run(t, ae.app)
+}
+
+func TestAttachmentUpload_AVendorCreditHoldsAtMost25(t *testing.T) {
+	ae := newVendorCreditAttachEnv(t)
+	vc := ae.draftVendorCredit(t)
+	for range 25 {
+		mustStoreAttachment(t, ae.app, onVendorCredit(vc.Id), "", "page.pdf")
+	}
+	req := ae.attach(t, "vendor_credit", vc.Id, "one-more.pdf", pdfBytes(2048))
+	req.want = http.StatusBadRequest
+	req.content = refusedWith(wantAttachmentVCLimit)
+	req.after = func(t testing.TB, app *tests.TestApp) { requireAttachmentCount(t, app, "vendor_credit", vc.Id, 25) }
+	req.run(t, ae.app)
+}
+
+func TestAttachments_AVoidVendorCreditIsReadOnly(t *testing.T) {
+	ae := newVendorCreditAttachEnv(t)
+	vc := ae.postedVendorCredit(t)
+	if err := voidVendorCreditAs(ae.app, vc.Id, ae.users.admin.Id); err != nil {
+		t.Fatalf("void the vendor credit: %v", err)
+	}
+	req := ae.attach(t, "vendor_credit", vc.Id, "late.pdf", pdfBytes(2048))
+	req.want = http.StatusBadRequest
+	req.content = refusedWith(wantAttachmentVCVoid)
+	req.after = func(t testing.TB, app *tests.TestApp) { requireNoAttachments(t, app) }
+	req.run(t, ae.app)
+}
+
+func TestAttachmentUpload_AVendorCreditAndAnotherParentIsRefused(t *testing.T) {
+	for name, other := range map[string]func(ae *attachEnv, t testing.TB) (string, string){
+		"a bill":     func(ae *attachEnv, t testing.TB) (string, string) { return "bill", ae.draftBill(t).Id },
+		"an expense": func(ae *attachEnv, t testing.TB) (string, string) { return "expense", ae.draftExpense(t).Id },
+	} {
+		t.Run(name, func(t *testing.T) {
+			ae := newVendorCreditAttachEnv(t)
+			vc := ae.draftVendorCredit(t)
+			column, id := other(ae, t)
+			req := ae.attach(t, "vendor_credit", vc.Id, "OSW-credit-CM-8841.pdf", pdfBytes(2048))
+			req.fields[column] = id
+			req.want = http.StatusBadRequest
+			req.content = refusedWith(wantAttachmentOneParent)
+			req.after = func(t testing.TB, app *tests.TestApp) { requireNoAttachments(t, app) }
+			req.run(t, ae.app)
+		})
+	}
+}
+
+// A vendor credit's correction takes its original's files when it posts
+// (replaceVendorCredit moves them), as a bill's does.
+func TestAttachmentMove_AVendorCreditCorrectionTakesEveryFile(t *testing.T) {
+	ae := newVendorCreditAttachEnv(t)
+	actor := ae.users.bookkeeper.Id
+	original := ae.postedVendorCredit(t)
+	before := snapshotRows([]*core.Record{
+		mustStoreAttachment(t, ae.app, onVendorCredit(original.Id), "", "OSW-credit-CM-8841.pdf"),
+		mustStoreAttachment(t, ae.app, onVendorCredit(original.Id), "", "return-slip.pdf"),
+	})
+
+	correction := mkVendorCreditOn(t, ae.app, ae.officeSupply, map[string]any{"replaces": original.Id, "memo": "Corrected"})
+	mkVendorCreditLine(t, ae.app, correction, 0, accountLine(ae.designTools, 20000))
+	if err := postVendorCreditAs(ae.app, correction.Id, actor); err != nil {
+		t.Fatalf("post the correction: %v", err)
+	}
+
+	voided := reload(t, ae.app, "books_vendor_credits", original.Id)
+	if voided.GetString("status") != statusVoid || voided.GetString("replaced_by") != correction.Id {
+		t.Errorf("original status %q replaced_by %q, want void and the correction", voided.GetString("status"), voided.GetString("replaced_by"))
+	}
+	requireMoved(t, ae.app, "vendor_credit", original.Id, correction.Id, before)
 }

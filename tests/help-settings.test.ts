@@ -57,13 +57,19 @@ describe('help/settings.md', () => {
         expect(body).toContain('(help://books:sales-receipts)')
     })
 
-    // Expense form spec §3.10: Settings → Purchases, its Bills and expenses card and the
-    // Purchase lines setting that now covers bills and expenses.
-    it('covers the Purchases section, its Bills and expenses card and the Purchase lines setting', () => {
+    // Expense form spec §3.10, vendor credit spec §3.8: Settings → Purchases, its Bills,
+    // expenses and vendor credits card and the Purchase lines setting that covers all three
+    // forms.
+    it('covers the Purchases section, its Bills, expenses and vendor credits card and the Purchase lines setting', () => {
         expect(body).toMatch(/Settings → Purchases|the Purchases section|#+ Purchases\s*$/m)
-        expect(body).toContain('Bills and expenses')
+        expect(body).toContain('Bills, expenses and vendor credits')
+        expect(body).not.toContain('Bills and expenses')
         expect(body).toContain('Purchase lines')
         expect(body).not.toContain('Bill lines')
+    })
+
+    it('says Purchase lines decides the tables of new bills, expenses and vendor credits', () => {
+        expect(body).toMatch(/new bills, expenses and vendor credits/)
     })
 
     it('hand-writes no hostname other than {{server-host}}', () => {

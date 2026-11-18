@@ -228,6 +228,34 @@ describe('a credit memo entry', () => {
     })
 })
 
+// A vendor credit's entry (vendor credit spec §3.12): it opens on its credit, is edited
+// as a correction of it, and is never reversed by itself.
+describe('a vendor credit entry', () => {
+    it('opens on its vendor credit', () => {
+        expect(entryHref(entry('vendor_credit', 'document', 'v1'))).toBe('books/vendor-credits/v1')
+    })
+
+    it('edits as a correction of its vendor credit', () => {
+        expect(entryEditHref(entry('vendor_credit', 'document', 'v1'))).toBe(
+            'books/vendor-credits/new?replaces=v1'
+        )
+    })
+
+    it('opens its void reversal as an entry', () => {
+        expect(entryHref(entry('vendor_credit', 'void_reversal'))).toBe('books/entries/a')
+    })
+
+    it('offers Open and Edit, and no Reverse', () => {
+        const actions = entryActions(
+            { status: 'posted', origin: 'document', doc_type: 'vendor_credit', isReversed: false },
+            { canWrite: true }
+        )
+        expect(actions).toContain('open')
+        expect(actions).toContain('edit')
+        expect(actions).not.toContain('reverse')
+    })
+})
+
 // A bill payment's entry (pay-bills spec §4.2): it opens on its bill payment.
 describe('a bill payment entry', () => {
     it('opens on its bill payment', () => {

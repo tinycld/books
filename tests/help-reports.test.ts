@@ -366,6 +366,20 @@ describe('help/reports.md', () => {
             )
         })
 
+        // Vendor credit spec §3.11, §3.13: on Cash a vendor credit counts as it is applied
+        // to bills; on Accrual on its credit date.
+        it('names vendor credits: on Cash they count when applied to a bill', () => {
+            expect(oneSentence(/\bvendor credits?\b/i, /\bappl(y|ied|ies)\b/i, /\bcash\b/i)).toBe(
+                true
+            )
+        })
+
+        it('says a vendor credit counts on its credit date on Accrual', () => {
+            expect(oneSentence(/\bvendor credits?\b/i, /\bcredit date\b/i, /\bAccrual\b/)).toBe(
+                true
+            )
+        })
+
         it("says voiding a payment can move another payment's share by a cent", () => {
             expect(
                 oneSentence(/\bvoid/i, /\bpayments?\b/i, /\bshare\b/i, /\b(a|one) cent\b/i)

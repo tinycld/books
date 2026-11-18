@@ -92,6 +92,25 @@ describe('NewMenu', () => {
         )
     })
 
+    // The real registry: Vendor credit follows Expense in the Vendors column (vendor
+    // credit spec §2).
+    it('draws Vendor credit right after Expense and opens books/vendor-credits/new from it', () => {
+        const { onSelect } = renderOpenMenu(newMenuForAccess(access, NEW_ACTIONS))
+        const expense = byTestId(document.body, 'books-new-expense')
+        const credit = byTestId(document.body, 'books-new-vendor-credit')
+        expect(expense).not.toBeNull()
+        expect(credit).not.toBeNull()
+        if (!expense || !credit) return
+        expect(credit.textContent).toContain('Vendor credit')
+        expect(
+            expense.compareDocumentPosition(credit) & Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy()
+        fireEvent.click(credit)
+        expect(onSelect).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'vendor_credit', href: 'books/vendor-credits/new' })
+        )
+    })
+
     // The real registry: Receive payment follows Sales receipt in the Customers column
     // (receive payment spec §2).
     it('draws Receive payment right after Sales receipt and opens books/payments/new from it', () => {

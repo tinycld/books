@@ -1,7 +1,7 @@
 import { log } from '@tinycld/core/lib/logger'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { useWritesAvailable } from '@tinycld/core/lib/use-writes-available'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { LiveRecovery } from '../lib/live-recovery'
 import { PAY_BILLS_CHROME } from '../lib/pay-bills-kind'
 import { payBillsScreenState } from '../lib/pay-bills-screen-state'
@@ -10,8 +10,9 @@ import { todayIso } from '../lib/register-range'
 import { type BillPaymentLineRow, useBillPaymentRecord } from './useBillPaymentRecord'
 import { useBooksAccess } from './useBooksAccess'
 import { useBooksSettings } from './useBooksSettings'
-import { useOpenBills } from './useOpenBills'
+import { useOpenBills, usePayBillsVendors } from './useOpenBills'
 import { usePaidFromAccounts } from './usePaidFromAccounts'
+import { useUnappliedVendorCredits } from './useUnappliedVendorCredits'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 const NO_LINES: readonly BillPaymentLineRow[] = []
@@ -42,8 +43,9 @@ function useReplacedPayment(id: string) {
 
 /**
  * Every read of the Pay Bills screen (spec §3.5 States, §4.4): access, settings (the
- * currency), the open bills and the vendors (useOpenBills), the Paid from accounts with
- * their balances and, on `?replaces`, the payment. Returns the surface to show
+ * currency), the open bills (useOpenBills) and the vendors (usePayBillsVendors), the Paid from accounts with
+ * their balances, the unapplied vendor credits of the notice (useUnappliedVendorCredits,
+ * vendor credit spec §3.10) and, on `?replaces`, the payment. Returns the surface to show
  * (`payBillsScreenState`: no access, one error with one Retry over every failed read,
  * loading, not found, cannot edit, or the form), and what the form starts from. The form's
  * list state (rows, empty, filtered-empty) is the form's own (usePayBillsForm `list`),
@@ -66,6 +68,10 @@ export function usePayBillsScreen(input: PayBillsScreenInput) {
                 ? null
                 : { vendorName: original?.vendorRow?.display_name ?? '', lines: heldLines },
     })
+    const vendors = usePayBillsVendors(openBills.rows)
+    const billRows = openBills.rows
+    const billVendors = useMemo(() => new Set(billRows.map(row => row.vendor)), [billRows])
+    const unappliedCredits = useUnappliedVendorCredits(billVendors)
     const writes = useWritesAvailable()
     // The day the screen opened: the default Payment date and the Due filters' today.
     const [today] = useState(todayIso)
@@ -85,7 +91,20 @@ export function usePayBillsScreen(input: PayBillsScreenInput) {
         isError: paidFrom.isError,
         recovery: paidFrom.recovery,
     }
-    const reads = [accessRead, settingsRead, paidFromRead, replaced.read, ...openBills.reads]
+    const creditsRead = {
+        isReady: unappliedCredits.isReady || unappliedCredits.isError,
+        isError: unappliedCredits.isError,
+        recovery: unappliedCredits.recovery,
+    }
+    const reads = [
+        accessRead,
+        settingsRead,
+        paidFromRead,
+        replaced.read,
+        openBills.read,
+        vendors.read,
+        creditsRead,
+    ]
     // A non-writer is told so only once access is known; until then the screen loads.
     const canWrite = access.canWrite || !access.isReady
     const state = payBillsScreenState({
@@ -121,7 +140,10 @@ export function usePayBillsScreen(input: PayBillsScreenInput) {
         currency: settings.settings?.currency ?? 'USD',
         today,
         rows: openBills.rows,
-        vendorOptions: openBills.vendorOptions,
+        // The unapplied vendor credits of the vendors with an open bill listed; the notice
+        // keeps those of the shown bills' vendors.
+        unappliedCredits: unappliedCredits.credits,
+        vendorOptions: vendors.vendorOptions,
         startVendor: input.vendor ?? null,
         startBill: input.bill ?? null,
     }

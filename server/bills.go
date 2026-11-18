@@ -1,12 +1,6 @@
 package books
 
 import (
-	"database/sql"
-	"errors"
-	"fmt"
-	"strings"
-
-	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -58,9 +52,10 @@ const billDraftName = "a draft bill"
 // is the vendor, its lines are account lines and product lines, it has no
 // sales tax, and posting credits Accounts payable (which posting creates when
 // the chart has none, ensurePayables) for the total and debits each line's
-// expense account (expenseByAccount). Its balance is what bill payments have
-// not paid (billBalanceKind); a void is refused while a posted bill payment
-// pays it, and a correction takes its payments over. Its BeforePost is set in
+// expense account (expenseByAccount). Its balance is what bill payments and
+// vendor credits have not paid (billBalanceKind); a void is refused while a
+// posted bill payment pays it or a credit is applied to it, and a correction
+// takes its payments and credits over. Its BeforePost is set in
 // init: it reads the kind's own lines, and a field of billKind that names
 // billKind is an initialization cycle.
 var billKind = salesDocKind{
@@ -104,49 +99,85 @@ var billKind = salesDocKind{
 	},
 	LineAccounts:  expenseByAccount,
 	TracksBalance: true,
-	CheckVoid:     refuseBillVoidWithPayments,
+	CheckVoid:     refuseBillVoidApplied,
 	Replace:       replaceBill,
 }
 
-// Refusals of a bill that bill payments pay (pay-bills spec §3.9). %s is the
-// amount the posted payments pay.
+// Refusals of a bill that bill payments pay (pay-bills spec §3.9) or vendor
+// credits are applied to (vendor credit spec §3.10). %s is the amount the
+// posted payments pay, or that they and the credits apply together.
 const (
-	msgBillVoidWithPayments    = "Payments are applied to this bill. Void or edit those payments first."
-	msgBillCorrectionBelowPaid = "Payments of %s are applied to this bill. Its total cannot be below that."
-	msgBillCorrectionVendor    = "Payments are applied to this bill, so its vendor cannot change."
+	msgBillVoidWithPayments          = "Payments are applied to this bill. Void or edit those payments first."
+	msgBillCorrectionBelowPaid       = "Payments of %s are applied to this bill. Its total cannot be below that."
+	msgBillCorrectionVendor          = "Payments are applied to this bill, so its vendor cannot change."
+	msgBillVoidCreditsApplied        = "Vendor credits are applied to this bill. Remove them first."
+	msgBillCorrectionBelowPaidCredit = "Payments and credits of %s are applied to this bill. Its total cannot be below that."
+	msgBillCorrectionCreditVendor    = "Vendor credits are applied to this bill, so its vendor cannot change."
 )
 
-// refuseBillVoidWithPayments is the bill's CheckVoid: a bill that a posted
-// bill payment pays stays posted until that payment is voided or edited.
-func refuseBillVoidWithPayments(tx core.App, doc *core.Record) error {
-	paid, err := postedAppliedTo(tx, billBalanceKind, doc.Id)
+// billAppliedTo splits what is applied to a bill: what its posted bill
+// payments pay (the payment payer), and what vendor credits apply (every other
+// payer). Each payer's rows are summed once.
+func billAppliedTo(tx core.App, billID string) (paid, credited int64, err error) {
+	for _, p := range billBalanceKind.Payers {
+		n, err := appliedByPayer(tx, billBalanceKind, p, billID)
+		if err != nil {
+			return 0, 0, err
+		}
+		if p.PaymentCollection != "" {
+			paid += n
+		} else {
+			credited += n
+		}
+	}
+	return paid, credited, nil
+}
+
+// refuseBillVoidApplied is the bill's CheckVoid: a bill that a posted bill
+// payment pays stays posted until that payment is voided or edited, and one
+// that a vendor credit is applied to until the credit is removed from it. The
+// payments are named first.
+func refuseBillVoidApplied(tx core.App, doc *core.Record) error {
+	paid, credited, err := billAppliedTo(tx, doc.Id)
 	if err != nil {
 		return err
 	}
 	if paid > 0 {
 		return refuse(msgBillVoidWithPayments)
 	}
+	if credited > 0 {
+		return refuse(msgBillVoidCreditsApplied)
+	}
 	return nil
 }
 
-// replaceBill is the bill's Replace step: while posted bill payments pay the
-// original, the correction keeps a total of at least what they pay and keeps
-// the vendor; then the lines of the posted payments move to the correction,
-// whose balance postSalesDoc then sets to its total less them. A void
-// payment's lines stay on the original, which keeps its history: the
-// correction may name another vendor, and a line must name a bill of its
-// payment's vendor. The correction also takes every file of the original.
+// replaceBill is the bill's Replace step: while posted bill payments or
+// vendor credits apply to the original, the correction keeps a total of at
+// least what they apply (named as payments only while no credit is applied)
+// and keeps the vendor (the payments' text first); then the lines of the
+// posted payments and the credit applications move to the correction, whose
+// balance postSalesDoc then sets to its total less them. A void payment's
+// lines stay on the original, which keeps its history: the correction may
+// name another vendor, and a line must name a bill of its payment's vendor.
+// The correction also takes every file of the original.
 func replaceBill(tx core.App, original, correction *core.Record) error {
-	paid, err := postedAppliedTo(tx, billBalanceKind, original.Id)
+	paid, credited, err := billAppliedTo(tx, original.Id)
 	if err != nil {
 		return err
 	}
-	if paid > 0 {
-		if int64(correction.GetInt("total")) < paid {
-			return refuse(msgBillCorrectionBelowPaid, formatMoney(paid, correction.GetString("currency")))
+	currency := correction.GetString("currency")
+	if applied := paid + credited; int64(correction.GetInt("total")) < applied {
+		if credited > 0 {
+			return refuse(msgBillCorrectionBelowPaidCredit, formatMoney(applied, currency))
 		}
-		if correction.GetString("vendor") != original.GetString("vendor") {
+		return refuse(msgBillCorrectionBelowPaid, formatMoney(paid, currency))
+	}
+	if correction.GetString("vendor") != original.GetString("vendor") {
+		if paid > 0 {
 			return refuse(msgBillCorrectionVendor)
+		}
+		if credited > 0 {
+			return refuse(msgBillCorrectionCreditVendor)
 		}
 	}
 	if err := movePostedLines(tx, billBalanceKind, original, correction); err != nil {
@@ -179,41 +210,8 @@ func checkBillHeader(tx core.App, _, r *core.Record) error {
 	return checkBillRef(tx, r)
 }
 
-// checkBillRef stores the vendor's bill no. trimmed and refuses one that
-// another bill of the same vendor already has, unless that bill is void or is
-// the posted bill this one corrects (the correction takes its place). An empty
-// number never clashes. It runs inside the header guard's transaction, so no
-// other write commits between the check and the write.
+// checkBillRef refuses a vendor's bill no. that another bill of the same
+// vendor already has (checkVendorRef).
 func checkBillRef(tx core.App, r *core.Record) error {
-	ref := strings.TrimSpace(r.GetString("ref_no"))
-	r.Set("ref_no", ref)
-	vendorID := r.GetString("vendor")
-	if ref == "" || vendorID == "" {
-		return nil
-	}
-	others, err := tx.FindRecordsByFilter("books_bills",
-		"vendor = {:vendor} && ref_no = {:ref} && status != {:void} && id != {:id} && id != {:replaces}",
-		"-sequence,id", 1, 0, dbx.Params{
-			"vendor": vendorID, "ref": ref, "void": statusVoid, "id": r.Id, "replaces": r.GetString("replaces"),
-		})
-	if err != nil {
-		return fmt.Errorf("books: read the vendor's bills: %w", err)
-	}
-	if len(others) == 0 {
-		return nil
-	}
-	vendor, err := tx.FindRecordById("books_vendors", vendorID)
-	if errors.Is(err, sql.ErrNoRows) {
-		// The schema refuses a vendor that does not exist.
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("books: read the bill's vendor: %w", err)
-	}
-	other := billDraftName
-	if n := others[0].GetString("number"); n != "" {
-		noun, _, _ := entryNouns(docTypeBill)
-		other = noun + " " + n
-	}
-	return refuseNamedField("ref_no", msgBillDuplicateRef, vendor.GetString("display_name"), ref, other)
+	return checkVendorRef(tx, r, "books_bills", docTypeBill, billDraftName, msgBillDuplicateRef)
 }

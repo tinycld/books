@@ -22,6 +22,7 @@ import {
     partyHeader,
     refText,
     rowTickLabel,
+    totalTexts,
 } from '../../lib/outstanding-documents'
 import { entryCents, type OutstandingRow, type Payments } from '../../lib/payment-allocation'
 import { formatDay } from '../../lib/register-range'
@@ -45,7 +46,6 @@ function columnStyles(doc: OutstandingDocument) {
         party: columns.party ?? { width: 0 },
         document: columns.document,
         dueDate: columns.dueDate,
-        original: columns.original,
         open: columns.open,
         payment: columns.payment,
     }
@@ -234,6 +234,47 @@ function PartyHeader({
     )
 }
 
+// The header's tick box, where the descriptor pays every row from it; else the tick
+// column's space, so the headers line up with the rows.
+function HeaderTick({
+    doc,
+    tick,
+    isDisabled,
+    onTickAll,
+}: {
+    doc: OutstandingDocument
+    tick: SelectBoxState
+    isDisabled: boolean
+    onTickAll: () => void
+}) {
+    const style = { width: doc.columns.tick }
+    const label = outstandingTexts(doc).payAllLabel
+    if (!doc.hasPayAll || label === null) return <View style={style} />
+    return (
+        <View style={style}>
+            <SelectBox
+                state={tick}
+                label={label}
+                testID={`${doc.testIdPrefix}-tick-all`}
+                onPress={onTickAll}
+                isDisabled={isDisabled}
+                tabIndex={-1}
+            />
+        </View>
+    )
+}
+
+// The total column's header; nothing where the descriptor has no total column.
+function TotalHeader({ doc }: { doc: OutstandingDocument }) {
+    const { original } = doc.columns
+    if (original === null) return null
+    return (
+        <Text className={`${HEAD} text-right`} style={original}>
+            {totalTexts(doc).header}
+        </Text>
+    )
+}
+
 function GridHeader({
     doc,
     tick,
@@ -250,20 +291,10 @@ function GridHeader({
     onSort?: (column: OutstandingSortColumn) => void
 }) {
     const col = columnStyles(doc)
-    const texts = outstandingTexts(doc)
     const prefix = doc.testIdPrefix
     return (
         <View className="flex-row items-center gap-3 border-b border-border px-2 py-1">
-            <View style={col.tick}>
-                <SelectBox
-                    state={tick}
-                    label={texts.payAllLabel}
-                    testID={`${prefix}-tick-all`}
-                    onPress={onTickAll}
-                    isDisabled={isDisabled}
-                    tabIndex={-1}
-                />
-            </View>
+            <HeaderTick doc={doc} tick={tick} isDisabled={isDisabled} onTickAll={onTickAll} />
             <PartyHeader doc={doc} col={col} sort={sort} onSort={onSort} />
             <HeaderLabel label={doc.noun} style={col.document} />
             <HeaderLabel
@@ -274,14 +305,12 @@ function GridHeader({
                 onSort={onSort}
                 testID={`${prefix}-sort-due`}
             />
-            <Text className={`${HEAD} text-right`} style={col.original}>
-                {texts.totalHeader}
-            </Text>
+            <TotalHeader doc={doc} />
             <Text className={`${HEAD} text-right`} style={col.open}>
                 Open balance
             </Text>
             <Text className={`${HEAD} text-right`} style={col.payment}>
-                Payment
+                {doc.paymentHeader}
             </Text>
         </View>
     )
@@ -305,6 +334,17 @@ function PartyCell({ doc, party }: { doc: OutstandingDocument; party: string }) 
             <Text className="text-sm text-foreground" numberOfLines={1}>
                 {party}
             </Text>
+        </View>
+    )
+}
+
+// A row's total; nothing where the descriptor has no total column.
+function TotalCell({ doc, text }: { doc: OutstandingDocument; text: string }) {
+    const { original } = doc.columns
+    if (original === null) return null
+    return (
+        <View className="justify-center" style={[original, TAP]}>
+            <Text className={MONEY_CELL}>{text}</Text>
         </View>
     )
 }
@@ -343,6 +383,7 @@ function GridRow({
     const ref = refText(row.ref)
     const original = formatMoney(row.total, currency)
     const open = formatMoney(row.open, currency)
+    const tickLabel = rowTickLabel(doc, row.number)
     const value = entry?.amount ?? ''
     const cellRef = rowRef(row.id)
     return (
@@ -353,7 +394,7 @@ function GridRow({
             <View style={col.tick}>
                 <SelectBox
                     state={tick}
-                    label={rowTickLabel(doc, row.number)}
+                    label={tickLabel}
                     testID={`${prefix}-row-tick-${row.id}`}
                     onPress={handleTick}
                     isDisabled={isDisabled}
@@ -373,9 +414,7 @@ function GridRow({
             <View className="justify-center" style={[col.dueDate, TAP]}>
                 <DueText dueDate={row.due_date} today={today} />
             </View>
-            <View className="justify-center" style={[col.original, TAP]}>
-                <Text className={MONEY_CELL}>{original}</Text>
-            </View>
+            <TotalCell doc={doc} text={original} />
             <View className="justify-center" style={[col.open, TAP]}>
                 <Text className={MONEY_CELL}>{open}</Text>
             </View>
@@ -402,6 +441,12 @@ function PartySpacer({ doc }: { doc: OutstandingDocument }) {
     return <View style={columnStyles(doc).party} />
 }
 
+function TotalSpacer({ doc }: { doc: OutstandingDocument }) {
+    const { original } = doc.columns
+    if (original === null) return null
+    return <View style={original} />
+}
+
 function GridTotals({
     doc,
     totals,
@@ -426,7 +471,7 @@ function GridTotals({
                 Total
             </Text>
             <View style={col.dueDate} />
-            <View style={col.original} />
+            <TotalSpacer doc={doc} />
             <Text className={`${MONEY_CELL} font-semibold`} style={col.open}>
                 {open}
             </Text>
@@ -438,10 +483,11 @@ function GridTotals({
 }
 
 /**
- * The wide open-document list: a header tick box (pays every row, or clears them all when
- * every row is paid), the descriptor's party column (Vendor on Pay Bills), the document
- * link, Due date, the total, Open balance and Payment, sharing the column widths with the
- * header and the totals row. The columns grow to fill the list and never scroll sideways:
+ * The wide open-document list: a header tick box where the descriptor has Pay all (pays
+ * every row, or clears them all when every row is paid), the descriptor's party column
+ * (Vendor on Pay Bills), the document link, Due date, the total where the descriptor has a
+ * total column, Open balance and the payment column (the descriptor's `paymentHeader`),
+ * sharing the column widths with the header and the totals row. The columns grow to fill the list and never scroll sideways:
  * the list shows this grid only while it is at least `doc.gridMinWidth` wide, cards below.
  * With `onSort` the Vendor and Due date headers sort; with `totals` a totals row closes the
  * list.

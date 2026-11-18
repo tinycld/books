@@ -1,13 +1,11 @@
 import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
-import type { TableRowWrite } from '@tinycld/core/lib/forms/table-rows'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
 import { type EMPTY_EXPENSE_COLUMNS, expenseColumnsFrom } from '../lib/expense-columns'
 import { mergeRecoveries } from '../lib/live-recovery'
-import { isPurchaseAccountListed } from '../lib/purchase-pickers'
 import { columnsOrThrow } from '../lib/record-save'
 import { EXPENSE_KIND } from '../lib/sales-document-kinds'
 import type { BooksExpenses } from '../types'
@@ -18,19 +16,21 @@ import {
     type DocumentRecord,
     type DocumentScreenInput,
     type DocumentScreenReads,
-    type DocumentSource,
     type DocumentWrites,
     documentRead,
     linkedReadIds,
     NO_DOCUMENT_PAYMENTS,
     NO_ESTIMATE_SOURCE,
     NO_INVOICE_SOURCE,
-    NO_RECOVERY,
-    purchaseLineMapperOf,
     useHeldRecord,
 } from './document-data'
 import { vendorPartyRead } from './party-read'
-import { useBooksSettings } from './useBooksSettings'
+import {
+    NO_PURCHASE_TAX_LINES,
+    PURCHASE_SALES_COLUMNS,
+    purchaseLineOps,
+    usePurchaseStart,
+} from './purchase-data'
 import { usePaidFromAccounts } from './usePaidFromAccounts'
 
 const LOG_CONTEXT = 'books.expense'
@@ -39,27 +39,17 @@ type ExpenseInsertColumns = typeof EMPTY_EXPENSE_COLUMNS & {
     payment_method: BooksExpenses['payment_method']
 }
 
-// The expense's own columns go into `kindFields`; the row keeps the shared ones. An
-// expense has no customer, bill-to address, email, tax rate, message or tax (it is a
-// purchase and prints nothing), so those shared columns are ''/null/0 on it: every shared
-// reader keeps its type, and none of them finds a customer or a tax on an expense.
+// The expense's own columns go into `kindFields`; the row keeps the shared ones, with the
+// sales columns a purchase does not have empty (PURCHASE_SALES_COLUMNS).
 function expenseSourceOf<R extends BooksExpenses>(
     row: R
 ): R &
-    Pick<
-        DocumentSource,
-        'customer' | 'bill_to' | 'email' | 'tax_rate' | 'message' | 'tax_total'
-    > & {
+    typeof PURCHASE_SALES_COLUMNS & {
         kindFields: Extract<DocumentKindFields, { kind: 'expense' }>
     } {
     return {
         ...row,
-        customer: '',
-        bill_to: null,
-        email: '',
-        tax_rate: '',
-        message: '',
-        tax_total: 0,
+        ...PURCHASE_SALES_COLUMNS,
         kindFields: {
             kind: 'expense',
             vendor: row.vendor,
@@ -85,49 +75,15 @@ function useExpenseSourceQuery(sourceId: string) {
     })
 }
 
-// On a new form opened with `?vendor`: that vendor's default expense account, as one
-// query (the vendor with its account), which says whether the Account picker lists it.
-function useVendorAccountQuery(vendorId: string) {
-    const [vendorsCollection, accountsCollection] = useStore('books_vendors', 'books_accounts')
-    const query = useLiveQuery({
-        query: q => {
-            if (!vendorId) return undefined
-            return q
-                .from({ v: vendorsCollection })
-                .where(({ v }) => eq(v.id, vendorId))
-                .select(({ v }) => ({
-                    id: v.id,
-                    account: materialize(
-                        q
-                            .from({ a: accountsCollection })
-                            .where(({ a }) => eq(a.id, v.expense_account))
-                            .findOne()
-                    ),
-                }))
-                .findOne()
-        },
-        queryKey: ['books.expense.vendor-account', vendorId],
-    })
-    return { query, sources: [vendorsCollection, accountsCollection] }
-}
-
 /**
- * The form start of an expense: the Purchase lines setting (Settings → Purchases), which
- * decides the tables a new form shows; the ids of the active bank and credit card
- * accounts (usePaidFromAccounts), which a copy keeps its Paid from by; and on a new form
- * opened with `?vendor` whether the Account picker lists the vendor's default expense
- * account (isPurchaseAccountListed), which then starts the first account line. The
- * settings row is the screen's own read (its readiness, its error and its Retry are
- * there, useDocumentScreen); the Paid from accounts and the vendor's account are this
- * read's own, so their loading, their errors and their Retry join the screen's.
+ * The form start of an expense: the purchase start (usePurchaseStart), and the ids of the
+ * active bank and credit card accounts (usePaidFromAccounts), which a copy keeps its Paid
+ * from by. The Paid from accounts and the vendor's account are this read's own, so their
+ * loading, their errors and their Retry join the screen's.
  */
 function useExpenseFormStart(input: DocumentScreenInput): DocumentScreenReads['formStart'] {
-    const { settings } = useBooksSettings()
-    const purchaseLines = settings?.purchase_lines ?? 'both'
+    const { purchaseLines, vendorAccountListed, vendorRead } = usePurchaseStart(input, LOG_CONTEXT)
     const paidFrom = usePaidFromAccounts()
-    const vendorId = input.id === null ? (input.vendor ?? '') : ''
-    const { query, sources } = useVendorAccountQuery(vendorId)
-    const vendorAccountListed = vendorId ? isPurchaseAccountListed(query.data?.account) : undefined
     const { activeIds } = paidFrom
     // Kept between renders: a copy's values (new line ids) are memoised on the start.
     const data = useMemo<DocumentFormStart>(
@@ -142,7 +98,6 @@ function useExpenseFormStart(input: DocumentScreenInput): DocumentScreenReads['f
         }),
         [purchaseLines, vendorAccountListed, activeIds]
     )
-    const vendorRead = documentRead(vendorId, query, data, sources)
     return {
         data,
         isReady: vendorRead.isReady && paidFrom.isReady,
@@ -281,17 +236,9 @@ function useExpenseScreenReads(
         ...NO_ESTIMATE_SOURCE,
         ...NO_INVOICE_SOURCE,
         ...NO_DOCUMENT_PAYMENTS,
-        taxLines: NO_TAX_LINES,
+        taxLines: NO_PURCHASE_TAX_LINES,
         formStart,
     }
-}
-
-// An expense has no sales tax, so it has no tax snapshot to read.
-const NO_TAX_LINES: DocumentScreenReads['taxLines'] = {
-    data: [],
-    isReady: true,
-    isError: false,
-    recovery: NO_RECOVERY,
 }
 
 // The expense's writes: its row and the lines of both tables (one collection, each line
@@ -331,26 +278,15 @@ function useExpenseWrites(): DocumentWrites {
             }),
         storedRevision: id => expensesCollection.get(id)?.revision,
         deleteRecord: id => expensesCollection.delete(id),
-        lineOps: (expenseId, mapper) => {
-            const { toRecord } = purchaseLineMapperOf(mapper)
-            const lineRecord = (write: TableRowWrite) => toRecord(write.row, write.position)
-            return {
-                // A product line's record has no amount (the server writes Qty x Rate over
-                // the 0 the insert carries); an account line's record sets its typed one.
-                insert: write =>
-                    linesCollection.insert({
-                        id: write.row.id,
-                        expense: expenseId,
-                        amount: 0,
-                        ...lineRecord(write),
-                    }),
-                update: write =>
-                    linesCollection.update(write.row.id, draft => {
-                        Object.assign(draft, lineRecord(write))
+        lineOps: (expenseId, mapper) =>
+            purchaseLineOps(mapper, {
+                insert: record => linesCollection.insert({ ...record, expense: expenseId }),
+                update: (lineId, record) =>
+                    linesCollection.update(lineId, draft => {
+                        Object.assign(draft, record)
                     }),
                 remove: lineId => linesCollection.delete(lineId),
-            }
-        },
+            }),
     }
 }
 

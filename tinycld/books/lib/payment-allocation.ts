@@ -61,6 +61,23 @@ export function tickRow(payments: Payments, row: OutstandingRow): Payments {
     return { ...payments, [row.id]: entryOf(row, row.open) }
 }
 
+// Ticking a row of a vendor credit's apply dialog (vendor credit spec §3.9): the lesser of
+// its open balance and the credit left; with nothing left the row stays unticked.
+// `leftCents` is the credit `payments` does not place yet; what the row itself holds is
+// counted back in, so the row may take it again.
+export function tickRowCapped(
+    payments: Payments,
+    row: OutstandingRow,
+    leftCents: number,
+    currency: string
+): Payments {
+    const left = Math.max(0, leftCents + entryCents(payments[row.id], currency))
+    const cents = Math.min(row.open, left)
+    const others = without(payments, row.id)
+    if (cents <= 0) return others
+    return { ...others, [row.id]: entryOf(row, cents) }
+}
+
 export function untickRow(payments: Payments, rowId: string): Payments {
     return without(payments, rowId)
 }
