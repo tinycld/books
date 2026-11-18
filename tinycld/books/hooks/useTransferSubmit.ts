@@ -160,6 +160,7 @@ export function useTransferSubmit({
         saveDraft: submit('draft', 'draft'),
         post: submit('post', 'post'),
         postAndNew: submit('post', 'post-new'),
+        leave,
         // The edits a save in flight is writing need no prompt, but text typed after the
         // submit is not part of it.
         cancel: () => (hasUnsavedEdits() ? setDiscardOpen(true) : leave()),

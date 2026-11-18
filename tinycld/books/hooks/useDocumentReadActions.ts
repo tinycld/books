@@ -10,6 +10,7 @@ import {
     applyCreditOffered,
     creditMemoOffered,
     DOCUMENT_READ_ACTION_KEYS,
+    DOCUMENT_READ_LABELS,
     type DocumentReadAction,
     documentReadActions,
     payBillOffered,
@@ -18,31 +19,19 @@ import {
 } from '../lib/document-actions'
 import { quoteReadActions } from '../lib/document-lifecycle'
 import { documentNewHref } from '../lib/document-routes'
+import { transactionKindOf } from '../lib/party-transactions'
 import { writeRefusalText } from '../lib/refusal'
 import { CREDIT_MEMO_KIND, INVOICE_KIND, type SalesDocumentKind } from '../lib/sales-document-kinds'
 import { useApplyCreditStore } from '../stores/apply-credit-store'
 import type { DocumentRecord } from './document-data'
 import { useOpenDocument } from './useOpenDocument'
 import { usePdfDownload } from './usePdfDownload'
+import { useVoidDocument } from './useVoidDocument'
 
 type ReadRecord = Pick<
     DocumentRecord,
     'id' | 'status' | 'number' | 'entry' | 'customer' | 'kindFields'
 >
-
-const LABELS: Record<DocumentReadAction, string> = {
-    apply_credit: 'Apply to bills',
-    record_refund: 'Record refund',
-    pay_bill: 'Pay bill',
-    receive_payment: 'Receive payment',
-    edit: 'Edit',
-    void: 'Void',
-    copy: 'Copy',
-    credit_memo: 'Create credit memo',
-    entry: 'View journal entry',
-    invoice: 'Open invoice',
-    pdf: 'Download PDF',
-}
 
 // The invoice made from a closed estimate; '' for any other record.
 function invoiceIdOf(record: ReadRecord): string {
@@ -130,10 +119,14 @@ export function useDocumentReadActions(
     const { doc } = documentKind
     const orgHref = useOrgHref()
     const writes = documentKind.data.useWrites()
+    const voidSales = useVoidDocument()
+    // A sales kind voids through the write the sales lists share; a purchase kind (bill,
+    // expense) through its own data source.
+    const salesKind = transactionKindOf(doc)
     const [isVoidOpen, setVoidOpen] = useState(false)
     const voidDocument = useMutation({
         mutationFn: function* (id: string) {
-            yield writes.voidRecord(id)
+            yield salesKind === null ? writes.voidRecord(id) : voidSales(salesKind, id)
         },
         onSuccess: () => setVoidOpen(false),
         // The dialog shows the refusal; without this core reports it again as a toast.
@@ -192,7 +185,7 @@ export function useDocumentReadActions(
     const actions: DocumentReadItem[] = offeredActionsOf(doc, record, canWrite).map(action => ({
         action,
         id: readActionId(action),
-        label: LABELS[action],
+        label: DOCUMENT_READ_LABELS[action],
         keys: formatHint(DOCUMENT_READ_ACTION_KEYS[action]).text,
         isDisabled: disabledOf(action),
         isDestructive: action === 'void',

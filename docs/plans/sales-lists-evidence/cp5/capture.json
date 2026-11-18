@@ -1,0 +1,63 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "all-focus",
+            "url": "/a/books/sales",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [1280],
+            "actions": [{ "press": "j" }, { "press": "j" }, { "pause": 400 }]
+        },
+        {
+            "name": "all-focus-mid",
+            "url": "/a/books/sales",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [900],
+            "actions": [{ "press": "j" }, { "press": "j" }, { "pause": 400 }]
+        },
+        {
+            "name": "all-focus-phone",
+            "url": "/a/books/sales",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [390],
+            "actions": [{ "press": "j" }, { "press": "j" }, { "pause": 400 }]
+        },
+        {
+            "name": "invoices-focus",
+            "url": "/a/books/invoices",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [1280],
+            "actions": [
+                { "press": "j" },
+                { "press": "j" },
+                { "press": "x" },
+                { "press": "j" },
+                { "pause": 400 }
+            ]
+        },
+        {
+            "name": "invoices-focus-phone",
+            "url": "/a/books/invoices",
+            "ready": "sales-row-slinv00000draft",
+            "widths": [390],
+            "actions": [{ "press": "j" }, { "press": "j" }, { "pause": 400 }]
+        },
+        {
+            "name": "beside-focus",
+            "url": "/a/books/invoices",
+            "ready": "sales-table",
+            "widths": [1440],
+            "stable": "sales-names",
+            "actions": [
+                { "click": "sales-chip-open" },
+                { "waitForHidden": "sales-row-slinv00000draft" },
+                { "press": "j" },
+                { "press": "o" },
+                { "waitFor": "sales-names" },
+                { "waitFor": "invoice-read-only" },
+                { "press": "ArrowDown" },
+                { "pause": 400 }
+            ]
+        }
+    ]
+}

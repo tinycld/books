@@ -21,8 +21,18 @@ interface ListToolbarProps {
 }
 
 // Wide, the field keeps a readable width beside the chip; on a phone it takes the row.
-const WIDE_SEARCH_STYLE = { minHeight: 40, minWidth: 160, maxWidth: 360 }
-const PHONE_SEARCH_STYLE = { minHeight: 40, minWidth: 0 }
+// `touch` is for a toolbar whose other controls are 44 px tall (chips, PickMenu `touch`),
+// so the field lines up with them; `default` keeps the 40 px of the older list toolbars.
+const SEARCH_STYLES = {
+    default: {
+        wide: { minHeight: 40, minWidth: 160, maxWidth: 360 },
+        phone: { minHeight: 40, minWidth: 0 },
+    },
+    touch: {
+        wide: { minHeight: 44, minWidth: 160, maxWidth: 360 },
+        phone: { minHeight: 44, minWidth: 0 },
+    },
+}
 
 // Typed on the search alone, so a toolbar without the Show inactive chip uses it too.
 // `inputRef` is for a list whose keys focus the search (`/`): Escape in the field then
@@ -33,22 +43,26 @@ export function SearchField({
     list,
     isWide,
     inputRef,
+    size = 'default',
 }: {
     testIdPrefix: string
     placeholder: string
     list: { query: string; setQuery(text: string): void }
     isWide: boolean
     inputRef?: RefObject<TextInputInstance | null>
+    size?: 'default' | 'touch'
 }) {
     const color = useThemeColor('muted-foreground')
     const onKeyPress = (event: TextInputKeyPressEvent) => {
         if (event.nativeEvent.key === 'Escape') inputRef?.current?.blur()
     }
     const keyPress = inputRef ? onKeyPress : undefined
+    const styles = SEARCH_STYLES[size]
+    const style = isWide ? styles.wide : styles.phone
     return (
         <View
             className="flex-1 flex-row items-center gap-2 rounded-md border border-border bg-background px-3"
-            style={isWide ? WIDE_SEARCH_STYLE : PHONE_SEARCH_STYLE}
+            style={style}
         >
             <Search size={16} color={color} />
             <PlainInput

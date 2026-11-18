@@ -74,6 +74,25 @@ export const TRANSACTION_DOC_KINDS: Record<
     credit_memo: CREDIT_MEMO_KIND,
 }
 
+const TRANSACTION_KINDS: readonly TransactionKind[] = [
+    'invoice',
+    'estimate',
+    'sales_receipt',
+    'payment',
+    'credit_memo',
+]
+
+// The inverse of TRANSACTION_DOC_KINDS: the transaction kind of a document kind, by its
+// route; null for a kind no sales list holds (a bill, an expense).
+export function transactionKindOf(
+    doc: Pick<SalesDocumentKind, 'routeBase'>
+): TransactionKind | null {
+    return (
+        TRANSACTION_KINDS.find(kind => TRANSACTION_DOC_KINDS[kind].routeBase === doc.routeBase) ??
+        null
+    )
+}
+
 type InvoiceInput = Pick<
     BooksInvoices,
     'id' | 'status' | 'number' | 'date' | 'due_date' | 'total' | 'balance' | 'currency' | 'created'
@@ -246,11 +265,13 @@ function newestFirst(a: PartyTransactionRow, b: PartyTransactionRow): number {
 
 // Each list is one source's first `n` rows in the same order, so the merged first `n` rows
 // are exact. A list that reached `n` may have more behind it, so the window can grow.
-export function mergeTransactions(
-    lists: PartyTransactionRow[][],
-    n: number
-): { rows: PartyTransactionRow[]; hasMore: boolean } {
-    const rows = lists.flat().sort(newestFirst).slice(0, n)
+// `compare` must be the order every list is in (the sales lists pass their sort's).
+export function mergeTransactions<Row extends PartyTransactionRow>(
+    lists: Row[][],
+    n: number,
+    compare: (a: Row, b: Row) => number = newestFirst
+): { rows: Row[]; hasMore: boolean } {
+    const rows = lists.flat().sort(compare).slice(0, n)
     const hasMore = lists.some(list => list.length >= n)
     return { rows, hasMore }
 }

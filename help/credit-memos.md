@@ -43,6 +43,7 @@ On Accrual, a posted credit memo counts on its own date, as every posted entry d
 - Save draft keeps the credit memo without a number. A draft does not change your books.
 - Post gives the credit memo the next number and records it in your books.
 - Post & new posts it and opens a new one. On a phone, it is in the More menu.
+- Cancel leaves the form. If you changed something, Books asks "Discard changes?" first. Any other way out of a form with unsaved changes asks the same question first: the Back link, the browser's Back or Forward button, and a key or a row of the Sales list beside the form. Choose Keep editing to stay with your changes, or Discard to go on. If you reload or close the browser tab, the browser asks.
 
 Books does not save a credit memo whose total is below zero, as a draft or posted. Books does not post a credit memo whose total is zero or whose customer is inactive. The inactive customer shows under Customer, and a refusal about one line shows under that line. Any other refusal, such as the zero total, shows at the top of the form.
 

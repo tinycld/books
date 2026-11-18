@@ -13,6 +13,9 @@ interface PaymentDraftDeleteInput {
     lineIds: readonly string[]
     // The user left the screen: no move follows the delete, and a refusal is logged.
     hasLeft: () => boolean
+    // Runs when the delete starts: a form clears its "left" mark here, as its save does
+    // (a leave the guard held and the user then kept editing set it, yet the form stayed).
+    onStart?: () => void
     // Where a delete that worked goes.
     onDeleted: () => void
 }
@@ -29,7 +32,7 @@ export function usePaymentDraftDelete(
     writes: PaymentWrites,
     input: PaymentDraftDeleteInput
 ) {
-    const { id, lineIds, hasLeft, onDeleted } = input
+    const { id, lineIds, hasLeft, onStart, onDeleted } = input
     const isLive = useRef(true)
     const [isDeleteOpen, setDeleteOpen] = useState(false)
     const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -53,6 +56,7 @@ export function usePaymentDraftDelete(
     })
 
     const confirmDelete = async () => {
+        onStart?.()
         setDeleteError(null)
         usePaymentSaveStore.getState().hold(flowKey, { id, purpose: 'delete' })
         try {
@@ -68,6 +72,8 @@ export function usePaymentDraftDelete(
 
     return {
         isDeletePending: remove.isPending,
+        // True from the update that ends `isDeletePending`: the delete's move is under way.
+        isDeleteDone: remove.isSuccess,
         isDeleteOpen,
         deleteError,
         openDeleteDraft: () => {

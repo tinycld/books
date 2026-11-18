@@ -1,5 +1,6 @@
 import { type ScopeOwner, ScopeProvider, useShortcutScope } from '@tinycld/core/lib/shortcuts'
 import { type ComponentType, useState } from 'react'
+import { View } from 'react-native'
 import type { PaymentRecordView } from '../../hooks/usePaymentRecord'
 import {
     type PaymentScreenData,
@@ -154,20 +155,26 @@ export function PaymentSurface({
     const screen = usePaymentScreen(flow, input, reads)
     // A refusal the new form handed over when it moved to this draft's route.
     const [refused] = useState(() => refusedSaveOf(flow.key, input.id))
+    // The root opts back into pointer events and draws its own background: a kind's child
+    // stack (SalesKindLayout, the Payments one) turns pointer events off on web and draws
+    // its screens over a transparent layer, so the list under it never takes the screen's
+    // clicks. On a route with no child stack (vendor refunds) it changes nothing.
     return (
         <DocumentChromeContext.Provider value={flow.chrome}>
             <ScopeProvider owner={scopeOwner}>
-                <PaymentSurfaceBody
-                    flow={flow}
-                    collection={collection}
-                    screen={screen}
-                    input={input}
-                    refused={refused}
-                    scopeOwner={scopeOwner}
-                    useWrites={useWrites}
-                    FormRoute={FormRoute}
-                    ReadBar={ReadBar}
-                />
+                <View pointerEvents="auto" className="flex-1 bg-background">
+                    <PaymentSurfaceBody
+                        flow={flow}
+                        collection={collection}
+                        screen={screen}
+                        input={input}
+                        refused={refused}
+                        scopeOwner={scopeOwner}
+                        useWrites={useWrites}
+                        FormRoute={FormRoute}
+                        ReadBar={ReadBar}
+                    />
+                </View>
             </ScopeProvider>
         </DocumentChromeContext.Provider>
     )

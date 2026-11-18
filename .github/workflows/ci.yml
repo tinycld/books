@@ -1,10 +1,14 @@
 name: CI
 
 on:
+  # A change that touches only docs/ starts no run. For a PR, GitHub compares
+  # the whole PR to its base, so this skips only a PR with no code in it.
   push:
     branches: [main]
+    paths-ignore: ['docs/**']
   pull_request:
     branches: [main]
+    paths-ignore: ['docs/**']
 
 env:
   PACKAGE: books

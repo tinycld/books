@@ -21,3 +21,17 @@ export function searchPickerKeyAction(
     if (Array.from(event.key).length === 1) return 'open-with-text'
     return 'none'
 }
+
+// A key that reaches the trigger after the menu opened, before its search field took
+// the focus (the surface shows only once it is placed): a character it types, Space and
+// `?` included, is the search's text. Space is not an open key here: on the trigger it
+// would press it, and the press closes the menu and clears the search.
+export function isLateSearchCharacter(event: {
+    key: string
+    metaKey: boolean
+    ctrlKey: boolean
+    altKey: boolean
+}): boolean {
+    if (event.metaKey || event.ctrlKey || event.altKey) return false
+    return Array.from(event.key).length === 1
+}

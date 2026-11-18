@@ -10,7 +10,7 @@ import {
     usePaymentFormControl,
     usePaymentFormValues,
 } from '../../hooks/usePaymentForm'
-import { usePaymentSave } from '../../hooks/usePaymentSave'
+import { usePaymentLeaveGuard, usePaymentSave } from '../../hooks/usePaymentSave'
 import { usePaymentShortcuts } from '../../hooks/usePaymentShortcuts'
 import { useRefundableCredits, useRefundableLoader } from '../../hooks/useRefundableCredits'
 import { useVendorRefundWrites } from '../../hooks/useVendorRefundWrites'
@@ -59,7 +59,7 @@ const NO_CREDIT_DATES: Readonly<Record<string, string>> = {}
  * no find field. The hooks run in the fixed order: the form's control, the credits read,
  * the form's values under `vendorRefundSchema` (the listed credits' dates through the
  * resolver's context), the vendor's name, usePaymentForm, usePaymentSave,
- * usePaymentShortcuts.
+ * usePaymentLeaveGuard, usePaymentShortcuts.
  */
 export function VendorRefundForm({
     initial,
@@ -125,12 +125,13 @@ export function VendorRefundForm({
         holdsHandOff,
     })
     const isSavedDraft = refundId !== null
+    const leaveGuard = usePaymentLeaveGuard(save)
     const shortcuts = usePaymentShortcuts({
         flow: FLOW,
         scopeOwner,
         canWrite,
         isPending: save.isPending,
-        isDialogOpen: save.isDiscardOpen || save.isDeleteOpen,
+        isDialogOpen: leaveGuard.dialog.isVisible || save.isDeleteOpen,
         isSavedDraft,
         isPhone,
         run: {
@@ -173,6 +174,7 @@ export function VendorRefundForm({
     const view = {
         paymentForm,
         save,
+        leaveGuard,
         offered: shortcuts.offered,
         title,
         currency,
