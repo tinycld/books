@@ -1,6 +1,8 @@
 package books
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/pocketbase/dbx"
@@ -123,7 +125,44 @@ const (
 	msgVendorCreditVoidRefunded       = "A vendor refund is recorded on this credit. Void the refund first."
 	msgVendorCreditCorrectionBelowAll = "%s of this credit is applied or refunded. Its total cannot be below that."
 	msgVendorCreditCorrectionRefunded = "A vendor refund is recorded on this credit, so its vendor cannot change."
+	msgVendorCreditCorrectionDate     = "Vendor refund %s refunds this credit on %s. Date the credit on or before that day."
 )
+
+// refuseCreditDatedAfterRefund refuses a correction of a vendor credit dated
+// after the earliest posted vendor refund whose lines name the original: a
+// refund cannot pay out a credit before the credit exists. The same day is
+// allowed. A draft refund does not count (its own Post checks it), nor does a
+// void one.
+func refuseCreditDatedAfterRefund(tx core.App, original, correction *core.Record) error {
+	var earliest struct {
+		Number string `db:"number"`
+		Date   string `db:"date"`
+	}
+	err := tx.DB().NewQuery(`SELECT p.number AS number, p.date AS date
+		FROM ` + vendorRefundLinesCollection + ` a
+		JOIN ` + vendorRefundsCollection + ` p ON p.id = a.refund
+		WHERE a.vendor_credit = {:credit} AND p.status = 'posted'
+		ORDER BY p.date, p.number LIMIT 1`).
+		Bind(dbx.Params{"credit": original.Id}).One(&earliest)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("books: read the earliest posted refund of vendor credit %s: %w", original.Id, err)
+	}
+	refundDay, err := parseCalendarDay(earliest.Date)
+	if err != nil {
+		return fmt.Errorf("books: read the date of vendor refund %s: %w", earliest.Number, err)
+	}
+	creditDay, err := parseDay(correction.GetString("date"))
+	if err != nil {
+		return refuseField("date", msgDocumentDay)
+	}
+	if creditDay.After(refundDay) {
+		return refuseField("date", msgVendorCreditCorrectionDate, earliest.Number, refundDay.Format("Jan 2, 2006"))
+	}
+	return nil
+}
 
 // vendorCreditTaken is what a vendor credit's two payers take from it: the
 // sum of its applications to bills and the sum of its posted refunds' lines,
@@ -170,7 +209,8 @@ func init() {
 // replaceVendorCredit is the vendor credit's Replace step: while applications
 // or posted vendor refunds take from the original, the correction keeps a
 // total of at least what they take and keeps the vendor (with the refund's
-// texts when a refund is among them); then the applications and the posted
+// texts when a refund is among them), and while a posted refund takes from it
+// is dated on or before that refund's day; then the applications and the posted
 // refunds' lines move to the correction (movePostedLines), whose balance
 // postSalesDoc then sets to its total less them, and the correction takes
 // every file of the original. The bills those applications pay rebuild their
@@ -189,6 +229,9 @@ func replaceVendorCredit(tx core.App, original, correction *core.Record) error {
 		}
 		if correction.GetString("vendor") != original.GetString("vendor") {
 			return refuse(msgVendorCreditCorrectionRefunded)
+		}
+		if err := refuseCreditDatedAfterRefund(tx, original, correction); err != nil {
+			return err
 		}
 	}
 	var bills []string

@@ -325,4 +325,48 @@ test.describe('vendor-refund: vendor credit', () => {
         await failed.unrouteAll({ behavior: 'wait' })
         await failed.close()
     })
+
+    test('a correction dated after a posted refund of the credit is refused under Date', async ({
+        page,
+    }) => {
+        await openBooks(page)
+        const { vendor, credits } = await vendorWithCredits(page, [
+            { amount: '200.00', date: await localDay(page, -5) },
+        ])
+        const [credit] = credits
+        const refundDay = await localDay(page, -3)
+        await openVendorCreditBySearch(page, credit.memo)
+        await expect(page).toHaveURL(creditUrl(credit.id))
+
+        // R: a posted refund of $120.00, dated two days after the credit.
+        await page.keyboard.press('r')
+        await expectFormForCredit(page, {
+            vendorName: vendor.name,
+            creditId: credit.id,
+            amount: '200.00',
+        })
+        await shownRefund(page, 'vendor-refund-date').fill(refundDay)
+        await shownRefund(page, 'vendor-refund-amount').fill('120.00')
+        await expect(refundCell(page, credit.id).filter({ visible: true })).toHaveValue('120.00')
+        await shownRefund(page, 'vendor-refund-memo').fill(uniqueMemo('Vendor refund dated'))
+        await page.keyboard.press('ControlOrMeta+Enter')
+        await expect(page).toHaveURL(VENDOR_REFUND_URL)
+        await expect(shownRefund(page, 'vendor-refund-read-only')).toBeVisible()
+        const number = await refundNumberOf(page)
+
+        // E on the credit: moving its date after the refund's day is refused under Date,
+        // and the correction is not posted.
+        await openCreditFromRefund(page, credit.id)
+        await page.keyboard.press('e')
+        const editUrl = new RegExp(`/books/vendor-credits/new\\?replaces=${credit.id}$`)
+        await expect(page).toHaveURL(editUrl)
+        await shownRefund(page, 'form-input-date').fill(await localDay(page, -1))
+        await page.keyboard.press('ControlOrMeta+Enter')
+        await expect(shownRefund(page, 'form-field-date-error')).toHaveText(
+            `Vendor refund ${number} refunds this credit on ${formatDay(refundDay)}. Date the credit on or before that day.`
+        )
+        await expect(page).toHaveURL(editUrl)
+        await expect(shown(page, 'vendor-credit-title')).toHaveText(`Edit ${credit.number}`)
+        await expect(shown(page, 'vendor-credit-read-only')).toHaveCount(0)
+    })
 })
