@@ -82,6 +82,7 @@ with the reason, and shown to the human at the end)
 - fix review: round 1: 0 BLOCK, 4 NOTE, all 10 FIXED · NOTE `leftJoin` accepted (left join, application side drives; Books already uses `leftJoin`), to Design notes · NOTE e2e on the fix: settled by the run on the fix (44 passed) · NOTE `PaymentRecordView` shape for checkpoint 3, to Design notes · NOTE `useReceivedPaymentReads.ts` to Out-of-plan.
 - gate 3 A notes: 5, listed under Design notes
 - reviewer-caught deferrals: `usePaymentScreen` read only the payment's collections (reviewer B; the implementer did not declare it) · `mergeOutstanding` kept `customer` (reviewers A and B; declared as difference 14 but not as a deferral) · both fixed in round 1.
+- commit: 230b7b85
 - human: n/a (review mode C)
 
 ## Final review
