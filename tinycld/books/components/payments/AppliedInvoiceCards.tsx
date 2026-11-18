@@ -28,6 +28,19 @@ function cardDayOf(field: AppliedDateField, row: AppliedDocumentRow): string {
     return field === 'date' ? text : `Due ${text}`
 }
 
+// The card's date as a line of its own; hidden where the descriptor labels it.
+function AppliedDayLine({ isVisible, text }: { isVisible: boolean; text: string }) {
+    if (!isVisible) return null
+    return <Text className="text-sm text-foreground">{text}</Text>
+}
+
+// The card's date as a label-value pair ("Credit date"); nothing where the descriptor has
+// no date label.
+function AppliedDayPair({ label, text }: { label: string | null; text: string }) {
+    if (label === null) return null
+    return <CardPair label={label} value={text} />
+}
+
 interface AppliedCardsProps {
     doc: OutstandingDocument
     rows: readonly AppliedDocumentRow[]
@@ -59,8 +72,9 @@ function AppliedCard({
                 label={label}
                 testID={`${testIdPrefix}-read-link-${row.documentId}`}
             />
-            <Text className="text-sm text-foreground">{due}</Text>
+            <AppliedDayLine isVisible={texts.cardDateLabel === null} text={due} />
             <View className="flex-row gap-3">
+                <AppliedDayPair label={texts.cardDateLabel} text={due} />
                 <CardPair label={totalLabel} value={original} />
                 <CardPair label={texts.appliedLabel} value={applied} />
             </View>

@@ -46,6 +46,7 @@ function PaymentDateInput({
     autoFocus,
     label,
     testID,
+    onChanged,
 }: {
     control: PaymentFormState['form']['control']
     dateRef: PaymentFormState['dateRef']
@@ -53,9 +54,14 @@ function PaymentDateInput({
     autoFocus: boolean
     label: string
     testID: string
+    // After the field took the value: the form checks what depends on the date.
+    onChanged: () => void
 }) {
     const { field } = useController({ control, name: 'date' })
-    const handleChange = (next: string | null) => field.onChange(next ?? '')
+    const handleChange = (next: string | null) => {
+        field.onChange(next ?? '')
+        onChanged()
+    }
     return (
         <DateField
             value={field.value}
@@ -132,6 +138,7 @@ export function PaymentBand({
                             autoFocus={isDateFirst}
                             label={texts.dateLabel}
                             testID={`${testId}-date`}
+                            onChanged={paymentForm.onDateChanged}
                         />
                         <FieldError message={dateError} testID={`${testId}-date-error`} />
                     </Field>

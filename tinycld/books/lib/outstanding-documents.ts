@@ -180,6 +180,10 @@ type OutstandingTexts = {
     cellJoin: string
     // null where the list draws no total column.
     total: TotalTexts | null
+    // The card's label for the date, drawn as a label-value pair beside the money (vendor
+    // refund spec §3.4); null draws the date as a line of its own (a due date, with its
+    // overdue mark).
+    cardDateLabel: string | null
     // The header tick box's and "Pay all"'s accessible name, and the text the cards draw
     // beside their tick box ("Pay all", "Refund all"); null where there is none.
     payAllLabel: string | null
@@ -195,6 +199,7 @@ const TEXTS: Record<OutstandingDocument['key'], OutstandingTexts> = {
         tickVerb: 'Pay',
         cellJoin: 'for',
         total: { header: 'Original amount', card: 'Original' },
+        cardDateLabel: null,
         payAllLabel: 'Pay every listed invoice',
         payAllText: 'Pay all',
         appliedHeading: 'Applied to',
@@ -204,6 +209,7 @@ const TEXTS: Record<OutstandingDocument['key'], OutstandingTexts> = {
         tickVerb: 'Pay',
         cellJoin: 'for',
         total: { header: 'Bill total', card: 'Bill total' },
+        cardDateLabel: null,
         payAllLabel: 'Pay every shown bill',
         payAllText: 'Pay all',
         appliedHeading: 'Bills paid',
@@ -213,6 +219,7 @@ const TEXTS: Record<OutstandingDocument['key'], OutstandingTexts> = {
         tickVerb: 'Apply to',
         cellJoin: 'to',
         total: null,
+        cardDateLabel: null,
         payAllLabel: null,
         payAllText: null,
         appliedHeading: 'Applied to',
@@ -222,6 +229,7 @@ const TEXTS: Record<OutstandingDocument['key'], OutstandingTexts> = {
         tickVerb: 'Refund',
         cellJoin: 'for',
         total: { header: 'Credit total', card: 'Credit total' },
+        cardDateLabel: 'Credit date',
         payAllLabel: 'Refund all',
         payAllText: 'Refund all',
         appliedHeading: 'Vendor credits refunded',

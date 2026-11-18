@@ -9,6 +9,7 @@ import {
     paymentFormDescriptions,
     paymentFormKeysOffered,
 } from '../tinycld/books/lib/payment-shortcuts'
+import { VENDOR_REFUND_FLOW } from '../tinycld/books/lib/vendor-refund-flow'
 
 // The receive-payment keys (spec §3.1): the key map, its ⇧? group, and which form keys are
 // registered in which state (a key is registered only while its action is offered).
@@ -73,6 +74,27 @@ describe('the payment key map', () => {
             clearPayments: 'Clear payments',
             payAll: 'Pay every listed invoice in full',
             toggleRow: 'Pay this invoice in full, or clear it',
+        })
+    })
+})
+
+// The vendor refund's keys are the same; its ⇧? group and the three descriptions that name
+// the document are its own (vendor refund spec §3.2).
+describe('the vendor refund key map', () => {
+    it('is listed in the group Vendor refund', () => {
+        expect(VENDOR_REFUND_FLOW.chrome.shortcutGroup).toBe('Vendor refund')
+    })
+
+    it('describes Refund all, Clear refunds and the row toggle with the refund’s words', () => {
+        expect(paymentFormDescriptions(VENDOR_REFUND_FLOW.texts)).toEqual({
+            post: 'Post',
+            postAndNew: 'Post & new',
+            saveDraft: 'Save draft',
+            cancel: 'Cancel',
+            deleteDraft: 'Delete draft',
+            clearPayments: 'Clear refunds',
+            payAll: 'Refund every listed credit in full',
+            toggleRow: 'Refund this credit in full, or clear it',
         })
     })
 })

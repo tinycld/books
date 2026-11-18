@@ -92,6 +92,9 @@ export function PaymentFormView({
         rowCount: outstanding.rows.length,
     })
     const hasTotals = listMode === 'rows' || listMode === 'none'
+    // A party with no open document: the 'credit' rule keeps the amount as credit, so its
+    // lines say so; under 'exact' nothing can be placed, so only the sum refusal is drawn.
+    const hasTotalLines = listMode === 'rows' || flow.sumRule === 'credit'
     const isClearDisabled = isWriting || !offered.includes('clearPayments')
     const figure = paymentFigureText(values.amount, currency)
     const summaryErrors = rootErrorOnly(errors)
@@ -166,6 +169,7 @@ export function PaymentFormView({
                     />
                     <PaymentTotals
                         isVisible={hasTotals}
+                        hasLines={hasTotalLines}
                         flow={flow}
                         lines={totals.lines}
                         partyName={paymentForm.partyName}

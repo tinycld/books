@@ -1,0 +1,172 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/vendor-refunds/new?vendor=vendcascadeff01",
+            "ready": "vendor-refund-form",
+            "height": 2400,
+            "hideLabels": ["New"],
+            "actions": [
+                { "waitFor": "vendor-refund-on-credits" },
+                { "clickLabel": "Refund vendor credit" },
+                { "click": "vendor-refund-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/vendor-refunds/new",
+            "ready": "vendor-refund-list-prompt",
+            "height": 1300,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "no-credit",
+            "url": "/a/books/vendor-refunds/new?vendor=vendharborfl001",
+            "ready": "vendor-refund-list-empty",
+            "height": 1400,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "not-placed",
+            "url": "/a/books/vendor-refunds/new?vendor=vendcascadeff01",
+            "ready": "vendor-refund-form",
+            "height": 2500,
+            "hideLabels": ["New"],
+            "actions": [
+                { "waitFor": "vendor-refund-on-credits" },
+                { "fill": "vendor-refund-amount", "value": "300.00" },
+                { "waitFor": "vendor-refund-not-placed" },
+                { "click": "vendor-refund-title" },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "errors",
+            "url": "/a/books/vendor-refunds/new?vendor=vendcascadeff01",
+            "ready": "vendor-refund-form",
+            "height": 2600,
+            "hideLabels": ["New"],
+            "actions": [
+                { "waitFor": "vendor-refund-on-credits" },
+                { "fill": "vendor-refund-amount", "value": "100.00" },
+                { "clickLabel": "Refund vendor credit" },
+                { "clickLabel": "Refund vendor credit" },
+                { "click": "vendor-refund-post" },
+                { "waitFor": "vendor-refund-sum-error" },
+                { "click": "vendor-refund-title" },
+                { "pause": 300 }
+            ]
+        },
+        {
+            "name": "draft",
+            "url": "/a/books/vendor-refunds/new?vendor=vendcascadeff01",
+            "ready": "vendor-refund-form",
+            "height": 1400,
+            "hideLabels": ["New"],
+            "actions": [
+                { "waitFor": "vendor-refund-on-credits" },
+                { "clickLabel": "Refund vendor credit" },
+                {
+                    "fill": "vendor-refund-memo",
+                    "value": "Second check, waiting for the deposit slip"
+                },
+                { "click": "vendor-refund-save-draft" },
+                { "waitFor": "Draft vendor refund" },
+                { "click": "vendor-refund-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/vendor-refunds/new?vendor=vendcascadeff01",
+            "ready": "vendor-refund-list-loading",
+            "height": 1400,
+            "schemes": ["light"],
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": { "collection": "books_vendor_credits", "hold": true }
+        },
+        {
+            "name": "list-error",
+            "url": "/a/books/vendor-refunds/new?vendor=vendcascadeff01",
+            "ready": "vendor-refund-list-error",
+            "height": 1400,
+            "schemes": ["light"],
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": { "collection": "books_vendor_credits", "status": 400 }
+        },
+        {
+            "name": "error",
+            "url": "/a/books/vendor-refunds/doesnotexist000",
+            "ready": "vendor-refund-error",
+            "schemes": ["light"],
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": { "collection": "books_vendor_refunds", "status": 400 }
+        },
+        {
+            "name": "not-found",
+            "url": "/a/books/vendor-refunds/doesnotexist000",
+            "ready": "vendor-refund-not-found",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "no-access",
+            "url": "/a/books/vendor-refunds/new",
+            "ready": "vendor-refund-no-access",
+            "schemes": ["light"],
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            }
+        },
+        {
+            "name": "read-reader",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "height": 1200,
+            "schemes": ["light"],
+            "hideLabels": ["New", "Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                { "click": "entries-range" },
+                { "clickMenuItem": "All dates" },
+                {
+                    "fill": "entries-search",
+                    "value": "First of two refund checks for the cancelled fleet cards"
+                },
+                { "clickText": "First of two refund checks for the cancelled fleet cards" },
+                { "waitFor": "vendor-refund-read-only" },
+                { "waitFor": "vendor-refund-applied" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}

@@ -74,7 +74,8 @@ function ListMessage({ text, testID }: { text: string; testID: string }) {
 }
 
 // The no-documents state's button (the vendor refund's "New vendor credit"); nothing where
-// the flow has none.
+// the flow has none. It pushes the opened form over this one (spec §2), and that form's
+// Back returns here with what was typed (useBackToEntries).
 function NoDocumentsButton({ flow, partyId }: { flow: PaymentFlow; partyId: string }) {
     const orgHref = useOrgHref()
     const hrefOf = flow.texts.noDocumentsHref

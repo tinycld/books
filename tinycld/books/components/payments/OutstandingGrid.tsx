@@ -359,8 +359,8 @@ function TotalCell({ doc, text }: { doc: OutstandingDocument; text: string }) {
     )
 }
 
-// The vendor's bill no. under the bill link, muted; nothing without one.
-function RefLine({ text }: { text: string }) {
+// The vendor's document no. under the document link, muted; nothing without one.
+export function RefLine({ text }: { text: string }) {
     if (text === '') return null
     return (
         <Text className="text-xs text-muted-foreground" numberOfLines={1}>
@@ -497,9 +497,9 @@ function GridTotals({
  * every row, or clears them all when every row is paid), the descriptor's party column
  * (Vendor on Pay Bills), the document link, the date (`doc.dateHeader`), the total where the
  * descriptor has a total column, the open amount (`doc.openHeader`) and the payment column
- * (the descriptor's `paymentHeader`),
- * sharing the column widths with the header and the totals row. The columns grow to fill the list and never scroll sideways:
- * the list shows this grid only while it is at least `doc.gridMinWidth` wide, cards below.
+ * (the descriptor's `paymentHeader`), sharing the column widths with the header and the
+ * totals row. The columns grow to fill the list and never scroll sideways: the list shows
+ * this grid only while it is at least `doc.gridMinWidth` wide, cards below.
  * With `onSort` the Vendor and Due date headers sort; with `totals` a totals row closes the
  * list.
  */
