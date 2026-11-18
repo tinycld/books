@@ -17,3 +17,22 @@ export function paymentReadActions(
         status === 'posted' && canWrite ? ['edit', 'void', 'entry'] : ['entry']
     return hasEntry ? actions : actions.filter(action => action !== 'entry')
 }
+
+// The payment collections a read view voids: a customer payment, a bill payment or a
+// vendor refund.
+export type PaymentCollectionName =
+    | 'books_payments'
+    | 'books_bill_payments'
+    | 'books_vendor_refunds'
+
+// The collection Void writes `status: 'void'` to, for a read view of each collection: its
+// own, so a void never lands on another payment collection (vendor refund spec §3.7).
+const VOID_WRITE_COLLECTION: Record<PaymentCollectionName, PaymentCollectionName> = {
+    books_payments: 'books_payments',
+    books_bill_payments: 'books_bill_payments',
+    books_vendor_refunds: 'books_vendor_refunds',
+}
+
+export function voidWriteCollection(collection: PaymentCollectionName): PaymentCollectionName {
+    return VOID_WRITE_COLLECTION[collection]
+}

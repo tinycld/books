@@ -1,16 +1,25 @@
 import { type ScopeOwner, ScopeProvider, useShortcutScope } from '@tinycld/core/lib/shortcuts'
 import { useMemo, useState } from 'react'
-import type { OutstandingInvoice } from '../../hooks/useOutstandingInvoices'
-import type { PaymentApplicationRow } from '../../hooks/usePaymentRecord'
+import type { PaymentRecordView } from '../../hooks/usePaymentRecord'
 import {
     type PaymentScreenData,
     type PaymentScreenInput,
     usePaymentScreen,
 } from '../../hooks/usePaymentScreen'
-import type { OutstandingRow } from '../../lib/payment-allocation'
+import { RECEIVED_PAYMENT_READS } from '../../hooks/useReceivedPaymentReads'
+import type { DepositAccountRow } from '../../lib/deposit-accounts'
 import { paymentDefaultDeposit } from '../../lib/payment-deposit'
-import { PAYMENT_CHROME } from '../../lib/payment-kind'
+import { PAYMENT_FLOW } from '../../lib/payment-flow'
 import { paymentRefusalErrors } from '../../lib/payment-refusals'
+import {
+    draftApplicationsOf,
+    originalApplicationsOf,
+    type PaymentFormMode,
+    readyApplicationsOf,
+    startRowOf,
+    storedDocumentsOf,
+    titleOf,
+} from '../../lib/payment-start'
 import {
     correctionPaymentValues,
     draftPaymentValues,
@@ -23,79 +32,12 @@ import { PaymentForm } from './PaymentForm'
 import { PaymentReadView } from './PaymentReadView'
 import { PaymentStateNotice } from './PaymentStateNotice'
 
-// A stored application whose invoice row is in the store.
-type ReadyApplication = PaymentApplicationRow & {
-    invoiceRow: NonNullable<PaymentApplicationRow['invoiceRow']>
-}
+const FLOW = PAYMENT_FLOW
 
-// The applications with their invoices; null while any invoice row is not in the store
-// (the screen stays on loading: an application with no invoice has no open balance).
-function readyApplicationsOf(
-    applications: readonly PaymentApplicationRow[]
-): ReadyApplication[] | null {
-    const ready = applications.filter(
-        (application): application is ReadyApplication => application.invoiceRow !== undefined
-    )
-    return ready.length === applications.length ? ready : null
-}
-
-// The invoices stored applications name, as the outstanding list reads them, each once.
-function storedInvoicesOf(applications: readonly ReadyApplication[]): OutstandingInvoice[] {
-    const seen = new Set<string>()
-    return applications.flatMap(application => {
-        const invoice = application.invoiceRow
-        if (seen.has(invoice.id)) return []
-        seen.add(invoice.id)
-        return [
-            {
-                id: invoice.id,
-                number: invoice.number,
-                date: invoice.date,
-                due_date: invoice.due_date,
-                total: invoice.total,
-                balance: invoice.balance,
-                customer: invoice.customer,
-            },
-        ]
-    })
-}
-
-// Stored applications as the form's start values read them; `extra` adds what a
-// corrected original applied to each invoice's open balance.
-function draftApplicationsOf(
-    applications: readonly ReadyApplication[],
-    extra: Readonly<Record<string, number>>
-) {
-    return applications.map(application => ({
-        invoice: application.invoice,
-        amount: application.amount,
-        open: application.invoiceRow.balance + (extra[application.invoice] ?? 0),
-        number: application.invoiceRow.number,
-    }))
-}
-
-// A posted original's applications as correctionPaymentValues reads them.
-function originalApplicationsOf(applications: readonly ReadyApplication[]) {
-    return applications.map(application => ({
-        invoice: application.invoice,
-        amount: application.amount,
-        number: application.invoiceRow.number,
-        balance: application.invoiceRow.balance,
-    }))
-}
-
-// `?invoice` ticks its invoice only when it is a posted invoice of `?customer`.
-function startRowOf(screen: PaymentScreenData, customer: string): OutstandingRow | null {
-    const invoice = screen.startInvoice
-    if (!invoice || invoice.customer !== customer || invoice.status !== 'posted') return null
-    return {
-        id: invoice.id,
-        number: invoice.number,
-        date: invoice.date.slice(0, 10),
-        due_date: invoice.due_date.slice(0, 10),
-        total: invoice.total,
-        open: invoice.balance,
-    }
+function depositLabelOf(accounts: readonly DepositAccountRow[], id: string): string {
+    const account = accounts.find(row => row.id === id)
+    if (!account) return ''
+    return account.number ? `${account.number} ${account.name}` : account.name
 }
 
 interface PaymentSurfaceProps {
@@ -106,9 +48,14 @@ interface PaymentSurfaceProps {
 }
 
 interface PaymentFormRouteProps extends PaymentSurfaceProps {
-    // The draft's applications and the posted original's, each with its invoice.
-    applications: ReadyApplication[]
-    originalApplications: ReadyApplication[]
+    // The draft's lines and the posted original's, each with its invoice.
+    lines: PaymentRecordView['lines']
+    originalLines: PaymentRecordView['lines']
+}
+
+function modeOf(isDraft: boolean, hasOriginal: boolean): PaymentFormMode {
+    if (isDraft) return 'draft'
+    return hasOriginal ? 'correction' : 'new'
 }
 
 // The form of a new payment, a correction (`?replaces` of a posted payment) or a draft (a
@@ -118,58 +65,52 @@ function PaymentFormRoute({
     input,
     refused,
     scopeOwner,
-    applications,
-    originalApplications,
+    lines,
+    originalLines,
 }: PaymentFormRouteProps) {
     const { payment, original } = screen
     const isDraft = input.id !== null
-    // The original's applications still lower its invoices' balances until the correction
-    // posts, so the correction may pay up to the balance plus what the original applied.
+    const party = payment?.party ?? original?.party ?? input.party ?? ''
+    // The original's lines still lower its invoices' balances until the correction posts,
+    // so the correction may pay up to the balance plus what the original applied.
     const extraOpen = useMemo(
-        () =>
-            Object.fromEntries(
-                originalApplications.map(application => [application.invoice, application.amount])
-            ),
-        [originalApplications]
+        () => Object.fromEntries(originalLines.map(line => [line.document, line.amount])),
+        [originalLines]
     )
     const storedInvoices = useMemo(
-        () => storedInvoicesOf([...(isDraft ? applications : []), ...originalApplications]),
-        [isDraft, applications, originalApplications]
+        () => storedDocumentsOf([...(isDraft ? lines : []), ...originalLines], party),
+        [isDraft, lines, originalLines, party]
     )
-    const storedApplications = useMemo(
+    const storedLines = useMemo(
         () =>
             isDraft
-                ? applications.map(application => ({
-                      id: application.id,
-                      invoice: application.invoice,
-                      amount: application.amount,
-                  }))
+                ? lines.map(line => ({ id: line.id, document: line.document, amount: line.amount }))
                 : [],
-        [isDraft, applications]
+        [isDraft, lines]
     )
-    const customer = input.customer ?? ''
+    const openedWith = input.party ?? ''
     const startValues = () => {
         if (refused) return refused.values
         if (isDraft && payment) {
-            return draftPaymentValues(payment, draftApplicationsOf(applications, extraOpen))
+            return draftPaymentValues(payment, draftApplicationsOf(lines, extraOpen))
         }
         if (original) {
-            return correctionPaymentValues(original, originalApplicationsOf(originalApplications))
+            return correctionPaymentValues(original, originalApplicationsOf(originalLines))
         }
         return newPaymentValues({
             today: todayIso(),
-            customer,
-            invoice: startRowOf(screen, customer),
-            depositTo: paymentDefaultDeposit(screen.depositAccounts),
+            party: openedWith,
+            document: startRowOf(screen.startDocument, openedWith),
+            account: paymentDefaultDeposit(screen.depositAccounts),
         })
     }
     // The form reads its start values, and a handed-off refusal as its start errors, once,
     // at mount.
     const [start] = useState(() => ({
         values: startValues(),
-        errors: refused ? paymentRefusalErrors(refused.error, refused.stored) : undefined,
+        errors: refused ? paymentRefusalErrors(refused.error, refused.stored, FLOW) : undefined,
     }))
-    const title = titleOf(isDraft, original?.number)
+    const title = titleOf(FLOW, modeOf(isDraft, original !== null), original?.number)
     return (
         <PaymentForm
             initial={start.values}
@@ -179,35 +120,29 @@ function PaymentFormRoute({
             currency={screen.currency}
             depositAccounts={screen.depositAccounts}
             paymentId={input.id}
-            storedApplications={storedApplications}
+            storedLines={storedLines}
             storedInvoices={storedInvoices}
             extraOpen={extraOpen}
             replaces={input.replaces}
             isCustomerLocked={original !== null}
-            openedWithCustomer={customer}
+            openedWithCustomer={openedWith}
             canWrite={screen.canWrite}
             scopeOwner={scopeOwner}
         />
     )
 }
 
-function titleOf(isDraft: boolean, originalNumber: string | undefined): string {
-    if (isDraft) return 'Draft payment'
-    if (originalNumber) return `Edit payment ${originalNumber}`
-    return 'Receive payment'
-}
-
-// The original's applications widen the open balances only while it is posted: once
-// another correction of it posts, it is void and its applications no longer hold any
-// invoice's balance down.
-function heldOriginalApplications(screen: PaymentScreenData) {
-    return screen.original?.status === 'posted' ? screen.originalApplications : []
+// The original's lines widen the open balances only while it is posted: once another
+// correction of it posts, it is void and its lines no longer hold any invoice's balance
+// down.
+function heldOriginalLines(screen: PaymentScreenData) {
+    return screen.original?.status === 'posted' ? screen.originalLines : []
 }
 
 function PaymentSurface({ screen, input, refused, scopeOwner }: PaymentSurfaceProps) {
-    const applications = readyApplicationsOf(screen.applications)
-    const originalApplications = readyApplicationsOf(heldOriginalApplications(screen))
-    const isFormReady = applications !== null && originalApplications !== null
+    const lines = readyApplicationsOf(screen.lines)
+    const originalLines = readyApplicationsOf(heldOriginalLines(screen))
+    const isFormReady = lines !== null && originalLines !== null
     if (screen.state === 'form' && isFormReady) {
         return (
             <PaymentFormRoute
@@ -215,41 +150,43 @@ function PaymentSurface({ screen, input, refused, scopeOwner }: PaymentSurfacePr
                 input={input}
                 refused={refused}
                 scopeOwner={scopeOwner}
-                applications={applications}
-                originalApplications={originalApplications}
+                lines={lines}
+                originalLines={originalLines}
             />
         )
     }
     if (screen.state === 'read' && screen.payment) {
         return (
             <PaymentReadView
+                flow={FLOW}
                 payment={screen.payment}
-                applications={screen.applications}
-                customerName={screen.customerName}
-                depositAccounts={screen.depositAccounts}
+                lines={screen.lines}
+                partyName={screen.partyName}
+                accountLabel={depositLabelOf(screen.depositAccounts, screen.payment.account)}
                 currency={screen.currency}
                 canWrite={screen.canWrite}
                 scopeOwner={scopeOwner}
+                collection="books_payments"
             />
         )
     }
     const notice = screen.state === 'read' || screen.state === 'form' ? 'loading' : screen.state
-    return <PaymentStateNotice state={notice} onRetry={screen.retry} />
+    return <PaymentStateNotice flow={FLOW} state={notice} onRetry={screen.retry} />
 }
 
 /**
  * The receive-payment screen at `books/payments/new` and `books/payments/<id>`: the shared
- * document chrome reads PAYMENT_CHROME, and the screen's `compose` scope holds the keys
- * of the form or the read view. A draft opens in the form, a posted or void payment in
- * the read view.
+ * document chrome reads PAYMENT_FLOW's chrome, and the screen's `compose` scope holds the
+ * keys of the form or the read view. A draft opens in the form, a posted or void payment
+ * in the read view.
  */
 export function PaymentScreen(input: PaymentScreenInput) {
     const scopeOwner = useShortcutScope('compose')
-    const screen = usePaymentScreen(input)
+    const screen = usePaymentScreen(FLOW, input, RECEIVED_PAYMENT_READS)
     // A refusal the new form handed over when it moved to this draft's route.
-    const [refused] = useState(() => refusedSaveOf(input.id))
+    const [refused] = useState(() => refusedSaveOf(FLOW.key, input.id))
     return (
-        <DocumentChromeContext.Provider value={PAYMENT_CHROME}>
+        <DocumentChromeContext.Provider value={FLOW.chrome}>
             <ScopeProvider owner={scopeOwner}>
                 <PaymentSurface
                     screen={screen}

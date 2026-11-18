@@ -12,6 +12,22 @@ import { CARD, CardPair } from './OutstandingCards'
 import { AppliedDocumentLink } from './OutstandingGrid'
 import { TotalLine } from './PaymentTotals'
 
+// Which day a paid document shows: its due date, or its own date (a vendor credit has no
+// due date).
+export type AppliedDateField = 'dueDate' | 'date'
+
+export function appliedDayOf(field: AppliedDateField, row: AppliedDocumentRow): string {
+    return formatDay(field === 'date' ? row.date : row.dueDate)
+}
+
+// A card's date line: "Due Nov 1, 2026", or the document's own date; '' with none.
+function cardDayOf(field: AppliedDateField, row: AppliedDocumentRow): string {
+    const day = field === 'date' ? row.date : row.dueDate
+    if (!day) return ''
+    const text = formatDay(day)
+    return field === 'date' ? text : `Due ${text}`
+}
+
 interface AppliedCardsProps {
     doc: OutstandingDocument
     rows: readonly AppliedDocumentRow[]
@@ -19,6 +35,7 @@ interface AppliedCardsProps {
     testIdPrefix: string
     // The Total line's amount; null draws none.
     total: number | null
+    dateField: AppliedDateField
 }
 
 function AppliedCard({
@@ -26,11 +43,12 @@ function AppliedCard({
     row,
     currency,
     testIdPrefix,
+    dateField,
 }: Omit<AppliedCardsProps, 'rows' | 'total'> & { row: AppliedDocumentRow }) {
     const texts = outstandingTexts(doc)
     const totalLabel = totalTexts(doc).card
     const label = cardDocumentLabel(doc, row)
-    const due = row.dueDate ? `Due ${formatDay(row.dueDate)}` : ''
+    const due = cardDayOf(dateField, row)
     const original = formatMoney(row.total, currency)
     const applied = formatMoney(row.amount, currency)
     return (
@@ -76,6 +94,7 @@ export function AppliedInvoiceCards({
     currency,
     testIdPrefix,
     total,
+    dateField,
 }: AppliedCardsProps) {
     const drawn = rows.map(row => (
         <AppliedCard
@@ -84,6 +103,7 @@ export function AppliedInvoiceCards({
             row={row}
             currency={currency}
             testIdPrefix={testIdPrefix}
+            dateField={dateField}
         />
     ))
     return (

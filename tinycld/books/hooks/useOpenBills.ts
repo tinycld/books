@@ -44,7 +44,7 @@ export type OpenBillsInput = {
 const NO_LINES: readonly ReplacedLine[] = []
 const NO_BILLS: readonly OpenBillQueryRow[] = []
 
-// A bill as mergeOutstanding reads it: the vendor stands in its `customer`.
+// A bill as mergeOutstanding reads it: the vendor is its `party`, the bill no. its `ref`.
 function outstandingOf(bill: NonNullable<ReplacedLine['billRow']>): OutstandingInvoice {
     return {
         id: bill.id,
@@ -53,7 +53,8 @@ function outstandingOf(bill: NonNullable<ReplacedLine['billRow']>): OutstandingI
         due_date: bill.due_date,
         total: bill.total,
         balance: bill.balance,
-        customer: bill.vendor,
+        party: bill.vendor,
+        ref: bill.ref_no,
     }
 }
 
@@ -69,31 +70,24 @@ export function correctionRowsOf(
     vendor: string,
     vendorName: string
 ): PayBillsRow[] {
-    const refs = new Map<string, string>()
-    const openBills = open.map(row => {
-        refs.set(row.id, row.ref)
-        return {
-            id: row.id,
-            number: row.number,
-            date: row.date,
-            due_date: row.due_date,
-            total: row.total,
-            balance: row.open,
-            customer: row.vendor,
-        }
-    })
-    const stored = lines.flatMap(line => {
-        if (!line.billRow) return []
-        refs.set(line.bill, refs.get(line.bill) ?? line.billRow.ref_no)
-        return [outstandingOf(line.billRow)]
-    })
+    const openBills = open.map(row => ({
+        id: row.id,
+        number: row.number,
+        date: row.date,
+        due_date: row.due_date,
+        total: row.total,
+        balance: row.open,
+        party: row.vendor,
+        ref: row.ref,
+    }))
+    const stored = lines.flatMap(line => (line.billRow ? [outstandingOf(line.billRow)] : []))
     const extraOpen: Record<string, number> = {}
     for (const line of lines) extraOpen[line.bill] = (extraOpen[line.bill] ?? 0) + line.amount
     return mergeOutstanding(openBills, stored, vendor, extraOpen).map(row => ({
         ...row,
         vendor,
         party: vendorName,
-        ref: refs.get(row.id) ?? '',
+        ref: row.ref ?? '',
     }))
 }
 

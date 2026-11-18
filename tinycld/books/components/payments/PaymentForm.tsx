@@ -1,31 +1,27 @@
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
+import { useStore } from '@tinycld/core/lib/pocketbase'
 import type { ScopeOwner } from '@tinycld/core/lib/shortcuts'
-import { FormErrorSummary, TextAreaInput } from '@tinycld/core/ui/form'
+import { useRecord } from '@tinycld/core/lib/use-record'
+import { SelectInput } from '@tinycld/core/ui/form'
 import { useMemo, useState } from 'react'
 import type { FieldErrors } from 'react-hook-form'
-import { ScrollView, View } from 'react-native'
-import type { OutstandingInvoice } from '../../hooks/useOutstandingInvoices'
-import { usePaymentForm } from '../../hooks/usePaymentForm'
+import { Platform } from 'react-native'
+import {
+    type OutstandingInvoice,
+    useOutstandingInvoices,
+    useOutstandingLoader,
+} from '../../hooks/useOutstandingInvoices'
+import { usePaymentForm, usePaymentFormValues } from '../../hooks/usePaymentForm'
 import { usePaymentSave } from '../../hooks/usePaymentSave'
 import { usePaymentShortcuts } from '../../hooks/usePaymentShortcuts'
+import { usePaymentWrites } from '../../hooks/usePaymentWrites'
 import type { DepositAccountRow } from '../../lib/deposit-accounts'
-import { INVOICE_OUTSTANDING } from '../../lib/outstanding-documents'
 import { paymentDepositOptions } from '../../lib/payment-deposit'
-import { paymentFigureText } from '../../lib/payment-texts'
+import { PAYMENT_FLOW } from '../../lib/payment-flow'
 import type { PaymentFormValues } from '../../lib/payment-values'
-import { todayIso } from '../../lib/register-range'
-import { rootErrorOnly } from '../../lib/root-errors'
-import { DocumentActionBar } from '../documents/DocumentActionBar'
-import { DocumentHeader } from '../documents/DocumentHeader'
-import { DeleteDraftDialog } from '../entries/DeleteDraftDialog'
-import { DiscardDialog } from '../entries/DiscardDialog'
-import { EntryBackLink } from '../entries/EntryHeader'
-import { EntryLeaveContext } from '../entries/EntryLeaveContext'
-import { ClearPaymentsLink } from './ClearPaymentsLink'
-import { useFindInvoiceField } from './FindInvoiceField'
-import { OutstandingInvoices, outstandingListMode } from './OutstandingInvoices'
-import { PaymentBand } from './PaymentBand'
-import { PaymentTotals } from './PaymentTotals'
+import { FindInvoiceField, useFindInvoiceField } from './FindInvoiceField'
+import { PaymentCustomerField } from './PaymentCustomerField'
+import { PaymentFormView } from './PaymentFormView'
 
 export interface PaymentFormProps {
     initial: PaymentFormValues
@@ -35,7 +31,7 @@ export interface PaymentFormProps {
     // The saved draft's id; null for a new payment.
     paymentId: string | null
     // The draft's stored applications (live) and the invoices they name.
-    storedApplications: readonly { id: string; invoice: string; amount: number }[]
+    storedLines: readonly { id: string; document: string; amount: number }[]
     storedInvoices: readonly OutstandingInvoice[]
     extraOpen?: Readonly<Record<string, number>>
     replaces?: string
@@ -51,11 +47,14 @@ export interface PaymentFormProps {
     holdsHandOff: boolean
 }
 
-const MEMO_WIDE = { maxWidth: 560 }
+const FLOW = PAYMENT_FLOW
+const AUTO_FOCUS = Platform.OS === 'web'
 
 /**
- * The receive-payment form (spec §3): header, band, outstanding list, Clear payments,
- * totals, memo and the shared action bar, with the Discard and Delete draft dialogs.
+ * The receive-payment form (spec §3): the received payment's reads (the customer's open
+ * invoices, the customer's name), its Customer, Deposit to and Find invoice no. fields,
+ * and the shared form view under PAYMENT_FLOW. The hooks run in the fixed order: the
+ * form's values, the flow's reads, usePaymentForm, usePaymentSave, usePaymentShortcuts.
  */
 export function PaymentForm({
     initial,
@@ -63,7 +62,7 @@ export function PaymentForm({
     currency,
     depositAccounts,
     paymentId,
-    storedApplications,
+    storedLines,
     storedInvoices,
     extraOpen,
     replaces,
@@ -76,31 +75,46 @@ export function PaymentForm({
 }: PaymentFormProps) {
     const isPhone = useBreakpoint() === 'mobile'
     // A stored inactive account shows by name only for the value the form mounted with.
-    const [depositStoredId] = useState(() => initial.deposit_to)
+    const [depositStoredId] = useState(() => initial.account)
     const deposit = useMemo(
         () => paymentDepositOptions(depositAccounts, depositStoredId),
         [depositAccounts, depositStoredId]
     )
     const depositValues = useMemo(() => deposit.options.map(option => option.value), [deposit])
-    const paymentForm = usePaymentForm({
+    const formValues = usePaymentFormValues({
+        flow: FLOW,
         initial,
         currency,
-        depositOptions: depositValues,
-        storedInvoices,
-        extraOpen,
+        accountOptions: depositValues,
         initialErrors,
     })
-    const save = usePaymentSave({
+    const party = formValues.values.party
+    const outstanding = useOutstandingInvoices(party, storedInvoices, extraOpen)
+    const loadOutstanding = useOutstandingLoader(storedInvoices, extraOpen)
+    const [customersCollection] = useStore('books_customers')
+    const customerRow = useRecord(customersCollection, party || null)
+    const partyName = customerRow.record?.display_name ?? ''
+    const paymentForm = usePaymentForm({
+        flow: FLOW,
+        formValues,
+        currency,
+        outstanding,
+        loadOutstanding,
+        partyName,
+    })
+    const writes = usePaymentWrites()
+    const save = usePaymentSave(FLOW, writes, {
         paymentForm,
         currency,
         paymentId,
-        storedApplications,
+        storedLines,
         replaces,
-        openedWithCustomer,
+        openedWithParty: openedWithCustomer,
         holdsHandOff,
     })
     const isSavedDraft = paymentId !== null
     const shortcuts = usePaymentShortcuts({
+        flow: FLOW,
         scopeOwner,
         canWrite,
         isPending: save.isPending,
@@ -114,143 +128,62 @@ export function PaymentForm({
             postAndNew: save.postAndNew,
         },
     })
-    const { form, values, outstanding, totals } = paymentForm
+    const { form } = paymentForm
     const find = useFindInvoiceField({
-        customer: values.customer,
-        getCustomer: () => form.getValues('customer'),
+        customer: party,
+        getCustomer: () => form.getValues('party'),
         onPicked: paymentForm.onFindPicked,
     })
     // A pick of another customer clears Find invoice no., so an old lookup text never
     // becomes a filter of the new customer's list.
-    const onCustomerPicked = (id: string) => {
-        if (id !== form.getValues('customer')) find.clear()
-        return paymentForm.onCustomerPicked(id)
+    const pickCustomer = (id: string) => {
+        if (id !== form.getValues('party')) find.clear()
+        void paymentForm.onPartyPicked(id)
     }
-    const band = { ...paymentForm, onCustomerPicked }
-    // A running save, delete or post: every control waits for it, so an edit made during
-    // the write is not lost when the form resets to what it submitted.
     const isWriting = save.isPending
-    const errors = form.formState.errors
-    const rowErrors = Object.fromEntries(
-        outstanding.rows.map(row => [row.id, errors.payments?.[row.id]?.amount?.message ?? ''])
+    const partyError = form.formState.errors.party?.message ?? ''
+    const partyField = (
+        <PaymentCustomerField
+            value={party}
+            name={partyName}
+            error={partyError}
+            isDisabled={isWriting || isCustomerLocked}
+            hasFocusOnOpen={!isCustomerLocked}
+            onPick={pickCustomer}
+            onPicked={paymentForm.focusDate}
+        />
     )
-    const listMode = outstandingListMode({
-        customer: values.customer,
-        isReady: outstanding.isReady,
-        isError: outstanding.isError,
-        rowCount: outstanding.rows.length,
-    })
-    const hasTotals = listMode === 'rows' || listMode === 'none'
-    const isClearDisabled = isWriting || !shortcuts.offered.includes('clearPayments')
-    const figure = paymentFigureText(values.amount, currency)
-    const summaryErrors = rootErrorOnly(errors)
-    const memoStyle = isPhone ? undefined : MEMO_WIDE
-    const list = {
-        doc: INVOICE_OUTSTANDING,
-        rows: outstanding.rows,
-        payments: values.payments,
-        rowErrors,
+    const accountField = (
+        <SelectInput
+            name="account"
+            control={form.control}
+            label={FLOW.texts.accountLabel}
+            options={deposit.options}
+            placeholder={deposit.triggerLabel}
+            disabled={isWriting}
+            testID={`${FLOW.testId}-${FLOW.ids.account}`}
+        />
+    )
+    const findField = <FindInvoiceField field={find} isFullWidth isDisabled={isWriting} />
+    const view = {
+        paymentForm,
+        save,
+        offered: shortcuts.offered,
+        title,
         currency,
-        today: todayIso(),
-        isDisabled: isWriting,
-        onTick: paymentForm.onRowTick,
-        onTickAll: paymentForm.onTickAll,
-        onType: paymentForm.onRowType,
-        onNext: paymentForm.focusAfterRow,
-        onFocusRow: (rowId: string | null) => {
-            paymentForm.focusedRowRef.current = rowId
-        },
-        rowRef: paymentForm.rowRef,
+        isPhone,
+        isSavedDraft,
+        isDateFirst: AUTO_FOCUS && isCustomerLocked,
+        filterText: find.filterText,
+        scopeOwner,
     }
     return (
-        <EntryLeaveContext.Provider value={save.cancel}>
-            <View testID="payment-form" className="min-w-0 flex-1 bg-background">
-                <ScrollView
-                    className="flex-1"
-                    contentContainerClassName="gap-4 px-4 pt-2 pb-6"
-                    keyboardShouldPersistTaps="handled"
-                >
-                    <EntryBackLink />
-                    <DocumentHeader
-                        title={title}
-                        status="draft"
-                        figure={figure}
-                        isExpired={false}
-                    />
-                    <FormErrorSummary
-                        errors={summaryErrors}
-                        title={null}
-                        variant="destructive"
-                        showFieldNames={false}
-                        testID="payment-error-summary"
-                        isEnabled
-                    />
-                    <PaymentBand
-                        paymentForm={band}
-                        depositOptions={deposit.options}
-                        depositTriggerLabel={deposit.triggerLabel}
-                        isPhone={isPhone}
-                        isDisabled={isWriting}
-                        isCustomerLocked={isCustomerLocked}
-                    />
-                    <OutstandingInvoices
-                        mode={listMode}
-                        customerName={paymentForm.customerName}
-                        onRetry={outstanding.retry}
-                        find={find}
-                        list={list}
-                    />
-                    <ClearPaymentsLink
-                        isVisible={listMode === 'rows'}
-                        isDisabled={isClearDisabled}
-                        onPress={paymentForm.onClear}
-                        scopeOwner={scopeOwner}
-                        linkRef={paymentForm.clearRef}
-                    />
-                    <PaymentTotals
-                        isVisible={hasTotals}
-                        apply={totals.apply}
-                        credit={totals.credit}
-                        creditNote={totals.creditNote}
-                        over={totals.over}
-                    />
-                    <View style={memoStyle}>
-                        <TextAreaInput
-                            name="memo"
-                            control={form.control}
-                            label="Internal memo (not printed)"
-                            maxLength={4000}
-                            editable={!isWriting}
-                            testID="payment-memo"
-                        />
-                    </View>
-                </ScrollView>
-                <DocumentActionBar
-                    isSaving={save.isPending}
-                    canDeleteDraft={isSavedDraft}
-                    isPhone={isPhone}
-                    onCancel={save.cancel}
-                    onSaveDraft={save.saveDraft}
-                    onPost={save.post}
-                    onPostAndNew={save.postAndNew}
-                    onDeleteDraft={save.openDeleteDraft}
-                    scopeOwner={scopeOwner}
-                />
-                <DiscardDialog
-                    title="Discard changes?"
-                    isVisible={save.isDiscardOpen}
-                    onDiscard={save.discard}
-                    onKeepEditing={save.keepEditing}
-                />
-                <DeleteDraftDialog
-                    isVisible={save.isDeleteOpen}
-                    onConfirm={save.confirmDelete}
-                    onCancel={save.closeDeleteDraft}
-                    isPending={save.isDeletePending}
-                    errorMessage={save.deleteError}
-                    body="The draft payment is deleted. This cannot be undone."
-                />
-            </View>
-        </EntryLeaveContext.Provider>
+        <PaymentFormView
+            flow={FLOW}
+            form={view}
+            partyField={partyField}
+            accountField={accountField}
+            findField={findField}
+        />
     )
 }

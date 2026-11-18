@@ -55,8 +55,8 @@ function CardLinkLine({ doc, link }: { doc: OutstandingDocument; link: ReactNode
     return <View className="min-w-0">{link}</View>
 }
 
-// The card's money pair: the total (where the descriptor has a total column) and Open
-// balance.
+// The card's money pair: the total (where the descriptor has a total column) and the open
+// amount (`doc.openCardLabel`).
 function CardMoney({
     doc,
     original,
@@ -71,7 +71,7 @@ function CardMoney({
     return (
         <View className="flex-row gap-3">
             {totalPair}
-            <CardPair label="Open balance" value={open} />
+            <CardPair label={doc.openCardLabel} value={open} />
         </View>
     )
 }
@@ -122,7 +122,7 @@ function DocumentCard({
                 <CardTitle doc={doc} party={row.party ?? ''} link={link} />
             </View>
             <CardLinkLine doc={doc} link={link} />
-            <DueText dueDate={row.due_date} today={today} />
+            <DueText dueDate={row.due_date} today={today} marksOverdue={doc.marksOverdue} />
             <CardMoney doc={doc} original={original} open={open} />
             <PaymentCell
                 doc={doc}
@@ -154,8 +154,8 @@ function TickAllBar({
     isDisabled: boolean
     onTickAll: () => void
 }) {
-    const label = outstandingTexts(doc).payAllLabel
-    if (!doc.hasPayAll || label === null) return null
+    const { payAllLabel: label, payAllText: text } = outstandingTexts(doc)
+    if (!doc.hasPayAll || label === null || text === null) return null
     return (
         <View className="flex-row items-center gap-1">
             <SelectBox
@@ -166,15 +166,16 @@ function TickAllBar({
                 isDisabled={isDisabled}
                 tabIndex={-1}
             />
-            <Text className="text-sm text-foreground">Pay all</Text>
+            <Text className="text-sm text-foreground">{text}</Text>
         </View>
     )
 }
 
 /**
  * The open-document list while the list is narrower than the grid's least width
- * (`doc.gridMinWidth`; spec §3.3, pay-bills spec §3.3, vendor credit spec §3.9): a "Pay
- * all" tick box over the cards where the descriptor has one, then one card per document:
+ * (`doc.gridMinWidth`; spec §3.3, pay-bills spec §3.3, vendor credit spec §3.9): a tick
+ * box with the descriptor's `payAllText` ("Pay all", "Refund all") over the cards where
+ * the descriptor has one, then one card per document:
  * the tick box and "Invoice 1004" on the first line (a bill card with a Vendor column: the
  * tick box and the vendor, then "Bill 1003 · No. 88412"), the due date, the total (where
  * the descriptor has a total column) and Open balance, and the payment input at full

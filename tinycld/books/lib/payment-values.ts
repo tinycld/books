@@ -1,5 +1,8 @@
-// The receive-payment form's values: the start values of a new payment, a saved draft and
-// a correction, and the application rows a save writes (spec §3.4, §3.6).
+// A payment form's values: the start values of a new payment, a saved draft and a
+// correction, and the line rows a save writes (receive-payment spec §3.4, §3.6). The form
+// names the party and the account by role (`party`, `account`) and a row's document
+// `document`, so one form serves every payment flow (vendor refund spec §3.1); each flow
+// maps them to its server fields (lib/payment-flow.ts `serverFields`).
 
 import { newRecordId } from 'pbtsdb/core'
 import type { BooksPaymentApplications, BooksPayments } from '../types'
@@ -8,71 +11,73 @@ import { centsToText, parseMoney } from './money-text'
 import type { OutstandingRow } from './payment-allocation'
 import type { PaymentMethodKey } from './payment-methods'
 
-// A row's typed payment, with its open balance and invoice number, so the schema checks
+// A row's typed payment, with its open amount and document number, so the schema checks
 // a row without reading the list.
 export type PaymentEntry = { amount: string; open: number; number: string }
 
-// Field names are the server's, so a refusal keyed by one lands under its field.
-// `amountTyped` is form state only: whether the user typed Amount received (spec §3.4).
+// `amountTyped` is form state only: whether the user typed the amount (spec §3.4).
 export type PaymentFormValues = {
-    customer: string
+    party: string
     date: string
     payment_method: PaymentMethodKey | ''
     reference_no: string
-    deposit_to: string
+    account: string
     amount: string
     amountTyped: boolean
-    // By invoice id; a row with no entry is at zero.
+    // By document id; a row with no entry is at zero.
     payments: Record<string, PaymentEntry>
     memo: string
 }
 
-// A new payment. `?invoice=` (with `?customer=`) ticks that invoice for its open balance,
-// and Amount received follows it.
+// A new payment. A start document (`?invoice=` with `?customer=`, `?credit=` with
+// `?vendor=`) is ticked for its open amount, and the amount follows it.
 export function newPaymentValues(input: {
     today: string
-    customer: string
-    invoice: OutstandingRow | null
-    depositTo: string
+    party: string
+    document: OutstandingRow | null
+    account: string
 }): PaymentFormValues {
-    const invoice =
-        input.customer !== '' && input.invoice && input.invoice.open > 0 ? input.invoice : null
-    const payments: Record<string, PaymentEntry> = invoice
+    const document =
+        input.party !== '' && input.document && input.document.open > 0 ? input.document : null
+    const payments: Record<string, PaymentEntry> = document
         ? {
-              [invoice.id]: {
-                  amount: centsToText(invoice.open),
-                  open: invoice.open,
-                  number: invoice.number,
+              [document.id]: {
+                  amount: centsToText(document.open),
+                  open: document.open,
+                  number: document.number,
               },
           }
         : {}
     return {
-        customer: input.customer,
+        party: input.party,
         date: input.today,
         payment_method: '',
         reference_no: '',
-        deposit_to: input.depositTo,
-        amount: invoice ? centsToText(invoice.open) : '',
+        account: input.account,
+        amount: document ? centsToText(document.open) : '',
         amountTyped: false,
         payments,
         memo: '',
     }
 }
 
+// A stored header as the form reads it, its party and account by role. The payment
+// method's keys and the money fields are those every payment collection shares.
 type DraftPayment = Pick<
     BooksPayments,
-    'customer' | 'date' | 'payment_method' | 'reference_no' | 'deposit_to' | 'amount' | 'memo'
->
+    'date' | 'payment_method' | 'reference_no' | 'amount' | 'memo'
+> & { party: string; account: string }
 
-// A stored application as the form reads it: its invoice's number and open balance.
-type DraftApplication = Pick<BooksPaymentApplications, 'invoice' | 'amount'> & {
+// A stored line as the form reads it: its document's number and open amount.
+type DraftApplication = Pick<BooksPaymentApplications, 'amount'> & {
+    document: string
     open: number
     number: string
 }
 
 // A saved draft (or a correction's original). The stored amounts are kept as their text.
-// Amount received counts as typed only when it differs from the applications' sum: the
-// user typed an amount that left a credit. Otherwise it follows the rows again.
+// The amount counts as typed only when it differs from the lines' sum: the user typed an
+// amount that left a credit. Otherwise it follows the rows again.
 export function draftPaymentValues(
     payment: DraftPayment,
     applications: readonly DraftApplication[]
@@ -81,18 +86,18 @@ export function draftPaymentValues(
     let applied = 0
     for (const application of applications) {
         applied += application.amount
-        payments[application.invoice] = {
+        payments[application.document] = {
             amount: moneyInputText(application.amount),
             open: application.open,
             number: application.number,
         }
     }
     return {
-        customer: payment.customer,
+        party: payment.party,
         date: payment.date.slice(0, 10),
         payment_method: payment.payment_method,
         reference_no: payment.reference_no,
-        deposit_to: payment.deposit_to,
+        account: payment.account,
         amount: moneyInputText(payment.amount),
         amountTyped: payment.amount !== applied,
         payments,
@@ -100,16 +105,17 @@ export function draftPaymentValues(
     }
 }
 
-// An application of a posted original as a correction reads it: `balance` is its
-// invoice's stored balance, which the original's own application has already lowered.
-type OriginalApplication = Pick<BooksPaymentApplications, 'invoice' | 'amount'> & {
+// A line of a posted original as a correction reads it: `balance` is its document's
+// stored balance, which the original's own line has already lowered.
+type OriginalApplication = Pick<BooksPaymentApplications, 'amount'> & {
+    document: string
     number: string
     balance: number
 }
 
 // A correction (`?replaces=<id>`) starts from its posted original: the original's header,
-// and each of its applications with the open balance the correction may pay, the invoice's
-// balance plus what the original applied to it (the correction releases that at posting).
+// and each of its lines with the open amount the correction may take, the document's
+// balance plus what the original put on it (the correction releases that at posting).
 // `amountTyped` follows the rule of draftPaymentValues.
 export function correctionPaymentValues(
     original: DraftPayment,
@@ -118,7 +124,7 @@ export function correctionPaymentValues(
     return draftPaymentValues(
         original,
         applications.map(application => ({
-            invoice: application.invoice,
+            document: application.document,
             amount: application.amount,
             open: application.balance + application.amount,
             number: application.number,
@@ -126,32 +132,32 @@ export function correctionPaymentValues(
     )
 }
 
-export type PaymentWriteRow = { id: string; invoice: string; amount: number }
+export type PaymentWriteRow = { id: string; document: string; amount: number }
 
 /**
- * The applications a save stores: one per row with a payment above zero, in cents. A
- * stored application keeps its id while its invoice is still paid; a new one gets a fresh
- * id. `order` is the list's invoice ids (oldest due first): the rows come in that order,
- * so `position` follows the list; an invoice the list does not name comes last. The
- * schema has checked every amount in the Books currency, so the text parses here.
+ * The lines a save stores: one per row with a payment above zero, in cents. A stored line
+ * keeps its id while its document is still paid; a new one gets a fresh id. `order` is
+ * the list's document ids (in list order): the rows come in that order, so `position`
+ * follows the list; a document the list does not name comes last. The schema has checked
+ * every amount in the Books currency, so the text parses here.
  */
 export function paymentWriteRows(
     values: Pick<PaymentFormValues, 'payments'>,
-    stored: readonly { id: string; invoice: string }[],
+    stored: readonly { id: string; document: string }[],
     order: readonly string[] = []
 ): PaymentWriteRow[] {
-    const storedIds = new Map(stored.map(row => [row.invoice, row.id]))
-    const place = (invoice: string) => {
-        const index = order.indexOf(invoice)
+    const storedIds = new Map(stored.map(row => [row.document, row.id]))
+    const place = (document: string) => {
+        const index = order.indexOf(document)
         return index === -1 ? order.length : index
     }
     return Object.entries(values.payments)
-        .map(([invoice, entry]) => ({ invoice, cents: parseMoney(entry.amount) ?? 0 }))
+        .map(([document, entry]) => ({ document, cents: parseMoney(entry.amount) ?? 0 }))
         .filter(row => row.cents > 0)
-        .sort((a, b) => place(a.invoice) - place(b.invoice))
+        .sort((a, b) => place(a.document) - place(b.document))
         .map(row => ({
-            id: storedIds.get(row.invoice) ?? newRecordId(),
-            invoice: row.invoice,
+            id: storedIds.get(row.document) ?? newRecordId(),
+            document: row.document,
             amount: row.cents,
         }))
 }
