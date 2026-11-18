@@ -43,6 +43,19 @@ import { JOURNAL_SEED } from './lib/journal-entries-fixture'
 import { BILL_PAYMENT_SEED, PAY_BILLS_SEED_BILLS } from './lib/pay-bills-fixture'
 import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
 import { PAYMENT_SEED } from './lib/receive-payment-fixture'
+import {
+    REFUND_FROM_ACCOUNTS,
+    REFUND_RECEIPT_IDS,
+    REFUND_RECEIPT_LINES,
+    REFUND_RECEIPT_SEED_DRAFT_ID,
+    REFUND_RECEIPTS,
+    REFUND_SEED_CREDIT_MEMO,
+    REFUND_SEED_CREDIT_MEMO_LINES,
+    REFUND_SEED_PAYOUT,
+    REFUND_SEED_PAYOUT_LINES,
+    type RefundReceiptLineRecord,
+    type RefundReceiptRecord,
+} from './lib/refund-receipt-form-fixture'
 import { SALES_LIST_SEED_DRAFTS } from './lib/sales-lists-fixture'
 import {
     DEPOSIT_ACCOUNTS,
@@ -178,6 +191,7 @@ async function postSeedDocument(
         | 'books_invoices'
         | 'books_sales_receipts'
         | 'books_credit_memos'
+        | 'books_refund_receipts'
         | 'books_bills'
         | 'books_expenses'
         | 'books_vendor_credits',
@@ -258,7 +272,7 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     const invoiceIds = await seedInvoices(pb, ctx, customerIds)
     await seedPayments(pb, ctx, accountIds, customerIds)
     await seedCreditMemos(pb, ctx, customerIds, invoiceIds)
-    await seedSalesReceipts(pb, ctx, accountIds, customerIds)
+    const salesReceiptIds = await seedSalesReceipts(pb, ctx, accountIds, customerIds)
     // After the earlier seeded documents, so they keep their numbers.
     await seedSalesTaxLiability(pb, ctx, accountIds, customerIds)
     await retireSeededTax(pb)
@@ -276,6 +290,8 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     // Last among the document seeds, so the earlier seeded documents keep their numbers.
     await seedCustomerBalance(pb, ctx, ids, customerIds)
     await seedSalesReports(pb, ctx, accountIds, customerIds)
+    // After every other document seed, so the seeded documents keep their numbers.
+    await seedRefundReceipts(pb, ctx, accountIds, customerIds, salesReceiptIds)
     // Created active and deactivated last, because the app makes an account
     // inactive by updating it, and the vendor and product guards refuse a row
     // that names an inactive account when it is saved.
@@ -707,17 +723,202 @@ async function createSeedSalesReceipt(
 // to 1200 Undeposited funds with a customer, then a walk-in Cash sale to 1000),
 // so the server numbers each, computes every amount and writes the journal
 // entry; then keeps SALES_RECEIPT_SEED_DRAFT_ID a draft.
+// Returns the created id of each posted fixture receipt, by its fixture id, for the
+// documents that name one (seedRefundReceipts).
 export async function seedSalesReceipts(
     pb: PocketBase,
     ctx: SeedContext,
     accountIds: Map<string, string>,
     customerIds: Map<string, string>
-): Promise<void> {
+): Promise<Map<string, string>> {
+    const salesReceiptIds = new Map<string, string>()
     for (const id of SALES_RECEIPT_SEED_IDS) {
         const created = await createSeedSalesReceipt(pb, accountIds, customerIds, id)
         await postSeedDocument(pb, 'books_sales_receipts', created, ctx.user.id)
+        salesReceiptIds.set(id, created)
     }
     await createSeedSalesReceipt(pb, accountIds, customerIds, SALES_RECEIPT_SEED_DRAFT_ID)
+    return salesReceiptIds
+}
+
+// The memo of a seeded refund receipt names its role, so a spec finds it.
+function seedRefundReceiptMemo(role: 'refund' | 'payout' | 'draft'): string {
+    return `Seed refund receipt ${role}`
+}
+
+// Creates a fixture refund receipt as a draft with its lines, through the writes the
+// refund receipt form makes: the header, then its lines in order. The Refund from account
+// is a fixture id, so it resolves by its number; `customerIds` maps a customer-form
+// fixture id to the created customer's id. `salesReceipt` and `creditMemo` are the
+// created ids of its source ('' for none). The amounts and totals are the server's.
+async function createSeedRefundReceipt(
+    pb: PocketBase,
+    input: {
+        fixture: RefundReceiptRecord
+        lines: readonly RefundReceiptLineRecord[]
+        memo: string
+        salesReceipt: string
+        creditMemo: string
+    },
+    accountIds: Map<string, string>,
+    customerIds: Map<string, string>
+): Promise<string> {
+    const { fixture } = input
+    const customer = fixture.customer === '' ? '' : customerIds.get(fixture.customer)
+    if (customer === undefined) {
+        throw new Error(
+            `seed: refund receipt ${fixture.id} names customer ${fixture.customer}, which was not created`
+        )
+    }
+    const number = REFUND_FROM_ACCOUNTS.find(row => row.id === fixture.refund_from)?.number
+    const refundFrom = number === undefined ? undefined : accountIds.get(number)
+    if (refundFrom === undefined) {
+        throw new Error(
+            `seed: refund receipt ${fixture.id} refunds from ${fixture.refund_from}, which was not created`
+        )
+    }
+    const created = await pb.collection('books_refund_receipts').create({
+        customer,
+        status: 'draft',
+        date: fixture.date,
+        tax_rate: fixture.tax_rate,
+        payment_method: fixture.payment_method,
+        reference_no: fixture.reference_no,
+        refund_from: refundFrom,
+        sales_receipt: input.salesReceipt,
+        credit_memo: input.creditMemo,
+        message: fixture.message,
+        memo: input.memo,
+        bill_to: fixture.bill_to,
+        email: fixture.email,
+    })
+    const ordered = [...input.lines].sort((a, b) => a.position - b.position)
+    for (const line of ordered) {
+        await pb.collection('books_refund_receipt_lines').create({
+            refund_receipt: created.id,
+            position: line.position,
+            kind: line.kind,
+            product: line.product,
+            description: line.description,
+            quantity: line.quantity,
+            rate: line.rate,
+            percent_ppm: line.percent_ppm,
+            taxable: line.taxable,
+        })
+    }
+    return created.id
+}
+
+function refundFixture(id: string): RefundReceiptRecord {
+    const row = REFUND_RECEIPTS.find(candidate => candidate.id === id)
+    if (row === undefined) throw new Error(`seed: refund receipt ${id} is not in REFUND_RECEIPTS`)
+    return row
+}
+
+// Spec §4.6, plan decision "Seed pick": posts the refund of the seeded sales receipt 1004
+// (2026-11-12, Check from 1000 Business Checking); posts the seed-only credit memo of
+// Aspen Ridge Dental (2026-11-16) through the credit memo form's writes, then the payout of
+// part of it (2026-11-17, Bank transfer from 1000), so the server writes its credits row
+// and lowers the memo's balance; then keeps REFUND_RECEIPT_SEED_DRAFT_ID a draft.
+// `salesReceiptIds` maps a fixture sales receipt id to the created receipt's id.
+export async function seedRefundReceipts(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>,
+    customerIds: Map<string, string>,
+    salesReceiptIds: Map<string, string>
+): Promise<void> {
+    const refund = refundFixture(REFUND_RECEIPT_IDS.posted)
+    const salesReceipt = salesReceiptIds.get(refund.sales_receipt)
+    if (salesReceipt === undefined) {
+        throw new Error(
+            `seed: refund receipt ${refund.id} names sales receipt ${refund.sales_receipt}, which was not posted`
+        )
+    }
+    const refundId = await createSeedRefundReceipt(
+        pb,
+        {
+            fixture: refund,
+            lines: REFUND_RECEIPT_LINES.filter(line => line.refund_receipt === refund.id),
+            memo: seedRefundReceiptMemo('refund'),
+            salesReceipt,
+            creditMemo: '',
+        },
+        accountIds,
+        customerIds
+    )
+    await postSeedDocument(pb, 'books_refund_receipts', refundId, ctx.user.id)
+
+    const memoId = await createSeedRefundCreditMemo(pb, customerIds)
+    await postSeedDocument(pb, 'books_credit_memos', memoId, ctx.user.id)
+    const payoutId = await createSeedRefundReceipt(
+        pb,
+        {
+            fixture: REFUND_SEED_PAYOUT,
+            lines: REFUND_SEED_PAYOUT_LINES,
+            memo: seedRefundReceiptMemo('payout'),
+            salesReceipt: '',
+            creditMemo: memoId,
+        },
+        accountIds,
+        customerIds
+    )
+    await postSeedDocument(pb, 'books_refund_receipts', payoutId, ctx.user.id)
+
+    const draft = refundFixture(REFUND_RECEIPT_SEED_DRAFT_ID)
+    await createSeedRefundReceipt(
+        pb,
+        {
+            fixture: draft,
+            lines: REFUND_RECEIPT_LINES.filter(line => line.refund_receipt === draft.id),
+            memo: seedRefundReceiptMemo('draft'),
+            salesReceipt: '',
+            creditMemo: '',
+        },
+        accountIds,
+        customerIds
+    )
+}
+
+// The seed-only credit memo the payout names, through the writes the credit memo form
+// makes (createSeedCreditMemo's): the header with no invoice, then its lines in order.
+async function createSeedRefundCreditMemo(
+    pb: PocketBase,
+    customerIds: Map<string, string>
+): Promise<string> {
+    const fixture = REFUND_SEED_CREDIT_MEMO
+    const customer = customerIds.get(fixture.customer)
+    if (customer === undefined) {
+        throw new Error(
+            `seed: credit memo ${fixture.id} names customer ${fixture.customer}, which was not created`
+        )
+    }
+    const created = await pb.collection('books_credit_memos').create({
+        customer,
+        status: 'draft',
+        date: fixture.date,
+        bill_to: fixture.bill_to,
+        email: fixture.email,
+        tax_rate: fixture.tax_rate,
+        message: fixture.message,
+        memo: fixture.memo,
+        invoice: '',
+    })
+    const ordered = [...REFUND_SEED_CREDIT_MEMO_LINES].sort((a, b) => a.position - b.position)
+    for (const line of ordered) {
+        await pb.collection('books_credit_memo_lines').create({
+            credit_memo: created.id,
+            position: line.position,
+            kind: line.kind,
+            product: line.product,
+            description: line.description,
+            quantity: line.quantity,
+            rate: line.rate,
+            percent_ppm: line.percent_ppm,
+            taxable: line.taxable,
+        })
+    }
+    return created.id
 }
 
 // Creates a sales tax liability fixture document as a draft, through the writes the

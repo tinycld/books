@@ -84,6 +84,7 @@ export const ROUTED_DOC_TYPES: readonly string[] = [
     'invoice',
     'sales_receipt',
     'credit_memo',
+    'refund_receipt',
     'bill',
     'expense',
     'vendor_credit',

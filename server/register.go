@@ -30,6 +30,7 @@ func Register(app *pocketbase.PocketBase) {
 	registerSalesDocGuards(app, billKind)
 	registerSalesDocGuards(app, expenseKind)
 	registerSalesDocGuards(app, vendorCreditKind)
+	registerSalesDocGuards(app, refundReceiptKind)
 	registerPaymentGuards(app)
 	registerBillPaymentGuards(app)
 	registerVendorCreditApplications(app)
@@ -44,6 +45,9 @@ func Register(app *pocketbase.PocketBase) {
 	// and a line row's document from the live line, so a write to any of them
 	// can change its rows.
 	changesignal.RegisterView("books_audit_log", append([]string{"audit_logs", "users"}, auditLineCollections()...)...)
+	// The sale-lines view reads the refund lines and, for the payout filter,
+	// their refund's credit_memo.
+	changesignal.RegisterView("books_refund_receipt_sale_lines", "books_refund_receipt_lines", "books_refund_receipts")
 	for _, s := range reportSources() {
 		reports.RegisterSource(s)
 	}

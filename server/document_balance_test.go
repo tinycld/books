@@ -180,6 +180,13 @@ func TestBalanceKinds_ListTheirPayers(t *testing.T) {
 		PaymentCollection: "books_vendor_refunds", PaymentField: "refund",
 		CashMemo: "Vendor credit %s refunded (cash basis)",
 	}
+	// A posted refund receipt that pays out a credit memo lowers the memo
+	// (refund receipt spec §4.3).
+	memoRefund := balancePayer{
+		LinesCollection: "books_refund_receipt_credits", LineField: "credit_memo",
+		PaymentCollection: "books_refund_receipts", PaymentField: "refund_receipt",
+		CashMemo: "Credit memo %s refunded (cash basis)",
+	}
 	for _, c := range []struct {
 		kind balanceKind
 		want []balancePayer
@@ -187,7 +194,7 @@ func TestBalanceKinds_ListTheirPayers(t *testing.T) {
 		{invoiceBalanceKind, []balancePayer{invoicePayer}},
 		{billBalanceKind, []balancePayer{billPayment, billCredit}},
 		{vendorCreditBalanceKind, []balancePayer{creditApplied, creditRefund}},
-		{creditMemoBalanceKind, nil},
+		{creditMemoBalanceKind, []balancePayer{memoRefund}},
 	} {
 		if len(c.kind.Payers) != len(c.want) {
 			t.Errorf("%s has %d payers %+v, want %d", c.kind.Noun, len(c.kind.Payers), c.kind.Payers, len(c.want))
@@ -208,7 +215,7 @@ func TestBalanceKinds_ListTheirPayers(t *testing.T) {
 		{invoiceBalanceKind, invoicePayer, true},
 		{billBalanceKind, billPayment, true},
 		{vendorCreditBalanceKind, creditRefund, true},
-		{creditMemoBalanceKind, balancePayer{}, false},
+		{creditMemoBalanceKind, memoRefund, true},
 	} {
 		got, ok := c.kind.paymentPayer()
 		if ok != c.ok || (ok && got != c.want) {

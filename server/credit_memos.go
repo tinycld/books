@@ -47,9 +47,9 @@ const docTypeCreditMemo = "credit_memo"
 // an invoice (Credit): Accounts receivable, which posting creates when the
 // chart has none (ensureReceivables), is credited for the total, the income
 // accounts and the tax liability accounts are debited. Its balance is the
-// credit not yet applied (creditMemoBalanceKind): the total at posting, 0 on a
-// draft or a void memo. Nothing applies a credit memo yet, so it has no
-// CheckVoid and no Replace.
+// credit not yet refunded (creditMemoBalanceKind): the total at posting less
+// the posted refund receipts that pay it out, 0 on a draft or a void memo. It
+// has no CheckVoid and no Replace.
 var creditMemoKind = salesDocKind{
 	DocType:            docTypeCreditMemo,
 	Lifecycle:          lifecyclePosting,

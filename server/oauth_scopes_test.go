@@ -54,6 +54,51 @@ func TestOAuth_SalesReceiptsAreScopedAsInvoices(t *testing.T) {
 	}
 }
 
+// Refund receipt spec §4.3: a token reads and writes the refund receipts and
+// their lines, and only reads the tax lines, the credits rows and the
+// sale-lines view, which the server writes or derives.
+func TestOAuth_RefundReceiptsAreScopedAsSalesReceipts(t *testing.T) {
+	collections := oauthPackage().Collections
+	rw := oauth.Access{Read: []string{scopeRead}, Write: []string{scopeWrite}}
+	ro := oauth.Access{Read: []string{scopeRead}}
+	want := map[string]oauth.Access{
+		"books_refund_receipts":           rw,
+		"books_refund_receipt_lines":      rw,
+		"books_refund_receipt_tax_lines":  ro,
+		"books_refund_receipt_credits":    ro,
+		"books_refund_receipt_sale_lines": ro,
+	}
+	for c, access := range want {
+		got, ok := collections[c]
+		if !ok {
+			t.Errorf("%s has no OAuth entry", c)
+			continue
+		}
+		if !reflect.DeepEqual(got.Read, access.Read) || len(got.Write) != len(access.Write) ||
+			(len(access.Write) > 0 && !reflect.DeepEqual(got.Write, access.Write)) {
+			t.Errorf("%s OAuth access = %+v, want Read %v and Write %v", c, got, access.Read, access.Write)
+		}
+	}
+
+	t.Cleanup(oauth.ResetRegistry)
+	oauth.RegisterPackage(oauthPackage())
+	for _, c := range []string{"books_refund_receipts", "books_refund_receipt_lines"} {
+		path := "/api/collections/" + c + "/records"
+		if !oauth.ScopeForRoute(http.MethodPost, path).SatisfiedBy([]string{scopeWrite}) {
+			t.Errorf("POST %s: books:write must write", path)
+		}
+	}
+	for _, c := range []string{"books_refund_receipt_tax_lines", "books_refund_receipt_credits", "books_refund_receipt_sale_lines"} {
+		path := "/api/collections/" + c + "/records"
+		if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("GET %s: books:read must read", path)
+		}
+		if oauth.ScopeForRoute(http.MethodPost, path).SatisfiedBy([]string{scopeRead, scopeWrite}) {
+			t.Errorf("POST %s: no Books scope may write", path)
+		}
+	}
+}
+
 // Credit memo spec §4.3: a token reads and writes the credit memos and their
 // lines, and only reads the tax lines, which posting writes as its snapshot.
 func TestOAuth_CreditMemosAreScopedAsInvoices(t *testing.T) {

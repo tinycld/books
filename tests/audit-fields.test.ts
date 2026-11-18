@@ -1,6 +1,6 @@
 import * as zodSchemas from '@tinycld/core/types/pbZodSchema'
 import { describe, expect, it } from 'vitest'
-import { AUDIT_FIELDS, changedFieldRows } from '../tinycld/books/lib/audit-fields'
+import { AUDIT_FIELDS, changedFieldRows, DOC_TYPE } from '../tinycld/books/lib/audit-fields'
 import { recordTypeLabel } from '../tinycld/books/lib/audit-log'
 import { AUDIT_RECORD_TYPE_OPTIONS } from '../tinycld/books/lib/audit-log-fixture'
 
@@ -182,6 +182,30 @@ describe('the vendor refund fields', () => {
     it('reads an entry of type vendor_refund as "Vendor refund"', () => {
         const options = AUDIT_FIELDS.books_journal_entries?.doc_type?.options ?? []
         expect(options).toContainEqual({ value: 'vendor_refund', label: 'Vendor refund' })
+    })
+})
+
+// The refund receipt's history (as the credit memo's): the refund and its lines are
+// audited, and an entry of type refund_receipt reads "Refund receipt".
+const REFUND_RECEIPT_COLLECTIONS = ['books_refund_receipts', 'books_refund_receipt_lines']
+
+describe('the refund receipt fields', () => {
+    it('audits the refund receipt and its lines', () => {
+        expect(AUDITED).toEqual(expect.arrayContaining(REFUND_RECEIPT_COLLECTIONS))
+        expect(recordTypeLabel('books_refund_receipts')).toBe('Refund receipt')
+        expect(recordTypeLabel('books_refund_receipt_lines')).toBe('Refund receipt line')
+    })
+
+    it.each(
+        REFUND_RECEIPT_COLLECTIONS
+    )('%s: every field of the generated schema has an entry, and no entry names a missing field', collection => {
+        expect(Object.keys(AUDIT_FIELDS[collection] ?? {}).sort()).toEqual(schemaFields(collection))
+    })
+
+    it('reads an entry of type refund_receipt as "Refund receipt"', () => {
+        const options = AUDIT_FIELDS.books_journal_entries?.doc_type?.options ?? []
+        expect(options).toContainEqual({ value: 'refund_receipt', label: 'Refund receipt' })
+        expect(DOC_TYPE).toContainEqual({ value: 'refund_receipt', label: 'Refund receipt' })
     })
 })
 

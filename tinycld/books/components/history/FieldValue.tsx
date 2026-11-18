@@ -20,6 +20,7 @@ const NUMBERED = new Set([
     'books_invoices',
     'books_sales_receipts',
     'books_credit_memos',
+    'books_refund_receipts',
     'books_estimates',
     'books_bills',
     'books_expenses',
