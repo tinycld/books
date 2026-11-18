@@ -6,6 +6,7 @@ import {
     type PaymentFormKeyState,
     paymentFormKeysOffered,
 } from '../tinycld/books/lib/payment-shortcuts'
+import { refundCorrectionStart } from '../tinycld/books/lib/refundable-credits'
 import { VENDOR_REFUND_FLOW } from '../tinycld/books/lib/vendor-refund-flow'
 
 // The vendor refund's descriptor of the shared payment layer (spec §3.1): its party, its
@@ -224,5 +225,103 @@ describe('paymentScreenState with the vendor refund', () => {
         expect(paymentScreenState({ ...NEW, replacesStatus: 'draft' })).toBe('cannot-edit')
         expect(paymentScreenState({ ...NEW, replacesStatus: 'void' })).toBe('cannot-edit')
         expect(paymentScreenState({ ...NEW, replacesStatus: 'posted' })).toBe('form')
+    })
+
+    it('gives the not-found state for an unknown refund id', () => {
+        expect(paymentScreenState({ ...NEW, isNew: false, status: null })).toBe('not-found')
+    })
+
+    // A saved correction is a draft with `replaces` (spec §3.6). The server refuses every
+    // save of one whose original was voided or replaced after it was saved (ledger, cp 1
+    // NOTE 2): it opens as "This vendor refund cannot be edited", not as a form whose saves
+    // all fail. A replaced original is void with `replaced_by`.
+    it('gives the cannot-edit state for a stored draft whose original is void or replaced', () => {
+        const draftCorrection: ScreenInput = {
+            ...NEW,
+            isNew: false,
+            status: 'draft',
+            replacesStatus: 'posted',
+        }
+        expect(paymentScreenState(draftCorrection)).toBe('form')
+        expect(paymentScreenState({ ...draftCorrection, replacesStatus: 'void' })).toBe(
+            'cannot-edit'
+        )
+    })
+
+    // Its own post voids the original in the same transaction; realtime may bring the void
+    // before the post's answer, so the hold keeps the form (and a refusal) in place.
+    it('keeps a stored correction draft held through its own post in the form', () => {
+        expect(
+            paymentScreenState({
+                ...NEW,
+                isNew: false,
+                status: 'posted',
+                isHeld: true,
+                replacesStatus: 'void',
+            })
+        ).toBe('form')
+    })
+})
+
+// A posted original as the correction form reads it (`?replaces=<id>`): its header by role,
+// and its lines with each credit's stored balance (`open`), which the original's own line
+// has already lowered.
+const ORIGINAL = {
+    party: 'vendorcascade01',
+    account: 'acctchecking001',
+    date: '2026-11-10',
+    payment_method: 'check' as const,
+    reference_no: '20417',
+    amount: 20_000,
+    memo: 'Refund of the November credits',
+}
+
+const ORIGINAL_LINES = [
+    // Credit 1002 of $650.00, $150.00 of it refunded by the original: $500.00 left.
+    {
+        document: 'creditfirst0001',
+        amount: 15_000,
+        number: '1002',
+        date: '2026-11-01',
+        total: 65_000,
+        open: 50_000,
+        ref: 'CM-8841',
+    },
+    // Credit 1003 of $50.00, refunded in full by the original: its balance is zero.
+    {
+        document: 'creditsecond001',
+        amount: 5_000,
+        number: '1003',
+        date: '2026-11-02',
+        total: 5_000,
+        open: 0,
+        ref: '',
+    },
+]
+
+describe('refundCorrectionStart', () => {
+    it('locks the vendor and copies the original’s header', () => {
+        const start = refundCorrectionStart(ORIGINAL, ORIGINAL_LINES)
+        expect(start.isVendorLocked).toBe(true)
+        expect(start.values).toMatchObject({
+            party: ORIGINAL.party,
+            date: ORIGINAL.date,
+            payment_method: 'check',
+            reference_no: '20417',
+            account: ORIGINAL.account,
+            amount: '200.00',
+            memo: ORIGINAL.memo,
+        })
+    })
+
+    it('starts with the amount typed', () => {
+        expect(refundCorrectionStart(ORIGINAL, ORIGINAL_LINES).values.amountTyped).toBe(true)
+    })
+
+    it('opens each stored line for its credit’s balance plus the original’s line', () => {
+        expect(refundCorrectionStart(ORIGINAL, ORIGINAL_LINES).values.payments).toEqual({
+            creditfirst0001: { amount: '150.00', open: 65_000, number: '1002' },
+            creditsecond001: { amount: '50.00', open: 5_000, number: '1003' },
+        })
     })
 })

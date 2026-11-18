@@ -156,6 +156,15 @@ export function refundCell(page: Page, creditId: string): Locator {
     return page.getByTestId(`vendor-refund-row-amount-${creditId}`)
 }
 
+// A listed credit's Unapplied credit cell in the wide grid alone: the row's cells are its
+// direct children in column order (tick, credit, date, Credit total, Unapplied credit,
+// Refund), so the cell before the last is Unapplied credit, never Credit total.
+export function refundUnappliedCell(page: Page, creditId: string): Locator {
+    return refundRow(page, creditId)
+        .filter({ visible: true })
+        .locator(':scope > :nth-last-child(2)')
+}
+
 export function refundTick(page: Page, creditId: string): Locator {
     return page.getByTestId(`vendor-refund-row-tick-${creditId}`)
 }
@@ -181,6 +190,63 @@ export async function searchVendorRefunds(page: Page, term: string): Promise<Loc
     await page.keyboard.type(term)
     await searched
     return page.getByRole('option').filter({ has: page.getByText(VENDOR_REFUND_OPTION_TITLE) })
+}
+
+// A screen opened over another keeps the one below mounted and hidden, with the same test
+// ids: the visible one is the screen on top.
+export function shownRefund(page: Page, testId: string): Locator {
+    return page.getByTestId(testId).filter({ visible: true })
+}
+
+// The number of the refund the read view on top shows ("Vendor refund 1001").
+export async function refundNumberOf(page: Page): Promise<string> {
+    const title = shownRefund(page, 'vendor-refund-title')
+    await expect(title).toHaveText(/^Vendor refund \d+$/)
+    const number = /^Vendor refund (\d+)$/.exec(await title.innerText())?.[1]
+    if (!number) throw new Error('the vendor refund read view title has no number')
+    return number
+}
+
+/**
+ * Books must be open at desktop width. Records and posts a refund of `amount` on the
+ * vendor's one listed credit through New → Vendor refund (pointer steps), with the memo;
+ * ends on the posted refund's read view, pushed over the Journal Entries list. Returns its
+ * id and number.
+ */
+export async function postRefundOn(
+    page: Page,
+    input: { vendor: string; creditId: string; amount: string; memo: string }
+): Promise<{ id: string; number: string }> {
+    await openNewVendorRefund(page)
+    await pickRefundVendor(page, input.vendor)
+    await page.getByTestId('vendor-refund-amount').fill(input.amount)
+    await expect(refundCell(page, input.creditId)).toHaveValue(input.amount)
+    await page.getByTestId('vendor-refund-memo').fill(input.memo)
+    await page.getByTestId('vendor-refund-post').click()
+    await expect(page).toHaveURL(VENDOR_REFUND_URL)
+    await expect(shownRefund(page, 'vendor-refund-read-only')).toBeVisible()
+    return { id: vendorRefundIdFromUrl(page), number: await refundNumberOf(page) }
+}
+
+/**
+ * Searches the palette for `term` and opens the one vendor refund option whose title
+ * matches `title` (a term may match an original and its correction). The screen is loaded
+ * when it shows the form, the read view, or the cannot-edit notice (a stored draft whose
+ * original is no longer posted).
+ */
+export async function searchToRefundTitled(page: Page, term: string, title: RegExp) {
+    const options = await searchVendorRefunds(page, term)
+    const option = options.filter({ has: page.getByText(title) })
+    await expect(option).toHaveCount(1)
+    await option.click()
+    await expect(page).toHaveURL(VENDOR_REFUND_URL)
+    await expect(
+        page
+            .getByTestId('vendor-refund-form')
+            .or(page.getByTestId('vendor-refund-read-only'))
+            .or(page.getByTestId('vendor-refund-cannot-edit'))
+            .filter({ visible: true })
+    ).toBeVisible()
 }
 
 /**

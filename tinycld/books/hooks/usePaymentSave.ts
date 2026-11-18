@@ -14,6 +14,7 @@ import { writeRefusalText } from '../lib/refusal'
 import { tableWriteSteps } from '../lib/table-writes'
 import { usePaymentSaveStore } from '../stores/payment-save-store'
 import { useBackToEntries } from './useBackToEntries'
+import { usePaymentDraftDelete } from './usePaymentDraftDelete'
 import type { PaymentFormState } from './usePaymentForm'
 import type { PaymentWrites } from './usePaymentWrites'
 
@@ -94,8 +95,6 @@ export function usePaymentSave(flow: PaymentFlow, writes: PaymentWrites, input: 
     const isLive = useRef(true)
     const left = useRef(false)
     const [isDiscardOpen, setDiscardOpen] = useState(false)
-    const [isDeleteOpen, setDeleteOpen] = useState(false)
-    const [deleteError, setDeleteError] = useState<string | null>(null)
     const flowKey = flow.key
     useEffect(() => {
         isLive.current = true
@@ -167,21 +166,17 @@ export function usePaymentSave(flow: PaymentFlow, writes: PaymentWrites, input: 
         onError: () => {},
     })
 
-    const remove = useMutation({
-        mutationFn: function* (variables: { id: string; lineIds: string[] }) {
-            if (variables.lineIds.length > 0) {
-                yield variables.lineIds.map(rowId => writes.deleteLine(rowId))
-            }
-            yield writes.deleteHeader(variables.id)
-        },
-        // The Delete draft dialog shows the refusal (or it is logged once the user left).
-        onError: () => {},
-    })
-
     const leave = () => {
         left.current = true
         back.onBack()
     }
+
+    const draftDelete = usePaymentDraftDelete(flow, writes, {
+        id,
+        lineIds: storedLines.map(row => row.id),
+        hasLeft: () => left.current,
+        onDeleted: leave,
+    })
 
     const afterSave = (mode: PaymentSaveMode) => {
         if (mode === 'post-new') {
@@ -213,7 +208,7 @@ export function usePaymentSave(flow: PaymentFlow, writes: PaymentWrites, input: 
                 const store = usePaymentSaveStore.getState()
                 const isCorrection = isNew && replaces !== ''
                 if (isCorrection) store.startCorrecting(flowKey, replaces)
-                store.hold(flowKey, id)
+                store.hold(flowKey, { id, purpose: 'save' })
                 try {
                     await save.mutateAsync({
                         id,
@@ -246,29 +241,10 @@ export function usePaymentSave(flow: PaymentFlow, writes: PaymentWrites, input: 
         }
     }
 
-    const confirmDelete = async () => {
-        setDeleteError(null)
-        usePaymentSaveStore.getState().hold(flowKey, id)
-        try {
-            await remove.mutateAsync({
-                id,
-                lineIds: storedLines.map(row => row.id),
-            })
-            if (!left.current) leave()
-        } catch (error) {
-            if (isLive.current && !left.current) setDeleteError(writeRefusalText(error))
-            else log.warn(flow.logContext, writeRefusalText(error))
-        } finally {
-            usePaymentSaveStore.getState().release(flowKey)
-        }
-    }
-
     return {
-        isPending: save.isPending || remove.isPending,
-        isDeletePending: remove.isPending,
+        ...draftDelete,
+        isPending: save.isPending || draftDelete.isDeletePending,
         isDiscardOpen,
-        isDeleteOpen,
-        deleteError,
         saveDraft: submit('draft'),
         post: submit('post'),
         postAndNew: submit('post-new'),
@@ -278,12 +254,6 @@ export function usePaymentSave(flow: PaymentFlow, writes: PaymentWrites, input: 
             setDiscardOpen(false)
             leave()
         },
-        openDeleteDraft: () => {
-            setDeleteError(null)
-            setDeleteOpen(true)
-        },
-        closeDeleteDraft: () => setDeleteOpen(false),
-        confirmDelete,
         leave,
     }
 }

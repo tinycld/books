@@ -17,10 +17,15 @@ export type PaymentRefusedSave = {
 // screen (vendor refund spec §3.1).
 type ByFlow<T> = Record<PaymentFlowKey, T>
 
+// A payment held by its running write. A save or post keeps the form up even once the
+// original of a correction is void (the post voids it itself); a delete keeps the row the
+// screen showed, the form or the cannot-edit notice.
+export type PaymentHold = { id: string; purpose: 'save' | 'delete' }
+
 interface PaymentSaveState {
     // The payment whose save, post or delete runs, by flow; null when none does.
-    holding: ByFlow<string | null>
-    hold: (flow: PaymentFlowKey, id: string) => void
+    holding: ByFlow<PaymentHold | null>
+    hold: (flow: PaymentFlowKey, hold: PaymentHold) => void
     release: (flow: PaymentFlowKey) => void
     // The posted payment a correction form's own save corrects, by flow. Set before the
     // mutation; cleared by a refusal, or, after a save that worked, when that form
@@ -43,8 +48,8 @@ function noneByFlow<T>(none: T): ByFlow<T> {
 // the hold is set before the mutation and visible to the render the optimistic flip
 // triggers, and a refusal still lands on the form.
 export const usePaymentSaveStore = create<PaymentSaveState>()(set => ({
-    holding: noneByFlow<string | null>(null),
-    hold: (flow, id) => set(state => ({ holding: { ...state.holding, [flow]: id } })),
+    holding: noneByFlow<PaymentHold | null>(null),
+    hold: (flow, hold) => set(state => ({ holding: { ...state.holding, [flow]: hold } })),
     release: flow => set(state => ({ holding: { ...state.holding, [flow]: null } })),
     correcting: noneByFlow<string | null>(null),
     startCorrecting: (flow, original) =>

@@ -2,8 +2,10 @@
 // vendor credits with an unapplied balance, merged with the credits a stored refund's lines
 // name, each once, oldest credit date first, then number.
 
+import type { PaymentRecordView } from '../hooks/usePaymentRecord'
 import type { BooksVendorCredits } from '../types'
 import type { OutstandingRow } from './payment-allocation'
+import { draftPaymentValues, type PaymentFormValues } from './payment-values'
 
 // A vendor credit as the list reads it (the query's `.select()`).
 export type RefundableCredit = Pick<
@@ -94,17 +96,15 @@ export function mergeRefundable(
         .sort(listOrder)
 }
 
-// A refund record's lines (`PaymentRecordView['lines']`) as the list's stored lines.
+// A refund record's line (`PaymentRecordView['lines']`), `open` its credit's stored balance.
+type RecordLine = Pick<
+    PaymentRecordView['lines'][number],
+    'document' | 'amount' | 'number' | 'date' | 'total' | 'open' | 'ref'
+>
+
+// A refund record's lines as the list's stored lines.
 export function refundStoredLines(
-    lines: readonly {
-        document: string
-        amount: number
-        number: string
-        date: string
-        total: number
-        open: number
-        ref: string
-    }[],
+    lines: readonly RecordLine[],
     vendor: string,
     isPosted: boolean
 ): RefundStoredLine[] {
@@ -133,6 +133,30 @@ export function storedOpenOf(stored: readonly RefundableStored[]): Record<string
     }
     const rows = mergeRefundable([...open.values()], stored)
     return Object.fromEntries(rows.map(row => [row.id, row.open]))
+}
+
+/**
+ * A correction (`?replaces=<id>`) starts from its posted original (vendor refund spec
+ * §3.6): the original's header, and each of its lines open for its credit's balance plus
+ * the original's line (released when the correction posts). The amount counts as typed, so
+ * row edits do not move it: a refund's rows must add up to the amount. The vendor is
+ * locked: a correction keeps its vendor.
+ */
+export function refundCorrectionStart(
+    original: Parameters<typeof draftPaymentValues>[0],
+    lines: readonly RecordLine[]
+): { values: PaymentFormValues; isVendorLocked: boolean } {
+    const open = storedOpenOf(refundStoredLines(lines, original.party, true))
+    const entries = lines.map(line => ({
+        document: line.document,
+        amount: line.amount,
+        number: line.number,
+        open: open[line.document] ?? line.open + line.amount,
+    }))
+    return {
+        values: { ...draftPaymentValues(original, entries), amountTyped: true },
+        isVendorLocked: true,
+    }
 }
 
 // Each listed credit's date by id, for the schema's row-date rule.

@@ -8,9 +8,12 @@ import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { router } from 'expo-router'
 import { useState } from 'react'
 import type { DocumentReadItem } from '../../hooks/useDocumentReadActions'
+import type { PaymentRecordHeader } from '../../hooks/usePaymentRecord'
+import type { PaymentFlow } from '../../lib/payment-flow'
 import {
     type PaymentCollectionName,
     type PaymentReadAction,
+    paymentReadActions,
     voidWriteCollection,
 } from '../../lib/payment-read-actions'
 import { PAYMENT_READ_DESCRIPTIONS, PAYMENT_READ_KEYS } from '../../lib/payment-shortcuts'
@@ -161,5 +164,44 @@ export function PaymentReadActions({
             />
             <VoidDialog {...voidDialog} />
         </>
+    )
+}
+
+// What a flow's read view bar receives: the flow, its header collection, the shown record,
+// the role and the screen's scope.
+export interface PaymentReadBarProps {
+    flow: PaymentFlow
+    collection: PaymentCollectionName
+    payment: PaymentRecordHeader
+    canWrite: boolean
+    scopeOwner: ScopeOwner
+}
+
+/**
+ * The read view bar from the flow's descriptor alone (the received payment): the actions
+ * the read rule allows, Edit on the flow's `?replaces` route, the flow's Void texts, and no
+ * Audit history row.
+ */
+export function PaymentFlowReadBar({
+    flow,
+    collection,
+    payment,
+    canWrite,
+    scopeOwner,
+}: PaymentReadBarProps) {
+    const offered = paymentReadActions(payment.status, canWrite, payment.entry !== '')
+    const editHref = `${flow.routeBase}/new?replaces=${payment.id}`
+    return (
+        <PaymentReadActions
+            payment={payment}
+            offered={offered}
+            historyItem={null}
+            scopeOwner={scopeOwner}
+            collection={collection}
+            editHref={editHref}
+            voidBody={flow.texts.voidBody}
+            confirmLabel={flow.texts.voidConfirm}
+            entryNoun={flow.texts.voidNoun}
+        />
     )
 }

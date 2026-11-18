@@ -1,23 +1,20 @@
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import type { ScopeOwner } from '@tinycld/core/lib/shortcuts'
 import { router } from 'expo-router'
+import type { ComponentType } from 'react'
 import { ScrollView, Text, View } from 'react-native'
 import type { PaymentRecordHeader, PaymentRecordView } from '../../hooks/usePaymentRecord'
 import { paymentText } from '../../lib/deposit-accounts'
 import { formatMoney } from '../../lib/money'
 import type { AppliedDocumentRow } from '../../lib/outstanding-documents'
 import type { PaymentFlow } from '../../lib/payment-flow'
-import {
-    type PaymentCollectionName,
-    type PaymentReadAction,
-    paymentReadActions,
-} from '../../lib/payment-read-actions'
+import type { PaymentCollectionName } from '../../lib/payment-read-actions'
 import { fillPaymentText, PAYMENT_MESSAGES } from '../../lib/payment-texts'
 import { formatDay } from '../../lib/register-range'
 import { DocumentHeader } from '../documents/DocumentHeader'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { AppliedInvoices } from './AppliedInvoices'
-import { PaymentReadActions } from './PaymentReadActions'
+import type { PaymentReadBarProps } from './PaymentReadActions'
 import { CreditLine, TotalLine } from './PaymentTotals'
 import { Detail, READ_BAND, ReplacedBy, Stamp, stampOf, TextLink } from './read-view-parts'
 
@@ -100,8 +97,8 @@ interface PaymentReadViewProps {
     scopeOwner: ScopeOwner
     // The flow's header collection, which the read actions void through.
     collection: PaymentCollectionName
-    // The actions this screen offers; the bar shows those the read rule also allows.
-    actions: readonly PaymentReadAction[]
+    // The flow's bar (its actions, routes, Void texts and More rows).
+    ReadBar: ComponentType<PaymentReadBarProps>
 }
 
 /**
@@ -120,7 +117,7 @@ export function PaymentReadView({
     canWrite,
     scopeOwner,
     collection,
-    actions,
+    ReadBar,
 }: PaymentReadViewProps) {
     const orgHref = useOrgHref()
     const { texts, testId, ids } = flow
@@ -137,10 +134,6 @@ export function PaymentReadView({
     const figure = formatMoney(payment.amount, currency)
     const date = formatDay(payment.date.slice(0, 10))
     const appliedRows = appliedRowsOf(lines)
-    const offered = paymentReadActions(payment.status, canWrite, payment.entry !== '').filter(
-        action => actions.includes(action)
-    )
-    const editHref = `${flow.routeBase}/new?replaces=${payment.id}`
     return (
         <View testID={`${testId}-read-only`} className="flex-1 bg-background">
             <ScrollView className="flex-1" contentContainerClassName="gap-4 px-4 pt-2 pb-6">
@@ -198,16 +191,12 @@ export function PaymentReadView({
                     />
                 </View>
             </ScrollView>
-            <PaymentReadActions
-                payment={payment}
-                offered={offered}
-                historyItem={null}
-                scopeOwner={scopeOwner}
+            <ReadBar
+                flow={flow}
                 collection={collection}
-                editHref={editHref}
-                voidBody={texts.voidBody}
-                confirmLabel={texts.voidConfirm}
-                entryNoun={texts.voidNoun}
+                payment={payment}
+                canWrite={canWrite}
+                scopeOwner={scopeOwner}
             />
         </View>
     )
