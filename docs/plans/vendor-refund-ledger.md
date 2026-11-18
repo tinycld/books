@@ -8,10 +8,10 @@
 - checkpoints: docs/plans/vendor-refund-checkpoints.md
 - reference: docs/plans/vendor-refund-reference/
 - evidence: docs/plans/vendor-refund-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (removed by finish.mjs 2026-11-18)
 - capture manifest: docs/plans/vendor-refund-capture.json
 - review mode: C — none (unattended)
-- core extension: none
+- core extension: tinycld PR #500 (branch books/p3-vendor-refund; brings p2-sales-lists core fixes 1529c5a9 + 6d087e97 to main)
 - sparks:
   - The amount of money that arrived is the largest figure, top right, and follows what the writer enters → expressible (Books `DocumentHeader` big figure through `DocumentChromeContext`, `figure: { label: 'Amount refunded' }`)
   - The account's balance sits beside the account pick → expressible (Books `PaidFromBalance` under the Refunded to select)
@@ -192,6 +192,7 @@
 
 ## Final review
 - eval: revised 2026-11-18 → revise 1 (staging revise-1.md): cp1 NOTE 4 decided (a) — refuse a vendor credit correction dated after the earliest posted refund of that credit; cp1 NOTE 5 spec §4 audit LINES field text `refund`
+- eval: approved 2026-11-18 at 2ef0c88e (books #69 CI green; core #500 CI green)
 - human comments and what changed
 - revise 1 · findings file `cp/rev1-fix.md` (2 items: 1 cause spec-logic, 2 cause other: spec text)
   - test writer: `server/vendor_credit_posting_test.go` (refused after the earliest posted refund, keyed `date`; same day, day before, void refund, draft refund allowed), `tests/e2e/vendor-refund-credit.spec.ts` (a correction dated after a posted refund is refused under Date); red for the right reason: yes (the refusal test and the e2e; the four allowed cases are guards, green before the change)
