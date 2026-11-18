@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/vendor-pages-checkpoints.md
 - reference: docs/plans/vendor-pages-reference/
 - evidence: docs/plans/vendor-pages-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs 2026-11-18)
 - capture manifest: docs/plans/vendor-pages-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -166,6 +166,6 @@
 - human: review mode C, none
 
 ## Final review
-- eval:
+- eval: approved 2026-11-18 (no revise notes; seed with two primary contacts kept as built; retro items 1–3 approved as process changes)
 - human comments and what changed
 - native: not executed in this run
