@@ -1,0 +1,188 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "transactions",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [1280, 1600],
+            "height": 1000,
+            "actions": [
+                { "clickText": "Office Supply World" },
+                { "waitFor": "vendor-transactions-table" }
+            ]
+        },
+        {
+            "name": "transactions-cards",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [390],
+            "height": 1000,
+            "actions": [
+                { "clickText": "Office Supply World" },
+                { "waitFor": "vendor-transactions-cards" }
+            ]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": { "collection": "books_party_balances", "hold": true },
+            "actions": [
+                { "fake": { "collection": "books_bills", "hold": true } },
+                { "clickText": "Office Supply World" },
+                { "waitFor": "vendor-balance-open" },
+                { "waitFor": "vendor-transactions-loading" }
+            ]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": { "collection": "books_party_balances", "status": 400 },
+            "actions": [
+                { "fake": { "collection": "books_expenses", "status": 400 } },
+                { "clickText": "Office Supply World" },
+                { "waitFor": "vendor-balance-error" },
+                { "waitFor": "vendor-transactions-banner" }
+            ]
+        },
+        {
+            "name": "empty-inactive",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "actions": [
+                { "click": "vendors-show-inactive" },
+                { "clickText": "Coastal Coffee Roasters" },
+                { "waitFor": "vendor-transactions-empty" }
+            ]
+        },
+        {
+            "name": "filter-empty",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [1280],
+            "actions": [
+                { "clickText": "Office Supply World" },
+                { "waitFor": "vendor-transactions-filter-vendor-refund" },
+                { "waitForHidden": "vendor-transactions-loading" },
+                { "click": "vendor-transactions-filter-vendor-refund" },
+                { "waitFor": "vendor-transactions-no-match" }
+            ]
+        },
+        {
+            "name": "credit",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_party_balances",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_party_balances",
+                        "collectionName": "books_party_balances",
+                        "id": "vendoffsupply01",
+                        "customer": "",
+                        "vendor": "vendoffsupply01",
+                        "balance": -12000
+                    }
+                ]
+            },
+            "actions": [
+                { "clickText": "Office Supply World" },
+                { "waitFor": "vendor-balance-open-label" },
+                { "pause": 800 }
+            ]
+        },
+        {
+            "name": "long",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [390, 1600],
+            "actions": [
+                { "fill": "vendors-search", "value": "Willamette" },
+                {
+                    "clickText": "Willamette Valley Commercial Cleaning and Janitorial Services Cooperative"
+                },
+                { "waitFor": "vendor-balance-open" },
+                { "waitFor": "vendor-transactions" },
+                { "waitForHidden": "vendor-transactions-loading" }
+            ]
+        },
+        {
+            "name": "new-menu",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [1280],
+            "actions": [
+                { "clickText": "Office Supply World" },
+                { "waitFor": "vendor-new-transaction" },
+                { "click": "vendor-new-transaction" },
+                { "waitFor": "vendor-new-vendor-refund" }
+            ]
+        },
+        {
+            "name": "new-menu-phone",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [390],
+            "stable": "vendor-new-vendor-refund",
+            "actions": [
+                { "clickText": "Office Supply World" },
+                { "waitFor": "vendor-new-transaction" },
+                { "click": "vendor-new-transaction" },
+                { "waitFor": "vendor-new-vendor-refund" }
+            ]
+        },
+        {
+            "name": "contacts",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [390, 1280, 1600],
+            "actions": [
+                { "clickText": "Office Supply World" },
+                { "click": "vendor-tab-contacts" },
+                { "waitFor": "vendor-contacts" },
+                { "waitForHidden": "vendor-contacts-loading" },
+                { "waitFor": "Grace Liu" }
+            ]
+        },
+        {
+            "name": "details-dirty",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [390, 1280, 1600],
+            "height": 1400,
+            "settleMs": 800,
+            "actions": [
+                { "clickText": "Office Supply World" },
+                { "click": "vendor-tab-notes" },
+                {
+                    "fill": "vendor-notes-input",
+                    "value": "Net 30. Order by the 20th for next-month delivery."
+                },
+                { "click": "vendor-tab-details" },
+                { "waitFor": "vendor-form" },
+                { "waitFor": "vendor-save-bar" }
+            ]
+        },
+        {
+            "name": "notes-dirty",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [390, 1280],
+            "actions": [
+                { "clickText": "Office Supply World" },
+                { "click": "vendor-tab-notes" },
+                {
+                    "fill": "vendor-notes-input",
+                    "value": "Net 30. Order by the 20th for next-month delivery."
+                },
+                { "click": "vendor-title" },
+                { "waitFor": "vendor-save-bar" }
+            ]
+        }
+    ]
+}

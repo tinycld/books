@@ -12,6 +12,7 @@ import {
     detailSurfaceFor,
     formRowClassFor,
     INDEX_SCREEN_OPTIONS,
+    isListCovered,
     listColumnStyle,
     listLayoutFor,
     RECORD_LIST_WIDTH,
@@ -118,6 +119,21 @@ describe('listLayoutFor', () => {
         expect(listLayoutFor('page', 'record', true)).toBe('table')
         expect(listLayoutFor('panel', 'panel', true)).toBe('table')
         expect(listLayoutFor('panel', 'record', false)).toBe('table')
+    })
+})
+
+// A covered list stays mounted under the page and must take no Tab stop.
+describe('isListCovered', () => {
+    it('covers the list on the page surface while a record is open', () => {
+        expect(isListCovered('page', true)).toBe(true)
+    })
+
+    it('does not cover the list beside an open record on the panel surface', () => {
+        expect(isListCovered('panel', true)).toBe(false)
+    })
+
+    it('does not cover the list on the page surface while nothing is open', () => {
+        expect(isListCovered('page', false)).toBe(false)
     })
 })
 

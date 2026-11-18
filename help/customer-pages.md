@@ -49,7 +49,7 @@ You change Details and Notes on the page itself; there is no Edit button. When y
 
 The Contacts tab lists the people you deal with at the customer: name, role, email and phone. The **Primary** contact is first and has a Primary badge; the others follow by name.
 
-- To add a person, choose **Add contact**, or press ⌥C when the tab already lists people. Type a name (the only field you must fill in), and a role, an email and a phone if you have them. Turn on Primary contact to make the person the primary contact. Choose Save, or press ⌘↵.
+- To add a person, choose **Add contact**, or press ⌥C. Type a name (the only field you must fill in), and a role, an email and a phone if you have them. Turn on Primary contact to make the person the primary contact. Choose Save, or press ⌘↵.
 - To change a person, open the menu on the person's row and choose Edit.
 - To make another person the primary contact, open the menu on the person's row and choose Make primary. A customer has one primary contact, so the person who was primary before loses the badge.
 - To delete a person, open the menu on the person's row, choose Delete, then choose Delete in the "Delete contact" dialog.

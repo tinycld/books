@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 import { type RecordKind, recordFormHelpers } from './record-form-helpers'
 
 // Shared by the vendor-form e2e specs: the record-form helpers bound to vendors.
@@ -9,6 +9,7 @@ export {
     afterNextFrames,
     backgroundOf,
     CLASSIC_SCROLLBARS,
+    contentArea,
     DESKTOP,
     edges,
     effectiveOpacity,
@@ -49,6 +50,8 @@ export const VENDOR_KIND: RecordKind = {
     newTitle: 'New vendor',
     deleteTitle: 'Delete vendor',
     discardMessage: 'This vendor has changes that are not saved.',
+    afterSave: 'record',
+    formTab: 'vendor-tab-details',
 }
 
 // For the spec bindings that pass a vendor-only argument (a refusal text, a field key).
@@ -64,6 +67,33 @@ export const openVendor = vendorHelpers.open
 export const field = vendorHelpers.field
 export const openNewVendor = vendorHelpers.openNew
 export const createVendor = vendorHelpers.create
+export const expectVendorEditSaved = vendorHelpers.expectEditSaved
+export const vendorPageUrl = vendorHelpers.recordPageUrl
+
+// One vendor's page, with or without a query (`?tab=details`).
+export function vendorPath(id: string) {
+    return new RegExp(`/books/vendors/${id}(\\?[^#]*)?$`)
+}
+
+// The id of the vendor whose page is open, read from the URL.
+export function openVendorId(page: Page) {
+    return new URL(page.url()).pathname.split('/').pop() ?? ''
+}
+
+export function isFocused(locator: Locator) {
+    return locator.evaluate(el => el === document.activeElement)
+}
+
+export type TabKey = 'Tab' | 'Shift+Tab'
+
+// Presses Tab (or Shift+Tab, to move back) until `target` holds the focus (at most `max`
+// presses); no click.
+export async function tabTo(page: Page, target: Locator, max = 20, key: TabKey = 'Tab') {
+    for (let presses = 0; presses < max && !(await isFocused(target)); presses++) {
+        await page.keyboard.press(key)
+    }
+    await expect(target).toBeFocused()
+}
 export const discardDialog = vendorHelpers.discardDialog
 export const vendorsBase = vendorHelpers.base
 export const holdVendorWrite = vendorHelpers.holdRecordWrite

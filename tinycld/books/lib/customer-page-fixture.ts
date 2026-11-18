@@ -288,9 +288,9 @@ export const CUSTOMER_PAGE_SALES_RECEIPTS = [
 // 1,189,290 is overdue. Alvarez has a credit (a negative balance). Northwind has no row,
 // so its Open is $0.00.
 export const CUSTOMER_PAGE_BALANCES = [
-    { id: HARBOR, customer: HARBOR, balance: 2_781_865 },
-    { id: ST_JUDE, customer: ST_JUDE, balance: 12_480_000 },
-    { id: ALVAREZ, customer: ALVAREZ, balance: -12_000 },
+    { id: HARBOR, customer: HARBOR, vendor: '', balance: 2_781_865 },
+    { id: ST_JUDE, customer: ST_JUDE, vendor: '', balance: 12_480_000 },
+    { id: ALVAREZ, customer: ALVAREZ, vendor: '', balance: -12_000 },
 ] satisfies BooksPartyBalances[]
 
 function contact(
