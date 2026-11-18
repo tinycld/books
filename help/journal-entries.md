@@ -27,6 +27,10 @@ To post an entry, choose Post. The entry gets its number (for example JE-1046) a
 
 To post and start the next entry at once, choose Post & new. On a phone, it is in the More menu.
 
+## Leave without saving
+
+Cancel leaves the form. If you changed something, Books asks first. Any other way out of a form with unsaved changes asks the same question first: the Back link and the browser's Back or Forward button. Choose Keep editing to stay with your changes, or Discard to go on. If you reload or close the browser tab, the browser asks.
+
 ## When someone else changed the draft
 
 If another person saves a change to a draft while you have it open, Books refuses your next Save draft or Post and shows "This entry changed after you opened it." Nothing is posted, and what you typed stays on the screen. A refused Save draft saves nothing, and a refused Post of a saved draft saves nothing. But when you post a new entry, Books saves it as a draft before it posts it. If Books then refuses the post, that draft stays saved.

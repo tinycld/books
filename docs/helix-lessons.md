@@ -59,3 +59,4 @@
 - A custom trigger for a core Menu forwards the `onPress` and ref that the Menu clones onto it; a wrapper that drops them never opens the menu. — report-exports, retro, p5-exports
 - Start `page.waitForResponse` before the action and await the promise after it; a helper that returns the wait is never awaited before the press. — sales-lists, retro, p2-sales-lists
 - A lib module that an e2e helper imports stays free of React Native and icon imports; run the helper's import in Node once before the first e2e run. — sales-lists, retro, p2-sales-lists
+- A data-entry form asks before ANY navigation away while dirty (core `useLeaveGuard` + its Discard dialog, as `RecordChild` does), never only on Cancel; a new navigation path (a list key, a row beside the form) then needs no guard of its own. — sales-lists, human, eval revise 1

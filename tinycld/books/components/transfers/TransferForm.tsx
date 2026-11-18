@@ -4,6 +4,7 @@ import { FormProvider } from 'react-hook-form'
 import { ScrollView, View } from 'react-native'
 import { useEntryFormShortcuts } from '../../hooks/useEntryFormShortcuts'
 import type { SaveOutcome } from '../../hooks/useEntrySubmit'
+import { useFormLeaveGuard } from '../../hooks/useFormLeaveGuard'
 import type { useTransferAccounts } from '../../hooks/useTransferAccounts'
 import { useTransferForm } from '../../hooks/useTransferForm'
 import { useTransferSubmit } from '../../hooks/useTransferSubmit'
@@ -34,6 +35,8 @@ interface TransferFormProps {
     onCancel(): void
     // A saved draft's delete, offered in the action bar's More menu.
     onDeleteDraft?: () => void
+    // The screen's delete of this draft runs or succeeded: its leave asks nothing.
+    isDeleting?: boolean
 }
 
 const MEMO_WIDE = { style: { maxWidth: 560 } }
@@ -64,6 +67,7 @@ export function TransferForm({
     onSaved,
     onCancel,
     onDeleteDraft,
+    isDeleting = false,
 }: TransferFormProps) {
     const isWide = useBreakpoint() !== 'mobile'
     const transferForm = useTransferForm({ initial, currency })
@@ -77,6 +81,17 @@ export function TransferForm({
         onSaved,
         onCancel,
     })
+    const leaveGuard = useFormLeaveGuard({
+        isDirty: transferForm.isDirty,
+        isWriting: submit.isPending || isDeleting,
+        cancel: submit.cancel,
+        leave: submit.leave,
+        question: {
+            isOpen: submit.isDiscardOpen,
+            discard: submit.discard,
+            keepEditing: submit.keepEditing,
+        },
+    })
     useEntryFormShortcuts({
         group: 'Transfer',
         isPending: submit.isPending,
@@ -85,14 +100,14 @@ export function TransferForm({
             post: submit.post,
             postAndNew: submit.postAndNew,
             saveDraft: submit.saveDraft,
-            cancel: submit.cancel,
+            cancel: leaveGuard.cancel,
             deleteDraft: onDeleteDraft ?? noop,
         },
     })
     const { form, values, amountText } = transferForm
     return (
         <FormProvider {...form}>
-            <EntryLeaveContext.Provider value={submit.cancel}>
+            <EntryLeaveContext.Provider value={leaveGuard.cancel}>
                 <View testID="transfer-form" className="min-w-0 flex-1 bg-background">
                     <FormHeader
                         isVisible={isHeaderVisible}
@@ -121,18 +136,13 @@ export function TransferForm({
                         testIDPrefix="transfer"
                         isWide={isWide}
                         isPending={submit.isPending}
-                        onCancel={submit.cancel}
+                        onCancel={leaveGuard.cancel}
                         onSaveDraft={submit.saveDraft}
                         onPost={submit.post}
                         onPostAndNew={submit.postAndNew}
                         onDeleteDraft={onDeleteDraft}
                     />
-                    <DiscardDialog
-                        title="Discard changes?"
-                        isVisible={submit.isDiscardOpen}
-                        onDiscard={submit.discard}
-                        onKeepEditing={submit.keepEditing}
-                    />
+                    <DiscardDialog title="Discard changes?" {...leaveGuard.dialog} />
                 </View>
             </EntryLeaveContext.Provider>
         </FormProvider>

@@ -1,0 +1,32 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "leave-confirm-beside",
+            "url": "/a/books/invoices",
+            "ready": "sales-table",
+            "widths": [1440],
+            "actions": [
+                { "press": "n" },
+                { "waitFor": "sales-names" },
+                { "waitFor": "form-input-memo" },
+                { "fill": "form-input-memo", "value": "Unsaved memo" },
+                { "press": "Escape" },
+                { "waitFor": "discard-dialog" },
+                { "pause": 400 }
+            ]
+        },
+        {
+            "name": "leave-confirm-phone",
+            "url": "/a/books/invoices/new",
+            "ready": "form-input-memo",
+            "widths": [390],
+            "actions": [
+                { "fill": "form-input-memo", "value": "Unsaved memo" },
+                { "press": "Escape" },
+                { "waitFor": "discard-dialog" },
+                { "pause": 400 }
+            ]
+        }
+    ]
+}

@@ -26,6 +26,8 @@ An estimate has no draft. The first save gives it the next estimate number. An a
 - **Save & new** saves it and opens a new, blank estimate.
 - **Cancel** leaves without saving. If you changed something, Books asks first.
 
+Any other way out of a form with unsaved changes asks the same question first: the Back link, the browser's Back or Forward button, and a key or a row of the Sales list beside the form. Choose Keep editing to stay with your changes, or Discard to go on. If you reload or close the browser tab, the browser asks.
+
 On a phone, the bar shows Cancel and Save & close. Save, Save & new, Convert to invoice, Copy customer link, Delete estimate and Download PDF are under More.
 
 A saved estimate stays open to changes: you can change any field and any line while it is Pending, Accepted or Rejected.

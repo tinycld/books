@@ -26,6 +26,8 @@ The list starts with the newest date first. To sort by a column, choose its head
 
 Choose a row to open its document: a draft opens in its form, a posted or void document in its read view. In a very wide window the document shows beside a narrow column of its kind's list, with the open row marked; otherwise it opens as its own page and Back returns to the list where you left it.
 
+Beside a form with unsaved changes, a row you choose, New, and a key that opens another row or tab ask "Discard changes?" first. Choose Keep editing to stay in the form with your changes, or Discard to go on.
+
 ## The row menu
 
 Each row ends with a More actions button. Its row menu holds Open and the actions the document's own page offers for its status, for example Receive payment, Copy, Create credit memo, View journal entry, Download PDF and Void. A draft's row menu holds Open and Delete draft. Void and Delete draft ask you to confirm first. If the server refuses an action, the reason shows in the banner above the list.
@@ -43,7 +45,7 @@ The confirm dialog says how many of the ticked documents the action applies to a
 
 With a keyboard (on the web or with an iPad hardware keyboard), these keys work on every Sales tab. Press ⇧? to see them in the app. A key you type in the search field is text; press Esc to leave the field. The keys that tick rows and New are only there for people who can edit the books.
 
-Beside an open document, in the narrow column of a very wide window, the list keys still work while you read or edit the document: press ↓ and ↑ to move through the column, and ↵ or O to open the focused row. There, J and K do not move the row focus: J belongs to the document (View journal entry in its read view). The tick keys X, Space and A do not work in the column. A key you type in a field of the document is text.
+Beside an open document, in the narrow column of a very wide window, the list keys still work while you read or edit the document: press ↓ and ↑ to move through the column, and ↵ or O to open the focused row. There, J and K do not move the row focus: J belongs to the document (View journal entry in its read view). The tick keys X, Space and A do not work in the column. A key you type in a field of the document is text. A key that replaces a form with unsaved changes (a tab key, N, or ↵ and O on another row) asks "Discard changes?" first.
 
 | Action | Key |
 | --- | --- |
