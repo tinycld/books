@@ -129,6 +129,8 @@ type arRow struct {
 	id, customer, entry, date, currency string
 	debit, credit                       int
 	item, kind, number, due             string
+	// seq is the integer the item's number formats (server/numbering.go).
+	seq int
 }
 
 func (r arRow) net() int { return r.debit - r.credit }
@@ -147,6 +149,7 @@ func arRows(t *testing.T, app core.App, view string) []arRow {
 			debit: r.GetInt("debit"), credit: r.GetInt("credit"),
 			item: r.GetString("item"), kind: r.GetString("item_kind"),
 			number: r.GetString("item_number"), due: r.GetString("due_date"),
+			seq: r.GetInt("item_seq"),
 		}
 	}
 	return out
@@ -201,13 +204,24 @@ func requireOneItem(t *testing.T, what string, rows []arRow, item string, want i
 		t.Fatalf("%s: no rows", what)
 	}
 	for _, r := range rows {
-		if r.item != item || r.kind != rows[0].kind || r.number != rows[0].number || r.due != rows[0].due {
-			t.Errorf("%s: row %+v, want item %s with the kind, number and due day of %+v", what, r, item, rows[0])
+		if r.item != item || r.kind != rows[0].kind || r.number != rows[0].number || r.seq != rows[0].seq || r.due != rows[0].due {
+			t.Errorf("%s: row %+v, want item %s with the kind, number, sequence and due day of %+v", what, r, item, rows[0])
 		}
 	}
 	if got := netOf(rows); got != want {
 		t.Errorf("%s: rows add up to %d, want %d: %+v", what, got, want, rows)
 	}
+}
+
+// entrySeq is the integer sequence of an entry, the number its display
+// number formats.
+func entrySeq(t *testing.T, b arBook, entryID string) int {
+	t.Helper()
+	seq := reload(t, b.app, "books_journal_entries", entryID).GetInt("sequence")
+	if seq == 0 {
+		t.Fatalf("entry %s has no sequence", entryID)
+	}
+	return seq
 }
 
 func arLineOf(t *testing.T, b arBook, entryID string) *core.Record {
@@ -246,6 +260,7 @@ func TestReceivableViewsShape(t *testing.T) {
 				"debit": core.FieldTypeNumber, "credit": core.FieldTypeNumber,
 				"date": core.FieldTypeText, "currency": core.FieldTypeText, "item": core.FieldTypeText,
 				"item_kind": core.FieldTypeText, "item_number": core.FieldTypeText, "due_date": core.FieldTypeText,
+				"item_seq": core.FieldTypeNumber,
 			}
 			for field, typ := range want {
 				f := col.Fields.GetByName(field)
@@ -292,6 +307,7 @@ func TestReceivableLinesInvoice(t *testing.T) {
 		id: line.Id, customer: c.Id, entry: entryID, date: "2026-08-04", currency: "USD",
 		debit: 100000, credit: 0,
 		item: inv.Id, kind: "invoice", number: inv.GetString("number"), due: "2026-09-03",
+		seq: entrySeq(t, b, entryID),
 	}
 	if got != want {
 		t.Errorf("the invoice's row =\n%+v\nwant\n%+v", got, want)
@@ -318,6 +334,7 @@ func TestReceivableLinesPayment(t *testing.T) {
 		id: arLineOf(t, b, p.GetString("entry")).Id, customer: c.Id, entry: p.GetString("entry"),
 		date: "2026-09-10", currency: "USD", debit: 0, credit: 15000,
 		item: p.Id, kind: "payment", number: p.GetString("number"), due: "2026-09-10",
+		seq: entrySeq(t, b, p.GetString("entry")),
 	}); own != want {
 		t.Errorf("the payment's lines row =\n%+v\nwant\n%+v (credit is its credited)", own, want)
 	}
@@ -331,6 +348,7 @@ func TestReceivableLinesPayment(t *testing.T) {
 		id: application.Id, customer: c.Id, entry: p.GetString("entry"), date: "2026-09-10",
 		currency: p.GetString("currency"), debit: 0, credit: 55000,
 		item: inv.Id, kind: "invoice", number: invoiceRow.number, due: "2026-09-03",
+		seq: entrySeq(t, b, inv.GetString("entry")),
 	}); applied != want {
 		t.Errorf("the application's row =\n%+v\nwant\n%+v", applied, want)
 	}
@@ -377,9 +395,9 @@ func TestReceivableLinesCreditMemo(t *testing.T) {
 	memo := arCreditMemo(t, b, b.docs.customer, "2026-10-20", 63500)
 	got := oneRow(t, "the credit memo's rows", ofEntry(arRows(t, b.app, receivableLinesView), memo.GetString("entry")))
 	if got.credit != 63500 || got.debit != 0 || got.item != memo.Id || got.kind != "credit_memo" ||
-		got.number != memo.GetString("number") || got.due != "2026-10-20" {
-		t.Errorf("the credit memo's row = %+v, want credit 63500, item the memo, kind credit_memo, number %q, due 2026-10-20",
-			got, memo.GetString("number"))
+		got.number != memo.GetString("number") || got.seq != entrySeq(t, b, memo.GetString("entry")) || got.due != "2026-10-20" {
+		t.Errorf("the credit memo's row = %+v, want credit 63500, item the memo, kind credit_memo, number %q (sequence %d), due 2026-10-20",
+			got, memo.GetString("number"), entrySeq(t, b, memo.GetString("entry")))
 	}
 }
 
@@ -403,9 +421,10 @@ func TestReceivableLinesJournal(t *testing.T) {
 	got := oneRow(t, "the manual entry's rows", ofEntry(rows, one.Id))
 	line := arLineOf(t, b, one.Id)
 	if got.item != line.Id || got.kind != "entry" || got.number != one.GetString("number") ||
-		!strings.HasPrefix(got.number, "JE-") || got.due != "2026-09-01" || got.customer != c.Id || got.debit != 31000 {
-		t.Errorf("the manual entry's row = %+v, want item the line %s, kind entry, number %q (JE-), due 2026-09-01, the customer, debit 31000",
-			got, line.Id, one.GetString("number"))
+		!strings.HasPrefix(got.number, "JE-") || got.seq != entrySeq(t, b, one.Id) ||
+		got.due != "2026-09-01" || got.customer != c.Id || got.debit != 31000 {
+		t.Errorf("the manual entry's row = %+v, want item the line %s, kind entry, number %q (JE-), sequence %d, due 2026-09-01, the customer, debit 31000",
+			got, line.Id, one.GetString("number"), entrySeq(t, b, one.Id))
 	}
 	blank := oneRow(t, "the no-customer entry's rows", ofEntry(rows, none.Id))
 	if blank.customer != "" || blank.debit != 12000 {
@@ -518,6 +537,37 @@ func TestReceivableLinesVoids(t *testing.T) {
 
 func TestReceivableItemsTieToPartyBalances(t *testing.T) {
 	b := newARBook(t)
+	customers := arTieBook(t, b)
+
+	rows := allRows(t, b.app)
+	balances := partyBalances(t, b.app)
+	for _, c := range customers {
+		got := netOf(rowsWhere(rows, func(r arRow) bool { return r.customer == c.Id }))
+		if want, ok := balances[c.Id]; !ok || got != want {
+			t.Errorf("%s: the views add up to %d, want its books_party_balances balance %d (found %v)",
+				c.GetString("display_name"), got, want, ok)
+		}
+	}
+
+	lines, err := b.app.FindAllRecords("books_journal_lines", dbx.HashExp{"account": b.receivable.Id, "posted": true})
+	if err != nil {
+		t.Fatalf("read the Accounts receivable lines: %v", err)
+	}
+	ledger := 0
+	for _, l := range lines {
+		ledger += l.GetInt("debit") - l.GetInt("credit")
+	}
+	if got := netOf(rows); got != ledger {
+		t.Errorf("every row of both views adds up to %d, want the net of every posted Accounts receivable line %d", got, ledger)
+	}
+}
+
+// arTieBook posts the book the tie tests read (TestReceivableItemsTieToPartyBalances
+// and TestARAgingTies): every kind of item, void and correction over three
+// customers (a family of two) and a line with no customer. It returns
+// Harborview, Northwind Traders and its sub-customer the Portland store.
+func arTieBook(t *testing.T, b arBook) []*core.Record {
+	t.Helper()
 	arJournalPrefix(t, b)
 	actor := b.docs.users.bookkeeper.Id
 	harbor := b.docs.customer
@@ -571,28 +621,7 @@ func TestReceivableItemsTieToPartyBalances(t *testing.T) {
 	postJournal(t, b.app, "", "2026-09-02", "A/R with no customer",
 		jnLine{account: b.receivable, debit: 12000, position: 0},
 		jnLine{account: b.income, credit: 12000, position: 1})
-
-	rows := allRows(t, b.app)
-	balances := partyBalances(t, b.app)
-	for _, c := range []*core.Record{harbor, northwind, portland} {
-		got := netOf(rowsWhere(rows, func(r arRow) bool { return r.customer == c.Id }))
-		if want, ok := balances[c.Id]; !ok || got != want {
-			t.Errorf("%s: the views add up to %d, want its books_party_balances balance %d (found %v)",
-				c.GetString("display_name"), got, want, ok)
-		}
-	}
-
-	lines, err := b.app.FindAllRecords("books_journal_lines", dbx.HashExp{"account": b.receivable.Id, "posted": true})
-	if err != nil {
-		t.Fatalf("read the Accounts receivable lines: %v", err)
-	}
-	ledger := 0
-	for _, l := range lines {
-		ledger += l.GetInt("debit") - l.GetInt("credit")
-	}
-	if got := netOf(rows); got != ledger {
-		t.Errorf("every row of both views adds up to %d, want the net of every posted Accounts receivable line %d", got, ledger)
-	}
+	return []*core.Record{harbor, northwind, portland}
 }
 
 func TestReceivableViewsAccess(t *testing.T) {
