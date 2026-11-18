@@ -5,6 +5,7 @@ import { useRecordRowMenus } from '../../hooks/useRecordRowMenus'
 import { useVendorActions } from '../../hooks/useVendorActions'
 import { useVendorNavigation } from '../../hooks/useVendorNavigation'
 import { useVendorsQuery, type VendorRecord } from '../../hooks/useVendorsQuery'
+import type { ListLayout } from '../../lib/detail-surface'
 import { partyTitle } from '../../lib/party-list'
 import {
     RECORD_MENU_LABELS,
@@ -27,8 +28,9 @@ const VENDOR_MENU = {
 }
 
 // The Vendors list. The open vendor (`openId`, from the URL) is marked on the panel
-// surface, where the list stays in view beside it.
-export function VendorsList({ openId }: { openId: string }) {
+// surface, where the list stays in view beside it; beside a vendor page it shows the
+// names only (`layout`). A row's Edit opens the vendor's page on its Details tab.
+export function VendorsList({ openId, layout }: { openId: string; layout: ListLayout }) {
     const navigation = useVendorNavigation()
     const { canWrite } = useBooksAccess()
     // The one actions instance lives here, so the list's banner and the Delete vendor
@@ -40,6 +42,7 @@ export function VendorsList({ openId }: { openId: string }) {
         openId,
         listPath: VENDORS_PATH,
         navigation,
+        openEdit: navigation.openDetails,
         canWrite,
         itemsFor: recordMenuItems,
         titleOf: partyTitle,
@@ -77,7 +80,7 @@ export function VendorsList({ openId }: { openId: string }) {
             isLoadError={loadError !== null}
             onDismissBanner={menus.dismissRefusal}
             dialog={dialog}
-            layout="table"
+            layout={layout}
         />
     )
 }

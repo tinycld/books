@@ -10,7 +10,8 @@ const DELETE_CONFIRM: DeleteDialogConfirm = {
 }
 
 interface DeleteVendorDialogProps {
-    vendor: VendorRecord | null
+    // Only the fields the dialog reads: the list passes its row, the vendor page its record.
+    vendor: Pick<VendorRecord, 'id' | 'display_name'> | null
     actions: ReturnType<typeof useVendorActions>
     // The vendor is open beside the list with unsaved edits, which the delete drops.
     isOpenAndDirty: boolean

@@ -3,18 +3,17 @@ import { View } from 'react-native'
 import { type CustomerPageState, useCustomerPage } from '../../../hooks/useCustomerPage'
 import { useDetailSurface } from '../../../hooks/useDetailSurface'
 import { CUSTOMER_DISCARD_MESSAGE } from '../../../lib/customer-messages'
-import { type CustomerTab, SHOWN_CUSTOMER_TABS } from '../../../lib/customer-page-tabs'
+import { SHOWN_CUSTOMER_TABS } from '../../../lib/customer-page-tabs'
 import type { DetailSurface } from '../../../lib/detail-surface'
 import type { BooksCustomers } from '../../../types'
 import { ListBanner } from '../../ListBanner'
 import { NewTransactionMenu } from '../../party/page/NewTransactionMenu'
 import { PartyBalance } from '../../party/page/PartyBalance'
-import { PartyContactsTab } from '../../party/page/PartyContactsTab'
-import { PartyDetailsTab } from '../../party/page/PartyDetailsTab'
-import { PartyNotesTab } from '../../party/page/PartyNotesTab'
 import { PartyPageHeader } from '../../party/page/PartyPageHeader'
 import { PartyPageSaveBar } from '../../party/page/PartyPageSaveBar'
+import { PartyTabBody } from '../../party/page/PartyTabBody'
 import { PartyTabs } from '../../party/page/PartyTabs'
+import { columnsFor } from '../../party/page/party-page-layout'
 import { DiscardDialog } from '../../RecordChild'
 import { RecordSurface } from '../../RecordSurface'
 import { CustomerIdentity } from './CustomerIdentity'
@@ -23,64 +22,24 @@ import { CustomerTransactionsTab } from './CustomerTransactionsTab'
 
 const PREFIX = 'customer'
 
-interface TabBodyProps {
-    tab: CustomerTab
+interface TransactionsProps {
     record: BooksCustomers
     page: CustomerPageState
-    surface: DetailSurface
-    rowClassName: string
     gutterClass: string
 }
 
-// Only the selected tab's body is mounted; the forms it edits live in the page.
-function TabBody({ tab, record, page, surface, rowClassName, gutterClass }: TabBodyProps) {
-    if (tab === 'transactions') {
-        const openNewMenu = () => page.setNewMenuOpen(true)
-        return (
-            <CustomerTransactionsTab
-                customerId={record.id}
-                canWrite={page.canWrite}
-                newTransactionDisabled={page.controls.newTransactionDisabled}
-                onNewTransaction={openNewMenu}
-                gutterClass={gutterClass}
-            />
-        )
-    }
-    if (tab === 'contacts') {
-        return (
-            <PartyContactsTab
-                party="customer"
-                id={record.id}
-                canWrite={page.canWrite}
-                gutterClass={gutterClass}
-                testIdPrefix={PREFIX}
-            />
-        )
-    }
-    if (tab === 'notes') {
-        return (
-            <PartyNotesTab
-                notes={page.notes}
-                readOnly={page.readOnly}
-                rowClassName={rowClassName}
-                testIdPrefix={PREFIX}
-            />
-        )
-    }
+// The customer's Transactions tab; its empty state's New transaction opens the header menu.
+function TransactionsTab({ record, page, gutterClass }: TransactionsProps) {
+    const openNewMenu = () => page.setNewMenuOpen(true)
     return (
-        <PartyDetailsTab
-            details={page.details}
-            surface={surface}
-            rowClassName={rowClassName}
-            testIdPrefix={PREFIX}
+        <CustomerTransactionsTab
+            customerId={record.id}
+            canWrite={page.canWrite}
+            newTransactionDisabled={page.controls.newTransactionDisabled}
+            onNewTransaction={openNewMenu}
+            gutterClass={gutterClass}
         />
     )
-}
-
-// The page's gutter, and the left-aligned column the forms fill.
-function columnsFor(isPhone: boolean) {
-    if (isPhone) return { gutterClass: 'px-4', rowClassName: 'w-full px-4' }
-    return { gutterClass: 'px-6', rowClassName: 'w-full max-w-[720px] px-6' }
 }
 
 interface HeaderProps {
@@ -144,6 +103,7 @@ export function CustomerPage({ record }: { record: BooksCustomers }) {
     const header = (
         <CustomerHeader record={record} page={page} surface={surface} isPhone={isPhone} />
     )
+    const transactions = <TransactionsTab record={record} page={page} gutterClass={gutterClass} />
     const dismissBanner = () => actions.clearActionError()
     const save = () => void page.save()
     return (
@@ -175,13 +135,16 @@ export function CustomerPage({ record }: { record: BooksCustomers }) {
                 shortcutGroup="Customer"
             />
             <View className="flex-1">
-                <TabBody
+                <PartyTabBody
                     tab={page.tab}
-                    record={record}
+                    party="customer"
+                    id={record.id}
                     page={page}
+                    transactions={transactions}
                     surface={surface}
                     rowClassName={rowClassName}
                     gutterClass={gutterClass}
+                    testIdPrefix={PREFIX}
                 />
             </View>
             <PartyPageSaveBar

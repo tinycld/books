@@ -2,8 +2,13 @@ export type RecordRoute = { path: string; params?: Record<string, string> }
 
 export type OpenRecord = { kind: 'new' } | { kind: 'id'; id: string } | { kind: 'none' }
 
-export function recordPath(listPath: string, id: string): RecordRoute {
-    return { path: `${listPath}/[id]`, params: { id } }
+// `params` (the page's `tab`) follow the id in the route's search params.
+export function recordPath(
+    listPath: string,
+    id: string,
+    params?: Record<string, string>
+): RecordRoute {
+    return { path: `${listPath}/[id]`, params: { id, ...params } }
 }
 
 export function newRecordPath(listPath: string, params?: Record<string, string>): RecordRoute {

@@ -78,6 +78,8 @@ test.describe('vendor-form: inactive and delete', () => {
             await openVendorsList(page)
             await createVendor(page, { name: nameP })
             await createVendor(page, { name: nameQ })
+            // Save opens the new vendor's page; the list is behind it.
+            await openVendorsList(page)
             await searchVendors(page, prefix)
             const pId = await vendorIdOf(page, nameP)
             const qId = await vendorIdOf(page, nameQ)
@@ -93,8 +95,13 @@ test.describe('vendor-form: inactive and delete', () => {
             await expect(menuItem(page, 'delete')).toHaveText('Delete')
             // The menu press did not also open the row.
             await expectListShown(page)
+            // Edit opens the vendor's page on its Details tab.
             await menuItem(page, 'edit').click()
-            await expect(page.getByTestId('vendor-title')).toHaveText('Edit vendor')
+            await expect(page.getByTestId('vendor-title')).toHaveText(nameP)
+            await expect(page.getByTestId('vendor-tab-details')).toHaveAttribute(
+                'aria-selected',
+                'true'
+            )
             await expect(field(page, 'display_name')).toHaveValue(nameP)
             await page.getByTestId('vendor-back').click()
             await expectListShown(page)
@@ -220,11 +227,15 @@ async function deleteOpenVendorElsewhere(page: Page, prefix: string) {
     const discard = discardDialog(page)
     const nameC = `${prefix} C`
     await createVendor(page, { name: nameC })
+    await openVendorsList(page)
     await searchVendors(page, nameC)
     await openButton(page, nameC).click()
     await expect(vendorSurface(page)).toBeVisible()
+    await page.getByTestId('vendor-tab-details').click()
     await expect(field(page, 'display_name')).toHaveValue(nameC)
-    await field(page, 'notes').fill(`${prefix} typed notes`)
+    // Notes are edited on the Notes tab only.
+    await page.getByTestId('vendor-tab-notes').click()
+    await page.getByTestId('vendor-notes-input').fill(`${prefix} typed notes`)
 
     const other = await page.context().newPage()
     await login(other)

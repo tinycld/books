@@ -78,6 +78,8 @@ export async function vendorWithBills(
     const answer = await created
     expect(answer.ok()).toBe(true)
     const vendorId: string = (await answer.json()).id
+    // Save opens the new vendor's page; leave it for the list.
+    await vendorHelpers.openList(page)
     const today = await localDay(page, 0)
     const bills: { id: string; number: string }[] = []
     for (const bill of input.bills) {

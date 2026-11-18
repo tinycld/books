@@ -17,6 +17,20 @@ describe('record routes', () => {
         })
     })
 
+    it('recordPath merges extra route params after the id', () => {
+        expect(recordPath('books/vendors', 'v1', { tab: 'details' })).toEqual({
+            path: 'books/vendors/[id]',
+            params: { id: 'v1', tab: 'details' },
+        })
+    })
+
+    it('recordPath with no extra params gives the id param alone', () => {
+        expect(recordPath('books/vendors', 'v1')).toEqual({
+            path: 'books/vendors/[id]',
+            params: { id: 'v1' },
+        })
+    })
+
     it('newRecordPath has no params key when none are given', () => {
         const route = newRecordPath(WIDGETS)
         expect(route.path).toBe('books/widgets/new')
