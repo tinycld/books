@@ -54,6 +54,8 @@ with the reason, and shown to the human at the end)
 - fix review: n/a (no fix round: no accepted finding asked a change)
 - gate 3 A notes: 7, listed under Design notes
 - reviewer-caught deferrals: none
+- commit: 2f50ff4c
+- human: n/a (review mode C)
 
 ## Final review
 - eval:
