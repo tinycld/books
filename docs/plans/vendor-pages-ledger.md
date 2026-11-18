@@ -24,9 +24,8 @@
 with the reason, and shown to the human at the end)
 
 ## Design notes
-(none yet — gate-2 NOTEs the loop did not act on, as
-`cp N · <shot>: <where> — <what>`; shown to the human at each checkpoint
-and again at the end)
+- cp 1 · reviewer A NOTE: `pb-migrations/2100000026_add_vendor_party_balances.js` down path (restore the customer-only query, drop `idx_books_jlines_vendor`) has no test; its text matches `2100000015` character for character (checked by reviewers A and B). Optional: a Go test that runs the migration down and checks the view has no `vendor` field.
+- cp 1 · seed data vs spec wording: spec §4 Seed says the contacts are "for three seeded vendors, one with a primary and a long role"; the approved fixture gives two vendors a primary (Office Supply World — Grace Liu, and Willamette). The unit test pins the fixture's set (Office Supply World + Willamette). Kept as approved at the design gate; the human may say if only one vendor should have a primary.
 
 ## Out-of-plan changes
 (none yet — every file touched that no checkpoint's Files block named, with why)
@@ -46,6 +45,22 @@ and again at the end)
     - MAJOR: `tests/e2e/vendor-1099-helpers.ts` missing from checkpoint 3 Files; `DeleteVendorDialog` props (`vendor` null when closed); shared part prop lists incomplete (`gutterClass`, `surface`, `isVisible`, `isFullWidth`, `shortcutGroup`); load-error and loading e2e steps could not run after `createVendor` (now Save and new, then route, then the row); the "no reload" balance step (the credit now starts from the page's own menu); wrong core citations (shortcut button, overlay Escape, leave guard paths); no test for the banner refusal, the disabled write items and the save bar's error summary; the "Edit vendor" grep in Gates (now `bill-form.spec.ts` by name, and the link is pressed in checkpoint 4).
     - MINOR: ⌥1 test; dialog key and button names in e2e text; the not-found step (dropped, `vendor-form-page.spec.ts` covers §3.10); two open conditionals answered from the tree; e2e helper files and shapes; `createVendor` fields; narrowed assertions (Call from mobile, company equal to the name, due today, one query per chip, a row opened from a dirty page, search hit); more customer specs in the checkpoint 2 gate; customer words in shared parts; a Create path that exists; help test lines and `help/vendors.md` lines 28 and 62; missing contact test ids; two Tests bullets with no named assertion.
 - review mode switches: none
+- checkpoint 1: the view id uses the `CASE WHEN l.customer != '' THEN l.customer ELSE l.vendor END` form; PocketBase accepted it and typed `customer` and `vendor` as relations (`TestPartyBalances_VendorFieldTypes`), so the `(l.customer || l.vendor)` fallback is not in use. The migration's comment above `BOTH_PARTIES` says so.
+
+## Checkpoint 1 — Vendor rows in party balances
+- test writer: `server/party_balances_test.go` (5 new tests: VendorFieldTypes, bills/payment/credit/void for two vendors, three no-row cases, customer + vendor separate, draft A/P; `partyLineSpec.vendor`; `partyBalances` fails on a row whose id is not its party or that names both), `tests/vendor-page-fixture.test.ts`, `tests/migration-prefixes.test.ts`; red for the right reason: yes (Go: no vendor column / no migration; TS2344 on the type alias; migration list); bullets 6–7 and the fixture-value cases guard behavior already present (stated in the report); untestable: none
+- implementer: migration `2100000026_add_vendor_party_balances.js` (CASE id, vendor index, down path), comment in `server/party_balances.go`, fixture alias `VendorPartyBalanceRecord = BooksPartyBalances` + `satisfies`, `CUSTOMER_PAGE_BALANCES` rows `vendor: ''`, `seed.ts` shared `createPartyContacts` + `seedVendorContacts`; `report_customer_balance_test.go` unchanged (`partyBalances` keeps `map[string]int`); DONE
+- test disputes: none
+- self-declared differences: (1) the shared seed helper is `createPartyContacts` with a `partyOf` callback; the customer refusal keeps its old text, the vendor refusal names the contact; (2) Do steps 1 and 8 (test-side helpers, TS tests) were the test writer's
+- gate 1: tests unedited: yes · `packages:generate` → `tinycld-pkg check` pass (362 files / 7198 tests) · `go test ./...` pass (176 s) · e2e: none (no `vendor-pages:` spec exists before cp 3; nothing renders) · dev DB `pnpm run db:reset` after the migration: seed ran (books done); view has 6 vendor rows (id = vendor, customer '') and 13 customer rows; 5 vendor contacts seeded
+- gate 2: n/a
+- gate 3 A (correctness): 0 BLOCK, 3 NOTE — migration-prefixes guard weakened (audit view no longer checked after every `_create_` migration) → accepted+fixed (test writer; cause weak-test); `SeedPartyContact` type named after the customer fixture → accepted+fixed (one-line type in a touched file); down path untested → Design notes
+- gate 3 B (conformance): script lines: 0 · 1 finding — `vendor-page-fixture.test.ts` primary check used `toContain` and passed for any set → accepted+fixed (test writer pins `[officeSupply, willamette]`; cause weak-test)
+- fix review: round 1: clean (findings file staging `cp/cp1-fix-r1.md`; gate 1 again: check pass 362 files / 7199 tests; each new test assertion shown failing on a mutant)
+- gate 3 A notes: 1, listed under Design notes
+- reviewer-caught deferrals: none
+- commit: (this commit)
+- human: review mode C, none
 
 ## Final review
 - eval:

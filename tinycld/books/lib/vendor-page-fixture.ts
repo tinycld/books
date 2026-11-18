@@ -10,6 +10,7 @@ import type {
     BooksBillPayments,
     BooksBills,
     BooksExpenses,
+    BooksPartyBalances,
     BooksPartyContacts,
     BooksVendorCredits,
     BooksVendorRefunds,
@@ -21,18 +22,11 @@ export const VENDOR_PAGE_TODAY = '2026-11-18'
 
 const STAMP = '2026-11-01 09:00:00.000Z'
 
-// A row of the `books_party_balances` view as spec §4 rewrites it: row id = party id,
-// exactly one of customer and vendor set, balance in integer cents with "owed" positive
-// (a vendor row is credits minus debits, so a credit with the vendor is negative).
-// The generated `BooksPartyBalances` has no `vendor` column until the migration of this
-// unit exists: the checkpoint that adds `<n>_add_vendor_party_balances.js` replaces this
-// interface with the generated type.
-export interface VendorPartyBalanceRecord {
-    id: string
-    customer: string
-    vendor: string
-    balance: number
-}
+// A row of the `books_party_balances` view (2100000026_add_vendor_party_balances.js):
+// row id = party id, exactly one of customer and vendor set, balance in integer cents
+// with "owed" positive (a vendor row is credits minus debits, so a credit with the vendor
+// is negative).
+export type VendorPartyBalanceRecord = BooksPartyBalances
 
 type BillRow = Pick<
     BooksBills,
@@ -398,7 +392,7 @@ export const VENDOR_PAGE_BALANCES = [
     { id: WILLAMETTE, customer: '', vendor: WILLAMETTE, balance: 1_248_000_00 },
     { id: PACIFIC, customer: '', vendor: PACIFIC, balance: 18_425 },
     { id: OKAFOR, customer: '', vendor: OKAFOR, balance: -12_000 },
-] satisfies VendorPartyBalanceRecord[]
+] satisfies BooksPartyBalances[]
 
 function contact(
     seed: Pick<BooksPartyContacts, 'id' | 'vendor' | 'name'> & Partial<BooksPartyContacts>

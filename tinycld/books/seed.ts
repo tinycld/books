@@ -80,6 +80,7 @@ import {
     VENDOR_CREDITS,
 } from './lib/vendor-credit-form-fixture'
 import { VENDORS } from './lib/vendor-form-fixture'
+import { VENDOR_PAGE_CONTACTS } from './lib/vendor-page-fixture'
 import {
     linesOfRefund,
     REFUND_ACCOUNTS,
@@ -89,6 +90,7 @@ import {
     VENDOR_REFUND_SEED_IDS,
     VENDOR_REFUNDS,
 } from './lib/vendor-refund-fixture'
+import type { BooksPartyContacts } from './types'
 
 // Seed function invoked by core/scripts/seed-db.ts with a superuser `pb` and
 // the seeded user. Entries are posted through the same update the app makes,
@@ -265,6 +267,7 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedEstimates(pb, customerIds)
     await seedSalesListDrafts(pb, accountIds, customerIds)
     await seedPartyContacts(pb, customerIds)
+    await seedVendorContacts(pb)
     await seedDeclinedEstimates(pb, customerIds)
     const billIds = await seedBills(pb, ctx, accountIds)
     await seedBillPayments(pb, ctx, accountIds)
@@ -939,27 +942,55 @@ export async function seedSalesListDrafts(
     }
 }
 
-// Creates the customer page's contacts (CUSTOMER_PAGE_CONTACTS) as the contact dialog
-// does, with server-assigned ids. `customerIds` maps a customer-form fixture id to the
-// created customer's id. Saving a primary contact clears the flag on its customer's
-// other contacts, so the primaries are created last and stay primary.
+// Creates party contacts as the contact dialog does, with server-assigned ids (the
+// fixture's `id`, `created` and `updated` are not sent). Saving a primary contact clears
+// the flag on its party's other contacts, so the primaries are created last and stay
+// primary. `partyOf` gives the row's stored party columns, or throws for a party that was
+// not created.
+async function createPartyContacts(
+    pb: PocketBase,
+    contacts: readonly BooksPartyContacts[],
+    partyOf: (contact: BooksPartyContacts) => Pick<BooksPartyContacts, 'customer' | 'vendor'>
+): Promise<void> {
+    const primariesLast = [
+        ...contacts.filter(c => !c.is_primary),
+        ...contacts.filter(c => c.is_primary),
+    ]
+    for (const contact of primariesLast) {
+        const { id: _id, created: _created, updated: _updated, ...row } = contact
+        await pb.collection('books_party_contacts').create({ ...row, ...partyOf(contact) })
+    }
+}
+
+// Creates the customer page's contacts (CUSTOMER_PAGE_CONTACTS). `customerIds` maps a
+// customer-form fixture id to the created customer's id.
 export async function seedPartyContacts(
     pb: PocketBase,
     customerIds: Map<string, string>
 ): Promise<void> {
-    const primariesLast = [
-        ...CUSTOMER_PAGE_CONTACTS.filter(c => !c.is_primary),
-        ...CUSTOMER_PAGE_CONTACTS.filter(c => c.is_primary),
-    ]
-    for (const { id, created: _created, updated: _updated, ...row } of primariesLast) {
-        const customer = customerIds.get(row.customer)
+    await createPartyContacts(pb, CUSTOMER_PAGE_CONTACTS, contact => {
+        const customer = customerIds.get(contact.customer)
         if (customer === undefined) {
             throw new Error(
-                `seed: contact ${id} names customer ${row.customer}, which was not created`
+                `seed: contact ${contact.id} names customer ${contact.customer}, which was not created`
             )
         }
-        await pb.collection('books_party_contacts').create({ ...row, customer })
-    }
+        return { customer, vendor: contact.vendor }
+    })
+}
+
+// Creates the vendor page's contacts (VENDOR_PAGE_CONTACTS). seedVendors keeps the
+// vendor-form fixture ids, so a contact's vendor id is sent as it is.
+export async function seedVendorContacts(pb: PocketBase): Promise<void> {
+    const vendorIds = new Set(VENDORS.map(vendor => vendor.id))
+    await createPartyContacts(pb, VENDOR_PAGE_CONTACTS, contact => {
+        if (!vendorIds.has(contact.vendor)) {
+            throw new Error(
+                `seed: contact ${contact.name} names vendor ${contact.vendor}, which is not a seeded vendor`
+            )
+        }
+        return { customer: contact.customer, vendor: contact.vendor }
+    })
 }
 
 // The days a seeded declined estimate stays open before its customer's answer: the
