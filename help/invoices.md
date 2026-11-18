@@ -63,6 +63,7 @@ To record a payment for the invoice, open it and choose **Receive payment**, or 
 - Post gives the invoice the next number, such as 1001, and records it in your books. An admin can change the next number in Settings, under Numbering, on the Invoices card.
 - Post & new posts the invoice and opens a new one. On a phone, it is in the More menu.
 - Cancel leaves the form. If you changed something, Books asks "Discard changes?" first.
+- Any other way out of a form with unsaved changes asks the same question first: the Back link, the browser's Back or Forward button, and a key or a row of the Sales list beside the form. Choose Keep editing to stay with your changes, or Discard to go on. If you reload or close the browser tab, the browser asks.
 - To remove a saved draft, choose More and Delete draft. This cannot be undone.
 
 Books refuses to post into a closed period, an invoice whose customer is inactive, and an invoice whose total is zero. The message shows on the form; the draft that you saved stays.

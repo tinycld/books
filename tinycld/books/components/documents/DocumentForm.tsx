@@ -31,6 +31,7 @@ import { type DocumentFormState, useDocumentForm } from '../../hooks/useDocument
 import { useDocumentSave } from '../../hooks/useDocumentSave'
 import type { DocumentScreenData } from '../../hooks/useDocumentScreen'
 import { useDocumentShortcuts } from '../../hooks/useDocumentShortcuts'
+import { useFormLeaveGuard } from '../../hooks/useFormLeaveGuard'
 import { usePdfDownload } from '../../hooks/usePdfDownload'
 import { invoiceLinkLabel } from '../../lib/credit-memo-link'
 import { DOCUMENT_PDF_KEY } from '../../lib/document-actions'
@@ -246,6 +247,9 @@ function useDocumentDelete(
     return {
         isOpen,
         isPending: remove.isPending,
+        // The delete succeeded and its `leave()` runs: true from the same update that ends
+        // `isPending`, until `open()` resets it.
+        isSuccess: remove.isSuccess,
         errorMessage,
         open,
         confirm,
@@ -753,7 +757,7 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
     const writes = documentKind.data.useWrites()
     const serverState = useServerActionState()
     const formAttachments = useFormAttachments(data, kind, save.writtenId, state.replaces)
-    // Pending files and pending removals are an edit: Cancel asks first.
+    // Pending files and pending removals are an edit: leaving asks first.
     const hasAttachmentChanges = useAttachmentsStore(s =>
         hasSessionChanges(s.sessions[attachmentSession])
     )
@@ -832,6 +836,29 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
         void save.convert()
     }
     const isBusy = save.isSaving || deletion.isPending
+    const isEdited = save.isDirty || hasAttachmentChanges
+    // Discard drops the pending files and restores the rows marked for removal: the
+    // session is emptied, not dropped, as another mounted screen of the same document
+    // may hold it.
+    const clearAttachments = () => {
+        if (attachmentSession !== '') useAttachmentsStore.getState().clear(attachmentSession)
+    }
+    const leaveGuard = useFormLeaveGuard({
+        isDirty: isEdited,
+        isWriting: isBusy || deletion.isSuccess,
+        cancel: () => (isEdited ? setDiscardOpen(true) : leave()),
+        leave,
+        question: {
+            isOpen: isDiscardOpen,
+            discard: () => {
+                setDiscardOpen(false)
+                clearAttachments()
+                leave()
+            },
+            keepEditing: () => setDiscardOpen(false),
+        },
+        onDiscard: clearAttachments,
+    })
     const customerLink = useCopyEstimateLink(publicTokenOf(data.record))
     const pdf = useDraftPdf(kind, draftId, isBusy)
     const pdfVersion = documentKind.data.useVersion(draftId)
@@ -863,17 +890,7 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
 
     if (!state.isReady || !parts) return <DocumentLoading />
 
-    const isEdited = save.isDirty || hasAttachmentChanges
-    const cancel = () => (isEdited ? setDiscardOpen(true) : leave())
-    // Discard drops the pending files and restores the rows marked for removal: the
-    // session is emptied, not dropped, as another mounted screen of the same document
-    // may hold it.
-    const discard = () => {
-        setDiscardOpen(false)
-        if (attachmentSession !== '') useAttachmentsStore.getState().clear(attachmentSession)
-        leave()
-    }
-    const keepEditing = () => setDiscardOpen(false)
+    const cancel = leaveGuard.cancel
     const onSaveDraft = () => {
         void save.saveDraft()
     }
@@ -1039,12 +1056,7 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
                                 moreItems={moreItems}
                                 scopeOwner={shortcuts.scopeOwner}
                             />
-                            <DiscardDialog
-                                isVisible={isDiscardOpen}
-                                onDiscard={discard}
-                                onKeepEditing={keepEditing}
-                                title="Discard changes?"
-                            />
+                            <DiscardDialog title="Discard changes?" {...leaveGuard.dialog} />
                             <DeleteDraftDialog
                                 isVisible={deletion.isOpen}
                                 onConfirm={deletion.confirm}

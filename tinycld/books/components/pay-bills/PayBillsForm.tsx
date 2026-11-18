@@ -3,6 +3,7 @@ import type { ScopeOwner } from '@tinycld/core/lib/shortcuts'
 import { FormErrorSummary } from '@tinycld/core/ui/form'
 import { ScrollView, View } from 'react-native'
 import { useBackToEntries } from '../../hooks/useBackToEntries'
+import { useFormLeaveGuard } from '../../hooks/useFormLeaveGuard'
 import { usePayBillsForm } from '../../hooks/usePayBillsForm'
 import { usePayBillsSave } from '../../hooks/usePayBillsSave'
 import type { PayBillsScreenData } from '../../hooks/usePayBillsScreen'
@@ -111,14 +112,27 @@ export function PayBillsForm({ screen, scopeOwner }: PayBillsFormProps) {
         replaces: screen.original?.payment ?? null,
     })
     const isBusy = save.isPending || payForm.isHolding
+    // The hold lasts from before the batch to after Pay asks to leave; the pay's success
+    // keeps the guard off until the move lands, so Pay's leave asks nothing.
+    const leaveGuard = useFormLeaveGuard({
+        isDirty: save.hasChanges,
+        isWriting: isBusy || save.isSuccess,
+        cancel: save.cancel,
+        leave: save.leave,
+        question: {
+            isOpen: save.isDiscardOpen,
+            discard: save.discard,
+            keepEditing: save.keepEditing,
+        },
+    })
     const pay = () => void save.pay()
     const payAndNew = () => void save.payAndNew()
-    const barActions = barActionsOf(screen.mode, save.cancel, pay, payAndNew)
+    const barActions = barActionsOf(screen.mode, leaveGuard.cancel, pay, payAndNew)
     const shortcuts = usePayBillsShortcuts({
         scopeOwner,
         canWrite: screen.canWrite,
         isPending: isBusy,
-        isDialogOpen: save.isDiscardOpen,
+        isDialogOpen: leaveGuard.dialog.isVisible,
         mode: screen.mode,
         hasShownRows: payForm.hasShownRows,
         hasPaidRows: payForm.hasPaidRows,
@@ -134,7 +148,7 @@ export function PayBillsForm({ screen, scopeOwner }: PayBillsFormProps) {
     const isClearDisabled = isBusy || !shortcuts.offered.includes('clearPayments')
     const isSummaryVisible = payForm.list !== 'empty'
     return (
-        <EntryLeaveContext.Provider value={save.cancel}>
+        <EntryLeaveContext.Provider value={leaveGuard.cancel}>
             <View testID="pay-bills-form" className="min-w-0 flex-1 bg-background">
                 <ScrollView
                     className="flex-1"
@@ -188,12 +202,7 @@ export function PayBillsForm({ screen, scopeOwner }: PayBillsFormProps) {
                     isPhone={isPhone}
                     scopeOwner={scopeOwner}
                 />
-                <DiscardDialog
-                    title={PAY_BILLS_MESSAGES.discard}
-                    isVisible={save.isDiscardOpen}
-                    onDiscard={save.discard}
-                    onKeepEditing={save.keepEditing}
-                />
+                <DiscardDialog title={PAY_BILLS_MESSAGES.discard} {...leaveGuard.dialog} />
             </View>
         </EntryLeaveContext.Provider>
     )

@@ -185,7 +185,8 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
         else router.push(href)
     }
     // A kind tab's New opens its `new` route; All sales has a menu of the kinds, so New
-    // with no kind opens that menu.
+    // with no kind opens that menu. Beside an open document New replaces it, as a row
+    // does, so the document's leave guard asks before unsaved edits go.
     const openNew = (kind?: TransactionKind) => {
         const item = SALES_NEW_ITEMS.find(entry => entry.kind === kind)
         const href = item?.href ?? tab.newHref
@@ -194,7 +195,8 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
             return
         }
         newMenu.setOpen(false)
-        router.push(orgHref(href))
+        if (navigationModeFor(open) === 'replace') router.replace(orgHref(href))
+        else router.push(orgHref(href))
     }
     // A tab press replaces the list route, so Back leaves the Sales area.
     const goToTab = (key: string) => {
