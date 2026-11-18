@@ -168,6 +168,35 @@ describe('NewMenu', () => {
         )
     })
 
+    // The real registry: Refund receipt follows Credit memo in the Customers column
+    // (refund receipt spec §2).
+    it('lists Refund receipt right after Credit memo in Customers and opens books/refund-receipts/new from it', () => {
+        const registry = newMenuForAccess(access, NEW_ACTIONS)
+        const customers = registry.find(column => column.heading === 'Customers')
+        const ids = customers?.actions.map(action => action.id) ?? []
+        expect(ids).toContain('refund_receipt')
+        expect(ids.indexOf('refund_receipt')).toBe(ids.indexOf('credit_memo') + 1)
+
+        const { onSelect } = renderOpenMenu(registry)
+        const creditMemo = byTestId(document.body, 'books-new-credit-memo')
+        const refund = byTestId(document.body, 'books-new-refund-receipt')
+        expect(creditMemo).not.toBeNull()
+        expect(refund).not.toBeNull()
+        if (!creditMemo || !refund) return
+        expect(refund.textContent).toContain('Refund receipt')
+        expect(
+            creditMemo.compareDocumentPosition(refund) & Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy()
+        fireEvent.click(refund)
+        expect(onSelect).toHaveBeenCalledWith(
+            expect.objectContaining({
+                id: 'refund_receipt',
+                label: 'Refund receipt',
+                href: 'books/refund-receipts/new',
+            })
+        )
+    })
+
     it('draws only the heading of a single non-empty column', () => {
         renderOpenMenu(columns.filter(column => column.heading === 'Vendors'))
         expect(screen.getByText('Vendors')).toBeTruthy()

@@ -117,6 +117,7 @@ describe('registries', () => {
             'sales_receipt',
             'receive_payment',
             'credit_memo',
+            'refund_receipt',
         ])
         expect(columns.map(c => c.heading)).toEqual(['Customers', 'Vendors', 'Other'])
         expect(columns[1]?.actions.map(a => a.id)).toEqual([
@@ -203,6 +204,7 @@ describe('registries', () => {
             'Sales receipt',
             'Receive payment',
             'Credit memo',
+            'Refund receipt',
         ])
         const invoice = NEW_ACTIONS.find(a => a.id === 'invoice')
         expect(invoice).toMatchObject({
@@ -274,6 +276,23 @@ describe('registries', () => {
             column: 'customers',
             available: true,
             takesCustomer: true,
+        })
+    })
+
+    // Refund receipt spec §2: + New → Customers → "Refund receipt", after "Credit memo".
+    // It takes no customer until the Sales lists know the kind (refund receipt plan,
+    // checkpoint 3: SALES_NEW_ITEMS throws for a takesCustomer action that is no kind).
+    it('the New menu lists an available Refund receipt right after Credit memo', () => {
+        const customers = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Customers')
+        const ids = customers?.actions.map(a => a.id) ?? []
+        expect(ids).toContain('refund_receipt')
+        expect(ids.indexOf('refund_receipt')).toBe(ids.indexOf('credit_memo') + 1)
+        expect(NEW_ACTIONS.find(a => a.id === 'refund_receipt')).toEqual({
+            id: 'refund_receipt',
+            label: 'Refund receipt',
+            href: 'books/refund-receipts/new',
+            column: 'customers',
+            available: true,
         })
     })
 
@@ -652,6 +671,8 @@ describe('hidesNewFab', () => {
         '/a/books/sales-receipts/abc',
         '/a/books/credit-memos/new',
         '/a/books/credit-memos/abc',
+        '/a/x/books/refund-receipts/new',
+        '/a/x/books/refund-receipts/abc',
         '/a/books/estimates/new',
         '/a/books/estimates/abc',
         '/a/books/bills/new',

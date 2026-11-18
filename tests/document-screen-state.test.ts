@@ -21,6 +21,7 @@ import {
     BILL_KIND,
     CREDIT_MEMO_KIND,
     EXPENSE_KIND,
+    REFUND_RECEIPT_KIND,
     SALES_RECEIPT_KIND,
     VENDOR_CREDIT_KIND,
 } from '../tinycld/books/lib/sales-document-kinds'
@@ -179,6 +180,49 @@ describe('documentScreenState for a sales receipt', () => {
 
     it('is loading while the reads are not ready', () => {
         expect(documentScreenState({ ...NEW, isReady: false })).toBe('loading')
+    })
+})
+
+// The refund receipt's states (spec §3.10, "as the sales receipt") and the texts its
+// screen shows for them. The inputs take the kind's own lifecycle.
+describe('documentScreenState for a refund receipt', () => {
+    // Read inside each test, so a missing kind fails those tests and not the file.
+    const draft = (): Input => ({ ...DRAFT, lifecycle: REFUND_RECEIPT_KIND.lifecycle })
+    const fresh = (): Input => ({ ...draft(), isNew: true, status: null })
+
+    it('a non-writer at new gets no-access with the refund receipt text', () => {
+        expect(documentScreenState({ ...fresh(), canWrite: false })).toBe('no-access')
+        expect(REFUND_RECEIPT_KIND.messages.noAccess).toBe(
+            'You need bookkeeper access to create refund receipts'
+        )
+    })
+
+    it('an id with no row is not-found with the refund receipt text', () => {
+        expect(documentScreenState({ ...draft(), status: null })).toBe('not-found')
+        expect(documentScreenState({ ...draft(), status: null, canWrite: false })).toBe('not-found')
+        expect(documentScreenState({ ...fresh(), replacesStatus: null })).toBe('not-found')
+        expect(REFUND_RECEIPT_KIND.messages.notFound).toBe('This refund receipt does not exist')
+    })
+
+    it('a correction of a draft or a void refund cannot be edited, with the refund receipt text', () => {
+        expect(documentScreenState({ ...fresh(), replacesStatus: 'draft' })).toBe('cannot-edit')
+        expect(documentScreenState({ ...fresh(), replacesStatus: 'void' })).toBe('cannot-edit')
+        expect(documentScreenState({ ...fresh(), replacesStatus: 'posted' })).toBe('form')
+        expect(REFUND_RECEIPT_KIND.messages.cannotEdit).toBe('This refund receipt cannot be edited')
+    })
+
+    it('a failed read is the error with the refund receipt text', () => {
+        expect(documentScreenState({ ...draft(), isError: true, isReady: false })).toBe('error')
+        expect(REFUND_RECEIPT_KIND.messages.loadFailed).toBe(
+            'Books could not load this refund receipt.'
+        )
+    })
+
+    it('a posted or void refund is the read view for a reader and a writer; a draft is the form for a writer', () => {
+        expect(documentScreenState({ ...draft(), status: 'posted', canWrite: false })).toBe('read')
+        expect(documentScreenState({ ...draft(), status: 'void' })).toBe('read')
+        expect(documentScreenState(draft())).toBe('form')
+        expect(documentScreenState({ ...draft(), canWrite: false })).toBe('no-access')
     })
 })
 

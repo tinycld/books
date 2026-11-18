@@ -12,6 +12,7 @@ import {
     ESTIMATE_KIND,
     EXPENSE_KIND,
     INVOICE_KIND,
+    REFUND_RECEIPT_KIND,
     SALES_RECEIPT_KIND,
     VENDOR_CREDIT_KIND,
 } from '../tinycld/books/lib/sales-document-kinds'
@@ -27,6 +28,11 @@ const DOCUMENTS = [
     { collection: 'books_invoices', kind: INVOICE_KIND, path: 'books/invoices' },
     { collection: 'books_sales_receipts', kind: SALES_RECEIPT_KIND, path: 'books/sales-receipts' },
     { collection: 'books_credit_memos', kind: CREDIT_MEMO_KIND, path: 'books/credit-memos' },
+    {
+        collection: 'books_refund_receipts',
+        kind: REFUND_RECEIPT_KIND,
+        path: 'books/refund-receipts',
+    },
     { collection: 'books_estimates', kind: ESTIMATE_KIND, path: 'books/estimates' },
     { collection: 'books_bills', kind: BILL_KIND, path: 'books/bills' },
     { collection: 'books_expenses', kind: EXPENSE_KIND, path: 'books/expenses' },
@@ -76,6 +82,30 @@ describe('auditRecordHref', () => {
         expect(auditRecordHref('books_credit_memos', ID, { id: ID })).toBe(
             `books/credit-memos/${ID}`
         )
+    })
+
+    // Refund receipt spec §3.13: a refund receipt line's audit rows are filed under its
+    // refund (parent_type books_refund_receipts, parent_id the refund id: the audit view's
+    // LINES), so the history of a line is the refund's, and its Open is the refund's read
+    // view; a refund's entry opens on its refund, and its void reversal as an entry.
+    it('a refund receipt record, the refund id a line’s history is filed under, and its entry open books/refund-receipts/<id>', () => {
+        const refund = 'rfrp1001every01'
+        // A line reaches the client already filed under its parent (the server's audit view files it; Go tests cover that), so the record call is the line's too, not coverage of a client line route.
+        expect(auditRecordHref('books_refund_receipts', refund, { id: refund })).toBe(
+            `books/refund-receipts/${refund}`
+        )
+        expect(auditOpenLabel('books_refund_receipts')).toBe('Open refund receipt')
+        const posted = {
+            id: ID,
+            doc_type: 'refund_receipt',
+            origin: 'document',
+            document: refund,
+        } as const
+        expect(auditRecordHref('books_journal_entries', ID, posted)).toBe(
+            `books/refund-receipts/${refund}`
+        )
+        const reversal = { ...posted, origin: 'void_reversal', document: '' } as const
+        expect(auditRecordHref('books_journal_entries', ID, reversal)).toBe(`books/entries/${ID}`)
     })
 
     // A vendor credit's lines and applications are filed under their credit (parent_type

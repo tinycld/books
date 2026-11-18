@@ -66,7 +66,8 @@ type FormInput = Pick<DocumentScreenData, 'record' | 'lines' | 'party' | 'curren
     startValues?: DocumentStartValues
     // What a new form starts from besides the document, as the kind's data source read it.
     start?: DocumentStart
-    // How a sales receipt draws Deposit to; an invoice has none.
+    // How a sales receipt draws Deposit to (a refund receipt, Refund from); an invoice has
+    // none.
     deposit?: DepositRule
     // A new blank form's message (defaultMessageFor); none when not given.
     defaultMessage?: string
@@ -111,15 +112,17 @@ function documentRecordSchema(
         })
 }
 
-// The built-ins of a correction's, a copy's or an invoice-from-estimate's values:
-// `replaces`, `estimate` and a credit memo's `invoice` are no fields of the form (the save
-// writes them), so the engine never files them among the custom fields.
-function builtinValuesOf(values: DocumentStartValues | undefined): DocumentStartValues | undefined {
-    if (!values) return undefined
+// The built-ins of a new form's, a correction's, a copy's or an invoice-from-estimate's
+// values: `replaces`, `estimate`, a credit memo's `invoice` and a refund receipt's
+// `sales_receipt` and `credit_memo` are no fields of the form (the save writes them), so
+// the engine never files them among the custom fields.
+function builtinValuesOf(values: DocumentStartValues): DocumentStartValues {
     const builtins: DocumentStartValues = { ...values }
     delete builtins.replaces
     delete builtins.estimate
     delete builtins.invoice
+    delete builtins.sales_receipt
+    delete builtins.credit_memo
     return builtins
 }
 
@@ -220,15 +223,17 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
     const isNew = input.record === undefined
     // Read once: the create form seeds from its first values (core keeps them in a ref).
     const createValues = isNew
-        ? (builtinValuesOf(input.startValues) ??
-          documentKind.values.new({
-              today: context.today as string,
-              party: input.party ?? null,
-              rates: input.taxRows,
-              defaultRateId: defaultTaxRateId(input.taxRows),
-              message: input.defaultMessage ?? '',
-              start: input.start,
-          }))
+        ? builtinValuesOf(
+              input.startValues ??
+                  documentKind.values.new({
+                      today: context.today as string,
+                      party: input.party ?? null,
+                      rates: input.taxRows,
+                      defaultRateId: defaultTaxRateId(input.taxRows),
+                      message: input.defaultMessage ?? '',
+                      start: input.start,
+                  })
+          )
         : {}
     const { lines, record } = input
     const tables = useMemo(() => storedLineTableRows(documentKind, lines), [documentKind, lines])

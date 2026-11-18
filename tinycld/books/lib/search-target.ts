@@ -2,7 +2,8 @@
 // each row id with its kind; the screens below are the account register, the
 // journal entry screen, the transfer screen, the customer screen, the vendor
 // screen, the product screen, the invoice screen, the sales receipt screen, the
-// credit memo screen (drafts included for the three documents), the estimate screen, the
+// credit memo screen (drafts included for the three documents), the refund receipt screen
+// (drafts included), the estimate screen, the
 // bill, expense and vendor credit screens (drafts included), the payment screen (drafts
 // included), the bill payment read view, and the vendor refund screen (drafts included).
 export interface SearchTarget {
@@ -22,6 +23,7 @@ const PATHS = new Map([
     ['invoice', 'books/invoices/[id]'],
     ['sales_receipt', 'books/sales-receipts/[id]'],
     ['credit_memo', 'books/credit-memos/[id]'],
+    ['refund_receipt', 'books/refund-receipts/[id]'],
     ['estimate', 'books/estimates/[id]'],
     ['bill', 'books/bills/[id]'],
     ['expense', 'books/expenses/[id]'],
