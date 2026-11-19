@@ -1416,10 +1416,10 @@ func TestARAgingBulkWriterMatchesPosters(t *testing.T) {
 
 	// The stored rows of each source: the bulk writer's rebuild against the
 	// posters' hooks.
-	for _, view := range []string{receivableSourceLine, receivableSourceApplication} {
+	for _, source := range []string{receivableSourceLine, receivableSourceApplication} {
 		postedEntries := map[string]bool{inv.GetString("entry"): true, pay.GetString("entry"): true, memo.GetString("entry"): true, je.Id: true}
 		var want, got []arRow
-		for _, r := range arRows(t, b.app, view) {
+		for _, r := range arRows(t, b.app, source) {
 			switch {
 			case postedEntries[r.entry]:
 				r.number, r.seq = "", 0
@@ -1434,7 +1434,7 @@ func TestARAgingBulkWriterMatchesPosters(t *testing.T) {
 		byID(want)
 		byID(got)
 		if len(want) == 0 || !reflect.DeepEqual(got, want) {
-			t.Errorf("%s: the bulk rows (ids mapped to the posted ones) =\n%+v\nwant the posted rows\n%+v", view, got, want)
+			t.Errorf("%s: the bulk rows (ids mapped to the posted ones) =\n%+v\nwant the posted rows\n%+v", source, got, want)
 		}
 	}
 }
