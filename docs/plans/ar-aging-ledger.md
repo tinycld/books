@@ -95,6 +95,8 @@ Design: lane staging `stored-receivables-design.md`, approved by the human 2026-
 - Plan of the family lookup (small book, both readings): `SEARCH books_customers USING INDEX idx_books_customers_sibling_name (parent>? AND parent<?)` and `SEARCH books_receivable_items USING INDEX idx_books_receivable_items_customer (customer=?)`.
 - Numbers at L: below, written by the profile and scale runs.
 
+### Record (spec §9)
+
 - machine, date, commit:
 - row counts, S and L:
 - runs 1 to 7: number of statements; median time at S and at L; ratio L/S; bar; pass or fail
