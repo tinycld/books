@@ -95,14 +95,53 @@ Design: lane staging `stored-receivables-design.md`, approved by the human 2026-
 - Plan of the family lookup (small book, both readings): `SEARCH books_customers USING INDEX idx_books_customers_sibling_name (parent>? AND parent<?)` and `SEARCH books_receivable_items USING INDEX idx_books_receivable_items_customer (customer=?)`.
 - Numbers at L: below, written by the profile and scale runs.
 
+Machine darwin/arm64, 14 CPUs, go1.27.4; 2026-11-19; books 27e52f36; core be0811ee.
+
+Profile at L (`TestARAgingProfile`, `BOOKS_PROFILE_SIZE=L`):
+
+| run | wall (median of 5) | statements | SQL time | outside SQL |
+|---|---|---|---|---|
+| 1 default | 359ms | 6 | 352ms | 7ms |
+| 2 past day | 482ms | 6 | 474ms | 8ms |
+| 3 largest balance | 348ms | 6 | 338ms | 10ms |
+| 4 one family | 50ms | 7 | 41ms | 9ms |
+| 5 customer opened | 362ms | 6 | 354ms | 8ms |
+| 6 item opened | 438ms | 7 | 421ms | 16ms |
+| 7 CSV export | 14.282s | 76 | 12.792s | 1.491s |
+
+Floor (the stored table with no report):
+- 65.8ms — every row and column
+- 265ms — grouped by customer and item
+- 8.49ms — the open rows grouped by customer and item
+
+Before and after (L after and S after are the scale run's medians):
+
+| run | L before (2026-11-18) | L after | S after | ratio L/S | bar | result |
+|---|---|---|---|---|---|---|
+| 1 default | 10,176 ms | 349.491833ms | 65.474625ms | 5.3 | 1,000 ms, ratio 15 | pass |
+| 2 past day | 5,842 ms | 471.146334ms | 76.869708ms | 6.1 | 1,000 ms, ratio 15 | pass |
+| 3 largest balance | 10,399 ms | 348.225333ms | 64.480834ms | 5.4 | 1,000 ms, ratio 15 | pass |
+| 4 one family | 4,294 ms | 52.453875ms | 34.578833ms | 1.5 | 1,000 ms, ratio 15 | pass |
+| 5 customer opened | over 10 s | 370.489875ms | 67.352459ms | 5.5 | 1,000 ms, ratio 15 | pass |
+| 6 item opened | not reached | 447.601542ms | 83.8835ms | 5.3 | 1,000 ms, ratio 15 | pass |
+| 7 CSV export | not reached | 14.995203s | 469.842ms | 31.9 | 5,000 ms, ratio 15 | FAIL (L over 5 s; ratio over 15) |
+
+Run 7 cause: core's export reads the report in pages of 1000 rows and each page's group statement computes every group level over all open rows again (20 pages at L, 2 at S); the cause is in core `server/reports`, not in Books. Evidence: lane staging `csv-rootcause.md`.
+
+Customer Balance, same day, same dataset (no bar): S 151.006ms, L 1.585045541s.
+
+Plan bars: every plan bar holds with no statistics and under L statistics (`TestARAgingQueryPlans`, statistics file of this run; `ok`). The scale log has no plan-bar failure line.
+
+Row counts (S / L, from `perf-results.md`): journal lines 50,000 / 500,000; on Accounts receivable 18,307 / 183,070; customers 201 / 2,001; invoices 9,810 / 98,100; payments 8,000 / 80,000; applications 9,174 / 91,740; credit memos 198 / 1,980; manual AR lines 99 / 990; void invoices 100 / 1,000; void payments 100 / 1,000; open items on the last day 855 / 8,550. The run did not record the count of `books_receivable_items` rows.
+
 ### Record (spec §9)
 
-- machine, date, commit:
-- row counts, S and L:
-- runs 1 to 7: number of statements; median time at S and at L; ratio L/S; bar; pass or fail
-- statements: one line each — the tables it reads and the index of each read, with no statistics and after `ANALYZE`; pass or fail
-- indexes added and changes to the stored table or its queries: each with the plan step and the time before and after it
-- Customer Balance run of the same day on the same dataset (no bar):
+- machine, date, commit: darwin/arm64, 14 CPUs, go1.27.4; 2026-11-19 09:43:05; books 27e52f36
+- row counts, S and L: see the row counts above (the count of `books_receivable_items` was not recorded)
+- runs 1 to 7: number of statements; median time at S and at L; ratio L/S; bar; pass or fail: statements 6, 6, 6, 7, 6, 7, 76; medians, ratios and results in "Before and after" above; run 7 fails
+- statements: one line each — the tables it reads and the index of each read, with no statistics and after `ANALYZE`; pass or fail: in `docs/plans/ar-aging-evidence/perf-plans.md` (the "Statements (L)" section of `perf-results.md`); no plan bar failed
+- indexes added and changes to the stored table or its queries: each with the plan step and the time before and after it: the four indexes and the changes listed under "Stored receivable items"; times before and after in "Before and after" above
+- Customer Balance run of the same day on the same dataset (no bar): S 151.006ms, L 1.585045541s
 - full plan text: docs/plans/ar-aging-evidence/perf-plans.md
 
 ## Phase notes
