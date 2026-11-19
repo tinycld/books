@@ -65,6 +65,14 @@ export const NEW_ACTIONS: NewAction[] = [
         takesCustomer: true,
     },
     {
+        id: 'refund_receipt',
+        label: 'Refund receipt',
+        href: 'books/refund-receipts/new',
+        column: 'customers',
+        available: true,
+        takesCustomer: true,
+    },
+    {
         id: 'vendor',
         label: 'Vendor',
         href: 'books/vendors/new',

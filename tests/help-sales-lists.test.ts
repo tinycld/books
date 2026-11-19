@@ -73,10 +73,17 @@ describe('help/sales-lists.md', () => {
         ['tick', ['X', 'Space']],
         ['tick all', ['A']],
         ['new', ['N']],
-        ['the tabs', ['1', '2', '3', '4', '5', '6']],
+        ['the tabs', ['1', '2', '3', '4', '5', '6', '7']],
     ])('the key table names the %s keys', (_action, keys) => {
         const row = keyCells.find(cell => keys.every(key => cell.has(key)))
         expect(row, `a key cell with ${keys.join(', ')}`).toBeDefined()
+    })
+
+    // Refund receipt checkpoint 5: the seventh tab.
+    it('names seven tabs and the Refund receipts tab', () => {
+        expect(body).toMatch(/\bseven tabs\b/i)
+        expect(body).not.toMatch(/\bsix tabs\b/i)
+        expect(body).toContain('Refund receipts')
     })
 
     it('says that beside a document the column moves with ↓ and ↑ and opens with ↵ or O', () => {

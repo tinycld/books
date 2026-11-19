@@ -48,3 +48,17 @@ describe('help/sales-receipts.md (complete)', () => {
         expect(body).toContain('help://books:invoices')
     })
 })
+
+// Refund receipt checkpoint 5 (refund receipt spec §3.11, §3.13 Help).
+describe('help/sales-receipts.md (refunds)', () => {
+    it('names Refund with its key R on one line', () => {
+        const line = body
+            .split('\n')
+            .find(l => /(^|[^\w⌘⌥⇧])R([^\w]|$)/.test(l) && /\bRefund\b/.test(l))
+        expect(line, 'a line with R and Refund').toBeDefined()
+    })
+
+    it('names the Refund receipts section', () => {
+        expect(body).toContain('Refund receipts')
+    })
+})

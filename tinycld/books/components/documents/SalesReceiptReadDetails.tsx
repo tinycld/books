@@ -1,6 +1,6 @@
-import { Text, View } from 'react-native'
 import { accountLabel } from '../../lib/account-options'
 import { paymentText } from '../../lib/deposit-accounts'
+import { DocumentPaymentRow } from './DocumentPaymentRow'
 import type { DocumentReadBandRowProps, DocumentReadDetailsProps } from './document-kinds'
 
 // A receipt has no details of its own beside the shared date (labelled "Sale date" by its
@@ -22,13 +22,5 @@ export function SalesReceiptPaymentRow({ record }: DocumentReadBandRowProps) {
         depositLabel,
         verb: 'deposited to',
     })
-    if (text === '') return null
-    return (
-        <View className="gap-0.5 border-t border-border pt-3">
-            <Text className="text-xs text-muted-foreground">Payment</Text>
-            <Text testID="sales-receipt-detail-payment" className="text-sm text-foreground">
-                {text}
-            </Text>
-        </View>
-    )
+    return <DocumentPaymentRow testID="sales-receipt-detail-payment" text={text} />
 }

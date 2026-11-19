@@ -989,6 +989,86 @@ func TestSearch_FindsCreditMemos(t *testing.T) {
 	requireOnly([]string{"zw77314"}, "credit_memo:"+draft.Id)
 }
 
+func refundReceiptRows(rows []search.Row) map[string]search.Row {
+	out := map[string]search.Row{}
+	for _, r := range rows {
+		if strings.HasPrefix(r.ID, "refund_receipt:") {
+			out[r.ID] = r
+		}
+	}
+	return out
+}
+
+// Refund receipt spec: search finds refund receipts, drafts included, by
+// number, reference no., memo and message. A row opens the refund (id
+// refund_receipt:<id>, kind refund_receipt) and is titled "Refund receipt <n>
+// · <Customer>", "Refund receipt <n>" with no customer, or "Draft refund
+// receipt · <Customer>". A reader with no Books access finds none.
+func TestSearch_FindsRefundReceipts(t *testing.T) {
+	app := newBooksApp(t)
+	registerLedger(app)
+	registerSearchIndex(&pocketbase.PocketBase{App: app})
+	registerSalesDocGuards(app, salesReceiptKind)
+	registerSalesDocGuards(app, creditMemoKind)
+	registerSalesDocGuards(app, refundReceiptKind)
+	bindHostsByKey(t, app, salesReceiptKind.HostKey, creditMemoHostKey, refundReceiptHostKey)
+	rr := refundReceiptEnvOn(t, app)
+
+	postedDraft := rr.mkRefundReceipt(t, map[string]any{
+		"reference_no": "rk40916", "memo": "returned qv52817 router", "message": "Thanks for the zt63028 visit",
+	})
+	mkRefundReceiptLine(t, app, postedDraft, 0, item(rr.service, 1, 45000, false))
+	posted := mustPostRefundReceipt(t, app, postedDraft.Id, rr.users.bookkeeper.Id)
+	walkInDraft := rr.mkRefundReceipt(t, map[string]any{"customer": "", "memo": "counter qm71524 return"})
+	mkRefundReceiptLine(t, app, walkInDraft, 0, item(rr.service, 1, 2000, false))
+	walkIn := mustPostRefundReceipt(t, app, walkInDraft.Id, rr.users.bookkeeper.Id)
+	draft := rr.mkRefundReceipt(t, map[string]any{"memo": "pending qd84339 refund"})
+	mkRefundReceiptLine(t, app, draft, 0, item(rr.service, 1, 1000, false))
+
+	number, walkInNumber := posted.GetString("number"), walkIn.GetString("number")
+	if number == "" || walkInNumber == "" {
+		t.Fatalf("posted refund numbers %q, %q; want both set", number, walkInNumber)
+	}
+	titles := map[string]string{
+		"refund_receipt:" + posted.Id: "Refund receipt " + number + " · Harborview Dental",
+		"refund_receipt:" + walkIn.Id: "Refund receipt " + walkInNumber,
+		"refund_receipt:" + draft.Id:  "Draft refund receipt · Harborview Dental",
+	}
+	requireOnly := func(terms []string, ids ...string) {
+		t.Helper()
+		res, err := searchBooks(app, rr.users.readOnly.Id, search.Query{Include: terms, Limit: 20})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows := refundReceiptRows(res.Rows)
+		if len(rows) != len(ids) {
+			t.Errorf("%q found refund receipt rows %v, want %d", terms, rows, len(ids))
+		}
+		for _, id := range ids {
+			r, ok := rows[id]
+			if !ok {
+				t.Errorf("%q did not find %s", terms, id)
+				continue
+			}
+			if r.Title != titles[id] || r.Fields["kind"] != "refund_receipt" {
+				t.Errorf("%q row %s title %q kind %v, want %q, refund_receipt", terms, id, r.Title, r.Fields["kind"], titles[id])
+			}
+		}
+	}
+
+	requireOnly([]string{"harborview", number}, "refund_receipt:"+posted.Id)
+	requireOnly([]string{"rk40916"}, "refund_receipt:"+posted.Id)
+	requireOnly([]string{"qv52817"}, "refund_receipt:"+posted.Id)
+	requireOnly([]string{"zt63028"}, "refund_receipt:"+posted.Id)
+	requireOnly([]string{"qm71524"}, "refund_receipt:"+walkIn.Id)
+	requireOnly([]string{"qd84339"}, "refund_receipt:"+draft.Id)
+
+	res, err := searchBooks(app, rr.users.none.Id, search.Query{Include: []string{"rk40916"}, Limit: 20})
+	if err != nil || len(refundReceiptRows(res.Rows)) != 0 || res.Total != 0 {
+		t.Errorf("a reader with no Books access found %v (total %d), err %v", rowIDs(res.Rows), res.Total, err)
+	}
+}
+
 func estimateRows(rows []search.Row) map[string]search.Row {
 	out := map[string]search.Row{}
 	for _, r := range rows {

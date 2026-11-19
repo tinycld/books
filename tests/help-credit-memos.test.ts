@@ -103,3 +103,37 @@ describe('help/credit-memos.md', () => {
         expect(body).toContain(`(${link})`)
     })
 })
+
+// Refund receipt checkpoint 5 (refund receipt spec §3.12, §3.13 Help).
+describe('help/credit-memos.md (refunds)', () => {
+    it('names Refund credit with its key R on one line', () => {
+        const line = body
+            .split('\n')
+            .find(l => /(^|[^\w⌘⌥⇧])R([^\w]|$)/.test(l) && /\bRefund credit\b/.test(l))
+        expect(line, 'a line with R and Refund credit').toBeDefined()
+    })
+
+    it('names the Refunded row and status and the Unapplied credit row', () => {
+        expect(body).toMatch(/\bRefunded\b/)
+        expect(body).toContain('Unapplied credit')
+    })
+
+    it("names the void rule's text", () => {
+        expect(body).toContain('Void the refund first')
+    })
+
+    it('names the correction rules: the refunded amount, the customer and the date', () => {
+        const sentences = body.split(/(?<=[.!?])\s+/)
+        const about = (pattern: RegExp) =>
+            sentences.some(s => /\brefund/i.test(s) && pattern.test(s))
+        expect(about(/\btotal\b/i), 'a sentence: the total cannot be below what is refunded').toBe(
+            true
+        )
+        expect(about(/\bcustomer\b/i), 'a sentence: the customer cannot change').toBe(true)
+        expect(about(/\bdate\b/i), 'a sentence: the date rule').toBe(true)
+    })
+
+    it('says nothing that claims a credit memo cannot be refunded yet', () => {
+        expect(body).not.toMatch(/\bcannot yet\b[^.]*\brefund/i)
+    })
+})

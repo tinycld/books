@@ -53,14 +53,17 @@ func salesDocName(kind salesDocKind, r *core.Record) string {
 // it wrote (an account the kind's debit or credit creates, the tax lines, the
 // entry, the number). The header guards have already run on doc. It refuses
 // an inactive party (a correction keeps its original's), runs the kind's
-// BeforePost, a stored line its kind does not allow and a zero total, writes
-// the tax snapshot of a kind with tax, posts the journal entry through
-// postDocument (the kind's debit or credit account for the total, its line
-// accounts on the other side, every line naming the party), and copies the
-// entry's number. A correction voids its original. A deferred kind (a bill,
-// an invoice; cash_basis.go) rebuilds the cash-basis rows of the document and
-// of its original. A kind that tracks a balance (an invoice, a bill) then
-// writes it: the total less the posted payments that apply to it.
+// BeforePost, a stored line its kind does not allow and a zero total. A kind
+// whose PostingLines answers true (a refund receipt's payout) posts those
+// lines and writes no tax snapshot; any other writes the tax snapshot of a
+// kind with tax and builds its lines with salesDocPostingLines (the kind's
+// debit or credit account for the total, its line accounts on the other
+// side). It posts the journal entry through postDocument, every line naming
+// the party, and copies the entry's number. A correction voids its original.
+// Then the kind's AfterPost runs. A deferred kind (a bill, an invoice;
+// cash_basis.go) rebuilds the cash-basis rows of the document and of its
+// original. A kind that tracks a balance (an invoice, a bill) then writes it:
+// the total less the posted payments that apply to it.
 func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Time) error {
 	original, err := correctedSalesDoc(tx, kind, doc)
 	if err != nil {
@@ -103,13 +106,22 @@ func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 			return err
 		}
 	}
-	postingLines, err := salesDocPostingLines(tx, kind, doc, lines, totals, taxes)
+	postingLines, ownLines, err := kindPostingLines(tx, kind, doc, totals)
 	if err != nil {
 		return err
 	}
-	if kind.HasTax {
-		if err := writeTaxSnapshot(tx, kind, doc, totals, taxes); err != nil {
+	if !ownLines {
+		if err := checkTaxableNotNegative(kind, totals, taxes); err != nil {
 			return err
+		}
+		postingLines, err = salesDocPostingLines(tx, kind, doc, lines, totals, taxes)
+		if err != nil {
+			return err
+		}
+		if kind.HasTax {
+			if err := writeTaxSnapshot(tx, kind, doc, totals, taxes); err != nil {
+				return err
+			}
 		}
 	}
 	actor := doc.GetString("posted_by")
@@ -146,6 +158,11 @@ func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 			return err
 		}
 	}
+	if kind.AfterPost != nil {
+		if err := kind.AfterPost(tx, doc, original); err != nil {
+			return err
+		}
+	}
 	// After the Replace step, which moved the original's payments: both
 	// documents' entries and payments have changed.
 	if err := rebuildCashBasisOf(tx, kind.Collection, doc.Id, originalID); err != nil {
@@ -157,6 +174,42 @@ func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 	// After the Replace step: a correction's balance is its total less the
 	// payments it took over from its original.
 	return setPostedDocumentBalance(tx, kind.balanceKind(), doc, totals.Total)
+}
+
+// checkTaxableNotNegative refuses, before any tax line is written, a document
+// of a kind with a TaxableNegative text whose taxable lines net below zero, or
+// any of whose component taxes is below zero (a taxable negative line that
+// untaxed lines keep the total above): its tax lines, which hold the figures
+// negated, cannot store a positive one. A document with no component tax
+// (no header rate) writes no tax line and passes. Then, for a kind with a
+// SubtotalNegative text, a subtotal below zero is refused too: the tax lines
+// store the subtotal negated as their gross amount.
+func checkTaxableNotNegative(kind salesDocKind, totals documentTotalsResult, taxes []componentTax) error {
+	if kind.Msgs.TaxableNegative == "" || len(taxes) == 0 {
+		return nil
+	}
+	negative := totals.TaxableTotal < 0
+	for _, t := range taxes {
+		if t.Amount < 0 {
+			negative = true
+		}
+	}
+	if negative {
+		return refuse("%s", kind.Msgs.TaxableNegative)
+	}
+	if kind.Msgs.SubtotalNegative != "" && totals.Subtotal < 0 {
+		return refuse("%s", kind.Msgs.SubtotalNegative)
+	}
+	return nil
+}
+
+// kindPostingLines asks the kind's PostingLines hook for the entry's lines;
+// false (and no hook) leaves the lines to salesDocPostingLines.
+func kindPostingLines(tx core.App, kind salesDocKind, doc *core.Record, totals documentTotalsResult) ([]postingLine, bool, error) {
+	if kind.PostingLines == nil {
+		return nil, false, nil
+	}
+	return kind.PostingLines(tx, doc, totals)
 }
 
 // correctedSalesDoc is the posted document a correction replaces, nil for a

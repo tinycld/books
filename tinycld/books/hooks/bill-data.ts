@@ -19,7 +19,7 @@ import {
     documentRead,
     linkedReadIds,
     NO_ESTIMATE_SOURCE,
-    NO_INVOICE_SOURCE,
+    NO_LINK_SOURCE,
     postedPaymentsOf,
     useHeldRecord,
 } from './document-data'
@@ -232,7 +232,7 @@ function useBillScreenReads(input: DocumentScreenInput & { isHeld: boolean }): D
             [linesCollection]
         ),
         ...NO_ESTIMATE_SOURCE,
-        ...NO_INVOICE_SOURCE,
+        ...NO_LINK_SOURCE,
         documentPayments: documentRead(paymentsId, paymentsQuery, documentPayments, [
             paymentLinesCollection,
             billPaymentsCollection,

@@ -275,6 +275,26 @@ describe('a vendor refund entry', () => {
     })
 })
 
+// A refund receipt's entry (refund receipt spec §4.1): it opens on its refund, is
+// edited as a correction of it, and is never reversed by itself.
+describe('a refund receipt entry', () => {
+    it('opens on its refund receipt, edits as a correction of it, and offers Open and Edit but no Reverse', () => {
+        expect(entryHref(entry('refund_receipt', 'document', 'r1'))).toBe(
+            'books/refund-receipts/r1'
+        )
+        expect(entryEditHref(entry('refund_receipt', 'document', 'r1'))).toBe(
+            'books/refund-receipts/new?replaces=r1'
+        )
+        const actions = entryActions(
+            { status: 'posted', origin: 'document', doc_type: 'refund_receipt', isReversed: false },
+            { canWrite: true }
+        )
+        expect(actions).toContain('open')
+        expect(actions).toContain('edit')
+        expect(actions).not.toContain('reverse')
+    })
+})
+
 // A bill payment's entry (pay-bills spec §4.2): it opens on its bill payment.
 describe('a bill payment entry', () => {
     it('opens on its bill payment', () => {

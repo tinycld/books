@@ -574,6 +574,7 @@ describe('entry type labels match server/entry_type_labels.json', () => {
             bill_payment: 'Bill payment',
             vendor_credit: 'Vendor credit',
             vendor_refund: 'Vendor refund',
+            refund_receipt: 'Refund receipt',
         })
     })
 
@@ -586,6 +587,7 @@ describe('entry type labels match server/entry_type_labels.json', () => {
             'expense',
             'invoice',
             'payment',
+            'refund_receipt',
             'sales_receipt',
             'transfer',
             'vendor_credit',
@@ -668,6 +670,14 @@ describe('entryTypeLabel for credit memos', () => {
         expect(detail?.typeLabel).toBe('Credit memo')
         expect(detail?.docType).toBe('credit_memo')
         expect(detail?.document).toBe('crmp1001every01')
+    })
+})
+
+// The refund receipt's entry (refund receipt spec §4.1): Type "Refund receipt".
+describe('entryTypeLabel for refund receipts', () => {
+    it('labels a refund receipt entry "Refund receipt"', () => {
+        expect(entryTypeLabel('document', '', 'refund_receipt')).toBe('Refund receipt')
+        expect(DOC_TYPE_LABELS.refund_receipt).toBe('Refund receipt')
     })
 })
 

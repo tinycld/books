@@ -1,7 +1,7 @@
-import { Text, View } from 'react-native'
 import { accountLabel } from '../../lib/account-options'
 import { paymentText } from '../../lib/deposit-accounts'
 import { DocumentDetail } from './DocumentDetail'
+import { DocumentPaymentRow } from './DocumentPaymentRow'
 import type { DocumentReadBandRowProps, DocumentReadDetailsProps } from './document-kinds'
 
 // The expense's own read details (spec §3.8): Paid from ("1000 Business Checking") before
@@ -31,13 +31,5 @@ export function ExpensePaymentRow({ record }: DocumentReadBandRowProps) {
         depositLabel: '',
         verb: 'paid from',
     })
-    if (text === '') return null
-    return (
-        <View className="gap-0.5 border-t border-border pt-3">
-            <Text className="text-xs text-muted-foreground">Payment</Text>
-            <Text testID="expense-detail-payment" className="text-sm text-foreground">
-                {text}
-            </Text>
-        </View>
-    )
+    return <DocumentPaymentRow testID="expense-detail-payment" text={text} />
 }

@@ -206,7 +206,13 @@ const KIND_TAB_RULES: Record<TransactionKind, Record<string, ChipRule>> = {
     },
     credit_memo: {
         unapplied: hasBalance,
-        applied: isSettled,
+        // Refund receipt spec §3.12: a posted credit memo at balance 0 reads Refunded.
+        refunded: isSettled,
+        draft: isStatus('draft'),
+        void: isStatus('void'),
+    },
+    refund_receipt: {
+        refunded: isPosted,
         draft: isStatus('draft'),
         void: isStatus('void'),
     },
@@ -229,18 +235,21 @@ const MIXED_TAB_RULES: Record<string, Partial<Record<TransactionKind, ChipRule>>
         sales_receipt: isPosted,
         payment: isFullyApplied,
         credit_memo: isSettled,
+        refund_receipt: isPosted,
     },
     draft: {
         invoice: isStatus('draft'),
         sales_receipt: isStatus('draft'),
         payment: isStatus('draft'),
         credit_memo: isStatus('draft'),
+        refund_receipt: isStatus('draft'),
     },
     void: {
         invoice: isStatus('void'),
         sales_receipt: isStatus('void'),
         payment: isStatus('void'),
         credit_memo: isStatus('void'),
+        refund_receipt: isStatus('void'),
     },
 }
 
@@ -277,8 +286,8 @@ export function chipClause(
 }
 
 // A void original that a correction replaced is not listed: the correction carries its
-// number (`isListedTransaction`). Invoices, sales receipts, payments and credit memos have
-// `replaced_by`; estimates have no such rule.
+// number (`isListedTransaction`). Invoices, sales receipts, payments, credit memos and
+// refund receipts have `replaced_by`; estimates have no such rule.
 export function listedClause(row: Ref<{ status: string; replaced_by: string }>): Clause {
     return or(not(eq(row.status, 'void')), eq(row.replaced_by, ''))
 }
@@ -322,6 +331,7 @@ const SORT_FIELDS = {
     sales_receipt: { date: 'date', number: 'sequence', amount: 'total' },
     payment: { date: 'date', number: 'sequence', amount: 'amount' },
     credit_memo: { date: 'date', number: 'sequence', amount: 'total', balance: 'balance' },
+    refund_receipt: { date: 'date', number: 'sequence', amount: 'total' },
 } as const satisfies Record<TransactionKind, Partial<Record<ListSortKey, string>>>
 
 type SortFieldOf<K extends TransactionKind> = (typeof SORT_FIELDS)[K][keyof (typeof SORT_FIELDS)[K]]
@@ -332,6 +342,7 @@ export function sortField(kind: 'estimate', key: ListSortKey): SortFieldOf<'esti
 export function sortField(kind: 'sales_receipt', key: ListSortKey): SortFieldOf<'sales_receipt'>
 export function sortField(kind: 'payment', key: ListSortKey): SortFieldOf<'payment'>
 export function sortField(kind: 'credit_memo', key: ListSortKey): SortFieldOf<'credit_memo'>
+export function sortField(kind: 'refund_receipt', key: ListSortKey): SortFieldOf<'refund_receipt'>
 export function sortField(kind: TransactionKind, key: ListSortKey): string {
     const fields: Partial<Record<ListSortKey, string>> = SORT_FIELDS[kind]
     const field = fields[key]
@@ -339,14 +350,19 @@ export function sortField(kind: TransactionKind, key: ListSortKey): string {
     return field
 }
 
-// On a signed tab a credit memo's amount is its stored total negated, so its query orders
-// the stored total the other way.
+// A row's amount is its stored total negated for a credit memo on a signed tab and for a
+// refund receipt on every tab (it always shows with a minus sign), so that kind's query
+// orders the stored total the other way.
+function isNegated(tab: DocumentListTab, kind: TransactionKind): boolean {
+    return kind === 'refund_receipt' || (tab.isSigned && kind === 'credit_memo')
+}
+
 export function kindDirection(
     tab: DocumentListTab,
     kind: TransactionKind,
     sort: ListSort
 ): 'asc' | 'desc' {
-    const isFlipped = tab.isSigned && kind === 'credit_memo' && sort.key === 'amount'
+    const isFlipped = sort.key === 'amount' && isNegated(tab, kind)
     return sort.isAscending !== isFlipped ? 'asc' : 'desc'
 }
 
@@ -357,7 +373,7 @@ export type DocumentListRow = PartyTransactionRow & {
     // The customer's display name, or '' for a document with no customer.
     customerName: string
     memo: string
-    // A payment's or sales receipt's reference no.; '' for the other kinds.
+    // A payment's, sales receipt's or refund receipt's reference no.; '' for the other kinds.
     reference: string
     // An estimate's expiration date; '' for the other kinds.
     expires: string
@@ -367,6 +383,9 @@ export type DocumentListRow = PartyTransactionRow & {
     entry: string
     // The invoice an estimate was converted to; '' for the other kinds.
     convertedInvoice: string
+    // The credit memo a refund receipt pays out (its Void dialog says so); '' or absent for
+    // a plain refund and the other kinds.
+    creditMemo?: string
     // The stored status (draft, posted, void, pending, …), beside the badge.
     recordStatus: string
 }

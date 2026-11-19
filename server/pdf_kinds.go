@@ -42,4 +42,9 @@ var documentKinds = map[string]documentKind{
 		Build:      buildCreditMemoDocument,
 		FileName:   creditMemoFileName,
 	},
+	"refund_receipt": {
+		Collection: "books_refund_receipts",
+		Build:      buildRefundReceiptDocument,
+		FileName:   refundReceiptFileName,
+	},
 }

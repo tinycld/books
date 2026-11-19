@@ -11,6 +11,7 @@ const ALL_KINDS: readonly TransactionKind[] = [
     'sales_receipt',
     'payment',
     'credit_memo',
+    'refund_receipt',
 ]
 
 // The New action of each kind, by its NEW_ACTIONS id.
@@ -20,6 +21,7 @@ const NEW_ACTION_IDS: Record<TransactionKind, string> = {
     sales_receipt: 'sales_receipt',
     payment: 'receive_payment',
     credit_memo: 'credit_memo',
+    refund_receipt: 'refund_receipt',
 }
 
 const NEW_LABELS: Record<TransactionKind, string> = {
@@ -28,6 +30,7 @@ const NEW_LABELS: Record<TransactionKind, string> = {
     sales_receipt: 'New sales receipt',
     payment: 'Receive payment',
     credit_memo: 'New credit memo',
+    refund_receipt: 'New refund receipt',
 }
 
 function newHrefOf(kind: TransactionKind): string {
@@ -121,8 +124,17 @@ export const SALES_TABS: readonly DocumentListTab[] = [
         label: 'Credit memos',
         noun: 'credit memos',
         columns: ['date', 'number', 'customer', 'balance', 'total', 'status'],
-        chips: chips('All', 'Unapplied', 'Applied', 'Draft', 'Void'),
+        chips: chips('All', 'Unapplied', 'Refunded', 'Draft', 'Void'),
         sortKeys: ['balance'],
+    }),
+    // Refund receipt spec §3.13: the sales receipts tab's columns; a posted refund reads
+    // Refunded. Its amount shows with a minus sign (lib/document-list-cells.ts).
+    kindTab('refund_receipt', {
+        key: 'refund-receipts',
+        label: 'Refund receipts',
+        noun: 'refund receipts',
+        columns: ['date', 'number', 'customer', 'memo', 'total', 'status'],
+        chips: chips('All', 'Refunded', 'Draft', 'Void'),
     }),
 ]
 
@@ -152,7 +164,8 @@ export const SALES_NEW_ITEMS: readonly { kind: TransactionKind; label: string; h
     })
 
 // The customer page's Transactions tab (spec §3.5 of the customer pages): one customer's
-// documents of every kind, or of one kind, newest first, with a credit memo negative.
+// documents of every kind, or of one kind, newest first, with a credit memo and a refund
+// receipt negative.
 // Its kind chips are its own (TRANSACTION_FILTERS), so the list's chip is always All.
 export function customerTransactionsTab(filter: TransactionFilter): DocumentListTab {
     return {
