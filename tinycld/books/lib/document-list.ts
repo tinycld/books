@@ -1,22 +1,87 @@
-// The rules of a sales document list (spec docs/specs/sales-lists-design.md §3, §4): the
-// columns, the chips, the date range, the search and the sort, as TanStack DB clauses the
-// list's live queries put in their `where`, and as the compare the merged window is sorted
-// by. Pure, so each rule is unit-tested; hooks/useDocumentList.ts runs the queries.
+// The rules of a document list, sales and purchases (specs docs/specs/sales-lists-design.md
+// and docs/specs/purchase-lists-design.md, §3 and §4): the columns, the chips, the date
+// range, the search and the sort, as TanStack DB clauses the list's live queries put in
+// their `where`, and as the compare the merged window is sorted by. Pure, so each rule is
+// unit-tested; hooks/useDocumentList.ts runs the queries.
 
 import { and, eq, gt, gte, ilike, lt, lte, not, or, type Ref } from '@tanstack/db'
+import { documentHref } from './document-routes'
+import type { ListAreaKey } from './list-areas'
 import { searchPieces } from './list-search'
+import type { LiveRecovery } from './live-recovery'
 import {
     mergeTransactions,
     type PartyTransactionRow,
+    TRANSACTION_DOC_KINDS,
+    TRANSACTION_TYPE_LABELS,
     type TransactionKind,
 } from './party-transactions'
+import type { PurchaseCategory } from './purchase-category'
 import { type RangePreset, type RegisterRange, rangeForPreset } from './register-range'
+import {
+    VENDOR_TRANSACTION_ROUTES,
+    VENDOR_TRANSACTION_TYPE_LABELS,
+    type VendorTransactionKind,
+} from './vendor-transactions'
+
+// Every kind a list holds: the sales kinds and the purchase kinds.
+export type ListKind = TransactionKind | VendorTransactionKind
+
+const SALES_KINDS: readonly ListKind[] = [
+    'invoice',
+    'estimate',
+    'sales_receipt',
+    'payment',
+    'credit_memo',
+] satisfies readonly TransactionKind[]
+
+export function isSalesKind(kind: ListKind): kind is TransactionKind {
+    return SALES_KINDS.includes(kind)
+}
+
+// A row of a sales kind: the customer page lists only those (`customerTransactionsTab`).
+export function isSalesRow<Row extends { kind: ListKind }>(
+    row: Row
+): row is Row & { kind: TransactionKind } {
+    return isSalesKind(row.kind)
+}
+
+// A row of a purchase kind: the vendor page lists only those (`vendorTransactionsTab`).
+export function isPurchaseRow<Row extends { kind: ListKind }>(
+    row: Row
+): row is Row & { kind: VendorTransactionKind } {
+    return !isSalesKind(row.kind)
+}
+
+// The kind of a row the list's Void and Delete draft write. They serve the sales kinds; a
+// purchase row's menu offers neither (`documentRowMenuItems`), so the error reaches the
+// batch or the dialog as a refusal only by a programming error.
+export function salesKindOf(row: { kind: ListKind }): TransactionKind {
+    if (!isSalesKind(row.kind)) {
+        throw new Error(`The ${kindLabel(row.kind).toLowerCase()} cannot be changed from the list.`)
+    }
+    return row.kind
+}
+
+// The Type column's text: Invoice, Bill, Vendor credit, …
+export function kindLabel(kind: ListKind): string {
+    if (isSalesKind(kind)) return TRANSACTION_TYPE_LABELS[kind]
+    return VENDOR_TRANSACTION_TYPE_LABELS[kind]
+}
+
+// Where a row opens (without the org prefix): the kind's existing document route.
+export function listDocumentHref(kind: ListKind, id: string): string {
+    if (isSalesKind(kind)) return documentHref(TRANSACTION_DOC_KINDS[kind], id)
+    return documentHref({ routeBase: VENDOR_TRANSACTION_ROUTES[kind] }, id)
+}
 
 export type ListColumnKey =
     | 'date'
     | 'type'
     | 'number'
     | 'customer'
+    | 'vendor'
+    | 'category'
     | 'memo'
     | 'reference'
     | 'due'
@@ -38,14 +103,15 @@ export type DocumentListFilters = {
     search: string
     chip: string
     range: ListRange
-    customer: string
+    // The customer (Sales) or vendor (Expenses) id; '' for every party.
+    party: string
 }
 
 export const DEFAULT_LIST_FILTERS: DocumentListFilters = {
     search: '',
     chip: 'all',
     range: 'all-dates',
-    customer: '',
+    party: '',
 }
 
 // The dates a range filter keeps: none for All dates, else the preset's start and end,
@@ -66,17 +132,20 @@ export function hasFilterSet(filters: DocumentListFilters): boolean {
         searchPieces(filters.search).length > 0 ||
         filters.chip !== DEFAULT_LIST_FILTERS.chip ||
         filters.range !== DEFAULT_LIST_FILTERS.range ||
-        filters.customer !== DEFAULT_LIST_FILTERS.customer
+        filters.party !== DEFAULT_LIST_FILTERS.party
     )
 }
 
 export type ListChip = { id: string; label: string }
 
 export type DocumentListTab = {
+    // Unique within the tab's area only: All sales and All purchases are both `all`, so a
+    // per-tab state is kept under `tabStateKey(tab)`.
     key: string
+    area: ListAreaKey
     label: string
     path: string
-    kinds: readonly TransactionKind[]
+    kinds: readonly ListKind[]
     // The plural the empty states name ("No invoices yet").
     noun: string
     newLabel: string
@@ -85,20 +154,34 @@ export type DocumentListTab = {
     columns: readonly ListColumnKey[]
     chips: readonly ListChip[]
     sortKeys: readonly ListSortKey[]
-    // A credit memo's amount is negative on a signed tab, and sorts by its signed value.
+    // A credit memo's or a vendor credit's amount is negative on a signed tab, and sorts by
+    // its signed value.
     isSigned: boolean
 }
 
+// The key a tab's search, chip, range, party, sort, selection and window are kept under.
+export function tabStateKey(tab: Pick<DocumentListTab, 'area' | 'key'>): string {
+    return `${tab.area}:${tab.key}`
+}
+
+type ListColumn = {
+    label: string
+    minWidth: number
+    grow: number
+    align?: 'right'
+    sortKey?: ListSortKey
+}
+
 // Header and rows share these, so the columns line up. Every column is flex with a
-// minimum; the sum of the minimums is the width below which the list draws cards.
-export const LIST_COLUMNS: Record<
-    ListColumnKey,
-    { label: string; minWidth: number; grow: number; align?: 'right'; sortKey?: ListSortKey }
-> = {
+// minimum; the sum of the minimums is the width below which the list draws cards. Read a
+// column through `listColumn`, which gives the area's Type minimum.
+export const LIST_COLUMNS: Record<ListColumnKey, ListColumn> = {
     date: { label: 'Date', minWidth: 108, grow: 1.1, sortKey: 'date' },
     type: { label: 'Type', minWidth: 108, grow: 1.1 },
     number: { label: 'No.', minWidth: 64, grow: 0.7, sortKey: 'number' },
     customer: { label: 'Customer', minWidth: 150, grow: 2.2 },
+    vendor: { label: 'Vendor', minWidth: 150, grow: 2.2 },
+    category: { label: 'Category', minWidth: 130, grow: 2.2 },
     memo: { label: 'Memo', minWidth: 130, grow: 2.2 },
     reference: { label: 'Reference no.', minWidth: 130, grow: 1.8 },
     due: { label: 'Due date', minWidth: 108, grow: 1.1, sortKey: 'due' },
@@ -115,14 +198,29 @@ const EDGE_CELL_WIDTH = 44
 const READER_LEFT_PAD = 16
 const ROW_RIGHT_PAD = 8
 
+// A purchase tab's Type column holds "Vendor credit" and "Vendor refund", so it is wider.
+const PURCHASE_TYPE_MIN_WIDTH = 120
+
+// The column as an area draws it: its label, minimum, grow, alignment and sort key.
+export function listColumn(key: ListColumnKey, area: ListAreaKey): ListColumn {
+    const column = LIST_COLUMNS[key]
+    if (key === 'type' && area === 'purchases') {
+        return { ...column, minWidth: PURCHASE_TYPE_MIN_WIDTH }
+    }
+    return column
+}
+
 // The Payments tab's amount column reads "Amount"; its cell is the total's.
 export function columnLabel(tab: DocumentListTab, key: ListColumnKey): string {
-    if (tab.key === 'payments' && key === 'total') return 'Amount'
+    if (tab.area === 'sales' && tab.key === 'payments' && key === 'total') return 'Amount'
     return LIST_COLUMNS[key].label
 }
 
-export function tableMinWidth(columns: readonly ListColumnKey[], canWrite: boolean): number {
-    const cells = columns.reduce((sum, key) => sum + LIST_COLUMNS[key].minWidth, 0)
+export function tableMinWidth(
+    tab: Pick<DocumentListTab, 'area' | 'columns'>,
+    canWrite: boolean
+): number {
+    const cells = tab.columns.reduce((sum, key) => sum + listColumn(key, tab.area).minWidth, 0)
     const lead = canWrite ? EDGE_CELL_WIDTH : READER_LEFT_PAD
     return lead + cells + EDGE_CELL_WIDTH + ROW_RIGHT_PAD
 }
@@ -130,9 +228,9 @@ export function tableMinWidth(columns: readonly ListColumnKey[], canWrite: boole
 type Clause = ReturnType<typeof eq>
 
 // The fields the chip rules read. One ref type serves every kind, so all but the id are
-// optional; each kind has the ones its rules use: a status, and an invoice its balance and
-// due date, an estimate its expiration date, a payment what it credited, a credit memo its
-// balance.
+// optional; each kind has the ones its rules use: a status, and an invoice or a bill its
+// balance and due date, an estimate its expiration date, a payment what it credited, a
+// credit memo or a vendor credit its balance.
 type ChipFields = {
     id: string
     status?: string
@@ -176,9 +274,9 @@ const hasCredit = (row: Ref<ChipFields>) => and(isPosted(row), gt(row.credited, 
 const isFullyApplied = (row: Ref<ChipFields>) => and(isPosted(row), eq(row.credited, 0))
 
 // The chips of a tab of one kind: the rows whose badge reads the chip's label, with the
-// spec's three additions (Open is every posted invoice with a balance, Credit left every
+// specs' additions (Open is every posted invoice or bill with a balance, Credit left every
 // "Credit $x" payment, an expired estimate only under Expired).
-const KIND_TAB_RULES: Record<TransactionKind, Record<string, ChipRule>> = {
+const KIND_TAB_RULES: Record<ListKind, Record<string, ChipRule>> = {
     invoice: {
         open: hasBalance,
         overdue: isOverdue,
@@ -210,18 +308,49 @@ const KIND_TAB_RULES: Record<TransactionKind, Record<string, ChipRule>> = {
         draft: isStatus('draft'),
         void: isStatus('void'),
     },
+    bill: {
+        open: hasBalance,
+        overdue: isOverdue,
+        paid: isSettled,
+        draft: isStatus('draft'),
+        void: isStatus('void'),
+    },
+    expense: {
+        paid: isPosted,
+        draft: isStatus('draft'),
+        void: isStatus('void'),
+    },
+    // A bill payment is never a draft.
+    bill_payment: {
+        paid: isPosted,
+        void: isStatus('void'),
+    },
+    vendor_credit: {
+        unapplied: hasBalance,
+        closed: isSettled,
+        draft: isStatus('draft'),
+        void: isStatus('void'),
+    },
+    vendor_refund: {
+        received: isPosted,
+        draft: isStatus('draft'),
+        void: isStatus('void'),
+    },
 }
 
-// The All sales chips per kind (spec §3's table); a kind the table gives "none" is absent,
-// and that kind's query does not run under the chip.
-const MIXED_TAB_RULES: Record<string, Partial<Record<TransactionKind, ChipRule>>> = {
+// The All sales and All purchases chips per kind (each spec's §3 table); a kind the table
+// gives "none" is absent, and that kind's query does not run under the chip. The two
+// areas share the chip ids and never a kind, so one table serves both.
+const MIXED_TAB_RULES: Record<string, Partial<Record<ListKind, ChipRule>>> = {
     open: {
         invoice: hasBalance,
         estimate: (row, today) => and(isQuoteOpen(row), isNotExpired(row, today)),
         payment: hasCredit,
         credit_memo: hasBalance,
+        bill: hasBalance,
+        vendor_credit: hasBalance,
     },
-    overdue: { invoice: isOverdue },
+    overdue: { invoice: isOverdue, bill: isOverdue },
     closed: {
         invoice: isSettled,
         estimate: (row, today) =>
@@ -229,28 +358,38 @@ const MIXED_TAB_RULES: Record<string, Partial<Record<TransactionKind, ChipRule>>
         sales_receipt: isPosted,
         payment: isFullyApplied,
         credit_memo: isSettled,
+        bill: isSettled,
+        expense: isPosted,
+        bill_payment: isPosted,
+        vendor_credit: isSettled,
+        vendor_refund: isPosted,
     },
     draft: {
         invoice: isStatus('draft'),
         sales_receipt: isStatus('draft'),
         payment: isStatus('draft'),
         credit_memo: isStatus('draft'),
+        bill: isStatus('draft'),
+        expense: isStatus('draft'),
+        vendor_credit: isStatus('draft'),
+        vendor_refund: isStatus('draft'),
     },
     void: {
         invoice: isStatus('void'),
         sales_receipt: isStatus('void'),
         payment: isStatus('void'),
         credit_memo: isStatus('void'),
+        bill: isStatus('void'),
+        expense: isStatus('void'),
+        bill_payment: isStatus('void'),
+        vendor_credit: isStatus('void'),
+        vendor_refund: isStatus('void'),
     },
 }
 
-// A tab of several kinds (All sales) uses the All sales table; a tab of one kind uses
-// that kind's chips. A chip the tab does not offer has no rule.
-function chipRule(
-    tab: DocumentListTab,
-    chipId: string,
-    kind: TransactionKind
-): ChipRule | undefined {
+// A tab of several kinds (All sales, All purchases) uses the mixed table; a tab of one
+// kind uses that kind's chips. A chip the tab does not offer has no rule.
+function chipRule(tab: DocumentListTab, chipId: string, kind: ListKind): ChipRule | undefined {
     if (!tab.chips.some(chip => chip.id === chipId)) return undefined
     if (tab.kinds.length > 1) return MIXED_TAB_RULES[chipId]?.[kind]
     return KIND_TAB_RULES[kind][chipId]
@@ -258,7 +397,7 @@ function chipRule(
 
 // Whether the kind's query runs under the chip: the tab lists the kind, and the chip is
 // All or lists some rows of that kind.
-export function chipRuns(tab: DocumentListTab, chipId: string, kind: TransactionKind): boolean {
+export function chipRuns(tab: DocumentListTab, chipId: string, kind: ListKind): boolean {
     if (!tab.kinds.includes(kind)) return false
     if (chipId === 'all') return true
     return chipRule(tab, chipId, kind) !== undefined
@@ -268,7 +407,7 @@ export function chipRuns(tab: DocumentListTab, chipId: string, kind: Transaction
 export function chipClause(
     tab: DocumentListTab,
     chipId: string,
-    kind: TransactionKind,
+    kind: ListKind,
     row: Ref<ChipFields>,
     today: string
 ): Clause | undefined {
@@ -276,9 +415,21 @@ export function chipClause(
     return chipRule(tab, chipId, kind)?.(row, today)
 }
 
+// The chip's clause as a list for a query's `allOf`: empty for All.
+export function chipClauses(
+    tab: DocumentListTab,
+    chipId: string,
+    kind: ListKind,
+    row: Ref<ChipFields>,
+    today: string
+): Clause[] {
+    const clause = chipClause(tab, chipId, kind, row, today)
+    return clause === undefined ? [] : [clause]
+}
+
 // A void original that a correction replaced is not listed: the correction carries its
-// number (`isListedTransaction`). Invoices, sales receipts, payments and credit memos have
-// `replaced_by`; estimates have no such rule.
+// number (`isListedTransaction`). Invoices, sales receipts, payments, credit memos and the
+// five purchase kinds have `replaced_by`; estimates have no such rule.
 export function listedClause(row: Ref<{ status: string; replaced_by: string }>): Clause {
     return or(not(eq(row.status, 'void')), eq(row.replaced_by, ''))
 }
@@ -289,15 +440,32 @@ export function rangeClauses(row: Ref<{ date: string }>, range: RegisterRange | 
     return [gte(row.date, range.start), lte(row.date, range.end)]
 }
 
-// Each typed piece in the number or the memo (the `searchPieces` rule of lib/list-search.ts:
-// a piece holds no wildcard, so both the server and the store match it as plain text).
+// The fields a kind's search matches: the number, then the reference no. (a bill's and a
+// vendor credit's `ref_no`; an expense's, a bill payment's and a vendor refund's
+// `reference_no`), then the memo (a bill payment has none). The sales kinds match the
+// number and the memo (`searchClauses`). Never the party's name.
+
+// A text column of a row ref (`row.number`).
+type TextRef = Ref<{ text: string }>['text']
+
+// Each typed piece in one of the fields (the `searchPieces` rule of lib/list-search.ts: a
+// piece holds no wildcard, so both the server and the store match it as plain text).
+export function searchFieldClauses(
+    fields: readonly [TextRef, TextRef, ...TextRef[]],
+    search: string
+): Clause[] {
+    return searchPieces(search).map(piece => {
+        const [first, second, ...rest] = fields.map(field => ilike(field, `%${piece}%`))
+        return or(first, second, ...rest)
+    })
+}
+
+// Each typed piece in the number or the memo: the sales kinds' search.
 export function searchClauses(
     row: Ref<{ number: string; memo: string }>,
     search: string
 ): Clause[] {
-    return searchPieces(search).map(piece =>
-        or(ilike(row.number, `%${piece}%`), ilike(row.memo, `%${piece}%`))
-    )
+    return searchFieldClauses([row.number, row.memo], search)
 }
 
 // Every clause in one expression; `and` never gets one argument.
@@ -322,9 +490,20 @@ const SORT_FIELDS = {
     sales_receipt: { date: 'date', number: 'sequence', amount: 'total' },
     payment: { date: 'date', number: 'sequence', amount: 'amount' },
     credit_memo: { date: 'date', number: 'sequence', amount: 'total', balance: 'balance' },
-} as const satisfies Record<TransactionKind, Partial<Record<ListSortKey, string>>>
+    bill: {
+        date: 'date',
+        number: 'sequence',
+        amount: 'total',
+        due: 'due_date',
+        balance: 'balance',
+    },
+    expense: { date: 'date', number: 'sequence', amount: 'total' },
+    bill_payment: { date: 'date', number: 'sequence', amount: 'total' },
+    vendor_credit: { date: 'date', number: 'sequence', amount: 'total', balance: 'balance' },
+    vendor_refund: { date: 'date', number: 'sequence', amount: 'amount' },
+} as const satisfies Record<ListKind, Partial<Record<ListSortKey, string>>>
 
-type SortFieldOf<K extends TransactionKind> = (typeof SORT_FIELDS)[K][keyof (typeof SORT_FIELDS)[K]]
+type SortFieldOf<K extends ListKind> = (typeof SORT_FIELDS)[K][keyof (typeof SORT_FIELDS)[K]]
 
 // One signature per kind, so a query indexes its row ref by a column the row has.
 export function sortField(kind: 'invoice', key: ListSortKey): SortFieldOf<'invoice'>
@@ -332,36 +511,49 @@ export function sortField(kind: 'estimate', key: ListSortKey): SortFieldOf<'esti
 export function sortField(kind: 'sales_receipt', key: ListSortKey): SortFieldOf<'sales_receipt'>
 export function sortField(kind: 'payment', key: ListSortKey): SortFieldOf<'payment'>
 export function sortField(kind: 'credit_memo', key: ListSortKey): SortFieldOf<'credit_memo'>
-export function sortField(kind: TransactionKind, key: ListSortKey): string {
+export function sortField(kind: 'bill', key: ListSortKey): SortFieldOf<'bill'>
+export function sortField(kind: 'expense', key: ListSortKey): SortFieldOf<'expense'>
+export function sortField(kind: 'bill_payment', key: ListSortKey): SortFieldOf<'bill_payment'>
+export function sortField(kind: 'vendor_credit', key: ListSortKey): SortFieldOf<'vendor_credit'>
+export function sortField(kind: 'vendor_refund', key: ListSortKey): SortFieldOf<'vendor_refund'>
+export function sortField(kind: ListKind, key: ListSortKey): string {
     const fields: Partial<Record<ListSortKey, string>> = SORT_FIELDS[kind]
     const field = fields[key]
     if (field === undefined) throw new Error(`a ${kind} has no column for the ${key} sort`)
     return field
 }
 
-// On a signed tab a credit memo's amount is its stored total negated, so its query orders
-// the stored total the other way.
+// The kinds whose amount a signed tab shows negated: the credits.
+const SIGNED_CREDIT_KINDS: readonly ListKind[] = ['credit_memo', 'vendor_credit']
+
+// On a signed tab a credit memo's or a vendor credit's amount is its stored total negated,
+// so its query orders the stored total the other way.
 export function kindDirection(
     tab: DocumentListTab,
-    kind: TransactionKind,
+    kind: ListKind,
     sort: ListSort
 ): 'asc' | 'desc' {
-    const isFlipped = tab.isSigned && kind === 'credit_memo' && sort.key === 'amount'
+    const isFlipped = tab.isSigned && SIGNED_CREDIT_KINDS.includes(kind) && sort.key === 'amount'
     return sort.isAscending !== isFlipped ? 'asc' : 'desc'
 }
 
-export type DocumentListRow = PartyTransactionRow & {
+export type DocumentListRow = PartyTransactionRow<ListKind> & {
     // A draft's is 0.
     sequence: number
-    customerId: string
-    // The customer's display name, or '' for a document with no customer.
-    customerName: string
+    // The customer (a sales row) or the vendor (a purchase row).
+    partyId: string
+    // The party's display name, or '' for a document with no party (an expense may have
+    // no vendor).
+    partyName: string
+    // '' for a bill payment, which has no memo.
     memo: string
-    // A payment's or sales receipt's reference no.; '' for the other kinds.
+    // A payment's, sales receipt's, bill's, expense's, bill payment's, vendor credit's or
+    // vendor refund's reference no.; '' for the other kinds.
     reference: string
     // An estimate's expiration date; '' for the other kinds.
     expires: string
-    // The stored open balance of an invoice or credit memo; 0 for the other kinds.
+    // The stored open balance of an invoice, credit memo, bill or vendor credit; 0 for the
+    // other kinds.
     balance: number
     // The posted document's journal entry; '' for a draft and an estimate.
     entry: string
@@ -369,6 +561,9 @@ export type DocumentListRow = PartyTransactionRow & {
     convertedInvoice: string
     // The stored status (draft, posted, void, pending, …), beside the badge.
     recordStatus: string
+    // A bill's, expense's or vendor credit's Category (lib/purchase-category.ts); none for
+    // every other kind.
+    category: PurchaseCategory
 }
 
 function sortValue(row: DocumentListRow, key: ListSortKey): string | number {
@@ -392,6 +587,30 @@ export function compareListRows(sort: ListSort) {
         if (a.created !== b.created) return a.created < b.created ? 1 : -1
         return 0
     }
+}
+
+// What one area's query hook (hooks/useSalesListQueries.ts, hooks/usePurchaseListQueries.ts)
+// reads: the tab, its filters as the queries put them in their `where`, the sort, the
+// window size `n`, and the live-query key `useDocumentList` gives each kind's query.
+export type ListQueryInput = {
+    tab: DocumentListTab
+    chip: string
+    party: string
+    search: string
+    range: RegisterRange | null
+    sort: ListSort
+    today: string
+    n: number
+    queryKey: (kind: ListKind, runs: boolean) => unknown[]
+}
+
+// One kind's query as `useDocumentList` waits on it: whether it runs under the tab and the
+// chip, its state, and what restarts it when it failed (the query and its sources).
+export type ListRead = {
+    isRunning: boolean
+    isReady: boolean
+    isError: boolean
+    recovery: LiveRecovery
 }
 
 export function documentListWindow(

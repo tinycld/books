@@ -109,7 +109,7 @@ interface HeaderCellProps {
 // and Status never do.
 function HeaderCell({ tab, column, sort, onSort }: HeaderCellProps) {
     const label = columnLabel(tab, column)
-    const style = columnStyle(column)
+    const style = columnStyle(column, tab.area)
     const align = LIST_COLUMNS[column].align ?? 'left'
     const sortKey = LIST_COLUMNS[column].sortKey
     if (sortKey !== undefined && tab.sortKeys.includes(sortKey)) {
@@ -143,7 +143,7 @@ interface RowCellProps {
 }
 
 function RowCell({ row, column, tab, currency }: RowCellProps) {
-    const style = columnStyle(column)
+    const style = columnStyle(column, tab.area)
     if (column === 'status') {
         return (
             <View className="min-w-0" style={style}>
@@ -262,7 +262,7 @@ export function DocumentListTable({
             isFocused={row.id === focusedId}
         />
     )
-    const minWidth = tableMinWidth(tab.columns, canWrite)
+    const minWidth = tableMinWidth(tab, canWrite)
     return (
         <ListTable
             testID="sales-table"

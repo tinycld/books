@@ -48,18 +48,18 @@ function useCustomerOptions(term: string, isOpen: boolean) {
 // The chosen customer's display name, read by its own query, so the trigger names it
 // while the picker is closed. A customer that is gone (deleted while chosen) is named so;
 // All customers then removes the filter.
-function useChosenLabel(customerId: string) {
+function useChosenLabel(partyId: string) {
     const [customersCollection] = useStore('books_customers')
-    const hasCustomer = customerId !== ''
+    const hasCustomer = partyId !== ''
     const query = useLiveQuery({
         query: q => {
             if (!hasCustomer) return undefined
             return q
                 .from({ c: customersCollection })
-                .where(({ c }) => eq(c.id, customerId))
+                .where(({ c }) => eq(c.id, partyId))
                 .findOne()
         },
-        queryKey: ['books.sales-lists.customer-filter-label', customerId],
+        queryKey: ['books.sales-lists.customer-filter-label', partyId],
     })
     const isError = hasCustomer && query.isError
     const recovery: LiveRecovery = isError
@@ -79,20 +79,20 @@ function chosenLabel(
     return query.data?.display_name ?? 'Customer not found'
 }
 
-interface DocumentCustomerFilterProps {
+interface DocumentPartyFilterProps {
     value: string
-    // The chosen customer's id, or '' for All customers.
-    onChange(customerId: string): void
+    // The chosen party's id, or '' for every party.
+    onChange(partyId: string): void
 }
 
 /**
- * The Sales list's customer filter (spec docs/specs/sales-lists-design.md §3): a search
- * picker over every customer, whose first item, All customers, removes the filter. Its
- * reads are its own: while they load the picker shows "Loading…", and when one fails it
- * shows "Could not load." with Retry, which restarts both. A reader has it too: a filter
- * is not a write.
+ * The list's party filter, today the Sales list's customer filter (spec
+ * docs/specs/sales-lists-design.md §3): a search picker over every customer, whose first
+ * item, All customers, removes the filter. Its reads are its own: while they load the
+ * picker shows "Loading…", and when one fails it shows "Could not load." with Retry, which
+ * restarts both. A reader has it too: a filter is not a write.
  */
-export function DocumentCustomerFilter({ value, onChange }: DocumentCustomerFilterProps) {
+export function DocumentPartyFilter({ value, onChange }: DocumentPartyFilterProps) {
     const picker = useSearchPicker()
     const customers = useCustomerOptions(picker.debouncedTerm, picker.isOpen)
     const chosen = useChosenLabel(value)

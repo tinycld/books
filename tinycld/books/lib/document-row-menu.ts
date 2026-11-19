@@ -11,7 +11,7 @@ import {
     receivePaymentOffered,
 } from './document-actions'
 import { type DocumentStatus, quoteReadActions } from './document-lifecycle'
-import type { DocumentListRow } from './document-list'
+import { type DocumentListRow, isSalesKind, listDocumentHref } from './document-list'
 import { documentHref, documentNewHref } from './document-routes'
 import { TRANSACTION_DOC_KINDS } from './party-transactions'
 import { paymentReadActions } from './payment-read-actions'
@@ -93,7 +93,9 @@ function readActionsOf(row: DocumentListRow, status: DocumentStatus, canWrite: b
     )
 }
 
+// A purchase row's menu holds Open only until the purchase lists get their row actions.
 export function documentRowMenuItems(row: DocumentListRow, canWrite: boolean): RowMenuAction[] {
+    if (!isSalesKind(row.kind)) return ['open']
     if (row.recordStatus === 'draft') return canWrite ? ['open', 'delete_draft'] : ['open']
     const status = documentStatusOf(row.recordStatus)
     if (status === null) return ['open']
@@ -108,13 +110,14 @@ export function rowActionTestId(action: RowMenuAction): string {
 
 // The route a navigating action pushes (without the org prefix); null for the actions that
 // stay on the list (Download PDF, Void, Delete draft).
+// A purchase row offers Open only (`documentRowMenuItems`), so it has no other route.
 export function rowActionHref(row: DocumentListRow, action: RowMenuAction): string | null {
+    if (action === 'open') return listDocumentHref(row.kind, row.id)
+    if (!isSalesKind(row.kind)) return null
     const kind = TRANSACTION_DOC_KINDS[row.kind]
     switch (action) {
-        case 'open':
-            return documentHref(kind, row.id)
         case 'receive_payment':
-            return `books/payments/new?customer=${row.customerId}&invoice=${row.id}`
+            return `books/payments/new?customer=${row.partyId}&invoice=${row.id}`
         case 'copy':
             return documentNewHref(kind, { copy: row.id })
         case 'credit_memo':

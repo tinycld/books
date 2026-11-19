@@ -29,8 +29,8 @@ function listRow(over: Partial<DocumentListRow>): DocumentListRow {
         created: '2026-11-01 09:00:00.000Z',
         status: { label: 'Open', tone: 'warning' },
         sequence: 0,
-        customerId: '',
-        customerName: '',
+        partyId: '',
+        partyName: '',
         memo: '',
         reference: '',
         expires: '',
@@ -38,6 +38,7 @@ function listRow(over: Partial<DocumentListRow>): DocumentListRow {
         entry: '',
         convertedInvoice: '',
         recordStatus: 'posted',
+        category: { kind: 'none' },
         ...over,
     }
 }
@@ -45,7 +46,7 @@ function listRow(over: Partial<DocumentListRow>): DocumentListRow {
 // A draft invoice with nothing filled in but its amount.
 const bareDraft = listRow({
     number: '',
-    customerName: '',
+    partyName: '',
     memo: '',
     dueDate: '',
     total: 12_500,
@@ -57,8 +58,8 @@ const bareDraft = listRow({
 const posted = listRow({
     number: '1048',
     sequence: 1048,
-    customerId: 'cust00000000001',
-    customerName: 'Northwind Traders',
+    partyId: 'cust00000000001',
+    partyName: 'Northwind Traders',
     date: '2026-11-14',
     dueDate: '2026-12-14',
     memo: 'November retainer',
@@ -67,8 +68,8 @@ const posted = listRow({
 })
 
 const namedDraft = listRow({
-    customerId: 'cust00000000002',
-    customerName: 'Harbor Cafe',
+    partyId: 'cust00000000002',
+    partyName: 'Harbor Cafe',
     date: '2026-11-15',
     dueDate: '2026-12-15',
     total: 240_000,
@@ -82,7 +83,7 @@ const creditMemo = listRow({
     kind: 'credit_memo',
     number: 'CM-12',
     sequence: 12,
-    customerName: 'Northwind Traders',
+    partyName: 'Northwind Traders',
     total: -40_000,
     balance: 40_000,
     status: { label: 'Unapplied', tone: 'warning' },
@@ -97,7 +98,7 @@ describe('cellText', () => {
         const estimate = listRow({
             kind: 'estimate',
             number: '83',
-            customerName: 'Northwind Traders',
+            partyName: 'Northwind Traders',
             expires: '',
             status: { label: 'Pending', tone: 'info' },
             recordStatus: 'pending',

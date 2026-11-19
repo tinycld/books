@@ -479,8 +479,8 @@ function listRow(over: Partial<DocumentListRow>): DocumentListRow {
         created: '2026-11-01 09:00:00.000Z',
         status: { label: 'Open', tone: 'warning' },
         sequence: 0,
-        customerId: '',
-        customerName: '',
+        partyId: '',
+        partyName: '',
         memo: '',
         reference: '',
         expires: '',
@@ -488,6 +488,7 @@ function listRow(over: Partial<DocumentListRow>): DocumentListRow {
         entry: '',
         convertedInvoice: '',
         recordStatus: 'posted',
+        category: { kind: 'none' },
         ...over,
     }
 }
@@ -680,8 +681,8 @@ describe('listControls', () => {
 
 describe('tableMinWidth', () => {
     it('is 900 for the All sales columns and 886 for the Invoices columns for a writer', () => {
-        expect(tableMinWidth(salesTabOf('all').columns, true)).toBe(900)
-        expect(tableMinWidth(salesTabOf('invoices').columns, true)).toBe(886)
+        expect(tableMinWidth(salesTabOf('all'), true)).toBe(900)
+        expect(tableMinWidth(salesTabOf('invoices'), true)).toBe(886)
     })
 })
 
@@ -691,7 +692,7 @@ describe('hasFilterSet', () => {
             search: '',
             chip: 'all',
             range: 'all-dates',
-            customer: '',
+            party: '',
         })
         expect(hasFilterSet(DEFAULT_LIST_FILTERS)).toBe(false)
     })
@@ -700,7 +701,7 @@ describe('hasFilterSet', () => {
         ['a search', { search: 'retainer' }],
         ['a chip', { chip: 'open' }],
         ['a range', { range: 'this-month' }],
-        ['a customer', { customer: 'bcust0000000001' }],
+        ['a party', { party: 'bcust0000000001' }],
     ] as const)('is true with %s', (_label, change) => {
         expect(hasFilterSet({ ...DEFAULT_LIST_FILTERS, ...change })).toBe(true)
     })

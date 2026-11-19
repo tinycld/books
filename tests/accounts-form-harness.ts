@@ -1186,6 +1186,77 @@ export function onDemandStore<T extends { id: string }>(
     return collection
 }
 
+// The equalities a load names, for a filter that `extractSimpleComparisons` can read; a
+// filter it cannot read (an `or`, an `ilike`) names none, so the load serves every row and
+// the live query filters them on the client.
+function loadEqualities(where: Parameters<typeof extractSimpleComparisons>[0]) {
+    try {
+        return extractSimpleComparisons(where).filter(c => c.operator === 'eq')
+    } catch {
+        return []
+    }
+}
+
+// Registers a read-only collection under `name` loaded on demand, as onDemandStore does, that
+// also takes the list filters (`or`, `ilike`), counts its loads, can refuse its first load
+// with a 403 as pbtsdb refuses it, and can hold its loads: after `hold()` each load waits
+// until `release()`, so a test sees what a hook shows while the next rows load. Call after
+// seedBooks, which replaces the registry.
+export function heldOnDemandStore<T extends { id: string }>(
+    name: string,
+    rows: T[],
+    opts: { refuseFirstLoad?: boolean } = {}
+) {
+    counter += 1
+    const id = `${name}-held-on-demand-${counter}`
+    let refusals = opts.refuseFirstLoad ? 1 : 0
+    let loads = 0
+    let gate: { promise: Promise<void>; open: () => void } | null = null
+    const collection = createCollection({
+        id,
+        getKey: (row: T) => row.id,
+        ...indexed,
+        syncMode: 'on-demand',
+        sync: {
+            sync: ({ begin, write, commit, markReady }) => {
+                markReady()
+                return {
+                    loadSubset: async options => {
+                        loads += 1
+                        if (refusals > 0) {
+                            refusals -= 1
+                            throw refusedLoad(id)
+                        }
+                        const comparisons = loadEqualities(options.where)
+                        if (gate !== null) await gate.promise
+                        begin()
+                        for (const value of rows) {
+                            if (rowMatches(value, comparisons)) write({ type: 'insert', value })
+                        }
+                        commit()
+                    },
+                }
+            },
+        },
+    })
+    state.registry[name] = collection
+    return Object.assign(collection, {
+        hold() {
+            let open = () => {}
+            const promise = new Promise<void>(resolve => {
+                open = resolve
+            })
+            gate = { promise, open }
+        },
+        release() {
+            const held = gate
+            gate = null
+            held?.open()
+        },
+        loads: () => loads,
+    })
+}
+
 // Registers a collection under `name` that never finishes its first load, so every live
 // query over it stays loading. Call after seedBooks, which replaces the registry.
 export function neverReadyStore<T extends { id: string }>(name: string) {

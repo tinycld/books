@@ -8,10 +8,10 @@
 // books-settings.spec.ts holds on the shared e2e database, and every memo is unique, so
 // a list spec finds one row by its search.
 //
-// The seed wiring (spec §4 "Seed") is the work of the checkpoint that builds the lists'
-// data: it picks the draft and posted rows the list specs delete, void and filter. The
-// vendors here have no document in another fixture's totals, except the two that show an
-// edge (the long name, the inactive vendor): the seed must not post a document for those.
+// The seed (spec §4 "Seed") creates the rows of PURCHASE_LIST_SEED, below the lines: the
+// draft and posted rows the list specs delete, void and filter. The vendors here have no
+// document in another fixture's totals, except the two that show an edge (the long name,
+// the inactive vendor): the seed posts no document for those.
 
 import type {
     BooksBillLines,
@@ -459,22 +459,50 @@ export const PURCHASE_LIST_VENDOR_REFUNDS = [
     }),
 ] satisfies Partial<BooksVendorRefunds>[]
 
-// A document line as the Category cell reads it: an account line names an account (by
-// seed chart number; a seed maps it to the server's id), a product line a product.
+// A document line as the Category cell reads it and the seed creates it: an account line
+// names an account (by seed chart number; a seed maps it to the server's id) and its
+// amount, a product line a product, its quantity and its rate (its amount is their
+// product, as the server writes it). Each document's lines sum to its total.
 type LineOf<Line, Parent extends keyof Line> = Pick<
     Line,
-    Parent | Extract<keyof Line, 'id' | 'kind' | 'product' | 'position'>
+    | Parent
+    | Extract<
+          keyof Line,
+          'id' | 'kind' | 'product' | 'position' | 'description' | 'quantity' | 'rate' | 'amount'
+      >
 > & { account_number: string }
 
-type LineSpec = { account: string } | { product: string }
+type LineSpec =
+    | { account: string; amount: number; description: string }
+    | { product: string; quantity: number; rate: number; description: string }
 
 // A line id is 15 characters: `l`, the position, then the document id without its `pl`.
 function lineFields(documentId: string, spec: LineSpec, position: number) {
     const id = `l${position}${documentId.slice(2)}`
     if ('account' in spec) {
-        return { id, kind: 'account' as const, account_number: spec.account, product: '', position }
+        return {
+            id,
+            kind: 'account' as const,
+            account_number: spec.account,
+            product: '',
+            position,
+            description: spec.description,
+            quantity: 0,
+            rate: 0,
+            amount: spec.amount,
+        }
     }
-    return { id, kind: 'item' as const, account_number: '', product: spec.product, position }
+    return {
+        id,
+        kind: 'item' as const,
+        account_number: '',
+        product: spec.product,
+        position,
+        description: spec.description,
+        quantity: spec.quantity,
+        rate: spec.rate,
+        amount: spec.quantity * spec.rate,
+    }
 }
 
 // The seed chart's expense accounts (lib/seed-accounts.ts), by number.
@@ -482,35 +510,70 @@ const RENT = '6100'
 const SOFTWARE = '6200'
 const DESIGN_TOOLS = '6210'
 
+function accountLine(account: string, amount: number, description: string): LineSpec {
+    return { account, amount, description }
+}
+
+function productLine(
+    product: string,
+    quantity: number,
+    rate: number,
+    description: string
+): LineSpec {
+    return { product, quantity, rate, description }
+}
+
 // The Category of each bill: one account line (an account name), one product line (a
 // product name, a long one for 1012), two or more lines (Split). The void 1053 has none.
 const BILL_LINE_SPECS: Record<string, LineSpec[]> = {
-    plbill00000draf: [{ product: PRODUCT_IDS.paper }],
-    plbill000001058: [{ account: RENT }],
-    plbill000001057: [{ account: SOFTWARE }, { product: PRODUCT_IDS.patchCable }],
-    plbill000001056: [{ account: SOFTWARE }],
-    plbill000001055: [{ account: SOFTWARE }],
-    plbill000001054: [{ account: DESIGN_TOOLS }],
-    plbill0001052fx: [{ product: PRODUCT_IDS.paper }],
-    plbill000001012: [{ product: PRODUCT_IDS.laptop }],
-    plbill000000999: [{ account: SOFTWARE }, { account: DESIGN_TOOLS }, { account: RENT }],
+    plbill00000draf: [productLine(PRODUCT_IDS.paper, 6, 8_100, 'Copy paper, six cases')],
+    plbill000001058: [accountLine(RENT, 420_000, 'December rent')],
+    // 12 950 + 4 × 1 500 = 18 950.
+    plbill000001057: [
+        accountLine(SOFTWARE, 12_950, 'Hosted phone plan, November'),
+        productLine(PRODUCT_IDS.patchCable, 4, 1_500, 'Patch cables for the network closet'),
+    ],
+    plbill000001056: [accountLine(SOFTWARE, 96_000, 'Booking software, annual plan')],
+    plbill000001055: [accountLine(SOFTWARE, 1_248_000, 'Template library, annual plan')],
+    plbill000001054: [accountLine(DESIGN_TOOLS, 86_000, 'Campaign design')],
+    plbill0001052fx: [productLine(PRODUCT_IDS.paper, 1, 34_257, 'Brochure paper')],
+    plbill000001012: [productLine(PRODUCT_IDS.laptop, 1, 12_500, 'Laptop repair parts')],
+    // 100 000 + 50 000 + 42 475 = 192 475.
+    plbill000000999: [
+        accountLine(SOFTWARE, 100_000, 'Conference line service'),
+        accountLine(DESIGN_TOOLS, 50_000, 'Slide templates'),
+        accountLine(RENT, 42_475, 'Meeting room'),
+    ],
 }
 
-// The draft expense has no line yet: its Category is "—".
+// The draft expense has one account line, so the seeded draft's lines sum to its total.
 const EXPENSE_LINE_SPECS: Record<string, LineSpec[]> = {
-    plexp0000000214: [{ account: SOFTWARE }],
-    plexp0000000213: [{ account: SOFTWARE }, { product: PRODUCT_IDS.cableTies }],
-    plexp0000000212: [{ product: PRODUCT_IDS.paper }],
-    plexp0000000211: [{ account: DESIGN_TOOLS }],
-    plexp0000000210: [{ product: PRODUCT_IDS.laptop }],
+    plexp000000draf: [accountLine(RENT, 2_400, 'Parking for the client visit')],
+    plexp0000000214: [accountLine(SOFTWARE, 8_999, 'Mobile hotspot plan')],
+    // 4 450 + 4 × 500 = 6 450.
+    plexp0000000213: [
+        accountLine(SOFTWARE, 4_450, 'Team lunch'),
+        productLine(PRODUCT_IDS.cableTies, 4, 500, 'Cable ties'),
+    ],
+    plexp0000000212: [productLine(PRODUCT_IDS.paper, 2, 7_900, 'Printer paper, two cases')],
+    plexp0000000211: [accountLine(DESIGN_TOOLS, 45_000, 'Site plan drawings')],
+    plexp0000000210: [productLine(PRODUCT_IDS.laptop, 1, 1_250_000, 'Front desk laptop')],
 }
 
 const VENDOR_CREDIT_LINE_SPECS: Record<string, LineSpec[]> = {
-    plvc0000000draf: [{ product: PRODUCT_IDS.paper }],
-    plvc00000000031: [{ product: PRODUCT_IDS.paper }],
-    plvc00000000030: [{ account: SOFTWARE }, { product: PRODUCT_IDS.patchCable }],
-    plvc00000000029: [{ account: DESIGN_TOOLS }],
-    plvc00000000028: [{ account: SOFTWARE }],
+    plvc0000000draf: [productLine(PRODUCT_IDS.paper, 1, 4_200, 'Damaged case of paper')],
+    // A purchased product: the seed posts this credit, and posting refuses a product line
+    // whose product is not purchased (paper is not).
+    plvc00000000031: [
+        productLine(PRODUCT_IDS.accessPoint, 5, 8_000, 'Volume rebate on access points'),
+    ],
+    // 9 000 + 2 × 1 500 = 12 000.
+    plvc00000000030: [
+        accountLine(SOFTWARE, 9_000, 'Outage credit'),
+        productLine(PRODUCT_IDS.patchCable, 2, 1_500, 'Returned handset cables'),
+    ],
+    plvc00000000029: [accountLine(DESIGN_TOOLS, 9_500, 'Design credit')],
+    plvc00000000028: [accountLine(SOFTWARE, 25_000, 'Unused booking seats')],
 }
 
 export const PURCHASE_LIST_BILL_LINES = Object.entries(BILL_LINE_SPECS).flatMap(([bill, specs]) =>
@@ -529,6 +592,38 @@ export const PURCHASE_LIST_VENDOR_CREDIT_LINES = Object.entries(VENDOR_CREDIT_LI
             ...lineFields(vendor_credit, spec, position),
         }))
 ) satisfies LineOf<BooksVendorCreditLines, 'vendor_credit'>[]
+
+// The rows the seed creates for the list specs (checkpoint 1 "Seed decision"): the four
+// drafts, the bills 1057 and 1054 and the vendor credit 31, which it posts with no payment
+// and no application, so as seeded 1054 reads Overdue and the credit Unapplied, whatever
+// balance the rows above draw in the reference. No test may assert the badge of
+// `plbill000001057`: it reads Open until its due date (2026-12-12) and Overdue after it.
+// No expense, bill payment or vendor refund is posted (they move a bank account's
+// register), no row is void, and no row is for Willamette, Old Town Print Shop, Keystone,
+// Greenline or Metro, whose documents other fixtures and specs read.
+const PURCHASE_LIST_SEED_IDS = new Set([
+    'plbill00000draf',
+    'plvc0000000draf',
+    'plvr0000000draf',
+    'plexp000000draf',
+    'plbill000001057',
+    'plbill000001054',
+    'plvc00000000031',
+])
+
+const isSeeded = (id: string) => PURCHASE_LIST_SEED_IDS.has(id)
+
+export const PURCHASE_LIST_SEED = {
+    bills: PURCHASE_LIST_BILLS.filter(row => isSeeded(row.id)),
+    expenses: PURCHASE_LIST_EXPENSES.filter(row => isSeeded(row.id)),
+    vendorCredits: PURCHASE_LIST_VENDOR_CREDITS.filter(row => isSeeded(row.id)),
+    vendorRefunds: PURCHASE_LIST_VENDOR_REFUNDS.filter(row => isSeeded(row.id)),
+    billLines: PURCHASE_LIST_BILL_LINES.filter(line => isSeeded(line.bill)),
+    expenseLines: PURCHASE_LIST_EXPENSE_LINES.filter(line => isSeeded(line.expense)),
+    vendorCreditLines: PURCHASE_LIST_VENDOR_CREDIT_LINES.filter(line =>
+        isSeeded(line.vendor_credit)
+    ),
+}
 
 // The names the Vendor cell and the vendor picker read: every fixture vendor, inactive
 // ones included (spec §3, the vendor picker).

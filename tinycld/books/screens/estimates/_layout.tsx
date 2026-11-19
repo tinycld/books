@@ -1,6 +1,6 @@
-import { SalesKindLayout } from '../../components/lists/SalesKindLayout'
+import { DocumentKindLayout } from '../../components/lists/DocumentKindLayout'
 
 // The Estimates list — `/a/books/estimates` — with each estimate open over or beside it.
 export default function EstimatesLayout() {
-    return <SalesKindLayout tabKey="estimates" />
+    return <DocumentKindLayout tabKey="estimates" />
 }

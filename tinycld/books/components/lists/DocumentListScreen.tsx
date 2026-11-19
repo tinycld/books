@@ -7,8 +7,7 @@ import {
 } from '../../hooks/useDocumentListScreen'
 import { useListShortcuts } from '../../hooks/useListShortcuts'
 import type { ListLayout } from '../../lib/detail-surface'
-import type { DocumentListRow, DocumentListTab } from '../../lib/document-list'
-import { TRANSACTION_TYPE_LABELS } from '../../lib/party-transactions'
+import { type DocumentListRow, type DocumentListTab, kindLabel } from '../../lib/document-list'
 import { SALES_TABS } from '../../lib/sales-lists'
 import { ListBanner } from '../ListBanner'
 import { SelectBox } from '../SelectBox'
@@ -38,7 +37,7 @@ function rowSlots(screen: DocumentListScreenState) {
     const { controls, selection, rowActions, canWrite } = screen
     const renderTick = (row: DocumentListRow) => {
         const toggle = () => selection.toggle(row.id)
-        const label = `Select ${TRANSACTION_TYPE_LABELS[row.kind]} ${row.number}`.trim()
+        const label = `Select ${kindLabel(row.kind)} ${row.number}`.trim()
         const state = selection.isTicked(row.id) ? 'checked' : 'empty'
         return (
             <SelectBox

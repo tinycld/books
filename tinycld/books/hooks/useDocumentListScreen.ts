@@ -13,17 +13,18 @@ import {
     type DocumentListFilters,
     type DocumentListRow,
     type DocumentListTab,
+    type ListKind,
     type ListRange,
     type ListSort,
     type ListSortKey,
     listControls,
+    listDocumentHref,
     tableMinWidth,
+    tabStateKey,
 } from '../lib/document-list'
 import { nextSort } from '../lib/document-list-menus'
-import { documentHref } from '../lib/document-routes'
 import { SEARCH_DELAY_MS } from '../lib/list-search'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
-import { TRANSACTION_DOC_KINDS, type TransactionKind } from '../lib/party-transactions'
 import { navigationModeFor, openRecordFromPath } from '../lib/record-route'
 import { SALES_NEW_ITEMS, salesTabOf } from '../lib/sales-lists'
 import { selectionScope, useDocumentListStore } from '../stores/document-list-store'
@@ -73,12 +74,7 @@ function useNewMenu() {
 }
 
 function sameFilters(a: DocumentListFilters, b: DocumentListFilters): boolean {
-    return (
-        a.search === b.search &&
-        a.chip === b.chip &&
-        a.range === b.range &&
-        a.customer === b.customer
-    )
+    return a.search === b.search && a.chip === b.chip && a.range === b.range && a.party === b.party
 }
 
 // The filters the rows on screen answer. While a new query loads (or the typed search
@@ -136,14 +132,15 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     const isPhone = useBreakpoint() === 'mobile'
     const [accessCollection] = useStore('books_access')
     const access = useBooksAccess()
-    const tabState = useDocumentListStore(state => state.tabs[tab.key])
+    const stateKey = tabStateKey(tab)
+    const tabState = useDocumentListStore(state => state.tabs[stateKey])
     const store = useDocumentListStore.getState()
-    const { filters, sort } = tabState ?? store.tabState(tab.key)
+    const { filters, sort } = tabState ?? store.tabState(stateKey)
     const search = useDebouncedValue(filters.search, SEARCH_DELAY_MS)
     const queryFilters = { ...filters, search }
     const documentList = useDocumentList({ tab, filters: queryFilters, sort })
     const newMenu = useNewMenu()
-    useBlurCleanup(tab.key)
+    useBlurCleanup(stateKey)
     const { width, onListLayout } = useListWidth()
 
     const canWrite = access.canWrite
@@ -169,7 +166,7 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     // The ticks and the row focus hold for the tab, the layout and the filters
     // (`selectionScope`), so a change of any of them, or the list narrowing to the names
     // column, clears them for good; a sort keeps them.
-    const scope = selectionScope(tab.key, layout, filters)
+    const scope = selectionScope(stateKey, layout, filters)
     const open = openRecordFromPath(tab.path, pathname)
     const openId = open.kind === 'id' ? open.id : ''
     const rowFocus = useRowFocus(scope, list.rows, openId)
@@ -180,14 +177,14 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     const openRow = (row: DocumentListRow) => {
         rowFocus.setFocusedId(row.id)
         if (open.kind === 'id' && open.id === row.id) return
-        const href = orgHref(documentHref(TRANSACTION_DOC_KINDS[row.kind], row.id))
+        const href = orgHref(listDocumentHref(row.kind, row.id))
         if (navigationModeFor(open) === 'replace') router.replace(href)
         else router.push(href)
     }
     // A kind tab's New opens its `new` route; All sales has a menu of the kinds, so New
     // with no kind opens that menu. Beside an open document New replaces it, as a row
     // does, so the document's leave guard asks before unsaved edits go.
-    const openNew = (kind?: TransactionKind) => {
+    const openNew = (kind?: ListKind) => {
         const item = SALES_NEW_ITEMS.find(entry => entry.kind === kind)
         const href = item?.href ?? tab.newHref
         if (href === null) {
@@ -204,18 +201,18 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
         router.replace(orgHref(salesTabOf(key).path))
     }
 
-    const minWidth = tableMinWidth(tab.columns, canWrite)
+    const minWidth = tableMinWidth(tab, canWrite)
     const drawsCards = isPhone || (width > 0 && width < minWidth)
 
     const loadedIds = list.rows.map(row => row.id)
     const selection = useListSelection(scope, loadedIds)
     const rowActions = useDocumentRowActions({
-        listKey: tab.key,
+        listKey: stateKey,
         rows: list.rows,
         canWrite,
         openRow,
     })
-    const batch = useDocumentBatch({ listKey: tab.key, rows: list.rows, selection })
+    const batch = useDocumentBatch({ listKey: stateKey, rows: list.rows, selection })
     // A row action's refusal or a batch's result; the list's load error shows before it.
     const actionBanner = useDocumentListStore(state => state.banner)
 
@@ -237,15 +234,15 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
         openRow,
         openNew,
         goToTab,
-        setSearch: (text: string) => store.setSearch(tab.key, text),
-        setChip: (chipId: string) => store.setChip(tab.key, chipId),
-        setRange: (range: ListRange) => store.setRange(tab.key, range),
+        setSearch: (text: string) => store.setSearch(stateKey, text),
+        setChip: (chipId: string) => store.setChip(stateKey, chipId),
+        setRange: (range: ListRange) => store.setRange(stateKey, range),
         // '' (All customers) removes the filter.
-        setCustomer: (customerId: string) => store.setCustomer(tab.key, customerId),
+        setParty: (partyId: string) => store.setParty(stateKey, partyId),
         // A header press: a new column ascending, the sorted column turned around.
-        toggleSort: (key: ListSortKey) => store.setSort(tab.key, nextSort(sort, key)),
-        setSort: (next: ListSort) => store.setSort(tab.key, next),
-        clearFilters: () => store.clearFilters(tab.key),
+        toggleSort: (key: ListSortKey) => store.setSort(stateKey, nextSort(sort, key)),
+        setSort: (next: ListSort) => store.setSort(stateKey, next),
+        clearFilters: () => store.clearFilters(stateKey),
         drawsCards,
         onListLayout,
     }

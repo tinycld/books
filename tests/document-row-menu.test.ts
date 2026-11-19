@@ -34,8 +34,8 @@ function row(
         created: '2026-11-17 10:00:00.000Z',
         status: { label: 'Open', tone: 'warning' },
         sequence: 1004,
-        customerId: CUSTOMER,
-        customerName: 'Acme',
+        partyId: CUSTOMER,
+        partyName: 'Acme',
         memo: '',
         reference: '',
         expires: '',
@@ -43,6 +43,7 @@ function row(
         entry: recordStatus === 'draft' || kind === 'estimate' ? '' : ENTRY,
         convertedInvoice: '',
         recordStatus,
+        category: { kind: 'none' },
         ...fields,
     }
 }

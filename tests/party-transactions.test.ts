@@ -491,6 +491,25 @@ describe('mergeTransactions', () => {
         expect(merged.hasMore).toBe(true)
     })
 
+    it('reports more when the lists together hold more than n rows, none of them n', () => {
+        const base = harborviewLists()[0][0]
+        const copies = (prefix: string, count: number) =>
+            Array.from({ length: count }, (_, i) => ({
+                ...base,
+                id: `${prefix}${String(i).padStart(4, '0')}`,
+                created: `2026-10-01 00:00:${String(i).padStart(2, '0')}.000Z`,
+            }))
+        const merged = mergeTransactions([copies('a', 30), copies('b', 30)], 50)
+        expect(merged.rows).toHaveLength(50)
+        expect(merged.hasMore).toBe(true)
+        const exact = mergeTransactions([copies('a', 30), copies('b', 20)], 50)
+        expect(exact.rows).toHaveLength(50)
+        expect(exact.hasMore).toBe(false)
+        const fewer = mergeTransactions([copies('a', 30), copies('b', 19)], 50)
+        expect(fewer.rows).toHaveLength(49)
+        expect(fewer.hasMore).toBe(false)
+    })
+
     it('orders by a given compare function, still cut to n', () => {
         // Every id is distinct, so this compare has no ties and the expected order
         // does not depend on the input order of the lists.

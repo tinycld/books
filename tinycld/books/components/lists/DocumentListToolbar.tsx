@@ -6,8 +6,8 @@ import type { DocumentListTab } from '../../lib/document-list'
 import { RANGE_ITEMS, sortMenuItems } from '../../lib/document-list-menus'
 import { ListFilterChips } from '../ListFilterChips'
 import { SearchField } from '../ListToolbar'
-import { DocumentCustomerFilter } from './DocumentCustomerFilter'
 import { SEARCH_PLACEHOLDER } from './DocumentListStates'
+import { DocumentPartyFilter } from './DocumentPartyFilter'
 
 type Screen = ReturnType<typeof useDocumentListScreen>
 
@@ -66,7 +66,7 @@ function CustomerFilter({ screen, isPhone }: { screen: Screen; isPhone: boolean 
     const style = isPhone ? PHONE_CUSTOMER_STYLE : WIDE_CUSTOMER_STYLE
     return (
         <View style={style}>
-            <DocumentCustomerFilter value={screen.filters.customer} onChange={screen.setCustomer} />
+            <DocumentPartyFilter value={screen.filters.party} onChange={screen.setParty} />
         </View>
     )
 }

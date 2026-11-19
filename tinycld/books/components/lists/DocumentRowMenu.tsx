@@ -4,14 +4,13 @@ import { useIsFocused } from 'expo-router'
 import { MoreVertical } from 'lucide-react-native'
 import { Pressable } from 'react-native'
 import type { DocumentRowActions } from '../../hooks/useDocumentRowActions'
-import type { DocumentListRow } from '../../lib/document-list'
+import { type DocumentListRow, kindLabel } from '../../lib/document-list'
 import {
     documentRowMenuItems,
     ROW_MENU_LABELS,
     type RowMenuAction,
     rowActionTestId,
 } from '../../lib/document-row-menu'
-import { TRANSACTION_TYPE_LABELS } from '../../lib/party-transactions'
 import { useDocumentListStore } from '../../stores/document-list-store'
 import { PressBoundary } from '../PressBoundary'
 
@@ -70,7 +69,7 @@ export function DocumentRowMenu({ row, canWrite, actions }: DocumentRowMenuProps
     const color = useThemeColor('muted-foreground')
     const { isOpen, setOpen } = useRowMenuOpen(row.id)
     const items = isOpen ? documentRowMenuItems(row, canWrite) : []
-    const title = `${TRANSACTION_TYPE_LABELS[row.kind]} ${row.number}`.trim()
+    const title = `${kindLabel(row.kind)} ${row.number}`.trim()
     // An element, not a component: the menu clones it with its press handler and ref.
     const trigger = (
         <Pressable

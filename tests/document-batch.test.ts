@@ -21,8 +21,8 @@ function row(kind: TransactionKind, recordStatus: string): DocumentListRow {
         created: '2026-11-17 10:00:00.000Z',
         status: { label: recordStatus, tone: 'muted' },
         sequence: recordStatus === 'draft' ? 0 : 1000 + next,
-        customerId: 'cus000000000001',
-        customerName: 'Acme',
+        partyId: 'cus000000000001',
+        partyName: 'Acme',
         memo: '',
         reference: '',
         expires: '',
@@ -30,6 +30,7 @@ function row(kind: TransactionKind, recordStatus: string): DocumentListRow {
         entry: '',
         convertedInvoice: '',
         recordStatus,
+        category: { kind: 'none' },
     }
 }
 

@@ -6,7 +6,7 @@ import {
     batchResultText,
     batchTargets,
 } from '../lib/document-batch'
-import type { DocumentListRow } from '../lib/document-list'
+import { type DocumentListRow, salesKindOf } from '../lib/document-list'
 import { writeRefusalText } from '../lib/refusal'
 import { type BatchCounts, useDocumentListStore } from '../stores/document-list-store'
 import { useDeleteDraftDocument } from './useDeleteDraftDocument'
@@ -42,7 +42,9 @@ export function useDocumentBatch({ listKey, rows, selection }: DocumentBatchInpu
     const ticked = rows.filter(row => selection.isTicked(row.id))
 
     const writeOf = (action: BatchAction, row: DocumentListRow) =>
-        action === 'void' ? voidWrite(row.kind, row.id) : deleteWrite(row.kind, row.id)
+        action === 'void'
+            ? voidWrite(salesKindOf(row), row.id)
+            : deleteWrite(salesKindOf(row), row.id)
     const run = useMutation({
         mutationFn: async ({ action, applies }: BatchRun) => {
             let done = 0

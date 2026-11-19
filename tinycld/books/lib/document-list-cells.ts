@@ -1,16 +1,19 @@
-// The text of a sales list's table cells, cards and names-column rows, and the sizes the
-// windowed lists draw them at (spec docs/specs/sales-lists-design.md §3 "Rows and
+// The text of a document list's table cells, cards and names-column rows, and the sizes
+// the windowed lists draw them at (spec docs/specs/sales-lists-design.md §3 "Rows and
 // columns"). The header cell and the row cell share `columnStyle`, so the columns line up.
 
 import type { ViewStyle } from 'react-native'
 import {
     type DocumentListRow,
     type DocumentListTab,
-    LIST_COLUMNS,
+    kindLabel,
     type ListColumnKey,
+    listColumn,
 } from './document-list'
+import type { ListAreaKey } from './list-areas'
 import { formatMoney } from './money'
-import { TRANSACTION_TYPE_LABELS, transactionTotalText } from './party-transactions'
+import { transactionTotalText } from './party-transactions'
+import { type CategoryNames, categoryText } from './purchase-category'
 import { formatDay } from './register-range'
 
 const DASH = '—'
@@ -38,30 +41,38 @@ function joinShown(parts: readonly string[]): string {
     return parts.filter(part => part !== '').join(' · ')
 }
 
-// A signed tab (All sales) shows a credit memo's amount negative, with a typographic
-// minus; a tab of one kind shows every amount positive.
+// The Category cell's names before the list reads them: an account or product reads "—".
+const NO_CATEGORY_NAMES: CategoryNames = { accounts: new Map(), products: new Map() }
+
+// A signed tab (All sales, All purchases) shows a credit memo's or a vendor credit's amount
+// negative, with a typographic minus; a tab of one kind shows every amount positive.
 function amountOf(row: DocumentListRow, tab: DocumentListTab, currency: string): string {
     if (tab.isSigned) return transactionTotalText(row, currency)
     return formatMoney(Math.abs(row.total), currency)
 }
 
 // Every amount draws in `currency` (the Books settings'), not the row's own. A draft and a
-// void document show their stored balance.
+// void document show their stored balance. The Category cell names its account or product
+// from `categoryNames` (`usePurchaseCategories`).
 export function cellText(
     row: DocumentListRow,
     key: ListColumnKey,
     tab: DocumentListTab,
-    currency: string
+    currency: string,
+    categoryNames: CategoryNames = NO_CATEGORY_NAMES
 ): string {
     switch (key) {
         case 'date':
             return formatDay(row.date)
         case 'type':
-            return TRANSACTION_TYPE_LABELS[row.kind]
+            return kindLabel(row.kind)
         case 'number':
             return textOrDash(row.number)
         case 'customer':
-            return textOrDash(row.customerName)
+        case 'vendor':
+            return textOrDash(row.partyName)
+        case 'category':
+            return categoryText(row.category, categoryNames)
         case 'memo':
             return textOrDash(row.memo)
         case 'reference':
@@ -81,9 +92,9 @@ export function cellText(
     }
 }
 
-// A card on a tab of several kinds: type and number, then customer and date. A card on a
-// kind tab: number and customer, then the date (and "Due <date>" for an invoice). A part
-// that is empty (a draft's number, a missing customer) is left out, not drawn as "—".
+// A card on a tab of several kinds: type and number, then party and date. A card on a
+// kind tab: number and party, then the date (and "Due <date>" for an invoice). A part
+// that is empty (a draft's number, a missing party) is left out, not drawn as "—".
 export function cardLines(
     row: DocumentListRow,
     tab: DocumentListTab,
@@ -93,35 +104,35 @@ export function cardLines(
     const date = formatDay(row.date)
     if (tab.kinds.length > 1) {
         return {
-            title: `${TRANSACTION_TYPE_LABELS[row.kind]} ${row.number}`.trim(),
+            title: `${kindLabel(row.kind)} ${row.number}`.trim(),
             amount,
-            detail: joinShown([row.customerName, date]),
+            detail: joinShown([row.partyName, date]),
         }
     }
     const due = row.kind === 'invoice' && row.dueDate !== '' ? `Due ${formatDay(row.dueDate)}` : ''
     return {
-        title: joinShown([row.number, row.customerName]) || TRANSACTION_TYPE_LABELS[row.kind],
+        title: joinShown([row.number, row.partyName]) || kindLabel(row.kind),
         amount,
         detail: joinShown([date, due]),
     }
 }
 
 // A row of the 320 px column beside an open document lists one kind, so its amount is
-// positive: number and customer, then the amount.
+// positive: number and party, then the amount.
 export function nameRowLines(
     row: DocumentListRow,
     currency: string
 ): { title: string; amount: string } {
     return {
-        title: joinShown([row.number, row.customerName]) || TRANSACTION_TYPE_LABELS[row.kind],
+        title: joinShown([row.number, row.partyName]) || kindLabel(row.kind),
         amount: formatMoney(Math.abs(row.total), currency),
     }
 }
 
-// The flex, minimum width and alignment of a column, for its header cell and its row
-// cells. A column with no grow (Status) keeps its fixed width.
-export function columnStyle(key: ListColumnKey): ViewStyle {
-    const { minWidth, grow, align } = LIST_COLUMNS[key]
+// The flex, minimum width and alignment of a column as the area draws it, for its header
+// cell and its row cells. A column with no grow (Status) keeps its fixed width.
+export function columnStyle(key: ListColumnKey, area: ListAreaKey): ViewStyle {
+    const { minWidth, grow, align } = listColumn(key, area)
     const alignItems = align === 'right' ? 'flex-end' : 'flex-start'
     if (grow === 0) return { width: minWidth, flexShrink: 0, alignItems }
     return { flexGrow: grow, flexShrink: 1, flexBasis: 0, minWidth, alignItems }
