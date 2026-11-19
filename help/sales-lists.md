@@ -1,13 +1,15 @@
 ---
 title: Sales lists
-summary: Find, filter, sort and act on your invoices, estimates, sales receipts, payments and credit memos.
-tags: [sales, invoices, estimates, payments, "credit memos", "sales receipts", search, keyboard]
+summary: Find, filter, sort and act on your invoices, estimates, sales receipts, payments, credit memos and refund receipts.
+tags: [sales, invoices, estimates, payments, "credit memos", "sales receipts", "refund receipts", search, keyboard]
 order: 30
 ---
 
-To find a sales transaction, choose Sales in the sidebar. The Sales area has six tabs: All sales lists every invoice, estimate, sales receipt, payment and credit memo, and the Invoices, Estimates, Sales receipts, Payments and Credit memos tabs each list one kind. Each tab keeps its own search, status chip, date range, customer and sort while the app is open. A void document that a correction replaced is not listed; the correction carries its number.
+To find a sales transaction, choose Sales in the sidebar. The Sales area has seven tabs: All sales lists every invoice, estimate, sales receipt, payment, credit memo and refund receipt, and the Invoices, Estimates, Sales receipts, Payments, Credit memos and Refund receipts tabs each list one kind. Each tab keeps its own search, status chip, date range, customer and sort while the app is open. A void document that a correction replaced is not listed; the correction carries its number.
 
-To start a new transaction, choose New. On a kind tab it starts that kind ("New invoice", "Receive payment", and so on); on All sales it opens a menu of the five kinds. If you have read-only access, New is hidden.
+To start a new transaction, choose New. On a kind tab it starts that kind ("New invoice", "Receive payment", and so on); on All sales it opens a menu of the six kinds. If you have read-only access, New is hidden.
+
+The Refund receipts tab lists the money you gave back to customers. Its columns are those of the Sales receipts tab, and each amount shows with a minus sign, such as −$150.00, because a refund receipt gives money back. Its status chips are Draft, Refunded (posted) and Void. Its row menu and batch actions are those of the Sales receipts tab. See [Refund receipts](help://books:refund-receipts).
 
 ## Search and filters
 
@@ -37,7 +39,7 @@ Each row ends with a More actions button. Its row menu holds Open and the action
 If you can edit the books, each row has a tick box, and the table's header box ticks or clears every loaded row. Then choose Batch actions:
 
 - **Delete drafts** deletes the ticked drafts.
-- **Void** voids the ticked posted invoices, sales receipts, payments and credit memos. An estimate is never voided.
+- **Void** voids the ticked posted invoices, sales receipts, payments, credit memos and refund receipts. An estimate is never voided.
 
 The confirm dialog says how many of the ticked documents the action applies to and how many it skips, for example "Delete 3 drafts? 2 selected documents are not drafts and stay." When the action applies to none of them, the dialog says so and has no confirm button. After the action, the banner reads how many were done and how many the server refused, with the first refusal's reason. The documents that were done leave the selection; the refused ones stay ticked. In the cards layout the Batch actions menu also holds Select all and Clear selection.
 
@@ -56,6 +58,6 @@ Beside an open document, in the narrow column of a very wide window, the list ke
 | Tick or clear the focused row | X or Space |
 | Tick or clear all loaded rows | A |
 | New (on All sales, the New menu) | N |
-| All sales, Invoices, Estimates, Sales receipts, Payments, Credit memos | 1, 2, 3, 4, 5, 6 |
+| All sales, Invoices, Estimates, Sales receipts, Payments, Credit memos, Refund receipts | 1, 2, 3, 4, 5, 6, 7 |
 
-To work with one kind of document, see [Invoices](help://books:invoices), [Estimates](help://books:estimates), [Sales receipts](help://books:sales-receipts), [Receive payment](help://books:receive-payment) and [Credit memos](help://books:credit-memos).
+To work with one kind of document, see [Invoices](help://books:invoices), [Estimates](help://books:estimates), [Sales receipts](help://books:sales-receipts), [Receive payment](help://books:receive-payment), [Credit memos](help://books:credit-memos) and [Refund receipts](help://books:refund-receipts).

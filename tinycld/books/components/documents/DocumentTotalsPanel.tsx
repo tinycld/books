@@ -22,6 +22,10 @@ export type DocumentTotalsView = {
     // The kind's rows drawn after Total, in order (a vendor credit's Applied and Unapplied
     // credit); left out by every form and by a kind without such rows.
     after?: readonly DocumentTotalRow[]
+    // The kind's rows drawn after its last row, in order (a credit memo's Refunded and
+    // Unapplied credit, after "Credit amount"); left out by every form and by a kind without
+    // such rows.
+    afterLast?: readonly DocumentTotalRow[]
 }
 
 interface TotalRowProps {
@@ -90,8 +94,9 @@ function BelowTotalRows({ rows }: { rows: readonly DocumentTotalRow[] }) {
 // Subtotal (or each table's subtotal), the header tax's one line, Total, then the rows
 // totalRowOrder gives under it: the payments applied (an invoice's or a bill's read view),
 // the kind's rows after Total (a bill's Credits applied, a vendor credit's Applied and
-// Unapplied credit) and the kind's last row (Balance due; none for an estimate or a vendor
-// credit), right-aligned so the figures end where the lines' Amount column ends.
+// Unapplied credit), the kind's last row (Balance due; none for an estimate or a vendor
+// credit) and the kind's rows after it (a credit memo's Refunded and Unapplied credit),
+// right-aligned so the figures end where the lines' Amount column ends.
 export function DocumentTotalsPanel({ totals }: { totals: DocumentTotalsView }) {
     const { doc } = useDocumentKind()
     const testId = doc.testId
@@ -117,6 +122,7 @@ export function DocumentTotalsPanel({ totals }: { totals: DocumentTotalsView }) 
                   isStrong: true,
               }
             : null,
+        afterLast: totals.afterLast ?? [],
     })
     return (
         <View testID={ids.totals}>

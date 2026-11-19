@@ -298,13 +298,18 @@ function CustomerPickerField({ value, onChange, disabled, label }: BuiltinFieldP
     const picker = useSearchPicker()
     const focus = usePartyFocus(`${scope.kind.testId}-form`)
     const options = useDocumentCustomerOptions(picker.debouncedTerm, picker.isOpen)
-    // Another customer drops a credit memo's invoice link (the invoice is the old one's),
-    // when the pick lands: a pick whose read fails keeps the customer and the link.
+    // Another customer drops a removable source link (a credit memo's invoice, a refund's
+    // sales receipt: the source is the old one's), when the pick lands: a pick whose read
+    // fails keeps the customer and the link. A payout's link cannot be removed
+    // (sourceLink.canRemove), so a pick keeps it.
     const onCustomerChange = (next: unknown) => {
-        if (next !== id) scope.invoiceLink.remove()
+        if (next !== id && scope.sourceLink.canRemove) scope.sourceLink.remove()
         onChange(next)
     }
     const { pick, pickFailed } = useCustomerPick(id, onCustomerChange)
+    // A payout's customer is the credit memo's and cannot change (spec §3.3): the picker is
+    // drawn disabled, out of the Tab order, and the date takes the form's first focus.
+    const isDisabled = disabled || scope.sourceLink.locksParty
     const triggerLabel = partyTriggerLabel(id, scope)
     const triggerSuffix = scope.party?.inactive ? '(inactive)' : undefined
     const onPick = (next: string) => {
@@ -325,7 +330,7 @@ function CustomerPickerField({ value, onChange, disabled, label }: BuiltinFieldP
                 triggerSuffix={triggerSuffix}
                 triggerAccessibilityLabel={`${label}: ${id ? triggerLabel : 'none'}`}
                 triggerTestId={`form-input-${fieldKey}`}
-                disabled={disabled}
+                disabled={isDisabled}
                 searchPlaceholder={`Search ${noun}s`}
                 searchTestId={`form-input-${fieldKey}-search`}
                 options={options.options}
@@ -783,12 +788,14 @@ export function DayField({
 }
 
 // Invoice date: a change also sets Due date from the terms, when there are terms. On an
-// invoice that names an estimate the Customer is text, not an input, so the date takes
-// the form's first focus (web only, as Customer's).
+// invoice that names an estimate the Customer is text, not an input, and on a payout the
+// Customer is disabled (its link locks the party), so the date takes the form's first
+// focus (web only, as Customer's).
 export function DocumentDateField(props: BuiltinFieldProps) {
     const { getValues, setValue } = useFormContext<FormValues>()
-    const { estimateId } = useDocumentFormScope()
-    const isFirstField = estimateId !== '' && Platform.OS === 'web'
+    const { estimateId, sourceLink } = useDocumentFormScope()
+    const isPartyFixed = estimateId !== '' || sourceLink.locksParty
+    const isFirstField = isPartyFixed && Platform.OS === 'web'
     const onChange = (next: string) => {
         props.onChange(next)
         const due = dueDateFor(next, termsOf(getValues('terms')))

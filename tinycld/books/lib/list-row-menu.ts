@@ -18,6 +18,7 @@ import {
     purchaseRowMenuItems,
     purchaseVoidTexts,
 } from './purchase-row-menu'
+import { payoutVoidBodyOf } from './refund-payout'
 
 export type ListRowAction = RowMenuAction | PurchaseRowMenuAction
 
@@ -46,8 +47,18 @@ export function listRowActionHref(row: DocumentListRow, action: ListRowAction): 
     return isPurchaseAction(action) ? purchaseRowActionHref(row, action) : null
 }
 
+// A sales row's Void body: a payment's own text; a payout's says its credit memo's credit
+// is unapplied again, as its read view does (`payoutVoidBodyOf`); every other row shows
+// the dialog's own text.
+function salesVoidBodyOf(row: DocumentListRow): string | undefined {
+    if (row.kind === 'payment') return PAYMENT_MESSAGES.voidBody
+    if (row.kind === 'refund_receipt') return payoutVoidBodyOf(row.creditMemo ?? '')
+    return undefined
+}
+
 // The Void dialog's words for a row: a purchase kind's read view texts
-// (`purchaseVoidTexts`); for a sales kind the document's noun, and a payment's own body.
+// (`purchaseVoidTexts`); for a sales kind the document's noun and its body
+// (`salesVoidBodyOf`).
 export function listVoidTexts(row: DocumentListRow): {
     body: string | undefined
     confirmLabel: string
@@ -56,6 +67,5 @@ export function listVoidTexts(row: DocumentListRow): {
     const { kind } = row
     if (!isSalesKind(kind)) return purchaseVoidTexts(kind)
     const noun = kindLabel(kind).toLowerCase()
-    const body = kind === 'payment' ? PAYMENT_MESSAGES.voidBody : undefined
-    return { body, confirmLabel: `Void ${noun}`, noun }
+    return { body: salesVoidBodyOf(row), confirmLabel: `Void ${noun}`, noun }
 }

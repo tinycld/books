@@ -36,6 +36,10 @@ var serverOnly = map[string]bool{
 	"books_credit_memo_tax_lines":   true,
 	"books_invoice_tax_lines":       true,
 	"books_sales_receipt_tax_lines": true,
+	// A refund receipt's tax lines are its posting snapshot, and its credits
+	// row is written by the payout's post (refund receipt spec §4.1).
+	"books_refund_receipt_tax_lines": true,
+	"books_refund_receipt_credits":   true,
 }
 
 func booksCollections(t testing.TB, app core.App, kinds ...string) []*core.Collection {
@@ -591,6 +595,68 @@ func TestPDFRoute_CreditMemoFollowsTheMemoViewRule(t *testing.T) {
 	})
 }
 
+// The refund_receipt kind prints a books_refund_receipts record at
+// /api/books/pdf/refund_receipt/<id> under the refund's view rule: a reader
+// downloads refund-receipt-<n>.pdf; a refund the view rule hides is not found.
+func TestPDFRoute_RefundReceiptFollowsTheRefundViewRule(t *testing.T) {
+	postedRefund := func(t *testing.T) (*refundReceiptEnv, *core.Record) {
+		t.Helper()
+		rr := newRefundReceiptEnv(t)
+		r := rr.mkRefundReceipt(t, nil)
+		mkRefundReceiptLine(t, rr.app, r, 0, item(rr.service, 1, 15000, false))
+		return rr, mustPostRefundReceipt(t, rr.app, r.Id, rr.users.bookkeeper.Id)
+	}
+	t.Run("a reader downloads refund-receipt-<n>.pdf", func(t *testing.T) {
+		rr, posted := postedRefund(t)
+		apiReq{
+			method:  http.MethodGet,
+			url:     "/api/books/pdf/refund_receipt/" + posted.Id,
+			token:   tokenFor(t, rr.users.readOnly),
+			want:    http.StatusOK,
+			content: []string{"%PDF-"},
+			before:  bindPDFRoutes,
+			response: func(t testing.TB, res *http.Response) {
+				want := `attachment; filename="refund-receipt-` + posted.GetString("number") + `.pdf"`
+				if got := res.Header.Get("Content-Disposition"); got != want {
+					t.Errorf("Content-Disposition = %q, want %q", got, want)
+				}
+			},
+		}.run(t, rr.app)
+	})
+	t.Run("a draft downloads draft-refund-receipt.pdf", func(t *testing.T) {
+		rr := newRefundReceiptEnv(t)
+		draft := rr.mkRefundReceipt(t, nil)
+		mkRefundReceiptLine(t, rr.app, draft, 0, item(rr.service, 1, 15000, false))
+		apiReq{
+			method:  http.MethodGet,
+			url:     "/api/books/pdf/refund_receipt/" + draft.Id,
+			token:   tokenFor(t, rr.users.readOnly),
+			want:    http.StatusOK,
+			content: []string{"%PDF-"},
+			before:  bindPDFRoutes,
+			response: func(t testing.TB, res *http.Response) {
+				want := `attachment; filename="draft-refund-receipt.pdf"`
+				if got := res.Header.Get("Content-Disposition"); got != want {
+					t.Errorf("Content-Disposition = %q, want %q", got, want)
+				}
+			},
+		}.run(t, rr.app)
+	})
+	t.Run("a refund the view rule hides is not found", func(t *testing.T) {
+		rr, posted := postedRefund(t)
+		col, err := rr.app.FindCollectionByNameOrId(refundReceiptsCollection)
+		if err != nil {
+			t.Fatalf("find: %v", err)
+		}
+		rule := `id = "never"`
+		col.ViewRule = &rule
+		if err := rr.app.Save(col); err != nil {
+			t.Fatalf("save rule: %v", err)
+		}
+		pdfReq(t, rr.app, "/api/books/pdf/refund_receipt/"+posted.Id, tokenFor(t, rr.users.readOnly), http.StatusNotFound)
+	})
+}
+
 // The estimate kind prints a books_estimates record at
 // /api/books/pdf/estimate/<id> under the estimate's view rule: a reader
 // downloads estimate-<n>.pdf; an estimate the view rule hides is not found.
@@ -909,6 +975,7 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 	registerSalesDocGuards(parts, billKind)
 	registerSalesDocGuards(parts, expenseKind)
 	registerSalesDocGuards(parts, vendorCreditKind)
+	registerSalesDocGuards(parts, refundReceiptKind)
 	registerPaymentGuards(parts)
 	registerBillPaymentGuards(parts)
 	registerVendorCreditApplications(parts)

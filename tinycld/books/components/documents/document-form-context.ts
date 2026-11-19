@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react'
 import type { DocumentPartyRow } from '../../hooks/document-data'
 import type { useTaxRateOptions } from '../../hooks/useTaxRateOptions'
+import type { SourceLinkKey } from '../../lib/document-source-links'
 import type { LineAmountView } from '../../lib/document-tax'
 import { INVOICE_KIND, type SalesDocumentKind } from '../../lib/sales-document-kinds'
 import type { PartyFills } from './document-kinds'
@@ -35,10 +36,23 @@ export type DocumentFormScope = {
     // keeps), else the stored invoice's; '' when it names none. While it is set the
     // customer cannot change (the server refuses it), so Customer draws as text.
     estimateId: string
-    // The invoice a credit memo is for, as the form holds it now ('' when it names none,
-    // and on every other kind), its link label ("For invoice <n>", with "(void)" on a void
-    // one; '' until the invoice is read), and Remove link (the link row, a customer pick).
-    invoiceLink: { id: string; label: string; remove: () => void }
+    // The source link as the form holds it now (a credit memo's invoice, a refund's sales
+    // receipt or credit memo): its column (`key`, '' on a kind or form with none), its id
+    // ('' when it names none), its label ("For invoice <n>", "Refund of sales receipt <n>",
+    // "Pays out credit memo <n>", with "(void)" on a void one; '' until the source is read),
+    // the plain text the link row draws after the link (`detail`: a payout's
+    // " · <money> unapplied"; absent or '' for every other link), whether Remove link is
+    // offered (`canRemove`), whether the customer is locked to the source (`locksParty`, a
+    // payout), and Remove link (the link row, a customer pick).
+    sourceLink: {
+        key: SourceLinkKey | ''
+        id: string
+        label: string
+        detail?: string
+        canRemove: boolean
+        locksParty: boolean
+        remove: () => void
+    }
     // The definition's description of each field whose host component draws its own hint
     // (SELF_HINTED_FIELDS), by field key: the form drops it from the cell, so the component
     // reads it here. A field whose stored description is empty gets the host layout's
@@ -63,7 +77,14 @@ const EMPTY_SCOPE: DocumentFormScope = {
     expiredOn: null,
     estimateNumber: '',
     estimateId: '',
-    invoiceLink: { id: '', label: '', remove: () => {} },
+    sourceLink: {
+        key: '',
+        id: '',
+        label: '',
+        canRemove: false,
+        locksParty: false,
+        remove: () => {},
+    },
     hints: {},
 }
 

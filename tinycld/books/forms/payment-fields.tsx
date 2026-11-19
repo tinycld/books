@@ -16,7 +16,11 @@ import { useDocumentFormScope } from '../components/documents/document-form-cont
 import { useHostValueForm } from '../components/forms/use-host-value-form'
 import { useDepositAccounts } from '../hooks/useDepositAccounts'
 import { usePaidFromAccounts } from '../hooks/usePaidFromAccounts'
-import { defaultDepositAccount, depositAccountOptions } from '../lib/deposit-accounts'
+import {
+    type DepositAccountRow,
+    defaultDepositAccount,
+    depositAccountOptions,
+} from '../lib/deposit-accounts'
 import { selectValueSchema } from '../lib/host-value-schemas'
 import { defaultMethodFor, PAID_FROM_EMPTY_TEXT } from '../lib/paid-from'
 import { paymentMethodOptions } from '../lib/payment-methods'
@@ -25,9 +29,10 @@ import { HostSelect } from './account-fields'
 
 // The payment fields: the scope-free selects any form binds through its own `control`
 // (Pay Bills, which is not a forms host), and the payment built-ins of a document host
-// that wrap them: the sales receipt's Payment row (Payment method and Deposit to) and the
-// expense's and bill's Paid from and required Payment method. In a host the core cell
-// draws each one's label and error.
+// that wrap them: the sales receipt's Payment row (Payment method and Deposit to), the
+// refund receipt's (Payment method and Refund from) and the expense's and bill's Paid
+// from and required Payment method. In a host the core cell draws each one's label and
+// error.
 
 const OPTIONS_WITH_NONE = paymentMethodOptions({ allowNone: true })
 const OPTIONS_WITHOUT_NONE = paymentMethodOptions({ allowNone: false })
@@ -320,32 +325,90 @@ export function PaymentAccountField({
     )
 }
 
+// The picked account's balance under a deposit account select, read from the chart with
+// its posted totals (usePaidFromAccounts, the read PaidFromBalance makes for Paid from).
+// Only a field that shows a balance mounts the read. The screen loads that read before
+// the form mounts and shows its load error with its Retry.
+function DepositAccountBalance({
+    isVisible,
+    accountId,
+    currency,
+    testID,
+}: {
+    isVisible: boolean
+    accountId: string
+    currency: string
+    testID: string
+}) {
+    if (!isVisible) return null
+    return <DepositAccountBalanceLine accountId={accountId} currency={currency} testID={testID} />
+}
+
+function DepositAccountBalanceLine({
+    accountId,
+    currency,
+    testID,
+}: {
+    accountId: string
+    currency: string
+    testID: string
+}) {
+    const { balanceOf } = usePaidFromAccounts()
+    return (
+        <PaidFromBalance
+            accountId={accountId}
+            balanceOf={balanceOf}
+            currency={currency}
+            testID={testID}
+        />
+    )
+}
+
+type DepositAccountSelectProps = BuiltinFieldProps & {
+    // The chart's own text while it offers no deposit account.
+    emptyText: string
+    // Whether the picked account's posted balance shows under the select.
+    showBalance: boolean
+    // The test id suffixes after the kind's prefix: the field's (its balance line adds
+    // `-balance`) and the empty chart text's.
+    testIds: { field: string; empty: string }
+    // The account a form opened with no account shows once the chart has one; the save
+    // must write the same account. None: the field shows its value only.
+    fallbackAccount?: (rows: readonly DepositAccountRow[]) => string
+}
+
 /**
- * Deposit to: the active bank and Undeposited funds accounts in chart order. A stored
- * account that is no longer offered (made inactive) shows by name for the value the
- * field mounted with only (TaxRateField's rule). The screen loads the accounts before the
- * form mounts and shows their load error with its Retry, so this read is served from the
- * store and has no loading or error state of its own.
+ * A document's deposit account select: the active bank and Undeposited funds accounts in
+ * chart order (depositAccountOptions). A stored account that is no longer offered (made
+ * inactive) shows by name for the value the field mounted with only (TaxRateField's
+ * rule). With no such account in the chart it shows `emptyText`, which gives way to the
+ * cell's error. With `showBalance`, the picked account's balance shows under the select,
+ * beside the cell's error too. The screen loads the accounts before the form mounts and
+ * shows their load error with its Retry, so this read is served from the store and has no
+ * loading or error state of its own.
  */
-export function DepositAccountField({
+export function DepositAccountSelect({
     fieldKey,
     label,
     value,
     onChange,
     disabled,
-}: BuiltinFieldProps) {
-    const { kind } = useDocumentFormScope()
+    emptyText,
+    showBalance,
+    testIds,
+    fallbackAccount,
+}: DepositAccountSelectProps) {
+    const { kind, currency } = useDocumentFormScope()
     const { rows } = useDepositAccounts()
     const [storedId] = useState(() => idOf(value))
     const { options, triggerLabel } = depositAccountOptions(rows, storedId)
     const { errors } = useFormState({ name: fieldKey })
     const hasFieldError = errors[fieldKey] !== undefined
     const isChartEmpty = options.length === 0 && !hasFieldError
-    // A form opened with no account (none in the chart then) shows the default rule's
-    // account once there is one; the save writes the same account (useDocumentSave).
-    const shown = idOf(value) || defaultDepositAccount(rows)
+    const shown = idOf(value) || (fallbackAccount?.(rows) ?? '')
+    const fieldTestId = `${kind.testId}-${testIds.field}`
     return (
-        <View testID={`${kind.testId}-deposit-to`}>
+        <View testID={fieldTestId}>
             <HostSelect
                 fieldKey={fieldKey}
                 label={label}
@@ -355,11 +418,58 @@ export function DepositAccountField({
                 options={options}
                 placeholder={triggerLabel || undefined}
             />
+            <DepositAccountBalance
+                isVisible={showBalance}
+                accountId={shown}
+                currency={currency}
+                testID={`${fieldTestId}-balance`}
+            />
             <NoAccountText
                 isVisible={isChartEmpty}
-                message={kind.messages.depositNone ?? ''}
-                testID={`${kind.testId}-deposit-error`}
+                message={emptyText}
+                testID={`${kind.testId}-${testIds.empty}`}
             />
         </View>
+    )
+}
+
+const DEPOSIT_TO_TEST_IDS = { field: 'deposit-to', empty: 'deposit-error' }
+const REFUND_FROM_TEST_IDS = { field: 'refund-from', empty: 'refund-from-error' }
+
+// The refund receipt's own empty chart text, so a change of the sales receipt's
+// text does not change Refund from.
+const REFUND_FROM_EMPTY_TEXT =
+    'Add a bank account or an Undeposited funds account to the chart of accounts'
+
+/**
+ * A sales receipt's Deposit to: DepositAccountSelect with no balance. A form opened with
+ * no account (none in the chart then) shows the default rule's account once there is
+ * one; the save writes the same account (useDocumentSave).
+ */
+export function DepositAccountField(props: BuiltinFieldProps) {
+    const { kind } = useDocumentFormScope()
+    return (
+        <DepositAccountSelect
+            {...props}
+            emptyText={kind.messages.depositNone ?? ''}
+            showBalance={false}
+            testIds={DEPOSIT_TO_TEST_IDS}
+            fallbackAccount={defaultDepositAccount}
+        />
+    )
+}
+
+/**
+ * A refund receipt's Refund from: DepositAccountSelect with the picked account's balance
+ * under it. It shows its value only: the form's start values choose the default account.
+ */
+export function RefundFromField(props: BuiltinFieldProps) {
+    return (
+        <DepositAccountSelect
+            {...props}
+            emptyText={REFUND_FROM_EMPTY_TEXT}
+            showBalance
+            testIds={REFUND_FROM_TEST_IDS}
+        />
     )
 }

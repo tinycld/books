@@ -18,7 +18,7 @@ import {
 // move. Beside an open document (the 320 px column, `isBeside`) next and previous have
 // only their arrow keys (sales-lists checkpoint 5 decision, 2026-11-17).
 
-const TABS: ListKeyAction[] = ['tab1', 'tab2', 'tab3', 'tab4', 'tab5', 'tab6']
+const TABS: ListKeyAction[] = ['tab1', 'tab2', 'tab3', 'tab4', 'tab5', 'tab6', 'tab7']
 const ROW_KEYS: ListKeyAction[] = ['next', 'previous', 'open', 'tick', 'tickAll']
 
 const ALL_ACTIONS: ListKeyAction[] = [
@@ -32,12 +32,12 @@ const ALL_ACTIONS: ListKeyAction[] = [
     ...TABS,
 ]
 
-// A writer on a wide list with rows and six tabs, no menu open, no document over the list.
+// A writer on a wide list with rows and seven tabs, no menu open, no document over the list.
 const WRITER = {
     showNew: true,
     showTicks: true,
     hasRows: true,
-    tabCount: 6,
+    tabCount: 7,
     isMenuOpen: false,
     isCovered: false,
 }
@@ -79,6 +79,7 @@ describe('LIST_KEYS', () => {
             tab4: ['4'],
             tab5: ['5'],
             tab6: ['6'],
+            tab7: ['7'],
         }
         expect(sorted(Object.keys(LIST_KEYS))).toEqual(sorted(ALL_ACTIONS))
         for (const action of ALL_ACTIONS) {
@@ -98,6 +99,15 @@ describe('LIST_KEYS', () => {
             tickAll: 'Select all',
             new: 'New',
         })
+    })
+
+    // TAB_ACTIONS is the module's own list: more tabs than it holds offer its seven.
+    it('has seven tab actions, key 7 the Refund receipts tab', () => {
+        const offered = offeredListKeys({ ...WRITER, tabCount: 10 })
+        expect(offered.filter(action => action.startsWith('tab'))).toEqual(TABS)
+        expect([...LIST_KEYS.tab7]).toEqual(['7'])
+        // A tab key reads its label from the area (`listShortcutInput`).
+        expect(listShortcutInput(LIST_AREAS.sales).tabLabels[6]).toBe('Refund receipts')
     })
 })
 
@@ -127,7 +137,7 @@ describe('offeredListKeys', () => {
         expect(sorted(offered)).toEqual(sorted(['search', 'new', ...TABS]))
     })
 
-    it('gives tab1 to tab6 for six tabs', () => {
+    it('gives tab1 to tab7 for seven tabs', () => {
         const offered = offeredListKeys(WRITER)
         for (const tab of TABS) expect(offered, tab).toContain(tab)
     })
@@ -170,6 +180,7 @@ describe('listShortcutInput', () => {
                 'Sales receipts',
                 'Payments',
                 'Credit memos',
+                'Refund receipts',
             ],
         })
     })
@@ -304,6 +315,7 @@ describe('listShortcuts', () => {
             '4': 'Sales receipts',
             '5': 'Payments',
             '6': 'Credit memos',
+            '7': 'Refund receipts',
         })
         for (const s of shortcuts) {
             expect(s.scope, s.keys).toBe('list')
@@ -383,7 +395,7 @@ describe('listShortcuts', () => {
             ...others.flatMap(action => [...LIST_KEYS[action]]),
         ]
         expect(sorted(keys)).toEqual(sorted(expectedKeys))
-        for (const key of ['/', 'Enter', 'o', 'n', '1', '2', '3', '4', '5', '6']) {
+        for (const key of ['/', 'Enter', 'o', 'n', '1', '2', '3', '4', '5', '6', '7']) {
             expect(keys, key).toContain(key)
         }
     })

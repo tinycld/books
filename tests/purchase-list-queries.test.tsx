@@ -204,6 +204,7 @@ function seedList(data: Data = {}) {
         books_sales_receipts: heldOnDemandStore('books_sales_receipts', []),
         books_payments: heldOnDemandStore('books_payments', []),
         books_credit_memos: heldOnDemandStore('books_credit_memos', []),
+        books_refund_receipts: heldOnDemandStore('books_refund_receipts', []),
         books_customers: heldOnDemandStore('books_customers', []),
     }
     const products = heldOnDemandStore('books_products', [PRODUCT])

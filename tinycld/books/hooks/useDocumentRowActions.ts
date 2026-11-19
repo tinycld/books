@@ -15,6 +15,7 @@ import {
     CREDIT_MEMO_KIND,
     ESTIMATE_KIND,
     INVOICE_KIND,
+    REFUND_RECEIPT_KIND,
     SALES_RECEIPT_KIND,
     type SalesDocumentKind,
 } from '../lib/sales-document-kinds'
@@ -30,6 +31,7 @@ const PDF_KINDS: Partial<Record<TransactionKind, Pick<SalesDocumentKind, 'key' |
     estimate: ESTIMATE_KIND,
     sales_receipt: SALES_RECEIPT_KIND,
     credit_memo: CREDIT_MEMO_KIND,
+    refund_receipt: REFUND_RECEIPT_KIND,
 }
 
 type DialogAction = RowDialog['action']
@@ -49,7 +51,7 @@ function isStillOffered(
 }
 
 interface RowActionsInput {
-    // The tab of the list: its dialog shows only on its own list.
+    // The mounted list that opens the dialog: its dialog shows only on that list.
     listKey: string
     rows: readonly DocumentListRow[]
     canWrite: boolean

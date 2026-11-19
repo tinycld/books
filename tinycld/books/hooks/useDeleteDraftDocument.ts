@@ -12,12 +12,13 @@ export function useDeleteDraftDocument(): (
     kind: Exclude<ListKind, 'bill_payment'>,
     id: string
 ) => Transaction {
-    const [invoices, estimates, receipts, payments, memos] = useStore(
+    const [invoices, estimates, receipts, payments, memos, refunds] = useStore(
         'books_invoices',
         'books_estimates',
         'books_sales_receipts',
         'books_payments',
-        'books_credit_memos'
+        'books_credit_memos',
+        'books_refund_receipts'
     )
     const [bills, expenses, vendorCredits, vendorRefunds] = useStore(
         'books_bills',
@@ -37,6 +38,8 @@ export function useDeleteDraftDocument(): (
                 return payments.delete(id)
             case 'credit_memo':
                 return memos.delete(id)
+            case 'refund_receipt':
+                return refunds.delete(id)
             case 'bill':
                 return bills.delete(id)
             case 'expense':

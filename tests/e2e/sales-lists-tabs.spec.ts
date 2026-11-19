@@ -33,7 +33,14 @@ import {
 const DASH = '—'
 const WIDE = { width: 1440, height: 900 }
 const MID = { width: 900, height: 800 }
-const NEW_ITEMS = ['invoice', 'estimate', 'sales-receipt', 'payment', 'credit-memo']
+const NEW_ITEMS = [
+    'invoice',
+    'estimate',
+    'sales-receipt',
+    'payment',
+    'credit-memo',
+    'refund-receipt',
+]
 
 function visible(page: Page, testId: string) {
     return page.getByTestId(testId).filter({ visible: true })
@@ -125,7 +132,7 @@ test.describe('sales-lists: tabs and rows', () => {
         await expect(card).toContainText(name)
         await expect(card).not.toContainText(DASH)
 
-        // New on All sales is a menu of the five kinds.
+        // New on All sales is a menu of the six kinds.
         const newButton = visible(page, 'sales-new')
         await expect(newButton).toHaveText('New')
         await newButton.click()

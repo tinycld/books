@@ -966,6 +966,33 @@ func TestProduct_DeleteRefusedWhileOnCreditMemoLines(t *testing.T) {
 	requireProductCount(t, app, 1)
 }
 
+// Refund receipt spec §3.13: a product on a refund receipt line cannot be
+// deleted; the count is of refund receipts, not of lines.
+func TestProduct_DeleteRefusedWhileOnRefundReceiptLines(t *testing.T) {
+	app := newGuardedApp(t)
+	cable := mkService(t, app, "Patch cable", mkIncomeAccount(t, app))
+	customer := mkCustomer(t, app, "Harborview Dental", "")
+	bank := mkNumberedAccount(t, app, "Business Checking", "1000", "bank", "checking")
+	line := func(refund *core.Record, position int) {
+		t.Helper()
+		saveRecord(t, app, "books_refund_receipt_lines", map[string]any{
+			"refund_receipt": refund.Id, "kind": "item", "product": cable.Id, "quantity": 1, "rate": 875, "position": position,
+		})
+	}
+	first := mkRefundReceiptRow(t, app, customer, bank, nil)
+	line(first, 0)
+	line(first, 1)
+	requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_products", cable.Id)),
+		"This product or service is on 1 refund receipt. Make it inactive instead.")
+	requireProductCount(t, app, 1)
+
+	second := mkRefundReceiptRow(t, app, nil, bank, map[string]any{"status": "posted", "number": "1001"})
+	line(second, 0)
+	requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_products", cable.Id)),
+		"This product or service is on 2 refund receipts. Make it inactive instead.")
+	requireProductCount(t, app, 1)
+}
+
 // Spec §3.11: a product on an estimate line cannot be deleted; the count is of
 // estimates, not of lines.
 func TestProduct_DeleteRefusedWhileOnEstimateLines(t *testing.T) {

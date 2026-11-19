@@ -36,8 +36,8 @@
 // because an estimate never posts. Bills number on their own from 1001 with no
 // prefix (booksseqbill000), and so do expenses (booksseqexpense), received
 // payments (booksseqpayment), bill payments (booksseqbillpay), credit memos
-// (booksseqcreditm), vendor credits (booksseqvcredit) and vendor refunds
-// (booksseqvrefund).
+// (booksseqcreditm), vendor credits (booksseqvcredit), vendor refunds
+// (booksseqvrefund) and refund receipts (booksseqrefundr).
 //
 // books_close_overrides lets one user post into the closed period until an
 // expiry, with a reason. It is the log of that permission, so it is never
@@ -150,6 +150,7 @@ migrate(
                         'credit_memo',
                         'vendor_credit',
                         'vendor_refund',
+                        'refund_receipt',
                     ],
                 },
                 { name: 'prefix', type: 'text', max: 10, pattern: '^[A-Za-z0-9-]*$' },
@@ -238,6 +239,12 @@ migrate(
         vendorRefund.set('prefix', '')
         vendorRefund.set('next_number', 1001)
         app.save(vendorRefund)
+        const refundReceipt = new Record(sequences)
+        refundReceipt.set('id', 'booksseqrefundr')
+        refundReceipt.set('doc_type', 'refund_receipt')
+        refundReceipt.set('prefix', '')
+        refundReceipt.set('next_number', 1001)
+        app.save(refundReceipt)
 
         app.save(
             new Collection({

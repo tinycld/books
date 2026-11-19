@@ -61,7 +61,8 @@ describe('help/customer-pages.md', () => {
     })
 
     // Credit memo §3.10: the Transactions tab's fifth kind, its chip and its statuses.
-    it('names the Credit memos chip and the statuses Unapplied and Applied', () => {
+    // Refund receipt §3.12: a credit memo with no credit left reads Refunded, not Applied.
+    it('names the Credit memos chip and the statuses Unapplied and Refunded', () => {
         expect(exists).toBe(true)
         expect(body).toMatch(/\bCredit memos\b/)
         const sentences = body.split(/(?<=[.!?])\s+/)
@@ -70,8 +71,20 @@ describe('help/customer-pages.md', () => {
             'a sentence naming a credit memo and Unapplied'
         ).toBe(true)
         expect(
-            sentences.some(s => /\bcredit memos?\b/i.test(s) && /\bApplied\b/.test(s)),
-            'a sentence naming a credit memo and Applied'
+            sentences.some(s => /\bcredit memos?\b/i.test(s) && /\bRefunded\b/.test(s)),
+            'a sentence naming a credit memo and Refunded'
+        ).toBe(true)
+    })
+
+    // Refund receipt §3.13: the Transactions tab's sixth kind, its chip and its statuses.
+    it('names the Refunds chip and the Refund receipt kind', () => {
+        expect(exists).toBe(true)
+        expect(body).toMatch(/\bRefunds\b/)
+        expect(body).toMatch(/\bRefund receipts?\b/)
+        const sentences = body.split(/(?<=[.!?])\s+/)
+        expect(
+            sentences.some(s => /\brefund receipts?\b/i.test(s) && /\bOpen\b/.test(s)),
+            'a sentence saying how a refund changes Open'
         ).toBe(true)
     })
 

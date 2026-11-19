@@ -6,7 +6,7 @@ import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { useDebouncedValue } from '@tinycld/core/lib/use-debounced-value'
 import { useUrl } from '@tinycld/core/lib/use-url'
 import { router, useFocusEffect, useIsFocused } from 'expo-router'
-import { useCallback, useState } from 'react'
+import { useCallback, useId, useState } from 'react'
 import type { LayoutChangeEvent } from 'react-native'
 import type { ListLayout } from '../lib/detail-surface'
 import {
@@ -148,7 +148,13 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     const hasCategory = tab.columns.includes('category')
     const categories = usePurchaseCategories(hasCategory ? documentList.rows : NO_ROWS)
     const newMenu = useNewMenu()
-    useBlurCleanup(stateKey)
+    // The row and batch dialogs belong to this mounted list, not to its tab: a tab press
+    // replaces the list area's screen with a new list route while a route pushed earlier
+    // can still hold a list of the same tab under it, and only the list that opened a
+    // dialog draws it. The list stays mounted when its layout changes, so the key holds
+    // while a write runs.
+    const listKey = `${stateKey}:${useId()}`
+    useBlurCleanup(listKey)
     const { width, onListLayout } = useListWidth()
 
     const canWrite = access.canWrite
@@ -220,12 +226,12 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     const loadedIds = list.rows.map(row => row.id)
     const selection = useListSelection(scope, loadedIds)
     const rowActions = useDocumentRowActions({
-        listKey: stateKey,
+        listKey,
         rows: list.rows,
         canWrite,
         openRow,
     })
-    const batch = useDocumentBatch({ listKey: stateKey, rows: list.rows, selection })
+    const batch = useDocumentBatch({ listKey, rows: list.rows, selection })
     // A row action's refusal or a batch's result; the list's load error shows before it.
     const actionBanner = useDocumentListStore(state => state.banner)
 

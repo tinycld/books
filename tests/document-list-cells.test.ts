@@ -137,6 +137,40 @@ describe('cellText', () => {
     })
 })
 
+// Refund receipt spec §3.13: a refund's amount shows with a minus sign on its own tab and
+// on All sales; refundReceiptRow carries its stored total negated.
+describe('a refund receipt row', () => {
+    const REFUNDS = salesTabOf('refund-receipts')
+    const refund = listRow({
+        kind: 'refund_receipt',
+        number: '1003',
+        sequence: 1003,
+        partyName: 'Harborview Hospitality Group',
+        total: -15_000,
+        status: { label: 'Refunded', tone: 'success' },
+    })
+
+    it('shows its total as −$150.00 on the Refund receipts tab', () => {
+        expect(cellText(refund, 'total', REFUNDS, 'USD')).toBe(`${MINUS}$150.00`)
+    })
+
+    it('shows its amount as −$150.00 on All sales and its type as Refund receipt', () => {
+        expect(cellText(refund, 'amount', ALL, 'USD')).toBe(`${MINUS}$150.00`)
+        expect(cellText(refund, 'type', ALL, 'USD')).toBe('Refund receipt')
+    })
+
+    it('shows −$150.00 on its card on both tabs', () => {
+        expect(cardLines(refund, REFUNDS, 'USD').amount).toBe(`${MINUS}$150.00`)
+        expect(cardLines(refund, ALL, 'USD').amount).toBe(`${MINUS}$150.00`)
+    })
+
+    it('shows a zero total with no sign', () => {
+        const zero = listRow({ kind: 'refund_receipt', total: 0 })
+        expect(cellText(zero, 'total', REFUNDS, 'USD')).toBe('$0.00')
+        expect(cellText(zero, 'amount', ALL, 'USD')).toBe('$0.00')
+    })
+})
+
 describe('cardLines', () => {
     it('on All sales gives type and number, then customer and date, with the amount', () => {
         const lines = cardLines(posted, ALL, 'USD')

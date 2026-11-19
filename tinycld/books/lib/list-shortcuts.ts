@@ -20,6 +20,7 @@ export type ListKeyAction =
     | 'tab4'
     | 'tab5'
     | 'tab6'
+    | 'tab7'
 
 // Key names as tinykeys reads them (core lib/shortcuts/matcher.ts): `event.key` or
 // `event.code`, case ignored.
@@ -37,9 +38,10 @@ export const LIST_KEYS: Record<ListKeyAction, readonly string[]> = {
     tab4: ['4'],
     tab5: ['5'],
     tab6: ['6'],
+    tab7: ['7'],
 }
 
-const TAB_ACTIONS = ['tab1', 'tab2', 'tab3', 'tab4', 'tab5', 'tab6'] as const
+const TAB_ACTIONS = ['tab1', 'tab2', 'tab3', 'tab4', 'tab5', 'tab6', 'tab7'] as const
 
 type TabKeyAction = (typeof TAB_ACTIONS)[number]
 
