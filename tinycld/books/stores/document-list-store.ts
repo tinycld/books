@@ -19,8 +19,9 @@ type TabState = { filters: DocumentListFilters; sort: ListSort }
 type Scoped<T> = { scope: string } & T
 
 // A row menu's Void or Delete draft dialog. `row` is the row as it was when the dialog
-// opened, so its words stay while the write changes the row under it; `listKey` is the tab
-// whose list opened it, so a list mounted under another one does not draw it too.
+// opened, so its words stay while the write changes the row under it; `listKey` is the
+// mounted list that opened it (its tab and an id of that list), so another list of the
+// same tab mounted under it does not draw it too.
 export type RowDialog = {
     listKey: string
     action: 'void' | 'delete_draft'
@@ -30,8 +31,9 @@ export type RowDialog = {
 
 export type BatchCounts = { applies: number; skipped: number }
 
-// The open Batch actions dialog of the tab `listKey`; `running` holds the counts it showed
-// when its confirm was pressed, so its words stay while the writes change the rows.
+// The open Batch actions dialog of the list that opened it (`listKey`); `running` holds the
+// counts it showed when its confirm was pressed, so its words stay while the writes change the
+// rows.
 export type BatchDialog = {
     listKey: string
     action: BatchAction

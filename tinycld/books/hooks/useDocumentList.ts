@@ -29,6 +29,7 @@ import {
     estimateRow,
     invoiceRow,
     paymentRow,
+    refundReceiptRow,
     salesReceiptRow,
     TRANSACTION_PAGE,
 } from '../lib/party-transactions'
@@ -81,6 +82,7 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
         receiptsCollection,
         paymentsCollection,
         creditMemosCollection,
+        refundsCollection,
         customersCollection,
     ] = useStore(
         'books_invoices',
@@ -88,6 +90,7 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
         'books_sales_receipts',
         'books_payments',
         'books_credit_memos',
+        'books_refund_receipts',
         'books_customers'
     )
     const settings = useBooksSettings()
@@ -125,6 +128,7 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
     const runsReceipts = chipRuns(tab, chip, 'sales_receipt')
     const runsPayments = chipRuns(tab, chip, 'payment')
     const runsCreditMemos = chipRuns(tab, chip, 'credit_memo')
+    const runsRefunds = chipRuns(tab, chip, 'refund_receipt')
 
     const invoicesQuery = useLiveQuery({
         query: q => {
@@ -277,12 +281,43 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
         },
         queryKey: queryKey('credit-memos', runsCreditMemos),
     })
+    const refundsQuery = useLiveQuery({
+        query: q => {
+            if (!runsRefunds) return undefined
+            const field = sortField('refund_receipt', sort.key)
+            return q
+                .from({ f: refundsCollection })
+                .where(({ f }) =>
+                    allOf([
+                        listedClause(f),
+                        ...optional(chipClause(tab, chip, 'refund_receipt', f, today)),
+                        ...rangeClauses(f, range),
+                        ...(hasCustomer ? [eq(f.customer, customer)] : []),
+                        ...searchClauses(f, search),
+                    ])
+                )
+                .orderBy(({ f }) => f[field], kindDirection(tab, 'refund_receipt', sort))
+                .orderBy(({ f }) => f.created, 'desc')
+                .limit(n)
+                .select(({ f }) => ({
+                    ...f,
+                    customerRow: materialize(
+                        q
+                            .from({ c: customersCollection })
+                            .where(({ c }) => eq(c.id, f.customer))
+                            .findOne()
+                    ),
+                }))
+        },
+        queryKey: queryKey('refund-receipts', runsRefunds),
+    })
 
     const invoices = runsInvoices ? invoicesQuery.data : undefined
     const estimates = runsEstimates ? estimatesQuery.data : undefined
     const receipts = runsReceipts ? receiptsQuery.data : undefined
     const payments = runsPayments ? paymentsQuery.data : undefined
     const creditMemos = runsCreditMemos ? creditMemosQuery.data : undefined
+    const refunds = runsRefunds ? refundsQuery.data : undefined
     const isSigned = tab.isSigned
     const merged = useMemo(() => {
         const invoiceRows: DocumentListRow[] = (invoices ?? []).map(row => ({
@@ -317,24 +352,35 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
             balance: row.balance,
             entry: row.entry,
         }))
+        // refundReceiptRow negates the total on every tab: a refund always shows with a
+        // minus sign (refund receipt spec §3.13).
+        const refundRows: DocumentListRow[] = (refunds ?? []).map(row => ({
+            ...refundReceiptRow(row),
+            ...extraFields(row),
+            reference: row.reference_no,
+            entry: row.entry,
+            creditMemo: row.credit_memo,
+        }))
         return documentListWindow(
-            [invoiceRows, estimateRows, receiptRows, paymentRows, creditMemoRows],
+            [invoiceRows, estimateRows, receiptRows, paymentRows, creditMemoRows, refundRows],
             n,
             sort
         )
-    }, [invoices, estimates, receipts, payments, creditMemos, today, n, sort, isSigned])
+    }, [invoices, estimates, receipts, payments, creditMemos, refunds, today, n, sort, isSigned])
 
     const invoicesError = runsInvoices && invoicesQuery.isError
     const estimatesError = runsEstimates && estimatesQuery.isError
     const receiptsError = runsReceipts && receiptsQuery.isError
     const paymentsError = runsPayments && paymentsQuery.isError
     const creditMemosError = runsCreditMemos && creditMemosQuery.isError
+    const refundsError = runsRefunds && refundsQuery.isError
     const anyError =
         invoicesError ||
         estimatesError ||
         receiptsError ||
         paymentsError ||
         creditMemosError ||
+        refundsError ||
         settings.hasLoadError
     const isPending =
         (runsInvoices && !invoicesQuery.isReady && !invoicesQuery.isError) ||
@@ -342,6 +388,7 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
         (runsReceipts && !receiptsQuery.isReady && !receiptsQuery.isError) ||
         (runsPayments && !paymentsQuery.isReady && !paymentsQuery.isError) ||
         (runsCreditMemos && !creditMemosQuery.isReady && !creditMemosQuery.isError) ||
+        (runsRefunds && !refundsQuery.isReady && !refundsQuery.isError) ||
         (!settings.isReady && !settings.hasLoadError)
     // The settings read gives the currency every amount draws in, so the rows wait for it.
     const isReady =
@@ -350,6 +397,7 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
         (!runsReceipts || receiptsQuery.isReady) &&
         (!runsPayments || paymentsQuery.isReady) &&
         (!runsCreditMemos || creditMemosQuery.isReady) &&
+        (!runsRefunds || refundsQuery.isReady) &&
         settings.isReady
 
     // A larger window, a filter or a sort is a new query: the rows of the last ready
@@ -394,6 +442,7 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
         recoveryOf(receiptsError, receiptsQuery.collection, receiptsCollection),
         recoveryOf(paymentsError, paymentsQuery.collection, paymentsCollection),
         recoveryOf(creditMemosError, creditMemosQuery.collection, creditMemosCollection),
+        recoveryOf(refundsError, refundsQuery.collection, refundsCollection),
         settings.recovery,
     ])
     const retry = () => {

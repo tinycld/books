@@ -3,11 +3,11 @@ import { useNavigationState } from 'expo-router/react-navigation'
 import { createContext, useContext, useMemo } from 'react'
 import { screenBelowRoute } from '../../lib/stack-screens'
 
-// Navigation plumbing for the screens of one kind's child stack (SalesKindLayout, and the
-// refund receipts' layout, provide it): the kind route's name in the Books root stack and
-// the top screen of the root route below it (`belowName` is '' when nothing is below). A
-// screen of the child stack cannot read the root stack's state at render, so the layout, a
-// root screen, reads it for them. It is not shared UI state.
+// Navigation plumbing for the screens of one kind's child stack (SalesKindLayout provides
+// it): the kind route's name in the Books root stack and the top screen of the root route
+// below it (`belowName` is '' when nothing is below). A screen of the child stack cannot read
+// the root stack's state at render, so the layout, a root screen, reads it for them. It is
+// not shared UI state.
 export type KindStack = { kindRoute: string; belowName: string; belowId: string }
 
 export const KindStackContext = createContext<KindStack | null>(null)

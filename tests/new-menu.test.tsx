@@ -197,6 +197,13 @@ describe('NewMenu', () => {
         )
     })
 
+    // Refund receipt spec §3.13: the customer page's New transaction menu lists it.
+    it('gives the refund_receipt action takesCustomer', () => {
+        expect(NEW_ACTIONS.find(action => action.id === 'refund_receipt')).toMatchObject({
+            takesCustomer: true,
+        })
+    })
+
     it('draws only the heading of a single non-empty column', () => {
         renderOpenMenu(columns.filter(column => column.heading === 'Vendors'))
         expect(screen.getByText('Vendors')).toBeTruthy()

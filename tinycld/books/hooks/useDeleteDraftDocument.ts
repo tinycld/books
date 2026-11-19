@@ -9,12 +9,13 @@ import type { TransactionKind } from '../lib/party-transactions'
  * generator to yield.
  */
 export function useDeleteDraftDocument(): (kind: TransactionKind, id: string) => Transaction {
-    const [invoices, estimates, receipts, payments, memos] = useStore(
+    const [invoices, estimates, receipts, payments, memos, refunds] = useStore(
         'books_invoices',
         'books_estimates',
         'books_sales_receipts',
         'books_payments',
-        'books_credit_memos'
+        'books_credit_memos',
+        'books_refund_receipts'
     )
     return (kind, id) => {
         switch (kind) {
@@ -28,6 +29,8 @@ export function useDeleteDraftDocument(): (kind: TransactionKind, id: string) =>
                 return payments.delete(id)
             case 'credit_memo':
                 return memos.delete(id)
+            case 'refund_receipt':
+                return refunds.delete(id)
         }
     }
 }

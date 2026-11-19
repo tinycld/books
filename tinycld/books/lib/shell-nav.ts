@@ -40,7 +40,7 @@ export interface NewMenuColumn {
 
 export const SIDEBAR_ENTRIES: SidebarEntry[] = [
     { id: 'banking', label: 'Banking', icon: Landmark, href: 'books/banking', available: true },
-    // All sales; the five kind tabs and every sales document keep the entry active.
+    // All sales; the six kind tabs and every sales document keep the entry active.
     {
         id: 'sales',
         label: 'Sales',
@@ -52,6 +52,7 @@ export const SIDEBAR_ENTRIES: SidebarEntry[] = [
             'books/sales-receipts',
             'books/payments',
             'books/credit-memos',
+            'books/refund-receipts',
         ],
         available: true,
     },
@@ -188,10 +189,10 @@ export function isActivePath(pathname: string, entry: SidebarEntry): boolean {
 // estimate, bill, expense, vendor credit, vendor refund, payment and bill payment views
 // own the bottom of the phone screen, so the New button stays off them. A bare path is a
 // list (`/entries`, `/customers`, `/vendors`, `/products`, and the Sales lists
-// `/invoices`, `/estimates`, `/sales-receipts`, `/payments`, `/credit-memos`), which keeps
-// it, or no screen at all (transfers, bills, expenses, vendor credits, vendor refunds and
-// bill payments have no list; `/refund-receipts` redirects to the Sales list). Pay Bills
-// has no id: `/pay-bills` itself is the form.
+// `/invoices`, `/estimates`, `/sales-receipts`, `/payments`, `/credit-memos`,
+// `/refund-receipts`), which keeps it, or no screen at all (transfers, bills, expenses,
+// vendor credits, vendor refunds and bill payments have no list). Pay Bills has no id:
+// `/pay-bills` itself is the form.
 const FAB_FREE_SCREEN =
     /\/books\/((entries|customers|vendors|products|transfers|invoices|sales-receipts|credit-memos|refund-receipts|estimates|bills|expenses|vendor-credits|vendor-refunds|payments|bill-payments)\/[^/]+|pay-bills)\/?$/
 

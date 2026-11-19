@@ -44,6 +44,7 @@ function relayTo(ref: RefObject<KeyHandlers>): KeyHandlers {
         tab4: () => ref.current.tab4(),
         tab5: () => ref.current.tab5(),
         tab6: () => ref.current.tab6(),
+        tab7: () => ref.current.tab7(),
     }
 }
 
@@ -103,6 +104,7 @@ export function useListShortcuts(input: {
         tab4: () => goToTab(3),
         tab5: () => goToTab(4),
         tab6: () => goToTab(5),
+        tab7: () => goToTab(6),
     }
     const runRef = useRef(run)
     runRef.current = run

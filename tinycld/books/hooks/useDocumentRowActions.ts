@@ -6,11 +6,13 @@ import type { DocumentListRow } from '../lib/document-list'
 import { documentRowMenuItems, type RowMenuAction, rowActionHref } from '../lib/document-row-menu'
 import { TRANSACTION_TYPE_LABELS, type TransactionKind } from '../lib/party-transactions'
 import { PAYMENT_MESSAGES } from '../lib/payment-texts'
+import { payoutVoidBodyOf } from '../lib/refund-payout'
 import { writeRefusalText } from '../lib/refusal'
 import {
     CREDIT_MEMO_KIND,
     ESTIMATE_KIND,
     INVOICE_KIND,
+    REFUND_RECEIPT_KIND,
     SALES_RECEIPT_KIND,
     type SalesDocumentKind,
 } from '../lib/sales-document-kinds'
@@ -25,9 +27,19 @@ const PDF_KINDS: Partial<Record<TransactionKind, Pick<SalesDocumentKind, 'key' |
     estimate: ESTIMATE_KIND,
     sales_receipt: SALES_RECEIPT_KIND,
     credit_memo: CREDIT_MEMO_KIND,
+    refund_receipt: REFUND_RECEIPT_KIND,
 }
 
 type DialogAction = RowDialog['action']
+
+// The Void dialog's body: a payment's own text; a payout's says its credit memo's credit
+// is unapplied again, as its read view does (payoutVoidBodyOf); every other row shows the
+// dialog's own text.
+function voidBodyOf(row: DocumentListRow | undefined): string | undefined {
+    if (row?.kind === 'payment') return PAYMENT_MESSAGES.voidBody
+    if (row?.kind === 'refund_receipt') return payoutVoidBodyOf(row.creditMemo ?? '')
+    return undefined
+}
 
 // A dialog shows while its row is listed and its menu still offers the action, or while
 // its own write runs: a row voided, posted or deleted elsewhere closes it.
@@ -44,7 +56,7 @@ function isStillOffered(
 }
 
 interface RowActionsInput {
-    // The tab of the list: its dialog shows only on its own list.
+    // The mounted list that opens the dialog: its dialog shows only on that list.
     listKey: string
     rows: readonly DocumentListRow[]
     canWrite: boolean
@@ -129,7 +141,7 @@ export function useDocumentRowActions({ listKey, rows, canWrite, openRow }: RowA
 
     const voidRow = target?.row
     const noun = voidRow === undefined ? '' : TRANSACTION_TYPE_LABELS[voidRow.kind].toLowerCase()
-    const voidBody = voidRow?.kind === 'payment' ? PAYMENT_MESSAGES.voidBody : undefined
+    const voidBody = voidBodyOf(voidRow)
     const isVoidOffered = isStillOffered(target, 'void', rows, canWrite)
     const isDeleteOffered = isStillOffered(target, 'delete_draft', rows, canWrite)
     // Marked running, so the list's blur cleanup leaves the dialog to its write.

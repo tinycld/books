@@ -663,6 +663,24 @@ describe('help/reports.md', () => {
         })
     })
 
+    // Refund receipt §3.13 (Q10, Q11): a plain refund lowers sales and sales tax; a payout of
+    // a credit memo brings back the memo on the Cash method on the refund date.
+    describe('refund receipts', () => {
+        const sentences = body.split(/(?<=[.!?])\s+/)
+        const oneSentence = (...phrases: RegExp[]) =>
+            sentences.some(sentence => phrases.every(phrase => phrase.test(sentence)))
+
+        it('names refund receipts in a sentence on what they lower', () => {
+            expect(
+                oneSentence(/\brefund receipts?\b/i, /\b(less|lowers?|subtract(s|ed)?)\b/i)
+            ).toBe(true)
+        })
+
+        it('no longer says that Books cannot yet refund a credit', () => {
+            expect(body).not.toMatch(/\bcannot yet\b[^.]*\brefund/i)
+        })
+    })
+
     it('"Who sees Books reports" names the Profit and Loss, the Profit and Loss by Month and Transaction Detail by Account', () => {
         const who = section('## Who sees Books reports')
         expect(who).toContain('Profit and Loss by Month')

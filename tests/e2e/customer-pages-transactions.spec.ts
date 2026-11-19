@@ -116,7 +116,6 @@ test.describe('customer-pages: transactions tab', () => {
         const transactionsTab = page.getByTestId('customer-tab-transactions')
         const prefix = uniqueName('Transactions')
         const name = `${prefix} A`
-        const nameB = `${prefix} B`
         const service = nonTaxableService()
 
         // A new customer opens on Transactions, empty, with New transaction.
@@ -238,10 +237,16 @@ test.describe('customer-pages: transactions tab', () => {
             'true'
         )
         await expect.poll(() => transactionIds(page)).toEqual(allIds)
+    })
+
+    test('a customer with only an invoice shows no estimates, and Show all', async ({ page }) => {
+        await openBooks(page, DESKTOP)
+        const nameB = `${uniqueName('Transactions')} B`
 
         // A customer with only an invoice: the Estimates chip has no match; Show all.
         await createCustomer(page, { name: nameB })
         const idB = openCustomerId(page)
+        const today = await localToday(page)
         await startTransaction(page, 'customer-new-invoice', 'invoices', idB)
         await fillInvoice(page, { dueDate: today, rate: '150.00' })
         const { id: invoiceB } = await postInvoice(page)
