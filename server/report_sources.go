@@ -123,6 +123,9 @@ func reportSources() []reports.Source {
 			Links: []reports.Link{
 				{Key: "parent", Label: "Parent customer", Target: "books.customers", Cardinality: reports.ToOne, Field: "parent"},
 				{Key: "sub_customers", Label: "Sub-customers", Target: "books.customers", Cardinality: reports.ToMany, BackField: "parent"},
+				// The A/R Aging's family level reads it (arGroups): which
+				// sub-customers have a receivable row, settled or not.
+				{Key: "receivable_items", Label: "Receivable items", Target: "books.receivable_items", Cardinality: reports.ToMany, BackField: "customer"},
 			},
 		},
 		{
@@ -166,6 +169,7 @@ func reportSources() []reports.Source {
 			},
 		},
 		basisLinesSource(),
+		receivableItemsSource(),
 		salesDocumentsSource(),
 		salesTaxLinesSource(),
 		salesLinesSource(),
@@ -243,6 +247,45 @@ func basisLinesSource() reports.Source {
 			{Key: "account", Label: "Account", Target: "books.accounts", Cardinality: reports.ToOne, Field: "account"},
 			{Key: "customer", Label: "Customer", Target: "books.customers", Cardinality: reports.ToOne, Field: "customer"},
 			{Key: "vendor", Label: "Vendor", Target: "books.vendors", Cardinality: reports.ToOne, Field: "vendor"},
+		},
+	}
+}
+
+// receivableItemsSource is every part of every receivable item (A/R Aging
+// spec §4), the stored rows of books_receivable_items: the posted A/R lines,
+// with a payment's own line at its unapplied part, and the applications of
+// posted payments. item is the item a row belongs to; a report groups by it
+// to add up an item's open amount. settled is the day the item's balance
+// stays zero from (9999-12-31 while it is open): a report of one day reads
+// the rows with settled after that day and never the paid history.
+func receivableItemsSource() reports.Source {
+	return reports.Source{
+		Key: "books.receivable_items", Collection: receivableItemsCollection, Label: "Receivable items",
+		Fields: []reports.Field{
+			{Key: "date", Label: "Date", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
+			{Key: "due_date", Label: "Due date", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
+			// Text, not Date: the engine compares a text field as the bare
+			// column, so idx_books_receivable_items_settled serves the filter.
+			// A Date field is wrapped in substr and NULLIF, which no index serves.
+			{Key: "settled", Label: "Settled", Type: reports.Text},
+			{Key: "debit", Label: "Debit", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "credit", Label: "Credit", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "currency", Label: "Currency", Type: reports.Text},
+			{Key: "item", Label: "Item", Type: reports.Text},
+			{Key: "item_kind", Label: "Item type", Type: reports.Select, Options: []reports.Option{
+				{Value: "invoice", Label: "Invoice"},
+				{Value: "payment", Label: "Payment"},
+				{Value: "credit_memo", Label: "Credit memo"},
+				{Value: "entry", Label: "Journal entry"},
+			}},
+			{Key: "item_number", Label: "Number", Type: reports.Text, Aggregates: reports.MinMax},
+			// The integer item_number formats (server/numbering.go): items sort
+			// by it, since "JE-10" sorts before "JE-9" as text.
+			{Key: "item_seq", Label: "Sequence", Type: reports.Number, Aggregates: reports.MinMax},
+		},
+		Links: []reports.Link{
+			{Key: "customer", Label: "Customer", Target: "books.customers", Cardinality: reports.ToOne, Field: "customer"},
+			{Key: "entry", Label: "Entry", Target: "books.journal_entries", Cardinality: reports.ToOne, Field: "entry"},
 		},
 	}
 }

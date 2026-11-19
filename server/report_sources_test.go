@@ -55,6 +55,7 @@ var booksSourceKeys = []string{
 	"books.journal_entries",
 	"books.journal_lines",
 	"books.products",
+	"books.receivable_items",
 	"books.sales_documents",
 	"books.sales_lines",
 	"books.sales_tax_lines",
@@ -313,6 +314,7 @@ func expectedCatalog(t *testing.T) []wantSource {
 			links: []wantLink{
 				toOne("parent", "books.customers", "parent"),
 				toMany("sub_customers", "books.customers", "parent"),
+				toMany("receivable_items", "books.receivable_items", "customer"),
 			},
 		},
 		{
@@ -515,6 +517,28 @@ func expectedCatalog(t *testing.T) []wantSource {
 			},
 		},
 		{
+			// The stored receivable items (A/R Aging spec §4).
+			key: "books.receivable_items", collection: "books_receivable_items", label: "Receivable items",
+			fields: []wantField{
+				{key: "date", typ: reports.Date, textDay: true, aggs: reports.MinMax},
+				{key: "due_date", typ: reports.Date, textDay: true, aggs: reports.MinMax},
+				money("debit"), money("credit"), text("currency"), text("item"),
+				{key: "item_kind", typ: reports.Select, options: []reports.Option{
+					{Value: "invoice", Label: "Invoice"}, {Value: "payment", Label: "Payment"},
+					{Value: "credit_memo", Label: "Credit memo"}, {Value: "entry", Label: "Journal entry"},
+				}},
+				textMinMax("item_number"),
+				// The integer the item's number formats (server/numbering.go):
+				// items sort by it, since "JE-10" sorts before "JE-9" as text.
+				{key: "item_seq", typ: reports.Number, aggs: reports.MinMax},
+				{key: "settled", typ: reports.Text},
+			},
+			links: []wantLink{
+				toOne("customer", "books.customers", "customer"),
+				toOne("entry", "books.journal_entries", "entry"),
+			},
+		},
+		{
 			// Purchase fields, form columns and the name and sort keys are left
 			// out (sales-reports spec §5).
 			key: "books.products", collection: "books_products", label: "Products and services",
@@ -611,6 +635,7 @@ func TestReportSourcesCatalog(t *testing.T) {
 			if slices.Contains([]string{
 				"books.journal_entries", "books.journal_lines", "books.basis_lines", "books.account_balances",
 				"books.sales_documents", "books.sales_tax_lines", "books.sales_lines", "books.products",
+				"books.receivable_items",
 			}, want.key) {
 				wantCurrency = "USD"
 			}

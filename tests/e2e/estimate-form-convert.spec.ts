@@ -1,4 +1,4 @@
-import { expect, type Page, type Request, test } from '@playwright/test'
+import { type Browser, expect, type Page, type Request, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { CUSTOMER_IDS, CUSTOMERS } from '../../tinycld/books/lib/customer-form-fixture'
 import { PRODUCT_IDS, PRODUCTS } from '../../tinycld/books/lib/products-services-fixture'
@@ -76,6 +76,14 @@ async function openBooks(page: Page) {
     await navigateToPackage(page, 'books')
 }
 
+// A second signed-in session, in its own browser context.
+async function otherSession(browser: Browser): Promise<Page> {
+    const context = await browser.newContext()
+    const page = await context.newPage()
+    await openBooks(page)
+    return page
+}
+
 // The number in a posted invoice's title, "Invoice <n>".
 async function invoiceNumberOf(page: Page): Promise<string> {
     const title = page.getByTestId('invoice-title')
@@ -121,6 +129,8 @@ test.describe('estimate-form: convert and delete', () => {
         const today = await localToday(page)
         const yesterday = addDays(today, -1)
 
+        // Opening the form focuses its first field.
+        await expect(page.getByTestId('form-input-customer')).toBeFocused()
         await pickEstimateCustomer(page, HARBORVIEW)
         const line1 = await pickEstimateLineProduct(page, 0, ACCESS_POINT)
         // ⌥T on the item line: a Description line right after it.
@@ -222,7 +232,8 @@ test.describe('estimate-form: convert and delete', () => {
         )
         await expect(page.getByTestId('estimate-detail-status')).toContainText('Closed')
 
-        // I opens the invoice; deleting its draft reopens the estimate as Pending.
+        // I opens the invoice; deleting its draft goes Back to the estimate, which reopens
+        // as Pending on that screen.
         await page.keyboard.press('i')
         await expect(page).toHaveURL(invoiceUrlOf(invoiceId))
         await expect(page.getByTestId('invoice-form')).toBeVisible()
@@ -230,13 +241,47 @@ test.describe('estimate-form: convert and delete', () => {
         await page.getByTestId('invoice-delete-draft').click()
         await expect(page.getByTestId('delete-draft-dialog')).toBeVisible()
         await page.getByTestId('delete-draft-confirm').click()
-        await expect(page).not.toHaveURL(invoiceUrlOf(invoiceId))
-
-        await openEstimateBySearch(page, memo)
         await expect(page).toHaveURL(estimateUrlOf(id))
-        await expect(page.getByTestId('estimate-form')).toBeVisible()
+        await expect(page.getByTestId('estimate-form').filter({ visible: true })).toBeVisible()
         await expect(page.getByTestId('estimate-badge')).toHaveText('Pending')
         await expect(page.getByTestId('estimate-converted-to')).toHaveCount(0)
+    })
+
+    // Another session deletes the converted draft while this one shows the Closed estimate.
+    // The read view then turns into the Pending form on the screen: that form comes from a
+    // data change, not from opening it, so it takes no focus, and `/` still opens the
+    // search palette rather than typing into the Customer picker. Opening a form still
+    // focuses its first field (the new estimate's Customer, at the start).
+    test('an estimate reopened under the screen takes no focus', async ({ page, browser }) => {
+        const memo = uniqueMemo('Estimate reopened focus')
+        await openBooks(page)
+        await fillNewEstimate(page, memo)
+        const { id } = await saveNewEstimate(page)
+        await convertEstimate(page)
+        await expect(page.getByTestId('invoice-form')).toBeVisible()
+        await page.getByTestId('invoice-save-draft').click()
+        await expect(page).toHaveURL(INVOICE_URL)
+        await openInvoiceFromEstimateLink(page)
+        await expect(page).toHaveURL(estimateUrlOf(id))
+        await expect(page.getByTestId('estimate-read-only').filter({ visible: true })).toBeVisible()
+
+        const other = await otherSession(browser)
+        await openEstimateBySearch(other, memo)
+        await other.getByTestId('estimate-converted-to').filter({ visible: true }).click()
+        await expect(other).toHaveURL(INVOICE_URL)
+        await other.getByTestId('invoice-more').filter({ visible: true }).click()
+        await other.getByTestId('invoice-delete-draft').click()
+        await expect(other.getByTestId('delete-draft-dialog')).toBeVisible()
+        await other.getByTestId('delete-draft-confirm').click()
+        await expect(other).not.toHaveURL(INVOICE_URL)
+        await other.context().close()
+
+        const form = page.getByTestId('estimate-form').filter({ visible: true })
+        await expect(form).toBeVisible()
+        await expect(form.getByTestId('estimate-badge')).toHaveText('Pending')
+        await expect(form.getByTestId('form-input-customer')).not.toBeFocused()
+        await openEstimateBySearch(page, memo)
+        await expect(page).toHaveURL(estimateUrlOf(id))
     })
 
     test('accepted, posted, voided, delete refused', async ({ page }) => {

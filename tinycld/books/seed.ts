@@ -1,4 +1,5 @@
 import type PocketBase from 'pocketbase'
+import { AR_AGING_SEED } from './lib/ar-aging-fixture'
 import { ATTACHMENT_SEED_FILES } from './lib/attachment-seed-files'
 import { ATTACHMENTS, SEED_ATTACHMENT_IDS } from './lib/attachments-fixture'
 import { BANK_SEED } from './lib/bank-connection-fixture'
@@ -105,7 +106,7 @@ import {
     VENDOR_REFUNDS,
 } from './lib/vendor-refund-fixture'
 import { WRITE_OFF_INVOICES, WRITE_OFF_SEED, WRITE_OFFS } from './lib/write-off-fixture'
-import type { BooksPartyContacts } from './types'
+import type { BooksInvoices, BooksPartyContacts } from './types'
 
 // Seed function invoked by core/scripts/seed-db.ts with a superuser `pb` and
 // the seeded user. Entries are posted through the same update the app makes,
@@ -297,10 +298,13 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     // Last among the document seeds, so the earlier seeded documents keep their numbers.
     await seedCustomerBalance(pb, ctx, ids, customerIds)
     await seedSalesReports(pb, ctx, accountIds, customerIds)
-    // After every other document seed, so the seeded documents keep their numbers.
+    // After the earlier document seeds, so the seeded documents keep their numbers.
     await seedRefundReceipts(pb, ctx, accountIds, customerIds, salesReceiptIds)
     // After the refund receipts, so every earlier seeded invoice keeps its number.
     await seedWriteOffs(pb, ctx, accountIds, customerIds)
+    // The A/R Aging rows, last among the document seeds so the earlier seeded documents
+    // keep their numbers. Unit p3-vendor-pages also edits this file: keep both blocks.
+    await seedArAging(pb, ctx, accountIds, customerIds)
     // Created active and deactivated last, because the app makes an account
     // inactive by updating it, and the vendor and product guards refuse a row
     // that names an inactive account when it is saved.
@@ -2276,13 +2280,116 @@ async function seedSalesFamily(pb: PocketBase, ctx: SeedContext, depositTo: stri
     }
 }
 
-type CustomerBalanceInvoice = (typeof CUSTOMER_BALANCE_SEED)['kitchenInvoice' | 'galaInvoice']
+// A/R Aging's seed rows (AR_AGING_SEED, spec §4 Seed): one more posted invoice, a part
+// payment on the seeded gala invoice and one payment applied to no invoice, with fixed
+// 2026 dates so that the seeded book fills several age columns. A customer is named by
+// its display name in CUSTOMERS; `customerIds` maps a customer-form fixture id to the
+// created customer, and `accountIds` maps a seed account number to the created account.
+export async function seedArAging(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>,
+    customerIds: Map<string, string>
+): Promise<void> {
+    const { invoice, partPayment, unappliedPayment } = AR_AGING_SEED
+    await postCustomerBalanceInvoice(
+        pb,
+        ctx,
+        customerIds,
+        { ...invoice, customer: arAgingFixtureId(invoice.customer) },
+        { due_date: invoice.due_date, terms: 'net_30' }
+    )
 
+    const gala = arAgingCustomer(customerIds, partPayment.customer)
+    const galaInvoice = await pb.collection('books_invoices').getFirstListItem<{ id: string }>(
+        pb.filter('memo = {:memo} && customer = {:customer} && status = "posted"', {
+            memo: CUSTOMER_BALANCE_SEED.galaInvoice.memo,
+            customer: gala,
+        }),
+        { fields: 'id' }
+    )
+    await postArAgingPayment(pb, ctx, accountIds, customerIds, partPayment, galaInvoice.id)
+    await postArAgingPayment(pb, ctx, accountIds, customerIds, unappliedPayment)
+}
+
+type ArAgingPayment = (typeof AR_AGING_SEED)['partPayment' | 'unappliedPayment']
+
+// A posted payment as seedPayments posts one: a draft, its application to `invoice` for
+// the payment's whole amount when one is named, then the post. With no invoice the
+// server posts the whole amount as credited.
+async function postArAgingPayment(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>,
+    customerIds: Map<string, string>,
+    payment: ArAgingPayment,
+    invoice?: string
+): Promise<void> {
+    const customer = arAgingCustomer(customerIds, payment.customer)
+    const depositTo = seededAccountId(
+        accountIds,
+        payment.depositNumber,
+        `A/R aging payment "${payment.memo}"`
+    )
+    const created = await pb.collection('books_payments').create({
+        customer,
+        status: 'draft',
+        date: payment.date,
+        payment_method: payment.payment_method,
+        reference_no: payment.reference_no,
+        deposit_to: depositTo,
+        amount: payment.cents,
+        memo: payment.memo,
+    })
+    if (invoice !== undefined) {
+        await pb.collection('books_payment_applications').create({
+            payment: created.id,
+            invoice,
+            amount: payment.cents,
+            position: 0,
+        })
+    }
+    await pb
+        .collection('books_payments')
+        .update(created.id, { status: 'posted', posted_by: ctx.user.id })
+}
+
+// The customer-form fixture id of a seeded customer, by its display name.
+function arAgingFixtureId(displayName: string): string {
+    const fixture = CUSTOMERS.find(row => row.display_name === displayName)
+    if (fixture === undefined) {
+        throw new Error(`seed: A/R aging names customer ${displayName}, which is not in CUSTOMERS`)
+    }
+    return fixture.id
+}
+
+// The created id of a seeded customer, by its display name.
+function arAgingCustomer(customerIds: Map<string, string>, displayName: string): string {
+    const customer = customerIds.get(arAgingFixtureId(displayName))
+    if (customer === undefined) {
+        throw new Error(`seed: A/R aging names customer ${displayName}, which was not created`)
+    }
+    return customer
+}
+
+// `customer` is a customer-form fixture id: the customer balance seed's, or the one
+// seedArAging finds by display name.
+type CustomerBalanceInvoice = Pick<BooksInvoices, 'date' | 'memo'> & {
+    customer: string
+    cents: number
+}
+
+// A posted invoice of one untaxed item line, due on receipt unless `due` gives its due
+// date and terms.
 async function postCustomerBalanceInvoice(
     pb: PocketBase,
     ctx: SeedContext,
     customerIds: Map<string, string>,
-    invoice: CustomerBalanceInvoice
+    invoice: CustomerBalanceInvoice,
+    due: Pick<BooksInvoices, 'due_date' | 'terms'> = {
+        due_date: invoice.date,
+        terms: 'due_on_receipt',
+    }
 ): Promise<void> {
     const customer = customerIds.get(invoice.customer)
     if (customer === undefined) {
@@ -2294,8 +2401,8 @@ async function postCustomerBalanceInvoice(
         customer,
         status: 'draft',
         date: invoice.date,
-        due_date: invoice.date,
-        terms: 'due_on_receipt',
+        due_date: due.due_date,
+        terms: due.terms,
         memo: invoice.memo,
     })
     await pb.collection('books_invoice_lines').create({

@@ -58,6 +58,10 @@ export type DocumentFormScope = {
     // reads it here. A field whose stored description is empty gets the host layout's
     // default; a field with neither has no entry.
     hints: Readonly<Record<string, string>>
+    // Whether the form's first field takes the focus at mount (web only): false on a form
+    // that replaced the document's read view on the same screen (DocumentScreen
+    // useOpensForm).
+    focusesFirstField: boolean
 }
 
 export const DocumentFormContext = createContext<DocumentFormScope | null>(null)
@@ -86,6 +90,7 @@ const EMPTY_SCOPE: DocumentFormScope = {
         remove: () => {},
     },
     hints: {},
+    focusesFirstField: true,
 }
 
 export function useDocumentFormScope(): DocumentFormScope {

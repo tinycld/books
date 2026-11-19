@@ -835,6 +835,8 @@ interface DocumentFormProps {
     onReload: () => Promise<void>
     // The form's attachments session (DocumentScreen); '' for a kind without attachments.
     attachmentSession: string
+    // Whether its first field takes the focus at mount (DocumentScreen useOpensForm).
+    focusesFirstField: boolean
 }
 
 /**
@@ -844,7 +846,13 @@ interface DocumentFormProps {
  * view tab, the saved document's PDF above the same bar. Keyed on its
  * form key by the screen, so a new route mounts a fresh form; a tab change keeps it.
  */
-export function DocumentForm({ data, tab, onReload, attachmentSession }: DocumentFormProps) {
+export function DocumentForm({
+    data,
+    tab,
+    onReload,
+    attachmentSession,
+    focusesFirstField,
+}: DocumentFormProps) {
     const documentKind = useDocumentKind()
     const { doc: kind } = documentKind
     const state = useDocumentForm(documentKind, {
@@ -916,6 +924,7 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
             estimateId,
             sourceLink,
             hints,
+            focusesFirstField,
         }),
         [
             kind,
@@ -932,6 +941,7 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
             estimateId,
             sourceLink,
             hints,
+            focusesFirstField,
         ]
     )
     const totals = useDocumentTotals(form, scope)
