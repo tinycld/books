@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/write-off-checkpoints.md
 - reference: docs/plans/write-off-reference/
 - evidence: docs/plans/write-off-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (removed by finish.mjs 2026-11-19)
 - capture manifest: docs/plans/write-off-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -152,5 +152,6 @@
 - commit: (this commit)
 
 ## Final review
-- eval:
+- eval: approved 2026-11-19 (human). Before the merge, approved follow-ups: retro lesson + `SALES_KINDS` check (0ed92d43); the cp1 fold-test timeouts were root-caused (tests too long for their budget on a shared DB; core picker search finds only an option's own name) and fixed by splitting both tests onto seeded data (c83bc52d, ee0a35bd). CI green at ee0a35bd.
+- human comments: the human rejected the "CPU load" diagnosis of cp1 ("load is almost never the issue, it's usually flaky tests").
 - native: not executed in this run
