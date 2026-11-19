@@ -1,0 +1,187 @@
+{
+    "outDir": "write-off-reference",
+    "shots": [
+        {
+            "name": "dialog",
+            "url": "/a/books/helix-mockup?state=dialog",
+            "ready": "write-off-dialog",
+            "opaque": "write-off-dialog",
+            "stable": "write-off-dialog",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "dialog-filled",
+            "url": "/a/books/helix-mockup?state=dialog-filled",
+            "ready": "write-off-dialog",
+            "opaque": "write-off-dialog",
+            "stable": "write-off-dialog",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "dialog-errors",
+            "url": "/a/books/helix-mockup?state=dialog-errors",
+            "ready": "write-off-date-error",
+            "opaque": "write-off-dialog",
+            "stable": "write-off-dialog",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "dialog-refused",
+            "url": "/a/books/helix-mockup?state=dialog-refused",
+            "ready": "write-off-error-summary",
+            "opaque": "write-off-dialog",
+            "stable": "write-off-dialog",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "dialog-no-account",
+            "url": "/a/books/helix-mockup?state=dialog-no-account",
+            "ready": "write-off-no-account",
+            "opaque": "write-off-dialog",
+            "stable": "write-off-dialog",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "dialog-loading",
+            "url": "/a/books/helix-mockup?state=dialog-loading",
+            "ready": "write-off-loading",
+            "opaque": "write-off-dialog",
+            "stable": "write-off-dialog",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "dialog-load-error",
+            "url": "/a/books/helix-mockup?state=dialog-load-error",
+            "ready": "write-off-load-error",
+            "opaque": "write-off-dialog",
+            "stable": "write-off-dialog",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "dialog-saving",
+            "url": "/a/books/helix-mockup?state=dialog-saving",
+            "ready": "write-off-dialog",
+            "opaque": "write-off-dialog",
+            "stable": "write-off-dialog",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "dialog-no-tax",
+            "url": "/a/books/helix-mockup?state=dialog-no-tax",
+            "ready": "write-off-dialog",
+            "opaque": "write-off-dialog",
+            "stable": "write-off-dialog",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "invoice",
+            "url": "/a/books/helix-mockup?state=invoice",
+            "ready": "invoice-read-only",
+            "height": 1300,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "invoice-written-off",
+            "url": "/a/books/helix-mockup?state=invoice-written-off",
+            "ready": "invoice-write-offs",
+            "height": 1500,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "invoice-reopened",
+            "url": "/a/books/helix-mockup?state=invoice-reopened",
+            "ready": "invoice-write-offs",
+            "height": 1400,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "invoice-long",
+            "url": "/a/books/helix-mockup?state=invoice-long",
+            "ready": "invoice-write-offs",
+            "height": 1600,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "invoice-section-error",
+            "url": "/a/books/helix-mockup?state=invoice-section-error",
+            "ready": "invoice-write-offs-error",
+            "height": 1500,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read",
+            "url": "/a/books/helix-mockup?state=read",
+            "ready": "write-off-read-only",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read-void",
+            "url": "/a/books/helix-mockup?state=read-void",
+            "ready": "write-off-voided-by",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read-long",
+            "url": "/a/books/helix-mockup?state=read-long",
+            "ready": "write-off-read-only",
+            "height": 1100,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read-reader",
+            "url": "/a/books/helix-mockup?state=read-reader",
+            "ready": "write-off-read-only",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read-void-dialog",
+            "url": "/a/books/helix-mockup?state=read-void-dialog",
+            "ready": "void-dialog",
+            "opaque": "void-dialog",
+            "stable": "void-dialog",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read-loading",
+            "url": "/a/books/helix-mockup?state=read-loading",
+            "ready": "write-off-loading-page",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read-error",
+            "url": "/a/books/helix-mockup?state=read-error",
+            "ready": "write-off-error",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read-not-found",
+            "url": "/a/books/helix-mockup?state=read-not-found",
+            "ready": "write-off-not-found",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "list",
+            "url": "/a/books/helix-mockup?state=list",
+            "ready": "write-off-list",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "list-written-off",
+            "url": "/a/books/helix-mockup?state=list-written-off",
+            "ready": "write-off-list",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        }
+    ]
+}
