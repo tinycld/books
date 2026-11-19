@@ -313,6 +313,7 @@ func expectedCatalog(t *testing.T) []wantSource {
 			links: []wantLink{
 				toOne("parent", "books.customers", "parent"),
 				toMany("sub_customers", "books.customers", "parent"),
+				toMany("receivable_items", "books.receivable_items", "customer"),
 			},
 		},
 		{
@@ -490,9 +491,8 @@ func expectedCatalog(t *testing.T) []wantSource {
 			},
 		},
 		{
-			// A union of the two receivable item views (A/R Aging spec §4):
-			// each part maps the same keys to the view's own columns.
-			key: "books.receivable_items", label: "Receivable items",
+			// The stored receivable items (A/R Aging spec §4).
+			key: "books.receivable_items", collection: "books_receivable_items", label: "Receivable items",
 			fields: []wantField{
 				{key: "date", typ: reports.Date, textDay: true, aggs: reports.MinMax},
 				{key: "due_date", typ: reports.Date, textDay: true, aggs: reports.MinMax},
@@ -505,20 +505,11 @@ func expectedCatalog(t *testing.T) []wantSource {
 				// The integer the item's number formats (server/numbering.go):
 				// items sort by it, since "JE-10" sorts before "JE-9" as text.
 				{key: "item_seq", typ: reports.Number, aggs: reports.MinMax},
+				{key: "settled", typ: reports.Text},
 			},
 			links: []wantLink{
 				toOne("customer", "books.customers", "customer"),
 				toOne("entry", "books.journal_entries", "entry"),
-			},
-			parts: []wantPart{
-				{
-					collection: "books_receivable_lines",
-					columns:    identity("customer", "entry", "date", "due_date", "debit", "credit", "currency", "item", "item_kind", "item_number", "item_seq"),
-				},
-				{
-					collection: "books_receivable_applications",
-					columns:    identity("customer", "entry", "date", "due_date", "debit", "credit", "currency", "item", "item_kind", "item_number", "item_seq"),
-				},
 			},
 		},
 		{

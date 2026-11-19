@@ -209,7 +209,7 @@ func writeARDatasetKeys(t testing.TB, b arBook, size arSize) (arDataset, error) 
 			data.busiestInvoice = data.docs[busiestInvoice].id
 		}
 		w.finish()
-		return nil
+		return rebuildReceivables(tx)
 	})
 	if err != nil {
 		t.Fatalf("write the %s dataset: %v", size.name, err)
@@ -1156,7 +1156,7 @@ func stepVerb(detail string) (string, string) {
 
 var (
 	arNeverScanned = []string{"books_journal_lines", "books_journal_entries"}
-	arLargeTables  = []string{"books_journal_lines", "books_journal_entries", "books_invoices", "books_payments", "books_payment_applications"}
+	arLargeTables  = []string{"books_journal_lines", "books_journal_entries", "books_invoices", "books_payments", "books_payment_applications", "books_receivable_items"}
 )
 
 func arReadsAny(step planStep, tables []string) bool {
@@ -1297,7 +1297,7 @@ func (r *arPlanRecorder) Errorf(format string, args ...any) {
 
 // arCheckRuns records each run's statements and checks every plan under
 // each reading. The statements that run 5 and 6 record and run 1 does not are
-// bound. It fails a run that records no SELECT reading books_journal_lines.
+// bound. It fails a run that records no SELECT reading books_receivable_items.
 func arCheckRuns(t *testing.T, b arBook, runs []arRun, readings []arReading, record func(run arRun, reading arReading, statements []string, steps []planStep, stats []arStat)) {
 	t.Helper()
 	base := map[string]bool{}
@@ -1316,19 +1316,19 @@ func arCheckRuns(t *testing.T, b arBook, runs []arRun, readings []arReading, rec
 			} else {
 				steps, stats = explainReading(t, b.app, reading, statements)
 			}
-			readsLines := false
+			readsItems := false
 			for i, s := range statements {
 				own := arStepsOf(steps, i)
-				if slices.ContainsFunc(own, func(p planStep) bool { return slices.Contains(p.Tables, "books_journal_lines") }) {
-					readsLines = true
+				if slices.ContainsFunc(own, func(p planStep) bool { return slices.Contains(p.Tables, receivableItemsCollection) }) {
+					readsItems = true
 				}
 				r := run
 				r.reading = reading.name
 				r.bound = run.bound || (run.adds && !base[s])
 				checkPlanBars(t, r, s, own)
 			}
-			if !readsLines {
-				t.Errorf("run %s, %s: none of its %d SELECTs reads books_journal_lines: the statement recorder is wired wrong",
+			if !readsItems {
+				t.Errorf("run %s, %s: none of its %d SELECTs reads books_receivable_items: the statement recorder is wired wrong",
 					run.name, reading.name, len(statements))
 			}
 			if record != nil {
