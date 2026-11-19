@@ -1,0 +1,113 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280, 1024],
+            "height": 3000,
+            "actions": [{ "clickText": "A/R Aging" }, { "waitFor": "report-table" }]
+        },
+        {
+            "name": "opened",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280, 1024],
+            "height": 3400,
+            "actions": [
+                { "clickText": "A/R Aging" },
+                { "waitFor": "report-table" },
+                { "clickText": "Cedar & Pine Landscaping" },
+                { "pause": 1500 },
+                { "clickText": "Harborview Kitchen" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "item-opened",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280, 1024],
+            "height": 3600,
+            "actions": [
+                { "clickText": "A/R Aging" },
+                { "waitFor": "report-table" },
+                { "clickText": "St. Jude Annual Spring Gala and Silent Auction Catering" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "clickPattern": "^Invoice " },
+                { "waitFor": "report-table" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "by-balance",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "height": 3000,
+            "actions": [
+                { "clickText": "A/R Aging" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-order" },
+                { "clickRole": "radio", "name": "Largest balance" },
+                { "waitForHidden": "report-filter-picker" },
+                { "pause": 2000 }
+            ]
+        },
+        {
+            "name": "filtered",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "actions": [
+                { "clickText": "A/R Aging" },
+                { "waitFor": "report-table" },
+                { "click": "report-add-filter" },
+                { "click": "report-add-filter-customers" },
+                { "fill": "report-filter-search", "value": "Aspen Ridge" },
+                { "clickRole": "checkbox", "name": "Aspen Ridge Dental" },
+                { "fill": "report-filter-search", "value": "Harborview" },
+                { "clickText": "All Harborview Hospitality Group sub-customers" },
+                { "click": "report-filter-apply" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitFor": "report-header-param-customers" },
+                { "pause": 2000 }
+            ]
+        },
+        {
+            "name": "past-day",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "height": 3000,
+            "actions": [
+                { "clickText": "A/R Aging" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-asOf" },
+                { "fill": "report-period-as-of", "value": "2026-10-15" },
+                { "press": "Escape" },
+                { "waitForTextIn": "report-document-period", "text": "As of October 15, 2026" },
+                { "click": "report-document-period" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "empty",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1024],
+            "actions": [
+                { "clickText": "A/R Aging" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-asOf" },
+                { "fill": "report-period-as-of", "value": "2020-01-01" },
+                { "press": "Escape" },
+                { "waitFor": "report-empty" },
+                { "waitForTextIn": "report-document-period", "text": "As of January 1, 2020" },
+                { "click": "report-document-period" }
+            ]
+        }
+    ]
+}

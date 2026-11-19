@@ -196,13 +196,24 @@ func cashDriftReport(drifts []CashBasisDrift) (listed []CashBasisDrift, count in
 	return drifts, len(drifts)
 }
 
+// receivableDriftReport is the stored-receivable part of the rebuild route's
+// answer: the first maxReceivableDriftsReported rows that drifted and the count
+// of all.
+func receivableDriftReport(drifts []ReceivableDrift) (listed []ReceivableDrift, count int) {
+	if len(drifts) > maxReceivableDriftsReported {
+		return drifts[:maxReceivableDriftsReported], len(drifts)
+	}
+	return drifts, len(drifts)
+}
+
 // rebuildBalances makes every month row equal the ledger, every invoice's and
 // bill's balance equal its total less the posted payments that pay it (the
 // verify part of the document balances is verifyDocumentBalances), and every
 // cash-basis row equal what the entries and payments give (rebuildCashBasis;
 // its verify part is verifyCashBasis), in one transaction, touching only the
 // rows that differ. It returns how many month rows, document balances and
-// cash-basis rows it fixed.
+// cash-basis rows it fixed. It also rebuilds the stored receivable rows when they
+// disagree with the book (repairReceivables); those rows are not in the count.
 func rebuildBalances(app core.App) (int, error) {
 	fixed := 0
 	err := app.RunInTransaction(func(tx core.App) error {
@@ -252,7 +263,7 @@ func rebuildBalances(app core.App) (int, error) {
 			}
 		}
 		fixed = len(drifts) + documents + cash
-		return nil
+		return repairReceivables(tx)
 	})
 	return fixed, err
 }
@@ -277,6 +288,14 @@ func bindBalanceRoutes(e *core.ServeEvent) {
 		}
 		if len(cashDrifts) > 0 {
 			log.ErrorContext(re.Request.Context(), "cash-basis rows disagree with their documents", "count", len(cashDrifts))
+		}
+		// Read before the rebuild repairs them, as the cash-basis rows above.
+		receivableDrifts, err := verifyReceivables(re.App)
+		if err != nil {
+			return err
+		}
+		if len(receivableDrifts) > 0 {
+			log.ErrorContext(re.Request.Context(), "receivable rows disagree with the book", "count", len(receivableDrifts))
 		}
 		// Every write path keeps a document's balance and an invoice's
 		// written_off with its payers, so a drift here means one missed it.
@@ -305,10 +324,12 @@ func bindBalanceRoutes(e *core.ServeEvent) {
 		}
 		listed, count := lineDriftReport(lineDrifts)
 		cashListed, cashCount := cashDriftReport(cashDrifts)
+		receivableListed, receivableCount := receivableDriftReport(receivableDrifts)
 		documentListed, documentCount := documentDriftReport(documentDrifts)
 		return re.JSON(http.StatusOK, map[string]any{
 			"fixed": fixed, "lineDrifts": listed, "lineDriftCount": count,
 			"cashDrifts": cashListed, "cashDriftCount": cashCount,
+			"receivableDrifts": receivableListed, "receivableDriftCount": receivableCount,
 			"documentDrifts": documentListed, "documentDriftCount": documentCount,
 		})
 	})

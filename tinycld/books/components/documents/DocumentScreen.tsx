@@ -28,9 +28,18 @@ interface ScreenStateProps {
     onReload: () => Promise<void>
     // The form's attachments session; '' for a kind without attachments.
     attachmentSession: string
+    // Whether a form here focuses its first field (useOpensForm).
+    focusesFirstField: boolean
 }
 
-function ScreenState({ data, tab, reloads, onReload, attachmentSession }: ScreenStateProps) {
+function ScreenState({
+    data,
+    tab,
+    reloads,
+    onReload,
+    attachmentSession,
+    focusesFirstField,
+}: ScreenStateProps) {
     const { messages, testId } = useDocumentKind().doc
     const ids = {
         notFound: `${testId}-not-found`,
@@ -69,9 +78,25 @@ function ScreenState({ data, tab, reloads, onReload, attachmentSession }: Screen
                     tab={tab}
                     onReload={onReload}
                     attachmentSession={attachmentSession}
+                    focusesFirstField={focusesFirstField}
                 />
             )
     }
+}
+
+/**
+ * Whether a form on this screen opens it: true until the screen shows the document's read
+ * view. A form that replaces the read view later (the document became editable under the
+ * screen: its invoice deleted or voided, a realtime update) comes from a data change, not
+ * from the user opening the form, so it takes no focus. Else its first field would take
+ * the focus only when the update happens to arrive while the screen shows, and a key
+ * pressed for the app (`/`) would go into that field.
+ */
+function useOpensForm(state: DocumentScreenData['state']): boolean {
+    // Local to this screen: no other component reads it.
+    const [hasShownRead, setHasShownRead] = useState(false)
+    if (state === 'read' && !hasShownRead) setHasShownRead(true)
+    return !hasShownRead
 }
 
 /**
@@ -112,6 +137,7 @@ export function DocumentScreen({
     // with it. Local to this screen: no other component reads it.
     const [reloads, setReloads] = useState(0)
     const attachmentSession = useFormAttachmentSession(documentKind, data.formKey)
+    const focusesFirstField = useOpensForm(data.state)
     // The store can be behind the server (a realtime message that did not arrive), and a
     // form built from it would be refused again, so the rows are read again first. A
     // failed read rejects before the count moves: the form stays, with what is typed in
@@ -132,6 +158,7 @@ export function DocumentScreen({
                     reloads={reloads}
                     onReload={onReload}
                     attachmentSession={attachmentSession}
+                    focusesFirstField={focusesFirstField}
                 />
             </View>
         </DocumentKindContext.Provider>

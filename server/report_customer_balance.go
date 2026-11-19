@@ -102,51 +102,26 @@ func cbColumns() []reports.Column {
 	}
 }
 
-// cbGroups are the family, open when the report opens and drawn only when a
-// line names a sub-customer, and the customer, shown by the Rows choice and
-// muted when inactive. A blank key (no customer) labels "No customer".
+// cbGroups are the family and customer levels of customerFamilyGroups, the
+// customer shown by the Rows choice.
 func cbGroups() []reports.Group {
-	inactive := op("eq", rec("byCustomer", "inactive"), lit(true))
-	return []reports.Group{
-		{
-			ID: "byTop", Col: "topKey", Open: true, Subtotals: true, HideEmpty: true,
-			Label: op("coalesce", rec("byTop", "display_name"), lit("No customer")),
-			// No line of the family names a sub-customer (D1).
-			Inline: op("eq", op("sum", op("if", op("isEmpty", fld("customer", "parent", "id")), lit(0), lit(1))), lit(0)),
-		},
-		{
-			ID: "byCustomer", Col: "customerKey",
-			// The suffix keeps the mark in exports and screen readers, which
-			// do not read the muted tone.
-			Label: op("concat",
-				op("coalesce", rec("byCustomer", "display_name"), lit("No customer")),
-				op("if", inactive, lit(" (inactive)"), lit("")),
-			),
-			Having: op("or", op("eq", prm("rows"), lit("activity")), op("ne", op("sum", cbNet()), lit(0))),
-			Muted:  inactive,
-		},
-	}
+	groups := customerFamilyGroups()
+	groups[1].Having = op("or", op("eq", prm("rows"), lit("activity")), op("ne", op("sum", cbNet()), lit(0)))
+	return groups
 }
 
-// cbSort is the report's order (D5): inside a family the parent's own row
-// first (read on customer rows only); under Largest balance the level's
-// balance, largest first (on every level); No customer last; then families
-// and customers by name, ignoring case. Core applies a key on each group
-// level where it has a value, and on detail rows it applies every key (there
-// `sum(x)` is x). The line keys (date, then posting order) therefore come
-// before the balance key: they order the opened rows of one customer, and core
-// skips them on group levels because they read a line.
+// cbSort is the report's order (D5), customerFamilySort with the line keys
+// (date, then posting order, then position) as inner keys. Core applies a key
+// on each group level where it has a value, and on detail rows it applies
+// every key (there `sum(x)` is x). The line keys therefore come before the
+// balance key: they order the opened rows of one customer, and core skips
+// them on group levels because they read a line.
 func cbSort() []reports.SortKey {
-	return []reports.SortKey{
-		{Formula: op("if", op("eq", rec("byCustomer", "id"), rec("byTop", "id")), lit(0), lit(1))},
-		{Formula: fld("date")},
-		{Formula: fld("entry", "posted_at")},
-		{Formula: fld("position")},
-		{Formula: op("if", op("eq", prm("order"), lit("balance")), op("sum", cbNet()), lit(0)), Dir: "desc"},
-		{Formula: op("if", op("isEmpty", rec("byTop", "id")), lit(1), lit(0))},
-		{Formula: op("lower", rec("byTop", "display_name"))},
-		{Formula: op("lower", rec("byCustomer", "display_name"))},
-	}
+	return customerFamilySort(cbNet(), false,
+		reports.SortKey{Formula: fld("date")},
+		reports.SortKey{Formula: fld("entry", "posted_at")},
+		reports.SortKey{Formula: fld("position")},
+	)
 }
 
 // cbDisplay is the fixture's CUSTOMER_BALANCE_DISPLAY: a long customer name

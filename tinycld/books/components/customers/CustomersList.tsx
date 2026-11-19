@@ -17,6 +17,7 @@ import { CUSTOMERS_PATH } from '../../lib/customer-route'
 import type { ListLayout } from '../../lib/detail-surface'
 import { partyTitle } from '../../lib/party-list'
 import {
+    AR_AGING_SHIPPED_KEY,
     CUSTOMER_BALANCE_SHIPPED_KEY,
     SALES_BY_CUSTOMER_SHIPPED_KEY,
 } from '../../lib/shipped-reports'
@@ -66,9 +67,10 @@ export function CustomersList({ openId, layout }: { openId: string; layout: List
     // Unwrapped, the press event would reach `openNew(parentId?)` as a parent id.
     const openNew = () => navigation.openNew()
     // Each is null while its report loads, when its read fails and when the reader has
-    // none: the menu then leaves its item out (no menu when both are null) and the list
+    // none: the menu then leaves its item out (no menu when all are null) and the list
     // stays usable; the live query shows it once it loads.
     const balanceHref = useShippedReportHref(CUSTOMER_BALANCE_SHIPPED_KEY)
+    const agingHref = useShippedReportHref(AR_AGING_SHIPPED_KEY)
     const salesHref = useShippedReportHref(SALES_BY_CUSTOMER_SHIPPED_KEY)
     const reportItems = [
         {
@@ -78,6 +80,12 @@ export function CustomersList({ openId, layout }: { openId: string; layout: List
             testID: 'customers-reports-balance',
         },
         {
+            key: AR_AGING_SHIPPED_KEY,
+            label: 'A/R Aging',
+            href: agingHref,
+            testID: 'customers-reports-aging',
+        },
+        {
             key: SALES_BY_CUSTOMER_SHIPPED_KEY,
             label: 'Sales by Customer',
             href: salesHref,
@@ -85,7 +93,7 @@ export function CustomersList({ openId, layout }: { openId: string; layout: List
         },
     ]
     // Undefined, not a menu that renders null, so the header draws no empty button group.
-    const hasReport = balanceHref !== null || salesHref !== null
+    const hasReport = balanceHref !== null || agingHref !== null || salesHref !== null
     const reportsMenu = hasReport ? (
         <ShippedReportsMenu items={reportItems} testID="customers-reports" />
     ) : undefined
