@@ -35,6 +35,7 @@ var serverOnly = map[string]bool{
 	"books_cash_basis_tax_lines":    true,
 	"books_credit_memo_tax_lines":   true,
 	"books_invoice_tax_lines":       true,
+	"books_receivable_items":        true,
 	"books_sales_receipt_tax_lines": true,
 }
 
