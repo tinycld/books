@@ -191,7 +191,7 @@ test.describe('ar-aging: report', () => {
         await openBooks(page, DESKTOP)
         const { name, invoices } = await customerWithInvoices(page, [
             { rate: '300.00', date: AR_DAY.invoice, dueDate: AR_DAY.due },
-            { rate: '200.00', date: AR_DAY.invoice, dueDate: '2026-09-15' },
+            { rate: '200.00', date: AR_DAY.invoice, dueDate: '2026-07-15' },
         ])
         const [later, older] = invoices
         await openArAging(page)
@@ -213,7 +213,7 @@ test.describe('ar-aging: report', () => {
             `Invoice ${later.number}`,
         ])
         expect(items.map(row => agedCents(row).total)).toEqual([20000, 30000])
-        expect(items.map(row => dayOf(row.cells.due))).toEqual(['2026-09-15', AR_DAY.due])
+        expect(items.map(row => dayOf(row.cells.due))).toEqual(['2026-07-15', AR_DAY.due])
         expect(agingRow(opened, name).cells.due ?? '').toBe('')
         // A cut Due date ("Oct 27, 20…") keeps its whole text in the DOM, so the text
         // element's own overflow is read, not the cell's box.
