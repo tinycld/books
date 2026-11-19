@@ -3,6 +3,7 @@ import { VENDOR_CREDIT_URL } from './vendor-credit-helpers'
 import {
     chooseFromMenu,
     createVendor,
+    openVendorsList,
     searchVendors,
     uniqueName,
     vendorIdOf,
@@ -41,9 +42,12 @@ test.describe('vendor-refund: list states', () => {
         const noCredit = `${prefix} none`
         const inactive = `${prefix} gone`
         await createVendor(page, { name: inactive })
+        // Save opens the new vendor's page; the list is behind it.
+        await openVendorsList(page)
         await searchVendors(page, inactive)
         await chooseFromMenu(page, await vendorIdOf(page, inactive), 'toggle-inactive')
         await createVendor(page, { name: noCredit })
+        await openVendorsList(page)
         await searchVendors(page, noCredit)
         const noCreditId = await vendorIdOf(page, noCredit)
         const withCredit = await vendorWithCredits(page, [{ amount: '650.00' }])

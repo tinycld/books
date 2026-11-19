@@ -138,6 +138,7 @@ describe('registries', () => {
             href: 'books/pay-bills',
             column: 'vendors',
             available: true,
+            takesVendor: true,
         })
     })
 
@@ -148,6 +149,7 @@ describe('registries', () => {
             href: 'books/expenses/new',
             column: 'vendors',
             available: true,
+            takesVendor: true,
         })
     })
 
@@ -158,6 +160,7 @@ describe('registries', () => {
             href: 'books/bills/new',
             column: 'vendors',
             available: true,
+            takesVendor: true,
         })
     })
 
@@ -169,6 +172,7 @@ describe('registries', () => {
             href: 'books/vendor-credits/new',
             column: 'vendors',
             available: true,
+            takesVendor: true,
         })
     })
 
@@ -180,6 +184,7 @@ describe('registries', () => {
             href: 'books/vendor-refunds/new',
             column: 'vendors',
             available: true,
+            takesVendor: true,
         })
     })
 
@@ -308,6 +313,26 @@ describe('registries', () => {
         for (const other of NEW_ACTIONS.filter(a => !a.takesCustomer)) {
             expect(other).not.toHaveProperty('takesCustomer')
         }
+    })
+
+    // Vendor pages §3.3: the vendor page's New transaction menu lists the actions that
+    // take a vendor.
+    it('flags exactly bill, pay_bills, expense, vendor_credit and vendor_refund as taking a vendor', () => {
+        expect(NEW_ACTIONS.filter(a => a.takesVendor).map(a => a.id)).toEqual([
+            'bill',
+            'pay_bills',
+            'expense',
+            'vendor_credit',
+            'vendor_refund',
+        ])
+        for (const other of NEW_ACTIONS.filter(a => !a.takesVendor)) {
+            expect(other).not.toHaveProperty('takesVendor')
+        }
+    })
+
+    it('no action takes both a customer and a vendor', () => {
+        expect(NEW_ACTIONS.filter(a => a.takesCustomer && a.takesVendor)).toEqual([])
+        expect(NEW_ACTIONS.some(a => a.takesVendor)).toBe(true)
     })
 
     it('LIST_ENTRIES has an available Accounts entry', () => {

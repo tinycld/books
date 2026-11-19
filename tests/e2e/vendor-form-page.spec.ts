@@ -9,6 +9,7 @@ import {
     openNewVendor,
     openVendor,
     openVendorsList,
+    vendorPath,
     vendorsBase,
 } from './vendor-form-helpers'
 
@@ -31,7 +32,8 @@ import {
 // core/components/forms-builder/__tests__/canvas.test.tsx ("a new field lands before
 // the host slot") and core core/ui/forms/__tests__/use-form-edit.test.tsx (`useFormEdit`
 // edits on the form `record[host.formColumn]` names, and on the default form when that
-// form is missing). The panel surface is checkpoint 9.
+// form is missing). The panel surface is checkpoint 9. An existing vendor opens on its
+// vendor page; its form is the page's Details tab (tests/e2e/vendor-pages-page.spec.ts).
 
 const OFFICE_SUPPLY = 'Office Supply World'
 const PACIFIC_POWER = 'Pacific Power'
@@ -154,10 +156,13 @@ test.describe('vendor-form: vendor page and form', () => {
         await openBooks(page, DESKTOP)
         const { title, back, terms, expense } = locators(page)
 
+        // The row opens the vendor's page; `openVendor` then selects its Details tab.
         await openVendor(page, OFFICE_SUPPLY)
-        await expect(page).toHaveURL(new RegExp(`/books/vendors/${VENDOR_IDS.officeSupply}$`))
-        await expect(title).toHaveText('Edit vendor')
+        await expect(page).toHaveURL(vendorPath(VENDOR_IDS.officeSupply))
+        await expect(title).toHaveText(OFFICE_SUPPLY)
         await expect(field(page, 'display_name')).toHaveValue(OFFICE_SUPPLY)
+        // Notes live on the Notes tab only; the Details form never shows them.
+        await expect(page.getByTestId('form-field-notes')).toHaveCount(0)
         await expect(page.getByTestId('form-input-address-line1')).toHaveValue(
             '4120 Commerce Boulevard'
         )
@@ -165,9 +170,17 @@ test.describe('vendor-form: vendor page and form', () => {
         await expect(field(page, 'account_number')).toHaveValue('1234567')
         // The trigger shows the plain label: the indent belongs to the menu only.
         await expect.poll(() => expense.textContent()).toBe(DESIGN_TOOLS)
+        // The page's Cancel and Save are in the save bar, which shows once a field changes;
+        // an existing vendor has no Save and new.
+        await field(page, 'account_number').fill('7654321')
         await expect(page.getByTestId('vendor-cancel')).toBeVisible()
         await expect(page.getByTestId('vendor-save')).toBeVisible()
         await expect(page.getByTestId('vendor-save-new')).toHaveCount(0)
+        const dialog = discardDialog(page)
+        await page.getByTestId('vendor-cancel').click()
+        await dialog.discard.click()
+        await expect(page.getByTestId('vendor-save-bar')).toBeHidden()
+        await expect(field(page, 'account_number')).toHaveValue('1234567')
         // Back keeps the list's search text.
         await back.click()
         await expectListShown(page)
@@ -189,8 +202,9 @@ test.describe('vendor-form: vendor page and form', () => {
         await expect(expenseItems.filter({ hasText: '6900 Old Petty Cash' })).toHaveCount(0)
         await page.keyboard.press('Escape')
         await expect(expenseItems).toHaveCount(0)
-        // Clean, so Cancel leaves with no question.
-        await page.getByTestId('vendor-cancel').click()
+        // Clean, so Back leaves with no question (the page's Cancel shows only while dirty).
+        await page.getByTestId('vendor-back').click()
+        await expect(discardDialog(page).title).toBeHidden()
         await expectListShown(page)
     })
 

@@ -11,6 +11,9 @@ export interface NewAction {
     // A transaction for one customer: the customer page's New transaction menu lists it
     // and opens it with `?customer=<id>`.
     takesCustomer?: true
+    // A transaction for one vendor: the vendor page's New transaction menu lists it and
+    // opens it with `?vendor=<id>`.
+    takesVendor?: true
 }
 
 export const NEW_ACTIONS: NewAction[] = [
@@ -82,6 +85,7 @@ export const NEW_ACTIONS: NewAction[] = [
         href: 'books/bills/new',
         column: 'vendors',
         available: true,
+        takesVendor: true,
     },
     {
         id: 'pay_bills',
@@ -89,6 +93,7 @@ export const NEW_ACTIONS: NewAction[] = [
         href: 'books/pay-bills',
         column: 'vendors',
         available: true,
+        takesVendor: true,
     },
     {
         id: 'expense',
@@ -96,6 +101,7 @@ export const NEW_ACTIONS: NewAction[] = [
         href: 'books/expenses/new',
         column: 'vendors',
         available: true,
+        takesVendor: true,
     },
     {
         id: 'vendor_credit',
@@ -103,6 +109,7 @@ export const NEW_ACTIONS: NewAction[] = [
         href: 'books/vendor-credits/new',
         column: 'vendors',
         available: true,
+        takesVendor: true,
     },
     {
         id: 'vendor_refund',
@@ -110,6 +117,7 @@ export const NEW_ACTIONS: NewAction[] = [
         href: 'books/vendor-refunds/new',
         column: 'vendors',
         available: true,
+        takesVendor: true,
     },
     {
         id: 'journal-entry',

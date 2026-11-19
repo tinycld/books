@@ -1,3 +1,6 @@
+// The app shell type-checks this file without the package's own augments; this brings in
+// the `inert` prop of View.
+/// <reference path="../types/react-native-web.d.ts" />
 import { FrozenSlideStack } from '@tinycld/core/components/workspace/FrozenStack'
 import { Stack, ThemeProvider, useTheme } from 'expo-router'
 import { type ReactNode, useMemo } from 'react'
@@ -7,6 +10,7 @@ import {
     type DetailWidth,
     detailScreenOptions,
     INDEX_SCREEN_OPTIONS,
+    isListCovered,
     listColumnStyle,
     stackContainerStyle,
     stackPointerEvents,
@@ -47,10 +51,13 @@ export function ListDetailLayout({
         <Stack.Screen key={name} name={name} options={options} />
     ))
     const listStyle = listColumnStyle(surface, detailWidth, isDetailOpen)
+    const isCovered = isListCovered(surface, isDetailOpen)
     const stackStyle = stackContainerStyle(surface, isDetailOpen, detailWidth)
     return (
         <View className="flex-1 flex-row" style={{ position: 'relative' }}>
-            <View style={listStyle}>{list}</View>
+            <View style={listStyle} inert={isCovered} aria-hidden={isCovered}>
+                {list}
+            </View>
             <View
                 className="border-border"
                 style={stackStyle}
