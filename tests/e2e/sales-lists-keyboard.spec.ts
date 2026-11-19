@@ -86,11 +86,12 @@ test.describe('sales-lists: keyboard', () => {
 
         await openSales(page)
 
-        // 3, 4, 5, 6 and 1 switch tabs; 2 goes to Invoices.
+        // 3, 4, 5, 6, 7 and 1 switch tabs; 2 goes to Invoices.
         await pressTab(page, '3', 'estimates')
         await pressTab(page, '4', 'sales-receipts')
         await pressTab(page, '5', 'payments')
         await pressTab(page, '6', 'credit-memos')
+        await pressTab(page, '7', 'refund-receipts')
         await pressTab(page, '1', 'all')
         await pressTab(page, '2', 'invoices')
 

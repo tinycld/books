@@ -28,7 +28,13 @@ The form shows **For invoice 1004** under the customer: choose it to open the in
 
 When you post a credit memo, the customer's **Open** figure on the [customer's page](help://books:customer-pages) goes down by the Credit amount. When the customer's credits are more than what the customer owes, the figure shows as a negative amount, such as −$250.00, with the label **Credit** in place of Open. Overdue does not change, because it adds only the balance due of invoices.
 
-On the customer's Transactions tab, choose the **Credit memos** chip to see the customer's credit memos. Each total shows with a minus sign, such as −$250.00. A posted credit memo is **Unapplied** while its credit is not used yet. All posted credit memos are Unapplied for now, because Books cannot yet apply a credit to an invoice or refund it.
+On the customer's Transactions tab, choose the **Credit memos** chip to see the customer's credit memos. Each total shows with a minus sign, such as −$250.00. A posted credit memo is **Unapplied** while some of its credit is not used yet, also after you refund part of it. A posted credit memo is **Refunded** when refund receipts pay out all of its credit.
+
+## Refund a credit
+
+To give the customer the money of a credit, open the posted credit memo and choose **Refund credit**, or press R. On a phone, it is in the More menu. Only a credit memo with unapplied credit has it. A new refund receipt opens with the credit memo's customer and a copy of its lines: it pays out the credit. To refund part of the credit, remove or lower lines. The refund cannot be more than the unapplied credit, and it cannot be dated before the credit memo. See [Refund receipts](help://books:refund-receipts).
+
+When a posted refund receipt pays out the credit memo, its read view shows two more rows after Credit amount: **Refunded**, with a minus sign, and **Unapplied credit**, the credit that is left. The **Refunds** section lists each refund receipt that pays out the credit memo, with its number, date, amount and status. A payout raises the customer's Open figure by its total, because the credit that Books owed the customer is used up.
 
 ## Sales tax on a credit memo
 
@@ -40,7 +46,7 @@ A posted credit memo lowers both sales reports, Sales by Customer and Sales by P
 
 ## Cash basis
 
-On Accrual, a posted credit memo counts on its own date, as every posted entry does. On Cash, a credit memo counts only when its credit is used, as an invoice counts only when it is paid. Books cannot yet apply or refund a credit, so on Cash a credit memo changes no figure of the Profit and Loss, the Balance Sheet, Transaction Detail by Account or the Sales Tax Liability. See "Accrual and cash basis" in [Reports](help://books:reports).
+On Accrual, a posted credit memo counts on its own date, as every posted entry does. On Cash, a credit memo counts only when its credit is used, as an invoice counts only when it is paid. A refund receipt that pays out the credit uses it: on the refund date, the payout brings back its share of the credit memo's lines and tax, with a line such as "Credit memo 1001 refunded (cash basis)". Books cannot yet apply a credit to an invoice. So on Cash, a credit memo that no refund receipt pays out changes no figure of the Profit and Loss, the Balance Sheet, Transaction Detail by Account or the Sales Tax Liability. See "Accrual and cash basis" in [Reports](help://books:reports).
 
 ## Save and post
 
@@ -57,6 +63,14 @@ Books does not save a credit memo whose total is below zero, as a draft or poste
 - To cancel it, choose Void and confirm. Books posts a reversing entry in the original period, and the number is kept. The customer's Open figure goes back up by the Credit amount.
 - To start a new one from it, choose Copy. A copy keeps the customer, lines, tax and message, and has today's date, no memo and no link to an invoice.
 - To see the entry it posted, choose View journal entry.
+
+When refund receipts pay out a credit memo, these rules apply:
+
+- You cannot void a credit memo that a posted refund receipt pays out: "A refund receipt is recorded on this credit memo. Void the refund first."
+- An edit moves the links of its refund receipts to the new version.
+- The edit's total cannot be below what posted refund receipts paid out, for example "$80.00 of this credit is refunded. Its total cannot be below that."
+- The edit cannot change the customer while a draft or posted refund receipt pays out the credit memo: "A refund receipt is recorded on this credit memo, so its customer cannot change."
+- The edit's date cannot be after the date of the first posted refund receipt that pays it out, for example "Refund receipt 1003 refunds this credit on Nov 15, 2026. Date the credit memo on or before that day."
 
 ## Keyboard shortcuts
 
@@ -78,6 +92,7 @@ On a posted or void credit memo:
 - V: Void
 - C: Copy to a new credit memo
 - J: View journal entry
+- R: Refund credit (a posted credit memo with unapplied credit only)
 - ⌥1 / ⌥2: Details tab / PDF view tab
 - ⌘P: Download PDF
 

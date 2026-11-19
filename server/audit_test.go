@@ -91,6 +91,40 @@ func TestAudit_LabelsACreditMemoAndItsLines(t *testing.T) {
 	}
 }
 
+// Refund receipt spec §3.13: a refund receipt's audit row is "Refund receipt
+// 1001", or "Draft refund receipt" while it has no number; a line's row
+// follows its refund ("Refund receipt 1001: line 2").
+func TestAudit_LabelsARefundReceiptAndItsLines(t *testing.T) {
+	rr := newRefundReceiptEnv(t)
+	audited := auditedCollections(rr.app)
+	refunds, ok := audited["books_refund_receipts"]
+	if !ok {
+		t.Fatal("books_refund_receipts is not audited")
+	}
+	lines, ok := audited["books_refund_receipt_lines"]
+	if !ok {
+		t.Fatal("books_refund_receipt_lines is not audited")
+	}
+	r := rr.mkRefundReceipt(t, nil)
+	mkRefundReceiptLine(t, rr.app, r, 0, item(rr.service, 1, 45000, false))
+	line := mkRefundReceiptLine(t, rr.app, r, 1, item(rr.accessPoint, 1, 18900, false))
+
+	if got, want := refunds.ExtractLabel(reload(t, rr.app, "books_refund_receipts", r.Id)), "Draft refund receipt"; got != want {
+		t.Errorf("draft refund receipt label = %q, want %q", got, want)
+	}
+	if got, want := lines.ExtractLabel(reload(t, rr.app, "books_refund_receipt_lines", line.Id)), "Draft refund receipt: line 2"; got != want {
+		t.Errorf("draft refund receipt line label = %q, want %q", got, want)
+	}
+
+	posted := mustPostRefundReceipt(t, rr.app, r.Id, rr.users.bookkeeper.Id)
+	if got, want := refunds.ExtractLabel(posted), "Refund receipt 1001"; got != want {
+		t.Errorf("posted refund receipt label = %q, want %q", got, want)
+	}
+	if got, want := lines.ExtractLabel(reload(t, rr.app, "books_refund_receipt_lines", line.Id)), "Refund receipt 1001: line 2"; got != want {
+		t.Errorf("posted refund receipt line label = %q, want %q", got, want)
+	}
+}
+
 // Receive payment spec §4.3: a payment's audit row is "Payment 1004", or "Draft
 // payment" while it has no number; an application's row names its payment and
 // its invoice ("Payment 1004: Invoice 1009").

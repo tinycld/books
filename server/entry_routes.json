@@ -7,5 +7,6 @@
     "payment": "payments",
     "bill_payment": "bill-payments",
     "vendor_credit": "vendor-credits",
-    "vendor_refund": "vendor-refunds"
+    "vendor_refund": "vendor-refunds",
+    "refund_receipt": "refund-receipts"
 }

@@ -8,7 +8,7 @@ export type DocumentScreenState =
     | 'no-access'
     | 'cannot-edit'
     | 'cannot-convert'
-    | 'cannot-credit'
+    | 'cannot-start'
     | 'form'
     | 'read'
 
@@ -29,10 +29,11 @@ type Status = DocumentStatus
 // when the form is no copy, null when that document does not exist. `estimateStatus` is
 // the estimate an invoice is made from (`?estimate`): undefined when the form is not
 // made from one, null when that estimate does not exist; only a pending or accepted
-// estimate converts, any other shows the cannot-convert notice. `invoiceStatus` is the
-// invoice a credit memo is made from (`?invoice`): undefined when the form is not made
-// from one, null when that invoice does not exist or cannot be read; only a posted
-// invoice is credited, any other shows the cannot-credit notice.
+// estimate converts, any other shows the cannot-convert notice. `sourceAllowed` is the
+// kind's answer for the source a new form is made from (`?invoice`, `?sales_receipt`,
+// `?credit_memo`; DocumentKind.sourceAllowed): undefined when the form is not made from
+// one, null when that source does not exist or cannot be read; any answer but true shows
+// the kind's cannot-start notice (DocumentKind.sourceNotice).
 export function documentScreenState(input: {
     lifecycle: DocumentLifecycle
     isReady: boolean
@@ -44,7 +45,7 @@ export function documentScreenState(input: {
     replacesStatus: Status | null | undefined
     copyStatus?: Status | null
     estimateStatus?: Status | null
-    invoiceStatus?: Status | null
+    sourceAllowed?: boolean | null
 }): DocumentScreenState {
     const { lifecycle, isReady, isError, canWrite, isNew, status, isHeld } = input
     if (isError) return 'error'
@@ -64,10 +65,10 @@ function newFormState(
         replacesStatus: Status | null | undefined
         copyStatus?: Status | null
         estimateStatus?: Status | null
-        invoiceStatus?: Status | null
+        sourceAllowed?: boolean | null
     }
 ): DocumentScreenState {
-    const { replacesStatus, copyStatus, estimateStatus, invoiceStatus } = sources
+    const { replacesStatus, copyStatus, estimateStatus, sourceAllowed } = sources
     if (!canWrite) return 'no-access'
     if (copyStatus === null) return 'not-found'
     if (estimateStatus === null) return 'not-found'
@@ -75,9 +76,7 @@ function newFormState(
         const converts = estimateStatus === 'pending' || estimateStatus === 'accepted'
         return converts ? 'form' : 'cannot-convert'
     }
-    if (invoiceStatus !== undefined) {
-        return invoiceStatus === 'posted' ? 'form' : 'cannot-credit'
-    }
+    if (sourceAllowed !== undefined) return sourceAllowed === true ? 'form' : 'cannot-start'
     if (replacesStatus === undefined || replacesStatus === 'posted') return 'form'
     if (replacesStatus === null) return 'not-found'
     return 'cannot-edit'

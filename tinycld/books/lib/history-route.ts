@@ -17,5 +17,6 @@ export const DOCUMENT_COLLECTIONS: Record<SalesDocKey | 'vendor_refund', string>
     bill: 'books_bills',
     expense: 'books_expenses',
     vendor_credit: 'books_vendor_credits',
+    refund_receipt: 'books_refund_receipts',
     vendor_refund: 'books_vendor_refunds',
 }

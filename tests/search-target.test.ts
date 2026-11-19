@@ -65,6 +65,15 @@ describe('searchTarget', () => {
         })
     })
 
+    // Refund receipt spec §3.13: a refund receipt hit (kind refund_receipt) opens the refund.
+    it('routes a refund receipt hit to the refund receipt screen', () => {
+        expect(searchTarget('refund_receipt:abc')).toEqual({
+            path: 'books/refund-receipts/[id]',
+            id: 'abc',
+        })
+        expect(searchTarget('refund_receipt:')).toBeNull()
+    })
+
     it('routes an estimate hit to the estimate screen', () => {
         expect(searchTarget('estimate:abc')).toEqual({
             path: 'books/estimates/[id]',

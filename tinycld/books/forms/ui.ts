@@ -35,6 +35,7 @@ import {
     DepositAccountField,
     PaymentAccountField,
     PaymentMethodField,
+    RefundFromField,
     RequiredPaymentMethodField,
 } from './payment-fields'
 import { BundleProductCell, ProductTypeField } from './product-fields'
@@ -88,6 +89,7 @@ const ui: FormHostUi = {
         PaymentMethodField,
         RequiredPaymentMethodField,
         DepositAccountField,
+        RefundFromField,
         PaymentAccountField,
         EstimateStatusField,
         ExpirationDateField,

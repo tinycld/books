@@ -77,6 +77,28 @@ describe('books manifest', () => {
         }
     })
 
+    // Refund receipt spec §2: the routes' screens (new, [id], the layout and the index
+    // redirect) are reached through the exports map's `./screens/*` wildcard.
+    it('resolves the refund receipt screens through package.json exports', () => {
+        const exportsMap: Record<string, string> = pkg.exports
+        const screens = [
+            'screens/refund-receipts/new',
+            'screens/refund-receipts/[id]',
+            'screens/refund-receipts/_layout',
+            'screens/refund-receipts/index',
+        ]
+        for (const screen of screens) {
+            const subpath = `./${screen}`
+            const key = Object.keys(exportsMap).find(
+                k => k.endsWith('/*') && subpath.startsWith(k.slice(0, -1))
+            )
+            expect(key, screen).toBe('./screens/*')
+            const wildcard = subpath.slice((key as string).length - 1)
+            const target = exportsMap[key as string].replace('*', wildcard)
+            expect(existsSync(join(__dirname, '..', target)), target).toBe(true)
+        }
+    })
+
     it('declares the forms host modules, each resolved through package.json exports', () => {
         expect(manifest.forms).toEqual({ hosts: 'forms', ui: 'forms-ui' })
         const exportsMap: Record<string, string> = pkg.exports

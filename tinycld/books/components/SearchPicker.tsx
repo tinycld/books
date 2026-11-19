@@ -265,9 +265,12 @@ const PickerTrigger = forwardRef<PressableInstance, TriggerProps>(function Picke
     // the browser then draws no ring of its own.
     const focusRing = 'web:outline-none web:focus:ring-2 web:focus:ring-ring'
     const labelTone = isPlaceholder ? 'text-muted-foreground' : 'text-foreground'
+    // A disabled trigger is no Tab stop (lesson 19: RN-web ignores `focusable={false}`).
+    const tabIndex = disabled ? -1 : undefined
     return (
         <Pressable
             ref={ref}
+            tabIndex={tabIndex}
             onPress={onPress}
             onFocus={onFocus}
             onBlur={onBlur}

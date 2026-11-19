@@ -181,6 +181,30 @@ export const CREDIT_MEMO_LAYOUT = {
     rules: [],
 } satisfies FormHostDefInput['layout']
 
+export const REFUND_RECEIPT_HOST_KEY = 'books:refund_receipt'
+
+// The default Refund receipt form (refund receipt spec §4.4): one page. The header
+// band's first row holds Customer, Bill to, Email, Refund date and Tax with the sales
+// receipt's widths; its second row holds the payment: Payment method, Reference no.
+// and Refund from, a third each. The lines, the message to the customer and the
+// internal memo follow.
+export const REFUND_RECEIPT_LAYOUT = {
+    pages: [{ key: 'main', title: 'Refund receipt' }],
+    fields: {
+        customer: { width: 'full' },
+        bill_to: { width: 'full' },
+        email: { width: 'full' },
+        date: { width: 'quarter' },
+        tax_rate: { width: 'quarter', narrowWidth: 'full' },
+        payment_method: { width: 'third' },
+        reference_no: { width: 'third', description: 'Check or card reference' },
+        refund_from: { width: 'third' },
+        message: { description: 'Shown on the refund receipt and its PDF.' },
+        memo: { description: MEMO_HINT },
+    },
+    rules: [],
+} satisfies FormHostDefInput['layout']
+
 export const ESTIMATE_HOST_KEY = 'books:estimate'
 
 // The default Estimate form (spec §3.3): one page. The header band's first row holds
@@ -1179,6 +1203,150 @@ const hosts: FormHostDefInput[] = [
         ],
         insertCustomBefore: 'lines',
         layout: CREDIT_MEMO_LAYOUT,
+    },
+    {
+        key: REFUND_RECEIPT_HOST_KEY,
+        label: 'Refund receipt',
+        collection: 'books_refund_receipts',
+        formColumn: 'form',
+        fieldsColumn: 'fields',
+        // Every column, the server-written ones too: a custom key must never shadow a
+        // column. sales_receipt and credit_memo are stored columns, not built-ins: the
+        // form's link row writes them.
+        columns: [
+            'id',
+            'customer',
+            'status',
+            'number',
+            'sequence',
+            'date',
+            'bill_to',
+            'email',
+            'tax_rate',
+            'payment_method',
+            'reference_no',
+            'refund_from',
+            'sales_receipt',
+            'credit_memo',
+            'message',
+            'memo',
+            'subtotal',
+            'tax_total',
+            'total',
+            'revision',
+            'currency',
+            'entry',
+            'posted_at',
+            'posted_by',
+            'voided_at',
+            'voided_by',
+            'replaces',
+            'replaced_by',
+            'form',
+            'fields',
+            'sort_key',
+            'created',
+            'updated',
+        ],
+        builtin: [
+            // Optional: a walk-in refund names no customer.
+            {
+                key: 'customer',
+                label: 'Customer',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                locked: true,
+                component: 'CustomerField',
+                chrome: 'cell',
+            },
+            {
+                key: 'bill_to',
+                label: 'Bill to',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'BillToField',
+                chrome: 'cell',
+            },
+            {
+                key: 'email',
+                label: 'Email',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'BandEmailField',
+                chrome: 'cell',
+            },
+            {
+                key: 'date',
+                label: 'Refund date',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                locked: true,
+                component: 'DocumentDateField',
+                chrome: 'cell',
+            },
+            {
+                key: 'tax_rate',
+                label: 'Tax',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                locked: true,
+                component: 'DocumentTaxField',
+                chrome: 'cell',
+            },
+            {
+                key: 'payment_method',
+                label: 'Payment method',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'PaymentMethodField',
+                chrome: 'cell',
+            },
+            {
+                key: 'reference_no',
+                label: 'Reference no.',
+                kind: 'text',
+                storage: 'column',
+                required: false,
+                maxLength: 40,
+            },
+            // Required, unlike the sales receipt's Deposit to: no setting hides Refund
+            // from, and the server always requires it (checkRefundFromAccount).
+            {
+                key: 'refund_from',
+                label: 'Refund from',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                locked: true,
+                component: 'RefundFromField',
+                chrome: 'cell',
+            },
+            DOCUMENT_LINES_BUILTIN,
+            // Core allows maxLength only on a text built-in; documentSchema bounds these
+            // two at 4000 code points, as the migration does.
+            {
+                key: 'message',
+                label: DOCUMENT_NOTE_LABELS.message,
+                kind: 'textarea',
+                storage: 'column',
+                required: false,
+            },
+            {
+                key: 'memo',
+                label: DOCUMENT_NOTE_LABELS.memo,
+                kind: 'textarea',
+                storage: 'column',
+                required: false,
+            },
+        ],
+        insertCustomBefore: 'lines',
+        layout: REFUND_RECEIPT_LAYOUT,
     },
     {
         key: ESTIMATE_HOST_KEY,

@@ -1,6 +1,6 @@
 // One customer's sales documents as one list (spec §3.5): invoices, estimates, sales
-// receipts, payments and credit memos mapped to one row shape with their status badge,
-// merged newest first. Pure, so each rule is unit-tested; the hook
+// receipts, payments, credit memos and refund receipts mapped to one row shape with their
+// status badge, merged newest first. Pure, so each rule is unit-tested; the hook
 // (hooks/useCustomerTransactions.ts) feeds it.
 
 import type {
@@ -8,6 +8,7 @@ import type {
     BooksEstimates,
     BooksInvoices,
     BooksPayments,
+    BooksRefundReceipts,
     BooksSalesReceipts,
 } from '../types'
 import type { StatusTone } from './document-lifecycle'
@@ -18,11 +19,18 @@ import {
     CREDIT_MEMO_KIND,
     ESTIMATE_KIND,
     INVOICE_KIND,
+    REFUND_RECEIPT_KIND,
     SALES_RECEIPT_KIND,
     type SalesDocumentKind,
 } from './sales-document-kinds'
 
-export type TransactionKind = 'invoice' | 'estimate' | 'sales_receipt' | 'payment' | 'credit_memo'
+export type TransactionKind =
+    | 'invoice'
+    | 'estimate'
+    | 'sales_receipt'
+    | 'payment'
+    | 'credit_memo'
+    | 'refund_receipt'
 
 export type TransactionFilter = 'all' | TransactionKind
 
@@ -35,7 +43,8 @@ export interface PartyTransactionRow<Kind extends string = TransactionKind> {
     date: string
     // Set by the kinds with a due date (invoice, bill); '' for every other kind.
     dueDate: string
-    // A credit memo's total is its stored total negated: the credit lowers what is owed.
+    // A credit memo's and a refund receipt's total is its stored total negated: the credit
+    // lowers what is owed, and a refund is money paid back.
     total: number
     currency: string
     created: string
@@ -51,6 +60,7 @@ export const TRANSACTION_TYPE_LABELS: Record<TransactionKind, string> = {
     sales_receipt: 'Sales receipt',
     payment: 'Payment',
     credit_memo: 'Credit memo',
+    refund_receipt: 'Refund receipt',
 }
 
 // The chips, in strip order.
@@ -61,6 +71,7 @@ export const TRANSACTION_FILTERS: readonly { key: TransactionFilter; label: stri
     { key: 'sales_receipt', label: 'Sales receipts' },
     { key: 'payment', label: 'Payments' },
     { key: 'credit_memo', label: 'Credit memos' },
+    { key: 'refund_receipt', label: 'Refunds' },
 ]
 
 // The route of each kind, for `documentHref`. A payment is not a sales-document kind
@@ -74,6 +85,7 @@ export const TRANSACTION_DOC_KINDS: Record<
     sales_receipt: SALES_RECEIPT_KIND,
     payment: { routeBase: 'books/payments' },
     credit_memo: CREDIT_MEMO_KIND,
+    refund_receipt: REFUND_RECEIPT_KIND,
 }
 
 const TRANSACTION_KINDS: readonly TransactionKind[] = [
@@ -82,6 +94,7 @@ const TRANSACTION_KINDS: readonly TransactionKind[] = [
     'sales_receipt',
     'payment',
     'credit_memo',
+    'refund_receipt',
 ]
 
 // The inverse of TRANSACTION_DOC_KINDS: the transaction kind of a document kind, by its
@@ -114,6 +127,10 @@ type PaymentInput = Pick<
 type CreditMemoInput = Pick<
     BooksCreditMemos,
     'id' | 'status' | 'number' | 'date' | 'total' | 'balance' | 'currency' | 'created'
+>
+type RefundReceiptInput = Pick<
+    BooksRefundReceipts,
+    'id' | 'status' | 'number' | 'date' | 'total' | 'currency' | 'created'
 >
 
 type StatusBadge = PartyTransactionRow['status']
@@ -185,13 +202,20 @@ function paymentStatus(row: PaymentInput): StatusBadge {
     return lifecycleStatus(row.status, posted)
 }
 
-// A posted credit memo reads Unapplied while credit is left on it, else Applied (credit
-// memo spec §3.10). The Transactions tab and the invoice's Credit memos section both use it.
+// A posted credit memo reads Unapplied while credit is left on it (a partly refunded memo
+// too), else Refunded: refund receipts paid out all of it (refund receipt spec §3.12). The
+// Transactions tab, the Sales lists and the invoice's Credit memos section use it.
 export function creditMemoStatus(row: { status: string; balance: number }): StatusBadge {
     return creditStatus(row, {
         open: { label: 'Unapplied', tone: 'warning' },
-        closed: { label: 'Applied', tone: 'success' },
+        closed: { label: 'Refunded', tone: 'success' },
     })
+}
+
+// A posted refund receipt reads Refunded (refund receipt spec §3.11–§3.13). The sales
+// receipt's and the credit memo's sections, the Sales lists and the Transactions tab use it.
+export function refundReceiptStatus(row: { status: string }): StatusBadge {
+    return lifecycleStatus(row.status, { label: 'Refunded', tone: 'success' })
 }
 
 export function invoiceRow(row: InvoiceInput, today: string): PartyTransactionRow {
@@ -267,6 +291,22 @@ export function creditMemoRow(row: CreditMemoInput): PartyTransactionRow {
     }
 }
 
+// A refund receipt's total is stored positive; the row negates it, as the money went back
+// to the customer (refund receipt spec §3.13). It has no due date.
+export function refundReceiptRow(row: RefundReceiptInput): PartyTransactionRow {
+    return {
+        id: row.id,
+        kind: 'refund_receipt',
+        number: row.number,
+        date: row.date,
+        dueDate: '',
+        total: -row.total,
+        currency: row.currency,
+        created: row.created,
+        status: refundReceiptStatus(row),
+    }
+}
+
 export function transactionTotalText(row: PartyTransactionRow<string>, currency: string): string {
     if (row.total >= 0) return formatMoney(row.total, currency)
     return `${MINUS}${formatMoney(-row.total, currency)}`
@@ -305,6 +345,7 @@ const EMPTY_NOUNS: Record<TransactionKind, string> = {
     sales_receipt: 'sales receipts',
     payment: 'payments',
     credit_memo: 'credit memos',
+    refund_receipt: 'refund receipts',
 }
 
 export function emptyText(filter: TransactionFilter): string {
