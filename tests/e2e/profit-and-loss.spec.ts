@@ -131,19 +131,47 @@ async function collapseAll(page: Page): Promise<ReportSnapshot> {
     )
 }
 
-// Opens one folded section and waits for `label`'s row (an account of the test's own)
-// under it, before its total.
+// The table mounts only the rows near its scroll position (a FlashList), and a section
+// grows with every account that earlier runs and other specs post to today. An account
+// whose name sorts below theirs, or the section's total under a long section, is then not
+// mounted. Accounts sort by number, then name (server/report_profit_and_loss.go
+// plRecordSort), so an unnumbered account named from this key sorts above every account
+// made before it: "AA 0" comes before the other specs' "AA <letter>" names, and the
+// countdown makes a later run's name sort before an earlier run's.
+function sectionTopKey(): string {
+    return `AA 0${String(9_999_999_999_999 - Date.now()).padStart(13, '0')}`
+}
+
+// True when `label`'s row lies inside the opened `section`: below the section's title, with
+// only the section's own rows (indented under the title) between them. The section's total
+// and the next section are not indented under it, so the account is above the total.
+function isInSection(snapshot: ReportSnapshot, section: string, label: string): boolean {
+    const at = indexOf(snapshot, 'group', label)
+    const above = snapshot.rows.slice(0, Math.max(at, 0))
+    const titleAt = above
+        .map(row => row.kind === 'group' && row.label === section)
+        .lastIndexOf(true)
+    if (at < 0 || titleAt < 0) return false
+    const titleDepth = snapshot.rows[titleAt].depth
+    return snapshot.rows
+        .slice(titleAt + 1, at + 1)
+        .every(row => (row.kind === 'group' || row.kind === 'detail') && row.depth > titleDepth)
+}
+
+// Opens one folded section and waits for its title and `label`'s row (an account of the
+// test's own), and for `isReady` when given.
 async function openSectionTo(
     page: Page,
     section: string,
     label: string,
-    message: string
+    message: string,
+    isReady: (snapshot: ReportSnapshot) => boolean = () => true
 ): Promise<ReportSnapshot> {
     await rowOf(page, section).click()
     return snapshotWhen(
         page,
         reportSnapshot,
-        s => indexOf(s, 'group', label) >= 0 && indexOf(s, 'subtotal', `Total ${section}`) >= 0,
+        s => indexOf(s, 'group', section) >= 0 && indexOf(s, 'group', label) >= 0 && isReady(s),
         message
     )
 }
@@ -186,8 +214,9 @@ test.describe('profit-and-loss: report', () => {
         page,
     }) => {
         await startBooks(page)
-        const income = uniqueName('PL income')
-        const expense = uniqueName('PL expense')
+        const top = sectionTopKey()
+        const income = uniqueName(`${top} PL income`)
+        const expense = uniqueName(`${top} PL expense`)
         await createAccounts(page, [
             { name: income, kind: INCOME },
             { name: expense, kind: EXPENSE },
@@ -215,17 +244,15 @@ test.describe('profit-and-loss: report', () => {
         const incomeOpen = await openSectionTo(page, T.income, income, 'the income account')
         const incomeAt = indexOf(incomeOpen, 'group', income)
         expect(incomeAt).toBeGreaterThan(indexOf(incomeOpen, 'group', T.income))
-        expect(incomeAt).toBeLessThan(indexOf(incomeOpen, 'subtotal', `Total ${T.income}`))
+        expect(isInSection(incomeOpen, T.income, income)).toBe(true)
         expect(amountOf(incomeOpen, 'group', income)).toBe(50000)
-        const afterTotal = incomeOpen.rows.slice(
-            indexOf(incomeOpen, 'subtotal', `Total ${T.income}`) + 1
-        )
-        expect(afterTotal.filter(row => row.label === income)).toEqual([])
+        // One row only: none after the section's total, nor anywhere else.
+        expect(incomeOpen.rows.filter(row => row.label === income)).toHaveLength(1)
 
         const expenseOpen = await openSectionTo(page, T.expense, expense, 'the expense account')
         const expenseAt = indexOf(expenseOpen, 'group', expense)
         expect(expenseAt).toBeGreaterThan(indexOf(expenseOpen, 'group', T.expense))
-        expect(expenseAt).toBeLessThan(indexOf(expenseOpen, 'subtotal', `Total ${T.expense}`))
+        expect(isInSection(expenseOpen, T.expense, expense)).toBe(true)
         expect(amountOf(expenseOpen, 'group', expense)).toBe(12000)
     })
 
@@ -262,7 +289,13 @@ test.describe('profit-and-loss: report', () => {
 
         await openProfitAndLoss(page)
         await collapseAll(page)
-        const open = await openSectionTo(page, T.income, income, 'the income account')
+        const open = await openSectionTo(
+            page,
+            T.income,
+            income,
+            'the income account',
+            s => indexOf(s, 'subtotal', `Total ${T.income}`) >= 0
+        )
         const totalIncome = rowNamed(open, 'subtotal', `Total ${T.income}`)
         expect(totalIncome?.cells.pct).toBe('100.0%')
         const share = (Math.round((20000 / cents(totalIncome?.cells.amount)) * 1000) / 10).toFixed(
@@ -284,10 +317,11 @@ test.describe('profit-and-loss: report', () => {
         page,
     }) => {
         await startBooks(page)
-        // Both names sort together, so the witness mounted beside the zero account
-        // proves the Expenses rows around it are in the snapshot.
-        const zeroed = uniqueName('PL rows zero')
-        const witness = uniqueName('PL rows witness')
+        // Both names sort together, at the top of Expenses, so the witness mounted beside
+        // the zero account proves the Expenses rows around it are in the snapshot.
+        const top = sectionTopKey()
+        const zeroed = uniqueName(`${top} PL rows zero`)
+        const witness = uniqueName(`${top} PL rows witness`)
         await createAccounts(page, [
             { name: zeroed, kind: EXPENSE },
             { name: witness, kind: EXPENSE },
@@ -320,13 +354,13 @@ test.describe('profit-and-loss: report', () => {
         await expect(rowOf(page, zeroed)).toHaveCount(0)
 
         await chooseRows(page, 'active')
-        // Fold again so only Expenses is open: its title, the zero account and its total
-        // are then all mounted in the one snapshot (openSectionTo waits for both).
+        // Fold again so only Expenses is open: its title and the zero account, at its top,
+        // are then both mounted in the one snapshot (openSectionTo waits for both).
         await collapseAll(page)
         const active = await openSectionTo(page, T.expense, zeroed, 'the zero account under Active')
         const at = indexOf(active, 'group', zeroed)
         expect(at).toBeGreaterThan(indexOf(active, 'group', T.expense))
-        expect(at).toBeLessThan(indexOf(active, 'subtotal', `Total ${T.expense}`))
+        expect(isInSection(active, T.expense, zeroed)).toBe(true)
         expect(rowNamed(active, 'group', zeroed)?.cells.amount).toMatch(/0\.00$/)
         expect(amountOf(active, 'group', zeroed)).toBe(0)
     })
