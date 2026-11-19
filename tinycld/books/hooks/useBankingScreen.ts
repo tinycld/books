@@ -91,11 +91,10 @@ export function useBankingScreen() {
     // beside the page runs it. The line lasts until the next action or a tab or account
     // change.
     const batch = useReviewBatch()
-    const drawer = useReviewDrawer({
-        accountLabel: selected ? connectionLabel(selected.accountNumber, selected.accountName) : '',
-        canWrite: access.canWrite,
-        batch,
-    })
+    const accountLabel = selected
+        ? connectionLabel(selected.accountNumber, selected.accountName)
+        : ''
+    const drawer = useReviewDrawer({ accountLabel, canWrite: access.canWrite, batch })
     const currency = settings.settings?.currency || 'USD'
     // The row marks of For review, read here so the drawer's Match Retry also recovers
     // them: both read the view books_bank_match_suggestions.
@@ -108,6 +107,8 @@ export function useBankingScreen() {
         batch,
         currency,
         suggestionsRecovery: suggestions.recovery,
+        accountId: selected?.account ?? '',
+        accountLabel,
     })
     const leaveRows = () => {
         resetReviewSelection()

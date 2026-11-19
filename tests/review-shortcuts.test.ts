@@ -45,6 +45,7 @@ const DESCRIPTIONS: Record<ReviewKeyAction, string> = {
     tabExcluded: 'Excluded tab',
     tabFiles: 'Files tab',
     escape: 'Close or clear',
+    match: 'Match the chosen transactions',
 }
 
 const ALL_ACTIONS = Object.keys(DESCRIPTIONS) as ReviewKeyAction[]
@@ -100,7 +101,56 @@ describe('REVIEW_KEYS', () => {
             tabExcluded: ['3'],
             tabFiles: ['4'],
             escape: ['Escape'],
+            match: ['m'],
         })
+    })
+})
+
+describe('the batch match key', () => {
+    // A writer on For review with two rows chosen, the drawer closed, no batch running and
+    // the server taking writes: every condition of the offer holds.
+    const OFFERED: ReviewKeyState = { ...WRITER, chosenCount: 2 }
+
+    it('is offered when every condition holds', () => {
+        expect(offeredReviewKeys(OFFERED)).toContain('match')
+    })
+
+    it.each<[string, Partial<ReviewKeyState>]>([
+        ['not on the For review tab', { tab: 'excluded' }],
+        ['not a writer', { canWrite: false, canChoose: false }],
+        ['no row chosen', { chosenCount: 0 }],
+        ['the drawer open', { isDrawerOpen: true, drawerAction: 'exclude' }],
+        ['a batch pending', { isBatchPending: true }],
+        ['writes blocked', { isWriteBlocked: true }],
+    ])('is not offered with %s', (_, change) => {
+        expect(offeredReviewKeys({ ...OFFERED, ...change })).not.toContain('match')
+    })
+
+    it('is never offered on the Reviewed or Excluded tab', () => {
+        for (const tab of ['reviewed', 'excluded'] as const) {
+            expect(offeredReviewKeys({ ...OFFERED, tab }), tab).not.toContain('match')
+            expect(
+                offeredReviewKeys({ ...OFFERED, tab, chosenCount: 5, hasFocusedRow: true }),
+                tab
+            ).not.toContain('match')
+        }
+    })
+
+    it('is described as "Match the chosen transactions" and runs its own handler', () => {
+        const run = handlers()
+        const shortcuts = reviewShortcuts({
+            id: 'books.banking.review.r1',
+            offered: offeredReviewKeys(OFFERED),
+            read: () => OFFERED,
+            run,
+        })
+        const m = byKeys(shortcuts, 'm')
+        expect(m.description).toBe('Match the chosen transactions')
+        expect(m.scope).toBe('list')
+        expect(m.when?.()).toBe(true)
+        m.run({ keys: 'm' })
+        expect(run.match).toHaveBeenCalledTimes(1)
+        expect(run.exclude).not.toHaveBeenCalled()
     })
 })
 
@@ -109,10 +159,10 @@ describe('offeredReviewKeys', () => {
         expect(offered(WRITER)).toEqual(sorted([...TABS, 'search', ...MOVE, ...CHOOSE]))
     })
 
-    it('(b) adds Exclude and Esc once rows are chosen, and drops search', () => {
+    it('(b) adds Match, Exclude and Esc once rows are chosen, and drops search', () => {
         // The selection bar replaces the toolbar, so there is no search field to focus.
         expect(offered({ ...WRITER, chosenCount: 2 })).toEqual(
-            sorted([...TABS, ...MOVE, ...CHOOSE, 'exclude', 'escape'])
+            sorted([...TABS, ...MOVE, ...CHOOSE, 'match', 'exclude', 'escape'])
         )
     })
 

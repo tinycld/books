@@ -19,6 +19,7 @@ export type ReviewKeyAction =
     | 'tabExcluded'
     | 'tabFiles'
     | 'escape'
+    | 'match'
 
 // Key names as tinykeys reads them (core lib/shortcuts/matcher.ts): `event.key` or
 // `event.code`, case ignored.
@@ -36,6 +37,7 @@ export const REVIEW_KEYS: Record<ReviewKeyAction, readonly string[]> = {
     tabExcluded: ['3'],
     tabFiles: ['4'],
     escape: ['Escape'],
+    match: ['m'],
 }
 
 const REVIEW_DESCRIPTIONS: Record<ReviewKeyAction, string> = {
@@ -52,6 +54,7 @@ const REVIEW_DESCRIPTIONS: Record<ReviewKeyAction, string> = {
     tabExcluded: 'Excluded tab',
     tabFiles: 'Files tab',
     escape: 'Close or clear',
+    match: 'Match the chosen transactions',
 }
 
 const REVIEW_ACTIONS = Object.keys(REVIEW_KEYS) as ReviewKeyAction[]
@@ -86,12 +89,22 @@ function canMove(state: ReviewKeyState, kind: MoveKind): boolean {
     return state.chosenCount > 0 || state.drawerAction === kind
 }
 
+// The batch match key presses the selection bar's Match: only with rows chosen and the
+// drawer closed, so one M at a time is registered.
+function canMatchChosen(state: ReviewKeyState): boolean {
+    if (!state.canWrite || state.isWriteBlocked || state.isBatchPending) return false
+    return state.chosenCount > 0 && !state.isDrawerOpen
+}
+
 // The tab keys always on a transaction tab; search while nothing is chosen (the selection
 // bar takes the toolbar's place, search field included, while rows are chosen); movement
 // with rows; open with a focused row; choosing for a writer on For review or Excluded
 // while no batch runs; Exclude on For review and Move to For review on Excluded, for
-// writers while the server takes writes; Esc while the drawer is open or rows are chosen.
-// Nothing on the Files tab (the keys are not registered there) or while a menu is open.
+// writers while the server takes writes; Match the chosen rows (M) on For review for a
+// writer with rows chosen and the drawer closed, while no batch runs and the server takes
+// writes (while the drawer is open, M is the drawer's own Match button); Esc while the
+// drawer is open or rows are chosen. Nothing on the Files tab (the keys are not
+// registered there) or while a menu is open.
 export function offeredReviewKeys(state: ReviewKeyState): ReviewKeyAction[] {
     if (state.isMenuOpen || state.tab === 'files') return []
     const offered: ReviewKeyAction[] = [...TAB_ACTIONS]
@@ -102,6 +115,7 @@ export function offeredReviewKeys(state: ReviewKeyState): ReviewKeyAction[] {
     if (state.canChoose && hasRows && !state.isBatchPending) offered.push('toggle', 'toggleAll')
     if (state.tab === 'review' && canMove(state, 'exclude')) offered.push('exclude')
     if (state.tab === 'excluded' && canMove(state, 'restore')) offered.push('restore')
+    if (state.tab === 'review' && canMatchChosen(state)) offered.push('match')
     if (state.isDrawerOpen || state.chosenCount > 0) offered.push('escape')
     return offered
 }
@@ -153,6 +167,8 @@ export function focusPressesKey(key: string): boolean {
 //   `list` scope; the drawer renders outside the page's ScopeProvider, so BankingScreenView
 //   hands them the page's scope owner as a prop. A focused Match box takes Space itself
 //   (PRESSABLE_SELECTOR above).
+// - M: the list's `match` is offered only while the drawer is closed, and the drawer's
+//   Match button is mounted only while it is open, so one M is registered at a time.
 // - `/` while rows are chosen: the selection bar replaces the toolbar and its search field,
 //   so `search` is not offered then (and not listed in ⇧?).
 // - The ⇧? list: a modal scope, so no list key fires.

@@ -1,9 +1,10 @@
-import { LoadingState } from '@tinycld/core/components/LoadingState'
 import type { ScopeOwner } from '@tinycld/core/lib/shortcuts'
 import { Button, ButtonSpinner, ButtonText } from '@tinycld/core/ui/button'
 import { ShortcutButton } from '@tinycld/core/ui/shortcut-button'
-import { Pressable, Text, View } from 'react-native'
-import type { BankMatchModel } from '../../../hooks/useBankMatch'
+import { Text, View } from 'react-native'
+import type { BankMatchModel, MatchOption } from '../../../hooks/useBankMatch'
+import { MatchFind } from './MatchFind'
+import { MatchLoadError, MatchLoading } from './MatchLoadStates'
 import { MatchOptionRow } from './MatchOptionRow'
 import { MatchTotals } from './MatchTotals'
 
@@ -11,7 +12,6 @@ type SectionProps = { model: BankMatchModel; scopeOwner: ScopeOwner; currency: s
 
 const MATCH_KEY = { keys: 'm', scope: 'list' } as const
 const FIND_KEY = { keys: 'f', scope: 'list' } as const
-const LINK_STYLE = { minHeight: 44 }
 
 function SectionHeading() {
     return (
@@ -24,36 +24,20 @@ function SectionHeading() {
     )
 }
 
-function SectionLoading({ isVisible }: { isVisible: boolean }) {
-    if (!isVisible) return null
-    return (
-        <View testID="bank-match-loading" className="py-6">
-            <LoadingState />
-        </View>
-    )
-}
-
-function SectionLoadError({ isVisible, onRetry }: { isVisible: boolean; onRetry: () => void }) {
-    if (!isVisible) return null
-    return (
-        <View testID="bank-match-error" accessibilityRole="alert" className="items-start gap-3">
-            <Text className="text-sm text-foreground">Books could not load the matches.</Text>
-            <Button
-                testID="bank-match-retry"
-                variant="outline"
-                className="min-h-11"
-                onPress={onRetry}
-            >
-                <ButtonText>Retry</ButtonText>
-            </Button>
-        </View>
-    )
-}
-
-function OptionRows({ model, currency }: { model: BankMatchModel; currency: string }) {
+// The suggestions, then the lines chosen in the find mode that are not suggestions, so a
+// choice made there shows here too.
+function OptionRows({
+    model,
+    options,
+    currency,
+}: {
+    model: BankMatchModel
+    options: readonly MatchOption[]
+    currency: string
+}) {
     const chosen = new Set(model.chosenIds)
-    const rows = model.options.map(option => {
-        const onToggle = () => model.onToggle(option.lineId)
+    const rows = options.map(option => {
+        const onToggle = () => model.onToggle(option)
         return (
             <MatchOptionRow
                 key={option.lineId}
@@ -104,7 +88,16 @@ function MatchSubmit({ model, scopeOwner }: { model: BankMatchModel; scopeOwner:
     )
 }
 
-function FindButton({ model, scopeOwner }: { model: BankMatchModel; scopeOwner: ScopeOwner }) {
+function FindButton({
+    model,
+    scopeOwner,
+    isVisible,
+}: {
+    model: BankMatchModel
+    scopeOwner: ScopeOwner
+    isVisible: boolean
+}) {
+    if (!isVisible) return null
     return (
         <ShortcutButton
             testID="bank-match-find"
@@ -119,9 +112,57 @@ function FindButton({ model, scopeOwner }: { model: BankMatchModel; scopeOwner: 
     )
 }
 
-// The suggestions and, for a writer, the totals, the refusal, Match and Find other matches:
-// a reader chooses nothing. With no suggestion: the "found no transaction" text and, for a
-// writer, Find other matches.
+// A reader gets no button, so no key is registered for one. Find other matches is the
+// suggestions' own: the find mode has no button and no key F.
+function WriterButtons({
+    model,
+    scopeOwner,
+    hasMatch,
+    hasFind,
+}: {
+    model: BankMatchModel
+    scopeOwner: ScopeOwner
+    hasMatch: boolean
+    hasFind: boolean
+}) {
+    if (!model.canWrite) return null
+    const submit = hasMatch ? <MatchSubmit model={model} scopeOwner={scopeOwner} /> : null
+    return (
+        <View className="flex-row flex-wrap gap-2">
+            {submit}
+            <FindButton model={model} scopeOwner={scopeOwner} isVisible={hasFind} />
+        </View>
+    )
+}
+
+function NoSuggestion({ text, isVisible }: { text: string; isVisible: boolean }) {
+    if (!isVisible) return null
+    return (
+        <Text testID="bank-match-none" className="text-sm text-foreground">
+            {text}
+        </Text>
+    )
+}
+
+// The totals, the refusal and Match behave the same in the suggestions and in the find
+// mode, so they sit under both. A reader chooses nothing, so sees none of them.
+function ChoiceFooter({
+    model,
+    scopeOwner,
+    currency,
+    hasFind,
+}: SectionProps & { hasFind: boolean }) {
+    return (
+        <>
+            <MatchTotals totals={model.totals} currency={currency} isVisible={model.canWrite} />
+            <RefusalLine text={model.refusal} isVisible={model.canWrite} />
+            <WriterButtons model={model} scopeOwner={scopeOwner} hasMatch hasFind={hasFind} />
+        </>
+    )
+}
+
+// The suggestions and the lines chosen in the find mode. With no row: the "found no
+// transaction" text and, for a writer, Find other matches.
 function SuggestionsBody({
     model,
     scopeOwner,
@@ -129,65 +170,48 @@ function SuggestionsBody({
     isVisible,
 }: SectionProps & { isVisible: boolean }) {
     if (!isVisible) return null
-    if (model.options.length === 0) {
+    const options = [...model.options, ...model.foundChosen]
+    const hasNoSuggestion = model.options.length === 0
+    if (options.length === 0) {
         return (
             <>
-                <Text testID="bank-match-none" className="text-sm text-foreground">
-                    {model.emptyText}
-                </Text>
-                <WriterButtons model={model} scopeOwner={scopeOwner} hasMatch={false} />
+                <NoSuggestion text={model.emptyText} isVisible />
+                <WriterButtons model={model} scopeOwner={scopeOwner} hasMatch={false} hasFind />
             </>
         )
     }
     return (
         <>
-            <OptionRows model={model} currency={currency} />
-            <MatchTotals totals={model.totals} currency={currency} isVisible={model.canWrite} />
-            <RefusalLine text={model.refusal} isVisible={model.canWrite} />
-            <WriterButtons model={model} scopeOwner={scopeOwner} hasMatch />
+            <NoSuggestion text={model.emptyText} isVisible={hasNoSuggestion} />
+            <OptionRows model={model} options={options} currency={currency} />
+            <ChoiceFooter model={model} scopeOwner={scopeOwner} currency={currency} hasFind />
         </>
     )
 }
 
-// A reader gets no button, so no key is registered for one.
-function WriterButtons({
+function FindBody({
     model,
     scopeOwner,
-    hasMatch,
-}: {
-    model: BankMatchModel
-    scopeOwner: ScopeOwner
-    hasMatch: boolean
-}) {
-    if (!model.canWrite) return null
-    const submit = hasMatch ? <MatchSubmit model={model} scopeOwner={scopeOwner} /> : null
-    return (
-        <View className="flex-row flex-wrap gap-2">
-            {submit}
-            <FindButton model={model} scopeOwner={scopeOwner} />
-        </View>
-    )
-}
-
-// The find mode; checkpoint 3 adds its date range, search and rows.
-function FindBody({ model, isVisible }: { model: BankMatchModel; isVisible: boolean }) {
+    currency,
+    isVisible,
+}: SectionProps & { isVisible: boolean }) {
     if (!isVisible) return null
     return (
-        <Pressable
-            testID="bank-match-back"
-            accessibilityRole="link"
-            onPress={model.onBack}
-            className="justify-center self-start"
-            style={LINK_STYLE}
-        >
-            <Text className="text-sm font-medium text-primary">Back to suggestions</Text>
-        </Pressable>
+        <>
+            <MatchFind key={model.txnId} model={model} currency={currency} />
+            <ChoiceFooter
+                model={model}
+                scopeOwner={scopeOwner}
+                currency={currency}
+                hasFind={false}
+            />
+        </>
     )
 }
 
 // The Match section of a For review transaction, in the drawer's `children` slot. The
 // drawer renders outside the page's ScopeProvider, so the page hands its `list` scope
-// owner in for the M and F buttons.
+// owner in for the M and F buttons. The find mode is a writer's only.
 export function MatchSection({ model, scopeOwner, currency }: SectionProps) {
     if (model.kind === 'hidden') return null
     const isReady = !model.isLoading && !model.isError
@@ -196,15 +220,20 @@ export function MatchSection({ model, scopeOwner, currency }: SectionProps) {
     return (
         <View testID="bank-match-section" className="gap-3 border-t border-border pt-4">
             <SectionHeading />
-            <SectionLoading isVisible={model.isLoading} />
-            <SectionLoadError isVisible={model.isError} onRetry={model.onRetry} />
+            <MatchLoading isVisible={model.isLoading} testID="bank-match-loading" />
+            <MatchLoadError isVisible={model.isError} onRetry={model.onRetry} />
             <SuggestionsBody
                 model={model}
                 scopeOwner={scopeOwner}
                 currency={currency}
                 isVisible={isSuggestions}
             />
-            <FindBody model={model} isVisible={isFind} />
+            <FindBody
+                model={model}
+                scopeOwner={scopeOwner}
+                currency={currency}
+                isVisible={isFind}
+            />
         </View>
     )
 }

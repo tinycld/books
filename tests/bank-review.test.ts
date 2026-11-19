@@ -9,6 +9,7 @@ import {
     BANK_BATCH_TRANSPORT_TEXT,
     BATCH_TARGET,
     type BatchFailure,
+    type BatchOutcome,
     batchFailure,
     batchResultText,
     canChoose,
@@ -16,7 +17,7 @@ import {
     drawerAction,
     EMPTY_REVIEW_FILTERS,
     hasReviewFilter,
-    parseSearchAmount,
+    keptAfterBatch,
     REVIEW_TABS,
     type ReviewFilters,
     reviewCountText,
@@ -47,6 +48,7 @@ import {
     REVIEW_TRANSACTIONS,
 } from '../tinycld/books/lib/for-review-fixture'
 import type { RegisterRange } from '../tinycld/books/lib/register-range'
+import { parseSearchAmount } from '../tinycld/books/lib/search-amount'
 import type { BooksBankTransactions } from '../tinycld/books/types'
 
 describe('reviewTabFromParam', () => {
@@ -587,6 +589,50 @@ describe('batchResultText', () => {
             tone: 'danger',
         })
         expect(line.text).not.toBe('')
+    })
+
+    it("shows the server's message for one refused match", () => {
+        const alreadyMatched = 'Transfer 1007 is already matched to another bank transaction.'
+        expect(
+            batchResultText('match', { done: ['a', 'b'], failed: [refused('c', alreadyMatched)] })
+        ).toEqual({ text: alreadyMatched, tone: 'danger' })
+    })
+
+    it('counts the refused matches when the messages differ', () => {
+        const failed = [refused('e', CANNOT_CHANGE), refused('f', 'Transfer 1007 is void.')]
+        expect(batchResultText('match', { done: ['a', 'b', 'c', 'd'], failed }, 0)).toEqual({
+            text: '2 of 6 transactions could not be matched. Try again.',
+            tone: 'danger',
+        })
+    })
+
+    it('shows the transport text when no match reached the server', () => {
+        expect(
+            batchResultText('match', { done: ['a'], failed: [unsent('b'), unsent('c')] })
+        ).toEqual({ text: BANK_BATCH_TRANSPORT_TEXT, tone: 'danger' })
+    })
+})
+
+describe('keptAfterBatch', () => {
+    // The choice was a, b, c, d, e, f: b and e were refused, c and f went through, and a
+    // and d were skipped (no single suggestion). The parallel run settled e before b.
+    const choice = ['a', 'b', 'c', 'd', 'e', 'f']
+    const outcome: BatchOutcome = {
+        done: ['f', 'c'],
+        failed: [unsent('e'), refused('b', CANNOT_CHANGE)],
+    }
+
+    it('keeps the failed and skipped ids in the order of the choice, without the done ones', () => {
+        const kept = keptAfterBatch(outcome, ['d', 'a'], choice)
+        expect(kept).toEqual(['a', 'b', 'd', 'e'])
+        expect(kept).not.toContain('c')
+        expect(kept).not.toContain('f')
+    })
+
+    it('keeps only the failed ids with none skipped, and none after a clean run', () => {
+        expect(keptAfterBatch(outcome, [], choice)).toEqual(['b', 'e'])
+        expect(keptAfterBatch({ done: ['c', 'f'], failed: [] }, [], choice)).toEqual([])
+        expect(keptAfterBatch({ done: ['c'], failed: [] }, ['a'], choice)).toEqual(['a'])
     })
 })
 
