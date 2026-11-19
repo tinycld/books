@@ -7,6 +7,8 @@ order: 42
 
 To pay the bills that your vendors sent, use Pay bills. You pick the account you paid from, tick the bills you pay, and choose Pay. Books posts one numbered bill payment for each vendor: Accounts payable goes down by the amount, and the account you paid from goes down (or, for a credit card, its balance owed goes up). Each bill you paid shows its new Balance due. To enter a bill, see [Bills](help://books:bills). To record money you paid when there is no bill, see [Expenses](help://books:expenses).
 
+To find, filter and act on your bill payments, choose Expenses in the sidebar, then Bill payments. See [Purchase lists](help://books:purchase-lists).
+
 ## Pay bills
 
 To pay bills, choose New in the sidebar (the round + button on a phone) and pick Pay bills, under Vendors. You can also open a posted bill with a balance due and choose **Pay bill**, or press P: Pay bills opens with that bill's vendor and the bill paid in full.

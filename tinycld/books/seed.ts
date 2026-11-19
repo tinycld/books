@@ -42,6 +42,7 @@ import {
 import { JOURNAL_SEED } from './lib/journal-entries-fixture'
 import { BILL_PAYMENT_SEED, PAY_BILLS_SEED_BILLS } from './lib/pay-bills-fixture'
 import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
+import { PURCHASE_LIST_SEED } from './lib/purchase-lists-fixture'
 import { PAYMENT_SEED } from './lib/receive-payment-fixture'
 import {
     REFUND_FROM_ACCOUNTS,
@@ -290,6 +291,8 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     const creditIds = await seedVendorCredits(pb, ctx, accountIds)
     await seedVendorCreditApplications(pb, ctx, accountIds, creditIds)
     await seedVendorRefunds(pb, ctx, accountIds)
+    // After the earlier purchase seeds, so they keep their numbers.
+    await seedPurchaseListRows(pb, accountIds, ctx.user.id)
     await seedAttachments(pb, ctx, billIds, expenseIds)
     // Last among the document seeds, so the earlier seeded documents keep their numbers.
     await seedCustomerBalance(pb, ctx, ids, customerIds)
@@ -1779,6 +1782,118 @@ export async function seedVendorRefunds(
                 .collection('books_vendor_refunds')
                 .update(created.id, { status: 'void', voided_by: ctx.user.id })
         }
+    }
+}
+
+// A purchase list line as the bill, expense and vendor credit seeds create it: an account
+// line names its account by seed account number and gives its amount; a product line names
+// its product, quantity and rate, and the server computes its amount.
+function purchaseListLine(
+    accountIds: Map<string, string>,
+    line: Omit<(typeof PURCHASE_LIST_SEED.billLines)[number], 'bill'>
+) {
+    if (line.kind === 'account') {
+        const account = seededAccountId(accountIds, line.account_number, `line ${line.id}`)
+        return { account, amount: line.amount }
+    }
+    return { product: line.product, quantity: line.quantity, rate: line.rate }
+}
+
+// Creates the purchase lists' rows (PURCHASE_LIST_SEED, checkpoint 1 "Seed decision") as
+// seedSalesListDrafts creates the sales lists' drafts: each document as a draft with its
+// fixture id and the create call its kind's seed makes for the draft step (a field the
+// fixture row does not have is sent empty, except a bill's mailing address, which is left
+// out: the server takes only null or a full address object, never an empty string),
+// then its lines; the draft vendor refund has its header only. Then the posted rows (two
+// bills and one vendor credit) are posted with no payment and no application, so as seeded
+// bill 1054 reads Overdue and the credit Unapplied. No expense, bill payment or vendor
+// refund is posted: they move a bank account's register. An expense draft still needs
+// Paid from and a payment method, and a vendor refund draft Refunded to (required
+// columns), so they take 1000 Business Checking and cash.
+export async function seedPurchaseListRows(
+    pb: PocketBase,
+    accountIds: Map<string, string>,
+    userId: string
+): Promise<void> {
+    const checking = seededAccountId(accountIds, '1000', 'the purchase list drafts')
+    for (const row of PURCHASE_LIST_SEED.bills) {
+        await pb.collection('books_bills').create({
+            id: row.id,
+            vendor: row.vendor,
+            status: 'draft',
+            date: row.date,
+            due_date: row.due_date,
+            terms: '',
+            ref_no: row.ref_no,
+            memo: row.memo,
+        })
+        for (const line of PURCHASE_LIST_SEED.billLines.filter(l => l.bill === row.id)) {
+            await pb.collection('books_bill_lines').create({
+                bill: row.id,
+                position: line.position,
+                kind: line.kind,
+                description: line.description,
+                ...purchaseListLine(accountIds, line),
+            })
+        }
+        if (row.status === 'posted') await postSeedDocument(pb, 'books_bills', row.id, userId)
+    }
+    for (const row of PURCHASE_LIST_SEED.expenses) {
+        await pb.collection('books_expenses').create({
+            id: row.id,
+            vendor: row.vendor,
+            status: 'draft',
+            date: row.date,
+            paid_from: checking,
+            payment_method: 'cash',
+            reference_no: row.reference_no,
+            memo: row.memo,
+        })
+        for (const line of PURCHASE_LIST_SEED.expenseLines.filter(l => l.expense === row.id)) {
+            await pb.collection('books_expense_lines').create({
+                expense: row.id,
+                position: line.position,
+                kind: line.kind,
+                description: line.description,
+                ...purchaseListLine(accountIds, line),
+            })
+        }
+    }
+    for (const row of PURCHASE_LIST_SEED.vendorCredits) {
+        await pb.collection('books_vendor_credits').create({
+            id: row.id,
+            vendor: row.vendor,
+            status: 'draft',
+            date: row.date,
+            ref_no: row.ref_no,
+            memo: row.memo,
+        })
+        const lines = PURCHASE_LIST_SEED.vendorCreditLines.filter(l => l.vendor_credit === row.id)
+        for (const line of lines) {
+            await pb.collection('books_vendor_credit_lines').create({
+                vendor_credit: row.id,
+                position: line.position,
+                kind: line.kind,
+                description: line.description,
+                ...purchaseListLine(accountIds, line),
+            })
+        }
+        if (row.status === 'posted') {
+            await postSeedDocument(pb, 'books_vendor_credits', row.id, userId)
+        }
+    }
+    for (const row of PURCHASE_LIST_SEED.vendorRefunds) {
+        await pb.collection('books_vendor_refunds').create({
+            id: row.id,
+            vendor: row.vendor,
+            status: 'draft',
+            date: row.date,
+            payment_method: '',
+            reference_no: row.reference_no,
+            refunded_to: checking,
+            amount: row.amount,
+            memo: row.memo,
+        })
     }
 }
 

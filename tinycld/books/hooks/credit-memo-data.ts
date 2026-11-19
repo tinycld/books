@@ -292,12 +292,7 @@ function useCreditMemoWrites(): DocumentWrites {
                 draft.status = 'posted'
                 draft.revision = revision
             }),
-        voidRecord: id =>
-            memosCollection.update(id, draft => {
-                draft.status = 'void'
-            }),
         storedRevision: id => memosCollection.get(id)?.revision,
-        deleteRecord: id => memosCollection.delete(id),
         lineOps: (memoId, mapper) => {
             const { toRecord } = salesLineMapperOf(mapper)
             const lineRecord = (write: TableRowWrite) => toRecord(write.row, write.position)

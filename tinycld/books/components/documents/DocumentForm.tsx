@@ -22,12 +22,7 @@ import {
 import { FormProvider, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
 import { ScrollView, Text, View } from 'react-native'
 import { SELF_HINTED_FIELDS } from '../../forms/document-fields'
-import {
-    type DocumentWrites,
-    estimateNumberOf,
-    expiredOnOf,
-    payoutMemoOf,
-} from '../../hooks/document-data'
+import { estimateNumberOf, expiredOnOf, payoutMemoOf } from '../../hooks/document-data'
 import { useBackToEntries } from '../../hooks/useBackToEntries'
 import { useCopyEstimateLink } from '../../hooks/useCopyEstimateLink'
 import { useDeleteDraftDocument } from '../../hooks/useDeleteDraftDocument'
@@ -62,7 +57,6 @@ import { documentTaxOf, lineAmountViews, shownDocumentTotals } from '../../lib/d
 import { lineTableRows } from '../../lib/document-values'
 import { TOO_LARGE_TEXT } from '../../lib/entry-lines'
 import { formatMoney } from '../../lib/money'
-import { transactionKindOf } from '../../lib/party-transactions'
 import type { PayoutLimits } from '../../lib/refund-payout'
 import { todayIso } from '../../lib/register-range'
 import { documentConflictText } from '../../lib/revision'
@@ -274,22 +268,19 @@ function useDocumentTotals(form: EngineForm, scope: DocumentFormScope) {
 // row from the store at once, so the screen holds the form (and this dialog) before it
 // starts: a refusal stays in the dialog, with the user's edits behind it, until the next
 // attempt. A success leaves; the hold ends when the screen goes (useScreenHoldRelease).
-// A sales kind deletes through the write the sales lists share; a purchase kind (bill,
-// expense) through its own data source.
+// Every kind deletes through the write the lists share.
 function useDocumentDelete(
-    writes: DocumentWrites,
     kind: SalesDocumentKind,
     documentId: string | undefined,
     leave: () => void
 ) {
     const hold = useDocumentSaveStore(s => s.hold)
     const release = useDocumentSaveStore(s => s.release)
-    const deleteSales = useDeleteDraftDocument()
-    const salesKind = transactionKindOf(kind)
+    const deleteWrite = useDeleteDraftDocument()
     const [isOpen, setOpen] = useState(false)
     const remove = useMutation({
         mutationFn: function* (id: string) {
-            yield salesKind === null ? writes.deleteRecord(id) : deleteSales(salesKind, id)
+            yield deleteWrite(kind.key, id)
         },
         onSuccess: () => {
             setOpen(false)
@@ -884,7 +875,6 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
         onReload,
         attachmentSession,
     })
-    const writes = documentKind.data.useWrites()
     const serverState = useServerActionState()
     const formAttachments = useFormAttachments(data, kind, save.writtenId, state.replaces)
     // Pending files and pending removals are an edit: leaving asks first.
@@ -954,7 +944,7 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
     // The stored draft: the route's own, or the one a new form wrote before its post was
     // refused.
     const draftId = state.recordId ?? save.writtenId ?? undefined
-    const deletion = useDocumentDelete(writes, kind, draftId, leave)
+    const deletion = useDocumentDelete(kind, draftId, leave)
     useScreenHoldRelease(draftId)
     const canDelete = canDeleteOf(kind, state.isNew, data.record?.status, save.writtenId)
     const convertStatus = useWatch({ control: form.control, name: 'status' })

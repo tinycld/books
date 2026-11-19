@@ -28,6 +28,7 @@ interface ItemsProps {
     isOpen: boolean
     isCards: boolean
     hasTicks: boolean
+    testIdPrefix: string
     selection: Selection
     batch: DocumentBatch
 }
@@ -35,7 +36,7 @@ interface ItemsProps {
 // Built only while the menu is open, because core Sheet keeps its content in the page while
 // it slides out. With cards the menu also selects all and clears; the actions wait for a
 // tick, for writes and for a running batch.
-function BatchItems({ isOpen, isCards, hasTicks, selection, batch }: ItemsProps) {
+function BatchItems({ isOpen, isCards, hasTicks, testIdPrefix, selection, batch }: ItemsProps) {
     if (!isOpen) return null
     const canAct = hasTicks && batch.canStart
     const deleteDrafts = () => batch.open('delete_drafts')
@@ -44,9 +45,13 @@ function BatchItems({ isOpen, isCards, hasTicks, selection, batch }: ItemsProps)
     const clear = () => selection.clear()
     const cardItems = isCards ? (
         <>
-            <Menu.Item testID="sales-batch-select-all" label="Select all" onSelect={selectAll} />
             <Menu.Item
-                testID="sales-batch-clear"
+                testID={`${testIdPrefix}-batch-select-all`}
+                label="Select all"
+                onSelect={selectAll}
+            />
+            <Menu.Item
+                testID={`${testIdPrefix}-batch-clear`}
                 label="Clear selection"
                 isDisabled={!hasTicks}
                 onSelect={clear}
@@ -57,13 +62,13 @@ function BatchItems({ isOpen, isCards, hasTicks, selection, batch }: ItemsProps)
         <>
             {cardItems}
             <Menu.Item
-                testID="sales-batch-delete-drafts"
+                testID={`${testIdPrefix}-batch-delete-drafts`}
                 label="Delete drafts"
                 isDisabled={!canAct}
                 onSelect={deleteDrafts}
             />
             <Menu.Item
-                testID="sales-batch-void"
+                testID={`${testIdPrefix}-batch-void`}
                 label="Void"
                 isDisabled={!canAct}
                 onSelect={voidAll}
@@ -76,11 +81,11 @@ function BatchItems({ isOpen, isCards, hasTicks, selection, batch }: ItemsProps)
 // toolbar's search field) that stays enabled; with the table the labelled button, disabled
 // while no row is ticked. An element, not a component: the menu clones it with its press
 // handler and ref.
-function batchTrigger(isCards: boolean, hasTicks: boolean, color: string) {
+function batchTrigger(isCards: boolean, hasTicks: boolean, testID: string, color: string) {
     if (isCards) {
         return (
             <Pressable
-                testID="sales-batch-actions"
+                testID={testID}
                 accessibilityRole="button"
                 accessibilityLabel="Batch actions"
                 className="items-center justify-center rounded-md border border-border bg-background"
@@ -92,7 +97,7 @@ function batchTrigger(isCards: boolean, hasTicks: boolean, color: string) {
     }
     return (
         <Button
-            testID="sales-batch-actions"
+            testID={testID}
             variant="outline"
             size="sm"
             isDisabled={!hasTicks}
@@ -108,18 +113,21 @@ interface DocumentBatchActionsProps {
     isVisible: boolean
     // The list draws cards (no header tick box): the icon, with Select all and Clear.
     isCards: boolean
+    // The list area's test-id prefix (`<prefix>-batch-actions`, `<prefix>-batch-void`, …).
+    testIdPrefix: string
     selection: Selection
     batch: DocumentBatch
 }
 
 /**
  * The toolbar's Batch actions (spec §3 "Batch actions"): a core Menu with Delete drafts and
- * Void, which open the batch's confirm dialog. Not drawn for a reader or in the names
- * column (`controls.showBatch`).
+ * Void, which open the batch's confirm dialog. Not drawn for a reader, in the names column
+ * or in an area without row actions (`controls.showBatch`).
  */
 export function DocumentBatchActions({
     isVisible,
     isCards,
+    testIdPrefix,
     selection,
     batch,
 }: DocumentBatchActionsProps) {
@@ -127,7 +135,7 @@ export function DocumentBatchActions({
     // A tick on a loaded row; the header box's state counts only those.
     const hasTicks = selection.headerState !== 'empty'
     const color = useThemeColor('foreground')
-    const trigger = batchTrigger(isCards, hasTicks, color)
+    const trigger = batchTrigger(isCards, hasTicks, `${testIdPrefix}-batch-actions`, color)
     if (!isVisible) return null
     return (
         <Menu
@@ -142,6 +150,7 @@ export function DocumentBatchActions({
                 isOpen={isOpen}
                 isCards={isCards}
                 hasTicks={hasTicks}
+                testIdPrefix={testIdPrefix}
                 selection={selection}
                 batch={batch}
             />

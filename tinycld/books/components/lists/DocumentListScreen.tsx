@@ -7,16 +7,15 @@ import {
 } from '../../hooks/useDocumentListScreen'
 import { useListShortcuts } from '../../hooks/useListShortcuts'
 import type { ListLayout } from '../../lib/detail-surface'
-import type { DocumentListRow, DocumentListTab } from '../../lib/document-list'
-import { TRANSACTION_TYPE_LABELS } from '../../lib/party-transactions'
-import { SALES_TABS } from '../../lib/sales-lists'
+import { type DocumentListRow, type DocumentListTab, kindLabel } from '../../lib/document-list'
+import { areaOf, type ListArea } from '../../lib/list-areas'
 import { ListBanner } from '../ListBanner'
 import { SelectBox } from '../SelectBox'
 import { DocumentBatchActions } from './DocumentBatchActions'
 import { DocumentListCards } from './DocumentListCards'
 import { DocumentListDialogs } from './DocumentListDialogs'
 import { DocumentListHeader } from './DocumentListHeader'
-import { DocumentListStates, LIST_LOAD_ERROR } from './DocumentListStates'
+import { DocumentListStates } from './DocumentListStates'
 import { DocumentListTable } from './DocumentListTable'
 import { DocumentListToolbar } from './DocumentListToolbar'
 import { DocumentNamesColumn } from './DocumentNamesColumn'
@@ -24,6 +23,7 @@ import { DocumentRowMenu } from './DocumentRowMenu'
 
 interface ListBodyProps {
     tab: DocumentListTab
+    area: ListArea
     screen: DocumentListScreenState
 }
 
@@ -34,15 +34,15 @@ interface SearchRefProp {
 
 // A row's or card's lead and trail cells: the tick box (a writer, in the full list) and
 // the "More actions" menu (in the full list); undefined where none draws.
-function rowSlots(screen: DocumentListScreenState) {
+function rowSlots(screen: DocumentListScreenState, area: ListArea) {
     const { controls, selection, rowActions, canWrite } = screen
     const renderTick = (row: DocumentListRow) => {
         const toggle = () => selection.toggle(row.id)
-        const label = `Select ${TRANSACTION_TYPE_LABELS[row.kind]} ${row.number}`.trim()
+        const label = `Select ${kindLabel(row.kind)} ${row.number}`.trim()
         const state = selection.isTicked(row.id) ? 'checked' : 'empty'
         return (
             <SelectBox
-                testID={`sales-tick-${row.id}`}
+                testID={`${area.testIdPrefix}-tick-${row.id}`}
                 label={label}
                 state={state}
                 onPress={toggle}
@@ -50,7 +50,12 @@ function rowSlots(screen: DocumentListScreenState) {
         )
     }
     const renderMenu = (row: DocumentListRow) => (
-        <DocumentRowMenu row={row} canWrite={canWrite} actions={rowActions} />
+        <DocumentRowMenu
+            row={row}
+            testIdPrefix={area.testIdPrefix}
+            canWrite={canWrite}
+            actions={rowActions}
+        />
     )
     return {
         renderLead: controls.showTicks ? renderTick : undefined,
@@ -59,12 +64,12 @@ function rowSlots(screen: DocumentListScreenState) {
 }
 
 // The table header's tick box, over every loaded row; none for a reader.
-function TickAll({ screen }: { screen: DocumentListScreenState }) {
+function TickAll({ screen, area }: { screen: DocumentListScreenState; area: ListArea }) {
     const { selection } = screen
     const toggleAll = () => selection.toggleAll()
     return (
         <SelectBox
-            testID="sales-tick-all"
+            testID={`${area.testIdPrefix}-tick-all`}
             label="Select all"
             state={selection.headerState}
             onPress={toggleAll}
@@ -75,9 +80,9 @@ function TickAll({ screen }: { screen: DocumentListScreenState }) {
 // The rows, once there are some: a table, or cards below the table's own minimum width.
 // None draw while the screen loads, which includes the wait for the user's access, so a
 // writer never sees the reader's list.
-function ListBody({ tab, screen }: ListBodyProps) {
+function ListBody({ tab, area, screen }: ListBodyProps) {
     const { list, selection, rowFocus } = screen
-    const slots = rowSlots(screen)
+    const slots = rowSlots(screen, area)
     // The list keys' focused row stays in view.
     const scrollToIndex = rowFocus.focusedIndex < 0 ? undefined : rowFocus.focusedIndex
     if (list.isLoading || list.rows.length === 0) return null
@@ -97,13 +102,16 @@ function ListBody({ tab, screen }: ListBodyProps) {
             />
         )
     }
-    const headerLead = screen.controls.showTicks ? <TickAll screen={screen} /> : undefined
+    const headerLead = screen.controls.showTicks ? (
+        <TickAll screen={screen} area={area} />
+    ) : undefined
     return (
         <DocumentListTable
             tab={tab}
             rows={list.rows}
             currency={list.currency}
-            canWrite={screen.canWrite}
+            categoryNames={list.categoryNames}
+            minWidth={screen.tableMinWidth}
             sort={screen.sort}
             onSort={screen.toggleSort}
             onOpen={screen.openRow}
@@ -120,14 +128,20 @@ function ListBody({ tab, screen }: ListBodyProps) {
 
 // The load error with Retry first; else a row action's refusal or a batch's result, which
 // the user dismisses.
-function Banner({ screen }: { screen: DocumentListScreenState }) {
+function Banner({ screen, area }: { screen: DocumentListScreenState; area: ListArea }) {
     const { list } = screen
     if (list.isError) {
-        return <ListBanner testIdPrefix="sales" message={LIST_LOAD_ERROR} onRetry={list.retry} />
+        return (
+            <ListBanner
+                testIdPrefix={area.testIdPrefix}
+                message={area.texts.loadError}
+                onRetry={list.retry}
+            />
+        )
     }
     return (
         <ListBanner
-            testIdPrefix="sales"
+            testIdPrefix={area.testIdPrefix}
             message={screen.actionBanner}
             onDismiss={screen.dismissBanner}
         />
@@ -136,20 +150,21 @@ function Banner({ screen }: { screen: DocumentListScreenState }) {
 
 // The toolbar draws in every state, so the search or filter that led to a refused or an
 // empty list can still be changed or cleared.
-function FullList({ tab, screen, searchRef }: ListBodyProps & SearchRefProp) {
+function FullList({ tab, area, screen, searchRef }: ListBodyProps & SearchRefProp) {
     const { list } = screen
     const isPhone = useBreakpoint() === 'mobile'
     const batch = (
         <DocumentBatchActions
             isVisible={screen.controls.showBatch}
             isCards={screen.drawsCards}
+            testIdPrefix={area.testIdPrefix}
             selection={screen.selection}
             batch={screen.batch}
         />
     )
     return (
         <View
-            testID="sales-list"
+            testID={`${area.testIdPrefix}-list`}
             aria-busy={list.isBusy}
             onLayout={screen.onListLayout}
             className="min-w-0 flex-1 bg-background"
@@ -162,7 +177,7 @@ function FullList({ tab, screen, searchRef }: ListBodyProps & SearchRefProp) {
                 batch={batch}
                 inputRef={searchRef}
             />
-            <Banner screen={screen} />
+            <Banner screen={screen} area={area} />
             <DocumentListStates
                 tab={tab}
                 list={list}
@@ -171,7 +186,7 @@ function FullList({ tab, screen, searchRef }: ListBodyProps & SearchRefProp) {
                 onNew={screen.openNew}
                 onClearFilters={screen.clearFilters}
             />
-            <ListBody tab={tab} screen={screen} />
+            <ListBody tab={tab} area={area} screen={screen} />
         </View>
     )
 }
@@ -182,13 +197,13 @@ type ListOfLayoutProps = ListBodyProps &
         layout: ListLayout
     }
 
-function ListOfLayout({ tab, openId, layout, screen, searchRef }: ListOfLayoutProps) {
+function ListOfLayout({ tab, area, openId, layout, screen, searchRef }: ListOfLayoutProps) {
     if (layout === 'names') {
         return (
             <DocumentNamesColumn tab={tab} openId={openId} screen={screen} searchRef={searchRef} />
         )
     }
-    return <FullList tab={tab} screen={screen} searchRef={searchRef} />
+    return <FullList tab={tab} area={area} screen={screen} searchRef={searchRef} />
 }
 
 interface DocumentListScreenProps {
@@ -201,7 +216,8 @@ interface DocumentListScreenProps {
 }
 
 /**
- * One Sales tab's list (spec docs/specs/sales-lists-design.md §3): the full list with its
+ * One list tab (spec docs/specs/sales-lists-design.md §3), in the parts, words and test-id
+ * prefix of the tab's list area (`areaOf`): the full list with its
  * header, tabs, search, states, rows, row menus and Batch actions (layout `table`), or the
  * 320 px column of names beside an open document (layout `names`). Both read the tab's one
  * `useDocumentListScreen`, so the tab's kept filters and sort apply to each, and the list
@@ -215,17 +231,20 @@ export function DocumentListScreen({ tab, openId, layout, isCovered }: DocumentL
     // The names column, beside an open document, has no tick boxes, so no tick keys.
     const isBeside = layout === 'names'
     const selection = isBeside ? null : screen.selection
-    useListShortcuts({ screen, selection, tabs: SALES_TABS, isCovered, isBeside, searchRef })
+    const area = areaOf(tab)
+    useListShortcuts({ screen, selection, area, isCovered, isBeside, searchRef })
     return (
         <>
             <ListOfLayout
                 tab={tab}
+                area={area}
                 openId={openId}
                 layout={layout}
                 screen={screen}
                 searchRef={searchRef}
             />
             <DocumentListDialogs
+                testIdPrefix={area.testIdPrefix}
                 rowActions={screen.rowActions}
                 batch={screen.batch}
                 owner={screen.owner}

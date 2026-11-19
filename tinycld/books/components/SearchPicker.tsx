@@ -67,17 +67,19 @@ type PickerState = ReturnType<typeof useSearchPicker>
 // Type-to-open and the open keys on the focused trigger, on web: React Native's types
 // have no `onKeyDown`, so the listener goes on the trigger's DOM node (as core's popover
 // listens on its surface) and reads the picker through a ref. A key it acts on stops
-// there, so the trigger's own press handling does not toggle the menu shut again.
-function useTriggerKeys(picker: PickerState, disabled: boolean) {
+// there, so the trigger's own press handling does not toggle the menu shut again. A key
+// it does not act on (every printable one when `typeToOpen` is false) goes on to the
+// screen's shortcuts.
+function useTriggerKeys(picker: PickerState, disabled: boolean, typeToOpen: boolean) {
     const [node, setNode] = useState<HTMLElement | null>(null)
-    const latest = useRef({ picker, disabled })
-    latest.current = { picker, disabled }
+    const latest = useRef({ picker, disabled, typeToOpen })
+    latest.current = { picker, disabled, typeToOpen }
     useEffect(() => {
         if (Platform.OS !== 'web' || !node) return
         const handler = (event: KeyboardEvent) => {
-            const { picker: current, disabled: isDisabled } = latest.current
+            const { picker: current, disabled: isDisabled, typeToOpen: typing } = latest.current
             if (isDisabled) return
-            const action = searchPickerKeyAction(event, current.isOpen)
+            const action = searchPickerKeyAction(event, current.isOpen, typing)
             // The menu opened on an earlier key and the search field has not taken the
             // focus yet: the character (a space too) still belongs to the search.
             const isLateCharacter = current.isOpen && isLateSearchCharacter(event)
@@ -449,6 +451,11 @@ interface SearchPickerProps {
     emptyText?: string
     // Focuses the trigger once when it mounts, on web only.
     autoFocus?: boolean
+    // A printable character on the focused, closed trigger opens the menu with it in the
+    // search (default true). A list toolbar's filter sets false, so its list's single-key
+    // shortcuts (`/`, J, K, 1 to 6) still run after a pick returns the focus here; Enter,
+    // Space and ↓ still open the menu.
+    typeToOpen?: boolean
     // The caller's ref on the trigger, and its focus events (a table cell's focus ref and
     // row focus notes).
     triggerRef?: TriggerRef
@@ -468,7 +475,8 @@ interface SearchPickerProps {
  * itself (useReturnFocus), because core's layer cannot.
  *
  * Keys on web: Enter, Space or ↓ on the focused trigger open the menu with its search
- * field focused; a printable character opens it with that character in the search; ↓ / ↑
+ * field focused; a printable character opens it with that character in the search (not
+ * with `typeToOpen` false: the character goes on to the screen's shortcuts); ↓ / ↑
  * in the search move to the options, and Enter picks one. Native opens by tap.
  */
 export function SearchPicker({
@@ -493,12 +501,13 @@ export function SearchPicker({
     onRetry,
     emptyText,
     autoFocus = false,
+    typeToOpen = true,
     triggerRef,
     onTriggerFocus,
     onTriggerBlur,
     onPicked,
 }: SearchPickerProps) {
-    const triggerKeys = useTriggerKeys(picker, disabled || isReadOnly)
+    const triggerKeys = useTriggerKeys(picker, disabled || isReadOnly, typeToOpen)
     const triggerRefs = useTriggerRef(autoFocus && !disabled, triggerRef, triggerKeys.attach)
     const changeOpen = useReturnFocus(picker, triggerKeys.node)
     // A read-only trigger never opens the menu; it still closes one (none is open).
