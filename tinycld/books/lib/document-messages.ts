@@ -4,6 +4,7 @@ import {
     ESTIMATE_MESSAGES,
     EXPENSE_MESSAGES,
     INVOICE_MESSAGES,
+    REFUND_RECEIPT_MESSAGES,
     SALES_RECEIPT_MESSAGES,
     VENDOR_CREDIT_MESSAGES,
 } from './document-texts'
@@ -19,6 +20,7 @@ export {
     type DocumentMessages,
     ESTIMATE_MESSAGES,
     INVOICE_MESSAGES,
+    REFUND_RECEIPT_MESSAGES,
     SALES_RECEIPT_MESSAGES,
 } from './document-texts'
 
@@ -40,6 +42,7 @@ export type DocumentRefusalTarget =
     | 'due_date'
     | 'tax_rate'
     | 'deposit_to'
+    | 'refund_from'
     | 'paid_from'
     | 'payment_method'
     | 'reference_no'
@@ -59,11 +62,13 @@ const DATE_REFUSAL = /^Enter a date (that exists|in 1900 or later)\b/
 const DATE_ONLY_KINDS: ReadonlySet<SalesDocumentKind['key']> = new Set([
     'sales_receipt',
     'credit_memo',
+    'refund_receipt',
 ])
 const DUE_DATE_REFUSAL = /^(The due date|Due date)\b/
 // The server's own "The tax rate is inactive. Choose an active rate." included.
 const TAX_REFUSAL = /^(The tax|Tax)\b/
-// server/sales_receipts.go msgReceiptDepositInvalid and msgReceiptDepositNone.
+// server/sales_receipts.go msgReceiptDepositInvalid and msgReceiptDepositNone, and
+// server/refund_receipts.go msgRefundFromInvalid.
 const DEPOSIT_REFUSAL =
     /^(Choose an active bank or Undeposited funds account|Add a bank account or an Undeposited funds account)\b/
 // server/estimates.go msgExpirationBeforeDate and msgAcceptedDateRequired.
@@ -91,6 +96,10 @@ const INVOICE_LINK_REFUSAL = /^Choose a posted invoice of this customer\.?$/
 const CORRECTION_CREDIT_MEMOS_REFUSAL =
     /^Credit memos are made from this invoice, so its customer cannot change\.?$/
 
+// server/posting.go msgClosedThrough: the document's date is in a closed period. It is
+// about the document's date, never a line, so a line write's refusal keeps it unlabelled.
+const CLOSED_REFUSAL = /^The books are closed through\b/
+
 // A bill's own fields: Due date and Vendor's bill no.; null for another text.
 function billRefusalTarget(message: string): DocumentRefusalTarget | null {
     if (DUPLICATE_REF_REFUSAL.test(message)) return 'ref_no'
@@ -117,8 +126,8 @@ function isTableLineText(message: string, kind: Pick<SalesDocumentKind, 'lineTab
 // The kind decides which fields it has (its `key` and `party`): only an invoice and a
 // bill have a due date (so a day text names `date` only on a sales receipt or a credit
 // memo), only a credit memo has the invoice link row, only an invoice's correction is
-// refused for the credit memos that name it, only a sales receipt has Deposit to, only an
-// estimate has
+// refused for the credit memos that name it, only a sales receipt has Deposit to, only a
+// refund receipt has Refund from, only an estimate has
 // Expiration date and Accepted date, only a bill has Vendor's bill no., only a vendor
 // credit has Vendor's credit no., only an expense has Paid from and Ref no., and a kind
 // whose party is a vendor has Vendor (and no customer or tax).
@@ -157,6 +166,7 @@ function customerKindRefusalTarget(
     if (kind.key === 'invoice' && DUE_DATE_REFUSAL.test(message)) return 'due_date'
     if (TAX_REFUSAL.test(message)) return 'tax_rate'
     if (kind.key === 'sales_receipt' && DEPOSIT_REFUSAL.test(message)) return 'deposit_to'
+    if (kind.key === 'refund_receipt' && DEPOSIT_REFUSAL.test(message)) return 'refund_from'
     if (kind.key === 'estimate' && EXPIRATION_REFUSAL.test(message)) return 'expiration_date'
     if (kind.key === 'estimate' && ACCEPTED_DATE_REFUSAL.test(message)) return 'accepted_date'
     return 'root'
@@ -190,9 +200,11 @@ export function tableLineRefusal(
 // the same row label, which is the one the user sees, so such a text keeps its own label
 // and gets no second one. A totals text gets none either: the server checks the totals
 // of a batch one time and refuses on the batch's first line write, which is not the line
-// that made the total (server/sales_document_deferral.go).
+// that made the total (server/sales_document_deferral.go). The close-date text is about
+// the document's date, so it gets none either.
 export function labelledLineRefusal(rowLabel: string | null, message: string): string {
-    if (rowLabel === null || LINE_REFUSAL.test(message) || TOTALS_REFUSALS.has(message)) {
+    const isDocumentText = TOTALS_REFUSALS.has(message) || CLOSED_REFUSAL.test(message)
+    if (rowLabel === null || LINE_REFUSAL.test(message) || isDocumentText) {
         return message
     }
     const labelWord = rowLabel.replace(/ \d+$/, '')
@@ -208,9 +220,11 @@ const TOTALS_REFUSALS = new Set<string>([
         BILL_MESSAGES,
         EXPENSE_MESSAGES,
         VENDOR_CREDIT_MESSAGES,
+        REFUND_RECEIPT_MESSAGES,
     ].flatMap(messages => [messages.totalNegative, messages.totalTooLarge]),
     EXPENSE_MESSAGES.totalZero,
     VENDOR_CREDIT_MESSAGES.totalZero,
+    REFUND_RECEIPT_MESSAGES.zeroTotal,
 ])
 
 const NO_TOTAL = '—'

@@ -73,6 +73,18 @@ describe('credit_memo doc type', () => {
     })
 })
 
+// The seeded `refund_receipt` row (booksseqrefundr) gets the "Refund receipts" card
+// (refund receipt spec §4.1).
+describe('refund_receipt doc type', () => {
+    it('names the Numbering card "Refund receipts" and previews the next refund receipt', () => {
+        expect(DOC_TYPES.refund_receipt).toEqual({
+            label: 'Refund receipts',
+            noun: 'refund receipt',
+        })
+        expect(nextNumberPreview('refund_receipt', '', '1001')).toBe('Next refund receipt: 1001')
+    })
+})
+
 // The seeded `vendor_credit` row (booksseqvcredit) gets the "Vendor credits" card;
 // registers and the ledger read "Vendor credit" as its Type (vendor credit spec §3.12).
 describe('vendor_credit doc type', () => {

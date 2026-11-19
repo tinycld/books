@@ -71,8 +71,8 @@ func salesParams(products *reports.ParamDef) []reports.ParamDef {
 }
 
 // salesDetailLabel labels an opened sale line "<date> · <Invoice|Credit
-// memo|Sales receipt> <number> · <last>", the document's date and number; a
-// line whose last is empty ends after the number.
+// memo|Refund receipt|Sales receipt> <number> · <last>", the document's date
+// and number; a line whose last is empty ends after the number.
 func salesDetailLabel(last *reports.Node) *reports.Node {
 	return op("concat",
 		fld("document", "date"),

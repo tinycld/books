@@ -1138,6 +1138,119 @@ func TestSalesTaxLiabilityCreditMemo(t *testing.T) {
 	}
 }
 
+// newRefundSTLBook is an stlBook whose app also binds the credit memo and
+// refund receipt guards and hosts, beside the invoice's and the sales
+// receipt's.
+func newRefundSTLBook(t *testing.T) (stlBook, *refundReceiptEnv) {
+	t.Helper()
+	app := newBooksApp(t)
+	registerLedger(app)
+	registerSalesDocGuards(app, invoiceKind)
+	registerSalesDocGuards(app, salesReceiptKind)
+	registerSalesDocGuards(app, creditMemoKind)
+	registerSalesDocGuards(app, refundReceiptKind)
+	bindHostsByKey(t, app, invoiceKind.HostKey, salesReceiptKind.HostKey, creditMemoHostKey, refundReceiptHostKey)
+	rr := refundReceiptEnvOn(t, app)
+	registerBooksSources(t)
+	reader := mkUser(t, app, "member")
+	setPkgAccess(t, app, reader, "readonly")
+	return stlBook{receiptEnv: rr.receiptEnv, reader: reader, actor: rr.users.bookkeeper.Id}, rr
+}
+
+// postedRefundOn posts a refund of Harborview Dental dated day under rate
+// (none when nil) with lines.
+func (rr *refundReceiptEnv) postedRefundOn(t testing.TB, rate *core.Record, day string, lines ...map[string]any) *core.Record {
+	t.Helper()
+	fields := map[string]any{"date": day}
+	if rate != nil {
+		fields["tax_rate"] = rate.Id
+	}
+	r := rr.mkRefundReceipt(t, fields)
+	for i, l := range lines {
+		mkRefundReceiptLine(t, rr.app, r, i, l)
+	}
+	return mustPostRefundReceipt(t, rr.app, r.Id, rr.users.bookkeeper.Id)
+}
+
+// Refund receipt spec §3.13 (Q10): a posted plain refund lowers its rate's
+// gross, taxable and tax on its date, and its document row reads "<date> ·
+// Refund receipt 1001 · <customer>" and opens the refund; on Cash it counts on
+// its date too. A payout writes no tax line: it adds no row and changes no
+// figure.
+func TestSalesTaxLiabilityRefundReceipt(t *testing.T) {
+	b, rr := newRefundSTLBook(t)
+	rate := mkTaxRate(t, b.app, "Refund rate", 80000, b.agency(t, "Refund agency"))
+	customer := b.customer.GetString("display_name")
+
+	rct := b.postReceipt(t, rate, "2026-10-06", b.sale(100000, true))
+	requireRateFigures(t, b.run(t, nil), "Refund rate", stlFig{100000, 0, 100000, 8000})
+
+	refund := rr.postedRefundOn(t, rate, "2026-10-08", b.sale(25000, true))
+	if refund.GetString("number") != "1001" || refund.GetInt("tax_total") != 2000 {
+		t.Fatalf("refund number %q tax %d, want 1001 and 2000 (8%% of 250.00)", refund.GetString("number"), refund.GetInt("tax_total"))
+	}
+	// Lowered by the refund's 250.00 taxable and 20.00 tax, on both methods.
+	for _, method := range []string{"accrual", "cash"} {
+		res := b.run(t, withMethod(map[string]any{}, method))
+		requireRateFigures(t, res, "Refund rate", stlFig{75000, 0, 75000, 6000})
+		if got := amt(t, bsRow(t, res, "Total Refund agency"), "tax"); got != 6000 {
+			t.Errorf("%s: Total Refund agency tax = %d, want 6000 (8000 less the refund's 2000)", method, got)
+		}
+	}
+
+	opened := func(rate *core.Record, method string) []reports.Row {
+		t.Helper()
+		params := withMethod(map[string]any{}, method)
+		closed := b.run(t, params)
+		rateRow, ok := stlGroupRow(closed, 2, rate.Id)
+		if !ok {
+			t.Fatalf("%s: no row for %s; rows %q", method, rate.GetString("name"), bsLabels(closed))
+		}
+		res := runSTL(t, b.app, b.reader, params, reports.Options{
+			Today: stlToday, Expand: [][]any{rateRow.GroupKey}, Collapse: [][]any{},
+		})
+		openRate, ok := stlGroupRow(res, 2, rate.Id)
+		if !ok || !openRate.Expanded {
+			t.Fatalf("%s: %s = %+v (found %v), want it opened; rows %q", method, rate.GetString("name"), openRate, ok, bsLabels(res))
+		}
+		return stlDetailsUnder(res, openRate)
+	}
+	for _, method := range []string{"accrual", "cash"} {
+		got := map[string]string{}
+		for _, r := range opened(rate, method) {
+			got[r.Label] = r.Open
+		}
+		want := map[string]string{
+			"2026-10-06 · Sales receipt " + rct.GetString("number") + " · " + customer: "books/sales-receipts/" + rct.Id,
+			"2026-10-08 · Refund receipt 1001 · " + customer:                           "books/refund-receipts/" + refund.Id,
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("%s document rows (label → open) =\n%q\nwant\n%q", method, got, want)
+		}
+	}
+
+	// A payout of a taxed credit memo on a rate of its own: the memo's row
+	// stays, the payout adds none and changes no figure.
+	payoutRate := mkTaxRate(t, b.app, "Payout rate", 80000, b.agency(t, "Payout agency"))
+	memoDraft := rr.mkCreditMemo(t, map[string]any{"date": "2026-10-09", "tax_rate": payoutRate.Id})
+	mkCreditMemoLine(t, b.app, memoDraft, 0, b.sale(10000, true))
+	memo := mustPostCreditMemo(t, b.app, memoDraft.Id, b.actor)
+	before := stlFigures(t, bsRow(t, b.run(t, nil), "Payout rate"))
+	payout, _ := rr.draftPayout(t, memo, 5000, map[string]any{"date": "2026-10-10"})
+	payout = mustPostRefundReceipt(t, b.app, payout.Id, b.actor)
+	if n, err := b.app.CountRecords("books_refund_receipt_tax_lines"); err != nil || n != 1 {
+		t.Fatalf("%d refund receipt tax lines stored (err %v), want the plain refund's 1 and none of the payout", n, err)
+	}
+	if got := stlFigures(t, bsRow(t, b.run(t, nil), "Payout rate")); got != before {
+		t.Errorf("Payout rate figures = %+v after the payout, want them unchanged %+v", got, before)
+	}
+	for _, r := range opened(payoutRate, "accrual") {
+		if strings.Contains(r.Label, "Refund receipt") || strings.Contains(r.Open, payout.Id) {
+			t.Errorf("a document row %q (opens %q) shows the payout, want none", r.Label, r.Open)
+		}
+	}
+}
+
 // The Method param (pay-bills spec §3.10, Q3): on Accrual a tax line counts on
 // its own date; on Cash an invoice's tax is taken out at the invoice date and
 // comes back by each payment's share at the payment date, and a sales

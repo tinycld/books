@@ -76,6 +76,20 @@ function transactionIds(page: Page) {
         }, ROW_ID.source)
 }
 
+// The window at which the customer page sits beside the names column (the record surface),
+// and a tablet width that is not a phone.
+const RECORD_SURFACE = { width: 1360, height: 900 }
+const TABLET = { width: 800, height: 900 }
+
+// True when the list shows cards, or a table whose own scroller does not reach past its
+// box (no sideways scroll).
+async function listFitsItsWidth(page: Page) {
+    if (await page.getByTestId('customer-transactions-cards').isVisible()) return true
+    const table = page.getByTestId('customer-transactions-table')
+    if (!(await table.isVisible())) return false
+    return table.evaluate(el => el.scrollWidth <= el.clientWidth)
+}
+
 function transaction(page: Page, id: string) {
     return page.getByTestId(`customer-transaction-${id}`)
 }
@@ -116,7 +130,6 @@ test.describe('customer-pages: transactions tab', () => {
         const transactionsTab = page.getByTestId('customer-tab-transactions')
         const prefix = uniqueName('Transactions')
         const name = `${prefix} A`
-        const nameB = `${prefix} B`
         const service = nonTaxableService()
 
         // A new customer opens on Transactions, empty, with New transaction.
@@ -238,10 +251,16 @@ test.describe('customer-pages: transactions tab', () => {
             'true'
         )
         await expect.poll(() => transactionIds(page)).toEqual(allIds)
+    })
+
+    test('a customer with only an invoice shows no estimates, and Show all', async ({ page }) => {
+        await openBooks(page, DESKTOP)
+        const nameB = `${uniqueName('Transactions')} B`
 
         // A customer with only an invoice: the Estimates chip has no match; Show all.
         await createCustomer(page, { name: nameB })
         const idB = openCustomerId(page)
+        const today = await localToday(page)
         await startTransaction(page, 'customer-new-invoice', 'invoices', idB)
         await fillInvoice(page, { dueDate: today, rate: '150.00' })
         const { id: invoiceB } = await postInvoice(page)
@@ -255,6 +274,14 @@ test.describe('customer-pages: transactions tab', () => {
         await page.getByTestId('customer-transactions-show-all').click()
         await expect(page.getByTestId('customer-transactions-no-match')).toHaveCount(0)
         await expect.poll(() => transactionIds(page)).toEqual([invoiceB])
+
+        // The own-width rule (vendor-pages checkpoint 2): on the record surface and at a
+        // tablet width the list draws cards, or a table that does not scroll sideways.
+        for (const size of [RECORD_SURFACE, TABLET]) {
+            await page.setViewportSize(size)
+            await expect(transaction(page, invoiceB)).toBeVisible()
+            await expect.poll(() => listFitsItsWidth(page)).toBe(true)
+        }
     })
 
     test('a phone shows cards, the loading and failed states, and one query per chip', async ({

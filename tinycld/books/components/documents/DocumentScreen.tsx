@@ -3,7 +3,7 @@ import { View } from 'react-native'
 import type { DocumentScreenInput } from '../../hooks/document-data'
 import { type DocumentScreenData, useDocumentScreen } from '../../hooks/useDocumentScreen'
 import { type DocumentTab, documentTabOf } from '../../lib/document-routes'
-import { CREDIT_MEMO_KIND, ESTIMATE_KIND } from '../../lib/sales-document-kinds'
+import { ESTIMATE_KIND } from '../../lib/sales-document-kinds'
 import { formSessionKey, useAttachmentsStore } from '../../stores/attachments-store'
 import { DocumentForm } from './DocumentForm'
 import { DocumentLoadError } from './DocumentLoadError'
@@ -37,12 +37,13 @@ function ScreenState({ data, tab, reloads, onReload, attachmentSession }: Screen
         noAccess: `${testId}-no-access`,
         cannotEdit: `${testId}-cannot-edit`,
         cannotConvert: `${testId}-cannot-convert`,
-        cannotCredit: `${testId}-cannot-credit`,
     }
     // Only an invoice is made from an estimate; the estimate's words say it cannot be.
     const { cannotConvert } = ESTIMATE_KIND.messages
-    // Only a credit memo is made from an invoice; its words say the invoice cannot be.
-    const { cannotCredit } = CREDIT_MEMO_KIND.messages
+    // A source the kind refuses (DocumentKind.sourceNotice: a credit memo's invoice, a
+    // refund's sales receipt or credit memo) has the kind's own words and id; a kind that
+    // gives none shows the not-found notice.
+    const cannotStart = data.sourceNotice ?? { testId: ids.notFound, message: messages.notFound }
     switch (data.state) {
         case 'loading':
             return <DocumentLoading />
@@ -56,8 +57,8 @@ function ScreenState({ data, tab, reloads, onReload, attachmentSession }: Screen
             return <DocumentNotice testID={ids.cannotEdit} message={messages.cannotEdit} />
         case 'cannot-convert':
             return <DocumentNotice testID={ids.cannotConvert} message={cannotConvert} />
-        case 'cannot-credit':
-            return <DocumentNotice testID={ids.cannotCredit} message={cannotCredit} />
+        case 'cannot-start':
+            return <DocumentNotice testID={cannotStart.testId} message={cannotStart.message} />
         case 'read':
             return <ReadState data={data} tab={tab} />
         case 'form':
@@ -120,7 +121,7 @@ export function DocumentScreen({
         setReloads(count => count + 1)
     }
     // The root opts back into pointer events and draws its own background: a sales kind's
-    // child stack (SalesKindLayout) turns pointer events off on web and draws its screens
+    // child stack (DocumentKindLayout) turns pointer events off on web and draws its screens
     // over a transparent layer, so the list under it never takes the document's clicks.
     return (
         <DocumentKindContext.Provider value={documentKind}>

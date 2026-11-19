@@ -13,6 +13,7 @@ import { centsToText } from '../tinycld/books/lib/money-text'
 import {
     CREDIT_MEMO_KIND,
     type DocumentLineTable,
+    REFUND_RECEIPT_KIND,
     SALES_LINE_TABLES,
 } from '../tinycld/books/lib/sales-document-kinds'
 import {
@@ -382,5 +383,94 @@ describe("documentSchema(CREDIT_MEMO_KIND, 'USD', …)", () => {
         const issues = issuesFor('post', memoValues([cmItem({ product: '' })]))
         expect(messagesAt(issues, 'lines')).toContain(NEED_ITEM_LINE)
         expect(issuesFor('post', memoValues([cmItem()]))).toEqual([])
+    })
+})
+
+// The refund receipt's schema (refund receipt spec §3.6, §3.7): the layer's rules with the
+// refund receipt's texts; the customer is optional; Reference no. holds at most 40
+// characters.
+describe("documentSchema(REFUND_RECEIPT_KIND, 'USD', …)", () => {
+    const RR_TOTAL_NEGATIVE = 'A refund receipt total cannot be below zero. Use a sales receipt.'
+    const RR_TOTAL_TOO_LARGE = 'The refund receipt total is more than Books can store.'
+    const NEED_ITEM_LINE = 'Add at least one product or service line'
+
+    let nextRow = 0
+    function rrItem(cells: Partial<TableRow> = {}): TableRow {
+        nextRow += 1
+        return {
+            id: `rrrow${String(nextRow).padStart(10, '0')}`,
+            kind: 'item',
+            product: 'prodbookkeep001',
+            description: '',
+            quantity: 1,
+            rate: '100.00',
+            amount: null,
+            taxable: false,
+            ...cells,
+        }
+    }
+
+    function refundValues(lines: TableRow[], overrides: Record<string, unknown> = {}) {
+        return {
+            customer: '',
+            bill_to: null,
+            email: '',
+            date: TODAY,
+            tax_rate: '',
+            payment_method: '',
+            reference_no: '',
+            refund_from: DEPOSIT_ACCOUNT_IDS.checking,
+            lines,
+            message: '',
+            memo: '',
+            ...overrides,
+        }
+    }
+
+    type Issue = { path: PropertyKey[]; message: string }
+
+    function issuesFor(mode: 'draft' | 'post', values: unknown): Issue[] {
+        const result = documentSchema(REFUND_RECEIPT_KIND, 'USD', mode).safeParse(values)
+        return result.success ? [] : result.error.issues
+    }
+
+    function messagesAt(issues: Issue[], key: string): string[] {
+        return issues.filter(issue => issue.path.join('.') === key).map(issue => issue.message)
+    }
+
+    it('accepts a refund with no customer and one product line', () => {
+        expect(issuesFor('post', refundValues([rrItem()]))).toEqual([])
+    })
+
+    it('refuses lines that sum below zero at lines with the refund receipt text', () => {
+        const issues = issuesFor(
+            'draft',
+            refundValues([rrItem({ rate: '10.00' }), rrItem({ rate: '-20.00' })])
+        )
+        expect(messagesAt(issues, 'lines')).toEqual([RR_TOTAL_NEGATIVE])
+    })
+
+    it('refuses a total over the stored-amount limit at lines with the refund receipt text', () => {
+        const lines = Array.from({ length: 10 }, () => rrItem({ rate: '10,000,000,000,000.00' }))
+        const issues = issuesFor('draft', refundValues(lines))
+        expect(messagesAt(issues, 'lines')).toEqual([RR_TOTAL_TOO_LARGE])
+    })
+
+    it('adds the one-product-line rule in Post mode', () => {
+        const issues = issuesFor('post', refundValues([rrItem({ product: '' })]))
+        expect(messagesAt(issues, 'lines')).toContain(NEED_ITEM_LINE)
+    })
+
+    it('refuses a Reference no. over 40 characters under the field', () => {
+        const issues = issuesFor(
+            'draft',
+            refundValues([rrItem()], { reference_no: 'R'.repeat(41) })
+        )
+        expect(messagesAt(issues, 'reference_no')).toEqual([
+            'Reference no. can be at most 40 characters',
+        ])
+        expect(
+            issuesFor('draft', refundValues([rrItem()], { reference_no: 'R'.repeat(40) }))
+        ).toEqual([])
     })
 })

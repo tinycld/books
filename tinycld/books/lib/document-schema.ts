@@ -37,8 +37,13 @@ export type DocumentSaveMode = 'draft' | 'post'
 
 // How the form draws Deposit to (a sales receipt's): whether the chart offers any
 // deposit account, and whether "Sales deposited to" hides the field. An invoice has no
-// Deposit to and passes none.
-export type DepositRule = { hasOptions: boolean; hidden: boolean }
+// Deposit to and passes none. A refund receipt's Refund from takes the same rule on its
+// own field (`field: 'refund_from'`, never hidden); the default field is `deposit_to`.
+export type DepositRule = {
+    hasOptions: boolean
+    hidden: boolean
+    field?: 'deposit_to' | 'refund_from'
+}
 
 // The server counts text in code points (PocketBase text max), not UTF-16 units.
 const MAX_TEXT = 4000
@@ -215,10 +220,11 @@ const MAX_REFERENCE = 40
 
 // The payment row of a kind that has one, by its texts: a sales receipt's Deposit to and
 // Reference no., an expense's Ref no. (its Paid from and Payment method are host-required).
-// Deposit to (only a sales receipt passes `deposit`) is required while it is drawn
-// ("Ask"); while "Sales deposited to" names an account it is hidden and the server stamps
-// that account on the receipt. With no deposit account in the chart the text says to add
-// one. A kind with no `referenceTooLong` text has no reference field.
+// Deposit to (a sales receipt passes `deposit`) is required while it is drawn ("Ask");
+// while "Sales deposited to" names an account it is hidden and the server stamps that
+// account on the receipt. A refund receipt's Refund from (`deposit.field`) is always
+// drawn. With no account in the chart to offer, the text says to add one. A kind with no
+// `referenceTooLong` text has no reference field.
 function paymentIssues(
     kind: SalesDocumentKind,
     values: Record<string, unknown>,
@@ -226,11 +232,12 @@ function paymentIssues(
 ): Issue[] {
     const { messages } = kind
     const issues: Issue[] = []
+    const field = deposit?.field ?? 'deposit_to'
     const isDepositMissing =
-        deposit !== undefined && !deposit.hidden && textOf(values.deposit_to) === ''
+        deposit !== undefined && !deposit.hidden && textOf(values[field]) === ''
     if (isDepositMissing) {
         const message = deposit.hasOptions ? messages.depositRequired : messages.depositNone
-        if (message) issues.push({ path: ['deposit_to'], message })
+        if (message) issues.push({ path: [field], message })
     }
     if ([...textOf(values.reference_no)].length > MAX_REFERENCE && messages.referenceTooLong) {
         issues.push({ path: ['reference_no'], message: messages.referenceTooLong })

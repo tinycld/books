@@ -1710,3 +1710,129 @@ func TestSalesReportsTotalsAgree(t *testing.T) {
 		}
 	}
 }
+
+// refundSalesBook is a salesBook whose app also binds the refund receipt
+// guards and host, with an invoice of Harborview Dental for 3 × Monthly
+// bookkeeping at 100.00 dated 2026-10-05.
+func refundSalesBook(t *testing.T) (salesBook, *refundReceiptEnv) {
+	t.Helper()
+	b, rr := newRefundSTLBook(t)
+	sb := salesBook{stlBook: b, ce: rr.creditMemoEnv, discount: rr.discount}
+	sb.invoice(t, sb.customer, "2026-10-05", sale(sb.service, 3, 10000))
+	return sb, rr
+}
+
+// payoutOfAMemo posts a credit memo of Harborview Dental for 1 × Monthly
+// bookkeeping at 50.00 dated 2026-10-12, then a payout of 30.00 of it dated
+// 2026-10-14, and returns the payout.
+func (b salesBook) payoutOfAMemo(t *testing.T, rr *refundReceiptEnv) *core.Record {
+	t.Helper()
+	memo := b.memo(t, b.customer, "2026-10-12", nil, sale(b.service, 1, 5000))
+	payout, _ := rr.draftPayout(t, memo, 3000, map[string]any{"date": "2026-10-14"})
+	return mustPostRefundReceipt(t, b.app, payout.Id, b.actor)
+}
+
+// Refund receipt spec §3.13 (Q10), Sales by Customer: a plain refund's lines
+// count with sign −1, so a refund of 150.00 lowers its customer's Sales by
+// 150.00 on its date; its line row reads "<date> · Refund receipt 1001 ·
+// <product>" and opens the refund. A payout's lines are no sale lines.
+func TestSalesByCustomerRefundReceipt(t *testing.T) {
+	b, rr := refundSalesBook(t)
+	if got := amt(t, cbCustomerRow(t, b.run(t, nil), b.customer), "sales"); got != 30000 {
+		t.Fatalf("Harborview Dental's Sales before the refund = %d, want 30000", got)
+	}
+
+	refund := rr.postedRefundOn(t, nil, "2026-10-10", sale(b.service, 1, 15000))
+	if refund.GetString("number") != "1001" {
+		t.Fatalf("refund number %q, want 1001", refund.GetString("number"))
+	}
+	res := b.run(t, nil)
+	if got := amt(t, cbCustomerRow(t, res, b.customer), "sales"); got != 15000 {
+		t.Errorf("Harborview Dental's Sales = %d, want 15000 (30000 less the refund's 15000)", got)
+	}
+	if got := amt(t, totalOf(t, res), "sales"); got != 15000 {
+		t.Errorf("Total Sales = %d, want 15000", got)
+	}
+	// On the refund's date: a period of that one day holds it alone.
+	day := b.run(t, map[string]any{"period": glPeriod("2026-10-10", "2026-10-10")})
+	if got := amt(t, cbCustomerRow(t, day, b.customer), "sales"); got != -15000 {
+		t.Errorf("Harborview Dental's Sales on 2026-10-10 = %d, want -15000", got)
+	}
+
+	opened := b.runOpen(t, nil, cbCustomerRow(t, res, b.customer).GroupKey)
+	var found bool
+	for _, r := range salesLinesUnder(opened, cbCustomerRow(t, opened, b.customer)) {
+		if r.Label != "2026-10-10 · Refund receipt 1001 · Monthly bookkeeping" {
+			continue
+		}
+		found = true
+		if r.Open != "books/refund-receipts/"+refund.Id {
+			t.Errorf("%s opens %q, want %q", r.Label, r.Open, "books/refund-receipts/"+refund.Id)
+		}
+		if got := amt(t, r, "sales"); got != -15000 {
+			t.Errorf("%s Sales = %d, want -15000", r.Label, got)
+		}
+	}
+	if !found {
+		t.Errorf("no line row %q under Harborview Dental; rows %q", "2026-10-10 · Refund receipt 1001 · Monthly bookkeeping", bsLabels(opened))
+	}
+
+	withMemo := amt(t, cbCustomerRow(t, b.run(t, nil), b.customer), "sales")
+	payout := b.payoutOfAMemo(t, rr)
+	after := b.run(t, nil)
+	if got, want := amt(t, cbCustomerRow(t, after, b.customer), "sales"), withMemo-5000; got != want {
+		t.Errorf("Harborview Dental's Sales after the memo and its payout = %d, want %d (the memo counts, the payout does not)", got, want)
+	}
+	for _, r := range salesLinesUnder(b.runOpen(t, nil, cbCustomerRow(t, after, b.customer).GroupKey), cbCustomerRow(t, after, b.customer)) {
+		if strings.Contains(r.Open, payout.Id) {
+			t.Errorf("a line row %q opens the payout, want none", r.Label)
+		}
+	}
+}
+
+// Refund receipt spec §3.13 (Q10), Sales by Product/Service: a plain refund of
+// 150.00 lowers its product's Amount and Quantity on its date; its line row
+// reads "<date> · Refund receipt 1001 · <customer>" and opens the refund. A
+// payout changes nothing.
+func TestSalesByProductRefundReceipt(t *testing.T) {
+	b, rr := refundSalesBook(t)
+	refund := rr.postedRefundOn(t, nil, "2026-10-10", sale(b.service, 1, 15000))
+
+	res := b.runProducts(t, nil)
+	service := sbpProductRow(t, res, b.service)
+	requireQty(t, service, 2)
+	if got := amt(t, service, "amount"); got != 15000 {
+		t.Errorf("Monthly bookkeeping's Amount = %d, want 15000 (30000 less the refund's 15000)", got)
+	}
+
+	opened := b.runProductsOpen(t, nil, service.GroupKey)
+	var found bool
+	for _, r := range salesLinesUnder(opened, sbpProductRow(t, opened, b.service)) {
+		if r.Label != "2026-10-10 · Refund receipt 1001 · Harborview Dental" {
+			continue
+		}
+		found = true
+		if r.Open != "books/refund-receipts/"+refund.Id {
+			t.Errorf("%s opens %q, want %q", r.Label, r.Open, "books/refund-receipts/"+refund.Id)
+		}
+		if got := amt(t, r, "amount"); got != -15000 {
+			t.Errorf("%s Amount = %d, want -15000", r.Label, got)
+		}
+		requireQty(t, r, -1)
+	}
+	if !found {
+		t.Errorf("no line row %q under Monthly bookkeeping; rows %q", "2026-10-10 · Refund receipt 1001 · Harborview Dental", bsLabels(opened))
+	}
+
+	withMemo := amt(t, sbpProductRow(t, b.runProducts(t, nil), b.service), "amount")
+	payout := b.payoutOfAMemo(t, rr)
+	after := b.runProducts(t, nil)
+	if got, want := amt(t, sbpProductRow(t, after, b.service), "amount"), withMemo-5000; got != want {
+		t.Errorf("Monthly bookkeeping's Amount after the memo and its payout = %d, want %d (the memo counts, the payout does not)", got, want)
+	}
+	for _, r := range salesLinesUnder(b.runProductsOpen(t, nil, sbpProductRow(t, after, b.service).GroupKey), sbpProductRow(t, after, b.service)) {
+		if strings.Contains(r.Open, payout.Id) {
+			t.Errorf("a line row %q opens the payout, want none", r.Label)
+		}
+	}
+}

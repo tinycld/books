@@ -6,6 +6,7 @@ import {
     CREDIT_MEMO_KIND,
     ESTIMATE_KIND,
     INVOICE_KIND,
+    REFUND_RECEIPT_KIND,
 } from '../tinycld/books/lib/sales-document-kinds'
 
 // A kind with another route base: the routes must come from the kind, not a constant.
@@ -143,6 +144,39 @@ describe('the credit memo routes', () => {
         )
         expect(postAndNewHref(CREDIT_MEMO_KIND, 'c1')).toMatch(
             /^books\/credit-memos\/new\?fresh=[^&]+&customer=c1$/
+        )
+    })
+})
+
+// The refund receipt's routes (spec §2, §3.7): the two pushed pages under
+// books/refund-receipts.
+describe('the refund receipt routes', () => {
+    it('opens a new refund, a copy, a correction and a refund for a customer', () => {
+        expect(documentNewHref(REFUND_RECEIPT_KIND, {})).toBe('books/refund-receipts/new')
+        expect(documentNewHref(REFUND_RECEIPT_KIND, { customer: 'c1' })).toBe(
+            'books/refund-receipts/new?customer=c1'
+        )
+        expect(documentNewHref(REFUND_RECEIPT_KIND, { copy: 'r1' })).toBe(
+            'books/refund-receipts/new?copy=r1'
+        )
+        expect(documentNewHref(REFUND_RECEIPT_KIND, { replaces: 'r1' })).toBe(
+            'books/refund-receipts/new?replaces=r1'
+        )
+    })
+
+    it('opens a refund and its PDF tab', () => {
+        expect(documentHref(REFUND_RECEIPT_KIND, 'r1')).toBe('books/refund-receipts/r1')
+        expect(documentHref(REFUND_RECEIPT_KIND, 'r1', 'pdf')).toBe(
+            'books/refund-receipts/r1?tab=pdf'
+        )
+    })
+
+    it('Post & new starts a fresh refund, with the customer only when the form had one', () => {
+        expect(postAndNewHref(REFUND_RECEIPT_KIND, undefined)).toMatch(
+            /^books\/refund-receipts\/new\?fresh=[^&]+$/
+        )
+        expect(postAndNewHref(REFUND_RECEIPT_KIND, 'c1')).toMatch(
+            /^books\/refund-receipts\/new\?fresh=[^&]+&customer=c1$/
         )
     })
 })

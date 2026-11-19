@@ -979,6 +979,27 @@ func TestAccount_DeleteRefusedWhileVendorRefundsArriveInIt(t *testing.T) {
 	reload(t, app, "books_accounts", operating.Id)
 }
 
+// Refund receipt spec §3.13: the Refund from account of any refund receipt,
+// draft included, cannot be deleted; the text counts the refund receipts.
+func TestAccount_DeleteRefusedWhileRefundReceiptsRefundFromIt(t *testing.T) {
+	app := newGuardedApp(t)
+	operating := mkNumberedAccount(t, app, "Operating Checking", "1020", "bank", "checking")
+	customer := mkCustomer(t, app, "Harborview Dental", "")
+	deleteOperating := func() error {
+		return app.Delete(reload(t, app, "books_accounts", operating.Id))
+	}
+
+	mkRefundReceiptRow(t, app, customer, operating, nil)
+	requireMessageOnlyRefusal(t, deleteOperating(),
+		"This account is the refund account of 1 refund receipt and cannot be deleted. Make it inactive instead.")
+	reload(t, app, "books_accounts", operating.Id)
+
+	mkRefundReceiptRow(t, app, nil, operating, map[string]any{"status": "posted", "number": "1001"})
+	requireMessageOnlyRefusal(t, deleteOperating(),
+		"This account is the refund account of 2 refund receipts and cannot be deleted. Make it inactive instead.")
+	reload(t, app, "books_accounts", operating.Id)
+}
+
 // Pay-bills spec §4.2: an account a bill payment paid from cannot be deleted
 // (its journal lines would lose their account); the text counts the payments.
 func TestAccount_DeleteRefusedWhileBillPaymentsPayFromIt(t *testing.T) {

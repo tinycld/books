@@ -62,6 +62,15 @@ A posted sales receipt shows the payment in one line, for example "Check · 4356
 - To cancel it, choose Void and confirm. Books posts a reversing entry in the original period, and the number is kept.
 - To start a new one from it, choose Copy. A copy keeps the customer, lines, tax, payment method and message, and has today's date, no reference no. and no memo.
 - To see the entry it posted, choose View journal entry.
+- To give money back for it, choose Refund (see below).
+
+A sales receipt that refund receipts are made from can still be edited: the edit moves their links to the new version. But the edit cannot change the customer while a draft or posted refund receipt is made from it: "Refund receipts are made from this sales receipt, so its customer cannot change." When you void the sales receipt, its refund receipts keep their links, which then read "Refund of sales receipt 1004 (void)".
+
+## Refund a sales receipt
+
+To give a customer money back for a sale, open the posted sales receipt and choose **Refund**, or press R. On a phone, it is in the More menu. A void sales receipt does not have it, and you need to be able to edit the books. A new refund receipt opens with the sales receipt's customer, payment method and a copy of its lines; remove or change the lines that you do not refund. See [Refund receipts](help://books:refund-receipts).
+
+Under the totals, the **Refund receipts** section lists each refund receipt that is made from the sales receipt, with its number, date, amount and status. Choose a number to open the refund receipt. A sales receipt with no refund receipt has no section.
 
 ## Keyboard shortcuts
 
@@ -83,6 +92,7 @@ On a posted or void sales receipt:
 - V: Void
 - C: Copy to a new sales receipt
 - J: View journal entry
+- R: Refund (a posted sales receipt only)
 - ⌥1 / ⌥2: Details tab / PDF view tab
 - ⌘P: Download PDF
 

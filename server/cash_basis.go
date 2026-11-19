@@ -11,8 +11,8 @@ import (
 
 // The cash basis (pay-bills spec §3.10). A document of a deferred kind (a bill,
 // an invoice, a credit memo, a vendor credit) counts on the cash basis when and
-// as far as it is paid (a vendor credit: applied to bills; a credit memo:
-// applied or refunded, which no write does yet). Its rows
+// as far as it is paid (a vendor credit: applied to bills or refunded; a credit
+// memo: paid out by a refund receipt). Its rows
 // in books_cash_basis_lines are derived from the ledger and the payments:
 //
 //   - taken out: each posted line of the document's entries (its entry and the
@@ -73,16 +73,18 @@ var (
 		TaxLines:       "books_invoice_tax_lines",
 	}
 	// creditMemoCashDeferral takes a credit memo's lines out of the cash layer
-	// on its date. Nothing applies or refunds a memo yet, so it has no payment
-	// doc type and nothing brings its lines back; PaidMemo is the text the rows
-	// that apply it will carry.
+	// on its date; each posted refund receipt that pays it out brings back its
+	// share at the refund date, naming the refund's entry
+	// (creditMemoBalanceKind's payer, whose CashMemo is its rows' memo).
+	// PaidMemo is the text the rows of a payer with no CashMemo carry.
 	creditMemoCashDeferral = cashDeferral{
-		Kind:       "credit_memo",
-		DocType:    docTypeCreditMemo,
-		Balance:    creditMemoBalanceKind,
-		UnpaidMemo: "Unapplied credit memo (cash basis)",
-		PaidMemo:   "Credit memo %s applied (cash basis)",
-		TaxLines:   "books_credit_memo_tax_lines",
+		Kind:           "credit_memo",
+		DocType:        docTypeCreditMemo,
+		PaymentDocType: docTypeRefundReceipt,
+		Balance:        creditMemoBalanceKind,
+		UnpaidMemo:     "Unapplied credit memo (cash basis)",
+		PaidMemo:       "Credit memo %s applied (cash basis)",
+		TaxLines:       "books_credit_memo_tax_lines",
 	}
 	// vendorCreditCashDeferral takes a vendor credit's lines out of the cash
 	// layer on its date; each application to a bill brings back its share at
@@ -181,8 +183,8 @@ func documentEntryLines(tx core.App, d cashDeferral, docID string) ([]cashSource
 // payer gives one cashPayment per posted payment (its entry, the sum of its
 // lines on the document); an application payer gives one per application, at
 // the apply date, naming the posted entry of the document the application's
-// EntryField names, with the payer's memo. A kind with no payer (a credit
-// memo, which nothing applies yet) has none.
+// EntryField names, with the payer's memo. A credit memo's one payer is a
+// payment payer: the refund receipts that pay it out.
 func documentPayments(tx core.App, d cashDeferral, docID string) ([]cashPayment, error) {
 	var payments []cashPayment
 	for _, p := range d.Balance.Payers {

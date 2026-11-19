@@ -21,6 +21,7 @@ import {
     BILL_KIND,
     CREDIT_MEMO_KIND,
     EXPENSE_KIND,
+    REFUND_RECEIPT_KIND,
     SALES_RECEIPT_KIND,
     VENDOR_CREDIT_KIND,
 } from '../tinycld/books/lib/sales-document-kinds'
@@ -182,6 +183,49 @@ describe('documentScreenState for a sales receipt', () => {
     })
 })
 
+// The refund receipt's states (spec §3.10, "as the sales receipt") and the texts its
+// screen shows for them. The inputs take the kind's own lifecycle.
+describe('documentScreenState for a refund receipt', () => {
+    // Read inside each test, so a missing kind fails those tests and not the file.
+    const draft = (): Input => ({ ...DRAFT, lifecycle: REFUND_RECEIPT_KIND.lifecycle })
+    const fresh = (): Input => ({ ...draft(), isNew: true, status: null })
+
+    it('a non-writer at new gets no-access with the refund receipt text', () => {
+        expect(documentScreenState({ ...fresh(), canWrite: false })).toBe('no-access')
+        expect(REFUND_RECEIPT_KIND.messages.noAccess).toBe(
+            'You need bookkeeper access to create refund receipts'
+        )
+    })
+
+    it('an id with no row is not-found with the refund receipt text', () => {
+        expect(documentScreenState({ ...draft(), status: null })).toBe('not-found')
+        expect(documentScreenState({ ...draft(), status: null, canWrite: false })).toBe('not-found')
+        expect(documentScreenState({ ...fresh(), replacesStatus: null })).toBe('not-found')
+        expect(REFUND_RECEIPT_KIND.messages.notFound).toBe('This refund receipt does not exist')
+    })
+
+    it('a correction of a draft or a void refund cannot be edited, with the refund receipt text', () => {
+        expect(documentScreenState({ ...fresh(), replacesStatus: 'draft' })).toBe('cannot-edit')
+        expect(documentScreenState({ ...fresh(), replacesStatus: 'void' })).toBe('cannot-edit')
+        expect(documentScreenState({ ...fresh(), replacesStatus: 'posted' })).toBe('form')
+        expect(REFUND_RECEIPT_KIND.messages.cannotEdit).toBe('This refund receipt cannot be edited')
+    })
+
+    it('a failed read is the error with the refund receipt text', () => {
+        expect(documentScreenState({ ...draft(), isError: true, isReady: false })).toBe('error')
+        expect(REFUND_RECEIPT_KIND.messages.loadFailed).toBe(
+            'Books could not load this refund receipt.'
+        )
+    })
+
+    it('a posted or void refund is the read view for a reader and a writer; a draft is the form for a writer', () => {
+        expect(documentScreenState({ ...draft(), status: 'posted', canWrite: false })).toBe('read')
+        expect(documentScreenState({ ...draft(), status: 'void' })).toBe('read')
+        expect(documentScreenState(draft())).toBe('form')
+        expect(documentScreenState({ ...draft(), canWrite: false })).toBe('no-access')
+    })
+})
+
 // The credit memo's states (spec §3.9, "as the invoice") and the texts its screen shows
 // for them. The inputs take the kind's own lifecycle.
 describe('documentScreenState for a credit memo', () => {
@@ -226,40 +270,40 @@ describe('documentScreenState for a credit memo', () => {
     })
 
     // Create credit memo (spec §3.2, §3.9): `books/credit-memos/new?invoice=<id>`.
-    // `invoiceStatus` is the invoice's status, null when it does not exist or cannot be read.
-    // Only a posted invoice can be credited.
+    // `sourceAllowed` is true for a posted invoice, false for a draft or void one, and null
+    // when the invoice does not exist or cannot be read. Only a posted invoice can be credited.
     it('a new memo from a posted invoice is the form for a writer', () => {
-        expect(documentScreenState({ ...fresh(), invoiceStatus: 'posted' })).toBe('form')
+        expect(documentScreenState({ ...fresh(), sourceAllowed: true })).toBe('form')
     })
 
     it.each([
-        'draft',
-        'void',
-        null,
-    ] as const)('a new memo from an invoice whose status is %s cannot be credited', invoiceStatus => {
-        expect(documentScreenState({ ...fresh(), invoiceStatus })).toBe('cannot-credit')
+        ['draft', false],
+        ['void', false],
+        ['missing', null],
+    ] as const)('a new memo from an invoice whose status is %s cannot be credited', (_status, sourceAllowed) => {
+        expect(documentScreenState({ ...fresh(), sourceAllowed })).toBe('cannot-start')
         expect(CREDIT_MEMO_KIND.messages.cannotCredit).toBe('This invoice cannot be credited')
     })
 
-    it('no ?invoice (invoiceStatus undefined) changes nothing', () => {
-        expect(documentScreenState({ ...fresh(), invoiceStatus: undefined })).toBe('form')
-        expect(documentScreenState({ ...fresh(), invoiceStatus: undefined, canWrite: false })).toBe(
+    it('no ?invoice (sourceAllowed undefined) changes nothing', () => {
+        expect(documentScreenState({ ...fresh(), sourceAllowed: undefined })).toBe('form')
+        expect(documentScreenState({ ...fresh(), sourceAllowed: undefined, canWrite: false })).toBe(
             'no-access'
         )
-        expect(documentScreenState({ ...draft(), invoiceStatus: undefined })).toBe('form')
+        expect(documentScreenState({ ...draft(), sourceAllowed: undefined })).toBe('form')
         expect(
-            documentScreenState({ ...draft(), status: 'posted', invoiceStatus: undefined })
+            documentScreenState({ ...draft(), status: 'posted', sourceAllowed: undefined })
         ).toBe('read')
     })
 
     it('a failed read of the invoice is the error', () => {
-        expect(documentScreenState({ ...fresh(), invoiceStatus: null, isError: true })).toBe(
+        expect(documentScreenState({ ...fresh(), sourceAllowed: null, isError: true })).toBe(
             'error'
         )
         expect(
             documentScreenState({
                 ...fresh(),
-                invoiceStatus: undefined,
+                sourceAllowed: undefined,
                 isError: true,
                 isReady: false,
             })

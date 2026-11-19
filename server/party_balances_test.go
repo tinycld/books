@@ -10,17 +10,21 @@ import (
 	"tinycld.org/core/changesignal"
 )
 
-// The books_party_balances view (spec §4): one row per customer with posted
-// lines on an accounts-receivable account, balance = debits minus credits in
-// integer cents. The view is read the way the records API reads it, by its
-// collection name, so a wrong query or a missing migration fails here.
+// The books_party_balances view (vendor pages spec §4): one row per customer
+// with posted lines on an accounts-receivable account (balance = debits minus
+// credits) and one row per vendor with posted lines on an accounts-payable
+// account (balance = credits minus debits), in integer cents. A row's id is
+// its party's id, and a row names one party only. The view is read the way the
+// records API reads it, by its collection name, so a wrong query or a missing
+// migration fails here.
 
 const partyBalancesName = "books_party_balances"
 
-// partyEnv is a ledger env with an A/R account.
+// partyEnv is a ledger env with an A/R and an A/P account.
 type partyEnv struct {
 	*ledgerEnv
 	receivable *core.Record
+	payable    *core.Record
 }
 
 func newPartyEnv(t *testing.T) *partyEnv {
@@ -29,15 +33,17 @@ func newPartyEnv(t *testing.T) *partyEnv {
 	return &partyEnv{
 		ledgerEnv:  env,
 		receivable: mkAccount(t, env.app, "Accounts receivable", "accounts_receivable", "accounts_receivable"),
+		payable:    mkAccount(t, env.app, "Accounts payable", "accounts_payable", "accounts_payable"),
 	}
 }
 
 // partyLineSpec is one line of an entry these tests write, with the customer
-// it names ("" for none).
+// and the vendor it names ("" for none).
 type partyLineSpec struct {
 	account       *core.Record
 	debit, credit int
 	customer      string
+	vendor        string
 }
 
 // draftWith saves a draft entry and its lines through the app, so every line
@@ -48,7 +54,7 @@ func (pe *partyEnv) draftWith(t testing.TB, lines ...partyLineSpec) *core.Record
 	for i, l := range lines {
 		_, err := saveNew(pe.app, "books_journal_lines", map[string]any{
 			"entry": entry.Id, "account": l.account.Id, "debit": l.debit, "credit": l.credit,
-			"position": i, "currency": "USD", "customer": l.customer,
+			"position": i, "currency": "USD", "customer": l.customer, "vendor": l.vendor,
 		})
 		if err != nil {
 			t.Fatalf("save line %d: %v", i, err)
@@ -63,20 +69,35 @@ func (pe *partyEnv) postWith(t testing.TB, lines ...partyLineSpec) *core.Record 
 	return mustPost(t, pe.app, entry.Id, pe.users.bookkeeper.Id)
 }
 
-// partyBalances reads every row of the view: customer id -> balance. It also
-// checks each row's id is its customer.
-func partyBalances(t testing.TB, app core.App) map[string]int {
+// partyRows reads every row of the view.
+func partyRows(t testing.TB, app core.App) []*core.Record {
 	t.Helper()
 	rows, err := app.FindAllRecords(partyBalancesName)
 	if err != nil {
 		t.Fatalf("read %s: %v", partyBalancesName, err)
 	}
+	return rows
+}
+
+// partyBalances reads every row of the view: party id -> balance, the party
+// being the row's customer, else its vendor. It fails the test when a row
+// names both parties or when a row's id is not its party's id.
+func partyBalances(t testing.TB, app core.App) map[string]int {
+	t.Helper()
 	out := map[string]int{}
-	for _, r := range rows {
-		if r.Id != r.GetString("customer") {
-			t.Errorf("row id %q is not its customer %q", r.Id, r.GetString("customer"))
+	for _, r := range partyRows(t, app) {
+		customer, vendor := r.GetString("customer"), r.GetString("vendor")
+		if customer != "" && vendor != "" {
+			t.Errorf("row %q names both customer %q and vendor %q", r.Id, customer, vendor)
 		}
-		out[r.GetString("customer")] = r.GetInt("balance")
+		party := customer
+		if party == "" {
+			party = vendor
+		}
+		if r.Id != party {
+			t.Errorf("row id %q is not its party %q (customer %q, vendor %q)", r.Id, party, customer, vendor)
+		}
+		out[party] = r.GetInt("balance")
 	}
 	return out
 }
@@ -222,6 +243,212 @@ func TestPartyBalances_FieldTypes(t *testing.T) {
 	if got != 2781865 {
 		t.Errorf("exported balance = %v, want 2781865", got)
 	}
+}
+
+// vendorBill posts a bill's ledger lines for vendor: the expense debited, A/P
+// credited and naming the vendor.
+func (pe *partyEnv) vendorBill(t testing.TB, vendor *core.Record, amount int) *core.Record {
+	t.Helper()
+	return pe.postWith(t,
+		partyLineSpec{account: pe.rent, debit: amount},
+		partyLineSpec{account: pe.payable, credit: amount, vendor: vendor.Id})
+}
+
+// The rewritten view must be one PocketBase accepts (the CASE id column) and
+// must type both party columns as relations: the client collection and the
+// page queries filter on them.
+func TestPartyBalances_VendorFieldTypes(t *testing.T) {
+	pe := newPartyEnv(t)
+	office := mkVendor(t, pe.app, "Office Supply World")
+	pe.vendorBill(t, office, 125000)
+
+	col, err := pe.app.FindCollectionByNameOrId(partyBalancesName)
+	if err != nil {
+		t.Fatalf("find %s (did PocketBase refuse the view query?): %v", partyBalancesName, err)
+	}
+	if col.Type != core.CollectionTypeView {
+		t.Errorf("%s type = %q, want view", partyBalancesName, col.Type)
+	}
+
+	vendors, err := pe.app.FindCollectionByNameOrId("books_vendors")
+	if err != nil {
+		t.Fatal(err)
+	}
+	vendor, ok := col.Fields.GetByName("vendor").(*core.RelationField)
+	if !ok {
+		t.Fatalf("vendor field = %T (%v), want a relation", col.Fields.GetByName("vendor"), col.Fields.GetByName("vendor"))
+	}
+	if vendor.CollectionId != vendors.Id {
+		t.Errorf("vendor relation points at %q, want books_vendors (%q)", vendor.CollectionId, vendors.Id)
+	}
+
+	customers, err := pe.app.FindCollectionByNameOrId("books_customers")
+	if err != nil {
+		t.Fatal(err)
+	}
+	customer, ok := col.Fields.GetByName("customer").(*core.RelationField)
+	if !ok {
+		t.Fatalf("customer field = %T, want a relation", col.Fields.GetByName("customer"))
+	}
+	if customer.CollectionId != customers.Id {
+		t.Errorf("customer relation points at %q, want books_customers (%q)", customer.CollectionId, customers.Id)
+	}
+
+	balance := col.Fields.GetByName("balance")
+	if balance == nil || balance.Type() != core.FieldTypeNumber {
+		t.Fatalf("balance field = %v, want a number field", balance)
+	}
+
+	record, err := pe.app.FindRecordById(partyBalancesName, office.Id)
+	if err != nil {
+		t.Fatalf("read the vendor's balance row by the vendor id: %v", err)
+	}
+	if record.Id != office.Id {
+		t.Errorf("vendor row id = %q, want the vendor id %q", record.Id, office.Id)
+	}
+	if got := record.GetString("vendor"); got != office.Id {
+		t.Errorf("vendor row's vendor = %q, want %q", got, office.Id)
+	}
+	if got := record.GetString("customer"); got != "" {
+		t.Errorf("vendor row's customer = %q, want ''", got)
+	}
+	if got := record.GetInt("balance"); got != 125000 {
+		t.Errorf("vendor row's balance = %d, want 125000", got)
+	}
+}
+
+// Bills raise what the business owes a vendor (A/P credits); a bill payment
+// and a vendor credit lower it (A/P debits); a void's reversal cancels its
+// bill and leaves the row at 0.
+func TestPartyBalances_VendorRowsFollowBillsPaymentsCreditsAndVoids(t *testing.T) {
+	pe := newPartyEnv(t)
+	office := mkVendor(t, pe.app, "Office Supply World")
+	pacific := mkVendor(t, pe.app, "Pacific Power")
+
+	pe.vendorBill(t, office, 125000)
+	pacificBill := pe.vendorBill(t, pacific, 30000)
+	requireBalances(t, pe.app, map[string]int{office.Id: 125000, pacific.Id: 30000})
+	for _, r := range partyRows(t, pe.app) {
+		if got := r.GetString("customer"); got != "" {
+			t.Errorf("vendor row %q has customer %q, want ''", r.Id, got)
+		}
+		if got := r.GetString("vendor"); got != r.Id {
+			t.Errorf("vendor row %q has vendor %q, want its id", r.Id, got)
+		}
+	}
+
+	// A bill payment: A/P debited for the vendor, paid from checking.
+	pe.postWith(t,
+		partyLineSpec{account: pe.payable, debit: 40000, vendor: office.Id},
+		partyLineSpec{account: pe.checking, credit: 40000})
+	requireBalances(t, pe.app, map[string]int{office.Id: 85000, pacific.Id: 30000})
+
+	// A vendor credit: A/P debited for the vendor, the expense credited.
+	pe.postWith(t,
+		partyLineSpec{account: pe.payable, debit: 9900, vendor: office.Id},
+		partyLineSpec{account: pe.rent, credit: 9900})
+	requireBalances(t, pe.app, map[string]int{office.Id: 75100, pacific.Id: 30000})
+
+	if err := setStatus(pe.app, pacificBill.Id, statusVoid, pe.users.bookkeeper.Id); err != nil {
+		t.Fatalf("void the Pacific Power bill: %v", err)
+	}
+	requireBalances(t, pe.app, map[string]int{office.Id: 75100, pacific.Id: 0})
+}
+
+// Only an A/P line that names a vendor is a vendor balance. Each case also
+// posts one real vendor bill, so an empty or vendor-less view cannot pass.
+func TestPartyBalances_OnlyPayableLinesNamingAVendorGiveVendorRows(t *testing.T) {
+	cases := []struct {
+		name  string
+		lines func(pe *partyEnv, vendor, customer *core.Record) []partyLineSpec
+	}{
+		{"an A/P line with no vendor", func(pe *partyEnv, _, _ *core.Record) []partyLineSpec {
+			return []partyLineSpec{
+				{account: pe.rent, debit: 4000},
+				{account: pe.payable, credit: 4000},
+			}
+		}},
+		{"an A/R line that names a vendor and no customer", func(pe *partyEnv, vendor, _ *core.Record) []partyLineSpec {
+			return []partyLineSpec{
+				{account: pe.receivable, debit: 4000, vendor: vendor.Id},
+				{account: pe.revenue, credit: 4000},
+			}
+		}},
+		{"an A/P line that names a customer and no vendor", func(pe *partyEnv, _, customer *core.Record) []partyLineSpec {
+			return []partyLineSpec{
+				{account: pe.rent, debit: 4000},
+				{account: pe.payable, credit: 4000, customer: customer.Id},
+			}
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			pe := newPartyEnv(t)
+			office := mkVendor(t, pe.app, "Office Supply World")
+			stray := mkVendor(t, pe.app, "Summit IT Services")
+			harbor := mkCustomer(t, pe.app, "Harborview", "")
+			pe.vendorBill(t, office, 5625)
+
+			pe.postWith(t, c.lines(pe, stray, harbor)...)
+
+			requireBalances(t, pe.app, map[string]int{office.Id: 5625})
+		})
+	}
+}
+
+// A customer and a vendor never share a row, and each keeps its own sign:
+// a customer row is debits minus credits, a vendor row credits minus debits.
+func TestPartyBalances_CustomerAndVendorRowsStaySeparate(t *testing.T) {
+	pe := newPartyEnv(t)
+	harbor := mkCustomer(t, pe.app, "Harborview", "")
+	office := mkVendor(t, pe.app, "Office Supply World")
+
+	pe.postWith(t,
+		partyLineSpec{account: pe.receivable, debit: 5000, customer: harbor.Id},
+		partyLineSpec{account: pe.revenue, credit: 5000})
+	pe.postWith(t,
+		partyLineSpec{account: pe.checking, debit: 1000},
+		partyLineSpec{account: pe.receivable, credit: 1000, customer: harbor.Id})
+	pe.vendorBill(t, office, 7000)
+	pe.postWith(t,
+		partyLineSpec{account: pe.payable, debit: 2000, vendor: office.Id},
+		partyLineSpec{account: pe.checking, credit: 2000})
+
+	requireBalances(t, pe.app, map[string]int{harbor.Id: 4000, office.Id: 5000})
+
+	byID := map[string]*core.Record{}
+	for _, r := range partyRows(t, pe.app) {
+		byID[r.Id] = r
+	}
+	if len(byID) != 2 {
+		t.Fatalf("view rows = %v, want one customer row and one vendor row", byID)
+	}
+	if got := byID[harbor.Id].GetString("vendor"); got != "" {
+		t.Errorf("customer row's vendor = %q, want ''", got)
+	}
+	if got := byID[harbor.Id].GetString("customer"); got != harbor.Id {
+		t.Errorf("customer row's customer = %q, want %q", got, harbor.Id)
+	}
+	if got := byID[office.Id].GetString("customer"); got != "" {
+		t.Errorf("vendor row's customer = %q, want ''", got)
+	}
+	if got := byID[office.Id].GetString("vendor"); got != office.Id {
+		t.Errorf("vendor row's vendor = %q, want %q", got, office.Id)
+	}
+}
+
+// A draft bill is not in the ledger yet: the view reads posted lines only.
+func TestPartyBalances_DraftPayableLineGivesNoVendorRow(t *testing.T) {
+	pe := newPartyEnv(t)
+	office := mkVendor(t, pe.app, "Office Supply World")
+	pacific := mkVendor(t, pe.app, "Pacific Power")
+
+	pe.vendorBill(t, office, 18425)
+	pe.draftWith(t,
+		partyLineSpec{account: pe.rent, debit: 42000},
+		partyLineSpec{account: pe.payable, credit: 42000, vendor: pacific.Id})
+
+	requireBalances(t, pe.app, map[string]int{office.Id: 18425})
 }
 
 func TestPartyBalances_RegistersTheViewAndItsSources(t *testing.T) {

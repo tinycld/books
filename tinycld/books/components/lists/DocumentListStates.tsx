@@ -2,6 +2,7 @@ import { LoadingState } from '@tinycld/core/components/LoadingState'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { Text, View } from 'react-native'
 import { type DocumentListTab, emptyTexts, hasFilterSet } from '../../lib/document-list'
+import { areaOf } from '../../lib/list-areas'
 
 interface DocumentListStatesProps {
     tab: DocumentListTab
@@ -13,33 +14,36 @@ interface DocumentListStatesProps {
     onClearFilters(): void
 }
 
-// The words every Sales list shows: its error banner and its search field's placeholder.
-export const LIST_LOAD_ERROR = 'Sales transactions could not load.'
-export const SEARCH_PLACEHOLDER = 'Number or memo'
-
 const STATE_BUTTON_STYLE = { minHeight: 44 }
 
 function EmptyNew({
     isVisible,
+    testIdPrefix,
     label,
     onPress,
 }: {
     isVisible: boolean
+    testIdPrefix: string
     label: string
     onPress(): void
 }) {
     if (!isVisible) return null
     const press = () => onPress()
     return (
-        <Button testID="sales-empty-new" size="sm" style={STATE_BUTTON_STYLE} onPress={press}>
+        <Button
+            testID={`${testIdPrefix}-empty-new`}
+            size="sm"
+            style={STATE_BUTTON_STYLE}
+            onPress={press}
+        >
             <ButtonText>{label}</ButtonText>
         </Button>
     )
 }
 
-function Loading() {
+function Loading({ testIdPrefix }: { testIdPrefix: string }) {
     return (
-        <View testID="sales-loading" className="flex-1">
+        <View testID={`${testIdPrefix}-loading`} className="flex-1">
             <LoadingState />
         </View>
     )
@@ -50,7 +54,8 @@ function Loading() {
  * LoadingState while the tab's first rows load. With no rows, and neither loading nor
  * failed: "No invoices yet" with the tab's New action when no filter is set, else
  * "No invoices match" with Clear filters, which resets search, chip, date range and
- * customer. A failed load shows the list's banner instead.
+ * party. A failed load shows the list's banner instead. Test ids start with the area's
+ * prefix.
  */
 export function DocumentListStates({
     tab,
@@ -60,17 +65,18 @@ export function DocumentListStates({
     onNew,
     onClearFilters,
 }: DocumentListStatesProps) {
+    const prefix = areaOf(tab).testIdPrefix
     const texts = emptyTexts(tab)
     const clear = () => onClearFilters()
     const isEmpty = !list.isLoading && !list.isError && list.rows.length === 0
-    if (list.isLoading) return <Loading />
+    if (list.isLoading) return <Loading testIdPrefix={prefix} />
     if (!isEmpty) return null
     if (hasFilterSet(filters)) {
         return (
-            <View testID="sales-no-match" className="items-center gap-4 p-8">
+            <View testID={`${prefix}-no-match`} className="items-center gap-4 p-8">
                 <Text className="text-base font-medium text-foreground">{texts.match}</Text>
                 <Button
-                    testID="sales-clear-filters"
+                    testID={`${prefix}-clear-filters`}
                     variant="outline"
                     size="sm"
                     style={STATE_BUTTON_STYLE}
@@ -82,9 +88,14 @@ export function DocumentListStates({
         )
     }
     return (
-        <View testID="sales-empty" className="items-center gap-4 p-8">
+        <View testID={`${prefix}-empty`} className="items-center gap-4 p-8">
             <Text className="text-base font-medium text-foreground">{texts.yet}</Text>
-            <EmptyNew isVisible={showNew} label={tab.newLabel} onPress={onNew} />
+            <EmptyNew
+                isVisible={showNew}
+                testIdPrefix={prefix}
+                label={tab.newLabel}
+                onPress={onNew}
+            />
         </View>
     )
 }

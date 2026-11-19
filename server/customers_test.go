@@ -899,6 +899,71 @@ func TestCustomer_DeleteRefusedWhileOnCreditMemos(t *testing.T) {
 	})
 }
 
+// mkRefundReceiptRow saves a refund receipt with saveRecord on an app whose
+// refund receipt guards may not be bound (the delete-guard tests of customers,
+// products, tax rates and accounts), refunded from refundFrom, with the fields
+// given over a valid draft of customer (none when nil).
+func mkRefundReceiptRow(t testing.TB, app core.App, customer, refundFrom *core.Record, fields map[string]any) *core.Record {
+	t.Helper()
+	all := map[string]any{"status": "draft", "date": "2026-11-12", "currency": "USD", "refund_from": refundFrom.Id}
+	if customer != nil {
+		all["customer"] = customer.Id
+	}
+	for k, v := range fields {
+		all[k] = v
+	}
+	return saveRecord(t, app, "books_refund_receipts", all)
+}
+
+// Refund receipt spec §3.13: a customer on any refund receipt, draft or
+// posted, cannot be deleted. The refund receipt check comes after the credit
+// memo one and before the journal-lines one.
+func TestCustomer_DeleteRefusedWhileOnRefundReceipts(t *testing.T) {
+	wantOnRefunds := func(name string) string { return name + " is on refund receipts. Make it inactive instead." }
+	wantOnMemos := func(name string) string { return name + " is on credit memos. Make it inactive instead." }
+
+	t.Run("on one draft refund receipt", func(t *testing.T) {
+		app := newGuardedApp(t)
+		bank := mkNumberedAccount(t, app, "Business Checking", "1000", "bank", "checking")
+		cust := mkCustomer(t, app, "Old Mill Bakery", "")
+		mkRefundReceiptRow(t, app, cust, bank, nil)
+		requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_customers", cust.Id)),
+			wantOnRefunds("Old Mill Bakery"))
+		reload(t, app, "books_customers", cust.Id)
+	})
+
+	t.Run("on one posted refund receipt", func(t *testing.T) {
+		app := newGuardedApp(t)
+		bank := mkNumberedAccount(t, app, "Business Checking", "1000", "bank", "checking")
+		cust := mkCustomer(t, app, "Northwind Traders", "")
+		mkRefundReceiptRow(t, app, cust, bank, map[string]any{"status": "posted", "number": "1001"})
+		requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_customers", cust.Id)),
+			wantOnRefunds("Northwind Traders"))
+		reload(t, app, "books_customers", cust.Id)
+	})
+
+	t.Run("on a credit memo and a refund receipt gets the credit memo text", func(t *testing.T) {
+		app := newGuardedApp(t)
+		bank := mkNumberedAccount(t, app, "Business Checking", "1000", "bank", "checking")
+		cust := mkCustomer(t, app, "Alvarez Family", "")
+		mkRefundReceiptRow(t, app, cust, bank, nil)
+		mkCreditMemoRow(t, app, cust, nil)
+		requireMessageOnlyRefusal(t, app.Delete(reload(t, app, "books_customers", cust.Id)),
+			wantOnMemos("Alvarez Family"))
+		reload(t, app, "books_customers", cust.Id)
+	})
+
+	t.Run("on a refund receipt and on journal lines gets the refund receipt text", func(t *testing.T) {
+		env := newLedgerEnv(t)
+		cust := mkCustomer(t, env.app, "Harbor Studio", "")
+		mustPartyLine(t, env.app, draftEntry(t, env.app, "2026-08-04"), env.checking, 0, map[string]any{"customer": cust.Id})
+		mkRefundReceiptRow(t, env.app, cust, env.checking, nil)
+		requireMessageOnlyRefusal(t, env.app.Delete(reload(t, env.app, "books_customers", cust.Id)),
+			wantOnRefunds("Harbor Studio"))
+		reload(t, env.app, "books_customers", cust.Id)
+	})
+}
+
 // Receive payment spec §3.9: a customer on any payment, draft or posted,
 // cannot be deleted. The payment check comes after the sales receipt one.
 func TestCustomer_DeleteRefusedWhileOnPayments(t *testing.T) {

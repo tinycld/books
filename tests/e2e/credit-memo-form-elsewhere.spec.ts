@@ -39,8 +39,9 @@ import { nonTaxableService, postInvoice } from './receive-payment-helpers'
 // whose labels end in " · <customer>", from the report's CSV, where every group is open
 // (memory p5-exports), and other workers' documents of today stay out of its sums.
 //
-// Not driven here: the Applied status (a posted memo with no credit left needs
-// p2-apply-credit; pinned by the creditMemoStatus unit test and the gate-2 shot).
+// Not driven here: the Refunded status (a posted memo with no credit left); the test
+// "refunds and a refunded credit memo on the customer page" of
+// refund-receipt-form-elsewhere.spec.ts drives it.
 
 const CREDIT_MEMOS_URL = '**/api/collections/books_credit_memos/records*'
 const REALTIME_URL = '**/api/realtime*'

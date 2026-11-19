@@ -56,6 +56,8 @@ describe('DOCUMENT_READ_KEYS', () => {
             credit_memo: 'm',
             apply_credit: 'a',
             record_refund: 'r',
+            refund: 'r',
+            refund_credit: 'r',
         })
     })
 })
@@ -267,6 +269,8 @@ describe('the sales receipt read view', () => {
             credit_memo: 'm',
             apply_credit: 'a',
             record_refund: 'r',
+            refund: 'r',
+            refund_credit: 'r',
             pdf: '$mod+p',
         })
         expect(DOCUMENT_TAB_KEYS).toEqual({ edit: 'Alt+1', pdf: 'Alt+2' })

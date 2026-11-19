@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+    isKindStackHref,
     navigationModeFor,
     newRecordPath,
     openRecordFromPath,
     RECORD_DETAIL_SCREENS,
     recordPath,
+    targetModeFor,
 } from '../tinycld/books/lib/record-route'
 
 const WIDGETS = 'books/widgets'
@@ -14,6 +16,20 @@ describe('record routes', () => {
         expect(recordPath(WIDGETS, 'abc')).toEqual({
             path: 'books/widgets/[id]',
             params: { id: 'abc' },
+        })
+    })
+
+    it('recordPath merges extra route params after the id', () => {
+        expect(recordPath('books/vendors', 'v1', { tab: 'details' })).toEqual({
+            path: 'books/vendors/[id]',
+            params: { id: 'v1', tab: 'details' },
+        })
+    })
+
+    it('recordPath with no extra params gives the id param alone', () => {
+        expect(recordPath('books/vendors', 'v1')).toEqual({
+            path: 'books/vendors/[id]',
+            params: { id: 'v1' },
         })
     })
 
@@ -63,6 +79,54 @@ describe('navigationModeFor', () => {
     it('replaces when a new record or an existing record is open', () => {
         expect(navigationModeFor({ kind: 'new' })).toBe('replace')
         expect(navigationModeFor({ kind: 'id', id: 'abc' })).toBe('replace')
+    })
+})
+
+describe('isKindStackHref', () => {
+    it.each([
+        ['books/bills', 'books/bills/new?copy=x'],
+        ['books/bills', 'books/bills/abc'],
+        ['books/bill-payments', 'books/bill-payments/abc'],
+    ])('is true for a record of the %s stack: %s', (listPath, href) => {
+        expect(isKindStackHref(listPath, href)).toBe(true)
+    })
+
+    it.each([
+        ['books/bill-payments', 'books/pay-bills?replaces=x'],
+        ['books/purchases', 'books/bills/new'],
+        ['books/bills', 'books/entries/x'],
+        ['books/bills', 'books/bill-payments/abc'],
+    ])('is false for a route outside the %s stack: %s', (listPath, href) => {
+        expect(isKindStackHref(listPath, href)).toBe(false)
+    })
+})
+
+describe('targetModeFor', () => {
+    const open = { kind: 'id', id: 'abc' } as const
+
+    it('replaces a copy of the open bill in the bills stack', () => {
+        expect(targetModeFor(open, 'books/bills', 'books/bills/new?copy=x')).toBe('replace')
+    })
+
+    it('pushes a record of its own stack when no record is open', () => {
+        expect(targetModeFor({ kind: 'none' }, 'books/bills', 'books/bills/new?copy=x')).toBe(
+            'push'
+        )
+    })
+
+    it('pushes Pay Bills over the bill payments stack, also with a payment open', () => {
+        expect(targetModeFor(open, 'books/bill-payments', 'books/pay-bills?replaces=x')).toBe(
+            'push'
+        )
+    })
+
+    it('pushes a bill from All purchases, which is not its stack', () => {
+        expect(targetModeFor(open, 'books/purchases', 'books/bills/new')).toBe('push')
+        expect(targetModeFor({ kind: 'new' }, 'books/purchases', 'books/bills/new')).toBe('push')
+    })
+
+    it('pushes the journal entry of an open bill', () => {
+        expect(targetModeFor(open, 'books/bills', 'books/entries/x')).toBe('push')
     })
 })
 

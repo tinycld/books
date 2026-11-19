@@ -42,6 +42,8 @@ var wantAuditParentFields = map[string]string{
 	"books_vendor_credit_applications": "vendor_credit",
 	// A vendor refund's line names its refund (vendor refund spec §3.11).
 	"books_vendor_refund_lines": "refund",
+	// A refund receipt's line names its refund receipt (refund receipt spec §4.1).
+	"books_refund_receipt_lines": "refund_receipt",
 }
 
 // auditGolden is server/testdata/audit_log_spec.json, which the vitest

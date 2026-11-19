@@ -5,6 +5,7 @@ import type { DocumentLineMapper } from '../components/documents/document-kinds'
 import { type DocumentStatus, isReadOnlyStatus } from '../lib/document-lifecycle'
 import type { DocumentLineRow } from '../lib/document-line-columns'
 import type { DepositRule } from '../lib/document-schema'
+import type { LinkSource } from '../lib/document-source-links'
 import { isExpired } from '../lib/estimate-status'
 import type { LiveRecovery } from '../lib/live-recovery'
 import type { PurchaseLineRow } from '../lib/purchase-line-columns'
@@ -30,6 +31,7 @@ import type {
     BooksPaymentApplications,
     BooksPayments,
     BooksProducts,
+    BooksRefundReceipts,
     BooksSalesReceipts,
     BooksTaxRates,
     BooksVendorCredits,
@@ -55,6 +57,10 @@ export type DocumentScreenInput = {
     estimate?: string
     // On a credit memo's new form: the invoice it is made from (Create credit memo).
     invoice?: string
+    // On a refund receipt's new form: the sales receipt it refunds (Refund), or the credit
+    // memo it pays out (Refund credit). The route passes one source at most.
+    salesReceipt?: string
+    creditMemo?: string
 }
 
 // The columns every kind's header row has, as the generated invoice type names them,
@@ -113,6 +119,10 @@ export type VendorCreditKindFields = { kind: 'vendor_credit' } & Pick<
     BooksVendorCredits,
     'vendor' | 'ref_no' | 'balance'
 >
+export type RefundReceiptKindFields = { kind: 'refund_receipt' } & Pick<
+    BooksRefundReceipts,
+    'payment_method' | 'reference_no' | 'refund_from' | 'sales_receipt' | 'credit_memo'
+>
 export type DocumentKindFields =
     | InvoiceKindFields
     | SalesReceiptKindFields
@@ -121,6 +131,7 @@ export type DocumentKindFields =
     | ExpenseKindFields
     | CreditMemoKindFields
     | VendorCreditKindFields
+    | RefundReceiptKindFields
 
 // A header row without the people and the rate it names: the source of a correction or
 // a copy.
@@ -134,7 +145,8 @@ export type DocumentSource = SharedColumns & { kindFields: DocumentKindFields }
 // fields add its vendor's name and its open balance (Balance due, the badge). A credit
 // memo's own fields add the invoice it is for ("For invoice <n>") and its unapplied credit.
 // A vendor credit's own fields (its unapplied credit, `balance`, among them) add its
-// vendor's name.
+// vendor's name. A refund receipt's own fields add its Refund from account, which its
+// payment line names, and the sales receipt or credit memo it refunds.
 export type DocumentRecord = SharedColumns & {
     kindFields:
         | (InvoiceKindFields & {
@@ -164,6 +176,13 @@ export type DocumentRecord = SharedColumns & {
           })
         | (VendorCreditKindFields & {
               vendorRow: Pick<BooksVendors, 'display_name'> | undefined
+          })
+        | (RefundReceiptKindFields & {
+              refundFromRow: Pick<BooksAccounts, 'number' | 'name'> | undefined
+              salesReceiptRow: Pick<BooksSalesReceipts, 'number' | 'status'> | undefined
+              creditMemoRow:
+                  | Pick<BooksCreditMemos, 'number' | 'status' | 'balance' | 'date'>
+                  | undefined
           })
     postedBy: Pick<Users, 'name'> | undefined
     voidedBy: Pick<Users, 'name'> | undefined
@@ -217,7 +236,8 @@ export function copyNeedsPartyRow(
 // default expense account (only then does the first account line start with it;
 // undefined without `?vendor`); for an expense, the same and the ids of the active bank
 // and credit card accounts (a copy keeps its source's Paid from only when it is one of
-// them); for a vendor credit, the bill's.
+// them); for a vendor credit, the bill's; for a refund receipt, how Refund from is chosen
+// and what a payout correction's original pays out.
 export type DocumentStart =
     | { kind: 'invoice' }
     | { kind: 'sales_receipt'; deposit: CopyDeposit }
@@ -231,9 +251,16 @@ export type DocumentStart =
           activePaidFromIds: ReadonlySet<string>
       }
     | { kind: 'vendor_credit'; purchaseLines: PurchaseLines; vendorAccountListed?: boolean }
+    | {
+          kind: 'refund_receipt'
+          refundFrom: CopyDeposit
+          // The total of the posted payout a correction replaces, in cents (0 or absent
+          // otherwise): a payout correction may refund the memo's balance plus it.
+          replacedPayout?: number
+      }
 
 // What a kind's form starts from besides the document: its start input and the Deposit
-// to rule of its schema (none for an invoice).
+// to rule of its schema (none for an invoice; a refund receipt's checks Refund from).
 export type DocumentFormStart = { start: DocumentStart; deposit: DepositRule | undefined }
 
 // A stored line of any kind: a sales kind's (DocumentLineRow) or a purchase kind's
@@ -347,11 +374,11 @@ export type DocumentScreenReads = {
     // lines in order. Idle (ready and empty) on every other form and kind.
     estimateSource: DocumentRead<EstimateSource | undefined>
     estimateSourceLines: DocumentRead<DocumentLineRow[]>
-    // On a credit memo's new form with `?invoice`, or a new correction of a linked memo:
-    // the invoice it is made from (or names) and its lines in order. Idle (ready and
-    // empty) on every other form and kind.
-    invoiceSource: DocumentRead<InvoiceSource | undefined>
-    invoiceSourceLines: DocumentRead<DocumentLineRow[]>
+    // The source a new form is made from (`?invoice` on a credit memo, `?sales_receipt` or
+    // `?credit_memo` on a refund receipt), or that a new correction of a linked document
+    // names, and its lines in order. Idle (ready and empty) on every other form and kind.
+    linkSource: DocumentRead<LinkSource | undefined>
+    linkSourceLines: DocumentRead<DocumentLineRow[]>
     taxLines: DocumentRead<DocumentTaxLine[]>
     // On a posted or void invoice or bill: the posted payments applied to it, oldest
     // first. Idle (ready and empty) on every other form and kind.
@@ -386,14 +413,10 @@ export type DocumentWrites = {
     ): DocumentTransaction
     // The post of a draft that a batch just wrote, as its own request after the batch.
     postRecord(id: string, revision: number): DocumentTransaction
-    // A posted document has no draft to go stale: a void states no revision.
-    voidRecord(id: string): DocumentTransaction
     // The revision the store row holds now, read one time at a save (never rendered from);
     // undefined when the store holds no such row. The save compares it with the revision
     // the form saw (assertRevisionSeen, lib/revision.ts).
     storedRevision(id: string): number | undefined
-    // One request: the server deletes the lines with the row, in one transaction.
-    deleteRecord(id: string): DocumentTransaction
     // One line table's writes: each row converts through the table's mapper
     // (DocumentKind.lineSpecs), and a line insert sets the parent field.
     lineOps(parentId: string, mapper: DocumentLineMapper): TableWriteOps<DocumentTransaction>
@@ -458,17 +481,33 @@ export const NO_ESTIMATE_SOURCE: Pick<
     estimateSourceLines: { data: [], isReady: true, isError: false, recovery: NO_RECOVERY },
 }
 
-// The invoice reads of a form that is not made from an invoice: ready, empty, never
-// failed.
-export const NO_INVOICE_SOURCE: Pick<DocumentScreenReads, 'invoiceSource' | 'invoiceSourceLines'> =
-    {
-        invoiceSource: { data: undefined, isReady: true, isError: false, recovery: NO_RECOVERY },
-        invoiceSourceLines: { data: [], isReady: true, isError: false, recovery: NO_RECOVERY },
-    }
+// The source reads of a form that is not made from a source: ready, empty, never failed.
+export const NO_LINK_SOURCE: Pick<DocumentScreenReads, 'linkSource' | 'linkSourceLines'> = {
+    linkSource: { data: undefined, isReady: true, isError: false, recovery: NO_RECOVERY },
+    linkSourceLines: { data: [], isReady: true, isError: false, recovery: NO_RECOVERY },
+}
 
 // The payment read of every kind but the invoice and the bill: ready, empty, never failed.
 export const NO_DOCUMENT_PAYMENTS: Pick<DocumentScreenReads, 'documentPayments'> = {
     documentPayments: { data: [], isReady: true, isError: false, recovery: NO_RECOVERY },
+}
+
+// The credit memo a refund form pays out, as the payout's cap and link row read it.
+export type PayoutMemo = Pick<BooksCreditMemos, 'id' | 'number' | 'status' | 'balance' | 'date'>
+
+// The credit memo a refund form names in `credit_memo`: the stored refund's own row
+// (`creditMemoRow`), else the source a new form is made from (or a new correction keeps);
+// undefined for any other form, or while the row is not read.
+export function payoutMemoOf(
+    record: DocumentRecord | undefined,
+    linkSource: LinkSource | undefined
+): PayoutMemo | undefined {
+    const fields = record?.kindFields
+    if (fields?.kind === 'refund_receipt') {
+        if (fields.credit_memo === '' || !fields.creditMemoRow) return undefined
+        return { ...fields.creditMemoRow, id: fields.credit_memo }
+    }
+    return linkSource?.key === 'credit_memo' ? linkSource.row : undefined
 }
 
 // The number of the estimate an invoice names, for "From estimate <n>": the stored

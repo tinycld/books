@@ -19,7 +19,7 @@ import {
     documentRead,
     linkedReadIds,
     NO_ESTIMATE_SOURCE,
-    NO_INVOICE_SOURCE,
+    NO_LINK_SOURCE,
     postedPaymentsOf,
     useHeldRecord,
 } from './document-data'
@@ -232,7 +232,7 @@ function useBillScreenReads(input: DocumentScreenInput & { isHeld: boolean }): D
             [linesCollection]
         ),
         ...NO_ESTIMATE_SOURCE,
-        ...NO_INVOICE_SOURCE,
+        ...NO_LINK_SOURCE,
         documentPayments: documentRead(paymentsId, paymentsQuery, documentPayments, [
             paymentLinesCollection,
             billPaymentsCollection,
@@ -272,12 +272,7 @@ function useBillWrites(): DocumentWrites {
                 draft.status = 'posted'
                 draft.revision = revision
             }),
-        voidRecord: id =>
-            billsCollection.update(id, draft => {
-                draft.status = 'void'
-            }),
         storedRevision: id => billsCollection.get(id)?.revision,
-        deleteRecord: id => billsCollection.delete(id),
         lineOps: (billId, mapper) =>
             purchaseLineOps(mapper, {
                 insert: record => linesCollection.insert({ ...record, bill: billId }),

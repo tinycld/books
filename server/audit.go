@@ -67,6 +67,10 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		"books_credit_memo_lines": {
 			ExtractLabel: func(r *core.Record) string { return creditMemoLineLabel(app, r) },
 		},
+		"books_refund_receipts": {ExtractLabel: refundReceiptLabel, Redact: []string{"sort_key"}},
+		"books_refund_receipt_lines": {
+			ExtractLabel: func(r *core.Record) string { return refundReceiptLineLabel(app, r) },
+		},
 		"books_bills": {ExtractLabel: billLabel, Redact: []string{"sort_key"}},
 		"books_bill_lines": {
 			ExtractLabel: func(r *core.Record) string { return billLineLabel(app, r) },
@@ -116,7 +120,7 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 }
 
 // auditParentFields maps each line collection to the field that names its
-// document. The books_audit_log view (migration 2100000025) reads the same
+// document. The books_audit_log view (migration 2100000027) reads the same
 // collections to give a line's audit row its document, and Register declares them
 // as the view's sources, because a line write can change that document.
 var auditParentFields = map[string]string{
@@ -125,6 +129,7 @@ var auditParentFields = map[string]string{
 	"books_sales_receipt_lines":        "sales_receipt",
 	"books_estimate_lines":             "estimate",
 	"books_credit_memo_lines":          "credit_memo",
+	"books_refund_receipt_lines":       "refund_receipt",
 	"books_bill_lines":                 "bill",
 	"books_expense_lines":              "expense",
 	"books_bundle_items":               "bundle",
@@ -153,6 +158,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_estimates", Label: "Estimate"},
 		{Value: "books_estimate_responses", Label: "Estimate response"},
 		{Value: "books_credit_memos", Label: "Credit memo"},
+		{Value: "books_refund_receipts", Label: "Refund receipt"},
 		{Value: "books_bills", Label: "Bill"},
 		{Value: "books_expenses", Label: "Expense"},
 		{Value: vendorCreditsCollection, Label: "Vendor credit"},
@@ -164,6 +170,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_sales_receipt_lines", Label: "Sales receipt line"},
 		{Value: "books_estimate_lines", Label: "Estimate line"},
 		{Value: "books_credit_memo_lines", Label: "Credit memo line"},
+		{Value: "books_refund_receipt_lines", Label: "Refund receipt line"},
 		{Value: "books_bill_lines", Label: "Bill line"},
 		{Value: "books_expense_lines", Label: "Expense line"},
 		{Value: vendorCreditLinesCollection, Label: "Vendor credit line"},
@@ -312,6 +319,26 @@ func creditMemoLineLabel(app core.App, r *core.Record) string {
 		memo = creditMemoLabel(rec)
 	}
 	return fmt.Sprintf("%s: line %d", memo, r.GetInt("position")+1)
+}
+
+// refundReceiptLabel names a refund receipt by its number: "Refund receipt
+// 1001". A draft has no number: "Draft refund receipt".
+func refundReceiptLabel(r *core.Record) string {
+	noun, _, draft := entryNouns(docTypeRefundReceipt)
+	if n := r.GetString("number"); n != "" {
+		return noun + " " + n
+	}
+	return draft
+}
+
+// refundReceiptLineLabel is invoiceLineLabel for a refund receipt's line:
+// "Refund receipt 1001: line 2".
+func refundReceiptLineLabel(app core.App, r *core.Record) string {
+	refund := r.GetString("refund_receipt")
+	if rec, err := app.FindRecordById("books_refund_receipts", refund); err == nil {
+		refund = refundReceiptLabel(rec)
+	}
+	return fmt.Sprintf("%s: line %d", refund, r.GetInt("position")+1)
 }
 
 // billLabel names a bill by its number: "Bill 1003". A draft has no number:

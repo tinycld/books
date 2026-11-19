@@ -16,6 +16,7 @@ import {
     CREDIT_MEMO_MESSAGES,
     ESTIMATE_MESSAGES,
     EXPENSE_MESSAGES,
+    REFUND_RECEIPT_MESSAGES,
     VENDOR_CREDIT_MESSAGES,
 } from '../tinycld/books/lib/document-texts'
 import { INVOICE_REFUSALS } from '../tinycld/books/lib/invoice-form-fixture'
@@ -26,6 +27,7 @@ import {
     ESTIMATE_KIND,
     EXPENSE_KIND,
     INVOICE_KIND,
+    REFUND_RECEIPT_KIND,
     SALES_RECEIPT_KIND,
     VENDOR_CREDIT_KIND,
 } from '../tinycld/books/lib/sales-document-kinds'
@@ -278,6 +280,128 @@ describe('the credit memo link texts', () => {
                 'Credit memos are made from this invoice, so its customer cannot change.'
             )
         ).toBe('customer')
+    })
+})
+
+// The refund receipt's texts the client and the server both show (refund receipt plan,
+// Decisions: Messages), whose Go constants live in server/refund_receipts.go; the inactive
+// customer text is server/invoices.go's. `%s` is compared as written.
+const REFUND_RECEIPT_SHARED = {
+    totalNegative: 'A refund receipt total cannot be below zero. Use a sales receipt.',
+    totalTooLarge: 'The refund receipt total is more than Books can store.',
+    tooManyLines: 'A refund receipt can have at most 250 lines.',
+    customerOnInvoices: '%s is on refund receipts. Make it inactive instead.',
+} as const
+
+// Shared texts the layer holds under no fixed key: the zero-total Post refusal and the
+// Refund from refusal (msgRefundZeroTotal, msgRefundFromInvalid).
+const REFUND_RECEIPT_SHARED_VALUES = [
+    'A refund receipt with a total of zero cannot be posted. Add an amount or keep it as a draft.',
+    'Choose an active bank or Undeposited funds account',
+] as const
+
+const REFUND_RECEIPT_CLIENT_ONLY = {
+    noAccess: 'You need bookkeeper access to create refund receipts',
+    notFound: 'This refund receipt does not exist',
+    cannotEdit: 'This refund receipt cannot be edited',
+    loadFailed: 'Books could not load this refund receipt.',
+    cannotRefundReceipt: 'This sales receipt cannot be refunded',
+    cannotRefundMemo: 'This credit memo cannot be refunded',
+    pdfUnsaved: 'Save a draft to see the PDF',
+    pdfStale: 'Shows the last saved version',
+    needItemLine: 'Add at least one product or service line',
+    voidBody: 'A reversing entry is posted in the original period. The number is kept.',
+    payoutVoidBody:
+        "A reversing entry is posted in the original period. The number is kept. The credit memo's credit is unapplied again.",
+} as const
+
+function refundReceiptServerSource() {
+    return readFileSync(join(__dirname, '..', 'server', 'refund_receipts.go'), 'utf8')
+}
+
+describe('REFUND_RECEIPT_MESSAGES', () => {
+    it('holds every shared text under its key', () => {
+        expect(REFUND_RECEIPT_MESSAGES).toMatchObject(REFUND_RECEIPT_SHARED)
+        expect(REFUND_RECEIPT_MESSAGES.customerInactive).toBe(
+            '%s is inactive. Choose an active customer.'
+        )
+        const values = Object.values(REFUND_RECEIPT_MESSAGES)
+        for (const text of REFUND_RECEIPT_SHARED_VALUES) expect(values, text).toContain(text)
+    })
+
+    it('holds every client text under its key', () => {
+        expect(REFUND_RECEIPT_MESSAGES).toMatchObject(REFUND_RECEIPT_CLIENT_ONLY)
+        expect(REFUND_RECEIPT_MESSAGES.voidBody).toBe(INVOICE_MESSAGES.voidBody)
+    })
+
+    it('is the refund receipt kind’s texts', () => {
+        expect(REFUND_RECEIPT_KIND.messages).toBe(REFUND_RECEIPT_MESSAGES)
+    })
+})
+
+describe('server/refund_receipts.go', () => {
+    for (const [key, text] of Object.entries(REFUND_RECEIPT_SHARED)) {
+        it(`holds the refund receipt's ${key} text verbatim as a Go string`, () => {
+            expect(refundReceiptServerSource()).toContain(`"${text}"`)
+        })
+    }
+
+    for (const text of REFUND_RECEIPT_SHARED_VALUES) {
+        it(`holds "${text}" verbatim as a Go string`, () => {
+            expect(refundReceiptServerSource()).toContain(`"${text}"`)
+        })
+    }
+
+    it('shares the inactive customer text with server/invoices.go', () => {
+        expect(serverSource()).toContain(`"${REFUND_RECEIPT_MESSAGES.customerInactive}"`)
+    })
+})
+
+// Spec §3.7: Customer, Refund date, Tax, Refund from and a line's text under their places;
+// the totals limit and the close date in the summary. Server texts carry PocketBase's
+// final period.
+describe('documentRefusalTarget with the refund receipt kind', () => {
+    const refundTarget = (message: string) => documentRefusalTarget(message, REFUND_RECEIPT_KIND)
+
+    it('puts the inactive customer under Customer', () => {
+        expect(refundTarget('Old Mill Bakery is inactive. Choose an active customer.')).toBe(
+            'customer'
+        )
+    })
+
+    it('puts the shared day texts under Refund date', () => {
+        expect(refundTarget('Enter a date that exists, in the form YYYY-MM-DD.')).toBe('date')
+        expect(refundTarget('Enter a date in 1900 or later.')).toBe('date')
+    })
+
+    it('puts the tax-rate texts under Tax', () => {
+        expect(refundTarget('Tax rate Old is inactive. Choose an active rate.')).toBe('tax_rate')
+    })
+
+    it('puts the Refund from refusal under Refund from', () => {
+        expect(refundTarget('Choose an active bank or Undeposited funds account.')).toBe(
+            'refund_from'
+        )
+    })
+
+    it('puts a "Line n:" text under its line', () => {
+        expect(
+            refundTarget(
+                'Line 1: Wireless access point is inactive. Choose an active product or service.'
+            )
+        ).toEqual({ line: 0 })
+    })
+
+    it('puts the totals, zero-total and close-date texts at the root', () => {
+        for (const text of [
+            REFUND_RECEIPT_SHARED.totalNegative,
+            REFUND_RECEIPT_SHARED.totalTooLarge,
+            REFUND_RECEIPT_SHARED_VALUES[0],
+            'The books are closed through 2026-06-30. Ask a Books admin for a close-date override to post on 2026-06-15.',
+        ]) {
+            expect(refundTarget(text), text).toBe('root')
+            expect(refundTarget(labelledLineRefusal('Line 1', text)), text).toBe('root')
+        }
     })
 })
 

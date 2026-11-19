@@ -478,7 +478,7 @@ export const SALES_LIST_PAYMENTS = [
     }),
 ] satisfies Partial<BooksPayments>[]
 
-// Every credit memo badge: Unapplied, Applied, Draft, Void. Totals are stored positive;
+// Every credit memo badge: Unapplied, Refunded, Draft, Void. Totals are stored positive;
 // All sales shows them negative.
 export const SALES_LIST_CREDIT_MEMOS = [
     creditMemo({

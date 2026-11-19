@@ -476,6 +476,8 @@ var auditParentOf = map[string]string{
 	"books_vendor_credit_applications": "books_vendor_credits",
 	// A vendor refund's line opens its refund (vendor refund spec §3.11).
 	"books_vendor_refund_lines": "books_vendor_refunds",
+	// A refund receipt's line opens its refund (refund receipt spec §3.13).
+	"books_refund_receipt_lines": "books_refund_receipts",
 }
 
 // lineFixture makes a new document of a line collection and one row under it,
@@ -555,6 +557,11 @@ func lineFixture(t *testing.T, app core.App, lines string) (parent, line *core.R
 			"vendor": vendor.Id, "status": "draft", "date": "2026-11-14", "refunded_to": account.Id, "amount": 100,
 		})
 		line = saveRecord(t, app, lines, map[string]any{"refund": parent.Id, "vendor_credit": credit.Id, "amount": 100, "position": 0})
+	case "books_refund_receipt_lines":
+		parent = saveRecord(t, app, "books_refund_receipts", map[string]any{
+			"customer": customer.Id, "status": "draft", "date": "2026-11-12", "refund_from": account.Id,
+		})
+		line = saveRecord(t, app, lines, map[string]any{"refund_receipt": parent.Id, "kind": "description", "position": 0})
 	default:
 		t.Fatalf("no fixture for %s", lines)
 	}

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { auditRecordHref } from '../tinycld/books/lib/audit-record-route'
 import { DOCUMENT_COLLECTIONS, historyHref } from '../tinycld/books/lib/history-route'
 
 // Vendor refund spec §3.11: a vendor refund's history is read from books_vendor_refunds,
@@ -9,6 +10,34 @@ describe('history route', () => {
         expect(entries).toContainEqual(['vendor_refund', 'books_vendor_refunds'])
         expect(entries).toContainEqual(['vendor_credit', 'books_vendor_credits'])
         expect(entries).toContainEqual(['bill', 'books_bills'])
+    })
+
+    // Refund receipt spec §3.13: a refund receipt's history is read from
+    // books_refund_receipts, and a history item of the refund or of one of its lines (filed
+    // under the refund's id) opens books/refund-receipts/<id>.
+    it('maps refund_receipt to books_refund_receipts', () => {
+        expect(Object.entries(DOCUMENT_COLLECTIONS)).toContainEqual([
+            'refund_receipt',
+            'books_refund_receipts',
+        ])
+        const collection = Object.fromEntries(Object.entries(DOCUMENT_COLLECTIONS)).refund_receipt
+        expect(historyHref(collection ?? '', 'rfrp1001every01')).toBe(
+            'books/history/books_refund_receipts/rfrp1001every01'
+        )
+    })
+
+    it('a history item of a refund receipt and of one of its lines opens books/refund-receipts/<id>', () => {
+        const refund = 'rfrp1001every01'
+        expect(auditRecordHref('books_refund_receipts', refund, { id: refund })).toBe(
+            `books/refund-receipts/${refund}`
+        )
+        // A line's audit rows carry parent_type books_refund_receipts and parent_id the
+        // refund id; the history item opens through that parent.
+        // A line reaches the client already filed under its parent (the server's audit view files it; Go tests cover that), so this is the record call again, not coverage of a client line route.
+        const line = { parent_type: 'books_refund_receipts', parent_id: refund }
+        expect(auditRecordHref(line.parent_type, line.parent_id, { id: line.parent_id })).toBe(
+            `books/refund-receipts/${refund}`
+        )
     })
 
     it('opens the history screen of a vendor refund', () => {

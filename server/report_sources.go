@@ -187,7 +187,7 @@ func reportSources() []reports.Source {
 	return sources
 }
 
-// auditLogSource is the books_audit_log view (migration 2100000025): one row
+// auditLogSource is the books_audit_log view (migration 2100000027): one row
 // per audit row of a Books record. The view's computed columns are text, so
 // event, record_type and parent_type are Selects over text columns. The JSON
 // columns (changes, snapshot) are left out; it has no money, so no Currency.
@@ -290,8 +290,9 @@ func receivableItemsSource() reports.Source {
 	}
 }
 
-// salesDocumentColumns are the columns invoices, sales receipts and credit
-// memos share, by the same name in each collection.
+// salesDocumentColumns are the columns invoices, sales receipts, credit memos
+// and refund receipts share, by the same name in each collection. A refund
+// receipt's refund_from is no shared column.
 var salesDocumentColumns = []string{
 	"date", "status", "number", "sequence", "subtotal", "tax_total", "total", "currency", "customer", "entry",
 }
@@ -305,11 +306,12 @@ func sameNames(keys ...string) map[string]string {
 	return out
 }
 
-// salesDocumentsSource is every invoice, sales receipt and credit memo, one
-// union of the three collections (core SourcePart); kind is each part's
-// constant, so a report can tell them apart and label a row by its kind. A
-// credit memo's figures are stored positive (credit memo spec Q19): a report
-// that adds totals across kinds filters by kind.
+// salesDocumentsSource is every invoice, sales receipt, credit memo and
+// refund receipt, one union of the four collections (core SourcePart); kind
+// is each part's constant, so a report can tell them apart and label a row by
+// its kind. A credit memo's and a refund receipt's figures are stored
+// positive (credit memo spec Q19, refund receipt spec Q10): a report that
+// adds totals across kinds filters by kind.
 func salesDocumentsSource() reports.Source {
 	return reports.Source{
 		Key: "books.sales_documents", Label: "Sales documents",
@@ -317,12 +319,14 @@ func salesDocumentsSource() reports.Source {
 			{Collection: "books_invoices", Columns: sameNames(salesDocumentColumns...), Values: map[string]any{"kind": "invoice"}},
 			{Collection: "books_sales_receipts", Columns: sameNames(salesDocumentColumns...), Values: map[string]any{"kind": "sales_receipt"}},
 			{Collection: "books_credit_memos", Columns: sameNames(salesDocumentColumns...), Values: map[string]any{"kind": "credit_memo"}},
+			{Collection: "books_refund_receipts", Columns: sameNames(salesDocumentColumns...), Values: map[string]any{"kind": "refund_receipt"}},
 		},
 		Fields: []reports.Field{
 			{Key: "kind", Label: "Kind", Type: reports.Select, Options: []reports.Option{
 				{Value: "invoice", Label: "Invoice"},
 				{Value: "sales_receipt", Label: "Sales receipt"},
 				{Value: "credit_memo", Label: "Credit memo"},
+				{Value: "refund_receipt", Label: "Refund receipt"},
 			}},
 			{Key: "date", Label: "Date", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
 			{Key: "status", Label: "Status", Type: reports.Select, Options: []reports.Option{
@@ -347,19 +351,23 @@ func salesDocumentsSource() reports.Source {
 	}
 }
 
-// salesLineColumns are the columns invoice, sales receipt and credit memo
-// lines share, by the same name in each collection.
+// salesLineColumns are the columns invoice, sales receipt, credit memo and
+// refund receipt lines share, by the same name in each collection.
 var salesLineColumns = []string{
 	"kind", "description", "quantity", "rate", "amount", "taxable", "position", "product",
 }
 
-// salesLinesSource is every invoice, sales receipt and credit memo line, one
-// union of the three line collections (core SourcePart; sales-reports spec
-// §5). The document link reads each part's own parent column, and sign is
-// each part's constant: 1 on an invoice and a sales receipt, -1 on a credit
-// memo, whose line amounts and quantities are stored positive. The lines have
-// no currency column, so the money fields name none and read the source's
-// Currency (the Books currency, which posting stamps on every document).
+// salesLinesSource is every invoice, sales receipt and credit memo line and
+// every plain refund receipt's line, one union of four parts (core
+// SourcePart; sales-reports spec §5). The refund part is the view
+// books_refund_receipt_sale_lines, which leaves out a payout's lines: the
+// credit memo it pays out counted them already (refund receipt spec Q10). The
+// document link reads each part's own parent column, and sign is each part's
+// constant: 1 on an invoice and a sales receipt, -1 on a credit memo and a
+// refund receipt, whose line amounts and quantities are stored positive. The
+// lines have no currency column, so the money fields name none and read the
+// source's Currency (the Books currency, which posting stamps on every
+// document).
 func salesLinesSource() reports.Source {
 	part := func(collection, parent string, sign int) reports.SourcePart {
 		columns := sameNames(salesLineColumns...)
@@ -372,6 +380,7 @@ func salesLinesSource() reports.Source {
 			part("books_invoice_lines", "invoice", 1),
 			part("books_sales_receipt_lines", "sales_receipt", 1),
 			part("books_credit_memo_lines", "credit_memo", -1),
+			part("books_refund_receipt_sale_lines", "refund_receipt", -1),
 		},
 		Fields: []reports.Field{
 			{Key: "kind", Label: "Kind", Type: reports.Select, Options: []reports.Option{
@@ -426,16 +435,18 @@ func productsSource() reports.Source {
 
 // salesTaxLinesSource is every tax line posting wrote and the invoices' and
 // credit memos' cash-basis tax rows (pay-bills spec §3.10, Q3), one union of
-// four parts: the invoice, sales receipt and credit memo tax lines (layer
-// "ledger") and books_cash_basis_tax_lines (layer "cash"). Each row is one
+// five parts: the invoice, sales receipt, credit memo and refund receipt tax
+// lines (layer "ledger") and books_cash_basis_tax_lines (layer "cash"). A
+// payout refund writes no tax lines, so only a plain refund's rows are here.
+// Each row is one
 // document and tax component with its stored figures and its own day: a
 // ledger line's is the document date, a cash row's the day it takes out or
 // brings back. The document link reads each ledger part's own parent column,
 // and the cash part's document column, which names an invoice or a credit
 // memo. The payment entry link reads the cash part's payment_entry column:
 // the entry that brings tax back, empty on a row that takes it out; the ledger
-// parts do not map it, so it is empty there. A credit memo's ledger lines are
-// below zero. A report on it reads the ledger alone on Accrual and both layers
+// parts do not map it, so it is empty there. A credit memo's and a refund
+// receipt's ledger lines are below zero. A report on it reads the ledger alone on Accrual and both layers
 // on Cash (basisFilter).
 func salesTaxLinesSource() reports.Source {
 	shared := []string{"gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency", "date"}
@@ -452,6 +463,7 @@ func salesTaxLinesSource() reports.Source {
 			part("books_invoice_tax_lines", "invoice", "ledger"),
 			part("books_sales_receipt_tax_lines", "sales_receipt", "ledger"),
 			part("books_credit_memo_tax_lines", "credit_memo", "ledger"),
+			part("books_refund_receipt_tax_lines", "refund_receipt", "ledger"),
 			cash,
 		},
 		Fields: []reports.Field{
@@ -507,6 +519,7 @@ func entryDocTypeOptions() []reports.Option {
 		{Value: docTypeCreditMemo, Label: entryTypeLabels.DocTypes[docTypeCreditMemo]},
 		{Value: docTypeVendorCredit, Label: entryTypeLabels.DocTypes[docTypeVendorCredit]},
 		{Value: docTypeVendorRefund, Label: entryTypeLabels.DocTypes[docTypeVendorRefund]},
+		{Value: docTypeRefundReceipt, Label: entryTypeLabels.DocTypes[docTypeRefundReceipt]},
 	}
 }
 
