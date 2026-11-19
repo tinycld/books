@@ -264,11 +264,7 @@ function useEstimateWrites(): DocumentWrites {
         postRecord: () => {
             throw new Error('an estimate never posts')
         },
-        voidRecord: () => {
-            throw new Error('an estimate never voids')
-        },
         storedRevision: id => estimatesCollection.get(id)?.revision,
-        deleteRecord: id => estimatesCollection.delete(id),
         lineOps: (estimateId, mapper) => {
             const { toRecord } = salesLineMapperOf(mapper)
             const lineRecord = (write: TableRowWrite) => toRecord(write.row, write.position)

@@ -6,7 +6,7 @@
 
 import { and, eq, gt, gte, ilike, lt, lte, not, or, type Ref } from '@tanstack/db'
 import { documentHref } from './document-routes'
-import type { ListArea, ListAreaKey } from './list-areas'
+import type { ListAreaKey } from './list-areas'
 import { searchPieces } from './list-search'
 import type { LiveRecovery } from './live-recovery'
 import {
@@ -53,14 +53,13 @@ export function isPurchaseRow<Row extends { kind: ListKind }>(
     return !isSalesKind(row.kind)
 }
 
-// The kind of a row the list's Void and Delete draft write. They serve the sales kinds; a
-// purchase row's menu offers neither (`documentRowMenuItems`), so the error reaches the
-// batch or the dialog as a refusal only by a programming error.
-export function salesKindOf(row: { kind: ListKind }): TransactionKind {
-    if (!isSalesKind(row.kind)) {
-        throw new Error(`The ${kindLabel(row.kind).toLowerCase()} cannot be changed from the list.`)
-    }
-    return row.kind
+// The kind of a row the list's Delete draft writes. A bill payment is never a draft, so
+// neither its menu nor Delete drafts offers it (`purchaseRowMenuItems`, `batchTargets`);
+// the error reaches the batch or the dialog as a refusal only by a programming error.
+export function draftKindOf(row: { kind: ListKind }): Exclude<ListKind, 'bill_payment'> {
+    const { kind } = row
+    if (kind === 'bill_payment') throw new Error('A bill payment is never a draft.')
+    return kind
 }
 
 // The Type column's text: Invoice, Bill, Vendor credit, …
@@ -627,12 +626,11 @@ export function documentListWindow(
 export type ListLayout = 'table' | 'cards' | 'names'
 
 // What a list offers. A reader gets no New, no tick boxes and no Batch actions. The 320 px
-// names column beside an open document keeps the New button and the search field only. An
-// area without row actions (`hasRowActions`) has no tick boxes, Batch actions or row menus.
+// names column beside an open document keeps the New button and the search field only, so it
+// has no tick boxes, Batch actions, row menus or filters.
 export function listControls(
     canWrite: boolean,
-    layout: ListLayout,
-    area: Pick<ListArea, 'hasRowActions'>
+    layout: ListLayout
 ): {
     showNew: boolean
     showTicks: boolean
@@ -641,12 +639,11 @@ export function listControls(
     showFilters: boolean
 } {
     const isFullList = layout !== 'names'
-    const hasRowActions = isFullList && area.hasRowActions
     return {
         showNew: canWrite,
-        showTicks: canWrite && hasRowActions,
-        showBatch: canWrite && hasRowActions,
-        showRowMenus: hasRowActions,
+        showTicks: canWrite && isFullList,
+        showBatch: canWrite && isFullList,
+        showRowMenus: isFullList,
         showFilters: isFullList,
     }
 }

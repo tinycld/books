@@ -80,12 +80,11 @@ describe('LIST_AREAS', () => {
     })
 })
 
-// Checkpoint 2: the row actions (tick boxes, Batch actions, row menus) are on for Sales and
-// off for Expenses until checkpoint 4 adds them.
+// Checkpoint 4: every area has the row actions, so an area no longer says whether it has them.
 describe('hasRowActions', () => {
-    it('is true for sales and false for purchases', () => {
-        expect(LIST_AREAS.sales.hasRowActions).toBe(true)
-        expect(LIST_AREAS.purchases.hasRowActions).toBe(false)
+    it('is not a field of either area', () => {
+        expect(LIST_AREAS.sales).not.toHaveProperty('hasRowActions')
+        expect(LIST_AREAS.purchases).not.toHaveProperty('hasRowActions')
     })
 })
 

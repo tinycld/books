@@ -15,6 +15,7 @@ import { type DocumentListRow, isSalesKind, listDocumentHref } from './document-
 import { documentHref, documentNewHref } from './document-routes'
 import { TRANSACTION_DOC_KINDS } from './party-transactions'
 import { paymentReadActions } from './payment-read-actions'
+import type { PurchaseRowMenuAction } from './purchase-row-menu'
 import { CREDIT_MEMO_KIND, INVOICE_KIND, SALES_FEATURES } from './sales-document-kinds'
 
 export type RowMenuAction =
@@ -93,7 +94,8 @@ function readActionsOf(row: DocumentListRow, status: DocumentStatus, canWrite: b
     )
 }
 
-// A purchase row's menu holds Open only until the purchase lists get their row actions.
+// A purchase row's menu comes from `purchaseRowMenuItems` (`listRowMenuItems` picks by the
+// row's kind); here it holds Open only.
 export function documentRowMenuItems(row: DocumentListRow, canWrite: boolean): RowMenuAction[] {
     if (!isSalesKind(row.kind)) return ['open']
     if (row.recordStatus === 'draft') return canWrite ? ['open', 'delete_draft'] : ['open']
@@ -104,13 +106,17 @@ export function documentRowMenuItems(row: DocumentListRow, canWrite: boolean): R
 }
 
 // The menu row's test id: `<area prefix>-row-action-<action>`, with dashes.
-export function rowActionTestId(prefix: string, action: RowMenuAction): string {
+export function rowActionTestId(
+    prefix: string,
+    action: RowMenuAction | PurchaseRowMenuAction
+): string {
     return `${prefix}-row-action-${action.replaceAll('_', '-')}`
 }
 
 // The route a navigating action pushes (without the org prefix); null for the actions that
 // stay on the list (Download PDF, Void, Delete draft).
-// A purchase row offers Open only (`documentRowMenuItems`), so it has no other route.
+// A purchase row's routes come from `purchaseRowActionHref` (`listRowActionHref` picks by
+// the row's kind); here it has Open only.
 export function rowActionHref(row: DocumentListRow, action: RowMenuAction): string | null {
     if (action === 'open') return listDocumentHref(row.kind, row.id)
     if (!isSalesKind(row.kind)) return null

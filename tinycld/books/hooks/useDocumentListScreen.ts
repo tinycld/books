@@ -212,9 +212,8 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
         router.replace(orgHref(areaTabOf(area, key).path))
     }
 
-    // The table's minimum counts only the edge cells it draws: an area without row actions
-    // has no tick box and no row menu.
-    const controls = listControls(canWrite, layout, area)
+    // The table's minimum counts only the edge cells it draws: a reader has no tick box.
+    const controls = listControls(canWrite, layout)
     const minWidth = tableMinWidthFor(tab, controls)
     const drawsCards = isPhone || (width > 0 && width < minWidth)
 

@@ -32,8 +32,6 @@ export type ListArea = {
     texts: { loadError: string; searchPlaceholder: string }
     shortcutGroup: 'Sales' | 'Expenses'
     logContext: 'books.sales-lists' | 'books.purchase-lists'
-    // The list offers tick boxes, Batch actions and row menus (`listControls`).
-    hasRowActions: boolean
 }
 
 export const LIST_AREAS: Record<ListAreaKey, ListArea> = {
@@ -63,7 +61,6 @@ export const LIST_AREAS: Record<ListAreaKey, ListArea> = {
         },
         shortcutGroup: 'Sales',
         logContext: 'books.sales-lists',
-        hasRowActions: true,
     },
     purchases: {
         key: 'purchases',
@@ -87,8 +84,6 @@ export const LIST_AREAS: Record<ListAreaKey, ListArea> = {
         },
         shortcutGroup: 'Expenses',
         logContext: 'books.purchase-lists',
-        // Off until purchase-lists checkpoint 4 adds the purchase row actions.
-        hasRowActions: false,
     },
 }
 

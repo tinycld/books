@@ -227,13 +227,10 @@ describe('listShortcuts per list area', () => {
     })
 
     // The tick keys follow the tick boxes and New follows the New button, which
-    // `listControls` gives per area.
-    it.each([
-        ['sales', LIST_AREAS.sales],
-        ['purchases', LIST_AREAS.purchases],
-    ] as const)('offers a %s reader no tick keys and no New, and a writer New', (_key, area) => {
-        const writer = listControls(true, 'table', area)
-        const reader = listControls(false, 'table', area)
+    // `listControls(canWrite, layout)` gives the same way for both areas.
+    it('offers a reader no tick keys and no New, and a writer New', () => {
+        const writer = listControls(true, 'table')
+        const reader = listControls(false, 'table')
         const writerKeys = offeredListKeys({ ...WRITER, ...writer })
         const readerKeys = offeredListKeys({ ...WRITER, ...reader })
         expect(readerKeys).not.toContain('tick')
@@ -262,19 +259,15 @@ describe('listShortcuts per list area', () => {
         }
     })
 
-    it('offers a purchases writer on the table no tick keys and a sales writer both', () => {
-        const purchases = offeredListKeys({
-            ...WRITER,
-            ...listControls(true, 'table', LIST_AREAS.purchases),
-        })
-        expect(purchases).not.toContain('tick')
-        expect(purchases).not.toContain('tickAll')
-        const sales = offeredListKeys({
-            ...WRITER,
-            ...listControls(true, 'table', LIST_AREAS.sales),
-        })
-        expect(sales).toContain('tick')
-        expect(sales).toContain('tickAll')
+    // Checkpoint 4 turns the tick boxes on for purchase lists, so a writer on the table
+    // gets the tick keys in both areas, and none beside an open document (`names`).
+    it('offers a writer on the table the tick keys, and none in the names column', () => {
+        const table = offeredListKeys({ ...WRITER, ...listControls(true, 'table') })
+        expect(table).toContain('tick')
+        expect(table).toContain('tickAll')
+        const names = offeredListKeys({ ...WRITER, ...listControls(true, 'names') })
+        expect(names).not.toContain('tick')
+        expect(names).not.toContain('tickAll')
     })
 })
 

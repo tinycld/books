@@ -5,12 +5,8 @@ import { MoreVertical } from 'lucide-react-native'
 import { Pressable } from 'react-native'
 import type { DocumentRowActions } from '../../hooks/useDocumentRowActions'
 import { type DocumentListRow, kindLabel } from '../../lib/document-list'
-import {
-    documentRowMenuItems,
-    ROW_MENU_LABELS,
-    type RowMenuAction,
-    rowActionTestId,
-} from '../../lib/document-row-menu'
+import { rowActionTestId } from '../../lib/document-row-menu'
+import { LIST_ROW_MENU_LABELS, type ListRowAction, listRowMenuItems } from '../../lib/list-row-menu'
 import { useDocumentListStore } from '../../stores/document-list-store'
 import { PressBoundary } from '../PressBoundary'
 
@@ -19,7 +15,7 @@ const TRIGGER_STYLE = { width: 44, minHeight: 44 }
 interface MenuItemsProps {
     row: DocumentListRow
     testIdPrefix: string
-    items: readonly RowMenuAction[]
+    items: readonly ListRowAction[]
     actions: Pick<DocumentRowActions, 'run' | 'isDisabled'>
 }
 
@@ -30,7 +26,7 @@ function MenuItems({ row, testIdPrefix, items, actions }: MenuItemsProps) {
             <Menu.Item
                 key={action}
                 testID={rowActionTestId(testIdPrefix, action)}
-                label={ROW_MENU_LABELS[action]}
+                label={LIST_ROW_MENU_LABELS[action]}
                 isDestructive={action === 'void' || action === 'delete_draft'}
                 isDisabled={actions.isDisabled(action)}
                 onSelect={select}
@@ -64,14 +60,14 @@ interface DocumentRowMenuProps {
 /**
  * The "More actions" menu that ends a list's row or card (spec §3 "Row menu"): Open,
  * then what the document's read view offers for its status and the user's access
- * (`documentRowMenuItems`). Its items exist only while it is open, because core Sheet keeps
- * its content in the page while it slides out. A press on the button or an item never
- * opens the row.
+ * (`listRowMenuItems`: the sales or the purchase rules by the row's kind). Its items exist
+ * only while it is open, because core Sheet keeps its content in the page while it slides
+ * out. A press on the button or an item never opens the row.
  */
 export function DocumentRowMenu({ row, testIdPrefix, canWrite, actions }: DocumentRowMenuProps) {
     const color = useThemeColor('muted-foreground')
     const { isOpen, setOpen } = useRowMenuOpen(row.id)
-    const items = isOpen ? documentRowMenuItems(row, canWrite) : []
+    const items = isOpen ? listRowMenuItems(row, canWrite) : []
     const title = `${kindLabel(row.kind)} ${row.number}`.trim()
     // An element, not a component: the menu clones it with its press handler and ref.
     const trigger = (
