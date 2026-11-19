@@ -1417,9 +1417,10 @@ func TestCustomerBalanceOrder(t *testing.T) {
 // before p5-ar-aging moved its groups and sort into customerFamilyGroups and
 // customerFamilySort: the move must not change the shipped JSON, so the
 // Revision stays 1 (core re-stores a spec only on a higher revision). The
-// value is main's spec after the refund receipt unit added "Refund receipt"
-// to the entry type labels the detail label reads (same Revision on main).
-const customerBalanceSpecSHA256 = "8e693a9e698952d6ae7babd228600de5e96a97219267bad61d41800711771e2b"
+// value is main's spec after the refund receipt and write-off units added
+// "Refund receipt" and "Write-off" to the entry type labels the detail label
+// reads (same Revision on main).
+const customerBalanceSpecSHA256 = "9b0224867d3249cf1d8098910861e4c65b8c5680fd974a7f6095292a30177125"
 
 func TestCustomerBalanceSpecJSONUnchanged(t *testing.T) {
 	sum := sha256.Sum256(mustJSON(customerBalanceSpec()))

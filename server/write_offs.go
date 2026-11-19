@@ -72,8 +72,10 @@ func writeOffName(r *core.Record) string {
 // other write can commit between a check and the write it allows. A write-off
 // is created posted (createWriteOff), moved from posted to void
 // (voidWriteOff), and never changed otherwise nor deleted. Its own cash-basis
-// rows are written after its create, in the create's transaction: they relate
-// to the stored write-off.
+// rows and its entry's receivable rows are written after its create, in the
+// create's transaction: they relate to the stored write-off (its entry posts
+// before the write-off row exists, so the entry's own refresh cannot yet give
+// its line to the invoice).
 func registerWriteOffGuards(app core.App) {
 	bindSerializedGuardThen(app, writeOffsCollection, func(tx core.App, stored, r *core.Record) error {
 		if stored == nil {
@@ -81,7 +83,10 @@ func registerWriteOffGuards(app core.App) {
 		}
 		return updateWriteOff(tx, stored, r)
 	}, func(tx core.App, r *core.Record) error {
-		return rebuildCashBasisOf(tx, writeOffsCollection, r.Id)
+		if err := rebuildCashBasisOf(tx, writeOffsCollection, r.Id); err != nil {
+			return err
+		}
+		return refreshReceivableEntry(tx, r.GetString("entry"))
 	})
 	app.OnRecordDelete(writeOffsCollection).BindFunc(func(e *core.RecordEvent) error {
 		return serialized(e, func(core.App) error {
