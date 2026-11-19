@@ -211,7 +211,7 @@ test.describe('vendor-pages: vendor transactions', () => {
         })
 
         test.afterAll(async () => {
-            await page.context().close()
+            await page?.context().close()
         })
 
         test('a vendor with a posted past-due bill and a posted bill due later', async () => {
