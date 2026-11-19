@@ -4,7 +4,7 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { ScopeProvider, useShortcutScope } from '@tinycld/core/lib/shortcuts'
 import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { router } from 'expo-router'
-import type { ReactNode } from 'react'
+import { type ReactNode, useId } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import {
     type DocumentRecord,
@@ -39,6 +39,7 @@ import { DOCUMENT_PARTIES, type SalesDocumentKind } from '../../lib/sales-docume
 import { groupPpm, ratePercentText } from '../../lib/sales-tax'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { VoidDialog } from '../entries/VoidDialog'
+import { WriteOffDialog } from '../write-offs/WriteOffDialog'
 import { AttachmentsSection } from './AttachmentsSection'
 import { RemoveApplicationDialog } from './DocumentApplications'
 import { DocumentDetail } from './DocumentDetail'
@@ -177,10 +178,18 @@ function storedBalanceOf(record: DocumentRecord): number | undefined {
     return undefined
 }
 
-// The badge of a kind with a balance badge (an invoice's or a bill's Paid / Partly paid, a
-// vendor credit's Applied / Partly applied / Refunded) follows its stored balance (and a
-// vendor credit's refunded cents); undefined for every other kind, whose header shows its
-// status's badge.
+// The cents an invoice's posted write-offs took (its stored `written_off`); 0 for every
+// other kind.
+function writtenOffOf(record: DocumentRecord): number {
+    const fields = record.kindFields
+    return fields.kind === 'invoice' ? fields.written_off : 0
+}
+
+// The badge of a kind with a balance badge (an invoice's Paid / Partly paid / Written off,
+// a bill's Paid / Partly paid, a vendor credit's Applied / Partly applied / Refunded)
+// follows its stored balance (and a vendor credit's refunded cents, an invoice's
+// written-off cents); undefined for every other kind, whose header shows its status's
+// badge.
 function readBadgeOf(
     record: DocumentRecord,
     balanceBadge: ReadBalanceBadge | undefined,
@@ -190,7 +199,7 @@ function readBadgeOf(
     const { status } = record
     if (!balanceBadge || balance === undefined) return undefined
     if (status !== 'draft' && status !== 'posted' && status !== 'void') return undefined
-    return balanceBadge(status, balance, record.total, refunded)
+    return balanceBadge(status, balance, record.total, refunded, writtenOffOf(record))
 }
 
 // The posted vendor refunds a vendor credit's read view reads (`DocumentKind.readRefunds`);
@@ -401,6 +410,12 @@ function ReadFooter({ isPhone, totals, message, memo, memoLabel, attachments }: 
     )
 }
 
+// The Write off dialog of this read view; only an invoice offers Write off.
+function ReadWriteOffDialog({ owner, isVisible }: { owner: string; isVisible: boolean }) {
+    if (!isVisible) return null
+    return <WriteOffDialog owner={owner} />
+}
+
 function Stamp({ testID, text }: { testID: string; text: string }) {
     if (text === '') return null
     return (
@@ -513,7 +528,10 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     const { doc } = documentKind
     const scopeOwner = useShortcutScope('compose')
     const isPhone = useBreakpoint() === 'mobile'
-    const read = useDocumentReadActions(documentKind, record, data.canWrite)
+    // Write off opens useWriteOffStore with this screen as the owner, so only the dialog this
+    // screen mounts (ReadWriteOffDialog) draws, not one of a list under it in the stack.
+    const owner = useId()
+    const read = useDocumentReadActions(documentKind, record, data.canWrite, owner)
     const historyItem = useHistoryItem(DOCUMENT_COLLECTIONS[doc.key], record.id)
     const writes = useServerActionState()
     useReadAttachmentSession(record.id, doc.features.attachments)
@@ -543,6 +561,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     const isDetailsTab = tab === 'edit'
     const isPdfTab = tab === 'pdf'
     const isPosting = doc.lifecycle === 'posting'
+    const isInvoice = record.kindFields.kind === 'invoice'
     const isExpired = expiredOnOf(record, todayIso()) !== null
     const readOnlyId = `${doc.testId}-read-only`
     const attachments = doc.features.attachments ? (
@@ -640,6 +659,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                     scopeOwner={scopeOwner}
                 />
                 <VoidDialog {...read.voidDialog} />
+                <ReadWriteOffDialog owner={owner} isVisible={isInvoice} />
                 <RemoveApplicationDialog
                     application={removal.target}
                     isVisible={removal.isVisible}

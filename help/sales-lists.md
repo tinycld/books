@@ -34,6 +34,8 @@ Beside a form with unsaved changes, a row you choose, New, and a key that opens 
 
 Each row ends with a More actions button. Its row menu holds Open and the actions the document's own page offers for its status, for example Receive payment, Copy, Create credit memo, View journal entry, Download PDF and Void. A draft's row menu holds Open and Delete draft. Void and Delete draft ask you to confirm first. If the server refuses an action, the reason shows in the banner above the list.
 
+A posted invoice with a balance due has **Write off** in its row menu, directly after Receive payment, if you can edit the books. It opens the Write off dialog over the list, and the list stays. After the write-off, the invoice's status reads **Written off** on the Invoices tab and on All sales, and its Balance is $0.00. On the Invoices tab, the **Written off** chip lists the invoices that a write-off closed; Paid lists the invoices that payments paid in full. There is no batch write-off. See [Write off an invoice](help://books:write-offs).
+
 ## Batch actions
 
 If you can edit the books, each row has a tick box, and the table's header box ticks or clears every loaded row. Then choose Batch actions:

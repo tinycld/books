@@ -54,8 +54,13 @@ The badge of a posted invoice follows its balance:
 - **Posted**: nothing is paid yet.
 - **Partly paid**: part of the total is paid.
 - **Paid**: the whole total is paid.
+- **Written off**: nothing is open, and a posted write-off took the rest of the balance.
 
 To record a payment for the invoice, open it and choose **Receive payment**, or press R. It shows only on a posted invoice with a balance due. On a phone, it is in the More menu. The payment opens with the invoice's customer, and the invoice is paid in full; change the amount to record a part payment. See [Receive payment](help://books:receive-payment).
+
+## Write off an invoice
+
+When the customer will not pay, open the posted invoice and choose **Write off**, or press W. It shows only on a posted invoice with a balance due, after Create credit memo. On a phone, it is in the More menu. In the dialog, check the Write-off date, pick the account in Write off to (such as 6050 Bad debts) and choose Write off. The write-off takes the whole open balance: the invoice stays posted, its badge reads **Written off**, and its totals show a **Written off** row with a minus sign, such as −$400.00, above Balance due. The **Write-offs** section, under the Credit memos section, lists each write-off with its number, date, amount and status; choose a number to open the write-off. While a posted write-off names the invoice, Books refuses Edit and Void of the invoice: "This invoice is written off. Void the write-off first." For more, see [Write off an invoice](help://books:write-offs).
 
 ## Save and post
 
@@ -152,12 +157,13 @@ On a posted or void invoice:
 - V: Void
 - C: Copy to a new invoice
 - M: Create credit memo (a posted invoice)
+- W: Write off (a posted invoice with a balance due)
 - J: View journal entry
 - ⌥1 / ⌥2: Details tab / PDF view tab
 - ⌘P: Download PDF
 
-The form keys also work while the cursor is in a text box. R, E, V, C, M and J do not. A key does nothing while its button is hidden or turned off. If a menu or dialog is open, Esc first closes it, and the other keys do nothing. ⌘P never opens the browser's Print: on a new invoice that is not saved, it does nothing. To see all shortcuts, press ? when the cursor is not in a text box.
+The form keys also work while the cursor is in a text box. R, E, V, C, M, W and J do not. A key does nothing while its button is hidden or turned off. If a menu or dialog is open, Esc first closes it, and the other keys do nothing. ⌘P never opens the browser's Print: on a new invoice that is not saved, it does nothing. To see all shortcuts, press ? when the cursor is not in a text box.
 
 ## Who can do what
 
-With bookkeeper or admin access you can create, post, edit, void, copy and delete draft invoices, receive payments for them, and create credit memos from them. With read-only access you can open a posted or void invoice, view its journal entry and download its PDF.
+With bookkeeper or admin access you can create, post, edit, void, copy and delete draft invoices, receive payments for them, create credit memos from them, and write them off. With read-only access you can open a posted or void invoice, view its journal entry and download its PDF.

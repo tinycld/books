@@ -297,6 +297,17 @@ func bindBalanceRoutes(e *core.ServeEvent) {
 		if len(receivableDrifts) > 0 {
 			log.ErrorContext(re.Request.Context(), "receivable rows disagree with the book", "count", len(receivableDrifts))
 		}
+		// Every write path keeps a document's balance and an invoice's
+		// written_off with its payers, so a drift here means one missed it.
+		// The answer lists each with the field that drifted.
+		documentDrifts, err := verifyDocumentBalances(re.App)
+		if err != nil {
+			return err
+		}
+		if len(documentDrifts) > 0 {
+			log.ErrorContext(re.Request.Context(), "document balances disagree with their payers",
+				"count", len(documentDrifts), "fields", documentDriftFields(documentDrifts))
+		}
 		fixed, err := rebuildBalances(re.App)
 		if err != nil {
 			return err
@@ -314,10 +325,37 @@ func bindBalanceRoutes(e *core.ServeEvent) {
 		listed, count := lineDriftReport(lineDrifts)
 		cashListed, cashCount := cashDriftReport(cashDrifts)
 		receivableListed, receivableCount := receivableDriftReport(receivableDrifts)
+		documentListed, documentCount := documentDriftReport(documentDrifts)
 		return re.JSON(http.StatusOK, map[string]any{
 			"fixed": fixed, "lineDrifts": listed, "lineDriftCount": count,
 			"cashDrifts": cashListed, "cashDriftCount": cashCount,
 			"receivableDrifts": receivableListed, "receivableDriftCount": receivableCount,
+			"documentDrifts": documentListed, "documentDriftCount": documentCount,
 		})
 	})
+}
+
+// documentDriftReport is the document part of the rebuild route's answer: the
+// first maxLineDriftsReported drifts, each naming its field (balance or
+// written_off), and the count of all.
+func documentDriftReport(drifts []DocumentBalanceDrift) (listed []DocumentBalanceDrift, count int) {
+	if len(drifts) > maxLineDriftsReported {
+		return drifts[:maxLineDriftsReported], len(drifts)
+	}
+	return drifts, len(drifts)
+}
+
+// documentDriftFields lists the drifted fields once each, in the order found,
+// as "invoice.balance", for the log.
+func documentDriftFields(drifts []DocumentBalanceDrift) []string {
+	var fields []string
+	seen := map[string]bool{}
+	for _, d := range drifts {
+		name := d.Kind + "." + d.Field
+		if !seen[name] {
+			seen[name] = true
+			fields = append(fields, name)
+		}
+	}
+	return fields
 }

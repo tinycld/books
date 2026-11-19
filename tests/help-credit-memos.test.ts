@@ -99,6 +99,9 @@ describe('help/credit-memos.md', () => {
         'help://books:invoices',
         'help://books:customer-pages',
         'help://books:sales-tax',
+        // Write-off checkpoint 4: a credit memo for a price change or a return, a write-off
+        // for a balance that will not be paid.
+        'help://books:write-offs',
     ])('links %s', link => {
         expect(body).toContain(`(${link})`)
     })

@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { searchTarget } from '../tinycld/books/lib/search-target'
+import { isReadOnlyRoute, searchTarget } from '../tinycld/books/lib/search-target'
+
+// Write-off spec §3.5: the write-off page has no form, so Back steps past write-off pages
+// of the same route right below it, as it does for bill payments.
+describe('isReadOnlyRoute', () => {
+    it('is true for the write-off page', () => {
+        expect(isReadOnlyRoute('write-offs/[id]')).toBe(true)
+    })
+})
 
 describe('searchTarget', () => {
     it('routes an account hit to its register', () => {
@@ -114,6 +122,15 @@ describe('searchTarget', () => {
             id: 'abc',
         })
         expect(searchTarget('vendor_refund:')).toBeNull()
+    })
+
+    // Write-off spec §4.3: a write-off hit (kind write_off) opens the write-off.
+    it('routes a write-off hit to the write-off screen', () => {
+        expect(searchTarget('write_off:abc')).toEqual({
+            path: 'books/write-offs/[id]',
+            id: 'abc',
+        })
+        expect(searchTarget('write_off:')).toBeNull()
     })
 
     // Receive payment spec §3.9: a payment hit (kind payment) opens the payment.

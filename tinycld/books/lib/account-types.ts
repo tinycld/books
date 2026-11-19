@@ -177,6 +177,7 @@ export const ACCOUNT_TYPES: readonly AccountTypeDef[] = [
         normal: 'debit',
         detailTypes: [
             { key: 'advertising_marketing', label: 'Advertising and marketing' },
+            { key: 'bad_debts', label: 'Bad debts' },
             { key: 'bank_charges', label: 'Bank charges and fees' },
             { key: 'contractors', label: 'Contractors' },
             { key: 'dues_subscriptions', label: 'Dues and subscriptions' },

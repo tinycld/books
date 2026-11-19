@@ -579,6 +579,11 @@ func checkAccountDelete(app core.App, r *core.Record) error {
 	if err := refuseAccountOnLines(app, r); err != nil {
 		return err
 	}
+	// Before the journal lines check too: a write-off's entry has lines on its
+	// account, posted or void, and the write-off text says what holds it.
+	if err := refuseAccountOfWriteOffs(app, r); err != nil {
+		return err
+	}
 	lines, err := app.CountRecords("books_journal_lines", dbx.HashExp{"account": r.Id})
 	if err != nil {
 		return err

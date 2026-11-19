@@ -138,7 +138,12 @@ function useInvoiceScreenReads(
         const source = invoiceSourceOf(row)
         return {
             ...source,
-            kindFields: { ...source.kindFields, estimateRow, balance: row.balance },
+            kindFields: {
+                ...source.kindFields,
+                estimateRow,
+                balance: row.balance,
+                written_off: row.written_off,
+            },
         }
     }, [read])
     const record = useHeldRecord(mapped, input.isHeld)

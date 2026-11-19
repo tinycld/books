@@ -20,7 +20,8 @@ import type { LiveRecovery } from '../lib/live-recovery'
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 
 /**
- * The six sales reads of a document list (sales lists spec §4): one live query per kind
+ * The seven sales reads of a document list (sales lists spec §4, and the customer page's
+ * write-offs, write-off spec §3.6): one live query per kind
  * the tab lists, each filtered by the chip, the date range, the customer and the search in
  * its `where`, ordered by the sort column then `created` descending, and cut to its first
  * `n` rows, with the customer's row through `materialize`. A query whose kind the tab does
@@ -36,6 +37,7 @@ export function useSalesListQueries(input: ListQueryInput) {
         paymentsCollection,
         creditMemosCollection,
         refundsCollection,
+        writeOffsCollection,
         customersCollection,
     ] = useStore(
         'books_invoices',
@@ -44,19 +46,24 @@ export function useSalesListQueries(input: ListQueryInput) {
         'books_payments',
         'books_credit_memos',
         'books_refund_receipts',
+        'books_write_offs',
         'books_customers'
     )
 
     const hasCustomer = customer !== ''
     // Estimates have no listed rule, so their query has a `where` only when a filter is set.
-    const hasEstimateWhere =
-        chip !== 'all' || range !== null || hasCustomer || searchPieces(search).length > 0
+    const hasSearch = searchPieces(search).length > 0
+    const hasEstimateWhere = chip !== 'all' || range !== null || hasCustomer || hasSearch
+    // Write-offs have no listed rule (no correction replaces one) and no chip rule (on the
+    // customer tab the filter chip chooses the kind), so likewise.
+    const hasWriteOffWhere = range !== null || hasCustomer || hasSearch
     const runsInvoices = chipRuns(tab, chip, 'invoice')
     const runsEstimates = chipRuns(tab, chip, 'estimate')
     const runsReceipts = chipRuns(tab, chip, 'sales_receipt')
     const runsPayments = chipRuns(tab, chip, 'payment')
     const runsCreditMemos = chipRuns(tab, chip, 'credit_memo')
     const runsRefunds = chipRuns(tab, chip, 'refund_receipt')
+    const runsWriteOffs = chipRuns(tab, chip, 'write_off')
 
     const invoicesQuery = useLiveQuery({
         query: q => {
@@ -239,6 +246,36 @@ export function useSalesListQueries(input: ListQueryInput) {
         },
         queryKey: queryKey('refund_receipt', runsRefunds),
     })
+    const writeOffsQuery = useLiveQuery({
+        query: q => {
+            if (!runsWriteOffs) return undefined
+            const field = sortField('write_off', sort.key)
+            const from = q.from({ w: writeOffsCollection })
+            const filtered = hasWriteOffWhere
+                ? from.where(({ w }) =>
+                      allOf([
+                          ...rangeClauses(w, range),
+                          ...(hasCustomer ? [eq(w.customer, customer)] : []),
+                          ...searchClauses(w, search),
+                      ])
+                  )
+                : from
+            return filtered
+                .orderBy(({ w }) => w[field], kindDirection(tab, 'write_off', sort))
+                .orderBy(({ w }) => w.created, 'desc')
+                .limit(n)
+                .select(({ w }) => ({
+                    ...w,
+                    customerRow: materialize(
+                        q
+                            .from({ c: customersCollection })
+                            .where(({ c }) => eq(c.id, w.customer))
+                            .findOne()
+                    ),
+                }))
+        },
+        queryKey: queryKey('write_off', runsWriteOffs),
+    })
 
     // Every query reads the customers through `materialize`, so they are a source of each
     // failed one; a read that has not failed restarts nothing.
@@ -265,6 +302,7 @@ export function useSalesListQueries(input: ListQueryInput) {
         payments: runsPayments ? paymentsQuery.data : undefined,
         creditMemos: runsCreditMemos ? creditMemosQuery.data : undefined,
         refunds: runsRefunds ? refundsQuery.data : undefined,
+        writeOffs: runsWriteOffs ? writeOffsQuery.data : undefined,
         reads: [
             readOf(runsInvoices, invoicesQuery, invoicesCollection),
             readOf(runsEstimates, estimatesQuery, estimatesCollection),
@@ -272,6 +310,7 @@ export function useSalesListQueries(input: ListQueryInput) {
             readOf(runsPayments, paymentsQuery, paymentsCollection),
             readOf(runsCreditMemos, creditMemosQuery, creditMemosCollection),
             readOf(runsRefunds, refundsQuery, refundsCollection),
+            readOf(runsWriteOffs, writeOffsQuery, writeOffsCollection),
         ],
     }
 }
