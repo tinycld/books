@@ -23,6 +23,8 @@ import {
     documentListWindow,
     emptyTexts,
     hasFilterSet,
+    isSalesKind,
+    isSalesRow,
     kindDirection,
     type ListSort,
     listControls,
@@ -41,6 +43,7 @@ import {
     paymentRow,
     refundReceiptRow,
     salesReceiptRow,
+    TRANSACTION_TYPE_LABELS,
     type TransactionKind,
 } from '../tinycld/books/lib/party-transactions'
 import { purchaseTabOf } from '../tinycld/books/lib/purchase-lists'
@@ -932,5 +935,24 @@ describe('the write-off on the lists', () => {
         expect(sortField('write_off', 'date')).toBe('date')
         expect(sortField('write_off', 'number')).toBe('sequence')
         expect(sortField('write_off', 'amount')).toBe('amount')
+    })
+})
+
+// A kind missing from SALES_KINDS falls to the purchase side (`isPurchaseRow`), so the
+// customer Transactions tab drops its rows. The kinds come from the source: every key of
+// TRANSACTION_TYPE_LABELS (a Record over TransactionKind) and every kind the customer tab
+// lists.
+describe('isSalesKind', () => {
+    const transactionKinds = Object.keys(TRANSACTION_TYPE_LABELS) as TransactionKind[]
+    const customerKinds = customerTransactionsTab('all').kinds
+
+    it('the customer tab lists every transaction kind, write_off included', () => {
+        expect([...customerKinds].sort()).toEqual([...transactionKinds].sort())
+        expect(customerKinds).toContain('write_off')
+    })
+
+    it.each(transactionKinds)('takes %s as a sales kind', kind => {
+        expect(isSalesKind(kind)).toBe(true)
+        expect(isSalesRow({ kind })).toBe(true)
     })
 })
