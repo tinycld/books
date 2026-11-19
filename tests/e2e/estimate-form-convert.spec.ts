@@ -222,7 +222,9 @@ test.describe('estimate-form: convert and delete', () => {
         )
         await expect(page.getByTestId('estimate-detail-status')).toContainText('Closed')
 
-        // I opens the invoice; deleting its draft reopens the estimate as Pending.
+        // I opens the invoice; deleting its draft goes Back to the estimate, reopened as
+        // Pending. No search palette here: when the reopened estimate's form mounts after
+        // Back, its Customer trigger takes the focus and would take `/` as a typed letter.
         await page.keyboard.press('i')
         await expect(page).toHaveURL(invoiceUrlOf(invoiceId))
         await expect(page.getByTestId('invoice-form')).toBeVisible()
@@ -230,11 +232,8 @@ test.describe('estimate-form: convert and delete', () => {
         await page.getByTestId('invoice-delete-draft').click()
         await expect(page.getByTestId('delete-draft-dialog')).toBeVisible()
         await page.getByTestId('delete-draft-confirm').click()
-        await expect(page).not.toHaveURL(invoiceUrlOf(invoiceId))
-
-        await openEstimateBySearch(page, memo)
         await expect(page).toHaveURL(estimateUrlOf(id))
-        await expect(page.getByTestId('estimate-form')).toBeVisible()
+        await expect(page.getByTestId('estimate-form').filter({ visible: true })).toBeVisible()
         await expect(page.getByTestId('estimate-badge')).toHaveText('Pending')
         await expect(page.getByTestId('estimate-converted-to')).toHaveCount(0)
     })
