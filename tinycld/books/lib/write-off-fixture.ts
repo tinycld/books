@@ -7,17 +7,15 @@
 // right before it. An invoice's `balance` is its total less its posted payments and less its
 // posted write-offs; its `written_off` is the sum of its posted write-offs (spec §3.4).
 //
-// `books_write_offs` and `books_invoices.written_off` do not exist yet. `WriteOffRecord` and
-// `WriteOffInvoiceRecord` below mirror spec §4.1 and §4.2. The migration checkpoint (the one
-// that adds `2100000027_create_books_write_offs.js` and edits `2100000010`) must replace
-// `WriteOffRecord` with the generated `BooksWriteOffs` and `WriteOffInvoiceRecord` with
-// `BooksInvoices`, so the `satisfies` checks hold the rows to the real schema.
+// `WriteOffRecord` and `WriteOffInvoiceRecord` are the generated `BooksWriteOffs` (migration
+// 2100000027) and `BooksInvoices` (2100000010, with `written_off`), so the `satisfies`
+// checks hold the rows to the real schema.
 //
 // A write-off names its account by a fixture id (`WRITE_OFF_ACCOUNT_IDS`); the seed maps it
 // to the seeded account by number, since the relation id is known only after the seed
 // creates the accounts.
 
-import type { BooksAccounts, BooksInvoices } from '../types'
+import type { BooksAccounts, BooksInvoices, BooksWriteOffs } from '../types'
 import { CUSTOMER_IDS, CUSTOMERS } from './customer-form-fixture'
 import { INVOICE_USER_IDS, INVOICE_USER_NAMES } from './invoice-form-fixture'
 
@@ -32,34 +30,13 @@ const STAMP = '2026-11-18 09:00:00.000Z'
 export const WRITE_OFF_USER_IDS = INVOICE_USER_IDS
 export const WRITE_OFF_USER_NAMES = INVOICE_USER_NAMES
 
-// Spec §4.1. Replaced by the generated `BooksWriteOffs` at the migration checkpoint.
-export interface WriteOffRecord {
-    id: string
-    invoice: string
-    customer: string
-    status: 'posted' | 'void'
-    number: string
-    sequence: number
-    date: string
-    account: string
-    amount: number
-    memo: string
-    currency: string
-    entry: string
-    close_override: string
-    posted_by: string
-    posted_at: string
-    voided_by: string
-    voided_at: string
-    sort_key: string
-    created: string
-    updated: string
-}
+// Spec §4.1.
+export type WriteOffRecord = BooksWriteOffs
 
 export type WriteOffStatus = WriteOffRecord['status']
 
-// Spec §4.2. Replaced by the generated `BooksInvoices` at the migration checkpoint.
-export type WriteOffInvoiceRecord = BooksInvoices & { written_off: number }
+// Spec §4.2.
+export type WriteOffInvoiceRecord = BooksInvoices
 
 export const WRITE_OFF_CUSTOMER_IDS = {
     // One invoice, never paid, written off whole (the seed's pair, spec §4.5).

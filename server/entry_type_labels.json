@@ -17,7 +17,8 @@
         "bill_payment": "Bill payment",
         "vendor_credit": "Vendor credit",
         "vendor_refund": "Vendor refund",
-        "refund_receipt": "Refund receipt"
+        "refund_receipt": "Refund receipt",
+        "write_off": "Write-off"
     },
     "reversalOrigins": ["reversal", "void_reversal", "auto_reversal"]
 }

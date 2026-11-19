@@ -59,6 +59,7 @@ const NAMES = [
     'books_refund_receipt_tax_lines',
     'books_refund_receipt_credits',
     'books_refund_receipt_sale_lines',
+    'books_write_offs',
 ]
 
 function register() {

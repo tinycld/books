@@ -575,6 +575,7 @@ describe('entry type labels match server/entry_type_labels.json', () => {
             vendor_credit: 'Vendor credit',
             vendor_refund: 'Vendor refund',
             refund_receipt: 'Refund receipt',
+            write_off: 'Write-off',
         })
     })
 
@@ -592,6 +593,7 @@ describe('entry type labels match server/entry_type_labels.json', () => {
             'transfer',
             'vendor_credit',
             'vendor_refund',
+            'write_off',
         ])
         for (const [docType, label] of docTypes) {
             expect(entryTypeLabel('manual', '', docType), docType).toBe(label)

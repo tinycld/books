@@ -116,6 +116,15 @@ describe('searchTarget', () => {
         expect(searchTarget('vendor_refund:')).toBeNull()
     })
 
+    // Write-off spec §4.3: a write-off hit (kind write_off) opens the write-off.
+    it('routes a write-off hit to the write-off screen', () => {
+        expect(searchTarget('write_off:abc')).toEqual({
+            path: 'books/write-offs/[id]',
+            id: 'abc',
+        })
+        expect(searchTarget('write_off:')).toBeNull()
+    })
+
     // Receive payment spec §3.9: a payment hit (kind payment) opens the payment.
     it('routes a payment hit to the payment screen', () => {
         expect(searchTarget('payment:abc')).toEqual({

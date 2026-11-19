@@ -17,8 +17,9 @@
 // Go.
 //
 // SERVER-OWNED FIELDS are pinned with `@request.body.x:isset = false`: the
-// number and sequence (assigned at posting), the three totals, the currency,
-// the journal entry, replaced_by, who and when, and sort_key on the invoice;
+// number and sequence (assigned at posting), the three totals, written_off
+// (the sum of the posted write-offs), the currency, the journal entry,
+// replaced_by, who and when, and sort_key on the invoice;
 // amount on a line. Books recomputes every line amount and the invoice's
 // subtotal, tax_total and total with server/document_totals.go at every line
 // or header write of a draft, so the client never sends them.
@@ -73,6 +74,7 @@ const INVOICE_SERVER_FIELDS = [
     'subtotal',
     'tax_total',
     'total',
+    'written_off',
     'currency',
     'entry',
     'replaced_by',
@@ -156,6 +158,9 @@ migrate(
                     { name: 'subtotal', type: 'number', onlyInt: true, min: -MAX_STORED, max: MAX_STORED },
                     { name: 'tax_total', type: 'number', onlyInt: true, min: -MAX_STORED, max: MAX_STORED },
                     { name: 'total', type: 'number', onlyInt: true, min: 0, max: MAX_STORED },
+                    // The cents of the invoice's posted write-offs (2100000027); only
+                    // Books writes it, with balance (server/document_balance.go).
+                    { name: 'written_off', type: 'number', onlyInt: true, min: 0, max: MAX_STORED },
                     // Counts the transactions that changed the draft or its lines. A
                     // save or a post states the value it saw (server/revision.go).
                     { name: 'revision', type: 'number', onlyInt: true, min: 0 },
