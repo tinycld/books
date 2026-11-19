@@ -134,14 +134,40 @@ Plan bars: every plan bar holds with no statistics and under L statistics (`Test
 
 Row counts (S / L, from `perf-results.md`): journal lines 50,000 / 500,000; on Accounts receivable 18,307 / 183,070; customers 201 / 2,001; invoices 9,810 / 98,100; payments 8,000 / 80,000; applications 9,174 / 91,740; credit memos 198 / 1,980; manual AR lines 99 / 990; void invoices 100 / 1,000; void payments 100 / 1,000; open items on the last day 855 / 8,550. The run did not record the count of `books_receivable_items` rows.
 
+### Export in one page (p5-report-perf)
+
+Machine darwin/arm64, 14 CPUs, go1.27.4; 2026-11-19 10:46:20; books e22d200c; core d38be344.
+
+- What changed: core's export reads a report in one page (`Request.PageCap`, set only by the export), where it read pages of 1,000 rows and each page's group statement computed every group level again.
+- What changed: a grouped detail statement computes its open groups once (`gord AS MATERIALIZED`), where the statement's time grew with rows x open groups. Plan: core `docs/plans/2026-11-19-report-perf-export.md`. No Books code changed.
+- Dropped by the human 2026-11-19: the engine tasks of core plan parts 2 and 3 (`docs/plans/2026-11-18-report-perf-part2.md` and `-part3.md`: tasks 3, 11 and 4, and the unplanned tasks 5 to 10). Not needed for the §9 bars: the runs below meet every bar without them.
+
+Scale run (`TestARAgingScale`, `--- PASS`; lane staging `scale-stored-2/perf-results.md`):
+
+| run | statements | L before | L after | S after | ratio L/S | bar | result |
+|---|---|---|---|---|---|---|---|
+| 1 default | 6 | 349.491833ms | 376.846542ms | 70.11275ms | 5.4 | 1s, ratio 15 | pass |
+| 2 past day | 6 | 471.146334ms | 510.213042ms | 83.190667ms | 6.1 | 1s, ratio 15 | pass |
+| 3 largest balance | 6 | 348.225333ms | 368.635333ms | 71.348541ms | 5.2 | 1s, ratio 15 | pass |
+| 4 one family | 7 | 52.453875ms | 55.212875ms | 39.003875ms | 1.4 | 1s, ratio 15 | pass |
+| 5 customer opened | 6 | 370.489875ms | 384.403958ms | 72.349ms | 5.3 | 1s, ratio 15 | pass |
+| 6 item opened | 7 | 447.601542ms | 464.841917ms | 88.160375ms | 5.3 | 1s, ratio 15 | pass |
+| 7 CSV export | 38 | 14.995203s | 1.072764041s | 165.939417ms | 6.5 | 5s, ratio 15 | pass |
+
+Run 7's detail statement computes its open groups once at L: `MATERIALIZE gord` appears 4 times in this run's `perf-plans.md`.
+
+Customer Balance, same day, same dataset (no bar): S 154.082708ms, L 1.600262834s.
+
+Plan bars: every plan bar holds with no statistics and under L statistics (`TestARAgingQueryPlans`, statistics file of this run; `ok`).
+
 ### Record (spec §9)
 
-- machine, date, commit: darwin/arm64, 14 CPUs, go1.27.4; 2026-11-19 09:43:05; books 27e52f36
+- machine, date, commit: darwin/arm64, 14 CPUs, go1.27.4; 2026-11-19 10:46:20; books e22d200c, core d38be344
 - row counts, S and L: see the row counts above (the count of `books_receivable_items` was not recorded)
-- runs 1 to 7: number of statements; median time at S and at L; ratio L/S; bar; pass or fail: statements 6, 6, 6, 7, 6, 7, 76; medians, ratios and results in "Before and after" above; run 7 fails
+- runs 1 to 7: number of statements; median time at S and at L; ratio L/S; bar; pass or fail: statements 6, 6, 6, 7, 6, 7, 38; medians, ratios and results in the table of "Export in one page" above; every run passes
 - statements: one line each — the tables it reads and the index of each read, with no statistics and after `ANALYZE`; pass or fail: in `docs/plans/ar-aging-evidence/perf-plans.md` (the "Statements (L)" section of `perf-results.md`); no plan bar failed
-- indexes added and changes to the stored table or its queries: each with the plan step and the time before and after it: the four indexes and the changes listed under "Stored receivable items"; times before and after in "Before and after" above
-- Customer Balance run of the same day on the same dataset (no bar): S 151.006ms, L 1.585045541s
+- indexes added and changes to the stored table or its queries: each with the plan step and the time before and after it: the four indexes and the changes listed under "Stored receivable items", and core's export in one page under "Export in one page"; times before and after in the tables of both sub-sections above
+- Customer Balance run of the same day on the same dataset (no bar): S 154.082708ms, L 1.600262834s
 - full plan text: docs/plans/ar-aging-evidence/perf-plans.md
 
 ## Phase notes
