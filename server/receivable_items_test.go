@@ -17,17 +17,10 @@ import (
 	"tinycld.org/core/reports"
 )
 
-// The two receivable item views (A/R Aging spec §4 Data): one row per posted
-// Accounts receivable line (books_receivable_lines) and one per application of
-// a posted payment (books_receivable_applications), each given to its open
-// item. Rows are read as a superuser by the view's name, as the report engine
-// reads them, unless a test says it reads them as a reader.
-
-// receivableSources are the six collections both views read (spec §4).
-var receivableSources = []string{
-	"books_accounts", "books_invoices", "books_journal_entries", "books_journal_lines",
-	"books_payment_applications", "books_payments",
-}
+// The stored receivable items (A/R Aging spec §4 Data): one row per posted
+// Accounts receivable line (source line) and one per application of a posted
+// payment (source application), each given to its item. Rows are read as a
+// superuser by their source, unless a test says it reads them as a reader.
 
 // arBook is a migrated app with the ledger hooks, the invoice and credit memo
 // guards, the payment guards and both forms hosts bound, Books' report
@@ -124,7 +117,7 @@ func arJournalPrefix(t *testing.T, b arBook) {
 	}
 }
 
-// arRow is one row of either view.
+// arRow is one stored receivable row.
 type arRow struct {
 	id, customer, entry, date, currency string
 	debit, credit                       int
@@ -135,11 +128,13 @@ type arRow struct {
 
 func (r arRow) net() int { return r.debit - r.credit }
 
-func arRows(t *testing.T, app core.App, view string) []arRow {
+// arRows are the stored rows of one source (receivableSourceLine or
+// receivableSourceApplication).
+func arRows(t *testing.T, app core.App, source string) []arRow {
 	t.Helper()
-	records, err := app.FindAllRecords(view)
+	records, err := app.FindAllRecords(receivableItemsCollection, dbx.HashExp{"source": source})
 	if err != nil {
-		t.Fatalf("read %s: %v", view, err)
+		t.Fatalf("read the %s rows: %v", source, err)
 	}
 	out := make([]arRow, len(records))
 	for i, r := range records {
@@ -181,10 +176,10 @@ func netOf(rows []arRow) int {
 	return sum
 }
 
-// allRows are the rows of both views.
+// allRows are the stored rows of both sources.
 func allRows(t *testing.T, app core.App) []arRow {
 	t.Helper()
-	return append(arRows(t, app, receivableLinesView), arRows(t, app, receivableApplicationsView)...)
+	return append(arRows(t, app, receivableSourceLine), arRows(t, app, receivableSourceApplication)...)
 }
 
 // oneRow fails unless rows holds exactly one row.
@@ -234,57 +229,69 @@ func arLineOf(t *testing.T, b arBook, entryID string) *core.Record {
 	return line
 }
 
-func TestReceivableViewsShape(t *testing.T) {
+func TestReceivableItemsShape(t *testing.T) {
 	b := newARBook(t)
-	for _, name := range []string{receivableLinesView, receivableApplicationsView} {
-		t.Run(name, func(t *testing.T) {
-			col, err := b.app.FindCollectionByNameOrId(name)
-			if err != nil {
-				t.Fatalf("find %s: %v", name, err)
-			}
-			if col.Type != core.CollectionTypeView {
-				t.Errorf("%s type = %q, want view", name, col.Type)
-			}
-			for rule, got := range map[string]*string{"list": col.ListRule, "view": col.ViewRule} {
-				if got == nil || *got != booksReadRule {
-					t.Errorf("%s %s rule = %v, want the Books READ rule", name, rule, got)
-				}
-			}
-			for rule, got := range map[string]*string{"create": col.CreateRule, "update": col.UpdateRule, "delete": col.DeleteRule} {
-				if got != nil {
-					t.Errorf("%s %s rule = %q, want nil (nothing writes a view)", name, rule, *got)
-				}
-			}
-			want := map[string]string{
-				"customer": core.FieldTypeRelation, "entry": core.FieldTypeRelation,
-				"debit": core.FieldTypeNumber, "credit": core.FieldTypeNumber,
-				"date": core.FieldTypeText, "currency": core.FieldTypeText, "item": core.FieldTypeText,
-				"item_kind": core.FieldTypeText, "item_number": core.FieldTypeText, "due_date": core.FieldTypeText,
-				"item_seq": core.FieldTypeNumber,
-			}
-			for field, typ := range want {
-				f := col.Fields.GetByName(field)
-				if f == nil {
-					t.Errorf("%s has no %s field", name, field)
-					continue
-				}
-				if f.Type() != typ {
-					t.Errorf("%s.%s type = %q, want %q", name, field, f.Type(), typ)
-				}
-			}
-		})
+	col, err := b.app.FindCollectionByNameOrId(receivableItemsCollection)
+	if err != nil {
+		t.Fatalf("find %s: %v", receivableItemsCollection, err)
+	}
+	if col.Type != core.CollectionTypeBase {
+		t.Errorf("type = %q, want base", col.Type)
+	}
+	for rule, got := range map[string]*string{"list": col.ListRule, "view": col.ViewRule} {
+		if got == nil || *got != booksReadRule {
+			t.Errorf("%s rule = %v, want the Books READ rule", rule, got)
+		}
+	}
+	for rule, got := range map[string]*string{"create": col.CreateRule, "update": col.UpdateRule, "delete": col.DeleteRule} {
+		if got != nil {
+			t.Errorf("%s rule = %q, want nil (only Books writes the rows)", rule, *got)
+		}
+	}
+	want := map[string]string{
+		"source":   core.FieldTypeSelect,
+		"customer": core.FieldTypeRelation, "entry": core.FieldTypeRelation,
+		"debit": core.FieldTypeNumber, "credit": core.FieldTypeNumber,
+		"date": core.FieldTypeText, "currency": core.FieldTypeText, "item": core.FieldTypeText,
+		"item_kind": core.FieldTypeText, "item_number": core.FieldTypeText, "due_date": core.FieldTypeText,
+		"item_seq": core.FieldTypeNumber, "settled": core.FieldTypeText,
+	}
+	for field, typ := range want {
+		f := col.Fields.GetByName(field)
+		if f == nil {
+			t.Errorf("no %s field", field)
+			continue
+		}
+		if f.Type() != typ {
+			t.Errorf("%s type = %q, want %q", field, f.Type(), typ)
+		}
+	}
+	indexes := strings.Join(col.Indexes, "\n")
+	for _, index := range []string{
+		"idx_books_receivable_items_entry", "idx_books_receivable_items_item",
+		"idx_books_receivable_items_customer", "idx_books_receivable_items_settled",
+	} {
+		if !strings.Contains(indexes, index) {
+			t.Errorf("no index %s; indexes:\n%s", index, indexes)
+		}
 	}
 
+	// The table replaced the two views: a new database has neither, and
+	// Register declares neither to the change signal.
+	gone := []string{"books_receivable_lines", "books_receivable_applications"}
+	for _, name := range gone {
+		if _, err := b.app.FindCollectionByNameOrId(name); err == nil {
+			t.Errorf("the view %s still exists", name)
+		}
+	}
 	changesignal.ResetForTesting()
 	app, _ := newRegisteredApp(t)
 	if err := changesignal.CheckViews(app); err != nil {
 		t.Fatalf("CheckViews on an app wired by Register: %v", err)
 	}
-	for _, name := range []string{receivableLinesView, receivableApplicationsView} {
-		got := slices.Clone(changesignal.RegisteredViews()[name])
-		slices.Sort(got)
-		if !slices.Equal(got, receivableSources) {
-			t.Errorf("Register registered %s over %v, want exactly %v", name, got, receivableSources)
+	for _, name := range gone {
+		if sources, ok := changesignal.RegisteredViews()[name]; ok {
+			t.Errorf("Register still registers the view %s over %v", name, sources)
 		}
 	}
 }
@@ -301,7 +308,7 @@ func TestReceivableLinesInvoice(t *testing.T) {
 
 	entryID := inv.GetString("entry")
 	line := arLineOf(t, b, entryID)
-	rows := arRows(t, b.app, receivableLinesView)
+	rows := arRows(t, b.app, receivableSourceLine)
 	got := oneRow(t, "the invoice's rows", ofEntry(rows, entryID))
 	want := arRow{
 		id: line.Id, customer: c.Id, entry: entryID, date: "2026-08-04", currency: "USD",
@@ -327,8 +334,8 @@ func TestReceivableLinesPayment(t *testing.T) {
 	inv := arInvoice(t, b, c, "2026-08-04", "2026-09-03", 100000)
 	p := arPayment(t, b, c, "2026-09-10", 70000, map[string]int{inv.Id: 55000})
 
-	lines := arRows(t, b.app, receivableLinesView)
-	apps := arRows(t, b.app, receivableApplicationsView)
+	lines := arRows(t, b.app, receivableSourceLine)
+	apps := arRows(t, b.app, receivableSourceApplication)
 	own := oneRow(t, "the payment's lines rows", ofEntry(lines, p.GetString("entry")))
 	if want := (arRow{
 		id: arLineOf(t, b, p.GetString("entry")).Id, customer: c.Id, entry: p.GetString("entry"),
@@ -357,7 +364,7 @@ func TestReceivableLinesPayment(t *testing.T) {
 		b := newARBook(t)
 		inv := arInvoice(t, b, b.docs.customer, "2026-08-04", "2026-09-03", 40000)
 		p := arPayment(t, b, b.docs.customer, "2026-09-10", 40000, map[string]int{inv.Id: 40000})
-		own := oneRow(t, "the payment's lines rows", ofEntry(arRows(t, b.app, receivableLinesView), p.GetString("entry")))
+		own := oneRow(t, "the payment's lines rows", ofEntry(arRows(t, b.app, receivableSourceLine), p.GetString("entry")))
 		if own.credit != 0 || own.debit != 0 {
 			t.Errorf("a payment applied in full: debit %d credit %d, want 0 and 0", own.debit, own.credit)
 		}
@@ -366,11 +373,11 @@ func TestReceivableLinesPayment(t *testing.T) {
 	t.Run("applied to no invoice", func(t *testing.T) {
 		b := newARBook(t)
 		p := arPayment(t, b, b.docs.customer, "2026-09-10", 25000, nil)
-		own := oneRow(t, "the payment's lines rows", ofEntry(arRows(t, b.app, receivableLinesView), p.GetString("entry")))
+		own := oneRow(t, "the payment's lines rows", ofEntry(arRows(t, b.app, receivableSourceLine), p.GetString("entry")))
 		if own.credit != 25000 || own.item != p.Id {
 			t.Errorf("a payment applied to no invoice: credit %d item %q, want 25000 and the payment", own.credit, own.item)
 		}
-		if n := len(arRows(t, b.app, receivableApplicationsView)); n != 0 {
+		if n := len(arRows(t, b.app, receivableSourceApplication)); n != 0 {
 			t.Errorf("a payment applied to no invoice gives %d applications rows, want 0", n)
 		}
 	})
@@ -380,11 +387,11 @@ func TestReceivableLinesPayment(t *testing.T) {
 		inv := arInvoice(t, b, b.docs.customer, "2026-08-04", "2026-09-03", 40000)
 		draft := b.docs.mkPayment(t, map[string]any{"date": "2026-09-10", "amount": 30000})
 		arApply(t, b, draft, map[string]int{inv.Id: 30000})
-		lines := arRows(t, b.app, receivableLinesView)
+		lines := arRows(t, b.app, receivableSourceLine)
 		if n := len(ofItem(lines, draft.Id)); n != 0 {
 			t.Errorf("a draft payment gives %d lines rows, want 0", n)
 		}
-		if n := len(arRows(t, b.app, receivableApplicationsView)); n != 0 {
+		if n := len(arRows(t, b.app, receivableSourceApplication)); n != 0 {
 			t.Errorf("a draft payment gives %d applications rows, want 0", n)
 		}
 	})
@@ -393,7 +400,7 @@ func TestReceivableLinesPayment(t *testing.T) {
 func TestReceivableLinesCreditMemo(t *testing.T) {
 	b := newARBook(t)
 	memo := arCreditMemo(t, b, b.docs.customer, "2026-10-20", 63500)
-	got := oneRow(t, "the credit memo's rows", ofEntry(arRows(t, b.app, receivableLinesView), memo.GetString("entry")))
+	got := oneRow(t, "the credit memo's rows", ofEntry(arRows(t, b.app, receivableSourceLine), memo.GetString("entry")))
 	if got.credit != 63500 || got.debit != 0 || got.item != memo.Id || got.kind != "credit_memo" ||
 		got.number != memo.GetString("number") || got.seq != entrySeq(t, b, memo.GetString("entry")) || got.due != "2026-10-20" {
 		t.Errorf("the credit memo's row = %+v, want credit 63500, item the memo, kind credit_memo, number %q (sequence %d), due 2026-10-20",
@@ -417,7 +424,7 @@ func TestReceivableLinesJournal(t *testing.T) {
 		jnLine{account: b.receivable, debit: 7000, position: 1, customer: c.Id},
 		jnLine{account: b.income, credit: 12000, position: 2})
 
-	rows := arRows(t, b.app, receivableLinesView)
+	rows := arRows(t, b.app, receivableSourceLine)
 	got := oneRow(t, "the manual entry's rows", ofEntry(rows, one.Id))
 	line := arLineOf(t, b, one.Id)
 	if got.item != line.Id || got.kind != "entry" || got.number != one.GetString("number") ||
@@ -445,7 +452,7 @@ func TestReceivableLinesJournal(t *testing.T) {
 			t.Fatalf("void entry %s: %v", e.GetString("number"), err)
 		}
 	}
-	rows = arRows(t, b.app, receivableLinesView)
+	rows = arRows(t, b.app, receivableSourceLine)
 	revOne := findReversal(t, b.app, one.Id)
 	requireOneItem(t, "the voided entry and its reversal",
 		append(ofEntry(rows, one.Id), ofEntry(rows, revOne.Id)...), line.Id, 0)
@@ -470,7 +477,7 @@ func TestReceivableLinesVoids(t *testing.T) {
 			t.Fatalf("void the invoice: %v", err)
 		}
 		rev := findReversal(t, b.app, inv.GetString("entry"))
-		rows := arRows(t, b.app, receivableLinesView)
+		rows := arRows(t, b.app, receivableSourceLine)
 		both := append(ofEntry(rows, inv.GetString("entry")), ofEntry(rows, rev.Id)...)
 		if len(both) != 2 {
 			t.Fatalf("the invoice and its reversal give %d rows, want 2: %+v", len(both), both)
@@ -488,11 +495,11 @@ func TestReceivableLinesVoids(t *testing.T) {
 		if err := voidPaymentAs(b.app, p.Id, b.docs.users.admin.Id); err != nil {
 			t.Fatalf("void the payment: %v", err)
 		}
-		if n := len(ofEntry(arRows(t, b.app, receivableApplicationsView), p.GetString("entry"))); n != 0 {
+		if n := len(ofEntry(arRows(t, b.app, receivableSourceApplication), p.GetString("entry"))); n != 0 {
 			t.Errorf("a voided payment gives %d applications rows, want 0", n)
 		}
 		rev := findReversal(t, b.app, p.GetString("entry"))
-		rows := arRows(t, b.app, receivableLinesView)
+		rows := arRows(t, b.app, receivableSourceLine)
 		own := oneRow(t, "the voided payment's own row", ofEntry(rows, p.GetString("entry")))
 		if own.credit != 30000 {
 			t.Errorf("the voided payment's own row credits %d, want the whole amount 30000", own.credit)
@@ -624,25 +631,27 @@ func arTieBook(t *testing.T, b arBook) []*core.Record {
 	return []*core.Record{harbor, northwind, portland}
 }
 
-func TestReceivableViewsAccess(t *testing.T) {
+func TestReceivableItemsAccess(t *testing.T) {
 	b := newARBook(t)
 	inv := arInvoice(t, b, b.docs.customer, "2026-08-04", "2026-09-03", 100000)
 	arPayment(t, b, b.docs.customer, "2026-09-10", 70000, map[string]int{inv.Id: 55000})
 
-	lines := "/api/collections/" + receivableLinesView + "/records"
-	apps := "/api/collections/" + receivableApplicationsView + "/records"
+	rows := "/api/collections/" + receivableItemsCollection + "/records"
+	lines := rows + "?filter=(source='" + receivableSourceLine + "')"
+	apps := rows + "?filter=(source='" + receivableSourceApplication + "')"
 	reader, none := tokenFor(t, b.reader), tokenFor(t, b.none)
 	apiSeq(t, b.app,
 		apiReq{method: http.MethodGet, url: lines, token: reader, want: http.StatusOK, content: []string{`"totalItems":2`}},
 		apiReq{method: http.MethodGet, url: apps, token: reader, want: http.StatusOK, content: []string{`"totalItems":1`}},
 		apiReq{method: http.MethodGet, url: lines, token: none, want: http.StatusOK, content: []string{`"totalItems":0`}},
 		apiReq{method: http.MethodGet, url: apps, token: none, want: http.StatusOK, content: []string{`"totalItems":0`}},
+		apiReq{method: http.MethodGet, url: rows, token: none, want: http.StatusOK, content: []string{`"totalItems":0`}},
 	)
 }
 
-// arEngineSpec is the two engine pins of spec §4 Engine reach: a union over two
-// view collections, grouped on a text column, with a group label that reads
-// min of two text fields.
+// arEngineSpec is the engine pin of spec §4 Engine reach: the stored rows
+// grouped on a text column, with a group label that reads min of two text
+// fields.
 func arEngineSpec() *reports.Spec {
 	kindLabel := op("case",
 		op("eq", op("min", fld("item_kind")), lit("invoice")), lit("Invoice"),

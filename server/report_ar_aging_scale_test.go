@@ -1414,7 +1414,9 @@ func TestARAgingBulkWriterMatchesPosters(t *testing.T) {
 		}
 	}
 
-	for _, view := range []string{receivableLinesView, receivableApplicationsView} {
+	// The stored rows of each source: the bulk writer's rebuild against the
+	// posters' hooks.
+	for _, view := range []string{receivableSourceLine, receivableSourceApplication} {
 		postedEntries := map[string]bool{inv.GetString("entry"): true, pay.GetString("entry"): true, memo.GetString("entry"): true, je.Id: true}
 		var want, got []arRow
 		for _, r := range arRows(t, b.app, view) {
@@ -1677,9 +1679,7 @@ func arCountsOf(t *testing.T, b arBook, data arDataset) arCounts {
 		manual:       count("SELECT COUNT(*) " + ar + " AND l.entry IN (SELECT id FROM books_journal_entries WHERE origin = 'manual')"),
 		voidInvoices: count("SELECT COUNT(*) FROM books_invoices WHERE status = 'void'"),
 		voidPayments: count("SELECT COUNT(*) FROM books_payments WHERE status = 'void'"),
-		openItems: count("SELECT COUNT(*) FROM (SELECT item FROM (" +
-			"SELECT item, date, debit, credit FROM books_receivable_lines UNION ALL " +
-			"SELECT item, date, debit, credit FROM books_receivable_applications) " +
+		openItems: count("SELECT COUNT(*) FROM (SELECT item FROM books_receivable_items " +
 			"WHERE date <= {:day} GROUP BY item HAVING SUM(debit - credit) != 0)"),
 	}
 }
