@@ -5,6 +5,7 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
+import type { LinkSource } from '../lib/document-source-links'
 import { mergeRecoveries } from '../lib/live-recovery'
 import { columnsOrThrow } from '../lib/record-save'
 import {
@@ -26,7 +27,6 @@ import {
     linkedReadIds,
     NO_DOCUMENT_PAYMENTS,
     NO_ESTIMATE_SOURCE,
-    NO_INVOICE_SOURCE,
     type RefundReceiptKindFields,
     salesLineMapperOf,
     useHeldRecord,
@@ -36,6 +36,103 @@ import { useDepositAccounts } from './useDepositAccounts'
 import { usePaidFromAccounts } from './usePaidFromAccounts'
 
 type RefundReceiptInsertColumns = typeof EMPTY_REFUND_RECEIPT_COLUMNS
+
+/**
+ * The source a refund's new form is made from: the sales receipt it refunds
+ * (`?sales_receipt`) or the credit memo it pays out (`?credit_memo`; it wins when both are
+ * given), or the one a new correction keeps, with its lines in position order. This module
+ * holds the source collections' `useStore` for the refund's data source. Each read is idle
+ * (ready and empty) with no id; a failed read is the screen's load error, and its recovery
+ * joins the screen's one Retry (documentRead).
+ */
+export function useRefundSourceReads(input: {
+    salesReceipt: string
+    creditMemo: string
+}): Pick<DocumentScreenReads, 'linkSource' | 'linkSourceLines'> {
+    const [receiptsCollection, receiptLinesCollection, memosCollection, memoLinesCollection] =
+        useStore(
+            'books_sales_receipts',
+            'books_sales_receipt_lines',
+            'books_credit_memos',
+            'books_credit_memo_lines'
+        )
+    const memoId = input.creditMemo
+    const receiptId = memoId ? '' : input.salesReceipt
+    const receiptQuery = useLiveQuery({
+        query: q => {
+            if (!receiptId) return undefined
+            return q
+                .from({ receipt: receiptsCollection })
+                .where(({ receipt }) => eq(receipt.id, receiptId))
+                .findOne()
+        },
+        queryKey: ['books.refundReceipt.salesReceipt', receiptId],
+    })
+    const receiptLinesQuery = useLiveQuery({
+        query: q => {
+            if (!receiptId) return undefined
+            return q
+                .from({ line: receiptLinesCollection })
+                .where(({ line }) => eq(line.sales_receipt, receiptId))
+                .orderBy(({ line }) => line.position)
+        },
+        queryKey: ['books.refundReceipt.salesReceipt-lines', receiptId],
+    })
+    const memoQuery = useLiveQuery({
+        query: q => {
+            if (!memoId) return undefined
+            return q
+                .from({ memo: memosCollection })
+                .where(({ memo }) => eq(memo.id, memoId))
+                .findOne()
+        },
+        queryKey: ['books.refundReceipt.creditMemo', memoId],
+    })
+    const memoLinesQuery = useLiveQuery({
+        query: q => {
+            if (!memoId) return undefined
+            return q
+                .from({ line: memoLinesCollection })
+                .where(({ line }) => eq(line.credit_memo, memoId))
+                .orderBy(({ line }) => line.position)
+        },
+        queryKey: ['books.refundReceipt.creditMemo-lines', memoId],
+    })
+    const receipt = receiptQuery.data
+    const memo = memoQuery.data
+    const linkSource = useMemo<LinkSource | undefined>(() => {
+        if (memoId) return memo ? { key: 'credit_memo', row: memo } : undefined
+        return receipt ? { key: 'sales_receipt', row: receipt } : undefined
+    }, [memoId, memo, receipt])
+    if (memoId) {
+        return {
+            linkSource: documentRead(memoId, memoQuery, linkSource, [memosCollection]),
+            linkSourceLines: documentRead(memoId, memoLinesQuery, memoLinesQuery.data ?? [], [
+                memoLinesCollection,
+            ]),
+        }
+    }
+    return {
+        linkSource: documentRead(receiptId, receiptQuery, linkSource, [receiptsCollection]),
+        linkSourceLines: documentRead(receiptId, receiptLinesQuery, receiptLinesQuery.data ?? [], [
+            receiptLinesCollection,
+        ]),
+    }
+}
+
+// The total of the posted payout a correction replaces, in cents: the memo's unapplied
+// credit the correction is held to is the memo's balance plus it (the server gives the
+// original's credit back first, server/refund_receipt_payout.go). 0 when the form corrects
+// no payout (a new form, a copy, a correction of a plain refund).
+function replacedPayoutOf(
+    input: DocumentScreenInput,
+    record: DocumentRecord | undefined,
+    sourceRow: BooksRefundReceipts | undefined
+): number {
+    const replacedId = input.id === null ? (input.replaces ?? '') : (record?.replaces ?? '')
+    if (!sourceRow || replacedId === '' || sourceRow.id !== replacedId) return 0
+    return sourceRow.credit_memo === '' ? 0 : sourceRow.total
+}
 
 // The refund's own columns go into `kindFields`; the row keeps the shared ones.
 function refundReceiptSourceOf<R extends BooksRefundReceipts>(
@@ -209,7 +306,17 @@ function useRefundReceiptScreenReads(
         },
         queryKey: ['books.refundReceipt.taxLines', ids.postedReadsId],
     })
-    const formStart = useRefundReceiptFormStart()
+    // Only a new form reads it: the source it is made from (`?sales_receipt`,
+    // `?credit_memo`), or, on a new correction, the one the posted refund names (the
+    // correction keeps the link, and the link row names it). A stored refund names its
+    // source through `salesReceiptRow` / `creditMemoRow`.
+    const isNew = input.id === null
+    const corrected = isNew && input.replaces ? sourceRow : undefined
+    const sourceReads = useRefundSourceReads({
+        salesReceipt: isNew ? input.salesReceipt || (corrected?.sales_receipt ?? '') : '',
+        creditMemo: isNew ? input.creditMemo || (corrected?.credit_memo ?? '') : '',
+    })
+    const formStart = useRefundReceiptFormStart(replacedPayoutOf(input, record, sourceRow))
     return {
         record: documentRead(id, refundQuery, record, [
             refundsCollection,
@@ -226,10 +333,9 @@ function useRefundReceiptScreenReads(
             sourceLinesQuery.data ?? [],
             [linesCollection]
         ),
-        // A refund is never made from an estimate or an invoice, and no payment is applied
-        // to it.
+        // A refund is never made from an estimate, and no payment is applied to it.
         ...NO_ESTIMATE_SOURCE,
-        ...NO_INVOICE_SOURCE,
+        ...sourceReads,
         ...NO_DOCUMENT_PAYMENTS,
         taxLines: documentRead(ids.postedReadsId, taxLinesQuery, taxLinesQuery.data ?? [], [
             taxLinesCollection,
@@ -245,22 +351,24 @@ function useRefundReceiptScreenReads(
  * offers none). The posted balances (usePaidFromAccounts) are read here too, so the
  * Balance line under Refund from never waits on a read of its own: a failed read of
  * either shows the screen's load error, whose Retry runs both reads again.
+ * `replacedPayout` is the total of the payout a correction replaces (replacedPayoutOf),
+ * which the payout's cap adds to the memo's balance.
  */
-function useRefundReceiptFormStart(): DocumentScreenReads['formStart'] {
+function useRefundReceiptFormStart(replacedPayout: number): DocumentScreenReads['formStart'] {
     const deposit = useDepositAccounts()
     const balances = usePaidFromAccounts()
     const { rows } = deposit
     const data = useMemo<DocumentFormStart>(() => {
         const refundFrom = refundFromStart(rows)
         return {
-            start: { kind: 'refund_receipt', refundFrom },
+            start: { kind: 'refund_receipt', refundFrom, replacedPayout },
             deposit: {
                 hasOptions: refundFrom.activeIds.size > 0,
                 hidden: false,
                 field: 'refund_from',
             },
         }
-    }, [rows])
+    }, [rows, replacedPayout])
     return {
         data,
         isReady: deposit.isReady && balances.isReady,

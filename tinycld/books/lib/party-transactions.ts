@@ -171,6 +171,17 @@ export function creditMemoStatus(row: { status: string; balance: number }): {
     return { label: 'Applied', tone: 'success' }
 }
 
+// A posted refund receipt reads Refunded (refund receipt spec §3.11, §3.12). The sales
+// receipt's and the credit memo's sections use it.
+export function refundReceiptStatus(row: { status: string }): {
+    label: string
+    tone: StatusTone
+} {
+    if (row.status === 'draft') return { ...DRAFT }
+    if (row.status === 'void') return { ...VOID }
+    return { label: 'Refunded', tone: 'success' }
+}
+
 export function invoiceRow(row: InvoiceInput, today: string): PartyTransactionRow {
     return {
         id: row.id,

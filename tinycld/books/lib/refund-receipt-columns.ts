@@ -7,7 +7,8 @@ import { type ColumnsParse, optionalText, parseColumns } from './record-columns'
  * The built-in refund receipt columns the form writes. Every key is optional: core
  * `splitValues` leaves out a key whose value is undefined, and an edit patch holds only
  * the dirty keys. Strict, so a column the refund does not have (Terms, Due date) is
- * refused. The source link (`sales_receipt`, `credit_memo`) is no field of the form.
+ * refused. The source link (`sales_receipt`, `credit_memo`) is no field of the form: the
+ * save adds the column its link names (useDocumentSave), as a credit memo's `invoice`.
  */
 export const refundReceiptColumnsSchema = z.strictObject({
     customer: optionalText,
@@ -20,6 +21,8 @@ export const refundReceiptColumnsSchema = z.strictObject({
     refund_from: optionalText,
     message: optionalText,
     memo: optionalText,
+    sales_receipt: optionalText,
+    credit_memo: optionalText,
 })
 
 export type RefundReceiptColumns = z.infer<typeof refundReceiptColumnsSchema>
@@ -31,12 +34,11 @@ export function refundReceiptColumnsFrom(
 }
 
 // The base of an insert, so a column the form left out is stored empty. A new refund is
-// always a draft; `replaces` is set by a correction. No source link is written yet.
+// always a draft; `replaces` is set by a correction, a link by a refund started from its
+// source or a correction of a linked refund.
 export const EMPTY_REFUND_RECEIPT_COLUMNS: Required<RefundReceiptColumns> & {
     status: 'draft'
     replaces: string
-    sales_receipt: string
-    credit_memo: string
 } = {
     customer: '',
     bill_to: null,

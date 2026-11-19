@@ -270,40 +270,40 @@ describe('documentScreenState for a credit memo', () => {
     })
 
     // Create credit memo (spec §3.2, §3.9): `books/credit-memos/new?invoice=<id>`.
-    // `invoiceStatus` is the invoice's status, null when it does not exist or cannot be read.
-    // Only a posted invoice can be credited.
+    // `sourceAllowed` is true for a posted invoice, false for a draft or void one, and null
+    // when the invoice does not exist or cannot be read. Only a posted invoice can be credited.
     it('a new memo from a posted invoice is the form for a writer', () => {
-        expect(documentScreenState({ ...fresh(), invoiceStatus: 'posted' })).toBe('form')
+        expect(documentScreenState({ ...fresh(), sourceAllowed: true })).toBe('form')
     })
 
     it.each([
-        'draft',
-        'void',
-        null,
-    ] as const)('a new memo from an invoice whose status is %s cannot be credited', invoiceStatus => {
-        expect(documentScreenState({ ...fresh(), invoiceStatus })).toBe('cannot-credit')
+        ['draft', false],
+        ['void', false],
+        ['missing', null],
+    ] as const)('a new memo from an invoice whose status is %s cannot be credited', (_status, sourceAllowed) => {
+        expect(documentScreenState({ ...fresh(), sourceAllowed })).toBe('cannot-start')
         expect(CREDIT_MEMO_KIND.messages.cannotCredit).toBe('This invoice cannot be credited')
     })
 
-    it('no ?invoice (invoiceStatus undefined) changes nothing', () => {
-        expect(documentScreenState({ ...fresh(), invoiceStatus: undefined })).toBe('form')
-        expect(documentScreenState({ ...fresh(), invoiceStatus: undefined, canWrite: false })).toBe(
+    it('no ?invoice (sourceAllowed undefined) changes nothing', () => {
+        expect(documentScreenState({ ...fresh(), sourceAllowed: undefined })).toBe('form')
+        expect(documentScreenState({ ...fresh(), sourceAllowed: undefined, canWrite: false })).toBe(
             'no-access'
         )
-        expect(documentScreenState({ ...draft(), invoiceStatus: undefined })).toBe('form')
+        expect(documentScreenState({ ...draft(), sourceAllowed: undefined })).toBe('form')
         expect(
-            documentScreenState({ ...draft(), status: 'posted', invoiceStatus: undefined })
+            documentScreenState({ ...draft(), status: 'posted', sourceAllowed: undefined })
         ).toBe('read')
     })
 
     it('a failed read of the invoice is the error', () => {
-        expect(documentScreenState({ ...fresh(), invoiceStatus: null, isError: true })).toBe(
+        expect(documentScreenState({ ...fresh(), sourceAllowed: null, isError: true })).toBe(
             'error'
         )
         expect(
             documentScreenState({
                 ...fresh(),
-                invoiceStatus: undefined,
+                sourceAllowed: undefined,
                 isError: true,
                 isReady: false,
             })

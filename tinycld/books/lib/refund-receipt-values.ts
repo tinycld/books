@@ -1,7 +1,7 @@
 // The refund receipt form's own start values: a new form's, a copy's and a correction's.
 // The shared values (lines, totals) are in lib/document-values.ts.
 
-import type { BooksRefundReceipts } from '../types'
+import type { BooksCreditMemos, BooksRefundReceipts, BooksSalesReceipts } from '../types'
 import {
     type DepositAccountRow,
     defaultRefundFromAccount,
@@ -117,6 +117,69 @@ export function copyRefundReceiptValues(
         credit_memo: '',
         lines: linesWithNewIds(lines),
         message: refund.message,
+        memo: '',
+    }
+}
+
+// Read view "Refund" on a posted sales receipt (`?sales_receipt=<id>`, spec §3.2): a new
+// draft with the receipt's customer (or none), Bill to, Email, Tax and payment method and
+// a copy of every line (kind, product, description, quantity, rate or percent, taxable)
+// under new ids, dated the day given; Refund from is the receipt's deposit account while it
+// is an active refund account, else the default rule; no reference no., an empty message
+// and an empty memo. It names the receipt in `sales_receipt` and replaces nothing. Bill to
+// and Email are the receipt's snapshot, as a credit memo made from an invoice takes the
+// invoice's.
+export function refundValuesFromSalesReceipt(
+    receipt: Pick<
+        BooksSalesReceipts,
+        'id' | 'customer' | 'bill_to' | 'email' | 'tax_rate' | 'payment_method' | 'deposit_to'
+    >,
+    lines: readonly DocumentLineRow[],
+    today: string,
+    refundFrom: CopyDeposit
+): RefundReceiptFormValues {
+    return {
+        customer: receipt.customer,
+        bill_to: receipt.bill_to,
+        email: receipt.email,
+        date: today,
+        tax_rate: receipt.tax_rate,
+        payment_method: receipt.payment_method,
+        reference_no: '',
+        refund_from: copyRefundFrom(receipt.deposit_to, refundFrom),
+        sales_receipt: receipt.id,
+        credit_memo: '',
+        lines: linesWithNewIds(lines),
+        message: '',
+        memo: '',
+    }
+}
+
+// Read view "Refund credit" on a posted credit memo (`?credit_memo=<id>`, spec §3.3): a
+// payout with the memo's customer, Bill to, Email and Tax and a copy of every line under
+// new ids, dated the day given or the memo's date when that is later (a payout is never
+// dated before its memo); Refund from by the default rule; no payment method, no reference
+// no., an empty message and an empty memo. It names the memo in `credit_memo`.
+export function refundValuesFromCreditMemo(
+    memo: Pick<BooksCreditMemos, 'id' | 'customer' | 'bill_to' | 'email' | 'tax_rate' | 'date'>,
+    lines: readonly DocumentLineRow[],
+    today: string,
+    refundFrom: CopyDeposit
+): RefundReceiptFormValues {
+    const memoDay = memo.date.slice(0, 10)
+    return {
+        customer: memo.customer,
+        bill_to: memo.bill_to,
+        email: memo.email,
+        date: memoDay > today ? memoDay : today,
+        tax_rate: memo.tax_rate,
+        payment_method: '',
+        reference_no: '',
+        refund_from: refundFrom.defaultId,
+        sales_receipt: '',
+        credit_memo: memo.id,
+        lines: linesWithNewIds(lines),
+        message: '',
         memo: '',
     }
 }
