@@ -15,13 +15,15 @@ import { centsOf } from './customer-balance-helpers'
 // The fixed days of the e2e (plan: no document before 2026-07-01, As of set to fixed days).
 // An invoice dated `invoice` and due `due` is 40 days past due on `aged40` (31 - 60), one
 // day on `aged1` (1 - 30), not yet past due on `due` (Current), and not open on
-// `beforeInvoice`.
+// `beforeInvoice`. The invoices are posted on the shared e2e database and charge the
+// default tax rate, so `invoice` is a day no report spec reads: not September 2026, the
+// Sales Tax Liability's empty month, nor October 2026, its seeded month.
 export const AR_DAY = {
-    invoice: '2026-09-01',
-    due: '2026-10-01',
-    aged40: '2026-11-10',
-    aged1: '2026-10-02',
-    beforeInvoice: '2026-08-31',
+    invoice: '2026-07-01',
+    due: '2026-07-31',
+    aged40: '2026-09-09',
+    aged1: '2026-08-01',
+    beforeInvoice: '2026-06-30',
 } as const
 
 // The shipped A/R Aging from the Books hub, reached as openCustomerBalance reaches the
