@@ -69,10 +69,43 @@ const SUMMIT = 'Summit IT Services'
 // holds every spec's entries and mounts only the rows near its view). After 2026-06-30,
 // the close date books-settings.spec.ts holds on the shared DB.
 const JOURNAL_DAY = '2026-07-29'
-// The day of the section-figure test's entry. Other workers post expenses today on the
-// shared DB, so a Total Expenses of today could change between the statement's read and
-// the drilled report's; no spec or seed posts on this day. After 2026-06-30.
-const SECTION_DAY = '2026-07-23'
+// The days of the section-figure test's entry, one for each worker that runs at the same
+// time. The test reads Total Expenses of its day twice (the statement, then the drilled
+// report), so a post by another test on that day between the reads changes the second
+// read: other workers post expenses today on the shared DB, and the copies of this test
+// under --repeat-each run side by side. No spec or seed posts on these days, and a worker
+// runs one test at a time, so only that worker's copies post on its day, one after the
+// other. After 2026-06-30, the close date books-settings.spec.ts holds.
+const SECTION_DAYS = [
+    '2026-07-03',
+    '2026-07-04',
+    '2026-07-05',
+    '2026-07-06',
+    '2026-07-07',
+    '2026-07-08',
+    '2026-07-10',
+    '2026-07-12',
+    '2026-07-13',
+    '2026-07-14',
+    '2026-07-16',
+    '2026-07-17',
+    '2026-07-18',
+    '2026-07-21',
+    '2026-07-23',
+    '2026-07-24',
+    '2026-07-26',
+    '2026-07-27',
+    '2026-07-28',
+]
+
+// This worker's section day. parallelIndex is unique among the workers that run at the
+// same time, so two workers never share a day.
+function sectionDay(): string {
+    const index = test.info().parallelIndex
+    const day = SECTION_DAYS[index]
+    if (!day) throw new Error(`No section day for parallel worker ${index}: add days`)
+    return day
+}
 const EQUITY = { type: 'Equity', detailType: "Owner's equity" }
 const EXPENSES = 'Expenses'
 const TOTAL_EXPENSES = `Total ${EXPENSES}`
@@ -679,10 +712,11 @@ test.describe('report-drill-down: screen', () => {
     }) => {
         await startBooks(page)
         const expense = accountName('TD3 expense')
+        const day = sectionDay()
         await createAccounts(page, [{ name: expense, kind: EXPENSE }])
         await openEntriesFromSidebar(page)
         await postEntryOn(page, {
-            date: SECTION_DAY,
+            date: day,
             memo: uniqueName('TD3 entry'),
             lines: [
                 { account: expense, debit: '57.00' },
@@ -691,7 +725,7 @@ test.describe('report-drill-down: screen', () => {
         })
 
         await openProfitAndLoss(page)
-        await choosePeriod(page, { from: SECTION_DAY, to: SECTION_DAY })
+        await choosePeriod(page, { from: day, to: day })
         await collapseAll(page, EXPENSES)
         await expect(rowOf(page, TOTAL_EXPENSES)).toBeVisible()
         const source = await tdSnapshot(page)
