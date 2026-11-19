@@ -1,4 +1,27 @@
 import { formatMoney, MINUS, maxStoredAmount, TOO_LARGE_TEXT } from './money'
+import type { DocumentPartyKey } from './sales-document-kinds'
+
+export interface PartyBalanceSources {
+    // The column of books_party_balances that names the party.
+    balanceField: DocumentPartyKey
+    // The party's documents whose open balance is Overdue: invoices for a customer (A/R),
+    // bills for a vendor (A/P).
+    overdueCollection: 'books_invoices' | 'books_bills'
+    // The column of overdueCollection that names the party.
+    overdueField: DocumentPartyKey
+}
+
+// Where the party page's balance reads (vendor-pages spec §3.2).
+export function partyBalanceSources(party: DocumentPartyKey): PartyBalanceSources {
+    if (party === 'customer') {
+        return {
+            balanceField: 'customer',
+            overdueCollection: 'books_invoices',
+            overdueField: 'customer',
+        }
+    }
+    return { balanceField: 'vendor', overdueCollection: 'books_bills', overdueField: 'vendor' }
+}
 
 const LOADING_TEXT = '—'
 

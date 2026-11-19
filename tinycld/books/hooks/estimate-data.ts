@@ -21,7 +21,7 @@ import {
     linkedReadIds,
     NO_DOCUMENT_PAYMENTS,
     NO_ESTIMATE_SOURCE,
-    NO_INVOICE_SOURCE,
+    NO_LINK_SOURCE,
     NO_RECOVERY,
     salesLineMapperOf,
     useHeldRecord,
@@ -210,7 +210,7 @@ function useEstimateScreenReads(
         ),
         // An estimate is never made from an estimate or an invoice.
         ...NO_ESTIMATE_SOURCE,
-        ...NO_INVOICE_SOURCE,
+        ...NO_LINK_SOURCE,
         ...NO_DOCUMENT_PAYMENTS,
         taxLines: NO_TAX_LINES,
         formStart: ESTIMATE_FORM_START,
@@ -264,11 +264,7 @@ function useEstimateWrites(): DocumentWrites {
         postRecord: () => {
             throw new Error('an estimate never posts')
         },
-        voidRecord: () => {
-            throw new Error('an estimate never voids')
-        },
         storedRevision: id => estimatesCollection.get(id)?.revision,
-        deleteRecord: id => estimatesCollection.delete(id),
         lineOps: (estimateId, mapper) => {
             const { toRecord } = salesLineMapperOf(mapper)
             const lineRecord = (write: TableRowWrite) => toRecord(write.row, write.position)

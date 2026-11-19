@@ -1,6 +1,6 @@
 // One customer's sales documents as one list (spec §3.5): invoices, estimates, sales
-// receipts, payments and credit memos mapped to one row shape with their status badge,
-// merged newest first. Pure, so each rule is unit-tested; the hook
+// receipts, payments, credit memos and refund receipts mapped to one row shape with their
+// status badge, merged newest first. Pure, so each rule is unit-tested; the hook
 // (hooks/useCustomerTransactions.ts) feeds it.
 
 import type {
@@ -8,6 +8,7 @@ import type {
     BooksEstimates,
     BooksInvoices,
     BooksPayments,
+    BooksRefundReceipts,
     BooksSalesReceipts,
 } from '../types'
 import type { StatusTone } from './document-lifecycle'
@@ -18,22 +19,32 @@ import {
     CREDIT_MEMO_KIND,
     ESTIMATE_KIND,
     INVOICE_KIND,
+    REFUND_RECEIPT_KIND,
     SALES_RECEIPT_KIND,
     type SalesDocumentKind,
 } from './sales-document-kinds'
 
-export type TransactionKind = 'invoice' | 'estimate' | 'sales_receipt' | 'payment' | 'credit_memo'
+export type TransactionKind =
+    | 'invoice'
+    | 'estimate'
+    | 'sales_receipt'
+    | 'payment'
+    | 'credit_memo'
+    | 'refund_receipt'
 
 export type TransactionFilter = 'all' | TransactionKind
 
-export interface PartyTransactionRow {
+// One row of a party page's Transactions list. `Kind` is the party's kind union: the
+// sales kinds for a customer (the default), the purchase kinds for a vendor.
+export interface PartyTransactionRow<Kind extends string = TransactionKind> {
     id: string
-    kind: TransactionKind
+    kind: Kind
     number: string
     date: string
-    // Invoices only; '' for the other kinds.
+    // Set by the kinds with a due date (invoice, bill); '' for every other kind.
     dueDate: string
-    // A credit memo's total is its stored total negated: the credit lowers what is owed.
+    // A credit memo's and a refund receipt's total is its stored total negated: the credit
+    // lowers what is owed, and a refund is money paid back.
     total: number
     currency: string
     created: string
@@ -49,6 +60,7 @@ export const TRANSACTION_TYPE_LABELS: Record<TransactionKind, string> = {
     sales_receipt: 'Sales receipt',
     payment: 'Payment',
     credit_memo: 'Credit memo',
+    refund_receipt: 'Refund receipt',
 }
 
 // The chips, in strip order.
@@ -59,6 +71,7 @@ export const TRANSACTION_FILTERS: readonly { key: TransactionFilter; label: stri
     { key: 'sales_receipt', label: 'Sales receipts' },
     { key: 'payment', label: 'Payments' },
     { key: 'credit_memo', label: 'Credit memos' },
+    { key: 'refund_receipt', label: 'Refunds' },
 ]
 
 // The route of each kind, for `documentHref`. A payment is not a sales-document kind
@@ -72,6 +85,7 @@ export const TRANSACTION_DOC_KINDS: Record<
     sales_receipt: SALES_RECEIPT_KIND,
     payment: { routeBase: 'books/payments' },
     credit_memo: CREDIT_MEMO_KIND,
+    refund_receipt: REFUND_RECEIPT_KIND,
 }
 
 const TRANSACTION_KINDS: readonly TransactionKind[] = [
@@ -80,6 +94,7 @@ const TRANSACTION_KINDS: readonly TransactionKind[] = [
     'sales_receipt',
     'payment',
     'credit_memo',
+    'refund_receipt',
 ]
 
 // The inverse of TRANSACTION_DOC_KINDS: the transaction kind of a document kind, by its
@@ -113,22 +128,53 @@ type CreditMemoInput = Pick<
     BooksCreditMemos,
     'id' | 'status' | 'number' | 'date' | 'total' | 'balance' | 'currency' | 'created'
 >
+type RefundReceiptInput = Pick<
+    BooksRefundReceipts,
+    'id' | 'status' | 'number' | 'date' | 'total' | 'currency' | 'created'
+>
 
-const DRAFT = { label: 'Draft', tone: 'muted' } as const
-const VOID = { label: 'Void', tone: 'muted' } as const
+type StatusBadge = PartyTransactionRow['status']
 
-// Draft and Void are muted. A posted invoice's status follows its open balance
-// (receive-payment spec §3.9), the first rule that applies winning: Paid when nothing is
-// open, Partly paid while part of the total is open, Overdue when due before today, else
-// Open. Days are YYYY-MM-DD text, so they compare as strings.
-function invoiceStatus(row: InvoiceInput, today: string): PartyTransactionRow['status'] {
-    if (row.status === 'draft') return { ...DRAFT }
-    if (row.status === 'void') return { ...VOID }
+const DRAFT: StatusBadge = { label: 'Draft', tone: 'muted' }
+const VOID: StatusBadge = { label: 'Void', tone: 'muted' }
+
+// The one lifecycle rule of every party document kind, customer and vendor: a draft reads
+// Draft and a void Void (both muted); a posted document shows `posted`, the kind's own badge.
+export function lifecycleStatus(status: string, posted: StatusBadge): StatusBadge {
+    if (status === 'draft') return { ...DRAFT }
+    if (status === 'void') return { ...VOID }
+    return { ...posted }
+}
+
+// A posted credit (credit memo, vendor credit) shows `open` while credit is left on it,
+// else `closed`; the kinds name the closed badge differently.
+export function creditStatus(
+    row: { status: string; balance: number },
+    badges: { open: StatusBadge; closed: StatusBadge }
+): StatusBadge {
+    return lifecycleStatus(row.status, row.balance > 0 ? badges.open : badges.closed)
+}
+
+// A posted invoice's or bill's status follows its open balance (receive-payment spec §3.9,
+// vendor pages §3.5), the first rule that applies winning: Paid when nothing is open,
+// Partly paid while part of the total is open, Overdue when due before today, else Open.
+// Days are YYYY-MM-DD text, so they compare as strings.
+function postedDueBadge(
+    row: { balance: number; total: number; due_date: string },
+    today: string
+): StatusBadge {
     if (row.balance <= 0) return { label: 'Paid', tone: 'success' }
     if (row.balance < row.total) return { label: 'Partly paid', tone: 'warning' }
     if (row.due_date !== '' && row.due_date < today)
         return { label: 'Overdue', tone: 'destructive' }
     return { label: 'Open', tone: 'warning' }
+}
+
+export function dueDocumentStatus(
+    row: { status: string; balance: number; total: number; due_date: string },
+    today: string
+): StatusBadge {
+    return lifecycleStatus(row.status, postedDueBadge(row, today))
 }
 
 // Expired replaces a Pending or Accepted estimate's status once it is past its date, as the
@@ -143,32 +189,33 @@ function estimateStatus(row: EstimateInput, today: string): PartyTransactionRow[
     )
 }
 
-function receiptStatus(row: SalesReceiptInput): PartyTransactionRow['status'] {
-    if (row.status === 'draft') return { ...DRAFT }
-    if (row.status === 'void') return { ...VOID }
-    return { label: 'Paid', tone: 'success' }
+function receiptStatus(row: SalesReceiptInput): StatusBadge {
+    return lifecycleStatus(row.status, { label: 'Paid', tone: 'success' })
 }
 
 // A posted payment reads Applied when nothing was kept as a credit, else Credit $x.
-function paymentStatus(row: PaymentInput): PartyTransactionRow['status'] {
-    if (row.status === 'draft') return { ...DRAFT }
-    if (row.status === 'void') return { ...VOID }
-    if (row.credited > 0) {
-        return { label: `Credit ${formatMoney(row.credited, row.currency)}`, tone: 'warning' }
-    }
-    return { label: 'Applied', tone: 'success' }
+function paymentStatus(row: PaymentInput): StatusBadge {
+    const posted: StatusBadge =
+        row.credited > 0
+            ? { label: `Credit ${formatMoney(row.credited, row.currency)}`, tone: 'warning' }
+            : { label: 'Applied', tone: 'success' }
+    return lifecycleStatus(row.status, posted)
 }
 
-// A posted credit memo reads Unapplied while credit is left on it, else Applied (credit
-// memo spec §3.10). The Transactions tab and the invoice's Credit memos section both use it.
-export function creditMemoStatus(row: { status: string; balance: number }): {
-    label: string
-    tone: StatusTone
-} {
-    if (row.status === 'draft') return { ...DRAFT }
-    if (row.status === 'void') return { ...VOID }
-    if (row.balance > 0) return { label: 'Unapplied', tone: 'warning' }
-    return { label: 'Applied', tone: 'success' }
+// A posted credit memo reads Unapplied while credit is left on it (a partly refunded memo
+// too), else Refunded: refund receipts paid out all of it (refund receipt spec §3.12). The
+// Transactions tab, the Sales lists and the invoice's Credit memos section use it.
+export function creditMemoStatus(row: { status: string; balance: number }): StatusBadge {
+    return creditStatus(row, {
+        open: { label: 'Unapplied', tone: 'warning' },
+        closed: { label: 'Refunded', tone: 'success' },
+    })
+}
+
+// A posted refund receipt reads Refunded (refund receipt spec §3.11–§3.13). The sales
+// receipt's and the credit memo's sections, the Sales lists and the Transactions tab use it.
+export function refundReceiptStatus(row: { status: string }): StatusBadge {
+    return lifecycleStatus(row.status, { label: 'Refunded', tone: 'success' })
 }
 
 export function invoiceRow(row: InvoiceInput, today: string): PartyTransactionRow {
@@ -181,7 +228,7 @@ export function invoiceRow(row: InvoiceInput, today: string): PartyTransactionRo
         total: row.total,
         currency: row.currency,
         created: row.created,
-        status: invoiceStatus(row, today),
+        status: dueDocumentStatus(row, today),
     }
 }
 
@@ -244,7 +291,23 @@ export function creditMemoRow(row: CreditMemoInput): PartyTransactionRow {
     }
 }
 
-export function transactionTotalText(row: PartyTransactionRow, currency: string): string {
+// A refund receipt's total is stored positive; the row negates it, as the money went back
+// to the customer (refund receipt spec §3.13). It has no due date.
+export function refundReceiptRow(row: RefundReceiptInput): PartyTransactionRow {
+    return {
+        id: row.id,
+        kind: 'refund_receipt',
+        number: row.number,
+        date: row.date,
+        dueDate: '',
+        total: -row.total,
+        currency: row.currency,
+        created: row.created,
+        status: refundReceiptStatus(row),
+    }
+}
+
+export function transactionTotalText(row: PartyTransactionRow<string>, currency: string): string {
     if (row.total >= 0) return formatMoney(row.total, currency)
     return `${MINUS}${formatMoney(-row.total, currency)}`
 }
@@ -257,22 +320,24 @@ export function isListedTransaction(row: { status: string; replaced_by?: string 
 }
 
 // Newest first: date desc, then created desc.
-function newestFirst(a: PartyTransactionRow, b: PartyTransactionRow): number {
+function newestFirst(a: PartyTransactionRow<string>, b: PartyTransactionRow<string>): number {
     if (a.date !== b.date) return a.date < b.date ? 1 : -1
     if (a.created !== b.created) return a.created < b.created ? 1 : -1
     return 0
 }
 
 // Each list is one source's first `n` rows in the same order, so the merged first `n` rows
-// are exact. A list that reached `n` may have more behind it, so the window can grow.
+// are exact. The window can grow when a list reached `n` (it may have more behind it) or
+// when the lists hold more than `n` rows together (the cut left some out).
 // `compare` must be the order every list is in (the sales lists pass their sort's).
-export function mergeTransactions<Row extends PartyTransactionRow>(
+export function mergeTransactions<Row extends PartyTransactionRow<string>>(
     lists: Row[][],
     n: number,
     compare: (a: Row, b: Row) => number = newestFirst
 ): { rows: Row[]; hasMore: boolean } {
-    const rows = lists.flat().sort(compare).slice(0, n)
-    const hasMore = lists.some(list => list.length >= n)
+    const all = lists.flat().sort(compare)
+    const rows = all.slice(0, n)
+    const hasMore = all.length > n || lists.some(list => list.length >= n)
     return { rows, hasMore }
 }
 
@@ -282,6 +347,7 @@ const EMPTY_NOUNS: Record<TransactionKind, string> = {
     sales_receipt: 'sales receipts',
     payment: 'payments',
     credit_memo: 'credit memos',
+    refund_receipt: 'refund receipts',
 }
 
 export function emptyText(filter: TransactionFilter): string {
@@ -289,6 +355,12 @@ export function emptyText(filter: TransactionFilter): string {
     return `No ${EMPTY_NOUNS[filter]} for this customer`
 }
 
+// A chip's test id: `<prefix>-transactions-filter-<filter>`. A test id never holds an
+// underscore.
+export function partyFilterTestId(prefix: string, filter: string): string {
+    return `${prefix}-transactions-filter-${filter.replaceAll('_', '-')}`
+}
+
 export function filterTestId(filter: TransactionFilter): string {
-    return `customer-transactions-filter-${filter.replace('_', '-')}`
+    return partyFilterTestId('customer', filter)
 }

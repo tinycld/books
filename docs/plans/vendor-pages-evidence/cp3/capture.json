@@ -1,0 +1,109 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "contacts",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [390, 1280, 1600],
+            "actions": [
+                { "clickText": "Office Supply World" },
+                { "click": "vendor-tab-contacts" },
+                { "waitFor": "vendor-contacts" },
+                { "waitForHidden": "vendor-contacts-loading" },
+                { "waitFor": "Grace Liu" }
+            ]
+        },
+        {
+            "name": "contacts-empty",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [390, 1280],
+            "actions": [
+                { "click": "vendors-show-inactive" },
+                { "clickText": "Coastal Coffee Roasters" },
+                { "click": "vendor-tab-contacts" },
+                { "waitFor": "vendor-contacts-empty" }
+            ]
+        },
+        {
+            "name": "contact-dialog",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [390, 1280],
+            "opaque": "contact-dialog",
+            "actions": [
+                { "clickText": "Office Supply World" },
+                { "click": "vendor-tab-contacts" },
+                { "waitFor": "vendor-contacts-add" },
+                { "click": "vendor-contacts-add" },
+                { "waitFor": "contact-dialog" }
+            ]
+        },
+        {
+            "name": "details-dirty",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [390, 1280, 1600],
+            "height": 1400,
+            "settleMs": 800,
+            "actions": [
+                { "clickText": "Office Supply World" },
+                { "click": "vendor-tab-notes" },
+                {
+                    "fill": "vendor-notes-input",
+                    "value": "Net 30. Order by the 20th for next-month delivery."
+                },
+                { "click": "vendor-tab-details" },
+                { "waitFor": "vendor-form" },
+                { "waitFor": "vendor-save-bar" }
+            ]
+        },
+        {
+            "name": "notes-dirty",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [390, 1280],
+            "actions": [
+                { "clickText": "Office Supply World" },
+                { "click": "vendor-tab-notes" },
+                {
+                    "fill": "vendor-notes-input",
+                    "value": "Net 30. Order by the 20th for next-month delivery."
+                },
+                { "click": "vendor-title" },
+                { "waitFor": "vendor-save-bar" }
+            ]
+        },
+        {
+            "name": "discard",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [1280],
+            "opaque": "confirm-dialog-body",
+            "actions": [
+                { "clickText": "Office Supply World" },
+                { "click": "vendor-tab-notes" },
+                {
+                    "fill": "vendor-notes-input",
+                    "value": "Net 30. Order by the 20th for next-month delivery."
+                },
+                { "waitFor": "vendor-save-bar" },
+                { "click": "vendor-cancel" },
+                { "waitFor": "confirm-dialog-body" }
+            ]
+        },
+        {
+            "name": "more-menu",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [1280],
+            "actions": [
+                { "clickText": "Office Supply World" },
+                { "waitFor": "vendor-more" },
+                { "click": "vendor-more" },
+                { "waitFor": "vendor-more-delete" }
+            ]
+        }
+    ]
+}

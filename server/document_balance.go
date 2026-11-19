@@ -73,12 +73,20 @@ var (
 		},
 		Noun: "bill",
 	}
-	// creditMemoBalanceKind: the credit not yet applied. Nothing applies a
-	// credit memo yet, so it has no payer, and its balance is its total while
-	// it is posted.
+	// creditMemoBalanceKind: the credit not yet applied nor refunded. The
+	// credits row of each posted refund receipt that pays the memo out lowers
+	// it (refund receipt spec §3.12), and on the cash basis brings back its
+	// share at the refund date with the refund's entry (§3.13).
 	creditMemoBalanceKind = balanceKind{
 		Collection: "books_credit_memos",
-		Noun:       "credit memo",
+		Payers: []balancePayer{{
+			LinesCollection:   refundReceiptCreditsCollection,
+			LineField:         "credit_memo",
+			PaymentCollection: "books_refund_receipts",
+			PaymentField:      "refund_receipt",
+			CashMemo:          "Credit memo %s refunded (cash basis)",
+		}},
+		Noun: "credit memo",
 	}
 	// vendorCreditBalanceKind: the vendor credit not yet applied to bills nor
 	// refunded. Each application lowers it, and so does each line of a posted
@@ -131,9 +139,9 @@ func isBalancing(tx core.App, kind balanceKind, docID string) bool {
 }
 
 // paymentPayer is the kind's payer whose rows are a payment's lines (a vendor
-// credit's is its vendor refunds' lines), and false for a kind that no payment
-// pays (a credit memo). The
-// per-payment functions (paymentLines, applyToDocuments, releaseLines,
+// credit's is its vendor refunds' lines, a credit memo's its refund receipts'
+// credits rows), and false for a kind that no payment pays. The per-payment
+// functions (paymentLines, applyToDocuments, releaseLines,
 // markMovingLines, rebuildPaidCashBasis) read it.
 func (k balanceKind) paymentPayer() (balancePayer, bool) {
 	for _, p := range k.Payers {

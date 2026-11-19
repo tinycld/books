@@ -17,7 +17,7 @@ Rules for every checkpoint:
 - The shipped spec stays at revision 1 through every checkpoint (unreleased, no backward compatibility). A developer database that stored an earlier checkpoint's spec keeps it: delete that `reports` row or reset the dev data. The e2e database is new on every run.
 - Every checkpoint starts with the test writer (a different agent from the implementer). It writes the checkpoint's "Tests it must add", plus any test-only helper they need, and proves each red for the reason named in the checkpoint's Do step 0. The implementer makes them green and never edits them.
 - The scratch route `tinycld/books/screens/helix-mockup.tsx` and the capture spec `tests/e2e/helix-capture.spec.ts` are excluded from git. A gate-2 step may edit them; they are never committed.
-- **Migration number.** The file is `pb-migrations/<number>_create_books_receivable_items.js`, `<number>` being the next free number in `pb-migrations/` when checkpoint 1 commits (2100000026 on 2026-11-18). No code, test or doc of this unit names the number: tests find the file by its name suffix. Unit p3-vendor-pages (another lane) may take the same number; the integration renames one file.
+- **Migration number.** The file is `pb-migrations/<number>_create_books_receivable_items.js`, `<number>` being the next free number in `pb-migrations/` when checkpoint 1 commits (2100000026 on 2026-11-18). No code or test of this unit names the number: tests find the file by its name suffix. Main took 2100000026 and 2100000027 first, so the merge of main renamed the file to `2100000028_create_books_receivable_items.js` (overlap O1).
 
 ## Plan decisions (where the plan settles what the spec or phase 3 left open)
 

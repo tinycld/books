@@ -18,7 +18,7 @@ import {
     type DocumentWrites,
     documentRead,
     linkedReadIds,
-    NO_INVOICE_SOURCE,
+    NO_LINK_SOURCE,
     NO_RECOVERY,
     postedPaymentsOf,
     salesLineMapperOf,
@@ -225,7 +225,7 @@ function useInvoiceScreenReads(
         ),
         ...estimateReads,
         // An invoice is never made from an invoice.
-        ...NO_INVOICE_SOURCE,
+        ...NO_LINK_SOURCE,
         taxLines: documentRead(ids.postedReadsId, taxLinesQuery, taxLinesQuery.data ?? [], [
             taxLinesCollection,
         ]),
@@ -275,12 +275,7 @@ function useInvoiceWrites(): DocumentWrites {
                 draft.status = 'posted'
                 draft.revision = revision
             }),
-        voidRecord: id =>
-            invoicesCollection.update(id, draft => {
-                draft.status = 'void'
-            }),
         storedRevision: id => invoicesCollection.get(id)?.revision,
-        deleteRecord: id => invoicesCollection.delete(id),
         lineOps: (invoiceId, mapper) => {
             const { toRecord } = salesLineMapperOf(mapper)
             const lineRecord = (write: TableRowWrite) => toRecord(write.row, write.position)

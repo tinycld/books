@@ -323,6 +323,35 @@ func TestAllocateNumber_VendorRefundSequenceStartsAt1001(t *testing.T) {
 	}
 }
 
+// Refund receipt spec §4.2, Q6: the refund receipt sequence is seeded as
+// booksseqrefundr, with no prefix, starting at 1001, and a refund receipt
+// number takes no sales receipt's or credit memo's.
+func TestAllocateNumber_RefundReceiptSequenceStartsAt1001(t *testing.T) {
+	app := newBooksApp(t)
+	row := reload(t, app, "books_doc_sequences", "booksseqrefundr")
+	if got := [3]any{row.GetString("doc_type"), row.GetString("prefix"), row.GetInt("next_number")}; got != [3]any{"refund_receipt", "", 1001} {
+		t.Fatalf("doc_type/prefix/next_number = %v, want [refund_receipt  1001]", got)
+	}
+	var seq int
+	var number string
+	err := app.RunInTransaction(func(tx core.App) error {
+		var err error
+		seq, number, err = allocateNumber(tx, docTypeRefundReceipt)
+		return err
+	})
+	if err != nil {
+		t.Fatalf("allocate a refund receipt number: %v", err)
+	}
+	if seq != 1001 || number != "1001" {
+		t.Fatalf("got %d %q, want 1001 \"1001\"", seq, number)
+	}
+	for _, other := range []string{"booksseqsalesrc", "booksseqcreditm"} {
+		if next := reload(t, app, "books_doc_sequences", other).GetInt("next_number"); next != 1001 {
+			t.Fatalf("%s next_number = %d, want 1001 (a refund receipt must not take its number)", other, next)
+		}
+	}
+}
+
 func TestJournalEntryOrigin_HasDocument(t *testing.T) {
 	app := newBooksApp(t)
 	col, err := app.FindCollectionByNameOrId("books_journal_entries")
@@ -343,7 +372,7 @@ func TestDocTypes_MatchTheMigrations(t *testing.T) {
 	// Estimates never post, so only the sequences know the estimate doc type.
 	// The lists are compared sorted: where a new doc type lands in the select
 	// is not a rule.
-	entryTypes := []string{"journal", "transfer", "invoice", "sales_receipt", "bill", "expense", "payment", "bill_payment", "credit_memo", "vendor_credit", "vendor_refund"}
+	entryTypes := []string{"journal", "transfer", "invoice", "sales_receipt", "bill", "expense", "payment", "bill_payment", "credit_memo", "vendor_credit", "vendor_refund", "refund_receipt"}
 	want := map[string][]string{
 		"books_journal_entries": slices.Sorted(slices.Values(entryTypes)),
 		"books_doc_sequences":   slices.Sorted(slices.Values(append(slices.Clone(entryTypes), "estimate"))),

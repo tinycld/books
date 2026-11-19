@@ -9,6 +9,8 @@ import { type DocumentFeatures, SALES_FEATURES } from './sales-document-kinds'
 // §3.9); Create credit memo (`credit_memo`) is a posted invoice's only (credit memo spec
 // §3.10). Apply to bills (`apply_credit`) is a posted vendor credit's only (vendor credit
 // spec §3.7, §3.9), and Record refund (`record_refund`) too (vendor refund spec §3.9).
+// Refund (`refund`) is a posted sales receipt's only, Refund credit (`refund_credit`) a
+// posted credit memo's with unapplied credit only (refund receipt spec §3.11, §3.12).
 
 export type DocumentReadAction =
     | 'apply_credit'
@@ -19,6 +21,8 @@ export type DocumentReadAction =
     | 'void'
     | 'copy'
     | 'credit_memo'
+    | 'refund'
+    | 'refund_credit'
     | 'entry'
     | 'invoice'
     | 'pdf'
@@ -38,6 +42,9 @@ export const DOCUMENT_READ_KEYS = {
     // The same letter as Receive payment: that is an invoice's action and this a vendor
     // credit's, so no read view offers both.
     record_refund: 'r',
+    // A sales receipt's and a credit memo's: no read view offers two actions on R.
+    refund: 'r',
+    refund_credit: 'r',
 } as const
 
 // The read view's words for each action; a sales list's row menu shows the same.
@@ -50,6 +57,8 @@ export const DOCUMENT_READ_LABELS: Record<DocumentReadAction, string> = {
     void: 'Void',
     copy: 'Copy',
     credit_memo: 'Create credit memo',
+    refund: 'Refund',
+    refund_credit: 'Refund credit',
     entry: 'View journal entry',
     invoice: 'Open invoice',
     pdf: 'Download PDF',
@@ -92,6 +101,22 @@ export function creditMemoOffered(kind: string, status: DocumentStatus): boolean
     return kind === 'invoice' && status === 'posted'
 }
 
+// A posted sales receipt is refunded from its read view (refund receipt spec §3.11); a void
+// one is not, and no other record is. `kind` is the record's `kindFields.kind`.
+export function refundReceiptOffered(kind: string, status: DocumentStatus): boolean {
+    return kind === 'sales_receipt' && status === 'posted'
+}
+
+// A posted credit memo with unapplied credit (`balance` above zero) is paid out from its
+// read view (refund receipt spec §3.12); no other record is.
+export function refundCreditOffered(
+    kind: string,
+    status: DocumentStatus,
+    balance: number
+): boolean {
+    return kind === 'credit_memo' && status === 'posted' && balance > 0
+}
+
 // A posted vendor credit with a balance (unapplied credit) above zero is applied to bills
 // from its read view (vendor credit spec §3.7, §3.9); no other record is. `kind` is the
 // record's `kindFields.kind`.
@@ -119,6 +144,8 @@ type ReadActionExtra = {
     canCreateCreditMemo: boolean
     canApplyCredit?: boolean
     canRecordRefund?: boolean
+    canRefund?: boolean
+    canRefundCredit?: boolean
 }
 
 // A writer edits or voids a posted document and copies any; a void document (a replaced
@@ -130,8 +157,10 @@ type ReadActionExtra = {
 // balance above zero), Pay bill when `extra.canPayBill` is set (only for a bill with a
 // balance above zero), Apply to bills when `extra.canApplyCredit` is set (only for a
 // vendor credit with a balance above zero), and Record refund right after it when
-// `extra.canRecordRefund` is set (the same vendor credit). Create credit memo comes after Copy when
-// `extra.canCreateCreditMemo` is set (only for a posted invoice).
+// `extra.canRecordRefund` is set (the same vendor credit). After Copy come Create credit memo
+// when `extra.canCreateCreditMemo` is set (only for a posted invoice), Refund when
+// `extra.canRefund` is set (only for a posted sales receipt) and Refund credit when
+// `extra.canRefundCredit` is set (only for a posted credit memo with unapplied credit).
 export function documentReadActions(
     status: DocumentStatus,
     canWrite: boolean,
@@ -151,6 +180,8 @@ export function documentReadActions(
         const receive: DocumentReadAction[] = extra.canReceivePayment ? ['receive_payment'] : []
         const pay: DocumentReadAction[] = extra.canPayBill ? ['pay_bill'] : []
         const credit: DocumentReadAction[] = extra.canCreateCreditMemo ? ['credit_memo'] : []
+        const refundSale: DocumentReadAction[] = extra.canRefund ? ['refund'] : []
+        const refundCredit: DocumentReadAction[] = extra.canRefundCredit ? ['refund_credit'] : []
         return [
             ...apply,
             ...refund,
@@ -160,6 +191,8 @@ export function documentReadActions(
             'void',
             'copy',
             ...credit,
+            ...refundSale,
+            ...refundCredit,
             'entry',
             ...pdf,
         ]

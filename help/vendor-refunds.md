@@ -10,6 +10,8 @@ Use it instead of applying the credit to a bill, when the vendor pays you back r
 
 A vendor refund always places the money on the vendor's vendor credits, so record the vendor credit first, then its refund. When the vendor has no unapplied vendor credit, the form says so, for example "Pacific Power has no unapplied vendor credit. Record the vendor credit first, then its refund.", with the button New vendor credit.
 
+To find, filter and act on your vendor refunds, choose Expenses in the sidebar, then Vendor refunds. See [Purchase lists](help://books:purchase-lists).
+
 ## Record a vendor refund
 
 To record a vendor refund, choose New in the sidebar (the round + button on a phone) and pick Vendor refund, under Vendors. You can also open a posted vendor credit and choose **Record refund** (or press R): the form opens with the vendor chosen and that credit ticked for its unapplied credit. In a web browser, the Vendor field has focus when the form opens, so you can start to type the vendor's name at once.

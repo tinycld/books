@@ -359,6 +359,63 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // As the sales receipt's three: server-owned fields below the omit line, no
+    // relations (the refund screen reads its customer, tax rate, Refund from
+    // account, source and users through its own queries).
+    const books_refund_receipts = newCollection('books_refund_receipts', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'number',
+            'sequence',
+            'subtotal',
+            'tax_total',
+            'total',
+            'revision',
+            'currency',
+            'entry',
+            'replaced_by',
+            'posted_by',
+            'posted_at',
+            'voided_by',
+            'voided_at',
+            'sort_key',
+        ] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // amount is recomputed by the server at every line write.
+    const books_refund_receipt_lines = newCollection('books_refund_receipt_lines', {
+        omitOnInsert: ['created', 'updated', 'amount'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // Written by the server at posting; clients only read it.
+    const books_refund_receipt_tax_lines = newCollection('books_refund_receipt_tax_lines', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // Written by the server when a payout posts (the payer row of its credit
+    // memo's balance); clients only read it.
+    const books_refund_receipt_credits = newCollection('books_refund_receipt_credits', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // A view, never written: the lines of the refunds that pay out no credit
+    // memo. The server signals its topic when a refund or one of its lines
+    // changes (server/register.go).
+    const books_refund_receipt_sale_lines = newCollection('books_refund_receipt_sale_lines', {
+        ...onDemand,
+        ...liveViewOptions('books_refund_receipt_sale_lines'),
+        collectionOptions: indexed,
+    })
+
     // As the invoice's: server-owned fields below the omit line (the number and
     // the public token when the estimate is created, the totals at every write,
     // the invoice made from it by the invoice guards), no relations (the
@@ -705,6 +762,11 @@ export function registerCollections(
         books_credit_memos,
         books_credit_memo_lines,
         books_credit_memo_tax_lines,
+        books_refund_receipts,
+        books_refund_receipt_lines,
+        books_refund_receipt_tax_lines,
+        books_refund_receipt_credits,
+        books_refund_receipt_sale_lines,
         books_estimates,
         books_estimate_lines,
         books_estimate_public,

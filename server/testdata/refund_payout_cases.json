@@ -1,0 +1,107 @@
+[
+    {
+        "name": "a total equal to the unapplied credit passes",
+        "total": 25000,
+        "unapplied": 25000,
+        "memoNumber": "1001",
+        "memoDate": "2026-11-12",
+        "refundDate": "2026-11-12",
+        "currency": "USD",
+        "want": null
+    },
+    {
+        "name": "one cent above the unapplied credit is refused under credit_memo",
+        "total": 25001,
+        "unapplied": 25000,
+        "memoNumber": "1001",
+        "memoDate": "2026-11-12",
+        "refundDate": "2026-11-12",
+        "currency": "USD",
+        "want": {
+            "field": "credit_memo",
+            "message": "The refund is more than the unapplied credit of $250.00 on credit memo 1001."
+        }
+    },
+    {
+        "name": "a refund dated the memo's day passes",
+        "total": 10000,
+        "unapplied": 25000,
+        "memoNumber": "1001",
+        "memoDate": "2026-11-12",
+        "refundDate": "2026-11-12",
+        "currency": "USD",
+        "want": null
+    },
+    {
+        "name": "a refund dated after the memo passes",
+        "total": 10000,
+        "unapplied": 25000,
+        "memoNumber": "1001",
+        "memoDate": "2026-11-12",
+        "refundDate": "2026-12-01",
+        "currency": "USD",
+        "want": null
+    },
+    {
+        "name": "one day before the memo is refused under date",
+        "total": 10000,
+        "unapplied": 25000,
+        "memoNumber": "1001",
+        "memoDate": "2026-11-12",
+        "refundDate": "2026-11-11",
+        "currency": "USD",
+        "want": {
+            "field": "date",
+            "message": "Date the refund on or after the credit memo's date, Nov 12, 2026."
+        }
+    },
+    {
+        "name": "both wrong gives the cap text first",
+        "total": 25001,
+        "unapplied": 25000,
+        "memoNumber": "1001",
+        "memoDate": "2026-11-12",
+        "refundDate": "2026-11-11",
+        "currency": "USD",
+        "want": {
+            "field": "credit_memo",
+            "message": "The refund is more than the unapplied credit of $250.00 on credit memo 1001."
+        }
+    },
+    {
+        "name": "a correction's cap is the balance plus the original's total",
+        "total": 10000,
+        "unapplied": 13467,
+        "memoNumber": "1001",
+        "memoDate": "2026-11-12",
+        "refundDate": "2026-11-12",
+        "currency": "USD",
+        "want": null
+    },
+    {
+        "name": "a correction above the balance plus the original's total is refused",
+        "total": 14000,
+        "unapplied": 13467,
+        "memoNumber": "1001",
+        "memoDate": "2026-11-12",
+        "refundDate": "2026-11-12",
+        "currency": "USD",
+        "want": {
+            "field": "credit_memo",
+            "message": "The refund is more than the unapplied credit of $134.67 on credit memo 1001."
+        }
+    },
+    {
+        "name": "the cap names the memo's own number",
+        "total": 5000,
+        "unapplied": 4999,
+        "memoNumber": "CM-1042",
+        "memoDate": "2026-07-04",
+        "refundDate": "2026-07-04",
+        "currency": "USD",
+        "want": {
+            "field": "credit_memo",
+            "message": "The refund is more than the unapplied credit of $49.99 on credit memo CM-1042."
+        }
+    }
+]

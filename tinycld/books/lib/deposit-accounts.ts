@@ -37,19 +37,33 @@ export function depositAccountOptions(
     return filteredAccountOptions(accounts, storedId, isDepositAccountRow)
 }
 
+// The active deposit accounts in chart order (the order of the select's options).
+function offeredDepositAccounts(accounts: readonly DepositAccountRow[]): DepositAccountRow[] {
+    const { options } = depositAccountOptions(accounts, '')
+    const byId = new Map(accounts.map(account => [account.id, account]))
+    return options.flatMap(option => byId.get(option.value) ?? [])
+}
+
 // The first active Undeposited funds account in chart order; else the first active bank
 // account; else '' (the chart has no deposit account).
 export function defaultDepositAccount(accounts: readonly DepositAccountRow[]): string {
-    const { options } = depositAccountOptions(accounts, '')
-    const byId = new Map(accounts.map(account => [account.id, account]))
-    const offered = options.flatMap(option => byId.get(option.value) ?? [])
+    const offered = offeredDepositAccounts(accounts)
     const undeposited = offered.find(isUndepositedFunds)
     return (undeposited ?? offered[0])?.id ?? ''
 }
 
+// A refund receipt's Refund from default (refund receipt spec §3.3): the first active bank
+// account in chart order; else the first active Undeposited funds account; else ''.
+export function defaultRefundFromAccount(accounts: readonly DepositAccountRow[]): string {
+    const offered = offeredDepositAccounts(accounts)
+    const bank = offered.find(account => account.type === 'bank')
+    return (bank ?? offered[0])?.id ?? ''
+}
+
 // The word before the account in a payment line: a receipt or a received payment
-// deposits, a bill payment or an expense pays from, a vendor refund is refunded to.
-export type PaymentVerb = 'deposited to' | 'paid from' | 'refunded to'
+// deposits, a bill payment or an expense pays from, a vendor refund is refunded to, a
+// refund receipt is refunded from.
+export type PaymentVerb = 'deposited to' | 'paid from' | 'refunded to' | 'refunded from'
 
 // A read view's payment line, "Check · 43567 · deposited to 1010 Business Savings": the
 // method's label, the reference and the account after its verb, each left out when empty

@@ -7,14 +7,24 @@ import { EMPTY_VENDOR_COLUMNS, EMPTY_VENDOR_FIELDS, vendorColumnsFrom } from '..
 import { VENDOR_SAVE_TEXTS } from '../lib/vendor-messages'
 import type { BooksVendors } from '../types'
 import { useRecordForm } from './useRecordForm'
-import { useRecordSave } from './useRecordSave'
+import { type RecordSaveFollowUps, useRecordSave } from './useRecordSave'
 import { useVendorNavigation } from './useVendorNavigation'
 
 // The edited record is the row `useRecord` holds for the route.
 export type VendorFormTarget = { mode: 'new' } | { mode: 'edit'; record: BooksVendors }
 
-/** The open vendor's form. A new vendor starts from every field empty. */
-export function useVendorForm(target: VendorFormTarget): RecordChildState {
+// What the vendor page does after its Details save, in place of leaving.
+export type VendorPageSave = Pick<RecordSaveFollowUps, 'afterEdit' | 'afterWrite' | 'onRefused'>
+
+/**
+ * The open vendor's form. A new vendor starts from every field empty; its Save opens the
+ * new vendor's page (a replace of `vendors/new`). An existing vendor's form is the vendor
+ * page's Details, which passes what follows its save (`page`).
+ */
+export function useVendorForm(
+    target: VendorFormTarget,
+    page: VendorPageSave = {}
+): RecordChildState {
     const record = target.mode === 'edit' ? target.record : undefined
     const base = useRecordForm({
         hostKey: VENDOR_HOST_KEY,
@@ -23,8 +33,16 @@ export function useVendorForm(target: VendorFormTarget): RecordChildState {
         record,
         createValues: EMPTY_VENDOR_FIELDS,
     })
-    const { leave } = useVendorNavigation()
+    const navigation = useVendorNavigation()
     const [vendorsCollection] = useStore('books_vendors')
+    const followUps: RecordSaveFollowUps =
+        target.mode === 'new'
+            ? { afterCreate: id => navigation.open(id) }
+            : {
+                  afterEdit: page.afterEdit,
+                  afterWrite: page.afterWrite,
+                  onRefused: page.onRefused,
+              }
     const saver = useRecordSave(
         {
             columnsFrom: vendorColumnsFrom,
@@ -39,9 +57,10 @@ export function useVendorForm(target: VendorFormTarget): RecordChildState {
             create: base.create,
             edit: base.edit,
             recordId: record?.id ?? '',
-            leave,
+            leave: navigation.leave,
             host: base.host,
             context: base.context,
+            ...followUps,
         }
     )
     return {

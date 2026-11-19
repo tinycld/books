@@ -1,0 +1,262 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "all-ticked",
+            "url": "/a/books/purchases",
+            "ready": "purchases-vendor",
+            "widths": [1280],
+            "actions": [
+                { "click": "purchases-vendor" },
+                { "fill": "purchases-vendor-search", "value": "Northwest" },
+                { "click": "purchases-vendor-option-vendnwpaper0001" },
+                { "waitFor": "purchases-row-plbill00000draf" },
+                { "click": "purchases-tick-plbill00000draf" },
+                { "click": "purchases-tick-plvc00000000031" }
+            ]
+        },
+        {
+            "name": "all-ticked-phone",
+            "url": "/a/books/purchases",
+            "ready": "purchases-vendor",
+            "widths": [390],
+            "actions": [
+                { "click": "purchases-vendor" },
+                { "fill": "purchases-vendor-search", "value": "Northwest" },
+                { "click": "purchases-vendor-option-vendnwpaper0001" },
+                { "waitFor": "purchases-row-plbill00000draf" },
+                { "click": "purchases-tick-plbill00000draf" },
+                { "click": "purchases-tick-plvc00000000031" }
+            ]
+        },
+        {
+            "name": "read-only",
+            "url": "/a/books/purchases",
+            "ready": "purchases-vendor",
+            "widths": [1280],
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                { "click": "purchases-vendor" },
+                { "fill": "purchases-vendor-search", "value": "Northwest" },
+                { "click": "purchases-vendor-option-vendnwpaper0001" },
+                { "waitFor": "purchases-row-plbill00000draf" }
+            ]
+        },
+        {
+            "name": "read-only-phone",
+            "url": "/a/books/purchases",
+            "ready": "purchases-vendor",
+            "widths": [390],
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                { "click": "purchases-vendor" },
+                { "fill": "purchases-vendor-search", "value": "Northwest" },
+                { "click": "purchases-vendor-option-vendnwpaper0001" },
+                { "waitFor": "purchases-row-plbill00000draf" }
+            ]
+        },
+        {
+            "name": "row-menu",
+            "url": "/a/books/bills",
+            "ready": "purchases-search",
+            "widths": [1280],
+            "actions": [
+                { "fill": "purchases-search", "value": "Hosted phone plan" },
+                { "waitForHidden": "purchases-row-plbill00000draf" },
+                { "waitFor": "purchases-row-menu-plbill000001057" },
+                { "click": "purchases-row-menu-plbill000001057" },
+                { "waitFor": "purchases-row-action-pay-bill" }
+            ]
+        },
+        {
+            "name": "row-menu-phone",
+            "url": "/a/books/bills",
+            "ready": "purchases-search",
+            "widths": [390],
+            "stable": "purchases-row-action-pay-bill",
+            "actions": [
+                { "fill": "purchases-search", "value": "Hosted phone plan" },
+                { "waitForHidden": "purchases-row-plbill00000draf" },
+                { "waitFor": "purchases-row-menu-plbill000001057" },
+                { "click": "purchases-row-menu-plbill000001057" },
+                { "waitFor": "purchases-row-action-pay-bill" }
+            ]
+        },
+        {
+            "name": "row-menu-credit",
+            "url": "/a/books/vendor-credits",
+            "ready": "purchases-vendor",
+            "widths": [1280],
+            "actions": [
+                { "click": "purchases-vendor" },
+                { "fill": "purchases-vendor-search", "value": "Northwest" },
+                { "click": "purchases-vendor-option-vendnwpaper0001" },
+                { "waitFor": "purchases-row-menu-plvc00000000031" },
+                { "click": "purchases-row-menu-plvc00000000031" },
+                { "waitFor": "purchases-row-action-apply-credit" }
+            ]
+        },
+        {
+            "name": "batch-menu",
+            "url": "/a/books/purchases",
+            "ready": "purchases-vendor",
+            "widths": [1280],
+            "actions": [
+                { "click": "purchases-vendor" },
+                { "fill": "purchases-vendor-search", "value": "Northwest" },
+                { "click": "purchases-vendor-option-vendnwpaper0001" },
+                { "waitFor": "purchases-row-plbill00000draf" },
+                { "click": "purchases-tick-plbill00000draf" },
+                { "click": "purchases-tick-plvc00000000031" },
+                { "click": "purchases-batch-actions" },
+                { "waitFor": "purchases-batch-delete-drafts" }
+            ]
+        },
+        {
+            "name": "batch-menu-phone",
+            "url": "/a/books/purchases",
+            "ready": "purchases-vendor",
+            "widths": [390],
+            "stable": "purchases-batch-delete-drafts",
+            "actions": [
+                { "click": "purchases-vendor" },
+                { "fill": "purchases-vendor-search", "value": "Northwest" },
+                { "click": "purchases-vendor-option-vendnwpaper0001" },
+                { "waitFor": "purchases-row-plbill00000draf" },
+                { "click": "purchases-tick-plbill00000draf" },
+                { "click": "purchases-tick-plvc00000000031" },
+                { "click": "purchases-batch-actions" },
+                { "waitFor": "purchases-batch-delete-drafts" }
+            ]
+        },
+        {
+            "name": "batch-confirm",
+            "url": "/a/books/purchases",
+            "ready": "purchases-vendor",
+            "widths": [1280],
+            "opaque": "purchases-batch-dialog",
+            "actions": [
+                { "click": "purchases-vendor" },
+                { "fill": "purchases-vendor-search", "value": "Northwest" },
+                { "click": "purchases-vendor-option-vendnwpaper0001" },
+                { "waitFor": "purchases-row-plbill00000draf" },
+                { "click": "purchases-tick-all" },
+                { "click": "purchases-batch-actions" },
+                { "click": "purchases-batch-delete-drafts" },
+                { "waitFor": "purchases-batch-dialog" }
+            ]
+        },
+        {
+            "name": "batch-confirm-phone",
+            "url": "/a/books/purchases",
+            "ready": "purchases-vendor",
+            "widths": [390],
+            "opaque": "purchases-batch-dialog",
+            "actions": [
+                { "click": "purchases-vendor" },
+                { "fill": "purchases-vendor-search", "value": "Northwest" },
+                { "click": "purchases-vendor-option-vendnwpaper0001" },
+                { "waitFor": "purchases-row-plbill00000draf" },
+                { "click": "purchases-batch-actions" },
+                { "click": "purchases-batch-select-all" },
+                { "waitForHidden": "purchases-batch-select-all" },
+                { "click": "purchases-batch-actions" },
+                { "click": "purchases-batch-delete-drafts" },
+                { "waitFor": "purchases-batch-dialog" }
+            ]
+        },
+        {
+            "name": "batch-none",
+            "url": "/a/books/purchases",
+            "ready": "purchases-vendor",
+            "widths": [1280],
+            "opaque": "purchases-batch-dialog",
+            "actions": [
+                { "click": "purchases-vendor" },
+                { "fill": "purchases-vendor-search", "value": "Northwest" },
+                { "click": "purchases-vendor-option-vendnwpaper0001" },
+                { "waitFor": "purchases-row-plvc00000000031" },
+                { "click": "purchases-tick-plvc00000000031" },
+                { "click": "purchases-batch-actions" },
+                { "click": "purchases-batch-delete-drafts" },
+                { "waitFor": "purchases-batch-dialog" }
+            ]
+        },
+        {
+            "name": "batch-result",
+            "url": "/a/books/bills",
+            "ready": "purchases-vendor",
+            "widths": [1280],
+            "writes": {
+                "collection": "books_bills",
+                "answers": [400],
+                "message": "The period is closed."
+            },
+            "actions": [
+                { "click": "purchases-vendor" },
+                { "fill": "purchases-vendor-search", "value": "Northwest" },
+                { "click": "purchases-vendor-option-vendnwpaper0001" },
+                { "waitFor": "purchases-row-plbill00000draf" },
+                { "click": "purchases-tick-plbill00000draf" },
+                { "click": "purchases-batch-actions" },
+                { "click": "purchases-batch-delete-drafts" },
+                { "click": "purchases-batch-confirm" },
+                { "waitFor": "purchases-banner" },
+                { "waitForHidden": "purchases-batch-dialog" }
+            ]
+        },
+        {
+            "name": "batch-result-phone",
+            "url": "/a/books/bills",
+            "ready": "purchases-vendor",
+            "widths": [390],
+            "writes": {
+                "collection": "books_bills",
+                "answers": [400],
+                "message": "The period is closed."
+            },
+            "actions": [
+                { "click": "purchases-vendor" },
+                { "fill": "purchases-vendor-search", "value": "Northwest" },
+                { "click": "purchases-vendor-option-vendnwpaper0001" },
+                { "waitFor": "purchases-row-plbill00000draf" },
+                { "click": "purchases-tick-plbill00000draf" },
+                { "click": "purchases-batch-actions" },
+                { "click": "purchases-batch-delete-drafts" },
+                { "click": "purchases-batch-confirm" },
+                { "waitFor": "purchases-banner" },
+                { "waitForHidden": "purchases-batch-dialog" }
+            ]
+        }
+    ]
+}

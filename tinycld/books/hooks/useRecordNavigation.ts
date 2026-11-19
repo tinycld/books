@@ -21,12 +21,20 @@ export function useRecordNavigation(listPath: string) {
         else router.push(href)
     }
 
+    const isOpen = (id: string) => current.kind === 'id' && current.id === id
+
     return {
         // Pressing the open record's row again (drawn as selected on the panel) keeps the form,
         // its scroll and its unsaved edits, instead of replacing the route with itself.
         open: (id: string) => {
-            if (current.kind === 'id' && current.id === id) return
+            if (isOpen(id)) return
             go(recordPath(listPath, id))
+        },
+        // Opens the record with search params (a page's `tab`). The open record keeps its
+        // route for the same reason as `open`; the caller selects its tab.
+        openWith: (id: string, params: Record<string, string>) => {
+            if (isOpen(id)) return
+            go(recordPath(listPath, id, params))
         },
         openNew: (params?: Record<string, string>) => go(newRecordPath(listPath, params)),
         // Dismisses to the list even after a deep link with no history to go back through.

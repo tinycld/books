@@ -6,6 +6,7 @@ import { useRecord } from '@tinycld/core/lib/use-record'
 import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
 import { creditMemoColumnsFrom, type EMPTY_CREDIT_MEMO_COLUMNS } from '../lib/credit-memo-columns'
+import type { LinkSource } from '../lib/document-source-links'
 import { columnsOrThrow } from '../lib/record-save'
 import { CREDIT_MEMO_KIND } from '../lib/sales-document-kinds'
 import type { BooksCreditMemos } from '../types'
@@ -41,12 +42,12 @@ function creditMemoSourceOf<R extends BooksCreditMemos>(
 /**
  * The invoice a credit memo is made from (`?invoice=<id>`), or that a new correction of a
  * linked memo keeps, and its lines in position order, for the credit memo's data source:
- * this module holds the invoice collections' `useStore` for it. Both reads are idle
- * (ready and empty) with no id.
+ * this module holds the invoice collections' `useStore` for it. The invoice is the form's
+ * `invoice` link source. Both reads are idle (ready and empty) with no id.
  */
 export function useInvoiceSourceReads(
     invoiceId: string
-): Pick<DocumentScreenReads, 'invoiceSource' | 'invoiceSourceLines'> {
+): Pick<DocumentScreenReads, 'linkSource' | 'linkSourceLines'> {
     const [invoicesCollection, linesCollection] = useStore('books_invoices', 'books_invoice_lines')
     const sourceQuery = useLiveQuery({
         query: q => {
@@ -68,9 +69,14 @@ export function useInvoiceSourceReads(
         },
         queryKey: ['books.creditMemo.invoice-lines', invoiceId],
     })
+    const invoice = sourceQuery.data
+    const linkSource = useMemo<LinkSource | undefined>(
+        () => (invoice ? { key: 'invoice', row: invoice } : undefined),
+        [invoice]
+    )
     return {
-        invoiceSource: documentRead(invoiceId, sourceQuery, sourceQuery.data, [invoicesCollection]),
-        invoiceSourceLines: documentRead(invoiceId, linesQuery, linesQuery.data ?? [], [
+        linkSource: documentRead(invoiceId, sourceQuery, linkSource, [invoicesCollection]),
+        linkSourceLines: documentRead(invoiceId, linesQuery, linesQuery.data ?? [], [
             linesCollection,
         ]),
     }
@@ -286,12 +292,7 @@ function useCreditMemoWrites(): DocumentWrites {
                 draft.status = 'posted'
                 draft.revision = revision
             }),
-        voidRecord: id =>
-            memosCollection.update(id, draft => {
-                draft.status = 'void'
-            }),
         storedRevision: id => memosCollection.get(id)?.revision,
-        deleteRecord: id => memosCollection.delete(id),
         lineOps: (memoId, mapper) => {
             const { toRecord } = salesLineMapperOf(mapper)
             const lineRecord = (write: TableRowWrite) => toRecord(write.row, write.position)

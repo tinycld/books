@@ -8,6 +8,7 @@ import {
     Percent,
     Receipt,
     Settings,
+    ShoppingCart,
 } from 'lucide-react-native'
 import type { BooksAccessState } from './access'
 import { NEW_ACTIONS, type NewAction } from './new-actions'
@@ -40,7 +41,7 @@ export interface NewMenuColumn {
 
 export const SIDEBAR_ENTRIES: SidebarEntry[] = [
     { id: 'banking', label: 'Banking', icon: Landmark, href: 'books/banking', available: true },
-    // All sales; the five kind tabs and every sales document keep the entry active.
+    // All sales; the six kind tabs and every sales document keep the entry active.
     {
         id: 'sales',
         label: 'Sales',
@@ -52,6 +53,24 @@ export const SIDEBAR_ENTRIES: SidebarEntry[] = [
             'books/sales-receipts',
             'books/payments',
             'books/credit-memos',
+            'books/refund-receipts',
+        ],
+        available: true,
+    },
+    // All purchases; Pay Bills, the five kind tabs and every purchase document keep the
+    // entry active.
+    {
+        id: 'expenses',
+        label: 'Expenses',
+        icon: ShoppingCart,
+        href: 'books/purchases',
+        activePaths: [
+            'books/pay-bills',
+            'books/bills',
+            'books/expenses',
+            'books/bill-payments',
+            'books/vendor-credits',
+            'books/vendor-refunds',
         ],
         available: true,
     },
@@ -183,16 +202,17 @@ export function isActivePath(pathname: string, entry: SidebarEntry): boolean {
 }
 
 // The entry, customer, vendor, product, transfer, invoice, sales receipt, credit memo,
-// estimate, bill, expense, vendor credit, vendor refund and payment forms, Pay Bills, and
-// the entry, transfer, invoice, sales receipt, credit memo, estimate, bill, expense,
-// vendor credit, vendor refund, payment and bill payment views own the bottom of the
-// phone screen, so the New button stays off them. A bare path is a list (`/entries`,
-// `/customers`, `/vendors`, `/products`, and the Sales lists `/invoices`, `/estimates`,
-// `/sales-receipts`, `/payments`, `/credit-memos`), which keeps it, or no screen at all
-// (transfers, bills, expenses, vendor credits, vendor refunds and bill payments have no
-// list). Pay Bills has no id: `/pay-bills` itself is the form.
+// refund receipt, estimate, bill, expense, vendor credit, vendor refund and payment forms,
+// Pay Bills, and the entry, transfer, invoice, sales receipt, credit memo, refund receipt,
+// estimate, bill, expense, vendor credit, vendor refund, payment and bill payment views
+// own the bottom of the phone screen, so the New button stays off them. The pattern needs
+// a child segment, so a bare path keeps the button: a list (`/entries`, `/customers`,
+// `/vendors`, `/products`, the Sales lists `/invoices`, `/estimates`, `/sales-receipts`,
+// `/payments`, `/credit-memos`, `/refund-receipts`, and the purchase lists `/bills`,
+// `/expenses`, `/bill-payments`, `/vendor-credits`, `/vendor-refunds`), or no screen at
+// all (transfers have no list). Pay Bills has no id: `/pay-bills` itself is the form.
 const FAB_FREE_SCREEN =
-    /\/books\/((entries|customers|vendors|products|transfers|invoices|sales-receipts|credit-memos|estimates|bills|expenses|vendor-credits|vendor-refunds|payments|bill-payments)\/[^/]+|pay-bills)\/?$/
+    /\/books\/((entries|customers|vendors|products|transfers|invoices|sales-receipts|credit-memos|refund-receipts|estimates|bills|expenses|vendor-credits|vendor-refunds|payments|bill-payments)\/[^/]+|pay-bills)\/?$/
 
 export function hidesNewFab(pathname: string): boolean {
     return FAB_FREE_SCREEN.test(pathname)

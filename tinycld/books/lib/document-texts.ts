@@ -224,6 +224,69 @@ export const CREDIT_MEMO_MESSAGES = {
     cannotCredit: string
 }
 
+// The refund receipt's texts. The first group is shown by the client and refused by the
+// server with the same words (server/refund_receipts.go, and the inactive customer text in
+// server/invoices.go); tests/document-messages.test.ts fails when they drift. The deposit
+// texts are Refund from's: the layer's deposit rule checks `refund_from` for this kind.
+// There is no `depositRequired`: Refund from is required by its host, whose "Refund from
+// is required" comes first.
+export const REFUND_RECEIPT_MESSAGES = {
+    percentTarget: INVOICE_MESSAGES.percentTarget,
+    totalNegative: 'A refund receipt total cannot be below zero. Use a sales receipt.',
+    totalTooLarge: 'The refund receipt total is more than Books can store.',
+    tooManyLines: 'A refund receipt can have at most 250 lines.',
+    customerInactive: INVOICE_MESSAGES.customerInactive,
+    customerOnInvoices: '%s is on refund receipts. Make it inactive instead.',
+    zeroTotal:
+        'A refund receipt with a total of zero cannot be posted. Add an amount or keep it as a draft.',
+    depositInvalid: SALES_RECEIPT_MESSAGES.depositInvalid,
+    depositNone: SALES_RECEIPT_MESSAGES.depositNone,
+
+    // Client only.
+    needItemLine: INVOICE_MESSAGES.needItemLine,
+    quantityNotPositive: INVOICE_MESSAGES.quantityNotPositive,
+    quantityDecimals: INVOICE_MESSAGES.quantityDecimals,
+    quantityTooLarge: INVOICE_MESSAGES.quantityTooLarge,
+    rateMalformed: INVOICE_MESSAGES.rateMalformed,
+    rateTooLarge: INVOICE_MESSAGES.rateTooLarge,
+    percentRange: INVOICE_MESSAGES.percentRange,
+    percentDecimals: INVOICE_MESSAGES.percentDecimals,
+    noAccess: 'You need bookkeeper access to create refund receipts',
+    notFound: 'This refund receipt does not exist',
+    cannotEdit: 'This refund receipt cannot be edited',
+    loadFailed: 'Books could not load this refund receipt.',
+    customerLoadFailed: INVOICE_MESSAGES.customerLoadFailed,
+    bundleEmpty: INVOICE_MESSAGES.bundleEmpty,
+    bundleLoadFailed: INVOICE_MESSAGES.bundleLoadFailed,
+    pdfUnsaved: INVOICE_MESSAGES.pdfUnsaved,
+    pdfUnsavedSave: INVOICE_MESSAGES.pdfUnsavedSave,
+    pdfStale: INVOICE_MESSAGES.pdfStale,
+    voidBody: INVOICE_MESSAGES.voidBody,
+    // The void dialog's body for a refund that pays out a credit memo's credit.
+    payoutVoidBody: `${INVOICE_MESSAGES.voidBody} The credit memo's credit is unapplied again.`,
+    referenceTooLong: SALES_RECEIPT_MESSAGES.referenceTooLong,
+    // The notices at `?sales_receipt=` and `?credit_memo=` of a source that cannot be refunded.
+    cannotRefundReceipt: 'This sales receipt cannot be refunded',
+    cannotRefundMemo: 'This credit memo cannot be refunded',
+    // A payout's cap and date rule (spec §3.3; Go msgRefundAboveCredit and
+    // msgRefundBeforeCredit, the same words): the unapplied credit as money and the memo's
+    // number; the memo's day as "Nov 12, 2026".
+    payoutAboveCredit: 'The refund is more than the unapplied credit of %s on credit memo %s.',
+    payoutBeforeCredit: "Date the refund on or after the credit memo's date, %s.",
+    // The notice under a payout's link row in the form (spec §3.3).
+    payoutNotice:
+        'This refund pays out a credit. It lowers what Books owes the customer; income and sales tax were lowered by the credit memo.',
+} as const satisfies DocumentMessages & {
+    zeroTotal: string
+    voidBody: string
+    payoutVoidBody: string
+    cannotRefundReceipt: string
+    cannotRefundMemo: string
+    payoutAboveCredit: string
+    payoutBeforeCredit: string
+    payoutNotice: string
+}
+
 // The bill's texts. The first group is shown by the client and refused by the server with
 // the same words (server/bills.go, and the line texts in server/purchase_lines.go);
 // tests/document-messages.test.ts fails when they drift.

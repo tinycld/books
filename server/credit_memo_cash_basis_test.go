@@ -11,9 +11,10 @@ import (
 
 // The credit memo on the cash basis (spec §3.11, Q17): a credit memo is a
 // deferred kind, as an invoice is. Each posted line of its entry is taken out
-// of the cash layer on its own date, and nothing brings it back in this unit
-// (nothing applies or refunds a memo yet). So on the Cash method a memo
-// changes no figure; on Accrual it counts on its date.
+// of the cash layer on its own date, and nothing but a refund receipt that
+// pays it out brings it back (refund_receipt_cash_basis_test.go). So on the
+// Cash method an unrefunded memo changes no figure; on Accrual it counts on
+// its date.
 
 const unappliedCreditMemoMemo = "Unapplied credit memo (cash basis)"
 
@@ -62,7 +63,7 @@ func TestCreditMemoCashBasis_PostTakesEachEntryLineOut(t *testing.T) {
 		}
 	}
 	if rows := cashRowsOf(t, ce.app, dbx.And(dbx.HashExp{"credit_memo": memo.Id}, dbx.NewExp("payment_entry != ''"))); len(rows) != 0 {
-		t.Errorf("rows bring the credit memo back %+v, want none (nothing applies a memo in this unit)", rows)
+		t.Errorf("rows bring the credit memo back %+v, want none (nothing but a refund brings a memo back)", rows)
 	}
 	if got := cashNet(t, ce.app); len(got) != 0 {
 		t.Errorf("an unapplied credit memo counts on the cash basis: %v, want nothing", got)

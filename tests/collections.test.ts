@@ -54,6 +54,11 @@ const NAMES = [
     'books_vendor_credit_applications',
     'books_vendor_refunds',
     'books_vendor_refund_lines',
+    'books_refund_receipts',
+    'books_refund_receipt_lines',
+    'books_refund_receipt_tax_lines',
+    'books_refund_receipt_credits',
+    'books_refund_receipt_sale_lines',
 ]
 
 function register() {

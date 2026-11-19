@@ -11,6 +11,7 @@ import {
     type Ref,
 } from '@tanstack/db'
 import { describe, expect, it } from 'vitest'
+import * as documentList from '../tinycld/books/lib/document-list'
 import {
     chipClause,
     chipRuns,
@@ -18,6 +19,7 @@ import {
     DEFAULT_LIST_FILTERS,
     DEFAULT_LIST_SORT,
     type DocumentListRow,
+    type DocumentListTab,
     documentListWindow,
     emptyTexts,
     hasFilterSet,
@@ -28,7 +30,8 @@ import {
     listRange,
     rangeClauses,
     searchClauses,
-    tableMinWidth,
+    sortField,
+    tableMinWidthFor,
 } from '../tinycld/books/lib/document-list'
 import { searchPieces } from '../tinycld/books/lib/list-search'
 import {
@@ -36,9 +39,11 @@ import {
     estimateRow,
     invoiceRow,
     paymentRow,
+    refundReceiptRow,
     salesReceiptRow,
     type TransactionKind,
 } from '../tinycld/books/lib/party-transactions'
+import { purchaseTabOf } from '../tinycld/books/lib/purchase-lists'
 import { salesTabOf } from '../tinycld/books/lib/sales-lists'
 import {
     SALES_LIST_CREDIT_MEMOS,
@@ -108,6 +113,32 @@ async function keep<T extends { id: string }>(
 
 const idsOf = (rows: readonly { id: string }[]) => rows.map(row => row.id).sort()
 
+// The sales lists fixture has no refund receipts: one of each status (refund receipt spec
+// §3.13), and a void original a correction replaced.
+const REFUND_BASE = {
+    number: '',
+    date: '2026-11-05',
+    total: 15_000,
+    currency: 'USD',
+    created: '2026-11-05 09:00:00.000Z',
+    memo: '',
+    replaced_by: '',
+}
+const REFUND_ROWS = [
+    { ...REFUND_BASE, id: 'slrr00000001001', status: 'posted', number: '1001' },
+    { ...REFUND_BASE, id: 'slrr00000001002', status: 'posted', number: '1002' },
+    { ...REFUND_BASE, id: 'slrrdraft000001', status: 'draft' },
+    { ...REFUND_BASE, id: 'slrr00000001003', status: 'void', number: '1003' },
+    {
+        ...REFUND_BASE,
+        id: 'slrr0001004old0',
+        status: 'void',
+        number: '1004',
+        replaced_by: 'slrr0001004fix0',
+    },
+    { ...REFUND_BASE, id: 'slrr0001004fix0', status: 'posted', number: '1004' },
+] as const
+
 // The rows of one kind with the badge label each one shows on SALES_LIST_TODAY.
 const KIND_ROWS = {
     invoice: () =>
@@ -123,6 +154,8 @@ const KIND_ROWS = {
     payment: () => keepBadges(SALES_LIST_PAYMENTS, row => paymentRow(row).status.label, 'payment'),
     credit_memo: () =>
         keepBadges(SALES_LIST_CREDIT_MEMOS, row => creditMemoRow(row).status.label, 'credit_memo'),
+    refund_receipt: () =>
+        keepBadges(REFUND_ROWS, row => refundReceiptRow(row).status.label, 'refund_receipt'),
 } satisfies Record<TransactionKind, unknown>
 
 function keepBadges<T extends { id: string }>(
@@ -200,7 +233,16 @@ const KIND_TAB_CHIPS: readonly {
         kind: 'credit_memo',
         chips: [
             { id: 'unapplied', isChip: label => label === 'Unapplied' },
-            { id: 'applied', isChip: label => label === 'Applied' },
+            { id: 'refunded', isChip: label => label === 'Refunded' },
+            { id: 'draft', isChip: label => label === 'Draft' },
+            { id: 'void', isChip: label => label === 'Void' },
+        ],
+    },
+    {
+        tab: 'refund-receipts',
+        kind: 'refund_receipt',
+        chips: [
+            { id: 'refunded', isChip: label => label === 'Refunded' },
             { id: 'draft', isChip: label => label === 'Draft' },
             { id: 'void', isChip: label => label === 'Void' },
         ],
@@ -250,6 +292,7 @@ const ALL_SALES_TABLE: {
     sales_receipt: Record<string, RowRule<(typeof SALES_LIST_SALES_RECEIPTS)[number]>>
     payment: Record<string, RowRule<(typeof SALES_LIST_PAYMENTS)[number]>>
     credit_memo: Record<string, RowRule<(typeof SALES_LIST_CREDIT_MEMOS)[number]>>
+    refund_receipt: Record<string, RowRule<(typeof REFUND_ROWS)[number]>>
 } = {
     invoice: {
         open: row => isPosted(row) && row.balance > 0,
@@ -286,6 +329,14 @@ const ALL_SALES_TABLE: {
         open: row => isPosted(row) && row.balance > 0,
         overdue: null,
         closed: row => isPosted(row) && row.balance === 0,
+        draft: isDraft,
+        void: isVoid,
+    },
+    // As the sales receipt: a posted refund is closed.
+    refund_receipt: {
+        open: null,
+        overdue: null,
+        closed: isPosted,
         draft: isDraft,
         void: isVoid,
     },
@@ -334,6 +385,8 @@ describe('chipClause and chipRuns on All sales', () => {
             ALL_SALES_TABLE.credit_memo[chip],
             chip
         ))
+    it.each(ALL_SALES_CHIPS)('chip %s keeps per refund receipt what the table says', chip =>
+        allSalesCase('refund_receipt', REFUND_ROWS, ALL_SALES_TABLE.refund_receipt[chip], chip))
 
     it('runs Overdue only for invoices, Draft and Void not for estimates, Open not for receipts', () => {
         const tab = salesTabOf('all')
@@ -343,6 +396,7 @@ describe('chipClause and chipRuns on All sales', () => {
             'sales_receipt',
             'payment',
             'credit_memo',
+            'refund_receipt',
         ]
         expect(kinds.filter(kind => chipRuns(tab, 'overdue', kind))).toEqual(['invoice'])
         expect(chipRuns(tab, 'draft', 'estimate')).toBe(false)
@@ -479,8 +533,8 @@ function listRow(over: Partial<DocumentListRow>): DocumentListRow {
         created: '2026-11-01 09:00:00.000Z',
         status: { label: 'Open', tone: 'warning' },
         sequence: 0,
-        customerId: '',
-        customerName: '',
+        partyId: '',
+        partyName: '',
         memo: '',
         reference: '',
         expires: '',
@@ -488,6 +542,7 @@ function listRow(over: Partial<DocumentListRow>): DocumentListRow {
         entry: '',
         convertedInvoice: '',
         recordStatus: 'posted',
+        category: { kind: 'none' },
         ...over,
     }
 }
@@ -649,15 +704,19 @@ describe('documentListWindow', () => {
 })
 
 describe('listControls', () => {
-    it('shows a reader no New, no ticks and no batch', () => {
-        expect(listControls(false, 'table')).toMatchObject({
+    // Checkpoint 4: every area has the row actions, so the controls depend on the access and
+    // the layout only (two arguments).
+    it('shows a reader row menus and no New, no ticks and no batch', () => {
+        expect(listControls(false, 'table')).toEqual({
             showNew: false,
             showTicks: false,
             showBatch: false,
+            showRowMenus: true,
+            showFilters: true,
         })
     })
 
-    it('shows a writer everything in the table', () => {
+    it('shows a writer ticks, batch and row menus in the table', () => {
         expect(listControls(true, 'table')).toEqual({
             showNew: true,
             showTicks: true,
@@ -665,6 +724,18 @@ describe('listControls', () => {
             showRowMenus: true,
             showFilters: true,
         })
+    })
+
+    it('shows a writer ticks, batch and row menus on the cards', () => {
+        expect(listControls(true, 'cards')).toMatchObject({
+            showTicks: true,
+            showBatch: true,
+            showRowMenus: true,
+        })
+    })
+
+    it('takes two arguments', () => {
+        expect(listControls.length).toBe(2)
     })
 
     it('shows the names column New and no ticks, batch, row menus or filters', () => {
@@ -678,10 +749,29 @@ describe('listControls', () => {
     })
 })
 
-describe('tableMinWidth', () => {
+// The table's minimum with the cells `listControls` gives the tab's area (fix round 1: the
+// old `tableMinWidth(tab, canWrite)` drew a row menu for every area and is gone).
+function minWidthOf(tab: DocumentListTab, canWrite: boolean): number {
+    return tableMinWidthFor(tab, listControls(canWrite, 'table'))
+}
+
+describe('tableMinWidthFor', () => {
     it('is 900 for the All sales columns and 886 for the Invoices columns for a writer', () => {
-        expect(tableMinWidth(salesTabOf('all').columns, true)).toBe(900)
-        expect(tableMinWidth(salesTabOf('invoices').columns, true)).toBe(886)
+        expect(minWidthOf(salesTabOf('all'), true)).toBe(900)
+        expect(minWidthOf(salesTabOf('invoices'), true)).toBe(886)
+    })
+
+    it('is 28 less for a Sales reader, who has a left pad for the tick box', () => {
+        expect(minWidthOf(salesTabOf('all'), false)).toBe(872)
+        expect(minWidthOf(salesTabOf('invoices'), false)).toBe(858)
+    })
+
+    it('is 912 for an All purchases writer, with the tick box and the row menu', () => {
+        expect(minWidthOf(purchaseTabOf('all'), true)).toBe(912)
+    })
+
+    it('has no tableMinWidth(tab, canWrite) beside it', () => {
+        expect(documentList).not.toHaveProperty('tableMinWidth')
     })
 })
 
@@ -691,7 +781,7 @@ describe('hasFilterSet', () => {
             search: '',
             chip: 'all',
             range: 'all-dates',
-            customer: '',
+            party: '',
         })
         expect(hasFilterSet(DEFAULT_LIST_FILTERS)).toBe(false)
     })
@@ -700,7 +790,7 @@ describe('hasFilterSet', () => {
         ['a search', { search: 'retainer' }],
         ['a chip', { chip: 'open' }],
         ['a range', { range: 'this-month' }],
-        ['a customer', { customer: 'bcust0000000001' }],
+        ['a party', { party: 'bcust0000000001' }],
     ] as const)('is true with %s', (_label, change) => {
         expect(hasFilterSet({ ...DEFAULT_LIST_FILTERS, ...change })).toBe(true)
     })
@@ -716,5 +806,30 @@ describe('emptyTexts', () => {
             yet: 'No sales transactions yet',
             match: 'No sales transactions match',
         })
+        expect(emptyTexts(salesTabOf('refund-receipts'))).toEqual({
+            yet: 'No refund receipts yet',
+            match: 'No refund receipts match',
+        })
+    })
+})
+
+describe('the refund receipts tab', () => {
+    it('lists the rows of kind refund_receipt only, and All sales lists them too', () => {
+        expect(chipRuns(salesTabOf('refund-receipts'), 'all', 'refund_receipt')).toBe(true)
+        expect(chipRuns(salesTabOf('refund-receipts'), 'all', 'sales_receipt')).toBe(false)
+        expect(chipRuns(salesTabOf('all'), 'all', 'refund_receipt')).toBe(true)
+    })
+
+    it('drops a void original that a correction replaced', async () => {
+        const { ids } = await keep(REFUND_ROWS, row => listedClause(row))
+        expect(ids).not.toContain('slrr0001004old0')
+        expect(ids).toContain('slrr0001004fix0')
+        expect(ids).toContain('slrr00000001003')
+    })
+
+    it('sorts by date, number and amount on the stored columns', () => {
+        expect(sortField('refund_receipt', 'date')).toBe('date')
+        expect(sortField('refund_receipt', 'number')).toBe('sequence')
+        expect(sortField('refund_receipt', 'amount')).toBe('total')
     })
 })

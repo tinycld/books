@@ -1,0 +1,279 @@
+{
+    "outDir": "purchase-lists-reference",
+    "shots": [
+        {
+            "name": "all",
+            "url": "/a/books/helix-mockup?tab=all",
+            "ready": "purchases-row-plbill000001058",
+            "widths": [1280]
+        },
+        {
+            "name": "all-mid",
+            "url": "/a/books/helix-mockup?tab=all",
+            "ready": "purchases-row-plbill000001058",
+            "widths": [900]
+        },
+        {
+            "name": "all-phone",
+            "url": "/a/books/helix-mockup?tab=all",
+            "ready": "purchases-row-plbill000001058",
+            "widths": [390]
+        },
+        {
+            "name": "all-ticked",
+            "url": "/a/books/helix-mockup?tab=all&state=ticked",
+            "ready": "purchases-row-plbill000001058",
+            "widths": [1280]
+        },
+        {
+            "name": "all-ticked-phone",
+            "url": "/a/books/helix-mockup?tab=all&state=ticked",
+            "ready": "purchases-row-plbill000001058",
+            "widths": [390]
+        },
+        {
+            "name": "bills",
+            "url": "/a/books/helix-mockup?tab=bills",
+            "ready": "purchases-row-plbill000001058",
+            "widths": [1280]
+        },
+        {
+            "name": "bills-phone",
+            "url": "/a/books/helix-mockup?tab=bills",
+            "ready": "purchases-row-plbill000001058",
+            "widths": [390]
+        },
+        {
+            "name": "bills-sorted",
+            "url": "/a/books/helix-mockup?tab=bills&state=sorted",
+            "ready": "purchases-row-plbill000001058",
+            "widths": [1280]
+        },
+        {
+            "name": "expenses",
+            "url": "/a/books/helix-mockup?tab=expenses",
+            "ready": "purchases-row-plexp0000000214",
+            "widths": [1280]
+        },
+        {
+            "name": "expenses-phone",
+            "url": "/a/books/helix-mockup?tab=expenses",
+            "ready": "purchases-row-plexp0000000214",
+            "widths": [390]
+        },
+        {
+            "name": "bill-payments",
+            "url": "/a/books/helix-mockup?tab=bill-payments",
+            "ready": "purchases-row-plbp00000000108",
+            "widths": [1280]
+        },
+        {
+            "name": "vendor-credits",
+            "url": "/a/books/helix-mockup?tab=vendor-credits",
+            "ready": "purchases-row-plvc00000000031",
+            "widths": [1280]
+        },
+        {
+            "name": "vendor-refunds",
+            "url": "/a/books/helix-mockup?tab=vendor-refunds",
+            "ready": "purchases-row-plvr00000000012",
+            "widths": [1280]
+        },
+        {
+            "name": "beside",
+            "url": "/a/books/helix-mockup?state=beside",
+            "ready": "purchases-name-row-plbill000001056",
+            "widths": [1440]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?tab=bills&state=loading",
+            "ready": "purchases-loading",
+            "widths": [1280]
+        },
+        {
+            "name": "loading-phone",
+            "url": "/a/books/helix-mockup?tab=bills&state=loading",
+            "ready": "purchases-loading",
+            "widths": [390]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/helix-mockup?tab=bills&state=empty",
+            "ready": "purchases-empty",
+            "widths": [1280]
+        },
+        {
+            "name": "empty-phone",
+            "url": "/a/books/helix-mockup?tab=bills&state=empty",
+            "ready": "purchases-empty",
+            "widths": [390]
+        },
+        {
+            "name": "empty-all",
+            "url": "/a/books/helix-mockup?tab=all&state=empty",
+            "ready": "purchases-empty",
+            "widths": [1280]
+        },
+        {
+            "name": "no-match",
+            "url": "/a/books/helix-mockup?tab=bills&state=no-match",
+            "ready": "purchases-no-match",
+            "widths": [1280]
+        },
+        {
+            "name": "no-match-phone",
+            "url": "/a/books/helix-mockup?tab=bills&state=no-match",
+            "ready": "purchases-no-match",
+            "widths": [390]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?tab=bills&state=error",
+            "ready": "purchases-banner",
+            "widths": [1280]
+        },
+        {
+            "name": "error-phone",
+            "url": "/a/books/helix-mockup?tab=bills&state=error",
+            "ready": "purchases-banner",
+            "widths": [390]
+        },
+        {
+            "name": "read-only",
+            "url": "/a/books/helix-mockup?tab=all&state=read-only",
+            "ready": "purchases-row-plbill000001058",
+            "widths": [1280]
+        },
+        {
+            "name": "read-only-phone",
+            "url": "/a/books/helix-mockup?tab=all&state=read-only",
+            "ready": "purchases-row-plbill000001058",
+            "widths": [390]
+        },
+        {
+            "name": "new-menu",
+            "url": "/a/books/helix-mockup?tab=all",
+            "ready": "purchases-new",
+            "widths": [1280],
+            "actions": [{ "click": "purchases-new" }, { "waitFor": "purchases-new-pay-bills" }]
+        },
+        {
+            "name": "new-menu-phone",
+            "url": "/a/books/helix-mockup?tab=all",
+            "ready": "purchases-new",
+            "widths": [390],
+            "stable": "purchases-new-pay-bills",
+            "actions": [{ "click": "purchases-new" }, { "waitFor": "purchases-new-pay-bills" }]
+        },
+        {
+            "name": "row-menu",
+            "url": "/a/books/helix-mockup?tab=bills",
+            "ready": "purchases-row-menu-plbill000001056",
+            "widths": [1280],
+            "actions": [
+                { "click": "purchases-row-menu-plbill000001056" },
+                { "waitFor": "purchases-row-action-pay-bill" }
+            ]
+        },
+        {
+            "name": "row-menu-phone",
+            "url": "/a/books/helix-mockup?tab=bills",
+            "ready": "purchases-row-menu-plbill000001056",
+            "widths": [390],
+            "stable": "purchases-row-action-pay-bill",
+            "actions": [
+                { "click": "purchases-row-menu-plbill000001056" },
+                { "waitFor": "purchases-row-action-pay-bill" }
+            ]
+        },
+        {
+            "name": "row-menu-credit",
+            "url": "/a/books/helix-mockup?tab=vendor-credits",
+            "ready": "purchases-row-menu-plvc00000000031",
+            "widths": [1280],
+            "actions": [
+                { "click": "purchases-row-menu-plvc00000000031" },
+                { "waitFor": "purchases-row-action-apply-credit" }
+            ]
+        },
+        {
+            "name": "batch-menu",
+            "url": "/a/books/helix-mockup?tab=all&state=ticked",
+            "ready": "purchases-batch-actions",
+            "widths": [1280],
+            "actions": [
+                { "click": "purchases-batch-actions" },
+                { "waitFor": "purchases-batch-delete-drafts" }
+            ]
+        },
+        {
+            "name": "batch-menu-phone",
+            "url": "/a/books/helix-mockup?tab=all&state=ticked",
+            "ready": "purchases-batch-actions",
+            "widths": [390],
+            "stable": "purchases-batch-delete-drafts",
+            "actions": [
+                { "click": "purchases-batch-actions" },
+                { "waitFor": "purchases-batch-delete-drafts" }
+            ]
+        },
+        {
+            "name": "sort-menu-phone",
+            "url": "/a/books/helix-mockup?tab=bills",
+            "ready": "purchases-sort",
+            "widths": [390],
+            "actions": [{ "click": "purchases-sort" }, { "waitFor": "purchases-sort-balance-up" }]
+        },
+        {
+            "name": "range-menu",
+            "url": "/a/books/helix-mockup?tab=bills",
+            "ready": "purchases-range",
+            "widths": [1280],
+            "actions": [
+                { "click": "purchases-range" },
+                { "waitFor": "purchases-range-this-quarter" }
+            ]
+        },
+        {
+            "name": "vendor-picker",
+            "url": "/a/books/helix-mockup?tab=bills",
+            "ready": "purchases-vendor",
+            "widths": [1280],
+            "actions": [{ "click": "purchases-vendor" }, { "waitFor": "purchases-vendor-all" }]
+        },
+        {
+            "name": "batch-confirm",
+            "url": "/a/books/helix-mockup?tab=all&state=batch-confirm",
+            "ready": "purchases-batch-dialog",
+            "opaque": "purchases-batch-dialog",
+            "widths": [1280]
+        },
+        {
+            "name": "batch-confirm-phone",
+            "url": "/a/books/helix-mockup?tab=all&state=batch-confirm",
+            "ready": "purchases-batch-dialog",
+            "opaque": "purchases-batch-dialog",
+            "widths": [390]
+        },
+        {
+            "name": "batch-none",
+            "url": "/a/books/helix-mockup?tab=all&state=batch-none",
+            "ready": "purchases-batch-dialog",
+            "opaque": "purchases-batch-dialog",
+            "widths": [1280]
+        },
+        {
+            "name": "batch-result",
+            "url": "/a/books/helix-mockup?tab=all&state=batch-result",
+            "ready": "purchases-banner",
+            "widths": [1280]
+        },
+        {
+            "name": "batch-result-phone",
+            "url": "/a/books/helix-mockup?tab=all&state=batch-result",
+            "ready": "purchases-banner",
+            "widths": [390]
+        }
+    ]
+}

@@ -11,20 +11,20 @@ To see what a customer owes, open the customer from the Customers list. The cust
 
 The page shows two figures:
 
-- **Open** is what the customer owes you in all: the customer's balance on Accounts receivable, from every posted entry that names the customer. When you post or void an invoice, a payment or a credit memo anywhere in Books, the figure changes at once. A posted credit memo lowers it by its Credit amount.
+- **Open** is what the customer owes you in all: the customer's balance on Accounts receivable, from every posted entry that names the customer. When you post or void an invoice, a payment, a credit memo or a refund receipt that pays out a credit memo anywhere in Books, the figure changes at once. A posted credit memo lowers it by its Credit amount, and a refund receipt that pays out a credit memo raises it by its total.
 - **Overdue** is what is still open on the customer's posted invoices whose due date is before today: their Balance due, not their total, so a part payment lowers it and a paid invoice drops out. A credit memo does not change it.
 
 If the balance is in the customer's favour (you owe the customer, for example after a payment that was more than the open invoices, or a credit memo larger than them), the first figure shows as a negative amount, such as −$120.00, with the label **Credit** in place of Open. A parent customer's figures are its own only; each sub-customer has its own page. If the figures cannot load, the page shows "Balance unavailable"; choose Retry to load them again.
 
 ## Start a transaction for the customer
 
-To start an invoice, an estimate, a sales receipt, a payment or a credit memo for this customer, choose **New transaction**, or press ⌥N, and pick the type. To record money the customer sent, pick Receive payment: see [Receive payment](help://books:receive-payment). To give the customer a credit, pick Credit memo: see [Credit memos](help://books:credit-memos). The new document opens with the customer filled in. Go back to return to the customer's page. You cannot start a transaction for an inactive customer: make the customer active first.
+To start an invoice, an estimate, a sales receipt, a payment, a credit memo or a refund receipt for this customer, choose **New transaction**, or press ⌥N, and pick the type. To record money the customer sent, pick Receive payment: see [Receive payment](help://books:receive-payment). To give the customer a credit, pick Credit memo: see [Credit memos](help://books:credit-memos). The new document opens with the customer filled in. Go back to return to the customer's page. You cannot start a transaction for an inactive customer: make the customer active first.
 
 ## The tabs
 
 The page has four tabs. To select one from anywhere on the page, press ⌥1 to ⌥4.
 
-- **Transactions** (⌥1) lists the customer's invoices, estimates, sales receipts, payments and credit memos, newest first. Choose a row to open it.
+- **Transactions** (⌥1) lists the customer's invoices, estimates, sales receipts, payments, credit memos and refund receipts, newest first. Choose a row to open it.
 - **Contacts** (⌥2) lists the people at the customer.
 - **Details** (⌥3) is the customer form: names, addresses, terms, sales tax and custom fields.
 - **Notes** (⌥4) holds your notes about the customer.
@@ -35,11 +35,14 @@ In the Transactions tab, each row shows its type and its status:
 
 - An invoice is Draft, Paid (nothing open), Partly paid (part of the total open), Overdue (all of the total open, due before today), Open or Void.
 - A Payment is Draft, Applied (all of it paid invoices), Credit with the amount kept as a credit (such as Credit $100.00), or Void.
-- A credit memo is Draft, Unapplied, Applied or Void. A posted credit memo is Unapplied while some of its credit is not used yet. A credit memo is Applied when all of its credit is used; Books cannot yet apply a credit to an invoice, so for now a posted credit memo stays Unapplied.
+- A credit memo is Draft, Unapplied, Refunded or Void. A posted credit memo is Unapplied while some of its credit is not used yet, also after you refund part of it. A posted credit memo is Refunded when refund receipts pay out all of its credit.
+- A refund receipt is Draft, Refunded (posted) or Void.
 
 To see the payments only, choose the **Payments** chip above the list. Choose a payment's row to open the payment.
 
 To see the credit memos only, choose the **Credit memos** chip. A credit memo's total shows with a minus sign, such as −$250.00, because it lowers what the customer owes, and it has no due date. A draft credit memo has no number yet. Choose a credit memo's row to open it.
+
+To see the money you gave back to the customer, choose the **Refunds** chip, after Credit memos. Each row has the type Refund receipt, and its total shows with a minus sign, such as −$150.00. Choose a row to open the refund receipt. A refund receipt that refunds a sale does not change Open, because it does not touch Accounts receivable. A refund receipt that pays out a credit memo raises Open by its total, because it uses up the credit that you owed the customer. See [Refund receipts](help://books:refund-receipts).
 
 ## Edit in place
 
@@ -49,7 +52,7 @@ You change Details and Notes on the page itself; there is no Edit button. When y
 
 The Contacts tab lists the people you deal with at the customer: name, role, email and phone. The **Primary** contact is first and has a Primary badge; the others follow by name.
 
-- To add a person, choose **Add contact**, or press ⌥C when the tab already lists people. Type a name (the only field you must fill in), and a role, an email and a phone if you have them. Turn on Primary contact to make the person the primary contact. Choose Save, or press ⌘↵.
+- To add a person, choose **Add contact**, or press ⌥C. Type a name (the only field you must fill in), and a role, an email and a phone if you have them. Turn on Primary contact to make the person the primary contact. Choose Save, or press ⌘↵.
 - To change a person, open the menu on the person's row and choose Edit.
 - To make another person the primary contact, open the menu on the person's row and choose Make primary. A customer has one primary contact, so the person who was primary before loses the badge.
 - To delete a person, open the menu on the person's row, choose Delete, then choose Delete in the "Delete contact" dialog.

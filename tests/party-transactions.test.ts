@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
     CUSTOMER_PAGE_ESTIMATES,
     CUSTOMER_PAGE_INVOICES,
@@ -16,12 +16,17 @@ import {
     invoiceRow,
     isListedTransaction,
     mergeTransactions,
+    type PartyTransactionRow,
+    partyFilterTestId,
     paymentRow,
+    refundReceiptRow,
+    refundReceiptStatus,
     salesReceiptRow,
     TRANSACTION_DOC_KINDS,
     TRANSACTION_FILTERS,
     TRANSACTION_PAGE,
     TRANSACTION_TYPE_LABELS,
+    type TransactionKind,
     transactionTotalText,
 } from '../tinycld/books/lib/party-transactions'
 import { PAYMENT_IDS, PAYMENTS } from '../tinycld/books/lib/receive-payment-fixture'
@@ -260,10 +265,28 @@ describe('creditMemoStatus', () => {
         })
     })
 
-    it('a posted memo with no credit left is Applied, success', () => {
+    it('a posted memo with no credit left is Refunded, success', () => {
         expect(creditMemoStatus({ status: 'posted', balance: 0 })).toEqual({
-            label: 'Applied',
+            label: 'Refunded',
             tone: 'success',
+        })
+    })
+
+    it('a posted memo partly refunded is still Unapplied, warning', () => {
+        expect(creditMemoStatus({ status: 'posted', balance: 1 })).toEqual({
+            label: 'Unapplied',
+            tone: 'warning',
+        })
+    })
+
+    it('a draft or void memo keeps its status whatever the balance', () => {
+        expect(creditMemoStatus({ status: 'draft', balance: 25_000 })).toEqual({
+            label: 'Draft',
+            tone: 'muted',
+        })
+        expect(creditMemoStatus({ status: 'void', balance: 25_000 })).toEqual({
+            label: 'Void',
+            tone: 'muted',
         })
     })
 
@@ -324,8 +347,8 @@ describe('the credit memo kind', () => {
         )
     })
 
-    it('has the last chip, Credit memos, after Payments', () => {
-        expect(TRANSACTION_FILTERS.slice(-2)).toEqual([
+    it('has the chip Credit memos after Payments', () => {
+        expect(TRANSACTION_FILTERS.slice(-3, -1)).toEqual([
             { key: 'payment', label: 'Payments' },
             { key: 'credit_memo', label: 'Credit memos' },
         ])
@@ -352,6 +375,95 @@ describe('the credit memo kind', () => {
         const ids = rows.map(r => r.id)
         expect(ids.indexOf(memo.id)).toBe(ids.indexOf('cpsr00000000077') + 1)
         expect(ids.indexOf('cpinv0000001041')).toBe(ids.indexOf(memo.id) + 1)
+    })
+})
+
+// The customer page's sixth kind (refund receipt spec §3.13).
+const POSTED_REFUND = {
+    id: 'rrtest000001003',
+    status: 'posted' as const,
+    number: '1003',
+    date: '2026-11-12',
+    total: 15_000,
+    currency: 'USD',
+    created: '2026-11-12 09:00:00.000Z',
+}
+const DRAFT_REFUND = {
+    ...POSTED_REFUND,
+    id: 'rrtestdraft0001',
+    status: 'draft' as const,
+    number: '',
+}
+
+describe('refundReceiptStatus', () => {
+    it('a draft is Draft, muted', () => {
+        expect(refundReceiptStatus({ status: 'draft' })).toEqual({ label: 'Draft', tone: 'muted' })
+    })
+
+    it('a posted refund is Refunded, success', () => {
+        expect(refundReceiptStatus({ status: 'posted' })).toEqual({
+            label: 'Refunded',
+            tone: 'success',
+        })
+    })
+
+    it('a void refund is Void, muted', () => {
+        expect(refundReceiptStatus({ status: 'void' })).toEqual({ label: 'Void', tone: 'muted' })
+    })
+})
+
+describe('refundReceiptRow', () => {
+    it('maps a posted refund to one row of kind refund_receipt, its total negated', () => {
+        expect(refundReceiptRow(POSTED_REFUND)).toEqual({
+            id: POSTED_REFUND.id,
+            kind: 'refund_receipt',
+            number: '1003',
+            date: '2026-11-12',
+            dueDate: '',
+            total: -15_000,
+            currency: 'USD',
+            created: POSTED_REFUND.created,
+            status: { label: 'Refunded', tone: 'success' },
+        })
+    })
+
+    it('writes its total with U+2212 in front', () => {
+        const text = transactionTotalText(refundReceiptRow(POSTED_REFUND), 'USD')
+        expect(text).toBe(`${MINUS}$150.00`)
+        expect(text.startsWith('-')).toBe(false)
+    })
+
+    it('a draft has an empty No. and reads Draft', () => {
+        const row = refundReceiptRow(DRAFT_REFUND)
+        expect(row.number).toBe('')
+        expect(row.total).toBe(-15_000)
+        expect(row.status).toEqual({ label: 'Draft', tone: 'muted' })
+    })
+
+    it('a void refund reads Void', () => {
+        expect(refundReceiptRow({ ...POSTED_REFUND, status: 'void' }).status).toEqual({
+            label: 'Void',
+            tone: 'muted',
+        })
+    })
+
+    it('has the type label Refund receipt and opens books/refund-receipts/<id>', () => {
+        expect(TRANSACTION_TYPE_LABELS.refund_receipt).toBe('Refund receipt')
+        expect(documentHref(TRANSACTION_DOC_KINDS.refund_receipt, POSTED_REFUND.id)).toBe(
+            `books/refund-receipts/${POSTED_REFUND.id}`
+        )
+    })
+
+    it('has the last chip, Refunds, after Credit memos', () => {
+        expect(TRANSACTION_FILTERS.slice(-2)).toEqual([
+            { key: 'credit_memo', label: 'Credit memos' },
+            { key: 'refund_receipt', label: 'Refunds' },
+        ])
+        expect(filterTestId('refund_receipt')).toBe('customer-transactions-filter-refund-receipt')
+    })
+
+    it('names the empty Refunds chip', () => {
+        expect(emptyText('refund_receipt')).toBe('No refund receipts for this customer')
     })
 })
 
@@ -488,6 +600,25 @@ describe('mergeTransactions', () => {
         expect(merged.hasMore).toBe(true)
     })
 
+    it('reports more when the lists together hold more than n rows, none of them n', () => {
+        const base = harborviewLists()[0][0]
+        const copies = (prefix: string, count: number) =>
+            Array.from({ length: count }, (_, i) => ({
+                ...base,
+                id: `${prefix}${String(i).padStart(4, '0')}`,
+                created: `2026-10-01 00:00:${String(i).padStart(2, '0')}.000Z`,
+            }))
+        const merged = mergeTransactions([copies('a', 30), copies('b', 30)], 50)
+        expect(merged.rows).toHaveLength(50)
+        expect(merged.hasMore).toBe(true)
+        const exact = mergeTransactions([copies('a', 30), copies('b', 20)], 50)
+        expect(exact.rows).toHaveLength(50)
+        expect(exact.hasMore).toBe(false)
+        const fewer = mergeTransactions([copies('a', 30), copies('b', 19)], 50)
+        expect(fewer.rows).toHaveLength(49)
+        expect(fewer.hasMore).toBe(false)
+    })
+
     it('orders by a given compare function, still cut to n', () => {
         // Every id is distinct, so this compare has no ties and the expected order
         // does not depend on the input order of the lists.
@@ -535,5 +666,64 @@ describe('filterTestId and TRANSACTION_DOC_KINDS', () => {
         expect(TRANSACTION_DOC_KINDS.estimate).toEqual(ESTIMATE_KIND)
         expect(TRANSACTION_DOC_KINDS.sales_receipt).toEqual(SALES_RECEIPT_KIND)
         expect(TRANSACTION_DOC_KINDS.payment).toMatchObject({ routeBase: 'books/payments' })
+    })
+})
+
+// Vendor pages §2: the transactions list is a shared part, so its chip ids take the
+// party's prefix, and its rows take another party's kind union.
+describe('partyFilterTestId', () => {
+    it('writes <prefix>-transactions-filter-<filter> with every underscore as a dash', () => {
+        expect(partyFilterTestId('vendor', 'bill_payment')).toBe(
+            'vendor-transactions-filter-bill-payment'
+        )
+        expect(partyFilterTestId('vendor', 'all')).toBe('vendor-transactions-filter-all')
+        expect(partyFilterTestId('customer', 'sales_receipt')).toBe(
+            'customer-transactions-filter-sales-receipt'
+        )
+    })
+
+    it('leaves filterTestId as it was for the customer page', () => {
+        expect(filterTestId('sales_receipt')).toBe('customer-transactions-filter-sales-receipt')
+        expect(filterTestId('sales_receipt')).toBe(partyFilterTestId('customer', 'sales_receipt'))
+    })
+})
+
+describe('mergeTransactions over another kind union', () => {
+    type PurchaseKind = 'bill' | 'expense'
+    const purchaseRow = (
+        id: string,
+        kind: PurchaseKind,
+        date: string,
+        total: number
+    ): PartyTransactionRow<PurchaseKind> => ({
+        id,
+        kind,
+        number: id.toUpperCase(),
+        date,
+        dueDate: '',
+        total,
+        currency: 'USD',
+        created: `${date} 09:00:00.000Z`,
+        status: { label: 'Paid', tone: 'success' },
+    })
+
+    it('merges rows of a purchase kind union, newest first, and keeps their row type', () => {
+        const bills = [purchaseRow('b1', 'bill', '2026-11-01', 10_000)]
+        const expenses = [
+            purchaseRow('e1', 'expense', '2026-11-04', 2_500),
+            purchaseRow('e2', 'expense', '2026-10-20', 900),
+        ]
+        const merged = mergeTransactions([bills, expenses], TRANSACTION_PAGE)
+        expectTypeOf(merged.rows).toEqualTypeOf<PartyTransactionRow<PurchaseKind>[]>()
+        expectTypeOf<PartyTransactionRow['kind']>().toEqualTypeOf<TransactionKind>()
+        expect(merged.rows.map(r => r.id)).toEqual(['e1', 'b1', 'e2'])
+        expect(merged.hasMore).toBe(false)
+        expect(mergeTransactions([bills, expenses], 1).hasMore).toBe(true)
+    })
+
+    it('writes a purchase row total like a sales row total', () => {
+        const row = purchaseRow('b1', 'bill', '2026-11-01', 25_000)
+        expect(transactionTotalText(row, 'USD')).toBe('$250.00')
+        expect(transactionTotalText({ ...row, total: -25_000 }, 'USD')).toBe(`${MINUS}$250.00`)
     })
 })

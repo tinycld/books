@@ -2,6 +2,8 @@
 // the kinds it lists, its columns, chips and sortable columns, and its New action.
 
 import type { DocumentListTab, ListChip, ListColumnKey, ListSortKey } from './document-list'
+import { BASE_SORT_KEYS, listChips as chips } from './list-chips'
+import { areaTabOf } from './list-tabs'
 import { NEW_ACTIONS } from './new-actions'
 import type { TransactionFilter, TransactionKind } from './party-transactions'
 
@@ -11,6 +13,7 @@ const ALL_KINDS: readonly TransactionKind[] = [
     'sales_receipt',
     'payment',
     'credit_memo',
+    'refund_receipt',
 ]
 
 // The New action of each kind, by its NEW_ACTIONS id.
@@ -20,6 +23,7 @@ const NEW_ACTION_IDS: Record<TransactionKind, string> = {
     sales_receipt: 'sales_receipt',
     payment: 'receive_payment',
     credit_memo: 'credit_memo',
+    refund_receipt: 'refund_receipt',
 }
 
 const NEW_LABELS: Record<TransactionKind, string> = {
@@ -28,6 +32,7 @@ const NEW_LABELS: Record<TransactionKind, string> = {
     sales_receipt: 'New sales receipt',
     payment: 'Receive payment',
     credit_memo: 'New credit memo',
+    refund_receipt: 'New refund receipt',
 }
 
 function newHrefOf(kind: TransactionKind): string {
@@ -35,14 +40,6 @@ function newHrefOf(kind: TransactionKind): string {
     if (action === undefined) throw new Error(`NEW_ACTIONS has no action for ${kind}`)
     return action.href
 }
-
-// A chip's id is its label in lower case with dashes.
-function chips(...labels: string[]): readonly ListChip[] {
-    return labels.map(label => ({ id: label.toLowerCase().replace(/ /g, '-'), label }))
-}
-
-// Date, No. and the amount sort on every tab.
-const BASE_SORT_KEYS: readonly ListSortKey[] = ['date', 'number', 'amount']
 
 function kindTab(
     kind: TransactionKind,
@@ -57,6 +54,7 @@ function kindTab(
 ): DocumentListTab {
     return {
         key: tab.key,
+        area: 'sales',
         label: tab.label,
         path: `books/${tab.key}`,
         kinds: [kind],
@@ -72,6 +70,7 @@ function kindTab(
 
 const ALL_SALES_TAB: DocumentListTab = {
     key: 'all',
+    area: 'sales',
     label: 'All sales',
     path: 'books/sales',
     kinds: ALL_KINDS,
@@ -121,14 +120,23 @@ export const SALES_TABS: readonly DocumentListTab[] = [
         label: 'Credit memos',
         noun: 'credit memos',
         columns: ['date', 'number', 'customer', 'balance', 'total', 'status'],
-        chips: chips('All', 'Unapplied', 'Applied', 'Draft', 'Void'),
+        chips: chips('All', 'Unapplied', 'Refunded', 'Draft', 'Void'),
         sortKeys: ['balance'],
+    }),
+    // Refund receipt spec §3.13: the sales receipts tab's columns; a posted refund reads
+    // Refunded. Its amount shows with a minus sign (lib/document-list-cells.ts).
+    kindTab('refund_receipt', {
+        key: 'refund-receipts',
+        label: 'Refund receipts',
+        noun: 'refund receipts',
+        columns: ['date', 'number', 'customer', 'memo', 'total', 'status'],
+        chips: chips('All', 'Refunded', 'Draft', 'Void'),
     }),
 ]
 
 // An unknown key gives All sales.
 export function salesTabOf(key: string): DocumentListTab {
-    return SALES_TABS.find(tab => tab.key === key) ?? ALL_SALES_TAB
+    return areaTabOf({ tabs: SALES_TABS }, key)
 }
 
 export function salesTabForKind(kind: TransactionKind): DocumentListTab {
@@ -152,7 +160,8 @@ export const SALES_NEW_ITEMS: readonly { kind: TransactionKind; label: string; h
     })
 
 // The customer page's Transactions tab (spec §3.5 of the customer pages): one customer's
-// documents of every kind, or of one kind, newest first, with a credit memo negative.
+// documents of every kind, or of one kind, newest first, with a credit memo and a refund
+// receipt negative.
 // Its kind chips are its own (TRANSACTION_FILTERS), so the list's chip is always All.
 export function customerTransactionsTab(filter: TransactionFilter): DocumentListTab {
     return {

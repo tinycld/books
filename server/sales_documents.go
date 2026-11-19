@@ -33,15 +33,15 @@ const (
 )
 
 // salesDocKind is one kind of document of the shared layer: the sales
-// documents (an invoice, a sales receipt, an estimate, a credit memo) and the
-// purchase documents (a bill, an expense). It holds the collections the kind
-// writes, the forms host of its lines, its doc type, its lifecycle, its party,
-// its refusal texts and the parts of its guards and posting that differ by
-// kind. Every guard and the posting below take a kind; invoiceKind
-// (invoices.go), salesReceiptKind (sales_receipts.go), estimateKind
-// (estimates.go), creditMemoKind (credit_memos.go), billKind (bills.go),
-// expenseKind (expenses.go) and vendorCreditKind (vendor_credits.go) are the
-// kinds.
+// documents (an invoice, a sales receipt, an estimate, a credit memo, a refund
+// receipt) and the purchase documents (a bill, an expense). It holds the
+// collections the kind writes, the forms host of its lines, its doc type, its
+// lifecycle, its party, its refusal texts and the parts of its guards and
+// posting that differ by kind. Every guard and the posting below take a kind;
+// invoiceKind (invoices.go), salesReceiptKind (sales_receipts.go),
+// estimateKind (estimates.go), creditMemoKind (credit_memos.go),
+// refundReceiptKind (refund_receipts.go), billKind (bills.go), expenseKind
+// (expenses.go) and vendorCreditKind (vendor_credits.go) are the kinds.
 type salesDocKind struct {
 	// DocType is the doc type of the kind's sequence and of the entry it posts.
 	DocType string
@@ -134,6 +134,18 @@ type salesDocKind struct {
 	// opposite the total's; nil is incomeByAccount (the sales kinds' credits,
 	// turned to debits on a Credit kind).
 	LineAccounts func(tx core.App, lines []*core.Record, totals documentTotalsResult) ([]postingLine, error)
+	// PostingLines replaces the whole posting of a document that does not post
+	// its lines (a refund receipt that pays out a credit memo posts the total
+	// against Accounts receivable): true answers every line of the entry, and
+	// postSalesDoc writes no tax snapshot; false keeps salesDocPostingLines and
+	// the tax snapshot. nil is false. Only refundReceiptKind sets it.
+	PostingLines func(tx core.App, doc *core.Record, totals documentTotalsResult) ([]postingLine, bool, error)
+	// AfterPost runs in the posting transaction after the entry is posted and
+	// a correction's original is voided, before the cash-basis rows are
+	// rebuilt (a payout rebuilds its credit memo's rows, which read the
+	// payout's posted entry); original is nil for a first post. nil is no
+	// step. Only refundReceiptKind sets it.
+	AfterPost func(tx core.App, doc, original *core.Record) error
 }
 
 // isEditableStatus reports whether a person may change a document in status
@@ -164,6 +176,16 @@ type salesDocMessages struct {
 	// RevisionConflict refuses a save or a post of a document that changed after
 	// the caller loaded it (revision.go), with status 409.
 	RevisionConflict string
+	// TaxableNegative refuses, at Post, a document whose tax snapshot would
+	// hold a taxable amount or a component tax below zero, which its tax lines
+	// cannot store (checkTaxableNotNegative). "" is no check: only the refund
+	// receipt sets it, whose tax lines hold the figures negated (−MAX..0).
+	TaxableNegative string
+	// SubtotalNegative refuses, at Post and after the TaxableNegative check, a
+	// document with a component tax whose subtotal is below zero, which its tax
+	// lines' gross amount (−MAX..0) cannot store. "" is no check: only the
+	// refund receipt sets it.
+	SubtotalNegative string
 }
 
 // The lines built-in of every sales document host, whose row kinds say which
@@ -193,6 +215,7 @@ const (
 var documentDocTypes = map[string]bool{
 	docTypeInvoice: true, docTypeSalesReceipt: true, docTypeBill: true, docTypeExpense: true, docTypePayment: true,
 	docTypeBillPayment: true, docTypeCreditMemo: true, docTypeVendorCredit: true, docTypeVendorRefund: true,
+	docTypeRefundReceipt: true,
 }
 
 // maxDocumentLines is the most lines one sales document holds; the client's
@@ -584,6 +607,11 @@ func transitionSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record, 
 		// An invoice correction moves the link of a posted or void credit memo
 		// to itself (moveCreditMemoLinks); nothing else may change with it.
 		if isMovingCreditMemoLink(tx, r.Id) && len(changedFields(stored, r, invoiceOnly)) == 0 {
+			return nil
+		}
+		// A sales receipt or credit memo correction moves the source link of a
+		// posted or void refund receipt to itself (refund_receipt_links.go).
+		if isMovingRefundLink(tx, r.Id) && len(changedFields(stored, r, refundLinkFields)) == 0 {
 			return nil
 		}
 		unlinks, err := onlySalesDocUnlinks(tx, stored, r)

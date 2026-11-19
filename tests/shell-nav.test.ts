@@ -117,6 +117,7 @@ describe('registries', () => {
             'sales_receipt',
             'receive_payment',
             'credit_memo',
+            'refund_receipt',
         ])
         expect(columns.map(c => c.heading)).toEqual(['Customers', 'Vendors', 'Other'])
         expect(columns[1]?.actions.map(a => a.id)).toEqual([
@@ -137,6 +138,7 @@ describe('registries', () => {
             href: 'books/pay-bills',
             column: 'vendors',
             available: true,
+            takesVendor: true,
         })
     })
 
@@ -147,6 +149,7 @@ describe('registries', () => {
             href: 'books/expenses/new',
             column: 'vendors',
             available: true,
+            takesVendor: true,
         })
     })
 
@@ -157,6 +160,7 @@ describe('registries', () => {
             href: 'books/bills/new',
             column: 'vendors',
             available: true,
+            takesVendor: true,
         })
     })
 
@@ -168,6 +172,7 @@ describe('registries', () => {
             href: 'books/vendor-credits/new',
             column: 'vendors',
             available: true,
+            takesVendor: true,
         })
     })
 
@@ -179,6 +184,7 @@ describe('registries', () => {
             href: 'books/vendor-refunds/new',
             column: 'vendors',
             available: true,
+            takesVendor: true,
         })
     })
 
@@ -203,6 +209,7 @@ describe('registries', () => {
             'Sales receipt',
             'Receive payment',
             'Credit memo',
+            'Refund receipt',
         ])
         const invoice = NEW_ACTIONS.find(a => a.id === 'invoice')
         expect(invoice).toMatchObject({
@@ -277,17 +284,55 @@ describe('registries', () => {
         })
     })
 
-    it('flags exactly Invoice, Estimate, Sales receipt, Receive payment and Credit memo as taking a customer', () => {
+    // Refund receipt spec §2: + New → Customers → "Refund receipt", after "Credit memo".
+    // Spec §3.13: the customer page's New transaction menu lists it, so it takes a customer.
+    it('the New menu lists an available Refund receipt right after Credit memo', () => {
+        const customers = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Customers')
+        const ids = customers?.actions.map(a => a.id) ?? []
+        expect(ids).toContain('refund_receipt')
+        expect(ids.indexOf('refund_receipt')).toBe(ids.indexOf('credit_memo') + 1)
+        expect(NEW_ACTIONS.find(a => a.id === 'refund_receipt')).toEqual({
+            id: 'refund_receipt',
+            label: 'Refund receipt',
+            href: 'books/refund-receipts/new',
+            column: 'customers',
+            available: true,
+            takesCustomer: true,
+        })
+    })
+
+    it('flags exactly Invoice, Estimate, Sales receipt, Receive payment, Credit memo and Refund receipt as taking a customer', () => {
         expect(NEW_ACTIONS.filter(a => a.takesCustomer).map(a => a.id)).toEqual([
             'invoice',
             'estimate',
             'sales_receipt',
             'receive_payment',
             'credit_memo',
+            'refund_receipt',
         ])
         for (const other of NEW_ACTIONS.filter(a => !a.takesCustomer)) {
             expect(other).not.toHaveProperty('takesCustomer')
         }
+    })
+
+    // Vendor pages §3.3: the vendor page's New transaction menu lists the actions that
+    // take a vendor.
+    it('flags exactly bill, pay_bills, expense, vendor_credit and vendor_refund as taking a vendor', () => {
+        expect(NEW_ACTIONS.filter(a => a.takesVendor).map(a => a.id)).toEqual([
+            'bill',
+            'pay_bills',
+            'expense',
+            'vendor_credit',
+            'vendor_refund',
+        ])
+        for (const other of NEW_ACTIONS.filter(a => !a.takesVendor)) {
+            expect(other).not.toHaveProperty('takesVendor')
+        }
+    })
+
+    it('no action takes both a customer and a vendor', () => {
+        expect(NEW_ACTIONS.filter(a => a.takesCustomer && a.takesVendor)).toEqual([])
+        expect(NEW_ACTIONS.some(a => a.takesVendor)).toBe(true)
     })
 
     it('LIST_ENTRIES has an available Accounts entry', () => {
@@ -373,6 +418,7 @@ describe('banking sidebar entry', () => {
         expect(sidebarSections(availableOnly(SIDEBAR_ENTRIES)).top.map(e => e.id)).toEqual([
             'banking',
             'sales',
+            'expenses',
             'lists',
             'reports',
         ])
@@ -393,7 +439,7 @@ describe('sales sidebar entry', () => {
         return sales
     }
 
-    it('is the second top entry, between Banking and Lists, at books/sales', () => {
+    it('is the second top entry, between Banking and Expenses, at books/sales', () => {
         expect(SIDEBAR_ENTRIES[1]).toEqual({
             id: 'sales',
             label: 'Sales',
@@ -405,11 +451,12 @@ describe('sales sidebar entry', () => {
                 'books/sales-receipts',
                 'books/payments',
                 'books/credit-memos',
+                'books/refund-receipts',
             ],
             available: true,
         })
         const top = sidebarSections(availableOnly(SIDEBAR_ENTRIES)).top.map(e => e.id)
-        expect(top.slice(0, 3)).toEqual(['banking', 'sales', 'lists'])
+        expect(top.slice(0, 3)).toEqual(['banking', 'sales', 'expenses'])
     })
 
     it.each([
@@ -418,6 +465,8 @@ describe('sales sidebar entry', () => {
         '/a/org/books/invoices/abc',
         '/a/org/books/payments/new',
         '/a/org/books/credit-memos/abc',
+        '/a/org/books/refund-receipts',
+        '/a/org/books/refund-receipts/abc',
     ])('is active on %s', pathname => {
         expect(isActivePath(pathname, salesEntry())).toBe(true)
     })
@@ -435,6 +484,64 @@ describe('sales sidebar entry', () => {
         '/a/books/payments',
     ])('keeps the New button on the list route %s', pathname => {
         expect(hidesNewFab(pathname)).toBe(false)
+    })
+})
+
+// Purchase lists spec §2: the Expenses entry sits between Sales and Lists, opens All
+// purchases, and is active on Pay Bills, the six list routes and every purchase document.
+describe('expenses sidebar entry', () => {
+    const PURCHASE_PATHS = [
+        '/a/org/books/purchases',
+        '/a/org/books/pay-bills',
+        '/a/org/books/bills',
+        '/a/org/books/bills/x',
+        '/a/org/books/expenses/new',
+        '/a/org/books/bill-payments/x',
+        '/a/org/books/vendor-credits/new',
+        '/a/org/books/vendor-refunds/x',
+    ]
+
+    function entryOf(id: string): SidebarEntry {
+        const found = SIDEBAR_ENTRIES.find(e => e.id === id)
+        if (!found) throw new Error(`SIDEBAR_ENTRIES has no ${id} entry`)
+        return found
+    }
+
+    it('is an available top entry between Sales and Lists, at books/purchases', () => {
+        expect(entryOf('expenses')).toMatchObject({
+            id: 'expenses',
+            label: 'Expenses',
+            href: 'books/purchases',
+            available: true,
+        })
+        expect(entryOf('expenses').group).toBeUndefined()
+        const ids = SIDEBAR_ENTRIES.map(e => e.id)
+        expect(ids.indexOf('expenses')).toBe(ids.indexOf('sales') + 1)
+        expect(ids.indexOf('lists')).toBe(ids.indexOf('expenses') + 1)
+    })
+
+    it.each(PURCHASE_PATHS)('is active on %s, and Sales is not', pathname => {
+        expect(isActivePath(pathname, entryOf('expenses'))).toBe(true)
+        expect(isActivePath(pathname, entryOf('sales'))).toBe(false)
+    })
+
+    it.each(['/a/org/books/sales', '/a/org/books/vendors/x'])('is not active on %s', pathname => {
+        expect(isActivePath(pathname, entryOf('expenses'))).toBe(false)
+    })
+
+    it.each([
+        '/a/books/purchases',
+        '/a/books/bills',
+        '/a/books/expenses',
+        '/a/books/bill-payments',
+        '/a/books/vendor-credits',
+        '/a/books/vendor-refunds',
+    ])('keeps the New button on the list route %s', pathname => {
+        expect(hidesNewFab(pathname)).toBe(false)
+    })
+
+    it.each(['/a/books/pay-bills', '/a/books/bills/x'])('hides the New button on %s', pathname => {
+        expect(hidesNewFab(pathname)).toBe(true)
     })
 })
 
@@ -652,6 +759,8 @@ describe('hidesNewFab', () => {
         '/a/books/sales-receipts/abc',
         '/a/books/credit-memos/new',
         '/a/books/credit-memos/abc',
+        '/a/x/books/refund-receipts/new',
+        '/a/x/books/refund-receipts/abc',
         '/a/books/estimates/new',
         '/a/books/estimates/abc',
         '/a/books/bills/new',

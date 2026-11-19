@@ -1,0 +1,135 @@
+{
+    "outDir": "vendor-pages-reference",
+    "shots": [
+        {
+            "name": "transactions",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "vendor-transaction-vpbill000001042",
+            "widths": [390, 1280, 1600],
+            "height": 1000,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "vendor-transactions-loading",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "vendor-balance-error",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "empty-inactive",
+            "url": "/a/books/helix-mockup?state=empty",
+            "ready": "vendor-transactions-empty",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "filter-empty",
+            "url": "/a/books/helix-mockup?state=filter-empty",
+            "ready": "vendor-transactions-no-match",
+            "widths": [1280]
+        },
+        {
+            "name": "credit",
+            "url": "/a/books/helix-mockup?state=credit",
+            "ready": "vendor-balance-open",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "long",
+            "url": "/a/books/helix-mockup?state=long",
+            "ready": "vendor-balance-open",
+            "widths": [390, 1600],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read-only",
+            "url": "/a/books/helix-mockup?state=read-only",
+            "ready": "vendor-transactions-table",
+            "widths": [1280]
+        },
+        {
+            "name": "new-menu",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "vendor-new-transaction",
+            "widths": [1280],
+            "actions": [
+                { "click": "vendor-new-transaction" },
+                { "waitFor": "vendor-new-vendor-refund" }
+            ]
+        },
+        {
+            "name": "new-menu-phone",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "vendor-new-transaction",
+            "widths": [390],
+            "stable": "vendor-new-vendor-refund",
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "vendor-new-transaction" },
+                { "waitFor": "vendor-new-vendor-refund" }
+            ]
+        },
+        {
+            "name": "more-menu",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "vendor-more",
+            "widths": [1280],
+            "actions": [{ "click": "vendor-more" }, { "waitFor": "vendor-more-delete" }]
+        },
+        {
+            "name": "contacts",
+            "url": "/a/books/helix-mockup?state=populated&tab=contacts",
+            "ready": "vendor-contacts",
+            "widths": [390, 1280, 1600],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "contacts-empty",
+            "url": "/a/books/helix-mockup?state=empty&tab=contacts",
+            "ready": "vendor-contacts-empty",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "contact-dialog",
+            "url": "/a/books/helix-mockup?state=contact-dialog&tab=contacts",
+            "ready": "contact-dialog",
+            "opaque": "contact-dialog",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "details-dirty",
+            "url": "/a/books/helix-mockup?state=dirty&tab=details",
+            "ready": "customer-save-bar",
+            "widths": [390, 1280, 1600],
+            "height": 1400,
+            "settleMs": 800,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "details-read-only",
+            "url": "/a/books/helix-mockup?state=read-only&tab=details",
+            "ready": "vendor-mockup",
+            "widths": [1280],
+            "height": 1400,
+            "settleMs": 800
+        },
+        {
+            "name": "notes-dirty",
+            "url": "/a/books/helix-mockup?state=dirty&tab=notes",
+            "ready": "vendor-notes",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "discard",
+            "url": "/a/books/helix-mockup?state=discard&tab=notes",
+            "ready": "confirm-dialog-body",
+            "opaque": "confirm-dialog-body",
+            "widths": [1280]
+        }
+    ]
+}

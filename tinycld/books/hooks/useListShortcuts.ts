@@ -2,8 +2,10 @@ import { useRegisterShortcuts, useShortcutScope } from '@tinycld/core/lib/shortc
 import { topLayer } from '@tinycld/core/ui/overlay/layer-stack'
 import { type RefObject, useId, useMemo, useRef } from 'react'
 import { Platform, type TextInputInstance } from 'react-native'
+import type { ListArea } from '../lib/list-areas'
 import {
     type ListKeyAction,
+    listShortcutInput,
     listShortcuts,
     movedFocus,
     offeredListKeys,
@@ -44,12 +46,14 @@ function relayTo(ref: RefObject<KeyHandlers>): KeyHandlers {
         tab4: () => ref.current.tab4(),
         tab5: () => ref.current.tab5(),
         tab6: () => ref.current.tab6(),
+        tab7: () => ref.current.tab7(),
     }
 }
 
 /**
- * The keys of a Sales list tab (spec docs/specs/sales-lists-design.md §3 "Keyboard"),
- * registered in the screen's `list` scope, each only while its action is offered
+ * The keys of a document list tab (spec docs/specs/sales-lists-design.md §3 "Keyboard"),
+ * in the ⇧? group of the tab's list area with its tab labels (`area`), registered in the
+ * screen's `list` scope, each only while its action is offered
  * (lib/list-shortcuts.ts): no tick keys without tick boxes (a reader, the 320 px column,
  * where `selection` is null), no New for a reader, none while a menu of the screen is open
  * or a document covers the list. Beside an open document (`isBeside`, the 320 px column)
@@ -61,12 +65,13 @@ function relayTo(ref: RefObject<KeyHandlers>): KeyHandlers {
 export function useListShortcuts(input: {
     screen: ReturnType<typeof useDocumentListScreen>
     selection: ReturnType<typeof useListSelection> | null
-    tabs: readonly { key: string }[]
+    area: ListArea
     isCovered: boolean
     isBeside: boolean
     searchRef: RefObject<TextInputInstance | null>
 }): void {
-    const { screen, selection, tabs, isCovered, isBeside, searchRef } = input
+    const { screen, selection, area, isCovered, isBeside, searchRef } = input
+    const tabs = area.tabs
     const instance = useId()
     const owner = useShortcutScope('list', LIST_SCOPE_OPTIONS)
     const menu = useDocumentListStore(state => state.menu)
@@ -95,7 +100,7 @@ export function useListShortcuts(input: {
         },
         tick: () => withFocused(id => selection?.toggle(id)),
         tickAll: () => selection?.toggleAll(),
-        // A kind tab opens its `new` route; All sales opens its New menu.
+        // A kind tab opens its `new` route; an All tab opens its New menu.
         new: () => screen.openNew(),
         tab1: () => goToTab(0),
         tab2: () => goToTab(1),
@@ -103,6 +108,7 @@ export function useListShortcuts(input: {
         tab4: () => goToTab(3),
         tab5: () => goToTab(4),
         tab6: () => goToTab(5),
+        tab7: () => goToTab(6),
     }
     const runRef = useRef(run)
     runRef.current = run
@@ -121,8 +127,10 @@ export function useListShortcuts(input: {
             isMenuOpen,
             isCovered,
         })
+        const input = listShortcutInput(area)
         return listShortcuts({
-            idPrefix: `books.sales.list.${instance}`,
+            ...input,
+            idPrefix: `${input.idPrefix}.${instance}`,
             offered,
             run: relayTo(runRef),
             isBeside,
@@ -131,6 +139,7 @@ export function useListShortcuts(input: {
     }, [
         isAndroid,
         instance,
+        area,
         showNew,
         showTicks,
         hasRows,

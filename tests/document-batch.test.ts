@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { batchDialogCopy, batchResultText, batchTargets } from '../tinycld/books/lib/document-batch'
-import type { DocumentListRow } from '../tinycld/books/lib/document-list'
-import type { TransactionKind } from '../tinycld/books/lib/party-transactions'
+import type { DocumentListRow, ListKind } from '../tinycld/books/lib/document-list'
 
-// The batch actions of a sales list (spec §3 "Batch actions"): which ticked documents an
-// action applies to, the confirm dialog's words, and the result banner's text.
+// The batch actions of a sales or purchase list (spec §3 "Batch actions"): which ticked
+// documents an action applies to, the confirm dialog's words, and the result banner's text.
 
 let next = 0
 
-function row(kind: TransactionKind, recordStatus: string): DocumentListRow {
+function row(kind: ListKind, recordStatus: string): DocumentListRow {
     next += 1
     return {
         id: `doc${String(next).padStart(12, '0')}`,
@@ -21,8 +20,8 @@ function row(kind: TransactionKind, recordStatus: string): DocumentListRow {
         created: '2026-11-17 10:00:00.000Z',
         status: { label: recordStatus, tone: 'muted' },
         sequence: recordStatus === 'draft' ? 0 : 1000 + next,
-        customerId: 'cus000000000001',
-        customerName: 'Acme',
+        partyId: 'cus000000000001',
+        partyName: 'Acme',
         memo: '',
         reference: '',
         expires: '',
@@ -30,6 +29,7 @@ function row(kind: TransactionKind, recordStatus: string): DocumentListRow {
         entry: '',
         convertedInvoice: '',
         recordStatus,
+        category: { kind: 'none' },
     }
 }
 
@@ -78,6 +78,108 @@ describe('batchTargets', () => {
         const result = batchTargets('void', [...never.slice(0, 4), ...posted, ...never.slice(4)])
         expect(ids(result.applies)).toEqual(ids(posted))
         expect(result.skipped).toBe(8)
+    })
+
+    it('delete_drafts takes the drafts of the four purchase kinds that have drafts', () => {
+        const drafts = [
+            row('bill', 'draft'),
+            row('expense', 'draft'),
+            row('vendor_credit', 'draft'),
+            row('vendor_refund', 'draft'),
+        ]
+        const others = [
+            row('bill', 'posted'),
+            row('bill_payment', 'posted'),
+            row('expense', 'void'),
+            row('vendor_credit', 'posted'),
+        ]
+        const result = batchTargets('delete_drafts', [
+            others[0],
+            ...drafts.slice(0, 2),
+            others[1],
+            ...drafts.slice(2),
+            ...others.slice(2),
+        ])
+        expect(ids(result.applies)).toEqual(ids(drafts))
+        expect(result.skipped).toBe(4)
+    })
+
+    it('delete_drafts never takes a bill payment, whatever its status', () => {
+        const payments = [
+            row('bill_payment', 'posted'),
+            row('bill_payment', 'void'),
+            row('bill_payment', 'draft'),
+        ]
+        const result = batchTargets('delete_drafts', payments)
+        expect(result.applies).toEqual([])
+        expect(result.skipped).toBe(3)
+    })
+
+    it('void takes the posted rows of all five purchase kinds', () => {
+        const posted = [
+            row('bill', 'posted'),
+            row('expense', 'posted'),
+            row('bill_payment', 'posted'),
+            row('vendor_credit', 'posted'),
+            row('vendor_refund', 'posted'),
+        ]
+        const never = [
+            row('bill', 'draft'),
+            row('expense', 'draft'),
+            row('vendor_credit', 'draft'),
+            row('vendor_refund', 'draft'),
+        ]
+        const result = batchTargets('void', [...never.slice(0, 2), ...posted, ...never.slice(2)])
+        expect(ids(result.applies)).toEqual(ids(posted))
+        expect(result.skipped).toBe(4)
+    })
+
+    it('a void purchase row is skipped by both actions', () => {
+        const voided = [
+            row('bill', 'void'),
+            row('expense', 'void'),
+            row('bill_payment', 'void'),
+            row('vendor_credit', 'void'),
+            row('vendor_refund', 'void'),
+        ]
+        for (const action of ['delete_drafts', 'void'] as const) {
+            const result = batchTargets(action, voided)
+            expect(result.applies).toEqual([])
+            expect(result.skipped).toBe(5)
+        }
+    })
+
+    it('on Sales a posted estimate is still skipped by Void', () => {
+        const invoice = row('invoice', 'posted')
+        const result = batchTargets('void', [row('estimate', 'posted'), invoice])
+        expect(ids(result.applies)).toEqual([invoice.id])
+        expect(result.skipped).toBe(1)
+    })
+
+    // Refund receipt spec §3.13: batch actions as the sales receipts tab.
+    it.each([
+        'draft',
+        'posted',
+        'void',
+    ])('a %s refund receipt takes the batch actions a sales receipt of that status takes', status => {
+        for (const action of ['delete_drafts', 'void'] as const) {
+            const refundRow = row('refund_receipt', status)
+            const receiptRow = row('sales_receipt', status)
+            const refund = batchTargets(action, [refundRow])
+            const receipt = batchTargets(action, [receiptRow])
+            expect(
+                refund.applies.some(r => r.id === refundRow.id),
+                `${action} on a ${status} refund`
+            ).toBe(receipt.applies.some(r => r.id === receiptRow.id))
+            expect(refund.skipped).toBe(receipt.skipped)
+        }
+    })
+
+    it('void applies to a posted refund receipt and delete_drafts to a draft one', () => {
+        const posted = row('refund_receipt', 'posted')
+        const draft = row('refund_receipt', 'draft')
+        expect(ids(batchTargets('void', [posted, draft]).applies)).toEqual([posted.id])
+        expect(ids(batchTargets('delete_drafts', [posted, draft]).applies)).toEqual([draft.id])
     })
 
     it('an action that applies to none skips every ticked document', () => {

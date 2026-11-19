@@ -15,7 +15,6 @@ import {
     type DocumentStart,
     type DocumentStoredLine,
     type EstimateSource,
-    type InvoiceSource,
     isPurchaseLine,
     isSalesLine,
     vendorPartyOf,
@@ -23,8 +22,10 @@ import {
 import { ESTIMATE_DATA } from '../../hooks/estimate-data'
 import { EXPENSE_DATA } from '../../hooks/expense-data'
 import { INVOICE_DATA } from '../../hooks/invoice-data'
+import { REFUND_RECEIPT_DATA } from '../../hooks/refund-receipt-data'
 import { SALES_RECEIPT_DATA } from '../../hooks/sales-receipt-data'
 import type { CreditRefunds } from '../../hooks/useCreditRefunds'
+import type { LinkedRefundReceipts } from '../../hooks/useLinkedRefundReceipts'
 import { VENDOR_CREDIT_DATA } from '../../hooks/vendor-credit-data'
 import { billColumnsFrom, EMPTY_BILL_COLUMNS } from '../../lib/bill-columns'
 import {
@@ -51,6 +52,7 @@ import {
     type DocumentLineRow,
     type DocumentLineValues,
 } from '../../lib/document-line-columns'
+import type { LinkSource, SourceLinkKey } from '../../lib/document-source-links'
 import type { DocumentTotalRow } from '../../lib/document-total-rows'
 import type { DocumentFormValuesBase } from '../../lib/document-values'
 import { EMPTY_ESTIMATE_COLUMNS, estimateColumnsFrom } from '../../lib/estimate-columns'
@@ -71,6 +73,7 @@ import {
     invoiceValuesFromEstimate,
     newInvoiceValues,
 } from '../../lib/invoice-values'
+import { formatMoney, MINUS } from '../../lib/money'
 import {
     ACCOUNT_ROW_KIND,
     PURCHASE_ACCOUNT_COLUMNS,
@@ -83,11 +86,23 @@ import {
 import type { PurchaseLines } from '../../lib/purchase-lines'
 import type { ColumnsParse } from '../../lib/record-columns'
 import {
+    EMPTY_REFUND_RECEIPT_COLUMNS,
+    refundReceiptColumnsFrom,
+} from '../../lib/refund-receipt-columns'
+import {
+    copyRefundReceiptValues,
+    newRefundReceiptValues,
+    refundReceiptCorrectionValues,
+    refundValuesFromCreditMemo,
+    refundValuesFromSalesReceipt,
+} from '../../lib/refund-receipt-values'
+import {
     BILL_KIND,
     CREDIT_MEMO_KIND,
     ESTIMATE_KIND,
     EXPENSE_KIND,
     INVOICE_KIND,
+    REFUND_RECEIPT_KIND,
     SALES_RECEIPT_KIND,
     type SalesDocumentKind,
     VENDOR_CREDIT_KIND,
@@ -124,6 +139,9 @@ import { ExpensePaymentRow, ExpenseReadDetails } from './ExpenseReadDetails'
 import { InvoiceCreditMemos } from './InvoiceCreditMemos'
 import { InvoiceFromEstimateLink, InvoiceReadDetails } from './InvoiceReadDetails'
 import { PurchaseReadLines } from './PurchaseReadLines'
+import { RefundReceiptLinkRow } from './RefundReceiptLinkRow'
+import { RefundReceiptBandRows, RefundReceiptReadDetails } from './RefundReceiptReadDetails'
+import { CreditMemoRefunds, SalesReceiptRefunds } from './RefundReceiptSections'
 import { SalesReceiptPaymentRow, SalesReceiptReadDetails } from './SalesReceiptReadDetails'
 import { VendorCreditReadFrame } from './VendorCreditApplySection'
 import { VendorCreditReadDetails } from './VendorCreditReadDetails'
@@ -136,6 +154,15 @@ export type DocumentReadDetailsProps = {
 }
 
 export type DocumentReadBandRowProps = { record: DocumentRecord }
+
+// A kind's ReadSection: the record, the read view's one read of the refund receipts that
+// name it (`DocumentKind.readLinkedRefunds`; off, ready and empty for every other kind), and
+// the read view's one Retry.
+export type DocumentReadSectionProps = {
+    record: DocumentRecord
+    linkedRefunds: LinkedRefundReceipts
+    onRetry: () => void
+}
 
 // The read view's Details panel as two parts: `body` is the band through the Payments block,
 // `stamps` the stamps under it. A kind's ReadFrame draws them in order with its own parts
@@ -292,22 +319,38 @@ export type DocumentKind = {
             party: DocumentPartyRow,
             message: string
         ) => DocumentStartValues
-        // Create credit memo (`?invoice`): the credit memo's only.
-        fromInvoice?: (
-            invoice: InvoiceSource,
+        // A new form made from its source link (Create credit memo's `?invoice`, Refund's
+        // `?sales_receipt`, Refund credit's `?credit_memo`): a kind with `sourceLinkKeys`
+        // only, and only for those keys. `party` is the source's customer row, null for a
+        // source saved without one (a walk-in sales receipt).
+        fromSource?: (
+            source: LinkSource,
             lines: readonly DocumentLineRow[],
             today: string,
-            party: DocumentPartyRow
+            party: DocumentPartyRow | null,
+            start: DocumentStart | undefined
         ) => DocumentStartValues
     }
+    // The columns that link a document to its source, in the order a form reads them
+    // (sourceLinkOf); the save writes the one its link names. A kind without them keeps no
+    // link.
+    sourceLinkKeys?: readonly SourceLinkKey[]
+    // Whether a new form may be made from the source the screen read (`?invoice` a posted
+    // invoice; `?sales_receipt` a posted receipt; `?credit_memo` a posted memo with
+    // unapplied credit). Any other answer shows `sourceNotice` (DocumentScreen).
+    sourceAllowed?: (source: LinkSource) => boolean
+    // The notice of a source the kind refuses (documentScreenState's cannot-start), by the
+    // route param that named it.
+    sourceNotice?: (key: SourceLinkKey) => { testId: string; message: string }
     ReadDetails: ComponentType<DocumentReadDetailsProps>
     // A ruled row at the bottom of the read view's band (a sales receipt's Payment).
     ReadBandRow?: ComponentType<DocumentReadBandRowProps>
     // A line under the read view's message and memo, below the Posted-by stamp of a posting
     // kind (an invoice's "From estimate <n>", a closed estimate's "Converted to invoice <n>").
     ReadStampRow?: ComponentType<DocumentReadBandRowProps>
-    // A section of the read view after the Payments block (an invoice's Credit memos).
-    ReadSection?: ComponentType<DocumentReadBandRowProps>
+    // A section of the read view after the Payments block (an invoice's Credit memos, a sales
+    // receipt's Refund receipts, a credit memo's Refunds).
+    ReadSection?: ComponentType<DocumentReadSectionProps>
     // The read view's Details panel around its body, for a kind whose parts before the band
     // and after the Payments block share reads (a vendor credit's Apply to bills notice and
     // its Applied to section read the open bills once). A kind without it draws the body,
@@ -331,12 +374,21 @@ export type DocumentKind = {
     // Applied, Refunded and Unapplied credit). `applied` is the credit applied to a posted
     // bill, read from its stored record (billCreditsApplied: the total less its posted
     // payments and its stored balance), so the rows add up while the applications read is
-    // loading or failed; 0 for every other kind. `refunded` is the vendor credit's
-    // (ReadRefunded); a caller that does not pass it means 0.
+    // loading or failed; 0 for every other kind. `refunded` is the vendor credit's posted
+    // vendor refunds, or a credit memo's posted refund receipts (ReadRefunded); a caller that
+    // does not pass it means 0.
     readTotals?: (
         record: DocumentRecord,
         extra: { applied: number; refunded?: ReadRefunded }
     ) => DocumentTotalRow[]
+    // Where the read view draws the readTotals rows: after Total ('after', the default), or
+    // after the kind's last row ('afterLast': a credit memo's Refunded and Unapplied credit,
+    // after "Credit amount").
+    readTotalsPlace?: 'after' | 'afterLast'
+    // The link column of `books_refund_receipts` that names this kind (a sales receipt's
+    // `sales_receipt`, a credit memo's `credit_memo`): the read view reads those refunds once
+    // (useLinkedRefundReceipts) for its ReadSection and, as `refunded`, for readTotals.
+    readLinkedRefunds?: 'sales_receipt' | 'credit_memo'
     // True makes the read view read the record's credit applications, the rows its Payments
     // block lists with Remove.
     readApplications?: boolean
@@ -406,9 +458,36 @@ function creditMemoCustomerOf(party: DocumentPartyRow | null) {
     return customer
 }
 
+// The read view's rows after "Credit amount" (refund receipt spec §3.12): Refunded (the
+// posted refunds that pay the memo out, with a minus sign) and Unapplied credit (the stored
+// balance), both only while a posted refund pays it out. None while the refunds read has not
+// answered (`refunded` null), or for a record of another kind.
+function creditMemoTotalsOf(
+    record: DocumentRecord,
+    { refunded = 0 }: { refunded?: ReadRefunded }
+): DocumentTotalRow[] {
+    const fields = record.kindFields
+    if (fields.kind !== 'credit_memo' || refunded === null || refunded <= 0) return []
+    return [
+        {
+            label: 'Refunded',
+            amount: `${MINUS}${formatMoney(refunded, record.currency)}`,
+            testId: 'credit-memo-total-refunded',
+        },
+        {
+            label: 'Unapplied credit',
+            amount: formatMoney(fields.balance, record.currency),
+            testId: 'credit-memo-total-unapplied',
+            isStrong: true,
+        },
+    ]
+}
+
 // A new credit memo's message starts empty (Q8): the "Default message to customer"
 // setting the screen passes is not used. A copied customer, product or tax rate that is
 // now inactive stays in the form, and Post refuses it with the shared inactive texts.
+// The read view reads the refunds that pay it out: its Refunds section and the Refunded
+// and Unapplied credit rows after "Credit amount".
 export const CREDIT_MEMO_DOCUMENT: DocumentKind = {
     doc: CREDIT_MEMO_KIND,
     data: CREDIT_MEMO_DATA,
@@ -431,13 +510,33 @@ export const CREDIT_MEMO_DOCUMENT: DocumentKind = {
             ),
         correction: (source, lines) =>
             creditMemoCorrectionValues(creditMemoRowOf(source), lines.filter(isSalesLine)),
-        fromInvoice: (invoice, lines, today, party) =>
-            creditMemoValuesFromInvoice(invoice, lines, today, creditMemoCustomerOf(party)),
+        fromSource: (source, lines, today, party) => {
+            if (source.key !== 'invoice') {
+                throw new Error(`a credit memo is not made from a ${source.key}`)
+            }
+            return creditMemoValuesFromInvoice(
+                source.row,
+                lines,
+                today,
+                creditMemoCustomerOf(party)
+            )
+        },
     },
+    sourceLinkKeys: ['invoice'],
+    // Only a posted invoice is credited (spec §3.2).
+    sourceAllowed: source => source.key === 'invoice' && source.row.status === 'posted',
+    sourceNotice: () => ({
+        testId: `${CREDIT_MEMO_KIND.testId}-cannot-credit`,
+        message: CREDIT_MEMO_KIND.messages.cannotCredit,
+    }),
     ReadDetails: CreditMemoReadDetails,
     ReadBandRow: CreditMemoInvoiceLink,
+    ReadSection: CreditMemoRefunds,
     FormBandRow: CreditMemoLinkRow,
     lineSpecs: SALES_LINE_SPECS,
+    readTotals: creditMemoTotalsOf,
+    readTotalsPlace: 'afterLast',
+    readLinkedRefunds: 'credit_memo',
 }
 
 // The source row with the receipt's own columns back at the top level, as invoiceRowOf.
@@ -529,6 +628,85 @@ export const SALES_RECEIPT_DOCUMENT: DocumentKind = {
     },
     ReadDetails: SalesReceiptReadDetails,
     ReadBandRow: SalesReceiptPaymentRow,
+    ReadSection: SalesReceiptRefunds,
+    lineSpecs: SALES_LINE_SPECS,
+    readLinkedRefunds: 'sales_receipt',
+}
+
+// The source row with the refund's own columns back at the top level, as invoiceRowOf.
+function refundReceiptRowOf(source: DocumentSource) {
+    const fields = source.kindFields
+    if (fields.kind !== 'refund_receipt') {
+        throw new Error(`a refund receipt source has ${fields.kind} columns`)
+    }
+    return { ...source, ...fields }
+}
+
+// How the refund's Refund from is chosen, from its data source's start.
+function refundFromStartOf(start: DocumentStart | undefined): CopyDeposit {
+    if (!start) return NO_DEPOSIT_START
+    if (start.kind !== 'refund_receipt') {
+        throw new Error(`a refund receipt form has a ${start.kind} start`)
+    }
+    return start.refundFrom
+}
+
+// A new refund's message starts empty (Q8): the "Default message to customer" setting the
+// screen passes is not used. A copied customer, product, tax rate or Refund from account
+// that is now inactive is handled as on a sales receipt copy.
+export const REFUND_RECEIPT_DOCUMENT: DocumentKind = {
+    doc: REFUND_RECEIPT_KIND,
+    data: REFUND_RECEIPT_DATA,
+    columnsFrom: refundReceiptColumnsFrom,
+    emptyColumns: EMPTY_REFUND_RECEIPT_COLUMNS,
+    values: {
+        new: ({ start, party, today, rates, defaultRateId }) =>
+            newRefundReceiptValues({
+                today,
+                rates,
+                defaultRateId,
+                customer: customerPartyOf(party),
+                refundFrom: refundFromStartOf(start),
+            }),
+        copy: (source, lines, today, party, start) =>
+            copyRefundReceiptValues(
+                refundReceiptRowOf(source),
+                lines.filter(isSalesLine),
+                today,
+                customerPartyOf(party),
+                refundFromStartOf(start)
+            ),
+        correction: (source, lines) =>
+            refundReceiptCorrectionValues(refundReceiptRowOf(source), lines.filter(isSalesLine)),
+        fromSource: (source, lines, today, _party, start) => {
+            const refundFrom = refundFromStartOf(start)
+            if (source.key === 'sales_receipt') {
+                return refundValuesFromSalesReceipt(source.row, lines, today, refundFrom)
+            }
+            if (source.key === 'credit_memo') {
+                return refundValuesFromCreditMemo(source.row, lines, today, refundFrom)
+            }
+            throw new Error(`a refund receipt is not made from a ${source.key}`)
+        },
+    },
+    sourceLinkKeys: ['sales_receipt', 'credit_memo'],
+    // A posted sales receipt is refunded (spec §3.2); a posted credit memo with unapplied
+    // credit is paid out (spec §3.3). A draft or void source is neither.
+    sourceAllowed: source => {
+        if (source.row.status !== 'posted') return false
+        if (source.key === 'sales_receipt') return true
+        return source.key === 'credit_memo' && source.row.balance > 0
+    },
+    sourceNotice: key => ({
+        testId: `${REFUND_RECEIPT_KIND.testId}-cannot-refund`,
+        message:
+            key === 'credit_memo'
+                ? REFUND_RECEIPT_KIND.messages.cannotRefundMemo
+                : REFUND_RECEIPT_KIND.messages.cannotRefundReceipt,
+    }),
+    ReadDetails: RefundReceiptReadDetails,
+    ReadBandRow: RefundReceiptBandRows,
+    FormBandRow: RefundReceiptLinkRow,
     lineSpecs: SALES_LINE_SPECS,
 }
 

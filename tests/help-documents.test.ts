@@ -39,6 +39,11 @@ describe('help/documents.md', () => {
         expect(body).toContain('(help://books:credit-memos)')
     })
 
+    // Refund receipt checkpoint 5: cross-linked from the refund receipt topic's neighbours.
+    it('links the refund receipts topic', () => {
+        expect(body).toContain('(help://books:refund-receipts)')
+    })
+
     it('hand-writes no hostname other than {{server-host}}', () => {
         const stripped = body.replaceAll('{{server-host}}', '')
         expect(stripped).not.toMatch(/\b[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|org|net|io|dev|app|co)\b/i)

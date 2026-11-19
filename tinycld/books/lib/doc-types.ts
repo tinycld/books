@@ -4,6 +4,7 @@ export const DOC_TYPES: Record<string, { label: string; noun: string }> = {
     invoice: { label: 'Invoices', noun: 'invoice' },
     sales_receipt: { label: 'Sales receipts', noun: 'sales receipt' },
     credit_memo: { label: 'Credit memos', noun: 'credit memo' },
+    refund_receipt: { label: 'Refund receipts', noun: 'refund receipt' },
     estimate: { label: 'Estimates', noun: 'estimate' },
     bill: { label: 'Bills', noun: 'bill' },
     expense: { label: 'Expenses', noun: 'expense' },

@@ -88,6 +88,10 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 	if err != nil {
 		return search.Result{}, err
 	}
+	refundReceipts, refundReceiptTotal, err := searchSalesDocs(ctx, app, refundReceiptSearch, q.Include, q.Exclude, window)
+	if err != nil {
+		return search.Result{}, err
+	}
 	estimates, estimateTotal, err := searchSalesDocs(ctx, app, estimateSearch, q.Include, q.Exclude, window)
 	if err != nil {
 		return search.Result{}, err
@@ -116,11 +120,11 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 	if err != nil {
 		return search.Result{}, err
 	}
-	rows := interleave(accounts, entries, customers, vendors, products, invoices, receipts, creditMemos, estimates,
-		bills, expenses, vendorCredits, payments, billPayments, vendorRefunds)
+	rows := interleave(accounts, entries, customers, vendors, products, invoices, receipts, creditMemos, refundReceipts,
+		estimates, bills, expenses, vendorCredits, payments, billPayments, vendorRefunds)
 	total := accountTotal + entryTotal + customerTotal + vendorTotal + productTotal + invoiceTotal + receiptTotal +
-		creditMemoTotal + estimateTotal + billTotal + expenseTotal + vendorCreditTotal + paymentTotal + billPaymentTotal +
-		vendorRefundTotal
+		creditMemoTotal + refundReceiptTotal + estimateTotal + billTotal + expenseTotal + vendorCreditTotal + paymentTotal +
+		billPaymentTotal + vendorRefundTotal
 	return search.Result{Rows: page(rows, offset, limit), Total: total}, nil
 }
 
@@ -415,6 +419,16 @@ var creditMemoSearch = salesDocSearch{
 	partyField: "customer", partyTable: "books_customers", partyIdx: customersIndex,
 }
 
+// refundReceiptSearch names its customer when it has one: "Refund receipt
+// 1001 · Harborview Dental" / "Draft refund receipt · Harborview Dental", or
+// "Refund receipt 1001" with no customer (a LEFT JOIN, so a walk-in refund is
+// found), drafts included. A word matches the refund's number, reference no.,
+// memo and message, or the customer's display name, company and email.
+var refundReceiptSearch = salesDocSearch{
+	table: refundReceiptKind.Collection, index: refundReceiptsIndex, docType: docTypeRefundReceipt, kind: "refund_receipt",
+	partyField: "customer", partyTable: "books_customers", partyIdx: customersIndex,
+}
+
 // estimateSearch lists every estimate: an estimate has its number from its
 // first save, so its title is always "Estimate 1001 · Customer".
 var estimateSearch = salesDocSearch{
@@ -478,8 +492,9 @@ var vendorRefundSearch = salesDocSearch{
 }
 
 // salesDocTermMatch is true when one query word matches a document's own
-// index row (number, memo, message; a sales receipt's, an expense's, a
-// payment's, a bill payment's and a vendor refund's reference no., a bill's
+// index row (number, memo, message; a sales receipt's, a refund receipt's, an
+// expense's, a payment's, a bill payment's and a vendor refund's reference
+// no., a bill's
 // vendor's bill no. and
 // a vendor credit's vendor's credit no. too) or its party's (a
 // customer's display name, company, email; a vendor's legal name too).

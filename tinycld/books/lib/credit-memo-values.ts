@@ -76,7 +76,7 @@ export function copyCreditMemoValues(
 // given, with an empty message and an empty memo. It names the invoice in `invoice`; it
 // has no Terms, Due date or estimate, and replaces nothing. Bill to and Email are the
 // invoice's snapshot, not the customer's current record, so the customer fill is not
-// read: it is the kind's `values.fromInvoice` call shape. A customer that became inactive
+// read: the kind's `values.fromSource` passes it for its `invoice` source. A customer that became inactive
 // is kept, as the Customer picker keeps a correction's; Post is refused by the server.
 export function creditMemoValuesFromInvoice(
     invoice: Pick<InvoiceSource, 'id' | 'customer' | 'bill_to' | 'email' | 'tax_rate'>,

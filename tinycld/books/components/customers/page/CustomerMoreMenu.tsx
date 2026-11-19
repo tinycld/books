@@ -1,12 +1,10 @@
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { useWritesAvailable } from '@tinycld/core/lib/use-writes-available'
-import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { Menu } from '@tinycld/core/ui/menu'
-import { MoreHorizontal } from 'lucide-react-native'
-import { Pressable } from 'react-native'
 import type { CustomerPageState } from '../../../hooks/useCustomerPage'
 import { useOpenHistory } from '../../../hooks/useOpenHistory'
 import type { BooksCustomers } from '../../../types'
+import { moreTrigger } from '../../party/page/PartyMoreTrigger'
 import { WhileOpen } from '../../RecordRowMenu'
 import { DeleteCustomerDialog } from '../DeleteCustomerDialog'
 
@@ -14,28 +12,6 @@ interface CustomerMoreMenuProps {
     record: BooksCustomers
     page: CustomerPageState
     isPhone: boolean
-}
-
-// An icon button on a phone, where the header's top right has room for one icon only.
-// An element, not a component: the menu clones it with its press handler and anchor ref.
-function moreTrigger(isPhone: boolean, color: string) {
-    if (isPhone) {
-        return (
-            <Pressable
-                testID="customer-more"
-                accessibilityRole="button"
-                accessibilityLabel="More"
-                className="h-11 w-11 items-center justify-center"
-            >
-                <MoreHorizontal size={20} color={color} />
-            </Pressable>
-        )
-    }
-    return (
-        <Button testID="customer-more" variant="outline" style={{ minHeight: 44 }}>
-            <ButtonText>More</ButtonText>
-        </Button>
-    )
 }
 
 function AddSubItem({ isVisible, onSelect }: { isVisible: boolean; onSelect: () => void }) {
@@ -56,7 +32,7 @@ interface WriteItemsProps {
 // reach the server.
 function WriteItems({ isVisible, page, isWriteDisabled, onAddSub }: WriteItemsProps) {
     if (!isVisible) return null
-    const { actions, deleteDialog, controls } = page
+    const { deleteDialog, controls } = page
     return (
         <>
             <AddSubItem isVisible={controls.showAddSub} onSelect={onAddSub} />
@@ -71,7 +47,7 @@ function WriteItems({ isVisible, page, isWriteDisabled, onAddSub }: WriteItemsPr
                 label="Delete customer"
                 testID="customer-more-delete"
                 isDestructive
-                isDisabled={actions.isWorking}
+                isDisabled={isWriteDisabled}
                 onSelect={deleteDialog.open}
             />
             <Menu.Separator />
@@ -93,7 +69,7 @@ export function CustomerMoreMenu({ record, page, isPhone }: CustomerMoreMenuProp
     const isWriteDisabled = actions.isWorking || !writes.available
     const addSub = () => navigation.openNew(record.id)
     const deleteTarget = deleteDialog.isOpen ? record : null
-    const trigger = moreTrigger(isPhone, color)
+    const trigger = moreTrigger(isPhone, color, 'customer')
     return (
         <>
             <Menu title="More" placement="bottom-end" sheetSide="bottom" trigger={trigger}>
