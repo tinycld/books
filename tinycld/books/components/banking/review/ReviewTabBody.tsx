@@ -1,6 +1,8 @@
 import { type RefObject, useRef } from 'react'
 import { type TextInputInstance, View } from 'react-native'
 import type { BankConnectionRow } from '../../../hooks/useBankConnections'
+import { useFitsTable } from '../../../hooks/useFitsTable'
+import type { MatchSuggestions } from '../../../hooks/useMatchSuggestions'
 import type { ReviewBatch } from '../../../hooks/useReviewBatch'
 import { type ReviewShortcutsInput, useReviewShortcuts } from '../../../hooks/useReviewShortcuts'
 import {
@@ -12,7 +14,7 @@ import {
     useReviewQueueRows,
     useReviewTab,
 } from '../../../hooks/useReviewTab'
-import type { ReviewTab, TxnTab } from '../../../lib/bank-review'
+import { REVIEW_TABLE_MIN_WIDTH, type ReviewTab, type TxnTab } from '../../../lib/bank-review'
 import type { LiveRecovery } from '../../../lib/live-recovery'
 import { ReviewCards } from './ReviewCards'
 import { ReviewEmptyState, ReviewLoadError, ReviewLoading } from './ReviewEmptyState'
@@ -32,6 +34,8 @@ type ReviewTabBodyProps = {
     batch: ReviewBatch
     // The page's drawer, for the batch keys and Esc.
     drawer: ReviewShortcutsInput['drawer']
+    // The page's read of the For review row marks; each row gets its own list.
+    suggestions: MatchSuggestions
 }
 
 type SearchRef = RefObject<TextInputInstance | null>
@@ -59,9 +63,21 @@ function ToolbarOrSelection({ model, searchRef }: { model: ReviewTabModel; searc
     return <ReviewToolbar model={model} searchRef={searchRef} />
 }
 
-function ReviewList({ model, currency }: { model: ReviewTabModel; currency: string }) {
-    if (model.isWide) return <ReviewTable model={model} currency={currency} />
-    return <ReviewCards model={model} currency={currency} />
+type Fits = ReturnType<typeof useFitsTable>
+
+// The table only where the list's own width holds it (useFitsTable); cards otherwise: on a
+// phone, and beside the inline drawer, where the list's panel is narrower than the table.
+function ReviewList({
+    model,
+    currency,
+    fits,
+}: {
+    model: ReviewTabModel
+    currency: string
+    fits: Fits
+}) {
+    if (fits.showCards) return <ReviewCards model={model} currency={currency} />
+    return <ReviewTable model={model} currency={currency} onGutter={fits.onGutter} />
 }
 
 function ReviewStateBody({
@@ -69,15 +85,19 @@ function ReviewStateBody({
     tab,
     currency,
     onGoToFiles,
+    fits,
 }: {
     model: ReviewTabModel
     tab: TxnTab
     currency: string
     onGoToFiles: () => void
+    fits: Fits
 }) {
     if (model.viewState === 'loading') return <ReviewLoading />
     if (model.viewState === 'error') return <ReviewLoadError onRetry={model.onRetry} />
-    if (model.viewState === 'ready') return <ReviewList model={model} currency={currency} />
+    if (model.viewState === 'ready') {
+        return <ReviewList model={model} currency={currency} fits={fits} />
+    }
     if (model.viewState === 'no-match') return <NoMatchState model={model} />
     const action = emptyAction(model, tab, onGoToFiles)
     return <ReviewEmptyState text={model.emptyText} action={action} />
@@ -90,11 +110,13 @@ type ReviewTabViewProps = ReviewTabBodyProps & {
 
 // The shared view of a transaction tab over the read its tab body made: the toolbar (or
 // the selection bar) in every view state and the last batch's result under it, then the
-// list or its state. The drawer is the page's (BankingScreenView), so opening it changes
-// nothing in this tree and the list keeps its scroll position. The tab's keys are
-// registered while this body shows, so none is on the Files tab.
+// list or its state. The drawer is the page's (BankingScreenView); the inline drawer
+// narrows this body, so the list may change from table to cards (ReviewList), and both
+// scroll to the focused row. The tab's keys are registered while this body shows, so none
+// is on the Files tab.
 function ReviewTabView({ read, queryInput, ...props }: ReviewTabViewProps) {
     const { tab, connection, currency, onGoToFiles, onTab, pageRecovery, batch, drawer } = props
+    const { suggestions } = props
     const searchRef = useRef<TextInputInstance | null>(null)
     const model = useReviewTab({
         tab,
@@ -105,18 +127,25 @@ function ReviewTabView({ read, queryInput, ...props }: ReviewTabViewProps) {
         queryInput,
         pageRecovery,
         batch,
+        suggestions,
     })
     useReviewShortcuts({ ...model, tab, searchRef, onTab, drawer })
+    const fits = useFitsTable(REVIEW_TABLE_MIN_WIDTH)
     return (
         <View testID={`bank-tab-body-${tab}`} className="min-h-0 flex-1 overflow-hidden">
             <ToolbarOrSelection model={model} searchRef={searchRef} />
             <ReviewResultLine result={model.result} />
-            <View aria-busy={model.isBusy} className="min-h-0 min-w-0 flex-1">
+            <View
+                aria-busy={model.isBusy}
+                className="min-h-0 min-w-0 flex-1"
+                onLayout={fits.onLayout}
+            >
                 <ReviewStateBody
                     model={model}
                     tab={tab}
                     currency={currency}
                     onGoToFiles={onGoToFiles}
+                    fits={fits}
                 />
             </View>
         </View>

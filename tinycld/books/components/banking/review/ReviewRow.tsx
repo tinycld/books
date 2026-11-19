@@ -13,9 +13,12 @@ import { formatMoney } from '../../../lib/money'
 import { PARTY_ROW_CLASS } from '../../../lib/party-list'
 import { formatDay } from '../../../lib/register-range'
 import { SelectBox } from '../../SelectBox'
+import { SuggestionMark } from '../match/SuggestionMark'
 
 const ROW_STYLE = { height: REVIEW_ROW_HEIGHT }
 const AMOUNT_CLASS = 'text-right text-sm tabular-nums text-foreground'
+
+const NO_SHRINK = { flexShrink: 0 }
 
 function SecondLine({ text }: { text: string }) {
     if (!text) return null
@@ -23,6 +26,32 @@ function SecondLine({ text }: { text: string }) {
         <Text numberOfLines={1} className="text-xs text-muted-foreground">
             {text}
         </Text>
+    )
+}
+
+// A wide row's second line: the match mark when Books found a match, the memo and check
+// number otherwise (both stay in the drawer). The list passes an empty list while the
+// suggestions load, after their read failed, and on Reviewed and Excluded.
+function RowSecondLine({ row }: { row: ReviewRowData }) {
+    if (row.suggestions.length > 0) {
+        return <SuggestionMark txnId={row.id} suggestions={row.suggestions} form="row" />
+    }
+    return <SecondLine text={txnSecondLine(row.memo, row.checkNumber)} />
+}
+
+// A card's second line: the day, then the mark in place of "Check n".
+function CardSecondLine({ row }: { row: ReviewRowData }) {
+    if (row.suggestions.length === 0) {
+        return <SecondLine text={txnPhoneLine(row.date, row.checkNumber)} />
+    }
+    const day = `${formatDay(row.date)} ·`
+    return (
+        <View className="flex-row items-center gap-1">
+            <Text numberOfLines={1} className="text-xs text-muted-foreground" style={NO_SHRINK}>
+                {day}
+            </Text>
+            <SuggestionMark txnId={row.id} suggestions={row.suggestions} form="card" />
+        </View>
     )
 }
 
@@ -88,12 +117,11 @@ function rowBackground(isOpen: boolean): string {
 }
 
 // One transaction of the wide table: the check box (when rows can be chosen) · Date ·
-// Description (memo and check number under it) · Spent · Received, on the cells the header
-// uses. Pressing it opens the drawer. react-native-web writes no aria-selected from
-// accessibilityState, so both are set.
+// Description (the match mark, or the memo and check number, under it) · Spent · Received,
+// on the cells the header uses. Pressing it opens the drawer. react-native-web writes no
+// aria-selected from accessibilityState, so both are set.
 export function ReviewRow({ row, currency, isOpen, isFocused, onOpen, choice }: RowProps) {
     const amounts = txnAmountCells(row.amount, currency)
-    const secondLine = txnSecondLine(row.memo, row.checkNumber)
     const day = formatDay(row.date)
     const onPress = () => onOpen(row.id)
     const selected = { selected: isOpen }
@@ -121,7 +149,7 @@ export function ReviewRow({ row, currency, isOpen, isFocused, onOpen, choice }: 
                 <Text numberOfLines={1} className="text-sm text-foreground">
                     {row.description}
                 </Text>
-                <SecondLine text={secondLine} />
+                <RowSecondLine row={row} />
             </View>
             <View className="min-w-0 pr-3" style={REVIEW_CELLS.spent}>
                 <Text numberOfLines={1} className={AMOUNT_CLASS}>
@@ -138,8 +166,8 @@ export function ReviewRow({ row, currency, isOpen, isFocused, onOpen, choice }: 
 }
 
 // One transaction on a phone: the check box (when rows can be chosen), description and
-// "day · Check n", then the signed amount on the right. Pressing it opens the drawer as a
-// sheet.
+// "day · Check n" (or the day and the match mark), then the signed amount on the right.
+// Pressing it opens the drawer as a sheet.
 export function ReviewCard({
     row,
     currency,
@@ -151,7 +179,6 @@ export function ReviewCard({
 }: RowProps & { height: number }) {
     const focus = useRowFocus(isFocused)
     const cardStyle = [{ height }, focus.style]
-    const phoneLine = txnPhoneLine(row.date, row.checkNumber)
     const amountText = formatMoney(row.amount, currency)
     const onPress = () => onOpen(row.id)
     const selected = { selected: isOpen }
@@ -172,9 +199,7 @@ export function ReviewCard({
                 <Text numberOfLines={1} className="text-sm text-foreground">
                     {row.description}
                 </Text>
-                <Text numberOfLines={1} className="text-xs text-muted-foreground">
-                    {phoneLine}
-                </Text>
+                <CardSecondLine row={row} />
             </View>
             <Text className="text-sm font-semibold tabular-nums text-foreground">{amountText}</Text>
         </Pressable>

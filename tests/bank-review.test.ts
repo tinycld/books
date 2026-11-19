@@ -504,6 +504,17 @@ describe('batchResultText', () => {
         })
     })
 
+    it('counts the matched transactions, muted', () => {
+        expect(batchResultText('match', { done: ['a'], failed: [] })).toEqual({
+            text: 'Matched 1 transaction.',
+            tone: 'muted',
+        })
+        expect(batchResultText('match', { done: ['a', 'b', 'c', 'd'], failed: [] }, 0)).toEqual({
+            text: 'Matched 4 transactions.',
+            tone: 'muted',
+        })
+    })
+
     it("shows the server's message when every failure has the same one", () => {
         const failed = [refused('a', CANNOT_CHANGE), refused('b', CANNOT_CHANGE)]
         expect(batchResultText('exclude', { done: [], failed })).toEqual({
