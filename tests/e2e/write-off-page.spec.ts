@@ -255,6 +255,23 @@ test.describe('write-off: page', () => {
         await shown(page, 'history-open').click()
         await expect(page).toHaveURL(WRITE_OFF_URL)
         await expect(page).toHaveURL(writeOffUrl)
-        await expect(shown(page, 'write-off-read-only')).toBeVisible()
+        const readView = shown(page, 'write-off-read-only')
+        await expect(readView).toBeVisible()
+
+        // The page's help icon opens the Write-offs topic: its title, and a heading of the
+        // topic that no text of the page holds.
+        await readView.getByLabel('Open help').click()
+        await expect(
+            page
+                .getByText('Write off an invoice', { exact: true })
+                .filter({ visible: true })
+                .first()
+        ).toBeVisible()
+        await expect(
+            page
+                .getByText('A customer who paid a part', { exact: true })
+                .filter({ visible: true })
+                .first()
+        ).toBeVisible()
     })
 })

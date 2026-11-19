@@ -1,0 +1,109 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "list",
+            "widths": [390],
+            "url": "/a/books/invoices",
+            "ready": "sales-list",
+            "hideLabels": ["New"],
+            "actions": [{ "pause": 500 }]
+        },
+        {
+            "name": "./list",
+            "widths": [1280],
+            "url": "/a/books/invoices",
+            "ready": "sales-list",
+            "hideLabels": ["New"],
+            "actions": [{ "pause": 500 }]
+        },
+        {
+            "name": "list-written-off",
+            "widths": [390],
+            "schemes": ["light"],
+            "url": "/a/books/invoices",
+            "ready": "sales-list",
+            "hideLabels": ["New"],
+            "actions": [{ "click": "sales-chip-written-off" }, { "pause": 800 }]
+        },
+        {
+            "name": "./list-written-off",
+            "widths": [1280],
+            "schemes": ["light"],
+            "url": "/a/books/invoices",
+            "ready": "sales-list",
+            "hideLabels": ["New"],
+            "actions": [{ "click": "sales-chip-written-off" }, { "pause": 800 }]
+        },
+        {
+            "name": "customer-transactions",
+            "widths": [390],
+            "url": "/a/books/write-offs/wofx1001delta01",
+            "ready": "write-off-read-only",
+            "hideLabels": ["New"],
+            "actions": [
+                { "pause": 500 },
+                { "click": "write-off-detail-customer-link" },
+                { "waitFor": "customer-tab-transactions" },
+                { "click": "customer-tab-transactions" },
+                { "waitFor": "customer-transactions-filter-write-off" },
+                { "pause": 800 }
+            ]
+        },
+        {
+            "name": "./customer-transactions",
+            "widths": [1280],
+            "url": "/a/books/write-offs/wofx1001delta01",
+            "ready": "write-off-read-only",
+            "hideLabels": ["New"],
+            "actions": [
+                { "pause": 500 },
+                { "click": "write-off-detail-customer-link" },
+                { "waitFor": "customer-tab-transactions" },
+                { "click": "customer-tab-transactions" },
+                { "waitFor": "customer-transactions-filter-write-off" },
+                { "pause": 800 }
+            ]
+        },
+        {
+            "name": "dialog",
+            "widths": [390],
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "opaque": "write-off-dialog",
+            "stable": "write-off-dialog",
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "fill": "form-input-memo", "value": "Helix capture write-off cp4 dialog 390" },
+                { "pause": 300 },
+                { "click": "invoice-post" },
+                { "waitFor": "invoice-read-only" },
+                { "pause": 500 },
+                { "press": "w" },
+                { "waitFor": "write-off-account" }
+            ]
+        },
+        {
+            "name": "invoice-written-off",
+            "widths": [390],
+            "url": "/a/books/invoices/invcwo1012delt1",
+            "ready": "invoice-write-offs",
+            "height": 1500,
+            "hideLabels": ["New"],
+            "actions": [{ "pause": 500 }]
+        },
+        {
+            "name": "read",
+            "widths": [390],
+            "url": "/a/books/write-offs/wofx1001delta01",
+            "ready": "write-off-read-only",
+            "hideLabels": ["New"]
+        }
+    ]
+}

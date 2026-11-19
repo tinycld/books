@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { DocumentListRow } from '../tinycld/books/lib/document-list'
 import { cardLines, cellText, nameRowLines } from '../tinycld/books/lib/document-list-cells'
 import { formatDay } from '../tinycld/books/lib/register-range'
-import { salesTabOf } from '../tinycld/books/lib/sales-lists'
+import { customerTransactionsTab, salesTabOf } from '../tinycld/books/lib/sales-lists'
 
 // The text of a sales list's cells, cards and names-column rows (spec
 // docs/specs/sales-lists-design.md §3 "Rows and columns", checkpoint 2).
@@ -160,6 +160,34 @@ describe('a refund receipt row', () => {
         const zero = listRow({ kind: 'refund_receipt', total: 0 })
         expect(cellText(zero, 'total', REFUNDS, 'USD')).toBe('$0.00')
         expect(cellText(zero, 'amount', ALL, 'USD')).toBe('$0.00')
+    })
+})
+
+// Write-off spec §3.6: a write-off row shows its total with a minus sign on every tab, as a
+// refund receipt row does; writeOffRow carries its amount negated.
+describe('a write-off row', () => {
+    const WRITE_OFFS = customerTransactionsTab('write_off')
+    // The minus sign follows the kind, not the tab's sign.
+    const UNSIGNED = { ...WRITE_OFFS, isSigned: false }
+    const writeOff = listRow({
+        kind: 'write_off',
+        number: '1001',
+        sequence: 1001,
+        customerName: 'Delta Freight Partners',
+        total: -40_000,
+        status: { label: 'Written off', tone: 'muted' },
+    })
+
+    it('shows its total and amount as −$400.00 on a signed and an unsigned tab', () => {
+        expect(cellText(writeOff, 'total', UNSIGNED, 'USD')).toBe(`${MINUS}$400.00`)
+        expect(cellText(writeOff, 'amount', UNSIGNED, 'USD')).toBe(`${MINUS}$400.00`)
+        expect(cellText(writeOff, 'amount', WRITE_OFFS, 'USD')).toBe(`${MINUS}$400.00`)
+        expect(cellText(writeOff, 'type', WRITE_OFFS, 'USD')).toBe('Write-off')
+    })
+
+    it('shows −$400.00 on its card', () => {
+        expect(cardLines(writeOff, UNSIGNED, 'USD').amount).toBe(`${MINUS}$400.00`)
+        expect(cardLines(writeOff, WRITE_OFFS, 'USD').amount).toBe(`${MINUS}$400.00`)
     })
 })
 

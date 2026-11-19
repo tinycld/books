@@ -1,7 +1,10 @@
 // The "More actions" menu of a sales list's row (spec §3 "Row menu"): Open, then the
 // actions the document's read view offers for its status and the user's access, in the
-// read view's order and with its labels, never Edit. A draft opens in its form, so its
-// menu holds Open and, for a writer, Delete draft. Pure, so each rule is unit-tested.
+// read view's order and with its labels, never Edit; Write off comes directly after
+// Receive payment (write-off spec §3.1), which differs from the read view on purpose. A
+// draft opens in its form, so its menu holds Open and, for a writer, Delete draft; a
+// write-off's menu holds Open alone (its page has the Void). Pure, so each rule is
+// unit-tested.
 
 import {
     creditMemoOffered,
@@ -9,6 +12,7 @@ import {
     type DocumentReadAction,
     documentReadActions,
     receivePaymentOffered,
+    writeOffOffered,
 } from './document-actions'
 import { type DocumentStatus, quoteReadActions } from './document-lifecycle'
 import type { DocumentListRow } from './document-list'
@@ -20,6 +24,7 @@ import { CREDIT_MEMO_KIND, INVOICE_KIND, SALES_FEATURES } from './sales-document
 export type RowMenuAction =
     | 'open'
     | 'receive_payment'
+    | 'write_off'
     | 'void'
     | 'copy'
     | 'credit_memo'
@@ -31,6 +36,7 @@ export type RowMenuAction =
 export const ROW_MENU_LABELS: Record<RowMenuAction, string> = {
     open: 'Open',
     receive_payment: DOCUMENT_READ_LABELS.receive_payment,
+    write_off: DOCUMENT_READ_LABELS.write_off,
     void: DOCUMENT_READ_LABELS.void,
     copy: DOCUMENT_READ_LABELS.copy,
     credit_memo: DOCUMENT_READ_LABELS.credit_memo,
@@ -68,12 +74,10 @@ type NotRowMenuAction =
     | 'record_refund'
     | 'refund'
     | 'refund_credit'
-    | 'write_off'
 
 // A read-view action as a row-menu action: every one but Edit, Pay bill (a bill's), Apply
 // to bills and Record refund (a vendor credit's), which are never on a sales list, and
-// Refund, Refund credit and Write off, which the row menu does not offer (readActionsOf
-// sets none of them).
+// Refund and Refund credit, which the row menu does not offer (readActionsOf sets neither).
 function isRowMenuAction(
     action: DocumentReadAction
 ): action is Exclude<DocumentReadAction, NotRowMenuAction> {
@@ -83,9 +87,28 @@ function isRowMenuAction(
         action !== 'apply_credit' &&
         action !== 'record_refund' &&
         action !== 'refund' &&
-        action !== 'refund_credit' &&
-        action !== 'write_off'
+        action !== 'refund_credit'
     )
+}
+
+// The one offer rule of Write off in a row menu, on the Sales lists and on the customer
+// page (write-off spec §3.1): a writer, on a posted invoice with a balance above 0.
+export function rowWriteOffOffered(
+    row: { kind: string; recordStatus: string; balance: number },
+    canWrite: boolean
+): boolean {
+    const status = documentStatusOf(row.recordStatus)
+    if (!canWrite || status === null) return false
+    return writeOffOffered(row.kind, status, row.balance)
+}
+
+// Write off directly after Receive payment (or after Open), where the read view puts it
+// after Create credit memo.
+function writeOffAfterReceive(actions: readonly RowMenuAction[]): RowMenuAction[] {
+    if (!actions.includes('write_off')) return [...actions]
+    const rest = actions.filter(action => action !== 'write_off')
+    const at = Math.max(rest.indexOf('receive_payment'), rest.indexOf('open')) + 1
+    return [...rest.slice(0, at), 'write_off', ...rest.slice(at)]
 }
 
 // The read view's actions of the row, without Edit; View journal entry only with an entry.
@@ -101,6 +124,7 @@ function readActionsOf(row: DocumentListRow, status: DocumentStatus, canWrite: b
         canReceivePayment: receivePaymentOffered(row.kind, status, row.balance),
         canPayBill: false,
         canCreateCreditMemo: creditMemoOffered(row.kind, status),
+        canWriteOff: rowWriteOffOffered(row, canWrite),
     }
     return documentReadActions(status, canWrite, SALES_FEATURES, extra).filter(
         action => action !== 'entry' || row.entry !== ''
@@ -108,11 +132,12 @@ function readActionsOf(row: DocumentListRow, status: DocumentStatus, canWrite: b
 }
 
 export function documentRowMenuItems(row: DocumentListRow, canWrite: boolean): RowMenuAction[] {
+    if (row.kind === 'write_off') return ['open']
     if (row.recordStatus === 'draft') return canWrite ? ['open', 'delete_draft'] : ['open']
     const status = documentStatusOf(row.recordStatus)
     if (status === null) return ['open']
     const offered: DocumentReadAction[] = readActionsOf(row, status, canWrite)
-    return ['open', ...offered.filter(isRowMenuAction)]
+    return writeOffAfterReceive(['open', ...offered.filter(isRowMenuAction)])
 }
 
 // The menu row's test id: `sales-row-action-<action>`, with dashes.
@@ -121,7 +146,8 @@ export function rowActionTestId(action: RowMenuAction): string {
 }
 
 // The route a navigating action pushes (without the org prefix); null for the actions that
-// stay on the list (Download PDF, Void, Delete draft).
+// stay on the list (Download PDF, Void, Delete draft, and Write off, whose dialog opens
+// over the list).
 export function rowActionHref(row: DocumentListRow, action: RowMenuAction): string | null {
     const kind = TRANSACTION_DOC_KINDS[row.kind]
     switch (action) {
@@ -140,6 +166,7 @@ export function rowActionHref(row: DocumentListRow, action: RowMenuAction): stri
         case 'pdf':
         case 'void':
         case 'delete_draft':
+        case 'write_off':
             return null
     }
 }

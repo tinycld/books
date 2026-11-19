@@ -70,6 +70,8 @@ A payment has no PDF and no Copy.
 
 While a posted payment pays an invoice, that invoice cannot be voided. To void the invoice, void or edit the payment first.
 
+A written-off invoice has no balance due, so it is not in the list of open invoices. When a customer pays an invoice that you wrote off, open the write-off and void it first: the invoice is open again, and you can receive the payment for it. When you void a payment of an invoice that has a write-off, the write-off stays and the invoice is open for the amount of the payment. See [Write off an invoice](help://books:write-offs).
+
 ## Keyboard shortcuts
 
 On the payment form:

@@ -5,8 +5,9 @@ import type { TransactionKind } from '../lib/party-transactions'
 /**
  * Void of a posted sales document, shared by the read views and the sales lists: the
  * kind's collection writes `status: 'void'` (the server posts the reversing entry). An
- * estimate has no void, so it throws. Returns the pbtsdb transaction for a `useMutation`
- * generator to yield.
+ * estimate has no void, so it throws; a write-off is voided on its own page
+ * (hooks/useVoidWriteOff.ts) and no list menu offers its void, so it throws too. Returns
+ * the pbtsdb transaction for a `useMutation` generator to yield.
  */
 export function useVoidDocument(): (kind: TransactionKind, id: string) => Transaction {
     const [invoices, receipts, payments, memos, refunds] = useStore(
@@ -40,6 +41,8 @@ export function useVoidDocument(): (kind: TransactionKind, id: string) => Transa
                 })
             case 'estimate':
                 throw new Error('an estimate never voids')
+            case 'write_off':
+                throw new Error('a write-off is voided on its own page')
         }
     }
 }

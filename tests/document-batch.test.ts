@@ -106,6 +106,18 @@ describe('batchTargets', () => {
         expect(ids(batchTargets('delete_drafts', [posted, draft]).applies)).toEqual([draft.id])
     })
 
+    // Write-off spec §5 (Q13): no batch action reaches a write-off.
+    it('no batch action applies to a write-off row, posted or void', () => {
+        for (const action of ['delete_drafts', 'void'] as const) {
+            const result = batchTargets(action, [
+                row('write_off', 'posted'),
+                row('write_off', 'void'),
+            ])
+            expect(result.applies).toEqual([])
+            expect(result.skipped).toBe(2)
+        }
+    })
+
     it('an action that applies to none skips every ticked document', () => {
         const result = batchTargets('void', [row('estimate', 'pending'), row('invoice', 'draft')])
         expect(result.applies).toEqual([])

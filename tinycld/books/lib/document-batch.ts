@@ -7,8 +7,10 @@ import type { DocumentListRow } from './document-list'
 export type BatchAction = 'delete_drafts' | 'void'
 
 // Delete drafts applies to the drafts of every kind; Void to posted documents of every kind
-// but an estimate, which has no void.
+// but an estimate, which has no void. No batch action reaches a write-off (write-off spec §5,
+// Q13): it is voided on its own page.
 function appliesTo(action: BatchAction, row: DocumentListRow): boolean {
+    if (row.kind === 'write_off') return false
     if (action === 'delete_drafts') return row.recordStatus === 'draft'
     return row.recordStatus === 'posted' && row.kind !== 'estimate'
 }

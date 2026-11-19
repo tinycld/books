@@ -6,6 +6,7 @@ import {
     type RowMenuAction,
     rowActionHref,
     rowActionTestId,
+    rowWriteOffOffered,
 } from '../tinycld/books/lib/document-row-menu'
 import type { TransactionKind } from '../tinycld/books/lib/party-transactions'
 
@@ -51,10 +52,11 @@ const WRITER = true
 const READER = false
 
 describe('documentRowMenuItems, writer', () => {
-    it('a posted invoice with a balance: Open, Receive payment, Void, Copy, Create credit memo, View journal entry, Download PDF', () => {
+    it('a posted invoice with a balance: Open, Receive payment, Write off, Void, Copy, Create credit memo, View journal entry, Download PDF', () => {
         expect(documentRowMenuItems(row('invoice', 'posted', { balance: 150 }), WRITER)).toEqual([
             'open',
             'receive_payment',
+            'write_off',
             'void',
             'copy',
             'credit_memo',
@@ -210,7 +212,7 @@ describe('documentRowMenuItems, every list', () => {
         }
         expect(
             documentRowMenuItems(row('invoice', 'posted', { balance: 150, entry: '' }), WRITER)
-        ).toEqual(['open', 'receive_payment', 'void', 'copy', 'credit_memo', 'pdf'])
+        ).toEqual(['open', 'receive_payment', 'write_off', 'void', 'copy', 'credit_memo', 'pdf'])
     })
 })
 
@@ -268,6 +270,7 @@ describe('ROW_MENU_LABELS', () => {
             invoice: 'Open invoice',
             pdf: 'Download PDF',
             delete_draft: 'Delete draft',
+            write_off: 'Write off',
         })
     })
 })
@@ -285,6 +288,7 @@ describe('rowActionTestId', () => {
                 'invoice',
                 'pdf',
                 'delete_draft',
+                'write_off',
             ] as RowMenuAction[]
         ).map(rowActionTestId)
         expect(ids).toEqual([
@@ -297,7 +301,74 @@ describe('rowActionTestId', () => {
             'sales-row-action-invoice',
             'sales-row-action-pdf',
             'sales-row-action-delete-draft',
+            'sales-row-action-write-off',
         ])
+    })
+})
+
+// Write-off spec §3.1: the one offer rule of the Sales-list menu and the customer page menu.
+describe('rowWriteOffOffered', () => {
+    const open = { kind: 'invoice', recordStatus: 'posted', balance: 1 }
+
+    it('is true for a posted invoice with a balance above 0, for a writer', () => {
+        expect(rowWriteOffOffered(open, WRITER)).toBe(true)
+    })
+
+    it('is false for a reader, a draft, a void row and a balance of 0', () => {
+        expect(rowWriteOffOffered(open, READER)).toBe(false)
+        expect(rowWriteOffOffered({ ...open, recordStatus: 'draft' }, WRITER)).toBe(false)
+        expect(rowWriteOffOffered({ ...open, recordStatus: 'void' }, WRITER)).toBe(false)
+        expect(rowWriteOffOffered({ ...open, balance: 0 }, WRITER)).toBe(false)
+    })
+
+    it.each([
+        'estimate',
+        'sales_receipt',
+        'payment',
+        'credit_memo',
+        'refund_receipt',
+        'write_off',
+        'bill',
+    ])('is false for a posted %s with a balance', kind => {
+        expect(rowWriteOffOffered({ ...open, kind }, WRITER)).toBe(false)
+    })
+})
+
+describe('documentRowMenuItems, write off', () => {
+    it('lists Write off directly after Receive payment for a writer', () => {
+        const items = documentRowMenuItems(row('invoice', 'posted', { balance: 150 }), WRITER)
+        expect(items.indexOf('write_off')).toBe(items.indexOf('receive_payment') + 1)
+    })
+
+    it('does not list it for a reader, a draft, a void invoice or a balance of 0', () => {
+        expect(
+            documentRowMenuItems(row('invoice', 'posted', { balance: 150 }), READER)
+        ).not.toContain('write_off')
+        expect(
+            documentRowMenuItems(row('invoice', 'draft', { balance: 150 }), WRITER)
+        ).not.toContain('write_off')
+        expect(
+            documentRowMenuItems(row('invoice', 'void', { balance: 150 }), WRITER)
+        ).not.toContain('write_off')
+        expect(
+            documentRowMenuItems(row('invoice', 'posted', { balance: 0 }), WRITER)
+        ).not.toContain('write_off')
+    })
+
+    it('a write-off row lists Open alone, posted or void, for a writer and a reader', () => {
+        for (const status of ['posted', 'void']) {
+            for (const canWrite of [WRITER, READER]) {
+                expect(documentRowMenuItems(row('write_off', status), canWrite)).toEqual(['open'])
+            }
+        }
+    })
+
+    it('write_off gives no route: the dialog opens over the list', () => {
+        expect(rowActionHref(row('invoice', 'posted', { balance: 150 }), 'write_off')).toBeNull()
+    })
+
+    it("a write-off row's Open gives the write-off page", () => {
+        expect(rowActionHref(row('write_off', 'posted'), 'open')).toBe(`books/write-offs/${ID}`)
     })
 })
 

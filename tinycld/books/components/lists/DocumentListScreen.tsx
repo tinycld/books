@@ -225,7 +225,11 @@ export function DocumentListScreen({ tab, openId, layout, isCovered }: DocumentL
                 screen={screen}
                 searchRef={searchRef}
             />
-            <DocumentListDialogs rowActions={screen.rowActions} batch={screen.batch} />
+            <DocumentListDialogs
+                rowActions={screen.rowActions}
+                batch={screen.batch}
+                owner={screen.owner}
+            />
         </>
     )
 }

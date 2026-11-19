@@ -120,6 +120,14 @@ describe('help/sales-lists.md', () => {
     })
 })
 
+// Write-off checkpoint 4 (write-off spec §3.6 Help): one paragraph on the Written off status
+// and the row menu's Write off.
+describe('help/sales-lists.md (write-offs)', () => {
+    it('names a write-off or the Written off status', () => {
+        expect(body).toMatch(/\bwrite-offs?\b|\bWritten off\b/i)
+    })
+})
+
 describe('help/navigating-books.md', () => {
     const navigating = readFileSync(path.join(helpDir, 'navigating-books.md'), 'utf8')
 

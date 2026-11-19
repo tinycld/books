@@ -32,6 +32,7 @@ import {
     refundReceiptRow,
     salesReceiptRow,
     TRANSACTION_PAGE,
+    writeOffRow,
 } from '../lib/party-transactions'
 import { fiscalStartMonth, todayIso } from '../lib/register-range'
 import { useBooksSettings } from './useBooksSettings'
@@ -83,6 +84,7 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
         paymentsCollection,
         creditMemosCollection,
         refundsCollection,
+        writeOffsCollection,
         customersCollection,
     ] = useStore(
         'books_invoices',
@@ -91,6 +93,7 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
         'books_payments',
         'books_credit_memos',
         'books_refund_receipts',
+        'books_write_offs',
         'books_customers'
     )
     const settings = useBooksSettings()
@@ -105,8 +108,11 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
     const range = listRange(filters.range, today, fiscalStartMonth(settings.settings))
     const hasCustomer = customer !== ''
     // Estimates have no listed rule, so their query has a `where` only when a filter is set.
-    const hasEstimateWhere =
-        chip !== 'all' || range !== null || hasCustomer || searchPieces(search).length > 0
+    const hasSearch = searchPieces(search).length > 0
+    const hasEstimateWhere = chip !== 'all' || range !== null || hasCustomer || hasSearch
+    // Write-offs have no listed rule (no correction replaces one) and no chip rule (on the
+    // customer tab the filter chip chooses the kind), so likewise.
+    const hasWriteOffWhere = range !== null || hasCustomer || hasSearch
     const queryKey = (kind: string, runs: boolean) => [
         'books.document-list',
         kind,
@@ -129,6 +135,7 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
     const runsPayments = chipRuns(tab, chip, 'payment')
     const runsCreditMemos = chipRuns(tab, chip, 'credit_memo')
     const runsRefunds = chipRuns(tab, chip, 'refund_receipt')
+    const runsWriteOffs = chipRuns(tab, chip, 'write_off')
 
     const invoicesQuery = useLiveQuery({
         query: q => {
@@ -311,6 +318,36 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
         },
         queryKey: queryKey('refund-receipts', runsRefunds),
     })
+    const writeOffsQuery = useLiveQuery({
+        query: q => {
+            if (!runsWriteOffs) return undefined
+            const field = sortField('write_off', sort.key)
+            const from = q.from({ w: writeOffsCollection })
+            const filtered = hasWriteOffWhere
+                ? from.where(({ w }) =>
+                      allOf([
+                          ...rangeClauses(w, range),
+                          ...(hasCustomer ? [eq(w.customer, customer)] : []),
+                          ...searchClauses(w, search),
+                      ])
+                  )
+                : from
+            return filtered
+                .orderBy(({ w }) => w[field], kindDirection(tab, 'write_off', sort))
+                .orderBy(({ w }) => w.created, 'desc')
+                .limit(n)
+                .select(({ w }) => ({
+                    ...w,
+                    customerRow: materialize(
+                        q
+                            .from({ c: customersCollection })
+                            .where(({ c }) => eq(c.id, w.customer))
+                            .findOne()
+                    ),
+                }))
+        },
+        queryKey: queryKey('write-offs', runsWriteOffs),
+    })
 
     const invoices = runsInvoices ? invoicesQuery.data : undefined
     const estimates = runsEstimates ? estimatesQuery.data : undefined
@@ -318,6 +355,7 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
     const payments = runsPayments ? paymentsQuery.data : undefined
     const creditMemos = runsCreditMemos ? creditMemosQuery.data : undefined
     const refunds = runsRefunds ? refundsQuery.data : undefined
+    const writeOffs = runsWriteOffs ? writeOffsQuery.data : undefined
     const isSigned = tab.isSigned
     const merged = useMemo(() => {
         const invoiceRows: DocumentListRow[] = (invoices ?? []).map(row => ({
@@ -361,12 +399,38 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
             entry: row.entry,
             creditMemo: row.credit_memo,
         }))
+        // writeOffRow negates the amount on every tab, as a refund's (write-off spec §3.6).
+        const writeOffRows: DocumentListRow[] = (writeOffs ?? []).map(row => ({
+            ...writeOffRow(row),
+            ...extraFields(row),
+            entry: row.entry,
+        }))
         return documentListWindow(
-            [invoiceRows, estimateRows, receiptRows, paymentRows, creditMemoRows, refundRows],
+            [
+                invoiceRows,
+                estimateRows,
+                receiptRows,
+                paymentRows,
+                creditMemoRows,
+                refundRows,
+                writeOffRows,
+            ],
             n,
             sort
         )
-    }, [invoices, estimates, receipts, payments, creditMemos, refunds, today, n, sort, isSigned])
+    }, [
+        invoices,
+        estimates,
+        receipts,
+        payments,
+        creditMemos,
+        refunds,
+        writeOffs,
+        today,
+        n,
+        sort,
+        isSigned,
+    ])
 
     const invoicesError = runsInvoices && invoicesQuery.isError
     const estimatesError = runsEstimates && estimatesQuery.isError
@@ -374,6 +438,7 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
     const paymentsError = runsPayments && paymentsQuery.isError
     const creditMemosError = runsCreditMemos && creditMemosQuery.isError
     const refundsError = runsRefunds && refundsQuery.isError
+    const writeOffsError = runsWriteOffs && writeOffsQuery.isError
     const anyError =
         invoicesError ||
         estimatesError ||
@@ -381,6 +446,7 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
         paymentsError ||
         creditMemosError ||
         refundsError ||
+        writeOffsError ||
         settings.hasLoadError
     const isPending =
         (runsInvoices && !invoicesQuery.isReady && !invoicesQuery.isError) ||
@@ -389,6 +455,7 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
         (runsPayments && !paymentsQuery.isReady && !paymentsQuery.isError) ||
         (runsCreditMemos && !creditMemosQuery.isReady && !creditMemosQuery.isError) ||
         (runsRefunds && !refundsQuery.isReady && !refundsQuery.isError) ||
+        (runsWriteOffs && !writeOffsQuery.isReady && !writeOffsQuery.isError) ||
         (!settings.isReady && !settings.hasLoadError)
     // The settings read gives the currency every amount draws in, so the rows wait for it.
     const isReady =
@@ -398,6 +465,7 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
         (!runsPayments || paymentsQuery.isReady) &&
         (!runsCreditMemos || creditMemosQuery.isReady) &&
         (!runsRefunds || refundsQuery.isReady) &&
+        (!runsWriteOffs || writeOffsQuery.isReady) &&
         settings.isReady
 
     // A larger window, a filter or a sort is a new query: the rows of the last ready
@@ -443,6 +511,7 @@ export function useDocumentList({ tab, filters, sort }: ListInput) {
         recoveryOf(paymentsError, paymentsQuery.collection, paymentsCollection),
         recoveryOf(creditMemosError, creditMemosQuery.collection, creditMemosCollection),
         recoveryOf(refundsError, refundsQuery.collection, refundsCollection),
+        recoveryOf(writeOffsError, writeOffsQuery.collection, writeOffsCollection),
         settings.recovery,
     ])
     const retry = () => {
