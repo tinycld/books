@@ -202,7 +202,8 @@ func cashDriftReport(drifts []CashBasisDrift) (listed []CashBasisDrift, count in
 // cash-basis row equal what the entries and payments give (rebuildCashBasis;
 // its verify part is verifyCashBasis), in one transaction, touching only the
 // rows that differ. It returns how many month rows, document balances and
-// cash-basis rows it fixed.
+// cash-basis rows it fixed. It also rebuilds the stored receivable rows when they
+// disagree with the book (repairReceivables); those rows are not in the count.
 func rebuildBalances(app core.App) (int, error) {
 	fixed := 0
 	err := app.RunInTransaction(func(tx core.App) error {
@@ -252,7 +253,7 @@ func rebuildBalances(app core.App) (int, error) {
 			}
 		}
 		fixed = len(drifts) + documents + cash
-		return nil
+		return repairReceivables(tx)
 	})
 	return fixed, err
 }
@@ -278,6 +279,13 @@ func bindBalanceRoutes(e *core.ServeEvent) {
 		if len(cashDrifts) > 0 {
 			log.ErrorContext(re.Request.Context(), "cash-basis rows disagree with their documents", "count", len(cashDrifts))
 		}
+		receivableDrifts, err := verifyReceivables(re.App)
+		if err != nil {
+			return err
+		}
+		if len(receivableDrifts) > 0 {
+			log.ErrorContext(re.Request.Context(), "receivable rows disagree with the book", "count", len(receivableDrifts))
+		}
 		fixed, err := rebuildBalances(re.App)
 		if err != nil {
 			return err
@@ -297,6 +305,7 @@ func bindBalanceRoutes(e *core.ServeEvent) {
 		return re.JSON(http.StatusOK, map[string]any{
 			"fixed": fixed, "lineDrifts": listed, "lineDriftCount": count,
 			"cashDrifts": cashListed, "cashDriftCount": cashCount,
+			"receivableDrifts": receivableDrifts,
 		})
 	})
 }
