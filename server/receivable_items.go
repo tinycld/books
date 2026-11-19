@@ -195,7 +195,8 @@ type ReceivableDrift struct {
 	Problem string `db:"problem" json:"problem"`
 }
 
-// maxReceivableDriftsReported bounds what verifyReceivables returns.
+// maxReceivableDriftsReported bounds the rows the rebuild route lists; the
+// route also answers the count of all of them.
 const maxReceivableDriftsReported = 100
 
 // verifyReceivables compares the stored rows with the two queries, both ways,
@@ -214,7 +215,7 @@ func verifyReceivables(app core.App) ([]ReceivableDrift, error) {
 			SELECT t.id, t.entry, t.item, 'settled' AS problem FROM ` + receivableItemsCollection + ` t
 			JOIN (` + fmt.Sprintf(receivableSettledSQL, "") + `) s ON s.customer = t.customer AND s.item = t.item
 			WHERE s.settled != t.settled
-		) ORDER BY problem, id LIMIT {:max}`).Bind(dbx.Params{"max": maxReceivableDriftsReported}).All(&drifts)
+		) ORDER BY problem, id`).All(&drifts)
 	if err != nil {
 		return nil, fmt.Errorf("books: compare the receivable rows with the book: %w", err)
 	}
