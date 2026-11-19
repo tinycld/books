@@ -29,6 +29,9 @@ type ListTableProps<Row> = {
     onNearEnd(): void
     // When it changes, the rows scroll so that this row is fully in view under the header.
     scrollToIndex?: number
+    // Hears the measured scrollbar gutter each time it changes; the table's scroller
+    // content is `minWidth` plus this gutter.
+    onGutter?: (gutter: number) => void
 }
 
 // The rows scroller's offset and heights, kept for scrolling a row into view. Refs: only
@@ -89,10 +92,11 @@ export function ListTable<Row>({
     renderRow,
     onNearEnd,
     scrollToIndex,
+    onGutter,
 }: ListTableProps<Row>) {
     const viewHeight = useWindowHeight()
     const rowWindow = useRowWindow({ total: rows.length, rowHeight, viewHeight, onNearEnd })
-    const table = useTableMinWidth(minWidth)
+    const table = useTableMinWidth(minWidth, onGutter)
     const { rowsScrollRef } = table
     const scroll = useScrollMetrics()
     const { metrics } = scroll

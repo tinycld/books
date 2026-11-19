@@ -3,6 +3,7 @@ import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { chooseTaxIdType, trackSwitch } from './vendor-1099-helpers'
 import {
     DESKTOP,
+    expectVendorEditSaved,
     field,
     insertAnswered,
     openNewVendor,
@@ -12,6 +13,7 @@ import {
     searchVendors,
     uniqueName,
     vendorIdOf,
+    vendorPageUrl,
     vendorSurface,
     viewportName,
 } from './vendor-form-helpers'
@@ -44,9 +46,10 @@ async function expectDetailsShown(page: Page) {
     for (const key of DETAIL_KEYS) await expect(cell(page, key)).toBeVisible()
 }
 
-async function expectListShown(page: Page) {
-    await expect(page.getByTestId('vendors-list')).toBeVisible()
-    await expect(vendorSurface(page)).toBeHidden()
+// A create's Save opens the new vendor's page.
+async function expectCreatedPage(page: Page, name: string) {
+    await expect(page).toHaveURL(vendorPageUrl)
+    await expect(page.getByTestId('vendor-title')).toHaveText(name)
 }
 
 async function openBooksAtDesktop(page: Page) {
@@ -78,7 +81,7 @@ test.describe('vendor-1099: vendor form', () => {
         const inserted = insertAnswered(page)
         await page.getByTestId('vendor-save').click()
         expect((await inserted).status()).toBe(200)
-        await expectListShown(page)
+        await expectCreatedPage(page, name)
 
         // Read after the server answered, so the optimistic row cannot stand in for the
         // stored, normalized one.
@@ -96,7 +99,7 @@ test.describe('vendor-1099: vendor form', () => {
         const patched = patchAnswered(page, id)
         await page.getByTestId('vendor-save').click()
         expect((await patched).status()).toBe(200)
-        await expectListShown(page)
+        await expectVendorEditSaved(page)
 
         await openVendor(page, name)
         await expect(trackSwitch(page)).toBeVisible()
@@ -149,7 +152,7 @@ test.describe('vendor-1099: vendor form', () => {
         const inserted = insertAnswered(page)
         await page.getByTestId('vendor-save').click()
         expect((await inserted).status()).toBe(200)
-        await expectListShown(page)
+        await expectCreatedPage(page, name)
 
         await openVendor(page, name)
         await expect(field(page, 'tax_id')).toHaveValue('123-45-6789')

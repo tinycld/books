@@ -19,15 +19,15 @@ To create a vendor, choose New vendor above the list, or choose New and pick Ven
 
 Display names must be unique among vendors, and case is ignored, so “Acme” and “ACME” are the same name. A vendor and a customer can have the same name.
 
-To save the vendor and go back to the list, choose Save. To save it and start the next vendor at once, choose Save and new.
+Choose Save to save the vendor and open the vendor's page. To save it and start the next vendor at once, choose Save and new.
 
 ## Edit a vendor
 
-To edit a vendor, choose its row in the list, or open the menu on its row and choose Edit. Change the fields and choose Save. Only the fields you changed are written.
+To edit a vendor, choose its row in the list to open the vendor's page, or open the menu on its row and choose Edit to open the page on the Details tab. You edit the Details and Notes tabs in place. When you change a field, Save and Cancel show in a bar at the bottom of the page, on every tab. Choose Save, or press ⌘S, to write your changes and stay on the page. Only the fields you changed are written. To select the Transactions tab press ⌥1, to select the Contacts tab press ⌥2, to select the Details tab press ⌥3, and to select the Notes tab press ⌥4. For the whole page, its balance and its New transaction menu, see [Vendor pages](help://books:vendor-pages).
 
-If you try to leave a vendor that has changes that are not saved, Books asks "Discard changes?" first. Choose Keep editing to go back to the form, or Discard to leave without saving.
+To throw your changes away, choose Cancel or press Esc, then choose Discard. If you try to leave a vendor that has changes that are not saved, Books asks "Discard changes?" first. Choose Keep editing to go back to the page, or Discard to leave without saving. When nothing is changed, Esc goes back to the list.
 
-On a very wide window, the vendor opens in a panel beside the list, and the list stays in use. On a smaller window or a phone, the vendor opens as its own page over the list. If you make the window wider or narrower, the open vendor moves between the two and keeps what you typed.
+On a very wide window, an open vendor's page shows beside the list of names, and the list stays in use. A new vendor opens in a panel beside the list. On a smaller window or a phone, the vendor opens as its own page over the list. If you make the window wider or narrower, the open vendor moves between the two and keeps what you typed.
 
 ## Payment terms and account number
 
@@ -59,4 +59,4 @@ If you only want to stop using a vendor, make it inactive instead.
 
 ## Custom fields
 
-An admin can add custom fields to a vendor form in Settings → Forms. Custom fields show before Notes on each vendor that uses the form they were added to. New vendors use the default form.
+An admin can add custom fields to a vendor form in Settings → Forms. Custom fields show on the Details tab of each vendor that uses the form they were added to, and before Notes on a new vendor. New vendors use the default form.

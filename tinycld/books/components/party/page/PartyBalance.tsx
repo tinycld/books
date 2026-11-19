@@ -1,6 +1,7 @@
 import { Pressable, Text, View, type ViewStyle } from 'react-native'
 import { usePartyBalance } from '../../../hooks/usePartyBalance'
 import { balanceFigures } from '../../../lib/party-balance'
+import type { PartyRef } from '../../../lib/party-page-tabs'
 
 // The 3 px status marker at each figure's left (`border-l-[3px]` is in no scanned file).
 const MARKER_STYLE: ViewStyle = { borderLeftWidth: 3 }
@@ -25,12 +26,12 @@ function Figure({ label, value, markerClass, testID }: FigureProps) {
     )
 }
 
-function BalanceError({ onRetry }: { onRetry: () => void }) {
+function BalanceError({ onRetry, testIdPrefix }: { onRetry: () => void; testIdPrefix: string }) {
     return (
-        <View testID="customer-balance-error" className="flex-row items-center gap-3">
+        <View testID={`${testIdPrefix}-balance-error`} className="flex-row items-center gap-3">
             <Text className="text-sm text-muted-foreground">Balance unavailable</Text>
             <Pressable
-                testID="customer-balance-retry"
+                testID={`${testIdPrefix}-balance-retry`}
                 accessibilityRole="button"
                 onPress={onRetry}
                 className="min-h-11 justify-center"
@@ -41,24 +42,28 @@ function BalanceError({ onRetry }: { onRetry: () => void }) {
     )
 }
 
+interface PartyBalanceProps extends PartyRef {
+    testIdPrefix: string
+}
+
 /**
- * The customer's Open and Overdue figures, side by side: "—" while they load, "Balance
+ * The party's Open and Overdue figures, side by side: "—" while they load, "Balance
  * unavailable" with Retry when a read fails.
  */
-export function CustomerBalance({ customerId }: { customerId: string }) {
-    const balance = usePartyBalance(customerId)
-    if (balance.isError) return <BalanceError onRetry={balance.retry} />
+export function PartyBalance({ party, id, testIdPrefix }: PartyBalanceProps) {
+    const balance = usePartyBalance({ party, id })
+    if (balance.isError) return <BalanceError onRetry={balance.retry} testIdPrefix={testIdPrefix} />
     const figures = balanceFigures(balance)
     return (
-        <View testID="customer-balance" className="flex-row gap-8">
+        <View testID={`${testIdPrefix}-balance`} className="flex-row gap-8">
             <Figure
-                testID="customer-balance-open"
+                testID={`${testIdPrefix}-balance-open`}
                 label={figures.openLabel}
                 value={figures.openText}
                 markerClass="border-warning"
             />
             <Figure
-                testID="customer-balance-overdue"
+                testID={`${testIdPrefix}-balance-overdue`}
                 label="Overdue"
                 value={figures.overdueText}
                 markerClass="border-danger"

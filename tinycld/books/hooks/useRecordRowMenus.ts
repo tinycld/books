@@ -14,6 +14,8 @@ export type RecordRowMenusConfig<R extends MenuRecord, I extends string> = {
     openId: string
     listPath: string
     navigation: { open(id: string): void; leave(): void }
+    // What Edit opens, when it is not the record's route (a page's Details tab).
+    openEdit?(id: string): void
     canWrite: boolean
     itemsFor(record: R, canWrite: boolean): readonly I[]
     // The menu's title; a party shows its display name, a product its name.
@@ -53,8 +55,9 @@ export function useRecordRowMenus<R extends MenuRecord, I extends string>(
         setDeleteTarget(record)
     }
 
+    const openEdit = config.openEdit ?? navigation.open
     const select = (record: R, item: I) => {
-        if (item === 'edit') navigation.open(record.id)
+        if (item === 'edit') openEdit(record.id)
         else if (item === 'make-inactive') void actions.setInactive(record.id, true)
         else if (item === 'make-active') void actions.setInactive(record.id, false)
         else if (item === 'delete') openDeleteDialog(record)

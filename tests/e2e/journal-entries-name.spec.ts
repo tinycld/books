@@ -119,6 +119,8 @@ test.describe('general-ledger: journal entry Name', () => {
             await backToLists(page)
             await vendorHelpers.openList(page)
             await createVendor(page, { name: nameV })
+            // Save opens the new vendor's page; the list is behind it.
+            await vendorHelpers.openList(page)
             await vendorHelpers.search(page, nameV)
             const vId = await vendorHelpers.idOf(page, nameV)
 

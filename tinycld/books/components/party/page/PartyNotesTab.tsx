@@ -1,24 +1,25 @@
 import { TextAreaInput } from '@tinycld/core/ui/form'
 import { Platform, ScrollView, View } from 'react-native'
-import type { CustomerPageState } from '../../../hooks/useCustomerPage'
+import type { PartyPageState } from '../../../hooks/usePartyPage'
 
-interface CustomerNotesTabProps {
-    notes: CustomerPageState['notes']
+interface PartyNotesTabProps {
+    notes: PartyPageState['notes']
     readOnly: boolean
     rowClassName: string
+    testIdPrefix: string
 }
 
 const NOTES_LINES = 10
 
 /**
- * The one place a customer's notes are edited. A writer's field takes the focus when the
+ * The one place a party's notes are edited. A writer's field takes the focus when the
  * tab opens (web; a phone would raise its keyboard over the page); a reader's is not
  * editable.
  */
-export function CustomerNotesTab({ notes, readOnly, rowClassName }: CustomerNotesTabProps) {
+export function PartyNotesTab({ notes, readOnly, rowClassName, testIdPrefix }: PartyNotesTabProps) {
     const autoFocus = Platform.OS === 'web' && !readOnly
     return (
-        <ScrollView testID="customer-notes" className="flex-1">
+        <ScrollView testID={`${testIdPrefix}-notes`} className="flex-1">
             <View className={`pt-4 ${rowClassName}`}>
                 <TextAreaInput
                     name="notes"
@@ -28,7 +29,7 @@ export function CustomerNotesTab({ notes, readOnly, rowClassName }: CustomerNote
                     numberOfLines={NOTES_LINES}
                     editable={!readOnly}
                     autoFocus={autoFocus}
-                    testID="customer-notes-input"
+                    testID={`${testIdPrefix}-notes-input`}
                 />
             </View>
         </ScrollView>
