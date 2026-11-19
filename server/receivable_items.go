@@ -132,9 +132,9 @@ func insertReceivables(tx core.App, query, where string, params dbx.Params) (int
 // under SQLite's limit of bound values.
 const receivableCustomerChunk = 500
 
-// settleReceivablesSQL writes settled on the stored rows where names (a WHERE
-// on the stored rows, or "") finds the customers: only the rows whose day
-// changes are written.
+// settleReceivablesSQL writes settled on the stored rows of the customers that
+// where (a WHERE on the stored rows, or "" for all) selects: only the rows whose
+// day changes are written.
 func settleReceivablesSQL(where string) string {
 	t := receivableItemsCollection
 	return "UPDATE " + t + " SET settled = s.settled FROM (" +
@@ -156,6 +156,9 @@ func settleReceivables(tx core.App, customers []string) (int64, error) {
 	if customers == nil {
 		return update("", nil)
 	}
+	// A row with no customer holds '' (PocketBase writes '' for an empty
+	// relation), never NULL: a NULL would match neither IN nor the join on
+	// customer, so the blank id here finds exactly those rows.
 	var changed int64
 	for start := 0; start < len(customers); start += receivableCustomerChunk {
 		chunk := customers[start:min(start+receivableCustomerChunk, len(customers))]
