@@ -647,6 +647,112 @@ export function reportLinesUnder(snapshot: ReportSnapshot, label: string): Repor
     return end < 0 ? after : after.slice(0, end)
 }
 
+// The table mounts only the rows near its scroll position (a FlashList), and a section
+// grows with every account that earlier runs and other specs post to today. An account
+// whose name sorts below theirs is then not mounted when its section opens. Books' reports
+// sort accounts by number, then name (server/report_profit_and_loss.go plRecordSort,
+// report_balance_sheet.go), so an unnumbered account named from this key sorts above every
+// account made before it: "AA 0" comes before the other specs' "AA <letter>" names, and
+// the countdown makes a later run's name sort before an earlier run's.
+export function sectionTopKey(): string {
+    return `AA 0${String(9_999_999_999_999 - Date.now()).padStart(13, '0')}`
+}
+
+// True when the account row labelled `label` lies inside the open group `group`: below the
+// group's row, with only the group's own rows (indented under it) between them. The group's
+// total and the next group are not indented under it, so the account is above the total.
+export function isInGroup(snapshot: ReportSnapshot, group: string, label: string): boolean {
+    const at = snapshot.rows.findIndex(row => row.kind === 'group' && row.label === label)
+    const titleAt = snapshot.rows
+        .slice(0, Math.max(at, 0))
+        .map(row => row.kind === 'group' && row.label === group)
+        .lastIndexOf(true)
+    if (at < 0 || titleAt < 0) return false
+    const titleDepth = snapshot.rows[titleAt].depth
+    return snapshot.rows
+        .slice(titleAt + 1, at + 1)
+        .every(row => (row.kind === 'group' || row.kind === 'detail') && row.depth > titleDepth)
+}
+
+// Scrolls the report list, its own scroller (the rows' nearest overflow-y: auto ancestor):
+// to its top, to its end, or so the mounted row `rowId` stands at the list's top edge.
+function scrollReportList(page: Page, to: { at: 'top' | 'end' } | { rowId: string }) {
+    return page
+        .getByTestId('report-table')
+        .locator('[data-testid^="report-row-"]')
+        .first()
+        .evaluate((first, target) => {
+            let list = first.parentElement
+            while (list && getComputedStyle(list).overflowY !== 'auto') list = list.parentElement
+            if (!list) throw new Error('the report rows have no vertical scroller')
+            if ('at' in target) {
+                list.scrollTop = target.at === 'top' ? 0 : list.scrollHeight
+                return
+            }
+            // A row id holds quotes and brackets, so the row is matched by its test id's
+            // value, not through a selector.
+            const testId = `report-row-${target.rowId}`
+            const row = [...list.querySelectorAll('[data-testid^="report-row-"]')].find(
+                element => element.getAttribute('data-testid') === testId
+            )
+            if (!row) throw new Error(`the row ${target.rowId} is not mounted`)
+            list.scrollTop += row.getBoundingClientRect().top - list.getBoundingClientRect().top
+        }, to)
+}
+
+// Scrolls the report list to its end, then takes one snapshot: the last rows of the report
+// (a section's last account, its total and every row after it) mount however long the
+// sections above them are. For snapshotWhen, which scrolls again on each poll, as a list
+// that loads its rows in pages grows when its end is reached.
+export async function reportSnapshotAtEnd(page: Page): Promise<ReportSnapshot> {
+    await scrollReportList(page, { at: 'end' })
+    return reportSnapshot(page)
+}
+
+// Scrolls the report list to its top, then takes one snapshot: the first rows mount again
+// after a test has read the end of the list.
+export async function reportSnapshotAtTop(page: Page): Promise<ReportSnapshot> {
+    await scrollReportList(page, { at: 'top' })
+    return reportSnapshot(page)
+}
+
+// The label of every row of the report, read from its top to the row labelled `last`. The
+// table mounts only the rows near its scroll position, so this scrolls the list a stretch
+// at a time: the bottom mounted row of each snapshot goes to the list's top, and the next
+// snapshot counts only once that row is in it, so no row between two stretches is missed.
+// The first snapshot counts only once the row labelled `first`, the report's first row, is
+// in it.
+export async function reportLabelsThrough(
+    page: Page,
+    first: string,
+    last: string,
+    message: string
+): Promise<string[]> {
+    await scrollReportList(page, { at: 'top' })
+    const seen = new Set<string>()
+    const state: { anchor: string | null } = { anchor: null }
+    await expect
+        .poll(
+            async () => {
+                const { rows } = await reportSnapshot(page)
+                const joined =
+                    state.anchor === null
+                        ? rows.some(row => row.label === first)
+                        : rows.some(row => row.id === state.anchor)
+                if (!joined) return false
+                for (const row of rows) seen.add(row.label)
+                if (seen.has(last)) return true
+                const bottom = rows[rows.length - 1]
+                state.anchor = bottom.id
+                await scrollReportList(page, { rowId: bottom.id })
+                return false
+            },
+            { message, intervals: [100] }
+        )
+        .toBe(true)
+    return [...seen]
+}
+
 // Presses an account row of a layout report and waits until its lines show beneath it.
 export async function openReportAccount(page: Page, label: string): Promise<void> {
     await rowOf(page, label).click()
