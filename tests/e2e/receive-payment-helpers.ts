@@ -104,13 +104,15 @@ export function localDay(page: Page, days: number): Promise<string> {
  * `dueDate`. An invoice is dated `date` when given; otherwise one due before today is dated
  * on its due date (an invoice cannot be due before its date) and the others keep today. A
  * `taxable` invoice charges sales tax (see `fillInvoice`); by default the line is not
- * taxable. Leaves the page on the customer.
+ * taxable. The customer's name starts with `namePrefix` (default "Payer"). Leaves the
+ * page on the customer.
  */
 export async function customerWithInvoices(
     page: Page,
-    invoices: readonly { rate: string; dueDate: string; date?: string; taxable?: boolean }[]
+    invoices: readonly { rate: string; dueDate: string; date?: string; taxable?: boolean }[],
+    namePrefix = 'Payer'
 ): Promise<{ name: string; customerId: string; invoices: { id: string; number: string }[] }> {
-    const name = uniqueName('Payer')
+    const name = uniqueName(namePrefix)
     await createCustomer(page, { name })
     const customerId = new URL(page.url()).pathname.split('/').pop() ?? ''
     const today = await localToday(page)

@@ -12,6 +12,7 @@ import {
     SALES_BY_PRODUCT_TITLE,
 } from '~/tinycld/books/lib/sales-reports-fixture'
 import {
+    AR_AGING_SHIPPED_KEY,
     CUSTOMER_BALANCE_SHIPPED_KEY,
     SALES_BY_CUSTOMER_SHIPPED_KEY,
     SALES_BY_PRODUCT_SHIPPED_KEY,
@@ -807,7 +808,7 @@ test.describe('sales-reports: entry points and phone', () => {
         const items = page.locator('[data-testid^="customers-reports-"]').filter({ visible: true })
 
         await button.click()
-        await expect(items).toHaveText(['Customer Balance', 'Sales by Customer'])
+        await expect(items).toHaveText(['Customer Balance', 'A/R Aging', 'Sales by Customer'])
         await page.getByTestId('customers-reports-sales').click()
         await expect(page.getByTestId('report-screen')).toBeVisible()
         await expect(shownReportTitle(page)).toHaveText(SALES_BY_CUSTOMER_TITLE)
@@ -815,7 +816,7 @@ test.describe('sales-reports: entry points and phone', () => {
         await page.goBack()
         await expect(page.getByTestId('customers-title').filter({ visible: true })).toBeVisible()
         await button.click()
-        await expect(items).toHaveText(['Customer Balance', 'Sales by Customer'])
+        await expect(items).toHaveText(['Customer Balance', 'A/R Aging', 'Sales by Customer'])
         await page.getByTestId('customers-reports-balance').click()
         await expect(page.getByTestId('report-screen')).toBeVisible()
         await expect(shownReportTitle(page)).toHaveText(CUSTOMER_BALANCE_TITLE)
@@ -832,6 +833,17 @@ test.describe('sales-reports: entry points and phone', () => {
         await openCustomersList(one.fresh)
         const oneButton = one.fresh.getByTestId('customers-reports')
         await expect(oneButton).toBeVisible()
+        // The reads of the A/R Aging and the Sales by Customer were answered with no row, so
+        // their missing items below are proven after their reads, not while they load.
+        await expect
+            .poll(
+                () =>
+                    [AR_AGING_SHIPPED_KEY, SALES_BY_CUSTOMER_SHIPPED_KEY].every(key =>
+                        one.answered.some(filter => filter.includes(key))
+                    ),
+                'the Customers list got its answer for the A/R Aging and the Sales by Customer'
+            )
+            .toBe(true)
         await oneButton.click()
         await expect(
             one.fresh.locator('[data-testid^="customers-reports-"]').filter({ visible: true })
@@ -849,10 +861,12 @@ test.describe('sales-reports: entry points and phone', () => {
         await expect
             .poll(
                 () =>
-                    [CUSTOMER_BALANCE_SHIPPED_KEY, SALES_BY_CUSTOMER_SHIPPED_KEY].every(key =>
-                        none.answered.some(filter => filter.includes(key))
-                    ),
-                'the Customers list got its answer for both shipped reports'
+                    [
+                        CUSTOMER_BALANCE_SHIPPED_KEY,
+                        AR_AGING_SHIPPED_KEY,
+                        SALES_BY_CUSTOMER_SHIPPED_KEY,
+                    ].every(key => none.answered.some(filter => filter.includes(key))),
+                'the Customers list got its answer for the three shipped reports'
             )
             .toBe(true)
         await expect(customerEntries(none.fresh).first()).toBeVisible()

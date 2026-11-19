@@ -1,7 +1,7 @@
 ---
 title: Run and customize a report
 summary: Pick a report, set its period and filters, and change how its numbers look.
-tags: [reports, trial balance, general ledger, balance sheet, journal, profit and loss, transaction detail, sales tax liability, customer balance, Audit Log]
+tags: [reports, trial balance, general ledger, balance sheet, journal, profit and loss, transaction detail, sales tax liability, customer balance, a/r aging, Audit Log]
 order: 60
 ---
 
@@ -300,6 +300,47 @@ The report stays current. When someone posts or voids a transaction or renames a
 
 On a phone, each row keeps its name and its Balance on one line. A long name or transaction wraps to at most three lines, and the Balance is never cut. Customize and Export are under **⋯**.
 
+## Read the A/R Aging report
+
+To see what each customer owes and how late it is, open Reports and choose A/R Aging. You can also press Reports at the top of the Customers list, then A/R Aging. The heading shows your business name, A/R Aging, and the day, for example "As of November 16, 2026".
+
+The report lists the open items of each customer on the As of day. An open item is one of these:
+
+- An invoice, less the payments dated on or before the day that apply to it.
+- The part of a payment that applies to no invoice.
+- A credit memo, for its total.
+- A posted journal entry line on Accounts receivable that comes from none of these documents.
+
+Only posted transactions dated on or before the As of day count. A draft does not count. A voided document and its void reversal cancel each other, and a voided payment no longer pays its invoices. An item that adds up to 0 on the day does not show.
+
+An item's age is the number of days from its due date to the As of day. An invoice ages from its due date. Every other item ages from its own date, and its Due date shows that date. The columns are Customer, Due date, Current, 1 - 30, 31 - 60, 61 - 90, 91 and over, and Total.
+
+- Current holds the items that are not yet due on the day: age 0 or less.
+- 1 - 30, 31 - 60, 61 - 90 and 91 and over hold the items that are that many days past their due date.
+- Each item is in the one column of its age, and in Total. A customer row, a family total and the Total row add their items in each column.
+- An age column with no money on a row is blank. Total always shows a figure.
+- A credit, such as the unapplied part of a payment or a credit memo, is a negative figure in the column of its age, and it lowers Total.
+
+The figures agree with the other reports. A customer's Total equals its figure on the [Customer Balance](help://books:reports) for the same day, and the Open figure on its customer's page for today. The Total row at the end equals Accounts receivable on the Balance Sheet for the same day. These figures agree because every row comes from a posted Accounts receivable line, and the line of a payment is split into the parts that pay invoices and its unapplied part, which add up to the line.
+
+- A customer with no open item on the day does not show.
+- A customer shows as a group when one of its sub-customers is in your Customer pick (with no Customer filter, every sub-customer is) and has an invoice, payment, credit memo or journal entry on Accounts receivable dated on or before the As of day, also one that is now paid in full. The group has a heading with the customer's name, then a row for the customer's own items, then a row for each sub-customer with an open item, then "Total" and the customer's name. So a customer whose only sub-customer has nothing open still shows its heading, its own row and its total.
+- Every other customer is one line, also a customer with sub-customers.
+- The No customer row holds the items of Accounts receivable lines that name no customer. It shows after every customer.
+- An inactive customer with an open item shows with "(inactive)" after its name, in lighter text.
+
+To see a customer's open items, press the customer row: it opens into one row for each open item, in due date order, oldest first, then by number. Each item shows its type and number, for example "Invoice 1042" or "Payment 17", its Due date, and its amount in the column of its age. To see the lines of an item, press the item row: an invoice opens into the invoice and the payments that apply to it on or before the day, for example "2026-11-03 · Payment 317". The invoice is a positive figure and a payment a negative one, and the lines add up to the item's amount. To open a line's document, press the line: the invoice, payment, credit memo or journal entry opens beside the report on a very wide window, else as its own screen. To fold a family, press its heading.
+
+To change the day, press the As of chip. The default is Today. A past day shows the items as they were open on that day. When no item is open on the day, the report shows "No rows as of" and the day.
+
+To show only some customers, press Add filter, then Customer, and pick one or more customers, inactive customers included; a sub-customer is listed under its parent's name, and "All" with the parent's name and "sub-customers" picks the whole family. Then press Apply. With customers picked, the No customer row does not show, and a line under the date names your picks. To remove the filter, press the × on the Customer chip.
+
+To change the order, press the Order chip and pick Name or Largest balance. Name, the default, orders families and customers by name. Largest balance puts the largest Total first; a family counts by its total, inside a family the parent's own row stays first, and the No customer row stays last. The items of a customer keep their due date order.
+
+The report stays current. When someone posts or voids an invoice, a payment, a credit memo or a journal entry, corrects an invoice or a payment, renames a customer or changes its parent, or changes the Books settings, the report runs again.
+
+On a phone, each row wraps onto lines in the table: the name and the Due date; then Current, 1 - 30 and Total on the first line of figures; then 31 - 60, 61 - 90 and 91 and over. On a tablet, each row keeps the name and Total on its first line, and shows the Due date and the five age columns below them. A narrow desktop window shows the tablet arrangement too. A long name wraps to at most three lines, a figure is never cut, and the table does not scroll sideways. Customize and Export are under **⋯** on a phone.
+
 ## Read the sales reports
 
 To see what you sold in a period, open Reports and choose Sales by Customer or Sales by Product/Service. You can also press Reports at the top of the Customers list, then Sales by Customer. On the Products and services list, press Sales report at the top to open Sales by Product/Service. The heading shows your business name, the report's title and the period.
@@ -341,7 +382,7 @@ The Audit Log lists every change that people made to Books records: when, who, w
 
 ## Who sees Books reports
 
-Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month, Transaction Detail by Account, the Sales Tax Liability, the Customer Balance, Sales by Customer, Sales by Product/Service and the Audit Log, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
+Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month, Transaction Detail by Account, the Sales Tax Liability, the Customer Balance, the A/R Aging, Sales by Customer, Sales by Product/Service and the Audit Log, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
 
 A reader can change the chips and Customize for the run, copy a link with Copy link, and keep a copy with Save as. Each reader sees only the data that the reader can access.
 
