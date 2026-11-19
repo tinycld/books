@@ -32,31 +32,39 @@ const receivableColumns = "id, source, customer, entry, date, currency, debit, c
 const (
 	receivableIsDoc = "COALESCE(e.doc_type, '') IN ('invoice', 'payment', 'credit_memo') AND COALESCE(NULLIF(e.document, ''), NULLIF(r.document, '')) IS NOT NULL"
 	receivableDocID = "COALESCE(NULLIF(e.document, ''), r.document)"
+	// A write-off (w) and its void reversal change the invoice they name (wi,
+	// whose entry is wie): their line is a row of that invoice's item.
+	receivableIsWriteOff = "w.id IS NOT NULL"
 	// A manual line's item is the line itself; a reversal's line is the item
 	// of the reversed line at the same position.
-	receivableLineItem = "CASE WHEN " + receivableIsDoc + " THEN " + receivableDocID +
+	receivableLineItem = "CASE WHEN " + receivableIsWriteOff + " THEN w.invoice WHEN " + receivableIsDoc + " THEN " + receivableDocID +
 		" WHEN e.reverses != '' THEN COALESCE((SELECT rl.id FROM books_journal_lines rl WHERE rl.entry = e.reverses AND rl.position = l.position), l.id) ELSE l.id END"
 )
 
 // receivableLinesSQL is one row per posted journal line on an
 // accounts-receivable account. A reversal's line belongs to the item of the
-// entry it reverses and ages from that item's due day. On the A/R line of a
-// posted payment's own entry, credit is the payment's credited (its unapplied
-// part); its applications are the other query's rows. It ends in its WHERE, so
-// a refresh adds " AND l.entry = {:entry}".
+// entry it reverses and ages from that item's due day. A write-off's line and
+// its void reversal's belong to the invoice it writes off, with that invoice's
+// number and due day, so the write-off settles the invoice. On the A/R line of
+// a posted payment's own entry, credit is the payment's credited (its
+// unapplied part); its applications are the other query's rows. It ends in its
+// WHERE, so a refresh adds " AND l.entry = {:entry}".
 const receivableLinesSQL = "SELECT l.id AS id, '" + receivableSourceLine + "' AS source, l.customer AS customer, l.entry AS entry, l.date AS date, l.currency AS currency, l.debit AS debit, " +
 	"CAST(CASE WHEN p.id IS NOT NULL AND l.credit > 0 THEN p.credited ELSE l.credit END AS INTEGER) AS credit, " +
 	"CAST(" + receivableLineItem + " AS TEXT) AS item, " +
-	"CAST(CASE WHEN " + receivableIsDoc + " THEN e.doc_type ELSE 'entry' END AS TEXT) AS item_kind, " +
-	"CAST(COALESCE(r.number, e.number) AS TEXT) AS item_number, " +
-	"CAST(COALESCE(r.sequence, e.sequence) AS INTEGER) AS item_seq, " +
-	"CAST(CASE WHEN " + receivableIsDoc + " AND e.doc_type = 'invoice' THEN i.due_date ELSE COALESCE(r.date, e.date) END AS TEXT) AS due_date " +
+	"CAST(CASE WHEN " + receivableIsWriteOff + " THEN 'invoice' WHEN " + receivableIsDoc + " THEN e.doc_type ELSE 'entry' END AS TEXT) AS item_kind, " +
+	"CAST(CASE WHEN " + receivableIsWriteOff + " THEN wie.number ELSE COALESCE(r.number, e.number) END AS TEXT) AS item_number, " +
+	"CAST(CASE WHEN " + receivableIsWriteOff + " THEN wie.sequence ELSE COALESCE(r.sequence, e.sequence) END AS INTEGER) AS item_seq, " +
+	"CAST(CASE WHEN " + receivableIsWriteOff + " THEN wi.due_date WHEN " + receivableIsDoc + " AND e.doc_type = 'invoice' THEN i.due_date ELSE COALESCE(r.date, e.date) END AS TEXT) AS due_date " +
 	"FROM books_journal_lines l " +
 	"JOIN books_accounts a ON a.id = l.account " +
 	"JOIN books_journal_entries e ON e.id = l.entry " +
 	"LEFT JOIN books_journal_entries r ON r.id = e.reverses " +
 	"LEFT JOIN books_payments p ON p.id = e.document AND e.doc_type = 'payment' AND p.entry = e.id AND p.status = 'posted' " +
 	"LEFT JOIN books_invoices i ON e.doc_type = 'invoice' AND i.id = " + receivableDocID + " " +
+	"LEFT JOIN books_write_offs w ON e.doc_type = 'write_off' AND w.id = " + receivableDocID + " " +
+	"LEFT JOIN books_invoices wi ON wi.id = w.invoice " +
+	"LEFT JOIN books_journal_entries wie ON wie.id = wi.entry " +
 	"WHERE l.posted = TRUE AND a.type = 'accounts_receivable'"
 
 // receivableApplicationsSQL is one row per application of a posted payment, a
