@@ -55,6 +55,33 @@ with the reason, and shown to the human at the end)
 (none yet — the results of spec §9, written by checkpoint 3 and again after each change to the views, the indexes or the spec)
 
 - failed run of 2026-11-18 18:33 (checkpoint 3, stopped; darwin/arm64, 14 CPUs, go1.27.4; books 5af7abed + the checkpoint 3 tree; core a183cd94): row counts S/L — journal lines 50,000/500,000; on Accounts receivable 18,307/183,070; customers 201/2,001; invoices 9,810/98,100; payments 8,000/80,000; applications 9,174/91,740; credit memos 198/1,980; manual AR lines 99/990; void invoices 100/1,000; void payments 100/1,000; open items on the last day 855/8,550. Medians S → L: run 1 826 ms → 10,176 ms (FAIL); run 2 476 → 5,842 ms (FAIL); run 3 830 → 10,399 ms (FAIL); run 4 295 → 4,294 ms (FAIL; ratio 14.6); run 5 818 ms → over core's 10 s run timeout (FAIL; the L sub-test ended there); run 6 1,096 ms → not reached; run 7 3,341 ms → not reached; Customer Balance S 149 ms, L not reached. No statistics file and no `perf-plans.md` were written (the run ended before them). The tree's view change (`CROSS JOIN`, `idx_books_accounts_type`) has no "before" time. Cause: Checkpoint 3, "stopped again".
+
+### Baseline (p5-report-perf)
+
+Machine, date, commits (books, core): Darwin arm64, go version go1.27.1 darwin/arm64, 2026-11-18, books 1e7c8e4d, core 764a0928. Size S. Harness: `TestARAgingProfile` (`BOOKS_PROFILE` names the output file), which runs each recorded statement directly, so a statement over core's 10 s run limit is still timed.
+
+| run | wall (median of 5) | statements | SQL time | outside SQL |
+|---|---|---|---|---|
+| 1 default | 883ms | 6 | 688ms | 195ms |
+| 2 past day | 521ms | 6 | 418ms | 103ms |
+| 3 largest balance | 864ms | 6 | 677ms | 187ms |
+| 4 one family | 341ms | 7 | 325ms | 16ms |
+| 5 customer opened | 894ms | 6 | 687ms | 207ms |
+| 6 item opened | 1.182s | 7 | 954ms | 228ms |
+| 7 CSV export | 3.587s | 41 | 2.881s | 706ms |
+
+Floor (the views with no report):
+- 77.56ms — `books_receivable_lines`, every column
+- 32.23ms — `books_receivable_applications`, every column
+- 86.02ms — `books_receivable_lines` grouped by customer and item
+- 104.72ms — both views, grouped by customer and item
+
+Run 1, cumulative time by CTE: statement 4 — r0 117.67ms, w 174.82ms, a0 233.63ms, a1 240.11ms, a2 244.08ms, a3 284.4ms, whole 471.59ms; statement 5 — r0 116.15ms, w 149.65ms, a0 214.93ms, whole 216.03ms.
+
+Targets at S for a whole-book run (L ≤ 1,000 ms; L was 12.3 × S in the failed run, and about 50 ms of a run does not grow): at most 75 ms of time that grows with the data, the time outside SQL included: union read ≤ 40 ms; joins and row values ≤ 12 ms; finest-level aggregation ≤ 15 ms; roll-ups and level joins ≤ 4 ms; outside SQL ≤ 4 ms; one statement that reads the source.
+
+Outside SQL: 195ms (run 1) and 16ms (run 4). It grows with the data in run 1 and not in run 4, and no statement holds it: part 2 finds its cause before it sizes the one-statement task.
+
 - machine, date, commit:
 - row counts, S and L:
 - runs 1 to 7: number of statements; median time at S and at L; ratio L/S; bar; pass or fail

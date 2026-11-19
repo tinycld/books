@@ -25,6 +25,13 @@
 // ALL. Computed columns are cast so PocketBase types them as text or number;
 // the relations customer and entry are bare columns and keep their type.
 //
+// The lines view reads the accounts first: CROSS JOIN keeps SQLite from
+// reordering the join, so the lines are found by account through
+// idx_books_jlines_account_date and the ledger is never scanned whole (the
+// query-plan bars of the A/R Aging report, server/report_ar_aging_scale_test.go).
+// The same migration indexes books_accounts on type, so the accounts-receivable
+// accounts are found by that index.
+//
 // AUTHORIZATION. Every member with read access lists and views the rows; a
 // view has no create, update or delete.
 //
@@ -51,8 +58,8 @@ const LINES_QUERY = [
     'CAST(COALESCE(r.number, e.number) AS TEXT) AS item_number,',
     'CAST(COALESCE(r.sequence, e.sequence) AS INTEGER) AS item_seq,',
     `CAST(CASE WHEN ${IS_DOC} AND e.doc_type = 'invoice' THEN i.due_date ELSE COALESCE(r.date, e.date) END AS TEXT) AS due_date`,
-    'FROM books_journal_lines l',
-    'JOIN books_accounts a ON a.id = l.account',
+    'FROM books_accounts a',
+    'CROSS JOIN books_journal_lines l ON l.account = a.id',
     'JOIN books_journal_entries e ON e.id = l.entry',
     'LEFT JOIN books_journal_entries r ON r.id = e.reverses',
     "LEFT JOIN books_payments p ON p.id = e.document AND e.doc_type = 'payment' AND p.entry = e.id AND p.status = 'posted'",
@@ -75,6 +82,8 @@ const APPLICATIONS_QUERY = [
     "WHERE p.status = 'posted'",
 ].join(' ')
 
+const ACCOUNT_TYPE_INDEX = 'CREATE INDEX idx_books_accounts_type ON books_accounts (type)'
+
 const VIEWS = [
     ['books_receivable_lines', LINES_QUERY],
     ['books_receivable_applications', APPLICATIONS_QUERY],
@@ -82,6 +91,9 @@ const VIEWS = [
 
 migrate(
     app => {
+        const accounts = app.findCollectionByNameOrId('books_accounts')
+        accounts.indexes.push(ACCOUNT_TYPE_INDEX)
+        app.save(accounts)
         for (const [name, viewQuery] of VIEWS) {
             app.save(
                 new Collection({
@@ -98,5 +110,8 @@ migrate(
         for (const [name] of VIEWS) {
             app.delete(app.findCollectionByNameOrId(name))
         }
+        const accounts = app.findCollectionByNameOrId('books_accounts')
+        accounts.indexes = accounts.indexes.filter(index => !index.includes('idx_books_accounts_type'))
+        app.save(accounts)
     }
 )
