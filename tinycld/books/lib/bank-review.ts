@@ -5,7 +5,7 @@ import type { BooksBankTransactions } from '../types'
 import type { SelectBoxState } from './bank-import-view'
 import { matchResultText } from './bank-match'
 import { searchPieces } from './list-search'
-import { formatMoney, parseMoney } from './money'
+import { formatMoney } from './money'
 import { errorStatus, messageOnlyRefusal } from './refusal'
 import {
     formatDay,
@@ -14,6 +14,7 @@ import {
     type RegisterRange,
     rangeForPreset,
 } from './register-range'
+import { parseSearchAmount } from './search-amount'
 
 // The tabs of a bank account's panel, in tab-bar order. The three transaction tabs list
 // the connection's rows of one status; Files holds the upload area and the file list.
@@ -163,14 +164,6 @@ export function hasReviewFilter(filters: ReviewFilters): boolean {
         filters.preset !== 'all' ||
         filters.type !== 'all'
     )
-}
-
-// The whole search text as an amount in unsigned cents: a search finds money spent and
-// received alike. Zero finds nothing, so it is no amount.
-export function parseSearchAmount(text: string, currency: string): number | null {
-    const cents = parseMoney(text.trim(), currency)
-    if (cents === null || cents === 0) return null
-    return Math.abs(cents)
 }
 
 export function reviewRange(
@@ -366,6 +359,18 @@ export function batchResultText(
         text: `${failed.length} of ${total} transactions could not be ${FAILED_VERB[kind]}. Try again.`,
         tone: 'danger',
     }
+}
+
+// The choice after a run of the selection bar, in the order of the choice: the rows that
+// failed (refused or not sent) and the rows the run skipped (a match run skips a row with
+// no single suggestion). The rows that went through leave it.
+export function keptAfterBatch(
+    outcome: BatchOutcome,
+    skippedIds: readonly string[],
+    chosenIds: readonly string[]
+): string[] {
+    const kept = new Set([...outcome.failed.map(failure => failure.id), ...skippedIds])
+    return chosenIds.filter(id => kept.has(id))
 }
 
 export function chunksOf<T>(items: readonly T[], size: number): T[][] {

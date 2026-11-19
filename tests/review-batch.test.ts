@@ -13,6 +13,7 @@ import {
     holdWrites,
     messageRefusal,
     refuseAfterNow,
+    refuseNthWrite,
     seedBooks,
 } from './accounts-form-harness'
 import { silenceLog } from './silence-log'
@@ -271,6 +272,72 @@ describe('useReviewBatch', () => {
             })
         )
         expect(bankingWarnings()).toEqual([])
+    })
+
+    it('matches 120 rows in steps of 50, 50 and 20, and splits done from failed', async () => {
+        const ids = seedTxns(120)
+        const matches = seedMatches()
+        const matchLines = Object.fromEntries(ids.map(id => [id, [`line_${id}`]]))
+        let release = holdWrites()
+        const { result } = renderHook(() => useReviewBatch(), { wrapper })
+
+        let running: Promise<BatchOutcome> | undefined
+        act(() => {
+            running = result.current.run({
+                kind: 'match',
+                ids,
+                summary: '120 selected',
+                origin: 'bar',
+                matchLines,
+            })
+        })
+
+        // Step 1: 50 inserts, and no more while they are in flight.
+        await waitFor(() => expect(enteredWrites()).toHaveLength(50))
+        await settle()
+        expect(enteredWrites()).toHaveLength(50)
+        expect(result.current.isPending).toBe(true)
+
+        // Step 2: the next 50, held; every insert of this step is refused.
+        const releaseFirst = release
+        release = holdWrites()
+        releaseFirst()
+        await waitFor(() => expect(enteredWrites()).toHaveLength(100))
+        await settle()
+        expect(enteredWrites()).toHaveLength(100)
+        refuseNthWrite(0, messageRefusal(ALREADY_MATCHED))
+
+        // Step 3: the last 20.
+        const releaseSecond = release
+        release = holdWrites()
+        releaseSecond()
+        await waitFor(() => expect(enteredWrites()).toHaveLength(120))
+        await settle()
+        expect(enteredWrites()).toHaveLength(120)
+        release()
+
+        let outcome: BatchOutcome | undefined
+        await act(async () => {
+            outcome = await running
+        })
+        const refusedIds = ids.slice(50, 100)
+        const doneIds = [...ids.slice(0, 50), ...ids.slice(100)]
+        expect([...(outcome?.done ?? [])].sort()).toEqual(doneIds)
+        expect((outcome?.failed ?? []).map(failure => failure.id).sort()).toEqual(refusedIds)
+        expect(
+            outcome?.failed.every(
+                failure => failure.message === ALREADY_MATCHED && !failure.isTransport
+            )
+        ).toBe(true)
+        // Every insert was one match row of one bank transaction; the refused ones rolled back.
+        await waitFor(() =>
+            expect(matchRows(matches).map(row => row.bank_transaction)).toEqual(doneIds)
+        )
+        expect(matchRows(matches)[0]).toEqual({
+            bank_transaction: 'txn_001',
+            lines: ['line_txn_001'],
+        })
+        await waitFor(() => expect(result.current.isPending).toBe(false))
     })
 
     it('counts an id with no lines as a failure with no message, and sends nothing for it', async () => {

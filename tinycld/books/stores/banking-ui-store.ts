@@ -1,4 +1,5 @@
 import { create } from '@tinycld/core/lib/store'
+import type { FindRange } from '../lib/bank-match'
 import {
     type DateOrder,
     EMPTY_REVIEW_FILTERS,
@@ -83,16 +84,21 @@ interface BankingUIState {
     // `matchRefusal` is the failure text of the last match from the drawer. All of it
     // belongs to the open transaction, so opening another one, closing the drawer, or
     // leaving the rows resets it.
+    // Only line ids are kept: useBankMatch reads the chosen lines from the server, so a
+    // line that stops being matchable leaves the choice.
+    // `matchFindRange` is the find mode's last valid range (null: the window around the
+    // bank date) and `matchFindSearch` its search after the field's delay (MatchFind keeps
+    // the draft as typed).
     matchMode: 'suggestions' | 'find'
     matchChosen: readonly string[]
-    matchFind: { from: string; to: string; search: string } | null
+    matchFindRange: FindRange | null
+    matchFindSearch: string
     matchSeededFor: string | null
     matchRefusal: string | null
     setMatchRefusal: (text: string | null) => void
     setMatchMode: (mode: 'suggestions' | 'find') => void
-    setMatchChosen: (lineIds: readonly string[]) => void
-    toggleMatchChosen: (lineId: string) => void
-    setMatchFind: (find: { from: string; to: string; search: string } | null) => void
+    setMatchFindRange: (range: FindRange) => void
+    setMatchFindSearch: (search: string) => void
     takeMatchChoice: (txnId: string, lineIds: readonly string[]) => void
     resetMatch: () => void
 }
@@ -100,7 +106,8 @@ interface BankingUIState {
 const NO_MATCH = {
     matchMode: 'suggestions' as const,
     matchChosen: [] as readonly string[],
-    matchFind: null,
+    matchFindRange: null,
+    matchFindSearch: '',
     matchSeededFor: null,
     matchRefusal: null,
 }
@@ -151,14 +158,8 @@ export const useBankingUIStore = create<BankingUIState>()(set => ({
         set({ openTxnId: null, chosen: new Set(), focusedTxnId: null, ...NO_MATCH }),
     ...NO_MATCH,
     setMatchMode: mode => set({ matchMode: mode }),
-    setMatchChosen: lineIds => set({ matchChosen: [...lineIds] }),
-    toggleMatchChosen: lineId =>
-        set(s => ({
-            matchChosen: s.matchChosen.includes(lineId)
-                ? s.matchChosen.filter(id => id !== lineId)
-                : [...s.matchChosen, lineId],
-        })),
-    setMatchFind: find => set({ matchFind: find }),
+    setMatchFindRange: range => set({ matchFindRange: range }),
+    setMatchFindSearch: search => set({ matchFindSearch: search }),
     setMatchRefusal: text => set({ matchRefusal: text }),
     takeMatchChoice: (txnId, lineIds) => set({ matchSeededFor: txnId, matchChosen: [...lineIds] }),
     resetMatch: () => set(NO_MATCH),

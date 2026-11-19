@@ -70,7 +70,11 @@ function PageDrawer({ model, scopeOwner }: { model: BankingScreenModel; scopeOwn
     const isFocused = useIsFocused()
     if (!isFocused) return null
     return (
-        <BankTxnDrawer drawer={model.drawer} currency={model.currency}>
+        <BankTxnDrawer
+            drawer={model.drawer}
+            currency={model.currency}
+            onNearEnd={model.match.onNearEnd}
+        >
             <MatchSection model={model.match} scopeOwner={scopeOwner} currency={model.currency} />
         </BankTxnDrawer>
     )

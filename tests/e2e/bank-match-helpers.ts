@@ -93,21 +93,21 @@ async function leaveEntryScreens(page: Page): Promise<void> {
 }
 
 // Books must be open. Posts a transfer of `amount` (e.g. '151.10') from `account` to
-// 1010 Business Savings, dated today, then returns to the account's For review tab: back
-// to the screen the transfer started from, and to Banking through its nav item only when
-// that screen is not Banking.
+// 1010 Business Savings, dated today (or `date`, 'YYYY-MM-DD'), then returns to the
+// account's For review tab: back to the screen the transfer started from, and to Banking
+// through its nav item only when that screen is not Banking.
 export async function postMatchTransfer(
     page: Page,
     account: string,
     amount: string,
-    memo: string
+    memo: string,
+    date?: string
 ): Promise<{ id: string; number: string }> {
-    const transfer = await createPostedTransfer(page, {
-        from: account,
-        to: TRANSFER_LABELS.savings,
-        amount,
-        memo,
-    })
+    const transfer = await createPostedTransfer(
+        page,
+        { from: account, to: TRANSFER_LABELS.savings, amount, memo },
+        date
+    )
     await leaveEntryScreens(page)
     const bankingShown = await page
         .getByTestId('bank-strip')

@@ -7,11 +7,14 @@ import { useDebouncedValue } from '@tinycld/core/lib/use-debounced-value'
 import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { useRef } from 'react'
 import type { SelectBoxState } from '../lib/bank-import-view'
+import { barMatchState } from '../lib/bank-match'
 import {
+    type BatchKind,
     type BatchOutcome,
     canChoose,
     type DateOrder,
     hasReviewFilter,
+    keptAfterBatch,
     type MoveKind,
     type ReviewFilters,
     type ReviewViewState,
@@ -286,10 +289,24 @@ export type ReviewTabModel = {
     onClearChoice: () => void
     onBatch: () => void
     batchAction: BarAction | null
-    // The selection bar's own run is in flight: its button is busy and the bar stays up.
+    // The selection bar's own run is in flight: the bar stays up, and the button of that
+    // run's kind (`runningKind`) is busy.
     isBatchRunning: boolean
+    runningKind: BatchKind | null
     isBatchDisabled: boolean
     batchHint: string | undefined
+    // The bar's Match of the chosen rows: For review, writers only.
+    matchAction: MatchBarAction | null
+}
+
+type MatchBarAction = {
+    label: string
+    busyLabel: string
+    testID: 'bank-review-match-chosen'
+    isDisabled: boolean
+    hint: string | undefined
+    isRunning: boolean
+    onPress: () => void
 }
 
 type BarAction = {
@@ -402,15 +419,21 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
     // the run was in flight: only refused ids still in the store's choice stay. The run
     // returns refusals as its outcome (the result line) instead of throwing; anything else
     // it throws is a bug, so it is logged.
-    const keepRefused = (outcome: BatchOutcome) => {
+    // A match run also keeps the rows it skipped (keptAfterBatch), in the order of the
+    // choice that was sent.
+    const keepRefused = (
+        outcome: BatchOutcome,
+        sentChoice: readonly string[],
+        skippedIds: readonly string[] = []
+    ) => {
         const current = useBankingUIStore.getState().chosen
-        setChosen(outcome.failed.map(failure => failure.id).filter(id => current.has(id)))
+        setChosen(keptAfterBatch(outcome, skippedIds, sentChoice).filter(id => current.has(id)))
     }
     const onBatch = () => {
         if (!batchAction || control.isDisabled || chosenIds.length === 0) return
         void batch
             .run({ kind: batchAction.kind, ids: chosenIds, summary: summary.text, origin: 'bar' })
-            .then(keepRefused)
+            .then(outcome => keepRefused(outcome, chosenIds))
             .catch(err => log.error('books.banking', err))
     }
     // The row marks of For review. Their read is not the list's: while it loads or after it
@@ -420,6 +443,40 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
         ...row,
         suggestions: marks.get(row.id) ?? NO_SUGGESTIONS,
     }))
+    const plan = matchPlan(listedRows, shownSet)
+    const matchState = barMatchState({
+        matchableCount: plan.ids.length,
+        isPending: batch.isPending,
+        writesDisabled: writes.isDisabled,
+        writesHint: writes.accessibilityHint,
+    })
+    const onMatch = () => {
+        if (matchState.isDisabled || plan.ids.length === 0) return
+        void batch
+            .run({
+                kind: 'match',
+                ids: plan.ids,
+                summary: summary.text,
+                origin: 'bar',
+                matchLines: plan.matchLines,
+                skipped: plan.skippedIds.length,
+            })
+            .then(outcome => keepRefused(outcome, chosenIds, plan.skippedIds))
+            .catch(err => log.error('books.banking', err))
+    }
+    const runningKind = barRun?.kind ?? null
+    const matchAction: MatchBarAction | null =
+        tab === 'review' && isChoosable
+            ? {
+                  label: 'Match',
+                  busyLabel: 'Matching…',
+                  testID: 'bank-review-match-chosen',
+                  isDisabled: matchState.isDisabled,
+                  hint: matchState.hint,
+                  isRunning: runningKind === 'match',
+                  onPress: onMatch,
+              }
+            : null
     return {
         rows: listedRows,
         viewState: shown.viewState,
@@ -453,7 +510,29 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
         onBatch,
         batchAction,
         isBatchRunning: barRun !== null,
+        runningKind,
         isBatchDisabled: control.isDisabled,
         batchHint: control.hint,
+        matchAction,
     }
+}
+
+// What the bar's Match sends: each chosen row with exactly one suggestion, with that
+// suggestion's line; the other chosen rows are skipped (they need a choice in the drawer).
+// In list order.
+function matchPlan(rows: readonly ReviewRowData[], chosen: ReadonlySet<string>) {
+    const ids: string[] = []
+    const skippedIds: string[] = []
+    const matchLines: Record<string, string[]> = {}
+    for (const row of rows) {
+        if (!chosen.has(row.id)) continue
+        const [only] = row.suggestions
+        if (row.suggestions.length === 1 && only) {
+            ids.push(row.id)
+            matchLines[row.id] = [only.line]
+        } else {
+            skippedIds.push(row.id)
+        }
+    }
+    return { ids, skippedIds, matchLines }
 }
