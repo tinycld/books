@@ -33,7 +33,9 @@ import { createPostedTransfer } from './transfer-helpers'
 // `uniqueName`, narrows the report to them with the Accounts filter, and reads rows in ONE
 // snapshot (`glSnapshot`). Entries are dated GL_DAY_1, GL_DAY_2 or today: never before
 // 2026-07-01, so the close date and the fiscal start month books-settings.spec.ts sets on
-// the shared DB neither refuse a post nor move a beginning balance.
+// the shared DB neither refuse a post nor move a beginning balance. Two tests make no data:
+// the fold test reads two seeded accounts over the seeded October, and compares line
+// counts only within its own run; the paging test reads the seeded long section.
 //
 // The table is a FlashList: only mounted rows are in the DOM, so a test waits for the
 // Total row in its snapshot, the proof that every row above it mounted.
@@ -312,6 +314,14 @@ function widthGeometry(page: Page, ids: { line: string; opening: string; total: 
     }, ids)
 }
 
+// Two seeded accounts with lines in October of every seed's year (seed.ts
+// seedPartyEntries posts "October software subscriptions" on the 14th), in chart order.
+// The Accounts picker names an account by its full name; a section by number and name.
+const OCTOBER_ACCOUNTS = [
+    { name: 'Company Card', section: '2100 Company Card' },
+    { name: 'Software Subscriptions', section: '6200 Software Subscriptions' },
+] as const
+
 const SAVINGS = 'Business Savings'
 const LONG_SECTION_MEMO = 'Daily sweep'
 
@@ -509,34 +519,6 @@ test.describe('general-ledger: report', () => {
         expect(figure(sectionTotal(both, bank)?.cells.balance)).toBe('-70.00')
         expect(balancesOf(linesOf(both, card))).toEqual(['45.00'])
 
-        // B is the first section, so at scroll 0 core's sticky copy of its
-        // heading lies over the list row: that copy is what a user presses.
-        await page.getByTestId('report-sticky-group').getByText(bank, { exact: true }).click()
-        const folded = await snapshotWhen(
-            page,
-            glSnapshot,
-            s => sectionLabels(s).includes(bank) && linesOf(s, bank).length === 0,
-            "the bank's section folded"
-        )
-        expect(linesOf(folded, expense).length).toBe(3)
-        await pressToolbar(page, 'report-fold-all', 'Collapse all')
-        await snapshotWhen(
-            page,
-            glSnapshot,
-            s => sectionLabels(s).length === 3 && s.rows.every(row => row.kind !== 'detail'),
-            'every section folded'
-        )
-        await pressToolbar(page, 'report-fold-all', 'Expand all')
-        await snapshotWhen(
-            page,
-            glSnapshot,
-            s =>
-                linesOf(s, bank).length === 2 &&
-                linesOf(s, expense).length === 3 &&
-                linesOf(s, card).length === 1,
-            'every section open again'
-        )
-
         await choosePeriod(page, { from: GL_DAY_2, to: GL_DAY_2 })
         const second = await snapshotWhen(
             page,
@@ -557,6 +539,62 @@ test.describe('general-ledger: report', () => {
         const openings = all.rows.filter(row => row.kind === 'opening')
         expect(openings.length).toBe(3)
         expect(openings.map(row => figure(row.cells.balance))).toEqual(['0.00', '0.00', '0.00'])
+    })
+
+    test('a section folds from its heading, and Collapse all and Expand all fold and open every section', async ({
+        page,
+    }) => {
+        await startBooks(page)
+        const year = (await browserToday(page)).slice(0, 4)
+        const from = `${year}-10-01`
+        const to = `${year}-10-31`
+        const [first, second] = OCTOBER_ACCOUNTS.map(account => account.section)
+        await openGeneralLedger(page)
+        await filterToAccounts(
+            page,
+            OCTOBER_ACCOUNTS.map(account => account.name)
+        )
+        await choosePeriod(page, { from, to })
+        const open = await snapshotWhen(
+            page,
+            glSnapshot,
+            s =>
+                s.header === rangeWords(from, to) &&
+                hasTotal(s) &&
+                linesOf(s, first).length > 0 &&
+                linesOf(s, second).length > 0,
+            'the two seeded accounts over October'
+        )
+        expect(sectionLabels(open)).toEqual([first, second])
+        const firstLines = linesOf(open, first).length
+        const secondLines = linesOf(open, second).length
+
+        // The first section's heading lies at scroll 0, so core's sticky copy of it lies
+        // over the list row: that copy is what a user presses.
+        await page.getByTestId('report-sticky-group').getByText(first, { exact: true }).click()
+        const folded = await snapshotWhen(
+            page,
+            glSnapshot,
+            s => sectionLabels(s).includes(first) && linesOf(s, first).length === 0,
+            'the first section folded'
+        )
+        expect(linesOf(folded, second).length).toBe(secondLines)
+        await pressToolbar(page, 'report-fold-all', 'Collapse all')
+        await snapshotWhen(
+            page,
+            glSnapshot,
+            s => sectionLabels(s).length === 2 && s.rows.every(row => row.kind !== 'detail'),
+            'every section folded'
+        )
+        await pressToolbar(page, 'report-fold-all', 'Expand all')
+        await snapshotWhen(
+            page,
+            glSnapshot,
+            s =>
+                linesOf(s, first).length === firstLines &&
+                linesOf(s, second).length === secondLines,
+            'every section open again'
+        )
     })
 
     test("each line shows its entry's type and number, its name, its description and the other account", async ({

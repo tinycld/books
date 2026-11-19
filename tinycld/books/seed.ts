@@ -2191,7 +2191,8 @@ export async function seedCustomerBalance(
 // no tax rate, deposited where the seeded posted receipt with a customer deposits. The
 // line guard refuses an inactive product (server/products.go) and the document guard an
 // inactive customer (checkLineParty, server/lines.go), so both are made active for the
-// post and inactive again after it, as seedCustomerBalance does. `accountIds` maps a seed
+// post and inactive again after it, as seedCustomerBalance does. Then the seeded family
+// (seedSalesFamily). `accountIds` maps a seed
 // account number to the created account; `customerIds` maps a customer-form fixture id to
 // the created customer.
 export async function seedSalesReports(
@@ -2235,6 +2236,44 @@ export async function seedSalesReports(
     await postSeedDocument(pb, 'books_sales_receipts', created.id, ctx.user.id)
     await pb.collection('books_products').update(sale.productId, { inactive: true })
     await pb.collection('books_customers').update(customer, { inactive: true })
+    await seedSalesFamily(pb, ctx, depositTo)
+}
+
+// SALES_REPORTS_SEED.family: the parent and its two sub-customers, each with one posted
+// sales receipt, deposited where the receipt above deposits.
+async function seedSalesFamily(pb: PocketBase, ctx: SeedContext, depositTo: string) {
+    const { yearsAgo, day, memo, productId, parent, small, big } = SALES_REPORTS_SEED.family
+    const date = `${new Date().getFullYear() - yearsAgo}-${day}`
+    const parentRow = await pb
+        .collection('books_customers')
+        .create({ display_name: parent.name, parent: '' })
+    const buyers: { id: string; cents: number }[] = [{ id: parentRow.id, cents: parent.cents }]
+    for (const sub of [small, big]) {
+        const row = await pb
+            .collection('books_customers')
+            .create({ display_name: sub.name, parent: parentRow.id })
+        buyers.push({ id: row.id, cents: sub.cents })
+    }
+    for (const buyer of buyers) {
+        const created = await pb.collection('books_sales_receipts').create({
+            customer: buyer.id,
+            status: 'draft',
+            date,
+            payment_method: 'check',
+            deposit_to: depositTo,
+            memo,
+        })
+        await pb.collection('books_sales_receipt_lines').create({
+            sales_receipt: created.id,
+            position: 0,
+            kind: 'item',
+            product: productId,
+            quantity: 1,
+            rate: buyer.cents,
+            taxable: false,
+        })
+        await postSeedDocument(pb, 'books_sales_receipts', created.id, ctx.user.id)
+    }
 }
 
 type CustomerBalanceInvoice = (typeof CUSTOMER_BALANCE_SEED)['kitchenInvoice' | 'galaInvoice']
