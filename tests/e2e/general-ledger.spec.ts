@@ -6,6 +6,7 @@ import {
     pressToolbar,
     waitForTableFit,
 } from '@tinycld/core/e2e-helpers'
+import { PRIOR_YEAR_SEED } from '../../tinycld/books/lib/trial-balance-fixture'
 import { createAccount, DESKTOP, openChart, PHONE } from './account-register-helpers'
 import {
     browserToday,
@@ -34,8 +35,8 @@ import { createPostedTransfer } from './transfer-helpers'
 // snapshot (`glSnapshot`). Entries are dated GL_DAY_1, GL_DAY_2 or today: never before
 // 2026-07-01, so the close date and the fiscal start month books-settings.spec.ts sets on
 // the shared DB neither refuse a post nor move a beginning balance. Two tests make no data:
-// the fold test reads two seeded accounts over the seeded October, and compares line
-// counts only within its own run; the paging test reads the seeded long section.
+// the fold test reads the two accounts of the seeded prior-year entry over its month, which
+// no spec posts in; the paging test reads the seeded long section.
 //
 // The table is a FlashList: only mounted rows are in the DOM, so a test waits for the
 // Total row in its snapshot, the proof that every row above it mounted.
@@ -314,12 +315,14 @@ function widthGeometry(page: Page, ids: { line: string; opening: string; total: 
     }, ids)
 }
 
-// Two seeded accounts with lines in October of every seed's year (seed.ts
-// seedPartyEntries posts "October software subscriptions" on the 14th), in chart order.
-// The Accounts picker names an account by its full name; a section by number and name.
-const OCTOBER_ACCOUNTS = [
-    { name: 'Company Card', section: '2100 Company Card' },
-    { name: 'Software Subscriptions', section: '6200 Software Subscriptions' },
+// The two accounts of the seeded prior-year entry (PRIOR_YEAR_SEED: one line each, dated
+// `yearsAgo` calendar years before the seed runs), in chart order. In that entry's month
+// they hold that entry alone: every other seeded line on them is in a later month, and
+// specs post no earlier than ten days before today or on fixed days of 2025 and 2026. The
+// Accounts picker names an account by its full name; a section by number and name.
+const PRIOR_YEAR_ACCOUNTS = [
+    { name: 'Accounts receivable', section: '1100 Accounts receivable', lines: 1 },
+    { name: 'Consulting Income', section: '4000 Consulting Income', lines: 1 },
 ] as const
 
 const SAVINGS = 'Business Savings'
@@ -545,14 +548,17 @@ test.describe('general-ledger: report', () => {
         page,
     }) => {
         await startBooks(page)
-        const year = (await browserToday(page)).slice(0, 4)
-        const from = `${year}-10-01`
-        const to = `${year}-10-31`
-        const [first, second] = OCTOBER_ACCOUNTS.map(account => account.section)
+        const year = Number((await browserToday(page)).slice(0, 4)) - PRIOR_YEAR_SEED.yearsAgo
+        const month = PRIOR_YEAR_SEED.day.slice(0, 2)
+        const from = `${year}-${month}-01`
+        // Day 0 of the next month is the last day of this one.
+        const to = new Date(Date.UTC(year, Number(month), 0)).toISOString().slice(0, 10)
+        const [first, second] = PRIOR_YEAR_ACCOUNTS.map(account => account.section)
+        const [firstLines, secondLines] = PRIOR_YEAR_ACCOUNTS.map(account => account.lines)
         await openGeneralLedger(page)
         await filterToAccounts(
             page,
-            OCTOBER_ACCOUNTS.map(account => account.name)
+            PRIOR_YEAR_ACCOUNTS.map(account => account.name)
         )
         await choosePeriod(page, { from, to })
         const open = await snapshotWhen(
@@ -563,11 +569,11 @@ test.describe('general-ledger: report', () => {
                 hasTotal(s) &&
                 linesOf(s, first).length > 0 &&
                 linesOf(s, second).length > 0,
-            'the two seeded accounts over October'
+            "the prior-year entry's two accounts over its month"
         )
         expect(sectionLabels(open)).toEqual([first, second])
-        const firstLines = linesOf(open, first).length
-        const secondLines = linesOf(open, second).length
+        expect(linesOf(open, first).length).toBe(firstLines)
+        expect(linesOf(open, second).length).toBe(secondLines)
 
         // The first section's heading lies at scroll 0, so core's sticky copy of it lies
         // over the list row: that copy is what a user presses.
