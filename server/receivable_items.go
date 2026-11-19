@@ -77,7 +77,7 @@ const receivableApplicationsSQL = "SELECT pa.id AS id, '" + receivableSourceAppl
 
 // receivableSettledSQL gives, for each customer and item of the stored rows
 // (%s: "" for all of them, or a WHERE on the stored rows that keeps or drops
-// each customer whole), the day its balance becomes zero and stays zero: the
+// each customer and item whole), the day its balance becomes zero and stays zero: the
 // first day with no later day (itself included) whose end-of-day balance is
 // not zero. An item whose last balance is not zero is open.
 const receivableSettledSQL = `
@@ -110,11 +110,18 @@ func insertReceivables(tx core.App, query, where string, params dbx.Params) (int
 	return res.RowsAffected()
 }
 
-// receivableCustomerChunk bounds the customer ids of one settle statement,
-// under SQLite's limit of bound values.
-const receivableCustomerChunk = 500
+// receivablePair names one item of one customer: the unit settled is computed
+// for. A blank Customer is the rows with no customer.
+type receivablePair struct {
+	Customer string `db:"customer"`
+	Item     string `db:"item"`
+}
 
-// settleReceivablesSQL writes settled on the stored rows of the customers that
+// receivablePairChunk bounds the pairs of one settle statement, under SQLite's
+// limit of bound values.
+const receivablePairChunk = 500
+
+// settleReceivablesSQL writes settled on the stored rows of the pairs that
 // where (a WHERE on the stored rows, or "" for all) selects: only the rows whose
 // day changes are written.
 func settleReceivablesSQL(where string) string {
@@ -124,10 +131,10 @@ func settleReceivablesSQL(where string) string {
 		t + ".item AND s.settled != " + t + ".settled"
 }
 
-// settleReceivables writes settled on the stored rows of customers (a blank id
-// is the rows with no customer), or of every customer when customers is nil.
-// It returns how many rows it changed.
-func settleReceivables(tx core.App, customers []string) (int64, error) {
+// settleReceivables writes settled on the stored rows of pairs (a blank customer
+// is the rows with no customer), or of every item when pairs is nil. It
+// returns how many rows it changed.
+func settleReceivables(tx core.App, pairs []receivablePair) (int64, error) {
 	update := func(where string, params dbx.Params) (int64, error) {
 		res, err := tx.DB().NewQuery(settleReceivablesSQL(where)).Bind(params).Execute()
 		if err != nil {
@@ -135,22 +142,22 @@ func settleReceivables(tx core.App, customers []string) (int64, error) {
 		}
 		return res.RowsAffected()
 	}
-	if customers == nil {
+	if pairs == nil {
 		return update("", nil)
 	}
 	// A row with no customer holds '' (PocketBase writes '' for an empty
-	// relation), never NULL: a NULL would match neither IN nor the join on
-	// customer, so the blank id here finds exactly those rows.
+	// relation), never NULL: a NULL would match neither the comparison nor the
+	// join on customer, so the blank customer here finds exactly those rows.
 	var changed int64
-	for start := 0; start < len(customers); start += receivableCustomerChunk {
-		chunk := customers[start:min(start+receivableCustomerChunk, len(customers))]
+	for start := 0; start < len(pairs); start += receivablePairChunk {
+		chunk := pairs[start:min(start+receivablePairChunk, len(pairs))]
 		params := dbx.Params{}
-		names := make([]string, len(chunk))
-		for i, id := range chunk {
-			name := fmt.Sprintf("c%d", i)
-			names[i], params[name] = "{:"+name+"}", id
+		terms := make([]string, len(chunk))
+		for i, p := range chunk {
+			c, it := fmt.Sprintf("c%d", i), fmt.Sprintf("i%d", i)
+			terms[i], params[c], params[it] = "(customer = {:"+c+"} AND item = {:"+it+"})", p.Customer, p.Item
 		}
-		n, err := update("WHERE customer IN ("+strings.Join(names, ", ")+")", params)
+		n, err := update("WHERE "+strings.Join(terms, " OR "), params)
 		if err != nil {
 			return 0, err
 		}

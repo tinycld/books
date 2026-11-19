@@ -90,6 +90,27 @@ func TestReceivableSettledIgnoresParent(t *testing.T) {
 	}
 }
 
+// A refresh settles the items of the rows it changed, not every item of their
+// customer: a wrong settled day on another open item stays until a rebuild.
+func TestReceivableRefreshSettlesOnlyTouchedItems(t *testing.T) {
+	b := newARBook(t)
+	c := b.docs.customer
+	touched := arInvoice(t, b, c, "2026-08-04", "2026-09-03", 100000)
+	other := arInvoice(t, b, c, "2026-08-05", "2026-09-04", 50000)
+	requireNoReceivableDrift(t, b.app)
+	if _, err := b.app.DB().NewQuery("UPDATE books_receivable_items SET settled = '1999-01-01' WHERE item = {:item}").
+		Bind(dbx.Params{"item": other.Id}).Execute(); err != nil {
+		t.Fatal(err)
+	}
+	arPayment(t, b, c, "2026-09-10", 100000, map[string]int{touched.Id: 100000})
+	if got := settledOf(t, b.app, touched.Id); got != "2026-09-10" {
+		t.Errorf("the paid invoice has settled %q, want 2026-09-10", got)
+	}
+	if got := settledOf(t, b.app, other.Id); got != "1999-01-01" {
+		t.Errorf("an item the refresh did not touch has settled %q, want its stored 1999-01-01 left alone", got)
+	}
+}
+
 // A refresh outside a transaction could commit without the write it follows.
 func TestReceivableRefreshNeedsTransaction(t *testing.T) {
 	b := newARBook(t)
@@ -155,15 +176,15 @@ func TestReceivableRefreshOnInvoiceCorrection(t *testing.T) {
 	}
 }
 
-// A refresh settles one customer: it must find that customer's rows by index,
+// A refresh settles one customer and item: it must find their rows by index,
 // not read the whole table inside each write transaction.
-func TestReceivableSettleReadsOneCustomer(t *testing.T) {
+func TestReceivableSettleReadsOneItem(t *testing.T) {
 	b := newARBook(t)
 	var steps []struct {
 		Detail string `db:"detail"`
 	}
-	err := b.app.DB().NewQuery("EXPLAIN QUERY PLAN " + settleReceivablesSQL("WHERE customer IN ({:c0})")).
-		Bind(dbx.Params{"c0": b.docs.customer.Id}).All(&steps)
+	err := b.app.DB().NewQuery("EXPLAIN QUERY PLAN " + settleReceivablesSQL("WHERE (customer = {:c0} AND item = {:i0}) OR (customer = {:c1} AND item = {:i1})")).
+		Bind(dbx.Params{"c0": b.docs.customer.Id, "i0": "x", "c1": b.docs.customer.Id, "i1": "y"}).All(&steps)
 	if err != nil {
 		t.Fatalf("explain the settle statement: %v", err)
 	}
@@ -172,7 +193,7 @@ func TestReceivableSettleReadsOneCustomer(t *testing.T) {
 	}
 	for _, s := range steps {
 		if strings.Contains(s.Detail, "SCAN "+receivableItemsCollection) {
-			t.Errorf("the settle of one customer scans the stored rows: %q", s.Detail)
+			t.Errorf("the settle of one item scans the stored rows: %q", s.Detail)
 		}
 	}
 }

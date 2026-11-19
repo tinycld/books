@@ -201,9 +201,9 @@ func TestVerifyReceivablesFindsDrift(t *testing.T) {
 	requireRebuilt(t, b.app)
 }
 
-// settleReceivables with a customer list fixes only the rows of those
-// customers (a blank id is the rows with no customer), returns how many rows it
-// changed, and walks a list longer than receivableCustomerChunk in chunks.
+// settleReceivables with a pair list fixes only the rows of those customers and
+// items (a blank customer is the rows with no customer), returns how many rows
+// it changed, and walks a list longer than receivablePairChunk in chunks.
 // It is a pin: the code was right when the test was written, so it passed on
 // its first run.
 func TestSettleReceivablesSubset(t *testing.T) {
@@ -244,49 +244,64 @@ func TestSettleReceivablesSubset(t *testing.T) {
 		}
 		return n
 	}
-	settle := func(ids []string) int64 {
+	settle := func(pairs []receivablePair) int64 {
 		t.Helper()
 		var n int64
 		err := b.app.RunInTransaction(func(tx core.App) error {
 			var err error
-			n, err = settleReceivables(tx, ids)
+			n, err = settleReceivables(tx, pairs)
 			return err
 		})
 		if err != nil {
-			t.Fatalf("settle %d customers: %v", len(ids), err)
+			t.Fatalf("settle %d pairs: %v", len(pairs), err)
 		}
 		return n
 	}
+	// pairsOf lists each customer and item of the stored rows of customer.
+	pairsOf := func(customer string) []receivablePair {
+		t.Helper()
+		seen := map[receivablePair]bool{}
+		var pairs []receivablePair
+		for _, r := range storedRows(t, b.app) {
+			if p := (receivablePair{r.Customer, r.Item}); r.Customer == customer && !seen[p] {
+				seen[p] = true
+				pairs = append(pairs, p)
+			}
+		}
+		return pairs
+	}
 
 	corrupt()
-	if n := settle([]string{c1.Id}); n != count[c1.Id] {
+	if n := settle(pairsOf(c1.Id)); n != count[c1.Id] {
 		t.Errorf("settle one customer changed %d rows, want %d", n, count[c1.Id])
 	}
 	if wrong(c1.Id) != 0 || wrong(c2.Id) != count[c2.Id] || wrong("") != 1 {
 		t.Errorf("after one customer: wrong rows c1=%d c2=%d none=%d, want 0, %d, 1", wrong(c1.Id), wrong(c2.Id), wrong(""), count[c2.Id])
 	}
 
-	if n := settle([]string{""}); n != 1 {
+	if n := settle(pairsOf("")); n != 1 {
 		t.Errorf("settle the blank id changed %d rows, want 1", n)
 	}
 	if wrong("") != 0 || wrong(c2.Id) != count[c2.Id] {
 		t.Errorf("after the blank id: wrong rows none=%d c2=%d, want 0, %d", wrong(""), wrong(c2.Id), count[c2.Id])
 	}
 
-	// The real customers sit at both ends of a list of receivableCustomerChunk+1
-	// ids, so they fall in two chunks.
+	// The real pairs sit at both ends of a list of receivablePairChunk+1 pairs,
+	// so they fall in two chunks.
 	corrupt()
-	ids := make([]string, receivableCustomerChunk+1)
-	for i := range ids {
-		ids[i] = fmt.Sprintf("absent%09d", i)
+	real1, real2 := pairsOf(c1.Id), pairsOf(c2.Id)
+	pairs := make([]receivablePair, receivablePairChunk+len(real1)+len(real2))
+	for i := range pairs {
+		pairs[i] = receivablePair{fmt.Sprintf("absent%09d", i), "none"}
 	}
-	ids[0], ids[len(ids)-1] = c2.Id, c1.Id
-	if n := settle(ids); n != count[c1.Id]+count[c2.Id] {
-		t.Errorf("settle %d ids changed %d rows, want %d", len(ids), n, count[c1.Id]+count[c2.Id])
+	copy(pairs, real2)
+	copy(pairs[len(pairs)-len(real1):], real1)
+	if n := settle(pairs); n != count[c1.Id]+count[c2.Id] {
+		t.Errorf("settle %d pairs changed %d rows, want %d", len(pairs), n, count[c1.Id]+count[c2.Id])
 	}
 	if wrong(c1.Id) != 0 || wrong(c2.Id) != 0 || wrong("") != 1 {
 		t.Errorf("after the long list: wrong rows c1=%d c2=%d none=%d, want 0, 0, 1", wrong(c1.Id), wrong(c2.Id), wrong(""))
 	}
-	settle([]string{""})
+	settle(pairsOf(""))
 	requireNoReceivableDrift(t, b.app)
 }
