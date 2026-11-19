@@ -4,12 +4,14 @@ import {
     creditMemoOffered,
     DOCUMENT_READ_ACTION_KEYS,
     DOCUMENT_READ_KEYS,
+    DOCUMENT_READ_LABELS,
     DOCUMENT_TAB_KEYS,
     documentReadActions,
     payBillOffered,
     receivePaymentOffered,
     refundOffered,
     removeApplicationOffered,
+    writeOffOffered,
 } from '../tinycld/books/lib/document-actions'
 import {
     BILL_KIND,
@@ -44,7 +46,7 @@ describe('documentReadActions', () => {
 })
 
 describe('DOCUMENT_READ_KEYS', () => {
-    it('matches the key map: Edit E, Void V, Copy C, View journal entry J, Open invoice I, Receive payment R, Pay bill P, Create credit memo M, Apply to bills A, Record refund R', () => {
+    it('matches the key map: Edit E, Void V, Copy C, View journal entry J, Open invoice I, Receive payment R, Pay bill P, Create credit memo M, Apply to bills A, Record refund R, Write off W', () => {
         expect(DOCUMENT_READ_KEYS).toEqual({
             edit: 'e',
             void: 'v',
@@ -58,6 +60,7 @@ describe('DOCUMENT_READ_KEYS', () => {
             record_refund: 'r',
             refund: 'r',
             refund_credit: 'r',
+            write_off: 'w',
         })
     })
 })
@@ -271,6 +274,7 @@ describe('the sales receipt read view', () => {
             record_refund: 'r',
             refund: 'r',
             refund_credit: 'r',
+            write_off: 'w',
             pdf: '$mod+p',
         })
         expect(DOCUMENT_TAB_KEYS).toEqual({ edit: 'Alt+1', pdf: 'Alt+2' })
@@ -583,6 +587,118 @@ describe('Record refund', () => {
     it('has the key R', () => {
         expect(DOCUMENT_READ_KEYS.record_refund).toBe('r')
         expect(DOCUMENT_READ_ACTION_KEYS.record_refund).toBe('r')
+    })
+})
+
+// Write off (write-off spec §3.1, plan decision 2): a writer's action on a posted invoice
+// whose balance is above zero, key W, directly after Create credit memo and before View
+// journal entry. The read view sets `canWriteOff` from writeOffOffered.
+describe('writeOffOffered', () => {
+    it('is true for a posted invoice with a balance above zero', () => {
+        expect(writeOffOffered('invoice', 'posted', 1)).toBe(true)
+        expect(writeOffOffered('invoice', 'posted', 40_000)).toBe(true)
+    })
+
+    it('is false for a draft and a void invoice', () => {
+        expect(writeOffOffered('invoice', 'draft', 40_000)).toBe(false)
+        expect(writeOffOffered('invoice', 'void', 40_000)).toBe(false)
+    })
+
+    it('is false for an invoice with a balance of 0', () => {
+        expect(writeOffOffered('invoice', 'posted', 0)).toBe(false)
+    })
+
+    it('is false for every other kind', () => {
+        for (const kind of [
+            'sales_receipt',
+            'estimate',
+            'bill',
+            'expense',
+            'credit_memo',
+            'vendor_credit',
+            'refund_receipt',
+        ]) {
+            expect(writeOffOffered(kind, 'posted', 40_000), kind).toBe(false)
+        }
+    })
+})
+
+describe('Write off', () => {
+    const invoice = (status: 'posted' | 'void' | 'draft', canWrite: boolean, balance: number) =>
+        documentReadActions(status, canWrite, SALES_FEATURES, {
+            canReceivePayment: receivePaymentOffered('invoice', status, balance),
+            canPayBill: false,
+            canCreateCreditMemo: creditMemoOffered('invoice', status),
+            canWriteOff: writeOffOffered('invoice', status, balance),
+        })
+
+    it('comes directly after Create credit memo and before View journal entry for a writer', () => {
+        const actions = invoice('posted', true, 40_000)
+        expect(actions).toEqual([
+            'receive_payment',
+            'edit',
+            'void',
+            'copy',
+            'credit_memo',
+            'write_off',
+            'entry',
+            'pdf',
+        ])
+        expect(actions.indexOf('write_off')).toBe(actions.indexOf('credit_memo') + 1)
+        expect(actions.indexOf('entry')).toBe(actions.indexOf('write_off') + 1)
+    })
+
+    it('is gone, with Receive payment, at a balance of 0; Edit, Void, Copy and Create credit memo stay', () => {
+        expect(invoice('posted', true, 0)).toEqual([
+            'edit',
+            'void',
+            'copy',
+            'credit_memo',
+            'entry',
+            'pdf',
+        ])
+    })
+
+    it('is never offered to a reader, even when canWriteOff is set', () => {
+        expect(invoice('posted', false, 40_000)).toEqual(['entry', 'pdf'])
+        expect(
+            documentReadActions('posted', false, SALES_FEATURES, {
+                canReceivePayment: true,
+                canPayBill: false,
+                canCreateCreditMemo: true,
+                canWriteOff: true,
+            })
+        ).not.toContain('write_off')
+    })
+
+    it('is never offered on a void or draft invoice', () => {
+        expect(invoice('void', true, 40_000)).not.toContain('write_off')
+        expect(invoice('draft', true, 40_000)).toEqual([])
+    })
+
+    it('is not offered without canWriteOff (an existing call shape)', () => {
+        expect(
+            documentReadActions('posted', true, SALES_FEATURES, {
+                canReceivePayment: true,
+                canPayBill: false,
+                canCreateCreditMemo: true,
+            })
+        ).not.toContain('write_off')
+    })
+
+    it('is labelled "Write off"', () => {
+        expect(DOCUMENT_READ_LABELS.write_off).toBe('Write off')
+    })
+
+    it('has the key W, and no other read key is W', () => {
+        expect(DOCUMENT_READ_KEYS.write_off).toBe('w')
+        expect(DOCUMENT_READ_ACTION_KEYS.write_off).toBe('w')
+        const others = Object.entries(DOCUMENT_READ_ACTION_KEYS).filter(
+            ([action]) => action !== 'write_off'
+        )
+        for (const [action, key] of others) {
+            expect(key.toLowerCase(), action).not.toBe('w')
+        }
     })
 })
 
