@@ -185,6 +185,44 @@ describe('the vendor refund fields', () => {
     })
 })
 
+// The write-off's history (write-off spec §3.6): the write-off is audited as "Write-off",
+// links to its invoice, customer and account, and an entry of type write_off reads
+// "Write-off".
+describe('the write-off fields', () => {
+    it('audits the write-off as "Write-off"', () => {
+        expect(AUDITED).toContain('books_write_offs')
+        expect(recordTypeLabel('books_write_offs')).toBe('Write-off')
+    })
+
+    it('has an entry for every field of the generated schema, and no entry names a missing field', () => {
+        expect(Object.keys(AUDIT_FIELDS.books_write_offs ?? {}).sort()).toEqual(
+            schemaFields('books_write_offs')
+        )
+    })
+
+    it('links a write-off to its invoice, customer and account, and reads its amount as money', () => {
+        expect(AUDIT_FIELDS.books_write_offs?.invoice).toMatchObject({
+            kind: 'relation',
+            target: 'books_invoices',
+        })
+        expect(AUDIT_FIELDS.books_write_offs?.customer).toMatchObject({
+            kind: 'relation',
+            target: 'books_customers',
+        })
+        expect(AUDIT_FIELDS.books_write_offs?.account).toMatchObject({
+            kind: 'relation',
+            target: 'books_accounts',
+        })
+        expect(AUDIT_FIELDS.books_write_offs?.amount?.kind).toBe('money')
+    })
+
+    it('reads an entry of type write_off as "Write-off"', () => {
+        expect(DOC_TYPE).toContainEqual({ value: 'write_off', label: 'Write-off' })
+        const options = AUDIT_FIELDS.books_journal_entries?.doc_type?.options ?? []
+        expect(options).toContainEqual({ value: 'write_off', label: 'Write-off' })
+    })
+})
+
 // The refund receipt's history (as the credit memo's): the refund and its lines are
 // audited, and an entry of type refund_receipt reads "Refund receipt".
 const REFUND_RECEIPT_COLLECTIONS = ['books_refund_receipts', 'books_refund_receipt_lines']

@@ -1360,6 +1360,55 @@ func TestSearch_FindsVendorRefunds(t *testing.T) {
 	requireOnly([]string{"pacific", "power"}, "vendor_refund:"+toPost.Id)
 }
 
+// Write-off spec §4.3: search finds write-offs by number, memo and the
+// customer's name. A row opens the write-off (id write_off:<id>, kind
+// write_off) and is titled "Write-off <n> · <Customer>". A reader with no
+// Books access finds none.
+func TestSearch_FindsWriteOffs(t *testing.T) {
+	we := newWriteOffEnv(t)
+	registerSearchIndex(&pocketbase.PocketBase{App: we.app})
+	app := we.app
+	// The FTS sync indexes a record only when it is written, and newWriteOffEnv
+	// wrote the customer before the index existed, so write it again.
+	if err := app.Save(reload(t, app, "books_customers", we.customer.Id)); err != nil {
+		t.Fatalf("re-save the customer: %v", err)
+	}
+	wo := we.mkWriteOff(t, we.postedInvoice(t, 30000), map[string]any{"memo": "bankrupt qw61837 clinic"})
+	number := wo.GetString("number")
+	if number != "1001" {
+		t.Fatalf("the write-off's number %q, want 1001", number)
+	}
+	id := "write_off:" + wo.Id
+	requireOnly := func(terms []string) {
+		t.Helper()
+		res, err := searchBooks(app, we.users.readOnly.Id, search.Query{Include: terms, Limit: 20})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var found []search.Row
+		for _, r := range res.Rows {
+			if strings.HasPrefix(r.ID, "write_off:") {
+				found = append(found, r)
+			}
+		}
+		if len(found) != 1 || found[0].ID != id {
+			t.Fatalf("%q found write-off rows %v, want only %s", terms, rowIDs(found), id)
+		}
+		if found[0].Title != "Write-off 1001 · Harborview Dental" || found[0].Fields["kind"] != "write_off" {
+			t.Errorf("%q row title %q kind %v, want %q, write_off", terms, found[0].Title, found[0].Fields["kind"], "Write-off 1001 · Harborview Dental")
+		}
+	}
+
+	requireOnly([]string{"qw61837"})
+	requireOnly([]string{"harborview", number})
+	requireOnly([]string{"harborview", "dental"})
+
+	res, err := searchBooks(app, we.users.none.Id, search.Query{Include: []string{"qw61837"}, Limit: 20})
+	if err != nil || len(res.Rows) != 0 || res.Total != 0 {
+		t.Errorf("a reader with no Books access found %v (total %d), err %v", rowIDs(res.Rows), res.Total, err)
+	}
+}
+
 func expenseRows(rows []search.Row) map[string]search.Row {
 	out := map[string]search.Row{}
 	for _, r := range rows {

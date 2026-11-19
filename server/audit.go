@@ -95,6 +95,7 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 			ExtractLabel: func(r *core.Record) string { return billPaymentLineLabel(app, r) },
 		},
 		vendorRefundsCollection: {ExtractLabel: vendorRefundName, Redact: []string{"sort_key"}},
+		writeOffsCollection:     {ExtractLabel: writeOffName, Redact: []string{"sort_key"}},
 		vendorRefundLinesCollection: {
 			ExtractLabel: func(r *core.Record) string { return vendorRefundLineLabel(app, r) },
 		},
@@ -120,7 +121,7 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 }
 
 // auditParentFields maps each line collection to the field that names its
-// document. The books_audit_log view (migration 2100000027) reads the same
+// document. The books_audit_log view (migration 2100000029) reads the same
 // collections to give a line's audit row its document, and Register declares them
 // as the view's sources, because a line write can change that document.
 var auditParentFields = map[string]string{
@@ -159,6 +160,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_estimate_responses", Label: "Estimate response"},
 		{Value: "books_credit_memos", Label: "Credit memo"},
 		{Value: "books_refund_receipts", Label: "Refund receipt"},
+		{Value: writeOffsCollection, Label: "Write-off"},
 		{Value: "books_bills", Label: "Bill"},
 		{Value: "books_expenses", Label: "Expense"},
 		{Value: vendorCreditsCollection, Label: "Vendor credit"},

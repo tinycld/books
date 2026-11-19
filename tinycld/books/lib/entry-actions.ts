@@ -19,8 +19,13 @@ export function entryActions(
     if (entry.status !== 'posted' || entry.origin === 'void_reversal') return actions
     // A correction must keep the original's origin (server/reversal.go), and the journal
     // entry form writes only manual entries, so the server refuses every edit of a
-    // reversal.
-    if (entry.origin !== 'reversal' && entry.origin !== 'auto_reversal') actions.push('edit')
+    // reversal. A write-off has no form (it is voided and written off again), so its
+    // entry offers no Edit.
+    const canEdit =
+        entry.origin !== 'reversal' &&
+        entry.origin !== 'auto_reversal' &&
+        entry.doc_type !== 'write_off'
+    if (canEdit) actions.push('edit')
     // A transfer is corrected by Edit or Void, never by a one-click reversal; a document's
     // entry (an invoice's) is changed only from its document, whose Edit and Void these
     // open (entryEditHref, entryHref).

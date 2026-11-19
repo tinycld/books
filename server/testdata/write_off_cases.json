@@ -1,0 +1,136 @@
+[
+    {
+        "name": "a date that is no day",
+        "invoiceDate": "2026-09-14",
+        "closeDate": "",
+        "hasOverride": false,
+        "date": "2026-02-30",
+        "account": "expense",
+        "memoLength": 0,
+        "field": "date",
+        "message": ""
+    },
+    {
+        "name": "the day before the invoice date",
+        "invoiceDate": "2026-09-14",
+        "closeDate": "",
+        "hasOverride": false,
+        "date": "2026-09-13",
+        "account": "expense",
+        "memoLength": 0,
+        "field": "date",
+        "message": "Date the write-off on or after the invoice date, Sep 14, 2026."
+    },
+    {
+        "name": "the invoice date itself",
+        "invoiceDate": "2026-09-14",
+        "closeDate": "",
+        "hasOverride": false,
+        "date": "2026-09-14",
+        "account": "expense",
+        "memoLength": 0,
+        "field": "",
+        "message": ""
+    },
+    {
+        "name": "a day on the close date with no override",
+        "invoiceDate": "2026-09-14",
+        "closeDate": "2026-09-30",
+        "hasOverride": false,
+        "date": "2026-09-30",
+        "account": "expense",
+        "memoLength": 0,
+        "field": "date",
+        "message": ""
+    },
+    {
+        "name": "a day on the close date with an override",
+        "invoiceDate": "2026-09-14",
+        "closeDate": "2026-09-30",
+        "hasOverride": true,
+        "date": "2026-09-30",
+        "account": "expense",
+        "memoLength": 0,
+        "field": "",
+        "message": ""
+    },
+    {
+        "name": "the day after the close date",
+        "invoiceDate": "2026-09-14",
+        "closeDate": "2026-09-30",
+        "hasOverride": false,
+        "date": "2026-10-01",
+        "account": "expense",
+        "memoLength": 0,
+        "field": "",
+        "message": ""
+    },
+    {
+        "name": "an other expense account",
+        "invoiceDate": "2026-09-14",
+        "closeDate": "",
+        "hasOverride": false,
+        "date": "2026-11-10",
+        "account": "other_expense",
+        "memoLength": 0,
+        "field": "",
+        "message": ""
+    },
+    {
+        "name": "no account",
+        "invoiceDate": "2026-09-14",
+        "closeDate": "",
+        "hasOverride": false,
+        "date": "2026-11-10",
+        "account": "",
+        "memoLength": 0,
+        "field": "account",
+        "message": ""
+    },
+    {
+        "name": "a memo of 4000 characters",
+        "invoiceDate": "2026-09-14",
+        "closeDate": "",
+        "hasOverride": false,
+        "date": "2026-11-10",
+        "account": "expense",
+        "memoLength": 4000,
+        "field": "",
+        "message": ""
+    },
+    {
+        "name": "a memo of 4001 characters",
+        "invoiceDate": "2026-09-14",
+        "closeDate": "",
+        "hasOverride": false,
+        "date": "2026-11-10",
+        "account": "expense",
+        "memoLength": 4001,
+        "field": "memo",
+        "message": ""
+    },
+    {
+        "name": "an income account",
+        "invoiceDate": "2026-09-14",
+        "closeDate": "",
+        "hasOverride": false,
+        "date": "2026-11-10",
+        "account": "income",
+        "memoLength": 0,
+        "field": "account",
+        "message": "Choose an active expense account.",
+        "go": true
+    },
+    {
+        "name": "an inactive account",
+        "invoiceDate": "2026-09-14",
+        "closeDate": "",
+        "hasOverride": false,
+        "date": "2026-11-10",
+        "account": "inactive",
+        "memoLength": 0,
+        "field": "account",
+        "message": "Choose an active expense account.",
+        "go": true
+    }
+]

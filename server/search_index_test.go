@@ -58,8 +58,11 @@ func TestSearchIndex_TablesHoldTheConfiguredColumns(t *testing.T) {
 			t.Errorf("%s indexes %s: %v", cfg.Table, cfg.Collection, err)
 		}
 	}
-	if len(searchIndexes) != 16 {
-		t.Fatalf("%d indexes, want one per search source (16)", len(searchIndexes))
+	if len(searchIndexes) != 17 {
+		t.Fatalf("%d indexes, want one per search source (17)", len(searchIndexes))
+	}
+	if writeOffsIndex != "fts_books_write_offs" {
+		t.Errorf("writeOffsIndex = %q, want fts_books_write_offs", writeOffsIndex)
 	}
 	refundCols := 0
 	for _, cfg := range searchIndexes {
@@ -92,6 +95,7 @@ func TestSearchIndex_TablesHoldTheConfiguredColumns(t *testing.T) {
 		"fts_books_refund_receipts": "books_refund_receipts",
 		"fts_books_vendor_credits":  "books_vendor_credits",
 		"fts_books_vendor_refunds":  "books_vendor_refunds",
+		"fts_books_write_offs":      "books_write_offs",
 	} {
 		var indexed []string
 		for _, cfg := range searchIndexes {

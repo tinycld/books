@@ -432,6 +432,14 @@ test.describe('books-settings: Settings screens', () => {
         )
         await expect(estimates).toContainText('estimates saved from now on')
 
+        // The Write-offs card (write-off spec Q6): no prefix, and its preview names the next
+        // write-off (the seed and other specs take numbers, so the number is not checked).
+        await expect(id(page, 'books-settings-seq-write_off')).toBeVisible()
+        await expect(id(page, 'books-settings-seq-write_off-prefix')).toHaveValue('')
+        await expect(id(page, 'books-settings-seq-write_off-preview')).toContainText(
+            'Next write-off:'
+        )
+
         // Parallel workers advance the shared counter, so every save goes above the live value.
         const started = Number(await next.inputValue())
         expect(started).toBeGreaterThan(0)

@@ -295,6 +295,15 @@ describe('a refund receipt entry', () => {
     })
 })
 
+// A write-off's entry (write-off spec §3.6): it opens on its write-off, and its void
+// reversal opens as an entry.
+describe('a write-off entry', () => {
+    it('opens on its write-off and opens its void reversal as an entry', () => {
+        expect(entryHref(entry('write_off', 'document', 'w1'))).toBe('books/write-offs/w1')
+        expect(entryHref(entry('write_off', 'void_reversal'))).toBe('books/entries/a')
+    })
+})
+
 // A bill payment's entry (pay-bills spec §4.2): it opens on its bill payment.
 describe('a bill payment entry', () => {
     it('opens on its bill payment', () => {

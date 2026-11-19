@@ -187,11 +187,17 @@ func TestBalanceKinds_ListTheirPayers(t *testing.T) {
 		PaymentCollection: "books_refund_receipts", PaymentField: "refund_receipt",
 		CashMemo: "Credit memo %s refunded (cash basis)",
 	}
+	// A posted write-off lowers the invoice by its own status, and is no
+	// payment on the cash basis (write-off spec §3.6).
+	writeOff := balancePayer{
+		LinesCollection: "books_write_offs", LineField: "invoice",
+		OwnStatus: true, NoCash: true,
+	}
 	for _, c := range []struct {
 		kind balanceKind
 		want []balancePayer
 	}{
-		{invoiceBalanceKind, []balancePayer{invoicePayer}},
+		{invoiceBalanceKind, []balancePayer{invoicePayer, writeOff}},
 		{billBalanceKind, []balancePayer{billPayment, billCredit}},
 		{vendorCreditBalanceKind, []balancePayer{creditApplied, creditRefund}},
 		{creditMemoBalanceKind, []balancePayer{memoRefund}},

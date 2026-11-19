@@ -25,11 +25,20 @@ import (
 // PaymentCollection is a payment's lines: only a posted payment's lines count.
 // A payer without one is an application: every row counts, and its cash-basis
 // payment reads the entry of the document EntryField names (in EntryCollection).
+//
+// OwnStatus marks a payer whose rows are documents of their own (a write-off):
+// only the rows whose own status is posted count (appliedSQL), a document
+// correction never moves them (moveLinesWhere; an invoice correction is
+// refused while a posted one names it, and a void one stays on the original),
+// and paymentPayer never returns it. NoCash marks a payer that lowers the
+// balance but is no payment on the cash basis: documentPayments leaves it out.
 type balancePayer struct {
 	LinesCollection, LineField      string
 	PaymentCollection, PaymentField string
 	EntryField, EntryCollection     string
 	CashMemo                        string // "" = the deferral's PaidMemo
+	OwnStatus                       bool
+	NoCash                          bool
 }
 
 // balanceKind is one kind of document with an open balance: its collection,
@@ -41,15 +50,25 @@ type balanceKind struct {
 }
 
 var (
-	// invoiceBalanceKind: a received payment's applications pay invoices.
+	// invoiceBalanceKind: a received payment's applications pay invoices, and
+	// a posted write-off lowers an invoice by its amount (write-off spec §4.3),
+	// with no cash-basis share: a write-off is no payment (Q5).
 	invoiceBalanceKind = balanceKind{
 		Collection: "books_invoices",
-		Payers: []balancePayer{{
-			LinesCollection:   applicationsCollection,
-			LineField:         "invoice",
-			PaymentCollection: paymentsCollection,
-			PaymentField:      "payment",
-		}},
+		Payers: []balancePayer{
+			{
+				LinesCollection:   applicationsCollection,
+				LineField:         "invoice",
+				PaymentCollection: paymentsCollection,
+				PaymentField:      "payment",
+			},
+			{
+				LinesCollection: writeOffsCollection,
+				LineField:       "invoice",
+				OwnStatus:       true,
+				NoCash:          true,
+			},
+		},
 		Noun: "invoice",
 	}
 	// billBalanceKind: a bill payment's lines pay bills, and a vendor credit
@@ -142,10 +161,11 @@ func isBalancing(tx core.App, kind balanceKind, docID string) bool {
 // credit's is its vendor refunds' lines, a credit memo's its refund receipts'
 // credits rows), and false for a kind that no payment pays. The per-payment
 // functions (paymentLines, applyToDocuments, releaseLines,
-// markMovingLines, rebuildPaidCashBasis) read it.
+// markMovingLines, rebuildPaidCashBasis) read it. A payer whose rows are
+// documents of their own (OwnStatus) is never it.
 func (k balanceKind) paymentPayer() (balancePayer, bool) {
 	for _, p := range k.Payers {
-		if p.PaymentCollection != "" {
+		if p.PaymentCollection != "" && !p.OwnStatus {
 			return p, true
 		}
 	}
@@ -179,9 +199,14 @@ func isMovingApplications(tx core.App, docID string) bool {
 // appliedSQL is the SQL sum of the payer's rows that name the document docExpr
 // (a bound parameter or a column): every row of an application, only the lines
 // of posted payments for a payment, whose draft lines do not count and whose
-// void lines were released. The table and column names are the constants of
-// balanceKinds.
+// void lines were released, and only the posted rows of a payer whose rows are
+// documents of their own (OwnStatus). The table and column names are the
+// constants of balanceKinds.
 func (p balancePayer) appliedSQL(docExpr string) string {
+	if p.OwnStatus {
+		return `(SELECT COALESCE(SUM(a.amount), 0) FROM ` + p.LinesCollection + ` a
+			WHERE a.` + p.LineField + ` = ` + docExpr + ` AND a.status = 'posted')`
+	}
 	if p.PaymentCollection == "" {
 		return `(SELECT COALESCE(SUM(a.amount), 0) FROM ` + p.LinesCollection + ` a
 			WHERE a.` + p.LineField + ` = ` + docExpr + `)`
@@ -346,10 +371,15 @@ func movePostedLines(tx core.App, kind balanceKind, original, correction *core.R
 // payment payer the lines whose payment matches paymentStatus (a filter on
 // the payment's status, such as ".status = 'posted'"), each under its
 // payment's moving mark; of an application payer every row, under the
-// original's moving mark. Then it rebuilds the cash-basis rows of both
-// documents: the moved rows' shares now come from the correction's lines.
+// original's moving mark. A payer whose rows are documents of their own
+// (OwnStatus, a write-off) moves nothing. Then it rebuilds the cash-basis rows
+// of both documents: the moved rows' shares now come from the correction's
+// lines.
 func moveLinesWhere(tx core.App, kind balanceKind, original, correction *core.Record, paymentStatus string) error {
 	for _, p := range kind.Payers {
+		if p.OwnStatus {
+			continue
+		}
 		filter := p.LineField + " = {:doc}"
 		if p.PaymentCollection != "" {
 			filter += " && " + p.PaymentField + paymentStatus
@@ -376,12 +406,21 @@ func moveLinesWhere(tx core.App, kind balanceKind, original, correction *core.Re
 	return rebuildCashBasisOf(tx, kind.Collection, original.Id, correction.Id)
 }
 
-// DocumentBalanceDrift is one document whose stored balance disagrees with its
-// total and what its payers apply.
+// The stored document fields a drift can name: a document's balance, and an
+// invoice's written_off (the sum of its posted write-offs).
+const (
+	driftFieldBalance    = "balance"
+	driftFieldWrittenOff = "written_off"
+)
+
+// DocumentBalanceDrift is one stored document field that disagrees with what
+// its source gives: Field "balance" (the total less what the payers apply) or
+// "written_off" (an invoice's posted write-offs).
 type DocumentBalanceDrift struct {
 	Kind     string `db:"kind" json:"kind"`
 	Document string `db:"document" json:"document"`
 	Number   string `db:"number" json:"number"`
+	Field    string `db:"field" json:"field"`
 	Stored   int64  `db:"stored" json:"stored"`
 	Want     int64  `db:"want" json:"want"`
 }
@@ -389,7 +428,8 @@ type DocumentBalanceDrift struct {
 // verifyDocumentBalances is the verify part of the document balances: it
 // recomputes every document's balance as documentBalance does, for each kind,
 // from the same per-payer sums (appliedSQL), and reports each stored one that
-// differs. A kind with no payer has 0 applied.
+// differs. A kind with no payer has 0 applied. It then compares each invoice's
+// written_off with its posted write-offs (verifyWrittenOff).
 func verifyDocumentBalances(app core.App) ([]DocumentBalanceDrift, error) {
 	drifts := []DocumentBalanceDrift{}
 	for _, kind := range balanceKinds {
@@ -399,24 +439,60 @@ func verifyDocumentBalances(app core.App) ([]DocumentBalanceDrift, error) {
 		}
 		found := []DocumentBalanceDrift{}
 		err := app.DB().NewQuery(`
-			SELECT {:kind} AS kind, document, number, stored, want FROM (
+			SELECT {:kind} AS kind, document, number, {:field} AS field, stored, want FROM (
 				SELECT d.id AS document, d.number AS number,
 				       CAST(COALESCE(d.balance, 0) AS INTEGER) AS stored,
 				       CASE WHEN d.status = 'posted' THEN CAST(d.total AS INTEGER) - CAST(COALESCE(` + applied + `, 0) AS INTEGER)
 				       ELSE 0 END AS want
 				FROM ` + kind.Collection + ` d)
 			WHERE stored != want
-			ORDER BY document`).Bind(dbx.Params{"kind": kind.Noun}).All(&found)
+			ORDER BY document`).Bind(dbx.Params{"kind": kind.Noun, "field": driftFieldBalance}).All(&found)
 		if err != nil {
 			return nil, fmt.Errorf("books: compare the %s balances with their payments: %w", kind.Noun, err)
 		}
 		drifts = append(drifts, found...)
 	}
-	return drifts, nil
+	writtenOff, err := verifyWrittenOff(app)
+	if err != nil {
+		return nil, err
+	}
+	return append(drifts, writtenOff...), nil
 }
 
-// rebuildDocumentBalances writes the recomputed balance of every document that
-// drifted, in one transaction, and returns how many it fixed.
+// verifyWrittenOff reports each invoice whose stored written_off is not the
+// sum of its posted write-offs (the write-off payer's appliedSQL).
+func verifyWrittenOff(app core.App) ([]DocumentBalanceDrift, error) {
+	found := []DocumentBalanceDrift{}
+	err := app.DB().NewQuery(`
+		SELECT {:kind} AS kind, document, number, {:field} AS field, stored, want FROM (
+			SELECT d.id AS document, d.number AS number,
+			       CAST(COALESCE(d.written_off, 0) AS INTEGER) AS stored,
+			       CAST(` + writeOffPayer().appliedSQL("d.id") + ` AS INTEGER) AS want
+			FROM ` + invoiceBalanceKind.Collection + ` d)
+		WHERE stored != want
+		ORDER BY document`).
+		Bind(dbx.Params{"kind": invoiceBalanceKind.Noun, "field": driftFieldWrittenOff}).All(&found)
+	if err != nil {
+		return nil, fmt.Errorf("books: compare the invoices' written_off with their write-offs: %w", err)
+	}
+	return found, nil
+}
+
+// writeOffPayer is the invoice kind's write-off payer.
+func writeOffPayer() balancePayer {
+	for _, p := range invoiceBalanceKind.Payers {
+		if p.LinesCollection == writeOffsCollection {
+			return p
+		}
+	}
+	panic("books: the invoice balance kind has no write-off payer")
+}
+
+// rebuildDocumentBalances writes the recomputed field of every document that
+// drifted, in one transaction, and returns how many it fixed. A balance goes
+// through saveDocumentBalance; an invoice's written_off is saved under the
+// balancing mark here, because saveDocumentBalance saves nothing when the
+// balance is unchanged.
 func rebuildDocumentBalances(app core.App) (int, error) {
 	fixed := 0
 	err := app.RunInTransaction(func(tx core.App) error {
@@ -433,6 +509,12 @@ func rebuildDocumentBalances(app core.App) (int, error) {
 			if err != nil {
 				return fmt.Errorf("books: read %s %s to rebuild its balance: %w", kind.Noun, d.Document, err)
 			}
+			if d.Field == driftFieldWrittenOff {
+				if err := saveWrittenOff(tx, kind, doc, d.Want); err != nil {
+					return err
+				}
+				continue
+			}
 			if err := saveDocumentBalance(tx, kind, doc, d.Want); err != nil {
 				return err
 			}
@@ -441,6 +523,17 @@ func rebuildDocumentBalances(app core.App) (int, error) {
 		return nil
 	})
 	return fixed, err
+}
+
+// saveWrittenOff writes an invoice's rebuilt written_off under the balancing
+// mark, which lets the invoice guard take the change on a posted invoice.
+func saveWrittenOff(tx core.App, kind balanceKind, doc *core.Record, writtenOff int64) error {
+	defer markBalancing(tx, kind, doc.Id)()
+	doc.Set("written_off", writtenOff)
+	if err := tx.Save(doc); err != nil {
+		return fmt.Errorf("books: save the written_off of %s %s: %w", kind.Noun, doc.Id, err)
+	}
+	return nil
 }
 
 // balanceKindNamed is the balance kind of a noun, as a drift names it.

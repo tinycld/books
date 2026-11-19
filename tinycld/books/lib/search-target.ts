@@ -5,7 +5,8 @@
 // credit memo screen (drafts included for the three documents), the refund receipt screen
 // (drafts included), the estimate screen, the
 // bill, expense and vendor credit screens (drafts included), the payment screen (drafts
-// included), the bill payment read view, and the vendor refund screen (drafts included).
+// included), the bill payment read view, the vendor refund screen (drafts included), and
+// the write-off page.
 export interface SearchTarget {
     path: string
     id: string
@@ -31,6 +32,7 @@ const PATHS = new Map([
     ['payment', 'books/payments/[id]'],
     ['bill_payment', 'books/bill-payments/[id]'],
     ['vendor_refund', 'books/vendor-refunds/[id]'],
+    ['write_off', 'books/write-offs/[id]'],
 ])
 
 export function searchTarget(rowId: string): SearchTarget | null {

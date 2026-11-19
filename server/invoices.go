@@ -91,8 +91,11 @@ var invoiceKind = salesDocKind{
 	TracksBalance: true,
 	AfterCreate:   closeEstimateFor,
 	Withdraw:      reopenEstimate,
-	CheckVoid:     refuseVoidWithPayments,
+	CheckVoid:     checkInvoiceVoid,
 	Replace: func(tx core.App, original, correction *core.Record) error {
+		if err := refuseWrittenOff(tx, original); err != nil {
+			return err
+		}
 		if err := moveInvoicePayments(tx, original, correction); err != nil {
 			return err
 		}
@@ -124,8 +127,19 @@ const (
 // words (INVOICE_MESSAGES.correctionCreditMemos, lib/document-texts.ts).
 const msgInvoiceCorrectionCreditMemos = "Credit memos are made from this invoice, so its customer cannot change."
 
-// refuseVoidWithPayments is the invoice's CheckVoid: an invoice that a posted
-// payment pays stays posted until that payment is voided or edited. A draft
+// checkInvoiceVoid is the invoice's CheckVoid: an invoice that a posted
+// write-off names stays posted until that write-off is voided
+// (refuseWrittenOff), checked before the payments, then an invoice that a
+// posted payment pays stays posted (refuseVoidWithPayments).
+func checkInvoiceVoid(tx core.App, doc *core.Record) error {
+	if err := refuseWrittenOff(tx, doc); err != nil {
+		return err
+	}
+	return refuseVoidWithPayments(tx, doc)
+}
+
+// refuseVoidWithPayments refuses the void of an invoice that a posted payment
+// pays: it stays posted until that payment is voided or edited. A draft
 // payment's application does not hold it.
 func refuseVoidWithPayments(tx core.App, doc *core.Record) error {
 	var row struct {

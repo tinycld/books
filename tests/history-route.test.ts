@@ -40,6 +40,18 @@ describe('history route', () => {
         )
     })
 
+    // Write-off spec §3.6: a write-off's history is read from books_write_offs.
+    it('maps write_off to books_write_offs and opens its history screen', () => {
+        expect(Object.entries(DOCUMENT_COLLECTIONS)).toContainEqual([
+            'write_off',
+            'books_write_offs',
+        ])
+        const collection = Object.fromEntries(Object.entries(DOCUMENT_COLLECTIONS)).write_off
+        expect(historyHref(collection ?? '', 'wofx1001delta01')).toBe(
+            'books/history/books_write_offs/wofx1001delta01'
+        )
+    })
+
     it('opens the history screen of a vendor refund', () => {
         const collection = Object.fromEntries(Object.entries(DOCUMENT_COLLECTIONS)).vendor_refund
         expect(historyHref(collection ?? '', 'vrfd1001cascf01')).toBe(

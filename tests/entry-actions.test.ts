@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { entryActions, newEntryVisible } from '../tinycld/books/lib/entry-actions'
+import {
+    entryActions,
+    newEntryVisible,
+    voidsFromDocument,
+} from '../tinycld/books/lib/entry-actions'
 import { entryEditHref, entryHref } from '../tinycld/books/lib/entry-route'
 
 const writer = { canWrite: true }
@@ -145,6 +149,21 @@ describe('entryActions for a payment entry', () => {
         expect(actions).not.toContain('reverse')
         expect(entryHref(entry)).toBe('books/payments/pmntpinpayment1')
         expect(entryEditHref(entry)).toBe('books/payments/new?replaces=pmntpinpayment1')
+    })
+})
+
+// Write-off spec §3.6: a write-off has no form, so its entry offers no Edit; Void stays
+// and opens the write-off, where the void runs.
+describe('entryActions for a write-off entry', () => {
+    const postedWriteOffEntry = { ...posted, origin: 'document', doc_type: 'write_off' } as const
+
+    it('gives a writer on a posted write-off entry open and void, never edit or reverse', () => {
+        expect(entryActions(postedWriteOffEntry, writer)).toEqual(['open', 'void'])
+        expect(voidsFromDocument(postedWriteOffEntry)).toBe(true)
+    })
+
+    it('gives a reader open only on a write-off entry', () => {
+        expect(entryActions(postedWriteOffEntry, reader)).toEqual(['open'])
     })
 })
 
