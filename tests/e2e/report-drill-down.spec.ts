@@ -39,11 +39,13 @@ import {
     openTrialBalance,
     postEntryOn,
     pressFigure,
+    sectionTopKey,
     snapshotWhen,
     type TdRow,
     type TdSnapshot,
     tdLinesOf,
     tdSnapshot,
+    tdSnapshotAtEnd,
     tdSubtotalOf,
     tdTotalOf,
 } from './books-report-helpers'
@@ -67,10 +69,43 @@ const SUMMIT = 'Summit IT Services'
 // holds every spec's entries and mounts only the rows near its view). After 2026-06-30,
 // the close date books-settings.spec.ts holds on the shared DB.
 const JOURNAL_DAY = '2026-07-29'
-// The day of the section-figure test's entry. Other workers post expenses today on the
-// shared DB, so a Total Expenses of today could change between the statement's read and
-// the drilled report's; no spec or seed posts on this day. After 2026-06-30.
-const SECTION_DAY = '2026-07-23'
+// The days of the section-figure test's entry, one for each worker that runs at the same
+// time. The test reads Total Expenses of its day twice (the statement, then the drilled
+// report), so a post by another test on that day between the reads changes the second
+// read: other workers post expenses today on the shared DB, and the copies of this test
+// under --repeat-each run side by side. No spec or seed posts on these days, and a worker
+// runs one test at a time, so only that worker's copies post on its day, one after the
+// other. After 2026-06-30, the close date books-settings.spec.ts holds.
+const SECTION_DAYS = [
+    '2026-07-03',
+    '2026-07-04',
+    '2026-07-05',
+    '2026-07-06',
+    '2026-07-07',
+    '2026-07-08',
+    '2026-07-10',
+    '2026-07-12',
+    '2026-07-13',
+    '2026-07-14',
+    '2026-07-16',
+    '2026-07-17',
+    '2026-07-18',
+    '2026-07-21',
+    '2026-07-23',
+    '2026-07-24',
+    '2026-07-26',
+    '2026-07-27',
+    '2026-07-28',
+]
+
+// This worker's section day. parallelIndex is unique among the workers that run at the
+// same time, so two workers never share a day.
+function sectionDay(): string {
+    const index = test.info().parallelIndex
+    const day = SECTION_DAYS[index]
+    if (!day) throw new Error(`No section day for parallel worker ${index}: add days`)
+    return day
+}
 const EQUITY = { type: 'Equity', detailType: "Owner's equity" }
 const EXPENSES = 'Expenses'
 const TOTAL_EXPENSES = `Total ${EXPENSES}`
@@ -102,6 +137,13 @@ async function createAccounts(
 ): Promise<void> {
     await openChart(page)
     for (const { name, kind } of accounts) await createAccount(page, name, kind)
+}
+
+// The table mounts only the rows near its scroll position, and a section grows with every
+// account other runs and specs post: an account named from sectionTopKey sorts at the top
+// of its group, so its row mounts when the group opens.
+function accountName(prefix: string): string {
+    return uniqueName(`${sectionTopKey()} ${prefix}`)
 }
 
 // The entry open in its read view: its id from the URL (`/books/entries/<id>`).
@@ -194,7 +236,8 @@ async function collapseAll(page: Page, section: string): Promise<void> {
 
 // Folds the statement, then opens the one section the test reads (by its label, the
 // fold toggle) and waits for `label`'s row under it: the shared DB holds every other
-// spec's accounts, so only the rows of that section are mounted near the top.
+// spec's accounts, so only the rows near the section's top are mounted. `label` is named
+// from accountName, so it stands at the section's top.
 async function openSectionTo(page: Page, section: string, label: string): Promise<void> {
     await collapseAll(page, section)
     await rowOf(page, section).click()
@@ -556,7 +599,7 @@ test.describe('report-drill-down: screen', () => {
         page,
     }) => {
         await startBooks(page)
-        const expense = uniqueName('AA TD1 expense')
+        const expense = accountName('TD1 expense')
         await createAccounts(page, [{ name: expense, kind: EXPENSE }])
         const today = await browserToday(page)
         const memo1 = uniqueName('TD1 first')
@@ -621,7 +664,7 @@ test.describe('report-drill-down: screen', () => {
         page,
     }) => {
         await startBooks(page)
-        const expense = uniqueName('AA TD2 expense')
+        const expense = accountName('TD2 expense')
         await createAccounts(page, [{ name: expense, kind: EXPENSE }])
         const today = await browserToday(page)
         await openEntriesFromSidebar(page)
@@ -668,11 +711,12 @@ test.describe('report-drill-down: screen', () => {
         page,
     }) => {
         await startBooks(page)
-        const expense = uniqueName('AA TD3 expense')
+        const expense = accountName('TD3 expense')
+        const day = sectionDay()
         await createAccounts(page, [{ name: expense, kind: EXPENSE }])
         await openEntriesFromSidebar(page)
         await postEntryOn(page, {
-            date: SECTION_DAY,
+            date: day,
             memo: uniqueName('TD3 entry'),
             lines: [
                 { account: expense, debit: '57.00' },
@@ -681,7 +725,7 @@ test.describe('report-drill-down: screen', () => {
         })
 
         await openProfitAndLoss(page)
-        await choosePeriod(page, { from: SECTION_DAY, to: SECTION_DAY })
+        await choosePeriod(page, { from: day, to: day })
         await collapseAll(page, EXPENSES)
         await expect(rowOf(page, TOTAL_EXPENSES)).toBeVisible()
         const source = await tdSnapshot(page)
@@ -692,21 +736,30 @@ test.describe('report-drill-down: screen', () => {
         await expect(page.getByTestId('report-param-accounts')).toContainText(
             'All Expense accounts'
         )
+        // Named from accountName, the account's section opens the report; the report Total
+        // ends it, under every run's section of this day, so it is read with the list
+        // scrolled to its end.
         const detail = await snapshotWhen(
             page,
             tdSnapshot,
-            s => groupOf(s, expense) !== undefined && tdTotalOf(s) !== undefined,
-            `${expense}'s section and the report Total`
+            s => groupOf(s, expense) !== undefined,
+            `${expense}'s section at the top of the report`
         )
         expect(detail.chips.period).toBe(source.chips.period)
-        expect(figureDigits(tdTotalOf(detail)?.cells.amount)).toBe(figureDigits(totalExpenses))
+        const end = await snapshotWhen(
+            page,
+            tdSnapshotAtEnd,
+            s => tdTotalOf(s) !== undefined,
+            'the report Total at the end of the list'
+        )
+        expect(figureDigits(tdTotalOf(end)?.cells.amount)).toBe(figureDigits(totalExpenses))
     })
 
     test('a month cell of the Profit and Loss by Month opens that month of the period', async ({
         page,
     }) => {
         await startBooks(page)
-        const expense = uniqueName('AA TD4 expense')
+        const expense = accountName('TD4 expense')
         await createAccounts(page, [{ name: expense, kind: EXPENSE }])
         const today = await browserToday(page)
         await openEntriesFromSidebar(page)
@@ -748,8 +801,8 @@ test.describe('report-drill-down: screen', () => {
         page,
     }) => {
         await startBooks(page)
-        const bank = uniqueName('AA TD5 bank')
-        const equity = uniqueName('AA TD5 equity')
+        const bank = accountName('TD5 bank')
+        const equity = accountName('TD5 equity')
         await createAccounts(page, [
             { name: bank, kind: BANK },
             { name: equity, kind: EQUITY },

@@ -22,9 +22,12 @@ import {
 } from './books-access-helpers'
 import { openOtherBooksPage } from './journal-entries-helpers'
 import { openOpeningBalances } from './opening-balances-helpers'
+import { uniqueName } from './record-form-helpers'
+import { superuserClient } from './superuser-seed'
 
 // The e2e database is shared, so every test sets its own values through the UI and puts back
-// what it changed. Nothing here reads or writes PocketBase directly.
+// what it changed. Nothing here reads or writes PocketBase directly, except the superuser
+// reset of the setup markers before the setup wizard tests (see resetSetupToUnfinished).
 // This is the only spec file that writes the shared books_settings row (the business name and
 // setup completion), including the setup wizard tests at the end. Playwright runs spec files
 // in parallel workers, so tests that write the same row must live in one file. They run in
@@ -312,6 +315,9 @@ test.describe('books-settings: Settings screens', () => {
 
     test('Accounting: override grant validates, shows, cancels and revokes', async ({ page }) => {
         await openAccounting(page)
+        // A revoked override stays in the past list, so a fixed reason would match the
+        // rows that earlier runs left there.
+        const reason = uniqueName('E2E year-end adjustments')
         let hasCloseDate = false
 
         try {
@@ -326,13 +332,13 @@ test.describe('books-settings: Settings screens', () => {
             await id(page, 'books-settings-grant-reason').fill('ab')
             await id(page, 'books-settings-grant-submit').click()
             await expect(page.getByText('Enter a reason of at least 3 characters')).toBeVisible()
-            await id(page, 'books-settings-grant-reason').fill('E2E year-end adjustments')
+            await id(page, 'books-settings-grant-reason').fill(reason)
             await pickMenuItem(page, 'books-settings-grant-lasts', 'books-settings-grant-lasts-24h')
             await expect(id(page, 'books-settings-grant-lasts')).toContainText('24 hours')
             await id(page, 'books-settings-grant-submit').click()
             await expect(id(page, 'books-settings-grant-dialog')).toHaveCount(0)
 
-            const granted = overrideRow(page, 'E2E year-end adjustments')
+            const granted = overrideRow(page, reason)
             await expect(granted).toContainText(TEST_USER_NAME)
 
             await granted.getByRole('button', { name: 'Revoke' }).click()
@@ -346,7 +352,7 @@ test.describe('books-settings: Settings screens', () => {
                 `Show past overrides (${pastBefore + 1})`
             )
             await id(page, 'books-settings-history-toggle').click()
-            const past = overrideRow(page, 'E2E year-end adjustments')
+            const past = overrideRow(page, reason)
             await expect(past).toBeVisible()
             await expect(past.getByRole('button', { name: 'Revoke' })).toHaveCount(0)
         } finally {
@@ -699,7 +705,8 @@ test.describe('books-settings: Settings screens', () => {
     })
 })
 
-const SETTINGS_ROW_PATH = '/api/collections/books_settings/records/bookssettings01'
+const SETTINGS_ROW_ID = 'bookssettings01'
+const SETTINGS_ROW_PATH = `/api/collections/books_settings/records/${SETTINGS_ROW_ID}`
 
 // Answers every PATCH of the settings row with `body` (a 400); other requests go on.
 function refuseSettingsPatch(page: Page, body: object) {
@@ -899,9 +906,27 @@ async function saveBusinessName(page: Page, value: string) {
     await expectSaved(page)
 }
 
+// SEEDED BY A SUPERUSER WRITE. The two setup wizard describes below need a book whose setup
+// is not finished, and the wizard flow finishes it on the shared database. The app has no
+// way back to an unfinished book: only a fresh seed has one, so a second run on the same
+// database cannot reach that state through the UI. The human approved this exception for
+// these two tests (2026-11-19). Before each of them a superuser client (superuser-seed.ts)
+// sets the settings row's setup_completed and setup_started back to false; the wizard itself
+// is then driven through the UI. What this therefore does NOT cover: how a book becomes
+// unfinished, and any change of an unfinished book's other settings, since the reset writes
+// only the two setup markers.
+async function resetSetupToUnfinished() {
+    const pb = await superuserClient()
+    await pb
+        .collection('books_settings')
+        .update(SETTINGS_ROW_ID, { setup_completed: false, setup_started: false })
+}
+
 // These tests share the one books_settings row with the finishing flow below, so they run
 // before it. They never complete setup, and they put the business name back.
 test.describe('books-settings: setup wizard resume after a Settings save', () => {
+    test.beforeEach(resetSetupToUnfinished)
+
     test('a business name saved from Settings does not make the setup wizard resume at Part 3', async ({
         page,
     }) => {
@@ -934,10 +959,13 @@ test.describe('books-settings: setup wizard resume after a Settings save', () =>
 })
 
 // The e2e database is shared and finishing completes setup, so the whole flow is one
-// test that mutates it once. The seeded book already has accounts and the seed has no
-// non-admin Books user or empty book, so the fresh-chart, creating, error and
-// non-admin parts are covered by the hook tests, not here.
+// test that mutates it once; resetSetupToUnfinished gives each run an unfinished book. The
+// seeded book already has accounts and the seed has no non-admin Books user or empty book,
+// so the fresh-chart, creating, error and non-admin parts are covered by the hook tests,
+// not here.
 test.describe('books-settings: setup wizard flow', () => {
+    test.beforeEach(resetSetupToUnfinished)
+
     test('walks Business, Ownership and the populated-book notice, then finishes', async ({
         page,
     }) => {
