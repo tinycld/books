@@ -248,6 +248,7 @@
 - gate 2 capture run 3 (driver, `--skip-export` right after, same tree, `cp/cp5-capture-3.log`): 22 passed; the 20 PNGs in `evidence/cp5/` written again. Fresh critic on the 4 `sales-tax-liability-refund-*` shots (were INVALID) and the 2 `sales-lists-refund-receipts-390-*` shots (fixed), with the merged anchors `credit-memo-form-evidence/cp5/sales-tax-liability-*` and `sales-lists-evidence/cp2/all-phone-390-*` (`evidence/cp5/critique-r2.md`).
 - gate 2 r2 (critic, `evidence/cp5/critique-r2.md`): invalid shots: none (the 4 tax shots show the expanded Denver city rows) · blocking: none (the 390 card amount is on one line) · notes: 1 (390 tab strip does not show the active tab), listed under Design notes; its "For gate 3" item is the same point, after the round cap, to Design notes. Fix-review rounds: 2; nothing else open after round 2.
 - biome: `biome check .` in the package clean (1731 files, `cp/cp5-biome-final.log`); staged files checked right before the commit.
+- commit: 11b21274
 - human: review mode C, no message
 
 ## Final review
