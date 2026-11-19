@@ -3,11 +3,12 @@ import {
     emptyTexts,
     kindLabel,
     type ListKind,
+    listControls,
     listDocumentHref,
-    tableMinWidth,
+    tableMinWidthFor,
     tabStateKey,
 } from '../tinycld/books/lib/document-list'
-import { LIST_AREAS } from '../tinycld/books/lib/list-areas'
+import { areaOf, LIST_AREAS } from '../tinycld/books/lib/list-areas'
 import { NEW_ACTIONS } from '../tinycld/books/lib/new-actions'
 import {
     PURCHASE_NEW_ITEMS,
@@ -164,13 +165,37 @@ describe('PURCHASE_NEW_ITEMS', () => {
     })
 })
 
-describe('tableMinWidth of the purchase tabs', () => {
+describe('tableMinWidthFor of the purchase tabs', () => {
+    // The reference minimums, with a tick box and a row menu on each row (checkpoint 4).
     it.each(
         EXPECTED_TABS
-    )('$label is $writerMinWidth for a writer and 28 less for a reader', expected => {
+    )('$label is $writerMinWidth with row actions for a writer and 28 less for a reader', expected => {
         const tab = purchaseTabOf(expected.key)
-        expect(tableMinWidth(tab, true)).toBe(expected.writerMinWidth)
-        expect(tableMinWidth(tab, false)).toBe(expected.writerMinWidth - 28)
+        expect(tableMinWidthFor(tab, { showTicks: true, showRowMenus: true })).toBe(
+            expected.writerMinWidth
+        )
+        expect(tableMinWidthFor(tab, { showTicks: false, showRowMenus: true })).toBe(
+            expected.writerMinWidth - 28
+        )
+    })
+
+    // Today `hasRowActions` is false for Expenses, so `listControls` draws no tick box and
+    // no row menu: a reader's left pad starts each row and no 44 px menu cell ends it.
+    it.each(
+        EXPECTED_TABS
+    )('$label is 72 less than $writerMinWidth today, for a writer and a reader', expected => {
+        const tab = purchaseTabOf(expected.key)
+        for (const canWrite of [true, false]) {
+            expect(
+                tableMinWidthFor(tab, listControls(canWrite, 'table', areaOf(tab))),
+                String(canWrite)
+            ).toBe(expected.writerMinWidth - 72)
+        }
+    })
+
+    it('is 840 for an All purchases writer today', () => {
+        const tab = purchaseTabOf('all')
+        expect(tableMinWidthFor(tab, listControls(true, 'table', areaOf(tab)))).toBe(840)
     })
 })
 

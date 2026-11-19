@@ -3,6 +3,7 @@
 
 import type { DocumentListTab, ListChip, ListColumnKey, ListSortKey } from './document-list'
 import { BASE_SORT_KEYS, listChips as chips } from './list-chips'
+import { areaTabOf } from './list-tabs'
 import { NEW_ACTIONS } from './new-actions'
 import type { TransactionFilter, TransactionKind } from './party-transactions'
 
@@ -123,7 +124,7 @@ export const SALES_TABS: readonly DocumentListTab[] = [
 
 // An unknown key gives All sales.
 export function salesTabOf(key: string): DocumentListTab {
-    return SALES_TABS.find(tab => tab.key === key) ?? ALL_SALES_TAB
+    return areaTabOf({ tabs: SALES_TABS }, key)
 }
 
 export function salesTabForKind(kind: TransactionKind): DocumentListTab {

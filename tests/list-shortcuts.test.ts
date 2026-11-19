@@ -1,9 +1,12 @@
 import type { Shortcut } from '@tinycld/core/lib/shortcuts/types'
 import { describe, expect, it, type Mock, vi } from 'vitest'
+import { listControls } from '../tinycld/books/lib/document-list'
+import { LIST_AREAS } from '../tinycld/books/lib/list-areas'
 import {
     LIST_KEY_LABELS,
     LIST_KEYS,
     type ListKeyAction,
+    listShortcutInput,
     listShortcuts,
     movedFocus,
     offeredListKeys,
@@ -83,7 +86,9 @@ describe('LIST_KEYS', () => {
         }
     })
 
-    it('labels each action with its ⇧? text', () => {
+    // A tab key's text is its area's tab label only (fix round 1): the shared labels name
+    // no tab, so no Sales tab name can stand in for a purchase tab.
+    it('labels each action but the tab keys with its ⇧? text', () => {
         expect(LIST_KEY_LABELS).toEqual({
             search: 'Search',
             next: 'Next row',
@@ -92,12 +97,6 @@ describe('LIST_KEYS', () => {
             tick: 'Select',
             tickAll: 'Select all',
             new: 'New',
-            tab1: 'All sales',
-            tab2: 'Invoices',
-            tab3: 'Estimates',
-            tab4: 'Sales receipts',
-            tab5: 'Payments',
-            tab6: 'Credit memos',
         })
     })
 })
@@ -142,6 +141,143 @@ describe('offeredListKeys', () => {
     })
 })
 
+// What `useListShortcuts` passes for an area (the hook appends its instance segment to the
+// id prefix): its group, the labels of its tabs and the id prefix `books.<area key>.list`.
+describe('listShortcutInput', () => {
+    it('gives Expenses the group Expenses, the purchase tab labels and books.purchases.list', () => {
+        expect(listShortcutInput(LIST_AREAS.purchases)).toEqual({
+            idPrefix: 'books.purchases.list',
+            group: 'Expenses',
+            tabLabels: [
+                'All purchases',
+                'Bills',
+                'Expenses',
+                'Bill payments',
+                'Vendor credits',
+                'Vendor refunds',
+            ],
+        })
+    })
+
+    it('gives Sales the group Sales, the sales tab labels and books.sales.list', () => {
+        expect(listShortcutInput(LIST_AREAS.sales)).toEqual({
+            idPrefix: 'books.sales.list',
+            group: 'Sales',
+            tabLabels: [
+                'All sales',
+                'Invoices',
+                'Estimates',
+                'Sales receipts',
+                'Payments',
+                'Credit memos',
+            ],
+        })
+    })
+})
+
+// The Sales group and tab labels, for the tests of `listShortcuts` itself.
+const SALES_INPUT = {
+    group: LIST_AREAS.sales.shortcutGroup,
+    tabLabels: LIST_AREAS.sales.tabs.map(tab => tab.label),
+}
+
+describe('listShortcuts per list area', () => {
+    const TAB_KEYS = ['1', '2', '3', '4', '5', '6']
+
+    it('builds the purchases keys in the group Expenses with the purchase tab labels', () => {
+        const shortcuts = listShortcuts({
+            ...listShortcutInput(LIST_AREAS.purchases),
+            offered: offeredListKeys(WRITER),
+            run: handlers(),
+            isBeside: false,
+        })
+        expect(TAB_KEYS.map(key => byKeys(shortcuts, key).description)).toEqual([
+            'All purchases',
+            'Bills',
+            'Expenses',
+            'Bill payments',
+            'Vendor credits',
+            'Vendor refunds',
+        ])
+        for (const s of shortcuts) {
+            expect(s.group, s.keys).toBe('Expenses')
+            expect(s.id.startsWith('books.purchases.list.'), s.id).toBe(true)
+        }
+    })
+
+    it('builds the sales keys in the group Sales with the sales tab labels, as before', () => {
+        const shortcuts = listShortcuts({
+            ...listShortcutInput(LIST_AREAS.sales),
+            offered: offeredListKeys(WRITER),
+            run: handlers(),
+            isBeside: false,
+        })
+        expect(TAB_KEYS.map(key => byKeys(shortcuts, key).description)).toEqual([
+            'All sales',
+            'Invoices',
+            'Estimates',
+            'Sales receipts',
+            'Payments',
+            'Credit memos',
+        ])
+        for (const s of shortcuts) {
+            expect(s.group, s.keys).toBe('Sales')
+            expect(s.id.startsWith('books.sales.list.'), s.id).toBe(true)
+        }
+    })
+
+    // The tick keys follow the tick boxes and New follows the New button, which
+    // `listControls` gives per area.
+    it.each([
+        ['sales', LIST_AREAS.sales],
+        ['purchases', LIST_AREAS.purchases],
+    ] as const)('offers a %s reader no tick keys and no New, and a writer New', (_key, area) => {
+        const writer = listControls(true, 'table', area)
+        const reader = listControls(false, 'table', area)
+        const writerKeys = offeredListKeys({ ...WRITER, ...writer })
+        const readerKeys = offeredListKeys({ ...WRITER, ...reader })
+        expect(readerKeys).not.toContain('tick')
+        expect(readerKeys).not.toContain('tickAll')
+        expect(readerKeys).not.toContain('new')
+        expect(writerKeys).toContain('new')
+    })
+
+    // The tab keys are capped at the tab count, so each offered tab key has its own label.
+    it('labels the tab keys with the given tab labels only, one key per tab', () => {
+        const shortcuts = listShortcuts({
+            idPrefix: 'books.test.list',
+            group: 'Test',
+            tabLabels: ['First tab', 'Second tab'],
+            offered: offeredListKeys({ ...WRITER, tabCount: 2 }),
+            run: handlers(),
+            isBeside: false,
+        })
+        expect(byKeys(shortcuts, '1').description).toBe('First tab')
+        expect(byKeys(shortcuts, '2').description).toBe('Second tab')
+        for (const key of ['3', '4', '5', '6']) {
+            expect(
+                shortcuts.map(s => s.keys),
+                key
+            ).not.toContain(key)
+        }
+    })
+
+    it('offers a purchases writer on the table no tick keys and a sales writer both', () => {
+        const purchases = offeredListKeys({
+            ...WRITER,
+            ...listControls(true, 'table', LIST_AREAS.purchases),
+        })
+        expect(purchases).not.toContain('tick')
+        expect(purchases).not.toContain('tickAll')
+        const sales = offeredListKeys({
+            ...WRITER,
+            ...listControls(true, 'table', LIST_AREAS.sales),
+        })
+        expect(sales).toContain('tick')
+        expect(sales).toContain('tickAll')
+    })
+})
+
 describe('listShortcuts', () => {
     const PREFIX = 'books.sales.list.invoices'
 
@@ -149,19 +285,33 @@ describe('listShortcuts', () => {
         const offered = offeredListKeys(WRITER)
         const shortcuts = listShortcuts({
             idPrefix: PREFIX,
+            group: SALES_INPUT.group,
+            tabLabels: SALES_INPUT.tabLabels,
             offered,
             run: handlers(),
             isBeside: false,
         })
         const expectedKeys = offered.flatMap(action => [...LIST_KEYS[action]])
         expect(sorted(shortcuts.map(s => s.keys))).toEqual(sorted(expectedKeys))
-        for (const action of offered) {
-            for (const key of LIST_KEYS[action]) {
-                const shortcut = byKeys(shortcuts, key)
-                expect(shortcut.description, key).toBe(LIST_KEY_LABELS[action])
-                expect(shortcut.description.length, key).toBeGreaterThan(0)
-            }
-        }
+        expect(Object.fromEntries(shortcuts.map(s => [s.keys, s.description]))).toEqual({
+            '/': 'Search',
+            j: 'Next row',
+            ArrowDown: 'Next row',
+            k: 'Previous row',
+            ArrowUp: 'Previous row',
+            Enter: 'Open',
+            o: 'Open',
+            x: 'Select',
+            Space: 'Select',
+            a: 'Select all',
+            n: 'New',
+            '1': 'All sales',
+            '2': 'Invoices',
+            '3': 'Estimates',
+            '4': 'Sales receipts',
+            '5': 'Payments',
+            '6': 'Credit memos',
+        })
         for (const s of shortcuts) {
             expect(s.scope, s.keys).toBe('list')
             expect(s.group, s.keys).toBe('Sales')
@@ -174,6 +324,8 @@ describe('listShortcuts', () => {
     it('builds no shortcut for an action that is not offered', () => {
         const shortcuts = listShortcuts({
             idPrefix: PREFIX,
+            group: SALES_INPUT.group,
+            tabLabels: SALES_INPUT.tabLabels,
             offered: offeredListKeys(READER),
             run: handlers(),
             isBeside: false,
@@ -183,23 +335,30 @@ describe('listShortcuts', () => {
             expect(keys, key).not.toContain(key)
         }
         expect(
-            listShortcuts({ idPrefix: PREFIX, offered: [], run: handlers(), isBeside: false })
+            listShortcuts({
+                idPrefix: PREFIX,
+                group: SALES_INPUT.group,
+                tabLabels: SALES_INPUT.tabLabels,
+                offered: [],
+                run: handlers(),
+                isBeside: false,
+            })
         ).toEqual([])
     })
 
     it('registers j and ArrowDown for next and k and ArrowUp for previous on the list', () => {
         const shortcuts = listShortcuts({
             idPrefix: PREFIX,
+            group: SALES_INPUT.group,
+            tabLabels: SALES_INPUT.tabLabels,
             offered: offeredListKeys(WRITER),
             run: handlers(),
             isBeside: false,
         })
-        const keysOf = (action: ListKeyAction) =>
-            sorted(
-                shortcuts.filter(s => s.description === LIST_KEY_LABELS[action]).map(s => s.keys)
-            )
-        expect(keysOf('next')).toEqual(sorted(['j', 'ArrowDown']))
-        expect(keysOf('previous')).toEqual(sorted(['k', 'ArrowUp']))
+        const keysOf = (description: string) =>
+            sorted(shortcuts.filter(s => s.description === description).map(s => s.keys))
+        expect(keysOf('Next row')).toEqual(sorted(['j', 'ArrowDown']))
+        expect(keysOf('Previous row')).toEqual(sorted(['k', 'ArrowUp']))
     })
 
     // Beside an open document the document owns J (View journal entry), so the column
@@ -208,6 +367,8 @@ describe('listShortcuts', () => {
         const run = handlers()
         const shortcuts = listShortcuts({
             idPrefix: PREFIX,
+            group: SALES_INPUT.group,
+            tabLabels: SALES_INPUT.tabLabels,
             offered: offeredListKeys(COLUMN),
             run,
             isBeside: true,
@@ -238,6 +399,8 @@ describe('listShortcuts', () => {
         const run = handlers()
         const shortcuts = listShortcuts({
             idPrefix: PREFIX,
+            group: SALES_INPUT.group,
+            tabLabels: SALES_INPUT.tabLabels,
             offered: ALL_ACTIONS,
             run,
             isBeside: false,

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import type { DocumentListRow, DocumentListTab } from '../../lib/document-list'
 import { cardLines, listCardHeight } from '../../lib/document-list-cells'
+import { areaOf } from '../../lib/list-areas'
 import { ListCards } from '../ListCards'
 import { StatusBadge } from '../StatusBadge'
 import { FocusBar, ROW_ON_FOCUS, ROW_TAB_INDEX, rowBackground } from './DocumentListTable'
@@ -45,6 +46,7 @@ function keyOfRow(row: DocumentListRow): string {
 interface CardProps {
     row: DocumentListRow
     tab: DocumentListTab
+    testIdPrefix: string
     currency: string
     height: number
     onOpen(row: DocumentListRow): void
@@ -59,6 +61,7 @@ interface CardProps {
 function Card({
     row,
     tab,
+    testIdPrefix,
     currency,
     height,
     onOpen,
@@ -79,7 +82,7 @@ function Card({
         <View className={cardClass} style={style}>
             <EdgeCell>{lead}</EdgeCell>
             <Pressable
-                testID={`sales-row-${row.id}`}
+                testID={`${testIdPrefix}-row-${row.id}`}
                 accessibilityRole="button"
                 aria-current={current}
                 tabIndex={ROW_TAB_INDEX}
@@ -99,7 +102,7 @@ function Card({
                         {detail}
                     </Text>
                     <StatusBadge
-                        testID={`sales-status-${row.id}`}
+                        testID={`${testIdPrefix}-status-${row.id}`}
                         label={row.status.label}
                         tone={row.status.tone}
                     />
@@ -111,8 +114,8 @@ function Card({
     )
 }
 
-// A Sales list as cards, below the table's own minimum width: each card is its document's
-// open button, drawn at `listCardHeight`.
+// A document list as cards, below the table's own minimum width: each card is its
+// document's open button, drawn at `listCardHeight`. Test ids start with the area prefix.
 export function DocumentListCards({
     tab,
     rows,
@@ -125,10 +128,12 @@ export function DocumentListCards({
     focusedId = '',
     scrollToIndex,
 }: DocumentListCardsProps) {
+    const prefix = areaOf(tab).testIdPrefix
     const renderCard = (row: DocumentListRow, height: number) => (
         <Card
             row={row}
             tab={tab}
+            testIdPrefix={prefix}
             currency={currency}
             height={height}
             onOpen={onOpen}
@@ -140,7 +145,7 @@ export function DocumentListCards({
     )
     return (
         <ListCards
-            testID="sales-cards"
+            testID={`${prefix}-cards`}
             rows={rows}
             heightOf={listCardHeight}
             keyOf={keyOfRow}

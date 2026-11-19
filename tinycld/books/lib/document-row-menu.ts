@@ -103,9 +103,9 @@ export function documentRowMenuItems(row: DocumentListRow, canWrite: boolean): R
     return ['open', ...offered.filter(isRowMenuAction)]
 }
 
-// The menu row's test id: `sales-row-action-<action>`, with dashes.
-export function rowActionTestId(action: RowMenuAction): string {
-    return `sales-row-action-${action.replaceAll('_', '-')}`
+// The menu row's test id: `<area prefix>-row-action-<action>`, with dashes.
+export function rowActionTestId(prefix: string, action: RowMenuAction): string {
+    return `${prefix}-row-action-${action.replaceAll('_', '-')}`
 }
 
 // The route a navigating action pushes (without the org prefix); null for the actions that

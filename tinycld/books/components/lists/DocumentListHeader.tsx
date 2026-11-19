@@ -5,37 +5,59 @@ import { ChevronDown } from 'lucide-react-native'
 import { Text, View } from 'react-native'
 import type { DocumentListScreenState } from '../../hooks/useDocumentListScreen'
 import type { DocumentListTab } from '../../lib/document-list'
-import { SALES_NEW_ITEMS, SALES_TABS } from '../../lib/sales-lists'
+import { areaOf, type ListArea } from '../../lib/list-areas'
 import { ListTabs } from '../ListTabs'
 
 type HeaderScreen = Pick<DocumentListScreenState, 'controls' | 'newMenu' | 'openNew' | 'goToTab'>
 
-type NewItem = (typeof SALES_NEW_ITEMS)[number]
+type NewItem = ListArea['newItems'][number]
+
+interface NewProps {
+    tab: DocumentListTab
+    area: ListArea
+    screen: HeaderScreen
+}
 
 const NEW_BUTTON_STYLE = { minHeight: 36 }
 
-// The five kinds of the All sales New menu; built only while the menu is open, because
-// core Sheet keeps its content in the page while it slides out.
-function NewMenuItem({ item, screen }: { item: NewItem; screen: HeaderScreen }) {
+// One kind of the All tab's New menu; built only while the menu is open, because core
+// Sheet keeps its content in the page while it slides out.
+function NewMenuItem({
+    item,
+    area,
+    screen,
+}: {
+    item: NewItem
+    area: ListArea
+    screen: HeaderScreen
+}) {
     const select = () => screen.openNew(item.kind)
-    const testID = `sales-new-${item.kind.replaceAll('_', '-')}`
+    const testID = `${area.testIdPrefix}-new-${item.idSuffix}`
     return <Menu.Item testID={testID} label={item.label} onSelect={select} />
 }
 
-function NewMenuItems({ isOpen, screen }: { isOpen: boolean; screen: HeaderScreen }) {
+function NewMenuItems({
+    isOpen,
+    area,
+    screen,
+}: {
+    isOpen: boolean
+    area: ListArea
+    screen: HeaderScreen
+}) {
     if (!isOpen) return null
-    const items = SALES_NEW_ITEMS.map(item => (
-        <NewMenuItem key={item.kind} item={item} screen={screen} />
+    const items = area.newItems.map(item => (
+        <NewMenuItem key={item.kind} item={item} area={area} screen={screen} />
     ))
     return <>{items}</>
 }
 
-function NewMenu({ tab, screen }: { tab: DocumentListTab; screen: HeaderScreen }) {
+function NewMenu({ tab, area, screen }: NewProps) {
     const color = useThemeColor('primary-foreground')
     const { isOpen, setOpen } = screen.newMenu
     // An element, not a component: the menu clones it with its press handler and ref.
     const trigger = (
-        <Button testID="sales-new" size="sm" style={NEW_BUTTON_STYLE}>
+        <Button testID={`${area.testIdPrefix}-new`} size="sm" style={NEW_BUTTON_STYLE}>
             <ButtonText>{tab.newLabel}</ButtonText>
             <ChevronDown size={14} color={color} />
         </Button>
@@ -49,24 +71,30 @@ function NewMenu({ tab, screen }: { tab: DocumentListTab; screen: HeaderScreen }
             onOpenChange={setOpen}
             trigger={trigger}
         >
-            <NewMenuItems isOpen={isOpen} screen={screen} />
+            <NewMenuItems isOpen={isOpen} area={area} screen={screen} />
         </Menu>
     )
 }
 
-// A kind tab's New opens its `new` route; All sales' New is a menu of the five kinds.
-function NewAction({ tab, screen }: { tab: DocumentListTab; screen: HeaderScreen }) {
+// A kind tab's New opens its `new` route; the All tab's New is a menu of the area's New
+// items.
+function NewAction({ tab, area, screen }: NewProps) {
     if (!screen.controls.showNew) return null
-    if (tab.newHref === null) return <NewMenu tab={tab} screen={screen} />
+    if (tab.newHref === null) return <NewMenu tab={tab} area={area} screen={screen} />
     const press = () => screen.openNew()
     return (
-        <Button testID="sales-new" size="sm" style={NEW_BUTTON_STYLE} onPress={press}>
+        <Button
+            testID={`${area.testIdPrefix}-new`}
+            size="sm"
+            style={NEW_BUTTON_STYLE}
+            onPress={press}
+        >
             <ButtonText>{tab.newLabel}</ButtonText>
         </Button>
     )
 }
 
-// The Sales title with the tab's New action, then the tab strip.
+// The area's title with the tab's New action, then the area's tab strip.
 export function DocumentListHeader({
     tab,
     screen,
@@ -74,18 +102,22 @@ export function DocumentListHeader({
     tab: DocumentListTab
     screen: HeaderScreen
 }) {
+    const area = areaOf(tab)
     return (
         <>
             <View className="flex-row items-center justify-between gap-3 px-4 pb-3 pt-4">
-                <Text testID="sales-title" className="text-2xl font-semibold text-foreground">
-                    Sales
+                <Text
+                    testID={`${area.testIdPrefix}-title`}
+                    className="text-2xl font-semibold text-foreground"
+                >
+                    {area.title}
                 </Text>
-                <NewAction tab={tab} screen={screen} />
+                <NewAction tab={tab} area={area} screen={screen} />
             </View>
             <ListTabs
-                tabs={SALES_TABS}
+                tabs={area.tabs}
                 selected={tab.key}
-                testIdPrefix="sales"
+                testIdPrefix={area.testIdPrefix}
                 onSelect={screen.goToTab}
             />
         </>

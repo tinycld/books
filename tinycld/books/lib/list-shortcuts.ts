@@ -1,8 +1,10 @@
 import type { Shortcut } from '@tinycld/core/lib/shortcuts'
+import type { ListArea } from './list-areas'
 
-// The keys of a Sales list tab (spec docs/specs/sales-lists-design.md §3 "Keyboard"). Pure,
-// so the key map, which keys are offered and the shortcuts core registers are unit-tested.
-// The pattern is lib/review-shortcuts.ts.
+// The keys of a document list tab (spec docs/specs/sales-lists-design.md §3 "Keyboard";
+// docs/specs/purchase-lists-design.md for the Expenses area). Pure, so the key map, which
+// keys are offered and the shortcuts core registers are unit-tested. The pattern is
+// lib/review-shortcuts.ts.
 
 export type ListKeyAction =
     | 'search'
@@ -37,8 +39,13 @@ export const LIST_KEYS: Record<ListKeyAction, readonly string[]> = {
     tab6: ['6'],
 }
 
-// The ⇧? text of each action.
-export const LIST_KEY_LABELS: Record<ListKeyAction, string> = {
+const TAB_ACTIONS = ['tab1', 'tab2', 'tab3', 'tab4', 'tab5', 'tab6'] as const
+
+type TabKeyAction = (typeof TAB_ACTIONS)[number]
+
+// The ⇧? text of each action but the tab keys: a tab key reads its tab's label from the
+// list area (`listShortcuts`' `tabLabels`).
+export const LIST_KEY_LABELS: Record<Exclude<ListKeyAction, TabKeyAction>, string> = {
     search: 'Search',
     next: 'Next row',
     previous: 'Previous row',
@@ -46,19 +53,34 @@ export const LIST_KEY_LABELS: Record<ListKeyAction, string> = {
     tick: 'Select',
     tickAll: 'Select all',
     new: 'New',
-    tab1: 'All sales',
-    tab2: 'Invoices',
-    tab3: 'Estimates',
-    tab4: 'Sales receipts',
-    tab5: 'Payments',
-    tab6: 'Credit memos',
 }
 
 const LIST_ACTIONS = Object.keys(LIST_KEYS) as ListKeyAction[]
 
-const TAB_ACTIONS: readonly ListKeyAction[] = ['tab1', 'tab2', 'tab3', 'tab4', 'tab5', 'tab6']
+function isTabAction(action: ListKeyAction): action is TabKeyAction {
+    return (TAB_ACTIONS as readonly ListKeyAction[]).includes(action)
+}
 
-const GROUP = 'Sales'
+// The ⇧? text of an action. Offered tab keys are capped at the tab count
+// (`offeredListKeys`), so each has its label.
+function labelOf(action: ListKeyAction, tabLabels: readonly string[]): string {
+    if (!isTabAction(action)) return LIST_KEY_LABELS[action]
+    return tabLabels[TAB_ACTIONS.indexOf(action)]
+}
+
+// The `listShortcuts` input of a list area: its id prefix, ⇧? group and tab labels, in
+// order. `useListShortcuts` appends its instance to the prefix.
+export function listShortcutInput(area: ListArea): {
+    idPrefix: string
+    group: string
+    tabLabels: string[]
+} {
+    return {
+        idPrefix: `books.${area.key}.list`,
+        group: area.shortcutGroup,
+        tabLabels: area.tabs.map(tab => tab.label),
+    }
+}
 
 // Beside a document, the row moves keep only their arrow keys.
 const BESIDE_KEYS: Partial<Record<ListKeyAction, readonly string[]>> = {
@@ -116,24 +138,28 @@ export function offeredListKeys(state: ListKeyState): ListKeyAction[] {
 //   the document's `compose` scope, and on a key both own the document wins. The read
 //   view owns J (View journal entry), so there next and previous are the arrow keys only,
 //   which keeps the pair together.
+//
 // One shortcut per key of each offered action, because core's ⇧? list shows every
-// registered key of the scope.
+// registered key of the scope. `group` is the ⇧? group of the list area (its
+// `shortcutGroup`) and `tabLabels` the labels of its tabs, in order.
 export function listShortcuts(input: {
     idPrefix: string
+    group: string
+    tabLabels: readonly string[]
     offered: readonly ListKeyAction[]
     run: Record<ListKeyAction, () => void>
     isBeside: boolean
     // Read at press time; a key runs only while it is true.
     when?: () => boolean
 }): Shortcut[] {
-    const { idPrefix, offered, run, isBeside, when } = input
+    const { idPrefix, group, tabLabels, offered, run, isBeside, when } = input
     return LIST_ACTIONS.filter(action => offered.includes(action)).flatMap(action =>
         keysOf(action, isBeside).map(key => ({
             id: `${idPrefix}.${action}.${key}`,
             keys: key,
             scope: 'list' as const,
-            description: LIST_KEY_LABELS[action],
-            group: GROUP,
+            description: labelOf(action, tabLabels),
+            group,
             when,
             run: () => run[action](),
         }))

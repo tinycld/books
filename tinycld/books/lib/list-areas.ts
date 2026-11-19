@@ -7,6 +7,8 @@ import type { DocumentListTab, ListKind } from './document-list'
 import { PURCHASE_NEW_ITEMS, PURCHASE_TABS } from './purchase-lists'
 import { SALES_NEW_ITEMS, SALES_TABS } from './sales-lists'
 
+export { areaTabOf } from './list-tabs'
+
 export type ListAreaKey = 'sales' | 'purchases'
 
 export type ListArea = {
@@ -21,10 +23,17 @@ export type ListArea = {
         label: 'Customer' | 'Vendor'
         allLabel: 'All customers' | 'All vendors'
         collection: 'books_customers' | 'books_vendors'
+        // The party filter's texts (`DocumentPartyFilter`).
+        searchPlaceholder: string
+        emptyText: string
+        loadErrorText: string
+        notFoundText: string
     }
     texts: { loadError: string; searchPlaceholder: string }
     shortcutGroup: 'Sales' | 'Expenses'
     logContext: 'books.sales-lists' | 'books.purchase-lists'
+    // The list offers tick boxes, Batch actions and row menus (`listControls`).
+    hasRowActions: boolean
 }
 
 export const LIST_AREAS: Record<ListAreaKey, ListArea> = {
@@ -43,6 +52,10 @@ export const LIST_AREAS: Record<ListAreaKey, ListArea> = {
             label: 'Customer',
             allLabel: 'All customers',
             collection: 'books_customers',
+            searchPlaceholder: 'Search customers',
+            emptyText: 'No customers match',
+            loadErrorText: 'Customer could not load',
+            notFoundText: 'Customer not found',
         },
         texts: {
             loadError: 'Sales transactions could not load.',
@@ -50,6 +63,7 @@ export const LIST_AREAS: Record<ListAreaKey, ListArea> = {
         },
         shortcutGroup: 'Sales',
         logContext: 'books.sales-lists',
+        hasRowActions: true,
     },
     purchases: {
         key: 'purchases',
@@ -62,6 +76,10 @@ export const LIST_AREAS: Record<ListAreaKey, ListArea> = {
             label: 'Vendor',
             allLabel: 'All vendors',
             collection: 'books_vendors',
+            searchPlaceholder: 'Search vendors',
+            emptyText: 'No vendors match',
+            loadErrorText: 'Vendor could not load',
+            notFoundText: 'Vendor not found',
         },
         texts: {
             loadError: 'Purchase transactions could not load.',
@@ -69,6 +87,8 @@ export const LIST_AREAS: Record<ListAreaKey, ListArea> = {
         },
         shortcutGroup: 'Expenses',
         logContext: 'books.purchase-lists',
+        // Off until purchase-lists checkpoint 4 adds the purchase row actions.
+        hasRowActions: false,
     },
 }
 

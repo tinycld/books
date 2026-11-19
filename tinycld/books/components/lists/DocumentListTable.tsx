@@ -8,10 +8,10 @@ import {
     type ListColumnKey,
     type ListSort,
     type ListSortKey,
-    tableMinWidth,
 } from '../../lib/document-list'
 import { cellText, columnStyle, LIST_ROW_HEIGHT } from '../../lib/document-list-cells'
 import { ariaSortOf } from '../../lib/document-list-menus'
+import { areaOf } from '../../lib/list-areas'
 import { PARTY_ROW_CLASS } from '../../lib/party-list'
 import { ListHeaderCell, ListHeaderRow, ListSortHeaderCell, ListTable } from '../ListTable'
 import { StatusBadge } from '../StatusBadge'
@@ -20,7 +20,8 @@ interface DocumentListTableProps {
     tab: DocumentListTab
     rows: readonly DocumentListRow[]
     currency: string
-    canWrite: boolean
+    // The table's own minimum width with the edge cells it draws (`tableMinWidthFor`).
+    minWidth: number
     sort: ListSort
     // A press on a sortable header (the screen's `toggleSort`).
     onSort(key: ListSortKey): void
@@ -100,23 +101,25 @@ function keyOfRow(row: DocumentListRow): string {
 
 interface HeaderCellProps {
     tab: DocumentListTab
+    testIdPrefix: string
     column: ListColumnKey
     sort: ListSort
     onSort(key: ListSortKey): void
 }
 
-// A column sorts when the tab offers its sort key; Type, Customer, Memo, Reference no.
-// and Status never do.
-function HeaderCell({ tab, column, sort, onSort }: HeaderCellProps) {
+// A column sorts when the tab offers its sort key; Type, the party, Category, Memo,
+// Reference no. and Status never do.
+function HeaderCell({ tab, testIdPrefix, column, sort, onSort }: HeaderCellProps) {
     const label = columnLabel(tab, column)
     const style = columnStyle(column, tab.area)
     const align = LIST_COLUMNS[column].align ?? 'left'
     const sortKey = LIST_COLUMNS[column].sortKey
+    const testID = `${testIdPrefix}-header-${column}`
     if (sortKey !== undefined && tab.sortKeys.includes(sortKey)) {
         const press = () => onSort(sortKey)
         return (
             <ListSortHeaderCell
-                testID={`sales-header-${column}`}
+                testID={testID}
                 label={label}
                 style={style}
                 align={align}
@@ -125,30 +128,24 @@ function HeaderCell({ tab, column, sort, onSort }: HeaderCellProps) {
             />
         )
     }
-    return (
-        <ListHeaderCell
-            testID={`sales-header-${column}`}
-            label={label}
-            style={style}
-            align={align}
-        />
-    )
+    return <ListHeaderCell testID={testID} label={label} style={style} align={align} />
 }
 
 interface RowCellProps {
     row: DocumentListRow
     column: ListColumnKey
     tab: DocumentListTab
+    testIdPrefix: string
     currency: string
 }
 
-function RowCell({ row, column, tab, currency }: RowCellProps) {
+function RowCell({ row, column, tab, testIdPrefix, currency }: RowCellProps) {
     const style = columnStyle(column, tab.area)
     if (column === 'status') {
         return (
             <View className="min-w-0" style={style}>
                 <StatusBadge
-                    testID={`sales-status-${row.id}`}
+                    testID={`${testIdPrefix}-status-${row.id}`}
                     label={row.status.label}
                     tone={row.status.tone}
                 />
@@ -169,6 +166,7 @@ function RowCell({ row, column, tab, currency }: RowCellProps) {
 interface TableRowProps {
     row: DocumentListRow
     tab: DocumentListTab
+    testIdPrefix: string
     currency: string
     onOpen(row: DocumentListRow): void
     renderLead?(row: DocumentListRow): ReactNode
@@ -182,6 +180,7 @@ interface TableRowProps {
 function TableRow({
     row,
     tab,
+    testIdPrefix,
     currency,
     onOpen,
     renderLead,
@@ -193,7 +192,14 @@ function TableRow({
     const lead = renderLead?.(row)
     const trail = renderTrail?.(row)
     const cells = tab.columns.map(column => (
-        <RowCell key={column} row={row} column={column} tab={tab} currency={currency} />
+        <RowCell
+            key={column}
+            row={row}
+            column={column}
+            tab={tab}
+            testIdPrefix={testIdPrefix}
+            currency={currency}
+        />
     ))
     const rowClass = rowClassOf(renderLead !== undefined)
     const bg = rowBackground(isTicked, isFocused)
@@ -202,7 +208,7 @@ function TableRow({
         <View className={`${rowClass} border-b border-border ${bg}`} style={ROW_STYLE}>
             <EdgeCell>{lead}</EdgeCell>
             <Pressable
-                testID={`sales-row-${row.id}`}
+                testID={`${testIdPrefix}-row-${row.id}`}
                 accessibilityRole="button"
                 aria-current={current}
                 tabIndex={ROW_TAB_INDEX}
@@ -220,15 +226,16 @@ function TableRow({
 }
 
 /**
- * A Sales list as a table: one row per document, its columns flex with a minimum
+ * A document list as a table: one row per document, its columns flex with a minimum
  * (`columnStyle`, shared by the header and the rows). The screen draws cards below the
- * table's own minimum width, so the table never scrolls sideways.
+ * table's own minimum width, so the table never scrolls sideways. Test ids start with the
+ * tab's area prefix.
  */
 export function DocumentListTable({
     tab,
     rows,
     currency,
-    canWrite,
+    minWidth,
     sort,
     onSort,
     onOpen,
@@ -240,11 +247,19 @@ export function DocumentListTable({
     focusedId = '',
     scrollToIndex,
 }: DocumentListTableProps) {
+    const prefix = areaOf(tab).testIdPrefix
     const headerCells = tab.columns.map(column => (
-        <HeaderCell key={column} tab={tab} column={column} sort={sort} onSort={onSort} />
+        <HeaderCell
+            key={column}
+            tab={tab}
+            testIdPrefix={prefix}
+            column={column}
+            sort={sort}
+            onSort={onSort}
+        />
     ))
     const header = (
-        <ListHeaderRow testID="sales-header" rowClass={rowClassOf(renderLead !== undefined)}>
+        <ListHeaderRow testID={`${prefix}-header`} rowClass={rowClassOf(renderLead !== undefined)}>
             <EdgeCell>{headerLead}</EdgeCell>
             {headerCells}
             <TrailSpacer isVisible={renderTrail !== undefined} />
@@ -254,6 +269,7 @@ export function DocumentListTable({
         <TableRow
             row={row}
             tab={tab}
+            testIdPrefix={prefix}
             currency={currency}
             onOpen={onOpen}
             renderLead={renderLead}
@@ -262,10 +278,9 @@ export function DocumentListTable({
             isFocused={row.id === focusedId}
         />
     )
-    const minWidth = tableMinWidth(tab, canWrite)
     return (
         <ListTable
-            testID="sales-table"
+            testID={`${prefix}-table`}
             minWidth={minWidth}
             rowHeight={LIST_ROW_HEIGHT}
             header={header}
