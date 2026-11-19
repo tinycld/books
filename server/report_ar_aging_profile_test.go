@@ -14,13 +14,29 @@ import (
 // arProfileCTE finds the name of each CTE of a statement core wrote.
 var arProfileCTE = regexp.MustCompile(`(?m)^(?:WITH )?(\w+) AS (?:MATERIALIZED )?\(`)
 
+// TestARAgingProfileKeysRefusal: a key lookup that cannot find its row is an
+// error the profile records, not a fatal.
+func TestARAgingProfileKeysRefusal(t *testing.T) {
+	b := newARBook(t)
+	data := arDataset{busiest: "nobody", lastDay: arLastDay}
+	if err := arOpenKeysErr(t, b, &data); err == nil {
+		t.Fatal("arOpenKeysErr found a row for a customer that does not exist")
+	}
+}
+
+// arProfileMissingKeys is true for a run that opens a group whose key the
+// setup could not find.
+func arProfileMissingKeys(r arRun) bool {
+	return slices.ContainsFunc(r.opts.Expand, func(key []any) bool { return key == nil })
+}
+
 // arProfileExec runs r and returns its error. A run that passes core's time
 // limit at L is a result to record, not a reason to end the profile.
 func arProfileExec(t *testing.T, b arBook, r arRun) error {
 	t.Helper()
 	if r.export {
-		r.exec(t, b)
-		return nil
+		_, err := exportARCSVErr(t, b, b.reader, r.params)
+		return err
 	}
 	_, err := runARErr(t, b.app, b.reader, r.params, r.opts)
 	return err
@@ -97,7 +113,7 @@ func TestARAgingProfile(t *testing.T) {
 	}
 	b := newARBook(t)
 	arJournalPrefix(t, b)
-	data := writeARDataset(t, b, size)
+	data, keysErr := writeARDatasetKeys(t, b, size)
 	var summary, detail strings.Builder
 	fmt.Fprintf(&summary, "| run | wall (median of 5) | statements | SQL time | outside SQL |\n|---|---|---|---|---|\n")
 	for _, sql := range arProfileFloor {
@@ -105,21 +121,32 @@ func TestARAgingProfile(t *testing.T) {
 		fmt.Fprintf(&detail, "FLOOR %s  %s\n", d.Round(10*time.Microsecond), sql)
 	}
 	for _, run := range arRuns(b, data) {
+		if keysErr != nil && arProfileMissingKeys(run) {
+			fmt.Fprintf(&summary, "| %s FAILED: the setup found no group key: %v | n/a | n/a | n/a | n/a |\n", run.name, keysErr)
+			continue
+		}
 		failed := ""
-		if err := arProfileExec(t, b, run); err != nil {
+		started := time.Now()
+		err := arProfileExec(t, b, run)
+		walls := []time.Duration{time.Since(started)}
+		if err != nil {
 			failed = " FAILED: " + err.Error()
+		} else {
+			walls = make([]time.Duration, 5)
+			for i := range walls {
+				started := time.Now()
+				_ = arProfileExec(t, b, run)
+				walls[i] = time.Since(started)
+			}
+			slices.Sort(walls)
 		}
-		walls := make([]time.Duration, 5)
-		for i := range walls {
-			started := time.Now()
-			_ = arProfileExec(t, b, run)
-			walls[i] = time.Since(started)
-		}
-		slices.Sort(walls)
+		// A failed run has one wall, the time to core's refusal: five more would
+		// each wait out the limit again.
+		wall := walls[len(walls)/2]
 		statements := arProfileStatements(t, b, run)
 		steps := explainStatements(t, b.app, statements)
 		var sqlTime time.Duration
-		fmt.Fprintf(&detail, "\n######## RUN %s: wall %s, %d statements\n", run.name, walls[2].Round(time.Millisecond), len(statements))
+		fmt.Fprintf(&detail, "\n######## RUN %s: wall %s, %d statements\n", run.name, wall.Round(time.Millisecond), len(statements))
 		for i, s := range statements {
 			d, n := arProfileTime(t, b, s)
 			sqlTime += d
@@ -141,8 +168,14 @@ func TestARAgingProfile(t *testing.T) {
 				fmt.Fprintf(&detail, "CTE %-6s cumulative %s (%d rows)\n", m[1], d.Round(10*time.Microsecond), n)
 			}
 		}
-		fmt.Fprintf(&summary, "| %s%s | %s | %d | %s | %s |\n", run.name, failed, walls[2].Round(time.Millisecond), len(statements),
-			sqlTime.Round(time.Millisecond), (walls[2] - sqlTime).Round(time.Millisecond))
+		// The refusal comes before the statements finish, so the wall minus the SQL
+		// time of a failed run says nothing.
+		outside := (wall - sqlTime).Round(time.Millisecond).String()
+		if err != nil {
+			outside = "n/a"
+		}
+		fmt.Fprintf(&summary, "| %s%s | %s | %d | %s | %s |\n", run.name, failed, wall.Round(time.Millisecond), len(statements),
+			sqlTime.Round(time.Millisecond), outside)
 		// Written after each run: a later run that ends the test loses nothing.
 		if err := os.WriteFile(out, []byte(summary.String()+"\n"+detail.String()), 0o644); err != nil {
 			t.Fatal(err)

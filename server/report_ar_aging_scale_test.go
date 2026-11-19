@@ -184,6 +184,18 @@ func arClip(s string) string {
 // guards set the sort keys), every posted row by batched inserts.
 func writeARDataset(t testing.TB, b arBook, size arSize) arDataset {
 	t.Helper()
+	data, err := writeARDatasetKeys(t, b, size)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+// writeARDatasetKeys is writeARDataset for a caller that records a refused key
+// lookup (a run that passes core's time limit) instead of ending: the dataset
+// is written either way, and the error says why the keys are missing.
+func writeARDatasetKeys(t testing.TB, b arBook, size arSize) (arDataset, error) {
+	t.Helper()
 	data := arDataset{size: size, firstDay: arDay(0), midDay: arDay(arDayCount() / 2), lastDay: arLastDay}
 	err := b.app.RunInTransaction(func(tx core.App) error {
 		plan, busiestInvoice := size.plan, -1
@@ -203,14 +215,24 @@ func writeARDataset(t testing.TB, b arBook, size arSize) arDataset {
 		t.Fatalf("write the %s dataset: %v", size.name, err)
 	}
 	if data.busiest != "" {
-		arOpenKeys(t, b, &data)
+		return data, arOpenKeysErr(t, b, &data)
 	}
-	return data
+	return data, nil
 }
 
 // arReport runs arAgingSpec() as b's reader on the day data's last day, as
 // core's run endpoint does.
 func arReport(t testing.TB, b arBook, params map[string]any, opts reports.Options) *reports.Result {
+	t.Helper()
+	res, err := arReportErr(t, b, params, opts)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	return res
+}
+
+// arReportErr is arReport that returns core's refusal of the run.
+func arReportErr(t testing.TB, b arBook, params map[string]any, opts reports.Options) (*reports.Result, error) {
 	t.Helper()
 	spec, info, err := reports.Load(mustJSON(arAgingSpec()))
 	if err != nil {
@@ -224,10 +246,7 @@ func arReport(t testing.TB, b arBook, params map[string]any, opts reports.Option
 		Spec: spec, Loaded: info, Params: given, Options: opts, Auth: b.reader,
 		Headers: readerInfo(b.reader).Headers,
 	})
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	return res
+	return res, err
 }
 
 // arOpenKeys reads the group keys runs 5 and 6 open, as the view does: the
@@ -235,18 +254,35 @@ func arReport(t testing.TB, b arBook, params map[string]any, opts reports.Option
 // key from the run with that customer opened.
 func arOpenKeys(t testing.TB, b arBook, data *arDataset) {
 	t.Helper()
+	if err := arOpenKeysErr(t, b, data); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// arOpenKeysErr is arOpenKeys that returns what stopped it. A key it found
+// before the error stays in data.
+func arOpenKeysErr(t testing.TB, b arBook, data *arDataset) error {
+	t.Helper()
 	day := reports.Options{Today: data.lastDay}
-	row, ok := cbGroupRow(arReport(t, b, nil, day), 2, data.busiest)
+	res, err := arReportErr(t, b, nil, day)
+	if err != nil {
+		return fmt.Errorf("Run: %w", err)
+	}
+	row, ok := cbGroupRow(res, 2, data.busiest)
 	if !ok {
-		t.Fatalf("%s: the default run has no row for the busiest customer %s", data.size.name, data.busiest)
+		return fmt.Errorf("%s: the default run has no row for the busiest customer %s", data.size.name, data.busiest)
 	}
 	data.customerKey = row.GroupKey
-	opened := arReport(t, b, nil, reports.Options{Today: data.lastDay, Expand: [][]any{row.GroupKey}, Collapse: [][]any{}})
+	opened, err := arReportErr(t, b, nil, reports.Options{Today: data.lastDay, Expand: [][]any{row.GroupKey}, Collapse: [][]any{}})
+	if err != nil {
+		return fmt.Errorf("Run: %w", err)
+	}
 	item, ok := arItemRow(opened, data.busiestInvoice)
 	if !ok {
-		t.Fatalf("%s: the busiest customer opened has no item row for %s", data.size.name, data.busiestInvoice)
+		return fmt.Errorf("%s: the busiest customer opened has no item row for %s", data.size.name, data.busiestInvoice)
 	}
 	data.itemKey = item.GroupKey
+	return nil
 }
 
 // arWriteCustomers saves the customers: "Customer 00000" (plain, the busiest),
