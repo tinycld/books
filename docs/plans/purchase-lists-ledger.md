@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/purchase-lists-checkpoints.md
 - reference: docs/plans/purchase-lists-reference/
 - evidence: docs/plans/purchase-lists-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs 2026-11-19)
 - capture manifest: docs/plans/purchase-lists-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -52,6 +52,8 @@
 - cp 4 · fix review NOTE 1 · `lib/search-picker-keys.ts:15/21`: no unit case covers `typeToOpen = false` (`'a'` → `'none'`, Enter → `'open'`); only the keyboard e2e does. Fix offered: two rows in `tests/search-picker-keys.test.ts`.
 - cp 4 · fix review NOTE 2 · `components/lists/DocumentPartyFilter.tsx:137`: after a pick the focus stays on the vendor/customer trigger, where Enter, Space and ArrowDown open the picker, not the list's open / tick / row-move actions (J, K, O, X, `/`, N, 1–6 reach the list). Fix offered: move the focus to the list after a pick, if wanted.
 - cp 4 · fix review NOTE 3 · `components/lists/DocumentPartyFilter.tsx:137`: the Sales customer filter also loses type-to-open (a typed letter no longer opens it with that letter); no spec or help text names that behavior. Form pickers keep it.
+- integration merge a3aa855d · merge review NOTE 1 · `lib/list-row-menu.ts:53`: no unit case asserts `listVoidTexts` for a `refund_receipt` row with a `creditMemo` (the payout body the merge moved there); main had none for `voidBodyOf` either. Fix offered: two cases in `tests/list-row-menu.test.ts` (payout body; undefined for `creditMemo: ''`).
+- integration merge a3aa855d · merge review NOTE 2 · `hooks/useDocumentReadActions.ts:137`: a docblock line breaks early before "Download PDF"; reflow.
 
 ## Out-of-plan changes
 - cp 1 · `tinycld/books/lib/party-transactions.ts`: `mergeTransactions` `hasMore` fix (five lists of 24 rows showed 50 of 120 with `hasMore` false). A behavior change in a shared helper: Sales lists and the customer page read it too (the 35-file gate 1 regression run passed).
@@ -154,4 +156,4 @@
 - human: n/a (review mode C)
 
 ## Final review
-- eval:
+- eval: approved by the human 2026-11-19 (after the merge of origin/main a3aa855d; retro items 1–7 approved)
