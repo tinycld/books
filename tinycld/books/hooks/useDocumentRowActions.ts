@@ -17,6 +17,7 @@ import {
     type SalesDocumentKind,
 } from '../lib/sales-document-kinds'
 import { type RowDialog, useDocumentListStore } from '../stores/document-list-store'
+import { useWriteOffStore } from '../stores/write-off-store'
 import { useDeleteDraftDocument } from './useDeleteDraftDocument'
 import { usePdfDownload } from './usePdfDownload'
 import { useVoidDocument } from './useVoidDocument'
@@ -58,6 +59,8 @@ function isStillOffered(
 interface RowActionsInput {
     // The mounted list that opens the dialog: its dialog shows only on that list.
     listKey: string
+    // The `useId()` of the list screen, which mounts its one WriteOffDialog with it.
+    owner: string
     rows: readonly DocumentListRow[]
     canWrite: boolean
     // The list's open (`useDocumentListScreen().openRow`).
@@ -71,10 +74,19 @@ interface RowActionsInput {
  * server's PDF; Void and Delete draft open their confirm dialog over the list. A dialog's
  * write is the one the read view and the forms share (`useVoidDocument`,
  * `useDeleteDraftDocument`); a refusal closes the dialog and shows in the list's banner.
+ * Write off opens the write-off dialog over the list (`useWriteOffStore` with the list's
+ * `owner`); that dialog shows its own refusals and the list stays.
  */
-export function useDocumentRowActions({ listKey, rows, canWrite, openRow }: RowActionsInput) {
+export function useDocumentRowActions({
+    listKey,
+    owner,
+    rows,
+    canWrite,
+    openRow,
+}: RowActionsInput) {
     const orgHref = useOrgHref()
     const writes = useWritesAvailable()
+    const openWriteOff = useWriteOffStore(state => state.open)
     const setBanner = useDocumentListStore(state => state.setBanner)
     const stored = useDocumentListStore(state => state.rowDialog)
     const setRowDialog = useDocumentListStore(state => state.setRowDialog)
@@ -128,13 +140,20 @@ export function useDocumentRowActions({ listKey, rows, canWrite, openRow }: RowA
             openDialog(action, row)
             return
         }
+        if (action === 'write_off') {
+            setBanner(null)
+            openWriteOff(row.id, owner)
+            return
+        }
         const href = rowActionHref(row, action)
         if (href !== null) router.push(orgHref(href))
     }
-    // The menu rows that start a write wait for writes to be available and for a running
-    // write; Download PDF waits for its download.
+    // The menu rows that start a write (Void, Delete draft, Write off) wait for writes to be
+    // available and for a running write; Download PDF waits for its download.
     const isDisabled = (action: RowMenuAction) => {
-        if (action === 'void' || action === 'delete_draft') return isWriting || !writes.available
+        if (action === 'void' || action === 'delete_draft' || action === 'write_off') {
+            return isWriting || !writes.available
+        }
         if (action === 'pdf') return download.isPending
         return false
     }

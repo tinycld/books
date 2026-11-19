@@ -5,7 +5,8 @@ import type { TransactionKind } from '../lib/party-transactions'
 /**
  * Delete of a sales document, shared by the forms and the sales lists: the kind's
  * collection `delete(id)`, one request (the server deletes the lines, and a payment's
- * applications, with the row). Returns the pbtsdb transaction for a `useMutation`
+ * applications, with the row). A write-off is never a draft and is never deleted, so it
+ * throws: no menu offers it. Returns the pbtsdb transaction for a `useMutation`
  * generator to yield.
  */
 export function useDeleteDraftDocument(): (kind: TransactionKind, id: string) => Transaction {
@@ -31,6 +32,8 @@ export function useDeleteDraftDocument(): (kind: TransactionKind, id: string) =>
                 return memos.delete(id)
             case 'refund_receipt':
                 return refunds.delete(id)
+            case 'write_off':
+                throw new Error('a write-off is never deleted')
         }
     }
 }

@@ -38,11 +38,16 @@ function joinShown(parts: readonly string[]): string {
     return parts.filter(part => part !== '').join(' · ')
 }
 
-// A refund receipt's amount is negative on every tab (refund receipt spec §3.13), and a
-// signed tab (All sales) shows a credit memo's amount negative too, each with a
-// typographic minus; a tab of one kind shows every other amount positive.
+// A refund receipt's and a write-off's amount is negative on every tab (refund receipt spec
+// §3.13, write-off spec §3.6), and a signed tab (All sales) shows a credit memo's amount
+// negative too, each with a typographic minus; a tab of one kind shows every other amount
+// positive.
+function isAlwaysNegative(row: DocumentListRow): boolean {
+    return row.kind === 'refund_receipt' || row.kind === 'write_off'
+}
+
 function isShownSigned(row: DocumentListRow, tab: DocumentListTab): boolean {
-    return tab.isSigned || row.kind === 'refund_receipt'
+    return tab.isSigned || isAlwaysNegative(row)
 }
 
 function amountOf(row: DocumentListRow, tab: DocumentListTab, currency: string): string {
@@ -112,16 +117,15 @@ export function cardLines(
 }
 
 // A row of the 320 px column beside an open document lists one kind, so its amount is
-// positive, but for a refund receipt's, which keeps its minus sign as on its tab: number
-// and customer, then the amount.
+// positive, but for a refund receipt's or a write-off's, which keeps its minus sign as on
+// its tab: number and customer, then the amount.
 export function nameRowLines(
     row: DocumentListRow,
     currency: string
 ): { title: string; amount: string } {
-    const amount =
-        row.kind === 'refund_receipt'
-            ? transactionTotalText(row, currency)
-            : formatMoney(Math.abs(row.total), currency)
+    const amount = isAlwaysNegative(row)
+        ? transactionTotalText(row, currency)
+        : formatMoney(Math.abs(row.total), currency)
     return {
         title: joinShown([row.number, row.customerName]) || TRANSACTION_TYPE_LABELS[row.kind],
         amount,

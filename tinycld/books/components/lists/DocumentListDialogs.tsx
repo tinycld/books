@@ -4,6 +4,7 @@ import type { DocumentBatch } from '../../hooks/useDocumentBatch'
 import type { DocumentRowActions } from '../../hooks/useDocumentRowActions'
 import { DeleteDraftDialog } from '../entries/DeleteDraftDialog'
 import { VoidDialog } from '../entries/VoidDialog'
+import { WriteOffDialog } from '../write-offs/WriteOffDialog'
 
 function ignore() {}
 
@@ -59,19 +60,23 @@ function BatchDialog({ batch }: { batch: DocumentBatch }) {
 interface DocumentListDialogsProps {
     rowActions: Pick<DocumentRowActions, 'voidDialog' | 'deleteDialog'>
     batch: DocumentBatch
+    // The list screen's `useId()`: the row menu's Write off opens the dialog for it.
+    owner: string
 }
 
 /**
- * The Sales list's confirm dialogs, drawn once at the screen's root: a row menu's Void and
- * Delete draft, and the Batch actions dialog. A refusal shows in the list's banner, not in
- * the dialog, which closes.
+ * The Sales list's dialogs, drawn once at the screen's root: a row menu's Void and Delete
+ * draft, the Batch actions dialog, and the row menu's Write off dialog. A Void or Delete
+ * draft refusal shows in the list's banner, not in the dialog, which closes; the Write off
+ * dialog shows its own refusals and stays open (write-off spec §3.3).
  */
-export function DocumentListDialogs({ rowActions, batch }: DocumentListDialogsProps) {
+export function DocumentListDialogs({ rowActions, batch, owner }: DocumentListDialogsProps) {
     return (
         <>
             <VoidDialog {...rowActions.voidDialog} />
             <DeleteDraftDialog {...rowActions.deleteDialog} testIdPrefix="sales-delete" />
             <BatchDialog batch={batch} />
+            <WriteOffDialog owner={owner} />
         </>
     )
 }

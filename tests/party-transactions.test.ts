@@ -10,6 +10,7 @@ import { documentHref } from '../tinycld/books/lib/document-routes'
 import {
     creditMemoRow,
     creditMemoStatus,
+    dueDocumentStatus,
     emptyText,
     estimateRow,
     filterTestId,
@@ -28,6 +29,7 @@ import {
     TRANSACTION_TYPE_LABELS,
     type TransactionKind,
     transactionTotalText,
+    writeOffRow,
 } from '../tinycld/books/lib/party-transactions'
 import { PAYMENT_IDS, PAYMENTS } from '../tinycld/books/lib/receive-payment-fixture'
 import {
@@ -35,6 +37,7 @@ import {
     INVOICE_KIND,
     SALES_RECEIPT_KIND,
 } from '../tinycld/books/lib/sales-document-kinds'
+import { billRow } from '../tinycld/books/lib/vendor-transactions'
 
 const today = CUSTOMER_PAGE_TODAY
 
@@ -348,7 +351,7 @@ describe('the credit memo kind', () => {
     })
 
     it('has the chip Credit memos after Payments', () => {
-        expect(TRANSACTION_FILTERS.slice(-3, -1)).toEqual([
+        expect(TRANSACTION_FILTERS.slice(-4, -2)).toEqual([
             { key: 'payment', label: 'Payments' },
             { key: 'credit_memo', label: 'Credit memos' },
         ])
@@ -454,8 +457,8 @@ describe('refundReceiptRow', () => {
         )
     })
 
-    it('has the last chip, Refunds, after Credit memos', () => {
-        expect(TRANSACTION_FILTERS.slice(-2)).toEqual([
+    it('has the chip Refunds after Credit memos', () => {
+        expect(TRANSACTION_FILTERS.slice(-3, -1)).toEqual([
             { key: 'credit_memo', label: 'Credit memos' },
             { key: 'refund_receipt', label: 'Refunds' },
         ])
@@ -464,6 +467,117 @@ describe('refundReceiptRow', () => {
 
     it('names the empty Refunds chip', () => {
         expect(emptyText('refund_receipt')).toBe('No refund receipts for this customer')
+    })
+})
+
+// The customer page's seventh kind (write-off spec §3.6).
+const POSTED_WRITE_OFF = {
+    id: 'wotest000001001',
+    status: 'posted' as 'posted' | 'void',
+    number: '1001',
+    date: '2026-11-10',
+    amount: 40_000,
+    currency: 'USD',
+    created: '2026-11-10 09:00:00.000Z',
+}
+
+describe('writeOffRow', () => {
+    it('maps a posted write-off to one row of kind write_off, its amount negated', () => {
+        expect(writeOffRow(POSTED_WRITE_OFF)).toEqual({
+            id: POSTED_WRITE_OFF.id,
+            kind: 'write_off',
+            number: '1001',
+            date: '2026-11-10',
+            dueDate: '',
+            total: -40_000,
+            currency: 'USD',
+            created: POSTED_WRITE_OFF.created,
+            status: { label: 'Written off', tone: 'muted' },
+        })
+    })
+
+    it('writes its total with U+2212 in front', () => {
+        expect(transactionTotalText(writeOffRow(POSTED_WRITE_OFF), 'USD')).toBe(`${MINUS}$400.00`)
+    })
+
+    it('a void write-off reads Void, muted', () => {
+        expect(writeOffRow({ ...POSTED_WRITE_OFF, status: 'void' }).status).toEqual({
+            label: 'Void',
+            tone: 'muted',
+        })
+    })
+
+    it('has the type label Write-off and opens books/write-offs/<id>', () => {
+        expect(TRANSACTION_TYPE_LABELS.write_off).toBe('Write-off')
+        expect(documentHref(TRANSACTION_DOC_KINDS.write_off, POSTED_WRITE_OFF.id)).toBe(
+            `books/write-offs/${POSTED_WRITE_OFF.id}`
+        )
+    })
+
+    it('has the last chip, Write-offs, after Refunds', () => {
+        expect(TRANSACTION_FILTERS.slice(-2)).toEqual([
+            { key: 'refund_receipt', label: 'Refunds' },
+            { key: 'write_off', label: 'Write-offs' },
+        ])
+        expect(filterTestId('write_off')).toBe('customer-transactions-filter-write-off')
+    })
+
+    it('names the empty Write-offs chip', () => {
+        expect(emptyText('write_off')).toBe('No write-offs for this customer')
+    })
+})
+
+// Write-off spec §3.4, §3.6: a posted invoice with nothing open reads Written off when a
+// posted write-off closed it, else Paid; an open balance reads as before.
+describe('invoiceRow of a written-off invoice', () => {
+    const overdue = invoice('cpinv0000001035')
+    const notDue = invoice('cpinv0000001041')
+
+    it('balance 0 with written_off above 0 is Written off, muted', () => {
+        expect(invoiceRow({ ...notDue, balance: 0, written_off: 40_000 }, today).status).toEqual({
+            label: 'Written off',
+            tone: 'muted',
+        })
+        expect(invoiceRow({ ...overdue, balance: 0, written_off: 40_000 }, today).status).toEqual({
+            label: 'Written off',
+            tone: 'muted',
+        })
+    })
+
+    it('balance 0 with written_off 0 is Paid, success', () => {
+        expect(invoiceRow({ ...notDue, balance: 0, written_off: 0 }, today).status).toEqual({
+            label: 'Paid',
+            tone: 'success',
+        })
+    })
+
+    it('a balance above 0 reads as before, whatever written_off holds', () => {
+        expect(
+            invoiceRow({ ...notDue, balance: notDue.total, written_off: 40_000 }, today).status
+        ).toEqual({ label: 'Open', tone: 'warning' })
+        expect(
+            invoiceRow({ ...overdue, balance: overdue.total, written_off: 40_000 }, today).status
+        ).toEqual({ label: 'Overdue', tone: 'destructive' })
+        expect(invoiceRow({ ...notDue, balance: 1, written_off: 40_000 }, today).status).toEqual({
+            label: 'Partly paid',
+            tone: 'warning',
+        })
+    })
+
+    it('a bill with balance 0 still reads Paid (the bill path passes no written_off)', () => {
+        const bill = {
+            id: 'wotestbill00001',
+            status: 'posted' as const,
+            number: 'B-1',
+            date: '2026-11-01',
+            due_date: '2026-12-01',
+            total: 40_000,
+            balance: 0,
+            currency: 'USD',
+            created: '2026-11-01 09:00:00.000Z',
+        }
+        expect(dueDocumentStatus(bill, today)).toEqual({ label: 'Paid', tone: 'success' })
+        expect(billRow(bill, today).status).toEqual({ label: 'Paid', tone: 'success' })
     })
 })
 

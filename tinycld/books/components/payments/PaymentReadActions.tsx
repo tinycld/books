@@ -1,24 +1,18 @@
-import type { Transaction } from '@tanstack/db'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
-import { useMutation } from '@tinycld/core/lib/mutations'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
-import { useStore } from '@tinycld/core/lib/pocketbase'
 import { formatHint, type ScopeOwner } from '@tinycld/core/lib/shortcuts'
 import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { router } from 'expo-router'
-import { useState } from 'react'
 import type { DocumentReadItem } from '../../hooks/useDocumentReadActions'
 import type { PaymentRecordHeader } from '../../hooks/usePaymentRecord'
-import { useVoidDocument } from '../../hooks/useVoidDocument'
+import { useVoidPayment } from '../../hooks/useVoidPayment'
 import type { PaymentFlow } from '../../lib/payment-flow'
 import {
     type PaymentCollectionName,
     type PaymentReadAction,
     paymentReadActions,
-    voidWriteCollection,
 } from '../../lib/payment-read-actions'
 import { PAYMENT_READ_DESCRIPTIONS, PAYMENT_READ_KEYS } from '../../lib/payment-shortcuts'
-import { writeRefusalText } from '../../lib/refusal'
 import type { BooksBillPayments, BooksPayments, BooksVendorRefunds } from '../../types'
 import type { DocumentMoreItem } from '../documents/DocumentActionBar'
 import { DocumentReadActions } from '../documents/DocumentReadActions'
@@ -41,36 +35,13 @@ export interface PaymentReadTarget {
     entryNoun: string
 }
 
-// Void as a write to the read view's own collection (`voidWriteCollection`):
-// `status: 'void'` (the server posts the reversing entry and opens the paid documents
-// again). One write per collection name, so a name with no write is a type error. A
-// customer payment voids through the write the sales lists share (useVoidDocument).
-function useVoidWrite(collection: PaymentCollectionName) {
-    const [billPaymentsCollection, vendorRefundsCollection] = useStore(
-        'books_bill_payments',
-        'books_vendor_refunds'
-    )
-    const voidSales = useVoidDocument()
-    const writes: Record<PaymentCollectionName, (id: string) => Transaction> = {
-        books_payments: id => voidSales('payment', id),
-        books_bill_payments: id =>
-            billPaymentsCollection.update(id, draft => {
-                draft.status = 'void'
-            }),
-        books_vendor_refunds: id =>
-            vendorRefundsCollection.update(id, draft => {
-                draft.status = 'void'
-            }),
-    }
-    return writes[voidWriteCollection(collection)]
-}
-
 /**
  * The read view's actions as rows, and the Void dialog. Edit replaces the read view with
  * the correction form (`editHref`); View journal entry pushes the entry; Void writes
- * `status: 'void'`. The dialog's open state lives here, on the read view, which stays
- * mounted while the optimistic void changes the payment under it, so a refusal stays in
- * the dialog.
+ * `status: 'void'` (useVoidPayment). The dialog's open state lives on the read view, which
+ * stays mounted while the optimistic void changes the payment under it. The dialog stays
+ * visible through its own void because the mutation reports `isPending` before the
+ * optimistic write runs, so a refusal shows in the dialog.
  */
 function usePaymentReadItems(
     payment: ReadPayment,
@@ -78,24 +49,13 @@ function usePaymentReadItems(
     target: PaymentReadTarget
 ) {
     const orgHref = useOrgHref()
-    const markVoid = useVoidWrite(target.collection)
-    const [isVoidOpen, setVoidOpen] = useState(false)
-    const voidPayment = useMutation({
-        mutationFn: function* (id: string) {
-            yield markVoid(id)
-        },
-        onSuccess: () => setVoidOpen(false),
-        // The dialog shows the refusal; without this core reports it again as a toast.
-        onError: () => {},
-    })
+    const voidPayment = useVoidPayment(target.collection)
+    const confirmVoid = () => voidPayment.confirm(payment.id)
     const isVoiding = voidPayment.isPending
     const voidState = useServerActionState({ isDisabled: isVoiding })
     const run: Record<PaymentReadAction, () => void> = {
         edit: () => router.replace(orgHref(target.editHref)),
-        void: () => {
-            voidPayment.reset()
-            setVoidOpen(true)
-        },
+        void: voidPayment.open,
         entry: () => router.push(orgHref(`books/entries/${payment.entry}`)),
     }
     // Void writes, so it waits for the server and for writes to be available; the others
@@ -115,14 +75,14 @@ function usePaymentReadItems(
     // elsewhere while it was open), unless this dialog's own void runs.
     const isVoidOffered = offered.includes('void')
     const voidDialog = {
-        isVisible: isVoidOpen && (isVoidOffered || isVoiding),
+        isVisible: voidPayment.isOpen && (isVoidOffered || isVoiding),
         entryNumber: `${target.entryNoun} ${payment.number}`,
         confirmLabel: target.confirmLabel,
         body: target.voidBody,
         isPending: isVoiding,
-        errorMessage: voidPayment.error ? writeRefusalText(voidPayment.error) : null,
-        onConfirm: () => voidPayment.mutate(payment.id),
-        onCancel: () => setVoidOpen(false),
+        errorMessage: voidPayment.errorMessage,
+        onConfirm: confirmVoid,
+        onCancel: voidPayment.close,
     }
     return { items, voidDialog }
 }

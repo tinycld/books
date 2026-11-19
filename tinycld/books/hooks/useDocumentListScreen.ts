@@ -23,9 +23,9 @@ import { nextSort } from '../lib/document-list-menus'
 import { documentHref } from '../lib/document-routes'
 import { SEARCH_DELAY_MS } from '../lib/list-search'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
-import { TRANSACTION_DOC_KINDS, type TransactionKind } from '../lib/party-transactions'
+import { TRANSACTION_DOC_KINDS } from '../lib/party-transactions'
 import { navigationModeFor, openRecordFromPath } from '../lib/record-route'
-import { SALES_NEW_ITEMS, salesTabOf } from '../lib/sales-lists'
+import { SALES_NEW_ITEMS, type SalesKind, salesTabOf } from '../lib/sales-lists'
 import { selectionScope, useDocumentListStore } from '../stores/document-list-store'
 import { useBooksAccess } from './useBooksAccess'
 import { useDocumentBatch } from './useDocumentBatch'
@@ -147,8 +147,9 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     // replaces the Sales screen with a new list route while a route pushed earlier can
     // still hold a list of the same tab under it, and only the list that opened a dialog
     // draws it. The list stays mounted when its layout changes, so the key holds while a
-    // write runs.
-    const listKey = `${tab.key}:${useId()}`
+    // write runs. `owner` names this list to its one WriteOffDialog (plan decision 3).
+    const owner = useId()
+    const listKey = `${tab.key}:${owner}`
     useBlurCleanup(listKey)
     const { width, onListLayout } = useListWidth()
 
@@ -193,7 +194,7 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     // A kind tab's New opens its `new` route; All sales has a menu of the kinds, so New
     // with no kind opens that menu. Beside an open document New replaces it, as a row
     // does, so the document's leave guard asks before unsaved edits go.
-    const openNew = (kind?: TransactionKind) => {
+    const openNew = (kind?: SalesKind) => {
         const item = SALES_NEW_ITEMS.find(entry => entry.kind === kind)
         const href = item?.href ?? tab.newHref
         if (href === null) {
@@ -217,6 +218,7 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     const selection = useListSelection(scope, loadedIds)
     const rowActions = useDocumentRowActions({
         listKey,
+        owner,
         rows: list.rows,
         canWrite,
         openRow,
@@ -226,6 +228,7 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     const actionBanner = useDocumentListStore(state => state.banner)
 
     return {
+        owner,
         list,
         filters,
         appliedFilters,

@@ -85,8 +85,9 @@ export function writeOffToast(page: Page, number: string, amount: string) {
 
 /**
  * On the read view of a posted invoice with an open balance: presses W, keeps the default
- * date, picks 6050 Bad debts, confirms with ⌘↵ and waits for the toast and the closed
- * dialog. A `reason`, when given, is typed into Reason (internal), the entry's memo.
+ * date, picks 6050 Bad debts, and confirms through `confirmWriteOff` (Write off, then the
+ * toast and the closed dialog). A `reason`, when given, is typed into Reason (internal),
+ * the entry's memo.
  */
 export async function writeOffOpenInvoice(page: Page, reason?: string): Promise<void> {
     const title = await page.locator('[data-testid="invoice-title"]:visible').innerText()
@@ -96,7 +97,6 @@ export async function writeOffOpenInvoice(page: Page, reason?: string): Promise<
     const dialog = page.getByTestId('write-off-dialog')
     await expect(dialog).toBeVisible()
     await expect(page.getByTestId('write-off-date')).toBeFocused()
-    const amount = (await page.getByTestId('write-off-amount').innerText()).trim()
     await page.getByTestId('write-off-account').click()
     const item = page.getByRole('menuitem', { name: BAD_DEBTS, exact: true })
     await item.click()
@@ -106,9 +106,24 @@ export async function writeOffOpenInvoice(page: Page, reason?: string): Promise<
         await page.getByTestId('write-off-reason').fill(reason)
         await expect(page.getByTestId('write-off-reason')).toHaveValue(reason)
     }
+    await confirmWriteOff(page, number)
+}
+
+/**
+ * In the open Write off dialog of invoice `number`: keeps the default date and the default
+ * account, which is 6050 Bad debts on the e2e database (the newest posted write-off's
+ * account; every e2e write-off and the seed's name it, plan decision 10), presses Write off
+ * and waits for the toast and the closed dialog. Returns the amount the dialog showed.
+ */
+export async function confirmWriteOff(page: Page, number: string): Promise<string> {
+    const dialog = page.getByTestId('write-off-dialog')
+    await expect(dialog).toBeVisible()
+    await expect(page.getByTestId('write-off-account')).toContainText(BAD_DEBTS)
+    const amount = (await page.getByTestId('write-off-amount').innerText()).trim()
     await page.getByTestId('write-off-submit').click()
     await expect(writeOffToast(page, number, amount)).toBeVisible()
     await expect(dialog).toHaveCount(0)
+    return amount
 }
 
 /**
