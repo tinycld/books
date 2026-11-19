@@ -7,6 +7,8 @@ order: 34
 
 A credit memo gives a customer a credit, for example for goods returned or for a price you lowered after the sale. When you post it, Books gives it a number and records it in your books: Accounts receivable goes down by the total, so the customer owes you less, and each product's income account and each tax agency's liability account go down by their amounts.
 
+A credit memo is for a sale that changed: a lower price or goods that came back. When the customer will not pay an invoice, write off its balance instead: see [Write off an invoice](help://books:write-offs).
+
 ## To give a customer a credit
 
 To create a credit memo, choose New in the sidebar (the round + button on a phone) and pick Credit memo, under Customers. You can also start one from a customer's page, with New transaction. In a web browser, the Customer field has focus when the form opens.

@@ -783,6 +783,8 @@ describe('hidesNewFab', () => {
         '/a/acme/books/pay-bills',
         '/a/books/bill-payments/x',
         '/a/acme/books/bill-payments/abc123/',
+        '/a/acme/books/write-offs/abc',
+        '/a/books/write-offs/abc123/',
     ])('hides the New button on %s', path => {
         expect(hidesNewFab(path)).toBe(true)
     })

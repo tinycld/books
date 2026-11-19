@@ -848,6 +848,13 @@ describe('help/reports.md', () => {
     })
 })
 
+// Write-off checkpoint 4 (write-off spec §3.6 Help): one paragraph on a write-off in reports.
+describe('help/reports.md (write-offs)', () => {
+    it('names a write-off or the Written off status', () => {
+        expect(body).toMatch(/\bwrite-offs?\b|\bWritten off\b/i)
+    })
+})
+
 describe('help/navigating-books.md', () => {
     it('links the Books reports topic', () => {
         expect(navigatingSource).toContain('help://books:reports')

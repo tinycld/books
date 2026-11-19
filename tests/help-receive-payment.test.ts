@@ -56,3 +56,10 @@ describe('help/receive-payment.md', () => {
         }
     })
 })
+
+// Write-off checkpoint 4 (write-off spec §3.6 Help): one paragraph on a write-off.
+describe('help/receive-payment.md (write-offs)', () => {
+    it('names a write-off or the Written off status', () => {
+        expect(body).toMatch(/\bwrite-offs?\b|\bWritten off\b/i)
+    })
+})

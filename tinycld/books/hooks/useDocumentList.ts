@@ -22,6 +22,7 @@ import {
     refundReceiptRow,
     salesReceiptRow,
     TRANSACTION_PAGE,
+    writeOffRow,
 } from '../lib/party-transactions'
 import { categoryOf, NO_CATEGORY, type PurchaseCategory } from '../lib/purchase-category'
 import { fiscalStartMonth, todayIso } from '../lib/register-range'
@@ -100,7 +101,7 @@ function purchaseFields(row: {
 function salesLists(
     data: Pick<
         SalesData,
-        'invoices' | 'estimates' | 'receipts' | 'payments' | 'creditMemos' | 'refunds'
+        'invoices' | 'estimates' | 'receipts' | 'payments' | 'creditMemos' | 'refunds' | 'writeOffs'
     >,
     today: string,
     isSigned: boolean
@@ -146,7 +147,21 @@ function salesLists(
         entry: row.entry,
         creditMemo: row.credit_memo,
     }))
-    return [invoiceRows, estimateRows, receiptRows, paymentRows, creditMemoRows, refundRows]
+    // writeOffRow negates the amount on every tab, as a refund's (write-off spec §3.6).
+    const writeOffRows: DocumentListRow[] = (data.writeOffs ?? []).map(row => ({
+        ...writeOffRow(row),
+        ...salesFields(row),
+        entry: row.entry,
+    }))
+    return [
+        invoiceRows,
+        estimateRows,
+        receiptRows,
+        paymentRows,
+        creditMemoRows,
+        refundRows,
+        writeOffRows,
+    ]
 }
 
 type PurchaseRow<Key extends keyof PurchaseData> = NonNullable<PurchaseData[Key]>[number]
@@ -217,7 +232,7 @@ function purchaseLists(
 }
 
 /**
- * The rows of one document list (sales and purchase lists specs, §4): the six sales reads
+ * The rows of one document list (sales and purchase lists specs, §4): the seven sales reads
  * (`useSalesListQueries`) and the five purchase reads (`usePurchaseListQueries`), of which
  * only the kinds the tab lists and its chip keeps run. Each is filtered by the chip, the
  * date range, the party and the search in its `where`, ordered by the sort column then
@@ -264,15 +279,15 @@ export function useDocumentList({ tab, filters, sort, keepKey: keepKeyOption }: 
     const purchases = usePurchaseListQueries(input)
 
     const isSigned = tab.isSigned
-    const { invoices, estimates, receipts, payments, creditMemos, refunds } = sales
+    const { invoices, estimates, receipts, payments, creditMemos, refunds, writeOffs } = sales
     const salesRows = useMemo(
         () =>
             salesLists(
-                { invoices, estimates, receipts, payments, creditMemos, refunds },
+                { invoices, estimates, receipts, payments, creditMemos, refunds, writeOffs },
                 today,
                 isSigned
             ),
-        [invoices, estimates, receipts, payments, creditMemos, refunds, today, isSigned]
+        [invoices, estimates, receipts, payments, creditMemos, refunds, writeOffs, today, isSigned]
     )
     const {
         bills,

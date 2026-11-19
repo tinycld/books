@@ -52,7 +52,8 @@ import {
 
 const INVOICES_URL = '**/api/collections/books_invoices/records**'
 const CUSTOMERS_URL = '**/api/collections/books_customers/records**'
-const INVOICE_CHIPS = ['all', 'open', 'overdue', 'paid', 'draft', 'void']
+// Write-off spec §3.6 (Q11): Written off after Paid.
+const INVOICE_CHIPS = ['all', 'open', 'overdue', 'paid', 'written-off', 'draft', 'void']
 
 function visible(page: Page, testId: string) {
     return page.getByTestId(testId).filter({ visible: true })
@@ -232,6 +233,7 @@ test.describe('sales-lists: filters and sort', () => {
         await expect(visible(page, 'sales-customer')).toContainText('All customers')
         await expect(visible(page, 'sales-chip-all')).toHaveAttribute('aria-pressed', 'true')
         for (const chip of INVOICE_CHIPS.filter(id => id !== 'all')) {
+            await expect(visible(page, `sales-chip-${chip}`)).toBeVisible()
             await expect(visible(page, `sales-chip-${chip}`)).not.toHaveAttribute(
                 'aria-pressed',
                 'true'

@@ -102,6 +102,21 @@ function balanceBadgeWith(words: { done: string; partly: string }): BalanceBadge
 // a posted invoice or bill reads Paid or Partly paid.
 export const paidBadge: BalanceBadge = balanceBadgeWith({ done: 'Paid', partly: 'Partly paid' })
 
+// The badge of an invoice after a write-off (write-off spec §3.4): a posted invoice with
+// nothing open reads Written off (muted) when its posted write-offs took some of it
+// (`writtenOff`, the stored cents of `books_invoices.written_off`); otherwise paidBadge.
+export function writtenOffBadge(
+    status: PostingStatus,
+    balance: number,
+    total: number,
+    writtenOff: number
+): { label: string; tone: StatusTone } {
+    if (status === 'posted' && balance <= 0 && writtenOff > 0) {
+        return { label: 'Written off', tone: 'muted' }
+    }
+    return paidBadge(status, balance, total)
+}
+
 // The badge of a vendor credit (vendor credit spec §3.7): a posted credit reads Applied
 // when nothing is left to apply and Partly applied while part of it is applied.
 export const appliedBadge: BalanceBadge = balanceBadgeWith({

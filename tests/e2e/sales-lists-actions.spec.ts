@@ -120,7 +120,16 @@ test.describe('sales-lists: row menu and batch', () => {
         await expect(page).toHaveURL(salesTabUrl('invoices'))
         await expect
             .poll(() => rowMenuActions(page))
-            .toEqual(['open', 'receive-payment', 'void', 'copy', 'credit-memo', 'entry', 'pdf'])
+            .toEqual([
+                'open',
+                'receive-payment',
+                'write-off',
+                'void',
+                'copy',
+                'credit-memo',
+                'entry',
+                'pdf',
+            ])
         await expect(visible(page, 'sales-row-action-credit-memo')).toContainText(
             'Create credit memo'
         )

@@ -111,6 +111,16 @@ describe('vendor_refund doc type', () => {
     })
 })
 
+// The seeded `write_off` row (booksseqwriteof) gets the "Write-offs" card; registers and
+// the ledger read "Write-off" as its Type (write-off spec §3.6, Q6).
+describe('write_off doc type', () => {
+    it('names the Numbering card "Write-offs", previews the next write-off and labels the Type "Write-off"', () => {
+        expect(DOC_TYPES.write_off).toEqual({ label: 'Write-offs', noun: 'write-off' })
+        expect(DOC_TYPE_LABELS.write_off).toBe('Write-off')
+        expect(nextNumberPreview('write_off', '', '1001')).toBe('Next write-off: 1001')
+    })
+})
+
 describe('sequenceHelper', () => {
     it('says a new estimate prefix applies to estimates saved from now on', () => {
         expect(sequenceHelper('estimate')).toBe(

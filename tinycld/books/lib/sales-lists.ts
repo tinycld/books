@@ -7,7 +7,11 @@ import { areaTabOf } from './list-tabs'
 import { NEW_ACTIONS } from './new-actions'
 import type { TransactionFilter, TransactionKind } from './party-transactions'
 
-const ALL_KINDS: readonly TransactionKind[] = [
+// The kinds the Sales lists hold: every transaction kind but a write-off, which has no
+// Sales tab and no New action (write-off spec §2, Q12); only the customer page lists it.
+export type SalesKind = Exclude<TransactionKind, 'write_off'>
+
+const ALL_KINDS: readonly SalesKind[] = [
     'invoice',
     'estimate',
     'sales_receipt',
@@ -16,8 +20,11 @@ const ALL_KINDS: readonly TransactionKind[] = [
     'refund_receipt',
 ]
 
+// The customer page's Transactions tab lists the write-offs too, last.
+const CUSTOMER_KINDS: readonly TransactionKind[] = [...ALL_KINDS, 'write_off']
+
 // The New action of each kind, by its NEW_ACTIONS id.
-const NEW_ACTION_IDS: Record<TransactionKind, string> = {
+const NEW_ACTION_IDS: Record<SalesKind, string> = {
     invoice: 'invoice',
     estimate: 'estimate',
     sales_receipt: 'sales_receipt',
@@ -26,7 +33,7 @@ const NEW_ACTION_IDS: Record<TransactionKind, string> = {
     refund_receipt: 'refund_receipt',
 }
 
-const NEW_LABELS: Record<TransactionKind, string> = {
+const NEW_LABELS: Record<SalesKind, string> = {
     invoice: 'New invoice',
     estimate: 'New estimate',
     sales_receipt: 'New sales receipt',
@@ -35,14 +42,14 @@ const NEW_LABELS: Record<TransactionKind, string> = {
     refund_receipt: 'New refund receipt',
 }
 
-function newHrefOf(kind: TransactionKind): string {
+function newHrefOf(kind: SalesKind): string {
     const action = NEW_ACTIONS.find(entry => entry.id === NEW_ACTION_IDS[kind])
     if (action === undefined) throw new Error(`NEW_ACTIONS has no action for ${kind}`)
     return action.href
 }
 
 function kindTab(
-    kind: TransactionKind,
+    kind: SalesKind,
     tab: {
         key: string
         label: string
@@ -90,7 +97,8 @@ export const SALES_TABS: readonly DocumentListTab[] = [
         label: 'Invoices',
         noun: 'invoices',
         columns: ['date', 'number', 'customer', 'due', 'balance', 'total', 'status'],
-        chips: chips('All', 'Open', 'Overdue', 'Paid', 'Draft', 'Void'),
+        // Write-off spec §3.6 (Q11): Written off is a settled invoice a write-off closed.
+        chips: chips('All', 'Open', 'Overdue', 'Paid', 'Written off', 'Draft', 'Void'),
         sortKeys: ['due', 'balance'],
     }),
     kindTab('estimate', {
@@ -139,13 +147,13 @@ export function salesTabOf(key: string): DocumentListTab {
     return areaTabOf({ tabs: SALES_TABS }, key)
 }
 
-export function salesTabForKind(kind: TransactionKind): DocumentListTab {
+export function salesTabForKind(kind: SalesKind): DocumentListTab {
     const tab = SALES_TABS.find(entry => entry.kinds.length === 1 && entry.kinds[0] === kind)
     if (tab === undefined) throw new Error(`no sales tab lists ${kind}`)
     return tab
 }
 
-function kindOfAction(actionId: string): TransactionKind {
+function kindOfAction(actionId: string): SalesKind {
     const kind = ALL_KINDS.find(entry => NEW_ACTION_IDS[entry] === actionId)
     if (kind === undefined) throw new Error(`NEW_ACTIONS ${actionId} is not a sales kind`)
     return kind
@@ -153,15 +161,15 @@ function kindOfAction(actionId: string): TransactionKind {
 
 // The All sales New menu: the NEW_ACTIONS that take a customer, in their order, with the
 // kind tabs' New labels.
-export const SALES_NEW_ITEMS: readonly { kind: TransactionKind; label: string; href: string }[] =
+export const SALES_NEW_ITEMS: readonly { kind: SalesKind; label: string; href: string }[] =
     NEW_ACTIONS.filter(action => action.takesCustomer).map(action => {
         const kind = kindOfAction(action.id)
         return { kind, label: NEW_LABELS[kind], href: action.href }
     })
 
 // The customer page's Transactions tab (spec §3.5 of the customer pages): one customer's
-// documents of every kind, or of one kind, newest first, with a credit memo and a refund
-// receipt negative.
+// documents of every kind (the write-offs too), or of one kind, newest first, with a credit
+// memo, a refund receipt and a write-off negative.
 // Its kind chips are its own (TRANSACTION_FILTERS), so the list's chip is always All.
 export function customerTransactionsTab(filter: TransactionFilter): DocumentListTab {
     return {
@@ -169,7 +177,7 @@ export function customerTransactionsTab(filter: TransactionFilter): DocumentList
         key: `customer-${filter}`,
         label: 'Transactions',
         path: 'books/customers',
-        kinds: filter === 'all' ? ALL_KINDS : [filter],
+        kinds: filter === 'all' ? CUSTOMER_KINDS : [filter],
         noun: 'transactions',
         chips: chips('All'),
         sortKeys: ['date'],

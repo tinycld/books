@@ -501,6 +501,7 @@ describe('useDocumentSave: a stored draft', () => {
             estimate: row.estimate,
             estimateRow: undefined,
             balance: row.balance,
+            written_off: row.written_off,
         },
         postedBy: undefined,
         voidedBy: undefined,

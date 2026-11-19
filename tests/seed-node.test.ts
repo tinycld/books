@@ -26,6 +26,11 @@ import {
 import { SALES_RECEIPT_IDS } from '../tinycld/books/lib/sales-receipt-form-fixture'
 import { SEED_ACCOUNTS } from '../tinycld/books/lib/seed-accounts'
 import { VENDOR_REFUND_VENDOR_IDS } from '../tinycld/books/lib/vendor-refund-fixture'
+import {
+    WRITE_OFF_INVOICES,
+    WRITE_OFF_SEED,
+    WRITE_OFFS,
+} from '../tinycld/books/lib/write-off-fixture'
 import * as seedModule from '../tinycld/books/seed'
 import { seedArAging } from '../tinycld/books/seed'
 
@@ -445,6 +450,93 @@ describe('seedArAging', () => {
         await expect(
             seedArAging(pb, { user: USER }, seededAccounts(), customerIds)
         ).rejects.toThrow()
+    })
+})
+
+// Write-off spec §4.5 (seed): the WRITE_OFF_SEED invoice is created and posted through the
+// writes a fixture invoice takes, with no sales tax, then its write-off is created posted
+// to 6050 Bad debts for the invoice's whole total, through the dialog's one write.
+describe('seedWriteOffs', () => {
+    it('runs after the refund receipts in the seed', () => {
+        const source = readFileSync(seedPath, 'utf8')
+        const body = source.slice(source.indexOf('export default async function seed('))
+        const refunds = body.indexOf('seedRefundReceipts(')
+        const writeOffs = body.indexOf('seedWriteOffs(')
+        expect(refunds).toBeGreaterThan(-1)
+        expect(writeOffs).toBeGreaterThan(refunds)
+    })
+
+    // The seed chart has no 6000, so 6050 sorts directly before 6100 Rent.
+    it('seeds 6050 Bad debts directly before 6100', () => {
+        const numbers = SEED_ACCOUNTS.map(account => account.number)
+        expect(SEED_ACCOUNTS.find(account => account.number === '6050')).toMatchObject({
+            name: 'Bad debts',
+            type: 'expense',
+            detail_type: 'bad_debts',
+        })
+        expect(numbers.indexOf('6050')).toBeGreaterThan(-1)
+        expect(numbers.indexOf('6100')).toBe(numbers.indexOf('6050') + 1)
+    })
+
+    it('posts the seed invoice, then writes it off whole to 6050', async () => {
+        const seedWriteOffs = (seedModule as Record<string, unknown>).seedWriteOffs
+        expect(typeof seedWriteOffs).toBe('function')
+        if (typeof seedWriteOffs !== 'function') return
+        const { pb, writes } = recordingPb()
+        const accounts = seededAccounts()
+        const customerIds = new Map(
+            CUSTOMERS.map((row, i) => [row.id, `cust${String(i).padStart(11, '0')}`])
+        )
+        await seedWriteOffs(pb, { user: USER }, accounts, customerIds)
+
+        const invoiceFixture = WRITE_OFF_INVOICES.find(row => row.id === WRITE_OFF_SEED.invoice)
+        const writeOffFixture = WRITE_OFFS.find(row => row.id === WRITE_OFF_SEED.writeOff)
+        if (!invoiceFixture || !writeOffFixture) throw new Error('no seed pair in the fixture')
+
+        const invoices = writes.filter(w => w.collection === 'books_invoices' && w.op === 'create')
+        expect(invoices.map(w => w.id)).toEqual([invoiceFixture.id])
+        const invoice = invoices[0]
+        if (!invoice) return
+        expect(invoice.data).toMatchObject({
+            customer: customerIds.get(invoiceFixture.customer),
+            status: 'draft',
+            date: invoiceFixture.date,
+        })
+        expect(invoice.data.tax_rate ?? '').toBe('')
+        const lines = writes.filter(
+            w => w.collection === 'books_invoice_lines' && w.data.invoice === invoice.id
+        )
+        expect(
+            lines.reduce((sum, w) => sum + Number(w.data.quantity) * Number(w.data.rate), 0)
+        ).toBe(invoiceFixture.total)
+        expect(finalStatus(writes, 'books_invoices', invoice.id)).toBe('posted')
+
+        const writeOffs = writes.filter(w => w.collection === 'books_write_offs')
+        expect(writeOffs.map(w => [w.op, w.data])).toEqual([
+            [
+                'create',
+                {
+                    id: writeOffFixture.id,
+                    invoice: invoice.id,
+                    date: writeOffFixture.date,
+                    account: accounts.get('6050'),
+                    amount: invoiceFixture.total,
+                    memo: writeOffFixture.memo,
+                    status: 'posted',
+                    // The seed runs as a superuser, which stampActor skips, so the
+                    // body names the poster as every other seeded document does.
+                    posted_by: USER.id,
+                },
+            ],
+        ])
+        const at = (w: Write | undefined) => (w ? writes.indexOf(w) : -1)
+        const invoicePost = writes.find(
+            w =>
+                w.collection === 'books_invoices' &&
+                w.id === invoice.id &&
+                w.data.status === 'posted'
+        )
+        expect(at(writeOffs[0])).toBeGreaterThan(at(invoicePost))
     })
 })
 

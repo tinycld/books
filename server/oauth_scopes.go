@@ -14,7 +14,8 @@ const (
 // The ledger, the customers, the vendors, their contact people, the products
 // (with their bundle rows), the sales and purchase documents with their lines,
 // the bill and expense attachments, the received payments with the invoices
-// they pay, the bill payments with the bills they pay, the sales tax agencies,
+// they pay, the bill payments with the bills they pay, the write-offs, the
+// sales tax agencies,
 // rates and groups, the bank connections, their files and the imports of those
 // files are read-write; a file's parsed rows, the bank transactions and the
 // cash-basis rows, which only the server writes, and the party balances and
@@ -84,6 +85,7 @@ func oauthPackage() oauth.Package {
 			vendorCreditApplicationsCollection: rw,
 			vendorRefundsCollection:            rw,
 			vendorRefundLinesCollection:        rw,
+			writeOffsCollection:                rw,
 			"books_cash_basis_lines":           ro,
 			"books_cash_basis_tax_lines":       ro,
 			"books_party_contacts":             rw,

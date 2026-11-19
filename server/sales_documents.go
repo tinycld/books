@@ -215,7 +215,7 @@ const (
 var documentDocTypes = map[string]bool{
 	docTypeInvoice: true, docTypeSalesReceipt: true, docTypeBill: true, docTypeExpense: true, docTypePayment: true,
 	docTypeBillPayment: true, docTypeCreditMemo: true, docTypeVendorCredit: true, docTypeVendorRefund: true,
-	docTypeRefundReceipt: true,
+	docTypeRefundReceipt: true, docTypeWriteOff: true,
 }
 
 // maxDocumentLines is the most lines one sales document holds; the client's
@@ -445,14 +445,15 @@ func startRevision(tx core.App, kind salesDocKind, r *core.Record) {
 // an entry. replaces is fixed at create: an invoice's estimate is checked
 // against it only then (checkInvoiceEstimate). balance (an invoice's, a
 // bill's or a credit memo's open amount) is written only by
-// document_balance.go and the posting.
+// document_balance.go and the posting; an invoice's written_off only with its
+// balance, by a write-off's post and void (write_off_posting.go).
 //
 // quoteBooksFields are Books' own on a quote only: an estimate's invoice is
 // written by the conversion, while a credit memo's invoice is the link a
 // person chooses (checkCreditMemoInvoice holds it).
 var (
-	salesDocNewBooksFields  = []string{"entry", "replaced_by", "posted_at", "posted_by", "voided_at", "voided_by", "balance"}
-	salesDocKeptBooksFields = []string{"number", "sequence", "currency", "entry", "replaces", "replaced_by", "posted_at", "voided_at", "voided_by", "balance"}
+	salesDocNewBooksFields  = []string{"entry", "replaced_by", "posted_at", "posted_by", "voided_at", "voided_by", "balance", "written_off"}
+	salesDocKeptBooksFields = []string{"number", "sequence", "currency", "entry", "replaces", "replaced_by", "posted_at", "voided_at", "voided_by", "balance", "written_off"}
 	quoteBooksFields        = []string{"invoice"}
 )
 
@@ -547,7 +548,7 @@ var salesDocUnlinks = map[string]string{"posted_by": "users", "voided_by": "user
 var (
 	voidSalesDocEditable    = map[string]bool{"status": true, "voided_by": true, "voided_at": true}
 	replaceSalesDocEditable = map[string]bool{"status": true, "voided_by": true, "voided_at": true, "replaced_by": true, "balance": true}
-	balanceOnly             = map[string]bool{"balance": true}
+	balanceOnly             = map[string]bool{"balance": true, "written_off": true}
 )
 
 // transitionSalesDoc is a document's lifecycle: a draft is edited or posted
