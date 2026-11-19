@@ -29,6 +29,9 @@ with the reason, and shown to the human at the end)
 (none yet — gate-2 NOTEs the loop did not act on, as
 `cp N · <shot>: <where> — <what>`; shown to the human at each checkpoint
 and again at the end)
+- cp 0 · reviewer A NOTE: `package-scripts/src/runners.ts` — `playwright test --list` prints one line per test, so `tinycld-pkg check` in `books/` prints about 670 more lines (`--reporter=null` does not quiet it). A quiet mode (print the list only on failure) is a possible later change.
+- cp 0 · reviewer A NOTE: the workspace-root `CLAUDE.md` (not in the core repo) still says `check` runs "biome + tsc + vitest"; the bootstrap template `templates/shared/README.md:42` says "biome + typecheck". For the driver.
+- cp 0 · reviewer A NOTE: `CONTRIBUTING.md:42` was also edited (the checkpoint named line 62 only), so the two descriptions of `check` in the file agree.
 
 ## Out-of-plan changes
 (none yet — every file touched that no checkpoint's Files block named, with why)
@@ -75,6 +78,21 @@ and again at the end)
   - Plan review (report: staging `plan-review.md`): 1 blocker, 5 major, 17 minor; all fixed in the plan except as noted. Blocker: the seed line for Expense 1002 had the amount of Expense 1003 (now −138.37). Major: `batchResultText` / `BatchKind` could not carry the new kinds as written (type split and signature added); gates of checkpoints 2 and 3 did not run `for-review.spec.ts` (files commands added); a Reviewed minimum width of 820 widened the sideways-scroll range (720 kept, see difference 5); no test for the keys in the sheet (hardware keys `f` and `m` in the phone test); no test for the sending state (held-route assertions in checkpoints 2 and 3). Minor, fixed: one void call site (`transitionEntry`, `server/entries.go`), the request-hook and `serializedThen` pair, bare `l.date` in the view, view precedent (migration 15), `audit_log_spec.json` and the not-audited allowlist in Files, `findWhere` signature and join form, `materialize()` list form (`useTaxesScreen.ts`), `focusPressesKey` export, `isActionPending` by kind, the seeded line's name, `keptAfterBatch`. Minor, accepted without a test: the load error of the find mode and of Matched to (same recovery call as the tested one).
   - Not in this repo: the workspace-root `CLAUDE.md` says `tinycld-pkg check` runs "biome, then tsc, then vitest"; after checkpoint 0 it also lists the e2e specs. For the driver.
 - review mode switches: none
+
+## Checkpoint 0 (core, tinycld `books/p4-match`)
+- test writer: `package-scripts/tests/runners.test.ts` (4 cases); red for the right reason: yes for (a), (b), (d); (c) is a guard that cannot be red (the old code adds no playwright command); the old matching case became (c), no duplicate. untestable: none
+- implementer: `buildE2eListCommand(pkg)` and the fourth parameter `hasE2eSpecs = fs.existsSync(playwrightConfigFor(pkg))` of `buildCheckCommands` in `package-scripts/src/runners.ts`; doc lines in `CONTRIBUTING.md` (62, and 42 for agreement) and `README.md` (212). DONE
+- test disputes: none
+- self-declared differences: `CONTRIBUTING.md` line 42 also edited; the doc lines name the command `playwright test --list`; no commit by the implementer (the runner commits); workspace-root `CLAUDE.md` left for the driver
+- gate 1: tests unedited: yes · pass (core check exit 0, vitest 4923 passed, list "Total: 300 tests in 70 files"; books check exit 0, vitest 7874 passed, list "Total: 668 tests in 156 files")
+- gate 2: n/a
+- gate 3 A (correctness): 1 BLOCK accepted+fixed — `playwright test --list` exits 1 ("No tests found") for a member with a `playwright.config.ts` and no spec (bootstrap `full` template), against spec §9 "for a member with e2e specs"; fix: the list args gain `--pass-with-no-tests` (test case (b) changed first by a test writer, red, then the source). The checkpoint's literal args for (b) are thus widened by this one flag. 3 NOTEs to Design notes.
+- gate 3 B (conformance): script lines: 0 · findings: none
+- fix review: round 1: clean (findings file `cp0-fix-r1.md`, cause `spec-logic`); gate 1 again: core and books check exit 0, same totals
+- gate 3 A notes: 3, listed under Design notes
+- reviewer-caught deferrals: none
+- commit: tinycld 670f585
+- human: none (review mode C)
 
 ## Final review
 - eval: (not reached)
