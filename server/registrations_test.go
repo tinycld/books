@@ -920,7 +920,6 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 	registerAutoReverseSweep(parts)
 	registerReportShares(parts)
 	registerPartyBalances()
-	registerReceivableItems()
 	parts.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		bindBalanceRoutes(e)
 		bindPDFRoutes(e)

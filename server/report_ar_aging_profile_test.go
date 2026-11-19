@@ -88,13 +88,14 @@ func arProfileTime(t *testing.T, b arBook, sql string) (time.Duration, int) {
 	return best, n
 }
 
-// arProfileFloor are reads of the two views with no report over them: the
-// least a run that reads the whole book can cost.
+// arProfileFloor are reads of the stored receivable rows with no report over
+// them: the least a run can cost. The first two read the whole table; the
+// last reads only the rows of the items that are open (settled 9999-12-31),
+// which is what a run of the last day reads.
 var arProfileFloor = []string{
-	"SELECT count(*), sum(debit), sum(credit), sum(length(item)), sum(length(due_date)), sum(length(item_number)), sum(item_seq) FROM books_receivable_lines",
-	"SELECT count(*), sum(debit), sum(credit), sum(length(item)), sum(length(due_date)), sum(length(item_number)), sum(item_seq) FROM books_receivable_applications",
-	"SELECT count(*) FROM (SELECT customer, item, sum(debit - credit) FROM books_receivable_lines GROUP BY customer, item)",
-	"SELECT count(*) FROM (SELECT customer, item, sum(debit - credit) FROM (SELECT customer, item, debit, credit FROM books_receivable_lines UNION ALL SELECT customer, item, debit, credit FROM books_receivable_applications) GROUP BY customer, item)",
+	"SELECT count(*), sum(debit), sum(credit), sum(length(item)), sum(length(due_date)), sum(length(item_number)), sum(item_seq) FROM books_receivable_items",
+	"SELECT count(*) FROM (SELECT customer, item, sum(debit - credit) FROM books_receivable_items GROUP BY customer, item)",
+	"SELECT count(*) FROM (SELECT customer, item, sum(debit - credit) FROM books_receivable_items WHERE settled = '" + receivableOpen + "' GROUP BY customer, item)",
 }
 
 // TestARAgingProfile writes, for each run of spec §9, where its time goes: the

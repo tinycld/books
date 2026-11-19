@@ -220,29 +220,31 @@ func TestOAuth_PartyContactsAndBalances(t *testing.T) {
 	}
 }
 
-// A/R Aging spec §4: a token only reads the two receivable item views, which
-// nothing writes, as the balances view.
-func TestOAuth_ReceivableViews(t *testing.T) {
+// A/R Aging spec §4: a token only reads the stored receivable items, which
+// only Books writes. The two views they replaced have no entry.
+func TestOAuth_ReceivableItems(t *testing.T) {
 	collections := oauthPackage().Collections
-	views := []string{"books_receivable_lines", "books_receivable_applications"}
-	for _, c := range views {
-		got, ok := collections[c]
-		if !ok {
-			t.Errorf("%s has no OAuth entry", c)
-			continue
-		}
-		if !reflect.DeepEqual(got.Read, []string{scopeRead}) || len(got.Write) != 0 {
-			t.Errorf("%s OAuth access = %+v, want Read [%s] and no Write", c, got, scopeRead)
+	got, ok := collections[receivableItemsCollection]
+	if !ok {
+		t.Fatalf("%s has no OAuth entry", receivableItemsCollection)
+	}
+	if !reflect.DeepEqual(got.Read, []string{scopeRead}) || len(got.Write) != 0 {
+		t.Errorf("%s OAuth access = %+v, want Read [%s] and no Write", receivableItemsCollection, got, scopeRead)
+	}
+	for _, gone := range []string{"books_receivable_lines", "books_receivable_applications"} {
+		if _, ok := collections[gone]; ok {
+			t.Errorf("%s still has an OAuth entry; the view is gone", gone)
 		}
 	}
 
 	t.Cleanup(oauth.ResetRegistry)
 	oauth.RegisterPackage(oauthPackage())
-	for _, c := range views {
-		path := "/api/collections/" + c + "/records"
-		if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
-			t.Errorf("GET %s: books:read must read", path)
-		}
+	path := "/api/collections/" + receivableItemsCollection + "/records"
+	if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
+		t.Errorf("GET %s: books:read must read", path)
+	}
+	if oauth.ScopeForRoute(http.MethodPatch, path+"/x").SatisfiedBy([]string{scopeRead}) {
+		t.Errorf("PATCH %s/x: books:read must not write", path)
 	}
 }
 

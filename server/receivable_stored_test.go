@@ -2,7 +2,6 @@ package books
 
 import (
 	"fmt"
-	"sort"
 	"testing"
 
 	"github.com/pocketbase/dbx"
@@ -75,33 +74,57 @@ func settledOf(t testing.TB, app core.App, item string) string {
 	return ""
 }
 
-// The rebuild stores exactly the rows of the two views.
-func TestReceivableRebuildMatchesViews(t *testing.T) {
+// The hooks and the rebuild store the same rows: one per Accounts receivable
+// line and one per application of a posted payment, each given to its item.
+func TestReceivableRebuildStoresRows(t *testing.T) {
 	b := newARBook(t)
 	c := b.docs.customer
 	inv := arInvoice(t, b, c, "2026-08-04", "2026-09-03", 100000)
-	arPayment(t, b, c, "2026-09-10", 70000, map[string]int{inv.Id: 55000})
-	arCreditMemo(t, b, c, "2026-10-20", 63500)
+	pay := arPayment(t, b, c, "2026-09-10", 70000, map[string]int{inv.Id: 55000})
+	memo := arCreditMemo(t, b, c, "2026-10-20", 63500)
 	arJournalPrefix(t, b)
-	postJournal(t, b.app, "", "2026-09-01", "A/R adjustment",
+	je := postJournal(t, b.app, "", "2026-09-01", "A/R adjustment",
 		jnLine{account: b.receivable, debit: 12000, position: 0},
 		jnLine{account: b.income, credit: 12000, position: 1})
-	requireRebuilt(t, b.app)
+	line := arLineOf(t, b, je.Id)
 
-	want := allRows(t, b.app)
-	sort.Slice(want, func(i, j int) bool { return want[i].id < want[j].id })
-	got := storedRows(t, b.app)
-	if len(got) != len(want) || len(got) != 5 {
-		t.Fatalf("stored %d rows, the views give %d, want 5", len(got), len(want))
+	type row struct {
+		Customer, Entry, Date string
+		Debit, Credit         int
+		Kind, Due, Settled    string
 	}
-	for i, w := range want {
-		g := got[i]
-		if g.ID != w.id || g.Customer != w.customer || g.Entry != w.entry || g.Date != w.date ||
-			g.Debit != w.debit || g.Credit != w.credit || g.Item != w.item || g.Currency != w.currency ||
-			g.Kind != w.kind || g.Number != w.number || g.Seq != w.seq || g.Due != w.due {
-			t.Errorf("stored row %d = %+v, the view row is %+v", i, g, w)
+	// By source and item: every item here is open.
+	want := map[string]row{
+		"line " + inv.Id:        {c.Id, inv.GetString("entry"), "2026-08-04", 100000, 0, "invoice", "2026-09-03", receivableOpen},
+		"application " + inv.Id: {c.Id, pay.GetString("entry"), "2026-09-10", 0, 55000, "invoice", "2026-09-03", receivableOpen},
+		"line " + pay.Id:        {c.Id, pay.GetString("entry"), "2026-09-10", 0, 15000, "payment", "2026-09-10", receivableOpen},
+		"line " + memo.Id:       {c.Id, memo.GetString("entry"), "2026-10-20", 0, 63500, "credit_memo", "2026-10-20", receivableOpen},
+		"line " + line.Id:       {"", je.Id, "2026-09-01", 12000, 0, "entry", "2026-09-01", receivableOpen},
+	}
+	check := func(when string) {
+		t.Helper()
+		got := storedRows(t, b.app)
+		if len(got) != len(want) {
+			t.Fatalf("%s: stored %d rows, want %d: %+v", when, len(got), len(want), got)
+		}
+		for _, g := range got {
+			key := g.Source + " " + g.Item
+			w, ok := want[key]
+			if !ok {
+				t.Errorf("%s: a stored row of %q, want one of the five items: %+v", when, key, g)
+				continue
+			}
+			if (row{g.Customer, g.Entry, g.Date, g.Debit, g.Credit, g.Kind, g.Due, g.Settled}) != w {
+				t.Errorf("%s: the row of %q = %+v, want %+v", when, key, g, w)
+			}
+			if g.Number == "" || g.Seq == 0 || g.Currency == "" {
+				t.Errorf("%s: the row of %q has no number, sequence or currency: %+v", when, key, g)
+			}
 		}
 	}
+	check("after the posts")
+	requireRebuilt(t, b.app)
+	check("after a rebuild")
 }
 
 // settled is the day a customer's item reaches zero for good.
