@@ -4,7 +4,14 @@
 // node (tests/seed-node.test.ts). Amounts are integer minor units (cents); a bank amount is
 // signed, money in is positive. Accounts are the seeded e2e book's (lib/seed-accounts.ts), by
 // number: every row here is on 1000 Business Checking.
-import type { BooksBankTransactions, BooksJournalEntries, BooksJournalLines } from '../types'
+import type {
+    BooksBankMatches,
+    BooksBankMatchLines,
+    BooksBankMatchSuggestions,
+    BooksBankTransactions,
+    BooksJournalEntries,
+    BooksJournalLines,
+} from '../types'
 import { BANK_ACCOUNT_IDS, BANK_USERS } from './bank-connection-fixture'
 import {
     REVIEW_ACCOUNTS,
@@ -23,41 +30,6 @@ export const MATCH_USERS = [BANK_USERS.ana, BANK_USERS.ben]
 // The suggestion window of the spec (lib/bank-match.ts will own these constants).
 export const FIXTURE_DAYS_BEFORE = 90
 export const FIXTURE_DAYS_AFTER = 7
-
-// The records the match migration creates (pb-migrations/2100000030_create_books_bank_matches.js).
-// The migration checkpoint replaces these three interfaces with the generated
-// `BooksBankMatches`, `BooksBankMatchLines` and `BooksBankMatchSuggestions`, and the arrays
-// below then `satisfies` those.
-export interface BankMatchRecord {
-    id: string
-    bank_transaction: string
-    lines: string[]
-    connection: string
-    created_by: string
-    created: string
-    updated: string
-}
-
-export interface BankMatchLineRecord {
-    id: string
-    match: string
-    bank_transaction: string
-    line: string
-    entry: string
-    amount: number
-    created: string
-    updated: string
-}
-
-export interface BankMatchSuggestionRecord {
-    id: string
-    bank_transaction: string
-    connection: string
-    line: string
-    entry: string
-    date: string
-    days_apart: number
-}
 
 // 78 characters: a Books transaction row must put the name on one line with an ellipsis.
 export const MATCH_LONG_VENDOR_NAME =
@@ -274,7 +246,7 @@ export const MATCH_TXN_IDS = {
 const MATCHED_AT = '2026-11-18 15:42:00.000Z'
 
 // [bank transaction, the matched lines, who matched it]
-const MATCHED: readonly (readonly [string, readonly string[], string])[] = [
+const MATCHED: readonly (readonly [string, readonly [string, ...string[]], string])[] = [
     [MATCH_TXN_IDS.matchedOne, [lineIdOf('expense', '1029')], BANK_USERS.ana.id],
     [
         MATCH_TXN_IDS.matchedThree,
@@ -292,7 +264,7 @@ export const MATCH_MATCHES = MATCHED.map(([bankTransaction, lines, createdBy], i
     created_by: createdBy,
     created: MATCHED_AT,
     updated: MATCHED_AT,
-})) satisfies BankMatchRecord[]
+})) satisfies BooksBankMatches[]
 
 function lineAmountOf(lineId: string): number {
     const line = MATCH_LINES.find(row => row.id === lineId)
@@ -310,7 +282,7 @@ export const MATCH_MATCH_LINES = MATCH_MATCHES.flatMap(match =>
         created: MATCHED_AT,
         updated: MATCHED_AT,
     }))
-) satisfies BankMatchLineRecord[]
+) satisfies BooksBankMatchLines[]
 
 const DAY_MS = 86_400_000
 
@@ -323,7 +295,7 @@ const MATCHED_LINE_IDS = new Set(MATCH_MATCH_LINES.map(row => row.line))
 // What the view `books_bank_match_suggestions` answers for the rows above: a line that is
 // not matched, on the same side, of exactly the bank amount, dated from 90 days before to 7
 // days after the bank date; nearest date first, then entry number.
-function suggestionsOf(txn: BooksBankTransactions): BankMatchSuggestionRecord[] {
+function suggestionsOf(txn: BooksBankTransactions): BooksBankMatchSuggestions[] {
     return MATCH_LINES.filter(line => {
         const signed = line.debit - line.credit
         const after = daysBetween(txn.date, line.date)
@@ -348,7 +320,7 @@ function suggestionsOf(txn: BooksBankTransactions): BankMatchSuggestionRecord[] 
 
 export const MATCH_SUGGESTIONS = FOR_REVIEW.flatMap(
     suggestionsOf
-) satisfies BankMatchSuggestionRecord[]
+) satisfies BooksBankMatchSuggestions[]
 
 // The find mode of the $2,755.00 deposit: the three receipts that add up to it, and two of
 // them, which leave a difference of $600.00.

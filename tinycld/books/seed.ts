@@ -298,6 +298,9 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedSalesReports(pb, ctx, accountIds, customerIds)
     // After every other document seed, so the seeded documents keep their numbers.
     await seedRefundReceipts(pb, ctx, accountIds, customerIds, salesReceiptIds)
+    // After the documents its two statement lines fit (the review statement is imported
+    // before any document posts).
+    await seedBankMatch(pb, ctx)
     // Created active and deactivated last, because the app makes an account
     // inactive by updating it, and the vendor and product guards refuse a row
     // that names an inactive account when it is saved.
@@ -2302,7 +2305,8 @@ function contentLines(rows: unknown): number[] {
 
 // Uploads and imports the For review statement on 1000 Business Checking, through the same
 // upload and import hooks the app uses, then excludes four of its rows, so the e2e book and
-// the help screenshots show For review and Excluded lists. Nothing is marked reviewed.
+// the help screenshots show For review and Excluded lists. seedBankMatch later moves one row
+// to Reviewed by a match.
 async function seedReviewStatement(
     pb: PocketBase,
     ctx: SeedContext,
@@ -2352,4 +2356,34 @@ async function seedReviewStatement(
     for (const txn of toExclude) {
         await pb.collection('books_bank_transactions').update(txn.id, { status: 'excluded' })
     }
+}
+
+// The review statement's last two lines each fit one Books transaction the seed posted on
+// 1000 Business Checking: PACIFIC POWER AUTOPAY stays For review with its one suggestion,
+// and ONLINE BILL PAY 0915 is matched through the same create hook the app uses, so the
+// Reviewed tab has a matched row. The superuser attributes the match to the seeded user.
+async function seedBankMatch(pb: PocketBase, ctx: SeedContext) {
+    const statement = REVIEW_SEED_STATEMENT
+    const onlySuggestion = async (fitid: string) => {
+        const txn = await pb
+            .collection('books_bank_transactions')
+            .getFirstListItem(pb.filter('fitid = {:f}', { f: fitid }))
+        const rows = await pb.collection('books_bank_match_suggestions').getFullList({
+            filter: pb.filter('bank_transaction = {:t}', { t: txn.id }),
+        })
+        const [row] = rows
+        if (rows.length !== 1 || row === undefined) {
+            throw new Error(
+                `seed: bank transaction ${fitid} has ${rows.length} match suggestions, want 1`
+            )
+        }
+        return { txn: txn.id, line: String(row.line) }
+    }
+    await onlySuggestion(statement.suggestedFitid)
+    const matched = await onlySuggestion(statement.matchedFitid)
+    await pb.collection('books_bank_matches').create({
+        bank_transaction: matched.txn,
+        lines: [matched.line],
+        created_by: ctx.user.id,
+    })
 }

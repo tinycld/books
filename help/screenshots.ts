@@ -69,14 +69,15 @@ async function selectCheckingForShot(page: Page) {
     await expect(checking).toHaveAttribute('aria-selected', 'true')
 }
 
-// The seeded checking-2026-10.ofx left eight transactions for review on 1000 Business
-// Checking (twelve lines, four excluded); the page opens on For review.
+// The seeded checking-2026-10.ofx left nine transactions for review on 1000 Business
+// Checking (fourteen lines, four excluded, one matched by the seed); the page opens on For
+// review.
 async function openBankReviewForShot(page: Page) {
     await selectCheckingForShot(page)
     await expect(page.getByTestId('bank-tab-body-review')).toBeVisible()
     await expect(
         page.locator('[data-testid="bank-review-table-rows"] [data-testid^="bank-review-row-"]')
-    ).toHaveCount(8)
+    ).toHaveCount(9)
 }
 
 async function openBankingForShot(page: Page) {

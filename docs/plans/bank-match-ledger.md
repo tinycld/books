@@ -32,9 +32,16 @@ and again at the end)
 - cp 0 · reviewer A NOTE: `package-scripts/src/runners.ts` — `playwright test --list` prints one line per test, so `tinycld-pkg check` in `books/` prints about 670 more lines (`--reporter=null` does not quiet it). A quiet mode (print the list only on failure) is a possible later change.
 - cp 0 · reviewer A NOTE: the workspace-root `CLAUDE.md` (not in the core repo) still says `check` runs "biome + tsc + vitest"; the bootstrap template `templates/shared/README.md:42` says "biome + typecheck". For the driver.
 - cp 0 · reviewer A NOTE: `CONTRIBUTING.md:42` was also edited (the checkpoint named line 62 only), so the two descriptions of `check` in the file agree.
+- cp 1 · reviewer A NOTE: `server/bank_match.go` — a line whose entry is missing, or a bank transaction whose connection is missing, gives a wrapped 500, not a refusal. No user sequence reaches it (posted lines cannot be deleted; a connection delete cascades to its bank transactions).
+- cp 1 · reviewer A NOTE: the brief named the view for the not-audited list in `server/registrations_test.go`; only `books_bank_match_lines` was added, because `booksCollections(…, base)` never lists a view. `TestRegister_BindsEachPartOnce` has no new line: the hand-bound `registerLedger` → `registerBanking` → `registerBankMatch` already binds the part.
+- cp 1 · performance: `server/batch_cost_test.go` `draftReplaceStatementsPerLine` rose from 16 to 18, because the two new relation fields to `books_journal_lines` (`books_bank_match_lines.line`, `books_bank_matches.lines`) add one PocketBase cascade lookup each to every journal line delete. The lookup on the multi-relation `books_bank_matches.lines` is not indexed. For the human: accept, or a later change to the schema.
 
 ## Out-of-plan changes
 (none yet — every file touched that no checkpoint's Files block named, with why)
+- cp 1 · `server/batch_cost_test.go` — the statement bound per line 16 → 18 (test dispute 3b, measured; see Design notes).
+- cp 1 · `tests/migration-prefixes.test.ts` — the "audit view runs last" rules failed on the gate-fixed number 2100000030 (spec §4). Rewritten to the real rule: the audit view runs after every migration that creates a collection it reads (its line collections, parsed from the view migration), and later migrations are named in `AFTER_AUDIT` (test dispute 3).
+- cp 1 · `tests/e2e/banking-page.spec.ts:153` — "Imported: 12 transactions" → 14, a ripple of the two new seed lines that the step 11 grep missed (gate 1 e2e failure).
+- cp 1 · `tinycld/books/types.ts` — re-exports `BooksBankMatches`, `BooksBankMatchLines`, `BooksBankMatchSuggestions`, which step 9 imports from `../types`.
 
 ## Phase notes
 - phase 1: no correction of the inventory or the sparks at the design gate (2026-11-19). The packet was built on `books/p3-purchase-lists`@a3aa855; that branch is merged (PR #73), and the step branch `books/p4-match` starts from the merge, @98491861.
@@ -92,6 +99,21 @@ and again at the end)
 - gate 3 A notes: 3, listed under Design notes
 - reviewer-caught deferrals: none
 - commit: tinycld 670f585
+- human: none (review mode C)
+
+## Checkpoint 1 (Match data and server rules)
+- test writer: `server/bank_match_test.go`, `server/bank_match_view_test.go`, `server/testdata/bank_match_cases.json`, `tests/bank-match-fixture.test.ts`; changed `server/oauth_scopes_test.go` (new `TestOAuth_BankMatchCollections`), `server/registrations_test.go` (`books_bank_match_lines` not audited), `server/testdata/audit_log_spec.json`, `tests/collections.test.ts`, `tests/audit-record-route.test.ts`, `tests/for-review-fixture.test.ts`, `tests/accounts-form-harness.ts`, `tests/e2e/for-review.spec.ts` (8 → 9), `help/screenshots.ts` (8 → 9). Red for the right reason: yes (Go: 404 collection / no view; vitest fixture test red at typecheck only). untestable: none. Declared: draft refusal reads "This transfer is not posted." (`entryName` of a draft, as the brief says the test builds names from its own entries).
+- implementer: migration 2100000030 (two collections, view, two partial indexes), `server/bank_match.go` (create/delete hooks, `isLineMatched`, `unmatchEntry`), the `transitionEntry` call in `entries.go`, view registration, audit (Go and the three client tables), OAuth, collections, typed fixture, seed lines and `seedBankMatch`. DONE
+- test disputes (4, each settled "the test is wrong" by a test-writer dispatch; file `cp1-disputes.md`): (1) VoidAndEdit expense subtests dated the expense 55 days after the bank row — spec §3 "dated from 90 days before to 7 days after the bank date"; moved inside the window. (2) Disconnect stored an import row for an `uploaded` file, which the required `books_bank_imports.file` blocks — checkpoint "a connection whose file never left `uploaded` … takes no match with it"; uses its own uploaded-only connection. (3) `tests/migration-prefixes.test.ts` required the audit view last — spec §4 "`2100000030_create_books_bank_matches.js` … 29 is the audit view after its rename"; rule restated (see Out-of-plan). (3b) `batch_cost_test.go` bound 16 → 18 (see Design notes).
+- self-declared differences: package `log` already declared (`auto_reverse.go:21`), so no new one; sum refusal uses the books currency (a connection has no currency field); view compares `t.date` bare (10-character day, 2100000008:240); the three collections are declared after `books_journal_entries` (their relations need it), exported beside the bank ones; `connection` not required (stamped by Go), match-line `amount` min 0 max `MAX_AMOUNT`; `REVIEW_SEED_STATEMENT` gains `suggestedFitid` / `matchedFitid` read by `seedBankMatch`; refusal order checks void before not posted (a void entry would read "not posted" otherwise).
+- gate 1: tests unedited: yes · fail → `banking-page.spec.ts:153` "Imported: 12 transactions": the seeded statement now has 14 lines → test-writer fix to 14 → pass. Final: check exit 0 (7884 vitest), `go test ./...` ok, e2e `for-review.spec.ts` + `banking-page.spec.ts` 12 passed; the seed's `seedBankMatch` ran clean.
+- gate 2: n/a
+- gate 3 A (correctness): 0 BLOCK, 8 NOTE: NOTE 1 (unknown line id refused by the sum text) accepted with B #5; NOTE 2 (the reversal assertion of VoidAndEdit could not fail) accepted as a weak test and fixed; NOTE 4 (comment wrap) accepted with B #7; NOTEs 3, 5 to Design notes; NOTEs 5–8 are the out-of-plan files.
+- gate 3 B (conformance): script lines: 0 · findings 1–4 (out-of-plan files) recorded under Out-of-plan changes; #5 (unknown line id skips to the sum refusal, comment disagrees) accepted+fixed; #6 (`time.Sleep` in `TestBankMatch_Audit`) accepted+fixed by the test writer; #7 (comment wrap in `server/audit.go`) accepted+fixed.
+- fix review: round 1: clean (findings file `cp1-fix-r1.md`: causes spec-logic 1, weak-test 2, conformance 1); gate 1 again: check exit 0, `go test ./...` ok, e2e 12 passed
+- gate 3 A notes: 2, listed under Design notes (plus the batch-cost performance note)
+- reviewer-caught deferrals: none
+- commit: (this commit)
 - human: none (review mode C)
 
 ## Final review
