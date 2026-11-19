@@ -150,7 +150,7 @@ test.describe('bank-connection: page', () => {
         })
         await expect(reviewSeedRow).toHaveCount(1)
         await expect(
-            reviewSeedRow.getByText('Imported: 12 transactions', { exact: true })
+            reviewSeedRow.getByText('Imported: 14 transactions', { exact: true })
         ).toBeVisible()
         await expect(checking.getByText('1 file waiting', { exact: true })).toBeVisible()
 

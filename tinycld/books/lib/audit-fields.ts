@@ -675,6 +675,13 @@ const AUDIT_FIELD_MAPS = {
         status: select('Status', BANK_TXN_STATUS),
         ...STAMPS,
     },
+    books_bank_matches: {
+        bank_transaction: relation('Bank transaction', 'books_bank_transactions'),
+        lines: internal('Matched lines'),
+        connection: relation('Bank connection', 'books_bank_connections'),
+        created_by: relation('Matched by', 'users'),
+        ...STAMPS,
+    },
     books_settings: {
         close_date: day('Close date'),
         fiscal_year_start_month: select('First month of the fiscal year', MONTHS),
