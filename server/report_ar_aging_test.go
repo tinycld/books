@@ -1263,6 +1263,18 @@ func TestARAgingShippedShared(t *testing.T) {
 // shipped registry is global, so the test resets it when it ends.
 func exportARCSV(t testing.TB, b arBook, reader *core.Record, params map[string]any) string {
 	t.Helper()
+	out, err := exportARCSVErr(t, b, reader, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// exportARCSVErr is exportARCSV that returns a refused export (a run that
+// passes core's time limit) instead of ending the test. Its setup still fails
+// the test.
+func exportARCSVErr(t testing.TB, b arBook, reader *core.Record, params map[string]any) (string, error) {
+	t.Helper()
 	if _, err := b.app.FindFirstRecordByFilter("reports", "shipped_key = {:k}", dbx.Params{"k": arAgingKey}); err != nil {
 		t.Cleanup(reports.ResetForTesting)
 		reports.Register(b.app)
@@ -1305,15 +1317,12 @@ func exportARCSV(t testing.TB, b arBook, reader *core.Record, params map[string]
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
-			t.Fatalf("export: status %d, want 200; body: %s", rec.Code, rec.Body.String())
+			return fmt.Errorf("export: status %d, want 200; body: %s", rec.Code, rec.Body.String())
 		}
 		out = rec.Body.String()
 		return nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return out
+	return out, err
 }
 
 func TestARAgingCSVOpensEveryGroup(t *testing.T) {
