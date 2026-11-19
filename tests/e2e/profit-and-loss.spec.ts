@@ -19,6 +19,7 @@ import {
     dayWords,
     expectedHeading,
     expectPressOpensNothing,
+    isInGroup,
     openEntriesFromSidebar,
     openProfitAndLoss,
     openProfitAndLossByMonth,
@@ -27,6 +28,8 @@ import {
     type ReportSnapshot,
     reportLinesUnder,
     reportSnapshot,
+    reportSnapshotAtEnd,
+    sectionTopKey,
     snapshotWhen,
 } from './books-report-helpers'
 import { ACCOUNT_LABELS } from './journal-entries-helpers'
@@ -131,47 +134,29 @@ async function collapseAll(page: Page): Promise<ReportSnapshot> {
     )
 }
 
-// The table mounts only the rows near its scroll position (a FlashList), and a section
-// grows with every account that earlier runs and other specs post to today. An account
-// whose name sorts below theirs, or the section's total under a long section, is then not
-// mounted. Accounts sort by number, then name (server/report_profit_and_loss.go
-// plRecordSort), so an unnumbered account named from this key sorts above every account
-// made before it: "AA 0" comes before the other specs' "AA <letter>" names, and the
-// countdown makes a later run's name sort before an earlier run's.
-function sectionTopKey(): string {
-    return `AA 0${String(9_999_999_999_999 - Date.now()).padStart(13, '0')}`
-}
-
-// True when `label`'s row lies inside the opened `section`: below the section's title, with
-// only the section's own rows (indented under the title) between them. The section's total
-// and the next section are not indented under it, so the account is above the total.
-function isInSection(snapshot: ReportSnapshot, section: string, label: string): boolean {
-    const at = indexOf(snapshot, 'group', label)
-    const above = snapshot.rows.slice(0, Math.max(at, 0))
-    const titleAt = above
-        .map(row => row.kind === 'group' && row.label === section)
-        .lastIndexOf(true)
-    if (at < 0 || titleAt < 0) return false
-    const titleDepth = snapshot.rows[titleAt].depth
-    return snapshot.rows
-        .slice(titleAt + 1, at + 1)
-        .every(row => (row.kind === 'group' || row.kind === 'detail') && row.depth > titleDepth)
+// An account number that sorts below every other account of its section, the last
+// account above the section's total: accounts sort by number, then name
+// (server/report_profit_and_loss.go plRecordSort), the seed's numbers start with a digit,
+// "z" sorts after every digit and letter, and the count up makes a later run's number sort
+// after an earlier run's. The worker index keeps two workers' numbers apart (the number is
+// unique).
+function sectionBottomNumber(): string {
+    return `zz${Date.now()}-${test.info().workerIndex}`
 }
 
 // Opens one folded section and waits for its title and `label`'s row (an account of the
-// test's own), and for `isReady` when given.
+// test's own, named from sectionTopKey so it mounts at the section's top).
 async function openSectionTo(
     page: Page,
     section: string,
     label: string,
-    message: string,
-    isReady: (snapshot: ReportSnapshot) => boolean = () => true
+    message: string
 ): Promise<ReportSnapshot> {
     await rowOf(page, section).click()
     return snapshotWhen(
         page,
         reportSnapshot,
-        s => indexOf(s, 'group', section) >= 0 && indexOf(s, 'group', label) >= 0 && isReady(s),
+        s => indexOf(s, 'group', section) >= 0 && indexOf(s, 'group', label) >= 0,
         message
     )
 }
@@ -244,7 +229,7 @@ test.describe('profit-and-loss: report', () => {
         const incomeOpen = await openSectionTo(page, T.income, income, 'the income account')
         const incomeAt = indexOf(incomeOpen, 'group', income)
         expect(incomeAt).toBeGreaterThan(indexOf(incomeOpen, 'group', T.income))
-        expect(isInSection(incomeOpen, T.income, income)).toBe(true)
+        expect(isInGroup(incomeOpen, T.income, income)).toBe(true)
         expect(amountOf(incomeOpen, 'group', income)).toBe(50000)
         // One row only: none after the section's total, nor anywhere else.
         expect(incomeOpen.rows.filter(row => row.label === income)).toHaveLength(1)
@@ -252,7 +237,7 @@ test.describe('profit-and-loss: report', () => {
         const expenseOpen = await openSectionTo(page, T.expense, expense, 'the expense account')
         const expenseAt = indexOf(expenseOpen, 'group', expense)
         expect(expenseAt).toBeGreaterThan(indexOf(expenseOpen, 'group', T.expense))
-        expect(isInSection(expenseOpen, T.expense, expense)).toBe(true)
+        expect(isInGroup(expenseOpen, T.expense, expense)).toBe(true)
         expect(amountOf(expenseOpen, 'group', expense)).toBe(12000)
     })
 
@@ -276,8 +261,15 @@ test.describe('profit-and-loss: report', () => {
         page,
     }) => {
         await startBooks(page)
-        const income = uniqueName('PL percent')
-        await createAccounts(page, [{ name: income, kind: INCOME }])
+        // The account and Total Income are read in one snapshot. Numbered last in Income,
+        // the account is the row above Total Income, so with every other section folded both
+        // mount at the end of the list, however long Income grows.
+        const name = uniqueName('PL percent')
+        const number = sectionBottomNumber()
+        const income = `${number} ${name}`
+        await openChart(page)
+        await createAccount(page, name, INCOME, number)
+        await openEntriesFromSidebar(page)
         await postEntryOn(page, {
             date: await browserToday(page),
             memo: uniqueName('PL percent sale'),
@@ -289,12 +281,14 @@ test.describe('profit-and-loss: report', () => {
 
         await openProfitAndLoss(page)
         await collapseAll(page)
-        const open = await openSectionTo(
+        await rowOf(page, T.income).click()
+        const open = await snapshotWhen(
             page,
-            T.income,
-            income,
-            'the income account',
-            s => indexOf(s, 'subtotal', `Total ${T.income}`) >= 0
+            reportSnapshotAtEnd,
+            s =>
+                indexOf(s, 'group', income) >= 0 &&
+                indexOf(s, 'subtotal', `Total ${T.income}`) >= 0,
+            'the income account and Total Income at the end of the list'
         )
         const totalIncome = rowNamed(open, 'subtotal', `Total ${T.income}`)
         expect(totalIncome?.cells.pct).toBe('100.0%')
@@ -360,16 +354,16 @@ test.describe('profit-and-loss: report', () => {
         const active = await openSectionTo(page, T.expense, zeroed, 'the zero account under Active')
         const at = indexOf(active, 'group', zeroed)
         expect(at).toBeGreaterThan(indexOf(active, 'group', T.expense))
-        expect(isInSection(active, T.expense, zeroed)).toBe(true)
+        expect(isInGroup(active, T.expense, zeroed)).toBe(true)
         expect(rowNamed(active, 'group', zeroed)?.cells.amount).toMatch(/0\.00$/)
         expect(amountOf(active, 'group', zeroed)).toBe(0)
     })
 
     test('pressing an account opens its lines, labelled and in posting order', async ({ page }) => {
         await startBooks(page)
-        // Unnumbered accounts sort first in a section, and "AA" before the other specs'
-        // names, so the account and its lines mount at the top of the opened Income.
-        const income = uniqueName('AA PL open')
+        // Named from sectionTopKey, the account and its lines mount at the top of the
+        // opened Income.
+        const income = uniqueName(`${sectionTopKey()} PL open`)
         await createAccounts(page, [{ name: income, kind: INCOME }])
         const today = await browserToday(page)
         const m1 = uniqueName('PL open line memo')
@@ -439,8 +433,8 @@ test.describe('profit-and-loss: report', () => {
 
         // Page B is a second browser context signed in as the same user: its own session
         // and its own realtime connection, so the post reaches page A through the server.
-        // The name sorts first among the unnumbered Income accounts, so its row mounts.
-        const income = uniqueName('AA PL live')
+        // Named from sectionTopKey, the account sorts first in Income, so its row mounts.
+        const income = uniqueName(`${sectionTopKey()} PL live`)
         const otherContext = await browser.newContext()
         try {
             const other = await otherContext.newPage()
@@ -475,9 +469,8 @@ test.describe('profit-and-loss: report', () => {
         page,
     }) => {
         await startBooks(page)
-        // Unnumbered accounts sort first in a section, and "AA" before the other specs'
-        // names, so the account mounts at the top of the opened Income.
-        const income = uniqueName('AA PL month')
+        // Named from sectionTopKey, the account mounts at the top of the opened Income.
+        const income = uniqueName(`${sectionTopKey()} PL month`)
         await createAccounts(page, [{ name: income, kind: INCOME }])
         const today = await browserToday(page)
         await postEntryOn(page, {
@@ -536,9 +529,9 @@ test.describe('profit-and-loss: report', () => {
         page,
     }) => {
         await startBooks(page)
-        // Unnumbered accounts sort first in a section, and "AA" before the other specs'
-        // names, so the account mounts at the top of Income, the first section.
-        const income = uniqueName('AA PL phone')
+        // Named from sectionTopKey, the account mounts at the top of Income, the first
+        // section.
+        const income = uniqueName(`${sectionTopKey()} PL phone`)
         await createAccounts(page, [{ name: income, kind: INCOME }])
         const today = await browserToday(page)
         await postEntryOn(page, {
@@ -636,8 +629,10 @@ test.describe('profit-and-loss: report', () => {
             // 90 characters (under the 200 the name field allows), wider than the label
             // cell at both widths: padded with "W", the widest letter, since 90 plain
             // characters take about 600 px and the label cell is about 950 px at 1280.
-            // "AA" mounts it at the top of Income.
-            const income = `${uniqueName('AA PL fit')} `.padEnd(90, 'W').slice(0, 90)
+            // Named from sectionTopKey, it mounts at the top of Income.
+            const income = `${uniqueName(`${sectionTopKey()} PL fit`)} `
+                .padEnd(90, 'W')
+                .slice(0, 90)
             expect(income.length).toBe(90)
             await createAccounts(page, [{ name: income, kind: INCOME }])
             await postEntryOn(page, {
