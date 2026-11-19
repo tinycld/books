@@ -100,7 +100,7 @@ test.describe('bank-connection: page', () => {
         await page.setViewportSize(BANKING_DESKTOP)
         await expect
             .poll(async () => (await sidebarNavIds(page)).slice(0, 3))
-            .toEqual(['books-nav-banking', 'books-nav-sales', 'books-nav-lists'])
+            .toEqual(['books-nav-banking', 'books-nav-sales', 'books-nav-expenses'])
         await openBanking(page)
 
         const checking = bankCard(page, CHECKING)
