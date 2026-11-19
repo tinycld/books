@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/ar-aging-checkpoints.md
 - reference: docs/plans/ar-aging-reference/
 - evidence: docs/plans/ar-aging-evidence/cp<N>/ (built screenshots, capture.json, critique.md); docs/plans/ar-aging-evidence/perf-plans.md (the query plans of spec §9)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs, 2026-11-19)
 - capture manifest: docs/plans/ar-aging-capture.json
 - review mode: C — none (unattended)
 - ~~core extension: none planned. Two engine uses have no run behind them yet (a union source whose parts are view collections; a group label that reads `min` of a text field). Checkpoint 1's Go test pins both first; a refusal, or a performance bar of spec §9 that fails because of the SQL core writes, becomes a core checkpoint 0 (human's rule, 2026-11-01).~~ (changed 2026-11-18: checkpoint 2's gate 2 found a core gap)
@@ -413,6 +413,6 @@ Plan bars: every plan bar holds with no statistics and under L statistics (`Test
 - commit: the commit that holds this row (`feat(books): A/R Aging in the Customers list's Reports menu, phone and tablet layouts, help`; its sha is in the runner's hand-back)
 
 ## Final review
-- eval: (not reached)
+- eval: approved (human, 2026-11-19; CI green at be9228ae, books #77)
 - human comments and what changed
 - native: not executed in this run
