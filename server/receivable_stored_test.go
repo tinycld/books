@@ -1,9 +1,11 @@
 package books
 
 import (
+	"fmt"
 	"sort"
 	"testing"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -174,4 +176,94 @@ func TestVerifyReceivablesFindsDrift(t *testing.T) {
 		t.Fatalf("drifts = %+v, want 1 stale, 2 missing and a settled drift", drifts)
 	}
 	requireRebuilt(t, b.app)
+}
+
+// settleReceivables with a customer list fixes only the rows of those
+// customers (a blank id is the rows with no customer), returns how many rows it
+// changed, and walks a list longer than receivableCustomerChunk in chunks.
+// It is a pin: the code was right when the test was written, so it passed on
+// its first run.
+func TestSettleReceivablesSubset(t *testing.T) {
+	b := newARBook(t)
+	c1 := b.docs.customer
+	c2 := mkCustomer(t, b.app, "Second Customer", "")
+	for _, c := range []*core.Record{c1, c2} {
+		inv := arInvoice(t, b, c, "2026-08-04", "2026-09-03", 100000)
+		arPayment(t, b, c, "2026-09-10", 100000, map[string]int{inv.Id: 100000})
+	}
+	arJournalPrefix(t, b)
+	postJournal(t, b.app, "", "2026-09-01", "A/R with no customer",
+		jnLine{account: b.receivable, debit: 12000, position: 0},
+		jnLine{account: b.income, credit: 12000, position: 1})
+	requireRebuilt(t, b.app)
+
+	count := map[string]int64{}
+	for _, r := range storedRows(t, b.app) {
+		count[r.Customer]++
+	}
+	if count[c1.Id] == 0 || count[c2.Id] == 0 || count[""] != 1 {
+		t.Fatalf("rows by customer = %v, want rows for both customers and one with none", count)
+	}
+
+	corrupt := func() {
+		t.Helper()
+		if _, err := b.app.DB().NewQuery("UPDATE books_receivable_items SET settled = '1999-01-01'").Execute(); err != nil {
+			t.Fatalf("corrupt the settled days: %v", err)
+		}
+	}
+	wrong := func(customer string) int64 {
+		t.Helper()
+		var n int64
+		err := b.app.DB().NewQuery("SELECT COUNT(*) FROM books_receivable_items WHERE settled = '1999-01-01' AND customer = {:c}").
+			Bind(dbx.Params{"c": customer}).Row(&n)
+		if err != nil {
+			t.Fatalf("count the wrong rows: %v", err)
+		}
+		return n
+	}
+	settle := func(ids []string) int64 {
+		t.Helper()
+		var n int64
+		err := b.app.RunInTransaction(func(tx core.App) error {
+			var err error
+			n, err = settleReceivables(tx, ids)
+			return err
+		})
+		if err != nil {
+			t.Fatalf("settle %d customers: %v", len(ids), err)
+		}
+		return n
+	}
+
+	corrupt()
+	if n := settle([]string{c1.Id}); n != count[c1.Id] {
+		t.Errorf("settle one customer changed %d rows, want %d", n, count[c1.Id])
+	}
+	if wrong(c1.Id) != 0 || wrong(c2.Id) != count[c2.Id] || wrong("") != 1 {
+		t.Errorf("after one customer: wrong rows c1=%d c2=%d none=%d, want 0, %d, 1", wrong(c1.Id), wrong(c2.Id), wrong(""), count[c2.Id])
+	}
+
+	if n := settle([]string{""}); n != 1 {
+		t.Errorf("settle the blank id changed %d rows, want 1", n)
+	}
+	if wrong("") != 0 || wrong(c2.Id) != count[c2.Id] {
+		t.Errorf("after the blank id: wrong rows none=%d c2=%d, want 0, %d", wrong(""), wrong(c2.Id), count[c2.Id])
+	}
+
+	// The real customers sit at both ends of a list of receivableCustomerChunk+1
+	// ids, so they fall in two chunks.
+	corrupt()
+	ids := make([]string, receivableCustomerChunk+1)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("absent%09d", i)
+	}
+	ids[0], ids[len(ids)-1] = c2.Id, c1.Id
+	if n := settle(ids); n != count[c1.Id]+count[c2.Id] {
+		t.Errorf("settle %d ids changed %d rows, want %d", len(ids), n, count[c1.Id]+count[c2.Id])
+	}
+	if wrong(c1.Id) != 0 || wrong(c2.Id) != 0 || wrong("") != 1 {
+		t.Errorf("after the long list: wrong rows c1=%d c2=%d none=%d, want 0, 0, 1", wrong(c1.Id), wrong(c2.Id), wrong(""))
+	}
+	settle([]string{""})
+	requireNoReceivableDrift(t, b.app)
 }
