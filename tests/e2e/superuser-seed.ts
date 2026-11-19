@@ -1,7 +1,8 @@
 import PocketBase from 'pocketbase'
 
-// A PocketBase client signed in as the e2e server's superuser, for the one spec the
-// human allowed to seed list rows directly (list-paging.spec.ts; its header says why).
+// A PocketBase client signed in as the e2e server's superuser, for the specs the human
+// allowed to seed state directly: list-paging.spec.ts (list rows) and books-settings.spec.ts
+// (the setup markers before its setup wizard tests). Each spec's header says why.
 // scripts/e2e-serve.ts creates this superuser from the same variables and defaults.
 const PB_URL = `http://127.0.0.1:${process.env.E2E_PORT ?? 7200}`
 const SUPERUSER_EMAIL = process.env.ADMIN_USER_LOGIN || 'admin@tinycld.org'
