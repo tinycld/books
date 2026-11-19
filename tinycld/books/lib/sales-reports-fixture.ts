@@ -62,15 +62,16 @@ export const SALES_REPORTS_SEED = {
         productId: PRODUCT_IDS.faxSetup,
         customerId: CUSTOMER_IDS.oldMill,
     },
-    // A family alone in its month, for the fold and order checks of
+    // A family alone on its day, for the fold and order checks of
     // books-sales-reports.spec.ts: a parent with its own sale and two sub-customers whose
     // sales order (Bistro above the parent's own, Annex below it) is the reverse of their
     // name order. Each is a posted sales receipt of one untaxed line of `productId` at
     // quantity 1, so no customer gets a balance. Dated `yearsAgo` calendar years before the
     // seed runs on `day`: after PRIOR_YEAR_SEED's day of that year (trial-balance-fixture.ts),
-    // whose Trial Balance and Balance Sheet figures the e2e read as of that day, and before
-    // any Last fiscal year or 13-month window the e2e read, so no other sale falls in the
-    // month and no other figure moves.
+    // whose Trial Balance and Balance Sheet figures the e2e read as of that day. No spec
+    // posts on that day, so the test that reads it sees the family alone. A Last fiscal
+    // year read from January to June under fiscal start month 7 (books-settings.spec.ts)
+    // holds the day, but no e2e reads a sales or income figure over that period.
     family: {
         yearsAgo: 2,
         day: '11-10',
