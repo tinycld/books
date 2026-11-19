@@ -1,1 +1,602 @@
-[]
+[
+  {
+    "tbl": "_collections",
+    "idx": "idx__collections_type",
+    "stat": "99 33"
+  },
+  {
+    "tbl": "_collections",
+    "idx": "sqlite_autoindex__collections_1",
+    "stat": "99 1"
+  },
+  {
+    "tbl": "_collections",
+    "idx": "sqlite_autoindex__collections_2",
+    "stat": "99 1"
+  },
+  {
+    "tbl": "_migrations",
+    "idx": "sqlite_autoindex__migrations_1",
+    "stat": "114 1"
+  },
+  {
+    "tbl": "_params",
+    "idx": "sqlite_autoindex__params_1",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "_superusers",
+    "idx": "idx_email_pbc_3142635823",
+    "stat": "0 0"
+  },
+  {
+    "tbl": "audit_logs",
+    "idx": "idx_audit_actor_created",
+    "stat": "8 8 1"
+  },
+  {
+    "tbl": "audit_logs",
+    "idx": "idx_audit_logs_created",
+    "stat": "8 1"
+  },
+  {
+    "tbl": "audit_logs",
+    "idx": "idx_audit_resource",
+    "stat": "8 8 8"
+  },
+  {
+    "tbl": "audit_logs",
+    "idx": "sqlite_autoindex_audit_logs_1",
+    "stat": "8 1"
+  },
+  {
+    "tbl": "books_accounts",
+    "idx": "idx_books_accounts_name",
+    "stat": "7 7 1"
+  },
+  {
+    "tbl": "books_accounts",
+    "idx": "idx_books_accounts_number",
+    "stat": "7 1"
+  },
+  {
+    "tbl": "books_accounts",
+    "idx": "idx_books_accounts_parent",
+    "stat": "7 7"
+  },
+  {
+    "tbl": "books_accounts",
+    "idx": "idx_books_accounts_type",
+    "stat": "7 2"
+  },
+  {
+    "tbl": "books_accounts",
+    "idx": "sqlite_autoindex_books_accounts_1",
+    "stat": "7 1"
+  },
+  {
+    "tbl": "books_admins",
+    "idx": "idx_books_admins_user",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "books_admins",
+    "idx": "sqlite_autoindex_books_admins_1",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "books_credit_memos",
+    "idx": "idx_books_credit_memos_customer",
+    "stat": "1980 2"
+  },
+  {
+    "tbl": "books_credit_memos",
+    "idx": "idx_books_credit_memos_customer_open",
+    "stat": "1980 2 2 1"
+  },
+  {
+    "tbl": "books_credit_memos",
+    "idx": "idx_books_credit_memos_form",
+    "stat": "1980 1980"
+  },
+  {
+    "tbl": "books_credit_memos",
+    "idx": "idx_books_credit_memos_invoice",
+    "stat": "1980 1980"
+  },
+  {
+    "tbl": "books_credit_memos",
+    "idx": "idx_books_credit_memos_status_date",
+    "stat": "1980 1980 2"
+  },
+  {
+    "tbl": "books_credit_memos",
+    "idx": "idx_books_credit_memos_tax_rate",
+    "stat": "1980 1980"
+  },
+  {
+    "tbl": "books_credit_memos",
+    "idx": "sqlite_autoindex_books_credit_memos_1",
+    "stat": "1980 1"
+  },
+  {
+    "tbl": "books_customers",
+    "idx": "idx_books_customers_form",
+    "stat": "2001 2001"
+  },
+  {
+    "tbl": "books_customers",
+    "idx": "idx_books_customers_sibling_name",
+    "stat": "2001 29 1"
+  },
+  {
+    "tbl": "books_customers",
+    "idx": "idx_books_customers_sort",
+    "stat": "2001 1 1"
+  },
+  {
+    "tbl": "books_customers",
+    "idx": "sqlite_autoindex_books_customers_1",
+    "stat": "2001 1"
+  },
+  {
+    "tbl": "books_doc_sequences",
+    "idx": "idx_books_docseq_type",
+    "stat": "12 1"
+  },
+  {
+    "tbl": "books_doc_sequences",
+    "idx": "sqlite_autoindex_books_doc_sequences_1",
+    "stat": "12 1"
+  },
+  {
+    "tbl": "books_invoices",
+    "idx": "idx_books_invoices_customer",
+    "stat": "98100 50"
+  },
+  {
+    "tbl": "books_invoices",
+    "idx": "idx_books_invoices_customer_open",
+    "stat": "98100 50 35 12"
+  },
+  {
+    "tbl": "books_invoices",
+    "idx": "idx_books_invoices_estimate",
+    "stat": "98100 98100"
+  },
+  {
+    "tbl": "books_invoices",
+    "idx": "idx_books_invoices_form",
+    "stat": "98100 98100"
+  },
+  {
+    "tbl": "books_invoices",
+    "idx": "idx_books_invoices_status_date",
+    "stat": "98100 49050 38"
+  },
+  {
+    "tbl": "books_invoices",
+    "idx": "idx_books_invoices_tax_rate",
+    "stat": "98100 98100"
+  },
+  {
+    "tbl": "books_invoices",
+    "idx": "sqlite_autoindex_books_invoices_1",
+    "stat": "98100 1"
+  },
+  {
+    "tbl": "books_journal_entries",
+    "idx": "idx_books_je_auto_reverse",
+    "stat": "0 0"
+  },
+  {
+    "tbl": "books_journal_entries",
+    "idx": "idx_books_je_date",
+    "stat": "250000 137"
+  },
+  {
+    "tbl": "books_journal_entries",
+    "idx": "idx_books_je_doc_sequence",
+    "stat": "250000 62500 1"
+  },
+  {
+    "tbl": "books_journal_entries",
+    "idx": "idx_books_je_document",
+    "stat": "250000 2 2"
+  },
+  {
+    "tbl": "books_journal_entries",
+    "idx": "idx_books_je_one_reversal",
+    "stat": "2000 1"
+  },
+  {
+    "tbl": "books_journal_entries",
+    "idx": "idx_books_je_reverses",
+    "stat": "2000 1"
+  },
+  {
+    "tbl": "books_journal_entries",
+    "idx": "idx_books_je_sequence",
+    "stat": "246000 61500 1"
+  },
+  {
+    "tbl": "books_journal_entries",
+    "idx": "idx_books_je_status_date",
+    "stat": "250000 125000 83"
+  },
+  {
+    "tbl": "books_journal_entries",
+    "idx": "sqlite_autoindex_books_journal_entries_1",
+    "stat": "250000 1"
+  },
+  {
+    "tbl": "books_journal_lines",
+    "idx": "idx_books_jlines_account_date",
+    "stat": "500000 100000 55"
+  },
+  {
+    "tbl": "books_journal_lines",
+    "idx": "idx_books_jlines_customer",
+    "stat": "365051 183"
+  },
+  {
+    "tbl": "books_journal_lines",
+    "idx": "idx_books_jlines_entry",
+    "stat": "500000 2 1"
+  },
+  {
+    "tbl": "books_journal_lines",
+    "idx": "sqlite_autoindex_books_journal_lines_1",
+    "stat": "500000 1"
+  },
+  {
+    "tbl": "books_party_contacts",
+    "idx": "idx_books_party_contacts_customer",
+    "stat": "0 0"
+  },
+  {
+    "tbl": "books_party_contacts",
+    "idx": "idx_books_party_contacts_vendor",
+    "stat": "0 0"
+  },
+  {
+    "tbl": "books_payment_applications",
+    "idx": "idx_books_payment_applications_invoice",
+    "stat": "91740 1"
+  },
+  {
+    "tbl": "books_payment_applications",
+    "idx": "idx_books_payment_applications_payment_invoice",
+    "stat": "91740 2 1"
+  },
+  {
+    "tbl": "books_payment_applications",
+    "idx": "sqlite_autoindex_books_payment_applications_1",
+    "stat": "91740 1"
+  },
+  {
+    "tbl": "books_payments",
+    "idx": "idx_books_payments_customer",
+    "stat": "80000 40"
+  },
+  {
+    "tbl": "books_payments",
+    "idx": "idx_books_payments_deposit_to",
+    "stat": "80000 80000"
+  },
+  {
+    "tbl": "books_payments",
+    "idx": "idx_books_payments_status_date",
+    "stat": "80000 40000 31"
+  },
+  {
+    "tbl": "books_payments",
+    "idx": "sqlite_autoindex_books_payments_1",
+    "stat": "80000 1"
+  },
+  {
+    "tbl": "books_products",
+    "idx": "idx_books_products_form",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "books_products",
+    "idx": "idx_books_products_name",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "books_products",
+    "idx": "idx_books_products_sort",
+    "stat": "1 1 1"
+  },
+  {
+    "tbl": "books_products",
+    "idx": "sqlite_autoindex_books_products_1",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "books_receivable_items",
+    "idx": "idx_books_receivable_items_customer",
+    "stat": "274750 138 2 1"
+  },
+  {
+    "tbl": "books_receivable_items",
+    "idx": "idx_books_receivable_items_entry",
+    "stat": "274750 2"
+  },
+  {
+    "tbl": "books_receivable_items",
+    "idx": "idx_books_receivable_items_item",
+    "stat": "274750 2"
+  },
+  {
+    "tbl": "books_receivable_items",
+    "idx": "idx_books_receivable_items_settled",
+    "stat": "274750 151 5"
+  },
+  {
+    "tbl": "books_receivable_items",
+    "idx": "sqlite_autoindex_books_receivable_items_1",
+    "stat": "274750 1"
+  },
+  {
+    "tbl": "books_settings",
+    "idx": "sqlite_autoindex_books_settings_1",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "books_tax_rates",
+    "idx": "idx_books_tax_rates_default",
+    "stat": "0 0"
+  },
+  {
+    "tbl": "fts_books_accounts_config",
+    "idx": "fts_books_accounts_config",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "fts_books_accounts_data",
+    "idx": null,
+    "stat": "2"
+  },
+  {
+    "tbl": "fts_books_bill_payments_config",
+    "idx": "fts_books_bill_payments_config",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "fts_books_bill_payments_data",
+    "idx": null,
+    "stat": "2"
+  },
+  {
+    "tbl": "fts_books_bills_config",
+    "idx": "fts_books_bills_config",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "fts_books_bills_data",
+    "idx": null,
+    "stat": "2"
+  },
+  {
+    "tbl": "fts_books_credit_memos_config",
+    "idx": "fts_books_credit_memos_config",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "fts_books_credit_memos_data",
+    "idx": null,
+    "stat": "2"
+  },
+  {
+    "tbl": "fts_books_customers_config",
+    "idx": "fts_books_customers_config",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "fts_books_customers_data",
+    "idx": null,
+    "stat": "2"
+  },
+  {
+    "tbl": "fts_books_estimates_config",
+    "idx": "fts_books_estimates_config",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "fts_books_estimates_data",
+    "idx": null,
+    "stat": "2"
+  },
+  {
+    "tbl": "fts_books_expenses_config",
+    "idx": "fts_books_expenses_config",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "fts_books_expenses_data",
+    "idx": null,
+    "stat": "2"
+  },
+  {
+    "tbl": "fts_books_invoices_config",
+    "idx": "fts_books_invoices_config",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "fts_books_invoices_data",
+    "idx": null,
+    "stat": "2"
+  },
+  {
+    "tbl": "fts_books_journal_entries_config",
+    "idx": "fts_books_journal_entries_config",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "fts_books_journal_entries_data",
+    "idx": null,
+    "stat": "2"
+  },
+  {
+    "tbl": "fts_books_payments_config",
+    "idx": "fts_books_payments_config",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "fts_books_payments_data",
+    "idx": null,
+    "stat": "2"
+  },
+  {
+    "tbl": "fts_books_products_config",
+    "idx": "fts_books_products_config",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "fts_books_products_data",
+    "idx": null,
+    "stat": "2"
+  },
+  {
+    "tbl": "fts_books_sales_receipts_config",
+    "idx": "fts_books_sales_receipts_config",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "fts_books_sales_receipts_data",
+    "idx": null,
+    "stat": "2"
+  },
+  {
+    "tbl": "fts_books_vendor_credits_config",
+    "idx": "fts_books_vendor_credits_config",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "fts_books_vendor_credits_data",
+    "idx": null,
+    "stat": "2"
+  },
+  {
+    "tbl": "fts_books_vendor_refunds_config",
+    "idx": "fts_books_vendor_refunds_config",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "fts_books_vendor_refunds_data",
+    "idx": null,
+    "stat": "2"
+  },
+  {
+    "tbl": "fts_books_vendors_config",
+    "idx": "fts_books_vendors_config",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "fts_books_vendors_data",
+    "idx": null,
+    "stat": "2"
+  },
+  {
+    "tbl": "oauth_clients",
+    "idx": "idx_oauth_clients_client_id",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "oauth_clients",
+    "idx": "sqlite_autoindex_oauth_clients_1",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "oauth_grants",
+    "idx": "idx_oauth_grants_user_code",
+    "stat": "0 0"
+  },
+  {
+    "tbl": "org_pkg_access",
+    "idx": "idx_org_pkg_access_user_pkg",
+    "stat": "3 1 1"
+  },
+  {
+    "tbl": "org_pkg_access",
+    "idx": "sqlite_autoindex_org_pkg_access_1",
+    "stat": "3 1"
+  },
+  {
+    "tbl": "report_shares",
+    "idx": "idx_report_shares_group",
+    "stat": "6 6"
+  },
+  {
+    "tbl": "report_shares",
+    "idx": "idx_report_shares_unique",
+    "stat": "6 3 1 1"
+  },
+  {
+    "tbl": "report_shares",
+    "idx": "idx_report_shares_user",
+    "stat": "6 2"
+  },
+  {
+    "tbl": "report_shares",
+    "idx": "sqlite_autoindex_report_shares_1",
+    "stat": "6 1"
+  },
+  {
+    "tbl": "reports",
+    "idx": "idx_reports_owner",
+    "stat": "2 2"
+  },
+  {
+    "tbl": "reports",
+    "idx": "idx_reports_published",
+    "stat": "2 2"
+  },
+  {
+    "tbl": "reports",
+    "idx": "idx_reports_shipped_key",
+    "stat": "2 1"
+  },
+  {
+    "tbl": "reports",
+    "idx": "idx_reports_source",
+    "stat": "2 1"
+  },
+  {
+    "tbl": "reports",
+    "idx": "sqlite_autoindex_reports_1",
+    "stat": "2 1"
+  },
+  {
+    "tbl": "system_settings",
+    "idx": "idx_system_settings_key",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "system_settings",
+    "idx": "sqlite_autoindex_system_settings_1",
+    "stat": "1 1"
+  },
+  {
+    "tbl": "users",
+    "idx": "idx_email__pb_users_auth_",
+    "stat": "5 1"
+  },
+  {
+    "tbl": "users",
+    "idx": "idx_tokenKey__pb_users_auth_",
+    "stat": "5 1"
+  },
+  {
+    "tbl": "users",
+    "idx": "idx_users_username",
+    "stat": "5 1"
+  },
+  {
+    "tbl": "users",
+    "idx": "sqlite_autoindex_users_1",
+    "stat": "5 1"
+  }
+]
