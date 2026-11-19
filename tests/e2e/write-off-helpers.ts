@@ -86,9 +86,9 @@ export function writeOffToast(page: Page, number: string, amount: string) {
 /**
  * On the read view of a posted invoice with an open balance: presses W, keeps the default
  * date, picks 6050 Bad debts, confirms with ⌘↵ and waits for the toast and the closed
- * dialog.
+ * dialog. A `reason`, when given, is typed into Reason (internal), the entry's memo.
  */
-export async function writeOffOpenInvoice(page: Page): Promise<void> {
+export async function writeOffOpenInvoice(page: Page, reason?: string): Promise<void> {
     const title = await page.locator('[data-testid="invoice-title"]:visible').innerText()
     const number = /^Invoice (\d+)$/.exec(title)?.[1]
     if (!number) throw new Error(`not on a posted invoice: ${title}`)
@@ -102,9 +102,27 @@ export async function writeOffOpenInvoice(page: Page): Promise<void> {
     await item.click()
     await expect(item).toHaveCount(0)
     await expect(page.getByTestId('write-off-account')).toContainText(BAD_DEBTS)
+    if (reason !== undefined) {
+        await page.getByTestId('write-off-reason').fill(reason)
+        await expect(page.getByTestId('write-off-reason')).toHaveValue(reason)
+    }
     await page.getByTestId('write-off-submit').click()
     await expect(writeOffToast(page, number, amount)).toBeVisible()
     await expect(dialog).toHaveCount(0)
+}
+
+/**
+ * On the read view of an invoice with a write-off: clicks the first link of its Write-offs
+ * section and waits for the write-off's own page on top.
+ */
+export async function openWriteOffFromInvoice(page: Page): Promise<void> {
+    const section = page.locator('[data-testid="invoice-write-offs"]:visible')
+    await expect(section).toBeVisible()
+    await section.locator('[data-testid^="invoice-write-offs-open-"]').first().click()
+    await expect(page).toHaveURL(WRITE_OFF_URL)
+    const view = page.getByTestId('write-off-read-only').filter({ visible: true })
+    await expect(view).toHaveCount(1)
+    await expect(view).toBeVisible()
 }
 
 export type HeldInsert = { arrived: Promise<void>; release(): Promise<void> }
