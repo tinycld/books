@@ -279,6 +279,7 @@ func bindBalanceRoutes(e *core.ServeEvent) {
 		if len(cashDrifts) > 0 {
 			log.ErrorContext(re.Request.Context(), "cash-basis rows disagree with their documents", "count", len(cashDrifts))
 		}
+		// Read before the rebuild repairs them, as the cash-basis rows above.
 		receivableDrifts, err := verifyReceivables(re.App)
 		if err != nil {
 			return err
