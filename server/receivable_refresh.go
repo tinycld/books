@@ -16,7 +16,7 @@ type receivablePart struct{ query, where string }
 
 // refreshReceivables replaces the stored rows that match stale (a condition on
 // books_receivable_items) with the rows parts give, then settles every
-// customer that lost or gained a row. stale must match every row parts can
+// customer and item that lost or gained a row. stale must match every row parts can
 // give, so no row is stored twice. It must run in the transaction of the
 // write that changed the rows: a refresh outside one could commit without
 // that write.
@@ -24,15 +24,15 @@ func refreshReceivables(tx core.App, stale string, params dbx.Params, parts ...r
 	if !tx.IsTransactional() {
 		return errors.New("books: receivable rows are refreshed only inside the transaction of the write")
 	}
-	customers := map[string]bool{}
+	touched := map[receivablePair]bool{}
 	collect := func() error {
-		var ids []string
-		err := tx.DB().NewQuery("SELECT DISTINCT customer FROM " + receivableItemsCollection + " WHERE " + stale).Bind(params).Column(&ids)
+		var pairs []receivablePair
+		err := tx.DB().NewQuery("SELECT DISTINCT customer, item FROM " + receivableItemsCollection + " WHERE " + stale).Bind(params).All(&pairs)
 		if err != nil {
-			return fmt.Errorf("books: read the customers of receivable rows: %w", err)
+			return fmt.Errorf("books: read the items of receivable rows: %w", err)
 		}
-		for _, id := range ids {
-			customers[id] = true
+		for _, p := range pairs {
+			touched[p] = true
 		}
 		return nil
 	}
@@ -60,11 +60,11 @@ func refreshReceivables(tx core.App, stale string, params dbx.Params, parts ...r
 	if err := collect(); err != nil {
 		return err
 	}
-	ids := make([]string, 0, len(customers))
-	for id := range customers {
-		ids = append(ids, id)
+	pairs := make([]receivablePair, 0, len(touched))
+	for p := range touched {
+		pairs = append(pairs, p)
 	}
-	if _, err := settleReceivables(tx, ids); err != nil {
+	if _, err := settleReceivables(tx, pairs); err != nil {
 		return err
 	}
 	changesignal.Touch(tx, receivableItemsCollection)
