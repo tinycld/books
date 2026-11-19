@@ -23,6 +23,8 @@ import {
     documentListWindow,
     emptyTexts,
     hasFilterSet,
+    isSalesKind,
+    isSalesRow,
     kindDirection,
     type ListSort,
     listControls,
@@ -41,10 +43,16 @@ import {
     paymentRow,
     refundReceiptRow,
     salesReceiptRow,
+    TRANSACTION_TYPE_LABELS,
     type TransactionKind,
 } from '../tinycld/books/lib/party-transactions'
 import { purchaseTabOf } from '../tinycld/books/lib/purchase-lists'
-import { salesTabOf } from '../tinycld/books/lib/sales-lists'
+import {
+    customerTransactionsTab,
+    SALES_TABS,
+    type SalesKind,
+    salesTabOf,
+} from '../tinycld/books/lib/sales-lists'
 import {
     SALES_LIST_CREDIT_MEMOS,
     SALES_LIST_ESTIMATES,
@@ -139,10 +147,48 @@ const REFUND_ROWS = [
     { ...REFUND_BASE, id: 'slrr0001004fix0', status: 'posted', number: '1004' },
 ] as const
 
+// Write-off spec §3.6 (Q11): the fixture's invoices carry `written_off` 0 (a value the
+// fixture sets wins), and three rows a write-off touched: one written off whole (balance 0),
+// one a payment's void opened again (balance above 0), and a void one.
+const WRITTEN_OFF_BASE = {
+    ...SALES_LIST_INVOICES[1],
+    date: '2026-11-10',
+    due_date: '2026-12-10',
+    memo: 'Written off',
+    total: 40_000,
+    replaced_by: '',
+}
+const INVOICE_ROWS = [
+    ...SALES_LIST_INVOICES.map(row => ({ written_off: 0, ...row })),
+    {
+        ...WRITTEN_OFF_BASE,
+        id: 'slinvwrittenoff',
+        status: 'posted' as const,
+        number: '1101',
+        balance: 0,
+        written_off: 40_000,
+    },
+    {
+        ...WRITTEN_OFF_BASE,
+        id: 'slinvworeopened',
+        status: 'posted' as const,
+        number: '1102',
+        balance: 10_000,
+        written_off: 40_000,
+    },
+    {
+        ...WRITTEN_OFF_BASE,
+        id: 'slinvwovoid0001',
+        status: 'void' as const,
+        number: '1103',
+        balance: 0,
+        written_off: 40_000,
+    },
+]
+
 // The rows of one kind with the badge label each one shows on SALES_LIST_TODAY.
 const KIND_ROWS = {
-    invoice: () =>
-        keepBadges(SALES_LIST_INVOICES, row => invoiceRow(row, today).status.label, 'invoice'),
+    invoice: () => keepBadges(INVOICE_ROWS, row => invoiceRow(row, today).status.label, 'invoice'),
     estimate: () =>
         keepBadges(SALES_LIST_ESTIMATES, row => estimateRow(row, today).status.label, 'estimate'),
     sales_receipt: () =>
@@ -156,7 +202,7 @@ const KIND_ROWS = {
         keepBadges(SALES_LIST_CREDIT_MEMOS, row => creditMemoRow(row).status.label, 'credit_memo'),
     refund_receipt: () =>
         keepBadges(REFUND_ROWS, row => refundReceiptRow(row).status.label, 'refund_receipt'),
-} satisfies Record<TransactionKind, unknown>
+} satisfies Record<SalesKind, unknown>
 
 function keepBadges<T extends { id: string }>(
     rows: readonly T[],
@@ -181,7 +227,7 @@ function keepBadges<T extends { id: string }>(
 // spec's three additions.
 const KIND_TAB_CHIPS: readonly {
     tab: string
-    kind: TransactionKind
+    kind: SalesKind
     chips: readonly { id: string; isChip: (label: string) => boolean }[]
 }[] = [
     {
@@ -192,6 +238,7 @@ const KIND_TAB_CHIPS: readonly {
             { id: 'open', isChip: label => ['Open', 'Partly paid', 'Overdue'].includes(label) },
             { id: 'overdue', isChip: label => label === 'Overdue' },
             { id: 'paid', isChip: label => label === 'Paid' },
+            { id: 'written-off', isChip: label => label === 'Written off' },
             { id: 'draft', isChip: label => label === 'Draft' },
             { id: 'void', isChip: label => label === 'Void' },
         ],
@@ -287,7 +334,7 @@ const isExpiredEstimate = (row: EstimateFixture) =>
     row.expiration_date < today
 
 const ALL_SALES_TABLE: {
-    invoice: Record<string, RowRule<(typeof SALES_LIST_INVOICES)[number]>>
+    invoice: Record<string, RowRule<(typeof INVOICE_ROWS)[number]>>
     estimate: Record<string, RowRule<EstimateFixture>>
     sales_receipt: Record<string, RowRule<(typeof SALES_LIST_SALES_RECEIPTS)[number]>>
     payment: Record<string, RowRule<(typeof SALES_LIST_PAYMENTS)[number]>>
@@ -366,7 +413,7 @@ async function allSalesCase<T extends { id: string }>(
 
 describe('chipClause and chipRuns on All sales', () => {
     it.each(ALL_SALES_CHIPS)('chip %s keeps per invoice what the table says', chip =>
-        allSalesCase('invoice', SALES_LIST_INVOICES, ALL_SALES_TABLE.invoice[chip], chip))
+        allSalesCase('invoice', INVOICE_ROWS, ALL_SALES_TABLE.invoice[chip], chip))
     it.each(ALL_SALES_CHIPS)('chip %s keeps per estimate what the table says', chip =>
         allSalesCase('estimate', SALES_LIST_ESTIMATES, ALL_SALES_TABLE.estimate[chip], chip))
     it.each(ALL_SALES_CHIPS)('chip %s keeps per sales receipt what the table says', chip =>
@@ -660,6 +707,17 @@ describe('kindDirection', () => {
         expect(kindDirection(all, 'credit_memo', { key: 'amount', isAscending: false })).toBe('asc')
     })
 
+    it('is the opposite for a refund receipt and a write-off sorted by amount on every tab', () => {
+        const customer = customerTransactionsTab('all')
+        for (const tab of [all, customer]) {
+            for (const kind of ['refund_receipt', 'write_off'] as const) {
+                expect(kindDirection(tab, kind, { key: 'amount', isAscending: true })).toBe('desc')
+                expect(kindDirection(tab, kind, { key: 'amount', isAscending: false })).toBe('asc')
+                expect(kindDirection(tab, kind, { key: 'date', isAscending: true })).toBe('asc')
+            }
+        }
+    })
+
     it("is the sort's own direction otherwise", () => {
         expect(kindDirection(all, 'invoice', { key: 'amount', isAscending: true })).toBe('asc')
         expect(kindDirection(all, 'credit_memo', { key: 'date', isAscending: true })).toBe('asc')
@@ -831,5 +889,70 @@ describe('the refund receipts tab', () => {
         expect(sortField('refund_receipt', 'date')).toBe('date')
         expect(sortField('refund_receipt', 'number')).toBe('sequence')
         expect(sortField('refund_receipt', 'amount')).toBe('total')
+    })
+})
+
+// Write-off spec §3.6 (Q11, Q12).
+describe('the write-off on the lists', () => {
+    const settledRows = [
+        { id: 'wopaid000000001', status: 'posted', balance: 0, written_off: 0 },
+        { id: 'wowrittenoff001', status: 'posted', balance: 0, written_off: 40_000 },
+        { id: 'wodraft00000001', status: 'draft', balance: 0, written_off: 0 },
+        { id: 'wovoid000000001', status: 'void', balance: 0, written_off: 40_000 },
+        { id: 'woopen000000001', status: 'posted', balance: 10_000, written_off: 40_000 },
+    ]
+    const chipOn = (tabKey: string, chipId: string) =>
+        keep(settledRows, row => chipClause(salesTabOf(tabKey), chipId, 'invoice', row, today))
+
+    it('the invoice chip paid takes a settled row with written_off 0 only', async () => {
+        expect((await chipOn('invoices', 'paid')).ids).toEqual(['wopaid000000001'])
+    })
+
+    it('the invoice chip written-off takes a settled row with written_off above 0 only', async () => {
+        expect(chipRuns(salesTabOf('invoices'), 'written-off', 'invoice')).toBe(true)
+        expect((await chipOn('invoices', 'written-off')).ids).toEqual(['wowrittenoff001'])
+    })
+
+    it('the All sales closed chip still takes both settled rows', async () => {
+        expect((await chipOn('all', 'closed')).ids).toEqual(['wopaid000000001', 'wowrittenoff001'])
+    })
+
+    it('no Sales tab runs the write-off query, under any chip', () => {
+        for (const tab of SALES_TABS) {
+            for (const chip of tab.chips) {
+                expect(chipRuns(tab, chip.id, 'write_off')).toBe(false)
+            }
+        }
+    })
+
+    it('the customer tab runs it with the filter all or write_off, and not for another kind', () => {
+        expect(chipRuns(customerTransactionsTab('all'), 'all', 'write_off')).toBe(true)
+        expect(chipRuns(customerTransactionsTab('write_off'), 'all', 'write_off')).toBe(true)
+        expect(chipRuns(customerTransactionsTab('invoice'), 'all', 'write_off')).toBe(false)
+    })
+
+    it('sorts a write-off by date, number and its amount', () => {
+        expect(sortField('write_off', 'date')).toBe('date')
+        expect(sortField('write_off', 'number')).toBe('sequence')
+        expect(sortField('write_off', 'amount')).toBe('amount')
+    })
+})
+
+// A kind missing from SALES_KINDS falls to the purchase side (`isPurchaseRow`), so the
+// customer Transactions tab drops its rows. The kinds come from the source: every key of
+// TRANSACTION_TYPE_LABELS (a Record over TransactionKind) and every kind the customer tab
+// lists.
+describe('isSalesKind', () => {
+    const transactionKinds = Object.keys(TRANSACTION_TYPE_LABELS) as TransactionKind[]
+    const customerKinds = customerTransactionsTab('all').kinds
+
+    it('the customer tab lists every transaction kind, write_off included', () => {
+        expect([...customerKinds].sort()).toEqual([...transactionKinds].sort())
+        expect(customerKinds).toContain('write_off')
+    })
+
+    it.each(transactionKinds)('takes %s as a sales kind', kind => {
+        expect(isSalesKind(kind)).toBe(true)
+        expect(isSalesRow({ kind })).toBe(true)
     })
 })

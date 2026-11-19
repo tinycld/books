@@ -52,7 +52,8 @@ export const SALES_REPORTS_EMPTY_FROM = '2025-07-01'
 export const SALES_REPORTS_EMPTY_TO = '2025-09-30'
 // What seedSalesReports (seed.ts) adds to the seeded book: the one sale of an inactive
 // product, for the inactive customer Old Mill Bakery, as a posted sales receipt with no
-// tax rate and one item line of Fax line setup (quantity 1 at `cents`).
+// tax rate and one item line of Fax line setup (quantity 1 at `cents`); and the family
+// below.
 export const SALES_REPORTS_SEED = {
     inactiveSale: {
         date: '2026-10-16',
@@ -60,6 +61,25 @@ export const SALES_REPORTS_SEED = {
         cents: 6500,
         productId: PRODUCT_IDS.faxSetup,
         customerId: CUSTOMER_IDS.oldMill,
+    },
+    // A family alone on its day, for the fold and order checks of
+    // books-sales-reports.spec.ts: a parent with its own sale and two sub-customers whose
+    // sales order (Bistro above the parent's own, Annex below it) is the reverse of their
+    // name order. Each is a posted sales receipt of one untaxed line of `productId` at
+    // quantity 1, so no customer gets a balance. Dated `yearsAgo` calendar years before the
+    // seed runs on `day`: after PRIOR_YEAR_SEED's day of that year (trial-balance-fixture.ts),
+    // whose Trial Balance and Balance Sheet figures the e2e read as of that day. No spec
+    // posts on that day, so the test that reads it sees the family alone. A Last fiscal
+    // year read from January to June under fiscal start month 7 (books-settings.spec.ts)
+    // holds the day, but no e2e reads a sales or income figure over that period.
+    family: {
+        yearsAgo: 2,
+        day: '11-10',
+        memo: 'Seed sales reports: family',
+        productId: 'prodbookkeep001',
+        parent: { name: 'Lakeside Fold Group', cents: 50000 },
+        small: { name: 'Lakeside Fold Annex', cents: 10000 },
+        big: { name: 'Lakeside Fold Bistro', cents: 100000 },
     },
 } as const
 const CURRENCY = 'USD'

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { VENDOR_CREDIT_DOCUMENT } from '../tinycld/books/components/documents/document-kinds'
+import {
+    INVOICE_DOCUMENT,
+    VENDOR_CREDIT_DOCUMENT,
+} from '../tinycld/books/components/documents/document-kinds'
 import {
     appliedBadge,
     type BalanceBadge,
@@ -10,6 +13,7 @@ import {
     quoteReadActions,
     statusBadgeOf,
     vendorCreditBadge,
+    writtenOffBadge,
 } from '../tinycld/books/lib/document-lifecycle'
 
 // The sales document layer's lifecycles (spec §3.1): `posting` (invoice, sales receipt:
@@ -215,21 +219,72 @@ describe('VENDOR_CREDIT_DOCUMENT.balanceBadge', () => {
     }
 
     it('reads Refunded at balance 0 when the refunds read gave the whole total', () => {
-        expect(badgeOf('posted', 0, 30_000, 30_000)).toEqual({
+        expect(badgeOf('posted', 0, 30_000, 30_000, 0)).toEqual({
             label: 'Refunded',
             tone: 'success',
         })
     })
 
     it('reads the status badge (Posted), not Applied, at balance 0 while the refunds read has failed', () => {
-        expect(badgeOf('posted', 0, 30_000, null)).toEqual({ label: 'Posted', tone: 'success' })
+        expect(badgeOf('posted', 0, 30_000, null, 0)).toEqual({ label: 'Posted', tone: 'success' })
     })
 
     it('reads Partly applied, warning, at a balance above 0 while the refunds read has failed', () => {
-        expect(badgeOf('posted', 18_000, 30_000, null)).toEqual({
+        expect(badgeOf('posted', 18_000, 30_000, null, 0)).toEqual({
             label: 'Partly applied',
             tone: 'warning',
         })
+    })
+})
+
+// The invoice's badge after a write-off (write-off spec §3.4, plan decision 6): Written off,
+// muted, when nothing is left and posted write-offs took some of it; otherwise paidBadge.
+describe('writtenOffBadge', () => {
+    it('reads Written off, muted, at balance 0 with a written-off amount', () => {
+        expect(writtenOffBadge('posted', 0, 40_000, 40_000)).toEqual({
+            label: 'Written off',
+            tone: 'muted',
+        })
+    })
+
+    it('reads Paid at balance 0 with nothing written off', () => {
+        expect(writtenOffBadge('posted', 0, 40_000, 0)).toEqual({ label: 'Paid', tone: 'success' })
+        expect(writtenOffBadge('posted', 0, 40_000, 0)).toEqual(paidBadge('posted', 0, 40_000))
+    })
+
+    it('gives what paidBadge gives while a balance is still open', () => {
+        expect(writtenOffBadge('posted', 10_000, 40_000, 30_000)).toEqual(
+            paidBadge('posted', 10_000, 40_000)
+        )
+        expect(writtenOffBadge('posted', 10_000, 40_000, 30_000)).toEqual({
+            label: 'Partly paid',
+            tone: 'warning',
+        })
+    })
+
+    it('gives what paidBadge gives for a void invoice', () => {
+        expect(writtenOffBadge('void', 0, 40_000, 40_000)).toEqual(paidBadge('void', 0, 40_000))
+        expect(writtenOffBadge('void', 0, 40_000, 40_000)).toEqual({
+            label: 'Void',
+            tone: 'destructive',
+        })
+    })
+})
+
+// The invoice kind's badge passes the fifth argument, the stored written-off cents.
+describe('INVOICE_DOCUMENT.balanceBadge', () => {
+    const badgeOf = (...args: Parameters<NonNullable<typeof INVOICE_DOCUMENT.balanceBadge>>) => {
+        const badge = INVOICE_DOCUMENT.balanceBadge
+        if (badge === undefined) throw new Error('the invoice kind has no balance badge')
+        return badge(...args)
+    }
+
+    it('reads Written off at balance 0 with a written-off amount, and Paid without one', () => {
+        expect(badgeOf('posted', 0, 40_000, null, 40_000)).toEqual({
+            label: 'Written off',
+            tone: 'muted',
+        })
+        expect(badgeOf('posted', 0, 40_000, null, 0)).toEqual({ label: 'Paid', tone: 'success' })
     })
 })
 

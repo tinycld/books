@@ -48,6 +48,8 @@ const RECORDS = [
     { collection: 'books_payments', path: `books/payments/${ID}` },
     // Pay bills (cp 4 item D2): a bill payment's history opens its read view.
     { collection: 'books_bill_payments', path: `books/bill-payments/${ID}` },
+    // Write-off spec §3.6: a write-off's history opens its page.
+    { collection: 'books_write_offs', path: `books/write-offs/${ID}` },
 ]
 
 // Records shown on a screen that holds a group of them.
@@ -121,7 +123,7 @@ describe('auditRecordHref', () => {
     })
 
     // Vendor refund spec §3.11: a vendor refund's lines are filed under their refund
-    // (parent_type books_vendor_refunds, parent_id the refund id: migration 2100000027's
+    // (parent_type books_vendor_refunds, parent_id the refund id: migration 2100000029's
     // LINES), so the history of a line is the refund's, and its Open is the refund's read
     // view; a refund's entry opens on its refund, and its void reversal as an entry.
     it('a vendor refund record, the refund id a line’s history is filed under, and its entry open books/vendor-refunds/<id>', () => {
@@ -182,6 +184,23 @@ describe('auditRecordHref', () => {
         expect(auditRecordHref('books_journal_entries', ID, posted)).toBe(
             'books/vendor-credits/vcrd1001pacpw01'
         )
+        const reversal = { ...posted, origin: 'void_reversal', document: '' } as const
+        expect(auditRecordHref('books_journal_entries', ID, reversal)).toBe(`books/entries/${ID}`)
+    })
+
+    // Write-off spec §3.6: a write-off's entry opens on its write-off, and its void
+    // reversal as an entry.
+    it('opens a write-off’s entry on its write-off, and its void reversal as an entry', () => {
+        const posted = {
+            id: ID,
+            doc_type: 'write_off',
+            origin: 'document',
+            document: 'wofx1001delta01',
+        } as const
+        expect(auditRecordHref('books_journal_entries', ID, posted)).toBe(
+            'books/write-offs/wofx1001delta01'
+        )
+        expect(auditOpenLabel('books_write_offs')).toBe('Open write-off')
         const reversal = { ...posted, origin: 'void_reversal', document: '' } as const
         expect(auditRecordHref('books_journal_entries', ID, reversal)).toBe(`books/entries/${ID}`)
     })

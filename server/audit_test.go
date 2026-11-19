@@ -450,6 +450,26 @@ func TestAudit_LabelsAVendorRefundAndItsLines(t *testing.T) {
 	}
 }
 
+// Write-off spec §3.6: a write-off's audit row is "Write-off 1001", and its
+// sort key is not recorded.
+func TestAudit_LabelsAWriteOff(t *testing.T) {
+	we := newWriteOffEnv(t)
+	config, ok := auditedCollections(we.app)["books_write_offs"]
+	if !ok {
+		t.Fatal("books_write_offs is not audited")
+	}
+	wo := we.mkWriteOff(t, we.postedInvoice(t, 50000), nil)
+	if got, want := config.ExtractLabel(wo), "Write-off 1001"; got != want {
+		t.Errorf("write-off audit label = %q, want %q", got, want)
+	}
+	if got := writeOffName(wo); got != "Write-off 1001" {
+		t.Errorf("writeOffName = %q, want Write-off 1001", got)
+	}
+	if !reflect.DeepEqual(config.Redact, []string{"sort_key"}) {
+		t.Errorf("books_write_offs audit Redact = %v, want [sort_key]", config.Redact)
+	}
+}
+
 // Vendor credit spec §4: a vendor credit's audit row is "Vendor credit 1002",
 // or "Draft vendor credit" while it has no number; a line's row follows its
 // credit and names its table and its place in that table ("Vendor credit

@@ -1,0 +1,271 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "read",
+            "widths": [390],
+            "url": "/a/books/write-offs/wofx1001delta01",
+            "ready": "write-off-read-only",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "./read",
+            "widths": [1280],
+            "url": "/a/books/write-offs/wofx1001delta01",
+            "ready": "write-off-read-only",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read-reader",
+            "widths": [390],
+            "schemes": ["light"],
+            "url": "/a/books/write-offs/wofx1001delta01",
+            "ready": "write-off-read-only",
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "hideLabels": ["New", "Reconnecting…"]
+        },
+        {
+            "name": "./read-reader",
+            "widths": [1280],
+            "schemes": ["light"],
+            "url": "/a/books/write-offs/wofx1001delta01",
+            "ready": "write-off-read-only",
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "hideLabels": ["New", "Reconnecting…"]
+        },
+        {
+            "name": "read-void-dialog",
+            "widths": [390],
+            "url": "/a/books/write-offs/wofx1001delta01",
+            "ready": "write-off-read-only",
+            "opaque": "void-dialog",
+            "stable": "void-dialog",
+            "hideLabels": ["New"],
+            "actions": [{ "pause": 500 }, { "press": "v" }, { "waitFor": "void-dialog" }]
+        },
+        {
+            "name": "./read-void-dialog",
+            "widths": [1280],
+            "url": "/a/books/write-offs/wofx1001delta01",
+            "ready": "write-off-read-only",
+            "opaque": "void-dialog",
+            "stable": "void-dialog",
+            "hideLabels": ["New"],
+            "actions": [{ "pause": 500 }, { "press": "v" }, { "waitFor": "void-dialog" }]
+        },
+        {
+            "name": "read-loading",
+            "widths": [390],
+            "schemes": ["light"],
+            "url": "/a/books/write-offs/wofx1001delta01",
+            "ready": "write-off-loading-page",
+            "fakeRecords": { "collection": "books_write_offs", "hold": true },
+            "hideLabels": ["New", "Reconnecting…"]
+        },
+        {
+            "name": "./read-loading",
+            "widths": [1280],
+            "schemes": ["light"],
+            "url": "/a/books/write-offs/wofx1001delta01",
+            "ready": "write-off-loading-page",
+            "fakeRecords": { "collection": "books_write_offs", "hold": true },
+            "hideLabels": ["New", "Reconnecting…"]
+        },
+        {
+            "name": "read-error",
+            "widths": [390],
+            "schemes": ["light"],
+            "url": "/a/books/write-offs/wofx1001delta01",
+            "ready": "write-off-error",
+            "fakeRecords": { "collection": "books_write_offs", "status": 400 },
+            "hideLabels": ["New", "Reconnecting…"]
+        },
+        {
+            "name": "./read-error",
+            "widths": [1280],
+            "schemes": ["light"],
+            "url": "/a/books/write-offs/wofx1001delta01",
+            "ready": "write-off-error",
+            "fakeRecords": { "collection": "books_write_offs", "status": 400 },
+            "hideLabels": ["New", "Reconnecting…"]
+        },
+        {
+            "name": "read-not-found",
+            "widths": [390],
+            "schemes": ["light"],
+            "url": "/a/books/write-offs/wofxnotfound001",
+            "ready": "write-off-not-found",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "./read-not-found",
+            "widths": [1280],
+            "schemes": ["light"],
+            "url": "/a/books/write-offs/wofxnotfound001",
+            "ready": "write-off-not-found",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read-long",
+            "widths": [390],
+            "height": 1100,
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "fill": "form-input-memo", "value": "Helix capture write-off read long 390" },
+                { "pause": 300 },
+                { "click": "invoice-post" },
+                { "waitFor": "invoice-read-only" },
+                { "pause": 500 },
+                { "press": "w" },
+                { "waitFor": "write-off-account" },
+                {
+                    "fill": "write-off-reason",
+                    "value": "The customer closed the restaurant in September and the owners cannot be reached. Two reminders and a collection letter went unanswered, and the collection agency returned the account as not worth pursuing. The balance is written off to bad debts after a review with the owner of the books."
+                },
+                { "press": "ControlOrMeta+Enter" },
+                { "waitForHidden": "write-off-dialog" },
+                { "waitFor": "invoice-write-offs" },
+                { "clickPrefix": "invoice-write-offs-open-" },
+                { "waitFor": "write-off-read-only" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./read-long",
+            "widths": [1280],
+            "height": 1100,
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "fill": "form-input-memo", "value": "Helix capture write-off read long 1280" },
+                { "pause": 300 },
+                { "click": "invoice-post" },
+                { "waitFor": "invoice-read-only" },
+                { "pause": 500 },
+                { "press": "w" },
+                { "waitFor": "write-off-account" },
+                {
+                    "fill": "write-off-reason",
+                    "value": "The customer closed the restaurant in September and the owners cannot be reached. Two reminders and a collection letter went unanswered, and the collection agency returned the account as not worth pursuing. The balance is written off to bad debts after a review with the owner of the books."
+                },
+                { "press": "ControlOrMeta+Enter" },
+                { "waitForHidden": "write-off-dialog" },
+                { "waitFor": "invoice-write-offs" },
+                { "clickPrefix": "invoice-write-offs-open-" },
+                { "waitFor": "write-off-read-only" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "read-void",
+            "widths": [390],
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "fill": "form-input-memo", "value": "Helix capture write-off read void 390" },
+                { "pause": 300 },
+                { "click": "invoice-post" },
+                { "waitFor": "invoice-read-only" },
+                { "pause": 500 },
+                { "press": "w" },
+                { "waitFor": "write-off-account" },
+                { "press": "ControlOrMeta+Enter" },
+                { "waitForHidden": "write-off-dialog" },
+                { "waitFor": "invoice-write-offs" },
+                { "clickPrefix": "invoice-write-offs-open-" },
+                { "waitFor": "write-off-read-only" },
+                { "pause": 500 },
+                { "press": "v" },
+                { "waitFor": "void-dialog" },
+                { "press": "ControlOrMeta+Enter" },
+                { "waitFor": "write-off-voided-by" },
+                { "waitForHidden": "void-dialog" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./read-void",
+            "widths": [1280],
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "hideLabels": ["New"],
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Harborview Hospitality Group" },
+                { "clickMenuItem": "Harborview Hospitality Group" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Wireless access point" },
+                { "fill": "form-input-memo", "value": "Helix capture write-off read void 1280" },
+                { "pause": 300 },
+                { "click": "invoice-post" },
+                { "waitFor": "invoice-read-only" },
+                { "pause": 500 },
+                { "press": "w" },
+                { "waitFor": "write-off-account" },
+                { "press": "ControlOrMeta+Enter" },
+                { "waitForHidden": "write-off-dialog" },
+                { "waitFor": "invoice-write-offs" },
+                { "clickPrefix": "invoice-write-offs-open-" },
+                { "waitFor": "write-off-read-only" },
+                { "pause": 500 },
+                { "press": "v" },
+                { "waitFor": "void-dialog" },
+                { "press": "ControlOrMeta+Enter" },
+                { "waitFor": "write-off-voided-by" },
+                { "waitForHidden": "void-dialog" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}
