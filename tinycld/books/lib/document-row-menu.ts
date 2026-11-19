@@ -68,10 +68,12 @@ type NotRowMenuAction =
     | 'record_refund'
     | 'refund'
     | 'refund_credit'
+    | 'write_off'
 
 // A read-view action as a row-menu action: every one but Edit, Pay bill (a bill's), Apply
 // to bills and Record refund (a vendor credit's), which are never on a sales list, and
-// Refund and Refund credit, which the row menu does not offer (readActionsOf sets neither).
+// Refund, Refund credit and Write off, which the row menu does not offer (readActionsOf
+// sets none of them).
 function isRowMenuAction(
     action: DocumentReadAction
 ): action is Exclude<DocumentReadAction, NotRowMenuAction> {
@@ -81,7 +83,8 @@ function isRowMenuAction(
         action !== 'apply_credit' &&
         action !== 'record_refund' &&
         action !== 'refund' &&
-        action !== 'refund_credit'
+        action !== 'refund_credit' &&
+        action !== 'write_off'
     )
 }
 

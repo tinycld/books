@@ -140,7 +140,8 @@ export type DocumentSource = SharedColumns & { kindFields: DocumentKindFields }
 // The header row as the screen reads it: who posted and voided it, and its tax rate (the
 // read view's tax line names it). A sales receipt's own fields add its deposit account,
 // which its payment line names. An invoice's own fields add the estimate it was made from
-// ("From estimate <n>") and its open balance (Balance due, the badge). An estimate's own
+// ("From estimate <n>"), its open balance (Balance due, the badge) and its written-off
+// cents (the Written off badge and row). An estimate's own
 // fields add the invoice that was made from it ("Converted to invoice <n>"). A bill's own
 // fields add its vendor's name and its open balance (Balance due, the badge). A credit
 // memo's own fields add the invoice it is for ("For invoice <n>") and its unapplied credit.
@@ -151,8 +152,12 @@ export type DocumentRecord = SharedColumns & {
     kindFields:
         | (InvoiceKindFields & {
               estimateRow: Pick<BooksEstimates, 'number'> | undefined
-              // The open amount the server keeps (total less the posted payments).
+              // The open amount the server keeps (total less the posted payments and the
+              // posted write-offs).
               balance: BooksInvoices['balance']
+              // The cents of its posted write-offs, which the server keeps (the Written off
+              // badge and totals row).
+              written_off: BooksInvoices['written_off']
           })
         | (SalesReceiptKindFields & {
               depositRow: Pick<BooksAccounts, 'number' | 'name'> | undefined
