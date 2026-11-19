@@ -6,11 +6,13 @@ import { uniqueName } from './record-form-helpers'
 // member, so the read-only paths (no New button, no menu, no checkboxes, read-only
 // panel, access message) are covered by the unit tests, not here.
 
-function importCsv(parent: string, child: string) {
+// The imported numbers carry `run`, because an account number may exist only once and
+// earlier runs leave their imported accounts in the shared database.
+function importCsv(parent: string, child: string, run: string) {
     return [
         'Number,Name,Type,Detail type,Parent,Description,Inactive',
-        `8300,${parent},Expense,Office and general,,,`,
-        `8310,${child},Expense,Office and general,${parent},,`,
+        `8300-${run},${parent},Expense,Office and general,,,`,
+        `8310-${run},${child},Expense,Office and general,${parent},,`,
         // Already in the seed: must be Skipped, not an error for its number.
         '6100,Rent,Expense,Rent or lease,,,',
     ].join('\n')
@@ -71,6 +73,12 @@ test.describe('chart-of-accounts: list, edit and import', () => {
         const marketing = uniqueName('E2E Marketing')
         const importedParent = uniqueName('Imported Parent')
         const importedChild = uniqueName('Imported Child')
+        const disposable = uniqueName('E2E Disposable')
+        // At most 11 characters, so "8300-<run>" stays inside the 20 a number allows.
+        const importRun = `${Date.now().toString(36)}w${test.info().workerIndex}`
+        // A word no other account holds: a seeded name such as "Rent" is also inside
+        // names that earlier runs and other specs leave ("Imported Parent").
+        const searchable = uniqueName('E2E Searchable')
         await login(page)
         await navigateToPackage(page, 'books')
         await openChartOfAccounts(page)
@@ -86,10 +94,11 @@ test.describe('chart-of-accounts: list, edit and import', () => {
         await software.locator('[data-testid^="account-caret-"]').click()
         await expect(design).toBeVisible()
 
-        // Search narrows the list to the matching rows only.
+        // Search narrows the list to the matching rows only, whatever the case.
+        await createAccount(page, searchable, 'Expense', 'Rent or lease')
         const search = page.getByTestId('account-search')
-        await search.fill('rent')
-        await expect(row(page, 'Rent')).toBeVisible()
+        await search.fill(searchable.toLowerCase())
+        await expect(row(page, searchable)).toBeVisible()
         await expect(page.locator('[data-testid^="account-row-"]')).toHaveCount(1)
         await expect(row(page, 'Business Checking')).toHaveCount(0)
         await search.fill('')
@@ -138,18 +147,18 @@ test.describe('chart-of-accounts: list, edit and import', () => {
         await expect(row(page, "Owner's Equity")).toBeVisible()
 
         // A new, unused account can be deleted through the dialog.
-        await createAccount(page, 'E2E Disposable', 'Income', 'Service income')
-        await openRowMenu(page, 'E2E Disposable')
+        await createAccount(page, disposable, 'Income', 'Service income')
+        await openRowMenu(page, disposable)
         await page.getByRole('menuitem', { name: 'Delete', exact: true }).click()
         await page.getByRole('button', { name: 'Delete', exact: true }).click()
-        await expect(row(page, 'E2E Disposable')).toHaveCount(0)
+        await expect(row(page, disposable)).toHaveCount(0)
 
         // Import: upload, map, preview, run, summary, back to the tree.
         await page.getByTestId('account-import-link').click()
         await page.getByTestId('account-import-file').setInputFiles({
             name: 'accounts.csv',
             mimeType: 'text/csv',
-            buffer: Buffer.from(importCsv(importedParent, importedChild)),
+            buffer: Buffer.from(importCsv(importedParent, importedChild, importRun)),
         })
 
         // Each field is auto-matched to the file column with the same header.
