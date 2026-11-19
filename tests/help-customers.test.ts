@@ -46,6 +46,11 @@ describe('help/customers.md', () => {
         expect(body).toContain('(help://books:credit-memos)')
     })
 
+    // Refund receipt checkpoint 5: cross-linked from the refund receipt topic's neighbours.
+    it('links the refund receipts topic', () => {
+        expect(body).toContain('(help://books:refund-receipts)')
+    })
+
     // Estimate checkpoint 4: cross-linked from the estimate topic's neighbours.
     it('links the estimates topic', () => {
         expect(body).toContain('(help://books:estimates)')

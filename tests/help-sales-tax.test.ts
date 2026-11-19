@@ -128,6 +128,27 @@ describe('help/sales-tax.md', () => {
         })
     })
 
+    // Refund receipt §3.13 (Q10, Q11): a plain refund lowers the tax of its rate on its date.
+    describe('refund receipts', () => {
+        const sentences = body.split(/(?<=[.!?])\s+/)
+        const oneSentence = (...phrases: RegExp[]) =>
+            sentences.some(sentence => phrases.every(phrase => phrase.test(sentence)))
+
+        it('names refund receipts in a sentence on the sales tax liability', () => {
+            expect(
+                oneSentence(
+                    /\brefund receipts?\b/i,
+                    /\b(lowers?|reduces?|less)\b/i,
+                    /\b(liability|tax (you )?owe)/i
+                )
+            ).toBe(true)
+        })
+
+        it('no longer says that Books cannot yet refund a credit', () => {
+            expect(body).not.toMatch(/\bcannot yet\b[^.]*\brefund/i)
+        })
+    })
+
     it('names no seeded agency, rate or group', () => {
         for (const { name } of [...TAX_AGENCIES, ...TAX_RATE_ROWS]) {
             expect(body, name).not.toContain(name)

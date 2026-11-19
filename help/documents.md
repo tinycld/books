@@ -9,7 +9,7 @@ To see how your documents print, open Settings, choose Company and press Preview
 
 The preview uses the saved company details. If you change a detail, press Save before you preview. Any person with access to Books can preview; only an admin can change the details.
 
-To see or download the PDF of an invoice, a sales receipt, an estimate or a credit memo, open it and choose the PDF view tab, or Download PDF. See [Invoices](help://books:invoices), [Sales receipts](help://books:sales-receipts), [Estimates](help://books:estimates) and [Credit memos](help://books:credit-memos). A payment has no PDF. See [Receive payment](help://books:receive-payment).
+To see or download the PDF of an invoice, a sales receipt, an estimate, a credit memo or a refund receipt, open it and choose the PDF view tab, or Download PDF. See [Invoices](help://books:invoices), [Sales receipts](help://books:sales-receipts), [Estimates](help://books:estimates), [Credit memos](help://books:credit-memos) and [Refund receipts](help://books:refund-receipts). A payment has no PDF. See [Receive payment](help://books:receive-payment).
 
 ## What a document shows
 

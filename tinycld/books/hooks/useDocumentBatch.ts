@@ -16,7 +16,7 @@ import { useVoidDocument } from './useVoidDocument'
 type BatchRun = { action: BatchAction; applies: DocumentListRow[]; kept: string[] }
 
 interface DocumentBatchInput {
-    // The tab of the list: its dialog shows only on its own list.
+    // The mounted list that opens the dialog: its dialog shows only on that list.
     listKey: string
     rows: readonly DocumentListRow[]
     selection: ReturnType<typeof useListSelection>

@@ -86,15 +86,3 @@ export function useLandOnRoute(name: string): () => void {
         navigation.dispatch(hasRoute ? StackActions.popTo(name) : StackActions.replace(name))
     }, [navigation, name])
 }
-
-// useLandOnRoute for a screen of a kind's child stack: the Books root stack, its parent,
-// shows the root route `name` in place of the kind route.
-export function useLandOnRootRoute(name: string): () => void {
-    const navigation = useNavigation()
-    return useCallback(() => {
-        const root = navigation.getParent()
-        if (root === undefined) return
-        const hasRoute = root.getState()?.routes.some(route => route.name === name)
-        root.dispatch(hasRoute ? StackActions.popTo(name) : StackActions.replace(name))
-    }, [navigation, name])
-}

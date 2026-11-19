@@ -280,8 +280,7 @@ describe('registries', () => {
     })
 
     // Refund receipt spec §2: + New → Customers → "Refund receipt", after "Credit memo".
-    // It takes no customer until the Sales lists know the kind (refund receipt plan,
-    // checkpoint 3: SALES_NEW_ITEMS throws for a takesCustomer action that is no kind).
+    // Spec §3.13: the customer page's New transaction menu lists it, so it takes a customer.
     it('the New menu lists an available Refund receipt right after Credit memo', () => {
         const customers = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Customers')
         const ids = customers?.actions.map(a => a.id) ?? []
@@ -293,16 +292,18 @@ describe('registries', () => {
             href: 'books/refund-receipts/new',
             column: 'customers',
             available: true,
+            takesCustomer: true,
         })
     })
 
-    it('flags exactly Invoice, Estimate, Sales receipt, Receive payment and Credit memo as taking a customer', () => {
+    it('flags exactly Invoice, Estimate, Sales receipt, Receive payment, Credit memo and Refund receipt as taking a customer', () => {
         expect(NEW_ACTIONS.filter(a => a.takesCustomer).map(a => a.id)).toEqual([
             'invoice',
             'estimate',
             'sales_receipt',
             'receive_payment',
             'credit_memo',
+            'refund_receipt',
         ])
         for (const other of NEW_ACTIONS.filter(a => !a.takesCustomer)) {
             expect(other).not.toHaveProperty('takesCustomer')
@@ -424,6 +425,7 @@ describe('sales sidebar entry', () => {
                 'books/sales-receipts',
                 'books/payments',
                 'books/credit-memos',
+                'books/refund-receipts',
             ],
             available: true,
         })
@@ -437,6 +439,8 @@ describe('sales sidebar entry', () => {
         '/a/org/books/invoices/abc',
         '/a/org/books/payments/new',
         '/a/org/books/credit-memos/abc',
+        '/a/org/books/refund-receipts',
+        '/a/org/books/refund-receipts/abc',
     ])('is active on %s', pathname => {
         expect(isActivePath(pathname, salesEntry())).toBe(true)
     })

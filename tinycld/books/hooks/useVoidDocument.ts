@@ -9,11 +9,12 @@ import type { TransactionKind } from '../lib/party-transactions'
  * generator to yield.
  */
 export function useVoidDocument(): (kind: TransactionKind, id: string) => Transaction {
-    const [invoices, receipts, payments, memos] = useStore(
+    const [invoices, receipts, payments, memos, refunds] = useStore(
         'books_invoices',
         'books_sales_receipts',
         'books_payments',
-        'books_credit_memos'
+        'books_credit_memos',
+        'books_refund_receipts'
     )
     return (kind, id) => {
         switch (kind) {
@@ -31,6 +32,10 @@ export function useVoidDocument(): (kind: TransactionKind, id: string) => Transa
                 })
             case 'credit_memo':
                 return memos.update(id, draft => {
+                    draft.status = 'void'
+                })
+            case 'refund_receipt':
+                return refunds.update(id, draft => {
                     draft.status = 'void'
                 })
             case 'estimate':

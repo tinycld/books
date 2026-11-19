@@ -453,14 +453,14 @@ export function creditMemosOfInvoice(invoiceId: string): CreditMemoRecord[] {
 }
 
 // The customer's Transactions tab (spec §3.10, Q11): Draft, Unapplied (a balance above
-// zero), Applied (balance zero; only once p2-apply-credit exists) or Void.
-export type CreditMemoListStatus = 'draft' | 'unapplied' | 'applied' | 'void'
+// zero), Refunded (balance zero, the credit refunded in full) or Void.
+export type CreditMemoListStatus = 'draft' | 'unapplied' | 'refunded' | 'void'
 export function creditMemoListStatus(
     row: Pick<CreditMemoRecord, 'status' | 'balance'>
 ): CreditMemoListStatus {
     if (row.status === 'draft') return 'draft'
     if (row.status === 'void') return 'void'
-    return row.balance > 0 ? 'unapplied' : 'applied'
+    return row.balance > 0 ? 'unapplied' : 'refunded'
 }
 
 export function creditMemosOfCustomer(customerId: string): CreditMemoRecord[] {
