@@ -93,6 +93,7 @@ describe('backTarget', () => {
             ['payments/[id]', 'Payment'],
             ['entries/[id]', 'Journal entry'],
             ['transfers/[id]', 'Transfer'],
+            ['write-offs/[id]', 'Write-off'],
         ]
         for (const [route, label] of below) {
             expect(backTarget(stack('entries/index', route, 'pay-bills'), 'k2'), route).toEqual({
@@ -101,6 +102,14 @@ describe('backTarget', () => {
                 depth: 1,
             })
         }
+    })
+
+    // Write-off spec §3.5: a write-off opened from the invoice's Write-offs section pops
+    // back to the invoice.
+    it("pops a write-off opened from the invoice's Write-offs section back to the invoice", () => {
+        expect(
+            backTarget(stack('entries/index', 'invoices/[id]', 'write-offs/[id]'), 'k2')
+        ).toEqual({ route: 'invoices/[id]', label: 'Invoice', depth: 1 })
     })
 
     it('steps past read-only bill payments to the bill below them', () => {

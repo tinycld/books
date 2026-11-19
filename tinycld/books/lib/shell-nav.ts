@@ -186,15 +186,15 @@ export function isActivePath(pathname: string, entry: SidebarEntry): boolean {
 // The entry, customer, vendor, product, transfer, invoice, sales receipt, credit memo,
 // refund receipt, estimate, bill, expense, vendor credit, vendor refund and payment forms,
 // Pay Bills, and the entry, transfer, invoice, sales receipt, credit memo, refund receipt,
-// estimate, bill, expense, vendor credit, vendor refund, payment and bill payment views
-// own the bottom of the phone screen, so the New button stays off them. A bare path is a
+// estimate, bill, expense, vendor credit, vendor refund, payment, bill payment and write-off
+// views own the bottom of the phone screen, so the New button stays off them. A bare path is a
 // list (`/entries`, `/customers`, `/vendors`, `/products`, and the Sales lists
 // `/invoices`, `/estimates`, `/sales-receipts`, `/payments`, `/credit-memos`,
 // `/refund-receipts`), which keeps it, or no screen at all (transfers, bills, expenses,
-// vendor credits, vendor refunds and bill payments have no list). Pay Bills has no id:
+// vendor credits, vendor refunds, bill payments and write-offs have no list). Pay Bills has no id:
 // `/pay-bills` itself is the form.
 const FAB_FREE_SCREEN =
-    /\/books\/((entries|customers|vendors|products|transfers|invoices|sales-receipts|credit-memos|refund-receipts|estimates|bills|expenses|vendor-credits|vendor-refunds|payments|bill-payments)\/[^/]+|pay-bills)\/?$/
+    /\/books\/((entries|customers|vendors|products|transfers|invoices|sales-receipts|credit-memos|refund-receipts|estimates|bills|expenses|vendor-credits|vendor-refunds|payments|bill-payments|write-offs)\/[^/]+|pay-bills)\/?$/
 
 export function hidesNewFab(pathname: string): boolean {
     return FAB_FREE_SCREEN.test(pathname)
