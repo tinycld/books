@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/refund-receipt-form-checkpoints.md
 - reference: docs/plans/refund-receipt-form-reference/
 - evidence: docs/plans/refund-receipt-form-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (removed by finish.mjs 2026-11-18)
 - capture manifest: docs/plans/refund-receipt-form-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -252,6 +252,6 @@
 - human: review mode C, no message
 
 ## Final review
-- eval:
-- human comments and what changed
+- eval: approved 2026-11-18 (human), at 59910ea4 (after the merge of main, p3-vendor-pages). The open Design-note decisions (§4.6 seed dates, payout tax percent, §3.13 wording, phone tab strip, negative-tax option for refund receipts, the smaller items) stay as built. Retrospective accepted: memory for p5-ar-aging, lesson folded into line 1 of docs/helix-lessons.md, migration-prefixes check on the next step branch, process changes in the unit file.
+- human comments and what changed: none beyond approval.
 - native: not executed in this run
