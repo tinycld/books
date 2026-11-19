@@ -15,10 +15,11 @@ import {
     writeOffOffered,
 } from './document-actions'
 import { type DocumentStatus, quoteReadActions } from './document-lifecycle'
-import type { DocumentListRow } from './document-list'
+import { type DocumentListRow, isSalesKind, listDocumentHref } from './document-list'
 import { documentHref, documentNewHref } from './document-routes'
 import { TRANSACTION_DOC_KINDS } from './party-transactions'
 import { paymentReadActions } from './payment-read-actions'
+import type { PurchaseRowMenuAction } from './purchase-row-menu'
 import { CREDIT_MEMO_KIND, INVOICE_KIND, SALES_FEATURES } from './sales-document-kinds'
 
 export type RowMenuAction =
@@ -131,8 +132,10 @@ function readActionsOf(row: DocumentListRow, status: DocumentStatus, canWrite: b
     )
 }
 
+// A purchase row's menu comes from `purchaseRowMenuItems` (`listRowMenuItems` picks by the
+// row's kind); here it holds Open only, as a write-off's does.
 export function documentRowMenuItems(row: DocumentListRow, canWrite: boolean): RowMenuAction[] {
-    if (row.kind === 'write_off') return ['open']
+    if (!isSalesKind(row.kind) || row.kind === 'write_off') return ['open']
     if (row.recordStatus === 'draft') return canWrite ? ['open', 'delete_draft'] : ['open']
     const status = documentStatusOf(row.recordStatus)
     if (status === null) return ['open']
@@ -140,21 +143,25 @@ export function documentRowMenuItems(row: DocumentListRow, canWrite: boolean): R
     return writeOffAfterReceive(['open', ...offered.filter(isRowMenuAction)])
 }
 
-// The menu row's test id: `sales-row-action-<action>`, with dashes.
-export function rowActionTestId(action: RowMenuAction): string {
-    return `sales-row-action-${action.replaceAll('_', '-')}`
+// The menu row's test id: `<area prefix>-row-action-<action>`, with dashes.
+export function rowActionTestId(
+    prefix: string,
+    action: RowMenuAction | PurchaseRowMenuAction
+): string {
+    return `${prefix}-row-action-${action.replaceAll('_', '-')}`
 }
 
 // The route a navigating action pushes (without the org prefix); null for the actions that
 // stay on the list (Download PDF, Void, Delete draft, and Write off, whose dialog opens
-// over the list).
+// over the list). A purchase row's routes come from `purchaseRowActionHref`
+// (`listRowActionHref` picks by the row's kind); here it has Open only.
 export function rowActionHref(row: DocumentListRow, action: RowMenuAction): string | null {
+    if (action === 'open') return listDocumentHref(row.kind, row.id)
+    if (!isSalesKind(row.kind)) return null
     const kind = TRANSACTION_DOC_KINDS[row.kind]
     switch (action) {
-        case 'open':
-            return documentHref(kind, row.id)
         case 'receive_payment':
-            return `books/payments/new?customer=${row.customerId}&invoice=${row.id}`
+            return `books/payments/new?customer=${row.partyId}&invoice=${row.id}`
         case 'copy':
             return documentNewHref(kind, { copy: row.id })
         case 'credit_memo':

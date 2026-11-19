@@ -1,17 +1,20 @@
-// The batch actions of a sales list (spec §3 "Batch actions"): which ticked documents an
-// action applies to, the words of its confirm dialog, and the result banner's text. Pure,
-// so each rule is unit-tested.
+// The batch actions of a sales or purchase list (spec §3 "Batch actions"): which ticked
+// documents an action applies to, the words of its confirm dialog, and the result banner's
+// text. Pure, so each rule is unit-tested.
 
 import type { DocumentListRow } from './document-list'
 
 export type BatchAction = 'delete_drafts' | 'void'
 
-// Delete drafts applies to the drafts of every kind; Void to posted documents of every kind
-// but an estimate, which has no void. No batch action reaches a write-off (write-off spec §5,
-// Q13): it is voided on its own page.
+// Delete drafts applies to the drafts of every kind but a bill payment, which is never a
+// draft and has no delete. Void applies to posted documents of every kind but an estimate,
+// which has no void. No batch action reaches a write-off (write-off spec §5, Q13): it is
+// voided on its own page.
 function appliesTo(action: BatchAction, row: DocumentListRow): boolean {
     if (row.kind === 'write_off') return false
-    if (action === 'delete_drafts') return row.recordStatus === 'draft'
+    if (action === 'delete_drafts') {
+        return row.recordStatus === 'draft' && row.kind !== 'bill_payment'
+    }
     return row.recordStatus === 'posted' && row.kind !== 'estimate'
 }
 

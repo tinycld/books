@@ -1,33 +1,24 @@
-import type { Transaction } from '@tanstack/db'
 import { useMutation } from '@tinycld/core/lib/mutations'
-import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useState } from 'react'
+import type { ListKind } from '../lib/document-list'
 import { type PaymentCollectionName, voidWriteCollection } from '../lib/payment-read-actions'
 import { writeRefusalText } from '../lib/refusal'
 import { useVoidDocument } from './useVoidDocument'
 
+// The list kind of each payment collection, so a name with no kind is a type error.
+const PAYMENT_LIST_KINDS: Record<PaymentCollectionName, ListKind> = {
+    books_payments: 'payment',
+    books_bill_payments: 'bill_payment',
+    books_vendor_refunds: 'vendor_refund',
+}
+
 // Void as a write to the read view's own collection (`voidWriteCollection`):
 // `status: 'void'` (the server posts the reversing entry and opens the paid documents
-// again). One write per collection name, so a name with no write is a type error. A
-// customer payment voids through the write the sales lists share (useVoidDocument).
+// again), through the write the lists share (useVoidDocument).
 function useVoidWrite(collection: PaymentCollectionName) {
-    const [billPaymentsCollection, vendorRefundsCollection] = useStore(
-        'books_bill_payments',
-        'books_vendor_refunds'
-    )
-    const voidSales = useVoidDocument()
-    const writes: Record<PaymentCollectionName, (id: string) => Transaction> = {
-        books_payments: id => voidSales('payment', id),
-        books_bill_payments: id =>
-            billPaymentsCollection.update(id, draft => {
-                draft.status = 'void'
-            }),
-        books_vendor_refunds: id =>
-            vendorRefundsCollection.update(id, draft => {
-                draft.status = 'void'
-            }),
-    }
-    return writes[voidWriteCollection(collection)]
+    const voidWrite = useVoidDocument()
+    const kind = PAYMENT_LIST_KINDS[voidWriteCollection(collection)]
+    return (id: string) => voidWrite(kind, id)
 }
 
 /**

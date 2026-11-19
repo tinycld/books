@@ -6,7 +6,7 @@ import {
     batchResultText,
     batchTargets,
 } from '../lib/document-batch'
-import type { DocumentListRow } from '../lib/document-list'
+import { type DocumentListRow, draftKindOf } from '../lib/document-list'
 import { writeRefusalText } from '../lib/refusal'
 import { type BatchCounts, useDocumentListStore } from '../stores/document-list-store'
 import { useDeleteDraftDocument } from './useDeleteDraftDocument'
@@ -23,13 +23,13 @@ interface DocumentBatchInput {
 }
 
 /**
- * The Batch actions of a Sales list (spec §3 "Batch actions"): Delete drafts and Void
- * over the ticked loaded rows. `open` shows the confirm dialog with the counts of what the
- * action applies to and what it skips, kept current while the dialog is open (a row that
- * changes or leaves the list elsewhere changes them). `confirm` writes the documents one
- * at a time with the write the read view and the forms share, collects what was done and
- * what the server refused, then keeps the refused and the skipped documents ticked and
- * shows the result in the list's banner.
+ * The Batch actions of a list, sales or purchases (spec §3 "Batch actions"): Delete drafts
+ * and Void over the ticked loaded rows. `open` shows the confirm dialog with the counts of
+ * what the action applies to and what it skips, kept current while the dialog is open (a
+ * row that changes or leaves the list elsewhere changes them). `confirm` writes the
+ * documents one at a time with the write the read view and the forms share, collects what
+ * was done and what the server refused, then keeps the refused and the skipped documents
+ * ticked and shows the result in the list's banner.
  */
 export function useDocumentBatch({ listKey, rows, selection }: DocumentBatchInput) {
     const writes = useWritesAvailable()
@@ -42,7 +42,7 @@ export function useDocumentBatch({ listKey, rows, selection }: DocumentBatchInpu
     const ticked = rows.filter(row => selection.isTicked(row.id))
 
     const writeOf = (action: BatchAction, row: DocumentListRow) =>
-        action === 'void' ? voidWrite(row.kind, row.id) : deleteWrite(row.kind, row.id)
+        action === 'void' ? voidWrite(row.kind, row.id) : deleteWrite(draftKindOf(row), row.id)
     const run = useMutation({
         mutationFn: async ({ action, applies }: BatchRun) => {
             let done = 0

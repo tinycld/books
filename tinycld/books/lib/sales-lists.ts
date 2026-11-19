@@ -2,6 +2,8 @@
 // the kinds it lists, its columns, chips and sortable columns, and its New action.
 
 import type { DocumentListTab, ListChip, ListColumnKey, ListSortKey } from './document-list'
+import { BASE_SORT_KEYS, listChips as chips } from './list-chips'
+import { areaTabOf } from './list-tabs'
 import { NEW_ACTIONS } from './new-actions'
 import type { TransactionFilter, TransactionKind } from './party-transactions'
 
@@ -46,14 +48,6 @@ function newHrefOf(kind: SalesKind): string {
     return action.href
 }
 
-// A chip's id is its label in lower case with dashes.
-function chips(...labels: string[]): readonly ListChip[] {
-    return labels.map(label => ({ id: label.toLowerCase().replace(/ /g, '-'), label }))
-}
-
-// Date, No. and the amount sort on every tab.
-const BASE_SORT_KEYS: readonly ListSortKey[] = ['date', 'number', 'amount']
-
 function kindTab(
     kind: SalesKind,
     tab: {
@@ -67,6 +61,7 @@ function kindTab(
 ): DocumentListTab {
     return {
         key: tab.key,
+        area: 'sales',
         label: tab.label,
         path: `books/${tab.key}`,
         kinds: [kind],
@@ -82,6 +77,7 @@ function kindTab(
 
 const ALL_SALES_TAB: DocumentListTab = {
     key: 'all',
+    area: 'sales',
     label: 'All sales',
     path: 'books/sales',
     kinds: ALL_KINDS,
@@ -148,7 +144,7 @@ export const SALES_TABS: readonly DocumentListTab[] = [
 
 // An unknown key gives All sales.
 export function salesTabOf(key: string): DocumentListTab {
-    return SALES_TABS.find(tab => tab.key === key) ?? ALL_SALES_TAB
+    return areaTabOf({ tabs: SALES_TABS }, key)
 }
 
 export function salesTabForKind(kind: SalesKind): DocumentListTab {

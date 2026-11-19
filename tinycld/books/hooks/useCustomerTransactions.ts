@@ -1,4 +1,4 @@
-import { DEFAULT_LIST_FILTERS, DEFAULT_LIST_SORT } from '../lib/document-list'
+import { DEFAULT_LIST_FILTERS, DEFAULT_LIST_SORT, isSalesRow } from '../lib/document-list'
 import type { TransactionFilter } from '../lib/party-transactions'
 import { customerTransactionsTab } from '../lib/sales-lists'
 import { useDocumentList } from './useDocumentList'
@@ -13,14 +13,20 @@ import { useDocumentList } from './useDocumentList'
  * of any kind shows in `isError` with one `retry`, and `loadMore` grows the window by 50
  * while a source may have more.
  */
-export function useCustomerTransactions(customerId: string, filter: TransactionFilter) {
+export function useCustomerTransactions(customer: string, filter: TransactionFilter) {
+    const fixed = customerTransactionsTab(filter)
+    // A blank customer id would drop the customer clause and list every customer's
+    // documents, so the tab then lists no kind: no query runs and the list is empty.
+    const kinds = customer === '' ? [] : fixed.kinds
     // The customer is in the tab key, so the rows of another customer never stay on screen.
-    const tab = { ...customerTransactionsTab(filter), key: `customer-${customerId}-${filter}` }
+    const tab = { ...fixed, kinds, key: `customer-${customer}-${filter}` }
     const list = useDocumentList({
         tab,
-        filters: { ...DEFAULT_LIST_FILTERS, customer: customerId },
+        filters: { ...DEFAULT_LIST_FILTERS, party: customer },
         sort: DEFAULT_LIST_SORT,
     })
-    const { rows, currency, isLoading, isError, retry, loadMore, hasMore } = list
+    const { currency, isLoading, isError, retry, loadMore, hasMore } = list
+    // The tab lists the sales kinds only; the guard gives the rows their sales kind type.
+    const rows = list.rows.filter(isSalesRow)
     return { rows, currency, isLoading, isError, retry, loadMore, hasMore }
 }

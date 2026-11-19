@@ -1,6 +1,7 @@
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router } from 'expo-router'
 import { documentHref, documentStackRouteName } from '../lib/document-routes'
+import { LIST_AREAS, type ListArea } from '../lib/list-areas'
 import {
     BILL_KIND,
     CREDIT_MEMO_KIND,
@@ -11,7 +12,6 @@ import {
     SALES_RECEIPT_KIND,
     VENDOR_CREDIT_KIND,
 } from '../lib/sales-document-kinds'
-import { SALES_TABS } from '../lib/sales-lists'
 import { isReadOnlyRoute } from '../lib/search-target'
 import { usePopScreens, useStackPosition } from './useStackScreens'
 
@@ -19,19 +19,26 @@ const LIST_ROUTE = 'entries/index'
 const REGISTER_ROUTE = 'accounts/[id]'
 const ESTIMATE_ROUTE = documentStackRouteName(ESTIMATE_KIND)
 
-// The flat screen name of a Sales list (lib/stack-screens.ts): its tab path without
-// `books/`, then the list screen of its route (`invoices/index`, `sales/index`). The back
-// link names a kind tab by its label and All sales by the area's title, "Sales".
-const SALES_LIST_LABELS = Object.fromEntries(
-    SALES_TABS.map(tab => [
-        `${tab.path.replace(/^books\//, '')}/index`,
-        tab.key === 'all' ? 'Sales' : tab.label,
-    ])
-)
+// The flat screen name of a list (lib/stack-screens.ts): its tab path without `books/`,
+// then the list screen of its route (`invoices/index`, `sales/index`, `bills/index`,
+// `purchases/index`). The back link names a kind tab by its label and an area's all-kinds
+// tab by the area's title ("Sales", "Expenses").
+function listLabels(area: ListArea) {
+    return Object.fromEntries(
+        area.tabs.map(tab => [
+            `${tab.path.replace(/^books\//, '')}/index`,
+            tab.key === 'all' ? area.title : tab.label,
+        ])
+    )
+}
+
+const SALES_LIST_LABELS = listLabels(LIST_AREAS.sales)
+const PURCHASE_LIST_LABELS = listLabels(LIST_AREAS.purchases)
 
 // The screens Back pops to when one is right below this screen, each with the back link's
-// text: the journal entry list, a Sales list, a register, and every record route (a
-// document, a bill payment, a payment, a vendor refund, a write-off, an entry, a transfer), so Back
+// text: the journal entry list, a Sales or purchase list, a register, and every record
+// route (a document, a bill payment, a payment, a vendor refund, a write-off, an entry, a
+// transfer), so Back
 // leads to the screen the user came from and the label names it. A new vendor refund is
 // one too: its "New vendor credit" pushes the credit form over it, and that form's Back,
 // Cancel and post return to the refund with what was typed in it. Any other screen below
@@ -39,6 +46,7 @@ const SALES_LIST_LABELS = Object.fromEntries(
 const LABELS: Record<string, string> = {
     [LIST_ROUTE]: 'Journal entries',
     ...SALES_LIST_LABELS,
+    ...PURCHASE_LIST_LABELS,
     [REGISTER_ROUTE]: 'Register',
     'entries/[id]': 'Journal entry',
     'transfers/[id]': 'Transfer',

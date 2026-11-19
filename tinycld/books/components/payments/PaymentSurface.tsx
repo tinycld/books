@@ -156,7 +156,7 @@ export function PaymentSurface({
     // A refusal the new form handed over when it moved to this draft's route.
     const [refused] = useState(() => refusedSaveOf(flow.key, input.id))
     // The root opts back into pointer events and draws its own background: a kind's child
-    // stack (SalesKindLayout, the Payments one) turns pointer events off on web and draws
+    // stack (DocumentKindLayout, the Payments one) turns pointer events off on web and draws
     // its screens over a transparent layer, so the list under it never takes the screen's
     // clicks. On a route with no child stack (vendor refunds) it changes nothing.
     return (

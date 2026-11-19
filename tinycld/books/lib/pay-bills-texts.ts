@@ -4,6 +4,7 @@
 import { formatMoney, TOO_LARGE_TEXT } from './money'
 import { moneyInputCents } from './money-input'
 import { isWellFormedMoney, maxStoredAmount } from './money-text'
+import { BILL_PAYMENT_VOID_BODY, BILL_PAYMENT_VOID_CONFIRM } from './pay-bills-void-texts'
 import type { Payments } from './payment-allocation'
 import { PAYMENT_MESSAGES } from './payment-texts'
 
@@ -33,9 +34,8 @@ export const PAY_BILLS_MESSAGES = {
     discard: 'Discard this payment? The bills stay open.',
 
     // The bill payment read view (spec §3.8).
-    voidBody:
-        'A reversing entry is posted in the original period. The number is kept. The bills it paid are open again.',
-    voidConfirm: 'Void bill payment',
+    voidBody: BILL_PAYMENT_VOID_BODY,
+    voidConfirm: BILL_PAYMENT_VOID_CONFIRM,
 } as const
 
 // "Edit bill payment 1004": the title on `?replaces`.

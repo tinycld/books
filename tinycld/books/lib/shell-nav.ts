@@ -8,6 +8,7 @@ import {
     Percent,
     Receipt,
     Settings,
+    ShoppingCart,
 } from 'lucide-react-native'
 import type { BooksAccessState } from './access'
 import { NEW_ACTIONS, type NewAction } from './new-actions'
@@ -53,6 +54,23 @@ export const SIDEBAR_ENTRIES: SidebarEntry[] = [
             'books/payments',
             'books/credit-memos',
             'books/refund-receipts',
+        ],
+        available: true,
+    },
+    // All purchases; Pay Bills, the five kind tabs and every purchase document keep the
+    // entry active.
+    {
+        id: 'expenses',
+        label: 'Expenses',
+        icon: ShoppingCart,
+        href: 'books/purchases',
+        activePaths: [
+            'books/pay-bills',
+            'books/bills',
+            'books/expenses',
+            'books/bill-payments',
+            'books/vendor-credits',
+            'books/vendor-refunds',
         ],
         available: true,
     },
@@ -187,12 +205,13 @@ export function isActivePath(pathname: string, entry: SidebarEntry): boolean {
 // refund receipt, estimate, bill, expense, vendor credit, vendor refund and payment forms,
 // Pay Bills, and the entry, transfer, invoice, sales receipt, credit memo, refund receipt,
 // estimate, bill, expense, vendor credit, vendor refund, payment, bill payment and write-off
-// views own the bottom of the phone screen, so the New button stays off them. A bare path is a
-// list (`/entries`, `/customers`, `/vendors`, `/products`, and the Sales lists
-// `/invoices`, `/estimates`, `/sales-receipts`, `/payments`, `/credit-memos`,
-// `/refund-receipts`), which keeps it, or no screen at all (transfers, bills, expenses,
-// vendor credits, vendor refunds, bill payments and write-offs have no list). Pay Bills has no id:
-// `/pay-bills` itself is the form.
+// views own the bottom of the phone screen, so the New button stays off them. The pattern
+// needs a child segment, so a bare path keeps the button: a list (`/entries`, `/customers`,
+// `/vendors`, `/products`, the Sales lists `/invoices`, `/estimates`, `/sales-receipts`,
+// `/payments`, `/credit-memos`, `/refund-receipts`, and the purchase lists `/bills`,
+// `/expenses`, `/bill-payments`, `/vendor-credits`, `/vendor-refunds`), or no screen at
+// all (transfers and write-offs have no list). Pay Bills has no id: `/pay-bills` itself is
+// the form.
 const FAB_FREE_SCREEN =
     /\/books\/((entries|customers|vendors|products|transfers|invoices|sales-receipts|credit-memos|refund-receipts|estimates|bills|expenses|vendor-credits|vendor-refunds|payments|bill-payments|write-offs)\/[^/]+|pay-bills)\/?$/
 

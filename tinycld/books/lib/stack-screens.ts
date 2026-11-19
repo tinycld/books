@@ -83,26 +83,79 @@ export function flattenStack(state: StackState): StackScreen[] {
     return state.routes.flatMap(screensOfRoute)
 }
 
-// The top flat screen of the root route right below `routeKey`; null when `routeKey` is the
-// first route (or not in the stack).
-export function screenBelowRoute(state: StackState, routeKey: string): ScreenRef | null {
+// A flat screen below a kind route, with the key of the root route it belongs to.
+export type BelowScreen = ScreenRef & { root: string }
+
+// Every flat screen of the root routes below `routeKey`, lowest first; empty when
+// `routeKey` is the first route (or not in the stack).
+export function screensBelowRoute(state: StackState, routeKey: string): BelowScreen[] {
     const index = state.routes.findIndex(route => route.key === routeKey)
-    if (index <= 0) return null
-    const top = screensOfRoute(state.routes[index - 1], index - 1).at(-1)
-    if (top === undefined) return null
-    return { name: top.name, id: top.id }
+    if (index <= 0) return []
+    return state.routes.slice(0, index).flatMap((route, routeIndex) =>
+        screensOfRoute(route, routeIndex).map(screen => ({
+            name: screen.name,
+            id: screen.id,
+            root: route.key ?? `root-${routeIndex}`,
+        }))
+    )
 }
 
-// What a screen of a kind's child stack sees: the screen below the kind route (key
-// `below`), then the child routes named `<kindRoute>/<child>`.
-export function nestedScreens(
-    below: ScreenRef | null,
+// The index of the root route right below `routeKey` when it is the kind route `kindRoute`
+// with the record `id` on top of its child stack (`<kindRoute>/[id]`); -1 otherwise.
+export function kindRouteBelowShowing(
+    state: StackState,
+    routeKey: string,
+    kindRoute: string,
+    id: string
+): number {
+    const below = state.routes.findIndex(route => route.key === routeKey) - 1
+    if (below < 0) return -1
+    const route = state.routes[below]
+    if (route.name !== kindRoute) return -1
+    const top = screensOfRoute(route, below).at(-1)
+    return top?.name === `${kindRoute}/[id]` && top.id === id ? below : -1
+}
+
+// screensBelowRoute as one string, so a navigation-state selector returns a value that
+// stays equal between renders while the screens below do not change. Route keys, route
+// names and record ids hold no tab or line break.
+export function belowSignature(state: StackState, routeKey: string): string {
+    return screensBelowRoute(state, routeKey)
+        .map(screen => `${screen.root}\t${screen.name}\t${screen.id}`)
+        .join('\n')
+}
+
+export function screensOfSignature(signature: string): BelowScreen[] {
+    if (signature === '') return []
+    return signature.split('\n').map(line => {
+        const [root = '', name = '', id = ''] = line.split('\t')
+        return { root, name, id }
+    })
+}
+
+/**
+ * What a screen of a kind's child stack sees: every flat screen below the kind route
+ * (lowest first; the nearest has the key `below`, the others `below-<distance>`), then the
+ * child routes named `<kindRoute>/<child>`. The screens below keep their root routes, so
+ * screensAboveTarget tells two screens of one root route below from two root routes.
+ */
+export function nestedStack(
+    below: readonly BelowScreen[],
     kindRoute: string,
     childState: StackState
 ): StackScreen[] {
-    const children = childScreens(kindRoute, kindRoute, childState)
-    if (below === null) return children
-    return [{ key: 'below', name: below.name, id: below.id }, ...children]
+    const nearest = below.length - 1
+    const belowScreens = below.map((screen, index) =>
+        inRootRoute(
+            {
+                key: index === nearest ? 'below' : `below-${nearest - index}`,
+                name: screen.name,
+                id: screen.id,
+            },
+            `below:${screen.root}`
+        )
+    )
+    return [...belowScreens, ...childScreens(kindRoute, kindRoute, childState)]
 }
 
 /**
@@ -110,7 +163,7 @@ export function nestedScreens(
  * `key` with the target's name and id. 0 when it is not below, or when it is not the top
  * screen of its root route (a screen of the same child stack lies above it, so a pop would
  * show that one). Two root routes are told apart by their keys, not their names.
- * Pass the screen objects that `flattenStack` / `nestedScreens` return, unmapped: the root
+ * Pass the screen objects that `flattenStack` / `nestedStack` return, unmapped: the root
  * route of each is looked up by object, so a copied screen counts as its own root route.
  */
 export function screensAboveTarget(
@@ -130,9 +183,9 @@ export function screensAboveTarget(
 
 /**
  * How a screen pops `count` screens. `ownIndex` is its index in its own stack. A screen of
- * a kind's child stack whose target lies below the kind route pops the kind route from the
- * root stack (a pop inside a child stack never removes its first route); otherwise the
- * screen pops `count` screens of its own stack.
+ * a kind's child stack whose target lies below the kind route pops root routes from the
+ * root stack, the kind route first (rootRoutesAbove; a pop inside a child stack never
+ * removes its first route); otherwise the screen pops `count` screens of its own stack.
  */
 export function popPlan(
     ownIndex: number,
@@ -144,9 +197,10 @@ export function popPlan(
 }
 
 /**
- * The number of root routes to pop from the root route `key` to show the flat screen
- * `count` screens below it. A root route with a child stack holds several flat screens,
- * but a pop of the root stack removes the whole route.
+ * The number of root routes to pop to show the flat screen `count` screens below the flat
+ * screen `key`: a root route's key, or the key of a child route of a kind route (a pop
+ * past its kind route). A root route with a child stack holds several flat screens, but a
+ * pop of the root stack removes the whole route.
  */
 export function rootRoutesAbove(state: StackState, key: string, count: number): number {
     const owners = state.routes.flatMap((route, index) =>
@@ -154,7 +208,6 @@ export function rootRoutesAbove(state: StackState, key: string, count: number): 
     )
     const flat = flattenStack(state)
     const ownFlat = flat.findIndex(screen => screen.key === key)
-    const ownRoot = state.routes.findIndex(route => route.key === key)
-    if (ownFlat < count || ownRoot < 0) return count
-    return ownRoot - owners[ownFlat - count]
+    if (ownFlat < count) return count
+    return owners[ownFlat] - owners[ownFlat - count]
 }

@@ -4,14 +4,9 @@ import { useIsFocused } from 'expo-router'
 import { MoreVertical } from 'lucide-react-native'
 import { Pressable } from 'react-native'
 import type { DocumentRowActions } from '../../hooks/useDocumentRowActions'
-import type { DocumentListRow } from '../../lib/document-list'
-import {
-    documentRowMenuItems,
-    ROW_MENU_LABELS,
-    type RowMenuAction,
-    rowActionTestId,
-} from '../../lib/document-row-menu'
-import { TRANSACTION_TYPE_LABELS } from '../../lib/party-transactions'
+import { type DocumentListRow, kindLabel } from '../../lib/document-list'
+import { rowActionTestId } from '../../lib/document-row-menu'
+import { LIST_ROW_MENU_LABELS, type ListRowAction, listRowMenuItems } from '../../lib/list-row-menu'
 import { useDocumentListStore } from '../../stores/document-list-store'
 import { PressBoundary } from '../PressBoundary'
 
@@ -19,18 +14,19 @@ const TRIGGER_STYLE = { width: 44, minHeight: 44 }
 
 interface MenuItemsProps {
     row: DocumentListRow
-    items: readonly RowMenuAction[]
+    testIdPrefix: string
+    items: readonly ListRowAction[]
     actions: Pick<DocumentRowActions, 'run' | 'isDisabled'>
 }
 
-function MenuItems({ row, items, actions }: MenuItemsProps) {
+function MenuItems({ row, testIdPrefix, items, actions }: MenuItemsProps) {
     const rendered = items.map(action => {
         const select = () => actions.run(row, action)
         return (
             <Menu.Item
                 key={action}
-                testID={rowActionTestId(action)}
-                label={ROW_MENU_LABELS[action]}
+                testID={rowActionTestId(testIdPrefix, action)}
+                label={LIST_ROW_MENU_LABELS[action]}
                 isDestructive={action === 'void' || action === 'delete_draft'}
                 isDisabled={actions.isDisabled(action)}
                 onSelect={select}
@@ -55,26 +51,28 @@ function useRowMenuOpen(id: string) {
 
 interface DocumentRowMenuProps {
     row: DocumentListRow
+    // The list area's test-id prefix (`<prefix>-row-menu-<id>`, `<prefix>-row-action-…`).
+    testIdPrefix: string
     canWrite: boolean
     actions: Pick<DocumentRowActions, 'run' | 'isDisabled'>
 }
 
 /**
- * The "More actions" menu that ends a Sales list's row or card (spec §3 "Row menu"): Open,
+ * The "More actions" menu that ends a list's row or card (spec §3 "Row menu"): Open,
  * then what the document's read view offers for its status and the user's access
- * (`documentRowMenuItems`). Its items exist only while it is open, because core Sheet keeps
- * its content in the page while it slides out. A press on the button or an item never
- * opens the row.
+ * (`listRowMenuItems`: the sales or the purchase rules by the row's kind). Its items exist
+ * only while it is open, because core Sheet keeps its content in the page while it slides
+ * out. A press on the button or an item never opens the row.
  */
-export function DocumentRowMenu({ row, canWrite, actions }: DocumentRowMenuProps) {
+export function DocumentRowMenu({ row, testIdPrefix, canWrite, actions }: DocumentRowMenuProps) {
     const color = useThemeColor('muted-foreground')
     const { isOpen, setOpen } = useRowMenuOpen(row.id)
-    const items = isOpen ? documentRowMenuItems(row, canWrite) : []
-    const title = `${TRANSACTION_TYPE_LABELS[row.kind]} ${row.number}`.trim()
+    const items = isOpen ? listRowMenuItems(row, canWrite) : []
+    const title = `${kindLabel(row.kind)} ${row.number}`.trim()
     // An element, not a component: the menu clones it with its press handler and ref.
     const trigger = (
         <Pressable
-            testID={`sales-row-menu-${row.id}`}
+            testID={`${testIdPrefix}-row-menu-${row.id}`}
             accessibilityRole="button"
             accessibilityLabel="More actions"
             className="items-center justify-center"
@@ -93,7 +91,7 @@ export function DocumentRowMenu({ row, canWrite, actions }: DocumentRowMenuProps
                 onOpenChange={setOpen}
                 trigger={trigger}
             >
-                <MenuItems row={row} items={items} actions={actions} />
+                <MenuItems row={row} testIdPrefix={testIdPrefix} items={items} actions={actions} />
             </Menu>
         </PressBoundary>
     )

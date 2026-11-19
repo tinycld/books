@@ -2,7 +2,9 @@
 // and ↓ open it; a printable character opens it with that character in the search
 // (type-to-open). A key with ⌘, Ctrl or Alt belongs to the shortcuts, and so does `?`
 // (⇧?, core's shortcut list), which a form with a picker focused on open must still reach.
-// An open picker handles its own keys in the menu.
+// With `typeToOpen` false (a list toolbar's filter), a printable character is not the
+// picker's: it goes on to the screen's single-key shortcuts. An open picker handles its
+// own keys in the menu.
 export type SearchPickerKeyAction = 'open' | 'open-with-text' | 'none'
 
 const OPEN_KEYS = new Set(['Enter', ' ', 'ArrowDown'])
@@ -10,12 +12,14 @@ const SHORTCUT_LIST_KEY = '?'
 
 export function searchPickerKeyAction(
     event: { key: string; metaKey: boolean; ctrlKey: boolean; altKey: boolean },
-    isOpen: boolean
+    isOpen: boolean,
+    typeToOpen = true
 ): SearchPickerKeyAction {
     if (isOpen) return 'none'
     if (event.metaKey || event.ctrlKey || event.altKey) return 'none'
     if (event.key === SHORTCUT_LIST_KEY) return 'none'
     if (OPEN_KEYS.has(event.key)) return 'open'
+    if (!typeToOpen) return 'none'
     // A printable key's name is the one character it types; named keys (Tab, Shift,
     // ArrowUp) are longer. Array.from counts an astral character as one.
     if (Array.from(event.key).length === 1) return 'open-with-text'

@@ -409,12 +409,7 @@ function useRefundReceiptWrites(): DocumentWrites {
                 draft.status = 'posted'
                 draft.revision = revision
             }),
-        voidRecord: id =>
-            refundsCollection.update(id, draft => {
-                draft.status = 'void'
-            }),
         storedRevision: id => refundsCollection.get(id)?.revision,
-        deleteRecord: id => refundsCollection.delete(id),
         lineOps: (refundId, mapper) => {
             const { toRecord } = salesLineMapperOf(mapper)
             const lineRecord = (write: TableRowWrite) => toRecord(write.row, write.position)

@@ -1,6 +1,5 @@
 import { useId, useState } from 'react'
 import { useCustomerTransactions } from '../../../hooks/useCustomerTransactions'
-import type { DocumentListRow } from '../../../lib/document-list'
 import { documentHref } from '../../../lib/document-routes'
 import {
     emptyText,
@@ -21,6 +20,9 @@ const TEXTS = {
 }
 
 const hrefOf = (row: PartyTransactionRow) => documentHref(TRANSACTION_DOC_KINDS[row.kind], row.id)
+
+// A row of the tab: a list row of a sales kind (`useCustomerTransactions`).
+type CustomerRow = ReturnType<typeof useCustomerTransactions>['rows'][number]
 
 interface CustomerTransactionsTabProps {
     customerId: string
@@ -48,10 +50,10 @@ export function CustomerTransactionsTab({
     const transactions = useCustomerTransactions(customerId, filter)
     const recovery = { isError: transactions.isError, retry: transactions.retry }
     const owner = useId()
-    const rowMenu = (row: DocumentListRow) => <CustomerInvoiceRowMenu row={row} owner={owner} />
+    const rowMenu = (row: CustomerRow) => <CustomerInvoiceRowMenu row={row} owner={owner} />
     return (
         <>
-            <PartyTransactionsList<TransactionKind, DocumentListRow>
+            <PartyTransactionsList<TransactionKind, CustomerRow>
                 rows={transactions.rows}
                 filter={filter}
                 filters={TRANSACTION_FILTERS}

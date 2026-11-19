@@ -4,6 +4,7 @@ import { formatHint, type ScopeOwner } from '@tinycld/core/lib/shortcuts'
 import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { router } from 'expo-router'
 import type { DocumentReadItem } from '../../hooks/useDocumentReadActions'
+import { useOpenFromReadView } from '../../hooks/useOpenFromReadView'
 import type { PaymentRecordHeader } from '../../hooks/usePaymentRecord'
 import { useVoidPayment } from '../../hooks/useVoidPayment'
 import type { PaymentFlow } from '../../lib/payment-flow'
@@ -26,7 +27,7 @@ type ReadPayment =
 
 export interface PaymentReadTarget {
     collection: PaymentCollectionName
-    // Where Edit goes (replacing the read view): the correction form of this payment.
+    // Where Edit goes: the correction form of this payment (`useOpenEdit`).
     editHref: string
     // The Void dialog's body and its confirm button's label.
     voidBody: string
@@ -36,11 +37,12 @@ export interface PaymentReadTarget {
 }
 
 /**
- * The read view's actions as rows, and the Void dialog. Edit replaces the read view with
- * the correction form (`editHref`); View journal entry pushes the entry; Void writes
- * `status: 'void'` (useVoidPayment). The dialog's open state lives on the read view, which
- * stays mounted while the optimistic void changes the payment under it. The dialog stays
- * visible through its own void because the mutation reports `isPending` before the
+ * The read view's actions as rows, and the Void dialog. Edit opens the correction form
+ * (`editHref`, `useOpenFromReadView`: the kind's own `new?replaces=` replaces the read
+ * view, a bill payment's Pay Bills is pushed); View journal entry pushes the entry; Void
+ * writes `status: 'void'` (useVoidPayment). The dialog's open state lives on the read view,
+ * which stays mounted while the optimistic void changes the payment under it. The dialog
+ * stays visible through its own void because the mutation reports `isPending` before the
  * optimistic write runs, so a refusal shows in the dialog.
  */
 function usePaymentReadItems(
@@ -49,12 +51,13 @@ function usePaymentReadItems(
     target: PaymentReadTarget
 ) {
     const orgHref = useOrgHref()
+    const openFromReadView = useOpenFromReadView(payment.id)
     const voidPayment = useVoidPayment(target.collection)
     const confirmVoid = () => voidPayment.confirm(payment.id)
     const isVoiding = voidPayment.isPending
     const voidState = useServerActionState({ isDisabled: isVoiding })
     const run: Record<PaymentReadAction, () => void> = {
-        edit: () => router.replace(orgHref(target.editHref)),
+        edit: () => openFromReadView(target.editHref),
         void: voidPayment.open,
         entry: () => router.push(orgHref(`books/entries/${payment.entry}`)),
     }

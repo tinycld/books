@@ -11,6 +11,7 @@ import {
     rowActionTestId,
     rowWriteOffOffered,
 } from '../../../lib/document-row-menu'
+import { LIST_AREAS } from '../../../lib/list-areas'
 import { useWriteOffStore } from '../../../stores/write-off-store'
 import { PressBoundary } from '../../PressBoundary'
 
@@ -28,7 +29,7 @@ function WriteOffItem({ isVisible, isDisabled, onSelect }: WriteOffItemProps) {
     if (!isVisible) return null
     return (
         <Menu.Item
-            testID={rowActionTestId('write_off')}
+            testID={rowActionTestId(LIST_AREAS.sales.testIdPrefix, 'write_off')}
             label={ROW_MENU_LABELS.write_off}
             isDisabled={isDisabled}
             onSelect={onSelect}

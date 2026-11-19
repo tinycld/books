@@ -11,6 +11,8 @@ Use a vendor credit for a return, an overcharge or a credit note that the vendor
 
 Use a vendor credit, not a negative line on a bill, when the vendor gives money back that is not part of one bill: a bill total cannot be below zero, and a vendor credit keeps the credit on the vendor until you apply it. A discount on one bill can still be a negative account line on that bill. See [Bills](help://books:bills).
 
+To find, filter and act on your vendor credits, choose Expenses in the sidebar, then Vendor credits. See [Purchase lists](help://books:purchase-lists).
+
 ## Enter a vendor credit
 
 To enter a vendor credit, choose New in the sidebar (the round + button on a phone) and pick Vendor credit, under Vendors. In a web browser, the Vendor field has focus when the form opens, so you can start to type the vendor's name at once.
