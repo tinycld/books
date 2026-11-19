@@ -52,7 +52,7 @@ with the reason, and shown to the human at the end)
 - cp 2 (resume) · plan lines that still name the old text (not edited; `docs/plans/ar-aging-checkpoints.md`, per Do 8 b): line 29 (D6: `itemNo` = `min(item_number)`; key order "balance key …; No customer last" — the A/R spec now has No customer before the balance key), line 213 (checkpoint 1 Produces: no `item_seq` in the view columns and source fields), lines 227, 234-238, 252-253, 257 (checkpoint 1: §4 quote, test bullets, view SQL, `sameNames(...)` without `item_seq`), line 287 (checkpoint 2 Produces: `customerFamilySort(net, inner...)`), line 349 (Do 2 key order), line 371 (`itemNo` = `op("min", fld("item_number"))`), line 373 (`arSort` call). The spec (§4) and the code name `item_seq`.
 
 ## Performance
-(none yet — the results of spec §9, written by checkpoint 3 and again after each change to the views, the indexes or the spec)
+(none yet — the results of spec §9, written by checkpoint 3 and again after each change to the stored table, its queries, the indexes or the spec)
 
 - failed run of 2026-11-18 18:33 (checkpoint 3, stopped; darwin/arm64, 14 CPUs, go1.27.4; books 5af7abed + the checkpoint 3 tree; core a183cd94): row counts S/L — journal lines 50,000/500,000; on Accounts receivable 18,307/183,070; customers 201/2,001; invoices 9,810/98,100; payments 8,000/80,000; applications 9,174/91,740; credit memos 198/1,980; manual AR lines 99/990; void invoices 100/1,000; void payments 100/1,000; open items on the last day 855/8,550. Medians S → L: run 1 826 ms → 10,176 ms (FAIL); run 2 476 → 5,842 ms (FAIL); run 3 830 → 10,399 ms (FAIL); run 4 295 → 4,294 ms (FAIL; ratio 14.6); run 5 818 ms → over core's 10 s run timeout (FAIL; the L sub-test ended there); run 6 1,096 ms → not reached; run 7 3,341 ms → not reached; Customer Balance S 149 ms, L not reached. No statistics file and no `perf-plans.md` were written (the run ended before them). The tree's view change (`CROSS JOIN`, `idx_books_accounts_type`) has no "before" time. Cause: Checkpoint 3, "stopped again".
 
@@ -82,11 +82,24 @@ Targets at S for a whole-book run (L ≤ 1,000 ms; L was 12.3 × S in the failed
 
 Outside SQL: 195ms (run 1) and 16ms (run 4). It grows with the data in run 1 and not in run 4, and no statement holds it: part 2 finds its cause before it sizes the one-statement task.
 
+### Stored receivable items (p5-report-perf)
+
+Design: lane staging `stored-receivables-design.md`, approved by the human 2026-11-18. Plan: core `docs/plans/2026-11-18-report-perf-stored.md` and `-part-2.md`.
+
+- What changed: the two views `books_receivable_lines` and `books_receivable_applications` are gone. One base collection `books_receivable_items` stores their rows with `source` and `settled`; Books refreshes it in each write transaction at four hook points (entry, payment, payment application, invoice) and touches the change signal; `verifyReceivables` and `rebuildReceivables` stand beside the balance rebuild. The report filter adds `settled > asOf`, so a run of the last day reads only the rows of the items open on that day (8,550 open items at L in the run of 2026-11-18; the count of stored rows is in the numbers below).
+- Indexes added: `idx_books_receivable_items_entry (entry)`, `_item (item)`, `_customer (customer, item, date)`, `_settled (settled, date)`. `idx_books_accounts_type` stays: the rebuild and the verify start at the accounts.
+- Departures from the approved design, accepted by the human 2026-11-19:
+  - (a) `settled` is a `Text` field of the source, not a `Date` field. A date field is written as `NULLIF(substr(col, 1, 10), '')`, which no index serves; with it runs 4, 5 and 6 failed the bar "a bound statement has no SCAN of a large table".
+  - (b) `settled` is per customer and item, not per item, because the report's item level is under its customer level.
+- Rejected by the human 2026-11-19: a rule "the first item of a sub-customer is never settled" with a fifth hook on customers. In its place the family header (plan decision D7) is kept by the report: `arGroups()` replaces the family level's `Inline` with a lookup that counts the family's sub-customers, in the Customer pick, that have a stored row on or before As of, with an `isEmpty` guard for No customer, over the new to-many link `receivable_items` of `books.customers`. D7 holds exactly; the Customer Balance keeps its row rule (D1). Check: lane staging `family-header-check.md`.
+- Plan of the family lookup (small book, both readings): `SEARCH books_customers USING INDEX idx_books_customers_sibling_name (parent>? AND parent<?)` and `SEARCH books_receivable_items USING INDEX idx_books_receivable_items_customer (customer=?)`.
+- Numbers at L: below, written by the profile and scale runs.
+
 - machine, date, commit:
 - row counts, S and L:
 - runs 1 to 7: number of statements; median time at S and at L; ratio L/S; bar; pass or fail
 - statements: one line each — the tables it reads and the index of each read, with no statistics and after `ANALYZE`; pass or fail
-- indexes added and view changes: each with the plan step and the time before and after it
+- indexes added and changes to the stored table or its queries: each with the plan step and the time before and after it
 - Customer Balance run of the same day on the same dataset (no bar):
 - full plan text: docs/plans/ar-aging-evidence/perf-plans.md
 
