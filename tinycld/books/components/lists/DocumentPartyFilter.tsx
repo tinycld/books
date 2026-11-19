@@ -100,7 +100,8 @@ interface DocumentPartyFilterProps {
  * party's (`area.party`).
  * Its reads are its own: while they load the picker shows "Loading…", and when one fails
  * it shows "Could not load." with Retry, which restarts both. A reader has it too: a
- * filter is not a write.
+ * filter is not a write. Its trigger has no type-to-open (`typeToOpen={false}`): a pick
+ * gives the focus back to it, and the list's single-key shortcuts must still run there.
  */
 export function DocumentPartyFilter({ area, value, onChange }: DocumentPartyFilterProps) {
     const picker = useSearchPicker()
@@ -133,6 +134,7 @@ export function DocumentPartyFilter({ area, value, onChange }: DocumentPartyFilt
             loadFailed={parties.isError || chosen.isError}
             onRetry={retry}
             emptyText={party.emptyText}
+            typeToOpen={false}
         />
     )
 }

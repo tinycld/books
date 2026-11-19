@@ -8,7 +8,7 @@ import {
     tableMinWidthFor,
     tabStateKey,
 } from '../tinycld/books/lib/document-list'
-import { areaOf, LIST_AREAS } from '../tinycld/books/lib/list-areas'
+import { LIST_AREAS } from '../tinycld/books/lib/list-areas'
 import { NEW_ACTIONS } from '../tinycld/books/lib/new-actions'
 import {
     PURCHASE_NEW_ITEMS,
@@ -179,23 +179,20 @@ describe('tableMinWidthFor of the purchase tabs', () => {
         )
     })
 
-    // Today `hasRowActions` is false for Expenses, so `listControls` draws no tick box and
-    // no row menu: a reader's left pad starts each row and no 44 px menu cell ends it.
+    // From checkpoint 4 `listControls` gives a purchase writer the tick box and the row
+    // menu, and a reader the row menu with a 16 px left pad in place of the tick box.
     it.each(
         EXPECTED_TABS
-    )('$label is 72 less than $writerMinWidth today, for a writer and a reader', expected => {
+    )('$label is $writerMinWidth for a writer and 28 less for a reader, by listControls', expected => {
         const tab = purchaseTabOf(expected.key)
-        for (const canWrite of [true, false]) {
-            expect(
-                tableMinWidthFor(tab, listControls(canWrite, 'table', areaOf(tab))),
-                String(canWrite)
-            ).toBe(expected.writerMinWidth - 72)
-        }
+        expect(tableMinWidthFor(tab, listControls(true, 'table'))).toBe(expected.writerMinWidth)
+        expect(tableMinWidthFor(tab, listControls(false, 'table'))).toBe(
+            expected.writerMinWidth - 28
+        )
     })
 
-    it('is 840 for an All purchases writer today', () => {
-        const tab = purchaseTabOf('all')
-        expect(tableMinWidthFor(tab, listControls(true, 'table', areaOf(tab)))).toBe(840)
+    it('is 912 for an All purchases writer', () => {
+        expect(tableMinWidthFor(purchaseTabOf('all'), listControls(true, 'table'))).toBe(912)
     })
 })
 

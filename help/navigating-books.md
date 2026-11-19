@@ -17,7 +17,7 @@ To see Books reports, choose Reports in the sidebar: it opens Reports with only 
 
 To find, filter and act on your invoices, estimates, sales receipts, payments and credit memos, choose Sales in the sidebar; see [Sales lists](help://books:sales-lists).
 
-To open the lists of your bills, expenses, bill payments, vendor credits and vendor refunds, choose Expenses in the sidebar.
+To find, filter and act on your bills, expenses, bill payments, vendor credits and vendor refunds, choose Expenses in the sidebar; see [Purchase lists](help://books:purchase-lists).
 
 To keep the people and companies you sell to, see [Customers](help://books:customers).
 

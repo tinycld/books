@@ -228,7 +228,10 @@ test.describe('purchase-lists: tabs and rows', () => {
         await expect(page).toHaveURL(/\/books\/entries\/[^/?#]+$/)
         const entry = visible(page, 'entry-read-only')
         await expect(entry.getByTestId('entry-detail-type')).toContainText('Bill')
-        await page.goBack()
+        // The entry's in-app back link names the Bills list and returns to it.
+        const back = visible(page, 'entry-back')
+        await expect(back.getByText('Bills', { exact: true })).toBeVisible()
+        await back.click()
         await expect(page).toHaveURL(purchaseTabUrl('bills'))
         await expect.poll(() => reachableCount(page, 'purchases-list')).toBe(1)
         await expect(visible(page, 'purchases-search')).toHaveValue('Hosted phone plan')

@@ -260,12 +260,7 @@ function useVendorCreditWrites(): DocumentWrites {
                 draft.status = 'posted'
                 draft.revision = revision
             }),
-        voidRecord: id =>
-            creditsCollection.update(id, draft => {
-                draft.status = 'void'
-            }),
         storedRevision: id => creditsCollection.get(id)?.revision,
-        deleteRecord: id => creditsCollection.delete(id),
         lineOps: (creditId, mapper) =>
             purchaseLineOps(mapper, {
                 insert: record => linesCollection.insert({ ...record, vendor_credit: creditId }),

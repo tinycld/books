@@ -19,7 +19,6 @@ import {
 } from '../lib/document-actions'
 import { quoteReadActions } from '../lib/document-lifecycle'
 import { documentNewHref } from '../lib/document-routes'
-import { transactionKindOf } from '../lib/party-transactions'
 import { writeRefusalText } from '../lib/refusal'
 import { CREDIT_MEMO_KIND, INVOICE_KIND, type SalesDocumentKind } from '../lib/sales-document-kinds'
 import { useApplyCreditStore } from '../stores/apply-credit-store'
@@ -111,9 +110,9 @@ function offeredActionsOf(
  * view's place, and keeps the kind's list when the list is below it in the child stack
  * (useOpenInPlaceOfReadView);
  * Download PDF saves the server's PDF through usePdfDownload.
- * Void writes `status: 'void'` through the kind's data source; the dialog's open state
- * lives here, on the read view, which stays mounted while the optimistic void changes the
- * document under it, so a refusal stays visible in the dialog.
+ * Void writes `status: 'void'` through `useVoidDocument`, the write the lists share; the
+ * dialog's open state lives here, on the read view, which stays mounted while the optimistic
+ * void changes the document under it, so a refusal stays visible in the dialog.
  */
 export function useDocumentReadActions(
     documentKind: DocumentKind,
@@ -124,15 +123,12 @@ export function useDocumentReadActions(
     const orgHref = useOrgHref()
     const openFromReadView = useOpenFromReadView(record.id)
     const openInPlace = useOpenInPlaceOfReadView()
-    const writes = documentKind.data.useWrites()
-    const voidSales = useVoidDocument()
-    // A sales kind voids through the write the sales lists share; a purchase kind (bill,
-    // expense) through its own data source.
-    const salesKind = transactionKindOf(doc)
+    // Every kind voids through the write the lists share.
+    const voidWrite = useVoidDocument()
     const [isVoidOpen, setVoidOpen] = useState(false)
     const voidDocument = useMutation({
         mutationFn: function* (id: string) {
-            yield salesKind === null ? writes.voidRecord(id) : voidSales(salesKind, id)
+            yield voidWrite(doc.key, id)
         },
         onSuccess: () => setVoidOpen(false),
         // The dialog shows the refusal; without this core reports it again as a toast.
