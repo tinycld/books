@@ -8,11 +8,11 @@ import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { useRef } from 'react'
 import type { SelectBoxState } from '../lib/bank-import-view'
 import {
-    type BatchKind,
     type BatchOutcome,
     canChoose,
     type DateOrder,
     hasReviewFilter,
+    type MoveKind,
     type ReviewFilters,
     type ReviewViewState,
     type ReviewWhereInput,
@@ -37,6 +37,7 @@ import { fiscalStartMonth, todayIso } from '../lib/register-range'
 import { useBankingUIStore } from '../stores/banking-ui-store'
 import { useBooksAccess } from './useBooksAccess'
 import { useBooksSettings } from './useBooksSettings'
+import type { MatchSuggestions, RowSuggestion } from './useMatchSuggestions'
 import type { ReviewBatch } from './useReviewBatch'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
@@ -139,13 +140,20 @@ function useReviewQueueQuery(connectionId: string, input: ReviewQueryInput) {
     })
 }
 
-export type ReviewRowData = NonNullable<ReturnType<typeof useReviewQueueQuery>['data']>[number]
+type ReviewQueryRow = NonNullable<ReturnType<typeof useReviewQueueQuery>['data']>[number]
+
+// A listed transaction with the Books transactions suggested for it (For review only; an
+// empty list on the other tabs, and while the suggestions load or after their read failed).
+export type ReviewRowData = ReviewQueryRow & { suggestions: readonly RowSuggestion[] }
+
+const NO_SUGGESTIONS: readonly RowSuggestion[] = []
+const NO_MARKS: ReadonlyMap<string, readonly RowSuggestion[]> = new Map()
 
 // What one transaction tab read hands to `useReviewTab`. `collection` is the live query's
 // own collection, for the Retry; `key` names the query, so kept rows know what they answer.
 export type ReviewRead = {
     key: string
-    rows: ReviewRowData[]
+    rows: ReviewQueryRow[]
     isReady: boolean
     isError: boolean
     collection: LiveRecovery['queries'][number]
@@ -234,6 +242,9 @@ type ReviewTabInput = {
     // The page's one batch, shared with the drawer beside the page; the page clears its
     // result on a tab or account change.
     batch: ReviewBatch
+    // The page's read of the For review row marks (useBankingScreen); disabled on the other
+    // tabs.
+    suggestions: MatchSuggestions
 }
 
 export type ReviewTabModel = {
@@ -282,7 +293,7 @@ export type ReviewTabModel = {
 }
 
 type BarAction = {
-    kind: BatchKind
+    kind: MoveKind
     label: string
     busyLabel: string
     testID: 'bank-review-exclude' | 'bank-review-restore'
@@ -308,7 +319,8 @@ const BAR_ACTIONS: Record<TxnTab, BarAction | null> = {
 // a new search, filter or order loads, the last settled rows stay on screen (settleRows),
 // kept in a ref that is written during render, as useRecordList keeps its value.
 export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
-    const { tab, waitingCount, currency, read, queryInput, pageRecovery, batch } = input
+    const { tab, waitingCount, currency, read, queryInput, pageRecovery, batch, suggestions } =
+        input
     const [txns] = useStore('books_bank_transactions')
     const { canWrite } = useBooksAccess()
     const writes = useServerActionState()
@@ -321,10 +333,10 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
     const storedFocus = useBankingUIStore(s => s.focusedTxnId)
     const toggleDateOrder = useBankingUIStore(s => s.toggleDateOrder)
     const clearReviewFilters = useBankingUIStore(s => s.clearReviewFilters)
-    const kept = useRef<SettledRows<ReviewRowData>>(undefined)
+    const kept = useRef<SettledRows<ReviewQueryRow>>(undefined)
     // The state describes the query's result, so it reads the filters the query ran with,
     // not the text still being typed.
-    const now: SettledRows<ReviewRowData> = {
+    const now: SettledRows<ReviewQueryRow> = {
         key: read.key,
         rows: read.rows,
         viewState: reviewViewState({
@@ -341,7 +353,7 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
         : NO_RECOVERY
     const onRetry = () => {
         void recoverLiveQueries({
-            ...mergeRecoveries([recovery, pageRecovery]),
+            ...mergeRecoveries([recovery, suggestions.recovery, pageRecovery]),
             onError: err => log.error('books.banking', err),
         })
     }
@@ -401,8 +413,15 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
             .then(keepRefused)
             .catch(err => log.error('books.banking', err))
     }
+    // The row marks of For review. Their read is not the list's: while it loads or after it
+    // failed the rows show their memo line, and its failure joins the Retry only.
+    const marks = tab === 'review' ? suggestions.byTxn : NO_MARKS
+    const listedRows: ReviewRowData[] = rows.map(row => ({
+        ...row,
+        suggestions: marks.get(row.id) ?? NO_SUGGESTIONS,
+    }))
     return {
-        rows: shown.rows,
+        rows: listedRows,
         viewState: shown.viewState,
         emptyText: reviewEmptyText(tab, waitingCount),
         recovery,

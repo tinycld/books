@@ -1,6 +1,7 @@
 import { log } from '@tinycld/core/lib/logger'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { useStore } from '@tinycld/core/lib/pocketbase'
+import { newRecordId } from 'pbtsdb/core'
 import { useRef, useState } from 'react'
 import {
     BATCH_TARGET,
@@ -11,6 +12,7 @@ import {
     batchResultText,
     chunksOf,
 } from '../lib/bank-review'
+import { useBankingUIStore } from '../stores/banking-ui-store'
 
 // Writes in flight at once: enough to move a large choice quickly, few enough that the
 // browser's connection limit and the server see a steady flow.
@@ -18,18 +20,30 @@ const BATCH_SIZE = 50
 
 // `summary` is the selection bar's text of the choice as it was sent. `origin` names the
 // control that started the run: the selection bar stays up, busy, for its own run only.
+// A match run gives each id its journal lines in `matchLines`, and `skipped` counts the
+// chosen rows it does not send (no single suggestion), for the result line.
 export type ReviewBatchInput = {
     kind: BatchKind
     ids: readonly string[]
     summary: string
     origin: 'bar' | 'drawer'
+    matchLines?: Readonly<Record<string, readonly string[]>>
+    skipped?: number
+}
+
+const NOT_SENT_TEXT: Record<BatchKind, string> = {
+    exclude: 'bank transaction status change not sent',
+    restore: 'bank transaction status change not sent',
+    match: 'bank match not sent',
 }
 
 // Exclude or Move to For review of many transactions: each is a pbtsdb update of its
 // status (optimistic, so the rows leave the tab at once), 50 at a time. A refused row is
-// rolled back by pbtsdb and goes back into the list. The run never throws: it returns
-// which ids went through and why the others did not, so the caller can keep the failed
-// rows chosen.
+// rolled back by pbtsdb and goes back into the list. A match is a pbtsdb insert of one
+// books_bank_matches row for each id; the client writes no status: the server moves the
+// transaction to Reviewed and realtime brings the change. The run never throws: it
+// returns which ids went through and why the others did not, so the caller can keep the
+// failed rows chosen.
 //
 // The mutation is an async function, not a generator: core's drainTransactions awaits a
 // yielded array with Promise.all, which rejects at the first refused transaction
@@ -37,21 +51,36 @@ export type ReviewBatchInput = {
 // @tanstack/db/src/transactions.ts rollback), so a generator could not resume to read
 // the others' outcome.
 export function useReviewBatch() {
-    const [txns] = useStore('books_bank_transactions')
+    const [txns, matches] = useStore('books_bank_transactions', 'books_bank_matches')
 
-    const updateChunk = async (kind: BatchKind, ids: readonly string[]) => {
+    // Starts the write of one id, or throws when there is nothing to send: a moved row that
+    // is no longer in the store (it left by realtime), or a match id with no lines.
+    const startWrite = (input: ReviewBatchInput, id: string) => {
+        if (input.kind === 'match') {
+            const lines = input.matchLines?.[id] ?? []
+            const [first, ...rest] = lines
+            if (first === undefined) throw new Error('no lines to match')
+            return matches.insert({
+                id: newRecordId(),
+                bank_transaction: id,
+                lines: [first, ...rest],
+            })
+        }
+        const target = BATCH_TARGET[input.kind]
+        return txns.update(id, draft => {
+            draft.status = target
+        })
+    }
+
+    const updateChunk = async (input: ReviewBatchInput, ids: readonly string[]) => {
         const done: string[] = []
         const failed: BatchFailure[] = []
         const started = ids.flatMap(id => {
             try {
-                const tx = txns.update(id, draft => {
-                    draft.status = BATCH_TARGET[kind]
-                })
-                return [{ id, tx }]
+                return [{ id, tx: startWrite(input, id) }]
             } catch {
-                // The row is no longer in the store (it left by realtime): nothing was sent.
-                // TanStack DB's own error text is not for the user, so the failure has no
-                // message and the result line counts it.
+                // Nothing was sent for this id. TanStack DB's own error text is not for the
+                // user, so the failure has no message and the result line counts it.
                 failed.push({ id, message: '', isTransport: false })
                 return []
             }
@@ -66,21 +95,21 @@ export function useReviewBatch() {
     }
 
     const mutation = useMutation({
-        mutationFn: async ({ kind, ids }: ReviewBatchInput): Promise<BatchOutcome> => {
+        mutationFn: async (input: ReviewBatchInput): Promise<BatchRun> => {
             const outcome: BatchOutcome = { done: [], failed: [] }
-            for (const chunk of chunksOf(ids, BATCH_SIZE)) {
-                const step = await updateChunk(kind, chunk)
+            for (const chunk of chunksOf(input.ids, BATCH_SIZE)) {
+                const step = await updateChunk(input, chunk)
                 outcome.done.push(...step.done)
                 outcome.failed.push(...step.failed)
             }
             const unsent = outcome.failed.filter(failure => failure.isTransport)
             if (unsent.length > 0) {
-                log.warn('books.banking', 'bank transaction status change not sent', {
-                    kind,
+                log.warn('books.banking', NOT_SENT_TEXT[input.kind], {
+                    kind: input.kind,
                     failed: unsent.length,
                 })
             }
-            return outcome
+            return { outcome, isShownByDrawer: drawerShowsFailure(input, outcome) }
         },
     })
 
@@ -91,9 +120,12 @@ export function useReviewBatch() {
     const inFlight = useRef<Promise<BatchOutcome> | null>(null)
     const run = (input: ReviewBatchInput): Promise<BatchOutcome> => {
         if (inFlight.current) return inFlight.current
-        const started = mutation.mutateAsync(input).finally(() => {
-            inFlight.current = null
-        })
+        const started = mutation
+            .mutateAsync(input)
+            .then(done => done.outcome)
+            .finally(() => {
+                inFlight.current = null
+            })
         inFlight.current = started
         return started
     }
@@ -104,8 +136,12 @@ export function useReviewBatch() {
     const [hiddenRun, setHiddenRun] = useState<number | null>(null)
     const isHidden = mutation.submittedAt === hiddenRun
     const result =
-        mutation.data && mutation.variables && !isHidden
-            ? batchResultText(mutation.variables.kind, mutation.data)
+        mutation.data && mutation.variables && !isHidden && !mutation.data.isShownByDrawer
+            ? batchResultText(
+                  mutation.variables.kind,
+                  mutation.data.outcome,
+                  mutation.variables.skipped ?? 0
+              )
             : null
     const pending = mutation.isPending && mutation.variables ? mutation.variables : null
     const clearResult = () => {
@@ -123,6 +159,20 @@ export function useReviewBatch() {
 }
 
 export type ReviewBatch = ReturnType<typeof useReviewBatch>
+
+// The outcome of a run and whether the drawer shows its failure itself.
+type BatchRun = { outcome: BatchOutcome; isShownByDrawer: boolean }
+
+// A match from the drawer that failed keeps the drawer open, which shows the failure under
+// its totals (useBankMatch's settle), so the result line stays empty. That holds only while
+// the drawer still shows that transaction when the run ends: after Esc, a close or another
+// row, the result line shows the failure, or it would show nowhere.
+function drawerShowsFailure(input: ReviewBatchInput, outcome: BatchOutcome): boolean {
+    if (input.origin !== 'drawer' || input.kind !== 'match') return false
+    if (outcome.failed.length === 0) return false
+    const openId = useBankingUIStore.getState().openTxnId
+    return openId !== null && input.ids.includes(openId)
+}
 
 function failedReason(result: PromiseSettledResult<unknown>): unknown {
     return result.status === 'rejected' ? result.reason : undefined

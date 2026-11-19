@@ -44,9 +44,18 @@ function ReviewHeader({ model }: { model: ReviewTabModel }) {
     )
 }
 
-// The wide list of a transaction tab: windowed rows under a sticky header, sideways scroll
-// below the table's minimum width.
-export function ReviewTable({ model, currency }: { model: ReviewTabModel; currency: string }) {
+// The wide list of a transaction tab: windowed rows under a sticky header. It shows only
+// where its minimum width fits (ReviewTabBody's useFitsTable), so it never scrolls
+// sideways; `onGutter` reports the scrollbar gutter to that check.
+export function ReviewTable({
+    model,
+    currency,
+    onGutter,
+}: {
+    model: ReviewTabModel
+    currency: string
+    onGutter: (gutter: number) => void
+}) {
     const renderRow = (row: ReviewRowData) => {
         const isOpen = row.id === model.openTxnId
         const isFocused = row.id === model.focusedTxnId
@@ -74,6 +83,7 @@ export function ReviewTable({ model, currency }: { model: ReviewTabModel; curren
             renderRow={renderRow}
             onNearEnd={model.onNearEnd}
             scrollToIndex={model.focusedIndex}
+            onGutter={onGutter}
         />
     )
 }

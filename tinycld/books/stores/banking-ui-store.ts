@@ -75,6 +75,34 @@ interface BankingUIState {
     // A tab or account change leaves the rows the drawer, the choice and the key focus
     // belonged to, so the drawer closes and the choice and the focus clear.
     resetReviewSelection: () => void
+    // The drawer's Match section: its mode, the chosen journal lines, and the find mode's
+    // range and search (null until the find mode sets them). Until the user changes the
+    // choice of a transaction, useBankMatch shows its one suggestion as chosen; the first
+    // change stores the whole choice with `matchSeededFor` = that transaction
+    // (takeMatchChoice), so from then on `matchChosen` alone counts and an uncheck stays.
+    // `matchRefusal` is the failure text of the last match from the drawer. All of it
+    // belongs to the open transaction, so opening another one, closing the drawer, or
+    // leaving the rows resets it.
+    matchMode: 'suggestions' | 'find'
+    matchChosen: readonly string[]
+    matchFind: { from: string; to: string; search: string } | null
+    matchSeededFor: string | null
+    matchRefusal: string | null
+    setMatchRefusal: (text: string | null) => void
+    setMatchMode: (mode: 'suggestions' | 'find') => void
+    setMatchChosen: (lineIds: readonly string[]) => void
+    toggleMatchChosen: (lineId: string) => void
+    setMatchFind: (find: { from: string; to: string; search: string } | null) => void
+    takeMatchChoice: (txnId: string, lineIds: readonly string[]) => void
+    resetMatch: () => void
+}
+
+const NO_MATCH = {
+    matchMode: 'suggestions' as const,
+    matchChosen: [] as readonly string[],
+    matchFind: null,
+    matchSeededFor: null,
+    matchRefusal: null,
 }
 
 export const useBankingUIStore = create<BankingUIState>()(set => ({
@@ -99,6 +127,7 @@ export const useBankingUIStore = create<BankingUIState>()(set => ({
             openTxnId: null,
             chosen: new Set(),
             focusedTxnId: null,
+            ...NO_MATCH,
         }),
     reviewFilters: EMPTY_REVIEW_FILTERS,
     setReviewSearch: search => set(s => ({ reviewFilters: { ...s.reviewFilters, search } })),
@@ -110,12 +139,27 @@ export const useBankingUIStore = create<BankingUIState>()(set => ({
     toggleDateOrder: () =>
         set(s => ({ dateOrder: s.dateOrder === 'newest' ? 'oldest' : 'newest' })),
     openTxnId: null,
-    openTxn: id => set({ openTxnId: id }),
-    closeTxn: () => set({ openTxnId: null }),
+    // Opening the transaction already open keeps its Match section as it is.
+    openTxn: id => set(s => (s.openTxnId === id ? s : { openTxnId: id, ...NO_MATCH })),
+    closeTxn: () => set({ openTxnId: null, ...NO_MATCH }),
     chosen: new Set(),
     setChosen: ids => set({ chosen: new Set(ids) }),
     clearChosen: () => set({ chosen: new Set() }),
     focusedTxnId: null,
     setFocusedTxn: id => set({ focusedTxnId: id }),
-    resetReviewSelection: () => set({ openTxnId: null, chosen: new Set(), focusedTxnId: null }),
+    resetReviewSelection: () =>
+        set({ openTxnId: null, chosen: new Set(), focusedTxnId: null, ...NO_MATCH }),
+    ...NO_MATCH,
+    setMatchMode: mode => set({ matchMode: mode }),
+    setMatchChosen: lineIds => set({ matchChosen: [...lineIds] }),
+    toggleMatchChosen: lineId =>
+        set(s => ({
+            matchChosen: s.matchChosen.includes(lineId)
+                ? s.matchChosen.filter(id => id !== lineId)
+                : [...s.matchChosen, lineId],
+        })),
+    setMatchFind: find => set({ matchFind: find }),
+    setMatchRefusal: text => set({ matchRefusal: text }),
+    takeMatchChoice: (txnId, lineIds) => set({ matchSeededFor: txnId, matchChosen: [...lineIds] }),
+    resetMatch: () => set(NO_MATCH),
 }))

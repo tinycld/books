@@ -1,6 +1,8 @@
+// @vitest-environment happy-dom
 import type { Shortcut } from '@tinycld/core/lib/shortcuts/types'
-import { describe, expect, it, type Mock, vi } from 'vitest'
+import { afterEach, describe, expect, it, type Mock, vi } from 'vitest'
 import {
+    focusPressesKey,
     offeredReviewKeys,
     REVIEW_KEYS,
     type ReviewKeyAction,
@@ -67,6 +69,20 @@ function byKeys(shortcuts: Shortcut[], keys: string): Shortcut {
     if (!found) throw new Error(`no shortcut for ${keys}`)
     return found
 }
+
+// A focusable element with the test id react-native-web writes as `data-testid`, focused.
+function focusedElement(testId: string): HTMLElement {
+    const element = document.createElement('div')
+    element.setAttribute('data-testid', testId)
+    element.tabIndex = 0
+    document.body.appendChild(element)
+    element.focus()
+    return element
+}
+
+afterEach(() => {
+    document.body.replaceChildren()
+})
 
 describe('REVIEW_KEYS', () => {
     it('maps each review action to its keys', () => {
@@ -283,6 +299,43 @@ describe('reviewShortcuts', () => {
 
         state.current = CHOSEN
         expect(exclude.when?.()).toBe(true)
+    })
+
+    it('lets a focused match box take Space, so the list does not toggle a row', () => {
+        const box = focusedElement('bank-match-box-line_001')
+        expect(focusPressesKey('Space')).toBe(true)
+        const { run, shortcuts } = build(ALL_ACTIONS, CHOSEN)
+        const space = byKeys(shortcuts, 'Space')
+        expect(space.when?.()).toBe(false)
+        // The plain letter is not pressed by the box, so it still reaches the list.
+        expect(byKeys(shortcuts, 'x').when?.()).toBe(true)
+        expect(run.toggle).not.toHaveBeenCalled()
+        box.blur()
+        expect(focusPressesKey('Space')).toBe(false)
+        expect(space.when?.()).toBe(true)
+    })
+
+    it('leaves Space to the list on an element that is not a row or a box', () => {
+        focusedElement('bank-match-link-line_001')
+        expect(focusPressesKey('Space')).toBe(false)
+        focusedElement('bank-review-check-txn_001')
+        expect(focusPressesKey('Space')).toBe(true)
+    })
+
+    it('maps no key to m while the drawer is open', () => {
+        const drawerStates: ReviewKeyState[] = [
+            { ...WRITER, isDrawerOpen: true, drawerAction: 'exclude' },
+            { ...WRITER, isDrawerOpen: true, drawerAction: 'exclude', hasFocusedRow: true },
+            { ...WRITER, isDrawerOpen: true, drawerAction: 'exclude', chosenCount: 2 },
+            { ...READER, isDrawerOpen: true, hasFocusedRow: true },
+        ]
+        for (const state of drawerStates) {
+            const keys = offeredReviewKeys(state).flatMap(action => [...REVIEW_KEYS[action]])
+            expect(keys.map(key => key.toLowerCase())).not.toContain('m')
+            const { shortcuts } = build(offeredReviewKeys(state), state)
+            const live = shortcuts.filter(s => s.when?.() !== false).map(s => s.keys.toLowerCase())
+            expect(live).not.toContain('m')
+        }
     })
 
     it('turns the search key off once a row is chosen', () => {

@@ -3,6 +3,7 @@ import type { SetupTab } from '@tinycld/core/components/setup/wizard/SetupTabs'
 import { errorToString } from '@tinycld/core/lib/errors'
 import type { BooksBankTransactions } from '../types'
 import type { SelectBoxState } from './bank-import-view'
+import { matchResultText } from './bank-match'
 import { searchPieces } from './list-search'
 import { formatMoney, parseMoney } from './money'
 import { errorStatus, messageOnlyRefusal } from './refusal'
@@ -283,8 +284,11 @@ export function settleRows<Row>(
 
 // Exclude and Move to For review: what each sets a transaction's status to. The server's
 // update rule allows only these two moves (pb-migrations/2100000008_create_books_banking.js).
-export type BatchKind = 'exclude' | 'restore'
-export const BATCH_TARGET: Record<BatchKind, TxnStatus> = {
+export type MoveKind = 'exclude' | 'restore'
+// A run of the page's one batch: a status move, or a match (an insert into
+// books_bank_matches; the server moves the transaction to Reviewed).
+export type BatchKind = MoveKind | 'match'
+export const BATCH_TARGET: Record<MoveKind, TxnStatus> = {
     exclude: 'excluded',
     restore: 'for_review',
 }
@@ -319,7 +323,7 @@ function transactionsNoun(count: number): string {
     return count === 1 ? 'transaction' : 'transactions'
 }
 
-const DONE_TEXT: Record<BatchKind, (count: number) => string> = {
+const DONE_TEXT: Record<MoveKind, (count: number) => string> = {
     exclude: count => `Excluded ${count} ${transactionsNoun(count)}.`,
     restore: count => `Moved ${count} ${transactionsNoun(count)} to For review.`,
 }
@@ -327,20 +331,28 @@ const DONE_TEXT: Record<BatchKind, (count: number) => string> = {
 const FAILED_VERB: Record<BatchKind, string> = {
     exclude: 'excluded',
     restore: 'moved to For review',
+    match: 'matched',
 }
 
-// The line under the toolbar after a batch: the count when every change went through;
-// the transport text when none of the failures reached the server; the server's message
-// when every failure is a refusal with the same non-empty one; else how many of the
-// batch failed. A failure with no message (a row that left the store before its change
-// was sent) is only counted.
+function doneText(kind: BatchKind, outcome: BatchOutcome, skipped: number): string {
+    if (kind === 'match') return matchResultText(outcome, skipped)
+    return DONE_TEXT[kind](outcome.done.length)
+}
+
+// The line under the toolbar after a batch: the count when every change went through
+// (for a match, matchResultText, with the chosen rows the batch skipped); the transport
+// text when none of the failures reached the server; the server's message when every
+// failure is a refusal with the same non-empty one; else how many of the batch failed. A
+// failure with no message (a row that left the store before its change was sent) is
+// only counted.
 export function batchResultText(
     kind: BatchKind,
-    outcome: BatchOutcome
+    outcome: BatchOutcome,
+    skipped = 0
 ): { text: string; tone: 'muted' | 'danger' } {
     const { done, failed } = outcome
     const [first] = failed
-    if (first === undefined) return { text: DONE_TEXT[kind](done.length), tone: 'muted' }
+    if (first === undefined) return { text: doneText(kind, outcome, skipped), tone: 'muted' }
     if (failed.every(failure => failure.isTransport)) {
         return { text: BANK_BATCH_TRANSPORT_TEXT, tone: 'danger' }
     }
@@ -380,7 +392,7 @@ export function txnStatusLabel(status: TxnStatus): string {
     return STATUS_LABELS[status]
 }
 
-export type ReviewAction = { kind: BatchKind; label: string; busyLabel: string }
+export type ReviewAction = { kind: MoveKind; label: string; busyLabel: string }
 
 // The drawer's one action follows the transaction's own status: a writer excludes a
 // for-review row and moves an excluded one back; a reviewed row and a reader get none.
@@ -472,15 +484,5 @@ export function toggleAllChoice(rows: readonly ChoiceRow[], chosen: ReadonlySet<
     return rows.map(row => row.id)
 }
 
-// Every write control of the queue: disabled while a change runs or while the server
-// cannot take writes; the hint says why only in the second case.
-export function writeControlState(input: {
-    isPending: boolean
-    writesDisabled: boolean
-    writesHint: string | undefined
-}): { isDisabled: boolean; hint: string | undefined } {
-    return {
-        isDisabled: input.isPending || input.writesDisabled,
-        hint: input.writesDisabled ? input.writesHint : undefined,
-    }
-}
+// Every write control of the queue follows writeControlState (lib/write-control.ts).
+export { type WriteControlState, writeControlState } from './write-control'
