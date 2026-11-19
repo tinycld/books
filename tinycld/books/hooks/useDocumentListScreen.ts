@@ -13,30 +13,33 @@ import {
     type DocumentListFilters,
     type DocumentListRow,
     type DocumentListTab,
+    type ListKind,
     type ListRange,
     type ListSort,
     type ListSortKey,
     listControls,
-    tableMinWidth,
+    listDocumentHref,
+    tableMinWidthFor,
+    tabStateKey,
 } from '../lib/document-list'
 import { nextSort } from '../lib/document-list-menus'
-import { documentHref } from '../lib/document-routes'
+import { areaOf, areaTabOf } from '../lib/list-areas'
 import { SEARCH_DELAY_MS } from '../lib/list-search'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
-import { TRANSACTION_DOC_KINDS, type TransactionKind } from '../lib/party-transactions'
-import { navigationModeFor, openRecordFromPath } from '../lib/record-route'
-import { SALES_NEW_ITEMS, salesTabOf } from '../lib/sales-lists'
+import { navigationModeFor, openRecordFromPath, targetModeFor } from '../lib/record-route'
 import { selectionScope, useDocumentListStore } from '../stores/document-list-store'
 import { useBooksAccess } from './useBooksAccess'
 import { useDocumentBatch } from './useDocumentBatch'
 import { useDocumentList } from './useDocumentList'
 import { useDocumentRowActions } from './useDocumentRowActions'
 import { useListSelection } from './useListSelection'
+import { usePurchaseCategories } from './usePurchaseCategories'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
+const NO_ROWS: readonly DocumentListRow[] = []
 
-// When the list route loses the focus (a tab press replaces it, the user leaves the Sales
-// area, or All sales pushes a document over itself) every menu of the screen (New, Batch
+// When the list route loses the focus (a tab press replaces it, the user leaves the list
+// area, or an All tab pushes a document over itself) every menu of the screen (New, Batch
 // actions, a row's) closes, the banner of a refusal or a batch result goes, since it tells
 // about this list only, and so do this list's confirm dialogs unless their write runs. A
 // kind tab's list lives in its kind `_layout.tsx` and keeps the focus while a document opens
@@ -60,7 +63,7 @@ function useBlurCleanup(listKey: string) {
     )
 }
 
-// The All sales New menu: open while the store's menu is 'new' and this screen has the
+// The All tab's New menu: open while the store's menu is 'new' and this screen has the
 // focus, so it never draws on a list below a pushed screen.
 function useNewMenu() {
     const isFocused = useIsFocused()
@@ -73,12 +76,7 @@ function useNewMenu() {
 }
 
 function sameFilters(a: DocumentListFilters, b: DocumentListFilters): boolean {
-    return (
-        a.search === b.search &&
-        a.chip === b.chip &&
-        a.range === b.range &&
-        a.customer === b.customer
-    )
+    return a.search === b.search && a.chip === b.chip && a.range === b.range && a.party === b.party
 }
 
 // The filters the rows on screen answer. While a new query loads (or the typed search
@@ -123,12 +121,13 @@ function useRowFocus(scope: string, rows: readonly DocumentListRow[], openId: st
 }
 
 /**
- * One Sales list tab (spec docs/specs/sales-lists-design.md §3): its kept search, chip,
- * date range, customer and sort (`useDocumentListStore`), its rows (`useDocumentList`,
- * with the search debounced), what the user may do on it, and where its rows, New and
- * tabs lead. The screen waits for the user's access as well as the rows, so a writer never
- * sees the reader's list for a moment, and a failed access read shows the list's error
- * with Retry. Below the table's own minimum width (or on a phone) the list draws cards.
+ * One list tab (spec docs/specs/sales-lists-design.md §3): its kept search, chip, date
+ * range, party and sort (`useDocumentListStore`), its rows (`useDocumentList`, with the
+ * search debounced), what the user may do on it, and where its rows, New and tabs lead
+ * (the New items and tabs of the tab's list area, `areaOf`). The screen waits for the
+ * user's access as well as the rows, so a writer never sees the reader's list for a
+ * moment, and a failed access read shows the list's error with Retry. Below the table's
+ * own minimum width (or on a phone) the list draws cards.
  */
 export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) {
     const orgHref = useOrgHref()
@@ -136,26 +135,32 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     const isPhone = useBreakpoint() === 'mobile'
     const [accessCollection] = useStore('books_access')
     const access = useBooksAccess()
-    const tabState = useDocumentListStore(state => state.tabs[tab.key])
+    const area = areaOf(tab)
+    const stateKey = tabStateKey(tab)
+    const tabState = useDocumentListStore(state => state.tabs[stateKey])
     const store = useDocumentListStore.getState()
-    const { filters, sort } = tabState ?? store.tabState(tab.key)
+    const { filters, sort } = tabState ?? store.tabState(stateKey)
     const search = useDebouncedValue(filters.search, SEARCH_DELAY_MS)
     const queryFilters = { ...filters, search }
     const documentList = useDocumentList({ tab, filters: queryFilters, sort })
+    // The Category cell's account and product names, for the rows on screen; a tab with no
+    // Category column reads none.
+    const hasCategory = tab.columns.includes('category')
+    const categories = usePurchaseCategories(hasCategory ? documentList.rows : NO_ROWS)
     const newMenu = useNewMenu()
     // The row and batch dialogs belong to this mounted list, not to its tab: a tab press
-    // replaces the Sales screen with a new list route while a route pushed earlier can
-    // still hold a list of the same tab under it, and only the list that opened a dialog
-    // draws it. The list stays mounted when its layout changes, so the key holds while a
-    // write runs.
-    const listKey = `${tab.key}:${useId()}`
+    // replaces the list area's screen with a new list route while a route pushed earlier
+    // can still hold a list of the same tab under it, and only the list that opened a
+    // dialog draws it. The list stays mounted when its layout changes, so the key holds
+    // while a write runs.
+    const listKey = `${stateKey}:${useId()}`
     useBlurCleanup(listKey)
     const { width, onListLayout } = useListWidth()
 
     const canWrite = access.canWrite
     const isAccessPending = !access.isReady && !access.isError
     const isLoading = documentList.isLoading || isAccessPending
-    const isError = !isLoading && (documentList.isError || access.isError)
+    const isError = !isLoading && (documentList.isError || access.isError || categories.isError)
     // The typed search reaches the query 250 ms after the last key; until then the rows
     // answer the last search, so the list is busy.
     const isSearchPending = search !== filters.search
@@ -166,16 +171,17 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
         : NO_RECOVERY
     const retry = () => {
         void recoverLiveQueries({
-            ...mergeRecoveries([documentList.recovery, accessRecovery]),
-            onError: err => log.warn('books.sales-lists', 'retry failed', { err }),
+            ...mergeRecoveries([documentList.recovery, accessRecovery, categories.recovery]),
+            onError: err => log.warn(area.logContext, 'retry failed', { err }),
         })
     }
-    const list = { ...documentList, isLoading, isBusy, isError, retry }
+    const categoryNames = { accounts: categories.accounts, products: categories.products }
+    const list = { ...documentList, isLoading, isBusy, isError, retry, categoryNames }
 
     // The ticks and the row focus hold for the tab, the layout and the filters
     // (`selectionScope`), so a change of any of them, or the list narrowing to the names
     // column, clears them for good; a sort keeps them.
-    const scope = selectionScope(tab.key, layout, filters)
+    const scope = selectionScope(stateKey, layout, filters)
     const open = openRecordFromPath(tab.path, pathname)
     const openId = open.kind === 'id' ? open.id : ''
     const rowFocus = useRowFocus(scope, list.rows, openId)
@@ -186,31 +192,35 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     const openRow = (row: DocumentListRow) => {
         rowFocus.setFocusedId(row.id)
         if (open.kind === 'id' && open.id === row.id) return
-        const href = orgHref(documentHref(TRANSACTION_DOC_KINDS[row.kind], row.id))
+        const href = orgHref(listDocumentHref(row.kind, row.id))
         if (navigationModeFor(open) === 'replace') router.replace(href)
         else router.push(href)
     }
-    // A kind tab's New opens its `new` route; All sales has a menu of the kinds, so New
-    // with no kind opens that menu. Beside an open document New replaces it, as a row
-    // does, so the document's leave guard asks before unsaved edits go.
-    const openNew = (kind?: TransactionKind) => {
-        const item = SALES_NEW_ITEMS.find(entry => entry.kind === kind)
+    // A kind tab's New opens its `new` route; an All tab has a menu of the area's New
+    // items, so New with no kind opens that menu. Beside an open document New replaces it,
+    // as a row does, so the document's leave guard asks before unsaved edits go. A New
+    // outside the kind's stack (the Bill payments tab's Pay Bills) is pushed over the kind
+    // route, so Back returns to the list (`targetModeFor`).
+    const openNew = (kind?: ListKind) => {
+        const item = area.newItems.find(entry => entry.kind === kind)
         const href = item?.href ?? tab.newHref
         if (href === null) {
             newMenu.setOpen(true)
             return
         }
         newMenu.setOpen(false)
-        if (navigationModeFor(open) === 'replace') router.replace(orgHref(href))
+        if (targetModeFor(open, tab.path, href) === 'replace') router.replace(orgHref(href))
         else router.push(orgHref(href))
     }
-    // A tab press replaces the list route, so Back leaves the Sales area.
+    // A tab press replaces the list route, so Back leaves the list area.
     const goToTab = (key: string) => {
         if (key === tab.key) return
-        router.replace(orgHref(salesTabOf(key).path))
+        router.replace(orgHref(areaTabOf(area, key).path))
     }
 
-    const minWidth = tableMinWidth(tab.columns, canWrite)
+    // The table's minimum counts only the edge cells it draws: a reader has no tick box.
+    const controls = listControls(canWrite, layout)
+    const minWidth = tableMinWidthFor(tab, controls)
     const drawsCards = isPhone || (width > 0 && width < minWidth)
 
     const loadedIds = list.rows.map(row => row.id)
@@ -231,7 +241,8 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
         appliedFilters,
         sort,
         canWrite,
-        controls: listControls(canWrite, layout),
+        controls,
+        tableMinWidth: minWidth,
         scope,
         selection,
         rowFocus,
@@ -243,15 +254,15 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
         openRow,
         openNew,
         goToTab,
-        setSearch: (text: string) => store.setSearch(tab.key, text),
-        setChip: (chipId: string) => store.setChip(tab.key, chipId),
-        setRange: (range: ListRange) => store.setRange(tab.key, range),
-        // '' (All customers) removes the filter.
-        setCustomer: (customerId: string) => store.setCustomer(tab.key, customerId),
+        setSearch: (text: string) => store.setSearch(stateKey, text),
+        setChip: (chipId: string) => store.setChip(stateKey, chipId),
+        setRange: (range: ListRange) => store.setRange(stateKey, range),
+        // '' (All customers, All vendors) removes the filter.
+        setParty: (partyId: string) => store.setParty(stateKey, partyId),
         // A header press: a new column ascending, the sorted column turned around.
-        toggleSort: (key: ListSortKey) => store.setSort(tab.key, nextSort(sort, key)),
-        setSort: (next: ListSort) => store.setSort(tab.key, next),
-        clearFilters: () => store.clearFilters(tab.key),
+        toggleSort: (key: ListSortKey) => store.setSort(stateKey, nextSort(sort, key)),
+        setSort: (next: ListSort) => store.setSort(stateKey, next),
+        clearFilters: () => store.clearFilters(stateKey),
         drawsCards,
         onListLayout,
     }

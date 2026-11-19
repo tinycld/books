@@ -413,14 +413,10 @@ export type DocumentWrites = {
     ): DocumentTransaction
     // The post of a draft that a batch just wrote, as its own request after the batch.
     postRecord(id: string, revision: number): DocumentTransaction
-    // A posted document has no draft to go stale: a void states no revision.
-    voidRecord(id: string): DocumentTransaction
     // The revision the store row holds now, read one time at a save (never rendered from);
     // undefined when the store holds no such row. The save compares it with the revision
     // the form saw (assertRevisionSeen, lib/revision.ts).
     storedRevision(id: string): number | undefined
-    // One request: the server deletes the lines with the row, in one transaction.
-    deleteRecord(id: string): DocumentTransaction
     // One line table's writes: each row converts through the table's mapper
     // (DocumentKind.lineSpecs), and a line insert sets the parent field.
     lineOps(parentId: string, mapper: DocumentLineMapper): TableWriteOps<DocumentTransaction>

@@ -2,11 +2,14 @@ import { useMutation } from '@tinycld/core/lib/mutations'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useWritesAvailable } from '@tinycld/core/lib/use-writes-available'
 import { router } from 'expo-router'
-import type { DocumentListRow } from '../lib/document-list'
-import { documentRowMenuItems, type RowMenuAction, rowActionHref } from '../lib/document-row-menu'
-import { TRANSACTION_TYPE_LABELS, type TransactionKind } from '../lib/party-transactions'
-import { PAYMENT_MESSAGES } from '../lib/payment-texts'
-import { payoutVoidBodyOf } from '../lib/refund-payout'
+import { type DocumentListRow, draftKindOf, isSalesKind } from '../lib/document-list'
+import {
+    type ListRowAction,
+    listRowActionHref,
+    listRowMenuItems,
+    listVoidTexts,
+} from '../lib/list-row-menu'
+import type { TransactionKind } from '../lib/party-transactions'
 import { writeRefusalText } from '../lib/refusal'
 import {
     CREDIT_MEMO_KIND,
@@ -16,6 +19,7 @@ import {
     SALES_RECEIPT_KIND,
     type SalesDocumentKind,
 } from '../lib/sales-document-kinds'
+import { useApplyCreditStore } from '../stores/apply-credit-store'
 import { type RowDialog, useDocumentListStore } from '../stores/document-list-store'
 import { useDeleteDraftDocument } from './useDeleteDraftDocument'
 import { usePdfDownload } from './usePdfDownload'
@@ -32,15 +36,6 @@ const PDF_KINDS: Partial<Record<TransactionKind, Pick<SalesDocumentKind, 'key' |
 
 type DialogAction = RowDialog['action']
 
-// The Void dialog's body: a payment's own text; a payout's says its credit memo's credit
-// is unapplied again, as its read view does (payoutVoidBodyOf); every other row shows the
-// dialog's own text.
-function voidBodyOf(row: DocumentListRow | undefined): string | undefined {
-    if (row?.kind === 'payment') return PAYMENT_MESSAGES.voidBody
-    if (row?.kind === 'refund_receipt') return payoutVoidBodyOf(row.creditMemo ?? '')
-    return undefined
-}
-
 // A dialog shows while its row is listed and its menu still offers the action, or while
 // its own write runs: a row voided, posted or deleted elsewhere closes it.
 function isStillOffered(
@@ -52,7 +47,7 @@ function isStillOffered(
     if (target === null || target.action !== action) return false
     const live = rows.find(row => row.id === target.row.id)
     if (live === undefined) return false
-    return documentRowMenuItems(live, canWrite).includes(action)
+    return listRowMenuItems(live, canWrite).includes(action)
 }
 
 interface RowActionsInput {
@@ -65,11 +60,14 @@ interface RowActionsInput {
 }
 
 /**
- * The actions of a Sales list's row menus (spec §3 "Row menu"), as the read view runs
- * them: Open opens the row; Receive payment, Copy, Create credit memo, View journal entry
- * and Open invoice push their route, so Back returns to the list; Download PDF saves the
- * server's PDF; Void and Delete draft open their confirm dialog over the list. A dialog's
- * write is the one the read view and the forms share (`useVoidDocument`,
+ * The actions of a list's row menus, sales and purchases (spec §3 "Row menu"), as the read
+ * view runs them: Open opens the row; Receive payment, Pay bill, Copy, Create credit memo,
+ * Record refund, View journal entry and Open invoice push their route
+ * (`listRowActionHref`), so Back returns to the list; Apply to bills pushes the vendor
+ * credit and opens its apply dialog there (`useApplyCreditStore`, drawn by the credit's
+ * read section); Download PDF saves the server's PDF; Void and Delete draft open their
+ * confirm dialog over the list, with the kind's own Void texts (`listVoidTexts`). A
+ * dialog's write is the one the read view and the forms share (`useVoidDocument`,
  * `useDeleteDraftDocument`); a refusal closes the dialog and shows in the list's banner.
  */
 export function useDocumentRowActions({ listKey, rows, canWrite, openRow }: RowActionsInput) {
@@ -97,7 +95,7 @@ export function useDocumentRowActions({ listKey, rows, canWrite, openRow }: RowA
     })
     const deleteDraft = useMutation({
         mutationFn: function* (row: DocumentListRow) {
-            yield deleteWrite(row.kind, row.id)
+            yield deleteWrite(draftKindOf(row), row.id)
         },
         onSuccess: close,
         onError: refuse,
@@ -111,11 +109,11 @@ export function useDocumentRowActions({ listKey, rows, canWrite, openRow }: RowA
         setRowDialog({ listKey, action, row, isRunning: false })
     }
     const downloadPdf = (row: DocumentListRow) => {
-        const kind = PDF_KINDS[row.kind]
+        const kind = isSalesKind(row.kind) ? PDF_KINDS[row.kind] : undefined
         if (kind === undefined) return
         download.mutate({ kind: kind.key, id: row.id, fallbackName: kind.pdfStem(row.number) })
     }
-    const run = (row: DocumentListRow, action: RowMenuAction) => {
+    const run = (row: DocumentListRow, action: ListRowAction) => {
         if (action === 'open') {
             openRow(row)
             return
@@ -128,20 +126,22 @@ export function useDocumentRowActions({ listKey, rows, canWrite, openRow }: RowA
             openDialog(action, row)
             return
         }
-        const href = rowActionHref(row, action)
-        if (href !== null) router.push(orgHref(href))
+        const href = listRowActionHref(row, action)
+        if (href === null) return
+        router.push(orgHref(href))
+        // After the push, so the credit's read section, which draws the dialog, finds it.
+        if (action === 'apply_credit') useApplyCreditStore.getState().open(row.id)
     }
     // The menu rows that start a write wait for writes to be available and for a running
     // write; Download PDF waits for its download.
-    const isDisabled = (action: RowMenuAction) => {
+    const isDisabled = (action: ListRowAction) => {
         if (action === 'void' || action === 'delete_draft') return isWriting || !writes.available
         if (action === 'pdf') return download.isPending
         return false
     }
 
     const voidRow = target?.row
-    const noun = voidRow === undefined ? '' : TRANSACTION_TYPE_LABELS[voidRow.kind].toLowerCase()
-    const voidBody = voidBodyOf(voidRow)
+    const voidTexts = voidRow === undefined ? null : listVoidTexts(voidRow)
     const isVoidOffered = isStillOffered(target, 'void', rows, canWrite)
     const isDeleteOffered = isStillOffered(target, 'delete_draft', rows, canWrite)
     // Marked running, so the list's blur cleanup leaves the dialog to its write.
@@ -152,9 +152,9 @@ export function useDocumentRowActions({ listKey, rows, canWrite, openRow }: RowA
     }
     const voidDialog = {
         isVisible: isVoidOffered || voidDocument.isPending,
-        entryNumber: `${noun} ${voidRow?.number ?? ''}`,
-        confirmLabel: `Void ${noun}`,
-        body: voidBody,
+        entryNumber: `${voidTexts?.noun ?? ''} ${voidRow?.number ?? ''}`,
+        confirmLabel: voidTexts?.confirmLabel ?? '',
+        body: voidTexts?.body,
         isPending: voidDocument.isPending,
         errorMessage: null,
         onConfirm: confirmWith(voidDocument),

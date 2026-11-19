@@ -274,12 +274,7 @@ function useSalesReceiptWrites(): DocumentWrites {
                 draft.status = 'posted'
                 draft.revision = revision
             }),
-        voidRecord: id =>
-            receiptsCollection.update(id, draft => {
-                draft.status = 'void'
-            }),
         storedRevision: id => receiptsCollection.get(id)?.revision,
-        deleteRecord: id => receiptsCollection.delete(id),
         lineOps: (receiptId, mapper) => {
             const { toRecord } = salesLineMapperOf(mapper)
             const lineRecord = (write: TableRowWrite) => toRecord(write.row, write.position)

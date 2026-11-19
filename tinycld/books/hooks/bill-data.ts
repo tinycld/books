@@ -272,12 +272,7 @@ function useBillWrites(): DocumentWrites {
                 draft.status = 'posted'
                 draft.revision = revision
             }),
-        voidRecord: id =>
-            billsCollection.update(id, draft => {
-                draft.status = 'void'
-            }),
         storedRevision: id => billsCollection.get(id)?.revision,
-        deleteRecord: id => billsCollection.delete(id),
         lineOps: (billId, mapper) =>
             purchaseLineOps(mapper, {
                 insert: record => linesCollection.insert({ ...record, bill: billId }),

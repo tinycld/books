@@ -272,12 +272,7 @@ function useExpenseWrites(): DocumentWrites {
                 draft.status = 'posted'
                 draft.revision = revision
             }),
-        voidRecord: id =>
-            expensesCollection.update(id, draft => {
-                draft.status = 'void'
-            }),
         storedRevision: id => expensesCollection.get(id)?.revision,
-        deleteRecord: id => expensesCollection.delete(id),
         lineOps: (expenseId, mapper) =>
             purchaseLineOps(mapper, {
                 insert: record => linesCollection.insert({ ...record, expense: expenseId }),

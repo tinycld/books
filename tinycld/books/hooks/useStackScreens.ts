@@ -1,10 +1,11 @@
 import { router, useNavigation, useRoute } from 'expo-router'
-import { StackActions, useNavigationState } from 'expo-router/react-navigation'
+import { CommonActions, StackActions, useNavigationState } from 'expo-router/react-navigation'
 import { useCallback } from 'react'
 import { useKindStack } from '../components/lists/kind-stack-context'
 import {
     flattenStack,
-    nestedScreens,
+    kindRouteBelowShowing,
+    nestedStack,
     popPlan,
     rootRoutesAbove,
     type StackScreen,
@@ -12,8 +13,8 @@ import {
 
 // The one reader of the Books stack (lib/stack-screens.ts). A screen of the Books root
 // stack reads its own navigator's state as flat screens. A screen of a sales kind's child
-// stack reads its child stack's state, after the screen below the kind route that
-// SalesKindLayout passes down (KindStackContext).
+// stack reads its child stack's state, after the screens below the kind route that
+// DocumentKindLayout passes down (KindStackContext).
 //
 // The stack comes from useNavigationState, not navigation.getState(): during a render
 // getState() still returns the state before the push that mounted this screen. `select`
@@ -25,9 +26,7 @@ export function useStackPosition<T extends string | number>(
     const kindStack = useKindStack()
     return useNavigationState(state => {
         if (kindStack === null) return select({ routes: flattenStack(state) }, key)
-        const below =
-            kindStack.belowName === '' ? null : { name: kindStack.belowName, id: kindStack.belowId }
-        return select({ routes: nestedScreens(below, kindStack.kindRoute, state) }, key)
+        return select({ routes: nestedStack(kindStack.below, kindStack.kindRoute, state) }, key)
     })
 }
 
@@ -46,8 +45,12 @@ export function usePopScreens(): (count: number) => void {
         const plan = popPlan(ownIndex, count, isNested)
         if (plan.kindRoute) {
             // A pop inside a child stack never removes its first route: the kind route
-            // itself leaves the Books root stack, which is this child stack's parent.
-            navigation.getParent()?.dispatch(StackActions.pop(1))
+            // leaves the Books root stack, which is this child stack's parent, with every
+            // root route between it and the target (a read view past copies of itself).
+            const parent = navigation.getParent()
+            const parentState = parent?.getState()
+            if (parent === undefined || parentState === undefined) return
+            parent.dispatch(StackActions.pop(rootRoutesAbove(parentState, key, count)))
             return
         }
         // A root route with a child stack holds several flat screens, but one pop of the
@@ -71,6 +74,37 @@ export function usePopToScreenBelow(name: string): () => boolean {
         const state = navigation.getState?.()
         if (state === undefined || state.routes[state.index - 1]?.name !== name) return false
         router.back()
+        return true
+    }
+}
+
+// For the focused screen of the Books root stack (the caller's, while it is shown), opened
+// over the kind route `kindRoute` with the record `oldId` on top of its child stack: removes
+// the focused screen and puts the record `newId` in the place of `oldId` in that child
+// stack, in one reset, so Back from `newId` goes where Back from `oldId` went (the kind's
+// list). A router.replace here would push a second kind route over the first, with `oldId`
+// still on top of it. Gives false, and changes nothing, when the screen below is not that
+// record. It reads the stack when it is called; a screen outside a stack has no state.
+export function useReplaceRecordBelow(
+    kindRoute: string
+): (oldId: string, newId: string) => boolean {
+    const navigation = useNavigation()
+    return (oldId, newId) => {
+        const state = navigation.getState?.()
+        if (state === undefined) return false
+        const focused = state.routes[state.index]?.key ?? ''
+        const below = kindRouteBelowShowing(state, focused, kindRoute, oldId)
+        const route = state.routes[below]
+        const child = route?.state
+        if (route === undefined || child === undefined) return false
+        const record = { key: `[id]-${newId}`, name: '[id]', params: { id: newId } }
+        const childRoutes = [...child.routes.slice(0, -1), record]
+        const kind = {
+            ...route,
+            state: { ...child, routes: childRoutes, index: childRoutes.length - 1 },
+        }
+        const routes = [...state.routes.slice(0, below), kind]
+        navigation.dispatch(CommonActions.reset({ ...state, routes, index: below }))
         return true
     }
 }

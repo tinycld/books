@@ -58,9 +58,9 @@ import {
 
 // The vendor page's Transactions tab (vendor-pages checkpoint 4, spec §3.5 and §3.7): one
 // list of the vendor's bills, expenses, bill payments, vendor credits and vendor refunds,
-// its type chips, its states, and opening a document from a row. Every test creates its own
-// vendors with unique names; every document is made through its form, dated on or after
-// 2026-07-01. No seeded row is changed.
+// its type chips, its states, and opening a document from a row. Every test, or serial group
+// of tests, creates its own vendors with unique names; every document is made through its
+// form, dated on or after 2026-07-01. No seeded row is changed.
 //
 // Not covered here: a read-only user (no New transaction in the empty state) cannot be
 // driven, because the e2e seed has no read-only Books member (as
@@ -186,201 +186,258 @@ function cell(rows: RowSnapshot[], id: string, column: number) {
 }
 
 test.describe('vendor-pages: vendor transactions', () => {
-    test("lists the vendor's documents newest first with their status, filters by type, and opens a row", async ({
-        page,
-    }) => {
-        await openBooks(page, DESKTOP)
-        const notesInput = page.getByTestId('vendor-notes-input')
-        const saveBar = page.getByTestId('vendor-save-bar')
-        const today = await localDay(page, 0)
+    // One vendor with a document of every kind, made through the forms once and read by the
+    // tests after it: making all seven in one test took most of a test's budget on CI. The
+    // tests share one page and run in order; a failure skips the rest of the group.
+    test.describe('one vendor with every kind of document', () => {
+        test.describe.configure({ mode: 'serial' })
 
-        // A posted past-due bill and a posted bill due later.
-        const { vendor, bills } = await vendorWithBills(page, {
-            name: uniqueName('Vendor transactions'),
-            bills: [
-                { amount: '300.00', due: await localDay(page, -10) },
-                { amount: '200.00', due: await localDay(page, 20) },
-            ],
+        let page: Page
+        const docs = {
+            vendorId: '',
+            vendorName: '',
+            pastDue: '',
+            later: '',
+            expense: '',
+            draft: '',
+            payment: '',
+            credit: '',
+            refund: '',
+        }
+
+        test.beforeAll(async ({ browser }) => {
+            const context = await browser.newContext()
+            page = await context.newPage()
         })
-        const [pastDue, later] = bills
-        const id = vendor.id
 
-        // A posted expense, from the New menu over Journal Entries.
-        await openNewExpense(page)
-        await pickExpenseVendor(page, vendor.name)
-        await pickPaidFrom(page, CHECKING)
-        const expenseLine = await pickExpenseLineAccount(page, 0, BILL_EXPENSE_ACCOUNT)
-        await page
-            .getByTestId(expenseCellTestId('account_lines', expenseLine, 'amount'))
-            .fill('45.00')
-        await page.getByTestId('form-input-memo').fill(uniqueMemo('Vendor transactions expense'))
-        await postExpense(page)
-        await expect(page).toHaveURL(EXPENSE_URL)
-        const expenseId = expenseIdFromUrl(page)
+        test.afterAll(async () => {
+            await page?.context().close()
+        })
 
-        // A draft bill, from the page's menu.
-        await openFromRow(page, vendor.name)
-        await chooseNew(page, 'vendor-new-bill')
-        await expect(page).toHaveURL(new RegExp(`/books/bills/new\\?vendor=${id}$`))
-        await fillBill(page, { amount: '75.00', due: today })
-        await page.getByTestId('bill-save-draft').click()
-        await expect(page).toHaveURL(BILL_URL)
-        await expect(page.getByTestId('bill-title')).toHaveText('Draft bill')
-        const draftId = billIdFromUrl(page)
-        await backToVendor(page, id)
+        test('a vendor with a posted past-due bill and a posted bill due later', async () => {
+            await openBooks(page, DESKTOP)
+            const { vendor, bills } = await vendorWithBills(page, {
+                name: uniqueName('Vendor transactions'),
+                bills: [
+                    { amount: '300.00', due: await localDay(page, -10) },
+                    { amount: '200.00', due: await localDay(page, 20) },
+                ],
+            })
+            const [pastDue, later] = bills
+            docs.vendorId = vendor.id
+            docs.vendorName = vendor.name
+            docs.pastDue = pastDue.id
+            docs.later = later.id
+        })
 
-        // A bill payment of $50.00 on the later bill: Pay bills returns to the page.
-        await chooseNew(page, 'vendor-new-pay-bills')
-        await expect(page).toHaveURL(new RegExp(`/books/pay-bills\\?vendor=${id}$`))
-        await expect(page.getByTestId('pay-bills-title')).toHaveText('Pay bills')
-        await payBillsRowAmount(page, later.id).fill('50.00')
-        await pickSelect(page, 'pay-bills-paid-from', CHECKING)
-        await page.getByTestId('pay-bills-pay').click()
-        await postedNumber(page)
-        await expect(page).toHaveURL(vendorPath(id))
-        await expect(page.getByTestId('vendor-transactions')).toBeVisible()
+        test('a posted expense from the New menu and a draft bill from the page', async () => {
+            const id = docs.vendorId
+            const today = await localDay(page, 0)
 
-        // A posted vendor credit of $80.00, from the page's menu.
-        await chooseNew(page, 'vendor-new-vendor-credit')
-        await expect(page).toHaveURL(new RegExp(`/books/vendor-credits/new\\?vendor=${id}$`))
-        const creditLine = await pickCreditLineAccount(page, 0, REFUND_CREDIT_ACCOUNT)
-        await page
-            .getByTestId(creditCellTestId('account_lines', creditLine, 'amount'))
-            .fill('80.00')
-        await page.getByTestId('form-input-memo').fill(uniqueMemo('Vendor transactions credit'))
-        await page.getByTestId('vendor-credit-post').click()
-        await expect(page).toHaveURL(VENDOR_CREDIT_URL)
-        await expect(page.getByTestId('vendor-credit-read-only')).toBeVisible()
-        const creditId = vendorCreditIdFromUrl(page)
-        await backToVendor(page, id)
+            // A posted expense, from the New menu over Journal Entries.
+            await openNewExpense(page)
+            await pickExpenseVendor(page, docs.vendorName)
+            await pickPaidFrom(page, CHECKING)
+            const expenseLine = await pickExpenseLineAccount(page, 0, BILL_EXPENSE_ACCOUNT)
+            await page
+                .getByTestId(expenseCellTestId('account_lines', expenseLine, 'amount'))
+                .fill('45.00')
+            await page
+                .getByTestId('form-input-memo')
+                .fill(uniqueMemo('Vendor transactions expense'))
+            await postExpense(page)
+            await expect(page).toHaveURL(EXPENSE_URL)
+            docs.expense = expenseIdFromUrl(page)
 
-        // A refund of $30.00 on it, from the page's menu: $50.00 of the credit stays
-        // unapplied. Not through postRefundOn: it opens New over the Journal Entries list,
-        // which the expense above left lower in the one Books stack, so its nav press would
-        // push a second entries list.
-        await chooseNew(page, 'vendor-new-vendor-refund')
-        await expect(page).toHaveURL(new RegExp(`/books/vendor-refunds/new\\?vendor=${id}$`))
-        await page.getByTestId('vendor-refund-amount').fill('30.00')
-        await expect(refundCell(page, creditId)).toHaveValue('30.00')
-        await page.getByTestId('vendor-refund-memo').fill(uniqueMemo('Vendor transactions refund'))
-        await page.getByTestId('vendor-refund-post').click()
-        await expect(page).toHaveURL(VENDOR_REFUND_URL)
-        await expect(shownRefund(page, 'vendor-refund-read-only')).toBeVisible()
-        const refund = { id: vendorRefundIdFromUrl(page) }
-        await backToVendor(page, id)
-
-        // Newest first: the past-due bill is the only one dated before today, and the
-        // others, all dated today, follow their creation, newest first.
-        await expect(page.getByTestId('vendor-transactions-table')).toBeVisible()
-        await expect.poll(async () => (await tableRows(page)).length).toBe(7)
-        const rows = await tableRows(page)
-        const paymentRow = rows.find(r => r.cells[1] === 'Bill payment')
-        if (!paymentRow) throw new Error('no bill payment row')
-        const paymentId = paymentRow.id
-        expect(rows.map(r => r.id)).toEqual([
-            refund.id,
-            creditId,
-            paymentId,
-            draftId,
-            expenseId,
-            later.id,
-            pastDue.id,
-        ])
-        const days = rows.map(r => Date.parse(r.cells[0]))
-        for (const day of days) expect(Number.isNaN(day)).toBe(false)
-        for (let i = 1; i < days.length; i++) expect(days[i - 1]).toBeGreaterThanOrEqual(days[i])
-        expect(days[days.length - 2]).toBeGreaterThan(days[days.length - 1])
-
-        // Type, Due date, Total sign and Status of each row.
-        const types: [string, string][] = [
-            [pastDue.id, 'Bill'],
-            [later.id, 'Bill'],
-            [draftId, 'Bill'],
-            [paymentId, 'Bill payment'],
-            [expenseId, 'Expense'],
-            [creditId, 'Vendor credit'],
-            [refund.id, 'Vendor refund'],
-        ]
-        for (const [rowId, type] of types) expect(cell(rows, rowId, 1), rowId).toBe(type)
-        for (const rowId of [pastDue.id, later.id, draftId]) {
-            expect(Number.isNaN(Date.parse(cell(rows, rowId, 3))), rowId).toBe(false)
-        }
-        for (const rowId of [paymentId, expenseId, creditId, refund.id]) {
-            expect(cell(rows, rowId, 3), rowId).toBe(NO_DUE_DATE)
-        }
-        expect(cell(rows, creditId, 4).startsWith(MINUS)).toBe(true)
-        for (const rowId of [pastDue.id, later.id, draftId, paymentId, expenseId, refund.id]) {
-            expect(cell(rows, rowId, 4).startsWith(MINUS), rowId).toBe(false)
-        }
-        const statuses: [string, string][] = [
-            [pastDue.id, 'Overdue'],
-            [later.id, 'Partly paid'],
-            [draftId, 'Draft'],
-            [paymentId, 'Paid'],
-            [expenseId, 'Paid'],
-            [creditId, 'Unapplied'],
-            [refund.id, 'Received'],
-        ]
-        for (const [rowId, status] of statuses) expect(cell(rows, rowId, 5), rowId).toBe(status)
-
-        // The chips filter by kind.
-        await page.getByTestId('vendor-transactions-filter-bill-payment').click()
-        await expect.poll(() => transactionIds(page)).toEqual([paymentId])
-        await page.getByTestId('vendor-transactions-filter-vendor-refund').click()
-        await expect.poll(() => transactionIds(page)).toEqual([refund.id])
-
-        // All after a single-kind chip: the chip released the expenses query, so All starts a
-        // fresh expenses read. While that read is held, the rows already shown stay, with no
-        // Loading in their place (keepRows keyed by the vendor, not the chip).
-        const heldExpenses = await holdLoads(page, EXPENSES_URL)
-        await page.getByTestId('vendor-transactions-filter-all').click()
-        await expect.poll(() => heldExpenses.held.length).toBeGreaterThan(0)
-        await expect(page.getByTestId('vendor-transactions-loading')).toHaveCount(0)
-        await expect(transaction(page, refund.id)).toBeVisible()
-        await heldExpenses.release()
-        await expect.poll(() => transactionIds(page)).toHaveLength(7)
-
-        // Notes typed: a row opens its document with no leave question; Back keeps them.
-        const note = `${vendor.name} note`
-        await page.keyboard.press('Alt+4')
-        await notesInput.click()
-        await page.keyboard.type(note)
-        await expect(saveBar).toBeVisible()
-        await page.keyboard.press('Alt+1')
-        await expect(page.getByTestId('vendor-transactions-table')).toBeVisible()
-        await transaction(page, pastDue.id).click()
-        await expect(page).toHaveURL(new RegExp(`/books/bills/${pastDue.id}$`))
-        await expect(discardDialog(page).title).toHaveCount(0)
-        await backToVendor(page, id)
-        await expect(saveBar).toBeVisible()
-        await page.keyboard.press('Alt+4')
-        await expect(notesInput).toHaveValue(note)
-        await page.keyboard.press('Alt+1')
-
-        // Every other kind opens its own route.
-        for (const [rowId, route] of [
-            [paymentId, 'bill-payments'],
-            [refund.id, 'vendor-refunds'],
-            [expenseId, 'expenses'],
-            [creditId, 'vendor-credits'],
-        ] as const) {
-            await transaction(page, rowId).click()
-            await expect(page).toHaveURL(new RegExp(`/books/${route}/${rowId}$`))
+            // A draft bill, from the page's menu.
+            await openFromRow(page, docs.vendorName)
+            await chooseNew(page, 'vendor-new-bill')
+            await expect(page).toHaveURL(new RegExp(`/books/bills/new\\?vendor=${id}$`))
+            await fillBill(page, { amount: '75.00', due: today })
+            await page.getByTestId('bill-save-draft').click()
+            await expect(page).toHaveURL(BILL_URL)
+            await expect(page.getByTestId('bill-title')).toHaveText('Draft bill')
+            docs.draft = billIdFromUrl(page)
             await backToVendor(page, id)
-        }
+        })
 
-        // A row holds no button or menu of its own.
-        for (const rowId of [pastDue.id, paymentId, creditId]) {
-            await expect(transaction(page, rowId).locator('[role="button"]')).toHaveCount(0)
-        }
+        test('a bill payment, a vendor credit and a refund on it, from the page', async () => {
+            const id = docs.vendorId
 
-        // The list's own width decides: never a sideways scroll.
-        await page.setViewportSize(NARROW)
-        await expect(transaction(page, pastDue.id)).toBeVisible()
-        await expect.poll(() => listFitsItsWidth(page)).toBe(true)
-        await page.setViewportSize(RECORD_SURFACE)
-        await expect(page.getByTestId('vendor-transactions-table')).toBeVisible()
-        await expect.poll(() => tableFitsItsWidth(page)).toBe(true)
+            // A bill payment of $50.00 on the later bill: Pay bills returns to the page.
+            await chooseNew(page, 'vendor-new-pay-bills')
+            await expect(page).toHaveURL(new RegExp(`/books/pay-bills\\?vendor=${id}$`))
+            await expect(page.getByTestId('pay-bills-title')).toHaveText('Pay bills')
+            await payBillsRowAmount(page, docs.later).fill('50.00')
+            await pickSelect(page, 'pay-bills-paid-from', CHECKING)
+            await page.getByTestId('pay-bills-pay').click()
+            await postedNumber(page)
+            await expect(page).toHaveURL(vendorPath(id))
+            await expect(page.getByTestId('vendor-transactions')).toBeVisible()
+
+            // A posted vendor credit of $80.00, from the page's menu.
+            await chooseNew(page, 'vendor-new-vendor-credit')
+            await expect(page).toHaveURL(new RegExp(`/books/vendor-credits/new\\?vendor=${id}$`))
+            const creditLine = await pickCreditLineAccount(page, 0, REFUND_CREDIT_ACCOUNT)
+            await page
+                .getByTestId(creditCellTestId('account_lines', creditLine, 'amount'))
+                .fill('80.00')
+            await page.getByTestId('form-input-memo').fill(uniqueMemo('Vendor transactions credit'))
+            await page.getByTestId('vendor-credit-post').click()
+            await expect(page).toHaveURL(VENDOR_CREDIT_URL)
+            await expect(page.getByTestId('vendor-credit-read-only')).toBeVisible()
+            docs.credit = vendorCreditIdFromUrl(page)
+            await backToVendor(page, id)
+
+            // A refund of $30.00 on it, from the page's menu: $50.00 of the credit stays
+            // unapplied. Not through postRefundOn: it opens New over the Journal Entries list,
+            // which the expense above left lower in the one Books stack, so its nav press
+            // would push a second entries list.
+            await chooseNew(page, 'vendor-new-vendor-refund')
+            await expect(page).toHaveURL(new RegExp(`/books/vendor-refunds/new\\?vendor=${id}$`))
+            await page.getByTestId('vendor-refund-amount').fill('30.00')
+            await expect(refundCell(page, docs.credit)).toHaveValue('30.00')
+            await page
+                .getByTestId('vendor-refund-memo')
+                .fill(uniqueMemo('Vendor transactions refund'))
+            await page.getByTestId('vendor-refund-post').click()
+            await expect(page).toHaveURL(VENDOR_REFUND_URL)
+            await expect(shownRefund(page, 'vendor-refund-read-only')).toBeVisible()
+            docs.refund = vendorRefundIdFromUrl(page)
+            await backToVendor(page, id)
+        })
+
+        test("lists the vendor's documents newest first with their type, due date, total and status", async () => {
+            const { pastDue, later, draft, expense, credit, refund } = docs
+
+            // Newest first: the past-due bill is the only one dated before today, and the
+            // others, all dated today, follow their creation, newest first.
+            await expect(page.getByTestId('vendor-transactions-table')).toBeVisible()
+            await expect.poll(async () => (await tableRows(page)).length).toBe(7)
+            const rows = await tableRows(page)
+            const paymentRow = rows.find(r => r.cells[1] === 'Bill payment')
+            if (!paymentRow) throw new Error('no bill payment row')
+            const payment = paymentRow.id
+            docs.payment = payment
+            expect(rows.map(r => r.id)).toEqual([
+                refund,
+                credit,
+                payment,
+                draft,
+                expense,
+                later,
+                pastDue,
+            ])
+            const days = rows.map(r => Date.parse(r.cells[0]))
+            for (const day of days) expect(Number.isNaN(day)).toBe(false)
+            for (let i = 1; i < days.length; i++) {
+                expect(days[i - 1]).toBeGreaterThanOrEqual(days[i])
+            }
+            expect(days[days.length - 2]).toBeGreaterThan(days[days.length - 1])
+
+            // Type, Due date, Total sign and Status of each row.
+            const types: [string, string][] = [
+                [pastDue, 'Bill'],
+                [later, 'Bill'],
+                [draft, 'Bill'],
+                [payment, 'Bill payment'],
+                [expense, 'Expense'],
+                [credit, 'Vendor credit'],
+                [refund, 'Vendor refund'],
+            ]
+            for (const [rowId, type] of types) expect(cell(rows, rowId, 1), rowId).toBe(type)
+            for (const rowId of [pastDue, later, draft]) {
+                expect(Number.isNaN(Date.parse(cell(rows, rowId, 3))), rowId).toBe(false)
+            }
+            for (const rowId of [payment, expense, credit, refund]) {
+                expect(cell(rows, rowId, 3), rowId).toBe(NO_DUE_DATE)
+            }
+            expect(cell(rows, credit, 4).startsWith(MINUS)).toBe(true)
+            for (const rowId of [pastDue, later, draft, payment, expense, refund]) {
+                expect(cell(rows, rowId, 4).startsWith(MINUS), rowId).toBe(false)
+            }
+            const statuses: [string, string][] = [
+                [pastDue, 'Overdue'],
+                [later, 'Partly paid'],
+                [draft, 'Draft'],
+                [payment, 'Paid'],
+                [expense, 'Paid'],
+                [credit, 'Unapplied'],
+                [refund, 'Received'],
+            ]
+            for (const [rowId, status] of statuses) {
+                expect(cell(rows, rowId, 5), rowId).toBe(status)
+            }
+        })
+
+        test('filters by type, and All keeps the shown rows while it reloads', async () => {
+            // The chips filter by kind.
+            await page.getByTestId('vendor-transactions-filter-bill-payment').click()
+            await expect.poll(() => transactionIds(page)).toEqual([docs.payment])
+            await page.getByTestId('vendor-transactions-filter-vendor-refund').click()
+            await expect.poll(() => transactionIds(page)).toEqual([docs.refund])
+
+            // All after a single-kind chip: the chip released the expenses query, so All
+            // starts a fresh expenses read. While that read is held, the rows already shown
+            // stay, with no Loading in their place (keepRows keyed by the vendor, not the
+            // chip).
+            const heldExpenses = await holdLoads(page, EXPENSES_URL)
+            await page.getByTestId('vendor-transactions-filter-all').click()
+            await expect.poll(() => heldExpenses.held.length).toBeGreaterThan(0)
+            await expect(page.getByTestId('vendor-transactions-loading')).toHaveCount(0)
+            await expect(transaction(page, docs.refund)).toBeVisible()
+            await heldExpenses.release()
+            await expect.poll(() => transactionIds(page)).toHaveLength(7)
+        })
+
+        test('a row opens its document, with typed notes kept, and holds no button', async () => {
+            const id = docs.vendorId
+            const notesInput = page.getByTestId('vendor-notes-input')
+            const saveBar = page.getByTestId('vendor-save-bar')
+
+            // Notes typed: a row opens its document with no leave question; Back keeps them.
+            const note = `${docs.vendorName} note`
+            await page.keyboard.press('Alt+4')
+            await notesInput.click()
+            await page.keyboard.type(note)
+            await expect(saveBar).toBeVisible()
+            await page.keyboard.press('Alt+1')
+            await expect(page.getByTestId('vendor-transactions-table')).toBeVisible()
+            await transaction(page, docs.pastDue).click()
+            await expect(page).toHaveURL(new RegExp(`/books/bills/${docs.pastDue}$`))
+            await expect(discardDialog(page).title).toHaveCount(0)
+            await backToVendor(page, id)
+            await expect(saveBar).toBeVisible()
+            await page.keyboard.press('Alt+4')
+            await expect(notesInput).toHaveValue(note)
+            await page.keyboard.press('Alt+1')
+
+            // Every other kind opens its own route.
+            for (const [rowId, route] of [
+                [docs.payment, 'bill-payments'],
+                [docs.refund, 'vendor-refunds'],
+                [docs.expense, 'expenses'],
+                [docs.credit, 'vendor-credits'],
+            ] as const) {
+                await transaction(page, rowId).click()
+                await expect(page).toHaveURL(new RegExp(`/books/${route}/${rowId}$`))
+                await backToVendor(page, id)
+            }
+
+            // A row holds no button or menu of its own.
+            for (const rowId of [docs.pastDue, docs.payment, docs.credit]) {
+                await expect(transaction(page, rowId).locator('[role="button"]')).toHaveCount(0)
+            }
+        })
+
+        test("the list's own width decides: never a sideways scroll", async () => {
+            await page.setViewportSize(NARROW)
+            await expect(transaction(page, docs.pastDue)).toBeVisible()
+            await expect.poll(() => listFitsItsWidth(page)).toBe(true)
+            await page.setViewportSize(RECORD_SURFACE)
+            await expect(page.getByTestId('vendor-transactions-table')).toBeVisible()
+            await expect.poll(() => tableFitsItsWidth(page)).toBe(true)
+        })
     })
 
     test('void and corrected documents, the empty states, loading and the error', async ({

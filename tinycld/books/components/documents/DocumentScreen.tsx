@@ -121,7 +121,7 @@ export function DocumentScreen({
         setReloads(count => count + 1)
     }
     // The root opts back into pointer events and draws its own background: a sales kind's
-    // child stack (SalesKindLayout) turns pointer events off on web and draws its screens
+    // child stack (DocumentKindLayout) turns pointer events off on web and draws its screens
     // over a transparent layer, so the list under it never takes the document's clicks.
     return (
         <DocumentKindContext.Provider value={documentKind}>

@@ -32,5 +32,25 @@ export function navigationModeFor(open: OpenRecord): 'push' | 'replace' {
     return open.kind === 'none' ? 'push' : 'replace'
 }
 
+// `href` (a path under the org, with an optional `?query`) is a record of the kind's own
+// child stack: `<listPath>/<id>` or `<listPath>/new`.
+export function isKindStackHref(listPath: string, href: string): boolean {
+    const path = href.split('?')[0] ?? href
+    return path.startsWith(`${listPath}/`)
+}
+
+// How a screen of a kind's list opens `href`. A record of the kind's own stack follows
+// `navigationModeFor`. Any other route (Pay Bills, which is a screen of the Books root
+// stack) is pushed over the kind route: a replace from the child stack would replace the
+// whole kind route, and its list would be gone.
+export function targetModeFor(
+    open: OpenRecord,
+    listPath: string,
+    href: string
+): 'push' | 'replace' {
+    if (!isKindStackHref(listPath, href)) return 'push'
+    return navigationModeFor(open)
+}
+
 // The child stack's record screens, after its transparent `index`.
 export const RECORD_DETAIL_SCREENS = ['[id]', 'new'] as const

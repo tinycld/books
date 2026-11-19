@@ -1,16 +1,19 @@
 import { useStore } from '@tinycld/core/lib/pocketbase'
+import { useDeleteDraftDocument } from './useDeleteDraftDocument'
 import type { PaymentHeaderWrite, PaymentWrites } from './usePaymentWrites'
 
 /**
  * The vendor refund's writes (vendor refund spec §3.6), over `books_vendor_refunds`
  * (party `vendor`, account `refunded_to`) and `books_vendor_refund_lines` (header
- * `refund`, document `vendor_credit`).
+ * `refund`, document `vendor_credit`). The delete of a draft is the write the lists share
+ * (`useDeleteDraftDocument`).
  */
 export function useVendorRefundWrites(): PaymentWrites {
     const [refundsCollection, linesCollection] = useStore(
         'books_vendor_refunds',
         'books_vendor_refund_lines'
     )
+    const deleteDraft = useDeleteDraftDocument()
     const fieldsOf = (header: Omit<PaymentHeaderWrite, 'replaces'>) => ({
         vendor: header.party,
         date: header.date,
@@ -36,7 +39,7 @@ export function useVendorRefundWrites(): PaymentWrites {
             refundsCollection.update(id, draft => {
                 draft.status = 'posted'
             }),
-        deleteHeader: id => refundsCollection.delete(id),
+        deleteHeader: id => deleteDraft('vendor_refund', id),
         insertLine: line =>
             linesCollection.insert({
                 id: line.id,

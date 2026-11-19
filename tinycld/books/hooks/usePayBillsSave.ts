@@ -21,6 +21,7 @@ import { entryCents, type Payments } from '../lib/payment-allocation'
 import { writeRefusalText } from '../lib/refusal'
 import { usePayBillsStore } from '../stores/pay-bills-store'
 import type { BooksBillPayments } from '../types'
+import { useReplaceRecordBelow } from './useStackScreens'
 
 const LOG_CONTEXT = 'books.billPayment'
 const TOAST_MS = 4000
@@ -108,6 +109,7 @@ export function usePayBillsSave({
         'books_bills'
     )
     const orgHref = useOrgHref()
+    const replaceRecordBelow = useReplaceRecordBelow('bill-payments')
     const isBusy = useRef(false)
     const isLive = useRef(true)
     const left = useRef(false)
@@ -203,9 +205,13 @@ export function usePayBillsSave({
     const afterPay = (plan: PayBillsWritePlan) => {
         const first = plan.vendors[0]?.paymentId ?? ''
         left.current = true
-        // A correction opens its own read view in place of the form.
+        // A correction opens its own read view in place of the form. Opened by Edit over the
+        // original's read view in the Bill payments child stack, it takes the original's
+        // place there, so Back returns to the list (useReplaceRecordBelow).
         if (replacesId !== null) {
-            router.replace(orgHref(`books/bill-payments/${first}`))
+            if (!replaceRecordBelow(replacesId, first)) {
+                router.replace(orgHref(`books/bill-payments/${first}`))
+            }
             return
         }
         const target = afterPayTarget(router.canGoBack(), first)
