@@ -94,3 +94,24 @@ describe('the Refund receipts numbering card', () => {
         )
     })
 })
+
+// Write-off spec Q6: the seeded `write_off` row is the "Write-offs" card, with no prefix,
+// next 1001.
+describe('the Write-offs numbering card', () => {
+    it('is seeded as booksseqwriteof: write_off, no prefix, next 1001', () => {
+        expect(seededSequence('booksseqwriteof')).toEqual({
+            id: 'booksseqwriteof',
+            doc_type: 'write_off',
+            prefix: '',
+            next_number: '1001',
+        })
+    })
+
+    it('reads "Write-offs" and previews "Next write-off: 1001"', () => {
+        const row = seededSequence('booksseqwriteof')
+        expect(docTypeLabel(row.doc_type ?? '')).toBe('Write-offs')
+        expect(nextNumberPreview(row.doc_type ?? '', row.prefix ?? '', row.next_number ?? '')).toBe(
+            'Next write-off: 1001'
+        )
+    })
+})

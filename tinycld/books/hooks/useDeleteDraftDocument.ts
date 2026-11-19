@@ -5,8 +5,9 @@ import type { ListKind } from '../lib/document-list'
 /**
  * Delete of a draft of any list kind but a bill payment (never a draft), shared by the
  * forms and the lists: the kind's collection `delete(id)`, one request (the server deletes
- * the lines, and a payment's applications, with the row). Returns the pbtsdb transaction for
- * a `useMutation` generator to yield.
+ * the lines, and a payment's applications, with the row). A write-off is never a draft and
+ * is never deleted, so it throws: no menu offers it. Returns the pbtsdb transaction for a
+ * `useMutation` generator to yield.
  */
 export function useDeleteDraftDocument(): (
     kind: Exclude<ListKind, 'bill_payment'>,
@@ -40,6 +41,8 @@ export function useDeleteDraftDocument(): (
                 return memos.delete(id)
             case 'refund_receipt':
                 return refunds.delete(id)
+            case 'write_off':
+                throw new Error('a write-off is never deleted')
             case 'bill':
                 return bills.delete(id)
             case 'expense':

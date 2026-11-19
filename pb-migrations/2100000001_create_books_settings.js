@@ -37,7 +37,8 @@
 // prefix (booksseqbill000), and so do expenses (booksseqexpense), received
 // payments (booksseqpayment), bill payments (booksseqbillpay), credit memos
 // (booksseqcreditm), vendor credits (booksseqvcredit), vendor refunds
-// (booksseqvrefund) and refund receipts (booksseqrefundr).
+// (booksseqvrefund), refund receipts (booksseqrefundr) and write-offs
+// (booksseqwriteof).
 //
 // books_close_overrides lets one user post into the closed period until an
 // expiry, with a reason. It is the log of that permission, so it is never
@@ -151,6 +152,7 @@ migrate(
                         'vendor_credit',
                         'vendor_refund',
                         'refund_receipt',
+                        'write_off',
                     ],
                 },
                 { name: 'prefix', type: 'text', max: 10, pattern: '^[A-Za-z0-9-]*$' },
@@ -245,6 +247,12 @@ migrate(
         refundReceipt.set('prefix', '')
         refundReceipt.set('next_number', 1001)
         app.save(refundReceipt)
+        const writeOff = new Record(sequences)
+        writeOff.set('id', 'booksseqwriteof')
+        writeOff.set('doc_type', 'write_off')
+        writeOff.set('prefix', '')
+        writeOff.set('next_number', 1001)
+        app.save(writeOff)
 
         app.save(
             new Collection({

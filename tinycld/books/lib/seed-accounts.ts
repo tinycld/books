@@ -79,6 +79,14 @@ export const SEED_ACCOUNTS: SeedAccount[] = [
         type: 'income',
         detail_type: 'service_income',
     },
+    // The write-off account of the seeded write-off (seed.ts seedWriteOffs).
+    {
+        key: 'bad-debts',
+        name: 'Bad debts',
+        number: '6050',
+        type: 'expense',
+        detail_type: 'bad_debts',
+    },
     { key: 'rent', name: 'Rent', number: '6100', type: 'expense', detail_type: 'rent_lease' },
     {
         key: 'software',

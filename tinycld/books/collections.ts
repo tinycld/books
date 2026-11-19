@@ -236,9 +236,9 @@ export function registerCollections(
 
     // Every field below the omit line is Books' own: the number at posting, the
     // totals at every draft write, who and when by the request, sort_key by the
-    // guard, the open balance at posting and at every payment post or void. No
-    // relations: the invoice screen reads its customer, tax rate and users
-    // through their own queries.
+    // guard, the open balance at posting and at every payment post or void, and
+    // written_off at every write-off post or void. No relations: the invoice
+    // screen reads its customer, tax rate and users through their own queries.
     const books_invoices = newCollection('books_invoices', {
         omitOnInsert: [
             'created',
@@ -249,6 +249,7 @@ export function registerCollections(
             'tax_total',
             'total',
             'balance',
+            'written_off',
             'revision',
             'currency',
             'entry',
@@ -691,6 +692,31 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // As the payment's: server-owned fields below the omit line (the customer from
+    // the invoice, the number at posting, the close override, who and when by the
+    // request). A write-off is created posted in one insert and only ever voided.
+    // No relations: the dialog and the write-off page read the invoice, customer,
+    // account and users through their own queries.
+    const books_write_offs = newCollection('books_write_offs', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'customer',
+            'number',
+            'sequence',
+            'currency',
+            'entry',
+            'close_override',
+            'posted_by',
+            'posted_at',
+            'voided_by',
+            'voided_at',
+            'sort_key',
+        ] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
     // Written by the server from payments (the cash basis); clients only read them.
     const books_cash_basis_lines = newCollection('books_cash_basis_lines', {
         omitOnInsert: ['created', 'updated'] as const,
@@ -784,6 +810,7 @@ export function registerCollections(
         books_vendor_credit_applications,
         books_vendor_refunds,
         books_vendor_refund_lines,
+        books_write_offs,
         books_cash_basis_lines,
         books_cash_basis_tax_lines,
         books_party_balances,

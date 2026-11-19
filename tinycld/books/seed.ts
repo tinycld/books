@@ -104,6 +104,7 @@ import {
     VENDOR_REFUND_SEED_IDS,
     VENDOR_REFUNDS,
 } from './lib/vendor-refund-fixture'
+import { WRITE_OFF_INVOICES, WRITE_OFF_SEED, WRITE_OFFS } from './lib/write-off-fixture'
 import type { BooksPartyContacts } from './types'
 
 // Seed function invoked by core/scripts/seed-db.ts with a superuser `pb` and
@@ -298,6 +299,8 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedSalesReports(pb, ctx, accountIds, customerIds)
     // After every other document seed, so the seeded documents keep their numbers.
     await seedRefundReceipts(pb, ctx, accountIds, customerIds, salesReceiptIds)
+    // After the refund receipts, so every earlier seeded invoice keeps its number.
+    await seedWriteOffs(pb, ctx, accountIds, customerIds)
     // Created active and deactivated last, because the app makes an account
     // inactive by updating it, and the vendor and product guards refuse a row
     // that names an inactive account when it is saved.
@@ -479,16 +482,63 @@ function seedInvoiceMemo(id: string): string {
     return `Seed invoice ${key}`
 }
 
-// Posts the INVOICE_SEED_IDS fixture invoices, in order, through the same
-// writes the invoice form makes: create the draft, create its lines, then post
-// it, so the server numbers each (1001, 1002, 1003 here, not the fixture's
-// numbers), computes every amount and writes the journal entry. Each takes the
-// Denver combined group (spec §4.6); its fixture date keeps it out of the
-// General Ledger's fixed seed days. The product fixture ids are valid
-// PocketBase ids and are sent as-is; `customerIds` maps a customer-form
-// fixture id to the created customer's id. The amounts and totals are the
-// server's, so none is sent. Returns the created id of each fixture invoice,
-// by its fixture id, for the documents that name one (seedCreditMemos).
+type SeedInvoiceFixture = (typeof INVOICES)[number]
+
+// The header columns a seeded invoice sends. `id` is sent only when the seed keeps a
+// fixture id; `tax_rate` is left out for an invoice with no sales tax.
+type SeedInvoiceHeader = Pick<
+    SeedInvoiceFixture,
+    'date' | 'due_date' | 'terms' | 'message' | 'memo' | 'bill_to' | 'email'
+> & { id?: string; customer: string; tax_rate?: string }
+
+type SeedInvoiceLine = Pick<
+    (typeof INVOICE_LINES)[number],
+    | 'position'
+    | 'kind'
+    | 'product'
+    | 'description'
+    | 'quantity'
+    | 'rate'
+    | 'percent_ppm'
+    | 'taxable'
+>
+
+// Creates and posts one invoice through the same writes the invoice form makes: create
+// the draft, create its lines, then post it, so the server numbers it, computes every
+// amount and writes the journal entry. The amounts and totals are the server's, so none
+// is sent. Returns the created invoice's id.
+async function createSeedInvoice(
+    pb: PocketBase,
+    ctx: SeedContext,
+    header: SeedInvoiceHeader,
+    lines: readonly SeedInvoiceLine[]
+): Promise<string> {
+    const created = await pb.collection('books_invoices').create({ ...header, status: 'draft' })
+    for (const line of lines) {
+        await pb.collection('books_invoice_lines').create({
+            invoice: created.id,
+            position: line.position,
+            kind: line.kind,
+            product: line.product,
+            description: line.description,
+            quantity: line.quantity,
+            rate: line.rate,
+            percent_ppm: line.percent_ppm,
+            taxable: line.taxable,
+        })
+    }
+    await postSeedDocument(pb, 'books_invoices', created.id, ctx.user.id)
+    return created.id
+}
+
+// Posts the INVOICE_SEED_IDS fixture invoices, in order, through
+// createSeedInvoice, so the server numbers each (1001, 1002, 1003 here, not the
+// fixture's numbers). Each takes the Denver combined group (spec §4.6); its
+// fixture date keeps it out of the General Ledger's fixed seed days. The product
+// fixture ids are valid PocketBase ids and are sent as-is; `customerIds` maps a
+// customer-form fixture id to the created customer's id. Returns the created id
+// of each fixture invoice, by its fixture id, for the documents that name one
+// (seedCreditMemos).
 export async function seedInvoices(
     pb: PocketBase,
     ctx: SeedContext,
@@ -504,9 +554,8 @@ export async function seedInvoices(
                 `seed: invoice ${id} names customer ${fixture.customer}, which was not created`
             )
         }
-        const created = await pb.collection('books_invoices').create({
+        const header = {
             customer,
-            status: 'draft',
             date: fixture.date,
             due_date: fixture.due_date,
             terms: fixture.terms,
@@ -515,24 +564,74 @@ export async function seedInvoices(
             memo: seedInvoiceMemo(id),
             bill_to: fixture.bill_to,
             email: fixture.email,
-        })
-        for (const line of INVOICE_LINES.filter(row => row.invoice === id)) {
-            await pb.collection('books_invoice_lines').create({
-                invoice: created.id,
-                position: line.position,
-                kind: line.kind,
-                product: line.product,
-                description: line.description,
-                quantity: line.quantity,
-                rate: line.rate,
-                percent_ppm: line.percent_ppm,
-                taxable: line.taxable,
-            })
         }
-        await postSeedDocument(pb, 'books_invoices', created.id, ctx.user.id)
-        invoiceIds.set(id, created.id)
+        const lines = INVOICE_LINES.filter(row => row.invoice === id)
+        invoiceIds.set(id, await createSeedInvoice(pb, ctx, header, lines))
     }
     return invoiceIds
+}
+
+// The write-off seed (write-off spec §4.5, WRITE_OFF_SEED): Delta Freight Partners'
+// invoice of 2026-10-03, $215.50 with no sales tax, created with its fixture id and posted
+// through createSeedInvoice, then written off whole on 2026-11-10 to 6050 Bad debts
+// through the dialog's one write: a posted books_write_offs create with the fixture's id.
+// The server numbers both, posts the write-off's entry and lowers the invoice's balance.
+// The seed sends posted_by itself because the server stamps no poster for a superuser.
+// No General Ledger, Journal, Trial Balance, Profit and Loss, Balance Sheet, Customer
+// Balance or sales report spec reads Delta Freight Partners, 6050 or either day as a
+// total. `accountIds` maps a seed account number to the created account; `customerIds`
+// maps a customer-form fixture id to the created customer.
+export async function seedWriteOffs(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>,
+    customerIds: Map<string, string>
+): Promise<void> {
+    const invoice = WRITE_OFF_INVOICES.find(row => row.id === WRITE_OFF_SEED.invoice)
+    const writeOff = WRITE_OFFS.find(row => row.id === WRITE_OFF_SEED.writeOff)
+    if (invoice === undefined || writeOff === undefined) {
+        throw new Error('seed: WRITE_OFF_SEED names no invoice or write-off of the fixture')
+    }
+    const customer = customerIds.get(invoice.customer)
+    if (customer === undefined) {
+        throw new Error(
+            `seed: write-off invoice ${invoice.id} names customer ${invoice.customer}, which was not created`
+        )
+    }
+    const badDebts = accountIds.get('6050')
+    if (badDebts === undefined) throw new Error('seed: account 6050 Bad debts was not created')
+    const header = {
+        id: invoice.id,
+        customer,
+        date: invoice.date,
+        due_date: invoice.due_date,
+        terms: invoice.terms,
+        message: invoice.message,
+        memo: invoice.memo,
+        bill_to: invoice.bill_to,
+        email: invoice.email,
+    }
+    const line = {
+        position: 0,
+        kind: 'item' as const,
+        product: 'prodbookkeep001',
+        description: invoice.memo,
+        quantity: 1,
+        rate: invoice.total,
+        percent_ppm: 0,
+        taxable: false,
+    }
+    const invoiceId = await createSeedInvoice(pb, ctx, header, [line])
+    await pb.collection('books_write_offs').create({
+        id: writeOff.id,
+        invoice: invoiceId,
+        date: writeOff.date,
+        account: badDebts,
+        amount: invoice.total,
+        memo: writeOff.memo,
+        status: 'posted',
+        posted_by: ctx.user.id,
+    })
 }
 
 // Creates a fixture credit memo as a draft with its lines, through the writes
@@ -2092,7 +2191,8 @@ export async function seedCustomerBalance(
 // no tax rate, deposited where the seeded posted receipt with a customer deposits. The
 // line guard refuses an inactive product (server/products.go) and the document guard an
 // inactive customer (checkLineParty, server/lines.go), so both are made active for the
-// post and inactive again after it, as seedCustomerBalance does. `accountIds` maps a seed
+// post and inactive again after it, as seedCustomerBalance does. Then the seeded family
+// (seedSalesFamily). `accountIds` maps a seed
 // account number to the created account; `customerIds` maps a customer-form fixture id to
 // the created customer.
 export async function seedSalesReports(
@@ -2136,6 +2236,44 @@ export async function seedSalesReports(
     await postSeedDocument(pb, 'books_sales_receipts', created.id, ctx.user.id)
     await pb.collection('books_products').update(sale.productId, { inactive: true })
     await pb.collection('books_customers').update(customer, { inactive: true })
+    await seedSalesFamily(pb, ctx, depositTo)
+}
+
+// SALES_REPORTS_SEED.family: the parent and its two sub-customers, each with one posted
+// sales receipt, deposited where the receipt above deposits.
+async function seedSalesFamily(pb: PocketBase, ctx: SeedContext, depositTo: string) {
+    const { yearsAgo, day, memo, productId, parent, small, big } = SALES_REPORTS_SEED.family
+    const date = `${new Date().getFullYear() - yearsAgo}-${day}`
+    const parentRow = await pb
+        .collection('books_customers')
+        .create({ display_name: parent.name, parent: '' })
+    const buyers: { id: string; cents: number }[] = [{ id: parentRow.id, cents: parent.cents }]
+    for (const sub of [small, big]) {
+        const row = await pb
+            .collection('books_customers')
+            .create({ display_name: sub.name, parent: parentRow.id })
+        buyers.push({ id: row.id, cents: sub.cents })
+    }
+    for (const buyer of buyers) {
+        const created = await pb.collection('books_sales_receipts').create({
+            customer: buyer.id,
+            status: 'draft',
+            date,
+            payment_method: 'check',
+            deposit_to: depositTo,
+            memo,
+        })
+        await pb.collection('books_sales_receipt_lines').create({
+            sales_receipt: created.id,
+            position: 0,
+            kind: 'item',
+            product: productId,
+            quantity: 1,
+            rate: buyer.cents,
+            taxable: false,
+        })
+        await postSeedDocument(pb, 'books_sales_receipts', created.id, ctx.user.id)
+    }
 }
 
 type CustomerBalanceInvoice = (typeof CUSTOMER_BALANCE_SEED)['kitchenInvoice' | 'galaInvoice']

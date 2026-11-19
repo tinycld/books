@@ -42,6 +42,7 @@ export const AUDIT_RECORD_TYPE_OPTIONS: SelectOption[] = [
     { value: 'books_estimate_responses', label: 'Estimate response' },
     { value: 'books_credit_memos', label: 'Credit memo' },
     { value: 'books_refund_receipts', label: 'Refund receipt' },
+    { value: 'books_write_offs', label: 'Write-off' },
     { value: 'books_bills', label: 'Bill' },
     { value: 'books_expenses', label: 'Expense' },
     { value: 'books_vendor_credits', label: 'Vendor credit' },

@@ -8,8 +8,10 @@ export type BatchAction = 'delete_drafts' | 'void'
 
 // Delete drafts applies to the drafts of every kind but a bill payment, which is never a
 // draft and has no delete. Void applies to posted documents of every kind but an estimate,
-// which has no void.
+// which has no void. No batch action reaches a write-off (write-off spec §5, Q13): it is
+// voided on its own page.
 function appliesTo(action: BatchAction, row: DocumentListRow): boolean {
+    if (row.kind === 'write_off') return false
     if (action === 'delete_drafts') {
         return row.recordStatus === 'draft' && row.kind !== 'bill_payment'
     }
