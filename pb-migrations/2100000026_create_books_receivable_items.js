@@ -32,6 +32,14 @@
 // The same migration indexes books_accounts on type, so the accounts-receivable
 // accounts are found by that index.
 //
+// books_receivable_items stores the rows of both views, with `source` (line or
+// application) and `settled`: the day the balance of the row's customer and
+// item becomes zero and stays zero, 9999-12-31 while it is open. Only Books
+// writes it, from the two queries in server/receivable_items.go, inside the
+// transaction of each write that changes a row. Its rules let a reader list
+// and view; nobody creates, updates or deletes a row over REST. No backfill:
+// a new install has an empty ledger.
+//
 // AUTHORIZATION. Every member with read access lists and views the rows; a
 // view has no create, update or delete.
 //
@@ -84,6 +92,54 @@ const APPLICATIONS_QUERY = [
 
 const ACCOUNT_TYPE_INDEX = 'CREATE INDEX idx_books_accounts_type ON books_accounts (type)'
 
+const ITEMS = 'books_receivable_items'
+
+const itemsCollection = app =>
+    new Collection({
+        id: 'pbc_books_receivable_items',
+        name: ITEMS,
+        type: 'base',
+        listRule: READ,
+        viewRule: READ,
+        createRule: null,
+        updateRule: null,
+        deleteRule: null,
+        fields: [
+            { name: 'source', type: 'select', required: true, maxSelect: 1, values: ['line', 'application'] },
+            {
+                name: 'customer',
+                type: 'relation',
+                collectionId: app.findCollectionByNameOrId('books_customers').id,
+                cascadeDelete: false,
+                maxSelect: 1,
+            },
+            {
+                name: 'entry',
+                type: 'relation',
+                required: true,
+                collectionId: app.findCollectionByNameOrId('books_journal_entries').id,
+                cascadeDelete: false,
+                maxSelect: 1,
+            },
+            { name: 'date', type: 'text', required: true },
+            { name: 'currency', type: 'text' },
+            { name: 'debit', type: 'number', onlyInt: true },
+            { name: 'credit', type: 'number', onlyInt: true },
+            { name: 'item', type: 'text', required: true },
+            { name: 'item_kind', type: 'text', required: true },
+            { name: 'item_number', type: 'text' },
+            { name: 'item_seq', type: 'number', onlyInt: true },
+            { name: 'due_date', type: 'text' },
+            { name: 'settled', type: 'text', required: true },
+        ],
+        indexes: [
+            `CREATE INDEX idx_books_receivable_items_entry ON ${ITEMS} (entry)`,
+            `CREATE INDEX idx_books_receivable_items_item ON ${ITEMS} (item)`,
+            `CREATE INDEX idx_books_receivable_items_customer ON ${ITEMS} (customer, item, date)`,
+            `CREATE INDEX idx_books_receivable_items_settled ON ${ITEMS} (settled, date)`,
+        ],
+    })
+
 const VIEWS = [
     ['books_receivable_lines', LINES_QUERY],
     ['books_receivable_applications', APPLICATIONS_QUERY],
@@ -94,6 +150,7 @@ migrate(
         const accounts = app.findCollectionByNameOrId('books_accounts')
         accounts.indexes.push(ACCOUNT_TYPE_INDEX)
         app.save(accounts)
+        app.save(itemsCollection(app))
         for (const [name, viewQuery] of VIEWS) {
             app.save(
                 new Collection({
@@ -107,6 +164,7 @@ migrate(
         }
     },
     app => {
+        app.delete(app.findCollectionByNameOrId(ITEMS))
         for (const [name] of VIEWS) {
             app.delete(app.findCollectionByNameOrId(name))
         }
