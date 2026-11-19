@@ -262,6 +262,7 @@ describe('REFUND_RECEIPT_REFUSALS and REFUND_PAYOUT_NOTICE', () => {
         expect(m.cannotEdit).toBe(REFUND_RECEIPT_REFUSALS.cannotEdit)
         expect(m.cannotRefundReceipt).toBe(REFUND_RECEIPT_REFUSALS.cannotRefundReceipt)
         expect(m.cannotRefundMemo).toBe(REFUND_RECEIPT_REFUSALS.cannotRefundMemo)
+        expect(m.payoutNotice).toBe(REFUND_PAYOUT_NOTICE)
         // Refund from's two texts, under whichever keys the layer's payment rule reads.
         const texts: unknown[] = Object.values(m)
         expect(texts).toContain(REFUND_RECEIPT_REFUSALS.refundFrom)

@@ -20,15 +20,17 @@ import {
     documentSchema,
     type PostLineRule,
 } from '../lib/document-schema'
+import { type HeldSourceLink, sourceLinkOf, sourceLinkRules } from '../lib/document-source-links'
 import { documentTaxOf } from '../lib/document-tax'
 import { acceptanceShown } from '../lib/estimate-status'
 import { hideBuiltins } from '../lib/form-definition'
 import { textOf } from '../lib/form-values'
 import { noLinesText, purchaseTablesShown } from '../lib/purchase-lines'
+import { type PayoutLimits, payoutLimitsOf, refundPayoutRule } from '../lib/refund-payout'
 import { todayIso } from '../lib/register-range'
 import type { SalesDocumentKind } from '../lib/sales-document-kinds'
 import { useDocumentSaveStore } from '../stores/document-save-store'
-import { type DocumentStart, recordColumnsOf } from './document-data'
+import { type DocumentStart, type PayoutMemo, recordColumnsOf } from './document-data'
 import type { DocumentScreenData } from './useDocumentScreen'
 
 // documentSchema bounds every text built-in of a sales document with the kind's own words
@@ -71,6 +73,14 @@ type FormInput = Pick<DocumentScreenData, 'record' | 'lines' | 'party' | 'curren
     deposit?: DepositRule
     // A new blank form's message (defaultMessageFor); none when not given.
     defaultMessage?: string
+    // The credit memo a refund form names (payoutMemoOf), read live: a payout's limits.
+    payoutMemo?: PayoutMemo
+}
+
+// What the payout a correction replaces pays out (DocumentStart of a refund receipt); 0
+// for every other form.
+function startReplacedPayout(start: DocumentStart | undefined): number {
+    return start?.kind === 'refund_receipt' ? (start.replacedPayout ?? 0) : 0
 }
 
 const DEPOSIT_TO = ['deposit_to']
@@ -88,13 +98,18 @@ function depositFallbackOf(start: DocumentStart | undefined, isHidden: boolean):
 // Deposit to rule at the time it runs (Post adds its rule to the same resolver).
 // `postLineRule` is Post's line-count rule by the tables the form shows; none for a kind
 // with one table (documentSchema's default).
+// A payout's cap and date rule (refundPayoutRule) join Post's rules, with the limits
+// (`payout`) read when the schema runs, so the memo's live balance is the one checked. A
+// draft is not held to them, as the server checks them only when the payout posts
+// (server/refund_receipt_payout.go).
 function documentRecordSchema(
     kind: SalesDocumentKind,
     currency: string,
     saveMode: RefObject<DocumentSaveMode>,
     taxRows: RefObject<TaxRows>,
     deposit: RefObject<DepositRule | undefined>,
-    postLineRule: PostLineRule | undefined
+    postLineRule: PostLineRule | undefined,
+    payout: RefObject<PayoutLimits | null>
 ) {
     return z
         .object({})
@@ -105,10 +120,11 @@ function documentRecordSchema(
             const mode = saveMode.current
             const schema = documentSchema(kind, currency, mode, tax, deposit.current, postLineRule)
             const result = schema.safeParse(values)
-            if (result.success) return
-            for (const issue of result.error.issues) {
+            const issues = result.success ? [] : result.error.issues
+            for (const issue of issues) {
                 ctx.addIssue({ code: 'custom', path: issue.path, message: issue.message })
             }
+            if (mode === 'post') refundPayoutRule(payout.current, tax)(values, ctx)
         })
 }
 
@@ -126,10 +142,18 @@ function builtinValuesOf(values: DocumentStartValues): DocumentStartValues {
     return builtins
 }
 
-// The invoice a stored credit memo names; '' for every other kind.
-function storedInvoiceOf(record: FormInput['record']): string {
-    const fields = record?.kindFields
-    return fields?.kind === 'credit_memo' ? fields.invoice : ''
+// The source link this form session starts with: a new form's start values' (a document
+// made from its source, or a correction of a linked one), else the stored document's; read
+// at the kind's link keys only (an estimate's `invoice` is no source link).
+function startLinkOf(
+    documentKind: DocumentKind,
+    isNew: boolean,
+    startValues: DocumentStartValues | undefined,
+    record: FormInput['record']
+): HeldSourceLink {
+    const keys = documentKind.sourceLinkKeys ?? []
+    if (isNew) return sourceLinkOf(keys, startValues)
+    return sourceLinkOf(keys, record ? recordColumnsOf(record) : undefined)
 }
 
 // The key Post's line-count error is filed at on a form with several line tables: no
@@ -219,6 +243,8 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
     taxRowsRef.current = input.taxRows
     const depositRef = useRef(input.deposit)
     depositRef.current = input.deposit
+    // Set below, once the form's source link is known.
+    const payoutRef = useRef<PayoutLimits | null>(null)
     const { currency } = input
     const isNew = input.record === undefined
     // Read once: the create form seeds from its first values (core keeps them in a ref).
@@ -267,7 +293,8 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
                           saveMode,
                           taxRowsRef,
                           depositRef,
-                          postLineRule
+                          postLineRule,
+                          payoutRef
                       ),
                   }
                 : null,
@@ -317,17 +344,36 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
     }, [engineDefinition, hiddenKeys, host, kind])
     // Read through the form state proxy, so a change re-renders the guard (useRecordForm).
     const dirtyFields = chosen.form.formState.dirtyFields
-    // The invoice link is no field of the form: it starts as the start values' `invoice`
-    // (a memo made from an invoice, or a correction of a linked memo) or the stored
-    // memo's, and Remove link (or a pick of another customer) drops it for this form
-    // session. Local, synchronous UI state: a new session mounts a new form.
+    // The source link is no field of the form: it starts as startLinkOf, and Remove link
+    // (or a pick of another customer) drops it for this form session where the link allows
+    // it (sourceLinkRules: a payout's cannot be removed). The key stays, so the save still
+    // knows which column to clear. Local, synchronous UI state: a new session mounts a new
+    // form.
     const [linkRemoved, setLinkRemoved] = useState(false)
-    const linkStart = isNew ? textOf(input.startValues?.invoice) : storedInvoiceOf(record)
-    const linkId = linkRemoved ? '' : linkStart
-    const invoiceLink = useMemo(
-        () => ({ id: linkId, remove: () => setLinkRemoved(true) }),
-        [linkId]
+    const startLink = startLinkOf(documentKind, isNew, input.startValues, record)
+    const { key: linkKey, id: linkStart } = startLink
+    const rules = sourceLinkRules(startLink)
+    const linkId = linkRemoved && rules.canRemove ? '' : linkStart
+    const { canRemove, locksParty } = rules
+    const sourceLink = useMemo(
+        () => ({
+            key: linkKey,
+            id: linkId,
+            canRemove: canRemove && linkId !== '',
+            locksParty,
+            remove: () => setLinkRemoved(true),
+        }),
+        [linkKey, linkId, canRemove, locksParty]
     )
+    // A payout's limits: the memo's live balance, plus what the original pays out on a
+    // correction. Read by the schema when it runs and by the link row's label.
+    const payout = payoutLimitsOf(
+        sourceLink,
+        input.payoutMemo,
+        startReplacedPayout(input.start),
+        currency
+    )
+    payoutRef.current = payout
     return {
         // The kind as the screen runs it (its writes, its empty columns), and its words.
         document: documentKind,
@@ -351,11 +397,14 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
         // The estimate a new invoice is made from, or a new correction keeps; its insert
         // writes it. A stored invoice's is on its record and is never written again.
         estimate: isNew ? textOf(input.startValues?.estimate) : '',
-        // The invoice a credit memo is for, as the form holds it now, and its Remove link.
-        invoiceLink,
-        // The link this form session started with: a new form's start values' `invoice`,
-        // or the stored memo's ('' on every other kind). The save compares the form's link
-        // with it, or with the link a new form's written draft holds (useDocumentSave).
+        // The source link as the form holds it now (a credit memo's invoice, a refund's
+        // sales receipt or credit memo): its column, its id, what it allows and its Remove.
+        sourceLink,
+        // A payout's limits (payoutLimitsOf); null on any other form.
+        payout,
+        // The link id this form session started with (startLinkOf; '' on a kind with no
+        // link). The save compares the form's link with it, or with the link a new form's
+        // written draft holds (useDocumentSave).
         linkStart,
         // Post's line-count error under the first shown table, on a form with several
         // tables: its table and the key it is filed at. Null for a kind with one table

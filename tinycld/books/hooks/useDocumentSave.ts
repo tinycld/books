@@ -14,7 +14,6 @@ import type { ViewInstance } from 'react-native'
 import type { DocumentKind } from '../components/documents/document-kinds'
 import { attachmentsNotSavedText } from '../lib/attachments'
 import { refusedRecordId } from '../lib/batch-refusal'
-import { INVOICE_LINK_KEY } from '../lib/credit-memo-link'
 import {
     documentRefusalTarget,
     labelledLineRefusal,
@@ -112,11 +111,13 @@ function rootServerForm(form: DocumentFormState['form']): RefusalForm {
 
 type Refused = { error: unknown; rowLabel: string | null }
 
-// Whether the form draws its invoice link row (a credit memo's FormBandRow, while the
-// form names an invoice): the server's refusal of `invoice` then shows under that row,
-// though no built-in draws the key.
-function isInvoiceLinkDrawn(state: DocumentFormState): boolean {
-    return state.document.FormBandRow !== undefined && state.invoiceLink.id !== ''
+// The key of the source link row the form draws (the kind's FormBandRow, while the form
+// names a source: a credit memo's `invoice`), or null: the server's refusal of that key
+// then shows under that row, though no built-in draws the key.
+function drawnLinkKey(state: DocumentFormState): string | null {
+    const { key, id } = state.sourceLink
+    if (state.document.FormBandRow === undefined || key === '' || id === '') return null
+    return key
 }
 
 // The field a text refusal names, or null for the summary: "<row label> <n>: …" names
@@ -158,9 +159,9 @@ function showRefusal(
     const server = (message: string): ErrorOption => ({ type: 'server', message })
     const hidden = hiddenFields()
     const inDefinition = new Set(state.definition?.fields.map(f => f.key) ?? [])
-    const isLinkDrawn = isInvoiceLinkDrawn(state)
+    const linkKey = drawnLinkKey(state)
     const isDrawn = (key: string) =>
-        (inDefinition.has(key) && !hidden.has(key)) || (key === INVOICE_LINK_KEY && isLinkDrawn)
+        (inDefinition.has(key) && !hidden.has(key)) || (linkKey !== null && key === linkKey)
     const message = messageOnlyRefusal(refused.error)
     if (message !== null) {
         const text = labelledLineRefusal(refused.rowLabel, message)
@@ -293,8 +294,8 @@ function newProgress(): Progress {
 // The draft a new form wrote before its post was refused: the form stays on `new` with
 // the refusal, and its next save updates this document instead of inserting another.
 // `rows` are each line table's rows as written, keyed by the table's key; `revision` is
-// what that save states it saw; `invoice` is the credit memo's invoice link it wrote ('').
-type Written = { id: string; rows: Record<string, TableRow[]>; revision: number; invoice: string }
+// what that save states it saw; `link` is the source link id it wrote ('' for none).
+type Written = { id: string; rows: Record<string, TableRow[]>; revision: number; link: string }
 
 type DocumentSaveOptions = {
     // The tab a draft saved from `new` opens on (default the form): a save from the PDF
@@ -330,7 +331,8 @@ const QUOTE_RULE_KEYS = ['expiration_date', 'accepted_date'] as const
 // after `setError` or a validation, before any render.
 function hasFieldErrors(state: DocumentFormState): boolean {
     const keys = state.definition?.fields.map(f => f.key) ?? []
-    const linkKeys = isInvoiceLinkDrawn(state) ? [INVOICE_LINK_KEY] : []
+    const linkKey = drawnLinkKey(state)
+    const linkKeys = linkKey === null ? [] : [linkKey]
     return [...keys, ...linkKeys].some(key => state.form.getFieldState(key).invalid)
 }
 
@@ -401,11 +403,12 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     // kind's draft title) and offers Delete draft, and the next save is pressed after the
     // render this sets, so it reads the written draft.
     const [written, setWritten] = useState<Written | null>(null)
-    // A credit memo's invoice link is no field of the form. It changed when it differs from
-    // the link the document holds: the one a new form's written draft holds, else the one
-    // the form session started with (the stored memo's, or a new form's start link).
-    const invoiceLinkId = state.invoiceLink.id
-    const isLinkChanged = invoiceLinkId !== (written ? written.invoice : state.linkStart)
+    // The source link (a credit memo's invoice, a refund's sales receipt or credit memo) is
+    // no field of the form. It changed when it differs from the link the document holds:
+    // the one a new form's written draft holds, else the one the form session started with
+    // (the stored document's, or a new form's start link).
+    const { key: sourceLinkKey, id: sourceLinkId } = state.sourceLink
+    const isLinkChanged = sourceLinkId !== (written ? written.link : state.linkStart)
     // A field, a line or the link differs from what is stored: the leave guard, the PDF
     // tab's notice and the save's baseline.
     const isDirty = state.isDirty || isLinkChanged
@@ -518,8 +521,8 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             fields: Record<string, unknown>
             lines: LineWrite[]
             rows: Record<string, TableRow[]>
-            // The invoice link the insert writes ('' for none).
-            invoice: string
+            // The source link id the insert writes ('' for none).
+            link: string
             mode: SaveMode
             progress: Progress
             // Puts back the empty lines the save dropped (dropEmptyLines).
@@ -549,13 +552,13 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             state.create.form.reset(state.create.form.getValues())
             navigateAfter(id, mode)
         },
-        onError: (error, { id, rows, invoice, lines, progress, restoreLines }) => {
+        onError: (error, { id, rows, link, lines, progress, restoreLines }) => {
             // The draft is written and its attachments step failed or its post was
             // refused: it stays, and the notice or the refusal shows on this form, whose
             // next save updates it. The post is no line's write, so its refusal gets no
             // "Line n" label.
             if (progress.drafted) {
-                markWritten({ id, rows, revision: progress.revision, invoice })
+                markWritten({ id, rows, revision: progress.revision, link })
                 if (error instanceof AttachmentsNotSaved) showAttachmentsNotSaved(error)
                 else refuse({ error, rowLabel: null })
                 return
@@ -719,12 +722,15 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         if (isHeld) useDocumentSaveStore.getState().hold(id)
     }
 
-    // The estimate a new invoice names, and the invoice a credit memo is for, are no
-    // fields of the form: the insert writes them, and a credit memo's update writes its
-    // link when the form's differs from the stored one (Remove link, another customer).
+    // The estimate a new invoice names, and the source link (a credit memo's invoice, a
+    // refund's sales receipt or credit memo), are no fields of the form: the insert writes
+    // them, a correction of a linked document included, and an update writes the link's
+    // column (`sourceLink.key`) when the form's differs from the stored one (Remove link,
+    // another customer).
     const estimateColumn = state.estimate === '' ? {} : { estimate: state.estimate }
-    const invoiceColumn = invoiceLinkId === '' ? {} : { invoice: invoiceLinkId }
-    const linkPatch = isLinkChanged ? { invoice: invoiceLinkId } : {}
+    const hasLinkKey = sourceLinkKey !== ''
+    const linkColumn = hasLinkKey && sourceLinkId !== '' ? { [sourceLinkKey]: sourceLinkId } : {}
+    const linkPatch = hasLinkKey && isLinkChanged ? { [sourceLinkKey]: sourceLinkId } : {}
 
     const startCreate = async (mode: SaveMode, restoreLines: () => void) => {
         const split = await state.create.submit()
@@ -734,7 +740,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             ...columnsOrThrow(documentKind.columnsFrom, {
                 ...split.columns,
                 ...estimateColumn,
-                ...invoiceColumn,
+                ...linkColumn,
             }),
         }
         const id = newRecordId()
@@ -748,7 +754,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             fields: split.fields,
             lines: lineWrites(id, plans),
             rows: lineTableRowsOf(kind, split.tables),
-            invoice: invoiceLinkId,
+            link: sourceLinkId,
             mode,
             progress: newProgress(),
             restoreLines,
@@ -784,7 +790,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             lines,
             saw: draft.revision,
             onDrafted: revision =>
-                markWritten({ id: draft.id, rows, revision, invoice: invoiceLinkId }),
+                markWritten({ id: draft.id, rows, revision, link: sourceLinkId }),
             mode,
             progress: newProgress(),
             restoreLines,

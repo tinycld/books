@@ -22,7 +22,12 @@ import {
 import { FormProvider, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
 import { ScrollView, Text, View } from 'react-native'
 import { SELF_HINTED_FIELDS } from '../../forms/document-fields'
-import { type DocumentWrites, estimateNumberOf, expiredOnOf } from '../../hooks/document-data'
+import {
+    type DocumentWrites,
+    estimateNumberOf,
+    expiredOnOf,
+    payoutMemoOf,
+} from '../../hooks/document-data'
 import { useBackToEntries } from '../../hooks/useBackToEntries'
 import { useCopyEstimateLink } from '../../hooks/useCopyEstimateLink'
 import { useDeleteDraftDocument } from '../../hooks/useDeleteDraftDocument'
@@ -47,11 +52,18 @@ import { documentFormTitle } from '../../lib/document-form-title'
 import { canDeleteStatus, type DocumentStatus, quoteStatusOf } from '../../lib/document-lifecycle'
 import { bigFigureText } from '../../lib/document-messages'
 import type { DocumentTab } from '../../lib/document-routes'
+import {
+    linkSourceLabel,
+    payoutUnappliedText,
+    refundSourceLabel,
+    type SourceLinkKey,
+} from '../../lib/document-source-links'
 import { documentTaxOf, lineAmountViews, shownDocumentTotals } from '../../lib/document-tax'
 import { lineTableRows } from '../../lib/document-values'
 import { TOO_LARGE_TEXT } from '../../lib/entry-lines'
 import { formatMoney } from '../../lib/money'
 import { transactionKindOf } from '../../lib/party-transactions'
+import type { PayoutLimits } from '../../lib/refund-payout'
 import { todayIso } from '../../lib/register-range'
 import { documentConflictText } from '../../lib/revision'
 import { rootErrorOnly } from '../../lib/root-errors'
@@ -122,15 +134,45 @@ function drawnHintsOf(
     return Object.fromEntries(entries)
 }
 
+// Where the band is cut: before `row` (the field a kind's FormBandRow is drawn before;
+// null for a kind with none) and at `ruled` (the kind's `bandSplitAt`, the ruled row).
+type BandCuts = { row: string | null; ruled: string | null }
+
+// The band's fields in up to three parts (plan decision, checkpoint 4): with both cuts,
+// the fields before the row, the fields from the row up to the ruled row (`dates`), and
+// the ruled row; with only the row's cut, the fields before it and the rest, unruled (a
+// credit memo's band); with only `ruled`, the fields before it and the ruled row.
+function bandPartsOf(bandFields: DefinitionFields, cuts: BandCuts) {
+    const at = (key: string | null) => (key ? bandFields.findIndex(f => f.key === key) : -1)
+    const rowAt = at(cuts.row)
+    const ruledAt = at(cuts.ruled)
+    if (rowAt >= 0 && ruledAt > rowAt) {
+        return {
+            band: bandFields.slice(0, rowAt),
+            dates: bandFields.slice(rowAt, ruledAt),
+            second: bandFields.slice(ruledAt),
+            isSecondRuled: true,
+        }
+    }
+    const splitAt = rowAt >= 0 ? rowAt : ruledAt
+    if (splitAt < 0) return { band: bandFields, dates: [], second: [], isSecondRuled: false }
+    return {
+        band: bandFields.slice(0, splitAt),
+        dates: [],
+        second: bandFields.slice(splitAt),
+        isSecondRuled: rowAt < 0,
+    }
+}
+
 // The definition around the line tables: the header band (every field before the first
-// line table, an admin's custom fields included; split in two rows at the kind's
-// `bandSplitAt` when it names a band field), the lines (every field from the first line
-// table through the last, custom fields between them included, split per table), and
-// the footer (Message and Memo, with the totals: DocumentFooter). Each renderer validates
-// nothing itself: the core hooks build the whole definition's schema at save.
+// line table, an admin's custom fields included; cut in parts by bandPartsOf), the lines
+// (every field from the first line table through the last, custom fields between them
+// included, split per table), and the footer (Message and Memo, with the totals:
+// DocumentFooter). Each renderer validates nothing itself: the core hooks build the whole
+// definition's schema at save.
 function splitDefinition(
     definition: FormDefinition,
-    bandSplitAt: string | null,
+    cuts: BandCuts,
     lineTables: readonly DocumentLineTable[]
 ) {
     const part = (fields: DefinitionFields): FormDefinition => {
@@ -145,15 +187,20 @@ function splitDefinition(
     const first = tableAt[0]?.at ?? -1
     const last = tableAt[tableAt.length - 1]?.at ?? -1
     const bandFields = first < 0 ? fields : fields.slice(0, first)
-    const splitAt = bandSplitAt ? bandFields.findIndex(field => field.key === bandSplitAt) : -1
-    const band = splitAt < 0 ? bandFields : bandFields.slice(0, splitAt)
-    const bandSecond = splitAt < 0 ? [] : bandFields.slice(splitAt)
+    const bandParts = bandPartsOf(bandFields, cuts)
     const tables: LineTablePart[] = tableAt.map(({ table, at }, index) => {
         const end = index + 1 < tableAt.length ? tableAt[index + 1].at : last + 1
         return { table, definition: part(fields.slice(at, end)) }
     })
     const footer = first < 0 ? [] : fields.slice(last + 1)
-    return { band: part(band), bandSecond: part(bandSecond), tables, footer: part(footer) }
+    return {
+        band: part(bandParts.band),
+        bandDates: part(bandParts.dates),
+        bandSecond: part(bandParts.second),
+        isSecondRuled: bandParts.isSecondRuled,
+        tables,
+        footer: part(footer),
+    }
 }
 
 // The footer's fields the kind draws: no Message without the message feature.
@@ -331,28 +378,50 @@ type DeclineNoteTarget = { estimateId: string; status: BooksEstimates['status'] 
 interface BandProps {
     state: DocumentFormState
     first: FormDefinition
+    // The fields from the date up to the ruled row, on a kind with a FormBandRow and a
+    // ruled row (empty otherwise).
+    dates: FormDefinition
     second: FormDefinition
-    // The kind's row between the two parts (DocumentKind.FormBandRow), or undefined.
+    isSecondRuled: boolean
+    // The kind's row after the first part (DocumentKind.FormBandRow), or undefined.
     FormRow: ComponentType | undefined
     declineNote: DeclineNoteTarget | null
 }
 
 // The header band; a kind that splits it draws the fields from `bandSplitAt` on as a
-// second row inside it (`<test id>-payment`). A kind with a FormBandRow is split before
-// the date instead, and draws its row between the two parts with the band's row gap (a
-// field cell's bottom margin) above and below it, and no rule. A stored quote's customer
-// decline note sits directly under the last row.
-function DocumentBand({ state, first, second, FormRow, declineNote }: BandProps) {
+// ruled second row inside it (`<test id>-payment`). A kind with a FormBandRow is cut
+// before the date too, and draws its row after the first part with the band's row gap (a
+// field cell's bottom margin) above and below it. With no ruled row, the rest follows the
+// FormBandRow unruled (`<test id>-payment`); with one, the fields up to it follow unruled
+// (`<test id>-band-dates`), then the ruled row. A stored quote's customer decline note
+// sits directly under the last row.
+function DocumentBand(props: BandProps) {
+    const { state, first, dates, second, isSecondRuled, FormRow, declineNote } = props
     const { testId } = state.kind
-    const ids = { band: `${testId}-band`, form: `${testId}-band-form` }
+    const ids = {
+        band: `${testId}-band`,
+        form: `${testId}-band-form`,
+        dates: `${testId}-band-dates`,
+    }
     const middleRow = FormRow ? <FormRow /> : null
-    const isRuled = FormRow === undefined
     return (
         <View testID={ids.band} className={BAND_CLASS}>
             <PartRenderer state={state} definition={first} testID={ids.form} />
             {middleRow}
-            <BandSecondRow state={state} definition={second} isRuled={isRuled} />
+            <BandDatesRow state={state} definition={dates} testID={ids.dates} />
+            <BandSecondRow state={state} definition={second} isRuled={isSecondRuled} />
             <BandDeclineNote target={declineNote} />
+        </View>
+    )
+}
+
+// The band's unruled part between a FormBandRow and the ruled row: the row above ends
+// with the band's row gap, so it adds no margin.
+function BandDatesRow({ state, definition, testID }: RendererProps) {
+    if (definition.fields.length === 0) return null
+    return (
+        <View testID={testID}>
+            <PartRenderer state={state} definition={definition} testID={`${testID}-form`} />
         </View>
     )
 }
@@ -610,17 +679,61 @@ function QuoteSaveBar({ isVisible, ...props }: DocumentSaveBarProps & { isVisibl
 
 const PDF_HINT = formatHint(DOCUMENT_PDF_KEY).text
 
-// The link row's label for the invoice the form names: read from the invoice a new form
-// is made from (or a new correction keeps), or from the stored memo's `invoiceRow`; ''
-// when the form names none or the invoice is not read.
-function invoiceLinkLabelOf(data: DocumentScreenData, invoiceId: string): string {
-    if (invoiceId === '') return ''
-    const fields = data.record?.kindFields
-    const stored = fields?.kind === 'credit_memo' && fields.invoice === invoiceId
-    const invoice = stored ? fields.invoiceRow : undefined
-    const source = data.invoiceSource?.id === invoiceId ? data.invoiceSource : undefined
-    const named = invoice ?? source
-    return named ? invoiceLinkLabel(named) : ''
+// The stored document's own row of the source its link names: a credit memo's
+// `invoiceRow`, a refund's `salesReceiptRow` or `creditMemoRow`; undefined when the record
+// names another source (or none), or the row is not read.
+function storedLinkLabelOf(record: DocumentScreenData['record'], id: string): string | undefined {
+    const fields = record?.kindFields
+    if (fields?.kind === 'credit_memo' && fields.invoice === id) {
+        return fields.invoiceRow ? invoiceLinkLabel(fields.invoiceRow) : undefined
+    }
+    if (fields?.kind !== 'refund_receipt') return undefined
+    if (fields.sales_receipt === id && fields.salesReceiptRow) {
+        const { number, status } = fields.salesReceiptRow
+        return refundSourceLabel({ key: 'sales_receipt', number, status })
+    }
+    if (fields.credit_memo === id && fields.creditMemoRow) {
+        const { number, status } = fields.creditMemoRow
+        return refundSourceLabel({ key: 'credit_memo', number, status })
+    }
+    return undefined
+}
+
+// The link row's label for the source the form names: a payout's memo ("Pays out credit
+// memo 1001", from its limits, which exist only while the memo is posted); else read from
+// the stored document's source row, or from the source a new form is made from (or a new
+// correction keeps); '' when the form names none. While a refund's source row is not read
+// yet, its words with the number part empty.
+function sourceLinkLabelOf(
+    data: DocumentScreenData,
+    link: { key: SourceLinkKey | ''; id: string },
+    payout: PayoutLimits | null
+): string {
+    const { key, id } = link
+    if (key === '' || id === '') return ''
+    if (payout) {
+        return refundSourceLabel({
+            key: 'credit_memo',
+            number: payout.memoNumber,
+            status: 'posted',
+        })
+    }
+    const stored = storedLinkLabelOf(data.record, id)
+    if (stored !== undefined) return stored
+    const source = data.linkSource?.row.id === id ? data.linkSource : undefined
+    if (source) return linkSourceLabel(source)
+    if (key === 'invoice') return ''
+    return refundSourceLabel({ key, number: '', status: '' }).trimEnd()
+}
+
+// The plain text the link row draws after the link: a payout's unapplied credit
+// (" · $250.00 unapplied", from its limits); '' for every other link and a form with none.
+function sourceLinkDetailOf(
+    link: { key: SourceLinkKey | ''; id: string },
+    payout: PayoutLimits | null
+): string {
+    if (link.key === '' || link.id === '' || !payout) return ''
+    return payoutUnappliedText(payout.unapplied, payout.currency)
 }
 
 // The estimate a stored invoice was made from; '' for any other record.
@@ -753,6 +866,7 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
         start: data.start,
         deposit: data.deposit,
         defaultMessage: data.defaultMessage,
+        payoutMemo: payoutMemoOf(data.record, data.linkSource),
     })
     const form = state.form as EngineForm
     // A save from the PDF tab that ends with a field error shows the form, where the
@@ -785,11 +899,12 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
     const instanceId = useId()
     const bandKey = `${data.formKey}#${instanceId}`
     const partyFills = documentKind.partyFills
-    const { id: invoiceLinkId, remove: removeInvoiceLink } = state.invoiceLink
-    const invoiceLinkText = invoiceLinkLabelOf(data, invoiceLinkId)
-    const invoiceLink = useMemo(
-        () => ({ id: invoiceLinkId, label: invoiceLinkText, remove: removeInvoiceLink }),
-        [invoiceLinkId, invoiceLinkText, removeInvoiceLink]
+    const heldLink = state.sourceLink
+    const sourceLinkText = sourceLinkLabelOf(data, heldLink, state.payout)
+    const sourceLinkDetail = sourceLinkDetailOf(heldLink, state.payout)
+    const sourceLink = useMemo(
+        () => ({ ...heldLink, label: sourceLinkText, detail: sourceLinkDetail }),
+        [heldLink, sourceLinkText, sourceLinkDetail]
     )
     const hints = useMemo(
         () => drawnHintsOf(state.definition, state.host),
@@ -809,7 +924,7 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
             expiredOn,
             estimateNumber,
             estimateId,
-            invoiceLink,
+            sourceLink,
             hints,
         }),
         [
@@ -825,7 +940,7 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
             expiredOn,
             estimateNumber,
             estimateId,
-            invoiceLink,
+            sourceLink,
             hints,
         ]
     )
@@ -900,15 +1015,14 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
         canDownloadPdf: pdf.canDownload,
         downloadPdf: pdf.run,
     })
-    // A kind with a row inside the band (FormBandRow) splits it before the date.
-    const bandSplitAt = documentKind.FormBandRow ? FORM_BAND_ROW_BEFORE : kind.bandSplitAt
-    const parts = useMemo(
-        () =>
-            state.definition
-                ? splitDefinition(state.definition, bandSplitAt, kind.lineTables)
-                : null,
-        [state.definition, bandSplitAt, kind.lineTables]
-    )
+    // A kind with a row inside the band (FormBandRow) cuts it before the date too.
+    const bandRowBefore = documentKind.FormBandRow ? FORM_BAND_ROW_BEFORE : null
+    const bandSplitAt = kind.bandSplitAt
+    const parts = useMemo(() => {
+        if (!state.definition) return null
+        const cuts = { row: bandRowBefore, ruled: bandSplitAt }
+        return splitDefinition(state.definition, cuts, kind.lineTables)
+    }, [state.definition, bandRowBefore, bandSplitAt, kind.lineTables])
 
     if (!state.isReady || !parts) return <DocumentLoading />
 
@@ -1024,7 +1138,9 @@ export function DocumentForm({ data, tab, onReload, attachmentSession }: Documen
                                     <DocumentBand
                                         state={state}
                                         first={parts.band}
+                                        dates={parts.bandDates}
                                         second={parts.bandSecond}
+                                        isSecondRuled={parts.isSecondRuled}
                                         FormRow={documentKind.FormBandRow}
                                         declineNote={declineNote}
                                     />

@@ -1,6 +1,11 @@
 import type { TableRow } from '@tinycld/core/lib/forms/values'
 import { describe, expect, it } from 'vitest'
 import { REFUND_RECEIPT_DOCUMENT } from '../tinycld/books/components/documents/document-kinds'
+import {
+    CREDIT_MEMO_IDS,
+    CREDIT_MEMO_LINES,
+    CREDIT_MEMOS,
+} from '../tinycld/books/lib/credit-memo-form-fixture'
 import { CUSTOMER_IDS, CUSTOMERS } from '../tinycld/books/lib/customer-form-fixture'
 import type { DepositAccountRow } from '../tinycld/books/lib/deposit-accounts'
 import { type CustomerFill, customerFills } from '../tinycld/books/lib/document-fills'
@@ -20,7 +25,13 @@ import {
     refundFromStart,
     refundReceiptCorrectionValues,
 } from '../tinycld/books/lib/refund-receipt-values'
+import {
+    SALES_RECEIPT_IDS,
+    SALES_RECEIPT_LINES,
+    SALES_RECEIPTS,
+} from '../tinycld/books/lib/sales-receipt-form-fixture'
 import { TAX_IDS, TAX_RATE_ROWS } from '../tinycld/books/lib/tax-rates-fixture'
+import type { BooksCustomers } from '../tinycld/books/types'
 
 // Refund receipt spec §3.2 (Refund from), §3.6 (Q8), §3.8 (Copy, Edit).
 
@@ -75,6 +86,18 @@ function posted1001() {
         (a, b) => a.position - b.position
     )
     if (lines.length === 0) throw new Error('posted 1001 has no lines in the fixture')
+    return { refund, lines }
+}
+
+// The posted payout 1005 (part of credit memo 1001) and its lines in position order.
+function payout1005() {
+    const refund = REFUND_RECEIPTS.find(r => r.id === REFUND_RECEIPT_IDS.payout)
+    if (!refund) throw new Error('no payout 1005 in the refund receipt fixture')
+    expect(refund.credit_memo).not.toBe('')
+    const lines = REFUND_RECEIPT_LINES.filter(l => l.refund_receipt === refund.id).sort(
+        (a, b) => a.position - b.position
+    )
+    if (lines.length === 0) throw new Error('payout 1005 has no lines in the fixture')
     return { refund, lines }
 }
 
@@ -277,6 +300,19 @@ describe('copyRefundReceiptValues', () => {
         expect((values as { replaces?: string }).replaces ?? '').toBe('')
     })
 
+    it('makes a plain refund with no link from a payout', () => {
+        const { refund, lines } = payout1005()
+        const values = copyRefundReceiptValues(
+            refund,
+            lines,
+            COPY_DAY,
+            harborview(),
+            refundFromStart(ACCOUNTS)
+        )
+        expect(values.credit_memo).toBe('')
+        expect(values.sales_receipt).toBe('')
+    })
+
     it("keeps the source's Refund from while it is active, else takes the default", () => {
         const { refund, lines } = posted1001()
         const fromSavings = { ...refund, refund_from: SAVINGS }
@@ -301,6 +337,21 @@ describe('copyRefundReceiptValues', () => {
 })
 
 describe('refundReceiptCorrectionValues', () => {
+    it('keeps the sales receipt link of a refund made from one', () => {
+        const { refund, lines } = posted1001()
+        expect(refund.sales_receipt).not.toBe('')
+        const values = refundReceiptCorrectionValues(refund, lines)
+        expect(values.sales_receipt).toBe(refund.sales_receipt)
+        expect(values.credit_memo).toBe('')
+    })
+
+    it('keeps the credit memo link of a payout', () => {
+        const { refund, lines } = payout1005()
+        const values = refundReceiptCorrectionValues(refund, lines)
+        expect(values.credit_memo).toBe(refund.credit_memo)
+        expect(values.sales_receipt).toBe('')
+    })
+
     it('keeps every column of the posted refund, memo, reference and date included', () => {
         const { refund, lines } = posted1001()
         const values = refundReceiptCorrectionValues(refund, lines)
@@ -325,5 +376,203 @@ describe('refundReceiptCorrectionValues', () => {
         const { refund, lines } = posted1001()
         const values = refundReceiptCorrectionValues({ ...refund, refund_from: SAVINGS }, lines)
         expect(values.refund_from).toBe(SAVINGS)
+    })
+})
+
+// The customer row a source's form reads (DOCUMENT_PARTIES.customer), with the server's
+// columns the fixture leaves out.
+function customerRow(id: string): BooksCustomers {
+    const row = CUSTOMERS.find(c => c.id === id)
+    if (!row) throw new Error(`no customer ${id} in the fixture`)
+    return { ...row, name_key: row.display_name.toLowerCase(), sort_key: '' }
+}
+
+function refundStart(accounts: readonly DepositAccountRow[]) {
+    return { kind: 'refund_receipt' as const, refundFrom: refundFromStart(accounts) }
+}
+
+function fromSourceOf() {
+    const fromSource = REFUND_RECEIPT_DOCUMENT.values.fromSource
+    if (!fromSource) throw new Error('the refund receipt kind has no fromSource')
+    return fromSource
+}
+
+// "Refund" on sales receipt 1004: Check, deposited to 1200 Undeposited funds, with a
+// reference no., a message and a memo the refund does not take.
+function receipt1004() {
+    const receipt = SALES_RECEIPTS.find(r => r.id === SALES_RECEIPT_IDS.posted)
+    if (!receipt) throw new Error('no sales receipt 1004 in the fixture')
+    const lines = SALES_RECEIPT_LINES.filter(l => l.sales_receipt === receipt.id).sort(
+        (a, b) => a.position - b.position
+    )
+    if (lines.length === 0) throw new Error('sales receipt 1004 has no lines in the fixture')
+    return { receipt, lines }
+}
+
+// "Refund credit" on credit memo 1001 (Harborview, dated 2026-11-10, Denver combined).
+function memo1001() {
+    const memo = CREDIT_MEMOS.find(m => m.id === CREDIT_MEMO_IDS.posted)
+    if (!memo) throw new Error('no credit memo 1001 in the fixture')
+    const lines = CREDIT_MEMO_LINES.filter(l => l.credit_memo === memo.id).sort(
+        (a, b) => a.position - b.position
+    )
+    if (lines.length === 0) throw new Error('credit memo 1001 has no lines in the fixture')
+    return { memo, lines }
+}
+
+function expectCopiedLines(
+    rows: TableRow[],
+    lines: ReadonlyArray<Parameters<typeof storedCells>[0] & { id: string }>
+) {
+    expect(rows).toHaveLength(lines.length)
+    rows.forEach((row, index) => {
+        expect(storedCells(DOCUMENT_LINE_MAPPER.toRecord(row, index)), `line ${index + 1}`).toEqual(
+            storedCells(lines[index])
+        )
+    })
+    const storedIds = new Set(lines.map(line => line.id))
+    expect(rows.map(row => String(row.id)).filter(id => storedIds.has(id))).toEqual([])
+}
+
+describe('refundValuesFromSalesReceipt (fromSource of a sales receipt)', () => {
+    it("takes the receipt's customer, Bill to, Email, Tax, payment method and every line", () => {
+        const { receipt, lines } = receipt1004()
+        const values = fromSourceOf()(
+            { key: 'sales_receipt', row: receipt },
+            lines,
+            TODAY,
+            customerRow(receipt.customer),
+            refundStart(ACCOUNTS)
+        )
+        expect(values.customer).toBe(receipt.customer)
+        expect(values.bill_to).toEqual(receipt.bill_to)
+        expect(values.email).toBe(receipt.email)
+        expect(values.tax_rate).toBe(receipt.tax_rate)
+        expect(values.payment_method).toBe('check')
+        expectCopiedLines(values.lines as TableRow[], lines)
+    })
+
+    it('is dated today with no reference no., message or memo, and names the receipt', () => {
+        const { receipt, lines } = receipt1004()
+        expect(receipt.reference_no).not.toBe('')
+        expect(receipt.message).not.toBe('')
+        expect(receipt.memo).not.toBe('')
+        const values = fromSourceOf()(
+            { key: 'sales_receipt', row: receipt },
+            lines,
+            TODAY,
+            customerRow(receipt.customer),
+            refundStart(ACCOUNTS)
+        )
+        expect(values.date).toBe(TODAY)
+        expect(values.reference_no).toBe('')
+        expect(values.message).toBe('')
+        expect(values.memo).toBe('')
+        expect(values.sales_receipt).toBe(receipt.id)
+        expect(values.credit_memo ?? '').toBe('')
+        expect(values.replaces ?? '').toBe('')
+    })
+
+    it("refunds from the receipt's deposit account while it is active, else the default", () => {
+        const { receipt, lines } = receipt1004()
+        expect(receipt.deposit_to).toBe(UNDEPOSITED)
+        const kept = fromSourceOf()(
+            { key: 'sales_receipt', row: receipt },
+            lines,
+            TODAY,
+            customerRow(receipt.customer),
+            refundStart(ACCOUNTS)
+        )
+        expect(kept.refund_from).toBe(UNDEPOSITED)
+        const undepositedInactive = ACCOUNTS.map(a =>
+            a.id === UNDEPOSITED ? { ...a, inactive: true } : a
+        )
+        const replaced = fromSourceOf()(
+            { key: 'sales_receipt', row: receipt },
+            lines,
+            TODAY,
+            customerRow(receipt.customer),
+            refundStart(undepositedInactive)
+        )
+        expect(replaced.refund_from).toBe(CHECKING)
+    })
+
+    it('starts with no customer from a walk-in receipt', () => {
+        const walkIn = SALES_RECEIPTS.find(r => r.id === SALES_RECEIPT_IDS.walkIn)
+        if (!walkIn) throw new Error('no walk-in sales receipt in the fixture')
+        const lines = SALES_RECEIPT_LINES.filter(l => l.sales_receipt === walkIn.id).sort(
+            (a, b) => a.position - b.position
+        )
+        const values = fromSourceOf()(
+            { key: 'sales_receipt', row: walkIn },
+            lines,
+            TODAY,
+            null,
+            refundStart(ACCOUNTS)
+        )
+        expect(values.customer).toBe('')
+        expect(values.payment_method).toBe('cash')
+        expect(values.refund_from).toBe(walkIn.deposit_to)
+        expect(values.sales_receipt).toBe(walkIn.id)
+    })
+})
+
+describe('refundValuesFromCreditMemo (fromSource of a credit memo)', () => {
+    it("takes the memo's customer, Bill to, Email, Tax and every line, and names the memo", () => {
+        const { memo, lines } = memo1001()
+        const values = fromSourceOf()(
+            { key: 'credit_memo', row: memo },
+            lines,
+            TODAY,
+            customerRow(memo.customer),
+            refundStart(ACCOUNTS)
+        )
+        expect(values.customer).toBe(memo.customer)
+        expect(values.bill_to).toEqual(memo.bill_to)
+        expect(values.email).toBe(memo.email)
+        expect(values.tax_rate).toBe(memo.tax_rate)
+        expectCopiedLines(values.lines as TableRow[], lines)
+        expect(values.credit_memo).toBe(memo.id)
+        expect(values.sales_receipt ?? '').toBe('')
+        expect(values.replaces ?? '').toBe('')
+    })
+
+    it('takes the default Refund from, no payment method, no reference, message or memo', () => {
+        const { memo, lines } = memo1001()
+        expect(memo.message).not.toBe('')
+        const values = fromSourceOf()(
+            { key: 'credit_memo', row: memo },
+            lines,
+            TODAY,
+            customerRow(memo.customer),
+            refundStart(ACCOUNTS)
+        )
+        expect(values.refund_from).toBe(CHECKING)
+        expect(values.payment_method).toBe('')
+        expect(values.reference_no).toBe('')
+        expect(values.message).toBe('')
+        expect(values.memo).toBe('')
+    })
+
+    it("is dated today, or the memo's date when that is later", () => {
+        const { memo, lines } = memo1001()
+        expect(memo.date < TODAY).toBe(true)
+        const today = fromSourceOf()(
+            { key: 'credit_memo', row: memo },
+            lines,
+            TODAY,
+            customerRow(memo.customer),
+            refundStart(ACCOUNTS)
+        )
+        expect(today.date).toBe(TODAY)
+        const later = '2026-11-25'
+        const memoDay = fromSourceOf()(
+            { key: 'credit_memo', row: { ...memo, date: later } },
+            lines,
+            TODAY,
+            customerRow(memo.customer),
+            refundStart(ACCOUNTS)
+        )
+        expect(memoDay.date).toBe(later)
     })
 })

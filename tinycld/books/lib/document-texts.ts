@@ -268,12 +268,23 @@ export const REFUND_RECEIPT_MESSAGES = {
     // The notices at `?sales_receipt=` and `?credit_memo=` of a source that cannot be refunded.
     cannotRefundReceipt: 'This sales receipt cannot be refunded',
     cannotRefundMemo: 'This credit memo cannot be refunded',
+    // A payout's cap and date rule (spec §3.3; Go msgRefundAboveCredit and
+    // msgRefundBeforeCredit, the same words): the unapplied credit as money and the memo's
+    // number; the memo's day as "Nov 12, 2026".
+    payoutAboveCredit: 'The refund is more than the unapplied credit of %s on credit memo %s.',
+    payoutBeforeCredit: "Date the refund on or after the credit memo's date, %s.",
+    // The notice under a payout's link row in the form (spec §3.3).
+    payoutNotice:
+        'This refund pays out a credit. It lowers what Books owes the customer; income and sales tax were lowered by the credit memo.',
 } as const satisfies DocumentMessages & {
     zeroTotal: string
     voidBody: string
     payoutVoidBody: string
     cannotRefundReceipt: string
     cannotRefundMemo: string
+    payoutAboveCredit: string
+    payoutBeforeCredit: string
+    payoutNotice: string
 }
 
 // The bill's texts. The first group is shown by the client and refused by the server with
