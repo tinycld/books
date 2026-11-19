@@ -129,6 +129,7 @@ func TestReceivableItemsRefuseWrites(t *testing.T) {
 	url := "/api/collections/" + receivableItemsCollection + "/records/" + row.ID
 	super, reader := tokenFor(t, mkSuperuser(t, b.app)), tokenFor(t, b.reader)
 	apiSeq(t, b.app,
+		apiReq{method: http.MethodPost, url: "/api/collections/" + receivableItemsCollection + "/records", token: super, body: `{"source":"line","debit":1}`, want: http.StatusBadRequest, content: []string{msgReceivableItemsReadOnly}},
 		apiReq{method: http.MethodPatch, url: url, token: super, body: `{"debit":1}`, want: http.StatusBadRequest, content: []string{msgReceivableItemsReadOnly}},
 		apiReq{method: http.MethodDelete, url: url, token: super, want: http.StatusBadRequest, content: []string{msgReceivableItemsReadOnly}},
 		apiReq{method: http.MethodDelete, url: url, token: reader, want: http.StatusForbidden},
@@ -148,7 +149,7 @@ func TestRebuildRoute_RepairsReceivables(t *testing.T) {
 	apiReq{
 		method: http.MethodPost, url: "/api/books/balances/rebuild",
 		token: tokenFor(t, b.docs.users.admin), want: http.StatusOK, before: bindBalanceRoutes,
-		content: []string{`"receivableDrifts":[{"id":"` + row.ID + `"`, `"problem":"missing"`, `"problem":"stale"`},
+		content: []string{`"receivableDrifts":[{"id":"` + row.ID + `"`, `"problem":"missing"`, `"problem":"stale"`, `"receivableDriftCount":2`},
 	}.run(t, b.app)
 	requireNoReceivableDrift(t, b.app)
 }

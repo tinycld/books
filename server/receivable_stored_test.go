@@ -201,6 +201,26 @@ func TestVerifyReceivablesFindsDrift(t *testing.T) {
 	requireRebuilt(t, b.app)
 }
 
+// The route answers with at most maxReceivableDriftsReported rows and the full
+// count, as for the journal lines and the cash-basis rows.
+func TestReceivableDriftReport_IsCapped(t *testing.T) {
+	drifts := make([]ReceivableDrift, maxReceivableDriftsReported+2)
+	for i := range drifts {
+		drifts[i].ID = fmt.Sprintf("row%03d", i)
+	}
+	listed, count := receivableDriftReport(drifts)
+	if len(listed) != maxReceivableDriftsReported || count != maxReceivableDriftsReported+2 {
+		t.Fatalf("listed %d, count %d; want %d and %d", len(listed), count, maxReceivableDriftsReported, maxReceivableDriftsReported+2)
+	}
+	if listed[0].ID != "row000" {
+		t.Errorf("first listed = %q, want the first drift", listed[0].ID)
+	}
+	few, n := receivableDriftReport(drifts[:3])
+	if len(few) != 3 || n != 3 {
+		t.Fatalf("listed %d, count %d; want 3 and 3", len(few), n)
+	}
+}
+
 // settleReceivables with a pair list fixes only the rows of those customers and
 // items (a blank customer is the rows with no customer), returns how many rows
 // it changed, and walks a list longer than receivablePairChunk in chunks.

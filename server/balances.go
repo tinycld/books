@@ -196,6 +196,16 @@ func cashDriftReport(drifts []CashBasisDrift) (listed []CashBasisDrift, count in
 	return drifts, len(drifts)
 }
 
+// receivableDriftReport is the stored-receivable part of the rebuild route's
+// answer: the first maxReceivableDriftsReported rows that drifted and the count
+// of all.
+func receivableDriftReport(drifts []ReceivableDrift) (listed []ReceivableDrift, count int) {
+	if len(drifts) > maxReceivableDriftsReported {
+		return drifts[:maxReceivableDriftsReported], len(drifts)
+	}
+	return drifts, len(drifts)
+}
+
 // rebuildBalances makes every month row equal the ledger, every invoice's and
 // bill's balance equal its total less the posted payments that pay it (the
 // verify part of the document balances is verifyDocumentBalances), and every
@@ -303,10 +313,11 @@ func bindBalanceRoutes(e *core.ServeEvent) {
 		}
 		listed, count := lineDriftReport(lineDrifts)
 		cashListed, cashCount := cashDriftReport(cashDrifts)
+		receivableListed, receivableCount := receivableDriftReport(receivableDrifts)
 		return re.JSON(http.StatusOK, map[string]any{
 			"fixed": fixed, "lineDrifts": listed, "lineDriftCount": count,
 			"cashDrifts": cashListed, "cashDriftCount": cashCount,
-			"receivableDrifts": receivableDrifts,
+			"receivableDrifts": receivableListed, "receivableDriftCount": receivableCount,
 		})
 	})
 }
