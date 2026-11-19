@@ -1,0 +1,196 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "sales-lists-refund-receipts",
+            "widths": [1280],
+            "url": "/a/books/refund-receipts",
+            "ready": "sales-list",
+            "height": 900,
+            "actions": [
+                { "waitFor": "sales-tab-refund-receipts" },
+                { "waitForHidden": "sales-loading" },
+                { "waitFor": "sales-table" },
+                { "waitFor": "Aspen Ridge Dental" },
+                { "click": "sales-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./sales-lists-refund-receipts",
+            "widths": [390],
+            "url": "/a/books/refund-receipts",
+            "ready": "sales-list",
+            "height": 844,
+            "actions": [
+                { "waitFor": "sales-tab-refund-receipts" },
+                { "waitForHidden": "sales-loading" },
+                { "waitFor": "sales-cards" },
+                { "click": "sales-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "customer-transactions-refunds",
+            "widths": [1280],
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "height": 1000,
+            "actions": [
+                { "fill": "customers-search", "value": "Harborview" },
+                { "clickText": "Harborview Hospitality Group" },
+                { "waitFor": "customer-tab-transactions" },
+                { "click": "customer-tab-transactions" },
+                { "waitFor": "customer-transactions" },
+                { "waitForHidden": "customer-transactions-loading" },
+                { "click": "customer-transactions-filter-refund-receipt" },
+                { "waitFor": "Refunded" },
+                { "click": "customer-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./customer-transactions-refunds",
+            "widths": [390],
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "height": 1000,
+            "actions": [
+                { "fill": "customers-search", "value": "Harborview" },
+                { "clickText": "Harborview Hospitality Group" },
+                { "waitFor": "customer-tab-transactions" },
+                { "click": "customer-tab-transactions" },
+                { "waitFor": "customer-transactions" },
+                { "waitForHidden": "customer-transactions-loading" },
+                { "click": "customer-transactions-filter-refund-receipt" },
+                { "waitFor": "Refunded" },
+                { "click": "customer-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "sales-tax-liability-refund",
+            "widths": [1280],
+            "url": "/a/books/taxes",
+            "ready": "taxes-liability-report",
+            "height": 1600,
+            "actions": [
+                { "click": "taxes-liability-report" },
+                { "waitFor": "report-screen" },
+                {
+                    "pushPath": "/a/reports/$urlId?p-period=2026-11-01..2026-11-30&p-method=accrual"
+                },
+                { "waitFor": "report-screen" },
+                { "waitFor": "Denver city" },
+                { "clickText": "Denver city" },
+                { "pause": 1500 },
+                { "click": "report-title" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "./sales-tax-liability-refund",
+            "widths": [390],
+            "url": "/a/books/taxes",
+            "ready": "taxes-liability-report",
+            "height": 2400,
+            "actions": [
+                { "click": "taxes-liability-report" },
+                { "waitFor": "report-screen" },
+                {
+                    "pushPath": "/a/reports/$urlId?p-period=2026-11-01..2026-11-30&p-method=accrual"
+                },
+                { "waitFor": "report-screen" },
+                { "waitFor": "Denver city" },
+                { "clickText": "Denver city" },
+                { "pause": 1500 },
+                { "click": "report-title" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "help-refund-receipts",
+            "widths": [1280],
+            "url": "/a/help",
+            "height": 1800,
+            "actions": [
+                { "fillLabel": "Search help topics", "value": "Refund receipts" },
+                { "clickText": "Refund receipts" },
+                { "waitFor": "Refund a sale" },
+                { "clickText": "Refund a sale" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./help-refund-receipts",
+            "widths": [390],
+            "url": "/a/help",
+            "height": 2400,
+            "actions": [
+                { "fillLabel": "Search help topics", "value": "Refund receipts" },
+                { "clickText": "Refund receipts" },
+                { "waitFor": "Refund a sale" },
+                { "clickText": "Refund a sale" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "customer-transactions-memo-refunded",
+            "widths": [1280],
+            "url": "/a/books/credit-memos/new",
+            "ready": "credit-memo-form",
+            "height": 1000,
+            "actions": [
+                { "click": "form-input-customer" },
+                { "fill": "form-input-customer-search", "value": "Aspen Ridge Dental" },
+                { "clickMenuItem": "Aspen Ridge Dental" },
+                { "waitForHidden": "form-input-customer-search" },
+                { "clickLabel": "Product or service, row 1, line 1" },
+                { "clickMenuItem": "Year-end tax preparation" },
+                { "fill": "form-input-memo", "value": "Capture cp5 memo refunded in full" },
+                { "pause": 300 },
+                { "click": "credit-memo-post" },
+                { "waitFor": "credit-memo-read-only" },
+                { "click": "credit-memo-read-refund-credit" },
+                { "waitFor": "refund-receipt-form" },
+                { "waitFor": "refund-receipt-payout-notice" },
+                { "fill": "form-input-memo", "value": "Capture cp5 payout of the whole credit" },
+                { "pause": 300 },
+                { "click": "refund-receipt-post" },
+                { "waitFor": "refund-receipt-read-only" },
+                { "click": "books-nav-lists" },
+                { "click": "books-list-card-customers" },
+                { "waitFor": "customers-list" },
+                { "fill": "customers-search", "value": "Aspen Ridge" },
+                { "clickText": "Aspen Ridge Dental" },
+                { "waitFor": "customer-tab-transactions" },
+                { "click": "customer-tab-transactions" },
+                { "waitFor": "customer-transactions" },
+                { "waitForHidden": "customer-transactions-loading" },
+                { "click": "customer-transactions-filter-credit-memo" },
+                { "waitFor": "Refunded" },
+                { "click": "customer-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./customer-transactions-memo-refunded",
+            "widths": [390],
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "height": 1000,
+            "actions": [
+                { "fill": "customers-search", "value": "Aspen Ridge" },
+                { "clickText": "Aspen Ridge Dental" },
+                { "waitFor": "customer-tab-transactions" },
+                { "click": "customer-tab-transactions" },
+                { "waitFor": "customer-transactions" },
+                { "waitForHidden": "customer-transactions-loading" },
+                { "click": "customer-transactions-filter-credit-memo" },
+                { "waitFor": "Refunded" },
+                { "click": "customer-title" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}

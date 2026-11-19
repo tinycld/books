@@ -156,6 +156,32 @@ describe('batchTargets', () => {
         expect(result.skipped).toBe(1)
     })
 
+    // Refund receipt spec §3.13: batch actions as the sales receipts tab.
+    it.each([
+        'draft',
+        'posted',
+        'void',
+    ])('a %s refund receipt takes the batch actions a sales receipt of that status takes', status => {
+        for (const action of ['delete_drafts', 'void'] as const) {
+            const refundRow = row('refund_receipt', status)
+            const receiptRow = row('sales_receipt', status)
+            const refund = batchTargets(action, [refundRow])
+            const receipt = batchTargets(action, [receiptRow])
+            expect(
+                refund.applies.some(r => r.id === refundRow.id),
+                `${action} on a ${status} refund`
+            ).toBe(receipt.applies.some(r => r.id === receiptRow.id))
+            expect(refund.skipped).toBe(receipt.skipped)
+        }
+    })
+
+    it('void applies to a posted refund receipt and delete_drafts to a draft one', () => {
+        const posted = row('refund_receipt', 'posted')
+        const draft = row('refund_receipt', 'draft')
+        expect(ids(batchTargets('void', [posted, draft]).applies)).toEqual([posted.id])
+        expect(ids(batchTargets('delete_drafts', [posted, draft]).applies)).toEqual([draft.id])
+    })
+
     it('an action that applies to none skips every ticked document', () => {
         const result = batchTargets('void', [row('estimate', 'pending'), row('invoice', 'draft')])
         expect(result.applies).toEqual([])

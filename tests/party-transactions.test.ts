@@ -19,6 +19,8 @@ import {
     type PartyTransactionRow,
     partyFilterTestId,
     paymentRow,
+    refundReceiptRow,
+    refundReceiptStatus,
     salesReceiptRow,
     TRANSACTION_DOC_KINDS,
     TRANSACTION_FILTERS,
@@ -263,10 +265,28 @@ describe('creditMemoStatus', () => {
         })
     })
 
-    it('a posted memo with no credit left is Applied, success', () => {
+    it('a posted memo with no credit left is Refunded, success', () => {
         expect(creditMemoStatus({ status: 'posted', balance: 0 })).toEqual({
-            label: 'Applied',
+            label: 'Refunded',
             tone: 'success',
+        })
+    })
+
+    it('a posted memo partly refunded is still Unapplied, warning', () => {
+        expect(creditMemoStatus({ status: 'posted', balance: 1 })).toEqual({
+            label: 'Unapplied',
+            tone: 'warning',
+        })
+    })
+
+    it('a draft or void memo keeps its status whatever the balance', () => {
+        expect(creditMemoStatus({ status: 'draft', balance: 25_000 })).toEqual({
+            label: 'Draft',
+            tone: 'muted',
+        })
+        expect(creditMemoStatus({ status: 'void', balance: 25_000 })).toEqual({
+            label: 'Void',
+            tone: 'muted',
         })
     })
 
@@ -327,8 +347,8 @@ describe('the credit memo kind', () => {
         )
     })
 
-    it('has the last chip, Credit memos, after Payments', () => {
-        expect(TRANSACTION_FILTERS.slice(-2)).toEqual([
+    it('has the chip Credit memos after Payments', () => {
+        expect(TRANSACTION_FILTERS.slice(-3, -1)).toEqual([
             { key: 'payment', label: 'Payments' },
             { key: 'credit_memo', label: 'Credit memos' },
         ])
@@ -355,6 +375,95 @@ describe('the credit memo kind', () => {
         const ids = rows.map(r => r.id)
         expect(ids.indexOf(memo.id)).toBe(ids.indexOf('cpsr00000000077') + 1)
         expect(ids.indexOf('cpinv0000001041')).toBe(ids.indexOf(memo.id) + 1)
+    })
+})
+
+// The customer page's sixth kind (refund receipt spec §3.13).
+const POSTED_REFUND = {
+    id: 'rrtest000001003',
+    status: 'posted' as const,
+    number: '1003',
+    date: '2026-11-12',
+    total: 15_000,
+    currency: 'USD',
+    created: '2026-11-12 09:00:00.000Z',
+}
+const DRAFT_REFUND = {
+    ...POSTED_REFUND,
+    id: 'rrtestdraft0001',
+    status: 'draft' as const,
+    number: '',
+}
+
+describe('refundReceiptStatus', () => {
+    it('a draft is Draft, muted', () => {
+        expect(refundReceiptStatus({ status: 'draft' })).toEqual({ label: 'Draft', tone: 'muted' })
+    })
+
+    it('a posted refund is Refunded, success', () => {
+        expect(refundReceiptStatus({ status: 'posted' })).toEqual({
+            label: 'Refunded',
+            tone: 'success',
+        })
+    })
+
+    it('a void refund is Void, muted', () => {
+        expect(refundReceiptStatus({ status: 'void' })).toEqual({ label: 'Void', tone: 'muted' })
+    })
+})
+
+describe('refundReceiptRow', () => {
+    it('maps a posted refund to one row of kind refund_receipt, its total negated', () => {
+        expect(refundReceiptRow(POSTED_REFUND)).toEqual({
+            id: POSTED_REFUND.id,
+            kind: 'refund_receipt',
+            number: '1003',
+            date: '2026-11-12',
+            dueDate: '',
+            total: -15_000,
+            currency: 'USD',
+            created: POSTED_REFUND.created,
+            status: { label: 'Refunded', tone: 'success' },
+        })
+    })
+
+    it('writes its total with U+2212 in front', () => {
+        const text = transactionTotalText(refundReceiptRow(POSTED_REFUND), 'USD')
+        expect(text).toBe(`${MINUS}$150.00`)
+        expect(text.startsWith('-')).toBe(false)
+    })
+
+    it('a draft has an empty No. and reads Draft', () => {
+        const row = refundReceiptRow(DRAFT_REFUND)
+        expect(row.number).toBe('')
+        expect(row.total).toBe(-15_000)
+        expect(row.status).toEqual({ label: 'Draft', tone: 'muted' })
+    })
+
+    it('a void refund reads Void', () => {
+        expect(refundReceiptRow({ ...POSTED_REFUND, status: 'void' }).status).toEqual({
+            label: 'Void',
+            tone: 'muted',
+        })
+    })
+
+    it('has the type label Refund receipt and opens books/refund-receipts/<id>', () => {
+        expect(TRANSACTION_TYPE_LABELS.refund_receipt).toBe('Refund receipt')
+        expect(documentHref(TRANSACTION_DOC_KINDS.refund_receipt, POSTED_REFUND.id)).toBe(
+            `books/refund-receipts/${POSTED_REFUND.id}`
+        )
+    })
+
+    it('has the last chip, Refunds, after Credit memos', () => {
+        expect(TRANSACTION_FILTERS.slice(-2)).toEqual([
+            { key: 'credit_memo', label: 'Credit memos' },
+            { key: 'refund_receipt', label: 'Refunds' },
+        ])
+        expect(filterTestId('refund_receipt')).toBe('customer-transactions-filter-refund-receipt')
+    })
+
+    it('names the empty Refunds chip', () => {
+        expect(emptyText('refund_receipt')).toBe('No refund receipts for this customer')
     })
 })
 

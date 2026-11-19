@@ -12,6 +12,7 @@ import {
     ESTIMATE_MESSAGES,
     EXPENSE_MESSAGES,
     INVOICE_MESSAGES,
+    REFUND_RECEIPT_MESSAGES,
     SALES_RECEIPT_MESSAGES,
     VENDOR_CREDIT_MESSAGES,
 } from './document-texts'
@@ -28,6 +29,7 @@ export type SalesDocKey =
     | 'bill'
     | 'expense'
     | 'vendor_credit'
+    | 'refund_receipt'
 
 // How a kind's statuses run (lib/document-lifecycle.ts): `posting` (draft → posted →
 // void) or `quote` (pending / accepted / rejected → closed, never posted).
@@ -247,6 +249,39 @@ export const CREDIT_MEMO_KIND: SalesDocumentKind & { messages: typeof CREDIT_MEM
     pdfStem: number => (number ? `credit-memo-${number}` : 'draft-credit-memo'),
     bandSplitAt: null,
     helpTopic: 'books:credit-memos',
+    party: 'customer',
+    lineTables: SALES_LINE_TABLES,
+    features: SALES_FEATURES,
+    keepsEmptyLinesOnRefusal: false,
+}
+
+// A refund receipt (refund receipt spec §3.1): the sales receipt's mirror, money paid back
+// from Refund from. Its big figure and last total are the amount refunded (= the total).
+// Its messages keep their own type, so a reader of a refund-only text (cannotRefundReceipt,
+// payoutVoidBody) needs no fallback.
+export const REFUND_RECEIPT_KIND: SalesDocumentKind & {
+    messages: typeof REFUND_RECEIPT_MESSAGES
+} = {
+    key: 'refund_receipt',
+    lifecycle: 'posting',
+    hostKey: 'books:refund_receipt',
+    testId: 'refund-receipt',
+    routeBase: 'books/refund-receipts',
+    noun: 'Refund receipt',
+    thisNoun: 'This refund receipt',
+    draftTitle: 'Draft refund receipt',
+    newTitle: 'New refund receipt',
+    shortcutGroup: 'Refund receipt',
+    figure: { label: 'Amount refunded', testId: 'amount-refunded' },
+    lastTotal: { label: 'Amount refunded', testId: 'total-refunded' },
+    customerRequired: false,
+    noteHints: { message: 'Shown on the refund receipt and its PDF.', memo: MEMO_HINT },
+    messages: REFUND_RECEIPT_MESSAGES,
+    // The server's names (server/pdf_refund_receipt.go).
+    pdfStem: number => (number ? `refund-receipt-${number}` : 'draft-refund-receipt'),
+    // The Payment row: Payment method, Reference no. and Refund from.
+    bandSplitAt: 'payment_method',
+    helpTopic: 'books:refund-receipts',
     party: 'customer',
     lineTables: SALES_LINE_TABLES,
     features: SALES_FEATURES,

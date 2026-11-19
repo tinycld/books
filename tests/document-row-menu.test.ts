@@ -215,6 +215,48 @@ describe('documentRowMenuItems, every list', () => {
     })
 })
 
+// Refund receipt spec §3.13: row actions as the sales receipts tab.
+describe('documentRowMenuItems, refund receipt', () => {
+    it.each([
+        'draft',
+        'posted',
+        'void',
+    ])('a %s refund has the sales receipt menu, for a writer and a reader', status => {
+        for (const canWrite of [WRITER, READER]) {
+            expect(documentRowMenuItems(row('refund_receipt', status), canWrite)).toEqual(
+                documentRowMenuItems(row('sales_receipt', status), canWrite)
+            )
+        }
+    })
+
+    it('a posted refund for a writer: Open, Void, Copy, View journal entry, Download PDF', () => {
+        expect(documentRowMenuItems(row('refund_receipt', 'posted'), WRITER)).toEqual([
+            'open',
+            'void',
+            'copy',
+            'entry',
+            'pdf',
+        ])
+    })
+
+    it('a draft refund for a writer: Open, Delete draft', () => {
+        expect(documentRowMenuItems(row('refund_receipt', 'draft'), WRITER)).toEqual([
+            'open',
+            'delete_draft',
+        ])
+    })
+
+    it('open and copy give the refund receipt routes', () => {
+        expect(rowActionHref(row('refund_receipt', 'posted'), 'open')).toBe(
+            `books/refund-receipts/${ID}`
+        )
+        expect(parts(rowActionHref(row('refund_receipt', 'posted'), 'copy'))).toEqual({
+            path: 'books/refund-receipts/new',
+            params: { copy: ID },
+        })
+    })
+})
+
 describe('ROW_MENU_LABELS', () => {
     it("equal the read view's labels", () => {
         expect(ROW_MENU_LABELS).toEqual({

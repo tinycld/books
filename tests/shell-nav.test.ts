@@ -117,6 +117,7 @@ describe('registries', () => {
             'sales_receipt',
             'receive_payment',
             'credit_memo',
+            'refund_receipt',
         ])
         expect(columns.map(c => c.heading)).toEqual(['Customers', 'Vendors', 'Other'])
         expect(columns[1]?.actions.map(a => a.id)).toEqual([
@@ -208,6 +209,7 @@ describe('registries', () => {
             'Sales receipt',
             'Receive payment',
             'Credit memo',
+            'Refund receipt',
         ])
         const invoice = NEW_ACTIONS.find(a => a.id === 'invoice')
         expect(invoice).toMatchObject({
@@ -282,13 +284,31 @@ describe('registries', () => {
         })
     })
 
-    it('flags exactly Invoice, Estimate, Sales receipt, Receive payment and Credit memo as taking a customer', () => {
+    // Refund receipt spec §2: + New → Customers → "Refund receipt", after "Credit memo".
+    // Spec §3.13: the customer page's New transaction menu lists it, so it takes a customer.
+    it('the New menu lists an available Refund receipt right after Credit memo', () => {
+        const customers = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Customers')
+        const ids = customers?.actions.map(a => a.id) ?? []
+        expect(ids).toContain('refund_receipt')
+        expect(ids.indexOf('refund_receipt')).toBe(ids.indexOf('credit_memo') + 1)
+        expect(NEW_ACTIONS.find(a => a.id === 'refund_receipt')).toEqual({
+            id: 'refund_receipt',
+            label: 'Refund receipt',
+            href: 'books/refund-receipts/new',
+            column: 'customers',
+            available: true,
+            takesCustomer: true,
+        })
+    })
+
+    it('flags exactly Invoice, Estimate, Sales receipt, Receive payment, Credit memo and Refund receipt as taking a customer', () => {
         expect(NEW_ACTIONS.filter(a => a.takesCustomer).map(a => a.id)).toEqual([
             'invoice',
             'estimate',
             'sales_receipt',
             'receive_payment',
             'credit_memo',
+            'refund_receipt',
         ])
         for (const other of NEW_ACTIONS.filter(a => !a.takesCustomer)) {
             expect(other).not.toHaveProperty('takesCustomer')
@@ -431,6 +451,7 @@ describe('sales sidebar entry', () => {
                 'books/sales-receipts',
                 'books/payments',
                 'books/credit-memos',
+                'books/refund-receipts',
             ],
             available: true,
         })
@@ -444,6 +465,8 @@ describe('sales sidebar entry', () => {
         '/a/org/books/invoices/abc',
         '/a/org/books/payments/new',
         '/a/org/books/credit-memos/abc',
+        '/a/org/books/refund-receipts',
+        '/a/org/books/refund-receipts/abc',
     ])('is active on %s', pathname => {
         expect(isActivePath(pathname, salesEntry())).toBe(true)
     })
@@ -736,6 +759,8 @@ describe('hidesNewFab', () => {
         '/a/books/sales-receipts/abc',
         '/a/books/credit-memos/new',
         '/a/books/credit-memos/abc',
+        '/a/x/books/refund-receipts/new',
+        '/a/x/books/refund-receipts/abc',
         '/a/books/estimates/new',
         '/a/books/estimates/abc',
         '/a/books/bills/new',

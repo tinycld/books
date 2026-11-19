@@ -45,10 +45,16 @@ function joinShown(parts: readonly string[]): string {
 // The Category cell's names before the list reads them: an account or product reads "—".
 const NO_CATEGORY_NAMES: CategoryNames = { accounts: new Map(), products: new Map() }
 
-// A signed tab (All sales, All purchases) shows a credit memo's or a vendor credit's amount
-// negative, with a typographic minus; a tab of one kind shows every amount positive.
+// A refund receipt's amount is negative on every tab (refund receipt spec §3.13), and a
+// signed tab (All sales, All purchases) shows a credit memo's or a vendor credit's amount
+// negative too, each with a typographic minus; a tab of one kind shows every other amount
+// positive.
+function isShownSigned(row: DocumentListRow, tab: DocumentListTab): boolean {
+    return tab.isSigned || row.kind === 'refund_receipt'
+}
+
 function amountOf(row: DocumentListRow, tab: DocumentListTab, currency: string): string {
-    if (tab.isSigned) return transactionTotalText(row, currency)
+    if (isShownSigned(row, tab)) return transactionTotalText(row, currency)
     return formatMoney(Math.abs(row.total), currency)
 }
 
@@ -87,7 +93,7 @@ export function cellText(
         case 'amount':
             return amountOf(row, tab, currency)
         case 'total':
-            return formatMoney(Math.abs(row.total), currency)
+            return amountOf(row, tab, currency)
         case 'status':
             return row.status.label
     }
@@ -133,14 +139,19 @@ export function cardLines(
 }
 
 // A row of the 320 px column beside an open document lists one kind, so its amount is
-// positive: number and party, then the amount and the status label.
+// positive, but for a refund receipt's, which keeps its minus sign as on its tab: number
+// and party, then the amount and the status label.
 export function nameRowLines(
     row: DocumentListRow,
     currency: string
 ): { title: string; amount: string; status: string } {
+    const amount =
+        row.kind === 'refund_receipt'
+            ? transactionTotalText(row, currency)
+            : formatMoney(Math.abs(row.total), currency)
     return {
         title: joinShown([row.number, row.partyName]) || kindLabel(row.kind),
-        amount: formatMoney(Math.abs(row.total), currency),
+        amount,
         status: row.status.label,
     }
 }

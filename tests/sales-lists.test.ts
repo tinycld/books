@@ -17,7 +17,7 @@ const EXPECTED_TABS = [
         key: 'all',
         label: 'All sales',
         path: 'books/sales',
-        kinds: ['invoice', 'estimate', 'sales_receipt', 'payment', 'credit_memo'],
+        kinds: ['invoice', 'estimate', 'sales_receipt', 'payment', 'credit_memo', 'refund_receipt'],
         newLabel: 'New',
         columns: ['date', 'type', 'number', 'customer', 'memo', 'amount', 'status'],
         chips: chips('All', 'Open', 'Overdue', 'Closed', 'Draft', 'Void'),
@@ -70,13 +70,27 @@ const EXPECTED_TABS = [
         kinds: ['credit_memo'],
         newLabel: 'New credit memo',
         columns: ['date', 'number', 'customer', 'balance', 'total', 'status'],
-        chips: chips('All', 'Unapplied', 'Applied', 'Draft', 'Void'),
+        // Refund receipt spec §3.12: a posted memo at balance 0 reads Refunded.
+        chips: chips('All', 'Unapplied', 'Refunded', 'Draft', 'Void'),
         sortKeys: ['date', 'number', 'amount', 'balance'],
+    },
+    // Refund receipt spec §3.13: as the sales receipts tab, with Refunded for Paid.
+    {
+        key: 'refund-receipts',
+        label: 'Refund receipts',
+        path: 'books/refund-receipts',
+        kinds: ['refund_receipt'],
+        newLabel: 'New refund receipt',
+        columns: ['date', 'number', 'customer', 'memo', 'total', 'status'],
+        chips: chips('All', 'Refunded', 'Draft', 'Void'),
+        sortKeys: ['date', 'number', 'amount'],
     },
 ] as const
 
 describe('SALES_TABS', () => {
-    it('has the six tabs in tab order', () => {
+    it('has the seven tabs in tab order, Refund receipts right after Credit memos', () => {
+        const keys = SALES_TABS.map(tab => tab.key)
+        expect(keys.indexOf('refund-receipts')).toBe(keys.indexOf('credit-memos') + 1)
         expect(SALES_TABS.map(tab => tab.key)).toEqual(EXPECTED_TABS.map(tab => tab.key))
     })
 
@@ -117,6 +131,13 @@ describe('SALES_TABS', () => {
         expect(salesTabForKind('sales_receipt').key).toBe('sales-receipts')
         expect(salesTabForKind('payment').key).toBe('payments')
         expect(salesTabForKind('credit_memo').key).toBe('credit-memos')
+        expect(salesTabForKind('refund_receipt').key).toBe('refund-receipts')
+    })
+
+    it('Refund receipts has the columns of the Sales receipts tab', () => {
+        expect([...salesTabOf('refund-receipts').columns]).toEqual([
+            ...salesTabOf('sales-receipts').columns,
+        ])
     })
 })
 
@@ -130,15 +151,27 @@ describe('SALES_NEW_ITEMS', () => {
             { kind: 'sales_receipt', label: 'New sales receipt', href: 'books/sales-receipts/new' },
             { kind: 'payment', label: 'Receive payment', href: 'books/payments/new' },
             { kind: 'credit_memo', label: 'New credit memo', href: 'books/credit-memos/new' },
+            {
+                kind: 'refund_receipt',
+                label: 'New refund receipt',
+                href: 'books/refund-receipts/new',
+            },
         ])
     })
 })
 
 describe('customerTransactionsTab', () => {
-    it('lists five kinds for all and one for a kind, signed', () => {
+    it('lists six kinds for all and one for a kind, signed', () => {
         const all = customerTransactionsTab('all')
         expect([...all.kinds].sort()).toEqual(
-            ['credit_memo', 'estimate', 'invoice', 'payment', 'sales_receipt'].sort()
+            [
+                'credit_memo',
+                'estimate',
+                'invoice',
+                'payment',
+                'refund_receipt',
+                'sales_receipt',
+            ].sort()
         )
         expect(all.isSigned).toBe(true)
         const payments = customerTransactionsTab('payment')

@@ -20,7 +20,7 @@ import type { LiveRecovery } from '../lib/live-recovery'
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 
 /**
- * The five sales reads of a document list (sales lists spec §4): one live query per kind
+ * The six sales reads of a document list (sales lists spec §4): one live query per kind
  * the tab lists, each filtered by the chip, the date range, the customer and the search in
  * its `where`, ordered by the sort column then `created` descending, and cut to its first
  * `n` rows, with the customer's row through `materialize`. A query whose kind the tab does
@@ -35,6 +35,7 @@ export function useSalesListQueries(input: ListQueryInput) {
         receiptsCollection,
         paymentsCollection,
         creditMemosCollection,
+        refundsCollection,
         customersCollection,
     ] = useStore(
         'books_invoices',
@@ -42,6 +43,7 @@ export function useSalesListQueries(input: ListQueryInput) {
         'books_sales_receipts',
         'books_payments',
         'books_credit_memos',
+        'books_refund_receipts',
         'books_customers'
     )
 
@@ -54,6 +56,7 @@ export function useSalesListQueries(input: ListQueryInput) {
     const runsReceipts = chipRuns(tab, chip, 'sales_receipt')
     const runsPayments = chipRuns(tab, chip, 'payment')
     const runsCreditMemos = chipRuns(tab, chip, 'credit_memo')
+    const runsRefunds = chipRuns(tab, chip, 'refund_receipt')
 
     const invoicesQuery = useLiveQuery({
         query: q => {
@@ -206,6 +209,36 @@ export function useSalesListQueries(input: ListQueryInput) {
         },
         queryKey: queryKey('credit_memo', runsCreditMemos),
     })
+    const refundsQuery = useLiveQuery({
+        query: q => {
+            if (!runsRefunds) return undefined
+            const field = sortField('refund_receipt', sort.key)
+            return q
+                .from({ f: refundsCollection })
+                .where(({ f }) =>
+                    allOf([
+                        listedClause(f),
+                        ...chipClauses(tab, chip, 'refund_receipt', f, today),
+                        ...rangeClauses(f, range),
+                        ...(hasCustomer ? [eq(f.customer, customer)] : []),
+                        ...searchClauses(f, search),
+                    ])
+                )
+                .orderBy(({ f }) => f[field], kindDirection(tab, 'refund_receipt', sort))
+                .orderBy(({ f }) => f.created, 'desc')
+                .limit(n)
+                .select(({ f }) => ({
+                    ...f,
+                    customerRow: materialize(
+                        q
+                            .from({ c: customersCollection })
+                            .where(({ c }) => eq(c.id, f.customer))
+                            .findOne()
+                    ),
+                }))
+        },
+        queryKey: queryKey('refund_receipt', runsRefunds),
+    })
 
     // Every query reads the customers through `materialize`, so they are a source of each
     // failed one; a read that has not failed restarts nothing.
@@ -231,12 +264,14 @@ export function useSalesListQueries(input: ListQueryInput) {
         receipts: runsReceipts ? receiptsQuery.data : undefined,
         payments: runsPayments ? paymentsQuery.data : undefined,
         creditMemos: runsCreditMemos ? creditMemosQuery.data : undefined,
+        refunds: runsRefunds ? refundsQuery.data : undefined,
         reads: [
             readOf(runsInvoices, invoicesQuery, invoicesCollection),
             readOf(runsEstimates, estimatesQuery, estimatesCollection),
             readOf(runsReceipts, receiptsQuery, receiptsCollection),
             readOf(runsPayments, paymentsQuery, paymentsCollection),
             readOf(runsCreditMemos, creditMemosQuery, creditMemosCollection),
+            readOf(runsRefunds, refundsQuery, refundsCollection),
         ],
     }
 }

@@ -57,7 +57,8 @@ interface CardProps {
 }
 
 // Two lines: the title with the amount at the right, then the detail with the status
-// badge at the right (`cardLines`).
+// badge at the right (`cardLines`). The amount never shrinks or wraps ("−$150.00" stays
+// on one line); a long title truncates instead.
 function Card({
     row,
     tab,
@@ -95,7 +96,12 @@ function Card({
                     <Text numberOfLines={1} className="shrink text-sm font-medium text-foreground">
                         {title}
                     </Text>
-                    <Text className="text-sm font-medium text-foreground">{amount}</Text>
+                    <Text
+                        numberOfLines={1}
+                        className="shrink-0 text-sm font-medium text-foreground"
+                    >
+                        {amount}
+                    </Text>
                 </View>
                 <View className="flex-row items-center justify-between gap-3">
                     <Text numberOfLines={1} className="shrink text-xs text-muted-foreground">

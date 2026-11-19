@@ -9,11 +9,12 @@ import type { ListKind } from '../lib/document-list'
  * generator to yield.
  */
 export function useVoidDocument(): (kind: ListKind, id: string) => Transaction {
-    const [invoices, receipts, payments, memos] = useStore(
+    const [invoices, receipts, payments, memos, refunds] = useStore(
         'books_invoices',
         'books_sales_receipts',
         'books_payments',
-        'books_credit_memos'
+        'books_credit_memos',
+        'books_refund_receipts'
     )
     const [bills, expenses, billPayments, vendorCredits, vendorRefunds] = useStore(
         'books_bills',
@@ -38,6 +39,10 @@ export function useVoidDocument(): (kind: ListKind, id: string) => Transaction {
                 })
             case 'credit_memo':
                 return memos.update(id, draft => {
+                    draft.status = 'void'
+                })
+            case 'refund_receipt':
+                return refunds.update(id, draft => {
                     draft.status = 'void'
                 })
             case 'bill':

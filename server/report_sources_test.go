@@ -229,7 +229,7 @@ func expectedCatalog(t *testing.T) []wantSource {
 					{Value: "bill", Label: "Bill"}, {Value: "expense", Label: "Expense"},
 					{Value: "payment", Label: "Payment"}, {Value: "bill_payment", Label: "Bill payment"},
 					{Value: "credit_memo", Label: "Credit memo"}, {Value: "vendor_credit", Label: "Vendor credit"},
-					{Value: "vendor_refund", Label: "Vendor refund"},
+					{Value: "vendor_refund", Label: "Vendor refund"}, {Value: "refund_receipt", Label: "Refund receipt"},
 				}},
 				textMinMax("number"),
 				// The posting order behind number, so opened lines sort 9 before 10.
@@ -348,7 +348,7 @@ func expectedCatalog(t *testing.T) []wantSource {
 			fields: []wantField{
 				{key: "kind", typ: reports.Select, options: []reports.Option{
 					{Value: "invoice", Label: "Invoice"}, {Value: "sales_receipt", Label: "Sales receipt"},
-					{Value: "credit_memo", Label: "Credit memo"},
+					{Value: "credit_memo", Label: "Credit memo"}, {Value: "refund_receipt", Label: "Refund receipt"},
 				}},
 				{key: "date", typ: reports.Date, textDay: true, anyAggs: true},
 				{key: "status", typ: reports.Select, optionValues: []string{"draft", "posted", "void"}},
@@ -378,6 +378,12 @@ func expectedCatalog(t *testing.T) []wantSource {
 					collection: "books_credit_memos",
 					columns:    identity("date", "status", "number", "sequence", "subtotal", "tax_total", "total", "currency", "customer", "entry"),
 					values:     map[string]any{"kind": "credit_memo"},
+				},
+				{
+					// refund_from is no shared column of the sales documents.
+					collection: "books_refund_receipts",
+					columns:    identity("date", "status", "number", "sequence", "subtotal", "tax_total", "total", "currency", "customer", "entry"),
+					values:     map[string]any{"kind": "refund_receipt"},
 				},
 			},
 		},
@@ -425,6 +431,15 @@ func expectedCatalog(t *testing.T) []wantSource {
 					columns: mergeColumns(
 						identity("gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency", "date"),
 						map[string]string{"document": "credit_memo"},
+					),
+					values: map[string]any{"layer": "ledger"},
+				},
+				{
+					// A plain refund's negated snapshot; a payout writes none.
+					collection: "books_refund_receipt_tax_lines",
+					columns: mergeColumns(
+						identity("gross_amount", "taxable_amount", "amount", "rate_ppm", "currency", "rate", "component", "agency", "date"),
+						map[string]string{"document": "refund_receipt"},
 					),
 					values: map[string]any{"layer": "ledger"},
 				},
@@ -483,6 +498,16 @@ func expectedCatalog(t *testing.T) []wantSource {
 					columns: mergeColumns(
 						identity("kind", "description", "quantity", "rate", "amount", "taxable", "position", "product"),
 						map[string]string{"document": "credit_memo"},
+					),
+					values: map[string]any{"sign": -1},
+				},
+				{
+					// The view of a plain refund's lines: a payout's lines are no
+					// sale lines (refund-receipt spec Q10).
+					collection: "books_refund_receipt_sale_lines",
+					columns: mergeColumns(
+						identity("kind", "description", "quantity", "rate", "amount", "taxable", "position", "product"),
+						map[string]string{"document": "refund_receipt"},
 					),
 					values: map[string]any{"sign": -1},
 				},
@@ -1077,5 +1102,158 @@ func TestReportSources_SalesTaxLinesHoldACreditMemo(t *testing.T) {
 	sort.Slice(want, func(i, j int) bool { return fmt.Sprint(want[i]) < fmt.Sprint(want[j]) })
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("books.sales_tax_lines rows =\n%v\nwant\n%v", got, want)
+	}
+}
+
+// refundSourcesEnv posts a plain Denver refund (refund receipt 1001: 100000
+// taxable, tax 8710, total 108710) and a payout of 50.00 of the payout memo,
+// with the Books sources registered and checked.
+func refundSourcesEnv(t *testing.T) (rr *refundReceiptEnv, plain, payout *core.Record) {
+	t.Helper()
+	rr = newRefundReceiptEnv(t)
+	registerBooksSources(t)
+	if err := reports.CheckSources(rr.app); err != nil {
+		t.Fatalf("CheckSources: %v", err)
+	}
+	plain = mustPostRefundReceipt(t, rr.app, rr.denverRefund(t, nil).Id, rr.users.bookkeeper.Id)
+	payout = rr.postedPayout(t, rr.payoutMemo(t), 5000)
+	return rr, plain, payout
+}
+
+// salesLineRows reads every sales line: its document's id and kind, its
+// amount and its sign.
+const salesLineRows = `{"version":4,"source":"books.sales_lines","columns":[
+	{"id":"doc","path":[{"link":"document"},{"field":"id"}]},
+	{"id":"kind","path":[{"link":"document"},{"field":"kind"}]},
+	{"id":"amount","path":[{"field":"amount"}]},
+	{"id":"sign","path":[{"field":"sign"}]}]}`
+
+// wholeCell reads a numeric run cell, whatever Go number type the run gives a
+// part's constant.
+func wholeCell(v any) (int64, bool) {
+	switch n := v.(type) {
+	case int64:
+		return n, true
+	case int:
+		return int64(n), true
+	case float64:
+		return int64(n), float64(int64(n)) == n
+	}
+	return 0, false
+}
+
+// Refund receipt spec Q10: books.sales_lines holds a plain refund's lines with
+// sign −1, so the sales reports count them negated, and no line of a payout.
+func TestReportSources_SalesLinesHoldAPlainRefundNegated(t *testing.T) {
+	rr, plain, payout := refundSourcesEnv(t)
+
+	details, _ := splitRows(t, runAs(t, rr.app, rr.users.readOnly, salesLineRows))
+	var signed []int64
+	for _, r := range details {
+		switch r.Cells["doc"] {
+		case payout.Id:
+			t.Errorf("books.sales_lines holds a line of the payout: %v", r.Cells)
+		case plain.Id:
+			if r.Cells["kind"] != "refund_receipt" {
+				t.Errorf("a plain refund line's document kind = %v, want refund_receipt", r.Cells["kind"])
+			}
+			amount, okAmount := wholeCell(r.Cells["amount"])
+			sign, okSign := wholeCell(r.Cells["sign"])
+			if !okAmount || !okSign {
+				t.Fatalf("a plain refund line's amount %#v sign %#v, want two whole numbers", r.Cells["amount"], r.Cells["sign"])
+			}
+			signed = append(signed, amount*sign)
+		}
+	}
+	slices.Sort(signed)
+	if want := []int64{-60000, -40000}; !slices.Equal(signed, want) {
+		t.Errorf("the plain refund's lines amount × sign = %v, want %v", signed, want)
+	}
+}
+
+// Refund receipt spec Q10: books.sales_tax_lines holds a plain refund's
+// negated snapshot on layer ledger with document kind refund_receipt, and no
+// row of a payout.
+func TestReportSources_SalesTaxLinesHoldAPlainRefund(t *testing.T) {
+	rr, plain, payout := refundSourcesEnv(t)
+
+	details, _ := splitRows(t, runAs(t, rr.app, rr.users.readOnly, salesTaxLineRows))
+	var got []taxLineCells
+	for _, r := range details {
+		switch r.Cells["doc"] {
+		case payout.Id:
+			t.Errorf("books.sales_tax_lines holds a row of the payout: %v", r.Cells)
+		case plain.Id:
+			got = append(got, taxLineCells{
+				r.Cells["layer"], r.Cells["doc"], r.Cells["kind"], r.Cells["component"],
+				r.Cells["gross"], r.Cells["taxable"], r.Cells["amount"],
+			})
+		}
+	}
+	sort.Slice(got, func(i, j int) bool { return fmt.Sprint(got[i]) < fmt.Sprint(got[j]) })
+	var want []taxLineCells
+	for _, c := range []struct {
+		rate *core.Record
+		tax  int64
+	}{{rr.state, 2900}, {rr.rtd, 1000}, {rr.city, 4810}} {
+		want = append(want, taxLineCells{"ledger", plain.Id, "refund_receipt", c.rate.Id, int64(-100000), int64(-100000), -c.tax})
+	}
+	sort.Slice(want, func(i, j int) bool { return fmt.Sprint(want[i]) < fmt.Sprint(want[j]) })
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("books.sales_tax_lines rows of the plain refund =\n%v\nwant\n%v", got, want)
+	}
+}
+
+// Refund receipt spec §3.13 "Report builder": books.sales_documents holds a
+// refund with kind refund_receipt (option label "Refund receipt") and its
+// stored, positive Subtotal, Tax and Total.
+func TestReportSources_SalesDocumentsHoldARefundReceipt(t *testing.T) {
+	rr, plain, payout := refundSourcesEnv(t)
+
+	var kindOptions []reports.Option
+	for _, s := range reportSources() {
+		if s.Key != "books.sales_documents" {
+			continue
+		}
+		for _, f := range s.Fields {
+			if f.Key == "kind" {
+				kindOptions = f.Options
+			}
+		}
+	}
+	if !slices.Contains(kindOptions, reports.Option{Value: "refund_receipt", Label: "Refund receipt"}) {
+		t.Errorf("the kind options %v have no {refund_receipt, Refund receipt}", kindOptions)
+	}
+
+	details, _ := splitRows(t, runAs(t, rr.app, rr.users.readOnly, salesDocumentsRows))
+	byDoc := map[string]reports.Row{}
+	for _, r := range details {
+		if id, ok := r.Cells["doc"].(string); ok {
+			byDoc[id] = r
+		}
+	}
+	type docCells struct {
+		kind, status         any
+		subtotal, tax, total any
+	}
+	read := func(r reports.Row) docCells {
+		return docCells{r.Cells["kind"], r.Cells["status"], r.Cells["subtotal"], r.Cells["tax"], r.Cells["total"]}
+	}
+	for _, w := range []struct {
+		what string
+		id   string
+		want docCells
+	}{
+		{"the plain refund", plain.Id, docCells{"refund_receipt", "posted", int64(100000), int64(8710), int64(108710)}},
+		{"the payout", payout.Id, docCells{"refund_receipt", "posted", int64(5000), int64(0), int64(5000)}},
+	} {
+		got, ok := byDoc[w.id]
+		if !ok {
+			t.Errorf("books.sales_documents has no row for %s %s", w.what, w.id)
+			continue
+		}
+		if read(got) != w.want {
+			t.Errorf("%s's row (kind, status, subtotal, tax, total) = %+v, want %+v", w.what, read(got), w.want)
+		}
 	}
 }

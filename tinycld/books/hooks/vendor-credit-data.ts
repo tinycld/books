@@ -27,7 +27,7 @@ import {
     linkedReadIds,
     NO_DOCUMENT_PAYMENTS,
     NO_ESTIMATE_SOURCE,
-    NO_INVOICE_SOURCE,
+    NO_LINK_SOURCE,
     useHeldRecord,
 } from './document-data'
 import { vendorPartyRead } from './party-read'
@@ -220,7 +220,7 @@ function useVendorCreditScreenReads(
             [linesCollection]
         ),
         ...NO_ESTIMATE_SOURCE,
-        ...NO_INVOICE_SOURCE,
+        ...NO_LINK_SOURCE,
         ...NO_DOCUMENT_PAYMENTS,
         taxLines: NO_PURCHASE_TAX_LINES,
         formStart,

@@ -109,6 +109,7 @@ export const DOC_TYPE_LABELS: Record<string, string> = {
     invoice: 'Invoice',
     sales_receipt: 'Sales receipt',
     credit_memo: 'Credit memo',
+    refund_receipt: 'Refund receipt',
     bill: 'Bill',
     expense: 'Expense',
     payment: 'Payment',

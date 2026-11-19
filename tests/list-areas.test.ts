@@ -66,6 +66,7 @@ describe('LIST_AREAS', () => {
             'sales-receipt',
             'payment',
             'credit-memo',
+            'refund-receipt',
         ])
     })
 

@@ -58,8 +58,25 @@ func TestSearchIndex_TablesHoldTheConfiguredColumns(t *testing.T) {
 			t.Errorf("%s indexes %s: %v", cfg.Table, cfg.Collection, err)
 		}
 	}
-	if len(searchIndexes) != 15 {
-		t.Fatalf("%d indexes, want one per search source (15)", len(searchIndexes))
+	if len(searchIndexes) != 16 {
+		t.Fatalf("%d indexes, want one per search source (16)", len(searchIndexes))
+	}
+	refundCols := 0
+	for _, cfg := range searchIndexes {
+		if cfg.Table != "fts_books_refund_receipts" {
+			continue
+		}
+		refundCols++
+		var cols []string
+		for _, c := range cfg.Columns {
+			cols = append(cols, c.FTS+"="+c.Field)
+		}
+		if got := strings.Join(cols, ","); got != "number=number,reference_no=reference_no,memo=memo,message=message" {
+			t.Errorf("fts_books_refund_receipts columns %s, want number, reference_no, memo, message", got)
+		}
+	}
+	if refundCols != 1 {
+		t.Errorf("fts_books_refund_receipts is configured %d times, want once", refundCols)
 	}
 	if vendorCreditsIndex != "fts_books_vendor_credits" {
 		t.Errorf("vendorCreditsIndex = %q, want fts_books_vendor_credits", vendorCreditsIndex)
@@ -68,12 +85,13 @@ func TestSearchIndex_TablesHoldTheConfiguredColumns(t *testing.T) {
 		t.Errorf("vendorRefundsIndex = %q, want fts_books_vendor_refunds", vendorRefundsIndex)
 	}
 	for table, collection := range map[string]string{
-		"fts_books_expenses":       "books_expenses",
-		"fts_books_payments":       "books_payments",
-		"fts_books_bill_payments":  "books_bill_payments",
-		"fts_books_credit_memos":   "books_credit_memos",
-		"fts_books_vendor_credits": "books_vendor_credits",
-		"fts_books_vendor_refunds": "books_vendor_refunds",
+		"fts_books_expenses":        "books_expenses",
+		"fts_books_payments":        "books_payments",
+		"fts_books_bill_payments":   "books_bill_payments",
+		"fts_books_credit_memos":    "books_credit_memos",
+		"fts_books_refund_receipts": "books_refund_receipts",
+		"fts_books_vendor_credits":  "books_vendor_credits",
+		"fts_books_vendor_refunds":  "books_vendor_refunds",
 	} {
 		var indexed []string
 		for _, cfg := range searchIndexes {
