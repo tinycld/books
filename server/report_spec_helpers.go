@@ -182,7 +182,8 @@ func productsParam() reports.ParamDef {
 // when inactive. A blank key (no customer) labels "No customer". The spec
 // columns topKey (the parent, else the customer) and customerKey (the
 // customer) are their keys. The customer level has no Having and no
-// HideEmpty: each report sets its own.
+// HideEmpty: each report sets its own. The A/R Aging replaces the family
+// level's Inline (arGroups): its run does not read the rows of settled items.
 func customerFamilyGroups() []reports.Group {
 	inactive := op("eq", rec("byCustomer", "inactive"), lit(true))
 	return []reports.Group{

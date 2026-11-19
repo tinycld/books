@@ -34,7 +34,14 @@ func arAgingSpec() *reports.Spec {
 		Params:  arParams(),
 		// An unset Customer keeps every row; a set one drops the blank key, so
 		// the No customer row does not show.
-		Filter:  op("and", op("lte", fld("date"), prm("asOf")), op("in", col("customerKey"), prm("customers"))),
+		// settled after the day: an item whose balance is zero on the day and
+		// stays zero adds nothing to any sum, so its rows are not read. The
+		// family level does not count these rows: arGroups, Inline.
+		Filter: op("and",
+			op("gt", fld("settled"), prm("asOf")),
+			op("lte", fld("date"), prm("asOf")),
+			op("in", col("customerKey"), prm("customers")),
+		),
 		Columns: arColumns(),
 		Groups:  arGroups(),
 		Sort:    arSort(),
@@ -90,8 +97,26 @@ func arColumns() []reports.Column {
 // arGroups are the family and customer levels of customerFamilyGroups, a
 // customer shown only with an open item, then the open item: labelled
 // "<type> <number>" and shown only when its amount on the day is not zero.
+//
+// The family level's Inline is replaced (D7). The run reads no row of a
+// settled item, so "no row names a sub-customer" would inline a family whose
+// sub-customers have only settled items. The family is drawn with its header
+// and total when a sub-customer of it, in the Customer pick, has a stored row
+// on or before As of, settled or not: a lookup on the level reads the group
+// record one time per family, and the spec filter does not apply inside it.
+// A blank family key (No customer) is always inline: a link comparison with a
+// blank key would match every customer that has no parent.
 func arGroups() []reports.Group {
 	groups := customerFamilyGroups()
+	subCustomers := &reports.Node{
+		Op: "lookup", Source: "books.customers", Pick: "count", Value: mustJSON(fld("id")),
+		Where: op("and",
+			op("eq", link("parent"), rec("byTop", "id")),
+			op("in", fld("id"), prm("customers")),
+			&reports.Node{Op: "exists", Link: reports.Path{{Link: "receivable_items"}}, Where: op("lte", fld("date"), prm("asOf"))},
+		),
+	}
+	groups[0].Inline = op("or", op("isEmpty", rec("byTop", "id")), op("eq", subCustomers, lit(0)))
 	groups[1].HideEmpty = true
 	return append(groups, reports.Group{
 		ID: "byItem", Col: "itemKey",

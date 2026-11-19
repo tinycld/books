@@ -740,16 +740,8 @@ func TestReceivableItemsEngine(t *testing.T) {
 	if !strings.HasPrefix(je.GetString("number"), "JE-") {
 		t.Errorf("the entry number %q is not the JE- form", je.GetString("number"))
 	}
-	// Core lists a view's base tables, never the view's own topic
-	// (core/server/changesignal/topics.go): SQLite reads the base tables.
-	for _, topic := range []string{
-		"collection/books_journal_lines",
-		"collection/books_journal_entries",
-		"collection/books_accounts",
-		"collection/books_invoices",
-		"collection/books_payments",
-		"collection/books_payment_applications",
-	} {
+	// The run reads the stored table: its topic is the one a refresh touches.
+	for _, topic := range []string{"collection/books_receivable_items"} {
 		if !slices.Contains(res.Topics, topic) {
 			t.Errorf("topics = %v, want %s", res.Topics, topic)
 		}

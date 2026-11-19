@@ -497,7 +497,8 @@ function figureCells(items: OpenItem[]): Record<string, number | null> {
     return { ...Object.fromEntries(ages), total: totalOf(items) }
 }
 
-// The spec's `inline` condition: no row of the family names a sub-customer.
+// The spec's `inline` condition for a fixture with no settled item: no member
+// of the family is a sub-customer.
 const isInlined = (family: Family) => family.members.every(member => member.id === family.id)
 
 const groupId = (key: string[]) => `g:${JSON.stringify([...key, CURRENCY])}`
@@ -698,10 +699,8 @@ export function arAgingResult(input: ResultInput = {}): RunResult {
         notices: [],
         headerLines: [customerHeader(input)],
         topics: [
-            'collection/books_receivable_lines',
-            'collection/books_receivable_applications',
+            'collection/books_receivable_items',
             'collection/books_customers',
-            'collection/books_journal_entries',
             'collection/books_settings',
         ],
         heading: AR_AGING_HEADING,

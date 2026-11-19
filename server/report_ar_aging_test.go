@@ -552,6 +552,41 @@ func TestARAgingAsOfDay(t *testing.T) {
 	}
 }
 
+// An item paid in full is not read from its settled day on, and is read whole
+// on a day before it: the settled filter is strict (settled > As of). A void
+// of the payment opens the item again on every day.
+func TestARAgingSettledItemOnPastDay(t *testing.T) {
+	b := newARBook(t)
+	c := mkCustomer(t, b.app, "Settled Co", "")
+	inv := arInvoice(t, b, c, "2026-10-01", "2026-10-31", 40000)
+	pay := arPayment(t, b, c, "2026-10-05", 40000, map[string]int{inv.Id: 40000})
+
+	before, item := b.openItem(t, map[string]any{"asOf": "2026-10-04"}, c, inv.Id)
+	if v, _ := agedCell(t, item, "total"); v != 40000 {
+		t.Errorf("as of 2026-10-04 (before the payment) the invoice item = %d, want 40000", v)
+	}
+	for _, l := range arLinesOf(t, before, item) {
+		if strings.Contains(l.Label, "Payment") {
+			t.Errorf("as of 2026-10-04 the invoice item has the line %q, want no payment line", l.Label)
+		}
+	}
+	for _, day := range []string{"2026-10-05", "2026-10-06"} {
+		res := b.run(t, map[string]any{"asOf": day})
+		if rows := cbCustomerRows(res); len(rows) != 0 {
+			t.Errorf("as of %s (paid in full) the report has customer rows %q, want none", day, bsLabels(res))
+		}
+	}
+
+	pay.Set("status", statusVoid)
+	if err := b.app.Save(pay); err != nil {
+		t.Fatalf("void the payment: %v", err)
+	}
+	_, item = b.openItem(t, map[string]any{"asOf": "2026-10-06"}, c, inv.Id)
+	if v, _ := agedCell(t, item, "total"); v != 40000 {
+		t.Errorf("as of 2026-10-06, after the payment's void, the invoice item = %d, want 40000", v)
+	}
+}
+
 func TestARAgingHiddenItems(t *testing.T) {
 	t.Run("an invoice paid in full", func(t *testing.T) {
 		b := newARBook(t)
@@ -851,6 +886,38 @@ func TestARAgingFamilies(t *testing.T) {
 		}
 		if items[0].Depth != depth {
 			t.Errorf("%s's item is at depth %d, want %d", c.GetString("display_name"), items[0].Depth, depth)
+		}
+	}
+}
+
+// D7 reads records: a family keeps its header and total while a sub-customer
+// in the Customer pick has a row on or before As of, settled or not.
+func TestARAgingFamilyHeaderFollowsPickAndDay(t *testing.T) {
+	b := newARBook(t)
+	parent := mkCustomer(t, b.app, "Pick Parent", "")
+	arInvoice(t, b, parent, "2026-09-01", "2026-09-30", 6000)
+	sub := mkCustomer(t, b.app, "Pick sub", parent.Id)
+	inv := arInvoice(t, b, sub, "2026-10-01", "2026-10-31", 7000)
+	arPayment(t, b, sub, "2026-10-05", 7000, map[string]int{inv.Id: 7000})
+
+	for name, tc := range map[string]struct {
+		params map[string]any
+		family bool
+	}{
+		"the sub-customer's item is settled before the day": {map[string]any{"asOf": "2026-10-06"}, true},
+		"a day before the sub-customer's first row":         {map[string]any{"asOf": "2026-09-15"}, false},
+		"only the parent is picked":                         {map[string]any{"asOf": "2026-10-06", "customers": []string{parent.Id}}, false},
+		"the parent and the sub-customer are picked":        {map[string]any{"asOf": "2026-10-06", "customers": []string{parent.Id, sub.Id}}, true},
+	} {
+		res := b.run(t, tc.params)
+		if !bsHas(res, "Pick Parent") {
+			t.Errorf("%s: no Pick Parent row; rows %q", name, bsLabels(res))
+		}
+		if got := bsHas(res, "Total Pick Parent"); got != tc.family {
+			t.Errorf("%s: the family total shows = %v, want %v; rows %q", name, got, tc.family, bsLabels(res))
+		}
+		if bsHas(res, "Pick sub") {
+			t.Errorf("%s: the sub-customer with no open item has a row; rows %q", name, bsLabels(res))
 		}
 	}
 }
@@ -1211,12 +1278,7 @@ func TestARAgingTopics(t *testing.T) {
 		t.Fatalf("the run has no customer row; rows %q", bsLabels(res))
 	}
 	for _, topic := range []string{
-		"collection/books_journal_lines",
-		"collection/books_journal_entries",
-		"collection/books_accounts",
-		"collection/books_invoices",
-		"collection/books_payments",
-		"collection/books_payment_applications",
+		"collection/books_receivable_items",
 		"collection/books_customers",
 		"collection/books_settings",
 	} {
