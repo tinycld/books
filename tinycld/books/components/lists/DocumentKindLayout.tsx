@@ -6,20 +6,20 @@ import { useOpenRecord } from '../../hooks/useRecordNavigation'
 import { listLayoutFor } from '../../lib/detail-surface'
 import type { DocumentListTab } from '../../lib/document-list'
 import { RECORD_DETAIL_SCREENS } from '../../lib/record-route'
-import { screenBelowRoute } from '../../lib/stack-screens'
+import { type BelowScreen, belowSignature, screensOfSignature } from '../../lib/stack-screens'
 import { ListDetailLayout } from '../ListDetailLayout'
 import { DocumentListScreen } from './DocumentListScreen'
 import { KindStackContext } from './kind-stack-context'
 
-// The top screen of the Books root route below this kind route, for the Back of the
-// documents in its child stack. Read with useNavigationState, not getState(): during a
-// render getState() still returns the state before the push that mounted this route. Two
-// selectors that return strings keep the selection stable between renders.
-function useScreenBelow(): { belowName: string; belowId: string } {
+// Every flat screen of the Books root routes below this kind route, for the Back of the
+// documents in its child stack: a read view pops past copies of itself below the kind
+// route too (popDepth). Read with useNavigationState, not getState(): during a render
+// getState() still returns the state before the push that mounted this route. The
+// selector returns a string, so the selection is stable between renders.
+function useScreensBelow(): readonly BelowScreen[] {
     const { key } = useRoute()
-    const belowName = useNavigationState(state => screenBelowRoute(state, key)?.name ?? '')
-    const belowId = useNavigationState(state => screenBelowRoute(state, key)?.id ?? '')
-    return { belowName, belowId }
+    const signature = useNavigationState(state => belowSignature(state, key))
+    return useMemo(() => screensOfSignature(signature), [signature])
 }
 
 // The kind's child stack: `[id]`, and `new` when the kind has a `new` screen.
@@ -42,12 +42,9 @@ export function DocumentKindLayout({ tab, hasNew }: { tab: DocumentListTab; hasN
     const surface = useDetailSurface()
     const isDetailOpen = open.kind !== 'none'
     const layout = listLayoutFor(surface, 'record', isDetailOpen)
-    const { belowName, belowId } = useScreenBelow()
+    const below = useScreensBelow()
     const kindRoute = tab.path.replace(/^books\//, '')
-    const kindStack = useMemo(
-        () => ({ kindRoute, belowName, belowId }),
-        [kindRoute, belowName, belowId]
-    )
+    const kindStack = useMemo(() => ({ kindRoute, below }), [kindRoute, below])
     // Below 1360 px the document is a page pushed over the list, which stays mounted under
     // it; beside the 320 px column the list is in view.
     const isCovered = isDetailOpen && layout !== 'names'

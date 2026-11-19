@@ -9,10 +9,11 @@ import {
     type ListSort,
     type ListSortKey,
 } from '../../lib/document-list'
-import { cellText, columnStyle, LIST_ROW_HEIGHT } from '../../lib/document-list-cells'
+import { cellText, columnStyle, isMutedCell, LIST_ROW_HEIGHT } from '../../lib/document-list-cells'
 import { ariaSortOf } from '../../lib/document-list-menus'
 import { areaOf } from '../../lib/list-areas'
 import { PARTY_ROW_CLASS } from '../../lib/party-list'
+import type { CategoryNames } from '../../lib/purchase-category'
 import { ListHeaderCell, ListHeaderRow, ListSortHeaderCell, ListTable } from '../ListTable'
 import { StatusBadge } from '../StatusBadge'
 
@@ -20,6 +21,8 @@ interface DocumentListTableProps {
     tab: DocumentListTab
     rows: readonly DocumentListRow[]
     currency: string
+    // The account and product names the Category cell reads (`usePurchaseCategories`).
+    categoryNames: CategoryNames
     // The table's own minimum width with the edge cells it draws (`tableMinWidthFor`).
     minWidth: number
     sort: ListSort
@@ -137,9 +140,16 @@ interface RowCellProps {
     tab: DocumentListTab
     testIdPrefix: string
     currency: string
+    categoryNames: CategoryNames
 }
 
-function RowCell({ row, column, tab, testIdPrefix, currency }: RowCellProps) {
+// A Category cell of several lines ("Split") draws muted; every other cell, and a
+// category's name, in the foreground (`isMutedCell`).
+function cellColorOf(row: DocumentListRow, column: ListColumnKey): string {
+    return isMutedCell(row, column) ? 'text-muted-foreground' : 'text-foreground'
+}
+
+function RowCell({ row, column, tab, testIdPrefix, currency, categoryNames }: RowCellProps) {
     const style = columnStyle(column, tab.area)
     if (column === 'status') {
         return (
@@ -153,10 +163,11 @@ function RowCell({ row, column, tab, testIdPrefix, currency }: RowCellProps) {
         )
     }
     const alignClass = LIST_COLUMNS[column].align === 'right' ? ' text-right' : ''
-    const text = cellText(row, column, tab, currency)
+    const text = cellText(row, column, tab, currency, categoryNames)
+    const color = cellColorOf(row, column)
     return (
         <View className="min-w-0 pr-3" style={style}>
-            <Text numberOfLines={1} className={`text-sm text-foreground${alignClass}`}>
+            <Text numberOfLines={1} className={`text-sm ${color}${alignClass}`}>
                 {text}
             </Text>
         </View>
@@ -168,6 +179,7 @@ interface TableRowProps {
     tab: DocumentListTab
     testIdPrefix: string
     currency: string
+    categoryNames: CategoryNames
     onOpen(row: DocumentListRow): void
     renderLead?(row: DocumentListRow): ReactNode
     renderTrail?(row: DocumentListRow): ReactNode
@@ -182,6 +194,7 @@ function TableRow({
     tab,
     testIdPrefix,
     currency,
+    categoryNames,
     onOpen,
     renderLead,
     renderTrail,
@@ -199,6 +212,7 @@ function TableRow({
             tab={tab}
             testIdPrefix={testIdPrefix}
             currency={currency}
+            categoryNames={categoryNames}
         />
     ))
     const rowClass = rowClassOf(renderLead !== undefined)
@@ -235,6 +249,7 @@ export function DocumentListTable({
     tab,
     rows,
     currency,
+    categoryNames,
     minWidth,
     sort,
     onSort,
@@ -271,6 +286,7 @@ export function DocumentListTable({
             tab={tab}
             testIdPrefix={prefix}
             currency={currency}
+            categoryNames={categoryNames}
             onOpen={onOpen}
             renderLead={renderLead}
             renderTrail={renderTrail}

@@ -26,15 +26,17 @@ import { nextSort } from '../lib/document-list-menus'
 import { areaOf, areaTabOf } from '../lib/list-areas'
 import { SEARCH_DELAY_MS } from '../lib/list-search'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
-import { navigationModeFor, openRecordFromPath } from '../lib/record-route'
+import { navigationModeFor, openRecordFromPath, targetModeFor } from '../lib/record-route'
 import { selectionScope, useDocumentListStore } from '../stores/document-list-store'
 import { useBooksAccess } from './useBooksAccess'
 import { useDocumentBatch } from './useDocumentBatch'
 import { useDocumentList } from './useDocumentList'
 import { useDocumentRowActions } from './useDocumentRowActions'
 import { useListSelection } from './useListSelection'
+import { usePurchaseCategories } from './usePurchaseCategories'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
+const NO_ROWS: readonly DocumentListRow[] = []
 
 // When the list route loses the focus (a tab press replaces it, the user leaves the list
 // area, or an All tab pushes a document over itself) every menu of the screen (New, Batch
@@ -141,6 +143,10 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     const search = useDebouncedValue(filters.search, SEARCH_DELAY_MS)
     const queryFilters = { ...filters, search }
     const documentList = useDocumentList({ tab, filters: queryFilters, sort })
+    // The Category cell's account and product names, for the rows on screen; a tab with no
+    // Category column reads none.
+    const hasCategory = tab.columns.includes('category')
+    const categories = usePurchaseCategories(hasCategory ? documentList.rows : NO_ROWS)
     const newMenu = useNewMenu()
     useBlurCleanup(stateKey)
     const { width, onListLayout } = useListWidth()
@@ -148,7 +154,7 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     const canWrite = access.canWrite
     const isAccessPending = !access.isReady && !access.isError
     const isLoading = documentList.isLoading || isAccessPending
-    const isError = !isLoading && (documentList.isError || access.isError)
+    const isError = !isLoading && (documentList.isError || access.isError || categories.isError)
     // The typed search reaches the query 250 ms after the last key; until then the rows
     // answer the last search, so the list is busy.
     const isSearchPending = search !== filters.search
@@ -159,11 +165,12 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
         : NO_RECOVERY
     const retry = () => {
         void recoverLiveQueries({
-            ...mergeRecoveries([documentList.recovery, accessRecovery]),
+            ...mergeRecoveries([documentList.recovery, accessRecovery, categories.recovery]),
             onError: err => log.warn(area.logContext, 'retry failed', { err }),
         })
     }
-    const list = { ...documentList, isLoading, isBusy, isError, retry }
+    const categoryNames = { accounts: categories.accounts, products: categories.products }
+    const list = { ...documentList, isLoading, isBusy, isError, retry, categoryNames }
 
     // The ticks and the row focus hold for the tab, the layout and the filters
     // (`selectionScope`), so a change of any of them, or the list narrowing to the names
@@ -185,7 +192,9 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     }
     // A kind tab's New opens its `new` route; an All tab has a menu of the area's New
     // items, so New with no kind opens that menu. Beside an open document New replaces it,
-    // as a row does, so the document's leave guard asks before unsaved edits go.
+    // as a row does, so the document's leave guard asks before unsaved edits go. A New
+    // outside the kind's stack (the Bill payments tab's Pay Bills) is pushed over the kind
+    // route, so Back returns to the list (`targetModeFor`).
     const openNew = (kind?: ListKind) => {
         const item = area.newItems.find(entry => entry.kind === kind)
         const href = item?.href ?? tab.newHref
@@ -194,7 +203,7 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
             return
         }
         newMenu.setOpen(false)
-        if (navigationModeFor(open) === 'replace') router.replace(orgHref(href))
+        if (targetModeFor(open, tab.path, href) === 'replace') router.replace(orgHref(href))
         else router.push(orgHref(href))
     }
     // A tab press replaces the list route, so Back leaves the list area.

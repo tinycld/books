@@ -25,6 +25,7 @@ import { CREDIT_MEMO_KIND, INVOICE_KIND, type SalesDocumentKind } from '../lib/s
 import { useApplyCreditStore } from '../stores/apply-credit-store'
 import type { DocumentRecord } from './document-data'
 import { useOpenDocument } from './useOpenDocument'
+import { useOpenFromReadView, useOpenInPlaceOfReadView } from './useOpenFromReadView'
 import { usePdfDownload } from './usePdfDownload'
 import { useVoidDocument } from './useVoidDocument'
 
@@ -105,8 +106,11 @@ function offeredActionsOf(
  * Apply to bills (a posted vendor credit with unapplied credit) opens the apply dialog
  * through `useApplyCreditStore`; Record refund (a writer on a posted vendor credit with
  * unapplied credit) pushes a new vendor refund for its vendor with the credit ticked, so Back
- * returns to the credit. Edit, Copy and View journal entry replace the read view (a pushed screen would stay
- * mounted under the new one); Download PDF saves the server's PDF through usePdfDownload.
+ * returns to the credit. Edit and Copy (the kind's own `new` form) replace the read view (a
+ * pushed screen would stay mounted under the new one); View journal entry takes the read
+ * view's place, and keeps the kind's list when the list is below it in the child stack
+ * (useOpenInPlaceOfReadView);
+ * Download PDF saves the server's PDF through usePdfDownload.
  * Void writes `status: 'void'` through the kind's data source; the dialog's open state
  * lives here, on the read view, which stays mounted while the optimistic void changes the
  * document under it, so a refusal stays visible in the dialog.
@@ -118,6 +122,8 @@ export function useDocumentReadActions(
 ) {
     const { doc } = documentKind
     const orgHref = useOrgHref()
+    const openFromReadView = useOpenFromReadView(record.id)
+    const openInPlace = useOpenInPlaceOfReadView()
     const writes = documentKind.data.useWrites()
     const voidSales = useVoidDocument()
     // A sales kind voids through the write the sales lists share; a purchase kind (bill,
@@ -155,16 +161,16 @@ export function useDocumentReadActions(
             router.push(
                 orgHref(`books/payments/new?customer=${record.customer}&invoice=${record.id}`)
             ),
-        edit: () => router.replace(orgHref(documentNewHref(doc, { replaces: record.id }))),
+        edit: () => openFromReadView(documentNewHref(doc, { replaces: record.id })),
         void: () => {
             voidDocument.reset()
             setVoidOpen(true)
         },
-        copy: () => router.replace(orgHref(documentNewHref(doc, { copy: record.id }))),
+        copy: () => openFromReadView(documentNewHref(doc, { copy: record.id })),
         // Pushed, so the memo's link goes back to the invoice below it (useOpenDocument).
         credit_memo: () =>
             router.push(orgHref(documentNewHref(CREDIT_MEMO_KIND, { invoice: record.id }))),
-        entry: () => router.replace(orgHref(`books/entries/${record.entry}`)),
+        entry: () => openInPlace(`books/entries/${record.entry}`),
         // Back to the invoice's screen when it is below; else pushed, so Back returns to
         // the estimate.
         invoice: openInvoice,

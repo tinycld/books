@@ -1,11 +1,12 @@
 import { createContext, useContext } from 'react'
+import type { BelowScreen } from '../../lib/stack-screens'
 
 // Navigation plumbing for the screens of one kind's child stack (DocumentKindLayout
-// provides it): the kind route's name in the Books root stack and the top screen of the
-// root route below it (`belowName` is '' when nothing is below). A screen of the child
-// stack cannot read the root stack's state at render, so the layout, a root screen,
-// reads it for them. It is not shared UI state.
-export type KindStack = { kindRoute: string; belowName: string; belowId: string }
+// provides it): the kind route's name in the Books root stack and every flat screen of the
+// root routes below it, lowest first (`below` is empty when nothing is below). A screen of
+// the child stack cannot read the root stack's state at render, so the layout, a root
+// screen, reads it for them. It is not shared UI state.
+export type KindStack = { kindRoute: string; below: readonly BelowScreen[] }
 
 export const KindStackContext = createContext<KindStack | null>(null)
 

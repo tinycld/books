@@ -398,6 +398,7 @@ describe('banking sidebar entry', () => {
         expect(sidebarSections(availableOnly(SIDEBAR_ENTRIES)).top.map(e => e.id)).toEqual([
             'banking',
             'sales',
+            'expenses',
             'lists',
             'reports',
         ])
@@ -418,7 +419,7 @@ describe('sales sidebar entry', () => {
         return sales
     }
 
-    it('is the second top entry, between Banking and Lists, at books/sales', () => {
+    it('is the second top entry, between Banking and Expenses, at books/sales', () => {
         expect(SIDEBAR_ENTRIES[1]).toEqual({
             id: 'sales',
             label: 'Sales',
@@ -434,7 +435,7 @@ describe('sales sidebar entry', () => {
             available: true,
         })
         const top = sidebarSections(availableOnly(SIDEBAR_ENTRIES)).top.map(e => e.id)
-        expect(top.slice(0, 3)).toEqual(['banking', 'sales', 'lists'])
+        expect(top.slice(0, 3)).toEqual(['banking', 'sales', 'expenses'])
     })
 
     it.each([
@@ -460,6 +461,64 @@ describe('sales sidebar entry', () => {
         '/a/books/payments',
     ])('keeps the New button on the list route %s', pathname => {
         expect(hidesNewFab(pathname)).toBe(false)
+    })
+})
+
+// Purchase lists spec §2: the Expenses entry sits between Sales and Lists, opens All
+// purchases, and is active on Pay Bills, the six list routes and every purchase document.
+describe('expenses sidebar entry', () => {
+    const PURCHASE_PATHS = [
+        '/a/org/books/purchases',
+        '/a/org/books/pay-bills',
+        '/a/org/books/bills',
+        '/a/org/books/bills/x',
+        '/a/org/books/expenses/new',
+        '/a/org/books/bill-payments/x',
+        '/a/org/books/vendor-credits/new',
+        '/a/org/books/vendor-refunds/x',
+    ]
+
+    function entryOf(id: string): SidebarEntry {
+        const found = SIDEBAR_ENTRIES.find(e => e.id === id)
+        if (!found) throw new Error(`SIDEBAR_ENTRIES has no ${id} entry`)
+        return found
+    }
+
+    it('is an available top entry between Sales and Lists, at books/purchases', () => {
+        expect(entryOf('expenses')).toMatchObject({
+            id: 'expenses',
+            label: 'Expenses',
+            href: 'books/purchases',
+            available: true,
+        })
+        expect(entryOf('expenses').group).toBeUndefined()
+        const ids = SIDEBAR_ENTRIES.map(e => e.id)
+        expect(ids.indexOf('expenses')).toBe(ids.indexOf('sales') + 1)
+        expect(ids.indexOf('lists')).toBe(ids.indexOf('expenses') + 1)
+    })
+
+    it.each(PURCHASE_PATHS)('is active on %s, and Sales is not', pathname => {
+        expect(isActivePath(pathname, entryOf('expenses'))).toBe(true)
+        expect(isActivePath(pathname, entryOf('sales'))).toBe(false)
+    })
+
+    it.each(['/a/org/books/sales', '/a/org/books/vendors/x'])('is not active on %s', pathname => {
+        expect(isActivePath(pathname, entryOf('expenses'))).toBe(false)
+    })
+
+    it.each([
+        '/a/books/purchases',
+        '/a/books/bills',
+        '/a/books/expenses',
+        '/a/books/bill-payments',
+        '/a/books/vendor-credits',
+        '/a/books/vendor-refunds',
+    ])('keeps the New button on the list route %s', pathname => {
+        expect(hidesNewFab(pathname)).toBe(false)
+    })
+
+    it.each(['/a/books/pay-bills', '/a/books/bills/x'])('hides the New button on %s', pathname => {
+        expect(hidesNewFab(pathname)).toBe(true)
     })
 })
 

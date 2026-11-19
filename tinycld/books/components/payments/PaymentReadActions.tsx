@@ -8,6 +8,7 @@ import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { router } from 'expo-router'
 import { useState } from 'react'
 import type { DocumentReadItem } from '../../hooks/useDocumentReadActions'
+import { useOpenFromReadView } from '../../hooks/useOpenFromReadView'
 import type { PaymentRecordHeader } from '../../hooks/usePaymentRecord'
 import { useVoidDocument } from '../../hooks/useVoidDocument'
 import type { PaymentFlow } from '../../lib/payment-flow'
@@ -32,7 +33,7 @@ type ReadPayment =
 
 export interface PaymentReadTarget {
     collection: PaymentCollectionName
-    // Where Edit goes (replacing the read view): the correction form of this payment.
+    // Where Edit goes: the correction form of this payment (`useOpenEdit`).
     editHref: string
     // The Void dialog's body and its confirm button's label.
     voidBody: string
@@ -66,8 +67,9 @@ function useVoidWrite(collection: PaymentCollectionName) {
 }
 
 /**
- * The read view's actions as rows, and the Void dialog. Edit replaces the read view with
- * the correction form (`editHref`); View journal entry pushes the entry; Void writes
+ * The read view's actions as rows, and the Void dialog. Edit opens the correction form
+ * (`editHref`, `useOpenFromReadView`: the kind's own `new?replaces=` replaces the read
+ * view, a bill payment's Pay Bills is pushed); View journal entry pushes the entry; Void writes
  * `status: 'void'`. The dialog's open state lives here, on the read view, which stays
  * mounted while the optimistic void changes the payment under it, so a refusal stays in
  * the dialog.
@@ -78,6 +80,7 @@ function usePaymentReadItems(
     target: PaymentReadTarget
 ) {
     const orgHref = useOrgHref()
+    const openFromReadView = useOpenFromReadView(payment.id)
     const markVoid = useVoidWrite(target.collection)
     const [isVoidOpen, setVoidOpen] = useState(false)
     const voidPayment = useMutation({
@@ -91,7 +94,7 @@ function usePaymentReadItems(
     const isVoiding = voidPayment.isPending
     const voidState = useServerActionState({ isDisabled: isVoiding })
     const run: Record<PaymentReadAction, () => void> = {
-        edit: () => router.replace(orgHref(target.editHref)),
+        edit: () => openFromReadView(target.editHref),
         void: () => {
             voidPayment.reset()
             setVoidOpen(true)
