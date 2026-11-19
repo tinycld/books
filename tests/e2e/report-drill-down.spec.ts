@@ -39,11 +39,13 @@ import {
     openTrialBalance,
     postEntryOn,
     pressFigure,
+    sectionTopKey,
     snapshotWhen,
     type TdRow,
     type TdSnapshot,
     tdLinesOf,
     tdSnapshot,
+    tdSnapshotAtEnd,
     tdSubtotalOf,
     tdTotalOf,
 } from './books-report-helpers'
@@ -102,6 +104,13 @@ async function createAccounts(
 ): Promise<void> {
     await openChart(page)
     for (const { name, kind } of accounts) await createAccount(page, name, kind)
+}
+
+// The table mounts only the rows near its scroll position, and a section grows with every
+// account other runs and specs post: an account named from sectionTopKey sorts at the top
+// of its group, so its row mounts when the group opens.
+function accountName(prefix: string): string {
+    return uniqueName(`${sectionTopKey()} ${prefix}`)
 }
 
 // The entry open in its read view: its id from the URL (`/books/entries/<id>`).
@@ -194,7 +203,8 @@ async function collapseAll(page: Page, section: string): Promise<void> {
 
 // Folds the statement, then opens the one section the test reads (by its label, the
 // fold toggle) and waits for `label`'s row under it: the shared DB holds every other
-// spec's accounts, so only the rows of that section are mounted near the top.
+// spec's accounts, so only the rows near the section's top are mounted. `label` is named
+// from accountName, so it stands at the section's top.
 async function openSectionTo(page: Page, section: string, label: string): Promise<void> {
     await collapseAll(page, section)
     await rowOf(page, section).click()
@@ -556,7 +566,7 @@ test.describe('report-drill-down: screen', () => {
         page,
     }) => {
         await startBooks(page)
-        const expense = uniqueName('AA TD1 expense')
+        const expense = accountName('TD1 expense')
         await createAccounts(page, [{ name: expense, kind: EXPENSE }])
         const today = await browserToday(page)
         const memo1 = uniqueName('TD1 first')
@@ -621,7 +631,7 @@ test.describe('report-drill-down: screen', () => {
         page,
     }) => {
         await startBooks(page)
-        const expense = uniqueName('AA TD2 expense')
+        const expense = accountName('TD2 expense')
         await createAccounts(page, [{ name: expense, kind: EXPENSE }])
         const today = await browserToday(page)
         await openEntriesFromSidebar(page)
@@ -668,7 +678,7 @@ test.describe('report-drill-down: screen', () => {
         page,
     }) => {
         await startBooks(page)
-        const expense = uniqueName('AA TD3 expense')
+        const expense = accountName('TD3 expense')
         await createAccounts(page, [{ name: expense, kind: EXPENSE }])
         await openEntriesFromSidebar(page)
         await postEntryOn(page, {
@@ -692,21 +702,30 @@ test.describe('report-drill-down: screen', () => {
         await expect(page.getByTestId('report-param-accounts')).toContainText(
             'All Expense accounts'
         )
+        // Named from accountName, the account's section opens the report; the report Total
+        // ends it, under every run's section of this day, so it is read with the list
+        // scrolled to its end.
         const detail = await snapshotWhen(
             page,
             tdSnapshot,
-            s => groupOf(s, expense) !== undefined && tdTotalOf(s) !== undefined,
-            `${expense}'s section and the report Total`
+            s => groupOf(s, expense) !== undefined,
+            `${expense}'s section at the top of the report`
         )
         expect(detail.chips.period).toBe(source.chips.period)
-        expect(figureDigits(tdTotalOf(detail)?.cells.amount)).toBe(figureDigits(totalExpenses))
+        const end = await snapshotWhen(
+            page,
+            tdSnapshotAtEnd,
+            s => tdTotalOf(s) !== undefined,
+            'the report Total at the end of the list'
+        )
+        expect(figureDigits(tdTotalOf(end)?.cells.amount)).toBe(figureDigits(totalExpenses))
     })
 
     test('a month cell of the Profit and Loss by Month opens that month of the period', async ({
         page,
     }) => {
         await startBooks(page)
-        const expense = uniqueName('AA TD4 expense')
+        const expense = accountName('TD4 expense')
         await createAccounts(page, [{ name: expense, kind: EXPENSE }])
         const today = await browserToday(page)
         await openEntriesFromSidebar(page)
@@ -748,8 +767,8 @@ test.describe('report-drill-down: screen', () => {
         page,
     }) => {
         await startBooks(page)
-        const bank = uniqueName('AA TD5 bank')
-        const equity = uniqueName('AA TD5 equity')
+        const bank = accountName('TD5 bank')
+        const equity = accountName('TD5 equity')
         await createAccounts(page, [
             { name: bank, kind: BANK },
             { name: equity, kind: EQUITY },

@@ -709,6 +709,14 @@ export async function reportSnapshotAtEnd(page: Page): Promise<ReportSnapshot> {
     return reportSnapshot(page)
 }
 
+// As reportSnapshotAtEnd, for a report that tdSnapshot reads (Transaction Detail, the
+// General Ledger, the Journal) on its own screen: its report Total mounts however many
+// sections stand above it.
+export async function tdSnapshotAtEnd(page: Page): Promise<TdSnapshot> {
+    await scrollReportList(page, { at: 'end' })
+    return tdSnapshot(page)
+}
+
 // Scrolls the report list to its top, then takes one snapshot: the first rows mount again
 // after a test has read the end of the list.
 export async function reportSnapshotAtTop(page: Page): Promise<ReportSnapshot> {
