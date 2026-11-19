@@ -50,10 +50,24 @@ describe('BooksSidebar rendering', () => {
         expect(ids[ids.length - 1]).toBe('books-nav-settings')
     })
 
-    it('draws the Sales entry right after Banking and before Lists', () => {
+    it('draws Banking, Sales, Expenses, then Lists', () => {
         const { container } = render(<BooksSidebar />)
         const ids = items(container).map(i => i.id)
-        expect(ids.slice(0, 3)).toEqual(['books-nav-banking', 'books-nav-sales', 'books-nav-lists'])
+        expect(ids.slice(0, 4)).toEqual([
+            'books-nav-banking',
+            'books-nav-sales',
+            'books-nav-expenses',
+            'books-nav-lists',
+        ])
+    })
+
+    it('marks only Expenses active on a bill', () => {
+        url.pathname = '/a/books/bills/x'
+        const { container } = render(<BooksSidebar />)
+        const active = items(container)
+            .filter(i => i.isActive)
+            .map(i => i.id)
+        expect(active).toEqual(['books-nav-expenses'])
     })
 
     it.each([

@@ -1,6 +1,7 @@
 // The text of a document list's table cells, cards and names-column rows, and the sizes
-// the windowed lists draw them at (spec docs/specs/sales-lists-design.md §3 "Rows and
-// columns"). The header cell and the row cell share `columnStyle`, so the columns line up.
+// the windowed lists draw them at (spec docs/specs/sales-lists-design.md and
+// docs/specs/purchase-lists-design.md, §3 "Rows and columns"). The header cell and the
+// row cell share `columnStyle`, so the columns line up.
 
 import type { ViewStyle } from 'react-native'
 import {
@@ -92,9 +93,24 @@ export function cellText(
     }
 }
 
+// A cell that draws in muted text: the Category cell of a document with two or more lines
+// ("Split"). A name and "—" draw in the foreground.
+export function isMutedCell(row: DocumentListRow, key: ListColumnKey): boolean {
+    return key === 'category' && row.category.kind === 'split'
+}
+
+// The kinds whose card on their own tab shows "Due <date>" after the date.
+const CARD_DUE_KINDS: ReadonlySet<DocumentListRow['kind']> = new Set(['invoice', 'bill'])
+
+function cardDue(row: DocumentListRow): string {
+    if (!CARD_DUE_KINDS.has(row.kind) || row.dueDate === '') return ''
+    return `Due ${formatDay(row.dueDate)}`
+}
+
 // A card on a tab of several kinds: type and number, then party and date. A card on a
-// kind tab: number and party, then the date (and "Due <date>" for an invoice). A part
-// that is empty (a draft's number, a missing party) is left out, not drawn as "—".
+// kind tab: number and party, then the date (and "Due <date>" for an invoice or a bill). A
+// part that is empty (a draft's number, a missing party) is left out, not drawn as "—". A
+// card shows no category.
 export function cardLines(
     row: DocumentListRow,
     tab: DocumentListTab,
@@ -109,23 +125,23 @@ export function cardLines(
             detail: joinShown([row.partyName, date]),
         }
     }
-    const due = row.kind === 'invoice' && row.dueDate !== '' ? `Due ${formatDay(row.dueDate)}` : ''
     return {
         title: joinShown([row.number, row.partyName]) || kindLabel(row.kind),
         amount,
-        detail: joinShown([date, due]),
+        detail: joinShown([date, cardDue(row)]),
     }
 }
 
 // A row of the 320 px column beside an open document lists one kind, so its amount is
-// positive: number and party, then the amount.
+// positive: number and party, then the amount and the status label.
 export function nameRowLines(
     row: DocumentListRow,
     currency: string
-): { title: string; amount: string } {
+): { title: string; amount: string; status: string } {
     return {
         title: joinShown([row.number, row.partyName]) || kindLabel(row.kind),
         amount: formatMoney(Math.abs(row.total), currency),
+        status: row.status.label,
     }
 }
 

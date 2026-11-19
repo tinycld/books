@@ -21,8 +21,9 @@ function categoryIds(rows: readonly DocumentListRow[], kind: 'account' | 'produc
  * docs/specs/purchase-lists-design.md §4 "Category"): one live query over `books_accounts`
  * and one over `books_products` for the ids of the rows' categories (`inArray`). A query
  * with no id returns `undefined` and sends no request. A name not loaded (yet) is absent
- * from its map, and `categoryText` draws "—" for it. `recovery` holds each failed read
- * (empty while none failed) with its `onError`.
+ * from its map, and `categoryText` draws "—" for it. `isError` is true while a read of
+ * the names failed; `recovery` holds each failed read (empty while none failed) with its
+ * `onError`.
  */
 export function usePurchaseCategories(rows: readonly DocumentListRow[]) {
     const [accountsCollection, productsCollection] = useStore('books_accounts', 'books_products')
@@ -69,5 +70,5 @@ export function usePurchaseCategories(rows: readonly DocumentListRow[]) {
         onError: (err: unknown) => log.warn('books.purchase-lists', 'retry failed', { err }),
     }
 
-    return { accounts, products, recovery }
+    return { accounts, products, isError: accountsFailed || productsFailed, recovery }
 }

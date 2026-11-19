@@ -110,6 +110,7 @@ function ListBody({ tab, area, screen }: ListBodyProps) {
             tab={tab}
             rows={list.rows}
             currency={list.currency}
+            categoryNames={list.categoryNames}
             minWidth={screen.tableMinWidth}
             sort={screen.sort}
             onSort={screen.toggleSort}

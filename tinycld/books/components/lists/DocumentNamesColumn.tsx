@@ -38,7 +38,7 @@ function nameRowBackground(isOpen: boolean, isFocused: boolean): string {
 // Number and party, then the amount with the status badge. The open document's row and
 // the list keys' focused row are marked `aria-current`.
 function NameRow({ row, testIdPrefix, currency, isOpen, isFocused, onOpen }: NameRowProps) {
-    const { title, amount } = nameRowLines(row, currency)
+    const { title, amount, status } = nameRowLines(row, currency)
     const bg = nameRowBackground(isOpen, isFocused)
     const current = isOpen || isFocused ? 'true' : undefined
     const press = () => onOpen(row)
@@ -61,7 +61,7 @@ function NameRow({ row, testIdPrefix, currency, isOpen, isFocused, onOpen }: Nam
                 <Text numberOfLines={1} className="shrink text-xs text-muted-foreground">
                     {amount}
                 </Text>
-                <StatusBadge label={row.status.label} tone={row.status.tone} />
+                <StatusBadge label={status} tone={row.status.tone} />
             </View>
             <FocusBar isVisible={isFocused} />
         </Pressable>
