@@ -232,6 +232,13 @@ describe('ROW_MENU_LABELS', () => {
 })
 
 describe('rowActionTestId', () => {
+    it('starts with the list area prefix', () => {
+        expect(rowActionTestId('sales', 'delete_draft')).toBe('sales-row-action-delete-draft')
+        expect(rowActionTestId('purchases', 'delete_draft')).toBe(
+            'purchases-row-action-delete-draft'
+        )
+    })
+
     it('is sales-row-action- with dashes', () => {
         const ids = (
             [
@@ -245,7 +252,7 @@ describe('rowActionTestId', () => {
                 'pdf',
                 'delete_draft',
             ] as RowMenuAction[]
-        ).map(rowActionTestId)
+        ).map(action => rowActionTestId('sales', action))
         expect(ids).toEqual([
             'sales-row-action-open',
             'sales-row-action-receive-payment',

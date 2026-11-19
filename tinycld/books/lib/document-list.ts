@@ -6,7 +6,7 @@
 
 import { and, eq, gt, gte, ilike, lt, lte, not, or, type Ref } from '@tanstack/db'
 import { documentHref } from './document-routes'
-import type { ListAreaKey } from './list-areas'
+import type { ListArea, ListAreaKey } from './list-areas'
 import { searchPieces } from './list-search'
 import type { LiveRecovery } from './live-recovery'
 import {
@@ -216,13 +216,16 @@ export function columnLabel(tab: DocumentListTab, key: ListColumnKey): string {
     return LIST_COLUMNS[key].label
 }
 
-export function tableMinWidth(
+// The table's own minimum width with the cells it draws: a tick box (`showTicks`, else a
+// reader's left pad) and a row menu (`showRowMenus`) at the ends of each row.
+export function tableMinWidthFor(
     tab: Pick<DocumentListTab, 'area' | 'columns'>,
-    canWrite: boolean
+    edges: { showTicks: boolean; showRowMenus: boolean }
 ): number {
     const cells = tab.columns.reduce((sum, key) => sum + listColumn(key, tab.area).minWidth, 0)
-    const lead = canWrite ? EDGE_CELL_WIDTH : READER_LEFT_PAD
-    return lead + cells + EDGE_CELL_WIDTH + ROW_RIGHT_PAD
+    const lead = edges.showTicks ? EDGE_CELL_WIDTH : READER_LEFT_PAD
+    const trail = edges.showRowMenus ? EDGE_CELL_WIDTH : 0
+    return lead + cells + trail + ROW_RIGHT_PAD
 }
 
 type Clause = ReturnType<typeof eq>
@@ -624,10 +627,12 @@ export function documentListWindow(
 export type ListLayout = 'table' | 'cards' | 'names'
 
 // What a list offers. A reader gets no New, no tick boxes and no Batch actions. The 320 px
-// names column beside an open document keeps the New button and the search field only.
+// names column beside an open document keeps the New button and the search field only. An
+// area without row actions (`hasRowActions`) has no tick boxes, Batch actions or row menus.
 export function listControls(
     canWrite: boolean,
-    layout: ListLayout
+    layout: ListLayout,
+    area: Pick<ListArea, 'hasRowActions'>
 ): {
     showNew: boolean
     showTicks: boolean
@@ -636,11 +641,12 @@ export function listControls(
     showFilters: boolean
 } {
     const isFullList = layout !== 'names'
+    const hasRowActions = isFullList && area.hasRowActions
     return {
         showNew: canWrite,
-        showTicks: canWrite && isFullList,
-        showBatch: canWrite && isFullList,
-        showRowMenus: isFullList,
+        showTicks: canWrite && hasRowActions,
+        showBatch: canWrite && hasRowActions,
+        showRowMenus: hasRowActions,
         showFilters: isFullList,
     }
 }

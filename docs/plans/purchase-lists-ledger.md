@@ -30,12 +30,17 @@
 - cp 1 · gate 3 A 8 (carry to cp 3): `usePurchaseCategories`' `recovery` is not in `useDocumentList`'s `recovery`/`isError`; checkpoint 3 must merge it into the screen's one `recoverLiveQueries` call (spec §3 States), or a failed account read leaves every Category "—" with no banner.
 - cp 1 · gate 3 A 9: `hooks/useVendorTransactions.ts:33` and `useCustomerTransactions` — `rows` is a new array each render (`list.rows.filter(...)`); no visible defect.
 - cp 1 · gate 3 A 10 (carry to cp 2/3): `lib/document-list-cells.ts:112` writes "Due <date>" on a kind-tab card only for `invoice` (spec §3 asks it on a bill card too); `hooks/useDocumentListScreen.ts:188,201` (`openNew`, `goToTab`) and `components/lists/DocumentKindLayout.tsx:36` still read the sales tables only.
+- cp 2 · cp 1 A 10 status: `openNew`, `goToTab` and `DocumentKindLayout` now read the area (done in cp 2); the bill card's "Due <date>" (`lib/document-list-cells.ts`) is still invoice-only — carry to cp 3 (its card rendering).
+- cp 2 · gate 3 A 6 (carry to cp 3): with `LIST_AREAS.purchases.hasRowActions` false, the purchase table minimum counts no tick and no row-menu column: All purchases 840, not the plan's writer 912 (which the reference shots draw, with ticks and menus). Checkpoint 3's 1280 check and its gate-2 comparison of the card/table switch must use 840; 912 returns when checkpoint 4 turns row actions on.
 
 ## Out-of-plan changes
 - cp 1 · `tinycld/books/lib/party-transactions.ts`: `mergeTransactions` `hasMore` fix (five lists of 24 rows showed 50 of 120 with `hasMore` false). A behavior change in a shared helper: Sales lists and the customer page read it too (the 35-file gate 1 regression run passed).
 - cp 1 · `tinycld/books/lib/list-chips.ts` (new, pure): `listChips` and `BASE_SORT_KEYS` moved out of `document-list.ts`, so the e2e helpers (`sales-lists-helpers.ts` → `sales-lists.ts`) load in Node without the `@tinycld/core/lib/logger` → `@sentry/react-native` chain (gate 1 e2e run 2).
 - cp 1 · `tinycld/books/hooks/useStackScreens.ts`, `tinycld/books/components/lists/kind-stack-context.ts`: comment text only, for the `SalesKindLayout` → `DocumentKindLayout` rename.
 - cp 1 · `tinycld/books/components/lists/DocumentListTable.tsx`: call sites follow the new signatures `columnStyle(key, area)` and `tableMinWidth(tab, canWrite)` (reviewer B 4).
+- cp 2 · `tinycld/books/lib/list-tabs.ts` (new, type imports only): `areaTabOf`, re-exported by `list-areas.ts`; a leaf so that `sales-lists.ts` / `purchase-lists.ts` can call it without an import cycle with `list-areas.ts` (fix round 1 item 1).
+- cp 2 · `tinycld/books/lib/sales-lists.ts`, `tinycld/books/lib/purchase-lists.ts`: `salesTabOf` / `purchaseTabOf` call `areaTabOf` (fix round 1 item 1).
+- cp 2 · `tests/purchase-lists.test.ts`: its `tableMinWidth` cases moved to `tableMinWidthFor` when the dead `tableMinWidth` was deleted (fix round 1 item 2).
 
 ## Phase notes
 - phase 1: design packet generated unattended (look-ahead), staged at /Users/nas/tmp/tinycld/auto-helix-books/staging/p3-purchase-lists/; no corrections.
@@ -61,6 +66,22 @@
 - gate 3 A notes: 5, listed under Design notes
 - reviewer-caught deferrals: none
 - commit: `feat(books): purchase list data and rules` (sha in git log; the driver's hand-back names it)
+- human: n/a (review mode C)
+
+## Checkpoint 2
+- test writer: changed `tests/list-shortcuts.test.ts`, `tests/document-list.test.ts`, `tests/list-areas.test.ts`, `tests/document-row-menu.test.ts` (existing callers moved to the new signatures); 6 new cases red for the right reason; 4 Sales "as before" guards green by design (they fail typecheck until the new signatures exist); untestable: none
+- implementer: two dispatches, split by layer. Part 1 (pure libraries): `hasRowActions`, `listControls(canWrite, layout, area)`, `rowActionTestId(prefix, action)`, `listShortcuts` with `group` / `tabLabels`, `useListShortcuts(area)`; DONE. Part 2: the area in every `components/lists/` part (test ids, title, tabs, New items, texts, party; `LIST_LOAD_ERROR` and `SEARCH_PLACEHOLDER` deleted), `DocumentPartyFilter` over `area.party`, `useDocumentListScreen` (`openNew`, `goToTab`, log context, table minimum from the controls), `DocumentKindLayout { tab, hasNew }` and the five sales layouts; DONE
+- test disputes: none
+- self-declared differences: (part 1) `useListShortcuts` takes the whole `area` in place of `tabs`. (part 2) new pure `tableMinWidthFor(tab, { showTicks, showRowMenus })` in `lib/document-list.ts`; `tableMinWidth(tab, canWrite)` kept as the with-row-actions case (tests pin it) and no longer called by runtime code; so a purchase tab with `hasRowActions` false has the minimum 16 + cells + 8 (All purchases 840, not the plan's writer 912, until checkpoint 4 turns row actions on); `DocumentListTable` takes `minWidth` in place of `canWrite`, so the table and the cards rule read one number; `DocumentRowMenu`, `DocumentBatchActions`, `DocumentListDialogs` take `testIdPrefix` from their parent; comments say list / area / party
+- gate 1: tests unedited: yes · `packages:generate` + `tinycld-pkg check`: pass (biome, tsc, vitest 374 files / 7443 tests) · e2e regression (8 `sales-lists-*` + 4 `customer-pages-*` specs, one command, `cp2-g1-e2e-1.log`): 30 passed (1.3m) → pass
+- gate 2: n/a (nothing renders)
+- gate 3 A (correctness): 0 BLOCK, 7 NOTE, 0 DEFERRAL. Accepted and fixed: NOTE 1 and 2 (stale comments, one-line), NOTE 3 (= B 3b), NOTE 4 (weak test: `areaInput` copied the hook's input; a pure `listShortcutInput(area)` now serves the hook and the test), NOTE 5 (= B 2), the comment wrap under NOTE 2. NOTE 6 to Design notes (carry to cp 3). NOTE 7 (the ledger in the diff): no action, the loop writes it.
+- gate 3 B (conformance): script lines: 0 · findings: 1 (`areaTabOf` a third copy of the tab lookup) accepted+fixed: one `areaTabOf` in `lib/list-areas.ts`; 2 (`tableMinWidth` a dead shim, wrong for `hasRowActions` false) accepted+fixed: deleted, tests moved to `tableMinWidthFor`; 3a (picker texts built from the noun in the shared part) accepted+fixed: texts are `ListArea.party` fields; 3b (`labelOf` fallback to the Sales tab names) accepted+fixed: fallback dropped for tab keys
+- fix round 1: findings `cp/cp2-fix-r1.md` (8 items). Test writer (`cp2-fix-tests.md`): 11 tests red for the right reason (missing `areaTabOf`, `listShortcutInput`; changed party texts and `LIST_KEY_LABELS` shape; `tableMinWidth` still exported). Implementer (`cp2-fix-impl.md`): FIXED 8 of 8; declared: `areaTabOf` lives in the new leaf `lib/list-tabs.ts` (cycle). Gate 1 again: tests unedited: yes · `packages:generate` + `tinycld-pkg check` pass (vitest 374 / 7459) · the 12 regression specs: 30 passed (`cp2-fix-e2e.log`)
+- fix review: round 1: clean (`cp2-fix-review.md`), 0 BLOCK, 1 NOTE (comment joint in `list-shortcuts.ts`, polish, no fix needed) · rounds: 1
+- gate 3 A notes: 1 (NOTE 6), listed under Design notes
+- reviewer-caught deferrals: none
+- commit: `feat(books): list area in shared list parts` (sha in git log; the driver's hand-back names it)
 - human: n/a (review mode C)
 
 ## Final review

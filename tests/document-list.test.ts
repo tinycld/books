@@ -11,6 +11,7 @@ import {
     type Ref,
 } from '@tanstack/db'
 import { describe, expect, it } from 'vitest'
+import * as documentList from '../tinycld/books/lib/document-list'
 import {
     chipClause,
     chipRuns,
@@ -18,6 +19,7 @@ import {
     DEFAULT_LIST_FILTERS,
     DEFAULT_LIST_SORT,
     type DocumentListRow,
+    type DocumentListTab,
     documentListWindow,
     emptyTexts,
     hasFilterSet,
@@ -28,8 +30,9 @@ import {
     listRange,
     rangeClauses,
     searchClauses,
-    tableMinWidth,
+    tableMinWidthFor,
 } from '../tinycld/books/lib/document-list'
+import { areaOf, LIST_AREAS } from '../tinycld/books/lib/list-areas'
 import { searchPieces } from '../tinycld/books/lib/list-search'
 import {
     creditMemoRow,
@@ -39,6 +42,7 @@ import {
     salesReceiptRow,
     type TransactionKind,
 } from '../tinycld/books/lib/party-transactions'
+import { purchaseTabOf } from '../tinycld/books/lib/purchase-lists'
 import { salesTabOf } from '../tinycld/books/lib/sales-lists'
 import {
     SALES_LIST_CREDIT_MEMOS,
@@ -650,8 +654,19 @@ describe('documentListWindow', () => {
 })
 
 describe('listControls', () => {
+    // Checkpoint 2: Expenses has no row actions until checkpoint 4 (`hasRowActions`).
+    it('shows a writer on an Expenses table New and filters, no ticks, batch or row menus', () => {
+        expect(listControls(true, 'table', LIST_AREAS.purchases)).toEqual({
+            showNew: true,
+            showTicks: false,
+            showBatch: false,
+            showRowMenus: false,
+            showFilters: true,
+        })
+    })
+
     it('shows a reader no New, no ticks and no batch', () => {
-        expect(listControls(false, 'table')).toMatchObject({
+        expect(listControls(false, 'table', LIST_AREAS.sales)).toMatchObject({
             showNew: false,
             showTicks: false,
             showBatch: false,
@@ -659,7 +674,7 @@ describe('listControls', () => {
     })
 
     it('shows a writer everything in the table', () => {
-        expect(listControls(true, 'table')).toEqual({
+        expect(listControls(true, 'table', LIST_AREAS.sales)).toEqual({
             showNew: true,
             showTicks: true,
             showBatch: true,
@@ -669,7 +684,7 @@ describe('listControls', () => {
     })
 
     it('shows the names column New and no ticks, batch, row menus or filters', () => {
-        expect(listControls(true, 'names')).toEqual({
+        expect(listControls(true, 'names', LIST_AREAS.sales)).toEqual({
             showNew: true,
             showTicks: false,
             showBatch: false,
@@ -679,10 +694,29 @@ describe('listControls', () => {
     })
 })
 
-describe('tableMinWidth', () => {
+// The table's minimum with the cells `listControls` gives the tab's area (fix round 1: the
+// old `tableMinWidth(tab, canWrite)` drew a row menu for every area and is gone).
+function minWidthOf(tab: DocumentListTab, canWrite: boolean): number {
+    return tableMinWidthFor(tab, listControls(canWrite, 'table', areaOf(tab)))
+}
+
+describe('tableMinWidthFor', () => {
     it('is 900 for the All sales columns and 886 for the Invoices columns for a writer', () => {
-        expect(tableMinWidth(salesTabOf('all'), true)).toBe(900)
-        expect(tableMinWidth(salesTabOf('invoices'), true)).toBe(886)
+        expect(minWidthOf(salesTabOf('all'), true)).toBe(900)
+        expect(minWidthOf(salesTabOf('invoices'), true)).toBe(886)
+    })
+
+    it('is 28 less for a Sales reader, who has a left pad for the tick box', () => {
+        expect(minWidthOf(salesTabOf('all'), false)).toBe(872)
+        expect(minWidthOf(salesTabOf('invoices'), false)).toBe(858)
+    })
+
+    it('is 840 for an All purchases writer while Expenses has no row actions', () => {
+        expect(minWidthOf(purchaseTabOf('all'), true)).toBe(840)
+    })
+
+    it('has no tableMinWidth(tab, canWrite) beside it', () => {
+        expect(documentList).not.toHaveProperty('tableMinWidth')
     })
 })
 

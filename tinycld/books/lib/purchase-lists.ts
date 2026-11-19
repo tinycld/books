@@ -4,6 +4,7 @@
 
 import type { DocumentListTab, ListChip, ListColumnKey, ListSortKey } from './document-list'
 import { BASE_SORT_KEYS, listChips as chips } from './list-chips'
+import { areaTabOf } from './list-tabs'
 import { NEW_ACTIONS } from './new-actions'
 import type { VendorTransactionFilter, VendorTransactionKind } from './vendor-transactions'
 
@@ -124,7 +125,7 @@ export const PURCHASE_TABS: readonly DocumentListTab[] = [
 
 // An unknown key gives All purchases.
 export function purchaseTabOf(key: string): DocumentListTab {
-    return PURCHASE_TABS.find(tab => tab.key === key) ?? ALL_PURCHASES_TAB
+    return areaTabOf({ tabs: PURCHASE_TABS }, key)
 }
 
 export function purchaseTabForKind(kind: VendorTransactionKind): DocumentListTab {

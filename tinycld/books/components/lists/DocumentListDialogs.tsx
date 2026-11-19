@@ -7,14 +7,19 @@ import { VoidDialog } from '../entries/VoidDialog'
 
 function ignore() {}
 
+interface BatchProps {
+    batch: DocumentBatch
+    testIdPrefix: string
+}
+
 // The confirm (or, when the action applies to none, Close alone) of the batch dialog.
-function BatchFooter({ batch }: { batch: DocumentBatch }) {
+function BatchFooter({ batch, testIdPrefix }: BatchProps) {
     const confirmLabel = batch.copy?.confirmLabel ?? null
     if (confirmLabel === null) {
         return (
             <Dialog.Footer>
                 <Dialog.CancelButton
-                    testID="sales-batch-close"
+                    testID={`${testIdPrefix}-batch-close`}
                     label="Close"
                     onPress={batch.close}
                 />
@@ -30,14 +35,14 @@ function BatchFooter({ batch }: { batch: DocumentBatch }) {
                 onPress={confirm}
                 isDisabled={batch.isRunning}
                 isDestructive
-                testID="sales-batch-confirm"
+                testID={`${testIdPrefix}-batch-confirm`}
             />
         </Dialog.Footer>
     )
 }
 
 // One dialog per batch: what the action applies to and what it skips (`batchDialogCopy`).
-function BatchDialog({ batch }: { batch: DocumentBatch }) {
+function BatchDialog({ batch, testIdPrefix }: BatchProps) {
     const copy = batch.copy
     const onClose = batch.isRunning ? ignore : batch.close
     return (
@@ -45,33 +50,38 @@ function BatchDialog({ batch }: { batch: DocumentBatch }) {
             isOpen={copy !== null}
             onClose={onClose}
             title={copy?.title ?? ''}
-            testID="sales-batch-dialog"
+            testID={`${testIdPrefix}-batch-dialog`}
             hasCloseButton={false}
         >
             <Dialog.Body>
                 <Text className="text-sm text-foreground">{copy?.body ?? ''}</Text>
             </Dialog.Body>
-            <BatchFooter batch={batch} />
+            <BatchFooter batch={batch} testIdPrefix={testIdPrefix} />
         </Dialog>
     )
 }
 
 interface DocumentListDialogsProps {
+    // The list area's test-id prefix (`<prefix>-batch-dialog`, `<prefix>-delete-dialog`, …).
+    testIdPrefix: string
     rowActions: Pick<DocumentRowActions, 'voidDialog' | 'deleteDialog'>
     batch: DocumentBatch
 }
 
 /**
- * The Sales list's confirm dialogs, drawn once at the screen's root: a row menu's Void and
+ * The list's confirm dialogs, drawn once at the screen's root: a row menu's Void and
  * Delete draft, and the Batch actions dialog. A refusal shows in the list's banner, not in
- * the dialog, which closes.
+ * the dialog, which closes. The Void dialog keeps `VoidDialog`'s own test ids.
  */
-export function DocumentListDialogs({ rowActions, batch }: DocumentListDialogsProps) {
+export function DocumentListDialogs({ testIdPrefix, rowActions, batch }: DocumentListDialogsProps) {
     return (
         <>
             <VoidDialog {...rowActions.voidDialog} />
-            <DeleteDraftDialog {...rowActions.deleteDialog} testIdPrefix="sales-delete" />
-            <BatchDialog batch={batch} />
+            <DeleteDraftDialog
+                {...rowActions.deleteDialog}
+                testIdPrefix={`${testIdPrefix}-delete`}
+            />
+            <BatchDialog batch={batch} testIdPrefix={testIdPrefix} />
         </>
     )
 }

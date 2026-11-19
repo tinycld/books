@@ -18,17 +18,18 @@ const TRIGGER_STYLE = { width: 44, minHeight: 44 }
 
 interface MenuItemsProps {
     row: DocumentListRow
+    testIdPrefix: string
     items: readonly RowMenuAction[]
     actions: Pick<DocumentRowActions, 'run' | 'isDisabled'>
 }
 
-function MenuItems({ row, items, actions }: MenuItemsProps) {
+function MenuItems({ row, testIdPrefix, items, actions }: MenuItemsProps) {
     const rendered = items.map(action => {
         const select = () => actions.run(row, action)
         return (
             <Menu.Item
                 key={action}
-                testID={rowActionTestId(action)}
+                testID={rowActionTestId(testIdPrefix, action)}
                 label={ROW_MENU_LABELS[action]}
                 isDestructive={action === 'void' || action === 'delete_draft'}
                 isDisabled={actions.isDisabled(action)}
@@ -54,18 +55,20 @@ function useRowMenuOpen(id: string) {
 
 interface DocumentRowMenuProps {
     row: DocumentListRow
+    // The list area's test-id prefix (`<prefix>-row-menu-<id>`, `<prefix>-row-action-…`).
+    testIdPrefix: string
     canWrite: boolean
     actions: Pick<DocumentRowActions, 'run' | 'isDisabled'>
 }
 
 /**
- * The "More actions" menu that ends a Sales list's row or card (spec §3 "Row menu"): Open,
+ * The "More actions" menu that ends a list's row or card (spec §3 "Row menu"): Open,
  * then what the document's read view offers for its status and the user's access
  * (`documentRowMenuItems`). Its items exist only while it is open, because core Sheet keeps
  * its content in the page while it slides out. A press on the button or an item never
  * opens the row.
  */
-export function DocumentRowMenu({ row, canWrite, actions }: DocumentRowMenuProps) {
+export function DocumentRowMenu({ row, testIdPrefix, canWrite, actions }: DocumentRowMenuProps) {
     const color = useThemeColor('muted-foreground')
     const { isOpen, setOpen } = useRowMenuOpen(row.id)
     const items = isOpen ? documentRowMenuItems(row, canWrite) : []
@@ -73,7 +76,7 @@ export function DocumentRowMenu({ row, canWrite, actions }: DocumentRowMenuProps
     // An element, not a component: the menu clones it with its press handler and ref.
     const trigger = (
         <Pressable
-            testID={`sales-row-menu-${row.id}`}
+            testID={`${testIdPrefix}-row-menu-${row.id}`}
             accessibilityRole="button"
             accessibilityLabel="More actions"
             className="items-center justify-center"
@@ -92,7 +95,7 @@ export function DocumentRowMenu({ row, canWrite, actions }: DocumentRowMenuProps
                 onOpenChange={setOpen}
                 trigger={trigger}
             >
-                <MenuItems row={row} items={items} actions={actions} />
+                <MenuItems row={row} testIdPrefix={testIdPrefix} items={items} actions={actions} />
             </Menu>
         </PressBoundary>
     )

@@ -4,9 +4,9 @@ import { ScrollView, type TextInputInstance, View } from 'react-native'
 import type { useDocumentListScreen } from '../../hooks/useDocumentListScreen'
 import type { DocumentListTab } from '../../lib/document-list'
 import { RANGE_ITEMS, sortMenuItems } from '../../lib/document-list-menus'
+import { areaOf, type ListArea } from '../../lib/list-areas'
 import { ListFilterChips } from '../ListFilterChips'
 import { SearchField } from '../ListToolbar'
-import { SEARCH_PLACEHOLDER } from './DocumentListStates'
 import { DocumentPartyFilter } from './DocumentPartyFilter'
 
 type Screen = ReturnType<typeof useDocumentListScreen>
@@ -14,9 +14,10 @@ type Screen = ReturnType<typeof useDocumentListScreen>
 interface PartProps {
     screen: Screen
     tab: DocumentListTab
+    area: ListArea
 }
 
-function RangeMenu({ screen }: { screen: Screen }) {
+function RangeMenu({ screen, area }: { screen: Screen; area: ListArea }) {
     const range = screen.filters.range
     const items = RANGE_ITEMS.map(item => ({
         id: item.id,
@@ -27,7 +28,7 @@ function RangeMenu({ screen }: { screen: Screen }) {
     const label = RANGE_ITEMS.find(item => item.id === range)?.label ?? ''
     return (
         <PickMenu
-            testID="sales-range"
+            testID={`${area.testIdPrefix}-range`}
             purpose="Date range"
             label={label}
             size="touch"
@@ -37,7 +38,7 @@ function RangeMenu({ screen }: { screen: Screen }) {
 }
 
 // Cards have no header, so the toolbar holds the sort: each sortable column, both ways.
-function SortMenu({ screen, tab, isVisible }: PartProps & { isVisible: boolean }) {
+function SortMenu({ screen, tab, area, isVisible }: PartProps & { isVisible: boolean }) {
     if (!isVisible) return null
     const { sort } = screen
     const items = sortMenuItems(tab).map(item => ({
@@ -49,7 +50,7 @@ function SortMenu({ screen, tab, isVisible }: PartProps & { isVisible: boolean }
     const chosen = items.find(item => item.isSelected)?.label ?? ''
     return (
         <PickMenu
-            testID="sales-sort"
+            testID={`${area.testIdPrefix}-sort`}
             purpose="Sort"
             label={`Sort: ${chosen}`}
             size="touch"
@@ -59,24 +60,36 @@ function SortMenu({ screen, tab, isVisible }: PartProps & { isVisible: boolean }
 }
 
 const NO_GROW = { flexGrow: 0 }
-const WIDE_CUSTOMER_STYLE = { width: 220 }
-const PHONE_CUSTOMER_STYLE = { width: 180 }
+const WIDE_PARTY_STYLE = { width: 220 }
+const PHONE_PARTY_STYLE = { width: 180 }
 
-function CustomerFilter({ screen, isPhone }: { screen: Screen; isPhone: boolean }) {
-    const style = isPhone ? PHONE_CUSTOMER_STYLE : WIDE_CUSTOMER_STYLE
+function PartyFilter({
+    screen,
+    area,
+    isPhone,
+}: {
+    screen: Screen
+    area: ListArea
+    isPhone: boolean
+}) {
+    const style = isPhone ? PHONE_PARTY_STYLE : WIDE_PARTY_STYLE
     return (
         <View style={style}>
-            <DocumentPartyFilter value={screen.filters.party} onChange={screen.setParty} />
+            <DocumentPartyFilter
+                area={area}
+                value={screen.filters.party}
+                onChange={screen.setParty}
+            />
         </View>
     )
 }
 
-function Chips({ screen, tab, scrolls }: PartProps & { scrolls: boolean }) {
+function Chips({ screen, tab, area, scrolls }: PartProps & { scrolls: boolean }) {
     return (
         <ListFilterChips
             chips={tab.chips}
             selected={screen.filters.chip}
-            testIdPrefix="sales-chip"
+            testIdPrefix={`${area.testIdPrefix}-chip`}
             onSelect={screen.setChip}
             scrolls={scrolls}
             gutterClass="px-4"
@@ -86,18 +99,20 @@ function Chips({ screen, tab, scrolls }: PartProps & { scrolls: boolean }) {
 
 function Search({
     screen,
+    area,
     isWide,
     inputRef,
 }: {
     screen: Screen
+    area: ListArea
     isWide: boolean
     inputRef?: RefObject<TextInputInstance | null>
 }) {
     const search = { query: screen.filters.search, setQuery: screen.setSearch }
     return (
         <SearchField
-            testIdPrefix="sales"
-            placeholder={SEARCH_PLACEHOLDER}
+            testIdPrefix={area.testIdPrefix}
+            placeholder={area.texts.searchPlaceholder}
             list={search}
             isWide={isWide}
             inputRef={inputRef}
@@ -117,13 +132,13 @@ interface DocumentListToolbarProps {
 }
 
 /**
- * The full Sales list's toolbar (spec docs/specs/sales-lists-design.md §3): the search
- * field, the status chips, the date-range menu and the customer picker, with the Sort
- * menu when the list draws cards. Wide, they share one wrapping row; on a phone the search
- * takes the first row, the chips scroll sideways on the second, and the date range, the
- * customer and the sort share a third that scrolls sideways. The 320 px names column has
- * none of it (`showFilters`). It draws in every state, so a filter that led to a refused
- * or empty list can still be changed.
+ * The full list's toolbar (spec docs/specs/sales-lists-design.md §3): the search field,
+ * the status chips, the date-range menu and the party picker (the area's customer or
+ * vendor), with the Sort menu when the list draws cards. Wide, they share one wrapping
+ * row; on a phone the search takes the first row, the chips scroll sideways on the second,
+ * and the date range, the party and the sort share a third that scrolls sideways. The
+ * 320 px names column has none of it (`showFilters`). It draws in every state, so a filter
+ * that led to a refused or empty list can still be changed.
  */
 export function DocumentListToolbar({
     screen,
@@ -132,21 +147,22 @@ export function DocumentListToolbar({
     batch,
     inputRef,
 }: DocumentListToolbarProps) {
+    const area = areaOf(tab)
     if (!screen.controls.showFilters) return null
     const { drawsCards } = screen
     if (isPhone) {
         return (
             <View className="gap-2 pb-3 pt-3">
                 <View className="flex-row items-center gap-2 px-4">
-                    <Search screen={screen} isWide={false} inputRef={inputRef} />
+                    <Search screen={screen} area={area} isWide={false} inputRef={inputRef} />
                     {batch}
                 </View>
-                <Chips screen={screen} tab={tab} scrolls />
+                <Chips screen={screen} tab={tab} area={area} scrolls />
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={NO_GROW}>
                     <View className="flex-row items-center gap-2 px-4">
-                        <RangeMenu screen={screen} />
-                        <CustomerFilter screen={screen} isPhone />
-                        <SortMenu screen={screen} tab={tab} isVisible={drawsCards} />
+                        <RangeMenu screen={screen} area={area} />
+                        <PartyFilter screen={screen} area={area} isPhone />
+                        <SortMenu screen={screen} tab={tab} area={area} isVisible={drawsCards} />
                     </View>
                 </ScrollView>
             </View>
@@ -158,12 +174,12 @@ export function DocumentListToolbar({
     const batchAtEnd = drawsCards ? null : batch
     return (
         <View className="flex-row flex-wrap items-center gap-2 px-4 pb-3 pt-3">
-            <Search screen={screen} isWide inputRef={inputRef} />
+            <Search screen={screen} area={area} isWide inputRef={inputRef} />
             {batchBySearch}
-            <Chips screen={screen} tab={tab} scrolls={false} />
-            <RangeMenu screen={screen} />
-            <CustomerFilter screen={screen} isPhone={false} />
-            <SortMenu screen={screen} tab={tab} isVisible={drawsCards} />
+            <Chips screen={screen} tab={tab} area={area} scrolls={false} />
+            <RangeMenu screen={screen} area={area} />
+            <PartyFilter screen={screen} area={area} isPhone={false} />
+            <SortMenu screen={screen} tab={tab} area={area} isVisible={drawsCards} />
             {batchAtEnd}
         </View>
     )
