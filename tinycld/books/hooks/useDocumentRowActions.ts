@@ -2,9 +2,9 @@ import { useMutation } from '@tinycld/core/lib/mutations'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useWritesAvailable } from '@tinycld/core/lib/use-writes-available'
 import { router } from 'expo-router'
-import type { DocumentListRow } from '../lib/document-list'
+import { type DocumentListRow, isSalesKind, kindLabel, salesKindOf } from '../lib/document-list'
 import { documentRowMenuItems, type RowMenuAction, rowActionHref } from '../lib/document-row-menu'
-import { TRANSACTION_TYPE_LABELS, type TransactionKind } from '../lib/party-transactions'
+import type { TransactionKind } from '../lib/party-transactions'
 import { PAYMENT_MESSAGES } from '../lib/payment-texts'
 import { writeRefusalText } from '../lib/refusal'
 import {
@@ -77,7 +77,7 @@ export function useDocumentRowActions({ listKey, rows, canWrite, openRow }: RowA
     }
     const voidDocument = useMutation({
         mutationFn: function* (row: DocumentListRow) {
-            yield voidWrite(row.kind, row.id)
+            yield voidWrite(salesKindOf(row), row.id)
         },
         onSuccess: close,
         // The banner shows the refusal; without this core reports it again as a toast.
@@ -85,7 +85,7 @@ export function useDocumentRowActions({ listKey, rows, canWrite, openRow }: RowA
     })
     const deleteDraft = useMutation({
         mutationFn: function* (row: DocumentListRow) {
-            yield deleteWrite(row.kind, row.id)
+            yield deleteWrite(salesKindOf(row), row.id)
         },
         onSuccess: close,
         onError: refuse,
@@ -99,7 +99,7 @@ export function useDocumentRowActions({ listKey, rows, canWrite, openRow }: RowA
         setRowDialog({ listKey, action, row, isRunning: false })
     }
     const downloadPdf = (row: DocumentListRow) => {
-        const kind = PDF_KINDS[row.kind]
+        const kind = isSalesKind(row.kind) ? PDF_KINDS[row.kind] : undefined
         if (kind === undefined) return
         download.mutate({ kind: kind.key, id: row.id, fallbackName: kind.pdfStem(row.number) })
     }
@@ -128,7 +128,7 @@ export function useDocumentRowActions({ listKey, rows, canWrite, openRow }: RowA
     }
 
     const voidRow = target?.row
-    const noun = voidRow === undefined ? '' : TRANSACTION_TYPE_LABELS[voidRow.kind].toLowerCase()
+    const noun = voidRow === undefined ? '' : kindLabel(voidRow.kind).toLowerCase()
     const voidBody = voidRow?.kind === 'payment' ? PAYMENT_MESSAGES.voidBody : undefined
     const isVoidOffered = isStillOffered(target, 'void', rows, canWrite)
     const isDeleteOffered = isStillOffered(target, 'delete_draft', rows, canWrite)

@@ -32,7 +32,7 @@ function useScreenBelow(): { belowName: string; belowId: string } {
  * 320 px column of the list. The layout is a screen of the Books root stack, so it reads
  * the screen below it there and hands it to the child stack's screens (KindStackContext).
  */
-export function SalesKindLayout({ tabKey }: { tabKey: string }) {
+export function DocumentKindLayout({ tabKey }: { tabKey: string }) {
     const tab = salesTabOf(tabKey)
     const { open, openId } = useOpenRecord(tab.path)
     const surface = useDetailSurface()

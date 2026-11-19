@@ -13,7 +13,7 @@ import {
 // The one reader of the Books stack (lib/stack-screens.ts). A screen of the Books root
 // stack reads its own navigator's state as flat screens. A screen of a sales kind's child
 // stack reads its child stack's state, after the screen below the kind route that
-// SalesKindLayout passes down (KindStackContext).
+// DocumentKindLayout passes down (KindStackContext).
 //
 // The stack comes from useNavigationState, not navigation.getState(): during a render
 // getState() still returns the state before the push that mounted this screen. `select`

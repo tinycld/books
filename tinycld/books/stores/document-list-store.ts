@@ -19,8 +19,9 @@ type TabState = { filters: DocumentListFilters; sort: ListSort }
 type Scoped<T> = { scope: string } & T
 
 // A row menu's Void or Delete draft dialog. `row` is the row as it was when the dialog
-// opened, so its words stay while the write changes the row under it; `listKey` is the tab
-// whose list opened it, so a list mounted under another one does not draw it too.
+// opened, so its words stay while the write changes the row under it; `listKey` is the
+// `tabStateKey` of the tab whose list opened it, so a list mounted under another one does
+// not draw it too.
 export type RowDialog = {
     listKey: string
     action: 'void' | 'delete_draft'
@@ -30,8 +31,9 @@ export type RowDialog = {
 
 export type BatchCounts = { applies: number; skipped: number }
 
-// The open Batch actions dialog of the tab `listKey`; `running` holds the counts it showed
-// when its confirm was pressed, so its words stay while the writes change the rows.
+// The open Batch actions dialog of the tab whose `tabStateKey` is `listKey`; `running` holds
+// the counts it showed when its confirm was pressed, so its words stay while the writes
+// change the rows.
 export type BatchDialog = {
     listKey: string
     action: BatchAction
@@ -39,13 +41,15 @@ export type BatchDialog = {
 }
 
 interface DocumentListState {
-    // Each tab's search, chip, date range, customer and sort, kept while the app is open.
+    // Each tab's search, chip, date range, party and sort, kept while the app is open, by
+    // `tabStateKey(tab)` (All sales and All purchases share the tab key `all`).
     tabs: Record<string, TabState>
     tabState: (key: string) => TabState
     setSearch: (key: string, text: string) => void
     setChip: (key: string, chipId: string) => void
     setRange: (key: string, range: ListRange) => void
-    setCustomer: (key: string, customerId: string) => void
+    // The customer (Sales) or vendor (Expenses) id; '' for every party.
+    setParty: (key: string, partyId: string) => void
     setSort: (key: string, sort: ListSort) => void
     clearFilters: (key: string) => void
     selection: Scoped<{ ids: readonly string[] }>
@@ -83,7 +87,7 @@ export const useDocumentListStore = create<DocumentListState>()((set, get) => {
         setSearch: (key, search) => setFilters(key, { search }),
         setChip: (key, chip) => setFilters(key, { chip }),
         setRange: (key, range) => setFilters(key, { range }),
-        setCustomer: (key, customer) => setFilters(key, { customer }),
+        setParty: (key, party) => setFilters(key, { party }),
         setSort: (key, sort) =>
             set(state => ({ tabs: { ...state.tabs, [key]: { ...tabOf(key), sort } } })),
         clearFilters: key => setFilters(key, DEFAULT_LIST_FILTERS),
@@ -107,7 +111,8 @@ export const useDocumentListStore = create<DocumentListState>()((set, get) => {
     }
 })
 
-// The scope of a selection: the tab, the layout and every filter, not the sort.
+// The scope of a selection: the tab (its `tabStateKey`), the layout and every filter, not
+// the sort.
 export function selectionScope(
     tabKey: string,
     layout: ListLayout,
@@ -119,7 +124,7 @@ export function selectionScope(
         filters.chip,
         filters.search,
         filters.range,
-        filters.customer,
+        filters.party,
     ])
 }
 

@@ -287,15 +287,17 @@ function newestFirst(a: PartyTransactionRow<string>, b: PartyTransactionRow<stri
 }
 
 // Each list is one source's first `n` rows in the same order, so the merged first `n` rows
-// are exact. A list that reached `n` may have more behind it, so the window can grow.
+// are exact. The window can grow when a list reached `n` (it may have more behind it) or
+// when the lists hold more than `n` rows together (the cut left some out).
 // `compare` must be the order every list is in (the sales lists pass their sort's).
 export function mergeTransactions<Row extends PartyTransactionRow<string>>(
     lists: Row[][],
     n: number,
     compare: (a: Row, b: Row) => number = newestFirst
 ): { rows: Row[]; hasMore: boolean } {
-    const rows = lists.flat().sort(compare).slice(0, n)
-    const hasMore = lists.some(list => list.length >= n)
+    const all = lists.flat().sort(compare)
+    const rows = all.slice(0, n)
+    const hasMore = all.length > n || lists.some(list => list.length >= n)
     return { rows, hasMore }
 }
 

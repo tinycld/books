@@ -2,7 +2,13 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useListSelection } from '../tinycld/books/hooks/useListSelection'
-import type { ListLayout } from '../tinycld/books/lib/document-list'
+import {
+    DEFAULT_LIST_FILTERS,
+    type ListLayout,
+    tabStateKey,
+} from '../tinycld/books/lib/document-list'
+import { purchaseTabOf } from '../tinycld/books/lib/purchase-lists'
+import { salesTabOf } from '../tinycld/books/lib/sales-lists'
 import { selectionScope, useDocumentListStore } from '../tinycld/books/stores/document-list-store'
 
 // Spec §3: "A change of tab, chip, search, date range or customer clears the selection. A
@@ -69,8 +75,8 @@ describe('useListSelection: a left scope stays cleared', () => {
         expect(list.result.current.ids).toEqual([])
 
         tickTwo(list)
-        act(() => store().setCustomer('invoices', 'bcust0000000001'))
-        act(() => store().setCustomer('invoices', filters.customer))
+        act(() => store().setParty('invoices', 'bcust0000000001'))
+        act(() => store().setParty('invoices', filters.party))
         expect(list.result.current.ids).toEqual([])
     })
 
@@ -109,6 +115,21 @@ describe('useListSelection: a left scope stays cleared', () => {
 
         expect(list.result.current.ids).toEqual([])
         expect(list.result.current.isTicked('slinv0000001049')).toBe(false)
+    })
+
+    it('the ticks of All sales are not ticks of All purchases', () => {
+        const salesKey = tabStateKey(salesTabOf('all'))
+        const purchasesKey = tabStateKey(purchaseTabOf('all'))
+        expect(selectionScope(salesKey, 'table', DEFAULT_LIST_FILTERS)).not.toBe(
+            selectionScope(purchasesKey, 'table', DEFAULT_LIST_FILTERS)
+        )
+        const sales = mountList(salesKey)
+        tickTwo(sales)
+        sales.unmount()
+
+        const purchases = mountList(purchasesKey)
+        expect(purchases.result.current.ids).toEqual([])
+        expect(purchases.result.current.isTicked('slinv0000001048')).toBe(false)
     })
 
     it('a sort change keeps the ticks', () => {
