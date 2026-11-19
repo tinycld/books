@@ -89,10 +89,9 @@ export function WriteOffReadView({ writeOff, canWrite }: WriteOffReadViewProps) 
     const openCustomer = () => router.push(orgHref(`books/customers/${writeOff.customerId}`))
     const openInvoice = useOpenDocument(INVOICE_KIND, writeOff.invoiceId)
     // The dialog closes when Void stops being offered (the write-off was voided elsewhere
-    // while it was open), unless its own void runs: `isHeld` is set before the optimistic
-    // update makes the write-off read `void`.
+    // while it was open), unless this dialog's own void runs.
     const isVoidOffered = writeOffReadActions(writeOff.status, canWrite).includes('void')
-    const isVoidVisible = voidWriteOff.isOpen && (isVoidOffered || voidWriteOff.isHeld)
+    const isVoidVisible = voidWriteOff.isOpen && (isVoidOffered || voidWriteOff.isPending)
     const isConfirmDisabled = !writesAvailable
     const voidBody = `The invoice's balance due rises by ${figure} again.`
     const voidNumber = `write-off ${writeOff.number}`

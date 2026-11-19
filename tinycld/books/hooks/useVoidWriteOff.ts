@@ -10,15 +10,14 @@ import { writeRefusalText } from '../lib/refusal'
  * under it, so a refusal (the close date) stays in the dialog with its text; a success
  * closes it.
  *
- * The update is optimistic: the write-off reads `void` before the server answers, and
- * React Query reports `isPending` later, in a batched notification. So `confirm` sets
- * `isHeld` before the mutation starts, and it stays set until the mutation settles; the
- * page keeps the dialog open on it, so a render between the two cannot drop a refusal.
+ * The update is optimistic, so the write-off reads `void` (and Void is no longer offered)
+ * while the write runs. The dialog stays visible through its own void because the mutation
+ * reports `isPending` before the optimistic write runs: React Query sets the mutation
+ * pending before it calls the mutationFn, and this hook reads that state in each render.
  */
 export function useVoidWriteOff() {
     const [writeOffsCollection] = useStore('books_write_offs')
     const [isOpen, setOpen] = useState(false)
-    const [isHeld, setHeld] = useState(false)
     const mutation = useMutation({
         mutationFn: function* (id: string) {
             yield writeOffsCollection.update(id, draft => {
@@ -28,12 +27,8 @@ export function useVoidWriteOff() {
         onSuccess: () => setOpen(false),
         // The dialog shows the refusal; without this core reports it again as a toast.
         onError: () => {},
-        onSettled: () => setHeld(false),
     })
-    const confirm = (id: string) => {
-        setHeld(true)
-        mutation.mutate(id)
-    }
+    const confirm = (id: string) => mutation.mutate(id)
     const open = () => {
         mutation.reset()
         setOpen(true)
@@ -43,8 +38,7 @@ export function useVoidWriteOff() {
         isOpen,
         open,
         close,
-        isHeld,
-        isPending: isHeld || mutation.isPending,
+        isPending: mutation.isPending,
         errorMessage: mutation.error ? writeRefusalText(mutation.error) : null,
         confirm,
     }
