@@ -110,6 +110,11 @@ describe('SALES_TABS', () => {
         expect([...salesTabOf(expected.key).sortKeys].sort()).toEqual([...expected.sortKeys].sort())
     })
 
+    it('puts every tab in the sales area', () => {
+        expect(SALES_TABS.map(tab => tab.area)).toEqual(SALES_TABS.map(() => 'sales'))
+        expect(customerTransactionsTab('all').area).toBe('sales')
+    })
+
     it('makes only All sales signed and gives only All sales no New route', () => {
         expect(SALES_TABS.filter(tab => tab.isSigned).map(tab => tab.key)).toEqual(['all'])
         expect(SALES_TABS.filter(tab => tab.newHref === null).map(tab => tab.key)).toEqual(['all'])

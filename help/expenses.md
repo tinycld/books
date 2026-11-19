@@ -9,6 +9,8 @@ To record money that you already paid, by check, card, cash or another method, e
 
 Use an expense when you paid now and there is no bill to pay later. When a vendor sends a bill that you pay later, enter a bill instead. See [Bills](help://books:bills). To pay that bill later, see [Pay bills](help://books:pay-bills).
 
+To find, filter and act on your expenses, choose Expenses in the sidebar, then the Expenses tab. See [Purchase lists](help://books:purchase-lists).
+
 ## Enter an expense
 
 To enter an expense, choose New in the sidebar (the round + button on a phone) and pick Expense, under Vendors. In a web browser, the Vendor field has focus when the form opens, so you can start to type the vendor's name at once.

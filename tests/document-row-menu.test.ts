@@ -34,8 +34,8 @@ function row(
         created: '2026-11-17 10:00:00.000Z',
         status: { label: 'Open', tone: 'warning' },
         sequence: 1004,
-        customerId: CUSTOMER,
-        customerName: 'Acme',
+        partyId: CUSTOMER,
+        partyName: 'Acme',
         memo: '',
         reference: '',
         expires: '',
@@ -43,6 +43,7 @@ function row(
         entry: recordStatus === 'draft' || kind === 'estimate' ? '' : ENTRY,
         convertedInvoice: '',
         recordStatus,
+        category: { kind: 'none' },
         ...fields,
     }
 }
@@ -273,6 +274,13 @@ describe('ROW_MENU_LABELS', () => {
 })
 
 describe('rowActionTestId', () => {
+    it('starts with the list area prefix', () => {
+        expect(rowActionTestId('sales', 'delete_draft')).toBe('sales-row-action-delete-draft')
+        expect(rowActionTestId('purchases', 'delete_draft')).toBe(
+            'purchases-row-action-delete-draft'
+        )
+    })
+
     it('is sales-row-action- with dashes', () => {
         const ids = (
             [
@@ -286,7 +294,7 @@ describe('rowActionTestId', () => {
                 'pdf',
                 'delete_draft',
             ] as RowMenuAction[]
-        ).map(rowActionTestId)
+        ).map(action => rowActionTestId('sales', action))
         expect(ids).toEqual([
             'sales-row-action-open',
             'sales-row-action-receive-payment',

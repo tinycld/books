@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { DEFAULT_LIST_FILTERS, DEFAULT_LIST_SORT } from '../tinycld/books/lib/document-list'
+import {
+    DEFAULT_LIST_FILTERS,
+    DEFAULT_LIST_SORT,
+    tabStateKey,
+} from '../tinycld/books/lib/document-list'
+import { purchaseTabOf } from '../tinycld/books/lib/purchase-lists'
+import { salesTabOf } from '../tinycld/books/lib/sales-lists'
 import {
     selectedIn,
     selectionScope,
@@ -30,7 +36,7 @@ describe('tab state', () => {
         store().setSearch('invoices', '1048')
         store().setChip('invoices', 'overdue')
         store().setRange('invoices', 'last-month')
-        store().setCustomer('invoices', 'bcust0000000001')
+        store().setParty('invoices', 'bcust0000000001')
         store().setSort('invoices', { key: 'number', isAscending: true })
         store().setChip('payments', 'credit-left')
         store().setSort('payments', { key: 'amount', isAscending: false })
@@ -40,7 +46,7 @@ describe('tab state', () => {
                 search: '1048',
                 chip: 'overdue',
                 range: 'last-month',
-                customer: 'bcust0000000001',
+                party: 'bcust0000000001',
             },
             sort: { key: 'number', isAscending: true },
         })
@@ -58,7 +64,7 @@ describe('tab state', () => {
         store().setSearch('estimates', 'deck')
         store().setChip('estimates', 'expired')
         store().setRange('estimates', 'this-quarter')
-        store().setCustomer('estimates', 'bcust0000000002')
+        store().setParty('estimates', 'bcust0000000002')
         store().setSort('estimates', { key: 'expires', isAscending: true })
         store().setChip('invoices', 'void')
 
@@ -69,6 +75,45 @@ describe('tab state', () => {
             sort: { key: 'expires', isAscending: true },
         })
         expect(store().tabState('invoices').filters.chip).toBe('void')
+    })
+
+    it('keeps the search, chip, range, party and sort of All sales and All purchases apart', () => {
+        const sales = tabStateKey(salesTabOf('all'))
+        const purchases = tabStateKey(purchaseTabOf('all'))
+        expect(sales).not.toBe(purchases)
+        store().setSearch(sales, '1048')
+        store().setChip(sales, 'overdue')
+        store().setRange(sales, 'last-month')
+        store().setParty(sales, 'bcust0000000001')
+        store().setSort(sales, { key: 'number', isAscending: true })
+        store().setSearch(purchases, 'paper')
+        store().setChip(purchases, 'draft')
+        store().setRange(purchases, 'this-quarter')
+        store().setParty(purchases, 'bvend0000000001')
+        store().setSort(purchases, { key: 'amount', isAscending: false })
+
+        expect(store().tabState(sales)).toEqual({
+            filters: {
+                search: '1048',
+                chip: 'overdue',
+                range: 'last-month',
+                party: 'bcust0000000001',
+            },
+            sort: { key: 'number', isAscending: true },
+        })
+        expect(store().tabState(purchases)).toEqual({
+            filters: {
+                search: 'paper',
+                chip: 'draft',
+                range: 'this-quarter',
+                party: 'bvend0000000001',
+            },
+            sort: { key: 'amount', isAscending: false },
+        })
+
+        store().clearFilters(purchases)
+        expect(store().tabState(sales).filters.party).toBe('bcust0000000001')
+        expect(store().tabState(purchases).filters).toEqual(DEFAULT_LIST_FILTERS)
     })
 })
 
@@ -92,12 +137,24 @@ describe('selection', () => {
             selectionScope('invoices', 'table', { ...DEFAULT_LIST_FILTERS, range: 'this-month' }),
             selectionScope('invoices', 'table', {
                 ...DEFAULT_LIST_FILTERS,
-                customer: 'bcust0000000001',
+                party: 'bcust0000000001',
             }),
         ]
         for (const scope of changed) expect(scope).not.toBe(base)
         expect(new Set(changed).size).toBe(changed.length)
         expect(selectionScope('invoices', 'table', { ...DEFAULT_LIST_FILTERS })).toBe(base)
+    })
+
+    it('selectionScope differs for the All sales and the All purchases tab', () => {
+        const sales = selectionScope(tabStateKey(salesTabOf('all')), 'table', DEFAULT_LIST_FILTERS)
+        const purchases = selectionScope(
+            tabStateKey(purchaseTabOf('all')),
+            'table',
+            DEFAULT_LIST_FILTERS
+        )
+        expect(sales).not.toBe(purchases)
+        store().setSelection(sales, ['slinv0000001048'])
+        expect(selectedIn(store().selection, purchases)).toEqual([])
     })
 
     it('a change of sort keeps the scope and the selection', () => {

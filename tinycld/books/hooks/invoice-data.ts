@@ -275,12 +275,7 @@ function useInvoiceWrites(): DocumentWrites {
                 draft.status = 'posted'
                 draft.revision = revision
             }),
-        voidRecord: id =>
-            invoicesCollection.update(id, draft => {
-                draft.status = 'void'
-            }),
         storedRevision: id => invoicesCollection.get(id)?.revision,
-        deleteRecord: id => invoicesCollection.delete(id),
         lineOps: (invoiceId, mapper) => {
             const { toRecord } = salesLineMapperOf(mapper)
             const lineRecord = (write: TableRowWrite) => toRecord(write.row, write.position)

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { backTarget, popDepth } from '../tinycld/books/hooks/useBackToEntries'
+import { nestedStack, screensBelowRoute } from '../tinycld/books/lib/stack-screens'
 
 // How far Back pops (cp 4 item D1). Back steps past the screens of the same route right
 // below this one only on a read-only route (a bill payment read view opened from another),
@@ -191,11 +192,77 @@ describe('backTarget over the Sales lists', () => {
         })
     })
 
+    // Purchase lists checkpoint 3: the purchase list screens are named the same way, and
+    // All purchases is "Expenses".
+    it('pops a bill opened from the Bills list back to it, named "Bills"', () => {
+        expect(backTarget(stack('bills/index', 'bills/[id]'), 'k1')).toEqual({
+            route: 'bills/index',
+            label: 'Bills',
+            depth: 1,
+        })
+    })
+
+    it('pops a bill opened from All purchases back to it, named "Expenses"', () => {
+        expect(backTarget(stack('purchases/index', 'bills/[id]'), 'k1')).toEqual({
+            route: 'purchases/index',
+            label: 'Expenses',
+            depth: 1,
+        })
+    })
+
+    it('pops a bill payment opened from the Bill payments list back to it, named "Bill payments"', () => {
+        expect(backTarget(stack('bill-payments/index', 'bill-payments/[id]'), 'k1')).toEqual({
+            route: 'bill-payments/index',
+            label: 'Bill payments',
+            depth: 1,
+        })
+    })
+
     it('replaces an invoice with nothing below with the list route, depth 0', () => {
         expect(backTarget(stack('invoices/[id]'), 'k0')).toEqual({
             route: 'entries/index',
             label: 'Journal entries',
             depth: 0,
         })
+    })
+})
+
+// A void bill payment reopened over a copy of itself below its kind route (purchase-lists
+// cp3 gate 1): entries list → open the original → Edit pushes Pay Bills → the save replaces
+// Pay Bills with a second `bill-payments` kind route → search opens the original in it.
+// The read view's Back steps past the copy below the kind route to the Journal entries list.
+describe('backTarget from a read view in a kind child stack', () => {
+    const ownChildStack = {
+        routes: [{ key: 'c-bp2-a', name: '[id]', params: { id: 'paymentA000001' } }],
+    }
+    const rootStack = {
+        routes: [
+            { key: 'r-entries', name: 'entries/index' },
+            {
+                key: 'r-bp1',
+                name: 'bill-payments',
+                state: {
+                    routes: [{ key: 'c-bp1-a', name: '[id]', params: { id: 'paymentA000001' } }],
+                },
+            },
+            { key: 'r-bp2', name: 'bill-payments', state: ownChildStack },
+        ],
+    }
+    const seen = {
+        routes: nestedStack(screensBelowRoute(rootStack, 'r-bp2'), 'bill-payments', ownChildStack),
+    }
+
+    it('reaches the Journal entries list past the copy below the kind route, depth 2', () => {
+        expect(backTarget(seen, 'c-bp2-a')).toEqual({
+            route: 'entries/index',
+            label: 'Journal entries',
+            depth: 2,
+        })
+    })
+
+    it('reads the flat stack [entries/index, bill-payments/[id], bill-payments/[id]] the same way', () => {
+        expect(
+            backTarget(stack('entries/index', 'bill-payments/[id]', 'bill-payments/[id]'), 'k2')
+        ).toEqual({ route: 'entries/index', label: 'Journal entries', depth: 2 })
     })
 })

@@ -11,6 +11,7 @@ import {
     type Ref,
 } from '@tanstack/db'
 import { describe, expect, it } from 'vitest'
+import * as documentList from '../tinycld/books/lib/document-list'
 import {
     chipClause,
     chipRuns,
@@ -18,6 +19,7 @@ import {
     DEFAULT_LIST_FILTERS,
     DEFAULT_LIST_SORT,
     type DocumentListRow,
+    type DocumentListTab,
     documentListWindow,
     emptyTexts,
     hasFilterSet,
@@ -29,7 +31,7 @@ import {
     rangeClauses,
     searchClauses,
     sortField,
-    tableMinWidth,
+    tableMinWidthFor,
 } from '../tinycld/books/lib/document-list'
 import { searchPieces } from '../tinycld/books/lib/list-search'
 import {
@@ -41,6 +43,7 @@ import {
     salesReceiptRow,
     type TransactionKind,
 } from '../tinycld/books/lib/party-transactions'
+import { purchaseTabOf } from '../tinycld/books/lib/purchase-lists'
 import { salesTabOf } from '../tinycld/books/lib/sales-lists'
 import {
     SALES_LIST_CREDIT_MEMOS,
@@ -530,8 +533,8 @@ function listRow(over: Partial<DocumentListRow>): DocumentListRow {
         created: '2026-11-01 09:00:00.000Z',
         status: { label: 'Open', tone: 'warning' },
         sequence: 0,
-        customerId: '',
-        customerName: '',
+        partyId: '',
+        partyName: '',
         memo: '',
         reference: '',
         expires: '',
@@ -539,6 +542,7 @@ function listRow(over: Partial<DocumentListRow>): DocumentListRow {
         entry: '',
         convertedInvoice: '',
         recordStatus: 'posted',
+        category: { kind: 'none' },
         ...over,
     }
 }
@@ -700,15 +704,19 @@ describe('documentListWindow', () => {
 })
 
 describe('listControls', () => {
-    it('shows a reader no New, no ticks and no batch', () => {
-        expect(listControls(false, 'table')).toMatchObject({
+    // Checkpoint 4: every area has the row actions, so the controls depend on the access and
+    // the layout only (two arguments).
+    it('shows a reader row menus and no New, no ticks and no batch', () => {
+        expect(listControls(false, 'table')).toEqual({
             showNew: false,
             showTicks: false,
             showBatch: false,
+            showRowMenus: true,
+            showFilters: true,
         })
     })
 
-    it('shows a writer everything in the table', () => {
+    it('shows a writer ticks, batch and row menus in the table', () => {
         expect(listControls(true, 'table')).toEqual({
             showNew: true,
             showTicks: true,
@@ -716,6 +724,18 @@ describe('listControls', () => {
             showRowMenus: true,
             showFilters: true,
         })
+    })
+
+    it('shows a writer ticks, batch and row menus on the cards', () => {
+        expect(listControls(true, 'cards')).toMatchObject({
+            showTicks: true,
+            showBatch: true,
+            showRowMenus: true,
+        })
+    })
+
+    it('takes two arguments', () => {
+        expect(listControls.length).toBe(2)
     })
 
     it('shows the names column New and no ticks, batch, row menus or filters', () => {
@@ -729,10 +749,29 @@ describe('listControls', () => {
     })
 })
 
-describe('tableMinWidth', () => {
+// The table's minimum with the cells `listControls` gives the tab's area (fix round 1: the
+// old `tableMinWidth(tab, canWrite)` drew a row menu for every area and is gone).
+function minWidthOf(tab: DocumentListTab, canWrite: boolean): number {
+    return tableMinWidthFor(tab, listControls(canWrite, 'table'))
+}
+
+describe('tableMinWidthFor', () => {
     it('is 900 for the All sales columns and 886 for the Invoices columns for a writer', () => {
-        expect(tableMinWidth(salesTabOf('all').columns, true)).toBe(900)
-        expect(tableMinWidth(salesTabOf('invoices').columns, true)).toBe(886)
+        expect(minWidthOf(salesTabOf('all'), true)).toBe(900)
+        expect(minWidthOf(salesTabOf('invoices'), true)).toBe(886)
+    })
+
+    it('is 28 less for a Sales reader, who has a left pad for the tick box', () => {
+        expect(minWidthOf(salesTabOf('all'), false)).toBe(872)
+        expect(minWidthOf(salesTabOf('invoices'), false)).toBe(858)
+    })
+
+    it('is 912 for an All purchases writer, with the tick box and the row menu', () => {
+        expect(minWidthOf(purchaseTabOf('all'), true)).toBe(912)
+    })
+
+    it('has no tableMinWidth(tab, canWrite) beside it', () => {
+        expect(documentList).not.toHaveProperty('tableMinWidth')
     })
 })
 
@@ -742,7 +781,7 @@ describe('hasFilterSet', () => {
             search: '',
             chip: 'all',
             range: 'all-dates',
-            customer: '',
+            party: '',
         })
         expect(hasFilterSet(DEFAULT_LIST_FILTERS)).toBe(false)
     })
@@ -751,7 +790,7 @@ describe('hasFilterSet', () => {
         ['a search', { search: 'retainer' }],
         ['a chip', { chip: 'open' }],
         ['a range', { range: 'this-month' }],
-        ['a customer', { customer: 'bcust0000000001' }],
+        ['a party', { party: 'bcust0000000001' }],
     ] as const)('is true with %s', (_label, change) => {
         expect(hasFilterSet({ ...DEFAULT_LIST_FILTERS, ...change })).toBe(true)
     })

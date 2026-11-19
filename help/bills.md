@@ -11,6 +11,8 @@ If you already paid, and there is no bill to pay later, record an expense instea
 
 To pay a posted bill, in full or in part, use Pay bills. See [Pay bills](help://books:pay-bills).
 
+To find, filter and act on your bills, choose Expenses in the sidebar, then Bills. See [Purchase lists](help://books:purchase-lists).
+
 ## Enter a bill
 
 To enter a bill, choose New in the sidebar (the round + button on a phone) and pick Bill, under Vendors. In a web browser, the Vendor field has focus when the form opens, so you can start to type the vendor's name at once.

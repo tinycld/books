@@ -202,13 +202,18 @@ function BillPaymentSurface({ id, scopeOwner }: { id: string; scopeOwner: ScopeO
 /**
  * The bill payment read view at `books/bill-payments/<id>`: the shared document chrome
  * reads BILL_PAYMENT_CHROME, and the screen's `compose` scope holds the bar's keys.
+ * The root opts back into pointer events and draws its own background: the Bill payments
+ * child stack (DocumentKindLayout) turns pointer events off on web and draws its screens
+ * over a transparent layer, so the list under it never takes the screen's clicks.
  */
 export function BillPaymentReadScreen({ id }: { id: string }) {
     const scopeOwner = useShortcutScope('compose')
     return (
         <DocumentChromeContext.Provider value={BILL_PAYMENT_CHROME}>
             <ScopeProvider owner={scopeOwner}>
-                <BillPaymentSurface id={id} scopeOwner={scopeOwner} />
+                <View pointerEvents="auto" className="flex-1 bg-background">
+                    <BillPaymentSurface id={id} scopeOwner={scopeOwner} />
+                </View>
             </ScopeProvider>
         </DocumentChromeContext.Provider>
     )

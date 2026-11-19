@@ -104,7 +104,7 @@ export async function vendorWithBills(
 // Chromium). Only the index, not the URL: the Books landing `/a/books` replaces its own
 // entry with `/a/books/lists` (`screens/index.tsx`, `StackActions.replace`), which keeps
 // the index but changes the URL, so a URL read at the start races that replace.
-function historyIndex(page: Page): Promise<number> {
+export function historyIndex(page: Page): Promise<number> {
     return page.evaluate(
         () =>
             (window as unknown as { navigation: { currentEntry: { index: number } } }).navigation
@@ -115,7 +115,7 @@ function historyIndex(page: Page): Promise<number> {
 // Goes back, one same-document popstate per step (no reload), to the stack depth `start`
 // names, so the screens the steps pushed leave the stack (memory p3-transfer: a screen
 // left below makes the next nav push a second copy of it).
-async function returnTo(page: Page, start: number) {
+export async function returnTo(page: Page, start: number) {
     const now = await historyIndex(page)
     for (let step = now; step > start; step--) await page.goBack()
     await expect.poll(() => historyIndex(page)).toBe(start)
