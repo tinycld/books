@@ -208,14 +208,16 @@ function focusNextField(from: PressableInstance | null, formTestId: string) {
  * The party picker's focus, the one place for both party fields: on web the trigger takes
  * focus once, when it first attaches (SearchPicker `autoFocus`). A screen that comes back
  * into view (Back over a pushed screen) is the same mounted form, so focus does not move
- * then. Native moves no focus (a focused field raises the soft keyboard).
+ * then, nor on a form that replaced the document's read view (scope.focusesFirstField).
+ * Native moves no focus (a focused field raises the soft keyboard).
  */
 function usePartyFocus(formTestId: string) {
+    const { focusesFirstField } = useDocumentFormScope()
     const trigger = useRef<PressableInstance | null>(null)
     const triggerRef = useCallback((node: PressableInstance | null) => {
         trigger.current = node
     }, [])
-    const autoFocus = Platform.OS === 'web'
+    const autoFocus = Platform.OS === 'web' && focusesFirstField
     const focusNext = () => focusNextField(trigger.current, formTestId)
     return { autoFocus, triggerRef, focusNext }
 }
@@ -793,9 +795,9 @@ export function DayField({
 // focus (web only, as Customer's).
 export function DocumentDateField(props: BuiltinFieldProps) {
     const { getValues, setValue } = useFormContext<FormValues>()
-    const { estimateId, sourceLink } = useDocumentFormScope()
+    const { estimateId, sourceLink, focusesFirstField } = useDocumentFormScope()
     const isPartyFixed = estimateId !== '' || sourceLink.locksParty
-    const isFirstField = isPartyFixed && Platform.OS === 'web'
+    const isFirstField = isPartyFixed && focusesFirstField && Platform.OS === 'web'
     const onChange = (next: string) => {
         props.onChange(next)
         const due = dueDateFor(next, termsOf(getValues('terms')))
