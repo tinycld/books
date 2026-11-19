@@ -172,7 +172,8 @@ func arDetailLabel() *reports.Node {
 
 // arDisplay is the fixture's AR_AGING_DISPLAY: the eight columns on one line
 // where the rows are 940 px wide or wider, a long customer name wraps to
-// three lines, and no figure is cut.
+// three lines, and no figure is cut. Narrower rows wrap onto the tablet
+// arrangement (rows of 640 px and wider) or the phone arrangement.
 func arDisplay() *reports.Display {
 	figure := reports.ColumnFit{MinWidth: "max-content"}
 	return &reports.Display{
@@ -186,6 +187,38 @@ func arDisplay() *reports.Display {
 			"d90":     figure,
 			"d91":     figure,
 			"total":   figure,
+		},
+		Layouts: []reports.DisplayLayout{
+			// Total is on the phone's second line, not its last (F1, option a):
+			// core draws a group row with only the lines it has a value on, and
+			// Total always has one, so the second line is on every row and each
+			// figure keeps the place that names its age.
+			{
+				Width: "mobile", Tracks: 3,
+				Cells: []reports.DisplayCell{
+					{Col: "name", Line: 1, Span: 2},
+					{Col: "due", Line: 1},
+					{Col: "current", Line: 2},
+					{Col: "d30", Line: 2},
+					{Col: "total", Line: 2},
+					{Col: "d60", Line: 3},
+					{Col: "d90", Line: 3},
+					{Col: "d91", Line: 3},
+				},
+			},
+			{
+				Width: "tablet", MinWidth: "640px", Tracks: 12,
+				Cells: []reports.DisplayCell{
+					{Col: "name", Line: 1, Span: 10},
+					{Col: "total", Line: 1, Span: 2},
+					{Col: "due", Line: 2, Span: 2},
+					{Col: "current", Line: 2, Span: 2},
+					{Col: "d30", Line: 2, Span: 2},
+					{Col: "d60", Line: 2, Span: 2},
+					{Col: "d90", Line: 2, Span: 2},
+					{Col: "d91", Line: 2, Span: 2},
+				},
+			},
 		},
 	}
 }

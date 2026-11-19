@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"slices"
 	"strings"
@@ -1420,5 +1421,99 @@ func TestARAgingCSVOpensEveryGroup(t *testing.T) {
 	}
 	if got := labels[at:min(at+len(want), len(labels))]; !reflect.DeepEqual(got, want) {
 		t.Errorf("the CSV under Csv Co = %q, want %q (every group open)", got, want)
+	}
+}
+
+// Below the one-line width a row wraps onto one of two arrangements (spec §3
+// Phone and narrow widths, §4 display). On a phone Total is on the first
+// figures line (F1, option a): core draws a group row with only the lines it
+// has a value on, and Total always has one.
+func TestARAgingDisplayLayouts(t *testing.T) {
+	d := arDisplay()
+	want := []reports.DisplayLayout{
+		{
+			Width: "mobile", Tracks: 3,
+			Cells: []reports.DisplayCell{
+				{Col: "name", Line: 1, Span: 2},
+				{Col: "due", Line: 1},
+				{Col: "current", Line: 2},
+				{Col: "d30", Line: 2},
+				{Col: "total", Line: 2},
+				{Col: "d60", Line: 3},
+				{Col: "d90", Line: 3},
+				{Col: "d91", Line: 3},
+			},
+		},
+		{
+			Width: "tablet", MinWidth: "640px", Tracks: 12,
+			Cells: []reports.DisplayCell{
+				{Col: "name", Line: 1, Span: 10},
+				{Col: "total", Line: 1, Span: 2},
+				{Col: "due", Line: 2, Span: 2},
+				{Col: "current", Line: 2, Span: 2},
+				{Col: "d30", Line: 2, Span: 2},
+				{Col: "d60", Line: 2, Span: 2},
+				{Col: "d90", Line: 2, Span: 2},
+				{Col: "d91", Line: 2, Span: 2},
+			},
+		},
+	}
+	if !reflect.DeepEqual(d.Layouts, want) {
+		t.Errorf("display.layouts =\n%s\nwant\n%s", mustJSON(d.Layouts), mustJSON(want))
+	}
+
+	if d.OneLine == nil || d.OneLine.MinWidth != "940px" {
+		t.Errorf("display.oneLine = %+v, want minWidth 940px", d.OneLine)
+	}
+	figure := reports.ColumnFit{MinWidth: "max-content"}
+	wantFit := map[string]reports.ColumnFit{
+		"name": {WhiteSpace: "normal", LineClamp: 3},
+		"due":  figure, "current": figure, "d30": figure, "d60": figure, "d90": figure, "d91": figure, "total": figure,
+	}
+	if !reflect.DeepEqual(d.Columns, wantFit) {
+		t.Errorf("display.columns = %+v, want %+v", d.Columns, wantFit)
+	}
+
+	b := newARBook(t)
+	spec, _, err := reports.Load(arAgingShipped().Spec)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if err := reports.Validate(b.app, spec); err != nil {
+		t.Errorf("Validate with the layouts: %v", err)
+	}
+}
+
+// D15: the title, the description, the params and the display are held two
+// times, here and in the fixture (tinycld/books/lib/ar-aging-fixture.ts).
+// Both copies are compared with server/testdata/ar_aging_spec.json
+// (tests/ar-aging-fixture.test.ts reads it too), so a value changed on one
+// side only fails one of the two tests.
+func TestARAgingMatchesSharedSpecFile(t *testing.T) {
+	raw, err := os.ReadFile("testdata/ar_aging_spec.json")
+	if err != nil {
+		t.Fatalf("read testdata/ar_aging_spec.json: %v", err)
+	}
+	var file struct {
+		Title       string          `json:"title"`
+		Description string          `json:"description"`
+		Params      json.RawMessage `json:"params"`
+		Display     json.RawMessage `json:"display"`
+	}
+	if err := json.Unmarshal(raw, &file); err != nil {
+		t.Fatalf("parse testdata/ar_aging_spec.json: %v", err)
+	}
+	shipped := arAgingShipped()
+	if shipped.Title != file.Title {
+		t.Errorf("title = %q, want %q", shipped.Title, file.Title)
+	}
+	if shipped.Description != file.Description {
+		t.Errorf("description = %q, want %q", shipped.Description, file.Description)
+	}
+	if got := mustJSON(arParams()); !jsonEqual(t, got, string(file.Params)) {
+		t.Errorf("params =\n%s\nwant testdata/ar_aging_spec.json params\n%s", got, file.Params)
+	}
+	if got := mustJSON(arDisplay()); !jsonEqual(t, got, string(file.Display)) {
+		t.Errorf("display =\n%s\nwant testdata/ar_aging_spec.json display\n%s", got, file.Display)
 	}
 }

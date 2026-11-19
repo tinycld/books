@@ -5,12 +5,19 @@ import {
     AR_AGING_EMPTY_DAY,
     AR_AGING_TITLE,
 } from '~/tinycld/books/lib/ar-aging-fixture'
-import { DESKTOP } from './account-register-helpers'
+import { CUSTOMER_BALANCE_TITLE } from '~/tinycld/books/lib/customer-balance-fixture'
+import {
+    AR_AGING_SHIPPED_KEY,
+    CUSTOMER_BALANCE_SHIPPED_KEY,
+} from '~/tinycld/books/lib/shipped-reports'
+import { DESKTOP, PHONE } from './account-register-helpers'
 import {
     type AgedCents,
     AR_DAY,
     agedCents,
     agingRow,
+    expectAgingLinesFit,
+    freshPageWithReports,
     openAgingRow,
     openArAging,
 } from './ar-aging-helpers'
@@ -26,6 +33,7 @@ import {
     snapshotWhen,
 } from './books-report-helpers'
 import { chooseBalanceOrder, filterToCustomers } from './customer-balance-helpers'
+import { openCustomersList } from './customer-form-helpers'
 import { INVOICE_URL } from './invoice-helpers'
 import {
     customerWithInvoices,
@@ -36,6 +44,7 @@ import {
     rowAmount,
 } from './receive-payment-helpers'
 import { openBooks } from './record-form-helpers'
+import { fakeReadOnlyAccess } from './tax-rates-helpers'
 
 // The A/R Aging (ar-aging checkpoint 2): the shipped report from the Books hub, and the
 // customers each test creates through the UI with invoices dated AR_DAY.invoice, read with
@@ -382,5 +391,123 @@ test.describe('ar-aging: report', () => {
             })
             .toHaveLength(1)
         await expectTableFits(page)
+    })
+})
+
+const PHONE_375 = { width: 375, height: 812 }
+
+// The phone flow of e2e 8 and 9: one customer with an invoice 40 days past due (31 - 60)
+// and one not yet due (Current) on AR_DAY.aged40, the customer and the past-due invoice
+// opened at the desktop width, then the phone arrangement read at `viewport`. The customer
+// row then has a figure in Current, in 31 - 60 and in Total; the opened item has a Due
+// date and its line. The customer's name is long enough to wrap to two lines at 375 and
+// 390, so the "at most three lines" check reads a wrapped label.
+const LONG_CUSTOMER = 'Willamette Valley Community Gardens Cooperative'
+
+async function expectPhoneArrangement(
+    page: Page,
+    viewport: { width: number; height: number }
+): Promise<void> {
+    await openBooks(page, DESKTOP)
+    const { name, invoices } = await customerWithInvoices(
+        page,
+        [
+            { rate: '300.00', date: AR_DAY.invoice, dueDate: AR_DAY.due },
+            { rate: '200.00', date: AR_DAY.invoice, dueDate: '2026-11-30' },
+        ],
+        LONG_CUSTOMER
+    )
+    const [pastDue] = invoices
+    await openArAging(page)
+    await filterToCustomers(page, [name])
+    await chooseAsOf(page, { day: AR_DAY.aged40 })
+    await snapshotWhen(
+        page,
+        reportSnapshot,
+        s =>
+            s.rows.some(
+                row =>
+                    row.label === name &&
+                    agedCents(row).current === 20000 &&
+                    agedCents(row).d60 === 30000 &&
+                    agedCents(row).total === 50000
+            ),
+        `${name} reads 200.00 Current, 300.00 in 31 - 60 and 500.00 Total as of ${AR_DAY.aged40}`
+    )
+    await openAgingRow(page, name)
+    await openAgingRow(page, `Invoice ${pastDue.number}`)
+
+    await page.setViewportSize(viewport)
+    // At a phone width the report toolbar moves its actions into More (lesson 13).
+    await expect(page.getByTestId('toolbar-more-button')).toBeVisible()
+    await expectAgingLinesFit(page, { wrappedLabel: name })
+}
+
+test.describe('ar-aging: entry points and narrow layouts', () => {
+    test("the Customers list's Reports menu opens the report, and leaves the item out with no report", async ({
+        page,
+    }) => {
+        await fakeReadOnlyAccess(page)
+        await openBooks(page, DESKTOP)
+        await openCustomersList(page)
+        await page.getByTestId('customers-reports').click()
+        const aging = page.getByTestId('customers-reports-aging').filter({ visible: true })
+        await expect(aging).toHaveText('A/R Aging')
+        const itemIds = () =>
+            page
+                .locator('[data-testid^="customers-reports-"]')
+                .filter({ visible: true })
+                .evaluateAll(items => items.map(item => item.getAttribute('data-testid')))
+        await expect
+            .poll(itemIds, {
+                message: 'A/R Aging stands between Customer Balance and Sales by Customer',
+            })
+            .toEqual([
+                'customers-reports-balance',
+                'customers-reports-aging',
+                'customers-reports-sales',
+            ])
+        await aging.click()
+        await expect(page.getByTestId('report-screen')).toBeVisible()
+        await expect(
+            page.getByTestId('report-document-title').filter({ visible: true })
+        ).toHaveText(AR_AGING_TITLE)
+
+        // Only the Customer Balance is found: after the A/R Aging read answered with no
+        // row, the menu holds no A/R Aging item.
+        const one = await freshPageWithReports(page, [
+            {
+                id: 'fakecbalance001',
+                shipped_key: CUSTOMER_BALANCE_SHIPPED_KEY,
+                title: CUSTOMER_BALANCE_TITLE,
+            },
+        ])
+        await openBooks(one.fresh, DESKTOP)
+        await openCustomersList(one.fresh)
+        await expect
+            .poll(() => one.answered.some(filter => filter.includes(AR_AGING_SHIPPED_KEY)), {
+                message: 'the Customers list got its answer for the A/R Aging',
+            })
+            .toBe(true)
+        await one.fresh.getByTestId('customers-reports').click()
+        await expect(
+            one.fresh.getByTestId('customers-reports-balance').filter({ visible: true })
+        ).toHaveText('Customer Balance')
+        await expect(one.fresh.getByTestId('customers-reports-aging')).toHaveCount(0)
+        await one.fresh.close()
+    })
+
+    // Phone runs: the phone path is other code (core's wrapped row layout from
+    // display.layouts, table-lines.ts rowLayout). 375 and 390 wrap differently (lesson 21).
+    test('on a 390 phone each row keeps the phone arrangement, Total on the first figures line', async ({
+        page,
+    }) => {
+        await expectPhoneArrangement(page, PHONE)
+    })
+
+    test('on a 375 phone each row keeps the phone arrangement, Total on the first figures line', async ({
+        page,
+    }) => {
+        await expectPhoneArrangement(page, PHONE_375)
     })
 })

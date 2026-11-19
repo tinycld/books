@@ -66,7 +66,22 @@ describe('help/customers.md', () => {
         )
     })
 
-    it('names the Reports button and its two items, Customer Balance and Sales by Customer', () => {
+    // A/R Aging checkpoint 4 (spec §3 "Help"): the menu's A/R Aging item, linked to its
+    // section of the reports topic.
+    it('names the A/R Aging item of the Reports menu and links the A/R Aging report', () => {
+        const plain = body.replace(/\[[^\]]*\]\([^)]*\)/g, '')
+        const sentences = body.split(/(?<=[.!?])\s+/)
+        expect(plain).toMatch(/\bA\/R Aging\b/)
+        expect(
+            sentences.some(
+                sentence => /\bReports\b/.test(sentence) && /\bA\/R Aging\b/.test(sentence)
+            )
+        ).toBe(true)
+        const links = [...body.matchAll(/\[([^\]]+)\]\(help:\/\/books:reports\)/g)].map(m => m[1])
+        expect(links.some(text => /\bA\/R Aging\b/.test(text))).toBe(true)
+    })
+
+    it('names the Reports button and its items Customer Balance and Sales by Customer in one sentence', () => {
         // The button's name, apart from the links' own text.
         const plain = body.replace(/\[[^\]]*\]\([^)]*\)/g, '')
         const sentences = body.split(/(?<=[.!?])\s+/)

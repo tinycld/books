@@ -1,0 +1,82 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated-anchored",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390, 375],
+            "height": 3000,
+            "actions": [
+                { "clickText": "A/R Aging" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "item-opened-anchored",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390, 375],
+            "height": 3600,
+            "actions": [
+                { "clickText": "A/R Aging" },
+                { "waitFor": "report-table" },
+                { "click": "report-add-filter" },
+                { "click": "report-add-filter-customers" },
+                { "fill": "report-filter-search", "value": "St. Jude" },
+                {
+                    "clickText": "All St. Jude Community Hospital Foundation of the Greater Willamette Valley sub-customers"
+                },
+                { "click": "report-filter-apply" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitFor": "report-header-param-customers" },
+                { "pause": 2000 },
+                { "clickText": "St. Jude Annual Spring Gala and Silent Auction Catering" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "clickPattern": "^Invoice " },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "click": "report-document-period" }
+            ]
+        },
+        {
+            "name": "populated",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [900],
+            "height": 3000,
+            "actions": [
+                { "clickText": "A/R Aging" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "opened",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [900],
+            "height": 3400,
+            "actions": [
+                { "clickText": "A/R Aging" },
+                { "waitFor": "report-table" },
+                { "clickText": "Cedar & Pine Landscaping" },
+                { "pause": 1500 },
+                { "click": "report-document-period" }
+            ]
+        },
+        {
+            "name": "customers-menu",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "widths": [1280],
+            "actions": [
+                { "click": "customers-reports" },
+                { "waitFor": "customers-reports-aging" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}
