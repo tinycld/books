@@ -377,6 +377,11 @@ export const REVIEW_SEED_ENTRIES = [
     ['20261022', '-200.00', 'ZELLE TO MARCO RUIZ', '', ''],
     ['20261027', '-362.40', 'CHECK 1050', 'Hartwell Insurance, policy BOP-22871', '1050'],
     ['20261030', '-15.49', 'NETFLIX.COM', 'Personal - not a business cost', ''],
+    // The last two fit Books transactions the seed posts on 1000 (bank-match): the
+    // Pacific Power expense 1002 (lib/expense-form-fixture.ts) is their one suggestion,
+    // and seedBankMatch matches the bill payment of $400.00 (lib/pay-bills-fixture.ts).
+    ['20261006', '-138.37', 'PACIFIC POWER AUTOPAY', 'Account 4471-220', ''],
+    ['20261007', '-400.00', 'ONLINE BILL PAY 0915', 'Seed bill partial', ''],
 ] as const
 
 function seedFitid(index: number): string {
@@ -428,6 +433,10 @@ export const REVIEW_SEED_STATEMENT = {
         '',
     ].join('\n'),
     excludedFitids: EXCLUDED_SEED_INDEXES.map(seedFitid),
+    // The last two entries: PACIFIC POWER AUTOPAY stays For review with one suggestion,
+    // and seed.ts seedBankMatch matches ONLINE BILL PAY 0915.
+    suggestedFitid: seedFitid(REVIEW_SEED_ENTRIES.length - 2),
+    matchedFitid: seedFitid(REVIEW_SEED_ENTRIES.length - 1),
 } as const
 
 export const REVIEW_REFERENCE_TEXT = {

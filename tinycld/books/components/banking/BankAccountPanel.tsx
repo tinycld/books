@@ -8,6 +8,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native'
 import type { BankConnectionRow } from '../../hooks/useBankConnections'
 import type { BankFileItem } from '../../hooks/useBankFiles'
 import type { BankFileUpload } from '../../hooks/useBankFileUpload'
+import type { MatchSuggestions } from '../../hooks/useMatchSuggestions'
 import type { ReviewBatch } from '../../hooks/useReviewBatch'
 import type { ReviewDrawerModel } from '../../hooks/useReviewDrawer'
 import { bankDetailsText, connectionLabel } from '../../lib/bank-connections'
@@ -194,6 +195,7 @@ interface TabBodyProps extends PanelBodyProps {
     pageRecovery: LiveRecovery
     batch: ReviewBatch
     drawer: ReviewDrawerModel
+    suggestions: MatchSuggestions
 }
 
 // The transaction tabs show their own loading state, so only the Files tab waits for the
@@ -207,6 +209,7 @@ function TabBody({
     pageRecovery,
     batch,
     drawer,
+    suggestions,
     ...files
 }: TabBodyProps) {
     if (tab === 'files') return <FilesTabBody {...files} />
@@ -220,6 +223,7 @@ function TabBody({
             pageRecovery={pageRecovery}
             batch={batch}
             drawer={drawer}
+            suggestions={suggestions}
         />
     )
 }
@@ -247,6 +251,8 @@ interface BankAccountPanelProps {
     batch: ReviewBatch
     // The page's transaction drawer, for the review keys (batch keys, Esc).
     drawer: ReviewDrawerModel
+    // The page's read of the For review row marks.
+    suggestions: MatchSuggestions
     // What the import and review units add, under the upload area and above the files.
     children?: ReactNode
 }
@@ -265,6 +271,7 @@ export function BankAccountPanel({
     pageRecovery,
     batch,
     drawer,
+    suggestions,
     children,
     ...actions
 }: BankAccountPanelProps) {
@@ -320,6 +327,7 @@ export function BankAccountPanel({
                 tab={tab}
                 onTab={onTab}
                 drawer={drawer}
+                suggestions={suggestions}
                 row={row}
                 currency={currency}
                 onGoToFiles={onGoToFiles}

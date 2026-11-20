@@ -147,7 +147,7 @@ migrate(
                     { name: 'total', type: 'number', onlyInt: true, min: 0, max: MAX_STORED },
                     { name: 'balance', type: 'number', onlyInt: true, min: 0, max: MAX_STORED },
                     // The cents of the memo's applications to invoices
-                    // (books_credit_memo_applications, 2100000029), so a list
+                    // (books_credit_memo_applications, 2100000031), so a list
                     // tells Applied from Refunded with no other read. Only
                     // Books writes it (server/credit_applications.go,
                     // server/credit_memos.go, server/document_balance.go).

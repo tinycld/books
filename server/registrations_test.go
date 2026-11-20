@@ -41,6 +41,10 @@ var serverOnly = map[string]bool{
 	// row is written by the payout's post (refund receipt spec §4.1).
 	"books_refund_receipt_tax_lines": true,
 	"books_refund_receipt_credits":   true,
+	// A bank match's lines are written by the match hook inside the audited
+	// match, as its parsed rows are a bank file's (bank-match spec §4). The
+	// suggestions are a view; booksCollections(…, base) never lists a view.
+	"books_bank_match_lines": true,
 }
 
 func booksCollections(t testing.TB, app core.App, kinds ...string) []*core.Collection {
