@@ -299,11 +299,11 @@ GROUP BY account ORDER BY count(*) DESC, account LIMIT 1`).Bind(days).Row(&incom
 
 // TestGLScale measures each run at 10,000, 100,000 and 500,000 journal lines
 // (median of 5) and holds the unit's bar at 500,000 lines: a run with an
-// Accounts filter takes its bar or less (glMonthBar for a month, glYearBar
-// for a year). A run core refuses (its time limit) is
-// recorded as refused; a refused filtered run fails the bar. With
-// BOOKS_SCALE_OUT=<dir> it writes gl-results.md (the times) and gl-plans.md
-// (each statement of each run at each size: its time, its rows, its plan).
+// Accounts filter takes its bar or less (glMonthBar for a month, glYearBar for
+// a year). A run core refuses (its time limit) is recorded as refused; a
+// refused filtered run fails the bar. With BOOKS_SCALE_OUT=<dir> it writes
+// gl-results.md (the times) and gl-plans.md (each statement of each run at
+// each size: its time, its rows, its plan).
 func TestGLScale(t *testing.T) {
 	if os.Getenv("BOOKS_SCALE") != "1" {
 		t.Skip("BOOKS_SCALE=1 starts the General Ledger runs at 10k, 100k and 500k lines")
