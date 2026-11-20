@@ -464,3 +464,53 @@ Run TD 3 busy account, month (refused; the statement with the most chars):
 SCAN books_journal_lines
 SCAN books_cash_basis_lines
 ```
+
+#### Task 9b: a bound on a union source is written inside each part (core `server/reports/stmt.go`, 2026-11-20)
+
+The Balance Sheet and Transaction Detail read the union source `books.basis_lines` (parts `books_journal_lines` and `books_cash_basis_lines`). Before: a scope read the union's rule CTE (`FROM r<n> t<n>`) and the bounds of the filter and of a lookup's where were conditions on the union's rows. SQLite moves no condition into the parts of a `UNION ALL`, so each read was a `SCAN` of both tables, and a lookup read them once for each row of the report. After: the scope writes the union itself, each part from its own collection's rule CTE with the bounds on the part's own columns: `FROM (SELECT … FROM r<a> p WHERE p.account IN (…) AND p.date >= ? AND p.date <= (? || x'ff') UNION ALL SELECT … FROM r<b> p WHERE …) t<n>`. A part that does not store a key of a bound reads its rows without that bound. The switch `legacySQL.noPartBounds` gives the old statement; `partbounds_test.go` holds the plans and the same-result tests.
+
+Not fixed by this task: Transaction Detail with no Accounts filter (TD 1, TD 2). Its lookups search by entry now, but its base rows have a day bound alone, and no index of the two tables starts with the day: the plan still shows `SCAN books_journal_lines` and `SCAN books_cash_basis_lines`, and `SEARCH t1 USING AUTOMATIC PARTIAL COVERING INDEX (currency=?)`. A later task of this unit handles it.
+
+At 100,000 lines (median of 5, core f4296bb0, books d9a695a7):
+
+| run | baseline (task 9a) | after task 9b | group rows | rows |
+|---|---|---|---|---|
+| TB 1 all accounts, as of | 744ms | 738ms | 106 | 107 |
+| TB 2 busy account, as of | 480ms | 432ms | 1 | 2 |
+| TB 3 three accounts, as of | 565ms | 516ms | 3 | 4 |
+| BS 1 accrual, as of | 1.389s | 1.373s | 10 | 20 |
+| BS 2 cash, as of | 1.708s | 1.746s | 10 | 20 |
+| TD 1 all accounts, month | refused | 153ms | 2 | 201 |
+| TD 2 all accounts, year | refused | 1.554s | 1 | 201 |
+| TD 3 busy account, month | refused | 29ms | 1 | 201 |
+| TD 4 small account, month | 312ms | 18ms | 1 | 4 |
+| TD 5 three accounts, year | refused | 125ms | 1 | 201 |
+| TD 6 busy account, month, cash | refused | 31ms | 1 | 201 |
+
+Reads of the line tables in statement 6 (the page of detail rows) of TD 5 three accounts, year, and of TD 2 all accounts, year (scale-task9b/st-plans.md):
+
+TD 5 three accounts, year (statement 6: 70.1ms, 201 rows, 14691 chars):
+
+```
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date>? AND date<?)
+SEARCH books_cash_basis_lines USING INDEX idx_books_cash_basis_lines_account_date (account=? AND date>? AND date<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_entry (entry>? AND entry<?)
+SEARCH books_cash_basis_lines USING INDEX idx_books_cash_basis_lines_entry (entry>? AND entry<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_entry (entry>? AND entry<?)
+SEARCH books_cash_basis_lines USING INDEX idx_books_cash_basis_lines_entry (entry>? AND entry<?)
+```
+
+TD 2 all accounts, year (statement 6: 1.4916s, 201 rows, 17000 chars):
+
+```
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SEARCH books_journal_lines USING INDEX idx_books_jlines_entry (entry>? AND entry<?)
+SEARCH books_cash_basis_lines USING INDEX idx_books_cash_basis_lines_entry (entry>? AND entry<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_entry (entry>? AND entry<?)
+SEARCH books_cash_basis_lines USING INDEX idx_books_cash_basis_lines_entry (entry>? AND entry<?)
+```
+
+The measure prints only the plan lines that name `books_journal_lines`, `books_cash_basis_lines` or `books_account_balances`, so an `AUTOMATIC` index on `t<n>` and a `MATERIALIZE` line do not show in `st-plans.md`; the `AUTOMATIC` line of TD 2 named above is from the small book. The Balance Sheet's one statement still reads both tables with 7 `SCAN`s each (BS 1 1.3141 s, BS 2 1.6385 s), and each Trial Balance statement has one `SCAN books_journal_lines`, also with an Accounts filter.
+
+No run is refused at 100k.
