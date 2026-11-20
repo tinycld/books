@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/apply-credit-checkpoints.md
 - reference: docs/plans/apply-credit-reference/
 - evidence: docs/plans/apply-credit-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs, 2026-11-20)
 - capture manifest: docs/plans/apply-credit-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -221,8 +221,9 @@
 - fix review: round 1 (cp5-fix-review.md): items 1–8 FIXED; conformance: 0; 0 BLOCK; 0 NOTE. Rounds: 1.
 - gate 3 A notes: 0 to Design notes (NOTE 1–3 fixed as weak tests, NOTE 4–5 no action, NOTE 6 fixed).
 - human: n/a (mode C)
+- commit: 0936a36a (`feat(books): apply-credit lists, Receive payment and help`)
 
 ## Final review
-- eval: (not run yet)
-- human comments and what changed
+- eval: approved by the human, 2026-11-20, at 4cd999a7 (merge of main with p4-match; CI on PR #79 green: typecheck/unit + 4 e2e shards). Retro items 1–4 accepted.
+- human comments and what changed: none
 - native: not executed in this run
