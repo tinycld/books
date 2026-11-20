@@ -104,13 +104,13 @@ function InvoiceFrame({ target, status, body, section, stamps }: InvoiceFramePro
     const openDialog = useApplyCreditStore(state => state.open)
     const openFor = useApplyCreditStore(state => state.openFor)
     const isHeld = useApplyCreditStore(state => state.isHeld)
-    useCloseOnBlur(target.id)
+    const isFocused = useCloseOnBlur(target.id)
     const count = credits.credits.length
     const sum = credits.credits.reduce((total, memo) => total + memo.balance, 0)
     const hasCredit = credits.isReady && !credits.isError && count > 0
     const hasPayments = payments.isReady && !payments.isError && payments.payments.length > 0
     const isPaymentsOnly = credits.isReady && !credits.isError && count === 0 && hasPayments
-    const isDialogVisible = openFor === target.id && (canTakeCredit || isHeld)
+    const isDialogVisible = isFocused && openFor === target.id && (canTakeCredit || isHeld)
     const apply = () => openDialog(target.id)
     const text = noticeText(target.partyName, sum, count, target.currency)
     const retry = () => {

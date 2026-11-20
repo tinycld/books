@@ -25,6 +25,8 @@ In a web browser, the Customer field has focus when the form opens.
 
 A payment applies to the invoices of one customer only. To keep a note for your team, type it in **Internal memo (not printed)**. It is saved as the memo of the journal entry.
 
+When the customer you pick has posted credit memos with unapplied credit, a notice titled "Unapplied credit" above the open invoices lists each one, for example "Credit memo 1001 · $250.00 unapplied". A payment does not use that credit: the open invoices and their Payment cells do not change, and a Payment cell is still at most the invoice's open balance. To use the credit on an invoice, choose the credit memo in the notice to open it, then choose Apply to invoices. See [Apply a credit memo to invoices](help://books:apply-credit).
+
 ## Partial payments
 
 To pay part of an invoice, type the amount in its Payment cell. The invoice stays open with the rest as its Balance due, and it shows Partly paid. A Payment cell cannot be more than the invoice's open balance: Books shows "More than the open balance of $243.56" under the cell.

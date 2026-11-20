@@ -35,12 +35,14 @@ In the Transactions tab, each row shows its type and its status:
 
 - An invoice is Draft, Paid (nothing open), Written off (nothing open, and a write-off took the rest), Partly paid (part of the total open), Overdue (all of the total open, due before today), Open or Void.
 - A Payment is Draft, Applied (all of it paid invoices), Credit with the amount kept as a credit (such as Credit $100.00), or Void.
-- A credit memo is Draft, Unapplied, Refunded or Void. A posted credit memo is Unapplied while some of its credit is not used yet, also after you refund part of it. A posted credit memo is Refunded when refund receipts pay out all of its credit.
+- A credit memo is Draft, Unapplied, Applied, Refunded or Void. A posted credit memo is Unapplied while some of its credit is not used yet, also after you apply or refund part of it. A posted credit memo is Applied when none of its credit is left and a part of it is applied to invoices. A posted credit memo is Refunded when refund receipts pay out all of its credit.
 - A refund receipt is Draft, Refunded (posted) or Void.
 
 To see the payments only, choose the **Payments** chip above the list. Choose a payment's row to open the payment.
 
 To see the credit memos only, choose the **Credit memos** chip. A credit memo's total shows with a minus sign, such as −$250.00, because it lowers what the customer owes, and it has no due date. A draft credit memo has no number yet. Choose a credit memo's row to open it.
+
+To use a credit memo's credit on the customer's open invoices, open the row menu at the end of the credit memo's row and choose **Apply to invoices**. Only a posted credit memo with unapplied credit has it, and only if you can edit the books. The credit memo opens with its apply dialog open (Apply credit memo 1001). Applying a credit does not change Open, because the credit memo already lowered it. Overdue goes down when the credit pays an overdue invoice. An application is not a transaction of its own, so the Transactions tab has no row or chip for it. See [Apply a credit memo to invoices](help://books:apply-credit).
 
 To see the money you gave back to the customer, choose the **Refunds** chip, after Credit memos. Each row has the type Refund receipt, and its total shows with a minus sign, such as −$150.00. Choose a row to open the refund receipt. A refund receipt that refunds a sale does not change Open, because it does not touch Accounts receivable. A refund receipt that pays out a credit memo raises Open by its total, because it uses up the credit that you owed the customer. See [Refund receipts](help://books:refund-receipts).
 

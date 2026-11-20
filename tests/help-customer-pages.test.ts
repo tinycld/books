@@ -99,3 +99,10 @@ describe('help/customer-pages.md (write-offs)', () => {
         expect(body).toMatch(/\bwrite-offs?\b|\bWritten off\b/i)
     })
 })
+
+// Apply credit spec §3.8 Help: one paragraph on the credit memo row's menu item.
+describe('help/customer-pages.md (apply credit)', () => {
+    it('names Apply to invoices', () => {
+        expect(body).toContain('Apply to invoices')
+    })
+})

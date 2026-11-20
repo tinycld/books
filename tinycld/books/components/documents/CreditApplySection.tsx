@@ -1,6 +1,6 @@
 import { log } from '@tinycld/core/lib/logger'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
-import { useFocusEffect } from 'expo-router'
+import { useFocusEffect, useIsFocused } from 'expo-router'
 import { useCallback, useMemo } from 'react'
 import type { DocumentRecord } from '../../hooks/document-data'
 import type { ApplyCreditTarget } from '../../hooks/useApplyCredit'
@@ -114,9 +114,13 @@ type SectionReads = ReturnType<typeof useCreditSectionReads>
 
 // The dialog belongs to this screen: it closes when the screen loses focus, so it does not
 // stand open over the screen pushed on top or reopen on the way back. `recordId` is the
-// credit's or the invoice's id (the store's `openFor`).
-export function useCloseOnBlur(recordId: string) {
+// credit's or the invoice's id (the store's `openFor`). It returns whether the screen has
+// focus: only the focused screen draws the dialog, because the same record can be open on a
+// screen lower in the stack too (a list's row action pushes a new read view of it), and the
+// store names the record, not the screen.
+export function useCloseOnBlur(recordId: string): boolean {
     const closeDialog = useApplyCreditStore(state => state.close)
+    const isFocused = useIsFocused()
     useFocusEffect(
         useCallback(
             () => () => {
@@ -125,6 +129,7 @@ export function useCloseOnBlur(recordId: string) {
             [recordId, closeDialog]
         )
     )
+    return isFocused
 }
 
 // The apply dialog while `isVisible`; nothing otherwise. The credit's and the invoice's read
@@ -217,8 +222,8 @@ function CreditReadFrame({ target, status, body, section, stamps, refunds }: Cre
     })
     const openFor = useApplyCreditStore(state => state.openFor)
     const isHeld = useApplyCreditStore(state => state.isHeld)
-    useCloseOnBlur(target.id)
-    const isDialogVisible = openFor === target.id && (isOffered || isHeld)
+    const isFocused = useCloseOnBlur(target.id)
+    const isDialogVisible = isFocused && openFor === target.id && (isOffered || isHeld)
     return (
         <>
             <ApplyNotice target={target} status={status} canWrite={canWrite} reads={reads} />

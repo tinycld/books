@@ -240,6 +240,7 @@ const POSTED_MEMO = {
     date: '2026-11-05',
     total: 25_000,
     balance: 25_000,
+    applied: 0,
     currency: 'USD',
     created: '2026-11-05 09:00:00.000Z',
 }
@@ -253,48 +254,69 @@ const DRAFT_MEMO = {
 // U+2212, not the ASCII hyphen formatMoney writes for a negative amount.
 const MINUS = '−'
 
+// Apply credit spec §3.5 "Statuses elsewhere": Draft; Unapplied while credit is left (also
+// when a part is applied); Applied when nothing is left and a part was applied; Refunded
+// when nothing is left and nothing was applied; Void.
 describe('creditMemoStatus', () => {
     it('a draft is Draft, muted', () => {
-        expect(creditMemoStatus({ status: 'draft', balance: 0 })).toEqual({
+        expect(creditMemoStatus({ status: 'draft', balance: 0, applied: 0 })).toEqual({
             label: 'Draft',
             tone: 'muted',
         })
     })
 
-    it('a posted memo with credit left is Unapplied, warning', () => {
-        expect(creditMemoStatus({ status: 'posted', balance: 25_000 })).toEqual({
+    it('a posted memo with credit left and nothing applied is Unapplied, warning', () => {
+        expect(creditMemoStatus({ status: 'posted', balance: 25_000, applied: 0 })).toEqual({
             label: 'Unapplied',
             tone: 'warning',
         })
     })
 
-    it('a posted memo with no credit left is Refunded, success', () => {
-        expect(creditMemoStatus({ status: 'posted', balance: 0 })).toEqual({
+    it('a posted memo with credit left and a part applied is still Unapplied, warning', () => {
+        expect(creditMemoStatus({ status: 'posted', balance: 10_000, applied: 15_000 })).toEqual({
+            label: 'Unapplied',
+            tone: 'warning',
+        })
+    })
+
+    it('a posted memo with no credit left and a part applied is Applied, success', () => {
+        expect(creditMemoStatus({ status: 'posted', balance: 0, applied: 15_000 })).toEqual({
+            label: 'Applied',
+            tone: 'success',
+        })
+    })
+
+    it('a posted memo with no credit left and nothing applied is Refunded, success', () => {
+        expect(creditMemoStatus({ status: 'posted', balance: 0, applied: 0 })).toEqual({
             label: 'Refunded',
             tone: 'success',
         })
     })
 
     it('a posted memo partly refunded is still Unapplied, warning', () => {
-        expect(creditMemoStatus({ status: 'posted', balance: 1 })).toEqual({
+        expect(creditMemoStatus({ status: 'posted', balance: 1, applied: 0 })).toEqual({
             label: 'Unapplied',
             tone: 'warning',
         })
     })
 
-    it('a draft or void memo keeps its status whatever the balance', () => {
-        expect(creditMemoStatus({ status: 'draft', balance: 25_000 })).toEqual({
+    it('a draft or void memo keeps its status whatever the balance and applied', () => {
+        expect(creditMemoStatus({ status: 'draft', balance: 25_000, applied: 0 })).toEqual({
             label: 'Draft',
             tone: 'muted',
         })
-        expect(creditMemoStatus({ status: 'void', balance: 25_000 })).toEqual({
+        expect(creditMemoStatus({ status: 'void', balance: 25_000, applied: 0 })).toEqual({
+            label: 'Void',
+            tone: 'muted',
+        })
+        expect(creditMemoStatus({ status: 'void', balance: 0, applied: 15_000 })).toEqual({
             label: 'Void',
             tone: 'muted',
         })
     })
 
     it('a void memo is Void, muted', () => {
-        expect(creditMemoStatus({ status: 'void', balance: 0 })).toEqual({
+        expect(creditMemoStatus({ status: 'void', balance: 0, applied: 0 })).toEqual({
             label: 'Void',
             tone: 'muted',
         })
@@ -315,6 +337,17 @@ describe('creditMemoRow', () => {
             status: creditMemoStatus(POSTED_MEMO),
         })
         expect(creditMemoRow(POSTED_MEMO).status).toEqual({ label: 'Unapplied', tone: 'warning' })
+    })
+
+    it('reads applied: a memo applied in full is Applied, one refunded in full Refunded', () => {
+        expect(creditMemoRow({ ...POSTED_MEMO, balance: 0, applied: 25_000 }).status).toEqual({
+            label: 'Applied',
+            tone: 'success',
+        })
+        expect(creditMemoRow({ ...POSTED_MEMO, balance: 0, applied: 0 }).status).toEqual({
+            label: 'Refunded',
+            tone: 'success',
+        })
     })
 
     it('a draft has no number and its total negated', () => {

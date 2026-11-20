@@ -82,12 +82,19 @@ const RECORD_SURFACE = { width: 1360, height: 900 }
 const TABLET = { width: 800, height: 900 }
 
 // True when the list shows cards, or a table whose own scroller does not reach past its
-// box (no sideways scroll).
-async function listFitsItsWidth(page: Page) {
-    if (await page.getByTestId('customer-transactions-cards').isVisible()) return true
-    const table = page.getByTestId('customer-transactions-table')
-    if (!(await table.isVisible())) return false
-    return table.evaluate(el => el.scrollWidth <= el.clientWidth)
+// box (no sideways scroll). One read of the DOM that never waits for an element: the list
+// swaps its table for cards on a later layout, so a locator read could wait for a table
+// that has unmounted.
+function listFitsItsWidth(page: Page) {
+    return page.evaluate(() => {
+        const shown = (id: string) => {
+            const el = document.querySelector<HTMLElement>(`[data-testid="${id}"]`)
+            return el !== null && el.getClientRects().length > 0 ? el : null
+        }
+        if (shown('customer-transactions-cards') !== null) return true
+        const table = shown('customer-transactions-table')
+        return table !== null && table.scrollWidth <= table.clientWidth
+    })
 }
 
 function transaction(page: Page, id: string) {

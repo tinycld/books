@@ -168,8 +168,7 @@ export const CREDIT_MEMO_APPLICATION: CreditApplicationKind = {
         removeBody:
             "Remove this credit from Invoice %s? The invoice's balance goes up by %s and the credit is unapplied again.",
     },
-    // Checkpoint 5 moves it to `books:apply-credit`, when that topic exists.
-    helpTopic: 'books:credit-memos',
+    helpTopic: 'books:apply-credit',
     emptyActions: [
         {
             testId: 'apply-credit-new-invoice',
