@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/ap-aging-checkpoints.md
 - reference: docs/plans/ap-aging-reference/
 - evidence: docs/plans/ap-aging-evidence/cp<N>/ (built screenshots, capture.json, critique.md); docs/plans/ap-aging-evidence/perf-plans.md (the query plans of spec §9)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs 2026-11-20)
 - capture manifest: docs/plans/ap-aging-capture.json
 - review mode: C — none (unattended)
 - core extension: none planned. Every engine feature the report uses has a Books run behind it (the A/R Aging, the Customer Balance). A core gap that a run shows becomes a core checkpoint 0 (human's rule, 2026-11-01), and the driver brings it to the human first.
@@ -206,6 +206,6 @@ with the reason, and shown to the human at the end)
 - indexes added: none (`pb-migrations/2100000029_create_books_payable_items.js` unchanged)
 
 ## Final review
-- eval: (not reached)
+- eval: approved 2026-11-20 (human: "approve,"), at books edcdcff2 (CI green on books #80: E2E shards 1-4, Typecheck & Unit) on core 654110f. Design notes stand as built (spec §9 dataset counts, item tie order, phone wraps, menu indent, two weak e2e checks). Retro items not yet answered.
 - human comments and what changed
 - native: not executed in this run
