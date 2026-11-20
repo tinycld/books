@@ -76,8 +76,8 @@ func writeGLScaleBook(t *testing.T, size arSize) glScaleBook {
 				return err
 			}
 		}
-		_, err := tx.DB().NewQuery(`INSERT INTO books_account_balances (id, account, period, debit_total, credit_total, currency, created, updated)
-SELECT 'b' || substr(lower(hex(randomblob(8))), 1, 14), account, substr(date, 1, 7), sum(debit), sum(credit), min(currency), '', ''
+		_, err := tx.DB().NewQuery(`INSERT INTO books_account_balances (id, account, period, month_start, debit_total, credit_total, currency, created, updated)
+SELECT 'b' || substr(lower(hex(randomblob(8))), 1, 14), account, substr(date, 1, 7), substr(date, 1, 7) || '-01', sum(debit), sum(credit), min(currency), '', ''
 FROM books_journal_lines WHERE posted IS true GROUP BY account, substr(date, 1, 7)`).Execute()
 		return err
 	})
