@@ -955,7 +955,8 @@ func TestJournalPaging(t *testing.T) {
 	}
 }
 
-// The report reads every journal line, so it is not live: its run is manual and follows no topic; the reader presses Refresh.
+// The report reads every journal line, so it is not live: its run is manual
+// and follows no topic; the reader presses Refresh.
 func TestJournalTopics(t *testing.T) {
 	b := newGLBook(t)
 	operating := b.account(t, "Operating", "1000", "bank", "checking")

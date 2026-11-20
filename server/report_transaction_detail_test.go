@@ -737,7 +737,8 @@ func TestTransactionDetailOpenPaths(t *testing.T) {
 	})
 }
 
-// The report reads every journal line, so it is not live: its run is manual and follows no topic; the reader presses Refresh.
+// The report reads every journal line, so it is not live: its run is manual
+// and follows no topic; the reader presses Refresh.
 func TestTransactionDetailTopics(t *testing.T) {
 	b := newGLBook(t)
 	operating := plAccount(t, b.app, "Operating", "1000", "bank", "checking", "")

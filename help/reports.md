@@ -381,13 +381,13 @@ On a phone, a Sales by Customer row shows the name on the first line, then Sales
 
 Six Books reports read every journal line, so they do not run again each time the books change: the General Ledger, Transaction Detail by Account, the Trial Balance, the Balance Sheet, the Journal and the Profit and Loss by Month. Under the chips, each of them shows the note "This report does not update by itself. Press Refresh to see new changes." and a **Refresh** button.
 
-To see the changes made after you opened the report, press **Refresh**, or press the R key. The report runs again and keeps your place. A change that you make to a chip, to a filter or to Customize still applies at once, and that run reads the newest data.
+To see the changes made after you opened the report, press **Refresh**, or press the R key. The report runs again and keeps your place. A change that you make to a chip or to a filter runs the report again, and that run reads the newest data. Customize changes only how the figures look.
 
 Transaction Detail by Account opened from a figure, in the panel at the side, has its own **Refresh** button.
 
-The Profit and Loss, the Customer Balance, the A/R Aging, the sales reports, the Sales Tax Liability and the Audit Log stay current: they run again when the books change, and show no **Refresh** button. When someone saves a change to the Profit and Loss, the Customer Balance or the Audit Log, that report does not update by itself any more and shows **Refresh**.
+The Profit and Loss, the Customer Balance, the A/R Aging, the sales reports, the Sales Tax Liability and the Audit Log stay current: they run again when the books change, and show no **Refresh** button. When someone saves a change to the columns, the filters or the layout of the Profit and Loss, the Customer Balance or the Audit Log, that report does not update by itself any more and shows **Refresh**. A change to only the title or the description keeps it current.
 
-A report that you build over journal lines or over the Audit log does not update by itself. A copy that you keep with Save as of one of the six reports above, of the Profit and Loss, of the Customer Balance or of the Audit Log does not update by itself either. Each shows the same note and **Refresh** button. A copy of the A/R Aging, of a sales report or of the Sales Tax Liability stays current.
+A report that you build over journal lines, or that shows columns from journal lines, or over the Audit log, does not update by itself. A copy that you keep with Save as of one of the six reports above, of the Profit and Loss, of the Customer Balance or of the Audit Log does not update by itself either. Each shows the same note and **Refresh** button. A copy of the A/R Aging, of a sales report or of the Sales Tax Liability stays current.
 
 ## Download or email a report
 
@@ -407,6 +407,6 @@ A reader can change the chips and Customize for the run, copy a link with Copy l
 
 To make your own report from Books data, such as accounts, journal entries, journal lines, monthly account balances or customers, see [Build, share and publish reports](help://core:reports).
 
-A report that you build over journal lines does not update by itself (see "Reports that you refresh" above).
+A report that you build over journal lines, or that shows columns from journal lines, does not update by itself (see "Reports that you refresh" above).
 
 The sales tax data is in four sources: Sales tax lines, Tax agencies, Tax rates and Sales documents. Sales tax lines has one row for each document and tax rate, written when the document is posted. Sales documents holds the invoices, the sales receipts, the credit memos and the refund receipts together. In Sales documents, a credit memo has the Kind "Credit memo" and a refund receipt the Kind "Refund receipt", and their Subtotal, Tax and Total are positive, as they are on the document. A credit memo lowers what the customer owes, so a report that adds totals across kinds must filter by Kind, for example to invoices and sales receipts only. A voided document keeps its tax lines, so filter on the document's status to count only posted documents. For example, start from Sales tax lines to build the tax of each customer.
