@@ -1395,9 +1395,7 @@ func TestBalanceSheetPagesOpenedLines(t *testing.T) {
 	}
 }
 
-// Every collection the run and its lookups read is a topic, so a post, a
-// void, an account edit or a Books settings change re-runs the open report.
-// The run opens an account, so the detail label's entry read is in it.
+// The report reads every journal line, so it is not live: its run is manual and follows no topic; the reader presses Refresh.
 func TestBalanceSheetTopics(t *testing.T) {
 	b := newBSBook(t)
 	checking := b.account(t, "Operating", "1000", "bank", "checking")
@@ -1406,12 +1404,5 @@ func TestBalanceSheetTopics(t *testing.T) {
 	b.post(t, "2026-03-10", ln{checking, 4000, 0}, ln{owner, 0, 4000})
 
 	res := b.bsOpened(t, reports.Options{Today: bsToday}, checking)
-	for _, topic := range []string{
-		"collection/books_journal_lines", "collection/books_journal_entries",
-		"collection/books_accounts", "collection/books_settings",
-	} {
-		if !slices.Contains(res.Topics, topic) {
-			t.Errorf("topics = %v, want %s", res.Topics, topic)
-		}
-	}
+	requireManual(t, res)
 }

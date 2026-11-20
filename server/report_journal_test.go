@@ -955,8 +955,7 @@ func TestJournalPaging(t *testing.T) {
 	}
 }
 
-// Every collection the run reads is a topic, so a post, a void, an account
-// edit, a customer or vendor rename or a settings change re-runs the report.
+// The report reads every journal line, so it is not live: its run is manual and follows no topic; the reader presses Refresh.
 func TestJournalTopics(t *testing.T) {
 	b := newGLBook(t)
 	operating := b.account(t, "Operating", "1000", "bank", "checking")
@@ -964,14 +963,7 @@ func TestJournalTopics(t *testing.T) {
 	b.post(t, "2026-08-04", ln{rent, 4000, 0}, ln{operating, 0, 4000})
 
 	res := runJournal(t, b.app, b.reader, map[string]any{"period": jnAugust}, reports.Options{Today: glToday})
-	for _, topic := range []string{
-		"collection/books_journal_lines", "collection/books_journal_entries", "collection/books_accounts",
-		"collection/books_customers", "collection/books_vendors", "collection/books_settings",
-	} {
-		if !slices.Contains(res.Topics, topic) {
-			t.Errorf("topics = %v, want %s", res.Topics, topic)
-		}
-	}
+	requireManual(t, res)
 }
 
 // A Custom period with no posted line: only the Total row, and the period the

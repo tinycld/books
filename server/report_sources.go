@@ -77,6 +77,10 @@ func reportSources() []reports.Source {
 		},
 		{
 			Key: "books.journal_lines", Collection: "books_journal_lines", Label: "Journal lines",
+			// The largest Books table: a report over it is not re-run on
+			// every change (the reader presses Refresh). A shipped report
+			// that stays fast on a large book sets Shipped.Live.
+			NotLive: true,
 			Fields: []reports.Field{
 				{Key: "debit", Label: "Debit", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
 				{Key: "credit", Label: "Credit", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
@@ -230,6 +234,8 @@ var basisLineColumns = []string{
 func basisLinesSource() reports.Source {
 	return reports.Source{
 		Key: "books.basis_lines", Label: "Journal lines by basis",
+		// It reads the journal lines, so it is not live either.
+		NotLive: true,
 		Parts: []reports.SourcePart{
 			{Collection: "books_journal_lines", Columns: sameNames(basisLineColumns...), Values: map[string]any{"layer": "ledger"}},
 			{Collection: "books_cash_basis_lines", Columns: sameNames(basisLineColumns...), Values: map[string]any{"layer": "cash"}},

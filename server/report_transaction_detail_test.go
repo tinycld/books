@@ -737,8 +737,7 @@ func TestTransactionDetailOpenPaths(t *testing.T) {
 	})
 }
 
-// Every collection the run reads is a topic, so a post, a void, an account
-// edit, a customer or vendor rename or a settings change re-runs the report.
+// The report reads every journal line, so it is not live: its run is manual and follows no topic; the reader presses Refresh.
 func TestTransactionDetailTopics(t *testing.T) {
 	b := newGLBook(t)
 	operating := plAccount(t, b.app, "Operating", "1000", "bank", "checking", "")
@@ -746,14 +745,7 @@ func TestTransactionDetailTopics(t *testing.T) {
 	b.post(t, "2026-11-02", ln{rent, 4000, 0}, ln{operating, 0, 4000})
 
 	res := tdRun(t, b.app, b.reader, map[string]any{"period": glPeriod("2026-11-01", "2026-11-30")})
-	for _, topic := range []string{
-		"collection/books_journal_lines", "collection/books_journal_entries", "collection/books_accounts",
-		"collection/books_customers", "collection/books_vendors", "collection/books_settings",
-	} {
-		if !slices.Contains(res.Topics, topic) {
-			t.Errorf("topics = %v, want %s", res.Topics, topic)
-		}
-	}
+	requireManual(t, res)
 }
 
 // Register ships Transaction Detail by Account; core creates it unpublished,

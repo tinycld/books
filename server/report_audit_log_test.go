@@ -100,7 +100,7 @@ func runAuditErr(t *testing.T, app core.App, reader *core.Record, params map[str
 		given[id] = raw
 	}
 	return reports.Run(context.Background(), app, reports.Request{
-		Spec: spec, Loaded: info, Params: given, Options: opts, Auth: reader,
+		Spec: spec, Loaded: info, Params: given, Options: opts, Auth: reader, Live: auditLogShipped().Live,
 	})
 }
 
