@@ -1,0 +1,115 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [900],
+            "height": 1800,
+            "actions": [
+                { "click": "vendors-reports" },
+                { "click": "vendors-reports-aging" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "click": "report-document-period" }
+            ]
+        },
+        {
+            "name": "opened",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [900],
+            "height": 2300,
+            "actions": [
+                { "click": "vendors-reports" },
+                { "click": "vendors-reports-aging" },
+                { "waitFor": "report-table" },
+                { "clickText": "Harbor Freight Logistics" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "click": "report-document-period" }
+            ]
+        },
+        {
+            "name": "item-opened",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [900],
+            "height": 2800,
+            "actions": [
+                { "click": "vendors-reports" },
+                { "click": "vendors-reports-aging" },
+                { "waitFor": "report-table" },
+                { "clickText": "Harbor Freight Logistics" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "clickPattern": "^Bill \\d+$" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "click": "report-document-period" }
+            ]
+        },
+        {
+            "name": "populated-phone",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [390, 375],
+            "height": 2200,
+            "actions": [
+                { "click": "vendors-reports" },
+                { "click": "vendors-reports-aging" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "click": "report-document-period" }
+            ]
+        },
+        {
+            "name": "item-opened-phone",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [390, 375],
+            "height": 3600,
+            "actions": [
+                { "click": "vendors-reports" },
+                { "click": "vendors-reports-aging" },
+                { "waitFor": "report-table" },
+                { "clickText": "Harbor Freight Logistics" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "clickPattern": "^Bill \\d+$" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "click": "report-document-period" }
+            ]
+        },
+        {
+            "name": "vendors-menu",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [1280, 390],
+            "actions": [
+                { "click": "vendors-reports" },
+                { "waitFor": "vendors-reports-aging" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "empty-phone",
+            "url": "/a/books/vendors",
+            "ready": "vendors-list",
+            "widths": [390],
+            "actions": [
+                { "click": "vendors-reports" },
+                { "click": "vendors-reports-aging" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-asOf" },
+                { "fill": "report-period-as-of", "value": "2020-01-01" },
+                { "press": "Escape" },
+                { "waitFor": "report-empty" },
+                { "waitForTextIn": "report-document-period", "text": "As of January 1, 2020" },
+                { "click": "report-document-period" }
+            ]
+        }
+    ]
+}

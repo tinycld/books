@@ -1,6 +1,7 @@
-import { expect, test } from '@playwright/test'
+import { expect, type Page, test } from '@playwright/test'
 import { AP_AGING_TITLE } from '~/tinycld/books/lib/ap-aging-fixture'
-import { DESKTOP } from './account-register-helpers'
+import { AP_AGING_SHIPPED_KEY } from '~/tinycld/books/lib/shipped-reports'
+import { DESKTOP, PHONE } from './account-register-helpers'
 import {
     AP_DAY,
     aged,
@@ -13,7 +14,15 @@ import {
     rowTops,
     totalRow,
 } from './ap-aging-helpers'
-import { type AgedCents, agedCents, agingRow, openAgingRow } from './ar-aging-helpers'
+import {
+    type AgedCents,
+    agedCents,
+    agingRow,
+    expectAgingLinesFit,
+    freshPageWithReports,
+    openAgingRow,
+} from './ar-aging-helpers'
+import { fakeReadOnlyAccess } from './banking-helpers'
 import {
     browserToday,
     chooseAsOf,
@@ -24,9 +33,10 @@ import {
     snapshotWhen,
 } from './books-report-helpers'
 import { chooseBalanceOrder } from './customer-balance-helpers'
-import { BILL_EXPENSE_ACCOUNT, BILL_PAYMENT_URL } from './pay-bills-helpers'
+import { BILL_EXPENSE_ACCOUNT, BILL_PAYMENT_URL, vendorWithBills } from './pay-bills-helpers'
 import { openBooks, uniqueName } from './record-form-helpers'
 import { applyCreditToBill, postVendorCredit } from './vendor-credit-helpers'
+import { openVendorsList, vendorEntries } from './vendor-form-helpers'
 
 // The A/P Aging (ap-aging checkpoint 3): the shipped report from the Books hub, and the
 // vendors each test creates through the UI with bills dated and due AP_DAY.due, read with
@@ -257,5 +267,106 @@ test.describe('ap-aging: report', () => {
             })
             .toHaveLength(1)
         await expectTableFits(page)
+    })
+})
+
+const PHONE_375 = { width: 375, height: 812 }
+
+// A prefix that, with uniqueName's stamp, makes a name of about 60 characters: long enough
+// to wrap to two lines at 375 and 390, so the "at most three lines" check reads a wrapped
+// label (as LONG_CUSTOMER of books-ar-aging.spec.ts).
+const LONG_VENDOR_PREFIX = 'Cascade Mountain Industrial Freight Supply'
+
+// The phone flow of the A/P Aging: one vendor with a bill due AP_DAY.due (57 days past due
+// on 2026-09-15: 31 - 60) and one due 2026-09-15 (Current on that day), each dated on its
+// due date by vendorWithBills. The vendor row then has figures on two phone lines (Current
+// and Total on the second, 31 - 60 on the third). The report is read at `viewport` with the
+// vendor and its past-due bill opened.
+async function expectVendorPhoneArrangement(
+    page: Page,
+    viewport: { width: number; height: number }
+): Promise<void> {
+    await openBooks(page, DESKTOP)
+    const longVendor = uniqueName(LONG_VENDOR_PREFIX)
+    const { vendor, bills } = await vendorWithBills(page, {
+        name: longVendor,
+        bills: [
+            { amount: '900.00', due: AP_DAY.due },
+            { amount: '400.00', due: '2026-09-15' },
+        ],
+    })
+    const [pastDue] = bills
+    await openApAging(page)
+    await filterToVendors(page, [vendor.name])
+    await chooseAsOf(page, { day: '2026-09-15' })
+    await snapshotWhen(
+        page,
+        reportSnapshot,
+        s =>
+            s.rows.some(
+                row =>
+                    row.label === vendor.name &&
+                    JSON.stringify(agedCents(row)) ===
+                        JSON.stringify(aged({ current: 40000, d60: 90000, total: 130000 }))
+            ),
+        `${vendor.name} reads 400.00 Current, 900.00 in 31 - 60 and 1,300.00 Total as of 2026-09-15`
+    )
+
+    await page.setViewportSize(viewport)
+    // At a phone width the report toolbar moves its actions into More (lesson 13).
+    await expect(page.getByTestId('toolbar-more-button')).toBeVisible()
+    await openAgingRow(page, vendor.name)
+    await openAgingRow(page, `Bill ${pastDue.number}`)
+
+    await test.step('A/P Aging phone rows', async () => {
+        await expectTableFits(page)
+        await expectAgingLinesFit(page, { wrappedLabel: longVendor })
+    })
+}
+
+test.describe('ap-aging: entry points and narrow layouts', () => {
+    test("the Vendors list's Reports menu opens the A/P Aging, for a reader too, and is not drawn when the report is not found", async ({
+        page,
+    }) => {
+        await fakeReadOnlyAccess(page)
+        await openBooks(page, DESKTOP)
+        await openVendorsList(page)
+        // A reader page: the header shows the Reports menu and no New vendor button.
+        const reports = page.getByTestId('vendors-reports')
+        await expect(reports).toBeVisible()
+        await expect(page.getByTestId('vendor-new-header')).toHaveCount(0)
+        await reports.click()
+        const aging = page.getByTestId('vendors-reports-aging').filter({ visible: true })
+        await expect(aging).toHaveText('A/P Aging')
+        await aging.click()
+        await expect(page.getByTestId('report-screen')).toBeVisible()
+        await expect(page).toHaveURL(/\/a\/reports\//)
+        await expect(
+            page.getByTestId('report-document-title').filter({ visible: true })
+        ).toHaveText(AP_AGING_TITLE)
+
+        // No report is found: after the A/P Aging read answered with no row, the list's
+        // header draws no Reports menu.
+        const none = await freshPageWithReports(page, [])
+        await openBooks(none.fresh, DESKTOP)
+        await openVendorsList(none.fresh)
+        await expect
+            .poll(() => none.answered.some(filter => filter.includes(AP_AGING_SHIPPED_KEY)), {
+                message: 'the Vendors list got its answer for the A/P Aging',
+            })
+            .toBe(true)
+        await expect(vendorEntries(none.fresh).first()).toBeVisible()
+        await expect(none.fresh.getByTestId('vendors-reports')).toHaveCount(0)
+        await none.fresh.close()
+    })
+
+    // Phone runs: the phone path is other code (core's wrapped row layout from
+    // display.layouts). 375 and 390 wrap differently (lesson 21).
+    test('an opened vendor reads on a 390 px phone with no sideways scroll', async ({ page }) => {
+        await expectVendorPhoneArrangement(page, PHONE)
+    })
+
+    test('an opened vendor reads on a 375 px phone with no sideways scroll', async ({ page }) => {
+        await expectVendorPhoneArrangement(page, PHONE_375)
     })
 })
