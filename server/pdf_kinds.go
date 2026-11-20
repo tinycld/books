@@ -1,6 +1,10 @@
 package books
 
-import "github.com/pocketbase/pocketbase/core"
+import (
+	"context"
+
+	"github.com/pocketbase/pocketbase/core"
+)
 
 // documentKind is one kind of printed document, the {kind} in
 // /api/books/pdf/{kind}[/{id}].
@@ -11,6 +15,11 @@ type documentKind struct {
 	Collection string
 	// Build makes the document; record is nil when Collection is "".
 	Build func(app core.App, record *core.Record) (pdfDocument, error)
+	// BuildAs makes the document as the reader who asks, for a kind whose
+	// content is a report run under the reader's rules (a statement). writePDF
+	// calls it, when set, with the request's auth; the public estimate route
+	// never reaches a kind that sets it.
+	BuildAs func(ctx context.Context, app core.App, auth *core.Record, record *core.Record) (pdfDocument, error)
 	// FileName names the download, without ".pdf"; the route sanitizes it.
 	FileName func(doc pdfDocument) string
 }
@@ -46,5 +55,10 @@ var documentKinds = map[string]documentKind{
 		Collection: "books_refund_receipts",
 		Build:      buildRefundReceiptDocument,
 		FileName:   refundReceiptFileName,
+	},
+	"statement": {
+		Collection: statementsCollection,
+		BuildAs:    buildStatementDocument,
+		FileName:   func(doc pdfDocument) string { return doc.FileStem },
 	},
 }

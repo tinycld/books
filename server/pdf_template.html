@@ -11,6 +11,7 @@
 }
 html { font-family: sans-serif; font-size: 10pt; color: #222222; }
 body { margin: 0; }
+.next { break-before: page; }
 .head { display: flex; justify-content: space-between; border-bottom: 3px solid {{.Brand.Color}}; padding-bottom: 8px; }
 .logo { max-height: 64px; max-width: 200px; margin-bottom: 6px; }
 .org { font-weight: bold; font-size: 12pt; }
@@ -30,14 +31,25 @@ table.lines td { padding: 4px 6px; border-bottom: 1px solid #dddddd; vertical-al
 tr { break-inside: avoid; }
 .n { text-align: right; white-space: nowrap; }
 tr.subtotal td { font-weight: bold; border-bottom: 1px solid #999999; }
+tr.opening td { font-weight: bold; }
 table.summary { margin-top: 12px; margin-left: auto; width: 45%; border-collapse: collapse; break-inside: avoid; }
 table.summary td { padding: 3px 6px; }
 table.summary tr.final td { font-weight: bold; font-size: 12pt; border-top: 2px solid {{.Brand.Color}}; }
+/* A statement's figure columns shrink to their widest cell, so each figure
+   stays near the cell before it and the Activity column takes the rest. */
+table.statement .n { width: 1%; }
+/* A statement can run to many short lines: tighter rows fit about forty to a page. */
+table.statement td { padding: 1px 6px; font-size: 9pt; line-height: 1.2; }
+table.aging { margin-top: 12px; width: 100%; border-collapse: collapse; break-inside: avoid; }
+table.aging td { padding: 3px 6px; white-space: nowrap; }
 .notes { margin-top: 24px; }
 </style>
 </head>
 <body>
-<div class="head">
+{{range $i, $doc := .Documents}}{{if $i}}<div class="next">{{template "document" $doc}}</div>{{else}}{{template "document" $doc}}{{end}}
+{{end}}</body>
+</html>
+{{define "document"}}<div class="head">
   <div>
     {{if .Brand.HasLogo}}<img class="logo" src="{{.Brand.LogoSrc}}" alt="">{{end}}
     <div class="org">{{.Company.Name}}</div>
@@ -47,6 +59,7 @@ table.summary tr.final td { font-weight: bold; font-size: 12pt; border-top: 2px 
     <h1>{{.Title}}</h1>
     {{if .Number}}<div>No. {{.Number}}</div>{{end}}
     {{range .Dates}}<div><span class="label">{{.Label}}</span> {{.Text}}</div>{{end}}
+    {{if .Period}}<div><span class="label">Period</span> {{.Period}}</div>{{end}}
     {{if .Payment}}<div><span class="label">Payment</span> {{.Payment}}</div>{{end}}
     {{if .Source}}<div>{{.Source}}</div>{{end}}
     {{if .BigAmount.Label}}<div class="big"><div class="label">{{.BigAmount.Label}}</div><div class="value">{{.BigAmount.Text}}</div></div>{{end}}
@@ -55,7 +68,7 @@ table.summary tr.final td { font-weight: bold; font-size: 12pt; border-top: 2px 
 <div class="parties">
 {{range .Parties}}<div class="party"><div class="label">{{.Label}}</div>{{range .Lines}}<div>{{.}}</div>{{end}}</div>{{end}}
 </div>
-<table class="lines">
+{{if .Statement}}{{template "statement" .Statement}}{{else}}<table class="lines">
 <thead><tr><th>Item</th><th>Description</th><th class="n">Qty</th><th class="n">Price</th><th class="n">Amount</th></tr></thead>
 <tbody>
 {{range .Rows}}<tr class="{{.Kind}}"><td>{{.Item}}</td><td>{{range .Description}}<div>{{.}}</div>{{end}}</td><td class="n">{{.Quantity}}</td><td class="n">{{.Rate}}</td><td class="n">{{.Amount}}</td></tr>
@@ -63,7 +76,16 @@ table.summary tr.final td { font-weight: bold; font-size: 12pt; border-top: 2px 
 </table>
 <table class="summary">
 {{range .Summary}}<tr{{if .Final}} class="final"{{end}}><td>{{.Label}}</td><td class="n">{{.Text}}</td></tr>
-{{end}}</table>
+{{end}}</table>{{end}}
 {{if .Notes}}<div class="notes"><div class="label">Notes</div>{{range .Notes}}<div>{{.}}</div>{{end}}</div>{{end}}
-</body>
-</html>
+{{end}}
+{{define "statement"}}<table class="lines statement">
+<thead><tr>{{range .Columns}}<th{{if .Figure}} class="n"{{end}}>{{.Text}}</th>{{end}}</tr></thead>
+<tbody>
+{{if .Opening}}<tr class="opening">{{range .Opening}}<td{{if .Figure}} class="n"{{end}}>{{.Text}}</td>{{end}}</tr>
+{{end}}{{range .Rows}}<tr>{{range .}}<td{{if .Figure}} class="n"{{end}}>{{.Text}}</td>{{end}}</tr>
+{{end}}{{if .Empty}}<tr><td colspan="4">{{.Empty}}</td></tr>
+{{end}}</tbody>
+</table>
+{{if .Aging}}<table class="aging"><tr>{{range .Aging}}<td><span class="label">{{.Label}}</span> {{.Text}}</td>{{end}}</tr></table>{{end}}
+{{end}}

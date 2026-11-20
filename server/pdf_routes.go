@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -92,20 +93,52 @@ func servePublicEstimatePDF(re *core.RequestEvent) error {
 	return writePDF(re, documentKinds["estimate"], record)
 }
 
+// statementAmountDueHeader carries a statement's amount due now, in cents: the
+// statement screen compares it with the stored amount due (statements spec
+// §3.8).
+const statementAmountDueHeader = "X-Books-Statement-Amount-Due"
+
 // writePDF renders kind's document of record (nil for a kind printed from no
-// record) and sends it as a download.
+// record) and sends it as a download. A kind with BuildAs is built as the
+// signed-in reader; the public estimate route has no reader and never reaches
+// such a kind.
 func writePDF(re *core.RequestEvent, kind documentKind, record *core.Record) error {
-	doc, err := kind.Build(re.App, record)
+	var doc pdfDocument
+	var err error
+	switch {
+	case kind.BuildAs == nil:
+		doc, err = kind.Build(re.App, record)
+	case re.Auth == nil:
+		return re.UnauthorizedError("Sign in to download this document.", nil)
+	default:
+		doc, err = kind.BuildAs(re.Request.Context(), re.App, re.Auth, record)
+	}
 	if err != nil {
 		return re.InternalServerError("Could not create the PDF.", err)
 	}
+	pdf, err := renderDocumentsPDF(re, []pdfDocument{doc})
+	if err != nil {
+		return re.InternalServerError("Could not create the PDF.", err)
+	}
+	headers := re.Response.Header()
+	if doc.Statement != nil {
+		headers.Set(statementAmountDueHeader, strconv.FormatInt(doc.BigAmount.Cents, 10))
+		headers.Add("Access-Control-Expose-Headers", statementAmountDueHeader)
+	}
+	return sendPDF(re, kind.FileName(doc), pdf)
+}
+
+// renderDocumentsPDF renders docs to one PDF with the organization's brand and
+// the server's document fonts.
+func renderDocumentsPDF(re *core.RequestEvent, docs []pdfDocument) ([]byte, error) {
 	ctx := re.Request.Context()
 	fonts := pdfrender.Fonts{Dir: docfonts.Dir()}
-	pdf, err := renderPDFDocument(ctx, doc, branding.Load(re.App), fonts, pdfrender.Diagnostics(ctx, log))
-	if err != nil {
-		return re.InternalServerError("Could not create the PDF.", err)
-	}
-	re.Response.Header().Set("Content-Disposition", pdfrender.ContentDisposition(kind.FileName(doc), "pdf"))
+	return renderPDFDocuments(ctx, docs, branding.Load(re.App), fonts, pdfrender.Diagnostics(ctx, log))
+}
+
+// sendPDF sends pdf as a download named stem + ".pdf".
+func sendPDF(re *core.RequestEvent, stem string, pdf []byte) error {
+	re.Response.Header().Set("Content-Disposition", pdfrender.ContentDisposition(stem, "pdf"))
 	// The client names the saved file from this header; a web app on another
 	// origin may read it only when CORS exposes it.
 	re.Response.Header().Add("Access-Control-Expose-Headers", "Content-Disposition")

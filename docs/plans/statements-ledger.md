@@ -30,10 +30,15 @@
 ## Design notes
 - cp 1 · Statement: Open Items report, phone (375/390): each row takes 4 lines, the age cells sit one line lower than on the A/R Aging (line 3 Current, 1 - 30; line 4 31 - 60, 61 - 90, 91 and over). The plan put Date and Due on line 2, where `arDisplay()` puts Current and 1 - 30, and core `placeCells` holds three cells in three tracks; measured with 0 cut cells (implementer part 1 #5; reviewer B DEFERRAL 1, reviewer A NOTE).
 - cp 1 · Statement reports: the column labels ("Date", "Activity", "Amount", "Balance"; "Customer", "Date", "Due date", the aging labels) and the two hub descriptions were chosen by the implementer; the plan named none (implementer part 1 #7).
+- cp 2 · server texts the plan named none of, chosen by the implementer: "Select at least one customer.", "Select at least one statement.", "Choose Balance forward or Open items", "Document not found." (a send of a missing id), "The email was sent, but the statement could not be marked as sent.", "Customer not found." (preview), "Sign in to use statements." (401 of both routes), "The request is not valid." (a body the server cannot decode) (implementer #3; fix items 7 and 8).
+- cp 2 · the send takes its rate-limit token right before the email goes out (spec: "500 statement emails"), so a user over the hour's limit still makes the server build and render each statement of a request (up to 200) before each is refused; the preview route already renders up to 200 with no limit (fix reviewer NOTE 1).
+- cp 2 · a preview of several customers is one PDF, so "Page x of y" counts across all its statements ("Page 2 of 3" on the second customer's first page); a saved statement's PDF counts its own pages (reviewer A NOTE 7).
+- cp 2 · a send body that names one statement twice sends two emails; the create and statement screens never build such a body (reviewer A NOTE 4).
 
 ## Out-of-plan changes
 - `tests/e2e/books-settings.spec.ts` (cp 1): not in the Files block, but named in checkpoint 1's "Tests it must add" and Gates line; one block added to the Numbering test (the Statements card). Reviewers A and B: in scope.
 - `docs/plans/statements-ledger.md` (cp 1): the loop's ledger, committed with each checkpoint.
+- `server/pdf_invoice.go` (cp 2, fix round 1): `customerPDFParty`, the customer address read shared by the invoice and the statement PDF, so the statement does not copy `documentPDFParty` (reviewer A NOTE 5, lesson 8). The PDF Go tests and the seven PDF specs stay green.
 
 ## Phase notes
 - phase 1: unattended; no corrections by the human before the design gate. Intake, triage and the `[?]` list: the design packet (staging `packet.md`, `intake.md`). No needs-extension spark. The source's green, header bar and split button are not carried.
@@ -111,6 +116,36 @@
 - gate 3 A notes: none open (each NOTE fixed or recorded above)
 - reviewer-caught deferrals: reviewer A — `tests/settings-sections-numbering.test.ts` gained no Statements card test; not self-declared (implementer part 2 ran it green and left it, reading "edit only a pinned list" as "no change when green"); fixed in round 1.
 - commit: the commit "feat(books): statement data, numbering and reports" (its sha is in git; the driver records it)
+- human: n/a (review mode C)
+
+## Checkpoint 2
+- test writer: server/statement_email_test.go, server/pdf_statement_test.go, server/statement_routes_test.go, server/testdata/statement_email_cases.json, server/testdata/file_stem_cases.json (staged); 27 tests; red for the right reason: yes (build red on the Interfaces names; each test also proved red at its feature assertion with a temporary stub, deleted); untestable: none. Pinned beyond the brief: `statementSender`, `statementEmailLimiter`, `maxStatementFileBytes` are `var`s; a missing id in a send fails with "Document not found."; `file_stem_cases.json` gives "" (not core's "report") for a name with no letter or digit, so that `statementFileName` gives "statement-st-1001" (staging cp/cp2-tests.md).
+- implementer: one dispatch; DONE, 0 disputes, 15 declared differences (staging cp/cp2-impl.md). Plan note 8 works: the send saves through `OnRecordUpdateRequest(...).Trigger`, and core's audit hook writes the "updated" row with `changes` (`TestStatementSend_AuditRows`); no `audit.Log`, no core change.
+- test disputes: none
+- self-declared differences (triage):
+  - #1 `reportRowsFor` takes a `today` parameter (the run's Today is the statement date): accepted (Do step 1: "Today: <the statement date>").
+  - #2 `fileStem` has no 80-rune cut and no "report" fallback; `statementFileName` skips an empty part: accepted (pinned by `file_stem_cases.json` and the "statement-st-1001" case).
+  - #3 extra texts ("Select at least one customer.", "Select at least one statement.", "Choose Balance forward or Open items", "Document not found.", "The email was sent, but the statement could not be marked as sent.", "Customer not found.", "Sign in to send statements." — changed in fix item 7 to "Sign in to use statements."): accepted (the plan names none for these refusals); listed under Design notes.
+  - #2 later changed: fix item 2 gave `fileStem` core's 80-rune cut (the "report" fallback stays out).
+  - #4 preview checks `type` before the dates: accepted.
+  - #5 `writePDF` answers 401 for a `BuildAs` kind with no auth: accepted (the statement is built as the reader; the test asks 401 with no session).
+  - #6 a static `.next { break-before: page }` rule, not `template.CSS`: accepted (no data in the CSS).
+  - #7 `Period` is a preformatted string: accepted (the Do step 4 field).
+  - #8 the opening row prints with no activity; #9 a $0.00 aging band prints: accepted.
+  - #10 the limiter is spent before the build: left to gate 3.
+  - #11 sent but not saved → the save's message or "The email was sent, but the statement could not be marked as sent.": accepted.
+  - #12 tighter statement rows (80 lines on 2 pages), #13 figure columns `width: 1%`, #14 an aging band prints label and figure on one line: accepted (#14's cause is omnidoc's read-back, which reads a line that starts with "-" as a bullet; the PDF prints "-$50.00").
+  - #15 the amount-due header: the checkpoint's Modify line asks for it.
+- gate 1: tests unedited: yes (`git diff --name-only` of the 5 test-writer files is empty) · `packages:generate` exit 0 · `tinycld-pkg check` exit 0 (398 files, 8399 tests) · `go test -count=1 ./...` ok (239.1 s), gofmt clean, go vet clean · e2e (one command: pdf-preview, invoice-form-pdf, credit-memo-form, estimate-form, sales-receipt-form, refund-receipt-form, estimate-public-link-page): 25 passed (1.0 m) → pass
+- gate 2: n/a (logic checkpoint)
+- gate 3 A (correctness): 1 BLOCK, 9 NOTE, 0 DEFERRAL (staging cp/cp2-review-A.md). BLOCK 1 the run reads one page of 200 rows (`Options.Limit` unset; core `run.go:703-711` `pageLimit()` gives 200, verified by the runner) and ignores `res.Page.Next`: a long statement loses lines and its Amount due → accepted+fixed (fix item 1). NOTE 2 sent but not saved for an address the fields refuse → accepted+fixed (item 3; a resend sends twice). NOTE 3 limiter spent before the build → accepted+fixed (item 4; spec counts "statement emails"). NOTE 4 one id twice in a body → Design notes. NOTE 5 `statementParty` copies `documentPDFParty` → accepted+fixed (item 5; lesson 8). NOTE 6 `fileStem` has no rune cut → accepted+fixed (item 2; spec §3.5 "as core makes a report file name"). NOTE 7 preview "Page x of y" counts across customers → Design notes. NOTE 8 six-argument `reportRowsFor` → recorded: the agreed interface is `reportRowsFor(ctx, app, auth, spec, params, today string)`. NOTE 9 zero aging band not asserted → accepted+fixed (item 6). NOTE 10 ledger file → not a finding.
+- gate 3 B (conformance): script lines: 0 real, 0 false positive · 5 findings, 1 DEFERRAL (staging cp/cp2-review-B.md): #1 and DEFERRAL 1 = A's BLOCK → accepted+fixed (item 1); #2 = A NOTE 6 (item 2); #3 signature → recorded (see A NOTE 8); #4 the preview's 401 text "Sign in to send statements." → accepted+fixed (item 7); #5 Go decoder text in the 400 message → accepted+fixed (item 8).
+- fix round 1 (staging cp/cp2-fix-r1.md, 8 items): test writer (cp/cp2-fix-tests.md) added 7 tests, 6 red for the right reason (items 1, 2, 3, 4, 7, 8); item 6's stronger assertion passes on the source (a weak test, no source defect). Implementer (cp/cp2-fix-impl.md): FIXED 8 of 8 — `reportRowsFor` sets `Options.Limit` = `PageCap` = `maxPDFLines + 100` and refuses a next page or a `rowCap`/`nestCap` notice (core `readWholeReport` model); `fileStem` cuts at 80 runes and trims `-`; the address passes the collection's own `email` and `sent_to` field validators before the send; the limiter token is taken right before `SendFull`; `customerPDFParty` in `server/pdf_invoice.go` is shared by the invoice and the statement; 401 "Sign in to use statements."; 400 "The request is not valid." with the decoder error logged. Gate 1 again: tests unedited · check exit 0 (398 files, 8399 tests) · `go test -count=1 ./...` ok (227.0 s), gofmt, vet clean · the seven specs 25 passed (58.7 s).
+- fix review: round 1: 0 BLOCK, 2 NOTE, 0 not fixed (staging cp/cp2-fix-review.md). NOTE 1 the limiter after the render → Design notes. NOTE 2 two stale ledger lines → fixed in the ledger. Rounds: 1.
+- gate 3 A notes: 3 to Design notes (A NOTE 4, NOTE 7; fix review NOTE 1); the rest fixed or recorded above.
+- reviewer-caught deferrals: reviewer B DEFERRAL 1 (Do steps 1–2: read every row, refuse more than `maxPDFLines`) — not self-declared (the implementer set `PageCap` and did not read core's `pageLimit()`); fixed in round 1 (item 1).
+- interface change for later checkpoints: `reportRowsFor(ctx, app, auth, spec, params, today string)` (six arguments).
+- commit: the commit "feat(books): statement PDF, preview and email" (its sha is in git; the driver records it)
 - human: n/a (review mode C)
 
 ## Final review
