@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"maps"
+	"os"
 	"reflect"
 	"slices"
 	"strings"
@@ -259,8 +260,8 @@ func TestTrialBalanceSpecLoads(t *testing.T) {
 	if shipped.Description != "Each account's balance on one day, as a debit or a credit." {
 		t.Errorf("description = %q", shipped.Description)
 	}
-	if shipped.Revision != 2 || !shipped.Unpublished {
-		t.Errorf("revision %d, unpublished %v; want revision 2 (detail.open), shipped unpublished", shipped.Revision, shipped.Unpublished)
+	if shipped.Revision != 3 || !shipped.Unpublished {
+		t.Errorf("revision %d, unpublished %v; want revision 3 (the stored months), shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	built, err := json.Marshal(trialBalanceSpec())
 	if err != nil {
@@ -269,27 +270,12 @@ func TestTrialBalanceSpecLoads(t *testing.T) {
 	if !jsonEqual(t, shipped.Spec, string(built)) {
 		t.Errorf("the shipped spec is not trialBalanceSpec()")
 	}
-	// The helpers moved to report_spec_helpers.go (general-ledger checkpoint 2);
-	// the Trial Balance's spec stays byte for byte what it was before the move.
-	// Report drill-down checkpoint 1 adds only detail.open (entryOpenPath()), the
-	// last key of detail, and moves accounts to accountsParam() unchanged.
-	if entryOpenPath() == nil {
-		t.Errorf("entryOpenPath() = nil, want the entry route formula on the Trial Balance's opened lines")
+	// The whole spec, as core reads it. A change to it is a new revision.
+	golden, err := os.ReadFile("testdata/trial_balance_spec.golden.json")
+	if err != nil {
+		t.Fatal(err)
 	}
-	const detailEnd = `}},"display":{`
-	if strings.Count(trialBalanceGolden, detailEnd) != 1 {
-		t.Fatalf("the golden does not hold %s once", detailEnd)
-	}
-	golden := strings.Replace(trialBalanceGolden, detailEnd, `},"open":`+string(mustJSON(entryOpenPath()))+detailEnd[1:], 1)
-	// Report drill-down checkpoint 2 adds only the drill of Debit and Credit,
-	// the last key of each of those two columns (Debit first).
-	const figureEnd = `"total":"rows"}`
-	if strings.Count(golden, figureEnd) != 2 {
-		t.Fatalf("the golden does not hold %s twice (Debit and Credit)", figureEnd)
-	}
-	golden = strings.Replace(golden, figureEnd, `"total":"rows","drill":`+trialBalanceDebitDrillGolden+`}`, 1)
-	golden = strings.Replace(golden, figureEnd, `"total":"rows","drill":`+trialBalanceCreditDrillGolden+`}`, 1)
-	if got := string(mustJSON(trialBalanceSpec())); got != golden {
+	if got := string(built); got != strings.TrimSpace(string(golden)) {
 		t.Errorf("the Trial Balance spec changed:\n got %s\nwant %s", got, golden)
 	}
 
@@ -685,10 +671,12 @@ func TestTrialBalanceHeadingAndLabels(t *testing.T) {
 	design.Set("number", "6110")
 	saveOrFail(t, b.app, design)
 	mkRetainedEarnings(t, b.app, "3900")
-	march := b.postMemo(t, "2026-03-10", "March tools",
+	// Both entries are in the as-of day's month: an opened account lists the
+	// lines of that month only.
+	march := b.postMemo(t, "2026-11-02", "March tools",
 		memoLine{account: design, debit: 12345, memo: "Figma seats"},
 		memoLine{account: checking, credit: 12345})
-	april := b.postMemo(t, "2026-04-02", "Refund from vendor",
+	april := b.postMemo(t, "2026-11-03", "Refund from vendor",
 		memoLine{account: checking, debit: 500},
 		memoLine{account: design, credit: 500})
 	opts := reports.Options{Today: tbToday}
@@ -721,8 +709,8 @@ func TestTrialBalanceHeadingAndLabels(t *testing.T) {
 			}
 		}
 	}
-	figma := "2026-03-10 · " + march.GetString("number") + " · Figma seats"
-	refund := "2026-04-02 · " + april.GetString("number") + " · Refund from vendor"
+	figma := "2026-11-02 · " + march.GetString("number") + " · Figma seats"
+	refund := "2026-11-03 · " + april.GetString("number") + " · Refund from vendor"
 	if len(details) != 2 {
 		t.Fatalf("opened lines = %v, want %q and %q", slices.Collect(maps.Keys(details)), figma, refund)
 	}
@@ -765,14 +753,16 @@ func TestTrialBalanceDetailOrder(t *testing.T) {
 	checking := b.account(t, "Checking", "1000", "bank", "checking")
 	supplies := b.account(t, "Supplies", "6200", "expense", "office_general")
 	rent := b.account(t, "Rent", "6000", "expense", "rent_lease")
-	march := b.postLineWithID(t, "2026-03-10", "tbdetailorder01", "March", supplies, checking)
+	// The lines are in the as-of day's month: an opened account lists that
+	// month's lines only.
+	march := b.postLineWithID(t, "2026-11-03", "tbdetailorder01", "March", supplies, checking)
 	// Entries 2 to 8 post to other accounts, so the next two are numbered 9
 	// and 10.
 	for range 7 {
 		b.post(t, "2026-02-01", ln{account: rent, debit: 100}, ln{account: checking, credit: 100})
 	}
-	nine := b.postLineWithID(t, "2026-01-05", "tbdetailorder03", "January first", supplies, checking)
-	ten := b.postLineWithID(t, "2026-01-05", "tbdetailorder02", "January second", supplies, checking)
+	nine := b.postLineWithID(t, "2026-11-02", "tbdetailorder03", "January first", supplies, checking)
+	ten := b.postLineWithID(t, "2026-11-02", "tbdetailorder02", "January second", supplies, checking)
 	opts := reports.Options{Today: tbToday}
 
 	closed := runTB(t, b.app, b.reader, map[string]any{"asOf": tbToday}, opts)
@@ -786,9 +776,9 @@ func TestTrialBalanceDetailOrder(t *testing.T) {
 		}
 	}
 	want := []string{
-		"2026-01-05 · " + nine.GetString("number") + " · January first",
-		"2026-01-05 · " + ten.GetString("number") + " · January second",
-		"2026-03-10 · " + march.GetString("number") + " · March",
+		"2026-11-02 · " + nine.GetString("number") + " · January first",
+		"2026-11-02 · " + ten.GetString("number") + " · January second",
+		"2026-11-03 · " + march.GetString("number") + " · March",
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("opened lines = %q\nwant (date, then entry number) %q", got, want)
@@ -852,7 +842,7 @@ func TestTrialBalanceShippedUnpublished(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "Trial Balance" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.journal_lines" {
+	if row.GetString("title") != "Trial Balance" || row.GetInt("shipped_revision") != 3 || row.GetString("source") != "books.journal_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 }
@@ -863,7 +853,7 @@ func TestTrialBalanceLineOpens(t *testing.T) {
 	b := newTBBook(t)
 	checking := b.account(t, "Checking", "1000", "bank", "checking")
 	supplies := b.account(t, "Supplies", "6100", "expense", "office_general")
-	entry := b.postMemo(t, "2026-03-10", "Paper", memoLine{account: supplies, debit: 2500}, memoLine{account: checking, credit: 2500})
+	entry := b.postMemo(t, "2026-11-02", "Paper", memoLine{account: supplies, debit: 2500}, memoLine{account: checking, credit: 2500})
 	opts := reports.Options{Today: tbToday}
 
 	closed := runTB(t, b.app, b.reader, map[string]any{"asOf": tbToday}, opts)
@@ -888,41 +878,3 @@ func TestTrialBalanceLineOpens(t *testing.T) {
 		}
 	}
 }
-
-// trialBalanceGolden is mustJSON(trialBalanceSpec()) at core spec version 4: the
-// spec as it was before the helpers moved to report_spec_helpers.go (general-ledger
-// checkpoint 2), plus the column fit of `display` (account wraps onto three lines,
-// No./Debit/Credit max-content; general-ledger checkpoint 3, column-fit decision 3;
-// three lines since bill-form checkpoint 1, human decision 2026-11-13).
-const trialBalanceGolden = `{"version":4,"source":"books.journal_lines","params":[{"id":"asOf","type":"asOf","label":"As of","default":{"preset":"endOfLastMonth"}},{"id":"rows","type":"choice","label":"Rows","default":"nonzero","options":[{"value":"nonzero","label":"Non-zero"},{"value":"active","label":"Active"},{"value":"all","label":"All"}]},{"id":"accounts","type":"choice","label":"Accounts","optionsFrom":{"source":"books.accounts","value":[{"field":"id"}],"label":[{"field":"full_name"}],"group":[{"field":"type"}],"groupOrder":{"by":"declared"},"groupLabel":"All {group} accounts"},"multiple":true}],"columns":[{"id":"account","label":"Account","formula":{"op":"if","args":[{"op":"and","args":[{"op":"in","args":[{"path":[{"link":"account"},{"field":"type"}]},{"value":["income","other_income","cost_of_goods_sold","expense","other_expense"]}]},{"op":"lt","args":[{"op":"fiscalYear","args":[{"path":[{"field":"date"}]}]},{"op":"fiscalYear","args":[{"param":"asOf"}]}]}]},{"op":"lookup","value":{"path":[{"field":"id"}]},"where":{"op":"eq","args":[{"path":[{"field":"detail_type"}]},{"value":"retained_earnings"}]},"source":"books.accounts","pick":"min"},{"path":[{"link":"account"}]}]}},{"id":"number","label":"No.","formula":{"path":[{"field":"number"}],"record":"byAccount"},"detail":"blank"},{"id":"debit","label":"Debit","formula":{"op":"if","args":[{"op":"eq","args":[{"op":"count","args":[{"path":[{"field":"id"}]}]},{"value":0}]},{"value":null},{"op":"if","args":[{"op":"gte","args":[{"op":"sum","args":[{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]}]},{"value":0}]},{"op":"sum","args":[{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]}]},{"value":null}]}]},"total":"rows"},{"id":"credit","label":"Credit","formula":{"op":"if","args":[{"op":"lt","args":[{"op":"sum","args":[{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]}]},{"value":0}]},{"op":"sub","args":[{"value":0},{"op":"sum","args":[{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]}]}]},{"value":null}]},"total":"rows"}],"filter":{"op":"and","args":[{"op":"eq","args":[{"path":[{"field":"posted"}]},{"value":true}]},{"op":"lte","args":[{"path":[{"field":"date"}]},{"param":"asOf"}]},{"op":"in","args":[{"col":"account"},{"param":"accounts"}]}]},"sort":[{"formula":{"op":"case","args":[{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"bank"}]},{"value":1},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"accounts_receivable"}]},{"value":2},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"other_current_asset"}]},{"value":3},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"fixed_asset"}]},{"value":4},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"other_asset"}]},{"value":5},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"accounts_payable"}]},{"value":6},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"credit_card"}]},{"value":7},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"other_current_liability"}]},{"value":8},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"long_term_liability"}]},{"value":9},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"equity"}]},{"value":10},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"income"}]},{"value":11},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"other_income"}]},{"value":12},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"cost_of_goods_sold"}]},{"value":13},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"expense"}]},{"value":14},{"op":"eq","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":"other_expense"}]},{"value":15},{"value":16}]}},{"col":"number"},{"formula":{"path":[{"field":"full_name"}],"record":"byAccount"}},{"formula":{"path":[{"field":"date"}]}},{"formula":{"path":[{"link":"entry"},{"field":"sequence"}]}}],"groups":[{"id":"byAccount","col":"account","label":{"path":[{"field":"full_name"}],"record":"byAccount"},"fill":{"where":{"op":"and","args":[{"op":"eq","args":[{"path":[{"field":"inactive"}]},{"value":false}]},{"op":"in","args":[{"path":[{"field":"id"}]},{"param":"accounts"}]}]}},"having":{"op":"or","args":[{"op":"eq","args":[{"param":"rows"},{"value":"all"}]},{"op":"and","args":[{"op":"eq","args":[{"param":"rows"},{"value":"active"}]},{"op":"gt","args":[{"op":"count","args":[{"path":[{"field":"id"}]}]},{"value":0}]}]},{"op":"ne","args":[{"op":"sum","args":[{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]}]},{"value":0}]}]}}],"detail":{"label":{"op":"concat","args":[{"path":[{"field":"date"}]},{"value":" · "},{"path":[{"link":"entry"},{"field":"number"}]},{"value":" · "},{"op":"if","args":[{"op":"isEmpty","args":[{"path":[{"field":"memo"}]}]},{"path":[{"link":"entry"},{"field":"memo"}]},{"path":[{"field":"memo"}]}]}]}},"display":{"columns":{"account":{"minWidth":"5ch","whiteSpace":"normal","lineClamp":3},"credit":{"minWidth":"max-content"},"debit":{"minWidth":"max-content"},"number":{"minWidth":"max-content"}}}}`
-
-// The drills of Debit and Credit (report drill-down spec §5, checkpoint 2), written
-// out by hand: Transaction Detail by Account from the account's first posted line
-// (an income or expense account's first in the as-of day's fiscal year) to the as-of
-// day, for that one account. Accounts is blank, so the cell opens nothing, on the
-// retained-earnings row and on the side whose figure the column's own sign test
-// leaves blank: Debit opens when the net is 0 or more, Credit when it is below 0.
-const (
-	tbDrillNetGolden     = `{"op":"sum","args":[{"op":"sub","args":[{"path":[{"field":"debit"}]},{"path":[{"field":"credit"}]}]}]}`
-	tbDrillAccountGolden = `{"path":[{"field":"id"}],"record":"byAccount"}`
-	tbDrillLineWhere     = `{"op":"eq","args":[{"path":[{"link":"account"}]},` + tbDrillAccountGolden + `]},` +
-		`{"op":"eq","args":[{"path":[{"field":"posted"}]},{"value":true}]},` +
-		`{"op":"lte","args":[{"path":[{"field":"date"}]},{"param":"asOf"}]}`
-	tbDrillFirstLine   = `{"op":"lookup","value":{"path":[{"field":"date"}]},"where":{"op":"and","args":[` + tbDrillLineWhere + `]},"source":"books.journal_lines","pick":"min"}`
-	tbDrillFirstLineFY = `{"op":"lookup","value":{"path":[{"field":"date"}]},"where":{"op":"and","args":[` + tbDrillLineWhere +
-		`,{"op":"eq","args":[{"op":"fiscalYear","args":[{"path":[{"field":"date"}]}]},{"op":"fiscalYear","args":[{"param":"asOf"}]}]}` +
-		`]},"source":"books.journal_lines","pick":"min"}`
-	tbDrillPeriod = `{"range":{"from":{"op":"if","args":[` +
-		`{"op":"in","args":[{"path":[{"field":"type"}],"record":"byAccount"},{"value":["income","other_income","cost_of_goods_sold","expense","other_expense"]}]},` +
-		tbDrillFirstLineFY + `,` + tbDrillFirstLine + `]},"to":{"param":"asOf"}}}`
-	tbDrillRetained = `{"op":"eq","args":[{"path":[{"field":"detail_type"}],"record":"byAccount"},{"value":"retained_earnings"}]}`
-
-	trialBalanceDebitDrillGolden = `{"report":"books.transaction_detail","levels":{"byAccount":{` +
-		`"accounts":{"op":"if","args":[` + tbDrillRetained + `,{"value":null},` +
-		`{"op":"if","args":[{"op":"gte","args":[` + tbDrillNetGolden + `,{"value":0}]},` + tbDrillAccountGolden + `,{"value":null}]}]},` +
-		`"period":` + tbDrillPeriod + `}}}`
-	trialBalanceCreditDrillGolden = `{"report":"books.transaction_detail","levels":{"byAccount":{` +
-		`"accounts":{"op":"if","args":[` + tbDrillRetained + `,{"value":null},` +
-		`{"op":"if","args":[{"op":"lt","args":[` + tbDrillNetGolden + `,{"value":0}]},` + tbDrillAccountGolden + `,{"value":null}]}]},` +
-		`"period":` + tbDrillPeriod + `}}}`
-)
