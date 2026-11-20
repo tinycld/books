@@ -344,3 +344,19 @@ The detail statement read the period's lines once for each CTE that names `w` (t
 Plan, the detail statement of run 5, reads of `books_journal_lines` by `(account=? AND date>? AND date<?)`: before 9; after 1. The Total statement of run 5: before 7, 122.4 ms; after 1, 85 ms.
 
 Every run fell, by 20 % to 37 %; runs 1 and 2 (no Accounts filter) are not slower. Run 5 fell by 381 ms, more than the 100 to 270 ms the plan expected. The detail statement is still the longest of each run (run 5 651.9 ms of 824 ms, run 3 138.4 ms of 240 ms).
+
+#### Task 6: a day comparison in a lookup's where bounds the stored day (core `server/reports/lookup.go`, 2026-11-19)
+
+A lookup's where compared a line's day through `substr()`. A comparison of the day with a day of the period now also bounds the stored column (`date >= lo AND date <= (hi || x'ff')`), next to the where. Alone it changes no plan line: the account is still bound by a range, so SQLite does not use `date` after it (task 5).
+
+| run, 100k lines | before | after |
+| --- | --- | --- |
+| 1 all accounts, month | 583 ms | 545 ms |
+| 2 all accounts, year | 1,601 ms | 1,626 ms |
+| 3 busy account, month | 240 ms | 254 ms |
+| 4 small account, month | 122 ms | 130 ms |
+| 5 three accounts, year | 824 ms | 824 ms |
+
+Plan, the detail statement of run 5 (statement 6, 201 rows), reads of `books_journal_lines`: before and after the same, 1 × `SEARCH … idx_books_jlines_account_date (account=? AND date>? AND date<?)`, 6 × `SEARCH … idx_books_jlines_account_date (account>? AND account<?)`, 2 × `SEARCH … idx_books_jlines_entry (entry>? AND entry<?)`. Every plan line of every run is the same as in task 5c; only the statement text grew (run 5 statement 6: 31,868 -> 33,059 chars).
+
+The measure was taken twice. The first run (log `scale-task6.log`) ran on a loaded machine (another lane's e2e run: load average 11.8; the fixture write, which no reports code touches, was 23 % slower) and gave 670 / 2,057 / 291 / 162 / 1,020 ms. The second run, on a quiet machine (`scale-task6-b.log`), is the one recorded above: every run is within 7 % of task 5c, no run is slower by more than the run's variation.
