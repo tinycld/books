@@ -251,7 +251,11 @@ WHERE posted IS true AND date < {:from} AND date >= {:year} AND account IN (SELE
 GROUP BY account ORDER BY count(*) DESC, account LIMIT 1`).Bind(days).Row(&incomeID); err != nil {
 		t.Fatalf("no income account has a line from %s to %s: %v", days["year"], from, err)
 	}
-	income := b.incomes[slices.IndexFunc(b.incomes, func(a *core.Record) bool { return a.Id == incomeID })]
+	incomeIndex := slices.IndexFunc(b.incomes, func(a *core.Record) bool { return a.Id == incomeID })
+	if incomeIndex < 0 {
+		t.Fatalf("the account %s, which has lines before %s, is not an income account of the book", incomeID, from)
+	}
+	income := b.incomes[incomeIndex]
 	res, err := runGLErr(t, b.app, b.reader, map[string]any{
 		"period": glPeriod(from, from), "rows": "all", "accounts": []string{b.receivable.Id, income.Id},
 	}, reports.Options{Today: b.lastDay})
