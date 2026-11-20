@@ -13,11 +13,14 @@ import { useCreateStatementsForm } from '../../hooks/useCreateStatementsForm'
 import { FORM_KEYS } from '../../lib/entry-shortcuts'
 import { rootErrorOnly } from '../../lib/root-errors'
 import { createScreenMode } from '../../lib/statement-texts'
+import { useStatementsStore } from '../../stores/statements-store'
 import { DiscardDialog } from '../entries/DiscardDialog'
 import { EntryNotice } from '../entries/EntryNotice'
 import { StatementActionBar, type StatementBarButton } from './StatementActionBar'
 import { StatementOptions } from './StatementOptions'
+import { StatementPreviewDialog } from './StatementPreviewDialog'
 import { StatementRecipients } from './StatementRecipients'
+import { StatementRunNotice } from './StatementRunNotice'
 import { StatementTotal } from './StatementTotal'
 
 const TAP = { minHeight: 44 }
@@ -26,20 +29,13 @@ const NO_WRITE_TEXT = 'You need bookkeeper access to create statements'
 const DISCARD_TITLE = 'Discard this run?'
 const TICK_BOX = { all: 'checked', some: 'mixed', none: 'empty' } as const
 
-// The bar's keys (lib/entry-shortcuts.ts): module constants, so each button's
+// The bar's keys (spec §3.4; lib/entry-shortcuts.ts): module constants, so each button's
 // registration stays put across renders.
-const CANCEL_KEY = {
-    keys: FORM_KEYS.cancel,
-    scope: 'compose',
-    allowInInputs: true,
-    group: 'Statements',
-} as const
-const SAVE_KEY = {
-    keys: FORM_KEYS.saveDraft,
-    scope: 'compose',
-    allowInInputs: true,
-    group: 'Statements',
-} as const
+const BAR_KEY = { scope: 'compose', allowInInputs: true, group: 'Statements' } as const
+const CANCEL_KEY = { keys: FORM_KEYS.cancel, ...BAR_KEY }
+const PREVIEW_KEY = { keys: 'Alt+p', ...BAR_KEY }
+const SAVE_KEY = { keys: FORM_KEYS.saveDraft, ...BAR_KEY }
+const SEND_KEY = { keys: FORM_KEYS.post, ...BAR_KEY }
 
 function BackLink({ onPress }: { onPress: () => void }) {
     const color = useThemeColor('muted-foreground')
@@ -99,29 +95,45 @@ function noticeText(input: { isError: boolean; isReady: boolean }): string {
 
 type StatementsForm = ReturnType<typeof useCreateStatementsForm>
 
+// Cancel (Esc), Preview (⌥P), Save (⌘S), Save and send (⌘↵, the primary), in Tab order.
 function barActionsOf(screen: StatementsForm, onCancel: () => void): StatementBarButton[] {
+    const { bar } = screen
     return [
         {
             id: 'cancel',
-            label: screen.bar.cancel.label,
-            busyLabel: screen.bar.cancel.label,
+            label: bar.cancel.label,
             shortcut: CANCEL_KEY,
             variant: 'outline',
             isServerAction: false,
-            isDisabled: screen.bar.cancel.isDisabled,
-            isBusy: false,
+            isDisabled: bar.cancel.isDisabled,
             onPress: onCancel,
         },
         {
+            id: 'preview',
+            label: bar.preview.label,
+            shortcut: PREVIEW_KEY,
+            variant: 'outline',
+            isServerAction: true,
+            isDisabled: bar.preview.isDisabled,
+            onPress: screen.onPreview,
+        },
+        {
             id: 'save',
-            label: screen.bar.save.label,
-            busyLabel: 'Saving…',
+            label: bar.save.label,
             shortcut: SAVE_KEY,
+            variant: 'outline',
+            isServerAction: true,
+            isDisabled: bar.save.isDisabled,
+            onPress: screen.onSave,
+        },
+        {
+            id: 'send',
+            label: bar.send.label,
+            shortcut: SEND_KEY,
             variant: 'primary',
             isServerAction: true,
-            isDisabled: screen.bar.save.isDisabled,
-            isBusy: screen.isHeld,
-            onPress: screen.onSave,
+            isDisabled: bar.send.isDisabled,
+            onPress: screen.onSaveAndSend,
         },
     ]
 }
@@ -151,11 +163,13 @@ interface StatementsFormProps {
 
 /**
  * The form of Create statements (spec §3.2-§3.4): Back, the title with the total, the
- * options, a refusal of the run in FormErrorSummary, the windowed list of customers, and
- * the bar (Cancel, Save), with the Discard dialog of the leave guard.
+ * options, a refusal of the whole request in FormErrorSummary, the notice of a run of which
+ * a part failed, the windowed list of customers, and the bar (Cancel, Preview, Save, Save and
+ * send), with the Preview dialog and the Discard dialog of the leave guard.
  */
 function CreateStatementsForm({ customer, canWrite, scopeOwner }: StatementsFormProps) {
     const screen = useCreateStatementsForm({ customer, canWrite })
+    const outcome = useStatementsStore(state => state.outcome)
     const cancel = screen.leaveGuard.cancel
     const actions = barActionsOf(screen, cancel)
     const summaryErrors = rootErrorOnly(screen.errors)
@@ -180,6 +194,7 @@ function CreateStatementsForm({ customer, canWrite, scopeOwner }: StatementsForm
                     testID="statements-error-summary"
                     isEnabled
                 />
+                <StatementRunNotice outcome={outcome} />
             </View>
             <View className="min-h-0 flex-1 px-4">
                 <StatementRecipients
@@ -190,13 +205,20 @@ function CreateStatementsForm({ customer, canWrite, scopeOwner }: StatementsForm
                     isDisabled={screen.isHeld}
                     tickAll={tickAll}
                     scrollToIndex={screen.scrollToIndex}
+                    scrollHandle={screen.listScroll}
                     onToggle={screen.onToggle}
                     onToggleAll={screen.onToggleAll}
                     onEmailChange={screen.onEmailChange}
                     onRetry={screen.retry}
                 />
             </View>
-            <StatementActionBar actions={actions} scopeOwner={scopeOwner} />
+            <StatementActionBar
+                actions={actions}
+                note={screen.bar.note}
+                isMoreDisabled={screen.bar.cancel.isDisabled}
+                scopeOwner={scopeOwner}
+            />
+            <StatementPreviewDialog preview={screen.preview} />
             <DiscardDialog title={DISCARD_TITLE} {...screen.leaveGuard.dialog} />
         </View>
     )

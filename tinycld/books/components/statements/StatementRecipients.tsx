@@ -1,6 +1,7 @@
 import { EmptyState } from '@tinycld/core/components/EmptyState'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { iosInputCenteringStyle } from '@tinycld/core/ui/form/ios-input-style'
+import type { Ref } from 'react'
 import { TextInput as RNTextInput, Text, View } from 'react-native'
 import { useFitsTable } from '../../hooks/useFitsTable'
 import { formatMoney } from '../../lib/money'
@@ -14,7 +15,7 @@ import { type RecipientRow, recipientLabel } from '../../lib/statement-recipient
 import { emptyRecipientsText, type StatementBalanceFilter } from '../../lib/statement-texts'
 import { ListBanner } from '../ListBanner'
 import { ListCards } from '../ListCards'
-import { ListHeaderRow, ListTable } from '../ListTable'
+import { ListHeaderRow, type ListScrollHandle, ListTable } from '../ListTable'
 import { FieldError } from '../payments/PaymentMoneyField'
 import { SelectBox, type SelectBoxState } from '../SelectBox'
 
@@ -194,6 +195,8 @@ interface RecipientListProps {
     isDisabled: boolean
     tickAll: SelectBoxState
     scrollToIndex: number | undefined
+    // Save and send's refusal scrolls its first row into view through it.
+    scrollHandle: Ref<ListScrollHandle>
     onToggle(customer: string): void
     onToggleAll(): void
     onEmailChange(customer: string, email: string): void
@@ -202,7 +205,8 @@ interface RecipientListProps {
 const noMoreRows = () => {}
 
 function RecipientTable(props: RecipientListProps & { onGutter(gutter: number): void }) {
-    const { entries, tickAll, isDisabled, onToggleAll, scrollToIndex, onGutter } = props
+    const { entries, tickAll, isDisabled, onToggleAll, scrollToIndex, scrollHandle, onGutter } =
+        props
     const renderRow = (entry: RecipientEntry) => <RecipientTableRow {...props} entry={entry} />
     const header = (
         <ListHeaderRow testID="statements-table-header" rowClass="flex-row items-center">
@@ -243,6 +247,7 @@ function RecipientTable(props: RecipientListProps & { onGutter(gutter: number): 
             renderRow={renderRow}
             onNearEnd={noMoreRows}
             scrollToIndex={scrollToIndex}
+            scrollHandle={scrollHandle}
             onGutter={onGutter}
         />
     )
@@ -251,7 +256,7 @@ function RecipientTable(props: RecipientListProps & { onGutter(gutter: number): 
 // The cards' touch path to the heading tick box: a "Select all" row over the cards
 // (lesson 28).
 function RecipientCards(props: RecipientListProps) {
-    const { entries, tickAll, isDisabled, onToggleAll, scrollToIndex } = props
+    const { entries, tickAll, isDisabled, onToggleAll, scrollToIndex, scrollHandle } = props
     const renderCard = (entry: RecipientEntry, height: number) => (
         <RecipientCard {...props} entry={entry} height={height} />
     )
@@ -273,6 +278,7 @@ function RecipientCards(props: RecipientListProps) {
                 renderCard={renderCard}
                 onNearEnd={noMoreRows}
                 scrollToIndex={scrollToIndex}
+                scrollHandle={scrollHandle}
             />
         </View>
     )
