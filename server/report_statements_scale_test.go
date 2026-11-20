@@ -275,7 +275,6 @@ func TestStatementsScaleBars(t *testing.T) {
 // TestStatementsScale measures each run at 10,000, 100,000 and 500,000 journal
 // lines (median of 5) and holds the bar at 500,000 lines. A run core refuses
 // (its time limit) is recorded as refused; a refused run with a bar fails it.
-// Every run has a bar now.
 // With BOOKS_SCALE_OUT=<dir> it writes st-results.md (the times) and
 // st-plans.md (each long statement of each run at each size: its time, its
 // rows, its reads of the line tables).
