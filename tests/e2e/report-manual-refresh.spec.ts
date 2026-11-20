@@ -183,16 +183,15 @@ test.describe('report-manual-refresh', () => {
             .toEqual({ noteInView: true, buttonInView: true, apart: true })
 
         const release = await holdReportRuns(page)
-        const run = nextReportRun(page)
         try {
-            await refresh.click()
+            const [request] = await Promise.all([nextReportRun(page), refresh.click()])
             await expect(refresh).toBeDisabled()
             await expect(refresh).toContainText(REFRESHING)
             await expect(builder.getByTestId('report-updating')).toHaveText(UPDATING)
             // The source shows the run is the draft's; the disabled and "Refreshing…"
             // assertions prove the press started it (a refetch of the Preview sends the
             // same body).
-            const body = (await run).postDataJSON() as { spec?: { source?: string } }
+            const body = request.postDataJSON() as { spec?: { source?: string } }
             expect(body.spec?.source).toBe(JOURNAL_LINES_SOURCE)
         } finally {
             release()
