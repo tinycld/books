@@ -375,6 +375,46 @@ The reports stay current. When someone posts or voids an invoice, a sales receip
 
 On a phone, a Sales by Customer row shows the name on the first line, then Sales and % of sales. A Sales by Product/Service row shows the name, then Quantity and Amount, then % of sales and Avg price. A long name wraps to at most three lines, and a figure is never cut. Customize and Export are under **⋯**.
 
+## Read the A/P Aging report
+
+To see what you owe each vendor and how late it is, open Reports and choose A/P Aging. You can also press Reports at the top of the Vendors list, then A/P Aging. The heading shows your business name, A/P Aging, and the day, for example "As of November 16, 2026".
+
+The report lists the open items of each vendor on the As of day. An open item is one of these:
+
+- A bill, less the bill payments and the applied vendor credits dated on or before the day that apply to it.
+- A vendor credit, less the parts of it that are applied to bills and the vendor refunds dated on or before the day.
+- A posted journal entry line on Accounts payable that comes from none of these documents.
+
+A bill payment and a vendor refund are never items of their own: each of their lines is a part of the bill or the vendor credit it names. Only posted transactions dated on or before the As of day count. A draft does not count. A voided document and its void reversal cancel each other, and a voided bill payment or vendor refund no longer applies. An item that adds up to 0 on the day does not show.
+
+An item's age is the number of days from its due date to the As of day. A bill ages from its due date. Every other item ages from its own date, and its Due date shows that date. The columns are Vendor, Due date, Current, 1 - 30, 31 - 60, 61 - 90, 91 and over, and Total.
+
+- Current holds the items that are not yet due on the day: age 0 or less.
+- 1 - 30, 31 - 60, 61 - 90 and 91 and over hold the items that are that many days past their due date.
+- Each item is in the one column of its age, and in Total. A vendor row and the Total row add their items in each column.
+- An age column with no money on a row is blank. Total always shows a figure.
+- A figure is what you owe. A vendor credit is a negative figure in the column of its age, and it lowers the vendor's Total.
+
+When you apply a vendor credit to a bill, the applied credit lowers the bill's item from the apply date, and the vendor credit shows only the part that is not applied. Applying a credit does not change the vendor's Total or the report's Total, because the bill's item goes down by the amount and the credit's item goes up by the same amount. When you remove the credit from the bill, both items show their full amounts again, also on a past As of day: a removed application reads as never applied.
+
+The figures agree with the other reports. A vendor's Total for today equals the Open balance on its vendor page (the Open figure, or the Credit figure when the vendor owes you). The Total row at the end equals Accounts payable on the Balance Sheet for the same day. These figures agree because every row comes from a posted Accounts payable line or is a part of one: the lines of a bill payment add up to its Accounts payable figure, and so do the lines of a vendor refund, and an applied credit moves an amount from the vendor credit's item to the bill's item, so it adds up to zero.
+
+- A vendor with no open item on the day does not show.
+- The No vendor row holds the items of Accounts payable lines that name no vendor. It shows after every vendor.
+- An inactive vendor with an open item shows with "(inactive)" after its name, in lighter text.
+
+To see a vendor's open items, press the vendor row: it opens into one row for each open item, in due date order, oldest first, then by number. Each item shows its type and number, for example "Bill 1042" or "Vendor credit 3", its Due date, and its amount in the column of its age. To see the lines of an item, press the item row: a bill opens into the bill and the bill payments and vendor credits that apply to it on or before the day, for example "2026-11-03 · Bill payment 317" or "2026-11-05 · Vendor credit 12", each a negative figure. A vendor credit opens into the credit, the bills it is applied to and its vendor refunds, for example "2026-11-05 · Bill 1042" or "2026-11-09 · Vendor refund 4", each a positive figure. The lines add up to the item's amount. To open a line's document, press the line: the bill, bill payment, vendor credit, vendor refund or journal entry opens beside the report on a very wide window, else as its own screen.
+
+To change the day, press the As of chip. The default is Today. A past day shows the items as they were open on that day. When no item is open on the day, the report shows "No rows as of" and the day.
+
+To show only some vendors, press Add filter, then Vendor, and pick one or more vendors, inactive vendors included. Then press Apply. With vendors picked, the No vendor row does not show, and a line under the date names your picks. To remove the filter, press the × on the Vendor chip.
+
+To change the order, press the Order chip and pick Name or Largest balance. Name, the default, orders the vendors by name. Largest balance puts the largest Total first, and the No vendor row stays last. The items of a vendor keep their due date order.
+
+The report stays current. When someone posts or voids a bill, a bill payment, a vendor credit, a vendor refund or a journal entry, corrects one of them, applies a vendor credit to a bill or removes it, renames a vendor, or changes the Books settings, the report runs again.
+
+On a phone, each row wraps onto lines in the table: the name and the Due date; then Current, 1 - 30 and Total on the first line of figures; then 31 - 60, 61 - 90 and 91 and over. On a tablet, each row keeps the name and Total on its first line, and shows the Due date and the five age columns below them. A narrow desktop window shows the tablet arrangement too. A long name wraps to at most three lines, a figure is never cut, and the table does not scroll sideways. Customize and Export are under **⋯** on a phone.
+
 ## Download or email a report
 
 To keep or send a copy of a report, press **Export** on a Books report (on a phone, the entries are under **⋯**) and choose a PDF, an Excel or a CSV file, or **Email report…**. The file is named after the report and its period or as-of day, for example `profit-and-loss-2026-01-01-to-2026-11-15.pdf`. For what each file holds and how to email it, see [Download or email a report](help://core:reports).
@@ -385,7 +425,7 @@ The Audit Log lists every change that people made to Books records: when, who, w
 
 ## Who sees Books reports
 
-Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month, Transaction Detail by Account, the Sales Tax Liability, the Customer Balance, the A/R Aging, Sales by Customer, Sales by Product/Service and the Audit Log, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
+Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month, Transaction Detail by Account, the Sales Tax Liability, the Customer Balance, the A/R Aging, the A/P Aging, Sales by Customer, Sales by Product/Service and the Audit Log, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
 
 A reader can change the chips and Customize for the run, copy a link with Copy link, and keep a copy with Save as. Each reader sees only the data that the reader can access.
 
