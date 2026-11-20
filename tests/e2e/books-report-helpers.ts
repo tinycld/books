@@ -1266,6 +1266,24 @@ export function nextReportRun(page: Page): Promise<Request> {
     return page.waitForRequest(request => isReportRun(request.url(), request.method()))
 }
 
+// Holds each report run for which `isHeld` is true until the returned release is called,
+// and continues every run. The caller calls release() and then
+// page.unrouteAll({ behavior: 'wait' }), so no handler is still waiting when the test ends.
+export async function holdReportRuns(
+    page: Page,
+    isHeld: (request: Request) => boolean = () => true
+): Promise<() => void> {
+    let release = () => {}
+    const held = new Promise<void>(resolve => {
+        release = resolve
+    })
+    await page.route('**/api/reports/run', async route => {
+        if (isHeld(route.request())) await held
+        await route.continue()
+    })
+    return release
+}
+
 // Presses Refresh on a report that is not live. The note is read first: only a run that is
 // not live draws it. The awaited answer can be an earlier run's (a re-run of the saved
 // report by its topics, from another worker's share or save), so only the caller's poll

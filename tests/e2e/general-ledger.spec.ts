@@ -18,6 +18,7 @@ import {
     GL_DAY_2,
     type GlSnapshot,
     glSnapshot,
+    holdReportRuns,
     openEntriesFromSidebar,
     openGeneralLedger,
     postEntryOn,
@@ -1057,14 +1058,9 @@ test.describe('general-ledger: report', () => {
             )
         })
         // The first next page waits until the test has seen the list ask for it.
-        let release = () => {}
-        const held = new Promise<void>(resolve => {
-            release = resolve
-        })
-        await page.route('**/api/reports/run', async route => {
-            const body = route.request().postDataJSON() as SentRun | null
-            if (body?.options?.cursor) await held
-            await route.continue()
+        const release = await holdReportRuns(page, request => {
+            const body = request.postDataJSON() as SentRun | null
+            return Boolean(body?.options?.cursor)
         })
 
         await filterToAccounts(page, [SAVINGS])

@@ -14,6 +14,7 @@ import {
     GL_DAY_2,
     type GlSnapshot,
     glSnapshot,
+    holdReportRuns,
     openEntriesFromSidebar,
     openJournal,
     postEntryOn,
@@ -1196,19 +1197,13 @@ test.describe('journal-report: report', () => {
         })
         // The first next page waits until the test has seen the list ask for it. The cursor
         // of that held request names the first page the list follows.
-        let release = () => {}
-        const held = new Promise<void>(resolve => {
-            release = resolve
-        })
         let heldCursor = ''
-        await page.route('**/api/reports/run', async route => {
-            const body = route.request().postDataJSON() as SentRun | null
+        const release = await holdReportRuns(page, request => {
+            const body = request.postDataJSON() as SentRun | null
             const cursor = body?.options?.cursor ?? ''
-            if (cursor) {
-                if (heldCursor === '') heldCursor = cursor
-                await held
-            }
-            await route.continue()
+            if (!cursor) return false
+            if (heldCursor === '') heldCursor = cursor
+            return true
         })
 
         await choosePeriod(page, { from, to })
