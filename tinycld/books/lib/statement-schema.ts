@@ -15,6 +15,7 @@ export const STATEMENT_MESSAGES = {
     startAfterEnd: "Start date can't be after End date",
     endAfterStatement: "End date can't be after Statement date",
     invalidAddress: 'Enter a valid email address.',
+    missingAddress: 'Enter an email address or clear the tick.',
     tooMany: 'Select at most 200 customers. Narrow the list with Customer balance.',
     noneTicked: 'Select at least one customer.',
 } as const
@@ -76,35 +77,64 @@ function checkOptions(options: StatementOptions, ctx: z.RefinementCtx) {
 
 export const statementOptionsSchema = z.object(optionsShape).superRefine(checkOptions)
 
-const addressCheck = z.email()
+// The send route's bound: `sent_to` holds at most 320 characters (pb-migrations
+// 2100000033_create_books_statements.js), and the route trims the address before its checks
+// (server/statement_routes.go, sendStatement). The address cases of both are one table
+// (server/testdata/statement_email_cases.json).
+export const MAX_STATEMENT_ADDRESS_LENGTH = 320
 
-export const createStatementsSchema: z.ZodType<CreateStatementsValues, CreateStatementsValues> = z
-    .object({
-        ...optionsShape,
-        intent: z.enum(['save', 'send']),
-        recipients: z.array(
-            z.object({ customer: z.string(), ticked: z.boolean(), email: z.string() })
-        ),
-    })
-    .superRefine((values, ctx) => {
+const addressCheck = z.email().max(MAX_STATEMENT_ADDRESS_LENGTH)
+
+// The address a run stores and sends: the typed one without its outer spaces.
+export function statementAddress(email: string): string {
+    return email.trim()
+}
+
+// The message of a ticked row's address, or null when it is taken. An empty address is
+// taken on Save (the statement is stored with none); Save and send needs one (spec §3.4).
+function addressMessage(email: string, intent: CreateStatementsValues['intent']): string | null {
+    const address = statementAddress(email)
+    if (address === '') return intent === 'send' ? STATEMENT_MESSAGES.missingAddress : null
+    return addressCheck.safeParse(address).success ? null : STATEMENT_MESSAGES.invalidAddress
+}
+
+const runShape = z.object({
+    ...optionsShape,
+    intent: z.enum(['save', 'send']),
+    recipients: z.array(z.object({ customer: z.string(), ticked: z.boolean(), email: z.string() })),
+})
+
+// At least one ticked customer and at most MAX_STATEMENT_CUSTOMERS (the routes' bound,
+// server/statement_routes.go maxStatementsPerRequest).
+function checkTickCount(values: CreateStatementsValues, ctx: z.RefinementCtx) {
+    const tickedCount = values.recipients.filter(recipient => recipient.ticked).length
+    if (tickedCount === 0) {
+        ctx.addIssue({ code: 'custom', path: ['root'], message: STATEMENT_MESSAGES.noneTicked })
+    } else if (tickedCount > MAX_STATEMENT_CUSTOMERS) {
+        ctx.addIssue({ code: 'custom', path: ['root'], message: STATEMENT_MESSAGES.tooMany })
+    }
+}
+
+// Save and Save and send: the options, each ticked row's address (by `intent`), the count.
+export const createStatementsSchema: z.ZodType<CreateStatementsValues, CreateStatementsValues> =
+    runShape.superRefine((values, ctx) => {
         checkOptions(values, ctx)
-        let tickedCount = 0
         values.recipients.forEach((recipient, index) => {
             if (!recipient.ticked) return
-            tickedCount += 1
-            if (recipient.email !== '' && !addressCheck.safeParse(recipient.email).success) {
-                ctx.addIssue({
-                    code: 'custom',
-                    path: ['recipients', index, 'email'],
-                    message: STATEMENT_MESSAGES.invalidAddress,
-                })
+            const message = addressMessage(recipient.email, values.intent)
+            if (message !== null) {
+                ctx.addIssue({ code: 'custom', path: ['recipients', index, 'email'], message })
             }
         })
-        if (tickedCount === 0) {
-            ctx.addIssue({ code: 'custom', path: ['root'], message: STATEMENT_MESSAGES.noneTicked })
-        } else if (tickedCount > MAX_STATEMENT_CUSTOMERS) {
-            ctx.addIssue({ code: 'custom', path: ['root'], message: STATEMENT_MESSAGES.tooMany })
-        }
+        checkTickCount(values, ctx)
+    })
+
+// Preview (spec §3.4): the PDF is made from the options on screen and the ticked customers,
+// and no address is in it, so the addresses are not checked.
+export const previewStatementsSchema: z.ZodType<CreateStatementsValues, CreateStatementsValues> =
+    runShape.superRefine((values, ctx) => {
+        checkOptions(values, ctx)
+        checkTickCount(values, ctx)
     })
 
 function pad(value: number, width: number): string {

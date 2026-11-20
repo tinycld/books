@@ -1,0 +1,98 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/statements/new",
+            "ready": "statements-tick-all",
+            "height": 1900,
+            "actions": [{ "click": "statements-title" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "send-error",
+            "url": "/a/books/statements/new",
+            "ready": "statements-tick-all",
+            "height": 1900,
+            "actions": [
+                { "fillLabel": "Email address, Bluefin Marine Supply", "value": "orders@bluefin" },
+                { "fillLabel": "Email address, Delta Freight Partners", "value": "" },
+                { "click": "statements-send" },
+                { "waitFor": "Enter a valid email address." },
+                { "click": "statements-title" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "no-email",
+            "url": "/a/books/statements/new",
+            "ready": "statements-email-note",
+            "height": 1900,
+            "schemes": ["light"],
+            "fakeJson": [{ "path": "/api/reports/email-status", "body": { "canSend": false } }],
+            "actions": [{ "click": "statements-title" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "preview",
+            "url": "/a/books/statements/new",
+            "ready": "statements-tick-all",
+            "height": 1100,
+            "widths": [1280],
+            "actions": [
+                { "click": "statements-preview" },
+                { "waitFor": "statements-preview-page" }
+            ],
+            "stable": "statements-preview-page",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "preview",
+            "url": "/a/books/statements/new",
+            "ready": "statements-tick-all",
+            "height": 1100,
+            "widths": [390],
+            "actions": [
+                { "click": "statements-more" },
+                { "click": "statements-preview" },
+                { "waitFor": "statements-preview-page" }
+            ],
+            "settleMs": 500,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "more-menu",
+            "url": "/a/books/statements/new",
+            "ready": "statements-tick-all",
+            "height": 844,
+            "widths": [390],
+            "schemes": ["light"],
+            "actions": [{ "click": "statements-more" }, { "waitFor": "statements-preview" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "failed",
+            "url": "/a/books/statements/new",
+            "ready": "statements-tick-all",
+            "height": 1900,
+            "schemes": ["light"],
+            "sendFailures": [
+                "The mail server refused the address.",
+                "You have sent 500 statement emails in the last hour. Try again later."
+            ],
+            "actions": [
+                { "click": "statements-tick-all" },
+                { "waitFor": "No customer selected" },
+                { "clickLabel": "Select Aspen Ridge Dental" },
+                { "clickLabel": "Select Bluefin Marine Supply" },
+                { "clickLabel": "Select Delta Freight Partners" },
+                { "clickLabel": "Select Evergreen Montessori School" },
+                { "click": "statements-send" },
+                { "waitFor": "statements-run-notice" },
+                { "click": "statements-title" },
+                { "pause": 500 }
+            ],
+            "hideLabels": ["New"]
+        }
+    ]
+}

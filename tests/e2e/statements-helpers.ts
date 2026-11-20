@@ -72,6 +72,9 @@ export type StoredStatement = {
     end_date: string
     email: string
     balance: number
+    // Set only by the send route; '' while the statement is not sent.
+    sent_at: string
+    sent_to: string
 }
 
 // The customer's stored statements, read through the page's own fetch (read only).

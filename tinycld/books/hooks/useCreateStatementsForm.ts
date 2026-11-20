@@ -5,8 +5,9 @@ import { useToastStore } from '@tinycld/core/lib/stores/toast-store'
 import { useWritesAvailable } from '@tinycld/core/lib/use-writes-available'
 import { useForm, useWatch, zodResolver } from '@tinycld/core/ui/form'
 import { router } from 'expo-router'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { type FieldErrors, get, type Resolver } from 'react-hook-form'
+import type { ListScrollHandle } from '../components/ListTable'
 import { mergeRecoveries } from '../lib/live-recovery'
 import { writeRefusalText } from '../lib/refusal'
 import { isIsoDay, todayIso } from '../lib/register-range'
@@ -22,13 +23,22 @@ import {
     type CreateStatementsValues,
     createStatementsSchema,
     defaultStatementOptions,
+    previewStatementsSchema,
+    STATEMENT_MESSAGES,
     type StatementRecipientValue,
 } from '../lib/statement-schema'
-import { type StatementBalanceFilter, savedToast, statementBarState } from '../lib/statement-texts'
+import {
+    type StatementBalanceFilter,
+    savedToast,
+    sentToast,
+    statementBarState,
+} from '../lib/statement-texts'
 import { useStatementsStore } from '../stores/statements-store'
 import { useBooksSettings } from './useBooksSettings'
-import { useCreateStatements } from './useCreateStatements'
+import { type StatementRun, useCreateStatements } from './useCreateStatements'
+import { useEmailStatus } from './useEmailStatus'
 import { useFormLeaveGuard } from './useFormLeaveGuard'
+import { useStatementPreview } from './useStatementPreview'
 import { useStatementRecipients } from './useStatementRecipients'
 
 const TOAST_MS = 4000
@@ -37,8 +47,11 @@ const TOAST_MS = 4000
 // or address the user set. A customer with no entry takes the default (mergeRecipients).
 type StatementChoices = Record<string, StatementRecipientValue>
 
+// `check` names the rules of the pressed button, set before its submit: `run` for Save and
+// Save and send (createStatementsSchema), `preview` for Preview (previewStatementsSchema).
 export type CreateStatementsFormValues = Omit<CreateStatementsValues, 'recipients'> & {
     choices: StatementChoices
+    check: 'run' | 'preview'
 }
 
 const choiceEmailPath = (customer: string) => `choices.${customer}.email` as const
@@ -64,24 +77,27 @@ function runValuesOf(
     rows: readonly RecipientRow[],
     only: string | undefined
 ): CreateStatementsValues {
-    const { choices, ...runOptions } = values
+    const { choices, check: _check, ...runOptions } = values
     const listed = listedOf(rows, runOptions.balanceFilter)
     return { ...runOptions, recipients: recipientsOf(choices, listed, only) }
 }
 
 /**
- * Validates the run (runValuesOf) with `createStatementsSchema`. An address issue at
- * `recipients.<i>.email` is given to that row's own field, `choices.<id>.email`. The schema
- * has no transform, so on success the form submits its own values, and Save builds the
- * run from them with the same runValuesOf.
+ * Validates the run (runValuesOf) with the schema `check` names: `createStatementsSchema`,
+ * or `previewStatementsSchema` for Preview. An address issue at `recipients.<i>.email` is
+ * given to that row's own field, `choices.<id>.email`. The schemas have no transform, so on
+ * success the form submits its own values, and the press builds the run from them with the
+ * same runValuesOf.
  */
 function statementsResolver(
     rows: readonly RecipientRow[],
     only: string | undefined
 ): Resolver<CreateStatementsFormValues> {
-    const check = zodResolver(createStatementsSchema)
+    const checkRun = zodResolver(createStatementsSchema)
+    const checkPreview = zodResolver(previewStatementsSchema)
     return async (values, context, options) => {
         const run = runValuesOf(values, rows, only)
+        const check = values.check === 'preview' ? checkPreview : checkRun
         const result = await check(run, context, {
             criteriaMode: options.criteriaMode,
             fields: {},
@@ -124,11 +140,16 @@ export function useCreateStatementsForm({
     const writes = useWritesAvailable()
     const isHeld = useStatementsStore(state => state.isHeld)
     const createStatements = useCreateStatements()
+    const emailStatus = useEmailStatus()
+    const preview = useStatementPreview()
+    // The last run's notice belongs to this screen: it goes when the screen does.
+    useEffect(() => () => useStatementsStore.getState().clear(), [])
     // The defaults are read once, when the form mounts.
     const [initial] = useState<CreateStatementsFormValues>(() => ({
         ...defaultStatementOptions(todayIso()),
         balanceFilter: customer ? 'all' : 'open',
         intent: 'save',
+        check: 'run',
         choices: {},
     }))
     // The last real day of Statement date, the overdue query's key: a day being typed key
@@ -140,6 +161,9 @@ export function useCreateStatementsForm({
     const [isDiscardOpen, setIsDiscardOpen] = useState(false)
     // Keeps the guard off from the Save press to the move it makes.
     const [isLeaving, setIsLeaving] = useState(false)
+    // The list's imperative scroll: each refused Save and send scrolls its first row with a
+    // missing address into view (spec §3.4), also the same row again; a live change does not.
+    const listScroll = useRef<ListScrollHandle>(null)
 
     const list = useStatementRecipients({ overdueDay })
     const resolver = useMemo(() => statementsResolver(list.rows, customer), [list.rows, customer])
@@ -150,9 +174,9 @@ export function useCreateStatementsForm({
     const { control, getValues, setValue, handleSubmit, setError, trigger } = form
     // Read in render: the form state proxy updates these only once read here.
     const { isSubmitted, isDirty, errors } = form.formState
-    const [type, balanceFilter, choices] = useWatch({
+    const [type, balanceFilter, choices, runIntent] = useWatch({
         control,
-        name: ['type', 'balanceFilter', 'choices'],
+        name: ['type', 'balanceFilter', 'choices', 'intent'],
     })
 
     const listed = listedOf(list.rows, balanceFilter)
@@ -238,20 +262,27 @@ export function useCreateStatementsForm({
         isEndDateTyped.current = true
     }
 
+    // A run (Save or Save and send, by the form's `intent`). A full success leaves with its
+    // toast. When a part failed, the run notice (the store's outcome) tells which, and the
+    // customers that went through lose their tick, so a second press repeats only the
+    // failed rows (spec §3.4).
     const submit = handleSubmit(
         async values => {
-            let outcome: Awaited<ReturnType<typeof createStatements.save>>
+            const run = runValuesOf(values, list.rows, customer)
+            const start =
+                values.intent === 'send' ? createStatements.saveAndSend : createStatements.save
+            let ran: StatementRun
             try {
-                outcome = await createStatements.save(runValuesOf(values, list.rows, customer))
+                ran = await start(run)
             } catch (error) {
                 setIsLeaving(false)
                 setError('root', { type: 'server', message: writeRefusalText(error) })
                 return
             }
-            const firstFailure = outcome.failed[0]
-            if (firstFailure === undefined) {
+            if (ran.outcome.failed.length === 0) {
+                const toast = values.intent === 'send' ? sentToast : savedToast
                 useToastStore.getState().addToast({
-                    title: savedToast(outcome.done),
+                    title: toast(ran.outcome.done),
                     variant: 'success',
                     duration: TOAST_MS,
                 })
@@ -259,16 +290,43 @@ export function useCreateStatementsForm({
                 return
             }
             setIsLeaving(false)
-            setError('root', { type: 'server', message: firstFailure.message })
+            const succeeded = new Set(ran.succeeded)
+            const unticked = currentRecipients()
+                .filter(recipient => succeeded.has(recipient.customer))
+                .map(recipient => ({ ...recipient, ticked: false }))
+            if (unticked.length > 0) choose(unticked)
         },
-        () => setIsLeaving(false)
+        invalid => {
+            setIsLeaving(false)
+            // The listed order: currentRecipients lists the rows as the list draws them.
+            const index = currentRecipients().findIndex(
+                recipient =>
+                    get(invalid, `${choiceEmailPath(recipient.customer)}.message`) ===
+                    STATEMENT_MESSAGES.missingAddress
+            )
+            if (index >= 0) listScroll.current?.scrollToIndex(index)
+        }
     )
-    // The guard goes off before the write starts: the move after a full success is the
-    // run's own. A refused run or a validation error turns it back on.
-    const onSave = () => {
-        setValue('intent', 'save')
+    // The pressed button sets `intent` before the check, so the schema's send-only rule
+    // reads it. The guard goes off before the write starts: the move after a full success
+    // is the run's own. A failed run or a validation error turns it back on.
+    const startRun = (intent: CreateStatementsValues['intent']) => {
+        setValue('check', 'run')
+        setValue('intent', intent)
         setIsLeaving(true)
         void submit()
+    }
+    const onSave = () => startRun('save')
+    const onSaveAndSend = () => startRun('send')
+
+    // Preview checks the options and the tick count (previewStatementsSchema: the PDF holds
+    // no address), then asks for the PDF; it stores nothing and does not leave.
+    const previewSubmit = handleSubmit(values => {
+        preview.open(runValuesOf(values, list.rows, customer))
+    })
+    const onPreview = () => {
+        setValue('check', 'preview')
+        void previewSubmit()
     }
 
     const bar = statementBarState({
@@ -278,7 +336,10 @@ export function useCreateStatementsForm({
         isLoading: isListLoading,
         hasLoadError: isLoadError,
         isHeld,
-        intent: 'save',
+        intent: runIntent,
+        canSend: emailStatus.canSend,
+        emailStatusLoading: emailStatus.isLoading,
+        isPreparing: preview.isPreparing,
     })
 
     return {
@@ -291,6 +352,7 @@ export function useCreateStatementsForm({
         listState: listStateOf({ isListLoading, isLoadError, count: entries.length }),
         entries,
         scrollToIndex: scrollIndexOf(entries, customer),
+        listScroll,
         tickedCount,
         total,
         tickAll,
@@ -303,6 +365,9 @@ export function useCreateStatementsForm({
         onStatementDateChange,
         onEndDateChange,
         onSave,
+        onSaveAndSend,
+        onPreview,
+        preview,
     }
 }
 
@@ -312,7 +377,7 @@ function listStateOf(input: { isListLoading: boolean; isLoadError: boolean; coun
     return input.count === 0 ? ('empty' as const) : ('list' as const)
 }
 
-// With `?customer`, the list starts scrolled to that customer's row.
+// With `?customer`, that customer's row: where the list starts.
 function scrollIndexOf(
     entries: readonly { row: RecipientRow }[],
     customer: string | undefined

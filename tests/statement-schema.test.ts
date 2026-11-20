@@ -158,6 +158,69 @@ describe('createStatementsSchema', () => {
     })
 })
 
+// The address cases the Go send route runs too (server/testdata/statement_email_cases.json).
+type StatementEmailCase = { to: string; ok: boolean }
+
+const EMAIL_CASES: StatementEmailCase[] = JSON.parse(
+    readFileSync(join(__dirname, '..', 'server', 'testdata', 'statement_email_cases.json'), 'utf8')
+)
+
+const MISSING_ADDRESS = 'Enter an email address or clear the tick.'
+
+describe('createStatementsSchema: the shared address case table', () => {
+    const cases = EMAIL_CASES.filter(c => c.to !== '')
+
+    it('reads taken and refused cases with an address', () => {
+        expect(cases.some(c => c.ok)).toBe(true)
+        expect(cases.some(c => !c.ok)).toBe(true)
+    })
+
+    for (const c of cases) {
+        for (const intent of ['save', 'send'] as const) {
+            it(`${intent}: ${JSON.stringify(c.to)} ${c.ok ? 'parses' : 'is refused'}`, () => {
+                const result = createStatementsSchema.safeParse(
+                    values([{ customer: CUSTOMER_A, ticked: true, email: c.to }], intent)
+                )
+                const issues = issuesOf(result)
+                if (c.ok) {
+                    expect(issues).toEqual([])
+                    expect(result.success).toBe(true)
+                    return
+                }
+                expect(messagesAt(issues, 'recipients.0.email')).toEqual([INVALID_ADDRESS])
+            })
+        }
+    }
+})
+
+describe('createStatementsSchema: Save and send needs an address on every ticked row', () => {
+    const blankSecond: CreateStatementsValues['recipients'] = [
+        { customer: CUSTOMER_A, ticked: true, email: 'a@example.com' },
+        { customer: CUSTOMER_B, ticked: true, email: '' },
+    ]
+
+    it('refuses a ticked row with an empty address under that row on send', () => {
+        const issues = createIssues(values(blankSecond, 'send'))
+        expect(messagesAt(issues, 'recipients.1.email')).toEqual([MISSING_ADDRESS])
+        expect(messagesAt(issues, 'recipients.0.email')).toEqual([])
+    })
+
+    it('takes the same values on save', () => {
+        expect(createIssues(values(blankSecond, 'save'))).toEqual([])
+    })
+
+    it('takes an unticked row with an empty address on send', () => {
+        const input = values(
+            [
+                { customer: CUSTOMER_A, ticked: true, email: 'a@example.com' },
+                { customer: CUSTOMER_B, ticked: false, email: '' },
+            ],
+            'send'
+        )
+        expect(createIssues(input)).toEqual([])
+    })
+})
+
 describe('defaultStatementOptions', () => {
     it('gives today as Statement date and End date, and the same day of the month before as Start date', () => {
         expect(defaultStatementOptions('2026-11-20')).toMatchObject({

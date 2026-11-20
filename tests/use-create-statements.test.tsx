@@ -9,12 +9,14 @@ import type { CreateStatementsValues } from '../tinycld/books/lib/statement-sche
 import { useStatementsStore } from '../tinycld/books/stores/statements-store'
 import type { BooksStatements } from '../tinycld/books/types'
 import {
+    arriveFromServer,
     enteredWrites,
     guardedStore,
     holdWrites,
     messageRefusal,
     seedBooks,
 } from './accounts-form-harness'
+import { silenceLog } from './silence-log'
 
 vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
@@ -25,6 +27,8 @@ vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } 
 // Save of the create screen (statements spec §3.4, §4.5): the real hook over the harness's
 // local-only collections. `books_statements` and `books_customers` are guarded stores, so
 // every write that reaches a handler is seen by `enteredWrites` and held by `holdWrites`.
+
+const logged = silenceLog()
 
 const SERVER_SET = ['number', 'sequence', 'balance', 'currency', 'sent_at', 'sent_to'] as const
 
@@ -82,9 +86,9 @@ function stored() {
 describe('useCreateStatements: save', () => {
     it('inserts one statement for each ticked row with the run options and no server-set field', async () => {
         const { result } = renderHook(() => useCreateStatements(), { wrapper })
-        let outcome: Awaited<ReturnType<typeof result.current.save>> | undefined
+        let ran: Awaited<ReturnType<typeof result.current.save>> | undefined
         await act(async () => {
-            outcome = await result.current.save(run())
+            ran = await result.current.save(run())
         })
 
         const rows = stored()
@@ -98,7 +102,7 @@ describe('useCreateStatements: save', () => {
             })
             for (const field of SERVER_SET) expect(Object.keys(r)).not.toContain(field)
         }
-        expect(outcome).toEqual({ intent: 'save', done: 3, total: 3, failed: [] })
+        expect(ran?.outcome).toEqual({ intent: 'save', done: 3, total: 3, failed: [] })
     })
 
     it("stores the typed address as the row's email and writes no customer", async () => {
@@ -200,12 +204,12 @@ describe('useCreateStatements: save', () => {
         refusals[kitchenRow.id] = messageRefusal(refusalText)
 
         release()
-        let outcome: Awaited<ReturnType<typeof result.current.save>> | undefined
+        let ran: Awaited<ReturnType<typeof result.current.save>> | undefined
         await act(async () => {
-            outcome = await saving
+            ran = await saving
         })
 
-        expect(outcome).toEqual({
+        expect(ran?.outcome).toEqual({
             intent: 'save',
             done: 2,
             total: 3,
@@ -219,5 +223,227 @@ describe('useCreateStatements: save', () => {
         })
         expect(stored().map(r => r.customer)).toEqual([HARBOR, STJUDE].sort())
         expect(useStatementsStore.getState().isHeld).toBe(false)
+    })
+})
+
+// --- Save and send, and a part failure (plan checkpoint 4) ---
+
+const KITCHEN = CUSTOMER_IDS.harborviewKitchen
+const KITCHEN_NAME = 'Harborview Hospitality Group:Harborview Kitchen'
+const HARBOR_NAME = 'Harborview Hospitality Group'
+const STJUDE_NAME = 'St. Jude Community Hospital Foundation of the Greater Willamette Valley'
+const STORE_REFUSAL = 'This customer cannot get a statement.'
+const SEND_REFUSAL = 'The email could not be sent. Try again.'
+const SENT_AT = '2026-11-20 10:00:00.000Z'
+
+type SendItem = { id: string; to: string }
+type SendAnswer = { sent: BooksStatements[]; failed: { id: string; message: string }[] }
+
+// The statements store with pbtsdb's `accept` (core lib/server-rows): the rows a custom
+// endpoint returns land as server state, through no write handler.
+function acceptingStatements() {
+    const collection = guardedStore<BooksStatements>('books_statements', [])
+    const accept = async (rows: readonly BooksStatements[]) => {
+        await arriveFromServer(() => {
+            for (const row of rows) {
+                if (collection.has(row.id)) {
+                    collection.update(row.id, draft => {
+                        Object.assign(draft, row)
+                    })
+                } else {
+                    collection.insert(row)
+                }
+            }
+        })
+    }
+    return Object.assign(collection, { accept })
+}
+
+function storedRow(id: string): BooksStatements {
+    const row = statements.get(id)
+    if (row === undefined) throw new Error(`no stored statement ${id}`)
+    return row
+}
+
+// The answer of the send route when every item went out: each stored row with its sent
+// fields, as the server saves them.
+function sentRow(item: SendItem): BooksStatements {
+    return { ...storedRow(item.id), email: item.to, sent_to: item.to, sent_at: SENT_AT }
+}
+
+// A fake of the network call of the send route only: the hook under test files its answer.
+function sendingAll() {
+    return vi.fn(
+        async (items: SendItem[]): Promise<SendAnswer> => ({
+            sent: items.map(sentRow),
+            failed: [],
+        })
+    )
+}
+
+function idOf(customer: string): string {
+    const row = statements.toArray.find(r => r.customer === customer)
+    if (row === undefined) throw new Error(`no stored statement of ${customer}`)
+    return row.id
+}
+
+const THREE_WITH_KITCHEN: CreateStatementsValues['recipients'] = [
+    { customer: HARBOR, ticked: true, email: emailOf(HARBOR) },
+    { customer: KITCHEN, ticked: true, email: emailOf(KITCHEN) },
+    { customer: STJUDE, ticked: true, email: emailOf(STJUDE) },
+]
+
+type Hook = ReturnType<typeof useCreateStatements>
+
+// Renders the hook, starts `start` with the writes held, refuses the Kitchen insert once it
+// reached the handler (the inserts run in parallel, so a refusal by position cannot pick
+// one), then lets the writes settle and resolves to what `start` resolved to.
+async function withKitchenRefused<T>(
+    options: Parameters<typeof useCreateStatements>,
+    start: (hook: Hook) => Promise<T>
+): Promise<T> {
+    const refusals: Record<string, unknown> = {}
+    seedBooks({ refusalFor: refusals })
+    statements = acceptingStatements()
+    customers = guardedStore('books_customers', [...CUSTOMERS])
+    const { result } = renderHook(() => useCreateStatements(...options), { wrapper })
+    const release = holdWrites()
+    let running: Promise<T> | undefined
+    act(() => {
+        running = start(result.current)
+    })
+    await waitFor(() => expect(enteredWrites()).toHaveLength(3))
+    refusals[idOf(KITCHEN)] = messageRefusal(STORE_REFUSAL)
+    release()
+    let value: T | undefined
+    await act(async () => {
+        value = await running
+    })
+    return value as T
+}
+
+describe('useCreateStatements: a part failure and Save and send', () => {
+    beforeEach(() => {
+        statements = acceptingStatements()
+    })
+
+    it("(a) a refused store: the outcome names the customer with the server's text and the two stored customers are returned to untick", async () => {
+        const ran = await withKitchenRefused([], hook =>
+            hook.save(run({ recipients: THREE_WITH_KITCHEN }))
+        )
+
+        expect(ran.outcome).toEqual({
+            intent: 'save',
+            done: 2,
+            total: 3,
+            failed: [{ customer: KITCHEN, name: KITCHEN_NAME, message: STORE_REFUSAL }],
+        })
+        expect([...ran.succeeded].sort()).toEqual([HARBOR, STJUDE].sort())
+        expect(useStatementsStore.getState().outcome).toEqual(ran.outcome)
+    })
+
+    it('(b) saveAndSend sends exactly the stored rows with their addresses, never the refused row', async () => {
+        const sendRequest = sendingAll()
+        const ran = await withKitchenRefused([{ sendRequest }], hook =>
+            hook.saveAndSend(run({ intent: 'send', recipients: THREE_WITH_KITCHEN }))
+        )
+
+        expect(sendRequest).toHaveBeenCalledTimes(1)
+        const items = [...sendRequest.mock.calls[0][0]].sort((a, b) => a.id.localeCompare(b.id))
+        const expected = [
+            { id: idOf(HARBOR), to: emailOf(HARBOR) },
+            { id: idOf(STJUDE), to: emailOf(STJUDE) },
+        ].sort((a, b) => a.id.localeCompare(b.id))
+        expect(items).toEqual(expected)
+        expect(ran.outcome).toEqual({
+            intent: 'send',
+            done: 2,
+            total: 3,
+            failed: [{ customer: KITCHEN, name: KITCHEN_NAME, message: STORE_REFUSAL }],
+        })
+    })
+
+    it('(c) a failed send: the outcome counts only the sent customer, names the failed one, and only the sent one is returned to untick', async () => {
+        const sendRequest = vi.fn(
+            async (items: SendItem[]): Promise<SendAnswer> => ({
+                sent: items.filter(item => item.id === idOf(HARBOR)).map(sentRow),
+                failed: [{ id: idOf(STJUDE), message: SEND_REFUSAL }],
+            })
+        )
+        const { result } = renderHook(() => useCreateStatements({ sendRequest }), { wrapper })
+        let ran: Awaited<ReturnType<typeof result.current.saveAndSend>> | undefined
+        await act(async () => {
+            ran = await result.current.saveAndSend(
+                run({
+                    intent: 'send',
+                    recipients: [
+                        { customer: HARBOR, ticked: true, email: emailOf(HARBOR) },
+                        { customer: STJUDE, ticked: true, email: emailOf(STJUDE) },
+                    ],
+                })
+            )
+        })
+
+        expect(ran?.outcome).toEqual({
+            intent: 'send',
+            done: 1,
+            total: 2,
+            failed: [{ customer: STJUDE, name: STJUDE_NAME, message: SEND_REFUSAL }],
+        })
+        expect(ran?.succeeded).toEqual([HARBOR])
+        expect(useStatementsStore.getState().outcome).toEqual(ran?.outcome)
+        expect(useStatementsStore.getState().isHeld).toBe(false)
+    })
+
+    it('(d) files the rows the send route answers with collection.accept', async () => {
+        const sendRequest = sendingAll()
+        const { result } = renderHook(() => useCreateStatements({ sendRequest }), { wrapper })
+        await act(async () => {
+            await result.current.saveAndSend(
+                run({
+                    intent: 'send',
+                    recipients: [{ customer: ALVAREZ, ticked: true, email: TYPED }],
+                })
+            )
+        })
+
+        const row = storedRow(idOf(ALVAREZ))
+        expect(row.sent_to).toBe(TYPED)
+        expect(row.sent_at).toBe(SENT_AT)
+    })
+
+    it('(e) a refused send request: the run resolves to the failed outcome, releases the hold, and is not reported a second time', async () => {
+        const sendRequest = vi.fn(async (_items: SendItem[]): Promise<SendAnswer> => {
+            throw messageRefusal(SEND_REFUSAL)
+        })
+        const { result } = renderHook(() => useCreateStatements({ sendRequest }), { wrapper })
+        let ran: Awaited<ReturnType<typeof result.current.saveAndSend>> | undefined
+        await act(async () => {
+            ran = await result.current.saveAndSend(
+                run({
+                    intent: 'send',
+                    recipients: [{ customer: HARBOR, ticked: true, email: emailOf(HARBOR) }],
+                })
+            )
+        })
+
+        expect(sendRequest).toHaveBeenCalledTimes(1)
+        expect(ran?.outcome).toEqual({
+            intent: 'send',
+            done: 0,
+            total: 1,
+            failed: [{ customer: HARBOR, name: HARBOR_NAME, message: SEND_REFUSAL }],
+        })
+        expect(ran?.succeeded).toEqual([])
+        expect(useStatementsStore.getState().outcome).toEqual(ran?.outcome)
+        expect(useStatementsStore.getState().isHeld).toBe(false)
+
+        // The run notice is the one report of the refusal: core's default mutation onError
+        // (a "Something went wrong" toast and a Sentry capture through log.error, or its
+        // offline variant through log.info) must not run for it as well.
+        const unhandled = [...logged.error.mock.calls, ...logged.info.mock.calls].filter(
+            ([context]) => typeof context === 'string' && context.startsWith('mutation.')
+        )
+        expect(unhandled).toEqual([])
     })
 })
