@@ -25,9 +25,9 @@
 with the reason, and shown to the human at the end)
 
 ## Design notes
-(none yet — gate-2 NOTEs the loop did not act on, as
-`cp N · <shot>: <where> — <what>`; shown to the human at each checkpoint
-and again at the end)
+(gate-2 NOTEs as `cp N · <shot>: <where> — <what>`; reviewer NOTEs as `cp N · reviewer <X> NOTE: <where> — <what>`; shown to the human at the end)
+- cp 1 · reviewer A NOTE: `server/open_items_test.go` — `registerWriteGuard` is not exercised on the second test table (no collection backs `zz_open_items`); checkpoint 2's REST-refusal test on `books_payable_items` covers it.
+- cp 1 · reviewer A NOTE: `server/open_items.go` `registerWriteGuard` — `refuse("%s", t.ReadOnly)` in place of `refuse(msgReceivableItemsReadOnly)` (implementer's declared difference 1): `refuse` takes a format string and `go vet` refuses a non-constant one; the message text is the same.
 
 ## Out-of-plan changes
 (none yet — every file touched that no checkpoint's Files block named, with why)
@@ -84,6 +84,20 @@ and again at the end)
     - F11 no open choice is left to the implementer: the scale writer takes the column map as a field; the seed part payment has fixed ids; the sweep of seeded-figure readers is stated as done, with the e2e run as the check.
     - Notes acted on: F12, F13 (golden files and comment wording), F14 (Touch warning), F15 (D16: `TestRegister_BindsEachPartOnce` gains no line, a difference from spec §4.5's wording), F17 (`attachments.spec.ts` in checkpoint 2's e2e), F18 to F21 (the Sizes rule: checkpoints 2 and 3 are above the size target and stay whole), F19 (`test.step` around the phone assertions). F16, F22, F23: no change needed.
 - review mode switches: none
+
+## Checkpoint 1 — Shared engine, A/R Aging unchanged
+- test writer: `server/open_items_test.go` (3 tests), goldens `server/testdata/receivable_statements.json` and `server/testdata/ar_aging_spec_full.json` written from the pre-extraction tree by a throwaway test (deleted); red for the right reason: yes (compile error naming only `receivableItems`, `openItemsTable`, `openItemDay`, `ItemDrift`); untestable: none
+- implementer: `server/open_items.go` (`openItemsTable` and its methods, `itemPair`, `itemPart`, `ItemDrift`, `bindItemRefresh`), `var receivableItems`, the six aging helpers, A/R calls renamed by D4; DONE. Four Files-block test files (`receivable_items_test.go`, `receivable_write_off_test.go`, `report_ar_aging_profile_test.go`, `report_ar_aging_test.go`) needed no edit (no renamed symbol in them; reviewers A and B grepped and agree).
+- test disputes: none
+- self-declared differences: (1) `refuse("%s", t.ReadOnly)`, since `refuse` takes a format string and `go vet` refuses a non-constant one (Design notes); (2) the `balances.go:216` comment left naming `repairReceivables` by the "four edits" rule (fixed in the fix round); (3) test comments and failure strings that named a renamed identifier renamed too, no assertion changed; (4) engine comments say "party", error texts use `t.Noun`.
+- gate 1: tests unedited: yes · pass (`go test ./...` ok; `packages:generate` + `tinycld-pkg check` exit 0: biome clean, 8388 vitest, tsc). No e2e (plan). `ar_aging_spec.json`, `ar_aging_stat1.json` unchanged. Reviewer A probed the goldens with `go test -overlay` against the HEAD receivable code: equal.
+- gate 2: n/a (logic)
+- gate 3 A (correctness): 0 BLOCK, 5 NOTE — refresh not run inside a transaction on the second table, so the "fails when a method names customer" claim was not met: accepted+fixed (weak-test, test writer); `balances.go:216` stale comment: accepted+fixed; field comment of `Collection` named one table: accepted+fixed (one-line comment); write guard not run on the test table and `refuse("%s", …)`: Design notes
+- gate 3 B (conformance): script lines: 0 · 2 findings — `balances.go:216` stale comment: accepted+fixed (one word; the file is shared with p5-report-engine-scale, the line is not moved); golden `receivable_statements.json` written by a map encoder (alphabetical keys) and not the test's struct writer: accepted+fixed (rewritten once with `BOOKS_GOLDEN=1`, key order only; checkpoint 1 is the one place it is allowed)
+- fix review: round 1: clean (0 BLOCK; 1 NOTE on the ledger's Design notes placeholder: format line kept). Findings file `cp1-fix-r1.md`; the new in-transaction refresh assertions were proven red by two `go test -overlay` mutations (pairs query naming `customer`; no settle of touched pairs). Gate 1 after the fix: pass.
+- gate 3 A notes: 2, listed under Design notes
+- reviewer-caught deferrals: none
+- commit: (this commit)
 
 ## Performance
 (none yet — the measured results of spec §9)

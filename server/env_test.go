@@ -390,7 +390,7 @@ func requireNoDrift(t testing.TB, app core.App) {
 	if len(lines) > 0 {
 		t.Fatalf("lines disagree with their entries: %+v", lines)
 	}
-	receivables, err := verifyReceivables(app)
+	receivables, err := receivableItems.verify(app)
 	if err != nil {
 		t.Fatalf("verify receivables: %v", err)
 	}

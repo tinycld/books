@@ -1,80 +1,14 @@
 package books
 
 import (
-	"errors"
-	"fmt"
-
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
-
-	"tinycld.org/core/changesignal"
 )
-
-// receivablePart is one of the three queries narrowed to the rows a refresh
-// writes again.
-type receivablePart struct{ query, where string }
-
-// refreshReceivables replaces the stored rows that match stale (a condition on
-// books_receivable_items) with the rows parts give, then settles every
-// customer and item that lost or gained a row. stale must match every row parts can
-// give, so no row is stored twice. It must run in the transaction of the
-// write that changed the rows: a refresh outside one could commit without
-// that write.
-func refreshReceivables(tx core.App, stale string, params dbx.Params, parts ...receivablePart) error {
-	if !tx.IsTransactional() {
-		return errors.New("books: receivable rows are refreshed only inside the transaction of the write")
-	}
-	touched := map[receivablePair]bool{}
-	collect := func() error {
-		var pairs []receivablePair
-		err := tx.DB().NewQuery("SELECT DISTINCT customer, item FROM " + receivableItemsCollection + " WHERE " + stale).Bind(params).All(&pairs)
-		if err != nil {
-			return fmt.Errorf("books: read the items of receivable rows: %w", err)
-		}
-		for _, p := range pairs {
-			touched[p] = true
-		}
-		return nil
-	}
-	if err := collect(); err != nil {
-		return err
-	}
-	res, err := tx.DB().NewQuery("DELETE FROM " + receivableItemsCollection + " WHERE " + stale).Bind(params).Execute()
-	if err != nil {
-		return fmt.Errorf("books: clear stale receivable rows: %w", err)
-	}
-	changed, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	for _, part := range parts {
-		n, err := insertReceivables(tx, part.query, part.where, params)
-		if err != nil {
-			return err
-		}
-		changed += n
-	}
-	if changed == 0 {
-		return nil
-	}
-	if err := collect(); err != nil {
-		return err
-	}
-	pairs := make([]receivablePair, 0, len(touched))
-	for p := range touched {
-		pairs = append(pairs, p)
-	}
-	if _, err := settleReceivables(tx, pairs); err != nil {
-		return err
-	}
-	changesignal.Touch(tx, receivableItemsCollection)
-	return nil
-}
 
 // refreshReceivableEntry stores the Accounts receivable lines of one entry.
 func refreshReceivableEntry(tx core.App, entryID string) error {
-	return refreshReceivables(tx, "entry = {:entry} AND source = '"+receivableSourceLine+"'", dbx.Params{"entry": entryID},
-		receivablePart{receivableLinesSQL, " AND l.entry = {:entry}"})
+	return receivableItems.refresh(tx, "entry = {:entry} AND source = '"+receivableSourceLine+"'", dbx.Params{"entry": entryID},
+		itemPart{receivableLinesSQL, " AND l.entry = {:entry}"})
 }
 
 // refreshReceivablePayment stores the rows of one payment: the line of its
@@ -86,9 +20,9 @@ func refreshReceivablePayment(tx core.App, payment *core.Record) error {
 	if entryID == "" {
 		return nil
 	}
-	return refreshReceivables(tx, "entry = {:entry}", dbx.Params{"entry": entryID, "payment": payment.Id},
-		receivablePart{receivableLinesSQL, " AND l.entry = {:entry}"},
-		receivablePart{receivableApplicationsSQL, " AND pa.payment = {:payment}"})
+	return receivableItems.refresh(tx, "entry = {:entry}", dbx.Params{"entry": entryID, "payment": payment.Id},
+		itemPart{receivableLinesSQL, " AND l.entry = {:entry}"},
+		itemPart{receivableApplicationsSQL, " AND pa.payment = {:payment}"})
 }
 
 // refreshReceivableCreditMemo stores the rows of one credit memo: the line of
@@ -100,9 +34,9 @@ func refreshReceivableCreditMemo(tx core.App, memo *core.Record) error {
 	if entryID == "" {
 		return nil
 	}
-	return refreshReceivables(tx, "entry = {:entry}", dbx.Params{"entry": entryID},
-		receivablePart{receivableLinesSQL, " AND l.entry = {:entry}"},
-		receivablePart{receivableCreditApplicationsSQL, " AND ca.entry = {:entry}"})
+	return receivableItems.refresh(tx, "entry = {:entry}", dbx.Params{"entry": entryID},
+		itemPart{receivableLinesSQL, " AND l.entry = {:entry}"},
+		itemPart{receivableCreditApplicationsSQL, " AND ca.entry = {:entry}"})
 }
 
 // refreshReceivableInvoice stores the rows that read one invoice: the line of
@@ -115,21 +49,9 @@ func refreshReceivableInvoice(tx core.App, invoice *core.Record) error {
 			return err
 		}
 	}
-	return refreshReceivables(tx, "item = {:invoice} AND source = '"+receivableSourceApplication+"'", dbx.Params{"invoice": invoice.Id},
-		receivablePart{receivableApplicationsSQL, " AND pa.invoice = {:invoice}"},
-		receivablePart{receivableCreditApplicationsSQL, " AND ca.item = {:invoice}"})
-}
-
-// bindReceivableRefresh binds refresh after each update of collection. Bind it
-// after the collection's serialized guard: e.App is then the guard's
-// transaction and the record is written.
-func bindReceivableRefresh(app core.App, collection string, refresh func(tx core.App, r *core.Record) error) {
-	app.OnRecordUpdate(collection).BindFunc(func(e *core.RecordEvent) error {
-		if err := e.Next(); err != nil {
-			return err
-		}
-		return refresh(e.App, e.Record)
-	})
+	return receivableItems.refresh(tx, "item = {:invoice} AND source = '"+receivableSourceApplication+"'", dbx.Params{"invoice": invoice.Id},
+		itemPart{receivableApplicationsSQL, " AND pa.invoice = {:invoice}"},
+		itemPart{receivableCreditApplicationsSQL, " AND ca.item = {:invoice}"})
 }
 
 // bindReceivableEntryRefresh keeps the rows of an entry's lines: a post
@@ -137,7 +59,7 @@ func bindReceivableRefresh(app core.App, collection string, refresh func(tx core
 // reversals, void reversals, auto-reverse, opening balances all post through
 // this update). A draft has no row.
 func bindReceivableEntryRefresh(app core.App) {
-	bindReceivableRefresh(app, "books_journal_entries", func(tx core.App, r *core.Record) error {
+	bindItemRefresh(app, "books_journal_entries", func(tx core.App, r *core.Record) error {
 		if r.GetString("status") == statusDraft {
 			return nil
 		}
@@ -150,8 +72,8 @@ func bindReceivableEntryRefresh(app core.App) {
 // and through an invoice correction, which moves its applications to the
 // correction (an update of the application).
 func bindReceivablePaymentRefresh(app core.App) {
-	bindReceivableRefresh(app, paymentsCollection, refreshReceivablePayment)
-	bindReceivableRefresh(app, "books_payment_applications", func(tx core.App, r *core.Record) error {
+	bindItemRefresh(app, paymentsCollection, refreshReceivablePayment)
+	bindItemRefresh(app, "books_payment_applications", func(tx core.App, r *core.Record) error {
 		payment, err := tx.FindRecordById(paymentsCollection, r.GetString("payment"))
 		if err != nil {
 			return err
@@ -164,7 +86,7 @@ func bindReceivablePaymentRefresh(app core.App) {
 // its post: the entry is posted before the invoice row holds its due day and
 // its entry.
 func bindReceivableInvoiceRefresh(app core.App) {
-	bindReceivableRefresh(app, invoiceKind.Collection, func(tx core.App, r *core.Record) error {
+	bindItemRefresh(app, invoiceKind.Collection, func(tx core.App, r *core.Record) error {
 		if r.GetString("status") == statusDraft {
 			return nil
 		}
@@ -177,7 +99,7 @@ func bindReceivableInvoiceRefresh(app core.App) {
 // called from registerSalesDocGuards, after the memo's serialized guard. A
 // draft has no row.
 func bindReceivableCreditMemoRefresh(app core.App) {
-	bindReceivableRefresh(app, creditMemoKind.Collection, func(tx core.App, r *core.Record) error {
+	bindItemRefresh(app, creditMemoKind.Collection, func(tx core.App, r *core.Record) error {
 		if r.GetString("status") == statusDraft {
 			return nil
 		}
@@ -191,7 +113,7 @@ func bindReceivableCreditMemoRefresh(app core.App) {
 // registerCreditMemoApplications, after the applications' serialized guard.
 // The create and the delete refresh through the kind's AfterChange.
 func bindReceivableCreditMemoApplicationRefresh(app core.App) {
-	bindReceivableRefresh(app, creditMemoApplicationsCollection, func(tx core.App, r *core.Record) error {
+	bindItemRefresh(app, creditMemoApplicationsCollection, func(tx core.App, r *core.Record) error {
 		memo, err := tx.FindRecordById(creditMemoKind.Collection, r.GetString("credit_memo"))
 		if err != nil {
 			return err
@@ -202,22 +124,3 @@ func bindReceivableCreditMemoApplicationRefresh(app core.App) {
 
 // msgReceivableItemsReadOnly refuses a REST write of a stored receivable row.
 const msgReceivableItemsReadOnly = "Books writes the receivable items itself. They cannot be changed."
-
-// registerReceivableWriteGuard refuses every REST write of the stored rows,
-// a superuser's too: the collection's rules stop everyone else, and a row a
-// person wrote would disagree with the book until the next rebuild.
-func registerReceivableWriteGuard(app core.App) {
-	refuseWrite := func(e *core.RecordRequestEvent) error { return refuse(msgReceivableItemsReadOnly) }
-	app.OnRecordCreateRequest(receivableItemsCollection).BindFunc(refuseWrite)
-	app.OnRecordUpdateRequest(receivableItemsCollection).BindFunc(refuseWrite)
-	app.OnRecordDeleteRequest(receivableItemsCollection).BindFunc(refuseWrite)
-}
-
-// repairReceivables rebuilds the stored rows when they disagree with the book.
-func repairReceivables(tx core.App) error {
-	drifts, err := verifyReceivables(tx)
-	if err != nil || len(drifts) == 0 {
-		return err
-	}
-	return rebuildReceivables(tx)
-}

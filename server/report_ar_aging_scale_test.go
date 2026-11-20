@@ -209,7 +209,7 @@ func writeARDatasetKeys(t testing.TB, b arBook, size arSize) (arDataset, error) 
 			data.busiestInvoice = data.docs[busiestInvoice].id
 		}
 		w.finish()
-		return rebuildReceivables(tx)
+		return receivableItems.rebuild(tx)
 	})
 	if err != nil {
 		t.Fatalf("write the %s dataset: %v", size.name, err)
