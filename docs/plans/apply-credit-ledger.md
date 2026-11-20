@@ -108,6 +108,7 @@
 - gate 3 A notes: 1 (NOTE 2) under Design notes.
 - reviewer-caught deferrals: none
 - human: n/a (mode C)
+- commit: bc9631ef (`feat(books): apply-credit receivable rows and aging`)
 
 ## Final review
 - eval: (not run yet)
