@@ -101,8 +101,9 @@ func tbFigures(res *reports.Result) string {
 
 // tbStoredBook has two fiscal years of posted lines: income and expense in
 // 2025 (they fold onto Retained earnings in 2026), months with lines, and no
-// line in May, October or November 2026. Idle has no line; Closed is inactive
-// and has lines of 2025.
+// line in May, October or November 2026. Retained earnings has a line of its
+// own in June 2025 and one in March 2026 (before the 19th). Idle has no line;
+// Closed is inactive and has lines of 2025.
 type tbStoredBook struct {
 	tbBook
 	checking, savings, income, rent, retained, idle, closed *core.Record
@@ -119,10 +120,12 @@ func newTBStoredBook(t *testing.T) tbStoredBook {
 	b.income = b.account(t, "Consulting", "4000", "income", "service_income")
 	b.rent = b.account(t, "Rent", "6000", "expense", "rent_lease")
 	b.post(t, "2025-03-10", ln{account: b.checking, debit: 90000}, ln{account: b.income, credit: 90000})
+	b.post(t, "2025-06-15", ln{account: b.checking, debit: 1000}, ln{account: b.retained, credit: 1000})
 	b.post(t, "2025-11-20", ln{account: b.rent, debit: 25000}, ln{account: b.checking, credit: 25000})
 	b.post(t, "2025-12-31", ln{account: b.closed, debit: 700}, ln{account: b.checking, credit: 700})
 	b.post(t, "2026-01-15", ln{account: b.checking, debit: 40000}, ln{account: b.income, credit: 40000})
 	b.post(t, "2026-03-05", ln{account: b.rent, debit: 12000}, ln{account: b.checking, credit: 12000})
+	b.post(t, "2026-03-10", ln{account: b.checking, debit: 2000}, ln{account: b.retained, credit: 2000})
 	b.post(t, "2026-03-20", ln{account: b.savings, debit: 30000}, ln{account: b.checking, credit: 30000})
 	b.post(t, "2026-04-30", ln{account: b.checking, debit: 5000}, ln{account: b.savings, credit: 5000})
 	b.post(t, "2026-06-01", ln{account: b.rent, debit: 12000}, ln{account: b.checking, credit: 12000})
@@ -175,12 +178,12 @@ func TestTrialBalanceStoredMonthsEqualTheLines(t *testing.T) {
 func TestTrialBalanceOfAMonthWithNoLine(t *testing.T) {
 	b := newTBStoredBook(t)
 	res := runTB(t, b.app, b.reader, map[string]any{"asOf": "2026-05-31"}, reports.Options{Today: tbToday})
-	requireSplit(t, rowFor(t, res, b.checking), int64(67300), nil)
+	requireSplit(t, rowFor(t, res, b.checking), int64(70300), nil)
 	requireSplit(t, rowFor(t, res, b.savings), int64(25000), nil)
 	requireSplit(t, rowFor(t, res, b.income), nil, int64(40000))
-	requireSplit(t, rowFor(t, res, b.retained), nil, int64(65000))
+	requireSplit(t, rowFor(t, res, b.retained), nil, int64(68000))
 	total := totalOf(t, res)
-	requireSplit(t, total, int64(105000), int64(105000))
+	requireSplit(t, total, int64(108000), int64(108000))
 	for _, cell := range []string{"debit@currency", "credit@currency"} {
 		if got := total.Cells[cell]; got != "USD" {
 			t.Errorf("Total %s = %#v, want USD", cell, got)
@@ -255,26 +258,37 @@ func TestTrialBalanceOpenedAccountRows(t *testing.T) {
 		requireSplit(t, r, debit, credit)
 	}
 
-	// Checking: 90000 - 25000 - 700 + 40000 before March, then the line of
-	// March 5. The line of March 20 is after the day.
+	// Checking: 1000 + 90000 - 25000 - 700 + 40000 before March, then the
+	// lines of March 5 and March 10. The line of March 20 is after the day.
+	// Row: 105300 - 12000 + 2000 = 95300.
 	checking := under(b.checking)
-	if len(checking) != 2 {
-		t.Fatalf("Checking's opened rows = %q, want the opening row and one line", labelsOf(checking))
+	if len(checking) != 3 {
+		t.Fatalf("Checking's opened rows = %q, want the opening row and two lines", labelsOf(checking))
 	}
-	requireOpening(checking[0], int64(104300), nil)
+	requireOpening(checking[0], int64(105300), nil)
 	if !strings.HasPrefix(checking[1].Label, "2026-03-05 · ") {
-		t.Errorf("Checking's line = %q, want the line of 2026-03-05", checking[1].Label)
+		t.Errorf("Checking's first line = %q, want the line of 2026-03-05", checking[1].Label)
 	}
 	requireSplit(t, checking[1], nil, int64(12000))
-	requireSplit(t, rowFor(t, open, b.checking), int64(92300), nil)
-
-	// Retained earnings has no line of its own: its opening row is the income
-	// and expense of 2025, and no line shows under it.
-	retained := under(b.retained)
-	if len(retained) != 1 {
-		t.Fatalf("Retained earnings' opened rows = %q, want the opening row only", labelsOf(retained))
+	if !strings.HasPrefix(checking[2].Label, "2026-03-10 · ") {
+		t.Errorf("Checking's second line = %q, want the line of 2026-03-10", checking[2].Label)
 	}
-	requireOpening(retained[0], nil, int64(65000))
+	requireSplit(t, checking[2], int64(2000), nil)
+	requireSplit(t, rowFor(t, open, b.checking), int64(95300), nil)
+
+	// Retained earnings: its opening row is its own line of June 2025 (1000)
+	// plus the income and expense of 2025 (90000 - 25000) folded onto it,
+	// 66000; then its own line of March 10 (2000). Row: 66000 + 2000 = 68000.
+	retained := under(b.retained)
+	if len(retained) != 2 {
+		t.Fatalf("Retained earnings' opened rows = %q, want the opening row and one line", labelsOf(retained))
+	}
+	requireOpening(retained[0], nil, int64(66000))
+	if !strings.HasPrefix(retained[1].Label, "2026-03-10 · ") {
+		t.Errorf("Retained earnings' line = %q, want the line of 2026-03-10", retained[1].Label)
+	}
+	requireSplit(t, retained[1], nil, int64(2000))
+	requireSplit(t, rowFor(t, open, b.retained), nil, int64(68000))
 
 	// An account with no posted line has an opening row of 0.
 	idle := under(b.idle)
