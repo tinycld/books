@@ -238,7 +238,7 @@ Books (checkpoint 3, in the tree, not committed):
 
 ## Performance (p5-report-engine-scale)
 
-Measure: `BOOKS_SCALE=1 BOOKS_SCALE_OUT=<dir> go test -run 'TestGLScale$' -timeout 60m -v .` in `books/server` (`report_general_ledger_scale_test.go`). The book is the A/R Aging bulk writer's book with its income spread over 100 income accounts (107 accounts) and its monthly balances stored. Bar: a run with an Accounts filter (runs 3, 4, 5) takes 1 s or less at 500,000 journal lines, median of 5.
+Measure: `BOOKS_SCALE=1 BOOKS_SCALE_OUT=<dir> go test -run 'TestGLScale$' -timeout 60m -v .` in `books/server` (`report_general_ledger_scale_test.go`). The book is the A/R Aging bulk writer's book with its income spread over 100 income accounts (107 accounts) and its monthly balances stored. Bar, as the human changed it on 2026-11-20 (section "Task 7" below): at 500,000 journal lines, median of 5, a run of one month with an Accounts filter (runs 3, 4) takes 1 s or less, and a run of a year with an Accounts filter (run 5) may be slightly over 1 s; the measure holds it to 2 s. Until 2026-11-20 the bar was 1 s or less for runs 3, 4 and 5.
 
 ### Baseline (2026-11-19, core 4690f72e, books 381fe701)
 
@@ -392,3 +392,21 @@ The detail statement computed every cell of every row of the period and cut the 
 The detail statement (statement 6, 201 rows; run 4: 1 row): run 5 544 ms to 248.2 ms, run 3 107.2 ms to 97.9 ms, run 2 1,070.2 ms to 487.9 ms, run 4 76.6 ms to 79.8 ms. Plan, the detail statement of run 5, reads of `books_journal_lines`: before and after the same, 7 × `SEARCH … idx_books_jlines_account_date (account=? AND date>? AND date<?)`, 6 × `(account>? AND account<?)`, 2 × `idx_books_jlines_entry (entry=?)`, 2 × `(entry>? AND entry<?)`. Its text: 43,517 -> 42,435 chars. What stays in the statement (measured before the change, `parts.md`): the rows, their records and the sort, the beginning balance for each account, and the running balance.
 
 The measure was taken twice. The first run (`scale-task5d.log`, quiet machine, core 9dacb519) gave 422 / 754 / 220 / 194 / 431 ms: run 4 39 % above task 5 (detail statement 76.6 -> 130.4 ms), over the 25 % limit. Cause: SQLite flattened the layers above the page cut into the cells select and copied each hoisted value into each read (859 scalar subquery lines in the plan against 563; the earlier-years balance 25 times, about 40 ms on every run). Fix (core 9f515b30, tests 10029574): the page and the cells are each a `MATERIALIZED` select of a nested `WITH`, so each layer is computed once. The second run (`scale-task5d-b.log`, quiet machine, load 2.75, core 10029574) is the one recorded above: runs 3 and 4 within 7 % of task 5, run 5 47 % lower, run 2 48 % lower.
+
+#### Task 7: the result at 500,000 lines, and the changed bar (2026-11-20)
+
+Measured on a quiet machine (1-minute load 2.75), core 10029574, books 9a68a199, `BOOKS_SCALE=1`, the 500k size. Median of 5.
+
+| run, 500k lines | baseline (2026-11-19) | now | bar |
+| --- | --- | --- | --- |
+| 1 all accounts, month | refused (time limit) | 582 ms | none |
+| 2 all accounts, year | refused (time limit) | 2.733 s | none |
+| 3 busy account, month | 13,772 ms | 231 ms | 1 s |
+| 4 small account, month | 7,219 ms | 147 ms | 1 s |
+| 5 three accounts, year | refused (time limit) | 1.418 s | 2 s |
+
+The long statements, one sample each (statement 4 the section rows, 5 the Total row, 6 the detail page): run 3 34.6 / 30.6 / 144.6 ms; run 4 25.1 / 19.5 / 80.5 ms; run 5 192.9 / 203.7 / 986.2 ms; run 1 113 / 108.3 / 342.5 ms; run 2 346.7 / 379.4 ms / 1.9985 s. Plan, the detail statement of run 5 (201 rows, 42,435 chars), reads of `books_journal_lines`: 7 × `SEARCH … idx_books_jlines_account_date (account=? AND date>? AND date<?)`, 6 × `(account>? AND account<?)`, 2 × `idx_books_jlines_entry (entry=?)`, 2 × `(entry>? AND entry<?)`; no `SCAN`. The detail statement of run 2 (no Accounts filter, no bar) has 1 `SCAN books_journal_lines`.
+
+Runs 3 and 4 meet the first bar (1 s or less). Run 5 is 1.418 s: over it. The human decided on 2026-11-20: the bar is changed, not the engine. A filtered run of one month takes 1 s or less at 500,000 lines; a filtered run of a year may be slightly over, and run 5's 1.418 s is accepted. The human set the year bar to 2 s on 2026-11-20. The four further cuts for run 5 that were written up (options A to D) are not built. The measure (`TestGLScale`) now holds each run to its own bar: `glMonthBar` 1 s for runs 3 and 4, `glYearBar` 2 s for run 5, none for runs 1 and 2; `TestGLScaleBars` pins them. The same bar applies to the Trial Balance, the Balance Sheet and Transaction Detail.
+
+A separate decision of the human on 2026-11-19 (not built yet; a later part of this unit) takes the reports that read all journal lines, the General Ledger among them, off live refresh: once it is built, a year run over 1 s costs the reader one wait, when the reader asks for it.
