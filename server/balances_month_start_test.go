@@ -49,6 +49,18 @@ func TestBalances_FirstDayFollowsThePeriod(t *testing.T) {
 	if drifts[0].StoredMonthStart != "" {
 		t.Fatalf("StoredMonthStart = %q, want the blank stored day", drifts[0].StoredMonthStart)
 	}
+	// The blank case above also passes when verifyBalances never sets the
+	// stored day, so a wrong non-blank day must name itself too.
+	if _, err := app.DB().NewQuery("UPDATE books_account_balances SET month_start = '2026-05-02' WHERE account = {:a}").Bind(map[string]any{"a": cash.Id}).Execute(); err != nil {
+		t.Fatal(err)
+	}
+	drifts, err = verifyBalances(app)
+	if err != nil || len(drifts) != 1 || drifts[0].Account != cash.Id || drifts[0].Period != "2026-05" {
+		t.Fatalf("drifts = %+v, %v; want the one row with a wrong first day", drifts, err)
+	}
+	if drifts[0].StoredMonthStart != "2026-05-02" {
+		t.Fatalf("StoredMonthStart = %q, want the wrong stored day 2026-05-02", drifts[0].StoredMonthStart)
+	}
 	if fixed, err := rebuildBalances(app); err != nil || fixed != 1 {
 		t.Fatalf("fixed = %d, err %v; want 1", fixed, err)
 	}
