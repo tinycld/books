@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, type Route, test } from '@playwright/test'
 import {
+    inBanking,
     matchOptionIds,
     openMatchDrawer,
     postMatchTransfer,
@@ -33,7 +34,7 @@ function findGroup(): Group {
 const name = (stamp: string, which: string) => `${stamp} find ${which}`
 
 const drawer = (page: Page) => visibleTestId(page, 'bank-txn-drawer')
-const result = (page: Page) => visibleTestId(page, 'bank-review-result')
+const result = (page: Page) => inBanking(page, 'bank-review-result')
 const checkedBoxes = (page: Page) =>
     page.locator('[data-testid^="bank-match-box-"][aria-checked="true"]')
 
@@ -106,12 +107,12 @@ test.describe
             const transfer = await postMatchTransfer(page, accountName, '165.50', `${stamp} phone`)
 
             await page.setViewportSize(BANKING_PHONE)
-            await expect(visibleTestId(page, 'bank-review-cards')).toBeVisible()
+            await expect(await inBanking(page, 'bank-review-cards')).toBeVisible()
 
             // The card's second line: the day, then the mark without its date.
-            const card = visibleRow(page, name(stamp, 'five'))
+            const card = await visibleRow(page, name(stamp, 'five'))
             const cardId = await reviewRowId(card)
-            await expect(visibleTestId(page, `bank-review-suggestion-${cardId}`)).toHaveText(
+            await expect(await inBanking(page, `bank-review-suggestion-${cardId}`)).toHaveText(
                 `1 match · Transfer ${transfer.number}`
             )
             await expect(card).toContainText(todayText())
@@ -143,7 +144,7 @@ test.describe
             // The hardware key M matches from the sheet.
             await page.keyboard.press('m')
             await expect(drawer(page)).toHaveCount(0)
-            await expect(result(page)).toHaveText('Matched 1 transaction.')
+            await expect(await result(page)).toHaveText('Matched 1 transaction.')
         })
 
         test('finds two transfers that add up', async ({ page }) => {
@@ -220,7 +221,7 @@ test.describe
 
             await page.keyboard.press('m')
             await expect(drawer(page)).toHaveCount(0)
-            await expect(result(page)).toHaveText('Matched 1 transaction.')
+            await expect(await result(page)).toHaveText('Matched 1 transaction.')
 
             // Another transaction's find mode starts afresh.
             await openMatchDrawer(page, name(stamp, 'four'))
@@ -238,24 +239,22 @@ test.describe
             await postMatchTransfer(page, account, '161.10', `${stamp} batch one`)
             await postMatchTransfer(page, account, '162.20', `${stamp} batch two`)
 
-            const one = visibleRow(page, name(stamp, 'one'))
-            const two = visibleRow(page, name(stamp, 'two'))
-            const four = visibleRow(page, name(stamp, 'four'))
+            const one = await visibleRow(page, name(stamp, 'one'))
+            const two = await visibleRow(page, name(stamp, 'two'))
+            const four = await visibleRow(page, name(stamp, 'four'))
             const oneId = await reviewRowId(one)
             const twoId = await reviewRowId(two)
             const fourId = await reviewRowId(four)
-            await expect(visibleTestId(page, `bank-review-suggestion-${oneId}`)).toBeVisible()
-            await expect(visibleTestId(page, `bank-review-suggestion-${twoId}`)).toBeVisible()
+            await expect(await inBanking(page, `bank-review-suggestion-${oneId}`)).toBeVisible()
+            await expect(await inBanking(page, `bank-review-suggestion-${twoId}`)).toBeVisible()
 
             for (const id of [oneId, twoId, fourId]) {
-                await visibleTestId(page, `bank-review-check-${id}`).click()
-                await expect(visibleTestId(page, `bank-review-check-${id}`)).toHaveAttribute(
-                    'aria-checked',
-                    'true'
-                )
+                const check = await inBanking(page, `bank-review-check-${id}`)
+                await check.click()
+                await expect(check).toHaveAttribute('aria-checked', 'true')
             }
-            const matchChosen = visibleTestId(page, 'bank-review-match-chosen')
-            const exclude = visibleTestId(page, 'bank-review-exclude')
+            const matchChosen = await inBanking(page, 'bank-review-match-chosen')
+            const exclude = await inBanking(page, 'bank-review-exclude')
             await expect(matchChosen).toBeVisible()
             await expect(matchChosen).toBeEnabled()
             await expect.poll(() => standsBefore(matchChosen, exclude)).toBe(true)
@@ -274,11 +273,11 @@ test.describe
             for (const route of held) await route.continue()
             await page.unrouteAll({ behavior: 'wait' })
             const resultText = 'Matched 2 transactions. 1 needs a choice: open it to match.'
-            await expect(result(page)).toHaveText(resultText)
+            await expect(await result(page)).toHaveText(resultText)
             await expect(one).toHaveCount(0)
             await expect(two).toHaveCount(0)
             await expect(four).toHaveCount(1)
-            await expect(visibleTestId(page, `bank-review-check-${fourId}`)).toHaveAttribute(
+            await expect(await inBanking(page, `bank-review-check-${fourId}`)).toHaveAttribute(
                 'aria-checked',
                 'true'
             )
@@ -287,9 +286,9 @@ test.describe
             await expect(matchChosen).toBeDisabled()
             await page.keyboard.press('m')
             await expect(matchChosen).not.toContainText('Matching…')
-            await expect(result(page)).toHaveText(resultText)
+            await expect(await result(page)).toHaveText(resultText)
             await expect(four).toHaveCount(1)
-            await expect(visibleTestId(page, `bank-review-check-${fourId}`)).toHaveAttribute(
+            await expect(await inBanking(page, `bank-review-check-${fourId}`)).toHaveAttribute(
                 'aria-checked',
                 'true'
             )

@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, type Route, test } from '@playwright/test'
 import {
+    inBanking,
     matchOption,
     matchOptionIds,
     openMatchDrawer,
@@ -44,7 +45,7 @@ const name = (stamp: string, which: string) => `${stamp} match ${which}`
 const memo = (stamp: string, which: string) => `${stamp} memo ${which}`
 
 const drawer = (page: Page) => visibleTestId(page, 'bank-txn-drawer')
-const result = (page: Page) => visibleTestId(page, 'bank-review-result')
+const result = (page: Page) => inBanking(page, 'bank-review-result')
 const boxes = (page: Page) => page.locator('[data-testid^="bank-match-box-"]')
 
 // The row's mark: the one-suggestion text or the chip.
@@ -110,12 +111,12 @@ test.describe
                 uniqueMemo('bank-match one')
             )
 
-            const one = visibleRow(page, name(stamp, 'one'))
-            const four = visibleRow(page, name(stamp, 'four'))
+            const one = await visibleRow(page, name(stamp, 'one'))
+            const four = await visibleRow(page, name(stamp, 'four'))
             const oneId = await reviewRowId(one)
 
             // The row's mark replaces its memo line; the row has no match action.
-            await expect(visibleTestId(page, `bank-review-suggestion-${oneId}`)).toHaveText(
+            await expect(await inBanking(page, `bank-review-suggestion-${oneId}`)).toHaveText(
                 `1 match · Transfer ${transfer.number} · ${todayText()}`
             )
             await expect(one.getByText(memo(stamp, 'one'), { exact: true })).toHaveCount(0)
@@ -140,7 +141,7 @@ test.describe
 
             await page.getByTestId('bank-match-submit').click()
             await expect(drawer(page)).toHaveCount(0)
-            await expect(result(page)).toHaveText('Matched 1 transaction.')
+            await expect(await result(page)).toHaveText('Matched 1 transaction.')
             await expect(one).toHaveCount(0)
 
             // A row with no suggestion: the empty text and Find other matches.
@@ -157,11 +158,11 @@ test.describe
             await postMatchTransfer(page, account, '152.20', uniqueMemo('bank-match two a'))
             await postMatchTransfer(page, account, '152.20', uniqueMemo('bank-match two b'))
 
-            const two = visibleRow(page, name(stamp, 'two'))
+            const two = await visibleRow(page, name(stamp, 'two'))
             const twoId = await reviewRowId(two)
             const submit = page.getByTestId('bank-match-submit')
             const totals = page.getByTestId('bank-match-totals')
-            await expect(visibleTestId(page, `bank-review-matches-${twoId}`)).toHaveText(
+            await expect(await inBanking(page, `bank-review-matches-${twoId}`)).toHaveText(
                 '2 matches'
             )
 
@@ -192,7 +193,7 @@ test.describe
             await tabTo(page, first)
             await page.keyboard.press('Space')
             await expect(first).toHaveAttribute('aria-checked', 'true')
-            await expect(visibleTestId(page, `bank-review-check-${twoId}`)).toHaveAttribute(
+            await expect(await inBanking(page, `bank-review-check-${twoId}`)).toHaveAttribute(
                 'aria-checked',
                 'false'
             )
@@ -209,7 +210,7 @@ test.describe
             await expect(first).toHaveAttribute('aria-checked', 'true')
             await page.keyboard.press('m')
             await expect(drawer(page)).toHaveCount(0)
-            await expect(result(page)).toHaveText('Matched 1 transaction.')
+            await expect(await result(page)).toHaveText('Matched 1 transaction.')
             await expect(two).toHaveCount(0)
         })
 
@@ -218,7 +219,7 @@ test.describe
             await signInWide(page)
             await postMatchTransfer(page, account, '153.30', uniqueMemo('bank-match three'))
 
-            const three = visibleRow(page, name(stamp, 'three'))
+            const three = await visibleRow(page, name(stamp, 'three'))
             const submit = page.getByTestId('bank-match-submit')
             const refusal = page.getByTestId('bank-match-refusal')
             await openMatchDrawer(page, name(stamp, 'three'))
@@ -277,7 +278,7 @@ test.describe
             if (!release) throw new Error('the create was not held')
             await release.continue()
             await expect(drawer(page)).toHaveCount(0)
-            await expect(result(page)).toHaveText('Matched 1 transaction.')
+            await expect(await result(page)).toHaveText('Matched 1 transaction.')
             await expect(matchOption(page, lineId)).toHaveCount(0)
             await expect(three).toHaveCount(0)
             await page.unrouteAll({ behavior: 'wait' })
@@ -303,19 +304,19 @@ test.describe('bank-match: seeded book', () => {
         await signInWide(page)
         await openCheckingReview(page)
 
-        const pacific = visibleRow(page, PACIFIC)
+        const pacific = await visibleRow(page, PACIFIC)
         const pacificId = await reviewRowId(pacific)
         await expect(pacific.getByText(PACIFIC_MEMO, { exact: true })).toBeVisible()
         await expect(page.locator('[data-testid^="bank-review-suggestion-"]')).toHaveCount(0)
 
         // With the drawer closed the list is a table.
-        await expect(visibleTestId(page, 'bank-review-table')).toBeVisible()
+        await expect(await inBanking(page, 'bank-review-table')).toBeVisible()
 
         await openMatchDrawer(page, PACIFIC)
         // With the inline drawer open the list's panel is narrower than the table's
         // minimum width, so the list shows cards and no column is out of view.
-        await expect(visibleTestId(page, 'bank-review-cards')).toBeVisible()
-        await expect(visibleTestId(page, 'bank-review-table')).toHaveCount(0)
+        await expect(await inBanking(page, 'bank-review-cards')).toBeVisible()
+        await expect(await inBanking(page, 'bank-review-table')).toHaveCount(0)
         await expect(page.getByTestId('bank-match-error')).toContainText(
             'Books could not load the matches.'
         )
@@ -341,7 +342,7 @@ test.describe('bank-match: seeded book', () => {
         await signInWide(page)
         await openCheckingReview(page)
 
-        const pacific = visibleRow(page, PACIFIC)
+        const pacific = await visibleRow(page, PACIFIC)
         const pacificId = await reviewRowId(pacific)
         await expect(page.getByTestId(`bank-review-suggestion-${pacificId}`)).toHaveText(
             PACIFIC_MARK
