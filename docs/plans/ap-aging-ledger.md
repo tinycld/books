@@ -21,14 +21,19 @@
 (none yet)
 
 ## Rebuttals
-(none yet — every reviewer finding rejected in triage is listed here verbatim,
+(every reviewer finding rejected in triage is listed here verbatim,
 with the reason, and shown to the human at the end)
+- **finding:** reviewer B, checkpoint 3, DEFERRAL 1: "`server/report_ap_aging_test.go` `TestAPAgingTopics`. Agreed (brief): the run's topics are "exactly" `collection/books_payable_items`, `collection/books_vendors`, `collection/books_settings`. Exists: the test checks that the three are present and that no other `collection/books_*` topic but `books_admins` is present."
+  **rebutted because:** not a deferral: nothing the spec asks is missing. The spec's Live bullet asks that "a post or a void … re-runs an open report. The run's topics are `collection/books_payable_items`, `collection/books_vendors` and `collection/books_settings`", and each of the three is asserted. Core adds the topics of each access-rule CTE a run reads (`tinycld/core/server/reports/run.go` lines 309-311, "ruleTopics holds the topics of each rule CTE select the run read"), and the read rule of spec §4.1 brings `books_admins`, `org_pkg_access` and `users`, as for every Books report (memory p5-trial-balance: "the books_journal_lines rule makes a run's topics include books_admins, org_pkg_access and users"; `TestARAgingTopics`, `server/report_ar_aging_test.go` line 1274, uses `slices.Contains`). The checkpoint's word "exactly" was a plan defect, settled as a test dispute (Checkpoint 3, test disputes).
 
 ## Design notes
 (gate-2 NOTEs as `cp N · <shot>: <where> — <what>`; reviewer NOTEs as `cp N · reviewer <X> NOTE: <where> — <what>`; shown to the human at the end)
 - cp 1 · reviewer A NOTE: `server/open_items_test.go` — `registerWriteGuard` is not exercised on the second test table (no collection backs `zz_open_items`); checkpoint 2's REST-refusal test on `books_payable_items` covers it.
 - cp 1 · reviewer A NOTE: `server/open_items.go` `registerWriteGuard` — `refuse("%s", t.ReadOnly)` in place of `refuse(msgReceivableItemsReadOnly)` (implementer's declared difference 1): `refuse` takes a format string and `go vet` refuses a non-constant one; the message text is the same.
 - cp 2 · reviewer A NOTE: `server/payable_refresh.go` `refreshPayableBill` with `server/document_balance.go` `saveDocumentBalance` — each balance save of a bill runs the bill refresh and its entry refresh, so a Pay bills payment of N bills runs N bill and N entry refreshes before the payment's own refresh. Correct and repeated; the plan asks for it (Do step 3) and the receivable side does the same. No checkpoint 4 bar times a post; if one is added, skip the entry refresh when only `balance` changed.
+- cp 3 · opened-1024: item row "Vendor credit 1006" — the label wraps to 2 lines in the Vendor column (the reference wraps the same way; inside the three-line cap).
+- cp 3 · item-opened-1024: the 3 lines under the bill — each label wraps to 2 or 3 lines with almost no gap between the wrapped rows, so the lines read as one text block (the reference has the same density; the three-line cap holds).
+- cp 3 · reviewer A NOTE: `server/report_ap_aging.go` sort, `server/report_spec_helpers.go` `vendorSort` — two items of one vendor with the same `due` and `itemNo` (two Accounts payable lines of one manual journal entry for the same vendor) have no inner key between them, so their order can change when Order changes (the balance key reads each item's own sum under Largest balance, 0 under Name). No spec bullet breaks ("Items are in due-date order, oldest first, then by number"); D7 sets the keys. Possible fix: `col("itemKey")` after `col("itemNo")`.
 
 ## Out-of-plan changes
 (none yet — every file touched that no checkpoint's Files block named, with why)
@@ -112,6 +117,22 @@ with the reason, and shown to the human at the end)
 - fix review: n/a — round 1 changed only a test file (`server/payable_items_test.go`); `go test -count=1 ./...` after it: ok
 - gate 3 A notes: 1, listed under Design notes
 - reviewer-caught deferrals: 1 (the weak bill-side `settled` assertion; not self-declared by the test writer) — fixed in round 1, so no deferral entry
+- commit: (this commit)
+
+## Checkpoint 3 — A/P Aging report for readers
+- test writer: `server/report_ap_aging_test.go` (22 Go tests), `server/testdata/ap_aging_spec.json`, `tests/ap-aging-fixture.test.ts` (3 vitest, green from the start as Do step 0 says), `tests/e2e/ap-aging-helpers.ts`, `tests/e2e/books-ap-aging.spec.ts` (6 e2e); red for the right reason: yes (Go compile error naming only `apAgingSpec`, `apAgingShipped`, `apAgingKey`, `vendorsParam`, `apDisplay`; e2e: the hub has no "A/P Aging" entry); untestable: none
+- implementer: `server/report_ap_aging.go`, `vendorsParam`/`vendorGroup`/`vendorSort` in `server/report_spec_helpers.go`, `RegisterShipped(apAgingShipped())` in `server/register.go`; step 5's grep found no test or list that counts every shipped Books report, so no other file; DONE
+- test disputes: 2, both ruled for the implementer (`cp3-disputes.md`), fixed by a fresh test writer:
+  - `TestAPAgingTopics` asserted the topics are "exactly" the three Books topics; core adds each access-rule CTE's topics (`tinycld/core/server/reports/run.go` lines 309-311 `ruleTopics`), so the Books read rule adds `books_admins`, `org_pkg_access`, `users`. Now: the three are present and no other `collection/books_*` topic but `books_admins`; proven red with a `go test -overlay` copy of core `run.go` that drops `collection/books_payable_items`. See Rebuttals (reviewer B's DEFERRAL on it).
+  - e2e test 5 called `applyCreditToBill` with the report on screen; the helper's visible-read-view check matched the credit read view Books keeps laid out under the report route (lesson 5), so its click hit the report scroller. Now the apply runs on a second page of the same context (as test 4), and page A follows by the live re-run; every assertion unchanged. (A return through the hub was tried first: the hub reopens the report as it was left, filter and opened rows kept.)
+- self-declared differences: comments added to the brief's code; no other change
+- gate 1: tests unedited: yes · `go test ./...` ok; `packages:generate` + `tinycld-pkg check` exit 0; e2e `books-ap-aging.spec.ts`: 6 passed. After the fix round: the same, all pass (6 e2e passed).
+- gate 2: invalid shots: none · blocking: none · notes: 2, listed under Design notes. Lessons applied: 13 (each width loaded at its width), 24 (seeded rows reached by name through the UI, not by fixture id), 31 (focus dropped by a click on `report-document-period`). Capture spec copy gained `clickPattern` and `waitForTextIn` (the A/R Aging's copy had them; template candidates). Filter shot picks Harbor Freight Logistics and Pacific Power (both have seeded open bills; the reference picked Blue Ridge, which has none in the seed).
+- gate 3 A (correctness): 0 BLOCK, 3 NOTE — item order when two items share `due` and `itemNo`: Design notes; Go `apEmptyDay` a hand copy of `AP_AGING_EMPTY_DAY`: accepted+fixed (mirror; `emptyDay` in the shared case file, read by the Go test and asserted by vitest, proven red); inline `import()` type: accepted+fixed (same as B 2)
+- gate 3 B (conformance): script lines: 0 · 3 findings + 1 DEFERRAL — helper-file header comment named imports it does not have: accepted+fixed; inline `import('@playwright/test').Page`: accepted+fixed; helpers defined in the spec, against the plan note "its helpers are in the new `tests/e2e/ap-aging-helpers.ts`": accepted+fixed (moved, no assertion changed); DEFERRAL on `TestAPAgingTopics` "exactly": rebutted (see Rebuttals)
+- fix review: n/a — round 1 (`cp3-fix-r1.md`) changed only test files and the shared test case file, fixed by a test writer
+- gate 3 A notes: 1, listed under Design notes
+- reviewer-caught deferrals: none (the one DEFERRAL was rebutted)
 - commit: (this commit)
 
 ## Performance

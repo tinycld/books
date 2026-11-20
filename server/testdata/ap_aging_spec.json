@@ -1,0 +1,79 @@
+{
+    "title": "A/P Aging",
+    "description": "What you owe each vendor on one day, by how long each open bill is past due.",
+    "emptyDay": "2020-01-01",
+    "params": [
+        {
+            "id": "asOf",
+            "type": "asOf",
+            "label": "As of",
+            "default": { "preset": "today" }
+        },
+        {
+            "id": "vendors",
+            "type": "choice",
+            "label": "Vendor",
+            "multiple": true,
+            "header": "Vendor: {label}",
+            "optionsFrom": {
+                "source": "books.vendors",
+                "value": [{ "field": "id" }],
+                "label": [{ "field": "display_name" }]
+            }
+        },
+        {
+            "id": "order",
+            "type": "choice",
+            "label": "Order",
+            "options": [
+                { "value": "name", "label": "Name" },
+                { "value": "balance", "label": "Largest balance" }
+            ],
+            "default": "name"
+        }
+    ],
+    "display": {
+        "oneLine": { "minWidth": "940px" },
+        "columns": {
+            "name": { "whiteSpace": "normal", "lineClamp": 3 },
+            "due": { "minWidth": "max-content" },
+            "current": { "minWidth": "max-content" },
+            "d30": { "minWidth": "max-content" },
+            "d60": { "minWidth": "max-content" },
+            "d90": { "minWidth": "max-content" },
+            "d91": { "minWidth": "max-content" },
+            "total": { "minWidth": "max-content" }
+        },
+        "layouts": [
+            {
+                "width": "mobile",
+                "tracks": 3,
+                "cells": [
+                    { "col": "name", "line": 1, "span": 2 },
+                    { "col": "due", "line": 1 },
+                    { "col": "current", "line": 2 },
+                    { "col": "d30", "line": 2 },
+                    { "col": "total", "line": 2 },
+                    { "col": "d60", "line": 3 },
+                    { "col": "d90", "line": 3 },
+                    { "col": "d91", "line": 3 }
+                ]
+            },
+            {
+                "width": "tablet",
+                "minWidth": "640px",
+                "tracks": 12,
+                "cells": [
+                    { "col": "name", "line": 1, "span": 10 },
+                    { "col": "total", "line": 1, "span": 2 },
+                    { "col": "due", "line": 2, "span": 2 },
+                    { "col": "current", "line": 2, "span": 2 },
+                    { "col": "d30", "line": 2, "span": 2 },
+                    { "col": "d60", "line": 2, "span": 2 },
+                    { "col": "d90", "line": 2, "span": 2 },
+                    { "col": "d91", "line": 2, "span": 2 }
+                ]
+            }
+        ]
+    }
+}
