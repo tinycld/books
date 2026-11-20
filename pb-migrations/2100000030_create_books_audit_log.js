@@ -10,19 +10,21 @@
 // actor is 'system' for a row no person made (the auto-reversal sweep), so
 // the User filter can name it; actor_name is "System" there, the user's name
 // otherwise, and "Unknown user" when the user row is gone. event reads an
-// update whose status became posted or void as posted or voided.
+// update whose status became posted or void as posted or voided; event_shown
+// is the event the report shows (see EVENT_SHOWN).
 //
-// A line row (the fifteen collections below) names its document in
+// A line row (the sixteen collections below) names its document in
 // parent_type and parent_id, read from the live line, else from its delete
 // snapshot; history_type and history_id are the record whose history the row
 // opens: the document for a line, the record itself otherwise. server/audit.go
-// auditParentFields lists the same fifteen. The view reads the payment
-// applications, bill payment lines, credit memo lines, vendor credit lines,
-// vendor credit applications, vendor refund lines and refund receipt lines
-// tables, so it comes after 2100000019_create_books_payments,
-// 2100000021_create_books_bill_payments, 2100000022_create_books_credit_memos,
-// 2100000023_create_books_vendor_credits, 2100000024_create_books_vendor_refunds
-// and 2100000025_create_books_refund_receipts.
+// auditParentFields lists the same sixteen. The view reads the payment
+// applications, bill payment lines, credit memo lines, credit memo
+// applications, vendor credit lines, vendor credit applications, vendor refund
+// lines and refund receipt lines tables, so it comes after
+// 2100000019_create_books_payments, 2100000021_create_books_bill_payments,
+// 2100000022_create_books_credit_memos, 2100000023_create_books_vendor_credits,
+// 2100000024_create_books_vendor_refunds, 2100000025_create_books_refund_receipts
+// and 2100000029_create_books_credit_memo_applications.
 //
 // The query is one SELECT: PocketBase's view parser refuses UNION ALL. Every
 // computed column is cast to TEXT, because PocketBase types an uncast
@@ -46,6 +48,7 @@ const LINES = [
     ['books_bill_lines', 'books_bills', 'bill'],
     ['books_bill_payment_lines', 'books_bill_payments', 'payment'],
     ['books_bundle_items', 'books_products', 'bundle'],
+    ['books_credit_memo_applications', 'books_credit_memos', 'credit_memo'],
     ['books_credit_memo_lines', 'books_credit_memos', 'credit_memo'],
     ['books_estimate_lines', 'books_estimates', 'estimate'],
     ['books_estimate_responses', 'books_estimates', 'estimate'],
@@ -73,13 +76,24 @@ const PARENT_ID = `CASE a.resource_type ${LINES.map(
 
 const ACTOR_BLANK = "a.actor = '' OR a.actor IS NULL"
 
+const EVENT = `CASE WHEN a.action = 'created' THEN 'added' WHEN a.action = 'deleted' THEN 'deleted' WHEN ${STATUS_AFTER} = 'posted' THEN 'posted' WHEN ${STATUS_AFTER} = 'void' THEN 'voided' ELSE 'changed' END`
+
+// event_shown is the event the Audit Log report's Event column shows: a
+// credit memo application's create reads credit_applied and its delete
+// credit_removed (apply credit spec §3.8), any other row its event. The
+// Event filter and the record History read event, so they still file those
+// rows under added and deleted.
+const APPLICATIONS = "a.resource_type = 'books_credit_memo_applications'"
+const EVENT_SHOWN = `CASE WHEN ${APPLICATIONS} AND a.action = 'created' THEN 'credit_applied' WHEN ${APPLICATIONS} AND a.action = 'deleted' THEN 'credit_removed' ELSE ${EVENT} END`
+
 const VIEW_QUERY = [
     'SELECT',
     'a.id AS id,',
     'a.created AS created,',
     `CAST(CASE WHEN ${ACTOR_BLANK} THEN 'system' ELSE a.actor END AS TEXT) AS actor,`,
     `CAST(CASE WHEN ${ACTOR_BLANK} THEN 'System' ELSE COALESCE(u.name, 'Unknown user') END AS TEXT) AS actor_name,`,
-    `CAST(CASE WHEN a.action = 'created' THEN 'added' WHEN a.action = 'deleted' THEN 'deleted' WHEN ${STATUS_AFTER} = 'posted' THEN 'posted' WHEN ${STATUS_AFTER} = 'void' THEN 'voided' ELSE 'changed' END AS TEXT) AS event,`,
+    `CAST(${EVENT} AS TEXT) AS event,`,
+    `CAST(${EVENT_SHOWN} AS TEXT) AS event_shown,`,
     'a.resource_type AS record_type,',
     'a.resource_id AS record_id,',
     'a.resource_label AS record_label,',

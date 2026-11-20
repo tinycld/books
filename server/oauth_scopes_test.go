@@ -108,6 +108,9 @@ func TestOAuth_CreditMemosAreScopedAsInvoices(t *testing.T) {
 		"books_credit_memos":          rw,
 		"books_credit_memo_lines":     rw,
 		"books_credit_memo_tax_lines": {Read: []string{scopeRead}},
+		// Apply credit spec §4.3: the applications are read and written as the
+		// vendor credit's are.
+		"books_credit_memo_applications": rw,
 	}
 	for c, access := range want {
 		got, ok := collections[c]
@@ -123,7 +126,7 @@ func TestOAuth_CreditMemosAreScopedAsInvoices(t *testing.T) {
 
 	t.Cleanup(oauth.ResetRegistry)
 	oauth.RegisterPackage(oauthPackage())
-	for _, c := range []string{"books_credit_memos", "books_credit_memo_lines"} {
+	for _, c := range []string{"books_credit_memos", "books_credit_memo_lines", "books_credit_memo_applications"} {
 		path := "/api/collections/" + c + "/records"
 		if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
 			t.Errorf("GET %s: books:read must read", path)

@@ -8,18 +8,16 @@
 //   a credit memo's `balance` = total − `applied` − posted refund payouts;
 //   a credit memo's `applied` = the sum of its applications.
 //
-// `ApplyCreditInvoiceRecord` and `ApplyCreditPaymentRecord` are the generated `BooksInvoices`
-// and `BooksPayments`, so the `satisfies` checks hold those rows to the real schema.
-//
-// Two shapes do not exist in the schema yet. The checkpoint that adds migration
-// `<next free number>_create_books_credit_memo_applications.js` and edits 2100000022
-// (`books_credit_memos.applied`) must replace both with the generated types
-// (`BooksCreditMemoApplications`, and `BooksCreditMemos` with `applied`), so tsc checks
-// every field of these rows:
-//   - `CreditMemoApplicationRecord` (spec §4.1);
-//   - the `applied` field of `ApplyCreditMemoRecord` (spec §4.2).
+// Each record type is the generated one (`BooksInvoices`, `BooksPayments`,
+// `BooksCreditMemos` with `applied`, `BooksCreditMemoApplications`), so the `satisfies`
+// checks hold every row to the real schema.
 
-import type { BooksCreditMemos, BooksInvoices, BooksPayments } from '../types'
+import type {
+    BooksCreditMemoApplications,
+    BooksCreditMemos,
+    BooksInvoices,
+    BooksPayments,
+} from '../types'
 import { CUSTOMER_IDS, CUSTOMERS } from './customer-form-fixture'
 import { INVOICE_USER_IDS, INVOICE_USER_NAMES } from './invoice-form-fixture'
 
@@ -27,8 +25,9 @@ export const APPLY_CREDIT_CURRENCY = 'USD'
 // "Today" for the reference captures, so the default apply date and the overdue marks are
 // stable.
 export const APPLY_CREDIT_TODAY = '2026-11-19'
-// The settings' close date of the "closed period" refusal.
-export const APPLY_CREDIT_CLOSE_DATE = '2026-09-30'
+// The settings' close date of the "closed period" refusal: on or after the Nov 16 application
+// that the remove-refused case removes.
+export const APPLY_CREDIT_CLOSE_DATE = '2026-11-30'
 
 const STAMP = '2026-11-19 09:00:00.000Z'
 
@@ -38,23 +37,11 @@ export const APPLY_CREDIT_USER_NAMES = INVOICE_USER_NAMES
 export type ApplyCreditInvoiceRecord = BooksInvoices
 export type ApplyCreditPaymentRecord = BooksPayments
 
-// Spec §4.2. Local until the migration checkpoint adds `applied` to `books_credit_memos`;
-// then this is `BooksCreditMemos`.
-export type ApplyCreditMemoRecord = BooksCreditMemos & { applied: number }
+// Spec §4.2: `applied` is the cents of the memo's applications.
+export type ApplyCreditMemoRecord = BooksCreditMemos
 
-// Spec §4.1. Local until the migration checkpoint creates
-// `books_credit_memo_applications`; then this is `BooksCreditMemoApplications`.
-export interface CreditMemoApplicationRecord {
-    id: string
-    credit_memo: string
-    invoice: string
-    amount: number
-    // The apply date, an ISO day.
-    date: string
-    applied_by: string
-    close_override: string
-    created: string
-}
+// Spec §4.1: `date` is the apply date, an ISO day.
+export type CreditMemoApplicationRecord = BooksCreditMemoApplications
 
 export const APPLY_CREDIT_CUSTOMER_IDS = {
     // Unapplied credit on two credit memos, three open invoices (one overdue), and a
@@ -371,7 +358,7 @@ function application(
     }
 }
 
-export const CREDIT_MEMO_APPLICATIONS: CreditMemoApplicationRecord[] = [
+export const CREDIT_MEMO_APPLICATIONS = [
     application({
         id: APP.part,
         credit_memo: MEMO.partly,
@@ -400,7 +387,7 @@ export const CREDIT_MEMO_APPLICATIONS: CreditMemoApplicationRecord[] = [
         amount: 30_000,
         date: '2026-10-05',
     }),
-]
+] satisfies CreditMemoApplicationRecord[]
 
 // A credit memo's applications, oldest apply date first (its Applied to block, §3.5).
 export function applicationsOfMemo(memoId: string): CreditMemoApplicationRecord[] {
@@ -773,7 +760,9 @@ export const APPLY_CREDIT_TEXTS = {
     appliedLoadFailed: 'Books could not load the credits applied to this invoice.',
     removeBody:
         "Remove this credit from Invoice 1009? The invoice's balance goes up by $150.00 and the credit is unapplied again.",
-    removeRefused: 'The books are closed through Nov 30, 2026. Ask an admin for an override.',
+    // The server's msgClosedThrough (server/posting.go) for the Nov 16 application of credit
+    // memo 1001 to invoice 1009: the close date, then the application's date, as ISO days.
+    removeRefused: `The books are closed through ${APPLY_CREDIT_CLOSE_DATE}. Ask a Books admin for a close-date override to post on 2026-11-16.`,
     toastFromMemo: 'Applied $150.00 to 1 invoice',
     toastFromInvoice: 'Applied $150.00 from 1 credit memo',
     memoVoidRefused: 'This credit is applied to invoices. Remove it from those invoices first.',

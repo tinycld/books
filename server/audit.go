@@ -29,7 +29,8 @@ import (
 // labeled by the user it grants, a line by its account or its document, a
 // bundle row by its bundle and product, a bank connection by its account, a
 // bank import by its file, a customer's response by its estimate, a vendor
-// credit application by its credit and its bill, a vendor refund line by its
+// credit application by its credit and its bill, a credit memo application by
+// its memo and its invoice, a vendor refund line by its
 // refund and its credit, and an attachment by its
 // bill, expense or vendor credit.
 //
@@ -86,6 +87,9 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		vendorCreditApplicationsCollection: {
 			ExtractLabel: func(r *core.Record) string { return vendorCreditApplicationLabel(app, r) },
 		},
+		creditMemoApplicationsCollection: {
+			ExtractLabel: func(r *core.Record) string { return creditMemoApplicationLabel(app, r) },
+		},
 		"books_payments": {ExtractLabel: paymentLabel, Redact: []string{"sort_key"}},
 		"books_payment_applications": {
 			ExtractLabel: func(r *core.Record) string { return paymentApplicationLabel(app, r) },
@@ -121,7 +125,7 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 }
 
 // auditParentFields maps each line collection to the field that names its
-// document. The books_audit_log view (migration 2100000029) reads the same
+// document. The books_audit_log view (migration 2100000030) reads the same
 // collections to give a line's audit row its document, and Register declares them
 // as the view's sources, because a line write can change that document.
 var auditParentFields = map[string]string{
@@ -139,6 +143,7 @@ var auditParentFields = map[string]string{
 	billPaymentLinesCollection:         "payment",
 	vendorCreditLinesCollection:        "vendor_credit",
 	vendorCreditApplicationsCollection: "vendor_credit",
+	creditMemoApplicationsCollection:   "credit_memo",
 	vendorRefundLinesCollection:        "refund",
 }
 
@@ -179,6 +184,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_payment_applications", Label: "Payment application"},
 		{Value: billPaymentLinesCollection, Label: "Bill payment line"},
 		{Value: vendorCreditApplicationsCollection, Label: "Vendor credit application"},
+		{Value: creditMemoApplicationsCollection, Label: "Credit memo application"},
 		{Value: vendorRefundLinesCollection, Label: "Vendor refund line"},
 		{Value: "books_journal_lines", Label: "Journal line"},
 		{Value: "books_attachments", Label: "Attachment"},
@@ -211,6 +217,16 @@ func auditEvents() []reports.Option {
 		{Value: "voided", Label: "Voided"},
 		{Value: "deleted", Label: "Deleted"},
 	}
+}
+
+// auditShownEvents are the values of the view's event_shown column, which the
+// Audit Log's Event column shows: the events, then a credit memo
+// application's create and delete (apply credit spec §3.8).
+func auditShownEvents() []reports.Option {
+	return append(auditEvents(),
+		reports.Option{Value: "credit_applied", Label: "Credit applied"},
+		reports.Option{Value: "credit_removed", Label: "Credit removed"},
+	)
 }
 
 func registerAudit(app *pocketbase.PocketBase) {
@@ -431,6 +447,21 @@ func vendorCreditApplicationLabel(app core.App, r *core.Record) string {
 		bill = billLabel(b)
 	}
 	return credit + ": " + bill
+}
+
+// creditMemoApplicationLabel names an application by its credit memo and its
+// invoice: "Credit memo 1001: Invoice 1009". A memo or an invoice that cannot
+// be read falls back to its id, so the audit row is still written.
+func creditMemoApplicationLabel(app core.App, r *core.Record) string {
+	memo := r.GetString("credit_memo")
+	if rec, err := app.FindRecordById("books_credit_memos", memo); err == nil {
+		memo = creditMemoLabel(rec)
+	}
+	invoice := r.GetString("invoice")
+	if inv, err := app.FindRecordById("books_invoices", invoice); err == nil {
+		invoice = invoiceLabel(inv)
+	}
+	return memo + ": " + invoice
 }
 
 // vendorRefundLineLabel names a refund line by its refund and the vendor

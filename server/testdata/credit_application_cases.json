@@ -1,0 +1,207 @@
+[
+    {
+        "name": "vendor credit: a date that is no day",
+        "kind": "vendor_credit", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-02-30",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 15000, "documentState": "open", "creditState": "posted",
+        "goField": "date", "tsField": "date",
+        "goMessage": "Enter a date that exists, in the form YYYY-MM-DD.", "tsMessage": "Enter a date that exists"
+    },
+    {
+        "name": "vendor credit: the day before the credit date",
+        "kind": "vendor_credit", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-11",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 15000, "documentState": "open", "creditState": "posted",
+        "goField": "date", "tsField": "date",
+        "goMessage": "The apply date can't be before the credit date.", "tsMessage": "The apply date can't be before the credit date."
+    },
+    {
+        "name": "vendor credit: the credit date itself",
+        "kind": "vendor_credit", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-12",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 15000, "documentState": "open", "creditState": "posted",
+        "goField": "", "tsField": "", "goMessage": "", "tsMessage": ""
+    },
+    {
+        "name": "vendor credit: on the close date with no override",
+        "kind": "vendor_credit", "creditDate": "2026-11-12", "closeDate": "2026-11-16", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 15000, "documentState": "open", "creditState": "posted",
+        "goField": "date", "tsField": "date",
+        "goMessage": "The books are closed through 2026-11-16. Ask a Books admin for a close-date override to post on 2026-11-16.",
+        "tsMessage": "Books are closed through Nov 16, 2026. Pick a later date."
+    },
+    {
+        "name": "vendor credit: on the close date with an override",
+        "kind": "vendor_credit", "creditDate": "2026-11-12", "closeDate": "2026-11-16", "hasOverride": true, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 15000, "documentState": "open", "creditState": "posted",
+        "goField": "", "tsField": "", "goMessage": "", "tsMessage": ""
+    },
+    {
+        "name": "vendor credit: the day after the close date",
+        "kind": "vendor_credit", "creditDate": "2026-11-12", "closeDate": "2026-11-15", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 15000, "documentState": "open", "creditState": "posted",
+        "goField": "", "tsField": "", "goMessage": "", "tsMessage": ""
+    },
+    {
+        "name": "vendor credit: the whole document balance",
+        "kind": "vendor_credit", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 10000, "amount": 10000, "documentState": "open", "creditState": "posted",
+        "goField": "", "tsField": "", "goMessage": "", "tsMessage": ""
+    },
+    {
+        "name": "vendor credit: one cent above the document balance",
+        "kind": "vendor_credit", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 10000, "amount": 10001, "documentState": "open", "creditState": "posted",
+        "goField": "bill", "tsField": "row",
+        "goMessage": "Bill 1001: the credit is more than its open balance of $100.00.", "tsMessage": "More than the open balance of $100.00"
+    },
+    {
+        "name": "vendor credit: one cent above the credit balance",
+        "kind": "vendor_credit", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 25001, "documentState": "open", "creditState": "posted",
+        "goField": "amount", "tsField": "root",
+        "goMessage": "More than the unapplied credit of $250.00.", "tsMessage": "More than the unapplied credit of $250.00."
+    },
+    {
+        "name": "vendor credit: a part of the document balance",
+        "kind": "vendor_credit", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 15000, "documentState": "open", "creditState": "posted",
+        "goField": "", "tsField": "", "goMessage": "", "tsMessage": ""
+    },
+    {
+        "name": "vendor credit: a draft credit",
+        "kind": "vendor_credit", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 5000, "documentState": "open", "creditState": "draft",
+        "goField": "vendor_credit", "tsField": "", "goMessage": "Only a posted vendor credit is applied to bills.", "tsMessage": "", "go": true
+    },
+    {
+        "name": "vendor credit: a void credit",
+        "kind": "vendor_credit", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 5000, "documentState": "open", "creditState": "void",
+        "goField": "vendor_credit", "tsField": "", "goMessage": "Only a posted vendor credit is applied to bills.", "tsMessage": "", "go": true
+    },
+    {
+        "name": "vendor credit: a draft bill",
+        "kind": "vendor_credit", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 5000, "documentState": "draft", "creditState": "posted",
+        "goField": "bill", "tsField": "", "goMessage": "This bill is not open. Clear it to continue.", "tsMessage": "", "go": true
+    },
+    {
+        "name": "vendor credit: a void bill",
+        "kind": "vendor_credit", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 5000, "documentState": "void", "creditState": "posted",
+        "goField": "bill", "tsField": "", "goMessage": "Bill 1001 is not open. Clear it to continue.", "tsMessage": "", "go": true
+    },
+    {
+        "name": "vendor credit: a paid bill",
+        "kind": "vendor_credit", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 5000, "documentState": "paid", "creditState": "posted",
+        "goField": "bill", "tsField": "", "goMessage": "Bill 1001 is not open. Clear it to continue.", "tsMessage": "", "go": true
+    },
+    {
+        "name": "vendor credit: another vendor's bill",
+        "kind": "vendor_credit", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 5000, "documentState": "other_party", "creditState": "posted",
+        "goField": "bill", "tsField": "", "goMessage": "Bill 1001 is not open. Clear it to continue.", "tsMessage": "", "go": true
+    },
+    {
+        "name": "credit memo: a date that is no day",
+        "kind": "credit_memo", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-02-30",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 15000, "documentState": "open", "creditState": "posted",
+        "goField": "date", "tsField": "date",
+        "goMessage": "Enter a date that exists, in the form YYYY-MM-DD.", "tsMessage": "Enter a date that exists"
+    },
+    {
+        "name": "credit memo: the day before the credit date",
+        "kind": "credit_memo", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-11",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 15000, "documentState": "open", "creditState": "posted",
+        "goField": "date", "tsField": "date",
+        "goMessage": "The apply date can't be before the credit date.", "tsMessage": "The apply date can't be before the credit date."
+    },
+    {
+        "name": "credit memo: the credit date itself",
+        "kind": "credit_memo", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-12",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 15000, "documentState": "open", "creditState": "posted",
+        "goField": "", "tsField": "", "goMessage": "", "tsMessage": ""
+    },
+    {
+        "name": "credit memo: on the close date with no override",
+        "kind": "credit_memo", "creditDate": "2026-11-12", "closeDate": "2026-11-16", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 15000, "documentState": "open", "creditState": "posted",
+        "goField": "date", "tsField": "date",
+        "goMessage": "The books are closed through 2026-11-16. Ask a Books admin for a close-date override to post on 2026-11-16.",
+        "tsMessage": "Books are closed through Nov 16, 2026. Pick a later date."
+    },
+    {
+        "name": "credit memo: on the close date with an override",
+        "kind": "credit_memo", "creditDate": "2026-11-12", "closeDate": "2026-11-16", "hasOverride": true, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 15000, "documentState": "open", "creditState": "posted",
+        "goField": "", "tsField": "", "goMessage": "", "tsMessage": ""
+    },
+    {
+        "name": "credit memo: the day after the close date",
+        "kind": "credit_memo", "creditDate": "2026-11-12", "closeDate": "2026-11-15", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 15000, "documentState": "open", "creditState": "posted",
+        "goField": "", "tsField": "", "goMessage": "", "tsMessage": ""
+    },
+    {
+        "name": "credit memo: the whole document balance",
+        "kind": "credit_memo", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 10000, "amount": 10000, "documentState": "open", "creditState": "posted",
+        "goField": "", "tsField": "", "goMessage": "", "tsMessage": ""
+    },
+    {
+        "name": "credit memo: one cent above the document balance",
+        "kind": "credit_memo", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 10000, "amount": 10001, "documentState": "open", "creditState": "posted",
+        "goField": "invoice", "tsField": "row",
+        "goMessage": "Invoice 1001: the credit is more than its open balance of $100.00.", "tsMessage": "More than the open balance of $100.00"
+    },
+    {
+        "name": "credit memo: one cent above the credit balance",
+        "kind": "credit_memo", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 25001, "documentState": "open", "creditState": "posted",
+        "goField": "credit_memo", "tsField": "root",
+        "goMessage": "Credit memo 1001 has $250.00 of unapplied credit. Clear it or lower the amount.",
+        "tsMessage": "More than the unapplied credit of $250.00."
+    },
+    {
+        "name": "credit memo: a part of the document balance",
+        "kind": "credit_memo", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 15000, "documentState": "open", "creditState": "posted",
+        "goField": "", "tsField": "", "goMessage": "", "tsMessage": ""
+    },
+    {
+        "name": "credit memo: a draft credit memo",
+        "kind": "credit_memo", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 5000, "documentState": "open", "creditState": "draft",
+        "goField": "credit_memo", "tsField": "", "goMessage": "Only a posted credit memo is applied to invoices.", "tsMessage": "", "go": true
+    },
+    {
+        "name": "credit memo: a void credit memo",
+        "kind": "credit_memo", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 5000, "documentState": "open", "creditState": "void",
+        "goField": "credit_memo", "tsField": "", "goMessage": "Only a posted credit memo is applied to invoices.", "tsMessage": "", "go": true
+    },
+    {
+        "name": "credit memo: a draft invoice",
+        "kind": "credit_memo", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 5000, "documentState": "draft", "creditState": "posted",
+        "goField": "invoice", "tsField": "", "goMessage": "This invoice is not open. Clear it to continue.", "tsMessage": "", "go": true
+    },
+    {
+        "name": "credit memo: a void invoice",
+        "kind": "credit_memo", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 5000, "documentState": "void", "creditState": "posted",
+        "goField": "invoice", "tsField": "", "goMessage": "Invoice 1001 is not open. Clear it to continue.", "tsMessage": "", "go": true
+    },
+    {
+        "name": "credit memo: a paid invoice",
+        "kind": "credit_memo", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 5000, "documentState": "paid", "creditState": "posted",
+        "goField": "invoice", "tsField": "", "goMessage": "Invoice 1001 is not open. Clear it to continue.", "tsMessage": "", "go": true
+    },
+    {
+        "name": "credit memo: another customer's invoice",
+        "kind": "credit_memo", "creditDate": "2026-11-12", "closeDate": "", "hasOverride": false, "date": "2026-11-16",
+        "creditBalance": 25000, "documentBalance": 40000, "amount": 5000, "documentState": "other_party", "creditState": "posted",
+        "goField": "invoice", "tsField": "", "goMessage": "Invoice 1001 is not open. Clear it to continue.", "tsMessage": "", "go": true
+    }
+]

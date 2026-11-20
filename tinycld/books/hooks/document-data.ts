@@ -114,7 +114,11 @@ export type ExpenseKindFields = { kind: 'expense' } & Pick<
     BooksExpenses,
     'vendor' | 'paid_from' | 'payment_method' | 'reference_no'
 >
-export type CreditMemoKindFields = { kind: 'credit_memo' } & Pick<BooksCreditMemos, 'invoice'>
+// `applied` is the cents of its applications to invoices, which the server keeps.
+export type CreditMemoKindFields = { kind: 'credit_memo' } & Pick<
+    BooksCreditMemos,
+    'invoice' | 'applied'
+>
 export type VendorCreditKindFields = { kind: 'vendor_credit' } & Pick<
     BooksVendorCredits,
     'vendor' | 'ref_no' | 'balance'
@@ -144,7 +148,8 @@ export type DocumentSource = SharedColumns & { kindFields: DocumentKindFields }
 // cents (the Written off badge and row). An estimate's own
 // fields add the invoice that was made from it ("Converted to invoice <n>"). A bill's own
 // fields add its vendor's name and its open balance (Balance due, the badge). A credit
-// memo's own fields add the invoice it is for ("For invoice <n>") and its unapplied credit.
+// memo's own fields add the invoice it is for ("For invoice <n>"), its unapplied credit
+// and the credit applied to invoices.
 // A vendor credit's own fields (its unapplied credit, `balance`, among them) add its
 // vendor's name. A refund receipt's own fields add its Refund from account, which its
 // payment line names, and the sales receipt or credit memo it refunds.

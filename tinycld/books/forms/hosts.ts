@@ -1119,6 +1119,7 @@ const hosts: FormHostDefInput[] = [
             'tax_total',
             'total',
             'balance',
+            'applied',
             'revision',
             'currency',
             'entry',

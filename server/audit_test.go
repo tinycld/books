@@ -546,6 +546,38 @@ func TestAudit_LabelsAVendorCreditItsLinesAndItsApplications(t *testing.T) {
 	}
 }
 
+// Apply credit spec §3.8: a credit memo application's audit row names the
+// memo and the invoice ("Credit memo 1002: Invoice 1003"), and its parent is
+// the credit memo, which the History link opens.
+func TestAudit_LabelsACreditMemoApplication(t *testing.T) {
+	me := newMemoApplyEnv(t)
+	applications, ok := auditedCollections(me.app)["books_credit_memo_applications"]
+	if !ok {
+		t.Fatal("books_credit_memo_applications is not audited")
+	}
+	if got := auditParentFields["books_credit_memo_applications"]; got != "credit_memo" {
+		t.Errorf("auditParentFields[books_credit_memo_applications] = %q, want credit_memo", got)
+	}
+	if got := auditParentOf["books_credit_memo_applications"]; got != "books_credit_memos" {
+		t.Errorf("auditParentOf[books_credit_memo_applications] = %q, want books_credit_memos", got)
+	}
+
+	if err := setFields(t, me.app, "books_doc_sequences", creditMemoSequenceID, map[string]any{"next_number": 1002}); err != nil {
+		t.Fatalf("move the credit memo sequence to 1002: %v", err)
+	}
+	if err := setFields(t, me.app, "books_doc_sequences", "booksseqinvoice", map[string]any{"next_number": 1003}); err != nil {
+		t.Fatalf("move the invoice sequence to 1003: %v", err)
+	}
+	inv := me.invoice(t, me.customer, 40000)
+	memo := me.postedMemo(t, me.customer, memoApplyCreditDay, 25000)
+	application := me.apply(t, memo, inv, 15000, memoApplyDay)
+
+	if got, want := applications.ExtractLabel(application), "Credit memo 1002: Invoice 1003"; got != want {
+		t.Errorf("credit memo application audit label = %q, want %q", got, want)
+	}
+	requireMemoApplyClean(t, me.app)
+}
+
 // Spec §3.9: an attachment's audit row names the file and its document
 // ("Attachment OSW-invoice-1002.pdf on Bill 1002", "Attachment receipt.jpg on
 // Draft expense"), and the file alone once its document is gone (the delete

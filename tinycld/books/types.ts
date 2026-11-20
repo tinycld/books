@@ -25,6 +25,7 @@ export type {
     BooksCashBasisLines,
     BooksCashBasisTaxLines,
     BooksCloseOverrides,
+    BooksCreditMemoApplications,
     BooksCreditMemoLines,
     BooksCreditMemos,
     BooksCreditMemoTaxLines,

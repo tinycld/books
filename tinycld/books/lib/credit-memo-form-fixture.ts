@@ -79,8 +79,10 @@ function memo(seed: MemoSeed): CreditMemoRecord {
         subtotal: 0,
         tax_total: 0,
         total: 0,
-        // What posting writes: the whole credit is unapplied until p2-apply-credit.
+        // What posting writes: the whole credit is unapplied; no memo of this fixture is
+        // applied to an invoice.
         balance: seed.status === 'posted' ? (seed.total ?? 0) : 0,
+        applied: 0,
         revision: 1,
         currency: CREDIT_MEMO_CURRENCY,
         entry: '',

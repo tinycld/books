@@ -320,8 +320,10 @@ export function registerCollections(
 
     // As the invoice's three: server-owned fields below the omit line (the
     // number at posting, the totals at every draft write, the credit not yet
-    // applied at posting and void), no relations (the credit memo screen reads
-    // its customer, tax rate, invoice and users through its own queries).
+    // applied at posting and void, the cents applied to invoices at each
+    // application, as the invoice's written_off), no relations (the credit memo
+    // screen reads its customer, tax rate, invoice and users through its own
+    // queries).
     const books_credit_memos = newCollection('books_credit_memos', {
         omitOnInsert: [
             'created',
@@ -332,6 +334,7 @@ export function registerCollections(
             'tax_total',
             'total',
             'balance',
+            'applied',
             'revision',
             'currency',
             'entry',
@@ -643,6 +646,16 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // One row per invoice a credit memo is applied to, written as the vendor
+    // credit's applications: the client sends the memo, the invoice, the amount
+    // and the apply date; the server stamps applied_by and close_override.
+    const books_credit_memo_applications = newCollection('books_credit_memo_applications', {
+        omitOnInsert: ['created', 'applied_by', 'close_override'] as const,
+        ...onDemand,
+        relations: { credit_memo: books_credit_memos, invoice: books_invoices },
+        collectionOptions: indexed,
+    })
+
     // As the payment's: server-owned fields below the omit line (the number at
     // posting, who and when by the request). The read view materializes its vendor,
     // Refunded to account, entry, poster and voider, and the correction reads the
@@ -788,6 +801,7 @@ export function registerCollections(
         books_credit_memos,
         books_credit_memo_lines,
         books_credit_memo_tax_lines,
+        books_credit_memo_applications,
         books_refund_receipts,
         books_refund_receipt_lines,
         books_refund_receipt_tax_lines,

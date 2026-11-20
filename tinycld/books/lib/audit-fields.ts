@@ -320,6 +320,7 @@ const AUDIT_FIELD_MAPS = {
         message: text('Message'),
         tax_total: money('Tax'),
         balance: money('Unapplied credit'),
+        applied: money('Applied'),
         invoice: relation('Invoice', 'books_invoices'),
     },
     books_refund_receipts: {
@@ -365,6 +366,16 @@ const AUDIT_FIELD_MAPS = {
     books_vendor_credit_applications: {
         vendor_credit: relation('Vendor credit', 'books_vendor_credits'),
         bill: relation('Bill', 'books_bills'),
+        amount: money('Credit applied'),
+        date: day('Apply date'),
+        applied_by: relation('Applied by', 'users'),
+        close_override: relation('Close date override', 'books_close_overrides'),
+        id: STAMPS.id,
+        created: STAMPS.created,
+    },
+    books_credit_memo_applications: {
+        credit_memo: relation('Credit memo', 'books_credit_memos'),
+        invoice: relation('Invoice', 'books_invoices'),
         amount: money('Credit applied'),
         date: day('Apply date'),
         applied_by: relation('Applied by', 'users'),
@@ -898,8 +909,14 @@ const EVENT_WORDS: Record<AuditEvent, string> = {
     deleted: 'Deleted',
 }
 
-export function eventWords(event: AuditEvent): string {
-    return EVENT_WORDS[event]
+// A collection whose events read in its own words (apply credit spec §3.8).
+const COLLECTION_EVENT_WORDS: Record<string, Partial<Record<AuditEvent, string>>> = {
+    books_credit_memo_applications: { added: 'Credit applied', deleted: 'Credit removed' },
+}
+
+export function eventWords(event: AuditEvent, collection?: string): string {
+    const own = collection ? COLLECTION_EVENT_WORDS[collection]?.[event] : undefined
+    return own ?? EVENT_WORDS[event]
 }
 
 /**
@@ -926,12 +943,12 @@ export function isLineEvent(row: Pick<AuditLogRow, 'record_type'>, collection: s
  * `position` (0-based), else the delete snapshot's, else the record label.
  */
 export function lineEventTitle(
-    row: Pick<AuditLogRow, 'event' | 'record_label' | 'snapshot'>,
+    row: Pick<AuditLogRow, 'event' | 'record_label' | 'record_type' | 'snapshot'>,
     livePosition: number | null | undefined
 ): string {
     const position = [livePosition, row.snapshot?.position].find(
         (value): value is number => typeof value === 'number'
     )
     const name = position === undefined ? row.record_label : `Line ${position + 1}`
-    return `${name} — ${eventWords(row.event)}`
+    return `${name} — ${eventWords(row.event, row.record_type)}`
 }
