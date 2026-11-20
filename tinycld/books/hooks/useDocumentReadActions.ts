@@ -6,8 +6,10 @@ import { router } from 'expo-router'
 import { useState } from 'react'
 import type { DocumentMoreItem } from '../components/documents/DocumentActionBar'
 import type { DocumentKind } from '../components/documents/document-kinds'
+import { applyCreditLabel } from '../lib/credit-application-kinds'
 import {
     applyCreditOffered,
+    applyInvoiceCreditOffered,
     creditMemoOffered,
     DOCUMENT_READ_ACTION_KEYS,
     DOCUMENT_READ_LABELS,
@@ -36,6 +38,7 @@ import type { DocumentRecord } from './document-data'
 import { useOpenDocument } from './useOpenDocument'
 import { useOpenFromReadView, useOpenInPlaceOfReadView } from './useOpenFromReadView'
 import { usePdfDownload } from './usePdfDownload'
+import { useUnappliedCreditMemos } from './useUnappliedCreditMemos'
 import { useVoidDocument } from './useVoidDocument'
 
 type ReadRecord = Pick<
@@ -71,6 +74,15 @@ function balanceOf(record: ReadRecord): number {
     }
 }
 
+// The customer whose credit memos an invoice's Apply credit reads: a writer's posted invoice
+// with an open balance only; '' (the read is off) for every other record and for a reader.
+function creditCustomerOf(record: ReadRecord, canWrite: boolean): string {
+    const fields = record.kindFields
+    if (fields.kind !== 'invoice') return ''
+    const isOpen = record.status === 'posted' && fields.balance > 0
+    return canWrite && isOpen ? record.customer : ''
+}
+
 // A payout's void dialog says its credit memo's credit is unapplied again (payoutVoidBodyOf);
 // every other record shows the dialog's own text.
 function voidBodyOf(record: ReadRecord): string | undefined {
@@ -96,7 +108,8 @@ function readActionId(action: DocumentReadAction): string {
 function offeredActionsOf(
     doc: Pick<SalesDocumentKind, 'lifecycle' | 'features'>,
     record: ReadRecord,
-    canWrite: boolean
+    canWrite: boolean,
+    hasUnappliedCredit: boolean
 ): DocumentReadAction[] {
     const { kind } = record.kindFields
     const balance = balanceOf(record)
@@ -105,6 +118,12 @@ function offeredActionsOf(
         canPayBill: payBillOffered(kind, record.status, balance),
         canCreateCreditMemo: creditMemoOffered(kind, record.status),
         canApplyCredit: applyCreditOffered(kind, record.status, balance),
+        canApplyInvoiceCredit: applyInvoiceCreditOffered(
+            kind,
+            record.status,
+            balance,
+            hasUnappliedCredit
+        ),
         canRecordRefund:
             kind === 'vendor_credit' && refundOffered(record.status, canWrite, balance),
         canRefund: refundReceiptOffered(kind, record.status),
@@ -128,8 +147,10 @@ function offeredActionsOf(
  * Receive payment (a posted invoice with an open balance) pushes a new payment for its
  * customer with the invoice ticked, so Back returns to the invoice; Pay bill (a posted bill
  * with an open balance) pushes Pay bills with the bill selected, so Back returns to the bill;
- * Apply to bills (a posted vendor credit with unapplied credit) opens the apply dialog
- * through `useApplyCreditStore`; Record refund (a writer on a posted vendor credit with
+ * Apply (Apply to bills on a posted vendor credit, Apply to invoices on a posted credit memo,
+ * each with unapplied credit, and Apply credit on a writer's posted invoice with an open
+ * balance while useUnappliedCreditMemos finds its customer's unapplied credit; its words from
+ * applyCreditLabel) opens the apply dialog with the record's id through `useApplyCreditStore`; Record refund (a writer on a posted vendor credit with
  * unapplied credit) pushes a new vendor refund for its vendor with the credit ticked, so Back
  * returns to the credit. Refund (a writer on a posted sales receipt) and Refund credit (a
  * writer on a posted credit memo with unapplied credit) push a new refund receipt made from
@@ -172,9 +193,12 @@ export function useDocumentReadActions(
     const openInvoice = useOpenDocument(INVOICE_KIND, invoiceIdOf(record))
     const openApplyDialog = useApplyCreditStore(state => state.open)
     const openWriteOff = useWriteOffStore(state => state.open)
+    // The same query key as the invoice's read frame, so one request serves both.
+    const unappliedCredits = useUnappliedCreditMemos(creditCustomerOf(record, canWrite))
+    const hasUnappliedCredit = unappliedCredits.credits.length > 0
     const run: Record<DocumentReadAction, () => void> = {
-        // The apply dialog, drawn by the vendor credit's read section (vendor credit spec
-        // §3.9).
+        // The apply dialog, drawn by the credit's or the invoice's read frame (vendor credit
+        // spec §3.9, apply credit spec §3.2, §3.3), opened with this record's id.
         apply_credit: () => openApplyDialog(record.id),
         // Pushed, so Back returns to the vendor credit (vendor refund spec §3.9): the refund
         // form opens with the credit's vendor and the credit ticked.
@@ -227,10 +251,17 @@ export function useDocumentReadActions(
         if (action === 'pdf') return download.isPending
         return isVoiding
     }
-    const actions: DocumentReadItem[] = offeredActionsOf(doc, record, canWrite).map(action => ({
+    // Apply's words follow the record's kind: "Apply to bills", "Apply to invoices", "Apply
+    // credit".
+    const labelOf = (action: DocumentReadAction) =>
+        action === 'apply_credit'
+            ? applyCreditLabel(record.kindFields.kind)
+            : DOCUMENT_READ_LABELS[action]
+    const offered = offeredActionsOf(doc, record, canWrite, hasUnappliedCredit)
+    const actions: DocumentReadItem[] = offered.map(action => ({
         action,
         id: readActionId(action),
-        label: DOCUMENT_READ_LABELS[action],
+        label: labelOf(action),
         keys: formatHint(DOCUMENT_READ_ACTION_KEYS[action]).text,
         isDisabled: disabledOf(action),
         isDestructive: action === 'void',

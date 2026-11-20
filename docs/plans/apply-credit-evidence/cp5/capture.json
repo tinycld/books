@@ -1,0 +1,89 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "receive-payment",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "widths": [390],
+            "actions": [
+                { "pause": 500 },
+                { "clickVisible": "New" },
+                { "click": "books-new-receive-payment" },
+                { "waitFor": "payment-form" },
+                { "pause": 500 },
+                { "click": "payment-customer" },
+                { "fill": "payment-customer-search", "value": "Fox Hollow Vineyards" },
+                { "clickRole": "menuitem", "name": "Fox Hollow Vineyards" },
+                { "waitFor": "payment-credits-notice" },
+                { "waitFor": "payment-card-invcac1009foxh1" },
+                { "pause": 500 },
+                { "click": "payment-title" },
+                { "scrollTo": "payment-card-invcac1009foxh1" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./receive-payment",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "widths": [1280],
+            "actions": [
+                { "pause": 500 },
+                { "clickVisible": "New" },
+                { "click": "books-new-receive-payment" },
+                { "waitFor": "payment-form" },
+                { "pause": 500 },
+                { "click": "payment-customer" },
+                { "fill": "payment-customer-search", "value": "Fox Hollow Vineyards" },
+                { "clickRole": "menuitem", "name": "Fox Hollow Vineyards" },
+                { "waitFor": "payment-credits-notice" },
+                { "waitFor": "payment-row-invcac1009foxh1" },
+                { "pause": 500 },
+                { "click": "payment-title" },
+                { "scrollTo": "payment-row-invcac1009foxh1" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "sales-credit-memos",
+            "url": "/a/books/credit-memos",
+            "ready": "sales-list",
+            "schemes": ["light"],
+            "widths": [1280],
+            "actions": [
+                { "waitFor": "sales-row-crmac1001foxh01" },
+                { "pause": 500 },
+                { "clickPrefix": "sales-row-menu-crmac1001foxh01" },
+                { "clickPrefix": "sales-row-action-apply-credit" },
+                { "waitFor": "apply-credit-summary" },
+                { "atRest": "apply-credit-dialog" },
+                { "press": "ControlOrMeta+Enter" },
+                { "waitForHidden": "apply-credit-dialog" },
+                { "waitFor": "credit-memo-total-applied" },
+                { "waitForHidden": "Applied $100.00 to 1 invoice" },
+                { "back": true },
+                { "waitForHidden": "credit-memo-total-applied" },
+                { "waitFor": "sales-row-crmac1001foxh01" },
+                { "pause": 500 },
+                { "clickPrefix": "sales-title" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "./sales-credit-memos",
+            "url": "/a/books/sales",
+            "ready": "sales-list",
+            "schemes": ["light"],
+            "widths": [390],
+            "actions": [
+                { "pause": 500 },
+                { "clickPrefix": "sales-tab-credit-memos" },
+                { "waitFor": "sales-row-crmac1001foxh01" },
+                { "pause": 500 },
+                { "clickPrefix": "sales-title" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}

@@ -1,3 +1,4 @@
+import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { useWritesAvailable } from '@tinycld/core/lib/use-writes-available'
 import { Button, ButtonText, ServerActionButton } from '@tinycld/core/ui/button'
 import { DIALOG_SUBMIT_SHORTCUT, Dialog } from '@tinycld/core/ui/dialog'
@@ -7,12 +8,17 @@ import { Pressable, Text, View } from 'react-native'
 import type { CreditApplicationRow } from '../../hooks/useCreditApplications'
 import type { CreditRefundRow } from '../../hooks/useCreditRefunds'
 import { useOpenDocument } from '../../hooks/useOpenDocument'
-import { APPLY_CREDIT_MESSAGES } from '../../lib/apply-credit-schema'
+import type { ApplicationTarget } from '../../lib/credit-application-kinds'
 import type { CreditUseRow } from '../../lib/credit-uses'
 import { formatMoney } from '../../lib/money'
 import { fillPaymentText } from '../../lib/payment-texts'
 import { formatDay } from '../../lib/register-range'
-import { BILL_KIND, VENDOR_CREDIT_KIND } from '../../lib/sales-document-kinds'
+import {
+    BILL_KIND,
+    CREDIT_MEMO_KIND,
+    INVOICE_KIND,
+    VENDOR_CREDIT_KIND,
+} from '../../lib/sales-document-kinds'
 import { VENDOR_REFUND_FLOW } from '../../lib/vendor-refund-flow'
 import { RefusalSummary } from '../entries/RefusalSummary'
 import { ListBanner } from '../ListBanner'
@@ -24,16 +30,19 @@ const AUTOFOCUS = autoFocusDataSet({ autoFocus: true })
 
 function ignore() {}
 
-// What an application row names and opens: the bill on a vendor credit's Applied to block,
-// the vendor credit on a bill's Payments block. The row's ids follow it:
-// `<prefix>-application-<id>` / `<prefix>-application-remove-<id>` on the credit,
-// `<prefix>-credit-<id>` / `<prefix>-credit-remove-<id>` on the bill.
+// What an application row names and opens: the bill or the invoice on a credit's Applied
+// to block, the vendor credit or the credit memo on a document's Payments block. The row's
+// ids follow it: `<prefix>-application-<id>` / `<prefix>-application-remove-<id>` on the
+// credit, `<prefix>-credit-<id>` / `<prefix>-credit-remove-<id>` on the document.
 const APPLICATION_TARGETS = {
     bill: {
         kind: BILL_KIND,
         noun: 'Bill',
         idSuffix: 'application',
-        documentOf: (row: CreditApplicationRow) => ({ id: row.billId, number: row.billNumber }),
+        documentOf: (row: CreditApplicationRow) => ({
+            id: row.documentId,
+            number: row.documentNumber,
+        }),
     },
     credit: {
         kind: VENDOR_CREDIT_KIND,
@@ -44,9 +53,25 @@ const APPLICATION_TARGETS = {
             number: row.creditNumber,
         }),
     },
-} as const
-
-export type ApplicationTarget = keyof typeof APPLICATION_TARGETS
+    invoice: {
+        kind: INVOICE_KIND,
+        noun: 'Invoice',
+        idSuffix: 'application',
+        documentOf: (row: CreditApplicationRow) => ({
+            id: row.documentId,
+            number: row.documentNumber,
+        }),
+    },
+    credit_memo: {
+        kind: CREDIT_MEMO_KIND,
+        noun: 'Credit memo',
+        idSuffix: 'credit',
+        documentOf: (row: CreditApplicationRow) => ({
+            id: row.creditId,
+            number: row.creditNumber,
+        }),
+    },
+} as const satisfies Record<ApplicationTarget, unknown>
 
 interface ApplicationRowProps {
     application: CreditApplicationRow
@@ -77,10 +102,12 @@ function RemoveButton({
 }
 
 /**
- * One application: on a vendor credit's Applied to block "Bill 1003 · Nov 16, 2026 ·
- * $30.00", on a bill's Payments block "Vendor credit 1002 · Nov 16, 2026 · $30.00"; a link
- * that opens that document (back to its screen when it is below, else pushed), and Remove
- * for a writer on a posted document. Remove only opens the confirm, so it is a plain Button.
+ * One application: on a credit's Applied to block "Bill 1003 · Nov 16, 2026 · $30.00" or
+ * "Invoice 1009 · Nov 16, 2026 · $150.00", on a bill's Payments block "Vendor credit 1002 ·
+ * Nov 16, 2026 · $30.00", on an invoice's "Credit memo 1001 · Nov 16, 2026 · $150.00"
+ * (APPLICATION_TARGETS); a link that opens that document (back to its screen when it is
+ * below, else pushed), and Remove for a writer on a posted document, under the link on a
+ * phone. Remove only opens the confirm, so it is a plain Button.
  */
 export function ApplicationRow({
     application,
@@ -101,8 +128,11 @@ export function ApplicationRow({
         row: `${testIdPrefix}-${named.idSuffix}-${application.id}`,
         remove: `${testIdPrefix}-${named.idSuffix}-remove-${application.id}`,
     }
+    // A phone stacks Remove under the link (apply credit spec §4.6); wider, they share a row.
+    const isPhone = useBreakpoint() === 'mobile'
+    const rowClass = isPhone ? 'items-start gap-1' : 'flex-row flex-wrap items-center gap-3'
     return (
-        <View testID={ids.row} className="flex-row flex-wrap items-center gap-3">
+        <View testID={ids.row} className={rowClass}>
             <Pressable
                 accessibilityRole="link"
                 onPress={open}
@@ -160,6 +190,7 @@ export type CreditUse = CreditUseRow<CreditApplicationRow, CreditRefundRow>
 
 type UseRowProps = {
     use: CreditUse
+    rowTarget: ApplicationTarget
     currency: string
     testIdPrefix: string
     canRemove: boolean
@@ -167,14 +198,14 @@ type UseRowProps = {
 }
 
 // A row of the block: an application (with Remove for a writer) or a refund (none).
-function UseRow({ use, currency, testIdPrefix, canRemove, onRemove }: UseRowProps) {
+function UseRow({ use, rowTarget, currency, testIdPrefix, canRemove, onRemove }: UseRowProps) {
     if (use.kind === 'refund') {
         return <RefundUseRow refund={use} currency={currency} testIdPrefix={testIdPrefix} />
     }
     return (
         <ApplicationRow
             application={use}
-            target="bill"
+            target={rowTarget}
             currency={currency}
             testIdPrefix={testIdPrefix}
             canRemove={canRemove && use.removable}
@@ -186,8 +217,12 @@ function UseRow({ use, currency, testIdPrefix, canRemove, onRemove }: UseRowProp
 const APPLICATIONS_LOAD_FAILED = 'Books could not load where this credit is applied.'
 
 interface DocumentApplicationsProps {
-    // The applications and the posted refunds, in date order (creditUseRows).
+    // The applications and, on a vendor credit, the posted vendor refunds, in date order
+    // (creditUseRows). A credit memo's refunds stay in its own Refund receipts section.
     uses: readonly CreditUse[]
+    // What each application names and opens: `bill` or `invoice` (the kind's
+    // `documentTarget`).
+    rowTarget: ApplicationTarget
     isReady: boolean
     isError: boolean
     onRetry: () => void
@@ -199,14 +234,16 @@ interface DocumentApplicationsProps {
 }
 
 /**
- * A vendor credit's Applied to block (vendor credit spec §3.9, vendor refund spec §3.9): one
- * row per application (ApplicationRow) and per posted vendor refund (RefundUseRow), oldest
- * date first, an application before a refund on one day. Nothing while the reads load or
- * when the credit has no use; a failed read shows its notice with Retry inside the block
- * and no rows, so it never reads as "nothing applied" (lesson 14).
+ * A credit's Applied to block (vendor credit spec §3.9, vendor refund spec §3.9, apply credit
+ * spec §3.5): one row per application (ApplicationRow, naming `rowTarget`) and, on a vendor
+ * credit, per posted vendor refund (RefundUseRow), oldest date first, an application before
+ * a refund on one day. Nothing while the reads load or when the credit has no use; a failed
+ * read shows its notice with Retry inside the block and no rows, so it never reads as
+ * "nothing applied" (lesson 14).
  */
 export function DocumentApplications({
     uses,
+    rowTarget,
     isReady,
     isError,
     onRetry,
@@ -229,6 +266,7 @@ export function DocumentApplications({
             <UseRow
                 key={`${use.kind}-${use.id}`}
                 use={use}
+                rowTarget={rowTarget}
                 currency={currency}
                 testIdPrefix={testIdPrefix}
                 canRemove={canRemove}
@@ -283,6 +321,8 @@ function ConfirmRemoveButton({
 
 interface RemoveApplicationDialogProps {
     application: CreditApplicationRow | null
+    // The kind's confirm text (`texts.removeBody`): the document's number, then the amount.
+    removeBody: string
     // The application is still listed and Remove still offered, or its delete runs.
     isVisible: boolean
     currency: string
@@ -294,12 +334,14 @@ interface RemoveApplicationDialogProps {
 }
 
 /**
- * The confirm of Remove (vendor credit spec §3.9): "Remove this credit from Bill 1003? The
- * bill's balance goes up by $30.00 and the credit is unapplied again." Cancel (Esc) and
- * Remove (Enter, ⌘↵); a refusal shows in the dialog.
+ * The confirm of Remove (vendor credit spec §3.9, apply credit spec §3.7): "Remove this
+ * credit from Bill 1003? The bill's balance goes up by $30.00 and the credit is unapplied
+ * again.", or the same for an invoice, from the kind's `removeBody`. Cancel (Esc) and Remove
+ * (Enter, ⌘↵); a refusal shows in the dialog.
  */
 export function RemoveApplicationDialog({
     application,
+    removeBody,
     isVisible,
     currency,
     isPending,
@@ -308,11 +350,7 @@ export function RemoveApplicationDialog({
     onCancel,
 }: RemoveApplicationDialogProps) {
     const amount = application ? formatMoney(application.amount, currency) : ''
-    const body = fillPaymentText(
-        APPLY_CREDIT_MESSAGES.removeBody,
-        application?.billNumber ?? '',
-        amount
-    )
+    const body = fillPaymentText(removeBody, application?.documentNumber ?? '', amount)
     const onClose = isPending ? ignore : onCancel
     const isOpen = isVisible && application !== null
     return (

@@ -488,7 +488,8 @@ test.describe('refund-receipt-form: sources', () => {
         await expect(page).toHaveURL(fromCreditMemoUrlOf(memo.id))
         const payout = await postRefund(page, payoutMemo)
 
-        // V on the memo: refused while the payout is posted; the memo stays Posted.
+        // V on the memo: refused while the payout is posted; the memo stays Refunded
+        // (its whole total is paid out: balance 0, applied 0).
         await shown(page, 'refund-receipt-source-link').click()
         await expect(page).toHaveURL(creditMemoUrlOf(memo.id))
         await expect(shown(page, 'credit-memo-read-refund-credit')).toHaveCount(0)
@@ -499,7 +500,7 @@ test.describe('refund-receipt-form: sources', () => {
         await expect(dialog.getByTestId('entry-error-summary')).toContainText(MEMO_VOID_REFUSAL)
         await page.keyboard.press('Escape')
         await expect(dialog).toHaveCount(0)
-        await expect(shown(page, 'credit-memo-badge')).toHaveText('Posted')
+        await expect(shown(page, 'credit-memo-badge')).toHaveText('Refunded')
 
         // The payout is voided from its read view (opened from the memo's section).
         const section = shown(page, 'credit-memo-refunds')

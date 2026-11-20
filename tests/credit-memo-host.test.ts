@@ -39,6 +39,7 @@ const MEMO_COLUMNS = {
     tax_total: true,
     total: true,
     balance: true,
+    applied: true,
     revision: true,
     currency: true,
     entry: true,
@@ -67,11 +68,12 @@ describe('books:credit_memo forms host', () => {
     })
 
     // A custom key must never shadow a column, the server-written ones included.
-    it('lists every column of the collection, invoice and balance included', () => {
+    it('lists every column of the collection, invoice, balance and applied included', () => {
         const columns = memoHost().columns ?? []
         expect([...columns].sort()).toEqual(Object.keys(MEMO_COLUMNS).sort())
         expect(columns).toContain('invoice')
         expect(columns).toContain('balance')
+        expect(columns).toContain('applied')
     })
 
     it('declares the built-ins in order, each header one drawn by its Books component', () => {

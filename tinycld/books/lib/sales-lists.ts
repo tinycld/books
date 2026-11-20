@@ -128,7 +128,7 @@ export const SALES_TABS: readonly DocumentListTab[] = [
         label: 'Credit memos',
         noun: 'credit memos',
         columns: ['date', 'number', 'customer', 'balance', 'total', 'status'],
-        chips: chips('All', 'Unapplied', 'Refunded', 'Draft', 'Void'),
+        chips: chips('All', 'Unapplied', 'Applied', 'Refunded', 'Draft', 'Void'),
         sortKeys: ['balance'],
     }),
     // Refund receipt spec §3.13: the sales receipts tab's columns; a posted refund reads

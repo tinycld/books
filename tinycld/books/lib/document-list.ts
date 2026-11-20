@@ -234,12 +234,14 @@ type Clause = ReturnType<typeof eq>
 // The fields the chip rules read. One ref type serves every kind, so all but the id are
 // optional; each kind has the ones its rules use: a status, and an invoice or a bill its
 // balance and due date (an invoice its written-off cents too), an estimate its expiration
-// date, a payment what it credited, a credit memo or a vendor credit its balance.
+// date, a payment what it credited, a credit memo or a vendor credit its balance (a credit
+// memo its applied cents too).
 type ChipFields = {
     id: string
     status?: string
     balance?: number
     written_off?: number
+    applied?: number
     credited?: number
     due_date?: string
     expiration_date?: string
@@ -258,6 +260,11 @@ const isSettled = (row: Ref<ChipFields>) => and(isPosted(row), eq(row.balance, 0
 // (write-off spec §3.4, Q11).
 const isPaidInvoice = (row: Ref<ChipFields>) => and(isSettled(row), eq(row.written_off, 0))
 const isWrittenOff = (row: Ref<ChipFields>) => and(isSettled(row), gt(row.written_off, 0))
+
+// A settled credit memo reads Applied when a part of it was applied to invoices, else
+// Refunded (apply credit spec §3.5, Q7; `creditMemoStatus`).
+const isAppliedMemo = (row: Ref<ChipFields>) => and(isSettled(row), gt(row.applied, 0))
+const isRefundedMemo = (row: Ref<ChipFields>) => and(isSettled(row), eq(row.applied, 0))
 
 // Overdue: posted, open, and due before today. Days are YYYY-MM-DD text, so they compare
 // as strings; an empty due date is "before" every day, so it is ruled out first.
@@ -316,8 +323,8 @@ const KIND_TAB_RULES: Record<ListKind, Record<string, ChipRule>> = {
     },
     credit_memo: {
         unapplied: hasBalance,
-        // Refund receipt spec §3.12: a posted credit memo at balance 0 reads Refunded.
-        refunded: isSettled,
+        applied: isAppliedMemo,
+        refunded: isRefundedMemo,
         draft: isStatus('draft'),
         void: isStatus('void'),
     },

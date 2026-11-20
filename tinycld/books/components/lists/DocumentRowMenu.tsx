@@ -6,7 +6,7 @@ import { Pressable } from 'react-native'
 import type { DocumentRowActions } from '../../hooks/useDocumentRowActions'
 import { type DocumentListRow, kindLabel } from '../../lib/document-list'
 import { rowActionTestId } from '../../lib/document-row-menu'
-import { LIST_ROW_MENU_LABELS, type ListRowAction, listRowMenuItems } from '../../lib/list-row-menu'
+import { type ListRowAction, listRowMenuItems, listRowMenuLabel } from '../../lib/list-row-menu'
 import { useDocumentListStore } from '../../stores/document-list-store'
 import { PressBoundary } from '../PressBoundary'
 
@@ -22,11 +22,12 @@ interface MenuItemsProps {
 function MenuItems({ row, testIdPrefix, items, actions }: MenuItemsProps) {
     const rendered = items.map(action => {
         const select = () => actions.run(row, action)
+        const label = listRowMenuLabel(row, action)
         return (
             <Menu.Item
                 key={action}
                 testID={rowActionTestId(testIdPrefix, action)}
-                label={LIST_ROW_MENU_LABELS[action]}
+                label={label}
                 isDestructive={action === 'void' || action === 'delete_draft'}
                 isDisabled={actions.isDisabled(action)}
                 onSelect={select}

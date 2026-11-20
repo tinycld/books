@@ -207,6 +207,11 @@ describe('purchaseRowActionHref', () => {
         })
     })
 
+    // The row actions hook opens the credit and its dialog itself, as the sales side.
+    it('apply_credit gives no route', () => {
+        expect(purchaseRowActionHref(row('vendor_credit', 'posted'), 'apply_credit')).toBeNull()
+    })
+
     it('entry gives the journal entry', () => {
         expect(purchaseRowActionHref(row('bill_payment', 'posted'), 'entry')).toBe(
             `books/entries/${ENTRY}`
@@ -227,12 +232,6 @@ describe('purchaseRowActionHref', () => {
         )
         expect(purchaseRowActionHref(row('vendor_refund', 'posted'), 'open')).toBe(
             `books/vendor-refunds/${ID}`
-        )
-    })
-
-    it("apply_credit gives the vendor credit's route", () => {
-        expect(purchaseRowActionHref(row('vendor_credit', 'posted'), 'apply_credit')).toBe(
-            `books/vendor-credits/${ID}`
         )
     })
 

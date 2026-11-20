@@ -13,17 +13,18 @@ import {
     PAY_BILLS_KEY_DESCRIPTIONS,
     PAY_BILLS_SAVE_DESCRIPTION,
 } from '../../lib/pay-bills-shortcuts'
-import { PAY_BILLS_MESSAGES } from '../../lib/pay-bills-texts'
+import { PAY_BILLS_MESSAGES, unappliedCreditText } from '../../lib/pay-bills-texts'
 import { PAYMENT_FORM_KEYS } from '../../lib/payment-shortcuts'
 import { rootErrorOnly } from '../../lib/root-errors'
+import { VENDOR_CREDIT_KIND } from '../../lib/sales-document-kinds'
 import { DocumentBar, type DocumentBarAction } from '../documents/DocumentActionBar'
 import { DocumentHeader } from '../documents/DocumentHeader'
+import { UnappliedCreditsNotice } from '../documents/UnappliedCreditsNotice'
 import { DiscardDialog } from '../entries/DiscardDialog'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { EntryLeaveContext } from '../entries/EntryLeaveContext'
 import { ClearPaymentsLink } from '../payments/ClearPaymentsLink'
 import { PayBillsBand } from './PayBillsBand'
-import { PayBillsCreditsNotice } from './PayBillsCreditsNotice'
 import { PayBillsOpenBills } from './PayBillsOpenBills'
 import { PayBillsSummary } from './PayBillsSummary'
 
@@ -149,9 +150,17 @@ export function PayBillsForm({ screen, scopeOwner }: PayBillsFormProps) {
     })
     // The notice lists the unapplied credits of the vendors of the shown bills.
     const shownVendors = new Set(payForm.shown.map(row => row.vendor))
-    const shownCredits = creditsOfVendors(screen.unappliedCredits, shownVendors)
+    const shownCredits = creditsOfVendors(screen.unappliedCredits, shownVendors).map(credit => ({
+        id: credit.id,
+        label: unappliedCreditText(credit),
+    }))
     const creditsNotice = (
-        <PayBillsCreditsNotice isVisible={shownCredits.length > 0} credits={shownCredits} />
+        <UnappliedCreditsNotice
+            isVisible={shownCredits.length > 0}
+            testIdPrefix="pay-bills"
+            credits={shownCredits}
+            openKind={VENDOR_CREDIT_KIND}
+        />
     )
     const summaryErrors = rootErrorOnly(payForm.form.formState.errors)
     const hasRows = payForm.list === 'rows'

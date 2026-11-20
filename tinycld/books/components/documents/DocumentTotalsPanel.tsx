@@ -14,7 +14,8 @@ export type DocumentTotalsView = {
     total: string
     // The sum the posted payments apply ("−$100.00"), above the last row; null or left out
     // when none applies (every form, and every kind but the invoice and the bill, the
-    // kinds that payments pay).
+    // kinds that payments pay). Credits applied and written off are rows of `after`, so
+    // Payments, those rows and the last row add up to Total.
     payments?: string | null
     // The kind's last row (Balance due on an invoice and a bill, so the total less its
     // payments is what is still owed).
@@ -93,7 +94,8 @@ function BelowTotalRows({ rows }: { rows: readonly DocumentTotalRow[] }) {
 
 // Subtotal (or each table's subtotal), the header tax's one line, Total, then the rows
 // totalRowOrder gives under it: the payments applied (an invoice's or a bill's read view),
-// the kind's rows after Total (a bill's Credits applied, a vendor credit's Applied and
+// the kind's rows after Total (a bill's Credits applied, an invoice's Credits applied and
+// Written off, a vendor credit's Applied and
 // Unapplied credit), the kind's last row (Balance due; none for an estimate or a vendor
 // credit) and the kind's rows after it (a credit memo's Refunded and Unapplied credit),
 // right-aligned so the figures end where the lines' Amount column ends.

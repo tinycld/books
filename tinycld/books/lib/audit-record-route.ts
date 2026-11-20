@@ -145,9 +145,28 @@ function attachmentParent(live: LiveRecord): { collection: string; id: string } 
     return credit ? { collection: 'books_vendor_credits', id: credit } : null
 }
 
-// An attachment opens its bill, expense or vendor credit.
-function attachmentPath(live: LiveRecord): string | null {
-    const parent = attachmentParent(live)
+// The credit memo a credit memo application belongs to (apply credit spec §3.8: its
+// history opens the credit memo, never the invoice).
+function memoApplicationParent(live: LiveRecord): { collection: string; id: string } | null {
+    const memo = textOf(live, 'credit_memo')
+    return memo ? { collection: 'books_credit_memos', id: memo } : null
+}
+
+// Records that open the document they belong to, by their collection.
+const PARENT_DOCUMENTS: Record<
+    string,
+    (live: LiveRecord) => { collection: string; id: string } | null
+> = {
+    books_attachments: attachmentParent,
+    books_credit_memo_applications: memoApplicationParent,
+}
+
+// An attachment opens its bill, expense or vendor credit; an application its credit memo.
+function parentDocumentPath(
+    parentOf: (live: LiveRecord) => { collection: string; id: string } | null,
+    live: LiveRecord
+): string | null {
+    const parent = parentOf(live)
     const kind = parent ? DOCUMENT_KINDS.get(parent.collection) : undefined
     return parent && kind ? documentHref(kind, parent.id) : null
 }
@@ -166,7 +185,8 @@ export function auditRecordHref(
     if (kind) return documentHref(kind, id)
     if (collection === 'books_journal_entries') return entryPath(id, live)
     if (collection === 'books_party_contacts') return contactPath(live)
-    if (collection === 'books_attachments') return attachmentPath(live)
+    const parentOf = PARENT_DOCUMENTS[collection]
+    if (parentOf) return parentDocumentPath(parentOf, live)
     const recordPath = RECORD_PATHS[collection]
     if (recordPath) return recordPath(id)
     return GROUP_SCREENS[collection]?.path ?? null
@@ -181,13 +201,15 @@ export function auditOpenLabel(collection: string): string {
 
 /**
  * The Open button's label for a record's live row: it names the screen the button opens,
- * so a party contact reads "Open customer" or "Open vendor" (contactPath), and an
- * attachment "Open bill", "Open expense" or "Open vendor credit" (attachmentPath).
+ * so a party contact reads "Open customer" or "Open vendor" (contactPath), an attachment
+ * "Open bill", "Open expense" or "Open vendor credit", and a credit memo application
+ * "Open credit memo" (PARENT_DOCUMENTS).
  */
 export function auditRecordOpenLabel(collection: string, live: LiveRecord | undefined): string {
     if (!live) return auditOpenLabel(collection)
-    if (collection === 'books_attachments') {
-        const parent = attachmentParent(live)
+    const parentOf = PARENT_DOCUMENTS[collection]
+    if (parentOf) {
+        const parent = parentOf(live)
         return auditOpenLabel(parent ? parent.collection : collection)
     }
     if (collection !== 'books_party_contacts') return auditOpenLabel(collection)
