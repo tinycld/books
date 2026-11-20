@@ -24,7 +24,7 @@ func registerLedger(app core.App) {
 	registerBanking(app)
 	registerAttachments(app)
 	bindReceivableEntryRefresh(app)
-	registerReceivableWriteGuard(app)
+	receivableItems.registerWriteGuard(app)
 }
 
 // serialized runs check and the write it guards in one transaction. A
