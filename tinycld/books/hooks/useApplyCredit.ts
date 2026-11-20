@@ -4,18 +4,27 @@ import { atomic, useMutation } from '@tinycld/core/lib/mutations'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { useToastStore } from '@tinycld/core/lib/stores/toast-store'
+import { useWritesAvailable } from '@tinycld/core/lib/use-writes-available'
 import { useForm, useWatch, zodResolver } from '@tinycld/core/ui/form'
 import { newRecordId } from 'pbtsdb/core'
 import { useMemo, useRef, useState } from 'react'
 import { Platform, type PressableInstance, type TextInputInstance } from 'react-native'
 import {
-    APPLY_CREDIT_MESSAGES,
     type ApplyCreditValues,
+    type ApplyFrom,
+    type ApplyRow,
     appliedToastText,
     applyCreditSchema,
+    applyDefaultDate,
+    applyDialogState,
+    applyRefusalTarget,
+    applySideTexts,
     applySummaryText,
+    sortApplyRows,
+    spreadForDocument,
 } from '../lib/apply-credit-schema'
 import { refusedRecordId } from '../lib/batch-refusal'
+import type { CreditApplicationKind } from '../lib/credit-application-kinds'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
 import { DEFAULT_PAY_BILLS_SORT, sortPayBillsRows } from '../lib/pay-bills-rows'
 import {
@@ -33,35 +42,42 @@ import { fillPaymentText } from '../lib/payment-texts'
 import { todayIso } from '../lib/register-range'
 import { useApplyCreditStore } from '../stores/apply-credit-store'
 import { useBooksSettings } from './useBooksSettings'
+import { useMyCloseOverride } from './useMyCloseOverride'
 import { useOpenBills } from './useOpenBills'
+import { type OutstandingInvoice, useOutstandingInvoices } from './useOutstandingInvoices'
+import { useUnappliedCreditMemos } from './useUnappliedCreditMemos'
 
 const LOG_CONTEXT = 'books.applyCredit'
 const TOAST_MS = 4000
+const NO_STORED_INVOICES: readonly OutstandingInvoice[] = []
 
-// The posted vendor credit the dialog applies.
+// The fixed side of the apply dialog (plan decision 3): a posted credit (`from: 'credit'`,
+// the party's open documents are the rows) or a posted invoice (`from: 'document'`, the
+// customer's credit memos with unapplied credit are the rows).
 export type ApplyCreditTarget = {
+    kind: CreditApplicationKind
+    from: ApplyFrom
     id: string
-    vendor: string
-    // The vendor's display name, for the empty text.
-    vendorName: string
+    // The credit's or the invoice's party (vendor or customer).
+    party: string
+    // The party's display name, for the empty text.
+    partyName: string
     number: string
     date: string
-    // The unapplied credit in cents.
+    // The fixed side's amount in cents: the credit's unapplied credit, or the invoice's open
+    // balance.
     balance: number
     currency: string
+    // The invoice a credit memo was made from (its `invoice`), or ''.
+    sourceInvoice: string
 }
 
-type ApplyInsert = { id: string; bill: string; amount: number }
+type ApplyInsert = { id: string; rowId: string; amount: number }
 type ApplyVariables = { date: string; inserts: ApplyInsert[] }
+type RowsRead = { isReady: boolean; isError: boolean; recovery: LiveRecovery }
 
-// Today, or the credit date when the credit is post-dated (the apply date is never before it).
-function defaultApplyDate(creditDate: string): string {
-    const today = todayIso()
-    return creditDate > today ? creditDate : today
-}
-
-// The entries of the listed rows only: a bill that left the list since the dialog opened
-// (paid or voided elsewhere) is not applied.
+// The entries of the listed rows only: a row that left the list since the dialog opened
+// (paid, applied or voided elsewhere) is not applied.
 function listedPayments(payments: Payments, rows: readonly OutstandingRow[]): Payments {
     const listed = new Set(rows.map(row => row.id))
     return Object.fromEntries(Object.entries(payments).filter(([id]) => listed.has(id)))
@@ -75,75 +91,169 @@ function insertsOf(
 ): ApplyInsert[] {
     return rows.flatMap(row => {
         const cents = entryCents(payments[row.id], currency)
-        return cents > 0 ? [{ id: newRecordId(), bill: row.id, amount: cents }] : []
+        return cents > 0 ? [{ id: newRecordId(), rowId: row.id, amount: cents }] : []
     })
 }
 
-// The bill a refusal names: the bill of the insert the batch refused, else the only bill
+// The row a refusal names: the row of the insert the batch refused, else the only row
 // written.
-function refusedBill(error: unknown, inserts: readonly ApplyInsert[]): string | null {
+function refusedRow(error: unknown, inserts: readonly ApplyInsert[]): string | null {
     const recordId = refusedRecordId(error)
-    if (recordId !== null) return inserts.find(insert => insert.id === recordId)?.bill ?? null
-    return inserts.length === 1 ? inserts[0].bill : null
+    if (recordId !== null) return inserts.find(insert => insert.id === recordId)?.rowId ?? null
+    return inserts.length === 1 ? inserts[0].rowId : null
 }
 
 function appliedCount(payments: Payments, currency: string): number {
     return Object.values(payments).filter(entry => entryCents(entry, currency) > 0).length
 }
 
-/**
- * The apply dialog of a posted vendor credit (vendor credit spec §3.9). Rows: the vendor's
- * open bills (useOpenBills) by due date, then bill number. The form's values start once
- * the rows and the settings land: today (or the credit date, when later) and the credit
- * spread over the rows oldest due first, so ⌘↵ applies it in one key. Tick sets a row to
- * the lesser of its open balance and the credit not yet placed (`tickRowCapped`), or clears
- * it; typing keeps the text (`typeRowPayment`); ⌥↵ toggles the focused row; Clear empties
- * every row. Apply credit holds the dialog (`useApplyCreditStore.hold`, synchronous, before
- * the write) and writes one application per row above zero in one atomic batch. A refusal
- * keyed `bill` goes under that row's cell and the rest in the dialog's summary; after
- * success the dialog closes and a toast names what was applied. Retry also recovers
- * `sectionRecovery`, the read section's own failed open-bills read, so its notice returns.
- */
-export function useApplyCredit(credit: ApplyCreditTarget, sectionRecovery: LiveRecovery) {
-    const { currency } = credit
-    const [applicationsCollection] = useStore('books_vendor_credit_applications')
-    const settings = useBooksSettings()
-    const openBills = useOpenBills({ vendor: credit.vendor })
-    const billsRead = openBills.read
-    const rows = useMemo(
-        () => sortPayBillsRows(openBills.rows, DEFAULT_PAY_BILLS_SORT),
-        [openBills.rows]
-    )
-    const loadFailed = billsRead.isError || settings.hasLoadError
-    const isLoading = !loadFailed && (!billsRead.isReady || !settings.isReady)
-    const isReady = !loadFailed && !isLoading
+// The credit memos made from the invoice first (spec §3.3), each part in the list's order.
+function sourceMemosFirst(rows: readonly ApplyRow[], sourceIds: ReadonlySet<string>) {
+    return [
+        ...rows.filter(row => sourceIds.has(row.id)),
+        ...rows.filter(row => !sourceIds.has(row.id)),
+    ]
+}
 
-    const creditDate = credit.date.slice(0, 10)
+/**
+ * The rows of the dialog for its use, each read off for the other uses (plan decision 3):
+ * a vendor credit's vendor's open bills (useOpenBills, by due date then number); a credit
+ * memo's customer's open invoices (useOutstandingInvoices, this customer only), the invoice
+ * the memo was made from first, then by due date, then number (sortApplyRows); an invoice's
+ * customer's credit memos with unapplied credit (useUnappliedCreditMemos) as rows whose
+ * `open` is the memo's unapplied credit and whose due date and `creditDate` are its date, a
+ * memo made from the invoice first, then by date, then number.
+ */
+function useApplyRows(target: ApplyCreditTarget): { rows: ApplyRow[]; read: RowsRead } {
+    const isVendor = target.kind.key === 'vendor_credit'
+    const isFromDocument = target.from === 'document'
+    const openBills = useOpenBills({ vendor: target.party, isEnabled: isVendor })
+    const invoices = useOutstandingInvoices(
+        !isVendor && !isFromDocument ? target.party : '',
+        NO_STORED_INVOICES
+    )
+    const memos = useUnappliedCreditMemos(!isVendor && isFromDocument ? target.party : '')
+    const billRows = openBills.rows
+    const invoiceRows = invoices.rows
+    const memoRows = memos.credits
+    const { sourceInvoice, id } = target
+    const rows = useMemo<ApplyRow[]>(() => {
+        if (isVendor) return sortPayBillsRows(billRows, DEFAULT_PAY_BILLS_SORT)
+        if (!isFromDocument) return sortApplyRows(invoiceRows, sourceInvoice)
+        const credits = memoRows.map(memo => ({
+            id: memo.id,
+            number: memo.number,
+            date: memo.date,
+            due_date: memo.date,
+            total: memo.total,
+            open: memo.balance,
+            creditDate: memo.date,
+        }))
+        const sourceIds = new Set(memoRows.filter(memo => memo.invoice === id).map(m => m.id))
+        return sourceMemosFirst(sortApplyRows(credits, ''), sourceIds)
+    }, [isVendor, isFromDocument, billRows, invoiceRows, memoRows, sourceInvoice, id])
+    if (isVendor) return { rows, read: openBills.read }
+    if (isFromDocument) return { rows, read: memos }
+    return { rows, read: invoices }
+}
+
+// The ⌥↵ key's words in the dialog's modal scope (the shortcut list groups it by them).
+function toggleKeyTexts(target: ApplyCreditTarget) {
+    const { kind } = target
+    if (target.from === 'document') {
+        return {
+            description: `Apply this ${kind.creditNoun.toLowerCase()}, or clear it`,
+            group: `Apply credit to ${kind.documentNoun.toLowerCase()}`,
+        }
+    }
+    return {
+        description: `Apply the credit to this ${kind.documentNoun.toLowerCase()}, or clear it`,
+        group: `Apply ${kind.creditNoun.toLowerCase()}`,
+    }
+}
+
+/**
+ * The shared apply dialog's state (vendor credit spec §3.9, apply credit spec §3.2–§3.4)
+ * for one fixed side (`target`): the rows of its use (useApplyRows), the settings' close
+ * date and the user's close-date override (useMyCloseOverride), which the schema reads
+ * (applyCreditSchema with the kind's texts and `from`). The form's values start once the
+ * rows land: from a credit, the credit spread over the rows in list order and the Apply
+ * date today or the credit's date when later; from an invoice, the open balance placed over
+ * the credit memos in list order (spreadForDocument) and the Apply date today or the latest
+ * credit date of the memos that took a part. A tick sets a row to the lesser of its own
+ * limit and what the fixed side has not placed yet (`tickRowCapped`), or clears it; typing
+ * keeps the text; ⌥↵ toggles the focused row; Clear empties every row. `state`
+ * (applyDialogState) picks the body (loading, load error, empty, rows), whether Apply
+ * credit takes a press (rows, online, no write held) and whether the fields are disabled
+ * (while the write is held). Apply credit holds the dialog (`useApplyCreditStore.hold`,
+ * synchronous, before the write) and writes one application per row above zero in one
+ * atomic batch. A refusal keyed by a row's document or credit (applyRefusalTarget) goes
+ * under that row's cell, the rest in the dialog's summary; after success the dialog closes
+ * and a toast names what was applied. Retry recovers every failed read of the dialog and
+ * `sectionRecovery`, the read view's own failed read of the party's open documents, so its
+ * notice returns too.
+ */
+export function useApplyCredit(target: ApplyCreditTarget, sectionRecovery: LiveRecovery) {
+    const { kind, from, currency } = target
+    const texts = applySideTexts(kind.texts, from)
+    const [vendorApplications, memoApplications] = useStore(
+        'books_vendor_credit_applications',
+        'books_credit_memo_applications'
+    )
+    const settings = useBooksSettings()
+    const closeOverride = useMyCloseOverride()
+    const writes = useWritesAvailable()
+    const isHeld = useApplyCreditStore(state => state.isHeld)
+    const { rows, read: rowsRead } = useApplyRows(target)
+    const loadFailed = rowsRead.isError || settings.hasLoadError || closeOverride.isError
+    const isLoading =
+        !loadFailed && (!rowsRead.isReady || !settings.isReady || !closeOverride.isReady)
+    const isReady = !loadFailed && !isLoading
+    const state = applyDialogState({
+        isLoading,
+        hasLoadError: loadFailed,
+        rowCount: rows.length,
+        writesAvailable: writes.available,
+        isHeld,
+    })
+
+    const creditDate = from === 'credit' ? target.date.slice(0, 10) : ''
     const closeDate = settings.settings?.close_date.slice(0, 10) ?? ''
+    const hasOverride = closeOverride.override !== undefined
+    const fixedCents = target.balance
     const resolver = useMemo(
         () =>
             zodResolver(
                 applyCreditSchema({
+                    texts: kind.texts,
+                    from,
                     creditDate,
                     closeDate,
-                    unappliedCents: credit.balance,
+                    hasOverride,
+                    fixedCents,
                     rows,
                     currency,
                 })
             ),
-        [creditDate, closeDate, credit.balance, rows, currency]
+        [kind.texts, from, creditDate, closeDate, hasOverride, fixedCents, rows, currency]
     )
+    const today = todayIso()
+    const openDate = applyDefaultDate(today, creditDate === '' ? [] : [creditDate])
     // The start values, once, when the rows first land (adjusted in render, not an effect);
     // `values` hands them to the form, which keeps an Apply date typed while it loaded.
     const [start, setStart] = useState<ApplyCreditValues | null>(null)
     if (start === null && isReady) {
-        setStart({
-            date: defaultApplyDate(creditDate),
-            payments: spreadAmount(rows, credit.balance),
-        })
+        if (from === 'credit') {
+            setStart({ date: openDate, payments: spreadAmount(rows, fixedCents) })
+        } else {
+            const payments = spreadForDocument(rows, fixedCents)
+            const placed = rows.filter(row => entryCents(payments[row.id], currency) > 0)
+            const dates = placed.map(row => row.creditDate ?? '')
+            setStart({ date: applyDefaultDate(today, dates), payments })
+        }
     }
     const form = useForm<ApplyCreditValues>({
-        defaultValues: { date: defaultApplyDate(creditDate), payments: {} },
+        defaultValues: { date: openDate, payments: {} },
         values: start ?? undefined,
         resetOptions: { keepDirtyValues: true },
         resolver,
@@ -156,15 +266,17 @@ export function useApplyCredit(credit: ApplyCreditTarget, sectionRecovery: LiveR
 
     const applied = amountToApply(payments, currency)
     const summary = applySummaryText(
+        kind.texts,
+        from,
         applied,
         appliedCount(payments, currency),
-        Math.max(0, credit.balance - applied),
+        Math.max(0, fixedCents - applied),
         currency
     )
 
     const rowRefs = useRef(new Map<string, TextInputInstance>())
     const firstRowId = rows[0]?.id ?? ''
-    const hasRows = isReady && firstRowId !== ''
+    const hasRows = state.body === 'rows'
     // The dialog names the first cell as its initial focus.
     const firstCellRef = useRef<TextInputInstance | null>(null)
     // Whether the first cell took the focus of this open. The dialog mounts once per open.
@@ -185,9 +297,9 @@ export function useApplyCredit(credit: ApplyCreditTarget, sectionRecovery: LiveR
         void trigger([...ids].map(id => `payments.${id}.amount` as const))
     }
 
-    // The credit the listed rows do not place yet.
+    // What the fixed side has not placed on the listed rows yet.
     const leftOf = (current: Payments) =>
-        credit.balance - amountToApply(listedPayments(current, rows), currency)
+        fixedCents - amountToApply(listedPayments(current, rows), currency)
 
     const tickOrClear = (row: OutstandingRow) => {
         const current = getValues('payments')
@@ -249,20 +361,26 @@ export function useApplyCredit(credit: ApplyCreditTarget, sectionRecovery: LiveR
 
     const retryLoad = () => {
         void recoverLiveQueries({
-            ...mergeRecoveries([billsRead.recovery, settings.recovery, sectionRecovery]),
+            ...mergeRecoveries([
+                rowsRead.recovery,
+                settings.recovery,
+                closeOverride.recovery,
+                sectionRecovery,
+            ]),
             onError: error => log.error(LOG_CONTEXT, error),
         })
     }
 
     const showRefusal = (error: unknown, variables: ApplyVariables) => {
         const fields = extractValidationErrors(error) ?? {}
-        const bill = refusedBill(error, variables.inserts)
-        if (bill !== null && fields.bill) {
-            setError(`payments.${bill}.amount`, { type: 'server', message: fields.bill })
+        const rowKey = Object.keys(fields).find(key => applyRefusalTarget(key) === 'row')
+        const rowId = refusedRow(error, variables.inserts)
+        if (rowKey !== undefined && rowId !== null) {
+            setError(`payments.${rowId}.amount`, { type: 'server', message: fields[rowKey] })
             return
         }
-        // Every other refusal (the date, the amount, the credit) goes to the summary; the
-        // schema's own date rules stay under the date.
+        // Every other refusal (the date, the close date, the amount) goes to the summary;
+        // the schema's own date rules stay under the date.
         const fieldMessage = Object.values(fields)[0]
         if (fieldMessage) {
             setError('root', { type: 'server', message: fieldMessage })
@@ -276,25 +394,31 @@ export function useApplyCredit(credit: ApplyCreditTarget, sectionRecovery: LiveR
         })(error)
     }
 
+    // One application for an insert: from a credit, the target is the credit and the row the
+    // document; from a document, the other way round. Two typed branches, one per kind's
+    // collection (plan decision 4).
+    const insertApplication = (insert: ApplyInsert, date: string) => {
+        const credit = from === 'credit' ? target.id : insert.rowId
+        const document = from === 'credit' ? insert.rowId : target.id
+        const { id, amount } = insert
+        if (kind.key === 'vendor_credit') {
+            vendorApplications.insert({ id, vendor_credit: credit, bill: document, amount, date })
+        } else {
+            memoApplications.insert({ id, credit_memo: credit, invoice: document, amount, date })
+        }
+    }
+
     const apply = useMutation({
         mutationFn: function* ({ date, inserts }: ApplyVariables) {
             yield atomic(() => {
-                for (const insert of inserts) {
-                    applicationsCollection.insert({
-                        id: insert.id,
-                        vendor_credit: credit.id,
-                        bill: insert.bill,
-                        amount: insert.amount,
-                        date,
-                    })
-                }
+                for (const insert of inserts) insertApplication(insert, date)
             })
         },
         onSuccess: (_data, { inserts }) => {
             const cents = inserts.reduce((sum, insert) => sum + insert.amount, 0)
             useApplyCreditStore.getState().close()
             useToastStore.getState().addToast({
-                title: appliedToastText(cents, inserts.length, currency),
+                title: appliedToastText(kind.texts, from, cents, inserts.length, currency),
                 variant: 'success',
                 duration: TOAST_MS,
             })
@@ -302,7 +426,6 @@ export function useApplyCredit(credit: ApplyCreditTarget, sectionRecovery: LiveR
         onError: showRefusal,
         onSettled: () => useApplyCreditStore.getState().release(),
     })
-    const isSaving = apply.isPending
 
     const submit = () =>
         form.handleSubmit(values => {
@@ -312,7 +435,7 @@ export function useApplyCredit(credit: ApplyCreditTarget, sectionRecovery: LiveR
             if (store.isHeld) return
             // The schema counts only the listed rows, so at least one of them has an amount.
             const inserts = insertsOf(values.payments, rows, currency)
-            // Synchronous, before the optimistic inserts change the credit under the dialog.
+            // Synchronous, before the optimistic inserts change the balances under the dialog.
             store.hold()
             apply.mutate({ date: values.date, inserts })
         })()
@@ -321,20 +444,23 @@ export function useApplyCredit(credit: ApplyCreditTarget, sectionRecovery: LiveR
         form,
         rows,
         payments,
-        isLoading,
-        loadFailed,
+        state,
         retryLoad,
-        isEmpty: isReady && rows.length === 0,
+        texts,
+        title: fillPaymentText(texts.title, target.number),
+        emptyText: fillPaymentText(texts.empty, target.partyName),
+        toggleKey: toggleKeyTexts(target),
+        listDoc:
+            from === 'document'
+                ? (kind.outstanding.document ?? kind.outstanding.credit)
+                : kind.outstanding.credit,
         hasRows,
-        emptyText: fillPaymentText(APPLY_CREDIT_MESSAGES.noOpenBills, credit.vendorName),
-        canSave: hasRows && !isSaving,
         summary,
         tick: tickOrClear,
         type,
         toggle,
         clear,
         submit,
-        isSaving,
         // Focus.
         firstCellRef,
         clearRef,

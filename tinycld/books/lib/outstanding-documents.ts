@@ -1,7 +1,9 @@
-// The open-document payment table (receive-payment's grid and cards) serves four lists:
+// The open-document payment table (receive-payment's grid and cards) serves six lists:
 // the invoices a customer payment pays, the bills Pay Bills pays (pay-bills spec §3.3, §9),
-// the bills a vendor credit is applied to (vendor credit spec §3.9) and the vendor credits
-// a vendor refund refunds (vendor refund spec §3.4). A descriptor names what differs: the
+// the bills a vendor credit is applied to (vendor credit spec §3.9), the vendor credits
+// a vendor refund refunds (vendor refund spec §3.4), the invoices a credit memo is applied
+// to and the credit memos applied to an invoice (apply credit spec §3.2, §3.3). A
+// descriptor names what differs: the
 // noun, where a row's link opens, the test-id prefix, whether a party (vendor) column, a
 // total column and a header tick box show, the last column's header, the date and open
 // columns' texts, the overdue mark, and the column widths.
@@ -13,6 +15,8 @@ import {
     CREDIT_APPLY_COLUMNS,
     CREDIT_APPLY_GRID_MIN_WIDTH,
     type FlexColumn,
+    MEMO_APPLY_COLUMNS,
+    MEMO_APPLY_GRID_MIN_WIDTH,
     PAYMENT_APPLIED_MIN_WIDTH,
     PAYMENT_COLUMNS,
     PAYMENT_GRID_MIN_WIDTH,
@@ -21,7 +25,12 @@ import {
     REFUND_GRID_MIN_WIDTH,
 } from './payment-columns'
 import { formatDay } from './register-range'
-import { BILL_KIND, INVOICE_KIND, VENDOR_CREDIT_KIND } from './sales-document-kinds'
+import {
+    BILL_KIND,
+    CREDIT_MEMO_KIND,
+    INVOICE_KIND,
+    VENDOR_CREDIT_KIND,
+} from './sales-document-kinds'
 
 // One width set for the grid's header and rows: a fixed tick column and data columns that
 // grow with the grid. `party` is null where no party column shows (an invoice list is one
@@ -41,9 +50,13 @@ export type OutstandingSort = { column: OutstandingSortColumn; descending: boole
 
 export type OutstandingDocument = {
     // Which list: the texts table is keyed by it.
-    key: 'invoice' | 'bill' | 'credit' | 'refund'
-    noun: 'Invoice' | 'Bill' | 'Vendor credit'
-    openKind: typeof INVOICE_KIND | typeof BILL_KIND | typeof VENDOR_CREDIT_KIND
+    key: 'invoice' | 'bill' | 'credit' | 'refund' | 'memo_invoices' | 'invoice_credits'
+    noun: 'Invoice' | 'Bill' | 'Vendor credit' | 'Credit memo'
+    openKind:
+        | typeof INVOICE_KIND
+        | typeof BILL_KIND
+        | typeof VENDOR_CREDIT_KIND
+        | typeof CREDIT_MEMO_KIND
     testIdPrefix: string
     party: 'none' | 'vendor'
     // A header tick box (and the cards' "Pay all") that pays every row.
@@ -141,6 +154,60 @@ export const CREDIT_OUTSTANDING: OutstandingDocument = {
     appliedMinWidth: BILL_PAYMENT_APPLIED_MIN_WIDTH,
 }
 
+// The apply dialog's invoices from a credit memo (apply credit spec §3.2): one customer's,
+// so no party column; no total column, no header tick box (the credit caps what a row
+// takes), and its own column set (MEMO_APPLY_COLUMNS: Due date fits "· Overdue").
+export const MEMO_INVOICES_OUTSTANDING: OutstandingDocument = {
+    key: 'memo_invoices',
+    noun: 'Invoice',
+    openKind: INVOICE_KIND,
+    testIdPrefix: 'apply-credit',
+    party: 'none',
+    hasPayAll: false,
+    paymentHeader: 'Credit to apply',
+    ...DUE_DATE_TEXTS,
+    columns: {
+        tick: MEMO_APPLY_COLUMNS.tick,
+        party: null,
+        document: MEMO_APPLY_COLUMNS.invoice,
+        dueDate: MEMO_APPLY_COLUMNS.dueDate,
+        original: null,
+        open: MEMO_APPLY_COLUMNS.open,
+        payment: MEMO_APPLY_COLUMNS.payment,
+    },
+    gridMinWidth: MEMO_APPLY_GRID_MIN_WIDTH,
+    appliedMinWidth: PAYMENT_APPLIED_MIN_WIDTH,
+}
+
+// The apply dialog's credit memos from an invoice (apply credit spec §3.3): one customer's
+// credit memos with unapplied credit; "Credit date" and "Unapplied credit" in place of the
+// due-date texts, no overdue mark, no total column and no header tick box (the invoice's
+// balance caps what a row takes). The vendor credit's column set.
+export const INVOICE_CREDITS_OUTSTANDING: OutstandingDocument = {
+    key: 'invoice_credits',
+    noun: 'Credit memo',
+    openKind: CREDIT_MEMO_KIND,
+    testIdPrefix: 'apply-credit',
+    party: 'none',
+    hasPayAll: false,
+    paymentHeader: 'Credit to apply',
+    dateHeader: 'Credit date',
+    openHeader: 'Unapplied credit',
+    openCardLabel: 'Unapplied credit',
+    marksOverdue: false,
+    columns: {
+        tick: CREDIT_APPLY_COLUMNS.tick,
+        party: null,
+        document: CREDIT_APPLY_COLUMNS.bill,
+        dueDate: CREDIT_APPLY_COLUMNS.dueDate,
+        original: null,
+        open: CREDIT_APPLY_COLUMNS.open,
+        payment: CREDIT_APPLY_COLUMNS.payment,
+    },
+    gridMinWidth: CREDIT_APPLY_GRID_MIN_WIDTH,
+    appliedMinWidth: REFUND_APPLIED_MIN_WIDTH,
+}
+
 // The vendor refund's credits (vendor refund spec §3.4): one vendor's unapplied vendor
 // credits, so no Vendor column; a Credit total column, a header tick box and "Refund all",
 // "Credit date" and "Unapplied credit" in place of the due-date texts, and no overdue mark.
@@ -234,6 +301,28 @@ const TEXTS: Record<OutstandingDocument['key'], OutstandingTexts> = {
         payAllText: 'Refund all',
         appliedHeading: 'Vendor credits refunded',
         appliedLabel: 'Refunded',
+    },
+    memo_invoices: {
+        tickVerb: 'Apply to',
+        cellJoin: 'to',
+        total: null,
+        cardDateLabel: null,
+        payAllLabel: null,
+        payAllText: null,
+        appliedHeading: 'Applied to',
+        appliedLabel: 'Applied',
+    },
+    // "Apply credit memo 1001", "Credit to apply from credit memo 1001"; the card draws the
+    // credit date as a pair, as the vendor refund's credits do.
+    invoice_credits: {
+        tickVerb: 'Apply',
+        cellJoin: 'from',
+        total: null,
+        cardDateLabel: 'Credit date',
+        payAllLabel: null,
+        payAllText: null,
+        appliedHeading: 'Credits applied',
+        appliedLabel: 'Applied',
     },
 }
 

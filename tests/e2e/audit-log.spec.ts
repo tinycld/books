@@ -7,6 +7,7 @@ import {
     TEST_USER_NAME,
 } from '@tinycld/core/e2e-helpers'
 import { rangeWords } from '@tinycld/core/reports/lib/dates'
+import { AUDIT_SHOWN_EVENT_OPTIONS } from '~/tinycld/books/lib/audit-log'
 import {
     AUDIT_LOG_DESCRIPTION,
     AUDIT_LOG_TITLE,
@@ -75,6 +76,22 @@ function monthOf(today: string): { from: string; to: string } {
         from: `${today.slice(0, 8)}01`,
         to: `${today.slice(0, 8)}${String(last).padStart(2, '0')}`,
     }
+}
+
+// The Event column shows a row's event_shown, not its event: the view writes
+// event_shown = 'credit_removed' for a delete of a credit memo application and the event
+// itself for every other delete (EVENT_SHOWN, pb-migrations/2100000030_create_books_audit_log.js;
+// shownEvent in lib/audit-log-fixture.ts mirrors it). So the Deleted filter shows these.
+const DELETED_SHOWN = ['deleted', 'credit_removed']
+
+// The words the Event column draws for those values (auditShownEvents in server/audit.go,
+// AUDIT_SHOWN_EVENT_OPTIONS in lib/audit-log.ts).
+function shownWordsOf(values: readonly string[]): string[] {
+    return values.map(value => {
+        const option = AUDIT_SHOWN_EVENT_OPTIONS.find(o => o.value === value)
+        if (!option) throw new Error(`no shown event ${value}`)
+        return option.label
+    })
 }
 
 // An amount no other run uses, under 1,000 so the line's label has no thousands mark.
@@ -178,15 +195,18 @@ test.describe('audit-log: report', () => {
         expect(order.indexOf(changed.id)).toBeLessThan(order.indexOf(added.id))
 
         await chooseParamOption(page, 'events', { from: 'add-filter', labels: ['Deleted'] })
+        // Other specs delete in the same database: a credit memo application's delete
+        // matches the Deleted filter and shows "Credit removed".
+        const deletedWords = shownWordsOf(DELETED_SHOWN)
         await expect
             .poll(async () => {
                 const rows = await auditRows(page)
                 return {
-                    onlyDeleted: rows.every(row => row.event === 'Deleted'),
-                    hasMine: rows.some(row => row.id === deleted.id),
+                    onlyDeleted: rows.every(row => deletedWords.includes(row.event)),
+                    mine: rows.find(row => row.id === deleted.id)?.event ?? null,
                 }
             })
-            .toEqual({ onlyDeleted: true, hasMine: true })
+            .toEqual({ onlyDeleted: true, mine: 'Deleted' })
     })
 
     test('a posted then voided entry and its lines show under the User, Record type and Date changed chips', async ({

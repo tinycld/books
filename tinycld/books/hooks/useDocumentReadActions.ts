@@ -6,6 +6,7 @@ import { router } from 'expo-router'
 import { useState } from 'react'
 import type { DocumentMoreItem } from '../components/documents/DocumentActionBar'
 import type { DocumentKind } from '../components/documents/document-kinds'
+import { applyCreditLabel } from '../lib/credit-application-kinds'
 import {
     applyCreditOffered,
     creditMemoOffered,
@@ -128,7 +129,8 @@ function offeredActionsOf(
  * Receive payment (a posted invoice with an open balance) pushes a new payment for its
  * customer with the invoice ticked, so Back returns to the invoice; Pay bill (a posted bill
  * with an open balance) pushes Pay bills with the bill selected, so Back returns to the bill;
- * Apply to bills (a posted vendor credit with unapplied credit) opens the apply dialog
+ * Apply (Apply to bills on a posted vendor credit, Apply to invoices on a posted credit memo,
+ * each with unapplied credit; its words from applyCreditLabel) opens the apply dialog
  * through `useApplyCreditStore`; Record refund (a writer on a posted vendor credit with
  * unapplied credit) pushes a new vendor refund for its vendor with the credit ticked, so Back
  * returns to the credit. Refund (a writer on a posted sales receipt) and Refund credit (a
@@ -173,8 +175,8 @@ export function useDocumentReadActions(
     const openApplyDialog = useApplyCreditStore(state => state.open)
     const openWriteOff = useWriteOffStore(state => state.open)
     const run: Record<DocumentReadAction, () => void> = {
-        // The apply dialog, drawn by the vendor credit's read section (vendor credit spec
-        // §3.9).
+        // The apply dialog, drawn by the credit's read frame (vendor credit spec §3.9, apply
+        // credit spec §3.2).
         apply_credit: () => openApplyDialog(record.id),
         // Pushed, so Back returns to the vendor credit (vendor refund spec §3.9): the refund
         // form opens with the credit's vendor and the credit ticked.
@@ -227,10 +229,15 @@ export function useDocumentReadActions(
         if (action === 'pdf') return download.isPending
         return isVoiding
     }
+    // Apply's words follow the record's kind: "Apply to bills", "Apply to invoices".
+    const labelOf = (action: DocumentReadAction) =>
+        action === 'apply_credit'
+            ? applyCreditLabel(record.kindFields.kind)
+            : DOCUMENT_READ_LABELS[action]
     const actions: DocumentReadItem[] = offeredActionsOf(doc, record, canWrite).map(action => ({
         action,
         id: readActionId(action),
-        label: DOCUMENT_READ_LABELS[action],
+        label: labelOf(action),
         keys: formatHint(DOCUMENT_READ_ACTION_KEYS[action]).text,
         isDisabled: disabledOf(action),
         isDestructive: action === 'void',

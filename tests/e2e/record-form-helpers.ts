@@ -429,11 +429,15 @@ export function recordFormHelpers(kind: RecordKind) {
         return isPhone(page) ? `${recordPrefix}-card-` : `${recordPrefix}-row-`
     }
 
+    // A list-screen part of the shown list screen: a list screen that a later screen covers
+    // stays mounted, hidden, below it, so a second visit leaves two in the stack.
+    function shownListPart(page: Page, part: string): Locator {
+        return page.getByTestId(`${listPrefix}-${part}`).filter({ visible: true })
+    }
+
     // Every row (desktop) or card (phone) in the list, in screen order.
     function entries(page: Page): Locator {
-        return page
-            .getByTestId(`${listPrefix}-list`)
-            .locator(`[data-testid^="${entryPrefix(page)}"]`)
+        return shownListPart(page, 'list').locator(`[data-testid^="${entryPrefix(page)}"]`)
     }
 
     // The row (desktop) or card (phone) whose name is exactly `name`. Another row may
@@ -452,7 +456,7 @@ export function recordFormHelpers(kind: RecordKind) {
 
     // From anywhere in Books to the list, with no record open.
     async function openList(page: Page) {
-        const list = page.getByTestId(`${listPrefix}-list`)
+        const list = shownListPart(page, 'list')
         const pageBack = page.getByTestId(`${recordPrefix}-back`)
         const panelClose = page.getByTestId(`${recordPrefix}-close`)
         const notFoundBack = page.getByTestId(`${recordPrefix}-not-found-back`)
@@ -520,14 +524,11 @@ export function recordFormHelpers(kind: RecordKind) {
     // new query loads, so this waits for the list's aria-busy to clear: the rows on screen
     // then answer this search.
     async function search(page: Page, text: string) {
-        const input = page.getByTestId(`${listPrefix}-search`)
+        const input = shownListPart(page, 'search')
         await input.click()
         await input.fill(text)
         await expect(input).toHaveValue(text)
-        await expect(page.getByTestId(`${listPrefix}-list`)).not.toHaveAttribute(
-            'aria-busy',
-            'true'
-        )
+        await expect(shownListPart(page, 'list')).not.toHaveAttribute('aria-busy', 'true')
     }
 
     async function idOf(page: Page, name: string): Promise<string> {
@@ -560,7 +561,8 @@ export function recordFormHelpers(kind: RecordKind) {
     // From anywhere in Books to an empty New form, through the list header button.
     async function openNew(page: Page) {
         await openList(page)
-        await page.getByTestId(`${recordPrefix}-new-header`).click()
+        // The shown list screen's button: a covered list screen keeps its own.
+        await page.getByTestId(`${recordPrefix}-new-header`).filter({ visible: true }).click()
         await expect(surface(page)).toBeVisible()
         await expect(page.getByTestId(`${recordPrefix}-title`)).toHaveText(kind.newTitle)
     }
@@ -589,7 +591,7 @@ export function recordFormHelpers(kind: RecordKind) {
             await expect(page.getByTestId(`${recordPrefix}-title`)).toHaveText(values.name)
             return
         }
-        await expect(page.getByTestId(`${listPrefix}-list`)).toBeVisible()
+        await expect(shownListPart(page, 'list')).toBeVisible()
         await expect(surface(page)).toBeHidden()
     }
 
@@ -601,7 +603,7 @@ export function recordFormHelpers(kind: RecordKind) {
             await expect(page).toHaveURL(recordPageUrl)
             return
         }
-        await expect(page.getByTestId(`${listPrefix}-list`)).toBeVisible()
+        await expect(shownListPart(page, 'list')).toBeVisible()
         await expect(surface(page)).toBeHidden()
     }
 
@@ -777,7 +779,7 @@ export function recordFormHelpers(kind: RecordKind) {
     // The button that opens a record from its row or card. Its accessible name carries
     // the display name; the row menu is a separate button beside it.
     function openButton(page: Page, name: string) {
-        return page.getByTestId(`${listPrefix}-list`).getByRole('button', { name })
+        return shownListPart(page, 'list').getByRole('button', { name })
     }
 
     function menuItem(page: Page, item: string) {

@@ -7,6 +7,7 @@ import {
     appliedBadge,
     type BalanceBadge,
     canDeleteStatus,
+    creditMemoBadge,
     isFormStatus,
     isReadOnlyStatus,
     paidBadge,
@@ -285,6 +286,52 @@ describe('INVOICE_DOCUMENT.balanceBadge', () => {
             tone: 'muted',
         })
         expect(badgeOf('posted', 0, 40_000, null, 0)).toEqual({ label: 'Paid', tone: 'success' })
+    })
+})
+
+// The credit memo's balance badge (apply credit spec §3.5): Partly applied (warning) while a
+// part is applied and some is left, Applied (success) when applications took the rest,
+// Refunded (success) when refunds alone took it; otherwise no balance badge, so the status
+// badge (Posted, Void) shows. A part refunded with nothing applied keeps Posted.
+// Arguments: status, balance, total, applied (cents).
+describe('creditMemoBadge', () => {
+    it('gives no balance badge to a posted memo nothing has used', () => {
+        expect(creditMemoBadge('posted', 25_000, 25_000, 0)).toBeUndefined()
+    })
+
+    it('reads Partly applied, warning, while a part is applied and a balance is left', () => {
+        expect(creditMemoBadge('posted', 10_000, 25_000, 15_000)).toEqual({
+            label: 'Partly applied',
+            tone: 'warning',
+        })
+    })
+
+    it('reads Applied, success, at balance 0 with a part applied', () => {
+        expect(creditMemoBadge('posted', 0, 25_000, 25_000)).toEqual({
+            label: 'Applied',
+            tone: 'success',
+        })
+        expect(creditMemoBadge('posted', 0, 25_000, 10_000)).toEqual({
+            label: 'Applied',
+            tone: 'success',
+        })
+    })
+
+    it('reads Refunded, success, at balance 0 with nothing applied', () => {
+        expect(creditMemoBadge('posted', 0, 25_000, 0)).toEqual({
+            label: 'Refunded',
+            tone: 'success',
+        })
+    })
+
+    it('gives no balance badge to a part refunded with nothing applied', () => {
+        expect(creditMemoBadge('posted', 18_000, 25_000, 0)).toBeUndefined()
+    })
+
+    it('gives no balance badge to a void memo', () => {
+        expect(creditMemoBadge('void', 25_000, 25_000, 0)).toBeUndefined()
+        expect(creditMemoBadge('void', 0, 25_000, 0)).toBeUndefined()
+        expect(creditMemoBadge('void', 10_000, 25_000, 15_000)).toBeUndefined()
     })
 })
 

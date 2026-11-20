@@ -25,6 +25,7 @@ import {
 import { useRemoveApplication } from '../../hooks/useRemoveApplication'
 import { formatAddressLines, isCustomerAddress } from '../../lib/address'
 import { billCreditsApplied } from '../../lib/bill-values'
+import { VENDOR_CREDIT_APPLICATION } from '../../lib/credit-application-kinds'
 import { removeApplicationOffered } from '../../lib/document-actions'
 import { DOCUMENT_NOTE_LABELS, memoLabelFor } from '../../lib/document-notes'
 import { type DocumentTab, documentHref } from '../../lib/document-routes'
@@ -185,11 +186,18 @@ function writtenOffOf(record: DocumentRecord): number {
     return fields.kind === 'invoice' ? fields.written_off : 0
 }
 
+// The cents a credit memo's applications took (its stored `applied`); 0 for every other
+// kind.
+function memoAppliedOf(record: DocumentRecord): number {
+    const fields = record.kindFields
+    return fields.kind === 'credit_memo' ? fields.applied : 0
+}
+
 // The badge of a kind with a balance badge (an invoice's Paid / Partly paid / Written off,
-// a bill's Paid / Partly paid, a vendor credit's Applied / Partly applied / Refunded)
-// follows its stored balance (and a vendor credit's refunded cents, an invoice's
-// written-off cents); undefined for every other kind, whose header shows its status's
-// badge.
+// a bill's Paid / Partly paid, a vendor credit's and a credit memo's Applied / Partly
+// applied / Refunded) follows its stored balance (and a vendor credit's refunded cents, an
+// invoice's written-off cents, a credit memo's applied cents); undefined for every other
+// kind, whose header shows its status's badge.
 function readBadgeOf(
     record: DocumentRecord,
     balanceBadge: ReadBalanceBadge | undefined,
@@ -199,7 +207,14 @@ function readBadgeOf(
     const { status } = record
     if (!balanceBadge || balance === undefined) return undefined
     if (status !== 'draft' && status !== 'posted' && status !== 'void') return undefined
-    return balanceBadge(status, balance, record.total, refunded, writtenOffOf(record))
+    return balanceBadge(
+        status,
+        balance,
+        record.total,
+        refunded,
+        writtenOffOf(record),
+        memoAppliedOf(record)
+    )
 }
 
 // The posted vendor refunds a vendor credit's read view reads (`DocumentKind.readRefunds`);
@@ -273,7 +288,9 @@ function PaymentsBlock({ data, record, credits, onRetry, onRemove }: PaymentsBlo
 // applications, the Payments block's credit rows; for every other kind no id, so the query
 // is off and ready with no rows.
 function useReadCredits(record: DocumentRecord, readApplications: boolean | undefined) {
-    return useCreditApplications({ bill: readApplications ? record.id : undefined })
+    return useCreditApplications(VENDOR_CREDIT_APPLICATION, {
+        document: readApplications ? record.id : undefined,
+    })
 }
 
 type CreditApplications = ReturnType<typeof useCreditApplications>
@@ -476,20 +493,22 @@ function ReadStamps({ record, isPosting }: StampsProps) {
     )
 }
 
-// The Details panel of a kind without its own ReadFrame: the body, the kind's ReadSection
-// (an invoice's Credit memos, a sales receipt's Refund receipts, a credit memo's Refunds)
-// with the read view's linked refunds read and its one Retry, then the stamps.
-function SectionReadFrame({
-    record,
-    body,
-    stamps,
-    linkedRefunds,
-    onRetry,
-}: Omit<DocumentReadFrameProps, 'refunds'> & Omit<DocumentReadSectionProps, 'record'>) {
+// The kind's ReadSection (an invoice's Credit memos, a sales receipt's Refund receipts, a
+// credit memo's Refunds) with the read view's linked refunds read and its one Retry; null
+// for a kind without one. The read view draws it once and hands it to the Details panel.
+function ReadSectionOf({ record, linkedRefunds, onRetry }: DocumentReadSectionProps) {
     const { ReadSection } = useDocumentKind()
-    const section = ReadSection ? (
-        <ReadSection record={record} linkedRefunds={linkedRefunds} onRetry={onRetry} />
-    ) : null
+    if (!ReadSection) return null
+    return <ReadSection record={record} linkedRefunds={linkedRefunds} onRetry={onRetry} />
+}
+
+// The Details panel of a kind without its own ReadFrame: the body, the kind's section, then
+// the stamps.
+function SectionReadFrame({
+    body,
+    section,
+    stamps,
+}: Pick<DocumentReadFrameProps, 'body' | 'section' | 'stamps'>) {
     return (
         <>
             {body}
@@ -537,7 +556,10 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     useReadAttachmentSession(record.id, doc.features.attachments)
     const credits = useReadCredits(record, documentKind.readApplications)
     const canRemove = removeApplicationOffered(data.canWrite, record.status)
-    const removal = useRemoveApplication({ applications: credits.applications, canRemove })
+    const removal = useRemoveApplication(VENDOR_CREDIT_APPLICATION, {
+        applications: credits.applications,
+        canRemove,
+    })
     const refunds = useReadRefunds(record, documentKind.readRefunds)
     const linkedRefunds = useReadLinkedRefunds(record, documentKind.readLinkedRefunds)
     const refunded = readRefundedOf(documentKind, refunds, linkedRefunds)
@@ -608,17 +630,19 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
         </>
     )
     const stamps = <ReadStamps record={record} isPosting={isPosting} />
+    const section = <ReadSectionOf record={record} linkedRefunds={linkedRefunds} onRetry={retry} />
     const ReadFrame = documentKind.ReadFrame
     const details = ReadFrame ? (
-        <ReadFrame record={record} body={body} stamps={stamps} refunds={refunds} />
-    ) : (
-        <SectionReadFrame
+        <ReadFrame
             record={record}
+            partyName={partyName}
             body={body}
+            section={section}
             stamps={stamps}
-            linkedRefunds={linkedRefunds}
-            onRetry={retry}
+            refunds={refunds}
         />
+    ) : (
+        <SectionReadFrame body={body} section={section} stamps={stamps} />
     )
     // The Payments block waits for the credits read, so it never draws its payments without
     // its credit rows; a failed read shows its notice with Retry in the block, and the
@@ -662,6 +686,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                 <ReadWriteOffDialog owner={owner} isVisible={isInvoice} />
                 <RemoveApplicationDialog
                     application={removal.target}
+                    removeBody={VENDOR_CREDIT_APPLICATION.texts.removeBody}
                     isVisible={removal.isVisible}
                     currency={data.currency}
                     isPending={removal.isPending}
