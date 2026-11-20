@@ -54,6 +54,7 @@ var booksSourceKeys = []string{
 	"books.customers",
 	"books.journal_entries",
 	"books.journal_lines",
+	"books.payable_items",
 	"books.products",
 	"books.receivable_items",
 	"books.sales_documents",
@@ -542,6 +543,26 @@ func expectedCatalog(t *testing.T) []wantSource {
 			},
 		},
 		{
+			// The stored payable items (A/P Aging spec §4.3).
+			key: "books.payable_items", collection: "books_payable_items", label: "Payable items",
+			fields: []wantField{
+				{key: "date", typ: reports.Date, textDay: true, aggs: reports.MinMax},
+				{key: "due_date", typ: reports.Date, textDay: true, aggs: reports.MinMax},
+				money("debit"), money("credit"), text("currency"), text("item"),
+				{key: "item_kind", typ: reports.Select, options: []reports.Option{
+					{Value: "bill", Label: "Bill"}, {Value: "vendor_credit", Label: "Vendor credit"},
+					{Value: "entry", Label: "Journal entry"},
+				}},
+				textMinMax("item_number"),
+				{key: "item_seq", typ: reports.Number, aggs: reports.MinMax},
+				{key: "settled", typ: reports.Text},
+			},
+			links: []wantLink{
+				toOne("vendor", "books.vendors", "vendor"),
+				toOne("entry", "books.journal_entries", "entry"),
+			},
+		},
+		{
 			// Purchase fields, form columns and the name and sort keys are left
 			// out (sales-reports spec §5).
 			key: "books.products", collection: "books_products", label: "Products and services",
@@ -649,7 +670,7 @@ func TestReportSourcesCatalog(t *testing.T) {
 			if slices.Contains([]string{
 				"books.journal_entries", "books.journal_lines", "books.basis_lines", "books.account_balances",
 				"books.sales_documents", "books.sales_tax_lines", "books.sales_lines", "books.products",
-				"books.receivable_items",
+				"books.receivable_items", "books.payable_items",
 			}, want.key) {
 				wantCurrency = "USD"
 			}

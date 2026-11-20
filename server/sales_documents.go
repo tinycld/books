@@ -237,6 +237,10 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 		bindReceivableInvoiceRefresh(app)
 	case creditMemoKind.Collection:
 		bindReceivableCreditMemoRefresh(app)
+	case billKind.Collection:
+		bindPayableBillRefresh(app)
+	case vendorCreditKind.Collection:
+		bindPayableVendorCreditRefresh(app)
 	}
 	bindSerializedGuard(app, kind.LinesCollection, func(tx core.App, stored, r *core.Record) error {
 		return validateSalesDocLine(tx, kind, stored, r)
