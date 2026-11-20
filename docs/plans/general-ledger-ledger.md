@@ -514,3 +514,75 @@ SEARCH books_cash_basis_lines USING INDEX idx_books_cash_basis_lines_entry (entr
 The measure prints only the plan lines that name `books_journal_lines`, `books_cash_basis_lines` or `books_account_balances`, so an `AUTOMATIC` index on `t<n>` and a `MATERIALIZE` line do not show in `st-plans.md`; the `AUTOMATIC` line of TD 2 named above is from the small book. The Balance Sheet's one statement still reads both tables with 7 `SCAN`s each (BS 1 1.3141 s, BS 2 1.6385 s), and each Trial Balance statement has one `SCAN books_journal_lines`, also with an Accounts filter.
 
 No run is refused at 100k.
+
+#### Task 9c-1: the Trial Balance reads the stored months (books `server/report_trial_balance.go`, 2026-11-20)
+
+Before: every figure of the Trial Balance was a sum over the posted lines of the account up to the As of day, so each run read the account's whole history (`SCAN books_journal_lines` in each statement, also with an Accounts filter). After: the report's rows are the posted lines of the month of the As of day; Debit and Credit add a lookup over the stored month balances (`books_account_balances`) of the months before it; the Total adds the account rows shown; an account with stored months and no line in the month gets a row through the fill. The figures do not change: `TestTrialBalanceStoredMonthsEqualTheLines` runs the line read beside the new read.
+
+What the reader sees (human decision, 2026-11-20): an opened account shows "Balance before" and the month of the As of day, then the posted lines of that month up to the day. Lines of earlier months do not show there; a press on the Debit or Credit figure still opens every line. The opened Retained earnings row no longer lists the lines of earlier fiscal years: its opening row holds them.
+
+At 100,000 lines (median of 5, core 7433b88b, books a651fe8f):
+
+| run | after task 9b | after task 9c-1 | group rows | rows |
+|---|---|---|---|---|
+| TB 1 all accounts, as of | 738ms | 330ms | 106 | 107 |
+| TB 2 busy account, as of | 432ms | 149ms | 1 | 2 |
+| TB 3 three accounts, as of | 516ms | 178ms | 3 | 4 |
+| BS 1 accrual, as of | 1.373s | 1.424s | 10 | 20 |
+| BS 2 cash, as of | 1.746s | 1.852s | 10 | 20 |
+| TD 1 all accounts, month | 153ms | 163ms | 2 | 201 |
+| TD 2 all accounts, year | 1.554s | 1.646s | 1 | 201 |
+| TD 3 busy account, month | 29ms | 30ms | 1 | 201 |
+| TD 4 small account, month | 18ms | 18ms | 1 | 4 |
+| TD 5 three accounts, year | 125ms | 130ms | 1 | 201 |
+| TD 6 busy account, month, cash | 31ms | 32ms | 1 | 201 |
+
+Reads of the line tables and of the stored months in the longest statement of TB 1 all accounts, as of, and of TB 2 busy account, as of (scale-task9c1/st-plans.md):
+
+TB 1 all accounts, as of (statement 5: 245.5ms, 106 rows, 38673 chars):
+
+```
+SCAN books_journal_lines
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SCAN books_account_balances
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SCAN books_account_balances
+SCAN books_account_balances
+SEARCH books_account_balances
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)
+```
+
+TB 2 busy account, as of (statement 5: 102.2ms, 1 rows, 38921 chars):
+
+```
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SCAN books_account_balances
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SCAN books_account_balances
+SCAN books_account_balances
+SEARCH books_account_balances
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)
+```
+
+A `SCAN books_journal_lines` line is still in a Trial Balance statement only in TB 1 all accounts, as of (statements 5 and 6: the base rows of the month have no Accounts filter, and no index of the table starts with the day); TB 2 and TB 3 read the lines by `SEARCH` on `idx_books_jlines_account_date` alone.
+
+No run is refused at 100k.
