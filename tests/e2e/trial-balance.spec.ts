@@ -577,12 +577,7 @@ test.describe("trial-balance: the report in core's view", () => {
         // opening row carries them. No spec posts to Retained earnings, so the row has no
         // line of its own this month and its opening row holds its whole balance.
         await openAccountRow(page, 'Retained earnings')
-        const opened = await snapshotWhen(
-            page,
-            tbSnapshot,
-            s => openingUnder(s, 'Retained earnings') !== undefined,
-            'the opening row under Retained earnings'
-        )
+        const opened = await tbSnapshot(page)
         const before = openingUnder(opened, 'Retained earnings')
         expect(before?.label).toBe(balanceBeforeLabel(asOf))
         expect(detailsUnder(opened, 'Retained earnings')).toEqual([])
