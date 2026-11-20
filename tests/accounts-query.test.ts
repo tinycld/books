@@ -13,6 +13,7 @@ function extraBalance(
     seed: Pick<BooksAccountBalances, 'id' | 'account' | 'period' | 'debit_total' | 'credit_total'>
 ): BooksAccountBalances {
     return {
+        month_start: `${seed.period}-01`,
         currency: 'USD',
         created: '2026-01-01 00:00:00.000Z',
         updated: '2026-01-01 00:00:00.000Z',
