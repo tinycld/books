@@ -229,7 +229,11 @@ test.describe('report-drill-down: panel', () => {
                     const statement = figureDigits(await figureText(page, 'amount', TOTAL_EXPENSES))
                     const shown = figureDigits(tdTotalOf(section)?.cells.amount)
                     const isStale = shown !== '' && shown !== statement
-                    if (isStale && (await panelRefresh.isEnabled())) await panelRefresh.click()
+                    const canRefresh =
+                        isStale &&
+                        (await panelRefresh.count()) > 0 &&
+                        (await panelRefresh.isEnabled())
+                    if (canRefresh) await panelRefresh.click()
                     return { equal: shown === statement && statement !== '', shown, statement }
                 },
                 { message: "the panel's report Total equals the statement's Total Expenses" }
