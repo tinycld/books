@@ -6,6 +6,7 @@ import {
     createStatementsSchema,
     defaultStatementOptions,
     MAX_STATEMENT_CUSTOMERS,
+    sendStatementSchema,
     statementOptionsSchema,
 } from '../tinycld/books/lib/statement-schema'
 
@@ -219,6 +220,29 @@ describe('createStatementsSchema: Save and send needs an address on every ticked
         )
         expect(createIssues(input)).toEqual([])
     })
+})
+
+// The Send statement dialog's To (spec §3.8), against the address table the Go send route
+// runs too.
+describe('sendStatementSchema: the shared address case table', () => {
+    it('holds the empty address, taken and refused cases', () => {
+        expect(EMAIL_CASES.some(c => c.to === '')).toBe(true)
+        expect(EMAIL_CASES.some(c => c.ok)).toBe(true)
+        expect(EMAIL_CASES.some(c => !c.ok && c.to !== '')).toBe(true)
+    })
+
+    for (const c of EMAIL_CASES) {
+        it(`${JSON.stringify(c.to)} ${c.ok ? 'parses, trimmed' : 'is refused'}`, () => {
+            const result = sendStatementSchema.safeParse({ to: c.to })
+            if (c.ok) {
+                expect(issuesOf(result)).toEqual([])
+                expect(result.success && result.data.to).toBe(c.to.trim())
+                return
+            }
+            const expected = c.to === '' ? 'Enter an email address.' : INVALID_ADDRESS
+            expect(messagesAt(issuesOf(result), 'to')).toEqual([expected])
+        })
+    }
 })
 
 describe('defaultStatementOptions', () => {

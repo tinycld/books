@@ -16,6 +16,7 @@ export const STATEMENT_MESSAGES = {
     endAfterStatement: "End date can't be after Statement date",
     invalidAddress: 'Enter a valid email address.',
     missingAddress: 'Enter an email address or clear the tick.',
+    addressRequired: 'Enter an email address.',
     tooMany: 'Select at most 200 customers. Narrow the list with Customer balance.',
     noneTicked: 'Select at least one customer.',
 } as const
@@ -128,6 +129,23 @@ export const createStatementsSchema: z.ZodType<CreateStatementsValues, CreateSta
         })
         checkTickCount(values, ctx)
     })
+
+export type SendStatementValues = { to: string }
+
+// The Send statement dialog's To (spec §3.8): one valid address, without its outer spaces,
+// with the bounds of the send route (the same address case table).
+export const sendStatementSchema: z.ZodType<SendStatementValues, SendStatementValues> = z.object({
+    to: z
+        .string()
+        .transform(statementAddress)
+        .superRefine((to, ctx) => {
+            if (to === '') {
+                ctx.addIssue({ code: 'custom', message: STATEMENT_MESSAGES.addressRequired })
+            } else if (!addressCheck.safeParse(to).success) {
+                ctx.addIssue({ code: 'custom', message: STATEMENT_MESSAGES.invalidAddress })
+            }
+        }),
+})
 
 // Preview (spec §3.4): the PDF is made from the options on screen and the ticked customers,
 // and no address is in it, so the addresses are not checked.

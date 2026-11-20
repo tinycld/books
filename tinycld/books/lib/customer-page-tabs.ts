@@ -10,6 +10,7 @@ export const CUSTOMER_TABS: readonly { key: CustomerTab; label: string; keys: st
 // The tabs built so far, in strip order; the first is the default (no `tab` param).
 export const CUSTOMER_TAB_ORDER: readonly CustomerTab[] = [
     'transactions',
+    'statements',
     'contacts',
     'details',
     'notes',

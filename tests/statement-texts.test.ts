@@ -1,11 +1,19 @@
-import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
     createScreenMode,
     emptyRecipientsText,
+    fileStem,
     runNoticeText,
     savedToast,
     sentToast,
+    statementActions,
+    statementAttachmentName,
     statementBarState,
+    statementPeriodText,
+    statementSentText,
+    statementTitle,
 } from '../tinycld/books/lib/statement-texts'
 
 // The create screen's words and its pure state choices (statements spec §3.4, §3.9, §3.10):
@@ -190,5 +198,164 @@ describe('createScreenMode', () => {
 
     it('draws the form for a writer whose access has loaded', () => {
         expect(createScreenMode({ canWrite: true, accessLoading: false })).toBe('form')
+    })
+})
+
+// --- Checkpoint 5: the Statements tab and the statement screen (spec §3.7, §3.8, §3.5) ---
+
+describe('statementPeriodText', () => {
+    it('gives a Balance forward period in one year with the year once', () => {
+        expect(
+            statementPeriodText({
+                type: 'balance_forward',
+                statement_date: '2026-10-22',
+                start_date: '2026-09-21',
+                end_date: '2026-10-22',
+            })
+        ).toBe('Sep 21 – Oct 22, 2026')
+    })
+
+    it('gives both years of a period over a year end', () => {
+        expect(
+            statementPeriodText({
+                type: 'balance_forward',
+                statement_date: '2026-01-14',
+                start_date: '2025-12-15',
+                end_date: '2026-01-14',
+            })
+        ).toBe('Dec 15, 2025 – Jan 14, 2026')
+    })
+
+    it('gives "As of" the statement date for Open items', () => {
+        expect(
+            statementPeriodText({
+                type: 'open_items',
+                statement_date: '2026-10-22',
+                start_date: '',
+                end_date: '',
+            })
+        ).toBe('As of Oct 22, 2026')
+    })
+})
+
+describe('statementSentText', () => {
+    const zone = process.env.TZ
+
+    beforeEach(() => {
+        process.env.TZ = 'UTC'
+    })
+
+    afterEach(() => {
+        if (zone === undefined) delete process.env.TZ
+        else process.env.TZ = zone
+    })
+
+    it('gives the day and the address of a sent statement', () => {
+        expect(
+            statementSentText({
+                sent_at: '2026-11-20 15:30:00.000Z',
+                sent_to: 'billing@aspenridge.example',
+            })
+        ).toBe('Nov 20, 2026 to billing@aspenridge.example')
+    })
+
+    it('reads the day of sent_at in the reader’s zone', () => {
+        process.env.TZ = 'America/Los_Angeles'
+        // The zone change reaches Date in this worker (else the test proves nothing).
+        expect(new Date('2026-11-21T03:00:00Z').getDate()).toBe(20)
+        expect(
+            statementSentText({
+                sent_at: '2026-11-21 03:00:00.000Z',
+                sent_to: 'billing@aspenridge.example',
+            })
+        ).toBe('Nov 20, 2026 to billing@aspenridge.example')
+    })
+
+    it('reads "Not sent" for an empty sent_at', () => {
+        expect(statementSentText({ sent_at: '', sent_to: '' })).toBe('Not sent')
+    })
+})
+
+describe('statementTitle', () => {
+    it('puts "Statement" before the number', () => {
+        expect(statementTitle('ST-1001')).toBe('Statement ST-1001')
+    })
+})
+
+// The rule of the Go fileStem (server/pdf_statement.go), from the one case table both run.
+type FileStemCase = { in: string; out: string }
+
+const FILE_STEM_CASES: FileStemCase[] = JSON.parse(
+    readFileSync(join(__dirname, '..', 'server', 'testdata', 'file_stem_cases.json'), 'utf8')
+)
+
+describe('fileStem: the shared case table', () => {
+    it('reads cases', () => {
+        expect(FILE_STEM_CASES.length).toBeGreaterThan(5)
+    })
+
+    for (const c of FILE_STEM_CASES) {
+        it(`${JSON.stringify(c.in)} gives ${JSON.stringify(c.out)}`, () => {
+            expect(fileStem(c.in)).toBe(c.out)
+        })
+    }
+})
+
+describe('statementAttachmentName', () => {
+    it('names the file from the number and the customer name', () => {
+        expect(statementAttachmentName('ST-1001', 'Aspen Ridge Landscaping')).toBe(
+            'statement-st-1001-aspen-ridge-landscaping.pdf'
+        )
+    })
+})
+
+describe('statementActions', () => {
+    it('gives a writer with email every row-menu item and an enabled Send… with no note', () => {
+        const actions = statementActions({
+            canWrite: true,
+            canSend: true,
+            emailStatusLoading: false,
+        })
+        expect(actions.rowMenu).toEqual(['open', 'send', 'download', 'delete'])
+        expect(actions.screen).toEqual(['send', 'download', 'delete'])
+        expect(actions.isSendDisabled).toBe(false)
+        expect(actions.note).toBeNull()
+    })
+
+    it('gives a writer without email the row menu without Send…, and a disabled Send… with the note', () => {
+        const actions = statementActions({
+            canWrite: true,
+            canSend: false,
+            emailStatusLoading: false,
+        })
+        expect(actions.rowMenu).toEqual(['open', 'download', 'delete'])
+        expect(actions.screen).toEqual(['send', 'download', 'delete'])
+        expect(actions.isSendDisabled).toBe(true)
+        expect(actions.note).toBe('Email sending is not set up')
+    })
+
+    it('while the email status loads gives a writer a disabled Send…, no row-menu Send… and no note', () => {
+        const actions = statementActions({
+            canWrite: true,
+            canSend: false,
+            emailStatusLoading: true,
+        })
+        expect(actions.note).toBeNull()
+        expect(actions.isSendDisabled).toBe(true)
+        expect(actions.rowMenu).not.toContain('send')
+        expect(actions.rowMenu).toEqual(['open', 'download', 'delete'])
+    })
+
+    it('gives a reader Open and Download PDF only', () => {
+        for (const canSend of [true, false]) {
+            const actions = statementActions({
+                canWrite: false,
+                canSend,
+                emailStatusLoading: false,
+            })
+            expect(actions.rowMenu).toEqual(['open', 'download'])
+            expect(actions.screen).toEqual(['download'])
+            expect(actions.note).toBeNull()
+        }
     })
 })
