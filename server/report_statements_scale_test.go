@@ -3,9 +3,11 @@ package books
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -18,9 +20,9 @@ import (
 
 // The scale measure of the Trial Balance, the Balance Sheet and Transaction
 // Detail by Account (p5-report-engine-scale): the General Ledger's scale book
-// with cash-basis rows (writeStatementsScaleBook) and its bar (glMonthBar, glYearBar). The book check runs
-// in every test run (TestStatementsScaleBook); the three sizes start only with
-// BOOKS_SCALE=1 (TestStatementsScale).
+// with cash-basis rows (writeStatementsScaleBook) and its bar (glMonthBar,
+// glYearBar). The book check runs in every test run (TestStatementsScaleBook);
+// the three sizes start only with BOOKS_SCALE=1 (TestStatementsScale).
 //
 // How the bar maps (the human, 2026-11-20: at 500,000 lines a run filtered to
 // one month takes 1 s or less, a filtered year run 2 s or less):
@@ -169,15 +171,33 @@ func TestStatementsScaleBook(t *testing.T) {
 	if cashRows == 0 || cashNet != 0 {
 		t.Fatalf("the book has %d cash-basis rows with a net of %d, want some rows and a net of 0", cashRows, cashNet)
 	}
+	results := map[string]*reports.Result{}
 	for _, run := range stScaleRuns(b) {
 		res, err := run.exec(t, b)
 		if err != nil {
 			t.Fatalf("run %s: %v", run.name, err)
 		}
+		results[run.name] = res
 		if stPeriodHasLines(t, b, run) && stGroupRows(res) == 0 {
 			t.Errorf("run %s has no group row (%d rows)", run.name, len(res.Rows))
 		}
 	}
+	if stSameFigures(results["BS 1 accrual, as of"], results["BS 2 cash, as of"]) {
+		t.Error("the cash Balance Sheet has the same figures as the accrual one: a Cash run does not read the cash-basis rows")
+	}
+}
+
+// stSameFigures is true when a and b hold the same rows with the same cells.
+func stSameFigures(a, b *reports.Result) bool {
+	if len(a.Rows) != len(b.Rows) {
+		return false
+	}
+	for i := range a.Rows {
+		if !reflect.DeepEqual(a.Rows[i].Cells, b.Rows[i].Cells) {
+			return false
+		}
+	}
+	return true
 }
 
 // TestStatementsScaleBars pins each run's bar, so a change of a bar or of the
@@ -200,7 +220,40 @@ func TestStatementsScaleBars(t *testing.T) {
 		"TD 5 three accounts, year":      2 * time.Second,
 		"TD 6 busy account, month, cash": time.Second,
 	}
+	// method: "" is absent (accrual); accounts: the filter's size; day: the
+	// param that sets the report's day.
+	type pins struct {
+		method   string
+		accounts int
+		day      string
+	}
+	wantParams := map[string]pins{
+		"TB 1 all accounts, as of":       {"", 0, "asOf"},
+		"TB 2 busy account, as of":       {"", 1, "asOf"},
+		"TB 3 three accounts, as of":     {"", 3, "asOf"},
+		"BS 1 accrual, as of":            {"", 0, "asOf"},
+		"BS 2 cash, as of":               {"cash", 0, "asOf"},
+		"TD 1 all accounts, month":       {"", 0, "period"},
+		"TD 2 all accounts, year":        {"", 0, "period"},
+		"TD 3 busy account, month":       {"", 1, "period"},
+		"TD 4 small account, month":      {"", 1, "period"},
+		"TD 5 three accounts, year":      {"", 3, "period"},
+		"TD 6 busy account, month, cash": {"cash", 1, "period"},
+	}
 	runs := stScaleRuns(b)
+	for _, run := range runs {
+		method, _ := run.params["method"].(string)
+		accounts, _ := run.params["accounts"].([]string)
+		day := "none"
+		if _, ok := run.params["asOf"]; ok {
+			day = "asOf"
+		} else if _, ok := run.params["period"]; ok {
+			day = "period"
+		}
+		if got, wantPins := (pins{method, len(accounts), day}), wantParams[run.name]; got != wantPins {
+			t.Errorf("run %q has the params %+v, want %+v", run.name, got, wantPins)
+		}
+	}
 	if len(runs) != len(want) {
 		t.Fatalf("the measure has %d runs, want %d", len(runs), len(want))
 	}
@@ -239,6 +292,9 @@ func TestStatementsScale(t *testing.T) {
 				began := time.Now()
 				res, err := run.exec(t, b)
 				took := time.Since(began)
+				if err != nil && !errors.Is(err, reports.ErrTimeout) {
+					t.Fatalf("run %s at %s lines: %v", run.name, size.name, err)
+				}
 				if err != nil {
 					refused[run.name] = true
 					fmt.Fprintf(&results, "| %d | %s | refused after %s: %v | n/a | n/a |\n", b.lines, run.name, took.Round(time.Millisecond), err)
@@ -248,7 +304,11 @@ func TestStatementsScale(t *testing.T) {
 					}
 					continue
 				}
-				median := arMedian(func() { _, _ = run.exec(t, b) })
+				median := arMedian(func() {
+					if _, err := run.exec(t, b); err != nil {
+						t.Fatalf("run %s at %s lines, repeated: %v", run.name, size.name, err)
+					}
+				})
 				fmt.Fprintf(&results, "| %d | %s | %s | %d | %d |\n", b.lines, run.name, median.Round(time.Millisecond), stGroupRows(res), len(res.Rows))
 				t.Logf("%s run %s: median %s", size.name, run.name, median.Round(time.Millisecond))
 				if run.bar > 0 && stGroupRows(res) == 0 {
