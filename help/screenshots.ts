@@ -80,6 +80,43 @@ async function openBankReviewForShot(page: Page) {
     ).toHaveCount(9)
 }
 
+// The seeded PACIFIC POWER AUTOPAY row of 1000 Business Checking has one suggestion
+// (seed.ts REVIEW_SEED_ENTRIES), so the For review row shows its check and suggestion.
+const PACIFIC_POWER = 'PACIFIC POWER AUTOPAY'
+
+function pacificPowerRow(page: Page) {
+    return page
+        .locator('[data-testid="bank-review-table-rows"] [data-testid^="bank-review-row-"]')
+        .filter({ has: page.getByText(PACIFIC_POWER, { exact: true }) })
+}
+
+// A viewport tall enough for the nine rows, then fitted to the last one, so the shot holds
+// the PACIFIC POWER AUTOPAY row with its mark.
+async function openBankMatchListForShot(page: Page) {
+    const viewport = page.viewportSize()
+    if (!viewport) throw new Error('no viewport')
+    await page.setViewportSize({ width: viewport.width, height: 1300 })
+    await openBankReviewForShot(page)
+    const row = pacificPowerRow(page)
+    await expect(row.locator('[data-testid^="bank-review-suggestion-"]')).toBeVisible()
+    await fitToContent(
+        page,
+        page.getByTestId('bank-review-table'),
+        page
+            .locator('[data-testid="bank-review-table-rows"] [data-testid^="bank-review-row-"]')
+            .last()
+    )
+}
+
+// The row's drawer, with the Match section and its one suggestion checked.
+async function openBankMatchDrawerForShot(page: Page) {
+    await openBankMatchListForShot(page)
+    await pacificPowerRow(page).getByText(PACIFIC_POWER, { exact: true }).click()
+    await expect(page.getByTestId('bank-match-section')).toBeVisible()
+    await expect(page.locator('[data-testid^="bank-match-option-"]')).toHaveCount(1)
+    await expect(page.getByTestId('bank-match-submit')).toBeEnabled()
+}
+
 async function openBankingForShot(page: Page) {
     await selectCheckingForShot(page)
     // The upload area and the file list live in the panel's Files tab.
@@ -127,6 +164,18 @@ export default {
             name: 'bank-review-1',
             setup: openBankReviewForShot,
             target: '[data-testid="banking-screen"]',
+        },
+    ],
+    'bank-match': [
+        {
+            name: 'bank-match-1',
+            setup: openBankMatchListForShot,
+            target: '[data-testid="banking-screen"]',
+        },
+        {
+            name: 'bank-match-2',
+            setup: openBankMatchDrawerForShot,
+            target: '[data-testid="bank-txn-drawer"]',
         },
     ],
     'bank-import': [

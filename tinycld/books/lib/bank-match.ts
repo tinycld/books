@@ -5,6 +5,7 @@ import type { BatchOutcome } from './bank-review'
 import { addDays } from './document-dates'
 import { searchPieces } from './list-search'
 import { formatMoney } from './money'
+import { localDayOf } from './opening-balances'
 import { entryTypeLabel } from './register'
 import { formatDay, isIsoDay } from './register-range'
 import { parseSearchAmount } from './search-amount'
@@ -168,6 +169,51 @@ export function matchResultText(outcome: BatchOutcome, skipped: number): string 
     if (skipped === 0) return matched
     if (count === 0) return skippedText(skipped)
     return `${matched} ${skippedText(skipped)}`
+}
+
+// ---- Reviewed: what a transaction was matched to, and the undo ----
+
+export const UNDO_TRANSPORT_TEXT =
+    'The undo could not be sent. Check your connection and try again.'
+
+export const UNDO_DONE_TEXT = 'Match undone. The transaction is back in For review.'
+
+// The Reviewed tab's In Books text: "Matched · Transfer 1007" for a match of one Books
+// transaction, "Matched · 3 transactions" for several, '' for a row with no match. A line
+// whose entry has not arrived yet is named by "Matched" alone.
+export function inBooksText(lines: readonly { entry: LabelledEntry | undefined }[]): string {
+    const [first] = lines
+    if (first === undefined) return ''
+    if (lines.length > 1) return `Matched · ${lines.length} transactions`
+    return first.entry ? `Matched · ${entryLabel(first.entry)}` : 'Matched'
+}
+
+// "Matched Nov 18, 2026 by Ana Ruiz": the viewer's local day the match was made and who
+// made it (the day alone when the user has no name). Local, as the bank and Books dates
+// beside it are the user's days.
+export function matchedOnText(created: string, userName: string): string {
+    const day = localDayOf(created)
+    const parts = ['Matched', day ? formatDay(day) : '']
+    if (userName) parts.push(`by ${userName}`)
+    return parts.filter(part => part !== '').join(' ')
+}
+
+// The result of an undo (one transaction): the done sentence; for a refusal, the server's
+// message; for a failure with no server message (the undo never reached the server, or
+// nothing was sent because there was no match id), UNDO_TRANSPORT_TEXT.
+export function unmatchResultText(outcome: BatchOutcome): string {
+    if (outcome.failed.length === 0) return UNDO_DONE_TEXT
+    const refused = outcome.failed.find(failure => !failure.isTransport && failure.message !== '')
+    return refused ? refused.message : UNDO_TRANSPORT_TEXT
+}
+
+// Whether the batch run in flight is the drawer's undo of `txnId`.
+export function undoSendingFor(
+    pending: { origin: string; kind: string; ids: readonly string[] } | null | undefined,
+    txnId: string
+): boolean {
+    if (!pending) return false
+    return pending.origin === 'drawer' && pending.kind === 'unmatch' && pending.ids.includes(txnId)
 }
 
 export const BAR_MATCH_NONE_HINT = 'None of the chosen transactions has exactly one match.'

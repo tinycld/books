@@ -9,7 +9,8 @@ import {
     type ReviewQueryInput,
     type ReviewRead,
     type ReviewTabModel,
-    useReviewPagedRows,
+    useExcludedRows,
+    useReviewedRows,
     useReviewQueryInput,
     useReviewQueueRows,
     useReviewTab,
@@ -158,19 +159,26 @@ function ReviewQueueBody(props: ReviewTabBodyProps) {
     return <ReviewTabView {...props} read={read} queryInput={queryInput} />
 }
 
-function ReviewPagedBody(props: ReviewTabBodyProps & { tab: 'reviewed' | 'excluded' }) {
-    const queryInput = useReviewQueryInput(props.tab, props.connection.id, props.currency)
-    const read = useReviewPagedRows(props.tab, props.connection.id, queryInput)
+function ReviewReviewedBody(props: ReviewTabBodyProps) {
+    const queryInput = useReviewQueryInput('reviewed', props.connection.id, props.currency)
+    const read = useReviewedRows(props.connection.id, queryInput)
+    return <ReviewTabView {...props} read={read} queryInput={queryInput} />
+}
+
+function ReviewExcludedBody(props: ReviewTabBodyProps) {
+    const queryInput = useReviewQueryInput('excluded', props.connection.id, props.currency)
+    const read = useExcludedRows(props.connection.id, queryInput)
     return <ReviewTabView {...props} read={read} queryInput={queryInput} />
 }
 
 // One transaction tab. For review reads every row at once; Reviewed and Excluded page, and
-// a paged read cannot be disabled, so each read lives in its own body. Each body is keyed
-// by its tab and account, so the rows kept while a new query loads are never another
-// tab's or account's.
+// a paged read cannot be disabled, so each read lives in its own body (Reviewed's read also
+// holds each row's match lines). Each body is keyed by its tab and account, so the rows
+// kept while a new query loads are never another tab's or account's.
 export function ReviewTabBody(props: ReviewTabBodyProps) {
     const { tab } = props
     const bodyKey = `${tab}-${props.connection.id}`
     if (tab === 'review') return <ReviewQueueBody key={bodyKey} {...props} />
-    return <ReviewPagedBody key={bodyKey} {...props} tab={tab} />
+    if (tab === 'reviewed') return <ReviewReviewedBody key={bodyKey} {...props} />
+    return <ReviewExcludedBody key={bodyKey} {...props} />
 }

@@ -18,7 +18,12 @@ import {
     EMPTY_REVIEW_FILTERS,
     hasReviewFilter,
     keptAfterBatch,
+    REVIEW_CARD_HEIGHT,
+    REVIEW_CELLS,
+    REVIEW_TABLE_MIN_WIDTH,
     REVIEW_TABS,
+    REVIEWED_CARD_HEIGHT,
+    REVIEWED_CELLS,
     type ReviewFilters,
     reviewCountText,
     reviewEmptyText,
@@ -835,5 +840,37 @@ describe('canChoose', () => {
 
     it('never lets a reader choose', () => {
         expect(canChoose('review', false)).toBe(false)
+    })
+})
+
+// The narrowest a row of cells can be: each fixed width plus each flex cell's minimum.
+function leastRowWidth(cells: Record<string, { width?: number; minWidth?: number }>): number {
+    return Object.values(cells).reduce(
+        (sum, cell) => sum + (cell.width ?? 0) + (cell.minWidth ?? 0),
+        0
+    )
+}
+
+describe('REVIEWED_CELLS', () => {
+    it('gives Description and In Books a flex width with their minimums', () => {
+        expect(REVIEWED_CELLS.description).toEqual({ flex: 1, minWidth: 160 })
+        expect(REVIEWED_CELLS.inBooks).toEqual({ flex: 1, minWidth: 180 })
+    })
+
+    it('fits inside the minimum width of the table', () => {
+        expect(leastRowWidth(REVIEWED_CELLS)).toBe(712)
+        expect(leastRowWidth(REVIEWED_CELLS)).toBeLessThanOrEqual(REVIEW_TABLE_MIN_WIDTH)
+    })
+
+    it('leaves the cells of the other tabs and the table minimum as they were', () => {
+        expect(REVIEW_CELLS.description.minWidth).toBe(240)
+        expect(REVIEW_TABLE_MIN_WIDTH).toBe(720)
+    })
+})
+
+describe('the card heights', () => {
+    it('gives a Reviewed card room for its third line and keeps the other cards', () => {
+        expect(REVIEWED_CARD_HEIGHT).toBe(96)
+        expect(REVIEW_CARD_HEIGHT).toBe(72)
     })
 })

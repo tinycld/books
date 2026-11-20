@@ -70,6 +70,26 @@ function seedMatches() {
     return guardedStore<BooksBankMatches>('books_bank_matches', [])
 }
 
+const BOOKS_LOCKED = 'The books are locked.'
+
+// One match row for each id (`match_<id>`), and one of another transaction that an undo
+// must keep. Registered after seedTxns, so the deletes go through the shared write handler.
+function matchedStore(ids: readonly string[]) {
+    const row = (id: string, txnId: string): BooksBankMatches => ({
+        id,
+        bank_transaction: txnId,
+        lines: [`line_${txnId}`],
+        connection: 'bankconncheckng',
+        created_by: 'u1',
+        created: '2026-11-18 10:00:00.000Z',
+        updated: '2026-11-18 10:00:00.000Z',
+    })
+    return guardedStore<BooksBankMatches>('books_bank_matches', [
+        ...ids.map(id => row(`match_${id}`, id)),
+        row('match_other', 'txn_other'),
+    ])
+}
+
 function matchRows(matches: ReturnType<typeof seedMatches>) {
     return matches.toArray
         .map(row => ({ bank_transaction: row.bank_transaction, lines: [...row.lines] }))
@@ -461,6 +481,88 @@ describe('useReviewBatch', () => {
         expect(matchRows(matches)).toEqual([{ bank_transaction: id, lines: ['line_a', 'line_b'] }])
         await waitFor(() => expect(result.current.result?.text).toBe('Matched 1 transaction.'))
         expect(result.current.result?.tone).toBe('muted')
+    })
+
+    it('deletes the match row of each id to undo its match', async () => {
+        const ids = seedTxns(2)
+        const matches = matchedStore(ids)
+        const { result } = renderHook(() => useReviewBatch(), { wrapper })
+
+        let outcome: BatchOutcome | undefined
+        await act(async () => {
+            outcome = await result.current.run({
+                kind: 'unmatch',
+                ids,
+                summary: '',
+                origin: 'bar',
+                matchIds: { txn_001: 'match_txn_001', txn_002: 'match_txn_002' },
+            })
+        })
+        expect(outcome?.failed).toEqual([])
+        expect([...(outcome?.done ?? [])].sort()).toEqual(ids)
+        expect([...enteredWrites()].sort()).toEqual(['match_txn_001', 'match_txn_002'])
+        await waitFor(() => expect(matches.toArray.map(row => row.id)).toEqual(['match_other']))
+        // The server moves the transaction back to For review; the client writes no status.
+        expect(statusOf('txn_001')).toBe('for_review')
+        await waitFor(() =>
+            expect(result.current.result).toEqual({
+                text: 'Match undone. The transaction is back in For review.',
+                tone: 'muted',
+            })
+        )
+    })
+
+    it("puts a refused undo in failed with the server's message and keeps the match", async () => {
+        const ids = seedTxns(2, { match_txn_002: messageRefusal(BOOKS_LOCKED) })
+        const matches = matchedStore(ids)
+        const { result } = renderHook(() => useReviewBatch(), { wrapper })
+
+        let outcome: BatchOutcome | undefined
+        await act(async () => {
+            outcome = await result.current.run({
+                kind: 'unmatch',
+                ids,
+                summary: '',
+                origin: 'bar',
+                matchIds: { txn_001: 'match_txn_001', txn_002: 'match_txn_002' },
+            })
+        })
+        expect(outcome?.done).toEqual(['txn_001'])
+        expect(outcome?.failed).toEqual([
+            { id: 'txn_002', message: BOOKS_LOCKED, isTransport: false },
+        ])
+        await waitFor(() =>
+            expect(matches.toArray.map(row => row.id).sort()).toEqual([
+                'match_other',
+                'match_txn_002',
+            ])
+        )
+        await waitFor(() =>
+            expect(result.current.result).toEqual({ text: BOOKS_LOCKED, tone: 'danger' })
+        )
+    })
+
+    it('gives no result line for a failed undo from the drawer, which shows it itself', async () => {
+        const [id] = seedTxns(1, { match_txn_001: messageRefusal(BOOKS_LOCKED) })
+        matchedStore([id])
+        // The drawer still shows this transaction when the run settles.
+        useBankingUIStore.getState().openTxn(id)
+        const { result } = renderHook(() => useReviewBatch(), { wrapper })
+
+        let outcome: BatchOutcome | undefined
+        await act(async () => {
+            outcome = await result.current.run({
+                kind: 'unmatch',
+                ids: [id],
+                summary: '',
+                origin: 'drawer',
+                matchIds: { [id]: `match_${id}` },
+            })
+        })
+        expect(outcome?.failed).toEqual([{ id, message: BOOKS_LOCKED, isTransport: false }])
+        await waitFor(() => expect(result.current.isPending).toBe(false))
+        await settle()
+        expect(result.current.result).toBeNull()
     })
 
     it('shows the transport text and warns once when nothing reached the server', async () => {

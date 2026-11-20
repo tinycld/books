@@ -81,7 +81,7 @@ interface BankingUIState {
     // choice of a transaction, useBankMatch shows its one suggestion as chosen; the first
     // change stores the whole choice with `matchSeededFor` = that transaction
     // (takeMatchChoice), so from then on `matchChosen` alone counts and an uncheck stays.
-    // `matchRefusal` is the failure text of the last match from the drawer. All of it
+    // `matchRefusal` is the failure text of the last match or undo from the drawer. All of it
     // belongs to the open transaction, so opening another one, closing the drawer, or
     // leaving the rows resets it.
     // Only line ids are kept: useBankMatch reads the chosen lines from the server, so a

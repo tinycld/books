@@ -24,12 +24,15 @@ import {
     type MatchSide,
     matchableLines,
     matchEmptyText,
+    matchedOnText,
     matchSendingFor,
     matchSide,
     matchSubmitState,
     matchTotals,
+    undoSendingFor,
+    unmatchResultText,
 } from '../lib/bank-match'
-import type { BatchOutcome } from '../lib/bank-review'
+import { type BatchFailure, type BatchOutcome, writeControlState } from '../lib/bank-review'
 import { entryHref } from '../lib/entry-route'
 import { linePartyName } from '../lib/line-party-options'
 import { ID_ORDER, LIST_PAGE_SIZE, SEARCH_DELAY_MS, searchPieces } from '../lib/list-search'
@@ -313,6 +316,218 @@ function lineOptions(rows: readonly LineRow[]): MatchOption[] {
 }
 
 const NO_IDS: readonly string[] = []
+const NO_MATCH_OPTIONS: readonly MatchOption[] = []
+
+// The drawer's text for a failed match or undo of its transaction.
+type RefusalOf = (failure: BatchFailure) => string
+
+// A refused match shows the server's message; one that never reached the server, the
+// transport text.
+const matchRefusal: RefusalOf = failure =>
+    failure.isTransport ? MATCH_TRANSPORT_TEXT : failure.message
+
+// An undo shows the result text of its one failure: the server's message, or
+// UNDO_TRANSPORT_TEXT when there is none.
+const undoRefusal: RefusalOf = failure => unmatchResultText({ done: [], failed: [failure] })
+
+// The match of one Reviewed bank transaction, with who made it and its match lines, each
+// with its journal line, its entry and the customer or vendor names of the entry's lines,
+// in one query. Disabled while no Reviewed transaction is open.
+function useMatchedQuery(txnId: string | null) {
+    const [matches, matchLines, users] = useStore(
+        'books_bank_matches',
+        'books_bank_match_lines',
+        'users'
+    )
+    const c = useLineCollections()
+    const query = useLiveQuery({
+        query: q => {
+            if (!txnId) return null
+            return q
+                .from({ m: matches })
+                .where(({ m }) => eq(m.bank_transaction, txnId))
+                .select(({ m }) => ({
+                    id: m.id,
+                    created: m.created,
+                    user: materialize(
+                        q
+                            .from({ u: users })
+                            .where(({ u }) => eq(u.id, m.created_by))
+                            .select(({ u }) => ({ name: u.name }))
+                            .findOne()
+                    ),
+                    lines: materialize(
+                        q
+                            .from({ ml: matchLines })
+                            .where(({ ml }) => eq(ml.match, m.id))
+                            .select(({ ml }) => ({
+                                id: ml.id,
+                                lineId: ml.line,
+                                line: materialize(
+                                    q
+                                        .from({ l: c.lines })
+                                        .where(({ l }) => eq(l.id, ml.line))
+                                        .select(({ l }) => ({
+                                            debit: l.debit,
+                                            credit: l.credit,
+                                            date: l.date,
+                                        }))
+                                        .findOne()
+                                ),
+                                entry: materialize(
+                                    q
+                                        .from({ e: c.entries })
+                                        .where(({ e }) => eq(e.id, ml.entry))
+                                        .select(({ e }) => ({
+                                            id: e.id,
+                                            number: e.number,
+                                            doc_type: e.doc_type,
+                                            origin: e.origin,
+                                            document: e.document,
+                                        }))
+                                        .findOne()
+                                ),
+                                parties: materialize(
+                                    q
+                                        .from({ l: c.lines })
+                                        .where(({ l }) => eq(l.entry, ml.entry))
+                                        .select(({ l }) => ({
+                                            id: l.id,
+                                            position: l.position,
+                                            customerRow: materialize(
+                                                q
+                                                    .from({ cu: c.customers })
+                                                    .where(({ cu }) => eq(cu.id, l.customer))
+                                                    .select(({ cu }) => ({
+                                                        display_name: cu.display_name,
+                                                    }))
+                                                    .findOne()
+                                            ),
+                                            vendorRow: materialize(
+                                                q
+                                                    .from({ v: c.vendors })
+                                                    .where(({ v }) => eq(v.id, l.vendor))
+                                                    .select(({ v }) => ({
+                                                        display_name: v.display_name,
+                                                    }))
+                                                    .findOne()
+                                            ),
+                                        }))
+                                ),
+                            }))
+                    ),
+                }))
+                .findOne()
+        },
+        queryKey: ['books.match.matched', txnId],
+    })
+    return {
+        query,
+        sources: [matches, matchLines, users, c.lines, c.entries, c.customers, c.vendors],
+    }
+}
+
+type MatchedRow = NonNullable<ReturnType<typeof useMatchedQuery>['query']['data']>
+
+// The matched Books transactions as link rows, by date, then by entry number. A match line
+// whose journal line or entry has not arrived is left out until it does.
+function matchedOptions(row: MatchedRow | undefined): MatchOption[] {
+    return (row?.lines ?? [])
+        .flatMap(matchLine => {
+            const { line, entry } = matchLine
+            if (!line || !entry) return []
+            return [{ matchLine, line, entry }]
+        })
+        .sort(
+            (a, b) =>
+                a.line.date.localeCompare(b.line.date) ||
+                compareNumbers(a.entry.number, b.entry.number)
+        )
+        .map(({ matchLine, line, entry }) =>
+            optionOf({
+                lineId: matchLine.lineId,
+                line,
+                entry,
+                date: line.date,
+                name: entryPartyName(matchLine.lineId, matchLine.parties),
+            })
+        )
+}
+
+// The Matched to section as it shows one match: the id of the match row (the undo deletes
+// it), the matched Books transactions, and who matched it and when.
+function matchedView(row: MatchedRow) {
+    return {
+        matchId: row.id,
+        options: matchedOptions(row),
+        byText: matchedOnText(row.created, row.user?.name ?? ''),
+    }
+}
+
+export type MatchedView = ReturnType<typeof matchedView>
+
+// The Matched to section of a Reviewed transaction: its match (loading, load error),
+// the matched Books transactions, who matched it and when, and Undo match (writers),
+// run through the page's one batch as a delete of the match row.
+function useMatchedModel(input: {
+    txnId: string | null
+    canWrite: boolean
+    batch: ReviewBatch
+    writes: ReturnType<typeof useServerActionState>
+    settle: (id: string, outcome: BatchOutcome, refusalOf: RefusalOf) => void
+    clearRefusal: () => void
+}) {
+    const { txnId, canWrite, batch, writes } = input
+    const { query, sources } = useMatchedQuery(txnId)
+    const isOpen = txnId !== null
+    const isUndoing = txnId !== null && undoSendingFor(batch.pending, txnId)
+    const liveRow = isOpen && query.isReady ? query.data : undefined
+    const live = liveRow ? matchedView(liveRow) : undefined
+    // pbtsdb's delete is optimistic: the match row leaves the store as the undo is sent.
+    // Until the run ends the section shows the match as the undo sent it (the run's input),
+    // so "Undoing…" shows; a refusal rolls the row back.
+    const held = isUndoing ? batch.pending?.undoShown : undefined
+    const view = live ?? held
+    const isError = isOpen && query.isError
+    const isLoading = isOpen && !query.isReady && !isError && !isUndoing
+    const undo = writeControlState({
+        isPending: batch.isPending,
+        writesDisabled: writes.isDisabled,
+        writesHint: writes.accessibilityHint,
+    })
+    const onUndo = () => {
+        if (!txnId || !view || !canWrite || undo.isDisabled) return
+        input.clearRefusal()
+        void batch
+            .run({
+                kind: 'unmatch',
+                ids: [txnId],
+                summary: '',
+                origin: 'drawer',
+                matchIds: { [txnId]: view.matchId },
+                undoShown: view,
+            })
+            .then(outcome => input.settle(txnId, outcome, undoRefusal))
+            .catch(err => log.error('books.banking', err))
+    }
+    const recovery: LiveRecovery =
+        isOpen && query.collection
+            ? { queries: [query.collection], sources }
+            : { queries: [], sources: [] }
+    return {
+        // Shown while the match loads, after its read failed, and when it has a match; a
+        // Reviewed transaction with no match (categorized) shows no section.
+        isShown: isLoading || isError || view !== undefined,
+        isLoading,
+        isError,
+        options: view?.options ?? NO_MATCH_OPTIONS,
+        byText: view?.byText ?? '',
+        onUndo,
+        undo,
+        isUndoing,
+        recovery,
+    }
+}
 
 // The chosen lines that are not suggestions (chosen in the find mode), read from the
 // server with the find mode's reads and the rules of canMatchLine, so a line that is
@@ -333,6 +548,11 @@ function useChosenLinesQuery(input: { account: string; side: MatchSide; ids: rea
     return { query, sources: lineSources(c) }
 }
 
+function sectionKind(isForReview: boolean, isMatchedShown: boolean) {
+    if (isForReview) return 'match' as const
+    return isMatchedShown ? ('matched' as const) : ('hidden' as const)
+}
+
 type BankMatchInput = {
     drawer: ReviewDrawerModel
     canWrite: boolean
@@ -349,7 +569,8 @@ type BankMatchInput = {
 
 // The drawer's Match section: the suggestions of the open For review transaction, the
 // find mode's range and search, the choice, the totals and the match itself, run through
-// the page's one batch. Hidden for an Excluded transaction and for a Reviewed one.
+// the page's one batch; for a Reviewed transaction that was matched, the Matched to
+// section (`matched`) and its undo. Hidden for an Excluded transaction.
 export function useBankMatch({
     drawer,
     canWrite,
@@ -440,12 +661,13 @@ export function useBankMatch({
         setMatchRefusal(null)
     }
 
-    // The server moves a matched transaction to Reviewed, so the row leaves the tab and the
-    // drawer closes. A failure keeps the drawer open with its text under the totals: the
-    // server's message, or the transport text (the batch has logged it). The drawer may
-    // show another transaction (or be closed) by the time the run ends; the outcome then
-    // touches nothing here, and the batch's result line shows a failure (useReviewBatch).
-    const settle = (id: string, outcome: BatchOutcome) => {
+    // The server moves a matched transaction to Reviewed (an undone one back to For
+    // review), so the row leaves the tab and the drawer closes. A failure keeps the drawer
+    // open with its text (refusalOf: the server's message, or the transport text, which the
+    // batch has logged). The drawer may show another transaction (or be closed) by the
+    // time the run ends; the outcome then touches nothing here, and the batch's result line
+    // shows a failure (useReviewBatch).
+    const settle = (id: string, outcome: BatchOutcome, refusalOf: RefusalOf) => {
         if (useBankingUIStore.getState().openTxnId !== id) return
         if (outcome.done.includes(id)) {
             drawer.onClose()
@@ -453,8 +675,16 @@ export function useBankMatch({
         }
         const failure = outcome.failed.find(f => f.id === id)
         if (!failure) return
-        setMatchRefusal(failure.isTransport ? MATCH_TRANSPORT_TEXT : failure.message)
+        setMatchRefusal(refusalOf(failure))
     }
+    const matched = useMatchedModel({
+        txnId: detail?.status === 'reviewed' ? detail.id : null,
+        canWrite,
+        batch,
+        writes,
+        settle,
+        clearRefusal: () => setMatchRefusal(null),
+    })
     const onMatch = () => {
         if (!txnId || !canWrite || submit.isDisabled) return
         setMatchRefusal(null)
@@ -466,7 +696,7 @@ export function useBankMatch({
                 origin: 'drawer',
                 matchLines: { [txnId]: chosenIds },
             })
-            .then(outcome => settle(txnId, outcome))
+            .then(outcome => settle(txnId, outcome, matchRefusal))
             .catch(err => log.error('books.banking', err))
     }
 
@@ -478,6 +708,7 @@ export function useBankMatch({
         ...(query.collection ? [{ queries: [query.collection], sources }] : []),
         ...chosenRecovery,
         suggestionsRecovery,
+        matched.recovery,
     ])
     const onRetry = () => {
         void recoverLiveQueries({
@@ -492,10 +723,11 @@ export function useBankMatch({
     const bankDate = detail?.date ?? ''
     const findRange: FindRange = storedRange ?? defaultFindRange(bankDate)
 
-    const kind: 'hidden' | 'match' | 'matched' = isActive ? 'match' : 'hidden'
+    const kind = sectionKind(isActive, matched.isShown)
     return {
         kind,
         txnId,
+        matched,
         canWrite,
         options,
         chosenIds: heldIds,

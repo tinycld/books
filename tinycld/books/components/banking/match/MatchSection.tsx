@@ -3,6 +3,7 @@ import { Button, ButtonSpinner, ButtonText } from '@tinycld/core/ui/button'
 import { ShortcutButton } from '@tinycld/core/ui/shortcut-button'
 import { Text, View } from 'react-native'
 import type { BankMatchModel, MatchOption } from '../../../hooks/useBankMatch'
+import { MatchedTo } from './MatchedTo'
 import { MatchFind } from './MatchFind'
 import { MatchLoadError, MatchLoading } from './MatchLoadStates'
 import { MatchOptionRow } from './MatchOptionRow'
@@ -209,11 +210,15 @@ function FindBody({
     )
 }
 
-// The Match section of a For review transaction, in the drawer's `children` slot. The
-// drawer renders outside the page's ScopeProvider, so the page hands its `list` scope
-// owner in for the M and F buttons. The find mode is a writer's only.
+// The Match section of a For review transaction, in the drawer's `children` slot, or the
+// Matched to section of a matched Reviewed one. The drawer renders outside the page's
+// ScopeProvider, so the page hands its `list` scope owner in for the M, F and Z buttons.
+// The find mode is a writer's only.
 export function MatchSection({ model, scopeOwner, currency }: SectionProps) {
     if (model.kind === 'hidden') return null
+    if (model.kind === 'matched') {
+        return <MatchedTo model={model} scopeOwner={scopeOwner} currency={currency} />
+    }
     const isReady = !model.isLoading && !model.isError
     const isFind = isReady && model.canWrite && model.mode === 'find'
     const isSuggestions = isReady && !isFind

@@ -13,6 +13,7 @@ import {
     chunksOf,
 } from '../lib/bank-review'
 import { useBankingUIStore } from '../stores/banking-ui-store'
+import type { MatchedView } from './useBankMatch'
 
 // Writes in flight at once: enough to move a large choice quickly, few enough that the
 // browser's connection limit and the server see a steady flow.
@@ -21,13 +22,18 @@ const BATCH_SIZE = 50
 // `summary` is the selection bar's text of the choice as it was sent. `origin` names the
 // control that started the run: the selection bar stays up, busy, for its own run only.
 // A match run gives each id its journal lines in `matchLines`, and `skipped` counts the
-// chosen rows it does not send (no single suggestion), for the result line.
+// chosen rows it does not send (no single suggestion), for the result line. An undo run
+// gives each id the id of its books_bank_matches row in `matchIds`; the drawer's undo also
+// carries the Matched to section as it showed it (`undoShown`), which the section shows
+// while the run is in flight, as the optimistic delete takes the match row from the store.
 export type ReviewBatchInput = {
     kind: BatchKind
     ids: readonly string[]
     summary: string
     origin: 'bar' | 'drawer'
     matchLines?: Readonly<Record<string, readonly string[]>>
+    matchIds?: Readonly<Record<string, string>>
+    undoShown?: MatchedView
     skipped?: number
 }
 
@@ -35,13 +41,16 @@ const NOT_SENT_TEXT: Record<BatchKind, string> = {
     exclude: 'bank transaction status change not sent',
     restore: 'bank transaction status change not sent',
     match: 'bank match not sent',
+    unmatch: 'bank match undo not sent',
 }
 
 // Exclude or Move to For review of many transactions: each is a pbtsdb update of its
 // status (optimistic, so the rows leave the tab at once), 50 at a time. A refused row is
 // rolled back by pbtsdb and goes back into the list. A match is a pbtsdb insert of one
 // books_bank_matches row for each id; the client writes no status: the server moves the
-// transaction to Reviewed and realtime brings the change. The run never throws: it
+// transaction to Reviewed and realtime brings the change. An undo is a pbtsdb delete of
+// the id's match row; the server moves the transaction back to For review (its match
+// lines go by the cascade). The run never throws: it
 // returns which ids went through and why the others did not, so the caller can keep the
 // failed rows chosen.
 //
@@ -54,8 +63,14 @@ export function useReviewBatch() {
     const [txns, matches] = useStore('books_bank_transactions', 'books_bank_matches')
 
     // Starts the write of one id, or throws when there is nothing to send: a moved row that
-    // is no longer in the store (it left by realtime), or a match id with no lines.
+    // is no longer in the store (it left by realtime), a match id with no lines, or an
+    // undo id with no match row.
     const startWrite = (input: ReviewBatchInput, id: string) => {
+        if (input.kind === 'unmatch') {
+            const matchId = input.matchIds?.[id]
+            if (!matchId) throw new Error('no match to undo')
+            return matches.delete(matchId)
+        }
         if (input.kind === 'match') {
             const lines = input.matchLines?.[id] ?? []
             const [first, ...rest] = lines
@@ -163,12 +178,13 @@ export type ReviewBatch = ReturnType<typeof useReviewBatch>
 // The outcome of a run and whether the drawer shows its failure itself.
 type BatchRun = { outcome: BatchOutcome; isShownByDrawer: boolean }
 
-// A match from the drawer that failed keeps the drawer open, which shows the failure under
-// its totals (useBankMatch's settle), so the result line stays empty. That holds only while
-// the drawer still shows that transaction when the run ends: after Esc, a close or another
-// row, the result line shows the failure, or it would show nowhere.
+// A match or an undo from the drawer that failed keeps the drawer open, which shows the
+// failure itself (useBankMatch's settle), so the result line stays empty. That holds only
+// while the drawer still shows that transaction when the run ends: after Esc, a close or
+// another row, the result line shows the failure, or it would show nowhere.
 function drawerShowsFailure(input: ReviewBatchInput, outcome: BatchOutcome): boolean {
-    if (input.origin !== 'drawer' || input.kind !== 'match') return false
+    const isMatchKind = input.kind === 'match' || input.kind === 'unmatch'
+    if (input.origin !== 'drawer' || !isMatchKind) return false
     if (outcome.failed.length === 0) return false
     const openId = useBankingUIStore.getState().openTxnId
     return openId !== null && input.ids.includes(openId)

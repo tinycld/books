@@ -1,6 +1,11 @@
 import { View } from 'react-native'
 import type { ReviewRowData, ReviewTabModel } from '../../../hooks/useReviewTab'
-import { REVIEW_CELLS, REVIEW_ROW_HEIGHT, REVIEW_TABLE_MIN_WIDTH } from '../../../lib/bank-review'
+import {
+    REVIEW_CELLS,
+    REVIEW_ROW_HEIGHT,
+    REVIEW_TABLE_MIN_WIDTH,
+    REVIEWED_CELLS,
+} from '../../../lib/bank-review'
 import { ListHeaderCell, ListHeaderRow, ListTable } from '../../ListTable'
 import { SelectBox } from '../../SelectBox'
 import { DateOrderToggle } from './DateOrderToggle'
@@ -28,7 +33,14 @@ function HeaderCheckCell({ model }: { model: ReviewTabModel }) {
     )
 }
 
+function InBooksHeaderCell({ isVisible }: { isVisible: boolean }) {
+    if (!isVisible) return null
+    return <ListHeaderCell label="In Books" style={REVIEWED_CELLS.inBooks} />
+}
+
+// Reviewed reads REVIEWED_CELLS (with In Books); the other tabs REVIEW_CELLS.
 function ReviewHeader({ model }: { model: ReviewTabModel }) {
+    const cells = model.showsInBooks ? REVIEWED_CELLS : REVIEW_CELLS
     return (
         <ListHeaderRow testID="bank-review-header">
             <HeaderCheckCell model={model} />
@@ -36,10 +48,12 @@ function ReviewHeader({ model }: { model: ReviewTabModel }) {
                 order={model.dateOrder}
                 onToggle={model.onToggleOrder}
                 variant="header"
+                isReviewed={model.showsInBooks}
             />
-            <ListHeaderCell label="Description" style={REVIEW_CELLS.description} />
-            <ListHeaderCell label="Spent" style={REVIEW_CELLS.spent} align="right" />
-            <ListHeaderCell label="Received" style={REVIEW_CELLS.received} align="right" />
+            <ListHeaderCell label="Description" style={cells.description} />
+            <InBooksHeaderCell isVisible={model.showsInBooks} />
+            <ListHeaderCell label="Spent" style={cells.spent} align="right" />
+            <ListHeaderCell label="Received" style={cells.received} align="right" />
         </ListHeaderRow>
     )
 }
@@ -68,6 +82,7 @@ export function ReviewTable({
                 isFocused={isFocused}
                 onOpen={model.onOpenRow}
                 choice={choice}
+                showsInBooks={model.showsInBooks}
             />
         )
     }
