@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
     BILL_OUTSTANDING,
     CREDIT_OUTSTANDING,
+    INVOICE_CREDITS_OUTSTANDING,
     INVOICE_OUTSTANDING,
+    MEMO_INVOICES_OUTSTANDING,
     outstandingTexts,
     paymentCellLabel,
     REFUND_OUTSTANDING,
@@ -12,6 +14,10 @@ import {
 import {
     BILL_PAYMENT_COLUMNS,
     BILL_PAYMENT_GRID_MIN_WIDTH,
+    CREDIT_APPLY_COLUMNS,
+    CREDIT_APPLY_GRID_MIN_WIDTH,
+    MEMO_APPLY_COLUMNS,
+    MEMO_APPLY_GRID_MIN_WIDTH,
     PAYMENT_CELL_GAP,
     PAYMENT_COLUMNS,
     PAYMENT_GRID_MIN_WIDTH,
@@ -20,7 +26,12 @@ import {
     REFUND_COLUMNS,
     REFUND_GRID_MIN_WIDTH,
 } from '../tinycld/books/lib/payment-columns'
-import { BILL_KIND, VENDOR_CREDIT_KIND } from '../tinycld/books/lib/sales-document-kinds'
+import {
+    BILL_KIND,
+    CREDIT_MEMO_KIND,
+    INVOICE_KIND,
+    VENDOR_CREDIT_KIND,
+} from '../tinycld/books/lib/sales-document-kinds'
 
 // The outstanding grid's third descriptor (vendor credit spec §3.9): the apply dialog's
 // bills, with no Bill total column, no header tick box or Pay all, and "Credit to apply"
@@ -188,6 +199,87 @@ describe('REFUND_OUTSTANDING', () => {
     it('names a row’s tick box and cell in the pattern of the bill’s', () => {
         expect(rowTickLabel(REFUND_OUTSTANDING, '1002')).toBe('Refund vendor credit 1002')
         expect(paymentCellLabel(REFUND_OUTSTANDING, '1002')).toBe('Refund for vendor credit 1002')
+    })
+})
+
+// The apply dialog's two customer lists (apply credit spec §3.2, §3.3, §4.4, plan decision
+// 14): the invoices under a credit memo, with their own column set (Due date 154 px, Credit
+// to apply 114 px), and the credit memos under an invoice, with the vendor credit's columns.
+// Neither has a total column or a header tick box.
+describe('MEMO_INVOICES_OUTSTANDING', () => {
+    it('lists invoices, opening each invoice', () => {
+        expect(MEMO_INVOICES_OUTSTANDING.key).toBe('memo_invoices')
+        expect(MEMO_INVOICES_OUTSTANDING.noun).toBe('Invoice')
+        expect(MEMO_INVOICES_OUTSTANDING.openKind).toBe(INVOICE_KIND)
+        expect(MEMO_INVOICES_OUTSTANDING.testIdPrefix).toBe('apply-credit')
+        expect(MEMO_INVOICES_OUTSTANDING.party).toBe('none')
+        expect(MEMO_INVOICES_OUTSTANDING.paymentHeader).toBe('Credit to apply')
+    })
+
+    it('has no total column and no header tick box', () => {
+        expect(MEMO_INVOICES_OUTSTANDING.columns.original).toBeNull()
+        expect(MEMO_INVOICES_OUTSTANDING.hasPayAll).toBe(false)
+        expect(outstandingTexts(MEMO_INVOICES_OUTSTANDING).total).toBeNull()
+        expect(outstandingTexts(MEMO_INVOICES_OUTSTANDING).payAllLabel).toBeNull()
+    })
+
+    it('keeps the due-date texts and the overdue mark', () => {
+        expect(MEMO_INVOICES_OUTSTANDING.dateHeader).toBe('Due date')
+        expect(MEMO_INVOICES_OUTSTANDING.openHeader).toBe('Open balance')
+        expect(MEMO_INVOICES_OUTSTANDING.marksOverdue).toBe(true)
+    })
+
+    it('has the memo columns and a least width of 566, inside the xl dialog’s 598 px', () => {
+        expect(MEMO_INVOICES_OUTSTANDING.columns).toEqual({
+            tick: MEMO_APPLY_COLUMNS.tick,
+            party: null,
+            document: MEMO_APPLY_COLUMNS.invoice,
+            dueDate: MEMO_APPLY_COLUMNS.dueDate,
+            original: null,
+            open: MEMO_APPLY_COLUMNS.open,
+            payment: MEMO_APPLY_COLUMNS.payment,
+        })
+        expect(MEMO_INVOICES_OUTSTANDING.gridMinWidth).toBe(MEMO_APPLY_GRID_MIN_WIDTH)
+        expect(MEMO_INVOICES_OUTSTANDING.gridMinWidth).toBe(566)
+        expect(MEMO_INVOICES_OUTSTANDING.gridMinWidth).toBeLessThan(598)
+    })
+})
+
+describe('INVOICE_CREDITS_OUTSTANDING', () => {
+    it('lists credit memos, opening each memo', () => {
+        expect(INVOICE_CREDITS_OUTSTANDING.key).toBe('invoice_credits')
+        expect(INVOICE_CREDITS_OUTSTANDING.noun).toBe('Credit memo')
+        expect(INVOICE_CREDITS_OUTSTANDING.openKind).toBe(CREDIT_MEMO_KIND)
+        expect(INVOICE_CREDITS_OUTSTANDING.testIdPrefix).toBe('apply-credit')
+        expect(INVOICE_CREDITS_OUTSTANDING.party).toBe('none')
+        expect(INVOICE_CREDITS_OUTSTANDING.paymentHeader).toBe('Credit to apply')
+    })
+
+    it('names its date and open columns, and draws no overdue mark', () => {
+        expect(INVOICE_CREDITS_OUTSTANDING.dateHeader).toBe('Credit date')
+        expect(INVOICE_CREDITS_OUTSTANDING.openHeader).toBe('Unapplied credit')
+        expect(INVOICE_CREDITS_OUTSTANDING.openCardLabel).toBe('Unapplied credit')
+        expect(INVOICE_CREDITS_OUTSTANDING.marksOverdue).toBe(false)
+    })
+
+    it('has no total column and no header tick box', () => {
+        expect(INVOICE_CREDITS_OUTSTANDING.columns.original).toBeNull()
+        expect(INVOICE_CREDITS_OUTSTANDING.hasPayAll).toBe(false)
+        expect(outstandingTexts(INVOICE_CREDITS_OUTSTANDING).total).toBeNull()
+        expect(outstandingTexts(INVOICE_CREDITS_OUTSTANDING).payAllLabel).toBeNull()
+    })
+
+    it('has the columns of CREDIT_APPLY_COLUMNS', () => {
+        expect(INVOICE_CREDITS_OUTSTANDING.columns).toEqual({
+            tick: CREDIT_APPLY_COLUMNS.tick,
+            party: null,
+            document: CREDIT_APPLY_COLUMNS.bill,
+            dueDate: CREDIT_APPLY_COLUMNS.dueDate,
+            original: null,
+            open: CREDIT_APPLY_COLUMNS.open,
+            payment: CREDIT_APPLY_COLUMNS.payment,
+        })
+        expect(INVOICE_CREDITS_OUTSTANDING.gridMinWidth).toBe(CREDIT_APPLY_GRID_MIN_WIDTH)
     })
 })
 

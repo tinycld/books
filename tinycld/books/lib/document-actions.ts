@@ -7,8 +7,10 @@ import { type DocumentFeatures, SALES_FEATURES } from './sales-document-kinds'
 // only, never a posting document's. Receive payment (`receive_payment`) is an invoice's
 // only (receive-payment spec §3.9); Pay bill (`pay_bill`) is a bill's only (pay-bills spec
 // §3.9); Create credit memo (`credit_memo`) is a posted invoice's only (credit memo spec
-// §3.10). Apply to bills (`apply_credit`) is a posted vendor credit's only (vendor credit
-// spec §3.7, §3.9), and Record refund (`record_refund`) too (vendor refund spec §3.9).
+// §3.10). Apply (`apply_credit`) is a posted credit's: Apply to bills of a vendor credit
+// (vendor credit spec §3.7, §3.9), Apply to invoices of a credit memo (apply credit spec
+// §3.1); its words come from applyCreditLabel (lib/credit-application-kinds.ts). Record
+// refund (`record_refund`) is a posted vendor credit's only (vendor refund spec §3.9).
 // Refund (`refund`) is a posted sales receipt's only, Refund credit (`refund_credit`) a
 // posted credit memo's with unapplied credit only (refund receipt spec §3.11, §3.12).
 // Write off (`write_off`) is a posted invoice's with an open balance only (write-off spec
@@ -129,11 +131,13 @@ export function refundCreditOffered(
     return kind === 'credit_memo' && status === 'posted' && balance > 0
 }
 
-// A posted vendor credit with a balance (unapplied credit) above zero is applied to bills
-// from its read view (vendor credit spec §3.7, §3.9); no other record is. `kind` is the
-// record's `kindFields.kind`.
+// A posted credit with a balance (unapplied credit) above zero is applied from its read
+// view: a vendor credit to bills (vendor credit spec §3.7, §3.9), a credit memo to
+// invoices (apply credit spec §3.1). No other record is; an invoice's Apply credit is the
+// invoice's own rule. `kind` is the record's `kindFields.kind`.
 export function applyCreditOffered(kind: string, status: DocumentStatus, balance: number): boolean {
-    return kind === 'vendor_credit' && status === 'posted' && balance > 0
+    const isCredit = kind === 'vendor_credit' || kind === 'credit_memo'
+    return isCredit && status === 'posted' && balance > 0
 }
 
 // A writer records a vendor refund from a posted vendor credit with a balance (unapplied
@@ -168,8 +172,8 @@ type ReadActionExtra = {
 // offers no Download PDF. Receive payment comes first for a writer on a posted document
 // when `extra.canReceivePayment` is set (the read view sets it only for an invoice with a
 // balance above zero), Pay bill when `extra.canPayBill` is set (only for a bill with a
-// balance above zero), Apply to bills when `extra.canApplyCredit` is set (only for a
-// vendor credit with a balance above zero), and Record refund right after it when
+// balance above zero), Apply when `extra.canApplyCredit` is set (only for a vendor credit or
+// a credit memo with a balance above zero), and Record refund right after it when
 // `extra.canRecordRefund` is set (the same vendor credit). After Copy come Create credit memo
 // when `extra.canCreateCreditMemo` is set (only for a posted invoice), Write off when
 // `extra.canWriteOff` is set (only for a posted invoice with a balance above zero), Refund when
