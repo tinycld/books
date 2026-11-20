@@ -76,3 +76,10 @@ describe('help/write-offs.md', () => {
         expect(body).toContain(`(${link})`)
     })
 })
+
+// Apply credit spec §3.8 Help: a write-off takes the balance after credits.
+describe('help/write-offs.md (apply credit)', () => {
+    it('says the amount is the balance after credits', () => {
+        expect(body).toContain('after credits')
+    })
+})

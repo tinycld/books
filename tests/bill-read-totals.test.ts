@@ -3,6 +3,7 @@ import { BILL_DOCUMENT } from '../tinycld/books/components/documents/document-ki
 import type { DocumentRecord } from '../tinycld/books/hooks/document-data'
 import { BILL_IDS, BILLS } from '../tinycld/books/lib/bill-form-fixture'
 import { billCreditsApplied, billReadTotals } from '../tinycld/books/lib/bill-values'
+import { VENDOR_CREDIT_APPLICATION } from '../tinycld/books/lib/credit-application-kinds'
 import { totalRowOrder } from '../tinycld/books/lib/document-total-rows'
 import { vendorCreditReadTotals } from '../tinycld/books/lib/vendor-credit-totals'
 
@@ -108,7 +109,7 @@ describe('billCreditsApplied', () => {
 
 describe('BILL_DOCUMENT', () => {
     it('reads its applications, so the read view passes their sum as `applied`', () => {
-        expect(BILL_DOCUMENT.readApplications).toBe(true)
+        expect(BILL_DOCUMENT.readApplications).toBe(VENDOR_CREDIT_APPLICATION)
     })
 
     it('draws the Credits applied row by billReadTotals', () => {

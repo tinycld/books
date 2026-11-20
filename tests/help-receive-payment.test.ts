@@ -63,3 +63,10 @@ describe('help/receive-payment.md (write-offs)', () => {
         expect(body).toMatch(/\bwrite-offs?\b|\bWritten off\b/i)
     })
 })
+
+// Apply credit spec §3.8 Help: one paragraph on the notice of the customer's credit memos.
+describe('help/receive-payment.md (apply credit)', () => {
+    it('names unapplied credit', () => {
+        expect(body).toContain('unapplied credit')
+    })
+})

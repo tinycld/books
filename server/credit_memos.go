@@ -48,11 +48,12 @@ const docTypeCreditMemo = "credit_memo"
 // an invoice (Credit): Accounts receivable, which posting creates when the
 // chart has none (ensureReceivables), is credited for the total, the income
 // accounts and the tax liability accounts are debited. Its balance is the
-// credit not yet refunded (creditMemoBalanceKind): the total at posting less
-// the posted refund receipts that pay it out, 0 on a draft or a void memo. A
-// void is refused while a posted refund receipt pays it out
-// (refuseCreditMemoVoidRefunded), and a correction takes the posted payouts'
-// credits rows and the link of every refund receipt that names the original
+// credit not yet applied nor refunded (creditMemoBalanceKind): the total at
+// posting less its applications to invoices and the posted refund receipts
+// that pay it out, 0 on a draft or a void memo. A void is refused while it is
+// applied or a posted refund receipt pays it out (refuseCreditMemoVoid), and
+// a correction takes the applications, the posted payouts' credits rows and
+// the link of every refund receipt that names the original
 // (replaceCreditMemo).
 var creditMemoKind = salesDocKind{
 	DocType:            docTypeCreditMemo,
@@ -95,7 +96,7 @@ var creditMemoKind = salesDocKind{
 		}
 		return receivable.Id, nil
 	},
-	CheckVoid: refuseCreditMemoVoidRefunded,
+	CheckVoid: refuseCreditMemoVoid,
 	Replace:   replaceCreditMemo,
 }
 
@@ -123,9 +124,41 @@ func creditMemoRefunded(tx core.App, memoID string) (int64, error) {
 	return 0, fmt.Errorf("books: the credit memo balance has no %s payer", refundReceiptCreditsCollection)
 }
 
-// refuseCreditMemoVoidRefunded is the credit memo's CheckVoid: a memo that a
-// posted refund receipt pays out stays posted until that refund is void. A
-// draft refund does not hold it (its own Post checks the memo).
+// creditMemoTaken is what a credit memo's two payers take from it: the sum of
+// its applications to invoices and the sum of its posted refund receipts'
+// credits rows, read apart because each holds the memo with its own text.
+func creditMemoTaken(tx core.App, memoID string) (applied, refunded int64, err error) {
+	for _, p := range creditMemoBalanceKind.Payers {
+		n, err := appliedByPayer(tx, creditMemoBalanceKind, p, memoID)
+		if err != nil {
+			return 0, 0, err
+		}
+		if p.LinesCollection == refundReceiptCreditsCollection {
+			refunded += n
+		} else {
+			applied += n
+		}
+	}
+	return applied, refunded, nil
+}
+
+// refuseCreditMemoVoid is the credit memo's CheckVoid: a memo applied to
+// invoices stays posted until those applications are removed, checked before
+// the refund receipts (refuseCreditMemoVoidRefunded).
+func refuseCreditMemoVoid(tx core.App, doc *core.Record) error {
+	applied, _, err := creditMemoTaken(tx, doc.Id)
+	if err != nil {
+		return err
+	}
+	if applied > 0 {
+		return refuse(msgCreditMemoVoidApplied)
+	}
+	return refuseCreditMemoVoidRefunded(tx, doc)
+}
+
+// refuseCreditMemoVoidRefunded refuses the void of a memo that a posted
+// refund receipt pays out: it stays posted until that refund is void. A draft
+// refund does not hold it (its own Post checks the memo).
 func refuseCreditMemoVoidRefunded(tx core.App, doc *core.Record) error {
 	refunded, err := creditMemoRefunded(tx, doc.Id)
 	if err != nil {
@@ -137,27 +170,47 @@ func refuseCreditMemoVoidRefunded(tx core.App, doc *core.Record) error {
 	return nil
 }
 
-// replaceCreditMemo is the credit memo's Replace step: while posted refund
-// receipts pay out the original, the correction keeps a total of at least what
-// they paid out, keeps the customer, and is dated on or before the earliest of
-// them; a draft refund that names the original holds the customer too. Then
-// the posted payouts' credits rows move to the correction (movePostedLines),
-// whose balance postSalesDoc then sets to its total less them, and every
-// refund receipt that names the original, draft, posted and void, names the
-// correction (moveRefundCreditMemoLinks).
+// replaceCreditMemo is the credit memo's Replace step: while applications or
+// posted refund receipts take from the original, the correction keeps a total
+// of at least what they take (the texts name what holds it), keeps the
+// customer (the applications' text first), and is dated on or before the
+// earliest apply date and the earliest posted payout; a draft refund that
+// names the original holds the customer too. Then the applications and the
+// posted payouts' credits rows move to the correction (movePostedLines),
+// whose applied is their sum and whose balance postSalesDoc then sets to its
+// total less them, and every refund receipt that names the original, draft,
+// posted and void, names the correction (moveRefundCreditMemoLinks). The
+// invoices those applications pay rebuild their cash-basis rows: the rows an
+// application brings back name the memo's posted entry, which is now the
+// correction's (moveLinesWhere rebuilds only the memos' own rows).
 func replaceCreditMemo(tx core.App, original, correction *core.Record) error {
-	refunded, err := creditMemoRefunded(tx, original.Id)
+	applied, refunded, err := creditMemoTaken(tx, original.Id)
 	if err != nil {
 		return err
 	}
+	currency := correction.GetString("currency")
+	total := int64(correction.GetInt("total"))
+	switch {
+	case applied > 0 && refunded > 0 && total < applied+refunded:
+		return refuse(msgCreditMemoCorrectionBelowAll, formatMoney(applied+refunded, currency))
+	case applied > 0 && refunded == 0 && total < applied:
+		return refuse(msgCreditMemoCorrectionBelowApplied, formatMoney(applied, currency))
+	case applied == 0 && refunded > 0 && total < refunded:
+		return refuse(msgCreditMemoCorrectionBelow, formatMoney(refunded, currency))
+	}
 	customerChanged := correction.GetString("customer") != original.GetString("customer")
+	if customerChanged && applied > 0 {
+		return refuseField("customer", msgCreditMemoCorrectionCustomerApplied)
+	}
+	if customerChanged && refunded > 0 {
+		return refuseField("customer", msgCreditMemoCorrectionCustomer)
+	}
+	if applied > 0 {
+		if err := refuseMemoDatedAfterApplication(tx, original, correction); err != nil {
+			return err
+		}
+	}
 	if refunded > 0 {
-		if int64(correction.GetInt("total")) < refunded {
-			return refuse(msgCreditMemoCorrectionBelow, formatMoney(refunded, correction.GetString("currency")))
-		}
-		if customerChanged {
-			return refuseField("customer", msgCreditMemoCorrectionCustomer)
-		}
 		if err := refuseMemoDatedAfterRefund(tx, original, correction); err != nil {
 			return err
 		}
@@ -172,10 +225,60 @@ func replaceCreditMemo(tx core.App, original, correction *core.Record) error {
 			return refuseField("customer", msgCreditMemoCorrectionCustomer)
 		}
 	}
+	var invoices []string
+	if applied > 0 {
+		applications, err := tx.FindAllRecords(creditMemoApplicationsCollection,
+			dbx.HashExp{"credit_memo": original.Id})
+		if err != nil {
+			return fmt.Errorf("books: read the applications of credit memo %s: %w", original.Id, err)
+		}
+		for _, a := range applications {
+			invoices = append(invoices, a.GetString("invoice"))
+		}
+	}
 	if err := movePostedLines(tx, creditMemoBalanceKind, original, correction); err != nil {
 		return err
 	}
-	return moveRefundCreditMemoLinks(tx, original, correction)
+	correction.Set("applied", applied)
+	if err := moveRefundCreditMemoLinks(tx, original, correction); err != nil {
+		return err
+	}
+	return rebuildCashBasisOf(tx, invoiceBalanceKind.Collection, invoices...)
+}
+
+// refuseMemoDatedAfterApplication refuses, under date, a correction of a
+// credit memo dated after the earliest apply date of the original's
+// applications (the earliest created first on a tie): a credit cannot pay an
+// invoice before the credit exists. The same day is allowed.
+func refuseMemoDatedAfterApplication(tx core.App, original, correction *core.Record) error {
+	var earliest struct {
+		Number string `db:"number"`
+		Date   string `db:"date"`
+	}
+	err := tx.DB().NewQuery(`SELECT i.number AS number, a.date AS date
+		FROM ` + creditMemoApplicationsCollection + ` a
+		JOIN books_invoices i ON i.id = a.invoice
+		WHERE a.credit_memo = {:memo}
+		ORDER BY a.date, a.created LIMIT 1`).
+		Bind(dbx.Params{"memo": original.Id}).One(&earliest)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("books: read the earliest application of credit memo %s: %w", original.Id, err)
+	}
+	applyDay, err := parseCalendarDay(earliest.Date)
+	if err != nil {
+		return fmt.Errorf("books: read the apply date of an application to invoice %s: %w", earliest.Number, err)
+	}
+	memoDay, err := parseDay(correction.GetString("date"))
+	if err != nil {
+		return refuseDocumentDay("date", err)
+	}
+	if memoDay.After(applyDay) {
+		return refuseField("date", msgCreditMemoCorrectionApplyDate, earliest.Number, applyDay.Format("Jan 2, 2006"))
+	}
+	return nil
 }
 
 // refuseMemoDatedAfterRefund refuses, under date, a correction of a credit

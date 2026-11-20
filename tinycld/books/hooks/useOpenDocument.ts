@@ -3,7 +3,7 @@ import { router } from 'expo-router'
 import { documentHref, documentStackRouteName } from '../lib/document-routes'
 import type { SalesDocumentKind } from '../lib/sales-document-kinds'
 import { screensAboveTarget } from '../lib/stack-screens'
-import { usePopScreens, useStackPosition } from './useStackScreens'
+import { usePopScreens, useStackPosition, useStackPositionAtCall } from './useStackScreens'
 
 type LinkKind = Pick<SalesDocumentKind, 'routeBase'>
 
@@ -21,6 +21,28 @@ export function useOpenDocument(kind: LinkKind, id: string) {
     )
     const popScreens = usePopScreens()
     return () => {
+        if (screensAbove > 0) {
+            popScreens(screensAbove)
+            return
+        }
+        router.push(orgHref(documentHref(kind, id)))
+    }
+}
+
+/**
+ * useOpenDocument for a document known only when it is opened (a row of a list): the same
+ * rule, the stack read at the call. A screen calls it outside Dialog and Sheet content (the
+ * native overlay host does not pass the screen's navigation) and hands the function in.
+ */
+export function useOpenDocumentById(kind: LinkKind): (id: string) => void {
+    const orgHref = useOrgHref()
+    const name = documentStackRouteName(kind)
+    const readStack = useStackPositionAtCall()
+    const popScreens = usePopScreens()
+    return id => {
+        const screensAbove = readStack((state, key) =>
+            screensAboveTarget(state.routes, key, { name, id })
+        )
         if (screensAbove > 0) {
             popScreens(screensAbove)
             return

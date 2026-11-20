@@ -231,7 +231,10 @@ func TestCreditMemo_ServerFieldsRefused(t *testing.T) {
 		"subtotal":  func(testing.TB, *creditMemoEnv) string { return `,"subtotal":100` },
 		"tax_total": func(testing.TB, *creditMemoEnv) string { return `,"tax_total":100` },
 		"balance":   func(testing.TB, *creditMemoEnv) string { return `,"balance":100` },
-		"currency":  func(testing.TB, *creditMemoEnv) string { return `,"currency":"USD"` },
+		// The cents of the memo's applications are server-written, as its
+		// balance is (apply credit spec §4.2).
+		"applied":  func(testing.TB, *creditMemoEnv) string { return `,"applied":100` },
+		"currency": func(testing.TB, *creditMemoEnv) string { return `,"currency":"USD"` },
 		// A real entry and real users, so only the rule can refuse the relation.
 		"entry": func(t testing.TB, ce *creditMemoEnv) string {
 			return fmt.Sprintf(`,"entry":%q`, ce.sale(t, creditMemoDay, 100).Id)
@@ -249,6 +252,36 @@ func TestCreditMemo_ServerFieldsRefused(t *testing.T) {
 				method: http.MethodPost, url: "/api/collections/books_credit_memos/records",
 				token: tokenFor(t, ce.users.bookkeeper), body: body(ce, extra(t, ce)), want: http.StatusBadRequest,
 				after: func(t testing.TB, app *tests.TestApp) { requireCreditMemoCount(t, app, 0) },
+			}.run(t, ce.app)
+		})
+	}
+
+	// An update that sends applied is refused too, on a draft and on a posted
+	// memo, and the stored value stays 0. The update rule refuses it, and
+	// PocketBase answers a failed update rule with 404.
+	for _, posted := range []bool{false, true} {
+		name := "an update of a draft's applied"
+		if posted {
+			name = "an update of a posted memo's applied"
+		}
+		t.Run(name, func(t *testing.T) {
+			ce := newCreditMemoEnv(t)
+			memo := ce.mkCreditMemo(t, nil)
+			mkCreditMemoLine(t, ce.app, memo, 0, item(ce.service, 1, 25000, false))
+			if posted {
+				mustPostCreditMemo(t, ce.app, memo.Id, ce.users.bookkeeper.Id)
+				if err := setFields(t, ce.app, "books_credit_memos", memo.Id, map[string]any{"applied": 100}); err == nil {
+					t.Error("a person's update of a posted memo's applied was saved")
+				}
+			}
+			apiReq{
+				method: http.MethodPatch, url: "/api/collections/books_credit_memos/records/" + memo.Id,
+				token: tokenFor(t, ce.users.bookkeeper), body: `{"applied":100}`, want: http.StatusNotFound,
+				after: func(t testing.TB, app *tests.TestApp) {
+					if got := reload(t, app, "books_credit_memos", memo.Id).GetInt("applied"); got != 0 {
+						t.Errorf("credit memo applied = %d after the refused update, want 0", got)
+					}
+				},
 			}.run(t, ce.app)
 		})
 	}

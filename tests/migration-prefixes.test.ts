@@ -7,8 +7,9 @@ import { describe, expect, it } from 'vitest'
 // audit log view reads audit_logs, users (both core) and the line collections of its
 // LINES list, so it runs after each migration that creates one of those line
 // collections. A later migration that creates a collection the view does not read may
-// run after it; each such migration is named below (bank-match spec §4 Schema: 30 is
-// the bank matches). The vendor party balances rewrite creates no collection, so it
+// run after it; each such migration is named in AFTER_AUDIT (none now: the bank matches
+// at 30 came before the credit memo applications at 31, whose lines the view reads, so
+// the view moved to 32, the highest). The vendor party balances rewrite creates no collection, so it
 // may run before the audit view. A/R Aging (D8): the receivable items migration takes
 // 2100000028, the number the write-off spec left free, after the payments and credit
 // memos it reads. books_receivable_items is stored, not audited: only Books' posting
@@ -20,9 +21,9 @@ const MIGRATIONS = readdirSync(MIGRATIONS_DIR)
     .filter(file => file.endsWith('.js'))
     .sort()
 
-const AUDIT = '2100000029_create_books_audit_log.js'
+const AUDIT = '2100000032_create_books_audit_log.js'
 
-const AFTER_AUDIT = ['2100000030_create_books_bank_matches.js']
+const AFTER_AUDIT: string[] = []
 
 function prefixOf(file: string): string {
     return file.split('_')[0] ?? file
@@ -100,8 +101,10 @@ describe('pb-migrations prefixes', () => {
     // in 2100000026. Write-off spec §4.1: the write-offs take 2100000027, 2100000028 stays
     // free for p5-ar-aging, and the audit view moves to 2100000029. A/R Aging spec: the
     // receivable items take 2100000028. Bank-match spec §4 Schema: the bank matches take
-    // 2100000030, after the audit log, because the view reads none of their collections.
-    it('holds the vendor credits at 2100000023, the vendor refunds at 2100000024, the refund receipts at 2100000025, the vendor party balances at 2100000026, the write-offs at 2100000027 and the receivable items at 2100000028, before the audit log at 2100000029, and the bank matches at 2100000030 after it', () => {
+    // 2100000030; the view reads none of their collections. Apply credit spec §4.1: the
+    // credit memo applications take 2100000031, and because the view reads their lines,
+    // the audit view moves to 2100000032, the highest.
+    it('holds the vendor credits at 2100000023, the vendor refunds at 2100000024, the refund receipts at 2100000025, the vendor party balances at 2100000026, the write-offs at 2100000027, the receivable items at 2100000028, the bank matches at 2100000030 and the credit memo applications at 2100000031, before the audit log at 2100000032', () => {
         expect(MIGRATIONS).toContain('2100000023_create_books_vendor_credits.js')
         expect(MIGRATIONS).toContain('2100000024_create_books_vendor_refunds.js')
         expect(MIGRATIONS).toContain('2100000025_create_books_refund_receipts.js')
@@ -110,16 +113,23 @@ describe('pb-migrations prefixes', () => {
         expect(MIGRATIONS.filter(file => prefixOf(file) === '2100000028')).toEqual([
             '2100000028_create_books_receivable_items.js',
         ])
+        expect(MIGRATIONS.filter(file => prefixOf(file) === '2100000030')).toEqual([
+            '2100000030_create_books_bank_matches.js',
+        ])
+        expect(MIGRATIONS.filter(file => prefixOf(file) === '2100000031')).toEqual([
+            '2100000031_create_books_credit_memo_applications.js',
+        ])
         expect(MIGRATIONS).toContain(AUDIT)
         expect(MIGRATIONS).not.toContain('2100000025_create_books_audit_log.js')
         expect(MIGRATIONS).not.toContain('2100000027_create_books_audit_log.js')
-        expect(MIGRATIONS.slice(MIGRATIONS.indexOf(AUDIT) + 1)).toEqual([
-            '2100000030_create_books_bank_matches.js',
-        ])
+        expect(MIGRATIONS).not.toContain('2100000029_create_books_audit_log.js')
+        expect(MIGRATIONS).not.toContain('2100000030_create_books_audit_log.js')
+        expect(MIGRATIONS[MIGRATIONS.length - 1]).toBe(AUDIT)
         const matches = sourceOf('2100000030_create_books_bank_matches.js')
         const read = auditLineCollections().filter(collection =>
             matches.includes(`name: '${collection}'`)
         )
         expect(read).toEqual([])
+        expect(auditLineCollections()).toContain('books_credit_memo_applications')
     })
 })

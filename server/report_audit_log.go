@@ -67,11 +67,13 @@ func auditLogParams() []reports.ParamDef {
 
 // auditLogColumns are Date changed (the label column), User, Event, Record
 // type and Record. Event and Record type read selects, so they show labels.
+// Event reads event_shown (a credit memo application's Credit applied or
+// Credit removed); the Event filter matches event.
 func auditLogColumns() []reports.Column {
 	return []reports.Column{
 		{ID: "created", Label: "Date changed", Formula: fld("created")},
 		{ID: "user", Label: "User", Formula: fld("actor_name")},
-		{ID: "event", Label: "Event", Formula: fld("event")},
+		{ID: "event", Label: "Event", Formula: fld("event_shown")},
 		{ID: "type", Label: "Record type", Formula: fld("record_type")},
 		{ID: "record", Label: "Record", Formula: fld("record_label")},
 	}

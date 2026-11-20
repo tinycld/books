@@ -308,7 +308,7 @@ func TestAuditLogSpecLoads(t *testing.T) {
 	wantCols := []colShape{
 		{"created", "Date changed", "created"},
 		{"user", "User", "actor_name"},
-		{"event", "Event", "event"},
+		{"event", "Event", "event_shown"},
 		{"type", "Record type", "record_type"},
 		{"record", "Record", "record_label"},
 	}
@@ -458,6 +458,76 @@ func TestAuditLogEvents(t *testing.T) {
 	}
 }
 
+// shownEvent is the Event cell as the report shows it: the label cell the
+// column names, else the select option's label, else the cell itself.
+func shownEvent(t *testing.T, res *reports.Result, r reports.Row) string {
+	t.Helper()
+	for _, c := range res.Columns {
+		if c.ID != "event" {
+			continue
+		}
+		if c.LabelCell != "" {
+			return cellText(r, c.LabelCell)
+		}
+		value := cellText(r, "event")
+		for _, o := range c.Options {
+			if o.Value == value {
+				return o.Label
+			}
+		}
+		return value
+	}
+	t.Fatal("the result has no event column")
+	return ""
+}
+
+// shownEventsOf maps each detail row's Record cell to its shown Event.
+func shownEventsOf(t *testing.T, res *reports.Result) map[string]string {
+	t.Helper()
+	out := map[string]string{}
+	for _, r := range auditDetails(res) {
+		out[cellText(r, "record")] = shownEvent(t, res, r)
+	}
+	return out
+}
+
+// Apply credit spec §3.8: a credit memo application's create reads "Credit
+// applied" and its delete "Credit removed" in the Audit Log's Event column,
+// while the Event filter still files them under Added and Deleted.
+func TestAuditLogCreditMemoApplicationEvents(t *testing.T) {
+	b := newAuditBook(t)
+	app := b.app
+	const applied, removed = "Credit memo 1002: Invoice 1003", "Credit memo 1004: Invoice 1005"
+	mkAuditRow(t, app, auditRowInput{action: "created", resourceType: "books_credit_memo_applications", resourceID: "cmapplication01", label: applied, actor: b.actor.Id, created: auditAt(1)})
+	mkAuditRow(t, app, auditRowInput{action: "deleted", resourceType: "books_credit_memo_applications", resourceID: "cmapplication02", label: removed, actor: b.actor.Id, created: auditAt(2),
+		snapshot: map[string]any{"amount": 15000}})
+	lamp := mkService(t, app, "Desk lamp", b.revenue)
+	mkAuditRow(t, app, auditRowInput{action: "created", resourceType: "books_products", resourceID: lamp.Id, label: "Desk lamp", actor: b.actor.Id, created: auditAt(3)})
+
+	all := shownEventsOf(t, b.run(t, nil))
+	if got := all[applied]; got != "Credit applied" {
+		t.Errorf("an application's create shows Event %q, want %q; rows: %q", got, "Credit applied", all)
+	}
+	if got := all[removed]; got != "Credit removed" {
+		t.Errorf("an application's delete shows Event %q, want %q; rows: %q", got, "Credit removed", all)
+	}
+	if got := all["Desk lamp"]; got != "Added" {
+		t.Errorf("a product's create shows Event %q, want Added; rows: %q", got, all)
+	}
+
+	added := shownEventsOf(t, b.run(t, map[string]any{"events": []string{"added"}}))
+	if got, ok := added[applied]; !ok || got != "Credit applied" {
+		t.Errorf("Event = Added lists the application's create as %q (listed %v), want Credit applied; rows: %q", got, ok, added)
+	}
+	if _, ok := added[removed]; ok {
+		t.Errorf("Event = Added lists the application's delete; rows: %q", added)
+	}
+	deleted := shownEventsOf(t, b.run(t, map[string]any{"events": []string{"deleted"}}))
+	if got, ok := deleted[removed]; !ok || got != "Credit removed" {
+		t.Errorf("Event = Deleted lists the application's delete as %q (listed %v), want Credit removed; rows: %q", got, ok, deleted)
+	}
+}
+
 // auditParentOf is the collection that holds each line collection's document.
 var auditParentOf = map[string]string{
 	"books_journal_lines":       "books_journal_entries",
@@ -478,6 +548,8 @@ var auditParentOf = map[string]string{
 	"books_vendor_refund_lines": "books_vendor_refunds",
 	// A refund receipt's line opens its refund (refund receipt spec §3.13).
 	"books_refund_receipt_lines": "books_refund_receipts",
+	// A credit memo's application opens the credit memo (apply credit spec §3.8).
+	"books_credit_memo_applications": "books_credit_memos",
 }
 
 // lineFixture makes a new document of a line collection and one row under it,
@@ -562,6 +634,10 @@ func lineFixture(t *testing.T, app core.App, lines string) (parent, line *core.R
 			"customer": customer.Id, "status": "draft", "date": "2026-11-12", "refund_from": account.Id,
 		})
 		line = saveRecord(t, app, lines, map[string]any{"refund_receipt": parent.Id, "kind": "description", "position": 0})
+	case "books_credit_memo_applications":
+		invoice := saveRecord(t, app, "books_invoices", map[string]any{"customer": customer.Id, "status": "posted", "date": "2026-11-10", "due_date": "2026-12-10"})
+		parent = saveRecord(t, app, "books_credit_memos", map[string]any{"customer": customer.Id, "status": "posted", "date": "2026-11-12"})
+		line = saveRecord(t, app, lines, map[string]any{"credit_memo": parent.Id, "invoice": invoice.Id, "amount": 100, "date": "2026-11-16"})
 	default:
 		t.Fatalf("no fixture for %s", lines)
 	}

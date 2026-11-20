@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
     BILL_OUTSTANDING,
     CREDIT_OUTSTANDING,
+    INVOICE_CREDITS_OUTSTANDING,
     INVOICE_OUTSTANDING,
+    MEMO_INVOICES_OUTSTANDING,
 } from '../tinycld/books/lib/outstanding-documents'
 import {
     BILL_PAYMENT_APPLIED_COLUMNS,
@@ -11,6 +13,8 @@ import {
     BILL_PAYMENT_GRID_MIN_WIDTH,
     CREDIT_APPLY_COLUMNS,
     CREDIT_APPLY_GRID_MIN_WIDTH,
+    MEMO_APPLY_COLUMNS,
+    MEMO_APPLY_GRID_MIN_WIDTH,
     PAYMENT_APPLIED_MIN_WIDTH,
     PAYMENT_COLUMNS,
     PAYMENT_GRID_MIN_WIDTH,
@@ -88,5 +92,21 @@ describe('payment column widths', () => {
         expect(BILL_OUTSTANDING.gridMinWidth).toBe(702)
         expect(BILL_OUTSTANDING.appliedMinWidth).toBe(539)
         expect(CREDIT_OUTSTANDING.gridMinWidth).toBe(488)
+        expect(MEMO_INVOICES_OUTSTANDING.gridMinWidth).toBe(566)
+        expect(INVOICE_CREDITS_OUTSTANDING.gridMinWidth).toBe(488)
+    })
+
+    it('gives the credit memo’s invoice list its own columns (apply credit spec §3.2)', () => {
+        // Due date takes 154 px ("Oct 14, 2026 · Overdue"), Credit to apply 114 px.
+        expect(MEMO_APPLY_COLUMNS).toEqual({
+            tick: 44,
+            invoice: DATA,
+            dueDate: { flex: 1, minWidth: 154 },
+            open: DATA,
+            payment: { flex: 1, minWidth: 114 },
+        })
+        // Tick 44 + 95 + 154 + 95 + 114, 4 gaps of 12, 2 × 8 padding: inside the xl
+        // dialog's 598 px.
+        expect(MEMO_APPLY_GRID_MIN_WIDTH).toBe(566)
     })
 })

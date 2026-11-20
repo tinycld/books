@@ -5,6 +5,7 @@ import {
     type ListRowAction,
     listRowActionHref,
     listRowMenuItems,
+    listRowMenuLabel,
     listVoidTexts,
 } from '../tinycld/books/lib/list-row-menu'
 import { PAY_BILLS_MESSAGES } from '../tinycld/books/lib/pay-bills-texts'
@@ -67,6 +68,18 @@ describe('listRowMenuItems', () => {
         const items = listRowMenuItems(listRow, WRITER)
         expect(items).toEqual(expected)
         expect(items).toContain(own)
+    })
+})
+
+describe('listRowMenuLabel', () => {
+    // Both areas have `apply_credit`; the row's area picks its words.
+    const CASES: [string, DocumentListRow, string][] = [
+        ['a vendor credit row', row('vendor_credit'), 'Apply to bills'],
+        ['a credit memo row', row('credit_memo'), 'Apply to invoices'],
+    ]
+
+    it.each(CASES)('apply_credit on %s', (_name, listRow, expected) => {
+        expect(listRowMenuLabel(listRow, 'apply_credit')).toBe(expected)
     })
 })
 

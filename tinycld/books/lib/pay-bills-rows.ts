@@ -70,8 +70,8 @@ export function compareText(a: string, b: string): number {
     return a < b ? -1 : 1
 }
 
-// Bill numbers are digits, so a shorter number is the smaller one.
-function compareNumbers(a: string, b: string): number {
+// Document numbers are digits, so a shorter number is the smaller one.
+export function compareNumbers(a: string, b: string): number {
     return a.length - b.length || compareText(a, b)
 }
 

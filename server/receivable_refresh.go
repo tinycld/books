@@ -10,7 +10,7 @@ import (
 	"tinycld.org/core/changesignal"
 )
 
-// receivablePart is one of the two queries narrowed to the rows a refresh
+// receivablePart is one of the three queries narrowed to the rows a refresh
 // writes again.
 type receivablePart struct{ query, where string }
 
@@ -91,10 +91,24 @@ func refreshReceivablePayment(tx core.App, payment *core.Record) error {
 		receivablePart{receivableApplicationsSQL, " AND pa.payment = {:payment}"})
 }
 
+// refreshReceivableCreditMemo stores the rows of one credit memo: the line of
+// its entry (its full credit at its date) and both rows of each of its
+// applications (none unless it is posted), which carry the memo's entry. A
+// memo with no entry was never posted and has no row.
+func refreshReceivableCreditMemo(tx core.App, memo *core.Record) error {
+	entryID := memo.GetString("entry")
+	if entryID == "" {
+		return nil
+	}
+	return refreshReceivables(tx, "entry = {:entry}", dbx.Params{"entry": entryID},
+		receivablePart{receivableLinesSQL, " AND l.entry = {:entry}"},
+		receivablePart{receivableCreditApplicationsSQL, " AND ca.entry = {:entry}"})
+}
+
 // refreshReceivableInvoice stores the rows that read one invoice: the line of
-// its entry (its due day) and the applications that pay it (its number and
-// due day; an invoice correction moves the applications of the original to
-// it before it has its entry).
+// its entry (its due day) and the payments' and credit memos' applications
+// that pay it (its number and due day; an invoice correction moves the
+// applications of the original to it before it has its entry).
 func refreshReceivableInvoice(tx core.App, invoice *core.Record) error {
 	if entryID := invoice.GetString("entry"); entryID != "" {
 		if err := refreshReceivableEntry(tx, entryID); err != nil {
@@ -102,7 +116,8 @@ func refreshReceivableInvoice(tx core.App, invoice *core.Record) error {
 		}
 	}
 	return refreshReceivables(tx, "item = {:invoice} AND source = '"+receivableSourceApplication+"'", dbx.Params{"invoice": invoice.Id},
-		receivablePart{receivableApplicationsSQL, " AND pa.invoice = {:invoice}"})
+		receivablePart{receivableApplicationsSQL, " AND pa.invoice = {:invoice}"},
+		receivablePart{receivableCreditApplicationsSQL, " AND ca.item = {:invoice}"})
 }
 
 // bindReceivableRefresh binds refresh after each update of collection. Bind it
@@ -154,6 +169,34 @@ func bindReceivableInvoiceRefresh(app core.App) {
 			return nil
 		}
 		return refreshReceivableInvoice(tx, r)
+	})
+}
+
+// bindReceivableCreditMemoRefresh keeps a credit memo's rows through its post
+// and its replacement by a correction (each an update of the memo). It is
+// called from registerSalesDocGuards, after the memo's serialized guard. A
+// draft has no row.
+func bindReceivableCreditMemoRefresh(app core.App) {
+	bindReceivableRefresh(app, creditMemoKind.Collection, func(tx core.App, r *core.Record) error {
+		if r.GetString("status") == statusDraft {
+			return nil
+		}
+		return refreshReceivableCreditMemo(tx, r)
+	})
+}
+
+// bindReceivableCreditMemoApplicationRefresh keeps the rows of the memo an
+// application names after the application's update (a credit memo
+// correction moves its applications to the correction). It is called from
+// registerCreditMemoApplications, after the applications' serialized guard.
+// The create and the delete refresh through the kind's AfterChange.
+func bindReceivableCreditMemoApplicationRefresh(app core.App) {
+	bindReceivableRefresh(app, creditMemoApplicationsCollection, func(tx core.App, r *core.Record) error {
+		memo, err := tx.FindRecordById(creditMemoKind.Collection, r.GetString("credit_memo"))
+		if err != nil {
+			return err
+		}
+		return refreshReceivableCreditMemo(tx, memo)
 	})
 }
 
