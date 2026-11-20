@@ -11,7 +11,7 @@ To open the sales tax setup, choose Taxes in the sidebar. On a phone, swipe in f
 
 To see the sales tax you charged each agency in a period, press Liability report at the top of the page. See [Sales Tax Liability report](help://books:reports).
 
-A posted [credit memo](help://books:credit-memos) gives back tax that you charged, so it lowers the sales tax liability of its rate on the credit memo's date. On the Cash method, Books counts a credit memo only when its credit is used: a refund receipt that pays out the credit brings back its share of the credit memo's tax on the refund date. Books cannot yet apply a credit to an invoice.
+A posted [credit memo](help://books:credit-memos) gives back tax that you charged, so it lowers the sales tax liability of its rate on the credit memo's date. On the Cash method, Books counts a credit memo only when its credit is used: a refund receipt that pays out the credit brings back its share of the credit memo's tax on the refund date, and an application of the credit to an invoice brings back its share on the apply date. See [Apply a credit memo to invoices](help://books:apply-credit).
 
 A posted [refund receipt](help://books:refund-receipts) that refunds a sale gives back tax too, so it lowers the sales tax liability of its rate on the refund receipt's date, on Accrual and on Cash. The Sales Tax Liability report shows it as a row such as "Refund receipt 1003" with negative figures. A refund receipt that pays out a credit memo writes no tax figure of its own, because the credit memo already lowered the tax you owe.
 

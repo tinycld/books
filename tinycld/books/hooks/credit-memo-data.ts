@@ -35,7 +35,7 @@ function creditMemoSourceOf<R extends BooksCreditMemos>(
 ): R & { kindFields: Extract<DocumentKindFields, { kind: 'credit_memo' }> } {
     return {
         ...row,
-        kindFields: { kind: 'credit_memo', invoice: row.invoice },
+        kindFields: { kind: 'credit_memo', invoice: row.invoice, applied: row.applied },
     }
 }
 

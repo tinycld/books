@@ -1,0 +1,1381 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "memo",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "widths": [390],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "clickText": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "waitFor": "credit-memo-apply-notice"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-title"
+                }
+            ]
+        },
+        {
+            "name": "./memo",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "widths": [1280],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "clickText": "Returned hardware, approved by Dana at Harborview"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "waitFor": "credit-memo-apply-notice"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-title"
+                }
+            ]
+        },
+        {
+            "name": "memo-partly",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-applications",
+            "height": 1100,
+            "widths": [390],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-title"
+                },
+                {
+                    "scrollTo": "credit-memo-applications"
+                }
+            ]
+        },
+        {
+            "name": "./memo-partly",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-applications",
+            "height": 1100,
+            "widths": [1280],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-title"
+                },
+                {
+                    "scrollTo": "credit-memo-applications"
+                }
+            ]
+        },
+        {
+            "name": "memo-refunded",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "height": 1100,
+            "schemes": ["light"],
+            "widths": [390],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Three access points came back unopened"
+                },
+                {
+                    "clickText": "Three access points came back unopened"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "waitFor": "credit-memo-refunds"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-title"
+                },
+                {
+                    "scrollTo": "credit-memo-refunds"
+                }
+            ]
+        },
+        {
+            "name": "./memo-refunded",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "height": 1100,
+            "schemes": ["light"],
+            "widths": [1280],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Three access points came back unopened"
+                },
+                {
+                    "clickText": "Three access points came back unopened"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "waitFor": "credit-memo-refunds"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-title"
+                },
+                {
+                    "scrollTo": "credit-memo-refunds"
+                }
+            ]
+        },
+        {
+            "name": "memo-reader",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-applications",
+            "schemes": ["light"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "hideLabels": ["Reconnecting…"],
+            "widths": [390],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-title"
+                },
+                {
+                    "scrollTo": "credit-memo-applications"
+                }
+            ]
+        },
+        {
+            "name": "./memo-reader",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-applications",
+            "schemes": ["light"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "hideLabels": ["Reconnecting…"],
+            "widths": [1280],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-title"
+                },
+                {
+                    "scrollTo": "credit-memo-applications"
+                }
+            ]
+        },
+        {
+            "name": "memo-block-error",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-applications",
+            "schemes": ["light"],
+            "fakeRecords": {
+                "collection": "books_credit_memo_applications",
+                "status": 400
+            },
+            "hideLabels": ["Reconnecting…"],
+            "widths": [390],
+            "actions": [
+                {
+                    "waitFor": "credit-memo-applications-retry"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-title"
+                },
+                {
+                    "scrollTo": "credit-memo-applications"
+                }
+            ]
+        },
+        {
+            "name": "./memo-block-error",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-applications",
+            "schemes": ["light"],
+            "fakeRecords": {
+                "collection": "books_credit_memo_applications",
+                "status": 400
+            },
+            "hideLabels": ["Reconnecting…"],
+            "widths": [1280],
+            "actions": [
+                {
+                    "waitFor": "credit-memo-applications-retry"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-title"
+                },
+                {
+                    "scrollTo": "credit-memo-applications"
+                }
+            ]
+        },
+        {
+            "name": "memo-dialog",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-read-only",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "widths": [390],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Unapplied credit"
+                }
+            ]
+        },
+        {
+            "name": "./memo-dialog",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-read-only",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "widths": [1280],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Unapplied credit"
+                }
+            ]
+        },
+        {
+            "name": "memo-dialog-part",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-read-only",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "widths": [390],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "fill": "apply-credit-row-amount-invcac1009foxh1",
+                    "value": "60.00"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Unapplied credit"
+                }
+            ]
+        },
+        {
+            "name": "./memo-dialog-part",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-read-only",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "widths": [1280],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "fill": "apply-credit-row-amount-invcac1009foxh1",
+                    "value": "60.00"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Unapplied credit"
+                }
+            ]
+        },
+        {
+            "name": "memo-dialog-spread",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-read-only",
+            "schemes": ["light"],
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "widths": [390],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "fill": "apply-credit-row-amount-invcac1009foxh1",
+                    "value": "60.00"
+                },
+                {
+                    "clickPrefix": "apply-credit-row-tick-",
+                    "nth": 1
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Unapplied credit"
+                }
+            ]
+        },
+        {
+            "name": "./memo-dialog-spread",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-read-only",
+            "schemes": ["light"],
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "widths": [1280],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "fill": "apply-credit-row-amount-invcac1009foxh1",
+                    "value": "60.00"
+                },
+                {
+                    "clickPrefix": "apply-credit-row-tick-",
+                    "nth": 1
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Unapplied credit"
+                }
+            ]
+        },
+        {
+            "name": "memo-dialog-errors",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-read-only",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "widths": [390],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "fill": "apply-credit-date",
+                    "value": "2026-11-10"
+                },
+                {
+                    "fill": "apply-credit-row-amount-invcac1009foxh1",
+                    "value": "300.00"
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "apply-credit-date-error"
+                },
+                {
+                    "waitFor": "apply-credit-error-summary"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Unapplied credit"
+                }
+            ]
+        },
+        {
+            "name": "./memo-dialog-errors",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-read-only",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "widths": [1280],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "fill": "apply-credit-date",
+                    "value": "2026-11-10"
+                },
+                {
+                    "fill": "apply-credit-row-amount-invcac1009foxh1",
+                    "value": "300.00"
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "apply-credit-date-error"
+                },
+                {
+                    "waitFor": "apply-credit-error-summary"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Unapplied credit"
+                }
+            ]
+        },
+        {
+            "name": "memo-dialog-saving",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-read-only",
+            "schemes": ["light"],
+            "writes": {
+                "collection": "books_credit_memo_applications",
+                "answers": ["hold"]
+            },
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "widths": [390],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "fill": "apply-credit-row-amount-invcac1009foxh1",
+                    "value": "60.00"
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Unapplied credit"
+                }
+            ]
+        },
+        {
+            "name": "./memo-dialog-saving",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-read-only",
+            "schemes": ["light"],
+            "writes": {
+                "collection": "books_credit_memo_applications",
+                "answers": ["hold"]
+            },
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "widths": [1280],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "fill": "apply-credit-row-amount-invcac1009foxh1",
+                    "value": "60.00"
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Unapplied credit"
+                }
+            ]
+        },
+        {
+            "name": "memo-dialog-loading",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-read-only",
+            "schemes": ["light"],
+            "fakeRecords": {
+                "collection": "books_invoices",
+                "hold": true,
+                "filter": "balance\\s*>\\s*0"
+            },
+            "hideLabels": ["Reconnecting…"],
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "widths": [390],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-loading"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Unapplied credit"
+                }
+            ]
+        },
+        {
+            "name": "./memo-dialog-loading",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-read-only",
+            "schemes": ["light"],
+            "fakeRecords": {
+                "collection": "books_invoices",
+                "hold": true,
+                "filter": "balance\\s*>\\s*0"
+            },
+            "hideLabels": ["Reconnecting…"],
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "widths": [1280],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-loading"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Unapplied credit"
+                }
+            ]
+        },
+        {
+            "name": "memo-dialog-load-error",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-read-only",
+            "schemes": ["light"],
+            "fakeRecords": {
+                "collection": "books_invoices",
+                "status": 400,
+                "filter": "balance\\s*>\\s*0"
+            },
+            "hideLabels": ["Reconnecting…"],
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "widths": [390],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-load-error"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Unapplied credit"
+                }
+            ]
+        },
+        {
+            "name": "./memo-dialog-load-error",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-read-only",
+            "schemes": ["light"],
+            "fakeRecords": {
+                "collection": "books_invoices",
+                "status": 400,
+                "filter": "balance\\s*>\\s*0"
+            },
+            "hideLabels": ["Reconnecting…"],
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "widths": [1280],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-load-error"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Unapplied credit"
+                }
+            ]
+        },
+        {
+            "name": "remove",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-applications",
+            "opaque": "remove-application-dialog",
+            "stable": "remove-application-dialog",
+            "widths": [390],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-application-remove-cmapp1001to1009"
+                },
+                {
+                    "waitFor": "remove-application-confirm"
+                },
+                {
+                    "clickTextIn": "remove-application-dialog",
+                    "text": "Remove credit"
+                }
+            ]
+        },
+        {
+            "name": "./remove",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-applications",
+            "opaque": "remove-application-dialog",
+            "stable": "remove-application-dialog",
+            "widths": [1280],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-application-remove-cmapp1001to1009"
+                },
+                {
+                    "waitFor": "remove-application-confirm"
+                },
+                {
+                    "clickTextIn": "remove-application-dialog",
+                    "text": "Remove credit"
+                }
+            ]
+        },
+        {
+            "name": "remove-refused",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-applications",
+            "schemes": ["light"],
+            "writes": {
+                "collection": "books_credit_memo_applications",
+                "answers": [400],
+                "message": "The books are closed through 2026-11-30. Ask a Books admin for a close-date override to post on 2026-11-16."
+            },
+            "opaque": "remove-application-dialog",
+            "stable": "remove-application-dialog",
+            "widths": [390],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-application-remove-cmapp1001to1009"
+                },
+                {
+                    "waitFor": "remove-application-confirm"
+                },
+                {
+                    "click": "remove-application-confirm"
+                },
+                {
+                    "waitFor": "The books are closed through 2026-11-30. Ask a Books admin for a close-date override to post on 2026-11-16."
+                },
+                {
+                    "clickTextIn": "remove-application-dialog",
+                    "text": "Remove credit"
+                }
+            ]
+        },
+        {
+            "name": "./remove-refused",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-applications",
+            "schemes": ["light"],
+            "writes": {
+                "collection": "books_credit_memo_applications",
+                "answers": [400],
+                "message": "The books are closed through 2026-11-30. Ask a Books admin for a close-date override to post on 2026-11-16."
+            },
+            "opaque": "remove-application-dialog",
+            "stable": "remove-application-dialog",
+            "widths": [1280],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-application-remove-cmapp1001to1009"
+                },
+                {
+                    "waitFor": "remove-application-confirm"
+                },
+                {
+                    "click": "remove-application-confirm"
+                },
+                {
+                    "waitFor": "The books are closed through 2026-11-30. Ask a Books admin for a close-date override to post on 2026-11-16."
+                },
+                {
+                    "clickTextIn": "remove-application-dialog",
+                    "text": "Remove credit"
+                }
+            ]
+        },
+        {
+            "name": "memo-long",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "schemes": ["light"],
+            "widths": [390],
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "St. Jude Community"
+                },
+                {
+                    "clickMenuItem": "St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "fillCss": "input[data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"], [data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"] input",
+                    "value": "1234567.89"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Helix capture memo long invoice 390"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "invoice-read-only"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "invoice-read-more"
+                },
+                {
+                    "click": "invoice-read-credit-memo"
+                },
+                {
+                    "waitFor": "credit-memo-invoice-link"
+                },
+                {
+                    "hoverOn": "credit-memo-title"
+                },
+                {
+                    "fillCss": "input[data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"], [data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"] input",
+                    "value": "987654.32"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "West Annex renovation, phase 2: services the foundation cancelled in writing (helix memo long 390)"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-title"
+                }
+            ]
+        },
+        {
+            "name": "./memo-long",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "schemes": ["light"],
+            "widths": [1280],
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "St. Jude Community"
+                },
+                {
+                    "clickMenuItem": "St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "fillCss": "input[data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"], [data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"] input",
+                    "value": "1234567.89"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Helix capture memo long invoice 1280"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "invoice-read-only"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "invoice-read-credit-memo"
+                },
+                {
+                    "waitFor": "credit-memo-invoice-link"
+                },
+                {
+                    "hoverOn": "credit-memo-title"
+                },
+                {
+                    "fillCss": "input[data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"], [data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"] input",
+                    "value": "987654.32"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "West Annex renovation, phase 2: services the foundation cancelled in writing (helix memo long 1280)"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-title"
+                }
+            ]
+        },
+        {
+            "name": "memo-dialog-long",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "schemes": ["light"],
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "widths": [390],
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "St. Jude Community"
+                },
+                {
+                    "clickMenuItem": "St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "fillCss": "input[data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"], [data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"] input",
+                    "value": "1234567.89"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Helix capture dialog long invoice 390"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "invoice-read-only"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "invoice-read-more"
+                },
+                {
+                    "click": "invoice-read-credit-memo"
+                },
+                {
+                    "waitFor": "credit-memo-invoice-link"
+                },
+                {
+                    "hoverOn": "credit-memo-title"
+                },
+                {
+                    "fillCss": "input[data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"], [data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"] input",
+                    "value": "987654.32"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "West Annex renovation, phase 2: services the foundation cancelled in writing (helix dialog long 390)"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Unapplied credit"
+                }
+            ]
+        },
+        {
+            "name": "./memo-dialog-long",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "schemes": ["light"],
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "widths": [1280],
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "St. Jude Community"
+                },
+                {
+                    "clickMenuItem": "St. Jude Community Hospital Foundation of the Greater Willamette Valley"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "fillCss": "input[data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"], [data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"] input",
+                    "value": "1234567.89"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Helix capture dialog long invoice 1280"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "invoice-read-only"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "invoice-read-credit-memo"
+                },
+                {
+                    "waitFor": "credit-memo-invoice-link"
+                },
+                {
+                    "hoverOn": "credit-memo-title"
+                },
+                {
+                    "fillCss": "input[data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"], [data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"] input",
+                    "value": "987654.32"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "West Annex renovation, phase 2: services the foundation cancelled in writing (helix dialog long 1280)"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Unapplied credit"
+                }
+            ]
+        },
+        {
+            "name": "memo-dialog-empty",
+            "url": "/a/books/credit-memos/new",
+            "ready": "credit-memo-form",
+            "schemes": ["light"],
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "widths": [390],
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Granite Peak"
+                },
+                {
+                    "clickMenuItem": "Granite Peak Outfitters"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Helix capture apply empty 390"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "hoverOn": "credit-memo-title"
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-empty"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Unapplied credit"
+                }
+            ]
+        },
+        {
+            "name": "./memo-dialog-empty",
+            "url": "/a/books/credit-memos/new",
+            "ready": "credit-memo-form",
+            "schemes": ["light"],
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "widths": [1280],
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Granite Peak"
+                },
+                {
+                    "clickMenuItem": "Granite Peak Outfitters"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Helix capture apply empty 1280"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "hoverOn": "credit-memo-title"
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-empty"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Unapplied credit"
+                }
+            ]
+        },
+        {
+            "name": "memo-applied",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-applications",
+            "schemes": ["light"],
+            "widths": [390],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitForHidden": "apply-credit-dialog"
+                },
+                {
+                    "waitFor": "credit-memo-total-applied"
+                },
+                {
+                    "waitForHidden": "Applied $100.00 to 1 invoice"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-title"
+                },
+                {
+                    "scrollTo": "credit-memo-applications"
+                }
+            ]
+        },
+        {
+            "name": "./memo-applied",
+            "url": "/a/books/credit-memos/crmac1001foxh01",
+            "ready": "credit-memo-applications",
+            "schemes": ["light"],
+            "widths": [1280],
+            "actions": [
+                {
+                    "waitFor": "credit-memo-total-applied"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-title"
+                },
+                {
+                    "scrollTo": "credit-memo-applications"
+                }
+            ]
+        }
+    ]
+}

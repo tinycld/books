@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { APPLY_CREDIT_MESSAGES, appliedToastText } from '../tinycld/books/lib/apply-credit-schema'
 import { BILLS } from '../tinycld/books/lib/bill-form-fixture'
+import { VENDOR_CREDIT_APPLICATION } from '../tinycld/books/lib/credit-application-kinds'
 import { VENDOR_CREDIT_MESSAGES, VENDOR_CREDIT_REF_HINT } from '../tinycld/books/lib/document-texts'
 import { PAY_BILLS_BILLS, PAY_BILLS_SEED_BILLS } from '../tinycld/books/lib/pay-bills-fixture'
 import { fillPaymentText } from '../tinycld/books/lib/payment-texts'
@@ -198,7 +199,9 @@ describe('APPLY_CREDIT_TEXTS', () => {
             fillPaymentText(m.noOpenBills, 'Ironclad Equipment Rentals')
         )
         expect(APPLY_CREDIT_TEXTS.remove).toBe(fillPaymentText(m.removeBody, '1013', '$30.00'))
-        expect(APPLY_CREDIT_TEXTS.toast).toBe(appliedToastText(65_000, 2, 'USD'))
+        expect(APPLY_CREDIT_TEXTS.toast).toBe(
+            appliedToastText(VENDOR_CREDIT_APPLICATION.texts, 'credit', 65_000, 2, 'USD')
+        )
     })
 
     it('holds the server refusals the dialog shows', () => {

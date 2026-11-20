@@ -146,6 +146,27 @@ export function vendorCreditBadge(
     return appliedBadge(status, balance, total)
 }
 
+// The balance badge of a credit memo (apply credit spec §3.5), from its stored `applied`
+// (cents of its applications): a posted memo reads Partly applied (warning) while a part is
+// applied and some is left, Applied (success) when nothing is left and a part is applied,
+// and Refunded (success) when refunds alone took it. Otherwise undefined: the status badge
+// (Posted, Void) shows, also for a memo partly refunded with nothing applied.
+export function creditMemoBadge(
+    status: PostingStatus,
+    balance: number,
+    total: number,
+    applied: number
+): { label: string; tone: StatusTone } | undefined {
+    if (status !== 'posted') return undefined
+    if (balance <= 0) {
+        return applied > 0
+            ? { label: 'Applied', tone: 'success' }
+            : { label: 'Refunded', tone: 'success' }
+    }
+    if (applied > 0 && balance < total) return { label: 'Partly applied', tone: 'warning' }
+    return undefined
+}
+
 // The read view's actions of a quote (a closed estimate, or any estimate for a reader):
 // Open invoice first for everyone on a closed estimate that names its invoice, Copy for
 // writers, then Download PDF for everyone. No Edit, no Void and no journal entry: a

@@ -129,13 +129,31 @@ const msgInvoiceCorrectionCreditMemos = "Credit memos are made from this invoice
 
 // checkInvoiceVoid is the invoice's CheckVoid: an invoice that a posted
 // write-off names stays posted until that write-off is voided
-// (refuseWrittenOff), checked before the payments, then an invoice that a
-// posted payment pays stays posted (refuseVoidWithPayments).
+// (refuseWrittenOff), checked first; then an invoice that a credit memo is
+// applied to stays posted until those applications are removed
+// (refuseInvoiceVoidCredited); then an invoice that a posted payment pays
+// stays posted (refuseVoidWithPayments).
 func checkInvoiceVoid(tx core.App, doc *core.Record) error {
 	if err := refuseWrittenOff(tx, doc); err != nil {
 		return err
 	}
+	if err := refuseInvoiceVoidCredited(tx, doc); err != nil {
+		return err
+	}
 	return refuseVoidWithPayments(tx, doc)
+}
+
+// refuseInvoiceVoidCredited refuses the void of an invoice that a credit memo
+// is applied to (apply credit spec §3.6).
+func refuseInvoiceVoidCredited(tx core.App, doc *core.Record) error {
+	n, err := tx.CountRecords(creditMemoApplicationsCollection, dbx.HashExp{"invoice": doc.Id})
+	if err != nil {
+		return fmt.Errorf("books: count the credit memos applied to the invoice: %w", err)
+	}
+	if n > 0 {
+		return refuse(msgInvoiceVoidCredited)
+	}
+	return nil
 }
 
 // refuseVoidWithPayments refuses the void of an invoice that a posted payment
@@ -159,25 +177,58 @@ func refuseVoidWithPayments(tx core.App, doc *core.Record) error {
 	return nil
 }
 
-// moveInvoicePayments is the payment part of an invoice correction's Replace
-// step: while posted payments apply to the original, the correction keeps its
-// customer and a total of at least what they apply; then every application
-// of the original (a draft payment's too) moves to the correction, except a
-// void payment's, which stays on the original.
+// moveInvoicePayments is the payment and credit part of an invoice
+// correction's Replace step: while posted payments or credit memo
+// applications apply to the original, the correction keeps its customer and a
+// total of at least what they apply, each refusal naming payments when a
+// payment applies (and credits too when a credit does); then every
+// application of the original (a draft payment's too, and each credit memo's)
+// moves to the correction, except a void payment's, which stays on the
+// original. A write-off is not counted: refuseWrittenOff ran first.
 func moveInvoicePayments(tx core.App, original, correction *core.Record) error {
-	applied, err := postedAppliedTo(tx, invoiceBalanceKind, original.Id)
+	paid, credited, err := invoicePaidAndCredited(tx, original.Id)
 	if err != nil {
 		return err
 	}
-	if applied > 0 {
-		if correction.GetString("customer") != original.GetString("customer") {
+	if correction.GetString("customer") != original.GetString("customer") {
+		if paid > 0 {
 			return refuse(msgInvoiceCorrectionCustomer)
 		}
-		if int64(correction.GetInt("total")) < applied {
-			return refuse(msgInvoiceCorrectionBelowPaid, formatMoney(applied, correction.GetString("currency")))
+		if credited > 0 {
+			return refuse(msgInvoiceCorrectionCustomerCredited)
 		}
 	}
+	currency := correction.GetString("currency")
+	if taken := paid + credited; int64(correction.GetInt("total")) < taken {
+		if credited > 0 {
+			return refuse(msgInvoiceCorrectionBelowAll, formatMoney(taken, currency))
+		}
+		return refuse(msgInvoiceCorrectionBelowPaid, formatMoney(paid, currency))
+	}
 	return moveUnvoidedLines(tx, invoiceBalanceKind, original, correction)
+}
+
+// invoicePaidAndCredited reads apart what the posted payments and the credit
+// memo applications apply to an invoice, each payer picked by its rows'
+// collection.
+func invoicePaidAndCredited(tx core.App, invoiceID string) (paid, credited int64, err error) {
+	for _, p := range invoiceBalanceKind.Payers {
+		var sum *int64
+		switch p.LinesCollection {
+		case applicationsCollection:
+			sum = &paid
+		case creditMemoApplicationsCollection:
+			sum = &credited
+		default:
+			continue
+		}
+		n, err := appliedByPayer(tx, invoiceBalanceKind, p, invoiceID)
+		if err != nil {
+			return 0, 0, err
+		}
+		*sum += n
+	}
+	return paid, credited, nil
 }
 
 func checkInvoiceDays(r *core.Record) error {

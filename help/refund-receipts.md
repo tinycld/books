@@ -56,6 +56,8 @@ If the credit memo is not posted, has no unapplied credit, or you cannot open it
 
 To refund part of a credit, remove or lower lines in the payout until Amount refunded is the part that you give back. The rest stays on the credit memo as unapplied credit, and the credit memo stays **Unapplied**. To pay out the rest later, choose Refund credit on the credit memo again. When no credit is left, the credit memo is **Refunded** on the customer's Transactions tab. The credit memo's read view shows a Refunded row and an Unapplied credit row under its totals.
 
+When a part of the credit memo is applied to invoices, a payout can refund only what is left: its cap and the "unapplied" amount in **Pays out credit memo 1001 · $100.00 unapplied** are the credit that is not applied or refunded yet. When nothing is left after a payout, the credit memo reads **Applied** if a part of it was applied to invoices, else Refunded. See [Apply a credit memo to invoices](help://books:apply-credit).
+
 ## Save and post
 
 - Save draft keeps the refund receipt without a number. A draft does not change your books.

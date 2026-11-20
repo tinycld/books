@@ -203,6 +203,9 @@ func expectedCatalog(t *testing.T) []wantSource {
 				{key: "actor", typ: reports.Text, label: "User ID"},
 				{key: "actor_name", typ: reports.Text, aggs: reports.MinMax, label: "User"},
 				{key: "event", typ: reports.Select, label: "Event", options: auditEventOptions(t)},
+				// The Event column's value (apply credit spec §3.8): the
+				// events, plus the words a credit memo application reads.
+				{key: "event_shown", typ: reports.Select, options: auditShownEventOptions(t)},
 				{key: "record_type", typ: reports.Select, label: "Record type", options: auditRecordTypeOptions()},
 				text("record_id"),
 				{key: "record_label", typ: reports.Text, label: "Record"},
@@ -571,6 +574,17 @@ func auditEventOptions(t *testing.T) []reports.Option {
 		t.Fatalf("the golden file holds %d event options, want 5", len(options))
 	}
 	return options
+}
+
+// auditShownEventOptions are the options of the Event column's value: the
+// golden events, then a credit memo application's create and delete (apply
+// credit spec §3.8).
+func auditShownEventOptions(t *testing.T) []reports.Option {
+	t.Helper()
+	return append(slices.Clone(auditEventOptions(t)),
+		reports.Option{Value: "credit_applied", Label: "Credit applied"},
+		reports.Option{Value: "credit_removed", Label: "Credit removed"},
+	)
 }
 
 func mergeColumns(maps ...map[string]string) map[string]string {

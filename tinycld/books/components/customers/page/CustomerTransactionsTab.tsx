@@ -12,7 +12,7 @@ import {
 } from '../../../lib/party-transactions'
 import { PartyTransactionsList } from '../../party/page/PartyTransactionsList'
 import { WriteOffDialog } from '../../write-offs/WriteOffDialog'
-import { CustomerInvoiceRowMenu } from './CustomerInvoiceRowMenu'
+import { CustomerRowMenu } from './CustomerRowMenu'
 
 const TEXTS = {
     empty: emptyText('all'),
@@ -35,9 +35,11 @@ interface CustomerTransactionsTabProps {
 /**
  * The customer page's default tab (spec §3.5): every invoice, estimate, sales receipt,
  * payment, credit memo, refund receipt and write-off of the customer, newest first, with
- * type chips. The chip is local to the tab and starts at All whenever the page mounts. An
- * invoice that can be written off has a row menu with Write off (CustomerInvoiceRowMenu),
- * whose dialog this tab mounts once, owned by it, so it opens over the page.
+ * type chips. The chip is local to the tab and starts at All whenever the page mounts. A
+ * row with an offered action has a row menu (CustomerRowMenu): Write off on an invoice that
+ * can be written off, whose dialog this tab mounts once, owned by it, so it opens over the
+ * page; Apply to invoices on a credit memo with unapplied credit, which opens the memo and
+ * its apply dialog there.
  */
 export function CustomerTransactionsTab({
     customerId,
@@ -50,7 +52,7 @@ export function CustomerTransactionsTab({
     const transactions = useCustomerTransactions(customerId, filter)
     const recovery = { isError: transactions.isError, retry: transactions.retry }
     const owner = useId()
-    const rowMenu = (row: CustomerRow) => <CustomerInvoiceRowMenu row={row} owner={owner} />
+    const rowMenu = (row: CustomerRow) => <CustomerRowMenu row={row} owner={owner} />
     return (
         <>
             <PartyTransactionsList<TransactionKind, CustomerRow>

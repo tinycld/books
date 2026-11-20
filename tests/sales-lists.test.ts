@@ -71,8 +71,9 @@ const EXPECTED_TABS = [
         kinds: ['credit_memo'],
         newLabel: 'New credit memo',
         columns: ['date', 'number', 'customer', 'balance', 'total', 'status'],
-        // Refund receipt spec §3.12: a posted memo at balance 0 reads Refunded.
-        chips: chips('All', 'Unapplied', 'Refunded', 'Draft', 'Void'),
+        // Apply credit spec §3.5 (Q7): a posted memo at balance 0 reads Applied when a part
+        // was applied, else Refunded (refund receipt spec §3.12).
+        chips: chips('All', 'Unapplied', 'Applied', 'Refunded', 'Draft', 'Void'),
         sortKeys: ['date', 'number', 'amount', 'balance'],
     },
     // Refund receipt spec §3.13: as the sales receipts tab, with Refunded for Paid.

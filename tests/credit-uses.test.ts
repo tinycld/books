@@ -18,9 +18,9 @@ function application(id: string, date: string, amount: number): CreditApplicatio
             id,
             amount,
             date,
-            billId: `bill${id}`,
+            documentId: `bill${id}`,
             creditId: 'creditone000001',
-            billNumber: '1003',
+            documentNumber: '1003',
             creditNumber: '1002',
         },
         'books_vendor_credit_applications'

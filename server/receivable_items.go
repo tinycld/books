@@ -11,9 +11,10 @@ import (
 )
 
 // receivableItemsCollection stores the rows of every receivable item: one row
-// per posted Accounts receivable journal line (source line) and one per
-// application of a posted payment (source application). Only Books writes it,
-// with raw SQL from the two queries below, inside the transaction of the write
+// per posted Accounts receivable journal line (source line), one per
+// application of a posted payment and two per application of a posted credit
+// memo (source application). Only Books writes it, with raw SQL from the three
+// queries below (receivableQueries), inside the transaction of the write
 // that changes a row. settled is the day the balance of the row's customer
 // and item becomes zero and stays zero, or receivableOpen while the item is
 // open: the A/R Aging reads only the rows with settled after its As of day.
@@ -24,7 +25,7 @@ const (
 	receivableOpen              = "9999-12-31"
 )
 
-// receivableColumns are the columns the two queries give, in their order.
+// receivableColumns are the columns the three queries give, in their order.
 const receivableColumns = "id, source, customer, entry, date, currency, debit, credit, item, item_kind, item_number, item_seq, due_date"
 
 // A line's entry names its document (e), or the entry it reverses names it
@@ -82,6 +83,33 @@ const receivableApplicationsSQL = "SELECT pa.id AS id, '" + receivableSourceAppl
 	"JOIN books_invoices i ON i.id = pa.invoice " +
 	"JOIN books_journal_entries ie ON ie.id = i.entry " +
 	"WHERE p.status = 'posted'"
+
+// receivableCreditApplicationsSQL is two rows per application of a posted
+// credit memo, both at the apply date with the memo's customer, currency and
+// entry: a credit of the amount on the invoice's item (the application's id)
+// and a debit of the amount on the memo's item (the application's id in upper
+// case: 15 characters, the same on every run, and never a PocketBase id, which
+// is lower case). The memo's own line keeps its full credit at its date, so
+// the memo's item is its unapplied rest from the apply date, and the two rows
+// add to zero. It is wrapped, so a refresh adds " AND ca.entry = {:entry}" or
+// " AND ca.item = {:invoice}" on its own columns; the extra credit_memo column
+// is not stored (insertReceivables selects receivableColumns).
+const receivableCreditApplicationsSQL = "SELECT * FROM (" +
+	"SELECT ca.id AS id, '" + receivableSourceApplication + "' AS source, m.customer AS customer, m.entry AS entry, ca.date AS date, m.currency AS currency, " +
+	"CAST(0 AS INTEGER) AS debit, ca.amount AS credit, CAST(ca.invoice AS TEXT) AS item, CAST('invoice' AS TEXT) AS item_kind, " +
+	"CAST(ie.number AS TEXT) AS item_number, CAST(ie.sequence AS INTEGER) AS item_seq, CAST(i.due_date AS TEXT) AS due_date, ca.credit_memo AS credit_memo " +
+	"FROM " + creditMemoApplicationsCollection + " ca JOIN books_credit_memos m ON m.id = ca.credit_memo " +
+	"JOIN books_invoices i ON i.id = ca.invoice JOIN books_journal_entries ie ON ie.id = i.entry WHERE m.status = 'posted' " +
+	"UNION ALL " +
+	"SELECT UPPER(ca.id) AS id, '" + receivableSourceApplication + "' AS source, m.customer, m.entry, ca.date, m.currency, " +
+	"ca.amount AS debit, CAST(0 AS INTEGER) AS credit, CAST(ca.credit_memo AS TEXT), CAST('credit_memo' AS TEXT), " +
+	"CAST(me.number AS TEXT), CAST(me.sequence AS INTEGER), CAST(m.date AS TEXT), ca.credit_memo " +
+	"FROM " + creditMemoApplicationsCollection + " ca JOIN books_credit_memos m ON m.id = ca.credit_memo " +
+	"JOIN books_journal_entries me ON me.id = m.entry WHERE m.status = 'posted'" +
+	") ca WHERE TRUE"
+
+// receivableQueries are the three queries of the stored rows.
+var receivableQueries = []string{receivableLinesSQL, receivableApplicationsSQL, receivableCreditApplicationsSQL}
 
 // receivableSettledSQL gives, for each customer and item of the stored rows
 // (%s: "" for all of them, or a WHERE on the stored rows that keeps or drops
@@ -174,13 +202,13 @@ func settleReceivables(tx core.App, pairs []receivablePair) (int64, error) {
 	return changed, nil
 }
 
-// rebuildReceivables makes the stored rows equal the two queries over the
+// rebuildReceivables makes the stored rows equal the three queries over the
 // whole book, for a book written past the hooks (a test's raw rows, a repair).
 func rebuildReceivables(tx core.App) error {
 	if _, err := tx.DB().NewQuery("DELETE FROM " + receivableItemsCollection).Execute(); err != nil {
 		return fmt.Errorf("books: clear receivable rows: %w", err)
 	}
-	for _, query := range []string{receivableLinesSQL, receivableApplicationsSQL} {
+	for _, query := range receivableQueries {
 		if _, err := insertReceivables(tx, query, "", nil); err != nil {
 			return err
 		}
@@ -207,11 +235,17 @@ type ReceivableDrift struct {
 // route also answers the count of all of them.
 const maxReceivableDriftsReported = 100
 
-// verifyReceivables compares the stored rows with the two queries, both ways,
+// verifyReceivables compares the stored rows with the three queries, both ways,
 // and each row's settled with the day its item settles. Every write path
 // refreshes the rows it changes, so a drift means one missed it.
 func verifyReceivables(app core.App) ([]ReceivableDrift, error) {
-	computed := "SELECT " + receivableColumns + " FROM (" + receivableLinesSQL + " UNION ALL " + receivableApplicationsSQL + ")"
+	parts := make([]string, len(receivableQueries))
+	for i, query := range receivableQueries {
+		parts[i] = "SELECT " + receivableColumns + " FROM (" + query + ")"
+	}
+	// One SELECT over the union: a bare compound would bind the EXCEPT below to
+	// its first query only.
+	computed := "SELECT " + receivableColumns + " FROM (" + strings.Join(parts, " UNION ALL ") + ")"
 	stored := "SELECT " + receivableColumns + " FROM " + receivableItemsCollection
 	drifts := []ReceivableDrift{}
 	err := app.DB().NewQuery(`
