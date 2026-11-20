@@ -16,10 +16,12 @@ import {
     expectTableFits,
     figureDigits,
     figureText,
+    manualBand,
     openEntriesFromSidebar,
     openProfitAndLoss,
     postEntryOn,
     pressFigure,
+    refreshReport,
     sectionTopKey,
     snapshotWhen,
     tdLinesOf,
@@ -188,16 +190,21 @@ test.describe('report-drill-down: panel', () => {
         } finally {
             await otherContext.close()
         }
+        // The statement (the Profit and Loss) is live: it shows the post with no press
+        // and has no band. Transaction Detail in the panel is not live: its own Refresh
+        // brings the line in.
+        await expect
+            .poll(async () => figureDigits(await figureText(page, 'amount', expense)))
+            .toBe('215.00')
+        await expect(manualBand(page).band).toHaveCount(0)
+        await refreshReport(page, 'report-drill')
         const live = await snapshotWhen(
             page,
             p => tdSnapshot(p, drillPanel(p)),
             s => tdLinesOf(s, expense).length === 3,
-            `${expense}'s third line in the panel without a reload`
+            `${expense}'s third line in the panel after Refresh`
         )
         expect(figureDigits(tdSubtotalOf(live, expense)?.cells.amount)).toBe('215.00')
-        await expect
-            .poll(async () => figureDigits(await figureText(page, 'amount', expense)))
-            .toBe('215.00')
 
         // Total Expenses sits under every expense account of the shared DB: fold the
         // section so its total row is mounted.
@@ -210,8 +217,10 @@ test.describe('report-drill-down: panel', () => {
         )
         // The panel's report Total ends a list of every expense account's lines on the
         // shared DB, so the panel is scrolled to its end until the Total row is mounted.
-        // Other workers post expenses and both views run live, so the two totals are
-        // compared until they agree.
+        // Other workers post expenses. The statement runs live and the panel does not, so
+        // the two totals are compared until they agree, and the panel is refreshed when a
+        // Total it shows is not the statement's.
+        const panelRefresh = manualBand(page, 'report-drill').refresh
         await expect
             .poll(
                 async () => {
@@ -219,6 +228,8 @@ test.describe('report-drill-down: panel', () => {
                     const section = await tdSnapshot(page, drillPanel(page))
                     const statement = figureDigits(await figureText(page, 'amount', TOTAL_EXPENSES))
                     const shown = figureDigits(tdTotalOf(section)?.cells.amount)
+                    const isStale = shown !== '' && shown !== statement
+                    if (isStale && (await panelRefresh.isEnabled())) await panelRefresh.click()
                     return { equal: shown === statement && statement !== '', shown, statement }
                 },
                 { message: "the panel's report Total equals the statement's Total Expenses" }

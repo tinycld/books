@@ -27,6 +27,7 @@ import {
     openReportAccount,
     postEntryOn,
     type ReportSnapshot,
+    refreshReport,
     reportLabelsThrough,
     reportLinesUnder,
     reportSnapshot,
@@ -842,7 +843,7 @@ test.describe('balance-sheet: report', () => {
         expect(next?.label).toBe(NET_INCOME_LABEL)
     })
 
-    test('a post made on another page appears in the open report without a reload', async ({
+    test('a post made on another page appears in the open report after Refresh, without a reload', async ({
         page,
         browser,
     }) => {
@@ -879,11 +880,13 @@ test.describe('balance-sheet: report', () => {
                 ],
             })
 
-            // Only a run after the post has a row for the new account.
+            // The Balance Sheet is not live: the post shows when the reader presses
+            // Refresh. Only a run after the post has a row for the new account.
+            await refreshReport(page)
             const live = await snapshotWhen(
                 page,
                 s => has(s, debited, credited),
-                `${debited} and ${credited} in the open report`
+                `${debited} and ${credited} in the open report after Refresh`
             )
             expect(figure(live, debited, 'current')).toBe(6000)
             expect(figure(live, credited, 'current')).toBe(-6000)

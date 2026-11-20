@@ -21,6 +21,7 @@ import {
     openEntriesFromSidebar,
     openGeneralLedger,
     postEntryOn,
+    refreshReport,
     snapshotWhen,
 } from './books-report-helpers'
 import { createCustomer } from './customer-form-helpers'
@@ -840,7 +841,7 @@ test.describe('general-ledger: report', () => {
         await expect(page.getByTestId('report-sort-balance')).toHaveCount(0)
     })
 
-    test('a post made on another page appears in the open report without a reload', async ({
+    test('a post made on another page appears in the open report after Refresh, without a reload', async ({
         page,
         browser,
     }) => {
@@ -876,11 +877,13 @@ test.describe('general-ledger: report', () => {
             ],
         })
 
+        // The General Ledger is not live: the post shows when the reader presses Refresh.
+        await refreshReport(page)
         const live = await snapshotWhen(
             page,
             glSnapshot,
             s => linesOf(s, account).length === 1,
-            'the post in the open report'
+            'the post in the open report after Refresh'
         )
         expect(figure(linesOf(live, account)[0]?.cells.debit)).toBe('15.00')
         expect(figure(linesOf(live, account)[0]?.cells.balance)).toBe('15.00')
