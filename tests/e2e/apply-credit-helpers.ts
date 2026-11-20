@@ -142,6 +142,13 @@ export async function openApplyFromMemo(page: Page) {
     await expect(applyDialogOf(page)).toBeVisible()
 }
 
+// On a posted invoice's read view at desktop width: presses the bar's Apply credit and
+// waits for the dialog (apply credit spec §3.3).
+export async function openApplyFromInvoice(page: Page) {
+    await shown(page, 'invoice-read-apply').click()
+    await expect(applyDialogOf(page)).toBeVisible()
+}
+
 /**
  * Books must already be open. Applies `amount` of the credit memo whose unique memo is
  * `memo` to one invoice: reopens the memo by search unless its read view is on screen,

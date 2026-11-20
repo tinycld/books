@@ -21,6 +21,7 @@ import {
     applySideTexts,
     applySummaryText,
     sortApplyRows,
+    sourceMemosFirst,
     spreadForDocument,
 } from '../lib/apply-credit-schema'
 import { refusedRecordId } from '../lib/batch-refusal'
@@ -105,14 +106,6 @@ function refusedRow(error: unknown, inserts: readonly ApplyInsert[]): string | n
 
 function appliedCount(payments: Payments, currency: string): number {
     return Object.values(payments).filter(entry => entryCents(entry, currency) > 0).length
-}
-
-// The credit memos made from the invoice first (spec §3.3), each part in the list's order.
-function sourceMemosFirst(rows: readonly ApplyRow[], sourceIds: ReadonlySet<string>) {
-    return [
-        ...rows.filter(row => sourceIds.has(row.id)),
-        ...rows.filter(row => !sourceIds.has(row.id)),
-    ]
 }
 
 /**

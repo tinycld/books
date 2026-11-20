@@ -240,8 +240,8 @@ export function spreadForDocument(rows: readonly ApplyRow[], openCents: number):
 }
 
 // The list's order (a new array): the row `sourceId` names first (the invoice a credit memo
-// was made from, or a credit memo made from the invoice), then by due date (a credit's row
-// carries its credit date there), then by number.
+// was made from; '' for none), then by due date (a credit's row carries its credit date
+// there), then by number.
 export function sortApplyRows(rows: readonly ApplyRow[], sourceId: string): ApplyRow[] {
     const isSource = (row: ApplyRow) => (sourceId !== '' && row.id === sourceId ? 0 : 1)
     return [...rows].sort(
@@ -251,6 +251,18 @@ export function sortApplyRows(rows: readonly ApplyRow[], sourceId: string): Appl
             compareNumbers(a.number, b.number) ||
             compareText(a.id, b.id)
     )
+}
+
+// From an invoice (spec §3.3): the credit memos made from the invoice (`sourceIds`) first,
+// then the rest, each part keeping the order of `rows` (sortApplyRows with no source).
+export function sourceMemosFirst(
+    rows: readonly ApplyRow[],
+    sourceIds: ReadonlySet<string>
+): ApplyRow[] {
+    return [
+        ...rows.filter(row => sourceIds.has(row.id)),
+        ...rows.filter(row => !sourceIds.has(row.id)),
+    ]
 }
 
 export type ApplyDialogBody = 'loading' | 'load-error' | 'empty' | 'rows'
@@ -282,6 +294,36 @@ function applyDialogBody(input: {
     if (input.hasLoadError) return 'load-error'
     if (input.isLoading) return 'loading'
     return input.rowCount === 0 ? 'empty' : 'rows'
+}
+
+const UNAPPLIED_PAYMENT_LINE =
+    'Payment %s has %s that is not applied to an invoice. Open the payment and edit it to apply that amount.'
+const MORE_PAYMENTS_ONE = "and 1 more payment on the customer's page"
+const MORE_PAYMENTS_MANY = "and %s more payments on the customer's page"
+
+// The invoice notice's payments line (apply credit spec §3.1, Q2): one line for each payment
+// given, in the given order (useUnappliedPayments gives the oldest three), with the amount
+// that is not applied (`credited`), and the link text for the rest (`moreCount`); '' when
+// there is no more.
+export function unappliedPaymentsText(
+    payments: readonly { number: string; credited: number }[],
+    moreCount: number,
+    currency: string
+): { lines: string[]; more: string } {
+    const lines = payments.map(payment =>
+        fillPaymentText(
+            UNAPPLIED_PAYMENT_LINE,
+            payment.number,
+            formatMoney(payment.credited, currency)
+        )
+    )
+    return { lines, more: morePaymentsText(moreCount) }
+}
+
+function morePaymentsText(count: number): string {
+    if (count <= 0) return ''
+    if (count === 1) return MORE_PAYMENTS_ONE
+    return fillPaymentText(MORE_PAYMENTS_MANY, String(count))
 }
 
 // The server's refusal keys that name one insert's document or credit (plan decision 7).

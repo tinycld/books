@@ -1,3 +1,4 @@
+import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { useWritesAvailable } from '@tinycld/core/lib/use-writes-available'
 import { Button, ButtonText, ServerActionButton } from '@tinycld/core/ui/button'
 import { DIALOG_SUBMIT_SHORTCUT, Dialog } from '@tinycld/core/ui/dialog'
@@ -103,9 +104,10 @@ function RemoveButton({
 /**
  * One application: on a credit's Applied to block "Bill 1003 · Nov 16, 2026 · $30.00" or
  * "Invoice 1009 · Nov 16, 2026 · $150.00", on a bill's Payments block "Vendor credit 1002 ·
- * Nov 16, 2026 · $30.00" (APPLICATION_TARGETS); a link
- * that opens that document (back to its screen when it is below, else pushed), and Remove
- * for a writer on a posted document. Remove only opens the confirm, so it is a plain Button.
+ * Nov 16, 2026 · $30.00", on an invoice's "Credit memo 1001 · Nov 16, 2026 · $150.00"
+ * (APPLICATION_TARGETS); a link that opens that document (back to its screen when it is
+ * below, else pushed), and Remove for a writer on a posted document, under the link on a
+ * phone. Remove only opens the confirm, so it is a plain Button.
  */
 export function ApplicationRow({
     application,
@@ -126,8 +128,11 @@ export function ApplicationRow({
         row: `${testIdPrefix}-${named.idSuffix}-${application.id}`,
         remove: `${testIdPrefix}-${named.idSuffix}-remove-${application.id}`,
     }
+    // A phone stacks Remove under the link (apply credit spec §4.6); wider, they share a row.
+    const isPhone = useBreakpoint() === 'mobile'
+    const rowClass = isPhone ? 'items-start gap-1' : 'flex-row flex-wrap items-center gap-3'
     return (
-        <View testID={ids.row} className="flex-row flex-wrap items-center gap-3">
+        <View testID={ids.row} className={rowClass}>
             <Pressable
                 accessibilityRole="link"
                 onPress={open}
