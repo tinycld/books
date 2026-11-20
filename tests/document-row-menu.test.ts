@@ -131,17 +131,68 @@ describe('documentRowMenuItems, writer', () => {
         ])
     })
 
-    it.each([
-        'sales_receipt',
-        'credit_memo',
-    ] as const)('a posted %s: Open, Void, Copy, View journal entry, Download PDF', kind => {
-        expect(documentRowMenuItems(row(kind, 'posted', { balance: 150 }), WRITER)).toEqual([
+    it('a posted sales_receipt: Open, Void, Copy, View journal entry, Download PDF', () => {
+        expect(
+            documentRowMenuItems(row('sales_receipt', 'posted', { balance: 150 }), WRITER)
+        ).toEqual(['open', 'void', 'copy', 'entry', 'pdf'])
+    })
+
+    // Apply credit spec §3.1: "Apply to invoices" first, before Open, on a posted credit memo
+    // with unapplied credit, for a writer.
+    it('a posted credit_memo with a balance: Apply to invoices, Open, Void, Copy, View journal entry, Download PDF', () => {
+        expect(
+            documentRowMenuItems(row('credit_memo', 'posted', { balance: 150 }), WRITER)
+        ).toEqual(['apply_credit', 'open', 'void', 'copy', 'entry', 'pdf'])
+    })
+
+    it('a posted credit_memo with balance 0: Open, Void, Copy, View journal entry, Download PDF', () => {
+        expect(documentRowMenuItems(row('credit_memo', 'posted', { balance: 0 }), WRITER)).toEqual([
             'open',
             'void',
             'copy',
             'entry',
             'pdf',
         ])
+    })
+})
+
+describe('documentRowMenuItems, apply credit', () => {
+    it('a reader, a draft, a void memo and a memo at balance 0 have no apply_credit', () => {
+        expect(
+            documentRowMenuItems(row('credit_memo', 'posted', { balance: 150 }), READER)
+        ).not.toContain('apply_credit')
+        expect(
+            documentRowMenuItems(row('credit_memo', 'draft', { balance: 150 }), WRITER)
+        ).not.toContain('apply_credit')
+        expect(
+            documentRowMenuItems(row('credit_memo', 'void', { balance: 150 }), WRITER)
+        ).not.toContain('apply_credit')
+        expect(
+            documentRowMenuItems(row('credit_memo', 'posted', { balance: 0 }), WRITER)
+        ).not.toContain('apply_credit')
+    })
+
+    it('an invoice row never has apply_credit (Q4)', () => {
+        for (const status of ['draft', 'posted', 'void']) {
+            for (const balance of [0, 150]) {
+                for (const canWrite of [WRITER, READER]) {
+                    expect(
+                        documentRowMenuItems(row('invoice', status, { balance }), canWrite)
+                    ).not.toContain('apply_credit')
+                }
+            }
+        }
+    })
+
+    it('its label is "Apply to invoices" and its test id sales-row-action-apply-credit', () => {
+        expect(ROW_MENU_LABELS.apply_credit).toBe('Apply to invoices')
+        expect(rowActionTestId('sales', 'apply_credit')).toBe('sales-row-action-apply-credit')
+    })
+
+    it('gives no route: the credit memo opens with its dialog through the store', () => {
+        expect(
+            rowActionHref(row('credit_memo', 'posted', { balance: 150 }), 'apply_credit')
+        ).toBeNull()
     })
 })
 
@@ -193,7 +244,8 @@ describe('documentRowMenuItems, every list', () => {
             for (const canWrite of [WRITER, READER]) {
                 const items: string[] = documentRowMenuItems(listed, canWrite)
                 expect(items).not.toContain('edit')
-                expect(items[0]).toBe('open')
+                // Apply to invoices alone comes before Open (apply credit spec §3.1).
+                expect(items.filter(item => item !== 'apply_credit')[0]).toBe('open')
             }
         }
     })
@@ -272,6 +324,7 @@ describe('ROW_MENU_LABELS', () => {
             pdf: 'Download PDF',
             delete_draft: 'Delete draft',
             write_off: 'Write off',
+            apply_credit: 'Apply to invoices',
         })
     })
 })

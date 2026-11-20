@@ -22,17 +22,20 @@ import { payoutVoidBodyOf } from './refund-payout'
 
 export type ListRowAction = RowMenuAction | PurchaseRowMenuAction
 
-export const LIST_ROW_MENU_LABELS: Record<ListRowAction, string> = {
-    ...ROW_MENU_LABELS,
-    ...PURCHASE_ROW_MENU_LABELS,
-}
-
 function isSalesAction(action: ListRowAction): action is RowMenuAction {
     return action in ROW_MENU_LABELS
 }
 
 function isPurchaseAction(action: ListRowAction): action is PurchaseRowMenuAction {
     return action in PURCHASE_ROW_MENU_LABELS
+}
+
+// A menu row's words, by the row's area: both areas have Apply (`apply_credit`), "Apply to
+// invoices" on a credit memo and "Apply to bills" on a vendor credit.
+export function listRowMenuLabel(row: DocumentListRow, action: ListRowAction): string {
+    if (isSalesKind(row.kind) && isSalesAction(action)) return ROW_MENU_LABELS[action]
+    if (isPurchaseAction(action)) return PURCHASE_ROW_MENU_LABELS[action]
+    return ROW_MENU_LABELS[action]
 }
 
 export function listRowMenuItems(row: DocumentListRow, canWrite: boolean): ListRowAction[] {

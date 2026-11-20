@@ -30,7 +30,13 @@ The form shows **For invoice 1004** under the customer: choose it to open the in
 
 When you post a credit memo, the customer's **Open** figure on the [customer's page](help://books:customer-pages) goes down by the Credit amount. When the customer's credits are more than what the customer owes, the figure shows as a negative amount, such as −$250.00, with the label **Credit** in place of Open. Overdue does not change, because it adds only the balance due of invoices.
 
-On the customer's Transactions tab, choose the **Credit memos** chip to see the customer's credit memos. Each total shows with a minus sign, such as −$250.00. A posted credit memo is **Unapplied** while some of its credit is not used yet, also after you refund part of it. A posted credit memo is **Refunded** when refund receipts pay out all of its credit.
+On the customer's Transactions tab, choose the **Credit memos** chip to see the customer's credit memos. Each total shows with a minus sign, such as −$250.00. A posted credit memo is **Unapplied** while some of its credit is not used yet, also after you apply or refund part of it. A posted credit memo is **Applied** when none of its credit is left and a part of it is applied to invoices, and **Refunded** when refund receipts pay out all of its credit.
+
+## Apply the credit to invoices
+
+To use the credit on the customer's open invoices, open the posted credit memo and choose **Apply to invoices**, or press A. On a phone, it is the button beside More. Only a credit memo with unapplied credit has it, and only for a bookkeeper or an admin. You can also choose Apply to invoices in the credit memo's row menu on the Sales lists and on the customer's Transactions tab. In the dialog, check the Apply date and the amount for each invoice, then choose Apply credit. Each invoice's Balance due goes down by its amount. See [Apply a credit memo to invoices](help://books:apply-credit).
+
+After you apply, the credit memo's totals show **Applied** with a minus sign, such as −$150.00, after Credit amount, then Refunded (when a refund receipt pays it out) and **Unapplied credit**. The **Applied to** section lists each invoice, for example "Invoice 1009 · Nov 16, 2026 · $150.00", with Remove to take the credit off that invoice. The badge reads **Partly applied** while some credit is left and part of it is applied to invoices, **Applied** when none is left and part of it is applied, and **Refunded** when refund receipts paid out all of it.
 
 ## Refund a credit
 
@@ -48,7 +54,7 @@ A posted credit memo lowers both sales reports, Sales by Customer and Sales by P
 
 ## Cash basis
 
-On Accrual, a posted credit memo counts on its own date, as every posted entry does. On Cash, a credit memo counts only when its credit is used, as an invoice counts only when it is paid. A refund receipt that pays out the credit uses it: on the refund date, the payout brings back its share of the credit memo's lines and tax, with a line such as "Credit memo 1001 refunded (cash basis)". Books cannot yet apply a credit to an invoice. So on Cash, a credit memo that no refund receipt pays out changes no figure of the Profit and Loss, the Balance Sheet, Transaction Detail by Account or the Sales Tax Liability. See "Accrual and cash basis" in [Reports](help://books:reports).
+On Accrual, a posted credit memo counts on its own date, as every posted entry does. On Cash, a credit memo counts only when its credit is used, as an invoice counts only when it is paid. A refund receipt that pays out the credit uses it: on the refund date, the payout brings back its share of the credit memo's lines and tax, with a line such as "Credit memo 1001 refunded (cash basis)". An application to an invoice uses it too: on the apply date, it brings back its share of the credit memo's lines and tax, with a line such as "Credit memo 1001 applied (cash basis)". So on Cash, a credit memo that is not applied and that no refund receipt pays out changes no figure of the Profit and Loss, the Balance Sheet, Transaction Detail by Account or the Sales Tax Liability. See "Accrual and cash basis" in [Reports](help://books:reports).
 
 ## Save and post
 
@@ -74,6 +80,14 @@ When refund receipts pay out a credit memo, these rules apply:
 - The edit cannot change the customer while a draft or posted refund receipt pays out the credit memo: "A refund receipt is recorded on this credit memo, so its customer cannot change."
 - The edit's date cannot be after the date of the first posted refund receipt that pays it out, for example "Refund receipt 1003 refunds this credit on Nov 15, 2026. Date the credit memo on or before that day."
 
+When the credit memo is applied to invoices, these rules apply:
+
+- You cannot void it: "This credit is applied to invoices. Remove it from those invoices first." Remove it from each invoice first.
+- An edit moves its applications to the new version.
+- The edit's total cannot be below what is applied, for example "$150.00 of this credit is applied to invoices. Its total cannot be below that."; with refunds too, "$230.00 of this credit is applied or refunded. Its total cannot be below that."
+- The edit cannot change the customer: "This credit is applied to invoices, so its customer cannot change."
+- The edit's date cannot be after the earliest apply date, for example "This credit is applied to invoice 1009 on Nov 16, 2026. Date the credit memo on or before that day."
+
 ## Keyboard shortcuts
 
 The form uses the same keys as an invoice:
@@ -90,6 +104,7 @@ The form uses the same keys as an invoice:
 
 On a posted or void credit memo:
 
+- A: Apply to invoices (a posted credit memo with unapplied credit only)
 - E: Edit
 - V: Void
 - C: Copy to a new credit memo

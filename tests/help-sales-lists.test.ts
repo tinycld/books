@@ -136,3 +136,13 @@ describe('help/navigating-books.md', () => {
         expect(navigating).toContain('help://books:sales-lists')
     })
 })
+
+// Apply credit spec §3.8 Help: the Credit memos tab's chips name Applied and Refunded in one
+// sentence.
+describe('help/sales-lists.md (apply credit)', () => {
+    it('names the Applied and Refunded chips in one sentence', () => {
+        const sentences = body.split(/(?<=[.!?])\s+/)
+        const chips = sentences.find(s => /\bApplied\b/.test(s) && /\bRefunded\b/.test(s))
+        expect(chips, 'a sentence with Applied and Refunded').toBeDefined()
+    })
+})

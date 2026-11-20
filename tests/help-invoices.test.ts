@@ -181,3 +181,10 @@ describe('help/invoices.md (write-offs)', () => {
         expect(body).toContain('(help://books:write-offs)')
     })
 })
+
+// Apply credit spec §3.8 Help: the invoice topic gains Apply credit and Credits applied.
+describe('help/invoices.md (apply credit)', () => {
+    it('names Credits applied', () => {
+        expect(body).toContain('Credits applied')
+    })
+})

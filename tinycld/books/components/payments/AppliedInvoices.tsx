@@ -82,6 +82,20 @@ const LAYOUTS: Record<OutstandingDocument['noun'], AppliedLayout> = {
             applied: REFUND_COLUMNS.refund,
         },
     },
+    // A credit memo list (the apply dialog's from an invoice) has no applied grid of its
+    // own; it takes the vendor credit's credit columns, with no ref under the link.
+    'Credit memo': {
+        hasRef: false,
+        hasRefUnderLink: false,
+        dateField: 'date',
+        columns: {
+            document: REFUND_COLUMNS.credit,
+            ref: REFUND_COLUMNS.credit,
+            dueDate: REFUND_COLUMNS.creditDate,
+            original: REFUND_COLUMNS.total,
+            applied: REFUND_COLUMNS.refund,
+        },
+    },
 }
 
 function appliedLayoutOf(doc: OutstandingDocument): AppliedLayout {

@@ -193,14 +193,26 @@ func TestBalanceKinds_ListTheirPayers(t *testing.T) {
 		LinesCollection: "books_write_offs", LineField: "invoice",
 		OwnStatus: true, NoCash: true,
 	}
+	// A credit memo applied to an invoice lowers both, as a payment does, at
+	// the apply date; the memo's rows take the deferral's PaidMemo (apply credit
+	// spec §4.3).
+	invoiceCredit := balancePayer{
+		LinesCollection: "books_credit_memo_applications", LineField: "invoice",
+		EntryField: "credit_memo", EntryCollection: "books_credit_memos",
+		CashMemo: "Invoice %s paid by credit memo (cash basis)",
+	}
+	memoApplied := balancePayer{
+		LinesCollection: "books_credit_memo_applications", LineField: "credit_memo",
+		EntryField: "credit_memo", EntryCollection: "books_credit_memos",
+	}
 	for _, c := range []struct {
 		kind balanceKind
 		want []balancePayer
 	}{
-		{invoiceBalanceKind, []balancePayer{invoicePayer, writeOff}},
+		{invoiceBalanceKind, []balancePayer{invoicePayer, writeOff, invoiceCredit}},
 		{billBalanceKind, []balancePayer{billPayment, billCredit}},
 		{vendorCreditBalanceKind, []balancePayer{creditApplied, creditRefund}},
-		{creditMemoBalanceKind, []balancePayer{memoRefund}},
+		{creditMemoBalanceKind, []balancePayer{memoRefund, memoApplied}},
 	} {
 		if len(c.kind.Payers) != len(c.want) {
 			t.Errorf("%s has %d payers %+v, want %d", c.kind.Noun, len(c.kind.Payers), c.kind.Payers, len(c.want))

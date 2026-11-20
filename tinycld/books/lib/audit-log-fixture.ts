@@ -22,6 +22,7 @@ import type {
 import {
     AUDIT_EVENT_OPTIONS,
     AUDIT_RECORD_TYPE_OPTIONS,
+    AUDIT_SHOWN_EVENT_OPTIONS,
     type AuditEvent,
     type AuditFieldChange,
     type AuditLogRow,
@@ -47,6 +48,7 @@ export const AUDIT_LOG_ZONE_WORDS = 'Times in Central Time'
 export {
     AUDIT_EVENT_OPTIONS,
     AUDIT_RECORD_TYPE_OPTIONS,
+    AUDIT_SHOWN_EVENT_OPTIONS,
     type AuditEvent,
     type AuditFieldChange,
     type AuditLogRow,
@@ -132,6 +134,15 @@ export interface RowInput {
     snapshot?: Record<string, CellValue>
 }
 
+// The view's event_shown (migration 2100000032 EVENT_SHOWN): a credit memo
+// application's create and delete show as credit_applied and credit_removed.
+function shownEvent(type: string, event: AuditEvent): string {
+    if (type !== 'books_credit_memo_applications') return event
+    if (event === 'added') return 'credit_applied'
+    if (event === 'deleted') return 'credit_removed'
+    return event
+}
+
 export function auditRow(input: RowInput): AuditLogRow {
     const user = AUDIT_USERS[input.who]
     const parent = input.parent ?? { type: '', id: '' }
@@ -141,6 +152,7 @@ export function auditRow(input: RowInput): AuditLogRow {
         actor: user.id,
         actor_name: user.name,
         event: input.event,
+        event_shown: shownEvent(input.type, input.event),
         record_type: input.type,
         record_id: input.record,
         record_label: input.label,
@@ -564,7 +576,13 @@ export const AUDIT_LOG_PARAMS: ParamDef[] = [
 export const AUDIT_LOG_COLUMNS: ResultColumn[] = [
     { id: 'created', label: 'Date changed', type: 'datetime', sortable: true },
     { id: 'user', label: 'User', type: 'text', sortable: true },
-    { id: 'event', label: 'Event', type: 'select', options: AUDIT_EVENT_OPTIONS, sortable: true },
+    {
+        id: 'event',
+        label: 'Event',
+        type: 'select',
+        options: AUDIT_SHOWN_EVENT_OPTIONS,
+        sortable: true,
+    },
     {
         id: 'type',
         label: 'Record type',
@@ -648,7 +666,7 @@ function detailRow(row: AuditLogRow): ResultRow {
         cells: {
             created: row.created,
             user: row.actor_name,
-            event: row.event,
+            event: row.event_shown,
             type: row.record_type,
             record: row.record_label,
         },

@@ -34,6 +34,8 @@ If your chart is older and has no Bad debts account, add one: open the [Chart of
 
 When a customer paid a part of an invoice and will not pay the rest, write off the invoice: the write-off takes only the open balance. For example, an invoice of $500.00 with a payment of $200.00 is written off for $300.00. The invoice's totals show the payment and the write-off.
 
+A credit memo applied to the invoice lowers its balance too, so the write-off takes the balance after credits. For example, an invoice of $500.00 with $150.00 of credit applied is written off for $350.00. To take only a part off an invoice that the customer still pays, do not write it off: create a credit memo for that part and apply it to the invoice. When you remove an applied credit from a written-off invoice, the invoice is open again for that amount, and Write off shows again. See [Apply a credit memo to invoices](help://books:apply-credit).
+
 ## Sales tax stays owed
 
 A write-off does not change the sales tax of the invoice. The tax that the invoice charged stays owed to the tax agency, and the Sales Tax Liability report does not change. For an invoice with sales tax, the dialog says so, for example "Its sales tax of $80.00 stays owed to the tax agency."

@@ -4,17 +4,22 @@ import type { ReactNode } from 'react'
 import { ScrollView, Text, View } from 'react-native'
 import type { PaymentFormState } from '../../hooks/usePaymentForm'
 import type { PaymentLeaveGuard, PaymentSave } from '../../hooks/usePaymentSave'
+import { applySideTexts } from '../../lib/apply-credit-schema'
+import { CREDIT_MEMO_APPLICATION } from '../../lib/credit-application-kinds'
 import type { PaymentFlow } from '../../lib/payment-flow'
 import type { PaymentFormKey } from '../../lib/payment-shortcuts'
 import { paymentFigureText } from '../../lib/payment-texts'
 import { todayIso } from '../../lib/register-range'
 import { rootErrorOnly } from '../../lib/root-errors'
+import { CREDIT_MEMO_KIND } from '../../lib/sales-document-kinds'
 import { DocumentActionBar } from '../documents/DocumentActionBar'
 import { DocumentHeader } from '../documents/DocumentHeader'
+import { UnappliedCreditsNotice } from '../documents/UnappliedCreditsNotice'
 import { DeleteDraftDialog } from '../entries/DeleteDraftDialog'
 import { DiscardDialog } from '../entries/DiscardDialog'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { EntryLeaveContext } from '../entries/EntryLeaveContext'
+import { ListBanner } from '../ListBanner'
 import { ClearPaymentsLink } from './ClearPaymentsLink'
 import { OutstandingInvoices, outstandingListMode } from './OutstandingInvoices'
 import { PaymentBand } from './PaymentBand'
@@ -55,6 +60,21 @@ interface PaymentFormViewProps {
 }
 
 const MEMO_WIDE = { maxWidth: 560 }
+const CREDITS_LOAD_FAILED = applySideTexts(CREDIT_MEMO_APPLICATION.texts, 'document').loadFailed
+
+// The customer's credits read failed: its banner with Retry, in the notice's place, so a
+// failed read never reads as "no unapplied credit".
+function CreditsLoadError({ isVisible, onRetry }: { isVisible: boolean; onRetry: () => void }) {
+    if (!isVisible) return null
+    return (
+        <ListBanner
+            testIdPrefix="payment-credits-load"
+            message={CREDITS_LOAD_FAILED}
+            onRetry={onRetry}
+            isFlush
+        />
+    )
+}
 
 // The memo's hint line under the field; nothing when the flow has none.
 function MemoHint({ text, testID }: { text: string; testID: string }) {
@@ -103,6 +123,8 @@ export function PaymentFormView({
     const figure = paymentFigureText(values.amount, currency)
     const summaryErrors = rootErrorOnly(errors)
     const memoStyle = isPhone ? undefined : MEMO_WIDE
+    const { credits } = paymentForm
+    const hasCredits = credits.isReady && !credits.isError && credits.lines.length > 0
     const list = {
         doc: flow.doc,
         rows: outstanding.rows,
@@ -152,6 +174,14 @@ export function PaymentFormView({
                         isDisabled={isWriting}
                         isDateFirst={form.isDateFirst}
                     />
+                    <UnappliedCreditsNotice
+                        isVisible={hasCredits}
+                        testIdPrefix={testId}
+                        title="Unapplied credit"
+                        credits={credits.lines}
+                        openKind={CREDIT_MEMO_KIND}
+                    />
+                    <CreditsLoadError isVisible={credits.isError} onRetry={credits.retry} />
                     <OutstandingInvoices
                         flow={flow}
                         mode={listMode}

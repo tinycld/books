@@ -118,8 +118,8 @@ export function purchaseRowMenuItems(
 }
 
 // The route a navigating action pushes (without the org prefix); null for the actions that
-// stay on the list (Void, Delete draft). Apply to bills pushes the vendor credit, whose read
-// section draws the apply dialog.
+// stay on the list (Void, Delete draft) and for Apply to bills, which the row actions run
+// themselves (`useOpenCreditWithApply`: they push the vendor credit and open its apply dialog).
 export function purchaseRowActionHref(
     row: DocumentListRow,
     action: PurchaseRowMenuAction
@@ -130,8 +130,6 @@ export function purchaseRowActionHref(
     switch (action) {
         case 'pay_bill':
             return `books/pay-bills?bill=${row.id}`
-        case 'apply_credit':
-            return listDocumentHref(kind, row.id)
         case 'record_refund':
             return `books/vendor-refunds/new?vendor=${row.partyId}&credit=${row.id}`
         case 'copy':
@@ -140,6 +138,7 @@ export function purchaseRowActionHref(
                 : null
         case 'entry':
             return `books/entries/${row.entry}`
+        case 'apply_credit':
         case 'void':
         case 'delete_draft':
             return null

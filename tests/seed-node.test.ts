@@ -9,6 +9,7 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import PocketBase from 'pocketbase'
 import { describe, expect, it } from 'vitest'
+import { APPLY_CREDIT_SEED } from '../tinycld/books/lib/apply-credit-fixture'
 import { AR_AGING_SEED } from '../tinycld/books/lib/ar-aging-fixture'
 import { CUSTOMER_BALANCE_SEED } from '../tinycld/books/lib/customer-balance-fixture'
 import { CUSTOMERS } from '../tinycld/books/lib/customer-form-fixture'
@@ -537,6 +538,68 @@ describe('seedWriteOffs', () => {
                 w.data.status === 'posted'
         )
         expect(at(writeOffs[0])).toBeGreaterThan(at(invoicePost))
+    })
+})
+
+// Apply credit spec §4.5 (seed, plan note 12): Fox Hollow Vineyards gets one new invoice
+// and one credit memo made from it, both posted through the writes a form makes, then one
+// application of $150.00 on 2026-11-16 through the dialog's one write, after the A/R Aging
+// seed.
+describe('seedApplyCredit', () => {
+    it('runs after the A/R Aging seed', () => {
+        const source = readFileSync(seedPath, 'utf8')
+        const body = source.slice(source.indexOf('export default async function seed('))
+        const arAging = body.indexOf('seedArAging(')
+        const applyCredit = body.indexOf('seedApplyCredit(')
+        expect(arAging).toBeGreaterThan(-1)
+        expect(applyCredit).toBeGreaterThan(arAging)
+    })
+
+    it('posts one invoice and one credit memo made from it, then applies $150.00 of the memo to it', async () => {
+        const seedApplyCredit = (seedModule as Record<string, unknown>).seedApplyCredit
+        expect(typeof seedApplyCredit).toBe('function')
+        if (typeof seedApplyCredit !== 'function') return
+        const { pb, writes } = recordingPb()
+        const customerIds = new Map(
+            CUSTOMERS.map((row, i) => [row.id, `cust${String(i).padStart(11, '0')}`])
+        )
+        await seedApplyCredit(pb, { user: USER }, customerIds)
+
+        const invoices = writes.filter(w => w.collection === 'books_invoices' && w.op === 'create')
+        expect(invoices).toHaveLength(1)
+        const invoice = invoices[0]
+        if (!invoice) return
+        expect(invoice.id).toBe(APPLY_CREDIT_SEED.invoice)
+        expect(finalStatus(writes, 'books_invoices', invoice.id)).toBe('posted')
+
+        const memos = writes.filter(w => w.collection === 'books_credit_memos' && w.op === 'create')
+        expect(memos).toHaveLength(1)
+        const memo = memos[0]
+        if (!memo) return
+        expect(memo.data).toMatchObject({ status: 'draft', invoice: invoice.id })
+        expect(memo.data.customer).toBe(invoice.data.customer)
+        expect(finalStatus(writes, 'books_credit_memos', memo.id)).toBe('posted')
+
+        const applications = writes.filter(w => w.collection === 'books_credit_memo_applications')
+        expect(applications).toHaveLength(1)
+        const application = applications[0]
+        if (!application) return
+        expect(application.op).toBe('create')
+        expect(application.data).toMatchObject({
+            credit_memo: memo.id,
+            invoice: invoice.id,
+            amount: 15000,
+            date: '2026-11-16',
+            // The seed runs as a superuser, which the request hook does not stamp.
+            applied_by: USER.id,
+        })
+        const at = (w: Write | undefined) => (w ? writes.indexOf(w) : -1)
+        const posted = (collection: string, id: string) =>
+            writes.find(
+                w => w.collection === collection && w.id === id && w.data.status === 'posted'
+            )
+        expect(at(application)).toBeGreaterThan(at(posted('books_invoices', invoice.id)))
+        expect(at(application)).toBeGreaterThan(at(posted('books_credit_memos', memo.id)))
     })
 })
 

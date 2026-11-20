@@ -36,6 +36,11 @@ import {
     newBillValues,
     vendorBillFills,
 } from '../../lib/bill-values'
+import {
+    CREDIT_MEMO_APPLICATION,
+    type CreditApplicationKind,
+    VENDOR_CREDIT_APPLICATION,
+} from '../../lib/credit-application-kinds'
 import { creditMemoColumnsFrom, EMPTY_CREDIT_MEMO_COLUMNS } from '../../lib/credit-memo-columns'
 import {
     copyCreditMemoValues,
@@ -46,6 +51,7 @@ import {
 import type { TaxRateFill } from '../../lib/document-fills'
 import {
     type BalanceBadge,
+    creditMemoBadge,
     paidBadge,
     vendorCreditBadge,
     writtenOffBadge,
@@ -136,11 +142,13 @@ import {
 } from '../../lib/vendor-credit-values'
 import type { BooksVendors } from '../../types'
 import { BillReadDetails } from './BillReadDetails'
+import { CreditMemoReadFrame, VendorCreditReadFrame } from './CreditApplySection'
 import { CreditMemoLinkRow } from './CreditMemoLinkRow'
 import { CreditMemoInvoiceLink, CreditMemoReadDetails } from './CreditMemoReadDetails'
 import type { DocumentReadLinesProps } from './DocumentReadLines'
 import { EstimateConvertedLink, EstimateReadDetails } from './EstimateReadDetails'
 import { ExpensePaymentRow, ExpenseReadDetails } from './ExpenseReadDetails'
+import { InvoiceApplyFrame } from './InvoiceApplyFrame'
 import { InvoiceFromEstimateLink, InvoiceReadDetails } from './InvoiceReadDetails'
 import { InvoiceSections } from './InvoiceSections'
 import { PurchaseReadLines } from './PurchaseReadLines'
@@ -148,7 +156,6 @@ import { RefundReceiptLinkRow } from './RefundReceiptLinkRow'
 import { RefundReceiptBandRows, RefundReceiptReadDetails } from './RefundReceiptReadDetails'
 import { CreditMemoRefunds, SalesReceiptRefunds } from './RefundReceiptSections'
 import { SalesReceiptPaymentRow, SalesReceiptReadDetails } from './SalesReceiptReadDetails'
-import { VendorCreditReadFrame } from './VendorCreditApplySection'
 import { VendorCreditReadDetails } from './VendorCreditReadDetails'
 
 export type DocumentReadDetailsProps = {
@@ -169,15 +176,19 @@ export type DocumentReadSectionProps = {
     onRetry: () => void
 }
 
-// The read view's Details panel as two parts: `body` is the band through the Payments block,
-// `stamps` the stamps under it. A kind's ReadFrame draws them in order with its own parts
-// around them (a notice before the band, a section before the stamps).
-// `refunds` is the read view's one read of the record's posted vendor refunds
+// The read view's Details panel as three parts: `body` is the band through the Payments
+// block, `section` the kind's ReadSection (drawn by the read view; null for a kind without
+// one), `stamps` the stamps under them. A kind's ReadFrame draws them in order with its own
+// parts around them (a notice before the band, a block before the section, dialogs before
+// the stamps). `refunds` is the read view's one read of the record's posted vendor refunds
 // (`DocumentKind.readRefunds`; off, ready and empty for every other kind), which a vendor
-// credit's Applied to block lists and its Retry recovers.
+// credit's Applied to block lists and its Retry recovers. `partyName` is the record's party
+// as the read view names it (the notice's and the apply dialog's empty text).
 export type DocumentReadFrameProps = {
     record: DocumentRecord
+    partyName: string
     body: ReactNode
+    section: ReactNode
     stamps: ReactNode
     refunds: CreditRefunds
 }
@@ -188,11 +199,18 @@ export type DocumentReadFrameProps = {
 export type ReadRefunded = number | null
 
 // The read view's badge of a kind with a balance badge: the kind's BalanceBadge, with the
-// refunded cents a vendor credit's badge also reads and the written-off cents an invoice's
-// badge also reads (0 for every other kind).
+// refunded cents a vendor credit's badge also reads, the written-off cents an invoice's
+// badge also reads and the applied cents a credit memo's badge also reads (0, or left out,
+// for every other kind). Undefined: the header shows the status's badge (a credit memo with
+// nothing applied or refunded).
 export type ReadBalanceBadge = (
-    ...args: [...Parameters<BalanceBadge>, refunded: ReadRefunded, writtenOff: number]
-) => ReturnType<BalanceBadge>
+    ...args: [
+        ...Parameters<BalanceBadge>,
+        refunded: ReadRefunded,
+        writtenOff: number,
+        applied?: number,
+    ]
+) => ReturnType<BalanceBadge> | undefined
 
 // How a kind's stored line rows map to a line table's form rows and back: the sales
 // kinds' lines are DocumentLineRow, a purchase kind's PurchaseLineRow. `lines` tags which,
@@ -358,9 +376,11 @@ export type DocumentKind = {
     // receipt's Refund receipts, a credit memo's Refunds).
     ReadSection?: ComponentType<DocumentReadSectionProps>
     // The read view's Details panel around its body, for a kind whose parts before the band
-    // and after the Payments block share reads (a vendor credit's Apply to bills notice and
-    // its Applied to section read the open bills once). A kind without it draws the body,
-    // its ReadSection and the stamps.
+    // and after the Payments block share reads (a credit's Apply notice and its Applied to
+    // block read the party's open documents once; an invoice's Apply credit notice and the
+    // apply dialog read the customer's credit memos once). It gets the kind's ReadSection as
+    // `section` and draws it. A kind without it draws the body, its ReadSection and the
+    // stamps.
     ReadFrame?: ComponentType<DocumentReadFrameProps>
     // A row of the form's band between its first row and the date (a credit memo's invoice
     // link). It reads the form's scope; a kind without it draws the band in one piece.
@@ -377,10 +397,11 @@ export type DocumentKind = {
     // status badge.
     balanceBadge?: ReadBalanceBadge
     // The rows the read view draws after Total (a bill's Credits applied, an invoice's
-    // Written off, a vendor credit's Applied, Refunded and Unapplied credit). `applied` is the credit applied to a posted
-    // bill, read from its stored record (billCreditsApplied: the total less its posted
-    // payments and its stored balance), so the rows add up while the applications read is
-    // loading or failed; 0 for every other kind. `refunded` is the vendor credit's posted
+    // Credits applied and Written off, a vendor credit's Applied, Refunded and Unapplied
+    // credit). `applied` is the credit applied to a posted bill or invoice, read from its
+    // stored record (billCreditsApplied: the total less its posted payments and its stored
+    // balance; invoiceCreditsApplied: less its `written_off` too), so the rows add up while
+    // the applications read is loading or failed; 0 for every other kind. `refunded` is the vendor credit's posted
     // vendor refunds, or a credit memo's posted refund receipts (ReadRefunded); a caller that
     // does not pass it means 0.
     readTotals?: (
@@ -396,9 +417,11 @@ export type DocumentKind = {
     // `sales_receipt`, a credit memo's `credit_memo`): the read view reads those refunds once
     // (useLinkedRefundReceipts) for its ReadSection and, as `refunded`, for readTotals.
     readLinkedRefunds?: 'sales_receipt' | 'credit_memo'
-    // True makes the read view read the record's credit applications, the rows its Payments
-    // block lists with Remove.
-    readApplications?: boolean
+    // The applications of this kind that name the record (a bill's vendor credits, an
+    // invoice's credit memos): the read view reads them for the rows its Payments block lists
+    // with Remove, and words Remove's confirm with the kind's texts. A kind without it has no
+    // credit rows.
+    readApplications?: CreditApplicationKind
     // True makes the read view read the record's posted vendor refunds (useCreditRefunds):
     // the Refunded row and badge read their sum, the ReadFrame's Applied to block their rows.
     readRefunds?: boolean
@@ -425,19 +448,35 @@ function invoiceCustomerOf(party: DocumentPartyRow | null) {
 const invoiceBadgeOf: ReadBalanceBadge = (status, balance, total, _refunded, writtenOff) =>
     writtenOffBadge(status, balance, total, writtenOff)
 
-// The read view's row between Payments and Balance due (write-off spec §3.4): Written off,
-// with a minus sign, from the stored `written_off`, only while it is above zero. None for a
-// record of another kind.
-function invoiceTotalsOf(record: DocumentRecord): DocumentTotalRow[] {
+// The read view's rows between Payments and Balance due (apply credit spec §3.6, write-off
+// spec §3.4): Credits applied (`applied`, the credit memos applied to the invoice from its
+// stored record, invoiceCreditsApplied) and Written off (the stored `written_off`), each with
+// a minus sign and only while it is above zero. None for a record of another kind.
+function invoiceTotalsOf(record: DocumentRecord, { applied }: { applied: number }) {
     const fields = record.kindFields
-    if (fields.kind !== 'invoice' || fields.written_off <= 0) return []
-    return [
-        {
-            label: 'Written off',
-            amount: `${MINUS}${formatMoney(fields.written_off, record.currency)}`,
-            testId: 'invoice-total-written-off',
-        },
-    ]
+    if (fields.kind !== 'invoice') return []
+    const money = (cents: number) => `${MINUS}${formatMoney(cents, record.currency)}`
+    const credits: DocumentTotalRow[] =
+        applied > 0
+            ? [
+                  {
+                      label: 'Credits applied',
+                      amount: money(applied),
+                      testId: 'invoice-total-credits-applied',
+                  },
+              ]
+            : []
+    const writtenOff: DocumentTotalRow[] =
+        fields.written_off > 0
+            ? [
+                  {
+                      label: 'Written off',
+                      amount: money(fields.written_off),
+                      testId: 'invoice-total-written-off',
+                  },
+              ]
+            : []
+    return [...credits, ...writtenOff]
 }
 
 export const INVOICE_DOCUMENT: DocumentKind = {
@@ -463,11 +502,16 @@ export const INVOICE_DOCUMENT: DocumentKind = {
     ReadDetails: InvoiceReadDetails,
     ReadStampRow: InvoiceFromEstimateLink,
     ReadSection: InvoiceSections,
+    // The Apply credit notice with the payments line, and the apply dialog (apply credit
+    // spec §3.1, §3.3).
+    ReadFrame: InvoiceApplyFrame,
     lineSpecs: SALES_LINE_SPECS,
     balanceBadge: invoiceBadgeOf,
     // 'after' draws the rows after Payments and before Balance due (DocumentTotalsPanel).
     readTotals: invoiceTotalsOf,
     readTotalsPlace: 'after',
+    // The credit memos applied to the invoice: the Payments block's credit rows.
+    readApplications: CREDIT_MEMO_APPLICATION,
 }
 
 // The source row with the credit memo's own columns back at the top level, as
@@ -488,36 +532,70 @@ function creditMemoCustomerOf(party: DocumentPartyRow | null) {
     return customer
 }
 
-// The read view's rows after "Credit amount" (refund receipt spec §3.12): Refunded (the
-// posted refunds that pay the memo out, with a minus sign) and Unapplied credit (the stored
-// balance), both only while a posted refund pays it out. None while the refunds read has not
-// answered (`refunded` null), or for a record of another kind.
+// The read view's rows after "Credit amount" (refund receipt spec §3.12, apply credit spec
+// §3.5): Applied (the stored `applied`, the memo's applications to invoices, with a minus
+// sign, while it is above zero), Refunded (the posted refunds that pay the memo out, with a
+// minus sign, while one does) and Unapplied credit (the stored balance), while either is
+// drawn. While the refunds read has not answered (`refunded` null) no Refunded row is drawn,
+// so Unapplied credit shows only beside Applied. None for a record of another kind.
 function creditMemoTotalsOf(
     record: DocumentRecord,
     { refunded = 0 }: { refunded?: ReadRefunded }
 ): DocumentTotalRow[] {
     const fields = record.kindFields
-    if (fields.kind !== 'credit_memo' || refunded === null || refunded <= 0) return []
+    if (fields.kind !== 'credit_memo') return []
+    const money = (cents: number) => formatMoney(cents, record.currency)
+    const appliedRows: DocumentTotalRow[] =
+        fields.applied > 0
+            ? [
+                  {
+                      label: 'Applied',
+                      amount: `${MINUS}${money(fields.applied)}`,
+                      testId: 'credit-memo-total-applied',
+                  },
+              ]
+            : []
+    const refundedRows: DocumentTotalRow[] =
+        refunded !== null && refunded > 0
+            ? [
+                  {
+                      label: 'Refunded',
+                      amount: `${MINUS}${money(refunded)}`,
+                      testId: 'credit-memo-total-refunded',
+                  },
+              ]
+            : []
+    const used = [...appliedRows, ...refundedRows]
+    if (used.length === 0) return []
     return [
-        {
-            label: 'Refunded',
-            amount: `${MINUS}${formatMoney(refunded, record.currency)}`,
-            testId: 'credit-memo-total-refunded',
-        },
+        ...used,
         {
             label: 'Unapplied credit',
-            amount: formatMoney(fields.balance, record.currency),
+            amount: money(fields.balance),
             testId: 'credit-memo-total-unapplied',
             isStrong: true,
         },
     ]
 }
 
+// The credit memo's badge (creditMemoBadge, apply credit spec §3.5): Partly applied,
+// Applied or Refunded from its stored balance and `applied`; otherwise its status badge.
+const creditMemoBadgeOf: ReadBalanceBadge = (
+    status,
+    balance,
+    total,
+    _refunded,
+    _writtenOff,
+    applied = 0
+) => creditMemoBadge(status, balance, total, applied)
+
 // A new credit memo's message starts empty (Q8): the "Default message to customer"
 // setting the screen passes is not used. A copied customer, product or tax rate that is
 // now inactive stays in the form, and Post refuses it with the shared inactive texts.
 // The read view reads the refunds that pay it out: its Refunds section and the Refunded
-// and Unapplied credit rows after "Credit amount".
+// and Unapplied credit rows after "Credit amount". Its frame (CreditMemoReadFrame) holds the
+// Apply to invoices notice, the Applied to block, the apply dialog and Remove's confirm; its
+// badge and its Applied row read the stored `applied`.
 export const CREDIT_MEMO_DOCUMENT: DocumentKind = {
     doc: CREDIT_MEMO_KIND,
     data: CREDIT_MEMO_DATA,
@@ -562,8 +640,10 @@ export const CREDIT_MEMO_DOCUMENT: DocumentKind = {
     ReadDetails: CreditMemoReadDetails,
     ReadBandRow: CreditMemoInvoiceLink,
     ReadSection: CreditMemoRefunds,
+    ReadFrame: CreditMemoReadFrame,
     FormBandRow: CreditMemoLinkRow,
     lineSpecs: SALES_LINE_SPECS,
+    balanceBadge: creditMemoBadgeOf,
     readTotals: creditMemoTotalsOf,
     readTotalsPlace: 'afterLast',
     readLinkedRefunds: 'credit_memo',
@@ -825,7 +905,7 @@ export const BILL_DOCUMENT: DocumentKind = {
     // read view passes the credit its stored record holds as `applied` (billCreditsApplied),
     // and reads the bill's credit applications for its Payments block.
     readTotals: billReadTotals,
-    readApplications: true,
+    readApplications: VENDOR_CREDIT_APPLICATION,
 }
 
 // The source row with the expense's own columns back at the top level, as invoiceRowOf.

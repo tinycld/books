@@ -140,3 +140,10 @@ describe('help/credit-memos.md (refunds)', () => {
         expect(body).not.toMatch(/\bcannot yet\b[^.]*\brefund/i)
     })
 })
+
+// Apply credit spec §3.8 Help: the credit memo topic gains Apply to invoices.
+describe('help/credit-memos.md (apply credit)', () => {
+    it('names Apply to invoices', () => {
+        expect(body).toContain('Apply to invoices')
+    })
+})

@@ -563,7 +563,7 @@ func voidReplacedSalesDoc(tx core.App, kind salesDocKind, original, correction *
 	fresh.Set("voided_by", actor)
 	fresh.Set("voided_at", now)
 	if kind.TracksBalance {
-		clearDocumentBalance(fresh)
+		clearDocumentBalance(kind.balanceKind(), fresh)
 	}
 	if err := tx.Save(fresh); err != nil {
 		return err
@@ -597,7 +597,7 @@ func voidSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 	doc.Set("voided_at", now)
 	if kind.TracksBalance {
 		// CheckVoid refused a void while posted payments apply to it.
-		clearDocumentBalance(doc)
+		clearDocumentBalance(kind.balanceKind(), doc)
 	}
 	// The void reversal is taken out too, so the document counts for nothing.
 	if err := rebuildCashBasisOf(tx, kind.Collection, doc.Id); err != nil {

@@ -2,6 +2,7 @@ package books
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -16,7 +17,7 @@ import (
 // what is already applied (setPostedDocumentBalance, from postSalesDoc), a
 // payment's post subtracts its lines (applyToDocuments), its void and its
 // correction add them back (releaseLines), a credit application's create and
-// delete move both documents' balances (vendor_credit_applications.go), a
+// delete move both documents' balances (credit_applications.go), a
 // document's void and its replacement write 0 (clearDocumentBalance, from
 // voidSalesDoc and voidReplacedSalesDoc), and the ledger rebuild recomputes
 // every document from its payers' rows (rebuildDocumentBalances).
@@ -42,17 +43,23 @@ type balancePayer struct {
 }
 
 // balanceKind is one kind of document with an open balance: its collection,
-// the payers that lower it, and its lowercase noun.
+// the payers that lower it, and its lowercase noun. AppliedField names the
+// document's stored applied total (a credit memo's applied), "" for a kind
+// that stores none: a payment's own "applied" has another meaning, so the
+// field is named by the kind, never found by name.
 type balanceKind struct {
-	Collection string
-	Payers     []balancePayer
-	Noun       string
+	Collection   string
+	Payers       []balancePayer
+	Noun         string
+	AppliedField string
 }
 
 var (
-	// invoiceBalanceKind: a received payment's applications pay invoices, and
-	// a posted write-off lowers an invoice by its amount (write-off spec §4.3),
-	// with no cash-basis share: a write-off is no payment (Q5).
+	// invoiceBalanceKind: a received payment's applications pay invoices, a
+	// posted write-off lowers an invoice by its amount (write-off spec §4.3),
+	// with no cash-basis share: a write-off is no payment (Q5), and a credit
+	// memo applied to an invoice lowers it as a payment does, at the apply date
+	// (apply credit spec §4.3).
 	invoiceBalanceKind = balanceKind{
 		Collection: "books_invoices",
 		Payers: []balancePayer{
@@ -67,6 +74,13 @@ var (
 				LineField:       "invoice",
 				OwnStatus:       true,
 				NoCash:          true,
+			},
+			{
+				LinesCollection: creditMemoApplicationsCollection,
+				LineField:       "invoice",
+				EntryField:      "credit_memo",
+				EntryCollection: "books_credit_memos",
+				CashMemo:        "Invoice %s paid by credit memo (cash basis)",
 			},
 		},
 		Noun: "invoice",
@@ -95,17 +109,29 @@ var (
 	// creditMemoBalanceKind: the credit not yet applied nor refunded. The
 	// credits row of each posted refund receipt that pays the memo out lowers
 	// it (refund receipt spec §3.12), and on the cash basis brings back its
-	// share at the refund date with the refund's entry (§3.13).
+	// share at the refund date with the refund's entry (§3.13). Each
+	// application to an invoice lowers it too (apply credit spec §4.3), and on
+	// the cash basis brings back its share at the apply date with the memo's
+	// own entry, under the deferral's PaidMemo.
 	creditMemoBalanceKind = balanceKind{
 		Collection: "books_credit_memos",
-		Payers: []balancePayer{{
-			LinesCollection:   refundReceiptCreditsCollection,
-			LineField:         "credit_memo",
-			PaymentCollection: "books_refund_receipts",
-			PaymentField:      "refund_receipt",
-			CashMemo:          "Credit memo %s refunded (cash basis)",
-		}},
-		Noun: "credit memo",
+		Payers: []balancePayer{
+			{
+				LinesCollection:   refundReceiptCreditsCollection,
+				LineField:         "credit_memo",
+				PaymentCollection: "books_refund_receipts",
+				PaymentField:      "refund_receipt",
+				CashMemo:          "Credit memo %s refunded (cash basis)",
+			},
+			{
+				LinesCollection: creditMemoApplicationsCollection,
+				LineField:       "credit_memo",
+				EntryField:      "credit_memo",
+				EntryCollection: "books_credit_memos",
+			},
+		},
+		Noun:         "credit memo",
+		AppliedField: driftFieldApplied,
 	}
 	// vendorCreditBalanceKind: the vendor credit not yet applied to bills nor
 	// refunded. Each application lowers it, and so does each line of a posted
@@ -298,9 +324,14 @@ func setPostedDocumentBalance(tx core.App, kind balanceKind, doc *core.Record, t
 // clearDocumentBalance sets the balance of a document that becomes void (its
 // own void, or its replacement by a correction) to 0 on the record its caller
 // saves. No payer applies to it then: a void is refused while one does, and a
-// correction has moved the rows to itself.
-func clearDocumentBalance(doc *core.Record) {
+// correction has moved the rows to itself. The kind's AppliedField (a credit
+// memo's applied) goes to 0 with it: its applications moved too, or there
+// were none.
+func clearDocumentBalance(kind balanceKind, doc *core.Record) {
 	doc.Set("balance", 0)
+	if kind.AppliedField != "" {
+		doc.Set(kind.AppliedField, 0)
+	}
 }
 
 // paymentLines reads a payment's lines in their order.
@@ -406,16 +437,19 @@ func moveLinesWhere(tx core.App, kind balanceKind, original, correction *core.Re
 	return rebuildCashBasisOf(tx, kind.Collection, original.Id, correction.Id)
 }
 
-// The stored document fields a drift can name: a document's balance, and an
-// invoice's written_off (the sum of its posted write-offs).
+// The stored document fields a drift can name: a document's balance, an
+// invoice's written_off (the sum of its posted write-offs), and a credit
+// memo's applied (the sum of its applications to invoices).
 const (
 	driftFieldBalance    = "balance"
 	driftFieldWrittenOff = "written_off"
+	driftFieldApplied    = "applied"
 )
 
 // DocumentBalanceDrift is one stored document field that disagrees with what
-// its source gives: Field "balance" (the total less what the payers apply) or
-// "written_off" (an invoice's posted write-offs).
+// its source gives: Field "balance" (the total less what the payers apply),
+// "written_off" (an invoice's posted write-offs) or "applied" (a credit memo's
+// applications).
 type DocumentBalanceDrift struct {
 	Kind     string `db:"kind" json:"kind"`
 	Document string `db:"document" json:"document"`
@@ -429,7 +463,8 @@ type DocumentBalanceDrift struct {
 // recomputes every document's balance as documentBalance does, for each kind,
 // from the same per-payer sums (appliedSQL), and reports each stored one that
 // differs. A kind with no payer has 0 applied. It then compares each invoice's
-// written_off with its posted write-offs (verifyWrittenOff).
+// written_off with its posted write-offs (verifyWrittenOff) and each credit
+// memo's applied with its applications (verifyApplied).
 func verifyDocumentBalances(app core.App) ([]DocumentBalanceDrift, error) {
 	drifts := []DocumentBalanceDrift{}
 	for _, kind := range balanceKinds {
@@ -456,7 +491,42 @@ func verifyDocumentBalances(app core.App) ([]DocumentBalanceDrift, error) {
 	if err != nil {
 		return nil, err
 	}
-	return append(drifts, writtenOff...), nil
+	applied, err := verifyApplied(app)
+	if err != nil {
+		return nil, err
+	}
+	return slices.Concat(drifts, writtenOff, applied), nil
+}
+
+// verifyApplied reports each credit memo whose stored applied is not the sum
+// of its applications (the application payer's appliedSQL), 0 for a memo that
+// is not posted.
+func verifyApplied(app core.App) ([]DocumentBalanceDrift, error) {
+	found := []DocumentBalanceDrift{}
+	err := app.DB().NewQuery(`
+		SELECT {:kind} AS kind, document, number, {:field} AS field, stored, want FROM (
+			SELECT d.id AS document, d.number AS number,
+			       CAST(COALESCE(d.applied, 0) AS INTEGER) AS stored,
+			       CASE WHEN d.status = 'posted' THEN CAST(` + memoApplicationPayer().appliedSQL("d.id") + ` AS INTEGER)
+			       ELSE 0 END AS want
+			FROM ` + creditMemoBalanceKind.Collection + ` d)
+		WHERE stored != want
+		ORDER BY document`).
+		Bind(dbx.Params{"kind": creditMemoBalanceKind.Noun, "field": driftFieldApplied}).All(&found)
+	if err != nil {
+		return nil, fmt.Errorf("books: compare the credit memos' applied with their applications: %w", err)
+	}
+	return found, nil
+}
+
+// memoApplicationPayer is the credit memo kind's application payer.
+func memoApplicationPayer() balancePayer {
+	for _, p := range creditMemoBalanceKind.Payers {
+		if p.LinesCollection == creditMemoApplicationsCollection {
+			return p
+		}
+	}
+	panic("books: the credit memo balance kind has no application payer")
 }
 
 // verifyWrittenOff reports each invoice whose stored written_off is not the
@@ -509,8 +579,14 @@ func rebuildDocumentBalances(app core.App) (int, error) {
 			if err != nil {
 				return fmt.Errorf("books: read %s %s to rebuild its balance: %w", kind.Noun, d.Document, err)
 			}
-			if d.Field == driftFieldWrittenOff {
+			switch d.Field {
+			case driftFieldWrittenOff:
 				if err := saveWrittenOff(tx, kind, doc, d.Want); err != nil {
+					return err
+				}
+				continue
+			case driftFieldApplied:
+				if err := saveApplied(tx, kind, doc, d.Want); err != nil {
 					return err
 				}
 				continue
@@ -532,6 +608,17 @@ func saveWrittenOff(tx core.App, kind balanceKind, doc *core.Record, writtenOff 
 	doc.Set("written_off", writtenOff)
 	if err := tx.Save(doc); err != nil {
 		return fmt.Errorf("books: save the written_off of %s %s: %w", kind.Noun, doc.Id, err)
+	}
+	return nil
+}
+
+// saveApplied writes a credit memo's rebuilt applied under the balancing
+// mark, which lets the credit memo guard take the change on a posted memo.
+func saveApplied(tx core.App, kind balanceKind, doc *core.Record, applied int64) error {
+	defer markBalancing(tx, kind, doc.Id)()
+	doc.Set("applied", applied)
+	if err := tx.Save(doc); err != nil {
+		return fmt.Errorf("books: save the applied of %s %s: %w", kind.Noun, doc.Id, err)
 	}
 	return nil
 }

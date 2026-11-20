@@ -577,6 +577,7 @@ export const REFUND_SEED_CREDIT_MEMO = {
     tax_total: 4_938,
     total: 61_638,
     balance: 61_638 - REFUND_SEED_PAYOUT.total,
+    applied: 0,
     revision: 1,
     currency: REFUND_RECEIPT_CURRENCY,
     entry: '',
