@@ -54,16 +54,20 @@ func refreshReceivableInvoice(tx core.App, invoice *core.Record) error {
 		itemPart{receivableCreditApplicationsSQL, " AND ca.item = {:invoice}"})
 }
 
-// bindReceivableEntryRefresh keeps the rows of an entry's lines: a post
-// stamps the lines and numbers the entry (manual entries, documents,
-// reversals, void reversals, auto-reverse, opening balances all post through
-// this update). A draft has no row.
-func bindReceivableEntryRefresh(app core.App) {
+// bindOpenItemEntryRefresh keeps the rows of an entry's lines in both stored
+// tables, receivable and payable, with one hook (A/P Aging spec §4.2, hook
+// point 1): a post stamps the lines and numbers the entry (manual entries,
+// documents, reversals, void reversals, auto-reverse, opening balances all
+// post through this update). A draft has no row.
+func bindOpenItemEntryRefresh(app core.App) {
 	bindItemRefresh(app, "books_journal_entries", func(tx core.App, r *core.Record) error {
 		if r.GetString("status") == statusDraft {
 			return nil
 		}
-		return refreshReceivableEntry(tx, r.Id)
+		if err := refreshReceivableEntry(tx, r.Id); err != nil {
+			return err
+		}
+		return refreshPayableEntry(tx, r.Id)
 	})
 }
 

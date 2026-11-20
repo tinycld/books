@@ -27,7 +27,10 @@ const (
 
 // vendorCreditApplicationKind applies a vendor credit to bills of its vendor.
 // An amount above the credit's balance is refused under amount: the client
-// sums its rows against the credit and shows that in its summary.
+// sums its rows against the credit and shows that in its summary. The create
+// and the delete of an application refresh the credit's stored payable rows
+// in their transaction (AfterChange; in the delete, after the row is gone, so
+// its two rows are dropped).
 var vendorCreditApplicationKind = applicationKind{
 	Collection:        vendorCreditApplicationsCollection,
 	CreditField:       "vendor_credit",
@@ -45,10 +48,14 @@ var vendorCreditApplicationKind = applicationKind{
 			return fmt.Sprintf(msgApplyAboveUnapplied, left)
 		},
 	},
+	AfterChange: refreshPayableVendorCredit,
 }
 
 // registerVendorCreditApplications binds the shared application guards
-// (registerCreditApplications) for the vendor credit.
+// (registerCreditApplications) for the vendor credit, then the refresh of an
+// application's payable rows after its update, bound after the guard so it
+// runs inside the guard's transaction.
 func registerVendorCreditApplications(app core.App) {
 	registerCreditApplications(app, vendorCreditApplicationKind)
+	bindPayableApplicationRefresh(app)
 }

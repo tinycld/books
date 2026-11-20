@@ -28,6 +28,7 @@ with the reason, and shown to the human at the end)
 (gate-2 NOTEs as `cp N · <shot>: <where> — <what>`; reviewer NOTEs as `cp N · reviewer <X> NOTE: <where> — <what>`; shown to the human at the end)
 - cp 1 · reviewer A NOTE: `server/open_items_test.go` — `registerWriteGuard` is not exercised on the second test table (no collection backs `zz_open_items`); checkpoint 2's REST-refusal test on `books_payable_items` covers it.
 - cp 1 · reviewer A NOTE: `server/open_items.go` `registerWriteGuard` — `refuse("%s", t.ReadOnly)` in place of `refuse(msgReceivableItemsReadOnly)` (implementer's declared difference 1): `refuse` takes a format string and `go vet` refuses a non-constant one; the message text is the same.
+- cp 2 · reviewer A NOTE: `server/payable_refresh.go` `refreshPayableBill` with `server/document_balance.go` `saveDocumentBalance` — each balance save of a bill runs the bill refresh and its entry refresh, so a Pay bills payment of N bills runs N bill and N entry refreshes before the payment's own refresh. Correct and repeated; the plan asks for it (Do step 3) and the receivable side does the same. No checkpoint 4 bar times a post; if one is added, skip the entry refresh when only `balance` changed.
 
 ## Out-of-plan changes
 (none yet — every file touched that no checkpoint's Files block named, with why)
@@ -97,6 +98,20 @@ with the reason, and shown to the human at the end)
 - fix review: round 1: clean (0 BLOCK; 1 NOTE on the ledger's Design notes placeholder: format line kept). Findings file `cp1-fix-r1.md`; the new in-transaction refresh assertions were proven red by two `go test -overlay` mutations (pairs query naming `customer`; no settle of touched pairs). Gate 1 after the fix: pass.
 - gate 3 A notes: 2, listed under Design notes
 - reviewer-caught deferrals: none
+- commit: (this commit)
+
+## Checkpoint 2 — Payable items table and source
+- test writer: `server/payable_items_test.go`, `server/payable_refresh_test.go`, `server/payable_stored_test.go` (new), `server/oauth_scopes_test.go`, `server/report_sources_test.go`, `server/registrations_test.go` (map entry, not red), `tests/migration-prefixes.test.ts`, `tests/seed-node.test.ts`; 29 tests; red for the right reason: yes (Go compile error naming `payableItems`, the `refreshPayable…` functions, `payableItemsSource`; vitest: missing migration file, `seedApAging` not exported); untestable: none
+- implementer: migration 2100000029, `server/payable_items.go`, `server/payable_refresh.go`, the binds (D4 rename to `bindOpenItemEntryRefresh`), rebuild route keys, source, OAuth scope, `requireNoDrift`, fixture seed block (D2), `seedApAging`; DONE
+- test disputes: none
+- self-declared differences: (1) `seedApAging` checks the vendors of both the bill and the credit against `VENDORS` (same message); (2) the seed payment line uses the fixture's fixed `lineId`; (3) the seed bill and credit lines have no `description` (`AP_AGING_SEED` has none; the line guard does not need one); (4) `refreshPayableBill` binds `entry` also when the bill's entry is blank (the term that reads it is left out, so the bind is unused)
+- gate 1: tests unedited: yes · `go test ./...` ok; `packages:generate` + `tinycld-pkg check` exit 0 (biome clean, 8392 vitest, tsc) · e2e of the Gates line (10 spec files, run by the driver after gate 3 and the fix round): 61 passed, exit 0
+- gate 2: n/a (logic)
+- gate 3 A (correctness): 0 BLOCK, 2 NOTE, 1 DEFERRAL — NOTE 1 + DEFERRAL (`TestPayableLinesVendorCredit` proved "each `settled` is computed again" after an application's delete for the credit only): accepted+fixed (weak-test, fresh test writer: a 200.00 bill settled in full by an application, then opened again by its delete; proven red with a two-file `go test -overlay` mutation; findings `cp2-fix-r1.md`); NOTE 2 (repeated refresh work on a bill balance save): Design notes
+- gate 3 B (conformance): script lines: 0 · 0 findings
+- fix review: n/a — round 1 changed only a test file (`server/payable_items_test.go`); `go test -count=1 ./...` after it: ok
+- gate 3 A notes: 1, listed under Design notes
+- reviewer-caught deferrals: 1 (the weak bill-side `settled` assertion; not self-declared by the test writer) — fixed in round 1, so no deferral entry
 - commit: (this commit)
 
 ## Performance
