@@ -98,9 +98,14 @@ func reportSources() []reports.Source {
 			Key: "books.account_balances", Collection: "books_account_balances", Label: "Monthly account balances",
 			Fields: []reports.Field{
 				{Key: "period", Label: "Month", Type: reports.Text, Aggregates: reports.MinMax},
+				// The first day of the row's month, so a report compares a month
+				// with a day (the General Ledger's beginning balance).
+				{Key: "month_start", Label: "Month start", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
 				{Key: "debit_total", Label: "Debit total", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
 				{Key: "credit_total", Label: "Credit total", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
-				{Key: "currency", Label: "Currency", Type: reports.Text},
+				// A month row's totals are sums of the account's journal lines, in
+				// the lines' currency, so a report adds stored months to lines.
+				{Key: "currency", Label: "Currency", Type: reports.Text, SameCurrencyAs: "books.journal_lines.currency"},
 			},
 			Links: []reports.Link{
 				{Key: "account", Label: "Account", Target: "books.accounts", Cardinality: reports.ToOne, Field: "account"},
