@@ -36,6 +36,9 @@ import type {
     BooksBankConnections,
     BooksBankFiles,
     BooksBankImports,
+    BooksBankMatches,
+    BooksBankMatchLines,
+    BooksBankMatchSuggestions,
     BooksBankTransactions,
     BooksBillLines,
     BooksCloseOverrides,
@@ -1091,6 +1094,13 @@ export function seedBooks(
         ),
         books_bank_files: bankFilesCollection(opts.bankFiles ?? []),
         books_bank_imports: local<BooksBankImports>('books_bank_imports', opts.bankImports ?? []),
+        // Read by the Banking screens' match queries; empty unless a test replaces them.
+        books_bank_matches: local<BooksBankMatches>('books_bank_matches', []),
+        books_bank_match_lines: local<BooksBankMatchLines>('books_bank_match_lines', []),
+        books_bank_match_suggestions: local<BooksBankMatchSuggestions>(
+            'books_bank_match_suggestions',
+            []
+        ),
         books_bank_transactions: onDemandCollection<BooksBankTransactions>(
             'books_bank_transactions',
             opts.bankTransactions ?? [],

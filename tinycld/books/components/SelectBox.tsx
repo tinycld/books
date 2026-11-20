@@ -1,7 +1,7 @@
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Check, Minus } from 'lucide-react-native'
 import type { ComponentRef, Ref } from 'react'
-import { type GestureResponderEvent, Pressable, Text, View } from 'react-native'
+import { type GestureResponderEvent, type KeyDownEvent, Pressable, Text, View } from 'react-native'
 import type { SelectBoxState } from '../lib/bank-import-view'
 
 export type { SelectBoxState }
@@ -92,6 +92,14 @@ export function SelectBox({
         event.stopPropagation()
         onPress?.()
     }
+    // react-native-web presses a focused Pressable on Space only for a button role, so a
+    // focused box toggles itself here; the key stops at the box, so no list key acts on it.
+    const handleKeyDown = (event: KeyDownEvent) => {
+        if (event.nativeEvent.key !== ' ' || event.target !== event.currentTarget) return
+        event.preventDefault()
+        event.stopPropagation()
+        if (!isDisabled) onPress?.()
+    }
     return (
         <Pressable
             ref={ref}
@@ -104,6 +112,7 @@ export function SelectBox({
             aria-disabled={isDisabled}
             disabled={isDisabled}
             onPress={handlePress}
+            onKeyDown={handleKeyDown}
             className={layout}
             style={style}
         >

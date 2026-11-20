@@ -1,14 +1,19 @@
 import { Text, View } from 'react-native'
 import type { ReviewRowData, ReviewTabModel } from '../../../hooks/useReviewTab'
-import { REVIEW_CARD_HEIGHT } from '../../../lib/bank-review'
+import { REVIEW_CARD_HEIGHT, REVIEWED_CARD_HEIGHT } from '../../../lib/bank-review'
 import { ListCards } from '../../ListCards'
 import { SelectBox } from '../../SelectBox'
 import { DateOrderToggle } from './DateOrderToggle'
 import { ReviewCard, rowChoiceOf } from './ReviewRow'
 
-// Module level: ListCards memoizes the heights on it.
+// Module level: ListCards memoizes the heights on them. A Reviewed card has a third line
+// (what it was matched to).
 function heightOf(): number {
     return REVIEW_CARD_HEIGHT
+}
+
+function reviewedHeightOf(): number {
+    return REVIEWED_CARD_HEIGHT
 }
 
 function keyOf(row: ReviewRowData): string {
@@ -73,16 +78,18 @@ export function ReviewCards({ model, currency }: { model: ReviewTabModel; curren
                 isFocused={isFocused}
                 onOpen={model.onOpenRow}
                 choice={choice}
+                showsInBooks={model.showsInBooks}
             />
         )
     }
+    const cardHeightOf = model.showsInBooks ? reviewedHeightOf : heightOf
     return (
         <View className="min-h-0 flex-1">
             <ReviewPhoneBar model={model} />
             <ListCards
                 testID="bank-review-cards"
                 rows={model.rows}
-                heightOf={heightOf}
+                heightOf={cardHeightOf}
                 keyOf={keyOf}
                 renderCard={renderCard}
                 onNearEnd={model.onNearEnd}

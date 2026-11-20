@@ -137,8 +137,10 @@ const (
 	// for each account, not for each line. Measured 2026-11-15.
 	draftPostStatementsPerLine = 6
 	// Each line of a replace and post: its delete, its create, and its post.
-	// Measured 2026-11-15.
-	draftReplaceStatementsPerLine = 16
+	// Measured 2026-11-15 at 16; measured again 2026-11-19 at 18: the two
+	// relation fields that point at books_journal_lines (books_bank_match_lines.line
+	// and books_bank_matches.lines) add one cascade lookup each to a line delete.
+	draftReplaceStatementsPerLine = 18
 )
 
 func TestBatchCost_Create1000LineDraft(t *testing.T) {

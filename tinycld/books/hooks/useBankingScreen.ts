@@ -11,8 +11,10 @@ import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
 import { useBankingUIStore } from '../stores/banking-ui-store'
 import { useBankConnections } from './useBankConnections'
 import { useBankFiles } from './useBankFiles'
+import { useBankMatch } from './useBankMatch'
 import { useBooksAccess } from './useBooksAccess'
 import { useBooksSettings } from './useBooksSettings'
+import { useMatchSuggestions } from './useMatchSuggestions'
 import { useReviewBatch } from './useReviewBatch'
 import { useReviewDrawer } from './useReviewDrawer'
 
@@ -89,10 +91,24 @@ export function useBankingScreen() {
     // beside the page runs it. The line lasts until the next action or a tab or account
     // change.
     const batch = useReviewBatch()
-    const drawer = useReviewDrawer({
-        accountLabel: selected ? connectionLabel(selected.accountNumber, selected.accountName) : '',
+    const accountLabel = selected
+        ? connectionLabel(selected.accountNumber, selected.accountName)
+        : ''
+    const drawer = useReviewDrawer({ accountLabel, canWrite: access.canWrite, batch })
+    const currency = settings.settings?.currency || 'USD'
+    // The row marks of For review, read here so the drawer's Match Retry also recovers
+    // them: both read the view books_bank_match_suggestions.
+    const suggestions = useMatchSuggestions(tab === 'review' && selectedId ? selectedId : null)
+    // The drawer's Match section, over the same batch, so a match and an Exclude never run
+    // at once.
+    const match = useBankMatch({
+        drawer,
         canWrite: access.canWrite,
         batch,
+        currency,
+        suggestionsRecovery: suggestions.recovery,
+        accountId: selected?.account ?? '',
+        accountLabel,
     })
     const leaveRows = () => {
         resetReviewSelection()
@@ -118,7 +134,7 @@ export function useBankingScreen() {
         state,
         canWrite: access.canWrite,
         isWide,
-        currency: settings.settings?.currency || 'USD',
+        currency,
         rows: connections.rows,
         selected,
         files: files.files,
@@ -133,6 +149,8 @@ export function useBankingScreen() {
         },
         batch,
         drawer,
+        match,
+        suggestions,
         onRetry,
         pageRecovery,
         onConnect: () => openDialog({ kind: 'connect' }),
