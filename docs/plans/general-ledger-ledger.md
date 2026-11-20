@@ -288,3 +288,43 @@ The WHERE of `w` (the report's rows), before: `(posted IS ? AND (substr(NULLIF(s
 Plan of `books_journal_lines` in run 3: every read of the report's rows is now `SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date>? AND date<?)` (1 in statement 4, 7 in statement 5, 8 in statement 6); before, each was a `SCAN`. What stays: the beginning-balance lookups, `SEARCH … (account>? AND account<?)` (3 in statement 4), and the earlier-years P&L lookups, `SCAN books_journal_lines` (2 in statements 4 and 5, 4 in statement 6). Statement times of run 3: 384 ms, 552 ms, 1,117 ms.
 
 Every run fell, by 10 % to 21 %. Most of the time is still in the beginning-balance and earlier-years lookups, which tasks 4 and 5 change.
+
+#### Task 4: the beginning balance reads the stored months (2026-11-19)
+
+Before: each section's beginning balance was a sum over every posted line of the account before the period (`lk1`, in each of a run's three long statements), and over every income and expense line of earlier fiscal years on retained earnings. After: the stored months before the period's first month (`books_account_balances`, by `month_start`), plus the posted lines of that month before the period. Core gained `Field.SameCurrencyAs` so that the two sources' amounts add (core money rule R24, extended). The rows are the same: `TestGeneralLedgerBeginningBalanceFromStoredMonthsEqualsTheLines` compares 21 runs row for row.
+
+| run, 100k lines | before | after |
+| --- | --- | --- |
+| 1 all accounts, month | 3,734 ms | 730 ms |
+| 2 all accounts, year | 4,682 ms | 2,157 ms |
+| 3 busy account, month | 2,109 ms | 334 ms |
+| 4 small account, month | 1,132 ms | 194 ms |
+| 5 three accounts, year | 2,998 ms | 1,205 ms |
+
+Run 3, plan lines of `books_journal_lines` and `books_account_balances`, statements 4, 5 and 6 (the harness writes only the lines that name `books_journal_lines`, so no `books_account_balances` line is shown):
+
+Statement 4 (45.7 ms):
+
+```
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date>? AND date<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)
+```
+
+Statement 5 (44.8 ms): 7 × `SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date>? AND date<?)`, then 3 × `SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)`.
+
+Statement 6 (214.5 ms):
+
+```
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date>? AND date<?)   (× 7)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)          (× 3)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date>? AND date<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)          (× 3)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date>? AND date<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (entry>? AND entry<?)               (× 2)
+```
+
+No `SCAN books_journal_lines` is left in a filtered run (the earlier-years P&L sum now reads the stored months). Every run fell, by 54 % to 84 %; no filtered run is slower.
+
+What is left in the time: the detail statement (statement 6) is the longest of each run (run 3 214.5 ms of 334 ms, run 5 947.4 ms of 1,205 ms), and in it the month-to-date lookup is still read as three subqueries by `SEARCH … (account>? AND account<?)`, which reads the account's whole history and not its first month (tasks 5 and 6), next to the period's own rows, read 9 times by `SEARCH … (account=? AND date>? AND date<?)`.
