@@ -569,6 +569,25 @@ describe('help/reports.md', () => {
             expect(oneSentence(/\bline\b/i, /\bopens?\b/i, /\bdocument\b/i)).toBe(true)
         })
 
+        // Apply credit checkpoint 2 (spec §3.8 "A/R Aging" and "Help").
+        it('says an applied credit lowers the invoice from the apply date, in one sentence', () => {
+            expect(
+                oneSentence(
+                    /\bappl(?:y|ied)\b/i,
+                    /\bcredit\b/i,
+                    /\binvoice\b/i,
+                    /\blowers?\b/i,
+                    /\bapply date\b/i
+                )
+            ).toBe(true)
+        })
+
+        it('says a credit memo then shows only its unapplied rest, in one sentence', () => {
+            expect(
+                oneSentence(/\bcredit memo\b/i, /\bonly\b/i, /\bunapplied\b/i, /\bappl(?:y|ied)\b/i)
+            ).toBe(true)
+        })
+
         it('says that on a phone the Total is on the first line of figures', () => {
             expect(oneSentence(/\bphone\b/i, /\bTotal\b/, /\bfirst line of figures\b/i)).toBe(true)
         })
