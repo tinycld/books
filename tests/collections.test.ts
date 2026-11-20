@@ -20,6 +20,9 @@ const NAMES = [
     'books_bank_file_contents',
     'books_bank_imports',
     'books_bank_transactions',
+    'books_bank_matches',
+    'books_bank_match_lines',
+    'books_bank_match_suggestions',
     'books_tax_agencies',
     'books_tax_rates',
     'books_invoices',
@@ -273,6 +276,32 @@ describe('registerCollections', () => {
         const balances = calls.get('books_party_balances')
         expect(balances?.liveTopics).toEqual(['collection/books_party_balances'])
         expect(balances?.relations).toBeUndefined()
+    })
+
+    // Bank-match spec §4: the client inserts a match with its bank transaction and
+    // its lines; the server stamps the connection and who matched. The match lines
+    // are the server's. The suggestions view is never written: the server signals
+    // its topic when a bank transaction, a line, an entry, a match line or a
+    // connection changes.
+    it('registers the bank match collections and keeps the suggestions view live', () => {
+        const { calls } = register()
+        const matches = calls.get('books_bank_matches')
+        expect(matches?.omitOnInsert).toEqual(['connection', 'created_by', 'created', 'updated'])
+        expect(matches?.relations).toEqual({
+            bank_transaction: { name: 'books_bank_transactions' },
+            lines: { name: 'books_journal_lines' },
+            connection: { name: 'books_bank_connections' },
+        })
+        const lines = calls.get('books_bank_match_lines')
+        expect(lines?.omitOnInsert).toEqual(['created', 'updated'])
+        expect(lines?.relations).toEqual({
+            match: { name: 'books_bank_matches' },
+            bank_transaction: { name: 'books_bank_transactions' },
+            line: { name: 'books_journal_lines' },
+            entry: { name: 'books_journal_entries' },
+        })
+        const suggestions = calls.get('books_bank_match_suggestions')
+        expect(suggestions?.liveTopics).toEqual(['collection/books_bank_match_suggestions'])
     })
 
     // The audit log view is never written: the server signals its topic when an

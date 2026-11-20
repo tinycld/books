@@ -1,4 +1,5 @@
-import { ScopeProvider, useShortcutScope } from '@tinycld/core/lib/shortcuts'
+import { type ScopeOwner, ScopeProvider, useShortcutScope } from '@tinycld/core/lib/shortcuts'
+import { useIsFocused } from 'expo-router'
 import { ScrollView, View } from 'react-native'
 import { type BankFileUpload, useBankFileUpload } from '../../hooks/useBankFileUpload'
 import type { BankingScreenModel } from '../../hooks/useBankingScreen'
@@ -10,6 +11,7 @@ import { BankingDialogs } from './BankingDialogs'
 import { BankingHeader } from './BankingHeader'
 import { BankingIntro } from './BankingIntro'
 import { BankingLoadError, BankingLoading } from './BankingStates'
+import { MatchSection } from './match/MatchSection'
 import { BankTxnDrawer } from './review/BankTxnDrawer'
 
 function BankingContent({ model, upload }: { model: BankingScreenModel; upload: BankFileUpload }) {
@@ -43,6 +45,7 @@ function BankingContent({ model, upload }: { model: BankingScreenModel; upload: 
                 pageRecovery={model.pageRecovery}
                 batch={model.batch}
                 drawer={model.drawer}
+                suggestions={model.suggestions}
             />
         </>
     )
@@ -59,15 +62,36 @@ function IntroBody({ model }: { model: BankingScreenModel }) {
     )
 }
 
+// The open transaction lives in the page store, which every Banking screen reads: an
+// earlier Banking screen still stacked under this one (Banking, then Journal Entries, then
+// Banking again) would open the same drawer, and register the drawer's keys a second time.
+// Only the focused screen draws it.
+function PageDrawer({ model, scopeOwner }: { model: BankingScreenModel; scopeOwner: ScopeOwner }) {
+    const isFocused = useIsFocused()
+    if (!isFocused) return null
+    return (
+        <BankTxnDrawer
+            drawer={model.drawer}
+            currency={model.currency}
+            onNearEnd={model.match.onNearEnd}
+        >
+            <MatchSection model={model.match} scopeOwner={scopeOwner} currency={model.currency} />
+        </BankTxnDrawer>
+    )
+}
+
 // A fixed column: the header, the strip, the panel heading and the tab bar stay put, and the
 // tab's body fills the rest of the height and scrolls its own content, so a long list can
 // window. The transaction drawer sits beside the whole column, as the register's
 // EntryDrawer sits beside its screen: inline at full height on a wide window (the column
 // narrows), an overlay or a sheet otherwise.
-// The page owns one `list` shortcut scope, published to the account panel only (the
-// dialogs and the drawer keep their own scopes), where the transaction tab keys register
-// against it: a second `useShortcutScope('list')` in a tab body would push its own scope on
-// top and turn the page keys (N, U, I) off.
+// The page owns one `list` shortcut scope, published to the account panel, where the
+// transaction tab keys register against it: a second `useShortcutScope('list')` in a tab
+// body would push its own scope on top and turn the page keys (N, U, I) off. The dialogs
+// push their own modal scope. Core `Drawer` pushes no scope in any placement, so the
+// drawer's keys are in the page's `list` scope too; the drawer renders outside the
+// ScopeProvider, so its buttons (Match M, Find other matches F, Undo match Z) get the
+// owner as a prop.
 export function BankingScreenView({ model }: { model: BankingScreenModel }) {
     const listScope = useShortcutScope('list')
     // One upload for the selected connection, shared by the upload area and the page keys.
@@ -92,7 +116,7 @@ export function BankingScreenView({ model }: { model: BankingScreenModel }) {
                         <BankingContent model={model} upload={upload} />
                     </ScopeProvider>
                 </View>
-                <BankTxnDrawer drawer={model.drawer} currency={model.currency} />
+                <PageDrawer model={model} scopeOwner={listScope} />
             </View>
             <BankingDialogs model={model} />
         </>

@@ -162,6 +162,44 @@ export function registerCollections(
 
     Object.assign(lineRelations, { entry: books_journal_entries })
 
+    // The bank collections that read journal lines come after the lines. A writer
+    // inserts a match with its bank transaction and lines; the server stamps the
+    // connection and who matched, writes the match lines and moves the bank
+    // transaction to reviewed (server/bank_match.go).
+    const books_bank_matches = newCollection('books_bank_matches', {
+        omitOnInsert: ['connection', 'created_by', 'created', 'updated'] as const,
+        ...onDemand,
+        relations: {
+            bank_transaction: books_bank_transactions,
+            lines: books_journal_lines,
+            connection: books_bank_connections,
+        },
+        collectionOptions: indexed,
+    })
+
+    // Written only by the server, one row for each matched journal line.
+    const books_bank_match_lines = newCollection('books_bank_match_lines', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        relations: {
+            match: books_bank_matches,
+            bank_transaction: books_bank_transactions,
+            line: books_journal_lines,
+            entry: books_journal_entries,
+        },
+        collectionOptions: indexed,
+    })
+
+    // A view, never written: the server signals its topic when a bank transaction,
+    // a journal line, an entry, a match line or a connection changes
+    // (server/register.go), so the For review list follows a post, a void or a
+    // match with no reload.
+    const books_bank_match_suggestions = newCollection('books_bank_match_suggestions', {
+        ...onDemand,
+        ...liveViewOptions('books_bank_match_suggestions'),
+        collectionOptions: indexed,
+    })
+
     // Server-maintained; reports read these instead of summing lines.
     const books_account_balances = newCollection('books_account_balances', {
         omitOnInsert: ['created', 'updated'] as const,
@@ -765,6 +803,9 @@ export function registerCollections(
         books_bank_file_contents,
         books_bank_imports,
         books_bank_transactions,
+        books_bank_matches,
+        books_bank_match_lines,
+        books_bank_match_suggestions,
         books_journal_lines,
         books_journal_entries,
         books_account_balances,

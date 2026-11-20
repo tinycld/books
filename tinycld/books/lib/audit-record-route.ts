@@ -68,6 +68,7 @@ const GROUP_SCREENS: Record<string, { path: string; label: string }> = {
     books_bank_files: { path: 'books/banking', label: 'Open banking' },
     books_bank_imports: { path: 'books/banking', label: 'Open banking' },
     books_bank_transactions: { path: 'books/banking', label: 'Open banking' },
+    books_bank_matches: { path: 'books/banking', label: 'Open banking' },
 }
 
 function textOf(live: LiveRecord, key: string): string {

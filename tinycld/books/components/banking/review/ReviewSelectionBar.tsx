@@ -5,10 +5,18 @@ import type { ReviewTabModel } from '../../../hooks/useReviewTab'
 const BAR_STYLE = { minHeight: 44 }
 const BUTTON_STYLE = { minHeight: 36 }
 
-function BatchContent({ model }: { model: ReviewTabModel }) {
-    const action = model.batchAction
-    if (!action) return null
-    if (model.isBatchRunning) {
+type BarButtonModel = {
+    testID: string
+    label: string
+    busyLabel: string
+    isRunning: boolean
+    isDisabled: boolean
+    hint: string | undefined
+    onPress: () => void
+}
+
+function BatchContent({ action }: { action: BarButtonModel }) {
+    if (action.isRunning) {
         return (
             <>
                 <ButtonSpinner />
@@ -19,27 +27,44 @@ function BatchContent({ model }: { model: ReviewTabModel }) {
     return <ButtonText>{action.label}</ButtonText>
 }
 
-function BatchButton({ model }: { model: ReviewTabModel }) {
-    const action = model.batchAction
+// One action of the bar, outline; busy with core ButtonSpinner while its own run is in
+// flight. While any run is in flight every bar action is disabled (the page's one batch).
+function BatchButton({ action }: { action: BarButtonModel | null }) {
     if (!action) return null
     return (
         <Button
             testID={action.testID}
             variant="outline"
             size="sm"
-            isDisabled={model.isBatchDisabled}
-            accessibilityHint={model.batchHint}
-            onPress={model.onBatch}
+            isDisabled={action.isDisabled}
+            accessibilityHint={action.hint}
+            onPress={action.onPress}
             style={BUTTON_STYLE}
         >
-            <BatchContent model={model} />
+            <BatchContent action={action} />
         </Button>
     )
 }
 
+function moveButton(model: ReviewTabModel): BarButtonModel | null {
+    const action = model.batchAction
+    if (!action) return null
+    return {
+        testID: action.testID,
+        label: action.label,
+        busyLabel: action.busyLabel,
+        isRunning: model.runningKind === action.kind,
+        isDisabled: model.isBatchDisabled,
+        hint: model.batchHint,
+        onPress: model.onBatch,
+    }
+}
+
 // In place of the toolbar while rows are chosen: the count and sums of the chosen rows on
-// screen, the tab's batch button and Clear. It stays up, busy, for the whole of its run.
+// screen, Match (For review), the tab's move button and Clear. It stays up, busy, for the
+// whole of its run.
 export function ReviewSelectionBar({ model }: { model: ReviewTabModel }) {
+    const move = moveButton(model)
     return (
         <View
             testID="bank-review-selection"
@@ -53,7 +78,8 @@ export function ReviewSelectionBar({ model }: { model: ReviewTabModel }) {
                 {model.selection.text}
             </Text>
             <View className="flex-row gap-2">
-                <BatchButton model={model} />
+                <BatchButton action={model.matchAction} />
+                <BatchButton action={move} />
                 <Button
                     testID="bank-review-unselect"
                     variant="outline"
