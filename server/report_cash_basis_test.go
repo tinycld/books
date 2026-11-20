@@ -323,13 +323,14 @@ func TestCashBasisReport_ShippedSpecs(t *testing.T) {
 	}{
 		{profitAndLossShipped(), 3, "period"},
 		{profitAndLossByMonthShipped(), 3, "period"},
-		{balanceSheetShipped(), 3, "asOf"},
+		// 3 for the Method param, 4 for the stored months.
+		{balanceSheetShipped(), 4, "asOf"},
 		{transactionDetailShipped(), 2, "period"},
 	}
 	for _, c := range cases {
 		t.Run(c.shipped.Title, func(t *testing.T) {
 			if c.shipped.Revision != c.revision {
-				t.Errorf("revision %d, want %d (one more for the Method param)", c.shipped.Revision, c.revision)
+				t.Errorf("revision %d, want %d (the Method param's, or a later one)", c.shipped.Revision, c.revision)
 			}
 			if strings.Contains(strings.ToLower(c.shipped.Description), "accrual basis") {
 				t.Errorf("description %q still says \"accrual basis\"", c.shipped.Description)
