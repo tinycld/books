@@ -6,6 +6,7 @@ import {
     chooseParamOption,
     downloadReport,
     hubRow,
+    inStatement,
     navigateToPackage,
     type ReportExportFormat,
     rowOf,
@@ -1237,6 +1238,50 @@ export async function figureText(page: Page, columnId: string, rowLabel: string)
 // reads or drives the opened report passes it as its scope.
 export function drillPanel(page: Page): Locator {
     return page.getByTestId('report-drill-panel')
+}
+
+// --- A report that is not live (the six that read every journal line). ---
+
+// The note core draws over a run that is not live (core ReportManualBand MANUAL_NOTE).
+export const MANUAL_NOTE =
+    'This report does not update by itself. Press Refresh to see new changes.'
+
+// The band's parts by surface: the report itself, or the report in the drill panel. Each
+// surface has its own test ids, so the two bands are never mixed up.
+export function manualBand(page: Page, surface: 'report' | 'report-drill' = 'report') {
+    const own = (part: string) =>
+        surface === 'report'
+            ? inStatement(page, `report-${part}`)
+            : drillPanel(page).getByTestId(`report-drill-${part}`)
+    return { band: own('manual-band'), note: own('manual-note'), refresh: own('refresh') }
+}
+
+function isReportRun(url: string, method: string): boolean {
+    return method === 'POST' && new URL(url).pathname === '/api/reports/run'
+}
+
+// Resolves with the next report run the page sends. Start it before the action that
+// sends the run, and await it after.
+export function nextReportRun(page: Page): Promise<Request> {
+    return page.waitForRequest(request => isReportRun(request.url(), request.method()))
+}
+
+// Presses Refresh on a report that is not live and waits for a run's answer. The note is
+// read first: only a run that is not live draws it. The answer's headers come before the
+// rows are drawn, so the caller still waits for the figure it needs. Call it only after
+// the write it must show is committed (postOpenEntry waits for the server's number).
+export async function refreshReport(
+    page: Page,
+    surface: 'report' | 'report-drill' = 'report'
+): Promise<void> {
+    const { note, refresh } = manualBand(page, surface)
+    await expect(note).toHaveText(MANUAL_NOTE)
+    const answered = page.waitForResponse(response =>
+        isReportRun(response.url(), response.request().method())
+    )
+    await refresh.click()
+    await answered
+    await expect(refresh).toBeEnabled()
 }
 
 // How a wrapped line of Transaction Detail is drawn, read in ONE pass: whether its Amount

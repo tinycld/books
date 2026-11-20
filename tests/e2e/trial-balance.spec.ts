@@ -20,6 +20,7 @@ import {
     openBooksReports,
     openEntriesFromSidebar,
     openTrialBalance,
+    refreshReport,
     snapshotWhen,
     type TbSnapshot,
     tbSnapshot,
@@ -478,7 +479,7 @@ test.describe("trial-balance: the report in core's view", () => {
         )
     })
 
-    test('a post made on another page appears in the open report without a reload', async ({
+    test('a post made on another page appears in the open report after Refresh, without a reload', async ({
         page,
     }) => {
         await startBooks(page, DESKTOP)
@@ -505,11 +506,13 @@ test.describe("trial-balance: the report in core's view", () => {
         await openEntriesFromSidebar(other)
         await postEntry(other, '15.00', account, ACCOUNT_LABELS.checking)
 
+        // The Trial Balance is not live: the post shows when the reader presses Refresh.
+        await refreshReport(page)
         const live = await snapshotWhen(
             page,
             tbSnapshot,
             s => groupRow(s, account)?.debit === '15.00',
-            'the post in the open report'
+            'the post in the open report after Refresh'
         )
         expect(figures(groupRow(live, account))).toEqual({ debit: '15.00', credit: '' })
         const notReloaded = await page.evaluate(
