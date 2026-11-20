@@ -326,6 +326,14 @@ function morePaymentsText(count: number): string {
     return fillPaymentText(MORE_PAYMENTS_MANY, String(count))
 }
 
+const UNAPPLIED_CREDIT_LABEL = 'Credit memo %s · %s unapplied'
+
+// One row of Receive payment's unapplied-credits notice (apply credit spec §3.8): the credit
+// memo's number and its unapplied credit (`balance`, in cents).
+export function unappliedCreditLabel(number: string, cents: number, currency: string): string {
+    return fillPaymentText(UNAPPLIED_CREDIT_LABEL, number, formatMoney(cents, currency))
+}
+
 // The server's refusal keys that name one insert's document or credit (plan decision 7).
 const ROW_REFUSAL_KEYS = new Set(['invoice', 'bill', 'credit_memo', 'vendor_credit'])
 

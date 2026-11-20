@@ -116,3 +116,10 @@ describe('help/refund-receipts.md', () => {
         ).toBe(true)
     })
 })
+
+// Apply credit spec §3.8 Help: a credit memo partly applied pays out only what is left.
+describe('help/refund-receipts.md (apply credit)', () => {
+    it('says a refund pays out what is left', () => {
+        expect(body).toContain('what is left')
+    })
+})

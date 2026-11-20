@@ -14,6 +14,7 @@ import {
     applySummaryText,
     sortApplyRows,
     spreadForDocument,
+    unappliedCreditLabel,
 } from '../tinycld/books/lib/apply-credit-schema'
 import {
     CREDIT_MEMO_APPLICATION,
@@ -536,5 +537,14 @@ describe('applyNoticeVisible', () => {
         expect(applyNoticeVisible({ ...SHOWN, status: 'void' })).toBe(false)
         expect(applyNoticeVisible({ ...SHOWN, balance: 0 })).toBe(false)
         expect(applyNoticeVisible({ ...SHOWN, openCount: 0 })).toBe(false)
+    })
+})
+
+// Apply credit spec §3.8: each row of the Receive payment notice.
+describe('unappliedCreditLabel', () => {
+    it('names the credit memo and its unapplied credit', () => {
+        expect(unappliedCreditLabel('1001', 25_000, 'USD')).toBe(
+            'Credit memo 1001 · $250.00 unapplied'
+        )
     })
 })

@@ -1,4 +1,5 @@
 import { log } from '@tinycld/core/lib/logger'
+import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { useForm, type z, zodResolver } from '@tinycld/core/ui/form'
 import { useMemo, useRef, useState } from 'react'
 import {
@@ -10,6 +11,7 @@ import {
     useWatch,
 } from 'react-hook-form'
 import type { PressableInstance, TextInputInstance } from 'react-native'
+import { unappliedCreditLabel } from '../lib/apply-credit-schema'
 import { moneyInputCents } from '../lib/money-input'
 import {
     amountToApply,
@@ -28,6 +30,7 @@ import {
 } from '../lib/payment-allocation'
 import { type PaymentFlow, sumErrorOf } from '../lib/payment-flow'
 import type { PaymentFormValues } from '../lib/payment-values'
+import { useUnappliedCreditMemos } from './useUnappliedCreditMemos'
 
 // A row's document date by id, for a flow's row-date rule; null runs no date rule.
 export type PaymentRowDates = Readonly<Record<string, string>> | null
@@ -139,6 +142,27 @@ function totalsOf(flow: PaymentFlow, values: PaymentFormValues, currency: string
 }
 
 /**
+ * The chosen customer's credit memos with unapplied credit, for Receive payment's notice
+ * (apply credit spec §3.8): one line each, "Credit memo 1001 · $250.00 unapplied". Only the
+ * received payment reads them; under another flow (a vendor refund's party is a vendor) the
+ * read is off and lists nothing. `retry` recovers a failed read.
+ */
+function usePartyCredits(flow: PaymentFlow, party: string) {
+    const memos = useUnappliedCreditMemos(flow.key === 'payment' ? party : '')
+    const lines = memos.credits.map(memo => ({
+        id: memo.id,
+        label: unappliedCreditLabel(memo.number, memo.balance, memo.currency),
+    }))
+    const retry = () => {
+        void recoverLiveQueries({
+            ...memos.recovery,
+            onError: error => log.error(flow.logContext, error),
+        })
+    }
+    return { lines, isReady: memos.isReady, isError: memos.isError, retry }
+}
+
+/**
  * A payment form's allocation handlers (lib/payment-allocation.ts) over the flow's open
  * documents. While the amount was not typed it follows the rows after every row change;
  * typing it spreads it over the rows. The header tick box pays every row, or clears them
@@ -159,6 +183,7 @@ export function usePaymentForm({
     // Read in render: the form state proxy updates `isSubmitted` only once it is read here.
     const { isSubmitted } = form.formState
     const totals = totalsOf(flow, values, currency)
+    const credits = usePartyCredits(flow, values.party)
 
     const dateRef = useRef<TextInputInstance | null>(null)
     const clearRef = useRef<PressableInstance | null>(null)
@@ -312,6 +337,7 @@ export function usePaymentForm({
         outstanding,
         partyName,
         totals,
+        credits,
         dateRef,
         clearRef,
         rowRef,

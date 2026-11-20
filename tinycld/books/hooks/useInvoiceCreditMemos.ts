@@ -30,6 +30,7 @@ export function useInvoiceCreditMemos(invoiceId: string) {
                     date: m.date,
                     total: m.total,
                     balance: m.balance,
+                    applied: m.applied,
                     status: m.status,
                     currency: m.currency,
                 }))

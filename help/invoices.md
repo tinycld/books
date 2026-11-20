@@ -47,7 +47,7 @@ The total cannot be below zero. To give money back to a customer, use a [credit 
 
 ## Balance due and payments
 
-On a posted invoice, the big figure **Balance due** is what the customer still owes on it: the total less the payments applied to it. When payments are applied, the totals show a **Payments** line, such as "Payments −$100.00", above Balance due, and a Payments block under them lists each posted payment, such as "Payment 1003 · Oct 12, 2026 · $100.00". Choose a payment to open it.
+On a posted invoice, the big figure **Balance due** is what the customer still owes on it: the total less the payments and credits applied to it. When payments are applied, the totals show a **Payments** line, such as "Payments −$100.00", above Balance due, and a Payments block under them lists each posted payment, such as "Payment 1003 · Oct 12, 2026 · $100.00". Choose a payment to open it.
 
 The badge of a posted invoice follows its balance:
 
@@ -57,6 +57,14 @@ The badge of a posted invoice follows its balance:
 - **Written off**: nothing is open, and a posted write-off took the rest of the balance.
 
 To record a payment for the invoice, open it and choose **Receive payment**, or press R. It shows only on a posted invoice with a balance due. On a phone, it is in the More menu. The payment opens with the invoice's customer, and the invoice is paid in full; change the amount to record a part payment. See [Receive payment](help://books:receive-payment).
+
+## Apply a customer's credit
+
+When the customer has a credit memo with unapplied credit, a notice above a posted invoice with a balance due says how much, for example "Harbor Lane Bakery has $250.00 of unapplied credit on 2 credit memos." To use it on the invoice, choose **Apply credit**, or press A. On a phone, it is in the More menu. In the dialog, check the Apply date and the amount from each credit memo, then choose Apply credit. See [Apply a credit memo to invoices](help://books:apply-credit).
+
+After you apply, the totals show a **Credits applied** row with a minus sign, such as −$150.00, after the Payments row and above Balance due, and Balance due goes down by the credit. The Payments block lists each credit with the payments, in date order, for example "Credit memo 1001 · Nov 16, 2026 · $150.00": choose it to open the credit memo, or choose Remove to take the credit off the invoice. An invoice that credit pays in full reads Paid. When the customer has a payment with an amount that is not applied to an invoice, the notice names it with a link, so you can open the payment and edit it.
+
+While a credit is applied, Books refuses Void of the invoice: "Credit memos are applied to this invoice. Remove them first." An edit keeps its credits: they move to the edit. Its total cannot be below the payments and credits, for example "Payments and credits of $300.00 are applied to this invoice. Its total cannot be below that.", and its customer cannot change: "Credit memos are applied to this invoice, so its customer cannot change."
 
 ## Write off an invoice
 
@@ -105,7 +113,7 @@ The credit memo shows **For invoice 1004** in its header: choose it to open the 
 
 ## Credit memos on an invoice
 
-Under the payments of an invoice, the **Credit memos** section lists each credit memo made from it, with its number, date, amount and status. A draft credit memo shows "Draft" as its number. Choose a number to open the credit memo. An invoice with no credit memo has no such section. A credit memo does not change the invoice's Balance due: the credit goes to the customer.
+Under the payments of an invoice, the **Credit memos** section lists each credit memo made from it, with its number, date, amount and status. A draft credit memo shows "Draft" as its number. Choose a number to open the credit memo. An invoice with no credit memo has no such section. A credit memo does not change the invoice's Balance due until you apply it: the credit goes to the customer. To use it on this invoice, choose Apply credit (see above).
 
 ## Convert an estimate
 
@@ -153,6 +161,7 @@ With the cursor in a line:
 On a posted or void invoice:
 
 - R: Receive payment (a posted invoice with a balance due)
+- A: Apply credit (a posted invoice with a balance due, while the customer has unapplied credit)
 - E: Edit
 - V: Void
 - C: Copy to a new invoice
@@ -162,7 +171,7 @@ On a posted or void invoice:
 - ⌥1 / ⌥2: Details tab / PDF view tab
 - ⌘P: Download PDF
 
-The form keys also work while the cursor is in a text box. R, E, V, C, M, W and J do not. A key does nothing while its button is hidden or turned off. If a menu or dialog is open, Esc first closes it, and the other keys do nothing. ⌘P never opens the browser's Print: on a new invoice that is not saved, it does nothing. To see all shortcuts, press ? when the cursor is not in a text box.
+The form keys also work while the cursor is in a text box. R, A, E, V, C, M, W and J do not. A key does nothing while its button is hidden or turned off. If a menu or dialog is open, Esc first closes it, and the other keys do nothing. ⌘P never opens the browser's Print: on a new invoice that is not saved, it does nothing. To see all shortcuts, press ? when the cursor is not in a text box.
 
 ## Who can do what
 
