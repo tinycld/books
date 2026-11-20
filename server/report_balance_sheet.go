@@ -99,7 +99,9 @@ func balanceSheetSpec() *reports.Spec {
 				Drill:   balanceDrill(d),
 			},
 			// The report's rows are the as-of month's lines, all after the prior
-			// day, so a line's Prior year amount is 0.
+			// day, so a line's Prior year amount is 0. The formula still reads the
+			// line's amount (always cut to 0 here): a plain lit(0) is not a money
+			// formula, so it loses the line's currency and core refuses the % change.
 			{
 				ID: "prior", Label: "Prior year", Heading: dPrior, Total: reports.TotalRows,
 				Formula: op("coalesce", op("if", op("lte", fld("date"), dPrior), signed, lit(nil)), lit(0)),
