@@ -2,6 +2,7 @@ import { useBooksAccess } from '../../hooks/useBooksAccess'
 import { useListFilters } from '../../hooks/useListFilters'
 import { useRecordList } from '../../hooks/useRecordList'
 import { useRecordRowMenus } from '../../hooks/useRecordRowMenus'
+import { useShippedReportHref } from '../../hooks/useShippedReportHref'
 import { useVendorActions } from '../../hooks/useVendorActions'
 import { useVendorNavigation } from '../../hooks/useVendorNavigation'
 import { useVendorsQuery, type VendorRecord } from '../../hooks/useVendorsQuery'
@@ -13,11 +14,13 @@ import {
     recordMenuItems,
     recordMenuTestIds,
 } from '../../lib/record-menu'
+import { AP_AGING_SHIPPED_KEY } from '../../lib/shipped-reports'
 import { vendorListCopy } from '../../lib/vendor-display'
 import { VENDOR_LOAD_ERROR } from '../../lib/vendor-messages'
 import { VENDORS_PATH } from '../../lib/vendor-route'
 import { useVendorFormStore } from '../../stores/vendor-form-store'
 import { PartyList } from '../party/PartyList'
+import { ShippedReportsMenu } from '../reports/ShippedReportsMenu'
 import { DeleteVendorDialog } from './DeleteVendorDialog'
 
 const VENDOR_MENU = {
@@ -52,6 +55,23 @@ export function VendorsList({ openId, layout }: { openId: string; layout: ListLa
     const source = useVendorsQuery(filters.listFilters)
     const list = useRecordList(filters, source)
     const loadError = list.viewState === 'error' ? VENDOR_LOAD_ERROR : null
+    // Null while the report loads, when its read fails and when the reader has none:
+    // then there is no menu and the list stays usable; the live query shows it once it
+    // loads.
+    const agingHref = useShippedReportHref(AP_AGING_SHIPPED_KEY)
+    const reportItems = [
+        {
+            key: AP_AGING_SHIPPED_KEY,
+            label: 'A/P Aging',
+            href: agingHref,
+            testID: 'vendors-reports-aging',
+        },
+    ]
+    // Undefined, not a menu that renders null, so the header draws no empty button group.
+    const hasReport = agingHref !== null
+    const reportsMenu = hasReport ? (
+        <ShippedReportsMenu items={reportItems} testID="vendors-reports" />
+    ) : undefined
     const dialog = (
         <DeleteVendorDialog
             vendor={menus.deleteDialog.record}
@@ -80,6 +100,7 @@ export function VendorsList({ openId, layout }: { openId: string; layout: ListLa
             isLoadError={loadError !== null}
             onDismissBanner={menus.dismissRefusal}
             dialog={dialog}
+            headerAction={reportsMenu}
             layout={layout}
         />
     )

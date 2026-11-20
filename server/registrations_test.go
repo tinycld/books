@@ -36,6 +36,7 @@ var serverOnly = map[string]bool{
 	"books_credit_memo_tax_lines":   true,
 	"books_invoice_tax_lines":       true,
 	"books_receivable_items":        true,
+	"books_payable_items":           true,
 	"books_sales_receipt_tax_lines": true,
 	// A refund receipt's tax lines are its posting snapshot, and its credits
 	// row is written by the payout's post (refund receipt spec §4.1).

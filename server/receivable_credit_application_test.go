@@ -285,7 +285,7 @@ func TestReceivableCreditApplication_VerifyFindsAMissingRow(t *testing.T) {
 			t.Fatalf("delete the row %s: %v", id, err)
 		}
 	}
-	drifts, err := verifyReceivables(me.app)
+	drifts, err := receivableItems.verify(me.app)
 	if err != nil {
 		t.Fatalf("verify receivables: %v", err)
 	}
@@ -314,13 +314,13 @@ func TestReceivableCreditApplication_VerifyFindsAMissingRow(t *testing.T) {
 func TestReceivableCreditApplication_RefreshNeedsTransaction(t *testing.T) {
 	me := newMemoApplyEnv(t)
 	memo := reload(t, me.app, "books_credit_memos", me.postedMemo(t, me.customer, memoApplyCreditDay, 25000).Id)
-	want := refreshReceivables(me.app, "FALSE", nil)
+	want := receivableItems.refresh(me.app, "FALSE", nil)
 	if want == nil {
-		t.Fatal("refreshReceivables outside a transaction passed, want its refusal")
+		t.Fatal("receivableItems.refresh outside a transaction passed, want its refusal")
 	}
 	err := refreshReceivableCreditMemo(me.app, memo)
 	if err == nil || err.Error() != want.Error() {
-		t.Fatalf("refreshReceivableCreditMemo outside a transaction = %v, want the refusal of refreshReceivables %q", err, want)
+		t.Fatalf("refreshReceivableCreditMemo outside a transaction = %v, want the refusal of receivableItems.refresh %q", err, want)
 	}
 	requireNoDrift(t, me.app)
 }

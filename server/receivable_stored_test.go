@@ -39,7 +39,7 @@ func storedRows(t testing.TB, app core.App) []storedRow {
 // requireRebuilt rebuilds the stored rows and fails when they then drift.
 func requireRebuilt(t testing.TB, app core.App) {
 	t.Helper()
-	if err := app.RunInTransaction(rebuildReceivables); err != nil {
+	if err := app.RunInTransaction(receivableItems.rebuild); err != nil {
 		t.Fatalf("rebuild the receivable rows: %v", err)
 	}
 	requireNoReceivableDrift(t, app)
@@ -47,7 +47,7 @@ func requireRebuilt(t testing.TB, app core.App) {
 
 func requireNoReceivableDrift(t testing.TB, app core.App) {
 	t.Helper()
-	drifts, err := verifyReceivables(app)
+	drifts, err := receivableItems.verify(app)
 	if err != nil {
 		t.Fatalf("verify receivables: %v", err)
 	}
@@ -171,7 +171,7 @@ func TestReceivableSettledReopens(t *testing.T) {
 	}
 }
 
-// verifyReceivables names a stale row, a missing row and a wrong settled day.
+// receivableItems.verify names a stale row, a missing row and a wrong settled day.
 func TestVerifyReceivablesFindsDrift(t *testing.T) {
 	b := newARBook(t)
 	c := b.docs.customer
@@ -187,7 +187,7 @@ func TestVerifyReceivablesFindsDrift(t *testing.T) {
 	}
 	exec("UPDATE books_receivable_items SET debit = debit + 1 WHERE id = '" + rows[0].ID + "'")
 	exec("DELETE FROM books_receivable_items WHERE id = '" + rows[1].ID + "'")
-	drifts, err := verifyReceivables(b.app)
+	drifts, err := receivableItems.verify(b.app)
 	if err != nil {
 		t.Fatalf("verify receivables: %v", err)
 	}
@@ -201,29 +201,29 @@ func TestVerifyReceivablesFindsDrift(t *testing.T) {
 	requireRebuilt(t, b.app)
 }
 
-// The route answers with at most maxReceivableDriftsReported rows and the full
+// The route answers with at most maxItemDriftsReported rows and the full
 // count, as for the journal lines and the cash-basis rows.
 func TestReceivableDriftReport_IsCapped(t *testing.T) {
-	drifts := make([]ReceivableDrift, maxReceivableDriftsReported+2)
+	drifts := make([]ItemDrift, maxItemDriftsReported+2)
 	for i := range drifts {
 		drifts[i].ID = fmt.Sprintf("row%03d", i)
 	}
-	listed, count := receivableDriftReport(drifts)
-	if len(listed) != maxReceivableDriftsReported || count != maxReceivableDriftsReported+2 {
-		t.Fatalf("listed %d, count %d; want %d and %d", len(listed), count, maxReceivableDriftsReported, maxReceivableDriftsReported+2)
+	listed, count := itemDriftReport(drifts)
+	if len(listed) != maxItemDriftsReported || count != maxItemDriftsReported+2 {
+		t.Fatalf("listed %d, count %d; want %d and %d", len(listed), count, maxItemDriftsReported, maxItemDriftsReported+2)
 	}
 	if listed[0].ID != "row000" {
 		t.Errorf("first listed = %q, want the first drift", listed[0].ID)
 	}
-	few, n := receivableDriftReport(drifts[:3])
+	few, n := itemDriftReport(drifts[:3])
 	if len(few) != 3 || n != 3 {
 		t.Fatalf("listed %d, count %d; want 3 and 3", len(few), n)
 	}
 }
 
-// settleReceivables with a pair list fixes only the rows of those customers and
+// receivableItems.settle with a pair list fixes only the rows of those customers and
 // items (a blank customer is the rows with no customer), returns how many rows
-// it changed, and walks a list longer than receivablePairChunk in chunks.
+// it changed, and walks a list longer than itemPairChunk in chunks.
 // It is a pin: the code was right when the test was written, so it passed on
 // its first run.
 func TestSettleReceivablesSubset(t *testing.T) {
@@ -264,12 +264,12 @@ func TestSettleReceivablesSubset(t *testing.T) {
 		}
 		return n
 	}
-	settle := func(pairs []receivablePair) int64 {
+	settle := func(pairs []itemPair) int64 {
 		t.Helper()
 		var n int64
 		err := b.app.RunInTransaction(func(tx core.App) error {
 			var err error
-			n, err = settleReceivables(tx, pairs)
+			n, err = receivableItems.settle(tx, pairs)
 			return err
 		})
 		if err != nil {
@@ -278,12 +278,12 @@ func TestSettleReceivablesSubset(t *testing.T) {
 		return n
 	}
 	// pairsOf lists each customer and item of the stored rows of customer.
-	pairsOf := func(customer string) []receivablePair {
+	pairsOf := func(customer string) []itemPair {
 		t.Helper()
-		seen := map[receivablePair]bool{}
-		var pairs []receivablePair
+		seen := map[itemPair]bool{}
+		var pairs []itemPair
 		for _, r := range storedRows(t, b.app) {
-			if p := (receivablePair{r.Customer, r.Item}); r.Customer == customer && !seen[p] {
+			if p := (itemPair{r.Customer, r.Item}); r.Customer == customer && !seen[p] {
 				seen[p] = true
 				pairs = append(pairs, p)
 			}
@@ -306,13 +306,13 @@ func TestSettleReceivablesSubset(t *testing.T) {
 		t.Errorf("after the blank id: wrong rows none=%d c2=%d, want 0, %d", wrong(""), wrong(c2.Id), count[c2.Id])
 	}
 
-	// The real pairs sit at both ends of a list of receivablePairChunk+1 pairs,
+	// The real pairs sit at both ends of a list of itemPairChunk+1 pairs,
 	// so they fall in two chunks.
 	corrupt()
 	real1, real2 := pairsOf(c1.Id), pairsOf(c2.Id)
-	pairs := make([]receivablePair, receivablePairChunk+len(real1)+len(real2))
+	pairs := make([]itemPair, itemPairChunk+len(real1)+len(real2))
 	for i := range pairs {
-		pairs[i] = receivablePair{fmt.Sprintf("absent%09d", i), "none"}
+		pairs[i] = itemPair{fmt.Sprintf("absent%09d", i), "none"}
 	}
 	copy(pairs, real2)
 	copy(pairs[len(pairs)-len(real1):], real1)
