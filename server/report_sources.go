@@ -246,7 +246,9 @@ func basisLinesSource() reports.Source {
 			{Key: "memo", Label: "Memo", Type: reports.Text},
 			{Key: "date", Label: "Date", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
 			{Key: "posted", Label: "Posted", Type: reports.Bool},
-			{Key: "currency", Label: "Currency", Type: reports.Text},
+			// Both parts carry their journal line's currency, so a statement adds
+			// the stored months (books.account_balances) to these lines.
+			{Key: "currency", Label: "Currency", Type: reports.Text, SameCurrencyAs: "books.journal_lines.currency"},
 			{Key: "position", Label: "Position", Type: reports.Number},
 			{Key: "layer", Label: "Layer", Type: reports.Select, Options: []reports.Option{
 				{Value: "ledger", Label: "Ledger"},
