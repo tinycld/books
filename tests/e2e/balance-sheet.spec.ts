@@ -18,10 +18,12 @@ import { SEED_ACCOUNTS } from '~/tinycld/books/lib/seed-accounts'
 import { PRIOR_YEAR_SEED } from '~/tinycld/books/lib/trial-balance-fixture'
 import { createAccount, DESKTOP, openChart, PHONE } from './account-register-helpers'
 import {
+    balanceBeforeLabel,
     browserToday,
     chooseAsOf,
     chooseRows,
     dayWords,
+    endOfLastMonth,
     isInGroup,
     openBalanceSheet,
     openReportAccount,
@@ -30,6 +32,7 @@ import {
     refreshReport,
     reportLabelsThrough,
     reportLinesUnder,
+    reportOpeningUnder,
     reportSnapshot,
     reportSnapshotAtEnd,
     reportSnapshotAtTop,
@@ -237,6 +240,32 @@ function cents(text: string | undefined): number | null {
 
 function figure(snapshot: ReportSnapshot, label: string, column: string): number | null {
     return cents(rowOf(snapshot, label).cells[column])
+}
+
+// What the opened account row labelled `label` shows, from one snapshot: its own Current,
+// its opening row (null when none shows), then its lines.
+function openedAccount(snapshot: ReportSnapshot, label: string) {
+    const shown = (row: Row) => ({
+        label: row.label,
+        current: cents(row.cells.current),
+        prior: cents(row.cells.prior),
+        change: row.cells.change ?? '',
+        pct: row.cells.pct ?? '',
+    })
+    const opening = reportOpeningUnder(snapshot, label)
+    return {
+        current: figure(snapshot, label, 'current'),
+        opening: opening ? shown(opening) : null,
+        lines: reportLinesUnder(snapshot, label).map(shown),
+    }
+}
+
+// True when the account row labelled `label` is open onto its opening row and `count` lines.
+function isOpenOnto(snapshot: ReportSnapshot, label: string, count: number): boolean {
+    return (
+        reportOpeningUnder(snapshot, label) !== undefined &&
+        reportLinesUnder(snapshot, label).length === count
+    )
 }
 
 function roundHalfAway(value: number): number {
@@ -735,7 +764,7 @@ test.describe('balance-sheet: report', () => {
         }
     })
 
-    test('pressing an account opens its posted lines, labelled, in posting order', async ({
+    test('pressing an account opens its balance before the month, then the lines of that month, on Accrual and on Cash', async ({
         page,
     }) => {
         const bank = accountName('BS7 bank')
@@ -749,6 +778,16 @@ test.describe('balance-sheet: report', () => {
         ])
         await openEntriesFromSidebar(page)
         const today = await browserToday(page)
+        // A line of the month before today's month: the opened account holds it in its
+        // opening row and does not list it. The day is after 2026-07-01 (see the header).
+        await postEntryOn(page, {
+            date: endOfLastMonth(today),
+            memo: uniqueName('BS7 entry of last month'),
+            lines: [
+                { account: bank, debit: '7.00' },
+                { account: card, credit: '7.00' },
+            ],
+        })
         await postEntryOn(page, {
             date: today,
             memo: uniqueName('BS7 entry with a line memo'),
@@ -778,35 +817,75 @@ test.describe('balance-sheet: report', () => {
         )
         expect(reportLinesUnder(closed, bank)).toEqual([])
 
+        // The account's Current is its opening row plus its two lines of this month. The
+        // account is new, so a year earlier it has no balance: Prior year reads 0.00.
+        const expected = {
+            current: 4950,
+            opening: {
+                label: balanceBeforeLabel(today),
+                current: 700,
+                prior: 0,
+                change: '',
+                pct: '',
+            },
+            lines: [
+                {
+                    label: `${today} · ${first} · ${lineMemo}`,
+                    current: 3000,
+                    prior: 0,
+                    change: '',
+                    pct: '',
+                },
+                {
+                    label: `${today} · ${second} · ${entryMemo}`,
+                    current: 1250,
+                    prior: 0,
+                    change: '',
+                    pct: '',
+                },
+            ],
+        }
+
         await openReportAccount(page, bank)
         const opened = await snapshotWhen(
             page,
-            s => reportLinesUnder(s, bank).length === 2,
-            `${bank} opened onto its two lines`
+            s => isOpenOnto(s, bank, 2),
+            `${bank} opened onto its opening row and its two lines on Accrual`
         )
-        const lines = reportLinesUnder(opened, bank).map(row => ({
-            label: row.label,
-            current: cents(row.cells.current),
-            prior: cents(row.cells.prior),
-            change: row.cells.change ?? '',
-            pct: row.cells.pct ?? '',
-        }))
-        expect(lines).toEqual([
-            {
-                label: `${today} · ${first} · ${lineMemo}`,
-                current: 3000,
-                prior: 0,
-                change: '',
-                pct: '',
-            },
-            {
-                label: `${today} · ${second} · ${entryMemo}`,
-                current: 1250,
-                prior: 0,
-                change: '',
-                pct: '',
-            },
-        ])
+        expect(openedAccount(opened, bank), `${bank} on Accrual`).toEqual(expected)
+
+        // Cash shows the same rows: a journal entry counts on its own date on both methods.
+        // The account is folded before the change of method, and core caches a run by its
+        // body, so the rows that show after the press on Cash come from a Cash run.
+        await foldRow(page, bank)
+        await snapshotWhen(
+            page,
+            s =>
+                has(s, bank) &&
+                reportOpeningUnder(s, bank) === undefined &&
+                reportLinesUnder(s, bank).length === 0,
+            `${bank} folded`
+        )
+        const basis = page.getByTestId('report-header-param-method')
+        await expect(basis).toHaveText('Accrual basis')
+        const cashRun = page.waitForResponse(response => {
+            if (!response.url().includes('/api/reports/run') || !response.ok()) return false
+            const body = response.request().postDataJSON() as {
+                params?: { method?: string }
+            } | null
+            return body?.params?.method === 'cash'
+        })
+        await page.getByTestId('report-param-method').click()
+        await page.getByTestId('report-filter-option-cash').click()
+        await expect(basis).toHaveText('Cash basis')
+        await cashRun
+        await openReportAccount(page, bank)
+        const onCash = await snapshotWhen(
+            page,
+            s => isOpenOnto(s, bank, 2),
+            `${bank} opened onto its opening row and its two lines on Cash`
+        )
+        expect(openedAccount(onCash, bank), `${bank} on Cash`).toEqual(expected)
 
         // Retained earnings is a computed row: no fold chevron, and a press opens nothing.
         // The next run (Liabilities opened again) carries whatever the press changed.

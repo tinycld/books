@@ -112,7 +112,7 @@ To change which accounts show, press the Rows chip and pick one:
 - Non-zero shows the accounts with a balance that is not zero on the As of day or on the Prior year day. This is the default.
 - Active shows the accounts with a posted line on or before the As of day, also when the balance is zero.
 
-To see the lines of an account, press its account row. Its posted lines open below it, in date order, then by entry number. Each line shows its date, its entry number and its memo. Current shows the amount of the line. Prior year shows the amount when the line is on or before the Prior year day, and 0.00 when it is not. Change and % change stay blank on the lines. Retained earnings and Net income do not open.
+To see the lines of an account, press its account row. The first row below it reads "Balance before" and the month of the As of day, for example "Balance before Nov 2026". Its Current shows the balance of the account at the end of the month before. Its Prior year shows the balance of the account on the Prior year day. Below it are the posted lines of that month, up to the As of day, in date order, then by entry number. Each line shows its date, its entry number and its memo. Current shows the amount of the line. Prior year shows 0.00 on the lines. Change and % change stay blank on the "Balance before" row and on the lines. Lines of earlier months do not show here. To see every line of an account, press its Current figure. An account opens the same way on Accrual and on Cash. Retained earnings and Net income do not open.
 
 To see the transactions behind the Current or Prior year figure of an account, press the figure (see "See the transactions behind an amount" below).
 

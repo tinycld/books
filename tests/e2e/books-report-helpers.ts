@@ -562,7 +562,7 @@ export type ReportSnapshot = {
     headings: Record<string, string>
     rows: {
         id: string
-        kind: 'group' | 'detail' | 'subtotal' | 'computed' | 'total'
+        kind: 'group' | 'opening' | 'detail' | 'subtotal' | 'computed' | 'total'
         // The outline level core indents the label to: 16 + depth × 16 px (ReportRow labelStyle).
         depth: number
         label: string
@@ -606,8 +606,9 @@ export async function chooseRows(page: Page, choice: keyof typeof ROWS_LABELS): 
 
 // The document header, every column heading and every mounted row of the report table, top
 // to bottom, with every cell, read in ONE pass so no re-render lands between two reads. The
-// row kind comes from core's row id: g: a group or an account, d: a line, s: a group's
-// total, c: a computed row, total: the Total.
+// row kind comes from core's row id: g: a group or an account, opening: an opened account's
+// balance before the as-of month, d: a line, s: a group's total, c: a computed row, total:
+// the Total.
 export function reportSnapshot(page: Page): Promise<ReportSnapshot> {
     return page.evaluate(() => {
         const textOf = (element: Element | null | undefined) =>
@@ -639,6 +640,7 @@ export function reportSnapshot(page: Page): Promise<ReportSnapshot> {
         }
         const kindOf = (id: string): ReportSnapshot['rows'][number]['kind'] | null => {
             if (id.startsWith('g:')) return 'group'
+            if (id.startsWith('opening:')) return 'opening'
             if (id.startsWith('d:')) return 'detail'
             if (id.startsWith('s:')) return 'subtotal'
             if (id.startsWith('c:')) return 'computed'
@@ -670,14 +672,34 @@ export function reportSnapshot(page: Page): Promise<ReportSnapshot> {
     })
 }
 
-// The opened lines under the row labelled `label`: the detail rows that follow it until the
-// next row that is not a line. Empty when the row is not mounted or not open.
-export function reportLinesUnder(snapshot: ReportSnapshot, label: string): ReportSnapshot['rows'] {
-    const start = snapshot.rows.findIndex(row => row.kind !== 'detail' && row.label === label)
+// A row that shows only under an opened row: a line, or the opening row above the lines.
+function isOpenedRow(row: ReportSnapshot['rows'][number]): boolean {
+    return row.kind === 'detail' || row.kind === 'opening'
+}
+
+// The rows an opened row labelled `label` shows beneath it, until the next row that is not
+// one of them: its opening row, when the report has one, then its lines.
+function reportRowsUnder(snapshot: ReportSnapshot, label: string): ReportSnapshot['rows'] {
+    const start = snapshot.rows.findIndex(row => !isOpenedRow(row) && row.label === label)
     if (start < 0) return []
     const after = snapshot.rows.slice(start + 1)
-    const end = after.findIndex(row => row.kind !== 'detail')
+    const end = after.findIndex(row => !isOpenedRow(row))
     return end < 0 ? after : after.slice(0, end)
+}
+
+// The opened lines under the row labelled `label`, without its opening row. Empty when the
+// row is not mounted or not open.
+export function reportLinesUnder(snapshot: ReportSnapshot, label: string): ReportSnapshot['rows'] {
+    return reportRowsUnder(snapshot, label).filter(row => row.kind === 'detail')
+}
+
+// The opening row ("Balance before <month>", see balanceBeforeLabel) under the row labelled
+// `label`. Undefined when the row is not mounted, not open, or its report has no opening row.
+export function reportOpeningUnder(
+    snapshot: ReportSnapshot,
+    label: string
+): ReportSnapshot['rows'][number] | undefined {
+    return reportRowsUnder(snapshot, label).find(row => row.kind === 'opening')
 }
 
 // The table mounts only the rows near its scroll position (a FlashList), and a section
@@ -704,7 +726,7 @@ export function isInGroup(snapshot: ReportSnapshot, group: string, label: string
     const titleDepth = snapshot.rows[titleAt].depth
     return snapshot.rows
         .slice(titleAt + 1, at + 1)
-        .every(row => (row.kind === 'group' || row.kind === 'detail') && row.depth > titleDepth)
+        .every(row => (row.kind === 'group' || isOpenedRow(row)) && row.depth > titleDepth)
 }
 
 // Scrolls the report list, its own scroller (the rows' nearest overflow-y: auto ancestor):
