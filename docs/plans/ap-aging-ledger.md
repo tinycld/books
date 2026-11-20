@@ -34,6 +34,10 @@ with the reason, and shown to the human at the end)
 - cp 3 · opened-1024: item row "Vendor credit 1006" — the label wraps to 2 lines in the Vendor column (the reference wraps the same way; inside the three-line cap).
 - cp 3 · item-opened-1024: the 3 lines under the bill — each label wraps to 2 or 3 lines with almost no gap between the wrapped rows, so the lines read as one text block (the reference has the same density; the three-line cap holds).
 - cp 3 · reviewer A NOTE: `server/report_ap_aging.go` sort, `server/report_spec_helpers.go` `vendorSort` — two items of one vendor with the same `due` and `itemNo` (two Accounts payable lines of one manual journal entry for the same vendor) have no inner key between them, so their order can change when Order changes (the balance key reads each item's own sum under Largest balance, 0 under Name). No spec bullet breaks ("Items are in due-date order, oldest first, then by number"); D7 sets the keys. Possible fix: `col("itemKey")` after `col("itemNo")`.
+- cp 4 · reviewer A NOTE and reviewer B finding 3: spec §9's dataset table cannot hold at once — 10,000 bills with 9,000 bill payment lines leave about 850 or more open items, against "about 800". The scale dataset writes 9,700 / 97,000 bills (3 % under, inside the 5 % tolerance of `arWithin`); every other count is within 5 % and journal lines are exact. The human decides whether spec §9's table is corrected.
+- cp 4 · reviewer A NOTE: `server/report_ap_aging_scale_test.go` `TestAPAgingBulkWriterMatchesPosters` — the poster comparison has no void bill, void bill payment or reversal entry, though the S and L datasets write 100 / 1,000 of each; the columns of those rows are not compared with the real void path. The brief lists the six documents the test posts. Possible fix: post and void one bill and one bill payment in both apps.
+- cp 4 · reviewer A NOTE: `server/report_scale_harness_test.go` — the "move with no change of body" changed three bodies to take parameters: `finish` flushes the tables in sorted name order, `lines` writes `l.vendor`, `newARWriter` takes the column map and the doc types. No A/R assertion changed.
+- cp 4 · reviewer A NOTE: the brief's `TestAPAgingQueryPlans` bullet says "no temporary B-tree over a large table"; `checkPlanBars` has no such check and the L plans hold `USE TEMP B-TREE FOR GROUP BY/ORDER BY` steps. The A/R spec §9 (`docs/specs/ar-aging-design.md` line 168), which spec §9 of this report adopts, permits them; the code follows the spec and the plan's text is wrong.
 
 ## Out-of-plan changes
 (none yet — every file touched that no checkpoint's Files block named, with why)
@@ -135,8 +139,50 @@ with the reason, and shown to the human at the end)
 - reviewer-caught deferrals: none (the one DEFERRAL was rebutted)
 - commit: (this commit)
 
+## Checkpoint 4 — Query plans and scale proof
+- test writer: Do step 1 first (the harness move: `server/report_scale_harness_test.go` created; `server/report_ar_aging_scale_test.go` passes its own large tables, column map, doc types and statistics file; `go test -run 'TestARAging' -count=1 .` green after it), then `server/report_ap_aging_scale_test.go` (`writeAPDataset`, `apTableColumns`, `apRuns`, 4 tests). Red for the right reason: yes (`TestAPAgingQueryPlans`: `open testdata/ap_aging_stat1.json: no such file or directory`; the no-statistics reading of the seven runs passes every bar before it). `TestAPAgingBulkWriterMatchesPosters` and `TestAPAgingRunsAgreeWithSmallBook` pass now (no product code; a writer mutation of `payment_method` made the first fail). `TestAPAgingScale` skips without `BOOKS_SCALE`; `go vet` clean. Untestable: none.
+  - beyond the brief: `newARWriter` takes the doc types as a variadic parameter (the old body named the A/R doc types); `arJELine` gained a `vendor` field.
+  - dataset: spec §9's counts cannot all hold at once (10,000 bills with 9,000 payment lines leave at least 850 open, against "about 800"). S bills = 9,700 (3 % under, inside `arWithin`'s 5 %); L = 10 × S. Journal lines exact; the other counts within 5 %.
+  - `BOOKS_SCALE_OUT` is a folder (as the A/R scale test), not the `.txt` file of Do step 4.
+- scale run (driver, then runner after the fix round): first run PASS (174 s), every bar met, `server/testdata/ap_aging_stat1.json` written; after fix round 1 (the A/R S runs added) PASS (186 s), the statistics file byte-identical, the plans differ only in the random test user id. The figures under Performance are of the second run. No index added.
+- implementer: Do step 5's evidence only — `docs/plans/ap-aging-evidence/perf-plans.md`, a verbatim copy of the scale output (the runner copied the second run's file over it); `go test -run 'TestAPAging|TestARAging'` green, `TestAPAgingQueryPlans` green with the statistics file; DONE
+- test disputes: none
+- self-declared differences: the ledger is the runner's; `tinycld-pkg check` not run by the implementer (no TS file changed)
+- gate 1: tests unedited: yes · `go test ./...` ok; `packages:generate` + `tinycld-pkg check` exit 0; no e2e (the checkpoint names none). After the fix round: the same, both pass.
+- gate 2: n/a (logic checkpoint)
+- gate 3 A (correctness): 0 BLOCK, 7 NOTE, 1 DEFERRAL — DEFERRAL `TestAPAgingRunsAgreeWithSmallBook` compares only runs 1 and 2 with the writer's record: accepted+fixed (fix item 1; runs 3 to 7 now compared, CSV parsed, each new assertion proven red by a mutation); NOTE A/R ratio bar not measured: accepted+fixed (spec §9 Record "records that its times still meet its bars"; fix item 2); NOTE "customers" in the harness bar message: accepted+fixed (fix item 3, one-line text); NOTEs dataset 9,700 bills, poster comparison without void documents, three moved bodies changed, the brief's "temporary B-tree" text: Design notes; NOTE `BOOKS_SCALE_OUT` is a folder: no fix (recorded above)
+- gate 3 B (conformance): script lines: 0 · 3 findings + 2 DEFERRAL — Performance text claimed more than the plans show: accepted+fixed (worded as the A/R spec §9 bars); stale "scale run" line: accepted+fixed; spec §9 table inconsistent: accepted, comment at `apS` (fix item 4) and a Design note for the human; DEFERRAL 1 = reviewer A's DEFERRAL: fixed; DEFERRAL 2 = the A/R ratio bar: fixed (fix item 2)
+- fix review: n/a — round 1 (`cp4-fix-r1.md`) changed only test files (`server/report_ap_aging_scale_test.go`, `server/report_scale_harness_test.go`), fixed by a test writer (`cp4-fix-tests.md`); no non-test source changed
+- gate 3 A notes: 4, listed under Design notes
+- reviewer-caught deferrals: 2 (the small-book comparison of runs 3 to 7; the A/R ratio bar) — neither self-declared by the test writer; both fixed, none recorded as a deferral
+- commit: (this commit)
+
 ## Performance
-(none yet — the measured results of spec §9)
+- machine: darwin/arm64, 14 CPUs, go1.27.4 · date: 2026-11-20 · base commit caaef9ea · `TestAPAgingScale` PASS (186 s: S 9 s, L 84 s, A/R S 9 s, A/R L 84 s)
+- statements and plans at L after `ANALYZE`: `docs/plans/ap-aging-evidence/perf-plans.md`; every statement of the seven runs met the query-plan bars of the A/R spec §9: no `SCAN` of `books_journal_lines` or `books_journal_entries`; no `SCAN` of a large table inside a loop; one outermost `SCAN books_payable_items` only in whole-book runs (run 2, statements 5 and 6); automatic indexes only on derived subqueries, none on a large table; `USE TEMP B-TREE` for GROUP BY / ORDER BY steps, which the A/R spec §9 permits
+- dataset (S / L): journal lines 50,000 / 500,000 · vendors 203 / 2,003 · bills 9,700 / 97,000 · bill payments 8,000 / 80,000 · bill payment lines 9,100 / 91,000 · vendor credits 200 / 2,000 · applications 150 / 1,500 · vendor refunds 50 / 500 · manual A/P lines 100 / 1,000 · void bills 100 / 1,000 · void bill payments 100 / 1,000 · open items on the last day 800 / 8,000
+
+| A/P run | S median | L median | L/S | bar | result |
+|---|---|---|---|---|---|
+| 1 default | 34.3 ms | 220.9 ms | 6.4 | ≤ 1,000 ms, ≤ 15× | pass |
+| 2 past day | 41.0 ms | 289.5 ms | 7.1 | ≤ 1,000 ms, ≤ 15× | pass |
+| 3 largest balance | 34.3 ms | 226.4 ms | 6.6 | ≤ 1,000 ms, ≤ 15× | pass |
+| 4 five vendors | 15.3 ms | 39.9 ms | 2.6 | ≤ 1,000 ms, ≤ 15× | pass |
+| 5 vendor opened | 35.4 ms | 235.2 ms | 6.7 | ≤ 1,000 ms, ≤ 15× | pass |
+| 6 item opened | 48.9 ms | 307.4 ms | 6.3 | ≤ 1,000 ms, ≤ 15× | pass |
+| 7 CSV export | 118.8 ms | 775.4 ms | 6.5 | ≤ 5,000 ms, ≤ 15× | pass |
+
+| A/R run (after the engine extraction) | S median | L median | L/S | bar | result |
+|---|---|---|---|---|---|
+| 1 default | 70.2 ms | 364.7 ms | 5.2 | ≤ 1,000 ms, ≤ 15× | pass |
+| 2 past day | 78.5 ms | 492.9 ms | 6.3 | ≤ 1,000 ms, ≤ 15× | pass |
+| 3 largest balance | 67.8 ms | 368.6 ms | 5.4 | ≤ 1,000 ms, ≤ 15× | pass |
+| 4 one family | 37.6 ms | 57.0 ms | 1.5 | ≤ 1,000 ms, ≤ 15× | pass |
+| 5 customer opened | 68.6 ms | 382.5 ms | 5.6 | ≤ 1,000 ms, ≤ 15× | pass |
+| 6 item opened | 85.1 ms | 460.6 ms | 5.4 | ≤ 1,000 ms, ≤ 15× | pass |
+| 7 CSV export | 164.1 ms | 1,064.9 ms | 6.5 | ≤ 5,000 ms, ≤ 15× | pass |
+
+- indexes added: none (`pb-migrations/2100000029_create_books_payable_items.js` unchanged)
 
 ## Final review
 - eval: (not reached)
