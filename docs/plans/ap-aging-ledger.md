@@ -62,7 +62,27 @@ and again at the end)
     - phone arrangement (375 and 390): no sideways scroll of the table and nothing cut. The one `SIDEWAYS` mark, at 375, is core's chip strip (`report-controls`), which the shipped A/R Aging also has at 375 and 390.
     - No capture has a `CUT` mark.
   - Other things the captures show (core behavior, as in the A/R Aging reference): on a phone a vendor row whose money is only in a later age draws its label and Total on one line (core rule H7, accepted for the A/R Aging); a line row keeps every line of the arrangement on a phone and a tablet, so it has blank lines; in `past-day` the 61 - 90 column has a heading and no figure. The measure shots are in the lane staging folder (`p3-measure/`, manifest `p3-measure.json`; logs `p3-capture-1.log`, `p3-capture-2.log`), not in the repo.
-- phase 4: not started; waits for the merge of p2-apply-credit (Q11).
+- phase 4 (2026-11-20): plan written after the merge of p2-apply-credit (branch at cbacae83). 5 checkpoints: 1 Shared engine, A/R Aging unchanged (logic); 2 Payable items table and source (logic); 3 A/P Aging report for readers (renders); 4 Query plans and scale proof (logic); 5 Reports menu, narrow layouts, help (renders). E2E budget 9 (6 + 3).
+  - Migration: `2100000029_create_books_payable_items.js`, the free number between 2100000028 and 2100000030. The audit log view (2100000032) stays the highest; `AFTER_AUDIT` stays empty; no file is renamed. Spec §4.1 and Q11 edited.
+  - Seed (`AP_AGING_SEED` was a proposal): all three rows are on Harbor Freight Logistics. The part payment pays the new bill (137.25, check 1061), not Pacific Power's "Seed bill open", whose 420.00 open balance the vendor credit apply fixture and specs read. `seedApAging` runs after `seedApplyCredit` and before `seedBankMatch`. Spec §4.5 Seed edited.
+  - Engine: `server/open_items.go` (`openItemsTable`) is extracted from the receivable code as p2-apply-credit merged it (three queries, credit memo applications). The receivable SQL constants and the `refreshReceivable…` / `bindReceivable…` names stay. Two golden tests (`server/testdata/receivable_statements.json`, `server/testdata/ar_aging_spec_full.json`) hold the receivable statements and the whole A/R spec JSON through every checkpoint. The aging helper extraction (§4.4) is in checkpoint 1 too, so one checkpoint holds every change that touches the A/R Aging.
+  - The credit-side row id of a vendor credit application is the id + `c` (spec §4.1); the receivable table's memo side uses `UPPER(id)`. Kept different, as the spec says.
+  - The A/R Aging's L run is made one time, in checkpoint 4 (spec §9 Record). The L runs (`BOOKS_SCALE=1`) are `NEEDS-RUN` for the driver.
+  - Files shared with p5-report-engine-scale get additive edits only (plan rule).
+  - plan-check: 0 errors.
+  - Plan review (one agent, 2026-11-20): no blocker, 11 should-fix, 12 notes. All 11 are fixed in the plan:
+    - F1 the second window is a second page of the same context (`openBooks(second, DESKTOP)`).
+    - F2 the e2e helper signatures and bodies are written out (`apVendorWithBill`, `payPartOfBill`, `chooseAsOf`).
+    - F3 `useShippedReportHref` returns `null`, not undefined; the menu test covers a reader and the report-not-found state (`freshPageWithReports(page, [])`).
+    - F4 the help section goes after "Read the sales reports" (a help test pins the heading order); `tests/help-reports.test.ts` and `tests/help-vendors.test.ts` are in the plan.
+    - F5 the phone tests use a vendor name that wraps and figures in two age columns, and wait for `toolbar-more-button` after the resize.
+    - F6 the one-line fit at 1024 has an e2e assertion.
+    - F7 the four edit sites of `balances.go` are named.
+    - F8 the proof of the rollback signal (core `touch_test.go`) and the core e2e helpers are cited (D15).
+    - F9 `bindReceivableEntryRefresh` is the one exception of the name rule (D4).
+    - F10 `TestAPAgingItemLines`, `TestAPAgingNoVendor`, `TestAPAgingAsOfDay` and `TestAPAgingSettledItemOnPastDay` have their own assertions.
+    - F11 no open choice is left to the implementer: the scale writer takes the column map as a field; the seed part payment has fixed ids; the sweep of seeded-figure readers is stated as done, with the e2e run as the check.
+    - Notes acted on: F12, F13 (golden files and comment wording), F14 (Touch warning), F15 (D16: `TestRegister_BindsEachPartOnce` gains no line, a difference from spec §4.5's wording), F17 (`attachments.spec.ts` in checkpoint 2's e2e), F18 to F21 (the Sizes rule: checkpoints 2 and 3 are above the size target and stay whole), F19 (`test.step` around the phone assertions). F16, F22, F23: no change needed.
 - review mode switches: none
 
 ## Performance
