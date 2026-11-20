@@ -360,3 +360,19 @@ A lookup's where compared a line's day through `substr()`. A comparison of the d
 Plan, the detail statement of run 5 (statement 6, 201 rows), reads of `books_journal_lines`: before and after the same, 1 × `SEARCH … idx_books_jlines_account_date (account=? AND date>? AND date<?)`, 6 × `SEARCH … idx_books_jlines_account_date (account>? AND account<?)`, 2 × `SEARCH … idx_books_jlines_entry (entry>? AND entry<?)`. Every plan line of every run is the same as in task 5c; only the statement text grew (run 5 statement 6: 31,868 -> 33,059 chars).
 
 The measure was taken twice. The first run (log `scale-task6.log`) ran on a loaded machine (another lane's e2e run: load average 11.8; the fixture write, which no reports code touches, was 23 % slower) and gave 670 / 2,057 / 291 / 162 / 1,020 ms. The second run, on a quiet machine (`scale-task6-b.log`), is the one recorded above: every run is within 7 % of task 5c, no run is slower by more than the run's variation.
+
+#### Task 5: a lookup on a known link searches the link and the day (core `server/reports/lookup.go`, 2026-11-19)
+
+A lookup's where bounded the account column by a range, so that a blank account (the Total row, a section with no account) reads the lines with no account; under a range SQLite did not use the day. Each part of the lookup is now written in two forms: where the account is known, `account = V` with the day bound of task 6; where it is blank, the range as before. A row runs one form.
+
+| run, 100k lines | before | after |
+| --- | --- | --- |
+| 1 all accounts, month | 545 ms | 357 ms |
+| 2 all accounts, year | 1,626 ms | 1,363 ms |
+| 3 busy account, month | 254 ms | 178 ms |
+| 4 small account, month | 130 ms | 140 ms |
+| 5 three accounts, year | 824 ms | 713 ms |
+
+Plan, the detail statement of run 5 (statement 6, 201 rows), reads of `books_journal_lines`: before 1 × `SEARCH … idx_books_jlines_account_date (account=? AND date>? AND date<?)`, 6 × `SEARCH … idx_books_jlines_account_date (account>? AND account<?)`, 2 × `SEARCH … idx_books_jlines_entry (entry>? AND entry<?)`; after 7 × `(account=? AND date>? AND date<?)`, 6 × `(account>? AND account<?)` (the range form, which a row with a known account does not run), 2 × `idx_books_jlines_entry (entry=?)` and 2 × `(entry>? AND entry<?)` (the Split lookups on the entry link get the two forms too). The detail statement: run 5 622.8 ms to 544 ms, run 3 134.3 ms to 107.2 ms. Its text grew (run 5: 33,059 -> 43,517 chars).
+
+Runs 1, 2, 3 and 5 fell, by 13 % to 34 %; run 3 fell more than the 5 to 20 % the plan expected. Run 4 is 8 % slower (its detail statement 63 ms to 76.6 ms): the cost of the `CASE` test over the two forms on a page with few lines; under the 25 % limit of the task. Measured on a quiet machine (`scale-task5.log`).
