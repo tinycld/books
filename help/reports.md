@@ -307,9 +307,9 @@ To see what each customer owes and how late it is, open Reports and choose A/R A
 
 The report lists the open items of each customer on the As of day. An open item is one of these:
 
-- An invoice, less the payments dated on or before the day that apply to it.
+- An invoice, less the payments and the applied credits dated on or before the day that apply to it.
 - The part of a payment that applies to no invoice.
-- A credit memo, for its total.
+- A credit memo, for the part of its total that is not applied to an invoice on the day.
 - A posted journal entry line on Accounts receivable that comes from none of these documents.
 
 Only posted transactions dated on or before the As of day count. A draft does not count. A voided document and its void reversal cancel each other, and a voided payment no longer pays its invoices. An item that adds up to 0 on the day does not show.
@@ -322,7 +322,9 @@ An item's age is the number of days from its due date to the As of day. An invoi
 - An age column with no money on a row is blank. Total always shows a figure.
 - A credit, such as the unapplied part of a payment or a credit memo, is a negative figure in the column of its age, and it lowers Total.
 
-The figures agree with the other reports. A customer's Total equals its figure on the [Customer Balance](help://books:reports) for the same day, and the Open figure on its customer's page for today. The Total row at the end equals Accounts receivable on the Balance Sheet for the same day. These figures agree because every row comes from a posted Accounts receivable line, and the line of a payment is split into the parts that pay invoices and its unapplied part, which add up to the line.
+When you apply a credit memo to an invoice, the applied credit lowers the invoice's item from the apply date, and on an As of day before the apply date the invoice shows its full open amount. From the apply date, the credit memo shows only its unapplied rest, the part of its total that is not applied, as a negative figure. An invoice that credit pays in full, and a credit memo that is applied in full, do not show from the apply date. Applying a credit does not change the customer's Total or the report's Total, because the invoice's item goes down by the amount and the credit memo's item goes up by the same amount. When you remove the credit from the invoice, both items show their full amounts again.
+
+The figures agree with the other reports. A customer's Total equals its figure on the [Customer Balance](help://books:reports) for the same day, and the Open figure on its customer's page for today. The Total row at the end equals Accounts receivable on the Balance Sheet for the same day. These figures agree because every row comes from a posted Accounts receivable line, and the line of a payment is split into the parts that pay invoices and its unapplied part, which add up to the line. An applied credit moves an amount from the credit memo's item to the invoice's item, so it adds up to zero.
 
 - A customer with no open item on the day does not show.
 - A customer shows as a group when one of its sub-customers is in your Customer pick (with no Customer filter, every sub-customer is) and has an invoice, payment, credit memo or journal entry on Accounts receivable dated on or before the As of day, also one that is now paid in full. The group has a heading with the customer's name, then a row for the customer's own items, then a row for each sub-customer with an open item, then "Total" and the customer's name. So a customer whose only sub-customer has nothing open still shows its heading, its own row and its total.
@@ -330,7 +332,7 @@ The figures agree with the other reports. A customer's Total equals its figure o
 - The No customer row holds the items of Accounts receivable lines that name no customer. It shows after every customer.
 - An inactive customer with an open item shows with "(inactive)" after its name, in lighter text.
 
-To see a customer's open items, press the customer row: it opens into one row for each open item, in due date order, oldest first, then by number. Each item shows its type and number, for example "Invoice 1042" or "Payment 17", its Due date, and its amount in the column of its age. To see the lines of an item, press the item row: an invoice opens into the invoice and the payments that apply to it on or before the day, for example "2026-11-03 · Payment 317". The invoice is a positive figure and a payment a negative one, and the lines add up to the item's amount. To open a line's document, press the line: the invoice, payment, credit memo or journal entry opens beside the report on a very wide window, else as its own screen. To fold a family, press its heading.
+To see a customer's open items, press the customer row: it opens into one row for each open item, in due date order, oldest first, then by number. Each item shows its type and number, for example "Invoice 1042" or "Payment 17", its Due date, and its amount in the column of its age. To see the lines of an item, press the item row: an invoice opens into the invoice and the payments and credit memos that apply to it on or before the day, for example "2026-11-03 · Payment 317" or "2026-11-16 · Credit memo 1001". The invoice is a positive figure and a payment or an applied credit a negative one, and the lines add up to the item's amount. To open a line's document, press the line: the invoice, payment, credit memo or journal entry opens beside the report on a very wide window, else as its own screen. To fold a family, press its heading.
 
 To change the day, press the As of chip. The default is Today. A past day shows the items as they were open on that day. When no item is open on the day, the report shows "No rows as of" and the day.
 
@@ -338,7 +340,7 @@ To show only some customers, press Add filter, then Customer, and pick one or mo
 
 To change the order, press the Order chip and pick Name or Largest balance. Name, the default, orders families and customers by name. Largest balance puts the largest Total first; a family counts by its total, inside a family the parent's own row stays first, and the No customer row stays last. The items of a customer keep their due date order.
 
-The report stays current. When someone posts or voids an invoice, a payment, a credit memo or a journal entry, corrects an invoice or a payment, renames a customer or changes its parent, or changes the Books settings, the report runs again.
+The report stays current. When someone posts or voids an invoice, a payment, a credit memo or a journal entry, corrects an invoice or a payment, applies a credit memo to an invoice or removes it, renames a customer or changes its parent, or changes the Books settings, the report runs again.
 
 On a phone, each row wraps onto lines in the table: the name and the Due date; then Current, 1 - 30 and Total on the first line of figures; then 31 - 60, 61 - 90 and 91 and over. On a tablet, each row keeps the name and Total on its first line, and shows the Due date and the five age columns below them. A narrow desktop window shows the tablet arrangement too. A long name wraps to at most three lines, a figure is never cut, and the table does not scroll sideways. Customize and Export are under **⋯** on a phone.
 

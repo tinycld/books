@@ -232,8 +232,11 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 	bindSerializedGuardThen(app, kind.Collection, func(tx core.App, stored, r *core.Record) error {
 		return validateSalesDoc(tx, kind, stored, r)
 	}, kind.AfterCreate)
-	if kind.Collection == invoiceKind.Collection {
+	switch kind.Collection {
+	case invoiceKind.Collection:
 		bindReceivableInvoiceRefresh(app)
+	case creditMemoKind.Collection:
+		bindReceivableCreditMemoRefresh(app)
 	}
 	bindSerializedGuard(app, kind.LinesCollection, func(tx core.App, stored, r *core.Record) error {
 		return validateSalesDocLine(tx, kind, stored, r)

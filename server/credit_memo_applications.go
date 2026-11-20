@@ -42,7 +42,12 @@ const (
 // creditMemoApplicationKind applies a credit memo to invoices of its customer
 // (not a sub-customer's, Q9). An amount above the memo's balance is refused
 // under credit_memo, with the memo's number: the client shows it under the row
-// of that insert.
+// of that insert. The create and the delete of an application refresh the
+// memo's stored receivable rows in their transaction (AfterChange; in the
+// delete, after the row is gone, so its rows are dropped). The save of the
+// memo's new balance (saveDocumentBalance) is an update of the memo, so
+// bindReceivableCreditMemoRefresh refreshes the same rows earlier in that
+// transaction; AfterChange's refresh repeats it and writes the same rows.
 var creditMemoApplicationKind = applicationKind{
 	Collection:        creditMemoApplicationsCollection,
 	CreditField:       "credit_memo",
@@ -61,10 +66,14 @@ var creditMemoApplicationKind = applicationKind{
 			return fmt.Sprintf(msgApplyAboveMemoUnapplied, memo.GetString("number"), left)
 		},
 	},
+	AfterChange: refreshReceivableCreditMemo,
 }
 
 // registerCreditMemoApplications binds the shared application guards
-// (registerCreditApplications) for the credit memo.
+// (registerCreditApplications) for the credit memo, then the refresh of the
+// memo's receivable rows after an application's update, bound after the
+// guard so it runs inside the guard's transaction.
 func registerCreditMemoApplications(app core.App) {
 	registerCreditApplications(app, creditMemoApplicationKind)
+	bindReceivableCreditMemoApplicationRefresh(app)
 }

@@ -20,13 +20,14 @@
 (none yet)
 
 ## Rebuttals
-(none yet — every reviewer finding rejected in triage is listed here verbatim,
-with the reason, and shown to the human at the end)
+- **finding:** reviewer B, checkpoint 2, finding 2: "server/receivable_refresh.go:198 (`bindReceivableCreditMemoApplicationRefresh`): the name is not in the plan's Names (Go) list. The plan names one binder, `bindReceivableCreditMemoRefresh`, with two parts and two call places, and lists it under Produces. … Accept it, or fold it into one function with a parameter that picks the part. Severity: low."
+  **rebutted because:** checkpoint 2 Do step 6 says "`bindReceivableCreditMemoRefresh(app)` has two parts with two call places: `bindReceivableRefresh(app, "books_credit_memos", …)` … is called from `registerSalesDocGuards`; `bindReceivableRefresh(app, creditMemoApplicationsCollection, …)` … is called from `registerCreditMemoApplications`". A function of signature `(app)` called at two places binds both parts at each, so it cannot satisfy that text; the two named binders bind exactly the two hooks at the two named places. The Produces name `bindReceivableCreditMemoRefresh` exists, and the Interfaces block names no consumer of it in a later checkpoint ("checkpoints 3 and 4 rely on the report's change signal … which `refreshReceivables` sends").
 
 ## Design notes
 - cp 1 · reviewer A NOTE 5: no rule stops an apply date before the invoice's date; spec §3.4 / Q13 names none, and the vendor credit kind has none either. Human decides whether to add one.
 - cp 1 · fix review NOTE 1: `tests/e2e/audit-log.spec.ts:185` asserts every row of the "Deleted" filter reads "Deleted"; a removed credit memo application matches that filter and reads "Credit removed" (`server/report_audit_log.go:76`). No checkpoint-1 path deletes an application, so it passes today; once checkpoint 3's Remove e2e runs before it in one database, it fails by spec order. Checkpoint 3 must fix that assertion (accept "Credit removed", or check only its own record type's rows).
 - cp 1 · fix review NOTE 2: `server/document_balance.go` `saveApplied` writes `doc.Set("applied", …)` by name, not `kind.AppliedField`; correct today (only the credit memo kind reaches it).
+- cp 2 · reviewer A NOTE 2: an opened credit memo item in the A/R Aging lists the application's memo-side row as "2026-11-16 · Credit memo N 150.00" (label through the memo's entry, `server/report_ar_aging.go:169` `arDetailLabel`); it does not name the invoice the credit went to, and it opens the memo itself. Spec §3.8 fixes only the invoice item's lines. Human decides whether that line names the invoice, or the help says what a memo item lists.
 
 ## Out-of-plan changes
 - cp 1 · `server/sales_document_posting.go`: fix-r1 item 6 — callers of `clearDocumentBalance` pass the kind, so only the kind's stored applied field is cleared.
@@ -92,6 +93,21 @@ with the reason, and shown to the human at the end)
 - gate 3 A notes: 1 (NOTE 5) under Design notes.
 - human: n/a (mode C)
 - commit: 10d4bc9c (`feat(books): apply-credit data, guards and seed`)
+
+## Checkpoint 2
+- test writer: server/receivable_credit_application_test.go (new: 8 tests, 5 subtests), server/report_ar_aging_test.go (4 tests added), tests/help-reports.test.ts (2 cases added); red for the right reason: yes (Go: compile failure at `refreshReceivableCreditMemo`; the other Go tests proved red at their assertions with a temporary probe; vitest: the paragraph is missing); untestable: none. The change-signal bullet has no test of its own, as the checkpoint says (cp2-tests.md).
+- implementer: `receivableCreditApplicationsSQL` and `receivableQueries` (three queries) in `server/receivable_items.go`, rebuild and verify over the three; `refreshReceivableCreditMemo`, the applications part of `refreshReceivableInvoice`, the binders in `server/receivable_refresh.go`; `AfterChange` in `server/credit_memo_applications.go`; the memo binder in `registerSalesDocGuards`; the help paragraph; DONE.
+- test disputes: none
+- self-declared differences: (1) `TestRegister_BindsEachPartOnce` unchanged: it holds no counts; it compares Register with a hand-bound app that calls `registerSalesDocGuards(parts, creditMemoKind)` and `registerCreditMemoApplications(parts)`, which now bind the new hooks (both reviewers checked it; not a deferral). (2) two binders, `bindReceivableCreditMemoRefresh` (memo update, from `registerSalesDocGuards`) and `bindReceivableCreditMemoApplicationRefresh` (application update, from `registerCreditMemoApplications`). (3) `due_date` of both sides cast to TEXT to match `receivableLinesSQL`'s form (Do step 2).
+- gate 1: tests unedited: yes · packages:generate, `tinycld-pkg check` exit 0, `go test ./...` ok · e2e of the Gates line (books-ar-aging, books-customer-balance, customer-pages-balance) in one command: 24 passed (staging cp/cp2-gate1-e2e.log) · pass.
+- gate 2: n/a (logic checkpoint)
+- gate 3 A (correctness): 0 BLOCK, 3 NOTE, 0 DEFERRAL (cp2-review-A.md). NOTE 1 (help sentence says both items go down) = B finding 1, accepted, fix-r1 item 1. NOTE 2 (memo-side line label in an opened memo item) → Design notes. NOTE 3 (the memo's balance save and `AfterChange` refresh twice; correct) → one-line comment, fix-r1 item 2.
+- gate 3 B (conformance): script lines: 0 · finding 1 (help sentence) accepted, fix-r1 item 1 · finding 2 (second binder name) rebutted (see Rebuttals).
+- fix round 1: 2 items (cp2-fix-r1.md: help-text, comment), FIXED (cp2-fix-impl.md). Gate 1 after: tests unedited: yes · packages:generate, `tinycld-pkg check` exit 0, `go test ./...` ok · e2e not rerun: the fix changed only a help sentence and a Go comment, which none of the three Gates-line specs reads.
+- fix review: round 1 (cp2-fix-review.md): clean. Rounds: 1.
+- gate 3 A notes: 1 (NOTE 2) under Design notes.
+- reviewer-caught deferrals: none
+- human: n/a (mode C)
 
 ## Final review
 - eval: (not run yet)
