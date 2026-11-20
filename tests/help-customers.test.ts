@@ -226,3 +226,10 @@ describe('help/customers.md', () => {
         expect(read('navigating-books.md')).toContain('help://books:customers')
     })
 })
+
+// Statements spec §3.11: the customers topic links the statements topic.
+describe('help/customers.md (statements)', () => {
+    it('links the statements topic', () => {
+        expect(body).toContain('(help://books:statements)')
+    })
+})

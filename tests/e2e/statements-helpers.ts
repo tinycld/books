@@ -98,6 +98,31 @@ export async function statementsOf(page: Page, customerId: string): Promise<Stor
     return read.items as StoredStatement[]
 }
 
+/**
+ * The customer's page must be open. Stores one statement with the screen's defaults
+ * (Balance forward, today, the customer's address) through Create statements and ⌘S, waits
+ * until the screen is back on the customer and the row is stored, and returns that row.
+ */
+export async function storeStatement(
+    page: Page,
+    customer: StatementCustomer
+): Promise<StoredStatement> {
+    const before = new Set((await statementsOf(page, customer.id)).map(row => row.id))
+    await openNewStatementFor(page, customer)
+    await expect(page.getByTestId('statements-type')).toBeFocused()
+    await page.keyboard.press('ControlOrMeta+s')
+    await expect(page).toHaveURL(customerPath(customer.id))
+    let stored: StoredStatement | undefined
+    await expect
+        .poll(async () => {
+            stored = (await statementsOf(page, customer.id)).find(row => !before.has(row.id))
+            return stored?.number ?? ''
+        })
+        .not.toBe('')
+    if (!stored) throw new Error('no new statement was stored')
+    return stored
+}
+
 // A customer's stored email address, read through the page's own fetch (read only).
 export async function customerEmailOf(page: Page, customerId: string): Promise<string> {
     const key = await authStorageKey(page)

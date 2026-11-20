@@ -7,8 +7,15 @@ import {
 } from '../tinycld/books/lib/customer-page-tabs'
 
 describe('CUSTOMER_TAB_ORDER', () => {
-    it('draws Transactions, Contacts, Details and Notes, in that order', () => {
-        expect(CUSTOMER_TAB_ORDER).toEqual(['transactions', 'contacts', 'details', 'notes'])
+    // Statements spec §2 (Q12): Statements is second.
+    it('draws Transactions, Statements, Contacts, Details and Notes, in that order', () => {
+        expect(CUSTOMER_TAB_ORDER).toEqual([
+            'transactions',
+            'statements',
+            'contacts',
+            'details',
+            'notes',
+        ])
     })
 })
 
@@ -33,6 +40,10 @@ describe('customerTabOf', () => {
     it('selects the Contacts tab from its param', () => {
         expect(customerTabOf('contacts')).toBe('contacts')
     })
+
+    it('selects the Statements tab from its param', () => {
+        expect(customerTabOf('statements')).toBe('statements')
+    })
 })
 
 describe('CUSTOMER_TABS', () => {
@@ -47,6 +58,7 @@ describe('CUSTOMER_TABS', () => {
             contacts: 'Alt+2',
             details: 'Alt+3',
             notes: 'Alt+4',
+            statements: 'Alt+5',
         })
     })
 })

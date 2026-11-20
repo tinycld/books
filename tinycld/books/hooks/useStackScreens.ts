@@ -95,6 +95,23 @@ export function usePopToScreenBelow(name: string): () => boolean {
     }
 }
 
+// Pops this screen when the root route right below it is the kind route `kindRoute` with
+// the record `id` on top of its child stack (a record page this screen was opened from),
+// and gives false when it is not, so the caller replaces the screen instead. It reads the
+// stack when it is called, in an event handler. A screen outside a stack has no state.
+export function usePopToRecordBelow(kindRoute: string): (id: string) => boolean {
+    const navigation = useNavigation()
+    const { key } = useRoute()
+    return id => {
+        const state = navigation.getState?.()
+        if (state === undefined || kindRouteBelowShowing(state, key, kindRoute, id) < 0) {
+            return false
+        }
+        router.back()
+        return true
+    }
+}
+
 // For the focused screen of the Books root stack (the caller's, while it is shown), opened
 // over the kind route `kindRoute` with the record `oldId` on top of its child stack: removes
 // the focused screen and puts the record `newId` in the place of `oldId` in that child
