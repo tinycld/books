@@ -91,7 +91,7 @@ with the reason, and shown to the human at the end)
 - fix review: round 1 (cp1-fix-review.md): items 1–7 FIXED; conformance: 1 false positive (2100000030, unreleased); 0 BLOCK; 2 NOTE → Design notes. Rounds: 1.
 - gate 3 A notes: 1 (NOTE 5) under Design notes.
 - human: n/a (mode C)
-- commit: see the commit that adds this line (`feat(books): apply-credit data, guards and seed`)
+- commit: 10d4bc9c (`feat(books): apply-credit data, guards and seed`)
 
 ## Final review
 - eval: (not run yet)
