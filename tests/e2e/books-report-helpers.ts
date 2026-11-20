@@ -317,9 +317,9 @@ export async function filterToAccounts(page: Page, names: readonly string[]): Pr
 // Every mounted row of the report table, top to bottom, with its No., Debit and Credit
 // cells, and the Total row, read in ONE pass so no re-render lands between two reads. The
 // row kind comes from core's row id: g: an account, opening: its balance before the as-of
-// month, d: a line. The
-// table is a FlashList: only mounted rows are read, and a Total row that is not mounted
-// reads as an empty label (a test asserts `total.label` first, as its precondition).
+// month, d: a line. The table is a FlashList: only mounted rows are read, and a Total row
+// that is not mounted reads as an empty label (a test asserts `total.label` first, as its
+// precondition).
 export function tbSnapshot(page: Page): Promise<TbSnapshot> {
     return page.evaluate(() => {
         const table = document.querySelector('[data-testid="report-table"]')
