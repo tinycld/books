@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/bank-match-checkpoints.md
 - reference: docs/plans/bank-match-reference/
 - evidence: docs/plans/bank-match-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs 2026-11-19)
 - capture manifest: docs/plans/bank-match-capture.json
 - review mode: C — none (unattended)
 - core extension: none for the screen. One small core PR on the same branch (tinycld `books/p4-match`), a check approved from a retro, not a design-system extension: for a member with e2e specs, `tinycld-pkg check` (tinycld/package-scripts) runs `playwright test --list` and fails when a spec does not load. It is checkpoint 0. PR number: not opened yet.
@@ -211,6 +211,6 @@ and again at the end)
 - human: none (review mode C)
 
 ## Final review
-- eval: (not reached)
+- eval: approved 2026-11-19 (human: "approve, accept items"), at books 330b9fdd (CI green on books #78: E2E shards 1-4, Typecheck & Unit) on core b6be042 + main merge (core #504 green 14/14, open until the next design gate). Open decisions stand as built: "Imported <UTC day>" beside "Matched <local day>", SelectBox Space toggles the focused box in every list, batch-cost bound 18 per line. Retro items 1–8 approved (2 lessons, `visibleScreen` check 899acdeb, process items in the auto-helix unit file).
 - human comments and what changed
 - native: not executed in this run
