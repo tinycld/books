@@ -1395,7 +1395,8 @@ func TestBalanceSheetPagesOpenedLines(t *testing.T) {
 	}
 }
 
-// The report reads every journal line, so it is not live: its run is manual and follows no topic; the reader presses Refresh.
+// The report reads every journal line, so it is not live: its run is manual
+// and follows no topic; the reader presses Refresh.
 func TestBalanceSheetTopics(t *testing.T) {
 	b := newBSBook(t)
 	checking := b.account(t, "Operating", "1000", "bank", "checking")
