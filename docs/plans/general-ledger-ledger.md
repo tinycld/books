@@ -328,3 +328,19 @@ SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (entry>? AN
 No `SCAN books_journal_lines` is left in a filtered run (the earlier-years P&L sum now reads the stored months). Every run fell, by 54 % to 84 %; no filtered run is slower.
 
 What is left in the time: the detail statement (statement 6) is the longest of each run (run 3 214.5 ms of 334 ms, run 5 947.4 ms of 1,205 ms), and in it the month-to-date lookup is still read as three subqueries by `SEARCH … (account>? AND account<?)`, which reads the account's whole history and not its first month (tasks 5 and 6), next to the period's own rows, read 9 times by `SEARCH … (account=? AND date>? AND date<?)`.
+
+#### Task 5c: a detail statement with sections computes its rows once (core `server/reports/rows.go`, 2026-11-19)
+
+The detail statement read the period's lines once for each CTE that names `w` (the section's fills, its aggregates, the sorted rows). `w` is now `MATERIALIZED` there, as in the group statement, and in the Total row's statement (its level CTEs read `w`). A detail page with no section CTEs keeps `w` inline.
+
+| run, 100k lines | before | after |
+| --- | --- | --- |
+| 1 all accounts, month | 730 ms | 583 ms |
+| 2 all accounts, year | 2,157 ms | 1,601 ms |
+| 3 busy account, month | 334 ms | 240 ms |
+| 4 small account, month | 194 ms | 122 ms |
+| 5 three accounts, year | 1,205 ms | 824 ms |
+
+Plan, the detail statement of run 5, reads of `books_journal_lines` by `(account=? AND date>? AND date<?)`: before 9; after 1. The Total statement of run 5: before 7, 122.4 ms; after 1, 85 ms.
+
+Every run fell, by 20 % to 37 %; runs 1 and 2 (no Accounts filter) are not slower. Run 5 fell by 381 ms, more than the 100 to 270 ms the plan expected. The detail statement is still the longest of each run (run 5 651.9 ms of 824 ms, run 3 138.4 ms of 240 ms).
