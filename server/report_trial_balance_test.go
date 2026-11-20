@@ -795,9 +795,7 @@ func TestTrialBalanceDetailOrder(t *testing.T) {
 	}
 }
 
-// Every collection the run reads is a topic, so a post, a void, an account
-// edit or a settings change re-runs the open report. The opened account's
-// lines read their entries (the detail label), so the run opens one.
+// The report reads every journal line, so it is not live: its run is manual and follows no topic; the reader presses Refresh.
 func TestTrialBalanceTopics(t *testing.T) {
 	b := newTBBook(t)
 	checking := b.account(t, "Checking", "1000", "bank", "checking")
@@ -809,14 +807,7 @@ func TestTrialBalanceTopics(t *testing.T) {
 	opts.Expand = [][]any{rowFor(t, first, rent).GroupKey}
 
 	res := runTB(t, b.app, b.reader, map[string]any{"asOf": tbToday}, opts)
-	for _, topic := range []string{
-		"collection/books_journal_lines", "collection/books_accounts",
-		"collection/books_journal_entries", "collection/books_settings",
-	} {
-		if !slices.Contains(res.Topics, topic) {
-			t.Errorf("topics = %v, want %s", res.Topics, topic)
-		}
-	}
+	requireManual(t, res)
 }
 
 func TestTrialBalanceNoAccess(t *testing.T) {

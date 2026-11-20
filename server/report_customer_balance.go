@@ -19,6 +19,9 @@ func customerBalanceShipped() reports.Shipped {
 		// checkpoints keep 1 (core re-stores a spec only on a higher revision).
 		Revision:    1,
 		Unpublished: true,
+		// It reads the journal lines (a source that is NotLive) but only
+		// their sums, so its run stays fast on a large book: it stays live.
+		Live: true,
 	}
 }
 

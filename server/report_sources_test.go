@@ -982,11 +982,8 @@ func TestReportSourcesRun(t *testing.T) {
 	if res.Heading != "Harbor Lane Design LLC" {
 		t.Errorf("heading = %q, want the Books business name", res.Heading)
 	}
-	for _, topic := range []string{"collection/books_journal_lines", "collection/books_settings"} {
-		if !slices.Contains(res.Topics, topic) {
-			t.Errorf("topics = %v, want %s", res.Topics, topic)
-		}
-	}
+	// A report a user builds over journal lines is not live.
+	requireManual(t, res)
 
 	outsider := runAs(t, app, env.users.none, debitToDay)
 	hidden, hiddenTotal := splitRows(t, outsider)

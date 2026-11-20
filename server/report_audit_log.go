@@ -16,6 +16,9 @@ func auditLogShipped() reports.Shipped {
 		Spec:        mustJSON(auditLogSpec()),
 		Revision:    1,
 		Unpublished: true,
+		// Its view reads the journal lines (a source that is NotLive), but a
+		// run reads one page of audit rows, so it stays live.
+		Live: true,
 	}
 }
 
