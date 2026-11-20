@@ -9,6 +9,7 @@ import {
 } from '@tinycld/core/e2e-helpers'
 import { createAccount, DESKTOP, openChart, PHONE } from './account-register-helpers'
 import {
+    balanceBeforeLabel,
     browserToday,
     chooseAsOf,
     dayWords,
@@ -19,6 +20,7 @@ import {
     openAccountRow,
     openBooksReports,
     openEntriesFromSidebar,
+    openingUnder,
     openTrialBalance,
     refreshReport,
     snapshotWhen,
@@ -437,6 +439,8 @@ test.describe("trial-balance: the report in core's view", () => {
             s => detailsUnder(s, account).length === 2,
             'the account opened onto its two lines'
         )
+        // The first row under the account is its balance before the as-of month.
+        expect(openingUnder(opened, account)?.label).toBe(balanceBeforeLabel(today))
         // No. names the account on its row and is blank on its opened lines.
         expect(groupRow(opened, account)?.number).toBe(number)
         expect(detailsUnder(opened, account).map(row => row.number)).toEqual(['', ''])
@@ -465,7 +469,10 @@ test.describe("trial-balance: the report in core's view", () => {
         await snapshotWhen(
             page,
             tbSnapshot,
-            s => groupRow(s, account) !== undefined && detailsUnder(s, account).length === 0,
+            s =>
+                groupRow(s, account) !== undefined &&
+                detailsUnder(s, account).length === 0 &&
+                openingUnder(s, account) === undefined,
             'the lines closed by Collapse all'
         )
         await expect(page.getByTestId('report-fold-all')).toHaveText('Expand all')
@@ -474,7 +481,7 @@ test.describe("trial-balance: the report in core's view", () => {
         await snapshotWhen(
             page,
             tbSnapshot,
-            s => detailsUnder(s, account).length === 2,
+            s => detailsUnder(s, account).length === 2 && openingUnder(s, account) !== undefined,
             'the lines opened again by Expand all'
         )
     })
@@ -551,23 +558,48 @@ test.describe("trial-balance: the report in core's view", () => {
         expect(retained).toBeGreaterThan(groupIndex(today, "Owner's Equity"))
         expect(retained).toBeLessThan(groupIndex(today, 'Consulting Income'))
 
+        // An opened account shows its balance before the as-of month, then only the lines
+        // of that month: the seeded Consulting Income lines of earlier months stay out.
+        const asOf = await browserToday(page)
+        const thisMonth = `${asOf.slice(0, 7)}-`
         await openAccountRow(page, 'Consulting Income')
-        const income = detailsUnder(await tbSnapshot(page), 'Consulting Income')
-        expect(income.length).toBeGreaterThan(0)
-        expect(income.filter(row => row.label.endsWith('Prior-year consulting'))).toEqual([])
+        const withIncome = await snapshotWhen(
+            page,
+            tbSnapshot,
+            s => detailsUnder(s, 'Consulting Income').length > 0,
+            'the lines of this month under Consulting Income'
+        )
+        expect(openingUnder(withIncome, 'Consulting Income')?.label).toBe(balanceBeforeLabel(asOf))
+        const income = detailsUnder(withIncome, 'Consulting Income')
+        expect(income.filter(row => !row.label.startsWith(thisMonth))).toEqual([])
 
+        // The opened Retained earnings row lists no line of an earlier fiscal year: its
+        // opening row carries them. No spec posts to Retained earnings, so the row has no
+        // line of its own this month and its opening row holds its whole balance.
         await openAccountRow(page, 'Retained earnings')
-        const folded = new RegExp(`^${priorDay} · JE-\\d+ · Prior-year consulting$`)
         const opened = await snapshotWhen(
             page,
             tbSnapshot,
-            s => detailsUnder(s, 'Retained earnings').some(row => folded.test(row.label)),
-            'the prior-year line under Retained earnings'
+            s => openingUnder(s, 'Retained earnings') !== undefined,
+            'the opening row under Retained earnings'
         )
-        const priorLine = detailsUnder(opened, 'Retained earnings').find(row =>
-            folded.test(row.label)
+        const before = openingUnder(opened, 'Retained earnings')
+        expect(before?.label).toBe(balanceBeforeLabel(asOf))
+        expect(detailsUnder(opened, 'Retained earnings')).toEqual([])
+        expect(figures(before)).toEqual(figures(groupRow(opened, 'Retained earnings')))
+        // The side depends on the seed and the fiscal month; one side holds a figure.
+        expect(`${before?.debit}${before?.credit}`).toMatch(/\d/)
+
+        // Closed first, so the press on Consulting Income as of the earlier day opens it.
+        await pressToolbar(page, 'report-fold-all', 'Collapse all')
+        await snapshotWhen(
+            page,
+            tbSnapshot,
+            s =>
+                groupRow(s, 'Consulting Income') !== undefined &&
+                s.rows.every(row => row.kind === 'group'),
+            'every account closed by Collapse all'
         )
-        expect(figures(priorLine)).toEqual({ debit: '', credit: '3,000.00' })
 
         await chooseAsOf(page, { day: priorDay })
         const thatDay = await snapshotWhen(
@@ -581,6 +613,24 @@ test.describe("trial-balance: the report in core's view", () => {
             credit: '3,000.00',
         })
         expect(groupLabels(thatDay)).not.toContain('Retained earnings')
+
+        // As of a day in that year, the line is one of the as-of month's lines of its own
+        // account, and the opening row names that month.
+        await openAccountRow(page, 'Consulting Income')
+        const priorLabel = new RegExp(`^${priorDay} · JE-\\d+ · Prior-year consulting$`)
+        const openedThatDay = await snapshotWhen(
+            page,
+            tbSnapshot,
+            s => detailsUnder(s, 'Consulting Income').some(row => priorLabel.test(row.label)),
+            'the prior-year line under Consulting Income as of its day'
+        )
+        expect(openingUnder(openedThatDay, 'Consulting Income')?.label).toBe(
+            balanceBeforeLabel(priorDay)
+        )
+        const priorLine = detailsUnder(openedThatDay, 'Consulting Income').find(row =>
+            priorLabel.test(row.label)
+        )
+        expect(figures(priorLine)).toEqual({ debit: '', credit: '3,000.00' })
     })
 
     for (const [sizeName, size] of SIZES) {

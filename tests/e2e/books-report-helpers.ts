@@ -11,7 +11,7 @@ import {
     type ReportExportFormat,
     rowOf,
 } from '@tinycld/core/e2e-helpers'
-import { rangeWords } from '@tinycld/core/reports/lib/dates'
+import { bucketWords, rangeWords } from '@tinycld/core/reports/lib/dates'
 import {
     PROFIT_AND_LOSS_BY_MONTH_TITLE,
     PROFIT_AND_LOSS_TITLE,
@@ -33,7 +33,7 @@ export type AsOfPreset = 'today' | 'endOfLastMonth' | 'endOfLastQuarter' | 'endO
 export type TbSnapshot = {
     rows: {
         id: string
-        kind: 'group' | 'detail'
+        kind: 'group' | 'opening' | 'detail'
         label: string
         number: string
         debit: string
@@ -316,6 +316,8 @@ export async function filterToAccounts(page: Page, names: readonly string[]): Pr
 
 // Every mounted row of the report table, top to bottom, with its No., Debit and Credit
 // cells, and the Total row, read in ONE pass so no re-render lands between two reads. The
+// row kind comes from core's row id: g: an account, opening: its balance before the as-of
+// month, d: a line. The
 // table is a FlashList: only mounted rows are read, and a Total row that is not mounted
 // reads as an empty label (a test asserts `total.label` first, as its precondition).
 export function tbSnapshot(page: Page): Promise<TbSnapshot> {
@@ -337,6 +339,12 @@ export function tbSnapshot(page: Page): Promise<TbSnapshot> {
                 top: element.getBoundingClientRect().top,
             }))
             .sort((a, b) => a.top - b.top)
+        const kindOf = (id: string): TbSnapshot['rows'][number]['kind'] | null => {
+            if (id.startsWith('g:')) return 'group'
+            if (id.startsWith('opening:')) return 'opening'
+            if (id.startsWith('d:')) return 'detail'
+            return null
+        }
         const rows: TbSnapshot['rows'] = []
         let total = { label: '', debit: '', credit: '' }
         for (const { id, label } of labels) {
@@ -344,7 +352,7 @@ export function tbSnapshot(page: Page): Promise<TbSnapshot> {
                 total = { label, debit: cellText('debit', id), credit: cellText('credit', id) }
                 continue
             }
-            const kind = id.startsWith('g:') ? 'group' : id.startsWith('d:') ? 'detail' : null
+            const kind = kindOf(id)
             if (!kind) continue
             rows.push({
                 id,
@@ -359,21 +367,45 @@ export function tbSnapshot(page: Page): Promise<TbSnapshot> {
     })
 }
 
-// The rows that follow the account row labelled `label` until the next account row.
-export function detailsUnder(snapshot: TbSnapshot, label: string): TbSnapshot['rows'] {
+// The rows that follow the account row labelled `label` until the next account row: its
+// opening row, then its lines.
+function rowsUnder(snapshot: TbSnapshot, label: string): TbSnapshot['rows'] {
     const start = snapshot.rows.findIndex(row => row.kind === 'group' && row.label === label)
     if (start < 0) return []
     const after = snapshot.rows.slice(start + 1)
-    const end = after.findIndex(row => row.kind !== 'detail')
+    const end = after.findIndex(row => row.kind === 'group')
     return end < 0 ? after : after.slice(0, end)
 }
 
-// Opens an account row and waits until its lines show beneath it.
+// The posted lines under the account row labelled `label`, without its opening row.
+export function detailsUnder(snapshot: TbSnapshot, label: string): TbSnapshot['rows'] {
+    return rowsUnder(snapshot, label).filter(row => row.kind === 'detail')
+}
+
+// The opening row ("Balance before <month>") under the account row labelled `label`.
+export function openingUnder(
+    snapshot: TbSnapshot,
+    label: string
+): TbSnapshot['rows'][number] | undefined {
+    return rowsUnder(snapshot, label).find(row => row.kind === 'opening')
+}
+
+// The opening row's label for an as-of day (YYYY-MM-DD): the month in the words core's
+// report view writes for a month label.
+export function balanceBeforeLabel(day: string): string {
+    return `Balance before ${bucketWords('month', day.slice(0, 7))}`
+}
+
+// Opens an account row and waits until its opening row shows beneath it. Every opened
+// account has one, also an account with no line in the as-of month; a test that reads the
+// lines waits for them itself.
 export async function openAccountRow(page: Page, label: string): Promise<void> {
     await rowOf(page, label).click()
     await expect
-        .poll(async () => detailsUnder(await tbSnapshot(page), label).length)
-        .toBeGreaterThan(0)
+        .poll(async () => openingUnder(await tbSnapshot(page), label) !== undefined, {
+            message: `the opening row under ${label}`,
+        })
+        .toBe(true)
 }
 
 // The General Ledger's two days: after 2026-07-01, so no close date or fiscal start month
