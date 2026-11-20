@@ -1,0 +1,323 @@
+import { log } from '@tinycld/core/lib/logger'
+import { useOrgHref } from '@tinycld/core/lib/org-routes'
+import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
+import { useToastStore } from '@tinycld/core/lib/stores/toast-store'
+import { useWritesAvailable } from '@tinycld/core/lib/use-writes-available'
+import { useForm, useWatch, zodResolver } from '@tinycld/core/ui/form'
+import { router } from 'expo-router'
+import { useMemo, useRef, useState } from 'react'
+import { type FieldErrors, get, type Resolver } from 'react-hook-form'
+import { mergeRecoveries } from '../lib/live-recovery'
+import { writeRefusalText } from '../lib/refusal'
+import { isIsoDay, todayIso } from '../lib/register-range'
+import {
+    filterRecipients,
+    mergeRecipients,
+    type RecipientRow,
+    recipientTotal,
+    sortRecipients,
+    tickState,
+} from '../lib/statement-recipients'
+import {
+    type CreateStatementsValues,
+    createStatementsSchema,
+    defaultStatementOptions,
+    type StatementRecipientValue,
+} from '../lib/statement-schema'
+import { type StatementBalanceFilter, savedToast, statementBarState } from '../lib/statement-texts'
+import { useStatementsStore } from '../stores/statements-store'
+import { useBooksSettings } from './useBooksSettings'
+import { useCreateStatements } from './useCreateStatements'
+import { useFormLeaveGuard } from './useFormLeaveGuard'
+import { useStatementRecipients } from './useStatementRecipients'
+
+const TOAST_MS = 4000
+
+// The user's choices, keyed by customer id: an entry exists only for a customer whose tick
+// or address the user set. A customer with no entry takes the default (mergeRecipients).
+type StatementChoices = Record<string, StatementRecipientValue>
+
+export type CreateStatementsFormValues = Omit<CreateStatementsValues, 'recipients'> & {
+    choices: StatementChoices
+}
+
+const choiceEmailPath = (customer: string) => `choices.${customer}.email` as const
+
+// The customers Customer balance lists, in the list's order.
+function listedOf(rows: readonly RecipientRow[], filter: StatementBalanceFilter): RecipientRow[] {
+    return sortRecipients(filterRecipients(rows, filter))
+}
+
+// One entry per listed customer: the user's choice, else the default.
+function recipientsOf(
+    choices: StatementChoices,
+    listed: readonly RecipientRow[],
+    only: string | undefined
+): StatementRecipientValue[] {
+    return mergeRecipients(Object.values(choices), listed, only)
+}
+
+// The run as `createStatementsSchema` and useCreateStatements.save see it: the options and
+// the recipients array of the customers listed now, built from the choices.
+function runValuesOf(
+    values: CreateStatementsFormValues,
+    rows: readonly RecipientRow[],
+    only: string | undefined
+): CreateStatementsValues {
+    const { choices, ...runOptions } = values
+    const listed = listedOf(rows, runOptions.balanceFilter)
+    return { ...runOptions, recipients: recipientsOf(choices, listed, only) }
+}
+
+/**
+ * Validates the run (runValuesOf) with `createStatementsSchema`. An address issue at
+ * `recipients.<i>.email` is given to that row's own field, `choices.<id>.email`. The schema
+ * has no transform, so on success the form submits its own values, and Save builds the
+ * run from them with the same runValuesOf.
+ */
+function statementsResolver(
+    rows: readonly RecipientRow[],
+    only: string | undefined
+): Resolver<CreateStatementsFormValues> {
+    const check = zodResolver(createStatementsSchema)
+    return async (values, context, options) => {
+        const run = runValuesOf(values, rows, only)
+        const result = await check(run, context, {
+            criteriaMode: options.criteriaMode,
+            fields: {},
+            shouldUseNativeValidation: false,
+        })
+        if (Object.keys(result.errors).length === 0) return { values, errors: {} }
+        const listed = listedOf(rows, values.balanceFilter)
+        const { recipients: _recipients, ...others } = result.errors
+        const choiceErrors: Record<string, { email: unknown }> = {}
+        listed.forEach((row, index) => {
+            // From the errors object: react-hook-form's `get` reads nothing from an array.
+            const email = get(result.errors, `recipients.${index}.email`)
+            if (email !== undefined) choiceErrors[row.customer] = { email }
+        })
+        const errors = { ...others, choices: choiceErrors }
+        return { values: {}, errors: errors as FieldErrors<CreateStatementsFormValues> }
+    }
+}
+
+/**
+ * The state and handlers of Create statements (statements spec §3.2-§3.4, §3.10).
+ *
+ * As usePayBillsForm, the form holds the user's choices keyed by customer id, and the
+ * listed entries are derived during render from the live rows and those choices
+ * (mergeRecipients): a tick or a typed address stays while its customer leaves the list
+ * and comes back, and a live change needs no copy into the form. With `?customer`, only
+ * that customer is ticked by default, also one that joins the list later.
+ *
+ * The leave guard reads the form's own dirty state: an option changed or a choice made.
+ */
+export function useCreateStatementsForm({
+    customer,
+    canWrite,
+}: {
+    customer: string | undefined
+    canWrite: boolean
+}) {
+    const orgHref = useOrgHref()
+    const settings = useBooksSettings()
+    const writes = useWritesAvailable()
+    const isHeld = useStatementsStore(state => state.isHeld)
+    const createStatements = useCreateStatements()
+    // The defaults are read once, when the form mounts.
+    const [initial] = useState<CreateStatementsFormValues>(() => ({
+        ...defaultStatementOptions(todayIso()),
+        balanceFilter: customer ? 'all' : 'open',
+        intent: 'save',
+        choices: {},
+    }))
+    // The last real day of Statement date, the overdue query's key: a day being typed key
+    // by key passes through texts that are no day, and those do not re-key the query.
+    const [overdueDay, setOverdueDay] = useState(initial.statementDate)
+    // Set by End date's own change and never reset (lesson 25): End date follows Statement
+    // date only while the user has not typed in it, also when the typed day is the default.
+    const isEndDateTyped = useRef(false)
+    const [isDiscardOpen, setIsDiscardOpen] = useState(false)
+    // Keeps the guard off from the Save press to the move it makes.
+    const [isLeaving, setIsLeaving] = useState(false)
+
+    const list = useStatementRecipients({ overdueDay })
+    const resolver = useMemo(() => statementsResolver(list.rows, customer), [list.rows, customer])
+    const form = useForm<CreateStatementsFormValues>({
+        resolver,
+        defaultValues: initial,
+    })
+    const { control, getValues, setValue, handleSubmit, setError, trigger } = form
+    // Read in render: the form state proxy updates these only once read here.
+    const { isSubmitted, isDirty, errors } = form.formState
+    const [type, balanceFilter, choices] = useWatch({
+        control,
+        name: ['type', 'balanceFilter', 'choices'],
+    })
+
+    const listed = listedOf(list.rows, balanceFilter)
+    const recipients = recipientsOf(choices, listed, customer)
+    const entries = listed.map((row, index) => ({
+        row,
+        isTicked: recipients[index].ticked,
+        email: recipients[index].email,
+        error: get(errors, `${choiceEmailPath(row.customer)}.message`) ?? '',
+    }))
+    const tickedCount = recipients.filter(recipient => recipient.ticked).length
+    const total = recipientTotal(list.rows, recipients)
+    const tickAll = tickState(recipients)
+
+    const isLoadError = list.isError || settings.hasLoadError
+    const isListLoading = !isLoadError && (list.isLoading || !settings.isReady)
+    const retry = () => {
+        void recoverLiveQueries({
+            ...mergeRecoveries([list.recovery, settings.recovery]),
+            onError: err => log.error('books.statements', err),
+        })
+    }
+
+    const leave = () => {
+        if (router.canGoBack()) {
+            router.back()
+            return
+        }
+        const fallback = customer ? `books/customers/${customer}` : 'books/customers'
+        router.replace(orgHref(fallback))
+    }
+    const leaveGuard = useFormLeaveGuard({
+        isDirty,
+        isWriting: isHeld || isLeaving,
+        cancel: () => (isDirty ? setIsDiscardOpen(true) : leave()),
+        leave,
+        question: {
+            isOpen: isDiscardOpen,
+            discard: () => {
+                setIsDiscardOpen(false)
+                leave()
+            },
+            keepEditing: () => setIsDiscardOpen(false),
+        },
+    })
+
+    // The listed entries now, from the form's current values (a handler may run before
+    // the next render).
+    const currentRecipients = () => runValuesOf(getValues(), list.rows, customer).recipients
+
+    // Stores the changed entries as the user's choices. After a submit, the touched rows'
+    // addresses are checked again by their leaf paths.
+    const choose = (changed: readonly StatementRecipientValue[]) => {
+        const next = { ...getValues('choices') }
+        for (const recipient of changed) next[recipient.customer] = recipient
+        setValue('choices', next, { shouldDirty: true })
+        if (isSubmitted) void trigger(changed.map(recipient => choiceEmailPath(recipient.customer)))
+    }
+
+    const onToggle = (id: string) => {
+        const recipient = currentRecipients().find(entry => entry.customer === id)
+        if (recipient === undefined) return
+        choose([{ ...recipient, ticked: !recipient.ticked }])
+    }
+    // The heading tick box: every row ticked unticks all, else it ticks all.
+    const onToggleAll = () => {
+        const current = currentRecipients()
+        const isAll = tickState(current) === 'all'
+        choose(current.map(recipient => ({ ...recipient, ticked: !isAll })))
+    }
+    const onEmailChange = (id: string, email: string) => {
+        const recipient = currentRecipients().find(entry => entry.customer === id)
+        if (recipient === undefined) return
+        choose([{ ...recipient, email }])
+    }
+
+    const onStatementDateChange = (value: string) => {
+        if (isIsoDay(value)) setOverdueDay(value)
+        if (isEndDateTyped.current) return
+        setValue('endDate', value, { shouldValidate: isSubmitted })
+    }
+    const onEndDateChange = () => {
+        isEndDateTyped.current = true
+    }
+
+    const submit = handleSubmit(
+        async values => {
+            let outcome: Awaited<ReturnType<typeof createStatements.save>>
+            try {
+                outcome = await createStatements.save(runValuesOf(values, list.rows, customer))
+            } catch (error) {
+                setIsLeaving(false)
+                setError('root', { type: 'server', message: writeRefusalText(error) })
+                return
+            }
+            const firstFailure = outcome.failed[0]
+            if (firstFailure === undefined) {
+                useToastStore.getState().addToast({
+                    title: savedToast(outcome.done),
+                    variant: 'success',
+                    duration: TOAST_MS,
+                })
+                leave()
+                return
+            }
+            setIsLeaving(false)
+            setError('root', { type: 'server', message: firstFailure.message })
+        },
+        () => setIsLeaving(false)
+    )
+    // The guard goes off before the write starts: the move after a full success is the
+    // run's own. A refused run or a validation error turns it back on.
+    const onSave = () => {
+        setValue('intent', 'save')
+        setIsLeaving(true)
+        void submit()
+    }
+
+    const bar = statementBarState({
+        canWrite,
+        writesAvailable: writes.available,
+        tickedCount,
+        isLoading: isListLoading,
+        hasLoadError: isLoadError,
+        isHeld,
+        intent: 'save',
+    })
+
+    return {
+        control,
+        hasPeriod: type === 'balance_forward',
+        balanceFilter,
+        errors,
+        currency: settings.settings?.currency ?? 'USD',
+        isHeld,
+        listState: listStateOf({ isListLoading, isLoadError, count: entries.length }),
+        entries,
+        scrollToIndex: scrollIndexOf(entries, customer),
+        tickedCount,
+        total,
+        tickAll,
+        bar,
+        leaveGuard,
+        retry,
+        onToggle,
+        onToggleAll,
+        onEmailChange,
+        onStatementDateChange,
+        onEndDateChange,
+        onSave,
+    }
+}
+
+function listStateOf(input: { isListLoading: boolean; isLoadError: boolean; count: number }) {
+    if (input.isLoadError) return 'error' as const
+    if (input.isListLoading) return 'loading' as const
+    return input.count === 0 ? ('empty' as const) : ('list' as const)
+}
+
+// With `?customer`, the list starts scrolled to that customer's row.
+function scrollIndexOf(
+    entries: readonly { row: RecipientRow }[],
+    customer: string | undefined
+): number | undefined {
+    if (customer === undefined) return undefined
+    const index = entries.findIndex(entry => entry.row.customer === customer)
+    return index < 0 ? undefined : index
+}

@@ -32,6 +32,7 @@ describe('transactionActions', () => {
                 label: 'Refund receipt',
                 testId: 'customer-new-refund-receipt',
             },
+            { id: 'statement', label: 'Statement', testId: 'customer-new-statement' },
         ])
     })
 
@@ -56,6 +57,7 @@ describe('transactionActions', () => {
             'sales_receipt',
             'credit_memo',
             'refund_receipt',
+            'statement',
         ])
     })
 
@@ -67,6 +69,7 @@ describe('transactionActions', () => {
             'sales_receipt',
             'credit_memo',
             'refund_receipt',
+            'statement',
         ])
     })
 })

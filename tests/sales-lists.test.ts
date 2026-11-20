@@ -123,7 +123,10 @@ describe('SALES_TABS', () => {
     })
 
     it("opens each kind tab's New from the kind's new route in NEW_ACTIONS", () => {
-        const routes = NEW_ACTIONS.filter(action => action.takesCustomer).map(a => a.href)
+        // A statement takes a customer but is no sales kind (statements spec §4.8).
+        const routes = NEW_ACTIONS.filter(
+            action => action.takesCustomer && action.id !== 'statement'
+        ).map(a => a.href)
         expect(SALES_TABS.slice(1).map(tab => tab.newHref)).toEqual(routes)
     })
 
@@ -144,8 +147,20 @@ describe('SALES_TABS', () => {
 })
 
 describe('SALES_NEW_ITEMS', () => {
-    it('are the takesCustomer entries of NEW_ACTIONS with the New labels', () => {
-        const actions = NEW_ACTIONS.filter(action => action.takesCustomer)
+    // Statements spec §4.8: Statement takes a customer, so the module loads with a takesCustomer
+    // action that is no sales kind, and the All sales New menu does not gain it.
+    it('load with a Statement action in NEW_ACTIONS and hold no statement', () => {
+        expect(NEW_ACTIONS.find(action => action.id === 'statement')).toMatchObject({
+            takesCustomer: true,
+        })
+        expect(SALES_NEW_ITEMS.map(item => String(item.kind))).not.toContain('statement')
+        expect(SALES_NEW_ITEMS.map(item => item.href)).not.toContain('books/statements/new')
+    })
+
+    it('are the six sales kinds of the takesCustomer entries of NEW_ACTIONS with the New labels', () => {
+        const actions = NEW_ACTIONS.filter(
+            action => action.takesCustomer && action.id !== 'statement'
+        )
         expect(SALES_NEW_ITEMS.map(item => item.href)).toEqual(actions.map(a => a.href))
         expect(SALES_NEW_ITEMS).toEqual([
             { kind: 'invoice', label: 'New invoice', href: 'books/invoices/new' },
