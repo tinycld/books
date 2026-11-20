@@ -410,3 +410,57 @@ The long statements, one sample each (statement 4 the section rows, 5 the Total 
 Runs 3 and 4 meet the old bar of 1 s or less. Run 5 is 1.418 s: over it. The human decided on 2026-11-20: the bar is changed, not the engine. A filtered run of one month takes 1 s or less at 500,000 lines; a filtered run of a year may be slightly over, and run 5's 1.418 s is accepted. The human set the year bar to 2 s on 2026-11-20. The four further cuts for run 5 that were written up (options A to D) are not built. The measure (`TestGLScale`) now holds each run to its own bar: `glMonthBar` 1 s for runs 3 and 4, `glYearBar` 2 s for run 5, none for runs 1 and 2; `TestGLScaleBars` pins them. The same bar applies to the Trial Balance, the Balance Sheet and Transaction Detail.
 
 A separate decision of the human on 2026-11-19 (not built yet; a later part of this unit) takes the reports that read all journal lines, the General Ledger among them, off live refresh: once it is built, a year run over 1 s costs the reader one wait, when the reader asks for it.
+
+### Trial Balance, Balance Sheet and Transaction Detail: the measure and its baseline
+
+The measure is `TestStatementsScale` (`server/report_statements_scale_test.go`): the General Ledger's scale book with cash-basis rows for one entry in four, and eleven runs. The bars at 500,000 lines are the human's decision (2026-11-20) and map so: Transaction Detail's runs with an Accounts filter take 1 s or less for a month and 2 s or less for a year (the General Ledger's runs); Transaction Detail's two runs with no Accounts filter take 2 s or less (month and year); a Trial Balance with an Accounts filter takes 1 s or less; the Trial Balance of every account and the Balance Sheet (no Accounts filter, two days) take 2 s or less, on Accrual and on Cash. `TestStatementsScaleBars` pins the runs and the bars.
+
+Baseline at 100,000 lines (median of 5, core ff0d61b4, books 4fe9210c, before any change for these reports):
+
+| lines | run | median of 5 | group rows | rows |
+|---|---|---|---|---|
+| 100000 | TB 1 all accounts, as of | 744ms | 106 | 107 |
+| 100000 | TB 2 busy account, as of | 480ms | 1 | 2 |
+| 100000 | TB 3 three accounts, as of | 565ms | 3 | 4 |
+| 100000 | BS 1 accrual, as of | 1.389s | 10 | 20 |
+| 100000 | BS 2 cash, as of | 1.708s | 10 | 20 |
+| 100000 | TD 1 all accounts, month | refused after 10.056s: reports: the report took too long to run | n/a | n/a |
+| 100000 | TD 2 all accounts, year | refused after 10.128s: reports: the report took too long to run | n/a | n/a |
+| 100000 | TD 3 busy account, month | refused after 10.06s: reports: the report took too long to run | n/a | n/a |
+| 100000 | TD 4 small account, month | 312ms | 1 | 4 |
+| 100000 | TD 5 three accounts, year | refused after 10.087s: reports: the report took too long to run | n/a | n/a |
+| 100000 | TD 6 busy account, month, cash | refused after 10.071s: reports: the report took too long to run | n/a | n/a |
+
+Before this unit (`other-reports-scale.txt`, 2026-11-19): Trial Balance 960 ms and Balance Sheet 1,280 ms at 100k (5,225 ms and 6,496 ms at 500k); Transaction Detail refused at 100k, also with one account.
+
+Reads of the line tables in the longest statement of each report (`scale-task9a/st-plans.md`):
+
+Run TB 1 all accounts, as of:
+
+### statement 5: 488.1ms, 106 rows, 10129 chars
+
+```
+SCAN books_journal_lines
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)
+```
+
+Run BS 1 accrual, as of:
+
+### statement 5: 1.2785s, 14 rows, 68537 chars
+
+```
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+```
+
+Run TD 3 busy account, month (refused; the statement with the most chars):
+
+### statement 6: not timed (the run was refused), 12399 chars
+
+```
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+```
