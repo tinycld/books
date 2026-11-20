@@ -1,3 +1,4 @@
+import { eq, type InitialQueryBuilder } from '@tanstack/db'
 import { useLiveInfiniteQuery, useLiveQuery } from '@tanstack/react-db'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { log } from '@tinycld/core/lib/logger'
@@ -5,6 +6,7 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { useDebouncedValue } from '@tinycld/core/lib/use-debounced-value'
 import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
+import { materialize } from 'pbtsdb'
 import { useRef } from 'react'
 import type { SelectBoxState } from '../lib/bank-import-view'
 import { barMatchState } from '../lib/bank-match'
@@ -145,18 +147,126 @@ function useReviewQueueQuery(connectionId: string, input: ReviewQueryInput) {
 
 type ReviewQueryRow = NonNullable<ReturnType<typeof useReviewQueueQuery>['data']>[number]
 
+type PagedTxns = ReturnType<typeof useStore<['books_bank_transactions']>>[0]
+
+// The Reviewed and Excluded rows of a connection under the filters, by date in the chosen
+// direction, then id; each tab's read adds its own `select`.
+function pagedTxns(q: InitialQueryBuilder, txns: PagedTxns, input: ReviewQueryInput) {
+    return q
+        .from({ txn: txns })
+        .where(({ txn }) =>
+            reviewWhere(
+                {
+                    connection: txn.connection,
+                    status: txn.status,
+                    description: txn.description,
+                    memo: txn.memo,
+                    checkNumber: txn.check_number,
+                    amount: txn.amount,
+                    date: txn.date,
+                },
+                input.where
+            )
+        )
+        .orderBy(({ txn }) => txn.date, input.dateDirection)
+        .orderBy(({ txn }) => txn.id, ID_ORDER)
+}
+
+// Reviewed rows, each with the books_bank_match_lines rows of its match and their entries
+// (the In Books column).
+function useReviewedQuery(connectionId: string, input: ReviewQueryInput) {
+    const [txns, matchLines, entries] = useStore(
+        'books_bank_transactions',
+        'books_bank_match_lines',
+        'books_journal_entries'
+    )
+    const queryKey = ['books.review.reviewed', connectionId, ...input.keyParts]
+    const query = useLiveInfiniteQuery(
+        q =>
+            pagedTxns(q, txns, input).select(({ txn }) => ({
+                id: txn.id,
+                date: txn.date,
+                description: txn.description,
+                memo: txn.memo,
+                checkNumber: txn.check_number,
+                amount: txn.amount,
+                line: txn.line,
+                status: txn.status,
+                matchLines: materialize(
+                    q
+                        .from({ ml: matchLines })
+                        .where(({ ml }) => eq(ml.bank_transaction, txn.id))
+                        .select(({ ml }) => ({
+                            id: ml.id,
+                            entry: materialize(
+                                q
+                                    .from({ e: entries })
+                                    .where(({ e }) => eq(e.id, ml.entry))
+                                    .select(({ e }) => ({
+                                        id: e.id,
+                                        number: e.number,
+                                        doc_type: e.doc_type,
+                                        origin: e.origin,
+                                        document: e.document,
+                                        date: e.date,
+                                    }))
+                                    .findOne()
+                            ),
+                        }))
+                ),
+            })),
+        { queryKey, pageSize: LIST_PAGE_SIZE }
+    )
+    return { query, queryKey, sources: [txns, matchLines, entries] }
+}
+
+// Excluded rows. Only a Reviewed row has a match (the server takes a match of a For review
+// transaction only, and an undo moves it back to For review), so this read has no
+// match-line subquery and sends no reads for one.
+function useExcludedQuery(connectionId: string, input: ReviewQueryInput) {
+    const [txns] = useStore('books_bank_transactions')
+    const queryKey = ['books.review.excluded', connectionId, ...input.keyParts]
+    const query = useLiveInfiniteQuery(
+        q =>
+            pagedTxns(q, txns, input).select(({ txn }) => ({
+                id: txn.id,
+                date: txn.date,
+                description: txn.description,
+                memo: txn.memo,
+                checkNumber: txn.check_number,
+                amount: txn.amount,
+                line: txn.line,
+                status: txn.status,
+            })),
+        { queryKey, pageSize: LIST_PAGE_SIZE }
+    )
+    return { query, queryKey, sources: [txns] }
+}
+
+type ReviewedQueryRow = ReturnType<typeof useReviewedQuery>['query']['data'][number]
+export type ReviewMatchLine = NonNullable<ReviewedQueryRow['matchLines']>[number]
+
+// A row as a tab read gives it: only Reviewed rows have match lines.
+type ReviewReadRow = ReviewQueryRow & { matchLines?: ReviewedQueryRow['matchLines'] }
+
 // A listed transaction with the Books transactions suggested for it (For review only; an
-// empty list on the other tabs, and while the suggestions load or after their read failed).
-export type ReviewRowData = ReviewQueryRow & { suggestions: readonly RowSuggestion[] }
+// empty list on the other tabs, and while the suggestions load or after their read failed)
+// and the match lines of its match (Reviewed only; empty on the other tabs).
+export type ReviewRowData = ReviewQueryRow & {
+    suggestions: readonly RowSuggestion[]
+    matchLines: readonly ReviewMatchLine[]
+}
 
 const NO_SUGGESTIONS: readonly RowSuggestion[] = []
 const NO_MARKS: ReadonlyMap<string, readonly RowSuggestion[]> = new Map()
+const NO_MATCH_LINES: readonly ReviewMatchLine[] = []
 
 // What one transaction tab read hands to `useReviewTab`. `collection` is the live query's
 // own collection, for the Retry; `key` names the query, so kept rows know what they answer.
 export type ReviewRead = {
     key: string
-    rows: ReviewQueryRow[]
+    rows: ReviewReadRow[]
+    sources: LiveRecovery['sources']
     isReady: boolean
     isError: boolean
     collection: LiveRecovery['queries'][number]
@@ -164,10 +274,12 @@ export type ReviewRead = {
 }
 
 export function useReviewQueueRows(connectionId: string, input: ReviewQueryInput): ReviewRead {
+    const [txns] = useStore('books_bank_transactions')
     const query = useReviewQueueQuery(connectionId, input)
     return {
         key: queueKey(connectionId, input).join('|'),
         rows: query.data ?? [],
+        sources: [txns],
         isReady: query.isReady,
         isError: query.isError,
         collection: query.collection,
@@ -178,45 +290,32 @@ export function useReviewQueueRows(connectionId: string, input: ReviewQueryInput
 // Reviewed and Excluded grow without bound, so they load a page at a time: by date in the
 // chosen direction, then id. A separate hook from the For review read because
 // `useLiveInfiniteQuery` cannot be disabled; each is called by its own tab body.
-export function useReviewPagedRows(
-    tab: 'reviewed' | 'excluded',
-    connectionId: string,
-    input: ReviewQueryInput
-): ReviewRead {
-    const [txns] = useStore('books_bank_transactions')
-    const queryKey = [`books.review.${tab}`, connectionId, ...input.keyParts]
-    const query = useLiveInfiniteQuery(
-        q =>
-            q
-                .from({ txn: txns })
-                .where(({ txn }) =>
-                    reviewWhere(
-                        {
-                            connection: txn.connection,
-                            status: txn.status,
-                            description: txn.description,
-                            memo: txn.memo,
-                            checkNumber: txn.check_number,
-                            amount: txn.amount,
-                            date: txn.date,
-                        },
-                        input.where
-                    )
-                )
-                .orderBy(({ txn }) => txn.date, input.dateDirection)
-                .orderBy(({ txn }) => txn.id, ID_ORDER)
-                .select(({ txn }) => ({
-                    id: txn.id,
-                    date: txn.date,
-                    description: txn.description,
-                    memo: txn.memo,
-                    checkNumber: txn.check_number,
-                    amount: txn.amount,
-                    line: txn.line,
-                    status: txn.status,
-                })),
-        { queryKey, pageSize: LIST_PAGE_SIZE }
-    )
+export function useReviewedRows(connectionId: string, input: ReviewQueryInput): ReviewRead {
+    const paged = useReviewedQuery(connectionId, input)
+    return pagedRead(paged)
+}
+
+export function useExcludedRows(connectionId: string, input: ReviewQueryInput): ReviewRead {
+    const paged = useExcludedQuery(connectionId, input)
+    return pagedRead(paged)
+}
+
+// The part of a paged live query that a tab read hands on.
+type PagedRead = {
+    query: {
+        data: ReviewReadRow[]
+        hasNextPage: boolean
+        isFetchingNextPage: boolean
+        fetchNextPage: () => unknown
+        isReady: boolean
+        isError: boolean
+        collection: LiveRecovery['queries'][number]
+    }
+    queryKey: string[]
+    sources: LiveRecovery['sources']
+}
+
+function pagedRead({ query, queryKey, sources }: PagedRead): ReviewRead {
     // The table and the cards call this on every scroll event near the end; only one page
     // is asked for at a time.
     const onNearEnd = () => {
@@ -225,6 +324,7 @@ export function useReviewPagedRows(
     return {
         key: queryKey.join('|'),
         rows: query.data,
+        sources,
         isReady: query.isReady,
         isError: query.isError,
         collection: query.collection,
@@ -252,6 +352,8 @@ type ReviewTabInput = {
 
 export type ReviewTabModel = {
     rows: readonly ReviewRowData[]
+    // Reviewed shows the In Books column (REVIEWED_CELLS) and the cards' third line.
+    showsInBooks: boolean
     viewState: ReviewViewState
     emptyText: string
     recovery: LiveRecovery
@@ -338,7 +440,6 @@ const BAR_ACTIONS: Record<TxnTab, BarAction | null> = {
 export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
     const { tab, waitingCount, currency, read, queryInput, pageRecovery, batch, suggestions } =
         input
-    const [txns] = useStore('books_bank_transactions')
     const { canWrite } = useBooksAccess()
     const writes = useServerActionState()
     const chosenSet = useBankingUIStore(s => s.chosen)
@@ -350,10 +451,10 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
     const storedFocus = useBankingUIStore(s => s.focusedTxnId)
     const toggleDateOrder = useBankingUIStore(s => s.toggleDateOrder)
     const clearReviewFilters = useBankingUIStore(s => s.clearReviewFilters)
-    const kept = useRef<SettledRows<ReviewQueryRow>>(undefined)
+    const kept = useRef<SettledRows<ReviewReadRow>>(undefined)
     // The state describes the query's result, so it reads the filters the query ran with,
     // not the text still being typed.
-    const now: SettledRows<ReviewQueryRow> = {
+    const now: SettledRows<ReviewReadRow> = {
         key: read.key,
         rows: read.rows,
         viewState: reviewViewState({
@@ -366,7 +467,7 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
     const { next, shown } = settleRows(kept.current, now)
     kept.current = next
     const recovery: LiveRecovery = read.isError
-        ? { queries: [read.collection], sources: [txns] }
+        ? { queries: [read.collection], sources: read.sources }
         : NO_RECOVERY
     const onRetry = () => {
         void recoverLiveQueries({
@@ -442,6 +543,7 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
     const listedRows: ReviewRowData[] = rows.map(row => ({
         ...row,
         suggestions: marks.get(row.id) ?? NO_SUGGESTIONS,
+        matchLines: row.matchLines ?? NO_MATCH_LINES,
     }))
     const plan = matchPlan(listedRows, shownSet)
     const matchState = barMatchState({
@@ -479,6 +581,7 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
             : null
     return {
         rows: listedRows,
+        showsInBooks: tab === 'reviewed',
         viewState: shown.viewState,
         emptyText: reviewEmptyText(tab, waitingCount),
         recovery,

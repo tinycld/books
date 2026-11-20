@@ -90,7 +90,8 @@ function PageDrawer({ model, scopeOwner }: { model: BankingScreenModel; scopeOwn
 // body would push its own scope on top and turn the page keys (N, U, I) off. The dialogs
 // push their own modal scope. Core `Drawer` pushes no scope in any placement, so the
 // drawer's keys are in the page's `list` scope too; the drawer renders outside the
-// ScopeProvider, so its buttons (Match M, Find other matches F) get the owner as a prop.
+// ScopeProvider, so its buttons (Match M, Find other matches F, Undo match Z) get the
+// owner as a prop.
 export function BankingScreenView({ model }: { model: BankingScreenModel }) {
     const listScope = useShortcutScope('list')
     // One upload for the selected connection, shared by the upload area and the page keys.

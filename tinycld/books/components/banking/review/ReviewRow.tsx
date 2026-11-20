@@ -1,14 +1,19 @@
 import { rowFocusStyle } from '@tinycld/core/components/focusable-row'
+import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
+import { Link } from 'expo-router'
 import { Pressable, Text, View } from 'react-native'
 import type { ReviewRowData, ReviewTabModel } from '../../../hooks/useReviewTab'
+import { inBooksText } from '../../../lib/bank-match'
 import {
     REVIEW_CELLS,
     REVIEW_ROW_HEIGHT,
+    REVIEWED_CELLS,
     txnAmountCells,
     txnPhoneLine,
     txnSecondLine,
 } from '../../../lib/bank-review'
+import { entryHref } from '../../../lib/entry-route'
 import { formatMoney } from '../../../lib/money'
 import { PARTY_ROW_CLASS } from '../../../lib/party-list'
 import { formatDay } from '../../../lib/register-range'
@@ -55,6 +60,66 @@ function CardSecondLine({ row }: { row: ReviewRowData }) {
     )
 }
 
+type MatchLine = ReviewRowData['matchLines'][number]
+type LinkedEntry = NonNullable<MatchLine['entry']>
+
+// The one matched Books transaction as a real link (entryHref), so the web gets an href.
+// The link is its own Pressable, so pressing it does not open the drawer.
+function InBooksLink({ txnId, entry, text }: { txnId: string; entry: LinkedEntry; text: string }) {
+    const orgHref = useOrgHref()
+    const href = orgHref(entryHref(entry))
+    return (
+        <Link href={href} asChild>
+            <Pressable
+                testID={`bank-review-inbooks-${txnId}`}
+                accessibilityRole="link"
+                className="min-w-0 self-start web:cursor-pointer"
+            >
+                <Text numberOfLines={1} className="text-sm text-primary">
+                    {text}
+                </Text>
+            </Pressable>
+        </Link>
+    )
+}
+
+// What a Reviewed transaction was matched to: a link to the one Books transaction, or the
+// count of several as plain text (the row press opens the drawer, which lists them).
+// Nothing for a row with no match.
+function InBooksText({ row }: { row: ReviewRowData }) {
+    const text = inBooksText(row.matchLines)
+    const [only] = row.matchLines
+    if (row.matchLines.length === 1 && only?.entry) {
+        return <InBooksLink txnId={row.id} entry={only.entry} text={text} />
+    }
+    if (!text) return null
+    return (
+        <Text
+            testID={`bank-review-inbooks-${row.id}`}
+            numberOfLines={1}
+            className="text-sm text-foreground"
+        >
+            {text}
+        </Text>
+    )
+}
+
+// The In Books cell of the Reviewed table, between Description and Spent.
+function InBooksCell({ row, isVisible }: { row: ReviewRowData; isVisible: boolean }) {
+    if (!isVisible) return null
+    return (
+        <View className="min-w-0 pr-3" style={REVIEWED_CELLS.inBooks}>
+            <InBooksText row={row} />
+        </View>
+    )
+}
+
+// A Reviewed card's third line: the same text and link as the In Books cell.
+function CardInBooksLine({ row, isVisible }: { row: ReviewRowData; isVisible: boolean }) {
+    if (!isVisible) return null
+    return <InBooksText row={row} />
+}
+
 // The row's part in the choice; null where rows cannot be chosen (Reviewed, readers).
 export type RowChoice = {
     isChosen: boolean
@@ -79,6 +144,8 @@ type RowProps = {
     isFocused: boolean
     onOpen: (id: string) => void
     choice: RowChoice
+    // Reviewed: the In Books cell (REVIEWED_CELLS) or the card's third line.
+    showsInBooks: boolean
 }
 
 // The register's focus stripe, and `data-focused` on the web for the e2e (react-native-web
@@ -117,10 +184,19 @@ function rowBackground(isOpen: boolean): string {
 }
 
 // One transaction of the wide table: the check box (when rows can be chosen) · Date ·
-// Description (the match mark, or the memo and check number, under it) · Spent · Received,
-// on the cells the header uses. Pressing it opens the drawer. react-native-web writes no
-// aria-selected from accessibilityState, so both are set.
-export function ReviewRow({ row, currency, isOpen, isFocused, onOpen, choice }: RowProps) {
+// Description (the match mark, or the memo and check number, under it) · In Books
+// (Reviewed) · Spent · Received, on the cells the header uses. Pressing it opens the
+// drawer. react-native-web writes no aria-selected from accessibilityState, so both are set.
+export function ReviewRow({
+    row,
+    currency,
+    isOpen,
+    isFocused,
+    onOpen,
+    choice,
+    showsInBooks,
+}: RowProps) {
+    const cells = showsInBooks ? REVIEWED_CELLS : REVIEW_CELLS
     const amounts = txnAmountCells(row.amount, currency)
     const day = formatDay(row.date)
     const onPress = () => onOpen(row.id)
@@ -140,23 +216,24 @@ export function ReviewRow({ row, currency, isOpen, isFocused, onOpen, choice }: 
             dataSet={focus.dataSet}
         >
             <RowBox row={row} choice={choice} />
-            <View className="min-w-0 pr-3" style={REVIEW_CELLS.date}>
+            <View className="min-w-0 pr-3" style={cells.date}>
                 <Text numberOfLines={1} className="text-sm tabular-nums text-foreground">
                     {day}
                 </Text>
             </View>
-            <View className="min-w-0 pr-3" style={REVIEW_CELLS.description}>
+            <View className="min-w-0 pr-3" style={cells.description}>
                 <Text numberOfLines={1} className="text-sm text-foreground">
                     {row.description}
                 </Text>
                 <RowSecondLine row={row} />
             </View>
-            <View className="min-w-0 pr-3" style={REVIEW_CELLS.spent}>
+            <InBooksCell row={row} isVisible={showsInBooks} />
+            <View className="min-w-0 pr-3" style={cells.spent}>
                 <Text numberOfLines={1} className={AMOUNT_CLASS}>
                     {amounts.spent}
                 </Text>
             </View>
-            <View className="min-w-0 pr-3" style={REVIEW_CELLS.received}>
+            <View className="min-w-0 pr-3" style={cells.received}>
                 <Text numberOfLines={1} className={AMOUNT_CLASS}>
                     {amounts.received}
                 </Text>
@@ -166,8 +243,8 @@ export function ReviewRow({ row, currency, isOpen, isFocused, onOpen, choice }: 
 }
 
 // One transaction on a phone: the check box (when rows can be chosen), description and
-// "day · Check n" (or the day and the match mark), then the signed amount on the right.
-// Pressing it opens the drawer as a sheet.
+// "day · Check n" (or the day and the match mark), on Reviewed what it was matched to,
+// then the signed amount on the right. Pressing it opens the drawer as a sheet.
 export function ReviewCard({
     row,
     currency,
@@ -176,6 +253,7 @@ export function ReviewCard({
     isFocused,
     onOpen,
     choice,
+    showsInBooks,
 }: RowProps & { height: number }) {
     const focus = useRowFocus(isFocused)
     const cardStyle = [{ height }, focus.style]
@@ -200,6 +278,7 @@ export function ReviewCard({
                     {row.description}
                 </Text>
                 <CardSecondLine row={row} />
+                <CardInBooksLine row={row} isVisible={showsInBooks} />
             </View>
             <Text className="text-sm font-semibold tabular-nums text-foreground">{amountText}</Text>
         </Pressable>

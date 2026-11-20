@@ -15,6 +15,7 @@ import {
     findRangeSchema,
     findViewState,
     findWhere,
+    inBooksText,
     lineAmount,
     MATCH_DAYS_AFTER,
     MATCH_DAYS_BEFORE,
@@ -23,6 +24,7 @@ import {
     type MatchSide,
     matchableLines,
     matchEmptyText,
+    matchedOnText,
     matchResultText,
     matchSendingFor,
     matchSide,
@@ -30,6 +32,8 @@ import {
     matchTotals,
     suggestionsByTxn,
     suggestionText,
+    UNDO_TRANSPORT_TEXT,
+    unmatchResultText,
 } from '../tinycld/books/lib/bank-match'
 
 // The cases the Go test of the create hook also runs (server/testdata/bank_match_cases.json).
@@ -676,5 +680,70 @@ describe('matchSendingFor', () => {
         expect(matchSendingFor({ ...run, origin: 'bar' }, 'txn_a')).toBe(false)
         expect(matchSendingFor(null, 'txn_a')).toBe(false)
         expect(matchSendingFor(undefined, 'txn_a')).toBe(false)
+    })
+})
+
+describe('inBooksText', () => {
+    const transferLine = { entry: TRANSFER_1007 }
+    const expenseLine = {
+        entry: { number: '1002', doc_type: 'expense' as const, origin: 'manual' as const },
+    }
+
+    it('names the one Books transaction of a match', () => {
+        expect(inBooksText([transferLine])).toBe('Matched · Transfer 1007')
+    })
+
+    it('counts the Books transactions of a match that holds several', () => {
+        expect(inBooksText([transferLine, expenseLine, transferLine])).toBe(
+            'Matched · 3 transactions'
+        )
+    })
+
+    it('is empty for a row with no match', () => {
+        expect(inBooksText([])).toBe('')
+    })
+})
+
+describe('matchedOnText', () => {
+    it('names the day and the user who matched', () => {
+        expect(matchedOnText('2026-11-18 10:00:00.000Z', 'Ana Ruiz')).toBe(
+            'Matched Nov 18, 2026 by Ana Ruiz'
+        )
+    })
+
+    it('names only the day when the user has no name', () => {
+        expect(matchedOnText('2026-11-18 10:00:00.000Z', '')).toBe('Matched Nov 18, 2026')
+    })
+})
+
+describe('unmatchResultText', () => {
+    it('says the transaction is back in For review', () => {
+        expect(unmatchResultText({ done: ['a'], failed: [] })).toBe(
+            'Match undone. The transaction is back in For review.'
+        )
+    })
+
+    it("gives the server's message of a refusal", () => {
+        expect(
+            unmatchResultText({
+                done: [],
+                failed: [{ id: 'a', message: 'The books are locked.', isTransport: false }],
+            })
+        ).toBe('The books are locked.')
+    })
+
+    it('gives the transport text when the undo was not sent', () => {
+        expect(UNDO_TRANSPORT_TEXT).toBe(
+            'The undo could not be sent. Check your connection and try again.'
+        )
+        expect(
+            unmatchResultText({ done: [], failed: [{ id: 'a', message: '', isTransport: true }] })
+        ).toBe(UNDO_TRANSPORT_TEXT)
+    })
+
+    it('gives the transport text for a failure with no server message', () => {
+        expect(
+            unmatchResultText({ done: [], failed: [{ id: 'a', message: '', isTransport: false }] })
+        ).toBe(UNDO_TRANSPORT_TEXT)
     })
 })

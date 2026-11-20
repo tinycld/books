@@ -3,7 +3,7 @@ import type { SetupTab } from '@tinycld/core/components/setup/wizard/SetupTabs'
 import { errorToString } from '@tinycld/core/lib/errors'
 import type { BooksBankTransactions } from '../types'
 import type { SelectBoxState } from './bank-import-view'
-import { matchResultText } from './bank-match'
+import { matchResultText, unmatchResultText } from './bank-match'
 import { searchPieces } from './list-search'
 import { formatMoney } from './money'
 import { errorStatus, messageOnlyRefusal } from './refusal'
@@ -138,6 +138,21 @@ export const REVIEW_CELLS = {
     spent: { width: 128 },
     received: { width: 128 },
 } as const
+
+// The Reviewed table adds In Books between Description and Spent inside the same table
+// minimum (REVIEW_TABLE_MIN_WIDTH), so its fixed cells are narrower and Description's
+// minimum is lower: 44 + 104 + 160 + 180 + 112 + 112 = 712.
+export const REVIEWED_CELLS = {
+    check: REVIEW_CELLS.check,
+    date: { width: 104 },
+    description: { flex: 1, minWidth: 160 },
+    inBooks: { flex: 1, minWidth: 180 },
+    spent: { width: 112 },
+    received: { width: 112 },
+} as const
+
+// A Reviewed card has a third line: what the transaction was matched to.
+export const REVIEWED_CARD_HEIGHT = 96
 
 // The toolbar of the three transaction tabs: one set for every tab and every account.
 export type ReviewDatePreset = 'all' | RangePreset
@@ -278,9 +293,10 @@ export function settleRows<Row>(
 // Exclude and Move to For review: what each sets a transaction's status to. The server's
 // update rule allows only these two moves (pb-migrations/2100000008_create_books_banking.js).
 export type MoveKind = 'exclude' | 'restore'
-// A run of the page's one batch: a status move, or a match (an insert into
-// books_bank_matches; the server moves the transaction to Reviewed).
-export type BatchKind = MoveKind | 'match'
+// A run of the page's one batch: a status move, a match (an insert into
+// books_bank_matches; the server moves the transaction to Reviewed), or the undo of a
+// match (a delete of its books_bank_matches row; the server moves it back to For review).
+export type BatchKind = MoveKind | 'match' | 'unmatch'
 export const BATCH_TARGET: Record<MoveKind, TxnStatus> = {
     exclude: 'excluded',
     restore: 'for_review',
@@ -325,9 +341,10 @@ const FAILED_VERB: Record<BatchKind, string> = {
     exclude: 'excluded',
     restore: 'moved to For review',
     match: 'matched',
+    unmatch: 'unmatched',
 }
 
-function doneText(kind: BatchKind, outcome: BatchOutcome, skipped: number): string {
+function doneText(kind: Exclude<BatchKind, 'unmatch'>, outcome: BatchOutcome, skipped: number) {
     if (kind === 'match') return matchResultText(outcome, skipped)
     return DONE_TEXT[kind](outcome.done.length)
 }
@@ -337,7 +354,7 @@ function doneText(kind: BatchKind, outcome: BatchOutcome, skipped: number): stri
 // text when none of the failures reached the server; the server's message when every
 // failure is a refusal with the same non-empty one; else how many of the batch failed. A
 // failure with no message (a row that left the store before its change was sent) is
-// only counted.
+// only counted. An undo (one transaction, from the drawer) reads unmatchResultText.
 export function batchResultText(
     kind: BatchKind,
     outcome: BatchOutcome,
@@ -345,6 +362,8 @@ export function batchResultText(
 ): { text: string; tone: 'muted' | 'danger' } {
     const { done, failed } = outcome
     const [first] = failed
+    const tone = first === undefined ? 'muted' : 'danger'
+    if (kind === 'unmatch') return { text: unmatchResultText(outcome), tone }
     if (first === undefined) return { text: doneText(kind, outcome, skipped), tone: 'muted' }
     if (failed.every(failure => failure.isTransport)) {
         return { text: BANK_BATCH_TRANSPORT_TEXT, tone: 'danger' }
