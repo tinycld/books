@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, type Route, test } from '@playwright/test'
 import { TEST_USER_NAME } from '@tinycld/core/e2e-helpers'
 import {
+    inBanking,
     matchOptionIds,
     openMatchAccount,
     openMatchDrawer,
@@ -42,7 +43,7 @@ const name = (stamp: string, which: string) => `${stamp} reviewed ${which}`
 const memo = (stamp: string, which: string) => `${stamp} memo ${which}`
 
 const drawer = (page: Page) => visibleTestId(page, 'bank-txn-drawer')
-const result = (page: Page) => visibleTestId(page, 'bank-review-result')
+const result = (page: Page) => inBanking(page, 'bank-review-result')
 const matchedSection = (page: Page) => page.getByTestId('bank-matched-section')
 const matchedLinks = (page: Page) =>
     matchedSection(page).locator('[data-testid^="bank-match-link-"]')
@@ -57,8 +58,9 @@ function markOf(row: Locator): Locator {
 // The scrollers inside the visible Reviewed tab body (and the body itself) whose content is
 // wider than their box, so they scroll sideways. A clipped one-line text (overflow hidden,
 // ellipsis) does not scroll, so it is not counted.
-function sidewaysScrollers(page: Page) {
-    return visibleTestId(page, 'bank-tab-body-reviewed').evaluate(body => {
+async function sidewaysScrollers(page: Page) {
+    const reviewed = await inBanking(page, 'bank-tab-body-reviewed')
+    return reviewed.evaluate(body => {
         const found: { id: string; scrollWidth: number; clientWidth: number }[] = []
         const nodes = [body, ...Array.from(body.querySelectorAll('*'))] as HTMLElement[]
         for (const node of nodes) {
@@ -83,7 +85,7 @@ async function matchFromDrawer(page: Page, description: string): Promise<void> {
     await matchOptionIds(page, 1)
     await page.getByTestId('bank-match-submit').click()
     await expect(drawer(page)).toHaveCount(0)
-    await expect(result(page)).toHaveText('Matched 1 transaction.')
+    await expect(await result(page)).toHaveText('Matched 1 transaction.')
 }
 
 // The transfer's read view must be open. Voids it through its Void action and confirm.
@@ -120,13 +122,13 @@ test.describe
                 '171.10',
                 uniqueMemo('bank-match reviewed one')
             )
-            const one = visibleRow(page, name(stamp, 'one'))
+            const one = await visibleRow(page, name(stamp, 'one'))
             const oneId = await reviewRowId(one)
             await matchFromDrawer(page, name(stamp, 'one'))
 
             // Reviewed: the In Books cell links to the matched transfer.
             await openReviewTab(page, 'reviewed')
-            const inBooks = visibleTestId(page, `bank-review-inbooks-${oneId}`)
+            const inBooks = await inBanking(page, `bank-review-inbooks-${oneId}`)
             await expect(inBooks).toHaveText(`Matched · Transfer ${transfer.number}`)
             await expect(inBooks).toHaveAttribute(
                 'href',
@@ -166,10 +168,10 @@ test.describe
             // Z undoes it: the row leaves Reviewed and is back on For review with its mark.
             await page.keyboard.press('z')
             await expect(drawer(page)).toHaveCount(0)
-            await expect(result(page)).toHaveText(UNDONE_TEXT)
-            await expect(visibleRow(page, name(stamp, 'one'))).toHaveCount(0)
+            await expect(await result(page)).toHaveText(UNDONE_TEXT)
+            await expect(await visibleRow(page, name(stamp, 'one'))).toHaveCount(0)
             await openReviewTab(page, 'review')
-            await expect(visibleTestId(page, `bank-review-suggestion-${oneId}`)).toHaveText(
+            await expect(await inBanking(page, `bank-review-suggestion-${oneId}`)).toHaveText(
                 `1 match · Transfer ${transfer.number} · ${todayText()}`
             )
         })
@@ -186,12 +188,12 @@ test.describe
 
             // A void transfer is no suggestion: the row is back with its memo line, no mark.
             await openMatchAccount(page, account)
-            const two = visibleRow(page, name(stamp, 'two'))
+            const two = await visibleRow(page, name(stamp, 'two'))
             await expect(two).toHaveCount(1)
             await expect(two.getByText(memo(stamp, 'two'), { exact: true })).toBeVisible()
             await expect(markOf(two)).toHaveCount(0)
             await openReviewTab(page, 'reviewed')
-            await expect(visibleRow(page, name(stamp, 'two'))).toHaveCount(0)
+            await expect(await visibleRow(page, name(stamp, 'two'))).toHaveCount(0)
         })
     })
 
@@ -205,10 +207,10 @@ test.describe('bank-match: reviewed reader', () => {
         await expect(checking).toHaveAttribute('aria-selected', 'true')
         await openReviewTab(page, 'reviewed')
         await page.setViewportSize(BANKING_PHONE)
-        await expect(visibleTestId(page, 'bank-review-cards')).toBeVisible()
+        await expect(await inBanking(page, 'bank-review-cards')).toBeVisible()
 
         // The Reviewed card's third line names what the transaction was matched to.
-        const card = visibleRow(page, ONLINE_BILL_PAY)
+        const card = await visibleRow(page, ONLINE_BILL_PAY)
         const cardId = await reviewRowId(card)
         await expect(card.getByTestId(`bank-review-inbooks-${cardId}`)).toHaveText(
             /^Matched · Bill payment/

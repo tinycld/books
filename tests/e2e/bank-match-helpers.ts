@@ -9,6 +9,7 @@ import {
     type ReviewImport,
     reviewRow,
 } from './for-review-helpers'
+import { visibleScreen } from './screen-helpers'
 import { createPostedTransfer, TRANSFER_LABELS } from './transfer-helpers'
 
 // Shared by the bank-match e2e specs. A spec's serial group connects its own number-less
@@ -53,12 +54,18 @@ export async function signInWide(page: Page): Promise<void> {
 
 // A trip away from Banking and back (Journal Entries for a transfer) leaves the earlier
 // Banking screen stacked and hidden, with the same cards and rows: every list lookup
-// takes the visible one only (lesson 5). The drawer sits outside the screen, and only the
-// visible screen's drawer opens.
-export function visibleRow(page: Page, description: string): Locator {
-    return reviewRow(page, description).filter({ visible: true })
+// goes through the one visible Banking screen (lesson 5).
+export async function visibleRow(page: Page, description: string): Promise<Locator> {
+    const screen = await visibleScreen(page, 'banking-screen')
+    return screen.locator(reviewRow(page, description)).filter({ visible: true })
 }
 
+export async function inBanking(page: Page, testId: string): Promise<Locator> {
+    const screen = await visibleScreen(page, 'banking-screen')
+    return screen.getByTestId(testId).filter({ visible: true })
+}
+
+// The drawer sits outside the screen, and only the focused screen draws it.
 export function visibleTestId(page: Page, testId: string): Locator {
     return page.getByTestId(testId).filter({ visible: true })
 }
@@ -72,7 +79,8 @@ export async function openMatchAccount(page: Page, account: string): Promise<voi
 
 // Banking must be on top. Selects `account`'s card and opens its For review tab.
 async function chooseMatchAccount(page: Page, account: string): Promise<void> {
-    const card = bankCard(page, account).filter({ visible: true })
+    const screen = await visibleScreen(page, 'banking-screen')
+    const card = screen.locator(bankCard(page, account))
     await card.click()
     await expect(card).toHaveAttribute('aria-selected', 'true')
     await openReviewTab(page, 'review')
@@ -122,7 +130,8 @@ export async function postMatchTransfer(
 // Opens the drawer of the For review row that shows `description`; waits for the drawer
 // to show that transaction.
 export async function openMatchDrawer(page: Page, description: string): Promise<void> {
-    await visibleRow(page, description).getByText(description, { exact: true }).click()
+    const row = await visibleRow(page, description)
+    await row.getByText(description, { exact: true }).click()
     await expect(page.getByTestId('bank-txn-drawer')).toBeVisible()
     await expect(
         page.getByTestId('bank-txn-field-description').getByText(description, { exact: true })
