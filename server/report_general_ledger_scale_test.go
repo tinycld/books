@@ -237,7 +237,7 @@ func TestGLScaleBook(t *testing.T) {
 // 1 s or less at 500,000 lines. A run core refuses (its time limit) is
 // recorded as refused; a refused filtered run fails the bar. With
 // BOOKS_SCALE_OUT=<dir> it writes gl-results.md (the times) and gl-plans.md
-// (each statement of each run at 500,000 lines: its time, its rows, its plan).
+// (each statement of each run at each size: its time, its rows, its plan).
 func TestGLScale(t *testing.T) {
 	if os.Getenv("BOOKS_SCALE") != "1" {
 		t.Skip("BOOKS_SCALE=1 starts the General Ledger runs at 10k, 100k and 500k lines")
@@ -270,13 +270,12 @@ func TestGLScale(t *testing.T) {
 					t.Errorf("run %s at %s lines: median %s, want %s or less", run.name, size.name, median, bar)
 				}
 			}
-			if !last {
-				return
-			}
+			// Every size writes its plans, so a run of one size
+			// (-run 'TestGLScale$/100k$') records them too.
 			for _, run := range glScaleRuns(b) {
 				statements := glScaleStatements(t, b, run)
 				steps := explainStatements(t, b.app, statements)
-				fmt.Fprintf(&plans, "\n## Run %s\n", run.name)
+				fmt.Fprintf(&plans, "\n## %s lines, run %s\n", size.name, run.name)
 				for i, s := range statements {
 					if len(s) < 1000 {
 						continue
