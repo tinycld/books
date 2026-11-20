@@ -151,6 +151,7 @@
 - gate 1 after fix round 1: tests staged · packages:generate exit 0, `tinycld-pkg check` exit 0 (392 files, 8197 tests; cp/cp3-check-2.log) · `biome check .` and biome on the staged files clean · final e2e at the final tree (the Gates line, `audit-log.spec.ts`, and every spec that imports `record-form-helpers.ts`; 59 files, list in cp/cp3-final-e2e-files.txt): handed to the driver (NEEDS-RUN), run by the driver at the tree: 384 passed, 0 failed, exit 0, 7.6m (staging `cp/cp3-final-e2e.log`) · pass.
 - fix review: n/a — round 1 changed only test files (the bright line is a non-test source change). Rounds: 0. No shot changed, so no re-capture.
 - gate 3 A notes: 3 (NOTE 2, 3, 8) under Design notes.
+- commit: 8a8d5dad (`feat(books): apply-credit from a credit memo`)
 - human: n/a (mode C)
 
 ## Final review
