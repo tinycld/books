@@ -9,6 +9,7 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import PocketBase from 'pocketbase'
 import { describe, expect, it } from 'vitest'
+import { AP_AGING_SEED } from '../tinycld/books/lib/ap-aging-fixture'
 import { APPLY_CREDIT_SEED } from '../tinycld/books/lib/apply-credit-fixture'
 import { AR_AGING_SEED } from '../tinycld/books/lib/ar-aging-fixture'
 import { CUSTOMER_BALANCE_SEED } from '../tinycld/books/lib/customer-balance-fixture'
@@ -26,6 +27,7 @@ import {
 } from '../tinycld/books/lib/refund-receipt-form-fixture'
 import { SALES_RECEIPT_IDS } from '../tinycld/books/lib/sales-receipt-form-fixture'
 import { SEED_ACCOUNTS } from '../tinycld/books/lib/seed-accounts'
+import { VENDORS } from '../tinycld/books/lib/vendor-form-fixture'
 import { VENDOR_REFUND_VENDOR_IDS } from '../tinycld/books/lib/vendor-refund-fixture'
 import {
     WRITE_OFF_INVOICES,
@@ -43,6 +45,8 @@ type Write = {
     collection: string
     id: string
     data: Record<string, unknown>
+    // The /api/batch call that made the write, counted from 1; absent for a single call.
+    batch?: number
 }
 
 // A PocketBase stand-in that stores and records every write the seed makes, in order. It
@@ -265,18 +269,50 @@ function filterClauses(filter: string): [string, string][] {
 // seed runs through the SDK as it does against the server (its routes, pb.filter's
 // text), every write is stored and recorded in order, and a list read keeps only the
 // rows that match EVERY clause of the filter (`status = "posted"` too), as the
-// server's filter does. It does not run the server's posting.
+// server's filter does. A batch (pb.createBatch) runs its creates in order and records
+// each with the batch's number. It does not run the server's posting.
 function servedPb() {
     const writes: Write[] = []
     const rows = new Map<string, Record<string, unknown>>()
     let next = 0
+    let batches = 0
     const answer = (status: number, body: unknown) =>
         new Response(JSON.stringify(body), {
             status,
             headers: { 'content-type': 'application/json' },
         })
+    const create = (name: string, data: Record<string, unknown>, batch?: number) => {
+        next += 1
+        const created =
+            typeof data.id === 'string' ? data.id : `rec${String(next).padStart(12, '0')}`
+        const row = { revision: 0, ...data, id: created }
+        rows.set(`${name}/${created}`, row)
+        writes.push({ op: 'create', collection: name, id: created, data, batch })
+        return row
+    }
+    const serveBatch = (body: unknown) => {
+        const payload = body instanceof FormData ? body.get('@jsonPayload') : null
+        if (typeof payload !== 'string') {
+            return answer(400, { message: 'servedPb: a batch with no @jsonPayload' })
+        }
+        const { requests } = JSON.parse(payload) as {
+            requests: { method: string; url: string; body?: Record<string, unknown> }[]
+        }
+        batches += 1
+        const results = requests.map(request => {
+            const name = /^\/api\/collections\/([^/]+)\/records$/.exec(request.url)?.[1]
+            if (request.method !== 'POST' || !name) {
+                throw new Error(`servedPb: no batch ${request.method} ${request.url}`)
+            }
+            return { status: 200, body: create(name, request.body ?? {}, batches) }
+        })
+        return answer(200, results)
+    }
     const serve = async (input: RequestInfo | URL, config?: RequestInit) => {
         const url = new URL(String(input))
+        if (url.pathname === '/api/batch' && config?.method === 'POST') {
+            return serveBatch(config.body)
+        }
         const route = /^\/api\/collections\/([^/]+)\/records(?:\/([^/]+))?$/.exec(url.pathname)
         const name = route?.[1]
         if (!name) return answer(404, { message: `servedPb: no route ${url.pathname}` })
@@ -285,13 +321,7 @@ function servedPb() {
         const data: Record<string, unknown> =
             typeof config?.body === 'string' ? JSON.parse(config.body) : {}
         if (method === 'POST' && id === undefined) {
-            next += 1
-            const created =
-                typeof data.id === 'string' ? data.id : `rec${String(next).padStart(12, '0')}`
-            const row = { revision: 0, ...data, id: created }
-            rows.set(`${name}/${created}`, row)
-            writes.push({ op: 'create', collection: name, id: created, data })
-            return answer(200, row)
+            return answer(200, create(name, data))
         }
         if (method === 'PATCH' && id !== undefined) {
             const row = { ...(rows.get(`${name}/${id}`) ?? { id }), ...data }
@@ -600,6 +630,150 @@ describe('seedApplyCredit', () => {
             )
         expect(at(application)).toBeGreaterThan(at(posted('books_invoices', invoice.id)))
         expect(at(application)).toBeGreaterThan(at(posted('books_credit_memos', memo.id)))
+    })
+})
+
+// A/P Aging spec §4.5 Seed, plan decision D2: Harbor Freight Logistics gets one posted bill
+// of 860.00 on 6200, a part payment of 137.25 on it by check 1061 from 1000, and a posted
+// vendor credit of 200.00 on 6200 with 120.00 of it applied to the bill. It runs after the
+// apply credit seed and before the bank match seed, which must see every seeded document.
+describe('seedApAging', () => {
+    it('runs after the apply credit seed and before the bank match seed', () => {
+        const source = readFileSync(seedPath, 'utf8')
+        const body = source.slice(source.indexOf('export default async function seed('))
+        const applyCredit = body.indexOf('seedApplyCredit(')
+        const apAging = body.indexOf('seedApAging(')
+        const bankMatch = body.indexOf('seedBankMatch(')
+        expect(applyCredit).toBeGreaterThan(-1)
+        expect(apAging).toBeGreaterThan(applyCredit)
+        expect(bankMatch).toBeGreaterThan(apAging)
+    })
+
+    it('posts the bill, pays 137.25 of it in one batch, posts the credit and applies 120.00 of it to the bill', async () => {
+        const seedApAging = (seedModule as Record<string, unknown>).seedApAging
+        expect(typeof seedApAging).toBe('function')
+        if (typeof seedApAging !== 'function') return
+        const { pb, writes } = servedPb()
+        const accounts = seededAccounts()
+        await seedApAging(pb, { user: USER }, accounts)
+
+        const vendor = VENDORS.find(row => row.id === AP_AGING_SEED.bill.vendor)
+        expect(vendor).toBeDefined()
+        const bills = writes.filter(w => w.collection === 'books_bills' && w.op === 'create')
+        expect(bills).toHaveLength(1)
+        const bill = bills[0]
+        if (!bill) return
+        expect(bill.data).toMatchObject({
+            vendor: AP_AGING_SEED.bill.vendor,
+            status: 'draft',
+            date: AP_AGING_SEED.bill.date,
+            due_date: AP_AGING_SEED.bill.due_date,
+            ref_no: AP_AGING_SEED.bill.ref_no,
+            memo: AP_AGING_SEED.bill.memo,
+            terms: vendor?.terms,
+            mailing_address: vendor?.address,
+        })
+        expect(writes.filter(w => w.collection === 'books_bill_lines').map(w => w.data)).toEqual([
+            expect.objectContaining({
+                bill: bill.id,
+                kind: 'account',
+                account: accounts.get('6200'),
+                amount: 86_000,
+            }),
+        ])
+        expect(finalStatus(writes, 'books_bills', bill.id)).toBe('posted')
+
+        const payments = writes.filter(
+            w => w.collection === 'books_bill_payments' && w.op === 'create'
+        )
+        expect(payments).toHaveLength(1)
+        const payment = payments[0]
+        if (!payment) return
+        expect(payment.data).toMatchObject({
+            vendor: AP_AGING_SEED.bill.vendor,
+            status: 'posted',
+            date: '2026-11-04',
+            payment_method: 'check',
+            reference_no: '1061',
+            paid_from: accounts.get('1000'),
+        })
+        const paymentLines = writes.filter(w => w.collection === 'books_bill_payment_lines')
+        expect(paymentLines.map(w => w.data)).toEqual([
+            expect.objectContaining({
+                payment: payment.id,
+                bill: bill.id,
+                amount: 13_725,
+                position: 0,
+            }),
+        ])
+        expect(payment.batch).toBeDefined()
+        expect(paymentLines.map(w => w.batch)).toEqual([payment.batch])
+
+        const credits = writes.filter(
+            w => w.collection === 'books_vendor_credits' && w.op === 'create'
+        )
+        expect(credits).toHaveLength(1)
+        const credit = credits[0]
+        if (!credit) return
+        expect(credit.data).toMatchObject({
+            vendor: AP_AGING_SEED.credit.vendor,
+            status: 'draft',
+            date: AP_AGING_SEED.credit.date,
+            ref_no: AP_AGING_SEED.credit.ref_no,
+            memo: AP_AGING_SEED.credit.memo,
+        })
+        expect(
+            writes.filter(w => w.collection === 'books_vendor_credit_lines').map(w => w.data)
+        ).toEqual([
+            expect.objectContaining({
+                vendor_credit: credit.id,
+                kind: 'account',
+                account: accounts.get('6200'),
+                amount: AP_AGING_SEED.credit.cents,
+            }),
+        ])
+        expect(finalStatus(writes, 'books_vendor_credits', credit.id)).toBe('posted')
+
+        const applications = writes.filter(w => w.collection === 'books_vendor_credit_applications')
+        expect(applications.map(w => [w.op, w.data])).toEqual([
+            [
+                'create',
+                expect.objectContaining({
+                    vendor_credit: credit.id,
+                    bill: bill.id,
+                    amount: 12_000,
+                    date: '2026-10-20',
+                    applied_by: USER.id,
+                }),
+            ],
+        ])
+
+        const at = (w: Write | undefined) => (w ? writes.indexOf(w) : -1)
+        const posted = (collection: string, id: string) =>
+            writes.find(
+                w => w.collection === collection && w.id === id && w.data.status === 'posted'
+            )
+        expect(at(payment)).toBeGreaterThan(at(posted('books_bills', bill.id)))
+        expect(at(credit)).toBeGreaterThan(at(payment))
+        expect(at(applications[0])).toBeGreaterThan(at(posted('books_vendor_credits', credit.id)))
+    })
+
+    it('throws when its vendor is not in VENDORS', async () => {
+        const seedApAging = (seedModule as Record<string, unknown>).seedApAging
+        expect(typeof seedApAging).toBe('function')
+        if (typeof seedApAging !== 'function') return
+        const { pb } = servedPb()
+        const saved = { bill: AP_AGING_SEED.bill.vendor, credit: AP_AGING_SEED.credit.vendor }
+        AP_AGING_SEED.bill.vendor = 'novendor0000000'
+        AP_AGING_SEED.credit.vendor = 'novendor0000000'
+        try {
+            await expect(seedApAging(pb, { user: USER }, seededAccounts())).rejects.toThrow(
+                'seed: A/P aging vendor novendor0000000 is not in VENDORS'
+            )
+        } finally {
+            AP_AGING_SEED.bill.vendor = saved.bill
+            AP_AGING_SEED.credit.vendor = saved.credit
+        }
     })
 })
 

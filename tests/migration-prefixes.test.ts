@@ -13,7 +13,10 @@ import { describe, expect, it } from 'vitest'
 // may run before the audit view. A/R Aging (D8): the receivable items migration takes
 // 2100000028, the number the write-off spec left free, after the payments and credit
 // memos it reads. books_receivable_items is stored, not audited: only Books' posting
-// writes it, and the audit log does not read it.
+// writes it, and the audit log does not read it. A/P Aging (D1): the payable items
+// migration takes 2100000029, the number left free between the receivable items and the
+// bank matches, after the bills, bill payments, vendor credits and vendor refunds it
+// reads; books_payable_items is stored, not audited, and the audit view does not read it.
 
 const MIGRATIONS_DIR = join(__dirname, '..', 'pb-migrations')
 
@@ -81,6 +84,22 @@ describe('pb-migrations prefixes', () => {
         expect(numberOf(receivable[0])).toBeGreaterThan(numberOf(creditMemos))
     })
 
+    it('runs the payable items after the bills, the bill payments, the vendor credits and the vendor refunds, and before the audit log view', () => {
+        const payable = MIGRATIONS.filter(file => file.endsWith('_create_books_payable_items.js'))
+        expect(payable).toHaveLength(1)
+        const reads = [
+            '_create_books_bills.js',
+            '_create_books_bill_payments.js',
+            '_create_books_vendor_credits.js',
+            '_create_books_vendor_refunds.js',
+        ].map(suffix => MIGRATIONS.find(file => file.endsWith(suffix)))
+        expect(reads.every(file => file !== undefined)).toBe(true)
+        for (const file of reads) {
+            expect(numberOf(payable[0])).toBeGreaterThan(numberOf(file))
+        }
+        expect(numberOf(payable[0])).toBeLessThan(numberOf(AUDIT))
+    })
+
     it('runs the audit log view after every migration that creates a collection the view reads', () => {
         const lines = auditLineCollections()
         expect(lines).toContain('books_journal_lines')
@@ -103,8 +122,9 @@ describe('pb-migrations prefixes', () => {
     // receivable items take 2100000028. Bank-match spec §4 Schema: the bank matches take
     // 2100000030; the view reads none of their collections. Apply credit spec §4.1: the
     // credit memo applications take 2100000031, and because the view reads their lines,
-    // the audit view moves to 2100000032, the highest.
-    it('holds the vendor credits at 2100000023, the vendor refunds at 2100000024, the refund receipts at 2100000025, the vendor party balances at 2100000026, the write-offs at 2100000027, the receivable items at 2100000028, the bank matches at 2100000030 and the credit memo applications at 2100000031, before the audit log at 2100000032', () => {
+    // the audit view moves to 2100000032, the highest. A/P Aging spec §4.1: the payable
+    // items take 2100000029.
+    it('holds the vendor credits at 2100000023, the vendor refunds at 2100000024, the refund receipts at 2100000025, the vendor party balances at 2100000026, the write-offs at 2100000027, the receivable items at 2100000028, the payable items at 2100000029, the bank matches at 2100000030 and the credit memo applications at 2100000031, before the audit log at 2100000032', () => {
         expect(MIGRATIONS).toContain('2100000023_create_books_vendor_credits.js')
         expect(MIGRATIONS).toContain('2100000024_create_books_vendor_refunds.js')
         expect(MIGRATIONS).toContain('2100000025_create_books_refund_receipts.js')
@@ -112,6 +132,9 @@ describe('pb-migrations prefixes', () => {
         expect(MIGRATIONS).toContain('2100000027_create_books_write_offs.js')
         expect(MIGRATIONS.filter(file => prefixOf(file) === '2100000028')).toEqual([
             '2100000028_create_books_receivable_items.js',
+        ])
+        expect(MIGRATIONS.filter(file => prefixOf(file) === '2100000029')).toEqual([
+            '2100000029_create_books_payable_items.js',
         ])
         expect(MIGRATIONS.filter(file => prefixOf(file) === '2100000030')).toEqual([
             '2100000030_create_books_bank_matches.js',

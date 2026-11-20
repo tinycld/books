@@ -38,20 +38,23 @@ function seededVendor(name: string): VendorFixtureRecord {
     return found
 }
 
-// What the seed adds to the seeded book (spec §4.5 Seed, Q10), with fixed 2026 dates so
-// the book fills several age columns: one more posted bill that is past due, a part
-// payment on a seeded bill (pay-bills-fixture.ts PAY_BILLS_SEED_BILLS, found by its memo
-// as seedBillPayments does), and a vendor credit applied in part to the new bill. The
-// phase 4 plan checks the vendors, the accounts and the days against every spec that
-// reads them before it wires this (spec §4.5; helix lessons 1 and 33). Cents; an account
-// by its seed account number.
+// What the seed adds to the seeded book (spec §4.5 Seed, Q10; seed.ts seedApAging), with
+// fixed 2026 dates so the book fills several age columns: one more posted bill that is past
+// due, a part payment on that same bill (AP_AGING_SEED.bill), and a vendor credit applied in
+// part to it, all of Harbor Freight Logistics. The part payment pays the new bill, not a
+// seeded one: Pacific Power's "Seed bill open" keeps its open balance of 420.00, which the
+// vendor credit apply fixture and specs read (plan decision D2). 137.25 is no amount of the
+// bank statement and bank match fixtures. The bill ends with 602.75 open and the credit with
+// 80.00. Cents; an account by its seed account number.
 type ApAgingSeedBill = Pick<BooksBills, 'date' | 'due_date' | 'memo' | 'ref_no'> & {
     vendor: string
     accountNumber: string
     cents: number
 }
 interface ApAgingSeedPayment {
-    billMemo: string
+    /** Fixed 15-character ids, as the rows of BILL_PAYMENT_SEED have: the line names the payment in one batch. */
+    id: string
+    lineId: string
     date: string
     payment_method: PaymentMethodKey
     reference_no: string
@@ -73,23 +76,24 @@ export const AP_AGING_SEED = {
         date: '2026-08-20',
         due_date: '2026-09-19',
         ref_no: 'HFL-20418',
-        memo: 'Seed A/P aging: freight, August',
+        memo: 'Seed A/P aging: storage, August',
         accountNumber: '6200',
         cents: 86000,
     } satisfies ApAgingSeedBill,
     partPayment: {
-        billMemo: 'Seed bill open',
+        id: 'apagingpay00001',
+        lineId: 'apagingpayln001',
         date: '2026-11-04',
         payment_method: 'check',
         reference_no: '1061',
         paidFromNumber: '1000',
-        cents: 15000,
+        cents: 13725,
     } satisfies ApAgingSeedPayment,
     credit: {
         vendor: seededVendor('Harbor Freight Logistics').id,
         date: '2026-10-06',
         ref_no: 'HFL-CR-0311',
-        memo: 'Seed A/P aging: damaged pallet credit',
+        memo: 'Seed A/P aging: storage overcharge credit',
         accountNumber: '6200',
         cents: 20000,
         appliedCents: 12000,
