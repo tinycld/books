@@ -272,3 +272,19 @@ A beginning balance read from the lines costs time in line with the account's wh
 ### Changes
 
 (Each later task of the plan adds its change here: the SQL before and after, its plan, its time.)
+
+#### Task 2: the filter bounds the base table (core `server/reports/bounds.go`)
+
+The WHERE of `w` (the report's rows), before: `(posted IS ? AND (substr(NULLIF(substr(t1.date, 1, 10), ''), 1, 10) >= ? AND … <= ?) AND (NULLIF(t2.id, '') IN (SELECT +value FROM json_each(?))))`. After: `t1.date >= ? AND t1.date <= (? || x'ff') AND t1.account IN (SELECT +value FROM json_each(?)) AND <the filter as before>`.
+
+| run, 100,000 lines | before (baseline) | after |
+|---|---|---|
+| 1 all accounts, month | 4,328 ms | 3,734 ms |
+| 2 all accounts, year | 5,208 ms | 4,682 ms |
+| 3 busy account, month (filtered) | 2,527 ms | 2,109 ms |
+| 4 small account, month (filtered) | 1,434 ms | 1,132 ms |
+| 5 three accounts, year (filtered) | 3,472 ms | 2,998 ms |
+
+Plan of `books_journal_lines` in run 3: every read of the report's rows is now `SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date>? AND date<?)` (1 in statement 4, 7 in statement 5, 8 in statement 6); before, each was a `SCAN`. What stays: the beginning-balance lookups, `SEARCH … (account>? AND account<?)` (3 in statement 4), and the earlier-years P&L lookups, `SCAN books_journal_lines` (2 in statements 4 and 5, 4 in statement 6). Statement times of run 3: 384 ms, 552 ms, 1,117 ms.
+
+Every run fell, by 10 % to 21 %. Most of the time is still in the beginning-balance and earlier-years lookups, which tasks 4 and 5 change.
