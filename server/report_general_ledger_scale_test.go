@@ -230,6 +230,56 @@ func TestGLScaleBook(t *testing.T) {
 			}
 		}
 	}
+	requireGLOpeningsFromTheLines(t, b)
+}
+
+// requireGLOpeningsFromTheLines holds the report's beginning balance, for a
+// period that starts in the middle of a month, to a direct sum of the lines
+// before it: the busy account (every earlier line) and one income account
+// (the lines of the period's fiscal year, which starts in January in this
+// book; credit-normal). verifyBalances proves the stored rows; this proves
+// the report reads them and the lines of the first month as one balance. A
+// report that read a month twice or left one out would be fast and wrong.
+func requireGLOpeningsFromTheLines(t *testing.T, b glScaleBook) {
+	t.Helper()
+	from := b.lastDay[:8] + "15"
+	days := map[string]any{"from": from, "year": from[:5] + "01-01"}
+	// The income account with the most lines of the fiscal year before the period.
+	var incomeID string
+	if err := b.app.DB().NewQuery(`SELECT account FROM books_journal_lines
+WHERE posted IS true AND date < {:from} AND date >= {:year} AND account IN (SELECT id FROM books_accounts WHERE name LIKE 'Income ___')
+GROUP BY account ORDER BY count(*) DESC, account LIMIT 1`).Bind(days).Row(&incomeID); err != nil {
+		t.Fatalf("no income account has a line from %s to %s: %v", days["year"], from, err)
+	}
+	income := b.incomes[slices.IndexFunc(b.incomes, func(a *core.Record) bool { return a.Id == incomeID })]
+	res, err := runGLErr(t, b.app, b.reader, map[string]any{
+		"period": glPeriod(from, from), "rows": "all", "accounts": []string{b.receivable.Id, income.Id},
+	}, reports.Options{Today: b.lastDay})
+	if err != nil {
+		t.Fatalf("run from %s: %v", from, err)
+	}
+	for _, w := range []struct {
+		account *core.Record
+		sum     string
+	}{
+		{b.receivable, "SELECT COALESCE(sum(debit - credit), 0) FROM books_journal_lines WHERE posted IS true AND account = {:a} AND date < {:from}"},
+		{income, "SELECT COALESCE(sum(credit - debit), 0) FROM books_journal_lines WHERE posted IS true AND account = {:a} AND date < {:from} AND date >= {:year}"},
+	} {
+		var want int64
+		if err := b.app.DB().NewQuery(w.sum).Bind(map[string]any{"a": w.account.Id, "from": from, "year": days["year"]}).Row(&want); err != nil {
+			t.Fatal(err)
+		}
+		if want == 0 {
+			t.Fatalf("%s has no net before %s: the check would prove nothing", w.account.GetString("name"), from)
+		}
+		s := sectionFor(t, res, w.account)
+		if s.opening == nil {
+			t.Fatalf("%s has no beginning-balance row", s.head.Label)
+		}
+		if got := balanceCell(t, *s.opening); got != want {
+			t.Errorf("%s Beginning balance from %s = %d, want %d (the lines before the period)", s.head.Label, from, got, want)
+		}
+	}
 }
 
 // TestGLScale measures each run at 10,000, 100,000 and 500,000 journal lines

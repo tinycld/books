@@ -299,6 +299,7 @@ func expectedCatalog(t *testing.T) []wantSource {
 			key: "books.account_balances", collection: "books_account_balances", label: "Monthly account balances",
 			fields: []wantField{
 				{key: "period", typ: reports.Text, aggs: reports.MinMax, label: "Month"},
+				{key: "month_start", typ: reports.Date, textDay: true, aggs: reports.MinMax, label: "Month start"},
 				money("debit_total"), money("credit_total"), text("currency"),
 			},
 			links: []wantLink{toOne("account", "books.accounts", "account")},
