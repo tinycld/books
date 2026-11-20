@@ -24,8 +24,12 @@ import {
 } from '../../hooks/useLinkedRefundReceipts'
 import { useRemoveApplication } from '../../hooks/useRemoveApplication'
 import { formatAddressLines, isCustomerAddress } from '../../lib/address'
-import { billCreditsApplied } from '../../lib/bill-values'
-import { VENDOR_CREDIT_APPLICATION } from '../../lib/credit-application-kinds'
+import { billCreditsApplied, invoiceCreditsApplied } from '../../lib/bill-values'
+import {
+    type ApplicationTarget,
+    type CreditApplicationKind,
+    VENDOR_CREDIT_APPLICATION,
+} from '../../lib/credit-application-kinds'
 import { removeApplicationOffered } from '../../lib/document-actions'
 import { DOCUMENT_NOTE_LABELS, memoLabelFor } from '../../lib/document-notes'
 import { type DocumentTab, documentHref } from '../../lib/document-routes'
@@ -46,7 +50,11 @@ import { RemoveApplicationDialog } from './DocumentApplications'
 import { DocumentDetail } from './DocumentDetail'
 import { DocumentHeader } from './DocumentHeader'
 import { DocumentLoading } from './DocumentLoading'
-import { DocumentPayments } from './DocumentPayments'
+import {
+    BILL_CREDITS_LOAD_FAILED,
+    DocumentPayments,
+    INVOICE_CREDITS_LOAD_FAILED,
+} from './DocumentPayments'
 import { DocumentPdfView } from './DocumentPdfView'
 import { DocumentReadActions } from './DocumentReadActions'
 import { DOCUMENT_READ_TRAILING_WIDTH, DocumentReadLines } from './DocumentReadLines'
@@ -121,20 +129,28 @@ function openBalanceOf(record: DocumentRecord): number | undefined {
 }
 
 // The credit applied to a bill (billCreditsApplied, from its stored total, its posted
-// payments and its stored balance; vendor credit spec §3.10); 0 for every other kind.
+// payments and its stored balance; vendor credit spec §3.10) or to an invoice
+// (invoiceCreditsApplied, less its stored `written_off` too; apply credit spec §3.6); 0 for
+// every other kind.
 function creditsAppliedOf(record: DocumentRecord, paymentsCents: number): number {
     const fields = record.kindFields
-    if (fields.kind !== 'bill') return 0
     const { status, total } = record
+    if (fields.kind === 'invoice') {
+        const { balance, written_off } = fields
+        return invoiceCreditsApplied({ status, total, balance, written_off }, paymentsCents)
+    }
+    if (fields.kind !== 'bill') return 0
     return billCreditsApplied({ status, total, balance: fields.balance }, paymentsCents)
 }
 
 // The last row and the big figure: an invoice's or a bill's Balance due is its open
 // balance, which the server keeps (receive-payment spec §3.9, pay-bills spec §3.9), with a
-// Payments row above it while any posted payment applies; every other kind's is its
-// total, posted or void.
-// The kind's rows after Total: a bill's Credits applied (creditsAppliedOf, from the stored
-// record, so the rows add up while its applications read loads or has failed); a vendor
+// Payments row above it while any posted payment applies (the posted payments only, so
+// Payments, Credits applied, Written off and Balance due add up to Total); every other
+// kind's is its total, posted or void.
+// The kind's rows after Total: a bill's and an invoice's Credits applied (creditsAppliedOf,
+// from the stored record, so the rows add up while its applications read loads or has
+// failed), an invoice's Written off; a vendor
 // credit's Applied, Refunded and Unapplied credit, which read its stored total and balance
 // and the posted refunds' cents (`refunded`).
 function readTotals(
@@ -245,20 +261,39 @@ function readRefundedOf(
     return refunds.isError ? null : refunds.refunded
 }
 
-// What the Payments block names and opens on an invoice and on a bill; null for every
-// other kind, which has no payments.
+// What the Payments block names and opens on an invoice and on a bill (a payment's noun and
+// route, what a credit row names and opens, the notice of a failed credits read); null for
+// every other kind, which has no payments.
 const PAYMENTS_BLOCKS: Partial<
-    Record<DocumentRecord['kindFields']['kind'], { noun: string; routeBase: string }>
+    Record<
+        DocumentRecord['kindFields']['kind'],
+        {
+            noun: string
+            routeBase: string
+            rowTarget: ApplicationTarget
+            creditsLoadFailed: string
+        }
+    >
 > = {
-    invoice: { noun: 'Payment', routeBase: 'books/payments' },
-    bill: { noun: 'Bill payment', routeBase: 'books/bill-payments' },
+    invoice: {
+        noun: 'Payment',
+        routeBase: 'books/payments',
+        rowTarget: 'credit_memo',
+        creditsLoadFailed: INVOICE_CREDITS_LOAD_FAILED,
+    },
+    bill: {
+        noun: 'Bill payment',
+        routeBase: 'books/bill-payments',
+        rowTarget: 'credit',
+        creditsLoadFailed: BILL_CREDITS_LOAD_FAILED,
+    },
 }
 
 interface PaymentsBlockProps {
     data: DocumentScreenData
     record: DocumentRecord
-    // A bill's credit applications (empty on every other kind), their read's failure, and
-    // the read view's one Retry.
+    // A bill's or an invoice's credit applications (empty on every other kind), their
+    // read's failure, and the read view's one Retry.
     credits: Pick<CreditApplications, 'applications' | 'isError'>
     onRetry: () => void
     // Remove on each credit row; undefined where it is not offered.
@@ -275,6 +310,8 @@ function PaymentsBlock({ data, record, credits, onRetry, onRemove }: PaymentsBlo
             currency={data.currency}
             noun={target.noun}
             routeBase={target.routeBase}
+            rowTarget={target.rowTarget}
+            creditsLoadFailed={target.creditsLoadFailed}
             testIdPrefix={doc.testId}
             applications={credits.applications}
             onRemove={onRemove}
@@ -284,12 +321,12 @@ function PaymentsBlock({ data, record, credits, onRetry, onRemove }: PaymentsBlo
     )
 }
 
-// The credits a bill's read view reads (`DocumentKind.readApplications`): the record's
-// applications, the Payments block's credit rows; for every other kind no id, so the query
-// is off and ready with no rows.
-function useReadCredits(record: DocumentRecord, readApplications: boolean | undefined) {
-    return useCreditApplications(VENDOR_CREDIT_APPLICATION, {
-        document: readApplications ? record.id : undefined,
+// The credits a bill's or an invoice's read view reads (`DocumentKind.readApplications`):
+// the record's applications of that kind, the Payments block's credit rows; for every other
+// kind no id, so the query is off and ready with no rows.
+function useReadCredits(record: DocumentRecord, kind: CreditApplicationKind | undefined) {
+    return useCreditApplications(kind ?? VENDOR_CREDIT_APPLICATION, {
+        document: kind ? record.id : undefined,
     })
 }
 
@@ -527,11 +564,12 @@ interface DocumentReadViewProps {
 /**
  * A posted or void sales document, or a quote shown read only (a closed estimate, or any
  * estimate for a reader): the header, the kind's notice (in its ReadFrame: a vendor
- * credit's Apply to bills), Customer, Bill to, Email, the date and the kind's
+ * credit's Apply to bills, a credit memo's Apply to invoices, an invoice's Apply credit),
+ * Customer, Bill to, Email, the date and the kind's
  * own details, Tax, the lines with their stored amounts, the stored totals with the tax
  * snapshot (an invoice's or a bill's with its Payments row and its Balance due from its
- * open balance; a bill's with Credits applied), Message and Memo, an invoice's or a bill's
- * Payments block (a bill's with its credit rows and their Remove, whose confirm this view
+ * open balance, and Credits applied), Message and Memo, an invoice's or a bill's
+ * Payments block (with its credit rows and their Remove, whose confirm this view
  * owns), the kind's own
  * section after it (ReadSection: an invoice's Credit memos, a sales receipt's Refund
  * receipts, a credit memo's Refunds; in its ReadFrame: a vendor
@@ -554,9 +592,10 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     const historyItem = useHistoryItem(DOCUMENT_COLLECTIONS[doc.key], record.id)
     const writes = useServerActionState()
     useReadAttachmentSession(record.id, doc.features.attachments)
+    const applicationKind = documentKind.readApplications ?? VENDOR_CREDIT_APPLICATION
     const credits = useReadCredits(record, documentKind.readApplications)
     const canRemove = removeApplicationOffered(data.canWrite, record.status)
-    const removal = useRemoveApplication(VENDOR_CREDIT_APPLICATION, {
+    const removal = useRemoveApplication(applicationKind, {
         applications: credits.applications,
         canRemove,
     })
@@ -680,13 +719,14 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                     isPhone={isPhone}
                     isBusy={read.voidDialog.isPending}
                     hasPdf={doc.features.pdf}
+                    recordKind={record.kindFields.kind}
                     scopeOwner={scopeOwner}
                 />
                 <VoidDialog {...read.voidDialog} />
                 <ReadWriteOffDialog owner={owner} isVisible={isInvoice} />
                 <RemoveApplicationDialog
                     application={removal.target}
-                    removeBody={VENDOR_CREDIT_APPLICATION.texts.removeBody}
+                    removeBody={applicationKind.texts.removeBody}
                     isVisible={removal.isVisible}
                     currency={data.currency}
                     isPending={removal.isPending}

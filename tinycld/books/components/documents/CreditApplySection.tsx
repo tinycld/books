@@ -26,6 +26,7 @@ import { ApplyCreditDialog } from './ApplyCreditDialog'
 import { ApplyCreditNotice } from './ApplyCreditNotice'
 import { DocumentApplications, RemoveApplicationDialog } from './DocumentApplications'
 import type { DocumentReadFrameProps } from './document-kinds'
+import type { PaymentsLineOpeners } from './UnappliedPaymentsLine'
 
 const LOG_CONTEXT = 'books.creditApply'
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
@@ -112,30 +113,41 @@ function useCreditSectionReads(
 type SectionReads = ReturnType<typeof useCreditSectionReads>
 
 // The dialog belongs to this screen: it closes when the screen loses focus, so it does not
-// stand open over the screen pushed on top or reopen on the way back.
-function useCloseOnBlur(creditId: string) {
+// stand open over the screen pushed on top or reopen on the way back. `recordId` is the
+// credit's or the invoice's id (the store's `openFor`).
+export function useCloseOnBlur(recordId: string) {
     const closeDialog = useApplyCreditStore(state => state.close)
     useFocusEffect(
         useCallback(
             () => () => {
-                if (useApplyCreditStore.getState().openFor === creditId) closeDialog()
+                if (useApplyCreditStore.getState().openFor === recordId) closeDialog()
             },
-            [creditId, closeDialog]
+            [recordId, closeDialog]
         )
     )
 }
 
-function ApplyDialogSlot({
+// The apply dialog while `isVisible`; nothing otherwise. The credit's and the invoice's read
+// frames mount it; the invoice's hands in its payments line's openers.
+export function ApplyDialogSlot({
     isVisible,
     target,
     sectionRecovery,
+    paymentsLineOpeners,
 }: {
     isVisible: boolean
     target: ApplyCreditTarget
     sectionRecovery: LiveRecovery
+    paymentsLineOpeners?: PaymentsLineOpeners
 }) {
     if (!isVisible) return null
-    return <ApplyCreditDialog target={target} sectionRecovery={sectionRecovery} />
+    return (
+        <ApplyCreditDialog
+            target={target}
+            sectionRecovery={sectionRecovery}
+            paymentsLineOpeners={paymentsLineOpeners}
+        />
+    )
 }
 
 function ApplyNotice({

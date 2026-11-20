@@ -124,6 +124,20 @@ export function billCreditsApplied(
     return Math.max(0, record.total - paymentsCents - record.balance)
 }
 
+// The credit memos applied to an invoice, in cents, from its stored record (apply credit
+// spec §3.6): the shape of billCreditsApplied, less the invoice's `written_off` too, since
+// the server lowers an invoice's balance by each payment, each credit application and its
+// write-off. So Payments, Credits applied, Written off and Balance due add up to the total,
+// also while the applications read loads or has failed. 0 for a draft or a void invoice.
+// Pure.
+export function invoiceCreditsApplied(
+    record: { status: string; total: number; balance: number; written_off: number },
+    paymentsCents: number
+): number {
+    if (record.status !== 'posted') return 0
+    return Math.max(0, record.total - paymentsCents - record.written_off - record.balance)
+}
+
 // The bill read view's rows between Payments and Balance due (vendor credit spec §3.10):
 // "Credits applied" with a minus sign while vendor credits are applied to the bill
 // (`applied`, billCreditsApplied), and no row while none is.

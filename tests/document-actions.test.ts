@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
     applyCreditOffered,
+    applyInvoiceCreditOffered,
     creditMemoOffered,
     DOCUMENT_READ_ACTION_KEYS,
     DOCUMENT_READ_KEYS,
@@ -746,6 +747,100 @@ describe('Write off', () => {
         for (const [action, key] of others) {
             expect(key.toLowerCase(), action).not.toBe('w')
         }
+    })
+})
+
+// Apply credit on an invoice (apply credit spec §3.1, plan decision 10): a writer's action on
+// a posted invoice with a balance above zero while its customer has unapplied credit, key A,
+// after Receive payment and before Edit. The read view sets `canApplyInvoiceCredit` from
+// applyInvoiceCreditOffered.
+describe('Apply credit on an invoice', () => {
+    const invoice = (
+        status: 'posted' | 'void' | 'draft',
+        canWrite: boolean,
+        balance: number,
+        hasUnappliedCredit: boolean
+    ) =>
+        documentReadActions(status, canWrite, SALES_FEATURES, {
+            canReceivePayment: receivePaymentOffered('invoice', status, balance),
+            canPayBill: false,
+            canCreateCreditMemo: creditMemoOffered('invoice', status),
+            canWriteOff: writeOffOffered('invoice', status, balance),
+            canApplyInvoiceCredit: applyInvoiceCreditOffered(
+                'invoice',
+                status,
+                balance,
+                hasUnappliedCredit
+            ),
+        })
+
+    it('applyInvoiceCreditOffered is true for a posted invoice with a balance and unapplied credit', () => {
+        expect(applyInvoiceCreditOffered('invoice', 'posted', 1, true)).toBe(true)
+        expect(applyInvoiceCreditOffered('invoice', 'posted', 40_000, true)).toBe(true)
+    })
+
+    it('applyInvoiceCreditOffered is false with no unapplied credit, a balance of 0, a draft or a void invoice', () => {
+        expect(applyInvoiceCreditOffered('invoice', 'posted', 40_000, false)).toBe(false)
+        expect(applyInvoiceCreditOffered('invoice', 'posted', 0, true)).toBe(false)
+        expect(applyInvoiceCreditOffered('invoice', 'draft', 40_000, true)).toBe(false)
+        expect(applyInvoiceCreditOffered('invoice', 'void', 40_000, true)).toBe(false)
+    })
+
+    it('applyInvoiceCreditOffered is false for every other kind', () => {
+        for (const kind of [
+            'sales_receipt',
+            'estimate',
+            'bill',
+            'expense',
+            'credit_memo',
+            'vendor_credit',
+            'refund_receipt',
+        ]) {
+            expect(applyInvoiceCreditOffered(kind, 'posted', 40_000, true), kind).toBe(false)
+        }
+    })
+
+    it('comes after Receive payment and before Edit for a writer', () => {
+        expect(invoice('posted', true, 40_000, true)).toEqual([
+            'receive_payment',
+            'apply_credit',
+            'edit',
+            'void',
+            'copy',
+            'credit_memo',
+            'write_off',
+            'entry',
+            'pdf',
+        ])
+    })
+
+    it('is not offered while the customer has no unapplied credit', () => {
+        expect(invoice('posted', true, 40_000, false)).not.toContain('apply_credit')
+    })
+
+    it('is never offered to a reader, even when canApplyInvoiceCredit is set', () => {
+        expect(invoice('posted', false, 40_000, true)).toEqual(['entry', 'pdf'])
+        expect(
+            documentReadActions('posted', false, SALES_FEATURES, {
+                canReceivePayment: true,
+                canPayBill: false,
+                canCreateCreditMemo: true,
+                canApplyInvoiceCredit: true,
+            })
+        ).not.toContain('apply_credit')
+    })
+
+    it('is never offered on a draft or a void invoice, even when canApplyInvoiceCredit is set', () => {
+        expect(invoice('draft', true, 40_000, true)).toEqual([])
+        expect(invoice('void', true, 40_000, true)).not.toContain('apply_credit')
+        expect(
+            documentReadActions('void', true, SALES_FEATURES, {
+                canReceivePayment: false,
+                canPayBill: false,
+                canCreateCreditMemo: false,
+                canApplyInvoiceCredit: true,
+            })
+        ).toEqual(['copy', 'entry', 'pdf'])
     })
 })
 

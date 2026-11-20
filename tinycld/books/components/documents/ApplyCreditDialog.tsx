@@ -31,6 +31,7 @@ import {
 } from '../payments/OutstandingGrid'
 import { FieldError } from '../payments/PaymentMoneyField'
 import { DialogLoadError } from '../taxes/DialogLoadError'
+import { type PaymentsLineOpeners, UnappliedPaymentsLine } from './UnappliedPaymentsLine'
 
 const TEST_ID_PREFIX = 'apply-credit'
 const TAP = { minHeight: 44 }
@@ -224,9 +225,39 @@ function RowList({ width, list }: { width: number; list: OutstandingGridProps })
     return <OutstandingGrid {...list} />
 }
 
-function ListedRows({ apply, currency }: { apply: ApplyCreditState; currency: string }) {
+// From an invoice (spec §3.3): the customer's payments with an amount that is not applied,
+// under the summary, its links the openers the invoice's frame built on the screen; nothing
+// from a credit (no openers).
+function DialogPaymentsLine({
+    target,
+    openers,
+}: {
+    target: ApplyCreditTarget
+    openers: PaymentsLineOpeners | undefined
+}) {
+    if (target.from !== 'document' || openers === undefined) return null
+    return (
+        <UnappliedPaymentsLine
+            customerId={target.party}
+            currency={target.currency}
+            testID={`${TEST_ID_PREFIX}-payments-line`}
+            testIdPrefix={`${TEST_ID_PREFIX}-unapplied`}
+            openers={openers}
+        />
+    )
+}
+
+function ListedRows({
+    apply,
+    target,
+    openers,
+}: {
+    apply: ApplyCreditState
+    target: ApplyCreditTarget
+    openers: PaymentsLineOpeners | undefined
+}) {
     const { width, onLayout } = useContainerWidth()
-    const list = rowListOf(apply, currency)
+    const list = rowListOf(apply, target.currency)
     return (
         <View className="gap-3" onLayout={onLayout}>
             <RowList width={width} list={list} />
@@ -240,13 +271,22 @@ function ListedRows({ apply, currency }: { apply: ApplyCreditState; currency: st
             <Text testID={`${TEST_ID_PREFIX}-summary`} className="text-sm text-muted-foreground">
                 {apply.summary}
             </Text>
+            <DialogPaymentsLine target={target} openers={openers} />
         </View>
     )
 }
 
 // What stands under the date, by applyDialogState: the skeleton while the reads load, the
 // load error with Retry, the empty state, or the rows.
-function ApplyBody({ apply, target }: { apply: ApplyCreditState; target: ApplyCreditTarget }) {
+function ApplyBody({
+    apply,
+    target,
+    openers,
+}: {
+    apply: ApplyCreditState
+    target: ApplyCreditTarget
+    openers: PaymentsLineOpeners | undefined
+}) {
     const { body } = apply.state
     if (body === 'loading') return <SkeletonRows />
     if (body === 'load-error') {
@@ -261,7 +301,7 @@ function ApplyBody({ apply, target }: { apply: ApplyCreditState; target: ApplyCr
         )
     }
     if (body === 'empty') return <EmptyRows apply={apply} target={target} />
-    return <ListedRows apply={apply} currency={target.currency} />
+    return <ListedRows apply={apply} target={target} openers={openers} />
 }
 
 /**
@@ -270,20 +310,25 @@ function ApplyBody({ apply, target }: { apply: ApplyCreditState; target: ApplyCr
  * its customer's credit memos): a core Dialog (a Sheet on a phone) titled from the kind's
  * texts, the figure (the fixed side's label and amount, with the kind's help topic), the
  * Apply date, the root refusals, and the rows of the kind's list descriptor as the shared
- * grid (its content at least the descriptor's `gridMinWidth`) or cards (below it), Clear and
- * the summary; or the skeleton, the load error with Retry, or the empty state with the
- * kind's buttons. Cancel (Esc) and Apply credit (⌘↵, disabled unless applyDialogState allows
+ * grid (its content at least the descriptor's `gridMinWidth`) or cards (below it), Clear,
+ * the summary and, from an invoice, the payments line (UnappliedPaymentsLine); or the
+ * skeleton, the load error with Retry, or the empty state (with the kind's buttons from a
+ * credit; from an invoice, the "no unapplied credit" text alone). Cancel (Esc) and Apply credit (⌘↵, disabled unless applyDialogState allows
  * it: rows listed, writes available, no write held). The first cell has focus when the
- * measured list first draws it (web). The credit's read frame mounts it while the store
- * names the credit or holds a write, and hands it `sectionRecovery` (the frame's own failed
- * read of the open documents), which Retry recovers too.
+ * measured list first draws it (web). The credit's or the invoice's read frame mounts it
+ * while the store names the record or holds a write, and hands it `sectionRecovery` (the
+ * frame's own failed read of the rows' source), which Retry recovers too. The invoice's frame
+ * also hands it the payments line's openers (`paymentsLineOpeners`): the dialog's content
+ * gets no navigation on native, so the line's links are built on the screen.
  */
 export function ApplyCreditDialog({
     target,
     sectionRecovery,
+    paymentsLineOpeners,
 }: {
     target: ApplyCreditTarget
     sectionRecovery: LiveRecovery
+    paymentsLineOpeners?: PaymentsLineOpeners
 }) {
     const apply = useApplyCredit(target, sectionRecovery)
     const close = useApplyCreditStore(state => state.close)
@@ -322,7 +367,7 @@ export function ApplyCreditDialog({
                     showFieldNames={false}
                     isEnabled={formState.isSubmitted}
                 />
-                <ApplyBody apply={apply} target={target} />
+                <ApplyBody apply={apply} target={target} openers={paymentsLineOpeners} />
             </Dialog.Body>
             <Dialog.Footer>
                 <Dialog.CancelButton

@@ -3,7 +3,11 @@ import { ShortcutButton } from '@tinycld/core/ui/shortcut-button'
 import { useId, useMemo, useRef } from 'react'
 import { View } from 'react-native'
 import type { DocumentReadItem } from '../../hooks/useDocumentReadActions'
-import { DOCUMENT_PDF_KEY, DOCUMENT_READ_ACTION_KEYS } from '../../lib/document-actions'
+import {
+    DOCUMENT_PDF_KEY,
+    DOCUMENT_READ_ACTION_KEYS,
+    phonePrimaryAction,
+} from '../../lib/document-actions'
 import { type DocumentMoreItem, DocumentMoreMenu } from './DocumentActionBar'
 import { type DocumentChrome, useDocumentChrome } from './document-chrome'
 
@@ -17,6 +21,9 @@ interface DocumentReadActionsProps {
     isBusy: boolean
     // The record has a PDF (Download PDF, ⌘P); a payment and a kind without one do not.
     hasPdf?: boolean
+    // The document's kind (`kindFields.kind`): which action a phone's bar keeps in place of
+    // Edit (phonePrimaryAction). Absent (a payment): no primary action by kind.
+    recordKind?: string
     scopeOwner: ScopeOwner
 }
 
@@ -118,35 +125,35 @@ function usePdfKeyWhileBusy(
     useRegisterShortcuts(shortcuts, scopeOwner)
 }
 
-// The actions a phone's bar keeps in place of Edit while they are offered.
-const PHONE_PRIMARY_ACTIONS: ReadonlySet<DocumentReadItem['action']> = new Set([
-    'pay_bill',
-    'apply_credit',
-])
-
 // The one button a phone's bar keeps beside More. A lone action is the bar button, since a
-// menu of one row only hides it. A bill with a balance keeps Pay bill, its primary action
-// (pay-bills spec §2), and a vendor credit with unapplied credit keeps Apply to bills (vendor
-// credit spec §3.7), so its Record refund, which comes after it, goes to More (vendor refund
-// spec §3.9). Otherwise a posting document keeps Edit (a voided one has none, so all
-// its actions are in More) and a quote keeps its primary action, the first.
+// menu of one row only hides it. The kind's primary action (phonePrimaryAction) comes next:
+// a bill with a balance keeps Pay bill (pay-bills spec §2), a vendor credit or a credit memo
+// with unapplied credit keeps its Apply (vendor credit spec §3.7, apply credit spec §3.1), so
+// a vendor credit's Record refund, which comes after it, goes to More (vendor refund spec
+// §3.9). An invoice has no primary action: its Apply credit is a row of More (plan decision
+// 9). Otherwise a posting document keeps Edit (a voided one has none, so all its actions are
+// in More) and a quote keeps its primary action, the first. A record with no `kind` (a
+// payment) has no primary action by kind, so it keeps Edit.
 function phoneButtonOf(
     lifecycle: DocumentChrome['lifecycle'],
-    actions: DocumentReadItem[]
+    actions: DocumentReadItem[],
+    kind: string | undefined
 ): DocumentReadItem | undefined {
     if (actions.length === 1) return actions[0]
     if (lifecycle === 'quote') return actions[0]
-    const primary = actions.find(item => PHONE_PRIMARY_ACTIONS.has(item.action))
-    return primary ?? actions.find(item => item.id === 'read-edit')
+    const actionIds = actions.map(item => item.action)
+    const primary = kind === undefined ? undefined : phonePrimaryAction(kind, actionIds)
+    const primaryItem = actions.find(item => item.action === primary)
+    return primaryItem ?? actions.find(item => item.id === 'read-edit')
 }
 
 /**
  * The read view's bar. Wide: a ShortcutButton per action (Apply to bills A, Record refund R
  * right after it, Edit E, Void V,
  * Copy C, View journal entry J, Download PDF ⌘P), the first one primary. Phone: one button
- * (the only action when there is one, else Pay bill or Apply to bills on a bill or vendor
- * credit that offers it, Edit on any other posting
- * document and the first action on a quote) and the rest in a More menu whose rows
+ * (the only action when there is one, else Pay bill on a bill and Apply on a vendor credit
+ * or a credit memo that offers it, Edit on any other posting document, an invoice's Apply
+ * credit included, and the first action on a quote) and the rest in a More menu whose rows
  * show their keys. A reader gets View journal entry and Download PDF on a posting
  * document, Download PDF on a quote; a hidden action's key is not registered. Audit
  * history (`historyItem`) is the last More row at every width, so a wide bar shows More
@@ -159,10 +166,11 @@ export function DocumentReadActions({
     isPhone,
     isBusy,
     hasPdf = false,
+    recordKind,
     scopeOwner,
 }: DocumentReadActionsProps) {
     const doc = useDocumentChrome()
-    const phoneButton = phoneButtonOf(doc.lifecycle, actions)
+    const phoneButton = phoneButtonOf(doc.lifecycle, actions, recordKind)
     const inBar = isPhone ? (phoneButton ? [phoneButton] : []) : actions
     const inMore = isPhone ? actions.filter(item => item !== phoneButton) : []
     useMoreKeys(doc, inMore, scopeOwner)
