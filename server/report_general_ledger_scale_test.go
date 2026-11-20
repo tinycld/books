@@ -156,6 +156,30 @@ func glSectionAccounts(res *reports.Result) []string {
 	return out
 }
 
+// glExpectedSections are the picked accounts a filtered run must show: all of
+// them when the run has rows "all", else those with a posted line dated within
+// the run's period (an account with no line in it has no section by design).
+func glExpectedSections(t *testing.T, b glScaleBook, r glScaleRun, picked []string) []string {
+	t.Helper()
+	if r.params["rows"] == "all" {
+		return picked
+	}
+	period, _ := r.params["period"].(map[string]any)
+	var out []string
+	for _, id := range picked {
+		var n int
+		err := b.app.DB().NewQuery("SELECT count(*) FROM books_journal_lines WHERE account = {:a} AND posted IS true AND date >= {:from} AND date <= {:to}").
+			Bind(map[string]any{"a": id, "from": period["from"], "to": period["to"]}).Row(&n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n > 0 {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
 // TestGLScaleBook: the scale book is a ledger posting could have written (its
 // stored monthly balances agree with its lines, the income is spread), and a
 // run with an Accounts filter shows the picked accounts' sections only.
@@ -167,6 +191,13 @@ func TestGLScaleBook(t *testing.T) {
 	}
 	if len(drifts) > 0 {
 		t.Fatalf("the stored balances differ from the lines in %d rows, first %+v", len(drifts), drifts[0])
+	}
+	var badIDs int
+	if err := b.app.DB().NewQuery("SELECT count(*) FROM books_account_balances WHERE length(id) != 15").Row(&badIDs); err != nil {
+		t.Fatal(err)
+	}
+	if badIDs != 0 {
+		t.Fatalf("%d stored balance rows have an id that is not 15 characters", badIDs)
 	}
 	var moved int
 	if err := b.app.DB().NewQuery("SELECT count(DISTINCT account) FROM books_journal_lines WHERE account IN (SELECT id FROM books_accounts WHERE name LIKE 'Income ___')").Row(&moved); err != nil {
@@ -191,6 +222,11 @@ func TestGLScaleBook(t *testing.T) {
 		for _, id := range got {
 			if !slices.Contains(picked, id) {
 				t.Fatalf("run %s shows a section of account %s, which it did not pick (%v)", run.name, id, picked)
+			}
+		}
+		for _, id := range glExpectedSections(t, b, run, picked) {
+			if !slices.Contains(got, id) {
+				t.Fatalf("run %s shows no section of the picked account %s (sections %v)", run.name, id, got)
 			}
 		}
 	}
@@ -256,7 +292,15 @@ func TestGLScale(t *testing.T) {
 				}
 			}
 		})
+		// After each size, so a timeout in a later size keeps the earlier results.
+		writeGLScaleOut(t, results.String(), plans.String())
 	}
+}
+
+// writeGLScaleOut writes gl-results.md and gl-plans.md under BOOKS_SCALE_OUT
+// (nothing when it is unset).
+func writeGLScaleOut(t *testing.T, results, plans string) {
+	t.Helper()
 	out := os.Getenv("BOOKS_SCALE_OUT")
 	if out == "" {
 		return
@@ -264,7 +308,7 @@ func TestGLScale(t *testing.T) {
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		t.Fatalf("make %s: %v", out, err)
 	}
-	for name, text := range map[string]string{"gl-results.md": results.String(), "gl-plans.md": plans.String()} {
+	for name, text := range map[string]string{"gl-results.md": results, "gl-plans.md": plans} {
 		if err := os.WriteFile(filepath.Join(out, name), []byte(text), 0o644); err != nil {
 			t.Fatal(err)
 		}
