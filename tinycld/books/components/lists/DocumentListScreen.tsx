@@ -247,6 +247,7 @@ export function DocumentListScreen({ tab, openId, layout, isCovered }: DocumentL
                 testIdPrefix={area.testIdPrefix}
                 rowActions={screen.rowActions}
                 batch={screen.batch}
+                owner={screen.owner}
             />
         </>
     )

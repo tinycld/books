@@ -137,6 +137,25 @@ func TestGeneralLedger_AVendorRefundReadsItsTypeNumberAndVendor(t *testing.T) {
 	}
 }
 
+// Write-off spec §3.6: a posted write-off's entry reads Type "Write-off", No.
+// 1001 and the customer's name on both lines (the account written off to and
+// Accounts receivable).
+func TestGeneralLedger_AWriteOffReadsItsTypeNumberAndCustomer(t *testing.T) {
+	we := newWriteOffEnv(t)
+	registerBooksSources(t)
+	wo := we.mkWriteOff(t, we.postedInvoice(t, 30000), nil)
+	entryID := wo.GetString("entry")
+
+	res := runGL(t, we.app, we.users.readOnly, map[string]any{"period": glPeriod("2026-11-01", "2026-11-30")}, reports.Options{Today: glToday})
+	for _, account := range []*core.Record{we.badDebts, we.receivable} {
+		row := lineRow(t, res, entryLineOn(t, we.app, entryID, account))
+		if got, want := [3]string{textCell(t, row, "type"), textCell(t, row, "number"), textCell(t, row, "name")},
+			[3]string{"Write-off", "1001", "Harborview Dental"}; got != want {
+			t.Errorf("the write-off's line on %s type/number/name = %v, want %v", account.GetString("name"), got, want)
+		}
+	}
+}
+
 // glSection is one account's section: its heading row, then the rows that
 // name it as their section, in the order the result holds them.
 type glSection struct {
@@ -1326,7 +1345,10 @@ const generalLedgerSpecGolden = "" +
 	`{"value":"Vendor credit"},` +
 	`{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"vendor_refund"}]},` +
 	`{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},` +
-	`{"value":"Vendor refund"},{"op":"eq","args":[{"path":[{"link":"entry` +
+	`{"value":"Vendor refund"},` +
+	`{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"write_off"}]},` +
+	`{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},` +
+	`{"value":"Write-off"},{"op":"eq","args":[{"path":[{"link":"entry` +
 	`"},{"field":"origin"}]},{"value":"reversal"}]},{"op":"if","args":[{"op":"isEmpty","args":[{"path":[{"link":"entry"},{"link":"reverses"},{"field":"number"}]}]},{` +
 	`"value":"Reversal"},{"op":"concat","args":[{"value":"Reversal"},{"value":" of "},{"path":[{"link":"entry"},{"link":"reverses"},{"field":"number"}]}]}]},{"op":"e` +
 	`q","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":"void_reversal"}]},{"op":"if","args":[{"op":"isEmpty","args":[{"path":[{"link":"entry"},{"lin` +

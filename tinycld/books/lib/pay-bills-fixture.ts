@@ -380,7 +380,7 @@ export function postedPaymentsOf(
 //
 // The days are chosen so no report or register spec reads them (pay-bills checkpoint 1,
 // step 11): after the 2026-06-30 close date books-settings.spec.ts sets, and away from
-// 2026-07-01 (general-ledger, journal-report, balance-sheet), 2026-07-23 and 2026-07-29
+// 2026-07-01 (general-ledger, journal-report, balance-sheet), the SECTION_DAYS and 2026-07-29
 // (report-drill-down), the General Ledger days 2026-08-04 to 2026-08-18 (GL_DAY_1,
 // GL_DAY_2) and 2026-09-30 (sales tax liability). The accounts (2000 Accounts payable,
 // 1000 Business Checking, 6100 Rent, 6200 Software Subscriptions) are already in the

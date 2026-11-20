@@ -80,6 +80,7 @@ const INCOME_AND_EXPENSES: StarterAccount[] = [
     account('4900', 'Interest earned', 'other_income', 'interest_earned'),
     account('5000', 'Cost of goods sold', 'cost_of_goods_sold', 'supplies_materials'),
     account('6000', 'Advertising and marketing', 'expense', 'advertising_marketing'),
+    account('6050', 'Bad debts', 'expense', 'bad_debts'),
     account('6100', 'Bank charges and fees', 'expense', 'bank_charges'),
     account('6200', 'Insurance', 'expense', 'insurance'),
     account('6300', 'Legal and professional fees', 'expense', 'legal_professional'),

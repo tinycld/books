@@ -173,6 +173,105 @@ func productsParam() reports.ParamDef {
 	}
 }
 
+// The three customer report helpers below are shared by the Customer Balance
+// and the A/R Aging; the A/P aging report (p5-ap-aging) and customer
+// statements (p2-statements) reuse them.
+
+// customerFamilyGroups are the family level, open when the report opens and
+// drawn only when a line names a sub-customer, and the customer level, muted
+// when inactive. A blank key (no customer) labels "No customer". The spec
+// columns topKey (the parent, else the customer) and customerKey (the
+// customer) are their keys. The customer level has no Having and no
+// HideEmpty: each report sets its own. The A/R Aging replaces the family
+// level's Inline (arGroups): its run does not read the rows of settled items.
+func customerFamilyGroups() []reports.Group {
+	inactive := op("eq", rec("byCustomer", "inactive"), lit(true))
+	return []reports.Group{
+		{
+			ID: "byTop", Col: "topKey", Open: true, Subtotals: true, HideEmpty: true,
+			Label: op("coalesce", rec("byTop", "display_name"), lit("No customer")),
+			// No line of the family names a sub-customer (D1).
+			Inline: op("eq", op("sum", op("if", op("isEmpty", fld("customer", "parent", "id")), lit(0), lit(1))), lit(0)),
+		},
+		{
+			ID: "byCustomer", Col: "customerKey",
+			// The suffix keeps the mark in exports and screen readers, which
+			// do not read the muted tone.
+			Label: op("concat",
+				op("coalesce", rec("byCustomer", "display_name"), lit("No customer")),
+				op("if", inactive, lit(" (inactive)"), lit("")),
+			),
+			Muted: inactive,
+		},
+	}
+}
+
+// customerFamilySort is the family order of customerFamilyGroups: inside a
+// family the parent's own row first (read on customer rows only); then the
+// report's inner keys; under Largest balance the level's sum of net, largest
+// first (on every level); No customer last; then families and customers by
+// name, ignoring case. With noCustomerBeforeBalance the No customer key comes
+// before the balance key, so No customer stays last under Largest balance
+// too; else it comes after it. Core applies a key on each group level where
+// it has a value and skips a key that reads a row value there, so inner keys
+// that read a line order the opened rows only.
+func customerFamilySort(net *reports.Node, noCustomerBeforeBalance bool, inner ...reports.SortKey) []reports.SortKey {
+	keys := []reports.SortKey{
+		{Formula: op("if", op("eq", rec("byCustomer", "id"), rec("byTop", "id")), lit(0), lit(1))},
+	}
+	keys = append(keys, inner...)
+	balance := reports.SortKey{Formula: op("if", op("eq", prm("order"), lit("balance")), op("sum", net), lit(0)), Dir: "desc"}
+	if noCustomerBeforeBalance {
+		keys = append(keys, noCustomerLast(), balance)
+	} else {
+		keys = append(keys, balance, noCustomerLast())
+	}
+	return append(keys,
+		reports.SortKey{Formula: op("lower", rec("byTop", "display_name"))},
+		reports.SortKey{Formula: op("lower", rec("byCustomer", "display_name"))},
+	)
+}
+
+// noCustomerLast puts the No customer row (a blank family key) after every
+// customer.
+func noCustomerLast() reports.SortKey {
+	return reports.SortKey{Formula: op("if", op("isEmpty", rec("byTop", "id")), lit(1), lit(0))}
+}
+
+// agingBand is one age column: its id, its label and the ages it holds.
+type agingBand struct {
+	id, label string
+	holds     func(age *reports.Node) *reports.Node
+}
+
+// agingBands are the age columns, youngest first: Current (age 0 or less: not
+// yet due), then four 30-day periods, the last open-ended.
+var agingBands = []agingBand{
+	{"current", "Current", func(age *reports.Node) *reports.Node { return op("lte", age, lit(0)) }},
+	{"d30", "1 - 30", func(age *reports.Node) *reports.Node { return ageBetween(age, 1, 30) }},
+	{"d60", "31 - 60", func(age *reports.Node) *reports.Node { return ageBetween(age, 31, 60) }},
+	{"d90", "61 - 90", func(age *reports.Node) *reports.Node { return ageBetween(age, 61, 90) }},
+	{"d91", "91 and over", func(age *reports.Node) *reports.Node { return op("gte", age, lit(91)) }},
+}
+
+func ageBetween(age *reports.Node, from, to int) *reports.Node {
+	return op("and", op("gte", age, lit(from)), op("lte", age, lit(to)))
+}
+
+// agingColumns are the five age columns and Total: each age column adds net
+// of the rows whose age is in its range, blank when that is zero; Total adds
+// net of every row and always has a figure. age is a row's age in days.
+func agingColumns(age, net *reports.Node) []reports.Column {
+	out := make([]reports.Column, 0, len(agingBands)+1)
+	for _, b := range agingBands {
+		out = append(out, reports.Column{
+			ID: b.id, Label: b.label,
+			Formula: blankZero(op("sum", op("if", b.holds(age), net, lit(0)))),
+		})
+	}
+	return append(out, reports.Column{ID: "total", Label: "Total", Formula: op("sum", net)})
+}
+
 // receivableLines are the filter terms of the posted Accounts receivable
 // lines on or before asOf. The Customer Balance reads them; the A/R aging
 // report (p5-ar-aging) and customer statements (p2-statements) read the same

@@ -66,5 +66,6 @@ export type {
     BooksVendorRefundLines,
     BooksVendorRefunds,
     BooksVendors,
+    BooksWriteOffs,
     Schema as BooksSchema,
 } from '@tinycld/core/types/pbSchema'

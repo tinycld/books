@@ -63,6 +63,9 @@ func entryNouns(docType string) (noun, this, draft string) {
 	case docTypeBillPayment:
 		// A bill payment has no draft: it is created posted (bill_payments.go).
 		return "Bill payment", "This bill payment", "Bill payment"
+	case docTypeWriteOff:
+		// A write-off has no draft: it is created posted (write_offs.go).
+		return "Write-off", "This write-off", "Write-off"
 	case docTypeEstimate:
 		// An estimate has no draft: it is numbered when it is created.
 		return "Estimate", "This estimate", "Estimate"

@@ -151,6 +151,7 @@ func registerPaymentGuards(app core.App) {
 			return nil
 		})
 	})
+	bindReceivablePaymentRefresh(app)
 }
 
 // createPayment guards a new payment: it starts as a draft with none of the

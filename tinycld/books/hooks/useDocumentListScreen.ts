@@ -152,8 +152,9 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     // replaces the list area's screen with a new list route while a route pushed earlier
     // can still hold a list of the same tab under it, and only the list that opened a
     // dialog draws it. The list stays mounted when its layout changes, so the key holds
-    // while a write runs.
-    const listKey = `${stateKey}:${useId()}`
+    // while a write runs. `owner` names this list to its one WriteOffDialog (plan decision 3).
+    const owner = useId()
+    const listKey = `${stateKey}:${owner}`
     useBlurCleanup(listKey)
     const { width, onListLayout } = useListWidth()
 
@@ -227,6 +228,7 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     const selection = useListSelection(scope, loadedIds)
     const rowActions = useDocumentRowActions({
         listKey,
+        owner,
         rows: list.rows,
         canWrite,
         openRow,
@@ -236,6 +238,7 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     const actionBanner = useDocumentListStore(state => state.banner)
 
     return {
+        owner,
         list,
         filters,
         appliedFilters,

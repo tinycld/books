@@ -100,6 +100,7 @@ function invoice(seed: InvoiceSeed): OpenInvoiceRecord {
         memo: '',
         subtotal: seed.total,
         tax_total: 0,
+        written_off: 0,
         revision: 1,
         currency: PAYMENT_CURRENCY,
         entry: '',

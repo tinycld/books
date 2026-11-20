@@ -30,7 +30,8 @@ const EXPECTED_TABS = [
         kinds: ['invoice'],
         newLabel: 'New invoice',
         columns: ['date', 'number', 'customer', 'due', 'balance', 'total', 'status'],
-        chips: chips('All', 'Open', 'Overdue', 'Paid', 'Draft', 'Void'),
+        // Write-off spec §3.6 (Q11): Written off after Paid.
+        chips: chips('All', 'Open', 'Overdue', 'Paid', 'Written off', 'Draft', 'Void'),
         sortKeys: ['date', 'number', 'amount', 'due', 'balance'],
     },
     {
@@ -160,9 +161,28 @@ describe('SALES_NEW_ITEMS', () => {
     })
 })
 
+// Write-off spec §2, Q12: no Sales tab, no New action for a write-off.
+describe('the write-off kind on the Sales lists', () => {
+    it('no Sales tab lists write_off', () => {
+        for (const tab of SALES_TABS) expect([...tab.kinds]).not.toContain('write_off')
+    })
+
+    it('no New action names write_off', () => {
+        expect(SALES_NEW_ITEMS.map(item => item.kind)).not.toContain('write_off')
+        expect(SALES_TABS.map(tab => tab.newHref)).not.toContain('books/write-offs/new')
+    })
+
+    it('Invoices has the chip written-off directly after paid', () => {
+        const ids = salesTabOf('invoices').chips.map(chip => chip.id)
+        expect(ids.indexOf('written-off')).toBe(ids.indexOf('paid') + 1)
+    })
+})
+
 describe('customerTransactionsTab', () => {
-    it('lists six kinds for all and one for a kind, signed', () => {
+    it('lists seven kinds for all, the last write_off, and one for a kind, signed', () => {
         const all = customerTransactionsTab('all')
+        expect([...all.kinds]).toHaveLength(7)
+        expect(all.kinds[all.kinds.length - 1]).toBe('write_off')
         expect([...all.kinds].sort()).toEqual(
             [
                 'credit_memo',
@@ -171,8 +191,10 @@ describe('customerTransactionsTab', () => {
                 'payment',
                 'refund_receipt',
                 'sales_receipt',
+                'write_off',
             ].sort()
         )
+        expect(customerTransactionsTab('write_off').kinds).toEqual(['write_off'])
         expect(all.isSigned).toBe(true)
         const payments = customerTransactionsTab('payment')
         expect([...payments.kinds]).toEqual(['payment'])

@@ -17,6 +17,7 @@ import {
     openProfitAndLoss,
     postEntryOn,
     pressFigure,
+    sectionTopKey,
     snapshotWhen,
     tdLinesOf,
     tdSnapshot,
@@ -52,7 +53,9 @@ test.describe('report-drill-down: phone', () => {
     }) => {
         await login(page)
         await navigateToPackage(page, 'books')
-        const expense = uniqueName('AA TD P12 expense')
+        // Named from sectionTopKey, the account sorts at the top of Expenses, so its row
+        // mounts when the section opens.
+        const expense = uniqueName(`${sectionTopKey()} TD P12 expense`)
         await openChart(page)
         await createAccount(page, expense, EXPENSE)
         await openEntriesFromSidebar(page)

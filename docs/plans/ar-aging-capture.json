@@ -1,0 +1,89 @@
+{
+    "outDir": "ar-aging-reference",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "report-table",
+            "widths": [1280, 1160, 1540],
+            "height": 3000,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "opened",
+            "url": "/a/books/helix-mockup?state=opened",
+            "ready": "report-table",
+            "widths": [1280, 1160, 1540],
+            "height": 3400,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "item-opened",
+            "url": "/a/books/helix-mockup?state=item-opened",
+            "ready": "report-table",
+            "widths": [1280, 1540],
+            "height": 3600,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "by-balance",
+            "url": "/a/books/helix-mockup?state=by-balance",
+            "ready": "report-table",
+            "widths": [1540],
+            "height": 3000,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "filtered",
+            "url": "/a/books/helix-mockup?state=filtered",
+            "ready": "report-table",
+            "widths": [1540],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "past-day",
+            "url": "/a/books/helix-mockup?state=past-day",
+            "ready": "report-table",
+            "widths": [1540],
+            "height": 3000,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/helix-mockup?state=empty",
+            "ready": "report-empty",
+            "widths": [1280, 390],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "report-loading",
+            "widths": [1280, 390],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "report-error",
+            "widths": [1280, 390],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "populated-anchored",
+            "url": "/a/books/helix-mockup?state=populated&layout=anchored",
+            "ready": "report-table",
+            "widths": [390, 375],
+            "height": 3000,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "item-opened-anchored",
+            "url": "/a/books/helix-mockup?state=item-opened&layout=anchored",
+            "ready": "report-table",
+            "widths": [390, 375],
+            "height": 3600,
+            "hideLabels": ["New"]
+        }
+    ]
+}

@@ -1,9 +1,11 @@
 // @vitest-environment happy-dom
 import { act, renderHook, waitFor } from '@testing-library/react'
+import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useMyCloseOverride } from '../tinycld/books/hooks/useMyCloseOverride'
 import type { BooksCloseOverrides } from '../tinycld/books/types'
 import { ME, overridesStore, seedBooks } from './accounts-form-harness'
+import { expectLiveQueryError } from './silence-log'
 
 vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
@@ -78,6 +80,47 @@ describe('useMyCloseOverride', () => {
         const { result } = await renderMine([])
 
         expect(result.current.override).toBeUndefined()
+    })
+})
+
+describe('useMyCloseOverride load error', () => {
+    it('reports no error and an empty recovery on a healthy read', async () => {
+        const { result } = await renderMine([])
+
+        expect(result.current.isError).toBe(false)
+        expect(result.current.recovery).toEqual({ queries: [], sources: [] })
+    })
+
+    it('reports a failed read as an error with a recovery over the overrides source', async () => {
+        const mine = override('mine', ME, Date.now() + 2 * DAY)
+        seedBooks({ level: 'bookkeeper', overridesFailsOnce: true, overrides: [mine] })
+        expectLiveQueryError(overridesStore().id)
+        const { result } = renderHook(() => useMyCloseOverride())
+
+        await waitFor(() => expect(result.current.isError).toBe(true))
+        expect(result.current.override).toBeUndefined()
+        expect(result.current.recovery.sources).toEqual([overridesStore()])
+        expect(result.current.recovery.queries).toHaveLength(1)
+        expect(result.current.recovery.queries[0]).toBeDefined()
+    })
+
+    it('recovers the read through its recovery and then returns the active override', async () => {
+        const mine = override('mine', ME, Date.now() + 2 * DAY)
+        seedBooks({ level: 'bookkeeper', overridesFailsOnce: true, overrides: [mine] })
+        expectLiveQueryError(overridesStore().id)
+        const { result } = renderHook(() => useMyCloseOverride())
+        await waitFor(() => expect(result.current.isError).toBe(true))
+
+        const onError = vi.fn()
+        act(() => {
+            void recoverLiveQueries({ ...result.current.recovery, onError })
+        })
+
+        await waitFor(() => expect(result.current.isError).toBe(false))
+        expect(onError).not.toHaveBeenCalled()
+        await waitFor(() => expect(result.current.isReady).toBe(true))
+        expect(result.current.override?.reason).toBe('reason mine')
+        expect(result.current.recovery).toEqual({ queries: [], sources: [] })
     })
 })
 

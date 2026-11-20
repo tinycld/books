@@ -8,5 +8,6 @@
     "bill_payment": "bill-payments",
     "vendor_credit": "vendor-credits",
     "vendor_refund": "vendor-refunds",
-    "refund_receipt": "refund-receipts"
+    "refund_receipt": "refund-receipts",
+    "write_off": "write-offs"
 }

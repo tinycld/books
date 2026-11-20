@@ -44,7 +44,12 @@ import {
     newCreditMemoValues,
 } from '../../lib/credit-memo-values'
 import type { TaxRateFill } from '../../lib/document-fills'
-import { type BalanceBadge, paidBadge, vendorCreditBadge } from '../../lib/document-lifecycle'
+import {
+    type BalanceBadge,
+    paidBadge,
+    vendorCreditBadge,
+    writtenOffBadge,
+} from '../../lib/document-lifecycle'
 import {
     DOCUMENT_LINE_COLUMNS,
     DOCUMENT_LINE_MAPPER,
@@ -136,8 +141,8 @@ import { CreditMemoInvoiceLink, CreditMemoReadDetails } from './CreditMemoReadDe
 import type { DocumentReadLinesProps } from './DocumentReadLines'
 import { EstimateConvertedLink, EstimateReadDetails } from './EstimateReadDetails'
 import { ExpensePaymentRow, ExpenseReadDetails } from './ExpenseReadDetails'
-import { InvoiceCreditMemos } from './InvoiceCreditMemos'
 import { InvoiceFromEstimateLink, InvoiceReadDetails } from './InvoiceReadDetails'
+import { InvoiceSections } from './InvoiceSections'
 import { PurchaseReadLines } from './PurchaseReadLines'
 import { RefundReceiptLinkRow } from './RefundReceiptLinkRow'
 import { RefundReceiptBandRows, RefundReceiptReadDetails } from './RefundReceiptReadDetails'
@@ -183,9 +188,10 @@ export type DocumentReadFrameProps = {
 export type ReadRefunded = number | null
 
 // The read view's badge of a kind with a balance badge: the kind's BalanceBadge, with the
-// refunded cents a vendor credit's badge also reads.
+// refunded cents a vendor credit's badge also reads and the written-off cents an invoice's
+// badge also reads (0 for every other kind).
 export type ReadBalanceBadge = (
-    ...args: [...Parameters<BalanceBadge>, refunded: ReadRefunded]
+    ...args: [...Parameters<BalanceBadge>, refunded: ReadRefunded, writtenOff: number]
 ) => ReturnType<BalanceBadge>
 
 // How a kind's stored line rows map to a line table's form rows and back: the sales
@@ -370,8 +376,8 @@ export type DocumentKind = {
     // stored balance (and a vendor credit's refunded cents); a kind without it shows its
     // status badge.
     balanceBadge?: ReadBalanceBadge
-    // The rows the read view draws after Total (a bill's Credits applied, a vendor credit's
-    // Applied, Refunded and Unapplied credit). `applied` is the credit applied to a posted
+    // The rows the read view draws after Total (a bill's Credits applied, an invoice's
+    // Written off, a vendor credit's Applied, Refunded and Unapplied credit). `applied` is the credit applied to a posted
     // bill, read from its stored record (billCreditsApplied: the total less its posted
     // payments and its stored balance), so the rows add up while the applications read is
     // loading or failed; 0 for every other kind. `refunded` is the vendor credit's posted
@@ -381,7 +387,8 @@ export type DocumentKind = {
         record: DocumentRecord,
         extra: { applied: number; refunded?: ReadRefunded }
     ) => DocumentTotalRow[]
-    // Where the read view draws the readTotals rows: after Total ('after', the default), or
+    // Where the read view draws the readTotals rows: after Total and its Payments row and
+    // before the kind's last row ('after', the default), or
     // after the kind's last row ('afterLast': a credit memo's Refunded and Unapplied credit,
     // after "Credit amount").
     readTotalsPlace?: 'after' | 'afterLast'
@@ -413,6 +420,26 @@ function invoiceCustomerOf(party: DocumentPartyRow | null) {
     return customer
 }
 
+// The invoice's badge (writtenOffBadge, write-off spec §3.4): Written off when its balance
+// is 0 and posted write-offs took some of it; otherwise Paid / Partly paid.
+const invoiceBadgeOf: ReadBalanceBadge = (status, balance, total, _refunded, writtenOff) =>
+    writtenOffBadge(status, balance, total, writtenOff)
+
+// The read view's row between Payments and Balance due (write-off spec §3.4): Written off,
+// with a minus sign, from the stored `written_off`, only while it is above zero. None for a
+// record of another kind.
+function invoiceTotalsOf(record: DocumentRecord): DocumentTotalRow[] {
+    const fields = record.kindFields
+    if (fields.kind !== 'invoice' || fields.written_off <= 0) return []
+    return [
+        {
+            label: 'Written off',
+            amount: `${MINUS}${formatMoney(fields.written_off, record.currency)}`,
+            testId: 'invoice-total-written-off',
+        },
+    ]
+}
+
 export const INVOICE_DOCUMENT: DocumentKind = {
     doc: INVOICE_KIND,
     data: INVOICE_DATA,
@@ -435,9 +462,12 @@ export const INVOICE_DOCUMENT: DocumentKind = {
     },
     ReadDetails: InvoiceReadDetails,
     ReadStampRow: InvoiceFromEstimateLink,
-    ReadSection: InvoiceCreditMemos,
+    ReadSection: InvoiceSections,
     lineSpecs: SALES_LINE_SPECS,
-    balanceBadge: paidBadge,
+    balanceBadge: invoiceBadgeOf,
+    // 'after' draws the rows after Payments and before Balance due (DocumentTotalsPanel).
+    readTotals: invoiceTotalsOf,
+    readTotalsPlace: 'after',
 }
 
 // The source row with the credit memo's own columns back at the top level, as

@@ -11,6 +11,9 @@ interface VoidDialogProps {
     // What the void does, when the caller's record says more than an entry's text.
     body?: string
     isPending: boolean
+    // The confirm is idle for a reason of the caller's (writes are not available); false
+    // unless the caller passes it.
+    isConfirmDisabled?: boolean
     // The server's refusal, kept above this dialog so it survives an optimistic rollback.
     errorMessage: string | null
     onConfirm(): void
@@ -27,10 +30,12 @@ export function VoidDialog({
     confirmLabel = 'Void entry',
     body = ENTRY_BODY,
     isPending,
+    isConfirmDisabled = false,
     errorMessage,
     onConfirm,
     onCancel,
 }: VoidDialogProps) {
+    const isConfirmIdle = isPending || isConfirmDisabled
     return (
         <Dialog
             isOpen={isVisible}
@@ -47,8 +52,8 @@ export function VoidDialog({
                 <Dialog.CancelButton onPress={onCancel} isDisabled={isPending} />
                 <Dialog.ActionButton
                     label={confirmLabel}
-                    onPress={isPending ? ignore : onConfirm}
-                    isDisabled={isPending}
+                    onPress={isConfirmIdle ? ignore : onConfirm}
+                    isDisabled={isConfirmIdle}
                     isDestructive
                     shortcut={DIALOG_SUBMIT_SHORTCUT}
                     testID="void-confirm"

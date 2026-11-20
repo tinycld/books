@@ -120,11 +120,15 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 	if err != nil {
 		return search.Result{}, err
 	}
+	writeOffs, writeOffTotal, err := searchSalesDocs(ctx, app, writeOffSearch, q.Include, q.Exclude, window)
+	if err != nil {
+		return search.Result{}, err
+	}
 	rows := interleave(accounts, entries, customers, vendors, products, invoices, receipts, creditMemos, refundReceipts,
-		estimates, bills, expenses, vendorCredits, payments, billPayments, vendorRefunds)
+		estimates, bills, expenses, vendorCredits, payments, billPayments, vendorRefunds, writeOffs)
 	total := accountTotal + entryTotal + customerTotal + vendorTotal + productTotal + invoiceTotal + receiptTotal +
 		creditMemoTotal + refundReceiptTotal + estimateTotal + billTotal + expenseTotal + vendorCreditTotal + paymentTotal +
-		billPaymentTotal + vendorRefundTotal
+		billPaymentTotal + vendorRefundTotal + writeOffTotal
 	return search.Result{Rows: page(rows, offset, limit), Total: total}, nil
 }
 
@@ -489,6 +493,16 @@ var billPaymentSearch = salesDocSearch{
 var vendorRefundSearch = salesDocSearch{
 	table: vendorRefundsCollection, index: vendorRefundsIndex, docType: docTypeVendorRefund, kind: "vendor_refund",
 	partyField: "vendor", partyTable: "books_vendors", partyIdx: vendorsIndex,
+}
+
+// writeOffSearch names its customer: "Write-off 1001 · Harborview Dental" /
+// "Write-off 1001 (void) · Harborview Dental" (write-off spec §3.6). A word
+// matches the write-off's number and reason (memo), or the customer's display
+// name, company and email. Every stored write-off is posted or void: there is
+// no draft one.
+var writeOffSearch = salesDocSearch{
+	table: writeOffsCollection, index: writeOffsIndex, docType: docTypeWriteOff, kind: "write_off",
+	partyField: "customer", partyTable: "books_customers", partyIdx: customersIndex,
 }
 
 // salesDocTermMatch is true when one query word matches a document's own

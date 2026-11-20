@@ -37,6 +37,7 @@ type InvoiceRow = Pick<
     | 'due_date'
     | 'total'
     | 'balance'
+    | 'written_off'
     | 'currency'
     | 'replaced_by'
     | 'created'
@@ -78,8 +79,9 @@ function invoice(
         replaced_by: '',
         created: STAMP,
         // What posting writes: a posted invoice is open for its total; no payment
-        // applies to these. A draft or a void one has no balance.
+        // applies to these. A draft or a void one has no balance. No write-off names them.
         balance: seed.status === 'posted' ? seed.total : 0,
+        written_off: 0,
         ...seed,
     }
 }

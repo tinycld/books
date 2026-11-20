@@ -20,6 +20,7 @@ import {
     openProfitAndLoss,
     postEntryOn,
     pressFigure,
+    sectionTopKey,
     snapshotWhen,
     tdLinesOf,
     tdSnapshot,
@@ -47,6 +48,13 @@ const PL_TITLE = 'Profit and Loss'
 async function startBooks(page: Page) {
     await login(page)
     await navigateToPackage(page, 'books')
+}
+
+// The table mounts only the rows near its scroll position, and Expenses grows with every
+// account other runs and specs post: an account named from sectionTopKey sorts at the top
+// of the section, so its row mounts when the section opens.
+function accountName(prefix: string): string {
+    return uniqueName(`${sectionTopKey()} ${prefix}`)
 }
 
 async function createExpenseAccount(page: Page, name: string): Promise<void> {
@@ -103,7 +111,7 @@ test.describe('report-drill-down: panel', () => {
         browser,
     }) => {
         await startBooks(page)
-        const expense = uniqueName('AA TD P10 expense')
+        const expense = accountName('TD P10 expense')
         await createExpenseAccount(page, expense)
         await openEntriesFromSidebar(page)
         await postExpense(page, expense, '120.00')
@@ -232,7 +240,7 @@ test.describe('report-drill-down: panel', () => {
         page,
     }) => {
         await startBooks(page)
-        const expense = uniqueName('AA TD P11 expense')
+        const expense = accountName('TD P11 expense')
         await createExpenseAccount(page, expense)
         await openEntriesFromSidebar(page)
         await postExpense(page, expense, '27.00')

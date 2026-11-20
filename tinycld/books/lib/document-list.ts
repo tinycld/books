@@ -34,6 +34,7 @@ const SALES_KINDS: readonly ListKind[] = [
     'payment',
     'credit_memo',
     'refund_receipt',
+    'write_off',
 ] satisfies readonly TransactionKind[]
 
 export function isSalesKind(kind: ListKind): kind is TransactionKind {
@@ -232,12 +233,13 @@ type Clause = ReturnType<typeof eq>
 
 // The fields the chip rules read. One ref type serves every kind, so all but the id are
 // optional; each kind has the ones its rules use: a status, and an invoice or a bill its
-// balance and due date, an estimate its expiration date, a payment what it credited, a
-// credit memo or a vendor credit its balance.
+// balance and due date (an invoice its written-off cents too), an estimate its expiration
+// date, a payment what it credited, a credit memo or a vendor credit its balance.
 type ChipFields = {
     id: string
     status?: string
     balance?: number
+    written_off?: number
     credited?: number
     due_date?: string
     expiration_date?: string
@@ -251,6 +253,11 @@ const isPosted = isStatus('posted')
 
 const hasBalance = (row: Ref<ChipFields>) => and(isPosted(row), gt(row.balance, 0))
 const isSettled = (row: Ref<ChipFields>) => and(isPosted(row), eq(row.balance, 0))
+
+// A settled invoice reads Paid when no posted write-off closed it, else Written off
+// (write-off spec §3.4, Q11).
+const isPaidInvoice = (row: Ref<ChipFields>) => and(isSettled(row), eq(row.written_off, 0))
+const isWrittenOff = (row: Ref<ChipFields>) => and(isSettled(row), gt(row.written_off, 0))
 
 // Overdue: posted, open, and due before today. Days are YYYY-MM-DD text, so they compare
 // as strings; an empty due date is "before" every day, so it is ruled out first.
@@ -278,12 +285,14 @@ const isFullyApplied = (row: Ref<ChipFields>) => and(isPosted(row), eq(row.credi
 
 // The chips of a tab of one kind: the rows whose badge reads the chip's label, with the
 // specs' additions (Open is every posted invoice or bill with a balance, Credit left every
-// "Credit $x" payment, an expired estimate only under Expired).
+// "Credit $x" payment, an expired estimate only under Expired). A write-off has no chip
+// rule: no Sales tab lists it, and on the customer tab the filter chip picks the kind.
 const KIND_TAB_RULES: Record<ListKind, Record<string, ChipRule>> = {
     invoice: {
         open: hasBalance,
         overdue: isOverdue,
-        paid: isSettled,
+        paid: isPaidInvoice,
+        'written-off': isWrittenOff,
         draft: isStatus('draft'),
         void: isStatus('void'),
     },
@@ -317,6 +326,7 @@ const KIND_TAB_RULES: Record<ListKind, Record<string, ChipRule>> = {
         draft: isStatus('draft'),
         void: isStatus('void'),
     },
+    write_off: {},
     bill: {
         open: hasBalance,
         overdue: isOverdue,
@@ -503,6 +513,7 @@ const SORT_FIELDS = {
     payment: { date: 'date', number: 'sequence', amount: 'amount' },
     credit_memo: { date: 'date', number: 'sequence', amount: 'total', balance: 'balance' },
     refund_receipt: { date: 'date', number: 'sequence', amount: 'total' },
+    write_off: { date: 'date', number: 'sequence', amount: 'amount' },
     bill: {
         date: 'date',
         number: 'sequence',
@@ -525,6 +536,7 @@ export function sortField(kind: 'sales_receipt', key: ListSortKey): SortFieldOf<
 export function sortField(kind: 'payment', key: ListSortKey): SortFieldOf<'payment'>
 export function sortField(kind: 'credit_memo', key: ListSortKey): SortFieldOf<'credit_memo'>
 export function sortField(kind: 'refund_receipt', key: ListSortKey): SortFieldOf<'refund_receipt'>
+export function sortField(kind: 'write_off', key: ListSortKey): SortFieldOf<'write_off'>
 export function sortField(kind: 'bill', key: ListSortKey): SortFieldOf<'bill'>
 export function sortField(kind: 'expense', key: ListSortKey): SortFieldOf<'expense'>
 export function sortField(kind: 'bill_payment', key: ListSortKey): SortFieldOf<'bill_payment'>
@@ -540,11 +552,16 @@ export function sortField(kind: ListKind, key: ListSortKey): string {
 // The kinds whose amount a signed tab shows negated: the credits.
 const SIGNED_CREDIT_KINDS: readonly ListKind[] = ['credit_memo', 'vendor_credit']
 
-// A row's amount is its stored total negated for a credit memo or a vendor credit on a
-// signed tab and for a refund receipt on every tab (it always shows with a minus sign), so
-// that kind's query orders the stored total the other way.
+// The kinds whose amount shows with a minus sign on every tab.
+const ALWAYS_NEGATIVE_KINDS: readonly ListKind[] = ['refund_receipt', 'write_off']
+
+// A row's amount is its stored amount negated for a credit memo or a vendor credit on a
+// signed tab and for a refund receipt and a write-off on every tab (each always shows with
+// a minus sign), so that kind's query orders the stored amount the other way.
 function isNegated(tab: DocumentListTab, kind: ListKind): boolean {
-    return kind === 'refund_receipt' || (tab.isSigned && SIGNED_CREDIT_KINDS.includes(kind))
+    return (
+        ALWAYS_NEGATIVE_KINDS.includes(kind) || (tab.isSigned && SIGNED_CREDIT_KINDS.includes(kind))
+    )
 }
 
 export function kindDirection(
