@@ -3,8 +3,9 @@ import type { SetupTab } from '@tinycld/core/components/setup/wizard/SetupTabs'
 import { errorToString } from '@tinycld/core/lib/errors'
 import type { BooksBankTransactions } from '../types'
 import type { SelectBoxState } from './bank-import-view'
+import { matchResultText, unmatchResultText } from './bank-match'
 import { searchPieces } from './list-search'
-import { formatMoney, parseMoney } from './money'
+import { formatMoney } from './money'
 import { errorStatus, messageOnlyRefusal } from './refusal'
 import {
     formatDay,
@@ -13,6 +14,7 @@ import {
     type RegisterRange,
     rangeForPreset,
 } from './register-range'
+import { parseSearchAmount } from './search-amount'
 
 // The tabs of a bank account's panel, in tab-bar order. The three transaction tabs list
 // the connection's rows of one status; Files holds the upload area and the file list.
@@ -137,6 +139,21 @@ export const REVIEW_CELLS = {
     received: { width: 128 },
 } as const
 
+// The Reviewed table adds In Books between Description and Spent inside the same table
+// minimum (REVIEW_TABLE_MIN_WIDTH), so its fixed cells are narrower and Description's
+// minimum is lower: 44 + 104 + 160 + 180 + 112 + 112 = 712.
+export const REVIEWED_CELLS = {
+    check: REVIEW_CELLS.check,
+    date: { width: 104 },
+    description: { flex: 1, minWidth: 160 },
+    inBooks: { flex: 1, minWidth: 180 },
+    spent: { width: 112 },
+    received: { width: 112 },
+} as const
+
+// A Reviewed card has a third line: what the transaction was matched to.
+export const REVIEWED_CARD_HEIGHT = 96
+
 // The toolbar of the three transaction tabs: one set for every tab and every account.
 export type ReviewDatePreset = 'all' | RangePreset
 export type ReviewType = 'all' | 'in' | 'out'
@@ -162,14 +179,6 @@ export function hasReviewFilter(filters: ReviewFilters): boolean {
         filters.preset !== 'all' ||
         filters.type !== 'all'
     )
-}
-
-// The whole search text as an amount in unsigned cents: a search finds money spent and
-// received alike. Zero finds nothing, so it is no amount.
-export function parseSearchAmount(text: string, currency: string): number | null {
-    const cents = parseMoney(text.trim(), currency)
-    if (cents === null || cents === 0) return null
-    return Math.abs(cents)
 }
 
 export function reviewRange(
@@ -283,8 +292,12 @@ export function settleRows<Row>(
 
 // Exclude and Move to For review: what each sets a transaction's status to. The server's
 // update rule allows only these two moves (pb-migrations/2100000008_create_books_banking.js).
-export type BatchKind = 'exclude' | 'restore'
-export const BATCH_TARGET: Record<BatchKind, TxnStatus> = {
+export type MoveKind = 'exclude' | 'restore'
+// A run of the page's one batch: a status move, a match (an insert into
+// books_bank_matches; the server moves the transaction to Reviewed), or the undo of a
+// match (a delete of its books_bank_matches row; the server moves it back to For review).
+export type BatchKind = MoveKind | 'match' | 'unmatch'
+export const BATCH_TARGET: Record<MoveKind, TxnStatus> = {
     exclude: 'excluded',
     restore: 'for_review',
 }
@@ -319,7 +332,7 @@ function transactionsNoun(count: number): string {
     return count === 1 ? 'transaction' : 'transactions'
 }
 
-const DONE_TEXT: Record<BatchKind, (count: number) => string> = {
+const DONE_TEXT: Record<MoveKind, (count: number) => string> = {
     exclude: count => `Excluded ${count} ${transactionsNoun(count)}.`,
     restore: count => `Moved ${count} ${transactionsNoun(count)} to For review.`,
 }
@@ -327,20 +340,31 @@ const DONE_TEXT: Record<BatchKind, (count: number) => string> = {
 const FAILED_VERB: Record<BatchKind, string> = {
     exclude: 'excluded',
     restore: 'moved to For review',
+    match: 'matched',
+    unmatch: 'unmatched',
 }
 
-// The line under the toolbar after a batch: the count when every change went through;
-// the transport text when none of the failures reached the server; the server's message
-// when every failure is a refusal with the same non-empty one; else how many of the
-// batch failed. A failure with no message (a row that left the store before its change
-// was sent) is only counted.
+function doneText(kind: Exclude<BatchKind, 'unmatch'>, outcome: BatchOutcome, skipped: number) {
+    if (kind === 'match') return matchResultText(outcome, skipped)
+    return DONE_TEXT[kind](outcome.done.length)
+}
+
+// The line under the toolbar after a batch: the count when every change went through
+// (for a match, matchResultText, with the chosen rows the batch skipped); the transport
+// text when none of the failures reached the server; the server's message when every
+// failure is a refusal with the same non-empty one; else how many of the batch failed. A
+// failure with no message (a row that left the store before its change was sent) is
+// only counted. An undo (one transaction, from the drawer) reads unmatchResultText.
 export function batchResultText(
     kind: BatchKind,
-    outcome: BatchOutcome
+    outcome: BatchOutcome,
+    skipped = 0
 ): { text: string; tone: 'muted' | 'danger' } {
     const { done, failed } = outcome
     const [first] = failed
-    if (first === undefined) return { text: DONE_TEXT[kind](done.length), tone: 'muted' }
+    const tone = first === undefined ? 'muted' : 'danger'
+    if (kind === 'unmatch') return { text: unmatchResultText(outcome), tone }
+    if (first === undefined) return { text: doneText(kind, outcome, skipped), tone: 'muted' }
     if (failed.every(failure => failure.isTransport)) {
         return { text: BANK_BATCH_TRANSPORT_TEXT, tone: 'danger' }
     }
@@ -354,6 +378,18 @@ export function batchResultText(
         text: `${failed.length} of ${total} transactions could not be ${FAILED_VERB[kind]}. Try again.`,
         tone: 'danger',
     }
+}
+
+// The choice after a run of the selection bar, in the order of the choice: the rows that
+// failed (refused or not sent) and the rows the run skipped (a match run skips a row with
+// no single suggestion). The rows that went through leave it.
+export function keptAfterBatch(
+    outcome: BatchOutcome,
+    skippedIds: readonly string[],
+    chosenIds: readonly string[]
+): string[] {
+    const kept = new Set([...outcome.failed.map(failure => failure.id), ...skippedIds])
+    return chosenIds.filter(id => kept.has(id))
 }
 
 export function chunksOf<T>(items: readonly T[], size: number): T[][] {
@@ -380,7 +416,7 @@ export function txnStatusLabel(status: TxnStatus): string {
     return STATUS_LABELS[status]
 }
 
-export type ReviewAction = { kind: BatchKind; label: string; busyLabel: string }
+export type ReviewAction = { kind: MoveKind; label: string; busyLabel: string }
 
 // The drawer's one action follows the transaction's own status: a writer excludes a
 // for-review row and moves an excluded one back; a reviewed row and a reader get none.
@@ -472,15 +508,5 @@ export function toggleAllChoice(rows: readonly ChoiceRow[], chosen: ReadonlySet<
     return rows.map(row => row.id)
 }
 
-// Every write control of the queue: disabled while a change runs or while the server
-// cannot take writes; the hint says why only in the second case.
-export function writeControlState(input: {
-    isPending: boolean
-    writesDisabled: boolean
-    writesHint: string | undefined
-}): { isDisabled: boolean; hint: string | undefined } {
-    return {
-        isDisabled: input.isPending || input.writesDisabled,
-        hint: input.writesDisabled ? input.writesHint : undefined,
-    }
-}
+// Every write control of the queue follows writeControlState (lib/write-control.ts).
+export { type WriteControlState, writeControlState } from './write-control'

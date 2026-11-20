@@ -8,7 +8,7 @@ order: 28
 To work through the transactions you imported from a bank file, choose Banking in the sidebar and press the account's card. The account's panel has four tabs. The page opens on For review.
 
 - **For review** holds the imported transactions that are not handled yet. The tab shows how many there are, for example "For review (12)", and the account's card says "12 to review".
-- **Reviewed** holds the transactions that were handled by matching or categorizing them.
+- **Reviewed** holds the transactions that were handled. A transaction moves here when you match it to a Books transaction, and its In Books column links to what it was matched to. See [Match a bank transaction](help://books:bank-match).
 - **Excluded** holds the transactions you keep out of your books on purpose.
 - **Files** holds the upload area and the account's uploaded files. See [Banking](help://books:banking) and [Import bank transactions](help://books:bank-import).
 
@@ -38,7 +38,7 @@ To keep a transaction out of your books, open it on For review and choose Exclud
 
 To undo an exclude, open the transaction on the Excluded tab and choose Move to For review. Excluded is the undo: a transaction is never deleted.
 
-A Reviewed transaction has no action here.
+A matched transaction on Reviewed has Undo match instead, which moves it back to For review. See [Match a bank transaction](help://books:bank-match).
 
 ## Choose many transactions
 

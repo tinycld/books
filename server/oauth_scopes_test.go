@@ -265,6 +265,56 @@ func TestOAuth_PartyContactsAndBalances(t *testing.T) {
 	}
 }
 
+// Bank-match spec §4: a token makes and undoes a match (books_bank_matches),
+// and only reads the match lines, which the match hook writes, and the
+// suggestion view.
+func TestOAuth_BankMatchCollections(t *testing.T) {
+	collections := oauthPackage().Collections
+	rw := oauth.Access{Read: []string{scopeRead}, Write: []string{scopeWrite}}
+	ro := oauth.Access{Read: []string{scopeRead}}
+	want := map[string]oauth.Access{
+		"books_bank_matches":           rw,
+		"books_bank_match_lines":       ro,
+		"books_bank_match_suggestions": ro,
+	}
+	for c, access := range want {
+		got, ok := collections[c]
+		if !ok {
+			t.Errorf("%s has no OAuth entry", c)
+			continue
+		}
+		if !reflect.DeepEqual(got.Read, access.Read) || len(got.Write) != len(access.Write) ||
+			(len(access.Write) > 0 && !reflect.DeepEqual(got.Write, access.Write)) {
+			t.Errorf("%s OAuth access = %+v, want Read %v and Write %v", c, got, access.Read, access.Write)
+		}
+	}
+
+	t.Cleanup(oauth.ResetRegistry)
+	oauth.RegisterPackage(oauthPackage())
+	matches := "/api/collections/books_bank_matches/records"
+	for _, method := range []string{http.MethodPost, http.MethodDelete} {
+		p := matches
+		if method == http.MethodDelete {
+			p += "/abc123"
+		}
+		if !oauth.ScopeForRoute(method, p).SatisfiedBy([]string{scopeWrite}) {
+			t.Errorf("%s %s: books:write must write", method, p)
+		}
+		if oauth.ScopeForRoute(method, p).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("%s %s: books:read alone must not write", method, p)
+		}
+	}
+	for _, c := range []string{"books_bank_match_lines", "books_bank_match_suggestions"} {
+		path := "/api/collections/" + c + "/records"
+		if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("GET %s: books:read must read", path)
+		}
+		if oauth.ScopeForRoute(http.MethodPost, path).SatisfiedBy([]string{scopeRead, scopeWrite}) {
+			t.Errorf("POST %s: no Books scope may write", path)
+		}
+	}
+}
+
 // A/R Aging spec §4: a token only reads the stored receivable items, which
 // only Books writes. The two views they replaced have no entry.
 func TestOAuth_ReceivableItems(t *testing.T) {

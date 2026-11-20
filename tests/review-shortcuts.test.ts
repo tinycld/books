@@ -1,6 +1,8 @@
+// @vitest-environment happy-dom
 import type { Shortcut } from '@tinycld/core/lib/shortcuts/types'
-import { describe, expect, it, type Mock, vi } from 'vitest'
+import { afterEach, describe, expect, it, type Mock, vi } from 'vitest'
 import {
+    focusPressesKey,
     offeredReviewKeys,
     REVIEW_KEYS,
     type ReviewKeyAction,
@@ -43,6 +45,7 @@ const DESCRIPTIONS: Record<ReviewKeyAction, string> = {
     tabExcluded: 'Excluded tab',
     tabFiles: 'Files tab',
     escape: 'Close or clear',
+    match: 'Match the chosen transactions',
 }
 
 const ALL_ACTIONS = Object.keys(DESCRIPTIONS) as ReviewKeyAction[]
@@ -68,6 +71,20 @@ function byKeys(shortcuts: Shortcut[], keys: string): Shortcut {
     return found
 }
 
+// A focusable element with the test id react-native-web writes as `data-testid`, focused.
+function focusedElement(testId: string): HTMLElement {
+    const element = document.createElement('div')
+    element.setAttribute('data-testid', testId)
+    element.tabIndex = 0
+    document.body.appendChild(element)
+    element.focus()
+    return element
+}
+
+afterEach(() => {
+    document.body.replaceChildren()
+})
+
 describe('REVIEW_KEYS', () => {
     it('maps each review action to its keys', () => {
         expect(REVIEW_KEYS).toEqual({
@@ -84,7 +101,56 @@ describe('REVIEW_KEYS', () => {
             tabExcluded: ['3'],
             tabFiles: ['4'],
             escape: ['Escape'],
+            match: ['m'],
         })
+    })
+})
+
+describe('the batch match key', () => {
+    // A writer on For review with two rows chosen, the drawer closed, no batch running and
+    // the server taking writes: every condition of the offer holds.
+    const OFFERED: ReviewKeyState = { ...WRITER, chosenCount: 2 }
+
+    it('is offered when every condition holds', () => {
+        expect(offeredReviewKeys(OFFERED)).toContain('match')
+    })
+
+    it.each<[string, Partial<ReviewKeyState>]>([
+        ['not on the For review tab', { tab: 'excluded' }],
+        ['not a writer', { canWrite: false, canChoose: false }],
+        ['no row chosen', { chosenCount: 0 }],
+        ['the drawer open', { isDrawerOpen: true, drawerAction: 'exclude' }],
+        ['a batch pending', { isBatchPending: true }],
+        ['writes blocked', { isWriteBlocked: true }],
+    ])('is not offered with %s', (_, change) => {
+        expect(offeredReviewKeys({ ...OFFERED, ...change })).not.toContain('match')
+    })
+
+    it('is never offered on the Reviewed or Excluded tab', () => {
+        for (const tab of ['reviewed', 'excluded'] as const) {
+            expect(offeredReviewKeys({ ...OFFERED, tab }), tab).not.toContain('match')
+            expect(
+                offeredReviewKeys({ ...OFFERED, tab, chosenCount: 5, hasFocusedRow: true }),
+                tab
+            ).not.toContain('match')
+        }
+    })
+
+    it('is described as "Match the chosen transactions" and runs its own handler', () => {
+        const run = handlers()
+        const shortcuts = reviewShortcuts({
+            id: 'books.banking.review.r1',
+            offered: offeredReviewKeys(OFFERED),
+            read: () => OFFERED,
+            run,
+        })
+        const m = byKeys(shortcuts, 'm')
+        expect(m.description).toBe('Match the chosen transactions')
+        expect(m.scope).toBe('list')
+        expect(m.when?.()).toBe(true)
+        m.run({ keys: 'm' })
+        expect(run.match).toHaveBeenCalledTimes(1)
+        expect(run.exclude).not.toHaveBeenCalled()
     })
 })
 
@@ -93,10 +159,10 @@ describe('offeredReviewKeys', () => {
         expect(offered(WRITER)).toEqual(sorted([...TABS, 'search', ...MOVE, ...CHOOSE]))
     })
 
-    it('(b) adds Exclude and Esc once rows are chosen, and drops search', () => {
+    it('(b) adds Match, Exclude and Esc once rows are chosen, and drops search', () => {
         // The selection bar replaces the toolbar, so there is no search field to focus.
         expect(offered({ ...WRITER, chosenCount: 2 })).toEqual(
-            sorted([...TABS, ...MOVE, ...CHOOSE, 'exclude', 'escape'])
+            sorted([...TABS, ...MOVE, ...CHOOSE, 'match', 'exclude', 'escape'])
         )
     })
 
@@ -283,6 +349,43 @@ describe('reviewShortcuts', () => {
 
         state.current = CHOSEN
         expect(exclude.when?.()).toBe(true)
+    })
+
+    it('lets a focused match box take Space, so the list does not toggle a row', () => {
+        const box = focusedElement('bank-match-box-line_001')
+        expect(focusPressesKey('Space')).toBe(true)
+        const { run, shortcuts } = build(ALL_ACTIONS, CHOSEN)
+        const space = byKeys(shortcuts, 'Space')
+        expect(space.when?.()).toBe(false)
+        // The plain letter is not pressed by the box, so it still reaches the list.
+        expect(byKeys(shortcuts, 'x').when?.()).toBe(true)
+        expect(run.toggle).not.toHaveBeenCalled()
+        box.blur()
+        expect(focusPressesKey('Space')).toBe(false)
+        expect(space.when?.()).toBe(true)
+    })
+
+    it('leaves Space to the list on an element that is not a row or a box', () => {
+        focusedElement('bank-match-link-line_001')
+        expect(focusPressesKey('Space')).toBe(false)
+        focusedElement('bank-review-check-txn_001')
+        expect(focusPressesKey('Space')).toBe(true)
+    })
+
+    it('maps no key to m while the drawer is open', () => {
+        const drawerStates: ReviewKeyState[] = [
+            { ...WRITER, isDrawerOpen: true, drawerAction: 'exclude' },
+            { ...WRITER, isDrawerOpen: true, drawerAction: 'exclude', hasFocusedRow: true },
+            { ...WRITER, isDrawerOpen: true, drawerAction: 'exclude', chosenCount: 2 },
+            { ...READER, isDrawerOpen: true, hasFocusedRow: true },
+        ]
+        for (const state of drawerStates) {
+            const keys = offeredReviewKeys(state).flatMap(action => [...REVIEW_KEYS[action]])
+            expect(keys.map(key => key.toLowerCase())).not.toContain('m')
+            const { shortcuts } = build(offeredReviewKeys(state), state)
+            const live = shortcuts.filter(s => s.when?.() !== false).map(s => s.keys.toLowerCase())
+            expect(live).not.toContain('m')
+        }
     })
 
     it('turns the search key off once a row is chosen', () => {

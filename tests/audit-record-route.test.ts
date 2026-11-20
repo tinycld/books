@@ -64,6 +64,7 @@ const GROUPS = [
     { collection: 'books_bank_files', path: 'books/banking', label: 'Open banking' },
     { collection: 'books_bank_imports', path: 'books/banking', label: 'Open banking' },
     { collection: 'books_bank_transactions', path: 'books/banking', label: 'Open banking' },
+    { collection: 'books_bank_matches', path: 'books/banking', label: 'Open banking' },
 ]
 
 describe('auditRecordHref', () => {

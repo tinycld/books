@@ -1,0 +1,114 @@
+[
+    {
+        "name": "money in with a debit of the amount",
+        "bankAmount": 86815,
+        "line": { "debit": 86815, "credit": 0, "sameAccount": true, "entryStatus": "posted", "origin": "manual", "matched": false, "daysFromBank": -2 },
+        "side": "debit",
+        "canMatch": true,
+        "suggested": true
+    },
+    {
+        "name": "money in with a credit",
+        "bankAmount": 86815,
+        "line": { "debit": 0, "credit": 86815, "sameAccount": true, "entryStatus": "posted", "origin": "manual", "matched": false, "daysFromBank": -2 },
+        "side": "debit",
+        "canMatch": false,
+        "suggested": false
+    },
+    {
+        "name": "money out with a credit",
+        "bankAmount": -86815,
+        "line": { "debit": 0, "credit": 86815, "sameAccount": true, "entryStatus": "posted", "origin": "manual", "matched": false, "daysFromBank": -2 },
+        "side": "credit",
+        "canMatch": true,
+        "suggested": true
+    },
+    {
+        "name": "money out with a debit",
+        "bankAmount": -86815,
+        "line": { "debit": 86815, "credit": 0, "sameAccount": true, "entryStatus": "posted", "origin": "manual", "matched": false, "daysFromBank": -2 },
+        "side": "credit",
+        "canMatch": false,
+        "suggested": false
+    },
+    {
+        "name": "a line of another account",
+        "bankAmount": 86815,
+        "line": { "debit": 86815, "credit": 0, "sameAccount": false, "entryStatus": "posted", "origin": "manual", "matched": false, "daysFromBank": -2 },
+        "side": "debit",
+        "canMatch": false,
+        "suggested": false
+    },
+    {
+        "name": "a void entry",
+        "bankAmount": 86815,
+        "line": { "debit": 86815, "credit": 0, "sameAccount": true, "entryStatus": "void", "origin": "manual", "matched": false, "daysFromBank": -2 },
+        "side": "debit",
+        "canMatch": false,
+        "suggested": false
+    },
+    {
+        "name": "the reversal of a void",
+        "bankAmount": 86815,
+        "line": { "debit": 86815, "credit": 0, "sameAccount": true, "entryStatus": "posted", "origin": "void_reversal", "matched": false, "daysFromBank": -2 },
+        "side": "debit",
+        "canMatch": false,
+        "suggested": false
+    },
+    {
+        "name": "a draft entry",
+        "bankAmount": 86815,
+        "line": { "debit": 86815, "credit": 0, "sameAccount": true, "entryStatus": "draft", "origin": "manual", "matched": false, "daysFromBank": -2 },
+        "side": "debit",
+        "canMatch": false,
+        "suggested": false
+    },
+    {
+        "name": "a matched line",
+        "bankAmount": 86815,
+        "line": { "debit": 86815, "credit": 0, "sameAccount": true, "entryStatus": "posted", "origin": "manual", "matched": true, "daysFromBank": -2 },
+        "side": "debit",
+        "canMatch": false,
+        "suggested": false
+    },
+    {
+        "name": "an amount that differs",
+        "bankAmount": 86815,
+        "line": { "debit": 86715, "credit": 0, "sameAccount": true, "entryStatus": "posted", "origin": "manual", "matched": false, "daysFromBank": -2 },
+        "side": "debit",
+        "canMatch": true,
+        "suggested": false
+    },
+    {
+        "name": "91 days before",
+        "bankAmount": 86815,
+        "line": { "debit": 86815, "credit": 0, "sameAccount": true, "entryStatus": "posted", "origin": "manual", "matched": false, "daysFromBank": -91 },
+        "side": "debit",
+        "canMatch": true,
+        "suggested": false
+    },
+    {
+        "name": "8 days after",
+        "bankAmount": 86815,
+        "line": { "debit": 86815, "credit": 0, "sameAccount": true, "entryStatus": "posted", "origin": "manual", "matched": false, "daysFromBank": 8 },
+        "side": "debit",
+        "canMatch": true,
+        "suggested": false
+    },
+    {
+        "name": "90 days before",
+        "bankAmount": 86815,
+        "line": { "debit": 86815, "credit": 0, "sameAccount": true, "entryStatus": "posted", "origin": "manual", "matched": false, "daysFromBank": -90 },
+        "side": "debit",
+        "canMatch": true,
+        "suggested": true
+    },
+    {
+        "name": "7 days after",
+        "bankAmount": 86815,
+        "line": { "debit": 86815, "credit": 0, "sameAccount": true, "entryStatus": "posted", "origin": "manual", "matched": false, "daysFromBank": 7 },
+        "side": "debit",
+        "canMatch": true,
+        "suggested": true
+    }
+]

@@ -1,0 +1,445 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "review",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "widths": [390],
+            "actions": [
+                { "waitFor": "1 match · Expense 1002" },
+                { "scrollTo": "1 match · Expense 1002" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "review",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-review",
+            "widths": [1280],
+            "actions": [
+                { "waitFor": "1 match · Expense 1002 · Oct 5, 2026" },
+                { "scrollTo": "1 match · Expense 1002 · Oct 5, 2026" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "drawer",
+            "url": "/a/books/banking",
+            "ready": "bank-match-section",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [390],
+            "actions": [
+                { "waitFor": "1 match · Expense 1002" },
+                { "clickText": "PACIFIC POWER AUTOPAY" },
+                { "waitForCount": "bank-match-option-", "count": 1 },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "drawer",
+            "url": "/a/books/banking",
+            "ready": "bank-match-section",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [1280],
+            "actions": [
+                { "waitFor": "1 match · Expense 1002 · Oct 5, 2026" },
+                { "clickText": "PACIFIC POWER AUTOPAY" },
+                { "waitForCount": "bank-match-option-", "count": 1 },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "drawer-many",
+            "url": "/a/books/banking",
+            "ready": "bank-match-section",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [390],
+            "addSuggestions": { "count": 2 },
+            "actions": [
+                { "waitFor": "3 matches" },
+                { "clickText": "PACIFIC POWER AUTOPAY" },
+                { "waitForCount": "bank-match-option-", "count": 3 },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "drawer-many",
+            "url": "/a/books/banking",
+            "ready": "bank-match-section",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [1280],
+            "addSuggestions": { "count": 2 },
+            "actions": [
+                { "waitFor": "3 matches" },
+                { "clickText": "PACIFIC POWER AUTOPAY" },
+                { "waitForCount": "bank-match-option-", "count": 3 },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "drawer-over",
+            "url": "/a/books/banking",
+            "ready": "bank-match-section",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [390],
+            "addSuggestions": { "count": 2 },
+            "actions": [
+                { "waitFor": "3 matches" },
+                { "clickText": "PACIFIC POWER AUTOPAY" },
+                { "waitForCount": "bank-match-option-", "count": 3 },
+                { "clickPrefix": "bank-match-box-", "nth": 0 },
+                { "clickPrefix": "bank-match-box-", "nth": 1 },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "drawer-over",
+            "url": "/a/books/banking",
+            "ready": "bank-match-section",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [1280],
+            "addSuggestions": { "count": 2 },
+            "actions": [
+                { "waitFor": "3 matches" },
+                { "clickText": "PACIFIC POWER AUTOPAY" },
+                { "waitForCount": "bank-match-option-", "count": 3 },
+                { "clickPrefix": "bank-match-box-", "nth": 0 },
+                { "clickPrefix": "bank-match-box-", "nth": 1 },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "drawer-none",
+            "url": "/a/books/banking",
+            "ready": "bank-match-section",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [390],
+            "actions": [
+                { "waitFor": "1 match · Expense 1002" },
+                { "clickText": "GUSTO PAYROLL" },
+                { "waitFor": "Books found no transaction of $12,843.10 near Oct 12, 2026." },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "drawer-none",
+            "url": "/a/books/banking",
+            "ready": "bank-match-section",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [1280],
+            "actions": [
+                { "waitFor": "1 match · Expense 1002 · Oct 5, 2026" },
+                { "clickText": "GUSTO PAYROLL" },
+                { "waitFor": "Books found no transaction of $12,843.10 near Oct 12, 2026." },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "drawer-long",
+            "url": "/a/books/banking",
+            "ready": "bank-match-section",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [390],
+            "rewriteRecords": [
+                {
+                    "collection": "books_bank_transactions",
+                    "where": { "description": "PACIFIC POWER AUTOPAY" },
+                    "set": {
+                        "description": "PACIFIC POWER AUTOPAY PPD ID 9100042271 REF 882134 RESIDENTIAL ACCOUNT 4471-220"
+                    }
+                },
+                {
+                    "collection": "books_vendors",
+                    "where": { "display_name": "Pacific Power" },
+                    "set": {
+                        "display_name": "Pacific Power and Light Company Residential Utility Services"
+                    }
+                }
+            ],
+            "actions": [
+                { "waitFor": "1 match · Expense 1002" },
+                {
+                    "clickText": "PACIFIC POWER AUTOPAY PPD ID 9100042271 REF 882134 RESIDENTIAL ACCOUNT 4471-220"
+                },
+                { "waitForCount": "bank-match-option-", "count": 1 },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "drawer-long",
+            "url": "/a/books/banking",
+            "ready": "bank-match-section",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [1280],
+            "rewriteRecords": [
+                {
+                    "collection": "books_bank_transactions",
+                    "where": { "description": "PACIFIC POWER AUTOPAY" },
+                    "set": {
+                        "description": "PACIFIC POWER AUTOPAY PPD ID 9100042271 REF 882134 RESIDENTIAL ACCOUNT 4471-220"
+                    }
+                },
+                {
+                    "collection": "books_vendors",
+                    "where": { "display_name": "Pacific Power" },
+                    "set": {
+                        "display_name": "Pacific Power and Light Company Residential Utility Services"
+                    }
+                }
+            ],
+            "actions": [
+                { "waitFor": "1 match · Expense 1002 · Oct 5, 2026" },
+                {
+                    "clickText": "PACIFIC POWER AUTOPAY PPD ID 9100042271 REF 882134 RESIDENTIAL ACCOUNT 4471-220"
+                },
+                { "waitForCount": "bank-match-option-", "count": 1 },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "drawer-loading",
+            "url": "/a/books/banking",
+            "ready": "bank-match-loading",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [390],
+            "fakeRecords": { "collection": "books_bank_match_suggestions", "hold": true },
+            "actions": [
+                { "waitFor": "bank-tabs-review" },
+                { "clickText": "PACIFIC POWER AUTOPAY" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "drawer-loading",
+            "url": "/a/books/banking",
+            "ready": "bank-match-loading",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [1280],
+            "fakeRecords": { "collection": "books_bank_match_suggestions", "hold": true },
+            "actions": [
+                { "waitFor": "bank-tabs-review" },
+                { "clickText": "PACIFIC POWER AUTOPAY" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "drawer-error",
+            "url": "/a/books/banking",
+            "ready": "bank-match-error",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [390],
+            "fakeRecords": { "collection": "books_bank_match_suggestions", "status": 400 },
+            "actions": [
+                { "waitFor": "bank-tabs-review" },
+                { "clickText": "PACIFIC POWER AUTOPAY" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "drawer-error",
+            "url": "/a/books/banking",
+            "ready": "bank-match-error",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [1280],
+            "fakeRecords": { "collection": "books_bank_match_suggestions", "status": 400 },
+            "actions": [
+                { "waitFor": "bank-tabs-review" },
+                { "clickText": "PACIFIC POWER AUTOPAY" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "drawer-sending",
+            "url": "/a/books/banking",
+            "ready": "bank-match-section",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [390],
+            "writes": { "collection": "books_bank_matches", "answers": ["hold"] },
+            "actions": [
+                { "waitFor": "1 match · Expense 1002" },
+                { "clickText": "PACIFIC POWER AUTOPAY" },
+                { "waitForCount": "bank-match-option-", "count": 1 },
+                { "click": "bank-match-submit" },
+                { "waitFor": "Matching…" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "drawer-sending",
+            "url": "/a/books/banking",
+            "ready": "bank-match-section",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [1280],
+            "writes": { "collection": "books_bank_matches", "answers": ["hold"] },
+            "actions": [
+                { "waitFor": "1 match · Expense 1002 · Oct 5, 2026" },
+                { "clickText": "PACIFIC POWER AUTOPAY" },
+                { "waitForCount": "bank-match-option-", "count": 1 },
+                { "click": "bank-match-submit" },
+                { "waitFor": "Matching…" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "drawer-refused",
+            "url": "/a/books/banking",
+            "ready": "bank-match-refusal",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [390],
+            "writes": {
+                "collection": "books_bank_matches",
+                "answers": [400],
+                "message": "Transfer 9 is already matched to another bank transaction."
+            },
+            "actions": [
+                { "waitFor": "1 match · Expense 1002" },
+                { "clickText": "PACIFIC POWER AUTOPAY" },
+                { "waitForCount": "bank-match-option-", "count": 1 },
+                { "click": "bank-match-submit" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "drawer-refused",
+            "url": "/a/books/banking",
+            "ready": "bank-match-refusal",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [1280],
+            "writes": {
+                "collection": "books_bank_matches",
+                "answers": [400],
+                "message": "Transfer 9 is already matched to another bank transaction."
+            },
+            "actions": [
+                { "waitFor": "1 match · Expense 1002 · Oct 5, 2026" },
+                { "clickText": "PACIFIC POWER AUTOPAY" },
+                { "waitForCount": "bank-match-option-", "count": 1 },
+                { "click": "bank-match-submit" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "read-only",
+            "url": "/a/books/banking",
+            "ready": "bank-match-section",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [390],
+            "rewriteRecords": [
+                {
+                    "collection": "books_access",
+                    "set": {
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                }
+            ],
+            "actions": [
+                { "waitFor": "1 match · Expense 1002" },
+                { "clickText": "PACIFIC POWER AUTOPAY" },
+                { "waitForCount": "bank-match-option-", "count": 1 },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "read-only",
+            "url": "/a/books/banking",
+            "ready": "bank-match-section",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [1280],
+            "rewriteRecords": [
+                {
+                    "collection": "books_access",
+                    "set": {
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                }
+            ],
+            "actions": [
+                { "waitFor": "1 match · Expense 1002 · Oct 5, 2026" },
+                { "clickText": "PACIFIC POWER AUTOPAY" },
+                { "waitForCount": "bank-match-option-", "count": 1 },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "matched-done",
+            "url": "/a/books/banking",
+            "ready": "bank-review-result",
+            "readyAfterActions": true,
+            "actions": [
+                { "waitFor": "1 match · Expense 1002" },
+                { "clickText": "PACIFIC POWER AUTOPAY" },
+                { "waitForCount": "bank-match-option-", "count": 1 },
+                { "click": "bank-match-submit" },
+                { "waitForHidden": "bank-txn-drawer" },
+                { "blur": true }
+            ]
+        }
+    ]
+}
