@@ -4,6 +4,7 @@ import { createAccount, openChart, PHONE } from './account-register-helpers'
 import {
     browserToday,
     figureDigits,
+    holdReportRuns,
     MANUAL_NOTE,
     manualBand,
     nextReportRun,
@@ -41,20 +42,6 @@ const UPDATING = 'Updating…'
 async function startBooks(page: Page) {
     await login(page)
     await navigateToPackage(page, 'books')
-}
-
-// Holds every report run of the page until the returned release is called. The caller
-// then waits for the handlers with page.unrouteAll({ behavior: 'wait' }).
-async function holdRuns(page: Page): Promise<() => void> {
-    let release = () => {}
-    const held = new Promise<void>(resolve => {
-        release = resolve
-    })
-    await page.route('**/api/reports/run', async route => {
-        await held
-        await route.continue()
-    })
-    return release
 }
 
 test.describe('report-manual-refresh', () => {
@@ -97,13 +84,16 @@ test.describe('report-manual-refresh', () => {
 
             // The press starts a run: while it is held the button is off and says so,
             // and the header says "Updating…".
-            const release = await holdRuns(page)
-            await refresh.click()
-            await expect(refresh).toBeDisabled()
-            await expect(refresh).toContainText(REFRESHING)
-            await expect(page.getByTestId('report-updating')).toHaveText(UPDATING)
-            release()
-            await page.unrouteAll({ behavior: 'wait' })
+            const release = await holdReportRuns(page)
+            try {
+                await refresh.click()
+                await expect(refresh).toBeDisabled()
+                await expect(refresh).toContainText(REFRESHING)
+                await expect(page.getByTestId('report-updating')).toHaveText(UPDATING)
+            } finally {
+                release()
+                await page.unrouteAll({ behavior: 'wait' })
+            }
             const first = await snapshotWhen(
                 page,
                 tdSnapshot,
@@ -131,12 +121,15 @@ test.describe('report-manual-refresh', () => {
         // The key R, with no modifier, runs the report as the press does. Only the
         // reader's own Refresh makes the button read "Refreshing…" (a run that another
         // worker's share starts does not), so the held run proves the key started it.
-        const releaseKey = await holdRuns(page)
-        await page.keyboard.press('r')
-        await expect(refresh).toBeDisabled()
-        await expect(refresh).toContainText(REFRESHING)
-        releaseKey()
-        await page.unrouteAll({ behavior: 'wait' })
+        const releaseKey = await holdReportRuns(page)
+        try {
+            await page.keyboard.press('r')
+            await expect(refresh).toBeDisabled()
+            await expect(refresh).toContainText(REFRESHING)
+        } finally {
+            releaseKey()
+            await page.unrouteAll({ behavior: 'wait' })
+        }
         const second = await snapshotWhen(
             page,
             tdSnapshot,
@@ -174,7 +167,8 @@ test.describe('report-manual-refresh', () => {
         await expect(builder.getByTestId('report-table')).toBeVisible()
         await expect(refresh).toBeEnabled()
 
-        // The band fits the phone: the note wraps beside the button, and neither is cut.
+        // The band fits the phone: the note sits beside the button, and neither is cut. It
+        // does not check how the note wraps.
         await expect
             .poll(async () => {
                 const noteBox = await note.boundingBox()
@@ -188,16 +182,22 @@ test.describe('report-manual-refresh', () => {
             })
             .toEqual({ noteInView: true, buttonInView: true, apart: true })
 
-        const release = await holdRuns(page)
+        const release = await holdReportRuns(page)
         const run = nextReportRun(page)
-        await refresh.click()
-        await expect(refresh).toBeDisabled()
-        await expect(refresh).toContainText(REFRESHING)
-        await expect(builder.getByTestId('report-updating')).toHaveText(UPDATING)
-        const body = (await run).postDataJSON() as { spec?: { source?: string } }
-        expect(body.spec?.source).toBe(JOURNAL_LINES_SOURCE)
-        release()
-        await page.unrouteAll({ behavior: 'wait' })
+        try {
+            await refresh.click()
+            await expect(refresh).toBeDisabled()
+            await expect(refresh).toContainText(REFRESHING)
+            await expect(builder.getByTestId('report-updating')).toHaveText(UPDATING)
+            // The source shows the run is the draft's; the disabled and "Refreshing…"
+            // assertions prove the press started it (a refetch of the Preview sends the
+            // same body).
+            const body = (await run).postDataJSON() as { spec?: { source?: string } }
+            expect(body.spec?.source).toBe(JOURNAL_LINES_SOURCE)
+        } finally {
+            release()
+            await page.unrouteAll({ behavior: 'wait' })
+        }
         await expect(refresh).toBeEnabled()
         await expect(refresh).not.toContainText(REFRESHING)
         await expect(builder.getByTestId('report-updating')).toHaveCount(0)
