@@ -169,10 +169,13 @@ func generalLedgerLayouts() []reports.DisplayLayout {
 
 // generalLedgerOpening is the section's account's net before the period, the
 // Trial Balance's rules as of the day before it: a balance-sheet account
-// counts every earlier posted line, an income or expense account only the
-// lines of the period's fiscal year, and the retained-earnings account adds
-// every income and expense line of earlier fiscal years. With All dates the
-// period has no first day, no line is before it, and the net is 0.
+// carries all history, an income or expense account only the fiscal year, and
+// the retained-earnings account adds the income and expense of earlier fiscal
+// years. The whole months before the period's first month are read from the
+// stored monthly balances (books_account_balances), and only the posted lines
+// of that first month before the period are read from the journal, so the
+// cost does not grow with the account's history. With All dates the period has
+// no first day, no line is before it, and the net is 0.
 func generalLedgerOpening() *reports.Node {
 	from := bound("period", "from")
 	monthStart := op("startOfMonth", from)
