@@ -1248,8 +1248,9 @@ func bsLineLabel(date string, entry *core.Record, memo string) string {
 // Pressing an account row opens its posted lines (spec §3): labelled "<date>
 // · <entry number> · <memo>", the entry's memo when the line has none, in
 // date order then entry sequence, whatever order they were stored in; Current
-// by the account's normal side, Prior year only for a line on or before the
-// prior-year day, Change and % change blank. The line ids run against the
+// by the account's normal side. The months before the as-of month are one
+// opening row that carries the Prior year figure, and each listed line shows 0
+// in Prior year. Change and % change are blank. The line ids run against the
 // date and the sequence order, so storage order fails the order check.
 func TestBalanceSheetOpenedLines(t *testing.T) {
 	b := newBSBook(t)
