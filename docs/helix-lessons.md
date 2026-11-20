@@ -31,3 +31,5 @@
 - Before code reads engine output (group keys, EXPLAIN plans), dump one real run and write against it, not the spec. Build a test selector from an id with `CSS.escape`, and run an edited e2e spec before hand-back. To drop focus before a capture, click plain text (`report-document-period`): Playwright clicks the centre, where an empty state has its action. — ar-aging, retro, p5-ar-aging
 - A reader-state capture fakes `books_access` with `level: read_only` for $authId; the e2e collaborator is a writer. — write-off, retro, p2-write-off
 - An e2e spec that posts dated documents picks months that no report spec's empty-state test reads; grep the books e2e specs for the month first (the shared e2e database holds every spec's documents). — ar-aging, retro, p5-ar-aging
+- With the inline drawer open, check every table and toolbar in the panel beside it against the panel's width (page width − 380), not the page width; switch to cards or wrap the toolbar below that width. — bank-match, retro, p4-match
+- Never spread a `materialize()` key into a `.select()` under a condition; the row type becomes `never`. Write one query for each shape. — bank-match, retro, p4-match
