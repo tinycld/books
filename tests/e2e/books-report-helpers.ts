@@ -1266,21 +1266,21 @@ export function nextReportRun(page: Page): Promise<Request> {
     return page.waitForRequest(request => isReportRun(request.url(), request.method()))
 }
 
-// Presses Refresh on a report that is not live and waits for a run's answer. The note is
-// read first: only a run that is not live draws it. The answer's headers come before the
-// rows are drawn, so the caller still waits for the figure it needs. Call it only after
-// the write it must show is committed (postOpenEntry waits for the server's number).
+// Presses Refresh on a report that is not live. The note is read first: only a run that is
+// not live draws it. The awaited answer can be an earlier run's (a re-run of the saved
+// report by its topics, from another worker's share or save), so only the caller's poll
+// for the figure it needs proves the Refresh landed. Call it only after the write it must
+// show is committed (postOpenEntry waits for the server's number).
 export async function refreshReport(
     page: Page,
     surface: 'report' | 'report-drill' = 'report'
 ): Promise<void> {
     const { note, refresh } = manualBand(page, surface)
     await expect(note).toHaveText(MANUAL_NOTE)
-    const answered = page.waitForResponse(response =>
-        isReportRun(response.url(), response.request().method())
-    )
-    await refresh.click()
-    await answered
+    await Promise.all([
+        page.waitForResponse(response => isReportRun(response.url(), response.request().method())),
+        refresh.click(),
+    ])
     await expect(refresh).toBeEnabled()
 }
 
