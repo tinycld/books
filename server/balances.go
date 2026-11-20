@@ -121,6 +121,9 @@ type BalanceDrift struct {
 	StoredCredit int    `json:"storedCredit"`
 	LedgerDebit  int    `json:"ledgerDebit"`
 	LedgerCredit int    `json:"ledgerCredit"`
+	// StoredMonthStart is the stored row's day, so a drift whose totals agree
+	// still shows what differs.
+	StoredMonthStart string `json:"storedMonthStart"`
 }
 
 func verifyBalances(app core.App) ([]BalanceDrift, error) {
@@ -144,12 +147,12 @@ func verifyBalances(app core.App) ([]BalanceDrift, error) {
 		if row.GetInt("debit_total") != w.debit || row.GetInt("credit_total") != w.credit ||
 			row.GetString("month_start") != firstDayOf(key.period) {
 			drifts = append(drifts, BalanceDrift{key.account, key.period,
-				row.GetInt("debit_total"), row.GetInt("credit_total"), w.debit, w.credit})
+				row.GetInt("debit_total"), row.GetInt("credit_total"), w.debit, w.credit, row.GetString("month_start")})
 		}
 	}
 	for key, w := range want {
 		if !seen[key] {
-			drifts = append(drifts, BalanceDrift{key.account, key.period, 0, 0, w.debit, w.credit})
+			drifts = append(drifts, BalanceDrift{key.account, key.period, 0, 0, w.debit, w.credit, ""})
 		}
 	}
 	sort.Slice(drifts, func(i, j int) bool {

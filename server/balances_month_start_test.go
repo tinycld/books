@@ -12,6 +12,8 @@ func TestBalances_FirstDayFollowsThePeriod(t *testing.T) {
 	app := newBooksApp(t)
 	cash := mkAccount(t, app, "Checking", "bank", "checking")
 	income := mkAccount(t, app, "Income", "income", "service_income")
+	// rawPost only sets the status; the balance rows come from the posting
+	// path, which this test skips, so it applies the entry by hand.
 	rawPost(t, app, mkDraft(t, app, "2026-05-19", ln{cash, 500, 0}, ln{income, 0, 500}), "posted")
 	err := app.RunInTransaction(func(tx core.App) error {
 		if err := applyToBalances(tx, cash.Id, "2026-05-19", 500, 0, "USD"); err != nil {
@@ -43,6 +45,9 @@ func TestBalances_FirstDayFollowsThePeriod(t *testing.T) {
 	drifts, err := verifyBalances(app)
 	if err != nil || len(drifts) != 1 || drifts[0].Account != cash.Id || drifts[0].Period != "2026-05" {
 		t.Fatalf("drifts = %+v, %v; want the one row with a blank first day", drifts, err)
+	}
+	if drifts[0].StoredMonthStart != "" {
+		t.Fatalf("StoredMonthStart = %q, want the blank stored day", drifts[0].StoredMonthStart)
 	}
 	if fixed, err := rebuildBalances(app); err != nil || fixed != 1 {
 		t.Fatalf("fixed = %d, err %v; want 1", fixed, err)
