@@ -376,3 +376,19 @@ A lookup's where bounded the account column by a range, so that a blank account 
 Plan, the detail statement of run 5 (statement 6, 201 rows), reads of `books_journal_lines`: before 1 × `SEARCH … idx_books_jlines_account_date (account=? AND date>? AND date<?)`, 6 × `SEARCH … idx_books_jlines_account_date (account>? AND account<?)`, 2 × `SEARCH … idx_books_jlines_entry (entry>? AND entry<?)`; after 7 × `(account=? AND date>? AND date<?)`, 6 × `(account>? AND account<?)` (the range form, which a row with a known account does not run), 2 × `idx_books_jlines_entry (entry=?)` and 2 × `(entry>? AND entry<?)` (the Split lookups on the entry link get the two forms too). The detail statement: run 5 622.8 ms to 544 ms, run 3 134.3 ms to 107.2 ms. Its text grew (run 5: 33,059 -> 43,517 chars).
 
 Runs 1, 2, 3 and 5 fell, by 13 % to 34 %; run 3 fell more than the 5 to 20 % the plan expected. Run 4 is 8 % slower (its detail statement 63 ms to 76.6 ms): the cost of the `CASE` test over the two forms on a page with few lines; under the 25 % limit of the task. Measured on a quiet machine (`scale-task5.log`).
+
+#### Task 5d: a detail row's own lookups run for the page's rows (core `server/reports/run.go`, 2026-11-20)
+
+The detail statement computed every cell of every row of the period and cut the page last, so the Split and name lookups ran for each row of the period to show 200. The statement is now two selects: below the page cut, each row with its sort keys, its running balance and the beginning balance the running balance reads; above it, the row's own lookups and the cells, for the page's rows.
+
+| run, 100k lines | before | after |
+| --- | --- | --- |
+| 1 all accounts, month | 357 ms | 310 ms |
+| 2 all accounts, year | 1,363 ms | 706 ms |
+| 3 busy account, month | 178 ms | 167 ms |
+| 4 small account, month | 140 ms | 144 ms |
+| 5 three accounts, year | 713 ms | 377 ms |
+
+The detail statement (statement 6, 201 rows; run 4: 1 row): run 5 544 ms to 248.2 ms, run 3 107.2 ms to 97.9 ms, run 2 1,070.2 ms to 487.9 ms, run 4 76.6 ms to 79.8 ms. Plan, the detail statement of run 5, reads of `books_journal_lines`: before and after the same, 7 × `SEARCH … idx_books_jlines_account_date (account=? AND date>? AND date<?)`, 6 × `(account>? AND account<?)`, 2 × `idx_books_jlines_entry (entry=?)`, 2 × `(entry>? AND entry<?)`. Its text: 43,517 -> 42,435 chars. What stays in the statement (measured before the change, `parts.md`): the rows, their records and the sort, the beginning balance for each account, and the running balance.
+
+The measure was taken twice. The first run (`scale-task5d.log`, quiet machine, core 9dacb519) gave 422 / 754 / 220 / 194 / 431 ms: run 4 39 % above task 5 (detail statement 76.6 -> 130.4 ms), over the 25 % limit. Cause: SQLite flattened the layers above the page cut into the cells select and copied each hoisted value into each read (859 scalar subquery lines in the plan against 563; the earlier-years balance 25 times, about 40 ms on every run). Fix (core 9f515b30, tests 10029574): the page and the cells are each a `MATERIALIZED` select of a nested `WITH`, so each layer is computed once. The second run (`scale-task5d-b.log`, quiet machine, load 2.75, core 10029574) is the one recorded above: runs 3 and 4 within 7 % of task 5, run 5 47 % lower, run 2 48 % lower.
