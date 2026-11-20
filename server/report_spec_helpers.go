@@ -238,6 +238,47 @@ func noCustomerLast() reports.SortKey {
 	return reports.SortKey{Formula: op("if", op("isEmpty", rec("byTop", "id")), lit(1), lit(0))}
 }
 
+// vendorsParam is the Vendor param of the vendor reports: any number of
+// vendors, inactive ones included. The document header names the picks.
+func vendorsParam() reports.ParamDef {
+	return reports.ParamDef{
+		ID: "vendors", Type: reports.ParamChoice, Label: "Vendor", Multiple: true,
+		Header:      "Vendor: {label}",
+		OptionsFrom: &reports.OptionsFrom{Source: "books.vendors", Value: path("id"), Label: path("display_name")},
+	}
+}
+
+// vendorGroup is the vendor level: shown only with a row, muted when
+// inactive. A blank key (no vendor) labels "No vendor".
+func vendorGroup() reports.Group {
+	inactive := op("eq", rec("byVendor", "inactive"), lit(true))
+	return reports.Group{
+		ID: "byVendor", Col: "vendorKey", HideEmpty: true,
+		// The suffix keeps the mark in exports and screen readers, which do
+		// not read the muted tone.
+		Label: op("concat",
+			op("coalesce", rec("byVendor", "display_name"), lit("No vendor")),
+			op("if", inactive, lit(" (inactive)"), lit("")),
+		),
+		Muted: inactive,
+	}
+}
+
+// vendorSort is the vendor order (D7): the report's inner keys; No vendor
+// last, before the balance key, so it stays last under Largest balance;
+// under Largest balance the vendor's sum of net, largest first; then
+// vendors by name, ignoring case. Core skips a key that reads a row value on
+// a group level and a key that reads a column blank above its level, so
+// inner keys that read an item or a line order the opened rows only.
+func vendorSort(net *reports.Node, inner ...reports.SortKey) []reports.SortKey {
+	keys := append([]reports.SortKey{}, inner...)
+	return append(keys,
+		reports.SortKey{Formula: op("if", op("isEmpty", rec("byVendor", "id")), lit(1), lit(0))},
+		reports.SortKey{Formula: op("if", op("eq", prm("order"), lit("balance")), op("sum", net), lit(0)), Dir: "desc"},
+		reports.SortKey{Formula: op("lower", rec("byVendor", "display_name"))},
+	)
+}
+
 // agingBand is one age column: its id, its label and the ages it holds.
 type agingBand struct {
 	id, label string
