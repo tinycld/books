@@ -24,11 +24,14 @@ import (
 // glYearBar). The book check runs in every test run (TestStatementsScaleBook);
 // the three sizes start only with BOOKS_SCALE=1 (TestStatementsScale).
 //
-// How the bar maps (the human, 2026-11-20: at 500,000 lines a run filtered to
-// one month takes 1 s or less, a filtered year run 2 s or less):
+// The bars are the human's (2026-11-20), at 500,000 lines: Transaction Detail
+// with an Accounts filter 1 s for a month and 2 s for a year; Transaction
+// Detail with no Accounts filter 2 s (month and year); a Trial Balance with an
+// Accounts filter 1 s; the Trial Balance of all accounts 2 s; the Balance
+// Sheet as of, Accrual and Cash, 2 s. How the bar maps:
 //   - Transaction Detail has a period and an Accounts filter, as the General
-//     Ledger has: its runs and bars are the General Ledger's five (the runs
-//     with an Accounts filter carry the bar; the two with none are recorded).
+//     Ledger has: the runs with an Accounts filter carry the General Ledger's
+//     month and year bars; the two with none are held to the year bar (2 s).
 //   - A statement "as of" a day has no period: its figure is the whole history
 //     up to that day. A Trial Balance with an Accounts filter is held to the
 //     month bar. The Trial Balance of every account and the Balance Sheet (it
@@ -80,8 +83,8 @@ func stScaleRuns(b glScaleBook) []stScaleRun {
 		{name: "TB 3 three accounts, as of", shipped: trialBalanceShipped, params: map[string]any{"asOf": b.lastDay, "accounts": three}, bar: glMonthBar},
 		{name: "BS 1 accrual, as of", shipped: balanceSheetShipped, params: map[string]any{"asOf": b.lastDay}, bar: glYearBar},
 		{name: "BS 2 cash, as of", shipped: balanceSheetShipped, params: map[string]any{"asOf": b.lastDay, "method": "cash"}, bar: glYearBar},
-		{name: "TD 1 all accounts, month", shipped: transactionDetailShipped, params: map[string]any{"period": month}},
-		{name: "TD 2 all accounts, year", shipped: transactionDetailShipped, params: map[string]any{"period": year}},
+		{name: "TD 1 all accounts, month", shipped: transactionDetailShipped, params: map[string]any{"period": month}, bar: glYearBar},
+		{name: "TD 2 all accounts, year", shipped: transactionDetailShipped, params: map[string]any{"period": year}, bar: glYearBar},
 		{name: "TD 3 busy account, month", shipped: transactionDetailShipped, params: map[string]any{"period": month, "accounts": busy}, bar: glMonthBar},
 		{name: "TD 4 small account, month", shipped: transactionDetailShipped, params: map[string]any{"period": month, "accounts": []string{b.incomes[0].Id}}, bar: glMonthBar},
 		{name: "TD 5 three accounts, year", shipped: transactionDetailShipped, params: map[string]any{"period": year, "accounts": three}, bar: glYearBar},
@@ -213,8 +216,8 @@ func TestStatementsScaleBars(t *testing.T) {
 		"TB 3 three accounts, as of":     time.Second,
 		"BS 1 accrual, as of":            2 * time.Second,
 		"BS 2 cash, as of":               2 * time.Second,
-		"TD 1 all accounts, month":       0,
-		"TD 2 all accounts, year":        0,
+		"TD 1 all accounts, month":       2 * time.Second,
+		"TD 2 all accounts, year":        2 * time.Second,
 		"TD 3 busy account, month":       time.Second,
 		"TD 4 small account, month":      time.Second,
 		"TD 5 three accounts, year":      2 * time.Second,
@@ -272,6 +275,7 @@ func TestStatementsScaleBars(t *testing.T) {
 // TestStatementsScale measures each run at 10,000, 100,000 and 500,000 journal
 // lines (median of 5) and holds the bar at 500,000 lines. A run core refuses
 // (its time limit) is recorded as refused; a refused run with a bar fails it.
+// Every run has a bar now.
 // With BOOKS_SCALE_OUT=<dir> it writes st-results.md (the times) and
 // st-plans.md (each long statement of each run at each size: its time, its
 // rows, its reads of the line tables).
