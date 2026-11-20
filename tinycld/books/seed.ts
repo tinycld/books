@@ -81,6 +81,7 @@ import {
     salesTaxLiabilitySeedMemo,
 } from './lib/sales-tax-liability-fixture'
 import { SEED_ACCOUNTS } from './lib/seed-accounts'
+import { STATEMENT_SEED } from './lib/statements-fixture'
 import {
     CUSTOMER_TAX_PATCHES,
     TAX_AGENCIES,
@@ -317,6 +318,8 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     // exactly one suggestion sees every seeded document (the review statement is imported
     // before any document posts). It posts no document, so no document number moves.
     await seedBankMatch(pb, ctx)
+    // Two unsent statements; a statement posts nothing, so no seeded figure moves.
+    await seedStatements(pb, customerIds)
     // Created active and deactivated last, because the app makes an account
     // inactive by updating it, and the vendor and product guards refuse a row
     // that names an inactive account when it is saved.
@@ -2717,4 +2720,22 @@ async function seedBankMatch(pb: PocketBase, ctx: SeedContext) {
         lines: [matched.line],
         created_by: ctx.user.id,
     })
+}
+
+// Statements spec §4.7: two saved, unsent statements of Harborview Kitchen (one Balance
+// forward, one Open items), through the collection's create. The create guard
+// (server/statements.go) sets the number, the sequence, the balance and the currency and
+// refuses a client value of any of them or of the sent fields, so the seed sends only the
+// fixture's columns. `customerIds` maps a customer-form fixture id to the created customer.
+export async function seedStatements(
+    pb: PocketBase,
+    customerIds: Map<string, string>
+): Promise<void> {
+    for (const row of STATEMENT_SEED) {
+        const customer = customerIds.get(row.customer)
+        if (customer === undefined) {
+            throw new Error(`seed: statement names customer ${row.customer}, which was not created`)
+        }
+        await pb.collection('books_statements').create({ ...row, customer })
+    }
 }

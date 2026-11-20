@@ -1,37 +1,26 @@
 // Synthetic customer statements for the seed (seed.ts) and the helix reference route
 // (statements spec §3, §4). A plain data module: no React, no PocketBase.
 //
-// `books_statements` does not exist yet, so `StatementRecord` mirrors the spec's §4.2
-// table. The migration checkpoint (pb-migrations/2100000033_create_books_statements.js)
-// must replace it with the generated `BooksStatements` type and check STATEMENTS with
-// `satisfies`. `StatementRecipient` is the shape of the recipients read (§4.1); the build
-// takes that type from its live query, not from here.
+// `StatementRecord` is the generated `BooksStatements` row
+// (pb-migrations/2100000033_create_books_statements.js). `StatementRecipient` is the
+// shape of the recipients read (§4.1); the build takes that type from its live query, not
+// from here.
 
+import type { BooksStatements } from '../types'
 import { CUSTOMER_IDS, CUSTOMERS } from './customer-form-fixture'
+import {
+    STATEMENT_BALANCE_LABELS,
+    STATEMENT_TYPE_LABELS,
+    type StatementBalanceFilter,
+    type StatementType,
+} from './statement-texts'
 
-export type StatementType = 'balance_forward' | 'open_items'
-
-export type StatementBalanceFilter = 'open' | 'overdue' | 'all'
+export type { StatementBalanceFilter, StatementType }
+export { STATEMENT_BALANCE_LABELS, STATEMENT_TYPE_LABELS }
 
 // Spec §4.2. Money is integer cents; a day is `YYYY-MM-DD`; `start_date` and `end_date`
 // are empty on an open-items statement; `sent_at` and `sent_to` are empty until a send.
-export interface StatementRecord {
-    id: string
-    customer: string
-    number: string
-    sequence: number
-    type: StatementType
-    statement_date: string
-    start_date: string
-    end_date: string
-    email: string
-    balance: number
-    currency: string
-    sent_at: string
-    sent_to: string
-    created: string
-    updated: string
-}
+export type StatementRecord = BooksStatements
 
 // What a client sends on create (§4.5): the server sets the number, the sequence, the
 // balance, the currency and the sent fields.
@@ -41,17 +30,6 @@ export type StatementInsert = Pick<
 >
 
 export const STATEMENT_CURRENCY = 'USD'
-
-export const STATEMENT_TYPE_LABELS: Record<StatementType, string> = {
-    balance_forward: 'Balance forward',
-    open_items: 'Open items',
-}
-
-export const STATEMENT_BALANCE_LABELS: Record<StatementBalanceFilter, string> = {
-    open: 'Open',
-    overdue: 'Overdue',
-    all: 'All',
-}
 
 const ASPEN = 'cust_aspen_0001'
 const BLUEFIN = 'cust_bluef_0001'
@@ -120,7 +98,7 @@ function statement(
     }
 }
 
-export const STATEMENTS: StatementRecord[] = [
+export const STATEMENTS = [
     statement({
         id: 'stmt_aspen_0006',
         number: 'ST-1042',
@@ -187,7 +165,7 @@ export const STATEMENTS: StatementRecord[] = [
         sent_at: '2026-08-01 08:02:00.000Z',
         sent_to: STATEMENT_TAB_CUSTOMER.email,
     }),
-]
+] satisfies BooksStatements[]
 
 export const EMPTY_STATEMENTS: StatementRecord[] = []
 

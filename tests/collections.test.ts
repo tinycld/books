@@ -64,6 +64,7 @@ const NAMES = [
     'books_refund_receipt_credits',
     'books_refund_receipt_sale_lines',
     'books_write_offs',
+    'books_statements',
 ]
 
 function register() {
@@ -426,6 +427,25 @@ describe('registerCollections', () => {
         for (const written of ['refund', 'vendor_credit', 'amount', 'position']) {
             expect(lines?.omitOnInsert, written).not.toContain(written)
         }
+    })
+
+    // Statements spec §4.2: the client sends the customer, the type, the dates and the
+    // address; the server sets the number, the sequence, the balance, the currency and the
+    // sent fields. The customer files into its collection.
+    it('never inserts a statement column the server sets, and relates its customer', () => {
+        const { calls } = register()
+        const statements = calls.get('books_statements')
+        expect(statements?.omitOnInsert).toEqual([
+            'created',
+            'updated',
+            'number',
+            'sequence',
+            'balance',
+            'currency',
+            'sent_at',
+            'sent_to',
+        ])
+        expect(statements?.relations).toEqual({ customer: { name: 'books_customers' } })
     })
 
     // The contacts tab reads the contacts of one customer; nothing else enters

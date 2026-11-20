@@ -48,10 +48,19 @@ func registerSequenceGuard(app core.App) {
 // idx_books_je_doc_sequence instead of reading every entry.
 const highestSequenceSQL = "SELECT CAST(COALESCE(MAX(sequence), 0) AS INTEGER) FROM books_journal_entries WHERE doc_type = {:type} AND sequence > 0"
 
+// highestStatementSequenceSQL reads the highest statement number issued. A
+// statement is not a journal entry: its number is on its own row, and the
+// unique index on sequence serves the MAX.
+const highestStatementSequenceSQL = "SELECT CAST(COALESCE(MAX(sequence), 0) AS INTEGER) FROM " + statementsCollection
+
 func highestSequence(app core.App, docType string) (int, error) {
+	query := highestSequenceSQL
+	if docType == docTypeStatement {
+		query = highestStatementSequenceSQL
+	}
 	var highest int
 	err := app.DB().
-		NewQuery(highestSequenceSQL).
+		NewQuery(query).
 		Bind(dbx.Params{"type": docType}).
 		Row(&highest)
 	if err != nil {
