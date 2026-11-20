@@ -997,6 +997,7 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 	parts.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		bindBalanceRoutes(e)
 		bindPDFRoutes(e)
+		bindStatementRoutes(e)
 		return e.Next()
 	})
 

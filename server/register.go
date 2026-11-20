@@ -84,6 +84,7 @@ func Register(app *pocketbase.PocketBase) {
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		bindBalanceRoutes(e)
 		bindPDFRoutes(e)
+		bindStatementRoutes(e)
 		return e.Next()
 	})
 }
