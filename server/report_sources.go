@@ -187,9 +187,12 @@ func reportSources() []reports.Source {
 	return sources
 }
 
-// auditLogSource is the books_audit_log view (migration 2100000029): one row
+// auditLogSource is the books_audit_log view (migration 2100000030): one row
 // per audit row of a Books record. The view's computed columns are text, so
-// event, record_type and parent_type are Selects over text columns. The JSON
+// event, event_shown, record_type and parent_type are Selects over text
+// columns. event is what the Event filter matches; event_shown is what the
+// Event column shows (a credit memo application reads Credit applied or
+// Credit removed, not Added or Deleted). The JSON
 // columns (changes, snapshot) are left out; it has no money, so no Currency.
 func auditLogSource() reports.Source {
 	return reports.Source{
@@ -199,6 +202,7 @@ func auditLogSource() reports.Source {
 			{Key: "actor", Label: "User ID", Type: reports.Text},
 			{Key: "actor_name", Label: "User", Type: reports.Text, Aggregates: reports.MinMax},
 			{Key: "event", Label: "Event", Type: reports.Select, Options: auditEvents()},
+			{Key: "event_shown", Label: "Event shown", Type: reports.Select, Options: auditShownEvents()},
 			{Key: "record_type", Label: "Record type", Type: reports.Select, Options: auditRecordTypeOptions()},
 			{Key: "record_id", Label: "Record ID", Type: reports.Text},
 			{Key: "record_label", Label: "Record", Type: reports.Text},

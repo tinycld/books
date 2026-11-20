@@ -34,6 +34,7 @@
         { "value": "books_payment_applications", "label": "Payment application" },
         { "value": "books_bill_payment_lines", "label": "Bill payment line" },
         { "value": "books_vendor_credit_applications", "label": "Vendor credit application" },
+        { "value": "books_credit_memo_applications", "label": "Credit memo application" },
         { "value": "books_vendor_refund_lines", "label": "Vendor refund line" },
         { "value": "books_journal_lines", "label": "Journal line" },
         { "value": "books_attachments", "label": "Attachment" },
@@ -152,6 +153,7 @@
                     { "value": "books_payment_applications", "label": "Payment application" },
                     { "value": "books_bill_payment_lines", "label": "Bill payment line" },
                     { "value": "books_vendor_credit_applications", "label": "Vendor credit application" },
+                    { "value": "books_credit_memo_applications", "label": "Credit memo application" },
                     { "value": "books_vendor_refund_lines", "label": "Vendor refund line" },
                     { "value": "books_journal_lines", "label": "Journal line" },
                     { "value": "books_attachments", "label": "Attachment" },
@@ -178,7 +180,7 @@
         "columns": [
             { "id": "created", "label": "Date changed", "formula": { "path": [{ "field": "created" }] } },
             { "id": "user", "label": "User", "formula": { "path": [{ "field": "actor_name" }] } },
-            { "id": "event", "label": "Event", "formula": { "path": [{ "field": "event" }] } },
+            { "id": "event", "label": "Event", "formula": { "path": [{ "field": "event_shown" }] } },
             { "id": "type", "label": "Record type", "formula": { "path": [{ "field": "record_type" }] } },
             { "id": "record", "label": "Record", "formula": { "path": [{ "field": "record_label" }] } }
         ],

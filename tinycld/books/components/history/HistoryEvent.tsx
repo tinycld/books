@@ -51,12 +51,14 @@ function LineEventTitle({ row, history }: RowProps) {
     useReportHistoryRead(history, read, failed)
     const live: Record<string, unknown> | undefined = data
     const position = typeof live?.position === 'number' ? live.position : undefined
-    return <Text className={TITLE_CLASS}>{lineEventTitle(row, position)}</Text>
+    const title = lineEventTitle(row, position)
+    return <Text className={TITLE_CLASS}>{title}</Text>
 }
 
 function EventTitle({ row, collection, history }: RowProps & { collection: string }) {
     if (isLineEvent(row, collection)) return <LineEventTitle row={row} history={history} />
-    return <Text className={TITLE_CLASS}>{eventWords(row.event)}</Text>
+    const title = eventWords(row.event, row.record_type)
+    return <Text className={TITLE_CLASS}>{title}</Text>
 }
 
 function EventBody({ row, currency, history }: RowProps & { currency: string }) {

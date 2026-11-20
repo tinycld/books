@@ -59,7 +59,7 @@ describe('pb-migrations prefixes', () => {
     })
 
     it('runs the audit log view after every migration that creates a collection', () => {
-        const audit = '2100000029_create_books_audit_log.js'
+        const audit = '2100000030_create_books_audit_log.js'
         const createsAfterAudit = MIGRATIONS.filter(
             file =>
                 file !== audit &&
@@ -75,8 +75,9 @@ describe('pb-migrations prefixes', () => {
     // spec §4: the party balances view gains its vendor rows in 2100000026. Write-off spec
     // §4.1: the write-offs take 2100000027, 2100000028 stays free for p5-ar-aging, and the
     // audit view moves to 2100000029, the highest. A/R Aging spec: the receivable items
-    // take 2100000028.
-    it('holds the vendor credits at 2100000023, the vendor refunds at 2100000024, the refund receipts at 2100000025, the vendor party balances at 2100000026, the write-offs at 2100000027 and the receivable items at 2100000028, before the audit log at 2100000029', () => {
+    // take 2100000028. Apply credit spec §4.1: the credit memo applications take
+    // 2100000029 and the audit view moves to 2100000030, the highest.
+    it('holds the vendor credits at 2100000023, the vendor refunds at 2100000024, the refund receipts at 2100000025, the vendor party balances at 2100000026, the write-offs at 2100000027, the receivable items at 2100000028 and the credit memo applications at 2100000029, before the audit log at 2100000030', () => {
         expect(MIGRATIONS).toContain('2100000023_create_books_vendor_credits.js')
         expect(MIGRATIONS).toContain('2100000024_create_books_vendor_refunds.js')
         expect(MIGRATIONS).toContain('2100000025_create_books_refund_receipts.js')
@@ -85,8 +86,12 @@ describe('pb-migrations prefixes', () => {
         expect(MIGRATIONS.filter(file => prefixOf(file) === '2100000028')).toEqual([
             '2100000028_create_books_receivable_items.js',
         ])
-        expect(MIGRATIONS).toContain('2100000029_create_books_audit_log.js')
+        expect(MIGRATIONS.filter(file => prefixOf(file) === '2100000029')).toEqual([
+            '2100000029_create_books_credit_memo_applications.js',
+        ])
+        expect(MIGRATIONS).toContain('2100000030_create_books_audit_log.js')
+        expect(MIGRATIONS).not.toContain('2100000029_create_books_audit_log.js')
         expect(MIGRATIONS).not.toContain('2100000027_create_books_audit_log.js')
-        expect(MIGRATIONS[MIGRATIONS.length - 1]).toBe('2100000029_create_books_audit_log.js')
+        expect(MIGRATIONS[MIGRATIONS.length - 1]).toBe('2100000030_create_books_audit_log.js')
     })
 })

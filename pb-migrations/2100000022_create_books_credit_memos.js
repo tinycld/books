@@ -14,7 +14,8 @@
 // SERVER-OWNED FIELDS are pinned with `@request.body.x:isset = false`, as on
 // the invoice, and balance among them: the credit not yet applied, the total
 // at posting and 0 on a draft or a void memo. Only Books writes it
-// (server/document_balance.go).
+// (server/document_balance.go). applied, the sum of the memo's applications,
+// is server-written too.
 //
 // A credit memo has no terms, no due date and no estimate. invoice is the
 // posted invoice the memo was made from (optional; a void of that invoice
@@ -58,6 +59,7 @@ const CREDIT_MEMO_SERVER_FIELDS = [
     'tax_total',
     'total',
     'balance',
+    'applied',
     'currency',
     'entry',
     'replaced_by',
@@ -144,6 +146,12 @@ migrate(
                     { name: 'tax_total', type: 'number', onlyInt: true, min: -MAX_STORED, max: MAX_STORED },
                     { name: 'total', type: 'number', onlyInt: true, min: 0, max: MAX_STORED },
                     { name: 'balance', type: 'number', onlyInt: true, min: 0, max: MAX_STORED },
+                    // The cents of the memo's applications to invoices
+                    // (books_credit_memo_applications, 2100000029), so a list
+                    // tells Applied from Refunded with no other read. Only
+                    // Books writes it (server/credit_applications.go,
+                    // server/credit_memos.go, server/document_balance.go).
+                    { name: 'applied', type: 'number', onlyInt: true, min: 0, max: MAX_STORED },
                     // Counts the transactions that changed the draft or its lines. A
                     // save or a post states the value it saw (server/revision.go).
                     { name: 'revision', type: 'number', onlyInt: true, min: 0 },

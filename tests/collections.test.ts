@@ -49,6 +49,7 @@ const NAMES = [
     'books_credit_memos',
     'books_credit_memo_lines',
     'books_credit_memo_tax_lines',
+    'books_credit_memo_applications',
     'books_vendor_credits',
     'books_vendor_credit_lines',
     'books_vendor_credit_applications',
@@ -321,6 +322,27 @@ describe('registerCollections', () => {
         expect(applications).toEqual(expect.arrayContaining(['created', 'applied_by']))
         for (const written of ['vendor_credit', 'bill', 'amount', 'date']) {
             expect(applications, written).not.toContain(written)
+        }
+    })
+
+    // Apply credit spec §4.1: the server writes a credit memo's applied cents, as an
+    // invoice's written_off, and who applied an application; the client never sends them.
+    it('never inserts a credit memo applied sum or an application column the server writes', () => {
+        const { calls } = register()
+        expect(calls.get('books_credit_memos')?.omitOnInsert).toEqual(
+            expect.arrayContaining(['balance', 'applied'])
+        )
+        const applications = calls.get('books_credit_memo_applications')
+        expect(applications?.syncMode).toBe('on-demand')
+        expect(applications?.realtime).toBe('query')
+        expect(applications?.omitOnInsert).toEqual(
+            calls.get('books_vendor_credit_applications')?.omitOnInsert
+        )
+        expect(applications?.omitOnInsert).toEqual(
+            expect.arrayContaining(['created', 'applied_by'])
+        )
+        for (const written of ['credit_memo', 'invoice', 'amount', 'date']) {
+            expect(applications?.omitOnInsert, written).not.toContain(written)
         }
     })
 
