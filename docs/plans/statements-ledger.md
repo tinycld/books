@@ -20,16 +20,20 @@
 (none yet)
 
 ## Rebuttals
-(none yet — every reviewer finding rejected in triage is listed here verbatim,
-with the reason, and shown to the human at the end)
+- **finding:** reviewer B, cp 1, #3: "`help/settings.md:41` — help body is now wrong for a drawn card. … Spec line 154 requires that `help/settings.md` name the Statements card and say that a statement takes its number when it is saved. Fix: add the Statements card to that sentence now, or confirm that checkpoint 5's Files block names `help/settings.md`."
+  **rebutted because:** checkpoint 5's Files block names it: "Modify (help and glossary): `help/customer-pages.md`, `help/customers.md`, `help/reports.md` (append), `help/settings.md`, …", and its Spec line: "`help/settings.md` (Numbering) names the Statements card and says that a statement takes its number when it is saved." (`docs/plans/statements-checkpoints.md:369`, `:396`).
+- **finding:** reviewer B, cp 1, #4: "`help/reports.md` — user-facing change with no help. The Reports hub now lists "Statement: Balance Forward" and "Statement: Open Items", and the topic does not name either one. … Fix: append a short section … or confirm that checkpoint 5 owns it."
+  **rebutted because:** checkpoint 5 owns it: "`help/reports.md` names the two statement reports" and Do step 8 "append to `help/reports.md` and `tests/help-reports.test.ts` only (plan note 4)" (`docs/plans/statements-checkpoints.md:396`, `:418`).
+- **finding:** reviewer B, cp 1, DEFERRAL 2: "`seedStatements(pb)` (Do step 9) became `seedStatements(pb, customerIds)`. … This is not a loss of function, only a different signature."
+  **rebutted because:** nothing agreed is missing; the seed creates both `STATEMENT_SEED` rows (`tests/seed-node.test.ts` pins it). The signature was settled at the test-writer step (ledger, Checkpoint 1: "customers get server ids; Do step 9's `seedStatements(pb)` cannot map the fixture id — accepted").
 
 ## Design notes
-(none yet — gate-2 NOTEs the loop did not act on, as
-`cp N · <shot>: <where> — <what>`; shown to the human at each checkpoint
-and again at the end)
+- cp 1 · Statement: Open Items report, phone (375/390): each row takes 4 lines, the age cells sit one line lower than on the A/R Aging (line 3 Current, 1 - 30; line 4 31 - 60, 61 - 90, 91 and over). The plan put Date and Due on line 2, where `arDisplay()` puts Current and 1 - 30, and core `placeCells` holds three cells in three tracks; measured with 0 cut cells (implementer part 1 #5; reviewer B DEFERRAL 1, reviewer A NOTE).
+- cp 1 · Statement reports: the column labels ("Date", "Activity", "Amount", "Balance"; "Customer", "Date", "Due date", the aging labels) and the two hub descriptions were chosen by the implementer; the plan named none (implementer part 1 #7).
 
 ## Out-of-plan changes
-(none yet — every file touched that no checkpoint's Files block named, with why)
+- `tests/e2e/books-settings.spec.ts` (cp 1): not in the Files block, but named in checkpoint 1's "Tests it must add" and Gates line; one block added to the Numbering test (the Statements card). Reviewers A and B: in scope.
+- `docs/plans/statements-ledger.md` (cp 1): the loop's ledger, committed with each checkpoint.
 
 ## Phase notes
 - phase 1: unattended; no corrections by the human before the design gate. Intake, triage and the `[?]` list: the design packet (staging `packet.md`, `intake.md`). No needs-extension spark. The source's green, header bar and split button are not carried.
@@ -80,6 +84,34 @@ and again at the end)
   - plan review findings not changed, with the reason: (c) the pinned-list test files of checkpoint 1 keep "run each test first and edit only a pinned list" (the reviewer did not check those lists, and the failing test names the pinned value); the conditional entries for `lib/audit-log-fixture.ts` and `server/search_index_test.go` stay for the same reason; a live change of the open list has no e2e test (budget; the plan names the unit test that pins the merge); the no-write notice of `books/statements/new` has no e2e test (a read-only user has no control that opens the route; a unit test and the gate-2 shot pin it).
   - the reviewer did not check: the seed order pins of `tests/seed-node.test.ts`, the pinned lists of `tests/collections.test.ts`, the OAuth test and `server/testdata/audit_log_spec.json`, `components/NewMenu.tsx`, and the scratch route's test ids against the plan's.
 - review mode switches: none
+
+## Checkpoint 1
+- test writer: server/statements_test.go, server/report_statements_test.go, server/testdata/statement_date_cases.json, tests/statements-fixture.test.ts, tests/seed-node.test.ts, tests/doc-types.test.ts, tests/migration-prefixes.test.ts, tests/e2e/books-settings.spec.ts (staged); red for the right reason: 25 of 27 (2 fixture-data checks green when written: they pin data that exists); untestable: none. The seed test calls `seedStatements(pb, customerIds)` (customers get server ids; Do step 9's `seedStatements(pb)` cannot map the fixture id) — accepted.
+- implementer: two dispatches. Part 1 (data + Go, Do 1-6): DONE, 0 disputes, 7 declared differences (staging cp/cp1-impl.md). Part 2 (TypeScript, seed, display measure, Numbering card, Do 7-9): its report file says DONE, 0 disputes, 4 declared differences (staging cp/cp1-impl-2.md); its hand-back had not arrived when this runner handed off.
+- test disputes: none
+- self-declared differences (triaged by the second runner):
+  - part 1 #1 `oauth_scopes_test.go` has no shared read-write list → new test `TestOAuth_StatementsAreReadWrite` appended: accepted (the Files block's list does not exist; the test pins the same fact).
+  - part 1 #2 extra refusals (empty `statement_date` "Enter a date"; Open items with an `end_date` "An open items statement has no period" on `end_date`; a year before 1900 "Enter a valid date"): accepted (the same rule as the case table's `start_date` case; the client never sends them; the field is required in the schema).
+  - part 1 #3 date texts as Go constants without the final period; send-route constants left to checkpoint 2: accepted (PocketBase `Sentenize` adds the period; the routes are checkpoint 2's Files).
+  - part 1 #4 opening wrapped in `coalesce(lookup, 0)`: accepted (the shape of `generalLedgerOpening`).
+  - part 1 #5 Open items phone layout: the age cells sit one line lower than `arDisplay()` (line 3 current, d30; line 4 d60, d90, d91), because core `placeCells` cannot put four cells in three tracks: accepted, and listed under Design notes for the human.
+  - part 1 #6 displays not measured: closed by part 2 (375/390/1280, 0 cut cells, 0 sideways scroll).
+  - part 1 #7 column labels and shipped descriptions chosen by the implementer: accepted, listed under Design notes.
+  - part 1 observation: a void reversal's activity reads "Void reversal of 1004 1004" (`lineEntryTypeLabel()` already ends "of <number>"; the plan's formula appends `entry.number`): a defect against the spec's activity form → fix round (see gate 3).
+  - part 2 #1 `OPEN_LABELS` map for "Open statement": accepted (the checkpoint asks for "Open statement").
+  - part 2 #2 `DOC_TYPE` label "Statement": accepted (the list's labels are singular).
+  - part 2 #3 `seedStatements(pb, customerIds)`: accepted (settled at the test writer step).
+  - part 2 #4 dev Numbering card shows next 1003: accepted (the seed stores ST-1001 and ST-1002; the e2e asserts ≥ 1001).
+- gate 1: tests unedited: yes (`git diff --name-only` of the 8 test-writer files is empty) · `packages:generate` exit 0 · `tinycld-pkg check` exit 0 (398 files, 8397 tests) · `go test ./...` ok (227.6 s), gofmt clean, go vet ok · e2e (one command: audit-log, books-settings, books-ar-aging, books-customer-balance, books-sales-reports, customer-pages-balance): 57 passed (3.0 m). No listed spec pins every hub report (the Customers Reports menu lists its three keys by name); books-settings' Numbering test gained the Statements card (test writer). → pass
+- gate 2: n/a (logic checkpoint)
+- gate 3 A (correctness): 1 BLOCK, 4 NOTE, 1 DEFERRAL (staging cp/cp1-review-A.md). BLOCK reversal activity "Void reversal of 1004 1004" → accepted+fixed (fix item 1). NOTE `TestStatement_StoredBalance` does not pin the end day → accepted+fixed (item 3). NOTE Open items tie-break on item number not exercised → accepted+fixed (item 4; a checkpoint test bullet). NOTE books-settings.spec.ts out of plan → recorded under Out-of-plan changes. NOTE Open items phone layout → Design notes. DEFERRAL `tests/settings-sections-numbering.test.ts` gained no Statements describe (spec §4.7) → accepted+fixed (item 5).
+- gate 3 B (conformance): script lines: 0 real, 2 false positive (migration 2100000001 unreleased and edited per plan note 3; 2100000034 a pure `git mv`, plan note 2) · 7 findings, 2 DEFERRAL (staging cp/cp1-review-B.md): #1 reversal activity → accepted+fixed (item 1); #2 two guard refusals missing from the shared case table → accepted+fixed (item 2); #3 `help/settings.md`, #4 `help/reports.md` → rebutted (checkpoint 5 owns them; see Rebuttals); #5, #6 out-of-plan files → recorded; #7 weak stored-balance test → accepted+fixed (item 3); DEFERRAL 1 phone layout → Design notes (a plan conflict, not a missing capability); DEFERRAL 2 seed signature → rebutted (see Rebuttals).
+- fix round 1 (staging cp/cp1-fix-r1.md, 5 items): test writer (cp/cp1-fix-tests.md) added the reversal assertion (red: "Void reversal of 1004 1004"), the two case-table cases, a payment between Start and End, two same-due-date invoices, the Statements numbering describe; it also changed `tests/statements-fixture.test.ts`'s `refusedField` to follow the guard's order (the new Open items `end_date` case failed it). Implementer (cp/cp1-fix-impl.md): `activity` shows the entry number only when the origin is not a reversal (`server/report_statements.go`). Gate 1 again: tests unedited · check exit 0 (398 files, 8399 tests) · `go test ./...` ok (234.2 s) · the six specs 57 passed (3.0 m).
+- fix review: round 1: clean (staging cp/cp1-fix-review.md). Rounds: 1.
+- gate 3 A notes: none open (each NOTE fixed or recorded above)
+- reviewer-caught deferrals: reviewer A — `tests/settings-sections-numbering.test.ts` gained no Statements card test; not self-declared (implementer part 2 ran it green and left it, reading "edit only a pinned list" as "no change when green"); fixed in round 1.
+- commit: the commit "feat(books): statement data, numbering and reports" (its sha is in git; the driver records it)
+- human: n/a (review mode C)
 
 ## Final review
 - eval: (pending)

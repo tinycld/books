@@ -26,6 +26,7 @@ import {
 } from '../tinycld/books/lib/refund-receipt-form-fixture'
 import { SALES_RECEIPT_IDS } from '../tinycld/books/lib/sales-receipt-form-fixture'
 import { SEED_ACCOUNTS } from '../tinycld/books/lib/seed-accounts'
+import { STATEMENT_SEED } from '../tinycld/books/lib/statements-fixture'
 import { VENDOR_REFUND_VENDOR_IDS } from '../tinycld/books/lib/vendor-refund-fixture'
 import {
     WRITE_OFF_INVOICES,
@@ -741,5 +742,41 @@ describe('seedRefundReceipts', () => {
             }
         })
         expect(at(refunds[1])).toBeGreaterThan(at(postOf('books_credit_memos', memo.id)))
+    })
+})
+
+// Statements spec §4.7 (seed): two unsent statements of Harborview Kitchen, stored
+// through the collection's create, in their own block after every other seed. The server
+// sets the number, the sequence, the balance, the currency and the sent fields.
+const STATEMENT_SERVER_FIELDS = ['number', 'sequence', 'balance', 'currency', 'sent_at', 'sent_to']
+
+describe('seedStatements', () => {
+    it('is the last seed call of the seed body', () => {
+        const source = readFileSync(seedPath, 'utf8')
+        const start = source.indexOf('export default async function seed(')
+        const body = source.slice(start, source.indexOf('\n}\n', start))
+        const calls = [...body.matchAll(/\bseed[A-Z]\w*\(/g)].map(match => match[0])
+        expect(calls.at(-1)).toBe('seedStatements(')
+    })
+
+    it('creates one statement per STATEMENT_SEED row and sends no server-set field', async () => {
+        const seedStatements = (seedModule as Record<string, unknown>).seedStatements
+        expect(typeof seedStatements).toBe('function')
+        if (typeof seedStatements !== 'function') return
+        const { pb, writes } = recordingPb()
+        const customerIds = new Map(
+            CUSTOMERS.map((row, i) => [row.id, `cust${String(i).padStart(11, '0')}`])
+        )
+        await seedStatements(pb, customerIds)
+
+        const statements = writes.filter(w => w.collection === 'books_statements')
+        expect(statements.map(w => w.op)).toEqual(['create', 'create'])
+        expect(statements.map(w => w.data)).toEqual(
+            STATEMENT_SEED.map(row => ({ ...row, customer: customerIds.get(row.customer) }))
+        )
+        for (const write of statements) {
+            for (const field of STATEMENT_SERVER_FIELDS)
+                expect(write.data).not.toHaveProperty(field)
+        }
     })
 })

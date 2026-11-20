@@ -1,0 +1,139 @@
+[
+    {
+        "name": "a balance forward statement with its period is taken",
+        "type": "balance_forward",
+        "statementDate": "2026-10-31",
+        "startDate": "2026-10-01",
+        "endDate": "2026-10-25",
+        "field": "",
+        "message": ""
+    },
+    {
+        "name": "an open items statement is taken",
+        "type": "open_items",
+        "statementDate": "2026-11-15",
+        "startDate": "",
+        "endDate": "",
+        "field": "",
+        "message": ""
+    },
+    {
+        "name": "a statement date that is no day is refused",
+        "type": "balance_forward",
+        "statementDate": "2026-02-30",
+        "startDate": "2026-01-01",
+        "endDate": "2026-01-31",
+        "field": "statement_date",
+        "message": "Enter a valid date"
+    },
+    {
+        "name": "a start date that is no day is refused",
+        "type": "balance_forward",
+        "statementDate": "2026-03-31",
+        "startDate": "2026-02-30",
+        "endDate": "2026-03-31",
+        "field": "start_date",
+        "message": "Enter a valid date"
+    },
+    {
+        "name": "an end date that is no day is refused",
+        "type": "balance_forward",
+        "statementDate": "2026-03-31",
+        "startDate": "2026-03-01",
+        "endDate": "2026-02-30",
+        "field": "end_date",
+        "message": "Enter a valid date"
+    },
+    {
+        "name": "a start date after the end date is refused",
+        "type": "balance_forward",
+        "statementDate": "2026-10-31",
+        "startDate": "2026-10-20",
+        "endDate": "2026-10-10",
+        "field": "start_date",
+        "message": "Start date can't be after End date"
+    },
+    {
+        "name": "an end date after the statement date is refused",
+        "type": "balance_forward",
+        "statementDate": "2026-10-31",
+        "startDate": "2026-10-01",
+        "endDate": "2026-11-05",
+        "field": "end_date",
+        "message": "End date can't be after Statement date"
+    },
+    {
+        "name": "a start date equal to the end date is taken",
+        "type": "balance_forward",
+        "statementDate": "2026-10-31",
+        "startDate": "2026-10-15",
+        "endDate": "2026-10-15",
+        "field": "",
+        "message": ""
+    },
+    {
+        "name": "an end date equal to the statement date is taken",
+        "type": "balance_forward",
+        "statementDate": "2026-10-31",
+        "startDate": "2026-10-01",
+        "endDate": "2026-10-31",
+        "field": "",
+        "message": ""
+    },
+    {
+        "name": "a balance forward statement with no start date is refused",
+        "type": "balance_forward",
+        "statementDate": "2026-10-31",
+        "startDate": "",
+        "endDate": "2026-10-31",
+        "field": "start_date",
+        "message": "Enter a date"
+    },
+    {
+        "name": "a balance forward statement with no end date is refused",
+        "type": "balance_forward",
+        "statementDate": "2026-10-31",
+        "startDate": "2026-10-01",
+        "endDate": "",
+        "field": "end_date",
+        "message": "Enter a date"
+    },
+    {
+        "name": "an open items statement with no start and no end date is taken",
+        "type": "open_items",
+        "statementDate": "2026-10-31",
+        "startDate": "",
+        "endDate": "",
+        "field": "",
+        "message": ""
+    },
+    {
+        "name": "an open items statement with a start date is refused",
+        "type": "open_items",
+        "statementDate": "2026-10-31",
+        "startDate": "2026-10-01",
+        "endDate": "",
+        "field": "start_date",
+        "message": "An open items statement has no period",
+        "go": true
+    },
+    {
+        "name": "an open items statement with an end date is refused",
+        "type": "open_items",
+        "statementDate": "2026-10-31",
+        "startDate": "",
+        "endDate": "2026-10-31",
+        "field": "end_date",
+        "message": "An open items statement has no period",
+        "go": true
+    },
+    {
+        "name": "a statement with no statement date is refused",
+        "type": "open_items",
+        "statementDate": "",
+        "startDate": "",
+        "endDate": "",
+        "field": "statement_date",
+        "message": "Enter a date"
+    }
+]

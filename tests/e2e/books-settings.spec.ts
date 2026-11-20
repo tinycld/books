@@ -446,6 +446,23 @@ test.describe('books-settings: Settings screens', () => {
             'Next write-off:'
         )
 
+        // The Statements card (statements spec §4.8): prefix ST-, and a statement takes its
+        // number when it is saved. The seed and other specs save statements, so the next
+        // number is 1001 or higher, not a fixed value.
+        const statements = id(page, 'books-settings-seq-statement')
+        await expect(
+            id(page, 'books-settings-numbering').getByText('Statements', { exact: true })
+        ).toBeVisible()
+        await expect(id(page, 'books-settings-seq-statement-prefix')).toHaveValue('ST-')
+        const statementNext = Number(
+            await id(page, 'books-settings-seq-statement-next').inputValue()
+        )
+        expect(statementNext).toBeGreaterThanOrEqual(1001)
+        await expect(id(page, 'books-settings-seq-statement-preview')).toHaveText(
+            /^Next statement: ST-\d+$/
+        )
+        await expect(statements).toContainText('statements saved from now on')
+
         // Parallel workers advance the shared counter, so every save goes above the live value.
         const started = Number(await next.inputValue())
         expect(started).toBeGreaterThan(0)
