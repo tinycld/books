@@ -168,7 +168,7 @@ func glExpectedSections(t *testing.T, b glScaleBook, r glScaleRun, picked []stri
 	var out []string
 	for _, id := range picked {
 		var n int
-		err := b.app.DB().NewQuery("SELECT count(*) FROM books_journal_lines WHERE account = {:a} AND posted IS true AND date >= {:from} AND date <= {:to}").
+		err := b.app.DB().NewQuery("SELECT count(*) FROM books_journal_lines WHERE account = {:a} AND posted IS true AND substr(date, 1, 10) >= {:from} AND substr(date, 1, 10) <= {:to}").
 			Bind(map[string]any{"a": id, "from": period["from"], "to": period["to"]}).Row(&n)
 		if err != nil {
 			t.Fatal(err)
