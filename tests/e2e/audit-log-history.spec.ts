@@ -310,6 +310,7 @@ test.describe('audit-log: record history', () => {
                     /Void/,
                     /Copy/,
                     /Create credit memo/,
+                    /Write off/,
                     /View journal entry/,
                     /Download PDF/,
                 ],

@@ -22,12 +22,18 @@ import {
     chooseAsOf,
     chooseRows,
     dayWords,
+    isInGroup,
     openBalanceSheet,
     openReportAccount,
     postEntryOn,
     type ReportSnapshot,
+    reportLabelsThrough,
     reportLinesUnder,
     reportSnapshot,
+    reportSnapshotAtEnd,
+    reportSnapshotAtTop,
+    sectionTopKey,
+    snapshotWhen as takeSnapshotWhen,
 } from './books-report-helpers'
 import { ACCOUNT_LABELS, postedEntryNumber } from './journal-entries-helpers'
 import { uniqueName } from './record-form-helpers'
@@ -50,6 +56,11 @@ import { uniqueName } from './record-form-helpers'
 // The table is a FlashList: only mounted rows are in the DOM. The tests run 1280 wide and
 // tall, and a snapshot is taken only when both ends of the rows it reads are in it: the
 // mounted rows are one contiguous run, so every row between the two ends is there too.
+// Sections grow with every account other runs and specs post today, so no snapshot reads
+// a row whose distance from the list's top or end grows with them: a test's accounts are
+// named from sectionTopKey (the top of their group), a row at the end of the report is read
+// with the list scrolled to its end, and a check of every row reads them a stretch at a
+// time (reportLabelsThrough).
 //
 // Not covered here (core's own e2e cover them for every report): Expand all / Collapse
 // all, loading, error, timeout, no access, Copy link and Save as.
@@ -94,9 +105,9 @@ async function createAccounts(
     for (const { name, kind } of accounts) await createAccount(page, name, kind)
 }
 
-// Created accounts sort near the top of their type: unnumbered, and "AA" first.
+// Created accounts sort at the top of their group (sectionTopKey).
 function accountName(prefix: string): string {
-    return uniqueName(`AA ${prefix}`)
+    return uniqueName(`${sectionTopKey()} ${prefix}`)
 }
 
 // The heading core's document header prints: the Books business name, else the
@@ -139,6 +150,63 @@ async function snapshotWhen(
         .toBe(true)
     if (!last.snapshot) throw new Error(message)
     return last.snapshot
+}
+
+// As snapshotWhen, with the list scrolled to its end before each snapshot.
+function snapshotAtEndWhen(
+    page: Page,
+    isReady: (snapshot: ReportSnapshot) => boolean,
+    message: string
+): Promise<ReportSnapshot> {
+    return takeSnapshotWhen(page, reportSnapshotAtEnd, isReady, message)
+}
+
+// As snapshotWhen, with the list scrolled to its top before each snapshot.
+function snapshotAtTopWhen(
+    page: Page,
+    isReady: (snapshot: ReportSnapshot) => boolean,
+    message: string
+): Promise<ReportSnapshot> {
+    return takeSnapshotWhen(page, reportSnapshotAtTop, isReady, message)
+}
+
+const SECTION_BOUNDS = Object.values(SECTION_TITLES).flatMap(title => [title, `Total ${title}`])
+
+// True when the row `label` stands inside `section`: above the section's total, with no
+// section's title or total between them. Sections do not nest, so the row is in the
+// section that total closes, however many of its rows above it are not mounted.
+function isAboveTotalOf(snapshot: ReportSnapshot, section: string, label: string): boolean {
+    const at = indexOf(snapshot, label)
+    const totalAt = indexOf(snapshot, `Total ${section}`)
+    if (at < 0 || totalAt <= at) return false
+    return snapshot.rows.slice(at + 1, totalAt).every(row => !SECTION_BOUNDS.includes(row.label))
+}
+
+// The Equity rows at the end of the report, read with the list scrolled to its end:
+// Retained earnings, then Net income, inside Equity, then Total liabilities and equity.
+async function expectEquityEnd(page: Page): Promise<void> {
+    const end = await snapshotAtEndWhen(
+        page,
+        s =>
+            has(
+                s,
+                RETAINED_EARNINGS_LABEL,
+                NET_INCOME_LABEL,
+                `Total ${SECTION_TITLES.equity}`,
+                TOTAL_LIABILITIES_AND_EQUITY_LABEL
+            ),
+        'Retained earnings through Total liabilities and equity at the end of the list'
+    )
+    const order = [
+        RETAINED_EARNINGS_LABEL,
+        NET_INCOME_LABEL,
+        `Total ${SECTION_TITLES.equity}`,
+        TOTAL_LIABILITIES_AND_EQUITY_LABEL,
+    ].map(label => indexOf(end, label))
+    expect(order).toEqual([...order].sort((a, b) => a - b))
+    for (const label of [RETAINED_EARNINGS_LABEL, NET_INCOME_LABEL]) {
+        expect(isAboveTotalOf(end, SECTION_TITLES.equity, label), label).toBe(true)
+    }
 }
 
 function indexOf(snapshot: ReportSnapshot, label: string): number {
@@ -426,30 +494,30 @@ test.describe('balance-sheet: report', () => {
         })
         await openBalanceSheet(page)
 
+        const assetChain = [SECTION_TITLES.asset, 'Current assets', 'Bank accounts', bank]
         const assets = await snapshotWhen(
             page,
-            s => has(s, SECTION_TITLES.asset, 'Total Bank accounts', bank),
-            `the Assets section through Total Bank accounts, with ${bank}`
+            s => has(s, ...assetChain),
+            `the Assets section down to ${bank}, at the top of Bank accounts`
         )
         expect(figure(assets, bank, 'current')).toBe(25000)
-        const assetChain = [SECTION_TITLES.asset, 'Current assets', 'Bank accounts', bank]
         const assetAt = assetChain.map(label => indexOf(assets, label))
         expect(assetAt).toEqual([...assetAt].sort((a, b) => a - b))
-        expect(indexOf(assets, bank)).toBeLessThan(indexOf(assets, 'Total Bank accounts'))
+        expect(isInGroup(assets, 'Bank accounts', bank)).toBe(true)
         const assetDepths = assetChain.map(label => rowOf(assets, label).depth)
         expect(assetDepths).toEqual([0, 1, 2, 3])
 
         await foldRow(page, SECTION_TITLES.asset)
+        const cardChain = [SECTION_TITLES.liability, 'Current liabilities', 'Credit cards', card]
         const liabilities = await snapshotWhen(
             page,
-            s => has(s, SECTION_TITLES.liability, 'Total Credit cards', card),
-            `the Liabilities section through Total Credit cards, with ${card}`
+            s => has(s, ...cardChain),
+            `the Liabilities section down to ${card}, at the top of Credit cards`
         )
         expect(figure(liabilities, card, 'current')).toBe(25000)
-        const cardChain = [SECTION_TITLES.liability, 'Current liabilities', 'Credit cards', card]
         const cardAt = cardChain.map(label => indexOf(liabilities, label))
         expect(cardAt).toEqual([...cardAt].sort((a, b) => a - b))
-        expect(indexOf(liabilities, card)).toBeLessThan(indexOf(liabilities, 'Total Credit cards'))
+        expect(isInGroup(liabilities, 'Credit cards', card)).toBe(true)
         const cardDepths = cardChain.map(label => rowOf(liabilities, label).depth)
         expect(cardDepths).toEqual([0, 1, 2, 3])
     })
@@ -457,8 +525,11 @@ test.describe('balance-sheet: report', () => {
     test('balances: total assets equal total liabilities and equity', async ({ page }) => {
         await startBooks(page)
         await openBalanceSheet(page)
+        // Every section folded: the statement is its titles and totals alone, so Total
+        // Assets and Total liabilities and equity mount in one snapshot.
         await foldRow(page, SECTION_TITLES.asset)
         await foldRow(page, SECTION_TITLES.liability)
+        await foldRow(page, SECTION_TITLES.equity)
         const snapshot = await snapshotWhen(
             page,
             s =>
@@ -476,14 +547,9 @@ test.describe('balance-sheet: report', () => {
             expect(assets).not.toBeNull()
             expect(figure(snapshot, TOTAL_LIABILITIES_AND_EQUITY_LABEL, column)).toBe(assets)
         }
-        const equityOrder = [
-            SECTION_TITLES.equity,
-            RETAINED_EARNINGS_LABEL,
-            NET_INCOME_LABEL,
-            `Total ${SECTION_TITLES.equity}`,
-        ].map(label => indexOf(snapshot, label))
-        expect(equityOrder.every(at => at >= 0)).toBe(true)
-        expect(equityOrder).toEqual([...equityOrder].sort((a, b) => a - b))
+
+        await unfoldRow(page, SECTION_TITLES.equity)
+        await expectEquityEnd(page)
     })
 
     test('net income and retained earnings stand in equity, income accounts do not', async ({
@@ -507,38 +573,24 @@ test.describe('balance-sheet: report', () => {
         })
         await openBalanceSheet(page)
 
-        // Each section is read whole in its own snapshot, then folded, so the next one
-        // mounts however long other specs make the outline: together the three cover every
-        // row, and no row anywhere is labelled with the income account's name.
         const assets = await snapshotWhen(
             page,
-            s => has(s, SECTION_TITLES.asset, bank, `Total ${SECTION_TITLES.asset}`),
-            `the Assets section through Total Assets, with ${bank}`
+            s => has(s, SECTION_TITLES.asset, bank),
+            `the Assets section with ${bank} at the top of Bank accounts`
         )
         expect(figure(assets, bank, 'current')).toBe(8000)
-        expect(assets.rows.map(row => row.label)).not.toContain(income)
 
-        await foldRow(page, SECTION_TITLES.asset)
-        const liabilities = await snapshotWhen(
+        // Every row of the report, read a stretch at a time from Assets to Total
+        // liabilities and equity: no row anywhere is labelled with the income account's
+        // name.
+        const every = await reportLabelsThrough(
             page,
-            s => has(s, SECTION_TITLES.liability, `Total ${SECTION_TITLES.liability}`),
-            'the Liabilities section through Total Liabilities'
+            SECTION_TITLES.asset,
+            TOTAL_LIABILITIES_AND_EQUITY_LABEL,
+            'every row from Assets through Total liabilities and equity'
         )
-        expect(liabilities.rows.map(row => row.label)).not.toContain(income)
-
-        await foldRow(page, SECTION_TITLES.liability)
-        const rest = await snapshotWhen(
-            page,
-            s => has(s, SECTION_TITLES.equity, TOTAL_LIABILITIES_AND_EQUITY_LABEL),
-            'the Equity section through Total liabilities and equity'
-        )
-        expect(rest.rows.map(row => row.label)).not.toContain(income)
-        const equity = indexOf(rest, SECTION_TITLES.equity)
-        const totalEquity = indexOf(rest, `Total ${SECTION_TITLES.equity}`)
-        for (const label of [RETAINED_EARNINGS_LABEL, NET_INCOME_LABEL]) {
-            expect(indexOf(rest, label)).toBeGreaterThan(equity)
-            expect(indexOf(rest, label)).toBeLessThan(totalEquity)
-        }
+        expect(every).not.toContain(income)
+        await expectEquityEnd(page)
 
         const { year, s } = await seedDay(page)
         await chooseAsOf(page, { day: s })
@@ -628,27 +680,33 @@ test.describe('balance-sheet: report', () => {
         })
         await openBalanceSheet(page)
 
-        const nonzero = await snapshotWhen(
+        // Every row of the Assets section, read a stretch at a time down to Total Assets.
+        const labels = await reportLabelsThrough(
             page,
-            s => has(s, SECTION_TITLES.asset, `Total ${SECTION_TITLES.asset}`),
-            'the Assets section through Total Assets'
+            SECTION_TITLES.asset,
+            `Total ${SECTION_TITLES.asset}`,
+            'every row of the Assets section through Total Assets'
         )
-        const labels = nonzero.rows.map(row => row.label)
         expect(labels).not.toContain(bank)
         expect(labels).not.toContain(other)
         expect(labels).not.toContain('Other assets')
 
+        await snapshotAtTopWhen(
+            page,
+            s => has(s, SECTION_TITLES.asset, 'Current assets'),
+            'the top of the report again'
+        )
         await chooseRows(page, 'active')
         await foldRow(page, 'Current assets')
         await foldRow(page, 'Fixed assets')
         const active = await snapshotWhen(
             page,
-            s => has(s, 'Other assets', other, 'Total Other assets'),
-            `Other assets through Total Other assets, with ${other}`
+            s => has(s, 'Other assets', other),
+            `Other assets with ${other} at its top`
         )
         expect(figure(active, other, 'current')).toBe(0)
         expect(indexOf(active, 'Other assets')).toBeLessThan(indexOf(active, other))
-        expect(indexOf(active, other)).toBeLessThan(indexOf(active, 'Total Other assets'))
+        expect(isInGroup(active, 'Other assets', other)).toBe(true)
 
         await chooseAsOf(page, { day: beforeEverySeededLine() })
         const sections = Object.values(SECTION_TITLES)
@@ -711,10 +769,11 @@ test.describe('balance-sheet: report', () => {
         const second = await postedEntryNumber(page)
         await openBalanceSheet(page)
 
+        // The account and the row after it: no line stands between them.
         const closed = await snapshotWhen(
             page,
-            s => has(s, bank, 'Total Bank accounts'),
-            `${bank} through Total Bank accounts`
+            s => has(s, bank) && indexOf(s, bank) < s.rows.length - 1,
+            `${bank} and the row after it`
         )
         expect(reportLinesUnder(closed, bank)).toEqual([])
 
@@ -750,8 +809,15 @@ test.describe('balance-sheet: report', () => {
 
         // Retained earnings is a computed row: no fold chevron, and a press opens nothing.
         // The next run (Liabilities opened again) carries whatever the press changed.
+        // Retained earnings stands at the end of Equity, so it is pressed with the list
+        // scrolled to its end, and Liabilities is opened again from the list's top.
         await foldRow(page, SECTION_TITLES.asset)
         await foldRow(page, SECTION_TITLES.liability)
+        await snapshotAtEndWhen(
+            page,
+            s => has(s, RETAINED_EARNINGS_LABEL),
+            'Retained earnings at the end of the list'
+        )
         const retained = page
             .getByTestId('report-table')
             .locator('[data-testid^="report-row-c:retainedEarnings"]')
@@ -759,11 +825,17 @@ test.describe('balance-sheet: report', () => {
         await expect(retained).not.toHaveAttribute('aria-expanded')
         await expect(retained).not.toHaveAttribute('role', 'button')
         await retained.click()
-        await unfoldRow(page, SECTION_TITLES.liability)
-        const after = await snapshotWhen(
+        await snapshotAtTopWhen(
             page,
-            s => has(s, 'Current liabilities', RETAINED_EARNINGS_LABEL, NET_INCOME_LABEL),
-            'Liabilities open again, through Retained earnings and Net income'
+            s => has(s, SECTION_TITLES.liability),
+            'Liabilities at the top of the list'
+        )
+        await unfoldRow(page, SECTION_TITLES.liability)
+        await snapshotAtTopWhen(page, s => has(s, 'Current liabilities'), 'Liabilities open again')
+        const after = await snapshotAtEndWhen(
+            page,
+            s => has(s, RETAINED_EARNINGS_LABEL, NET_INCOME_LABEL),
+            'Retained earnings and Net income at the end of the list'
         )
         expect(reportLinesUnder(after, RETAINED_EARNINGS_LABEL)).toEqual([])
         const next = after.rows[indexOf(after, RETAINED_EARNINGS_LABEL) + 1]

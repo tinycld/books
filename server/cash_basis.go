@@ -12,7 +12,8 @@ import (
 // The cash basis (pay-bills spec §3.10). A document of a deferred kind (a bill,
 // an invoice, a credit memo, a vendor credit) counts on the cash basis when and
 // as far as it is paid (a vendor credit: applied to bills or refunded; a credit
-// memo: paid out by a refund receipt). Its rows
+// memo: paid out by a refund receipt; a write-off never, nor the part of an
+// invoice it writes off). Its rows
 // in books_cash_basis_lines are derived from the ledger and the payments:
 //
 //   - taken out: each posted line of the document's entries (its entry and the
@@ -99,9 +100,23 @@ var (
 		UnpaidMemo:     "Unapplied vendor credit (cash basis)",
 		PaidMemo:       "Vendor credit %s applied (cash basis)",
 	}
+	// writeOffCashDeferral takes a write-off's entry (and its void reversal)
+	// out of the cash layer at its dates, and nothing brings it back: its
+	// balance kind has no payer, because a write-off is no payment (write-off
+	// spec Q5). The invoice's write-off payer is NoCash, so the written-off
+	// part of the invoice never comes back either. The kind is not in
+	// balanceKinds: a write-off has no balance.
+	writeOffCashDeferral = cashDeferral{
+		Kind:       "write_off",
+		DocType:    docTypeWriteOff,
+		Balance:    balanceKind{Collection: writeOffsCollection, Noun: "write-off"},
+		UnpaidMemo: "Write-off (cash basis)",
+	}
 	// cashDeferrals are the deferred kinds. A customer payment's unapplied
 	// credit is not deferred: it is cash received on its own date.
-	cashDeferrals = []cashDeferral{billCashDeferral, invoiceCashDeferral, creditMemoCashDeferral, vendorCreditCashDeferral}
+	cashDeferrals = []cashDeferral{
+		billCashDeferral, invoiceCashDeferral, creditMemoCashDeferral, vendorCreditCashDeferral, writeOffCashDeferral,
+	}
 )
 
 // cashDeferralOf is the deferred kind of a document collection, and false for
@@ -184,10 +199,14 @@ func documentEntryLines(tx core.App, d cashDeferral, docID string) ([]cashSource
 // lines on the document); an application payer gives one per application, at
 // the apply date, naming the posted entry of the document the application's
 // EntryField names, with the payer's memo. A credit memo's one payer is a
-// payment payer: the refund receipts that pay it out.
+// payment payer: the refund receipts that pay it out. A NoCash payer (an
+// invoice's write-offs) lowers the balance but pays nothing: it is left out.
 func documentPayments(tx core.App, d cashDeferral, docID string) ([]cashPayment, error) {
 	var payments []cashPayment
 	for _, p := range d.Balance.Payers {
+		if p.NoCash {
+			continue
+		}
 		var found []cashPayment
 		var err error
 		if p.PaymentCollection != "" {

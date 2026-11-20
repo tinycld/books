@@ -161,3 +161,23 @@ describe('help/invoices.md', () => {
         expect(readFileSync(path.join(helpDir, name), 'utf8')).toContain('help://books:invoices')
     })
 })
+
+// Write-off checkpoint 4 (write-off spec §3.6 Help): Write off (W), the Written off row,
+// badge and section, and a link to the write-off topic.
+describe('help/invoices.md (write-offs)', () => {
+    it('names Write off and Written off', () => {
+        expect(body).toContain('Write off')
+        expect(body).toContain('Written off')
+    })
+
+    it('names the key W on a line with Write off', () => {
+        const line = body
+            .split('\n')
+            .find(l => /(^|[^\w⌘⌥⇧])W([^\w]|$)/.test(l) && /\bWrite off\b/.test(l))
+        expect(line, 'a line with W and Write off').toBeDefined()
+    })
+
+    it('links help://books:write-offs', () => {
+        expect(body).toContain('(help://books:write-offs)')
+    })
+})

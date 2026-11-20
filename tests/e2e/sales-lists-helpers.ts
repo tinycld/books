@@ -68,7 +68,7 @@ export async function openRowMenu(page: Page, id: string) {
 export function rowMenuActions(page: Page): Promise<string[]> {
     return page.evaluate(() => {
         const pattern =
-            /^sales-row-action-(open|receive-payment|void|copy|credit-memo|entry|invoice|pdf|delete-draft|edit)$/
+            /^sales-row-action-(open|receive-payment|write-off|void|copy|credit-memo|entry|invoice|pdf|delete-draft|edit)$/
         return Array.from(
             document.querySelectorAll<HTMLElement>('[data-testid^="sales-row-action-"]')
         )

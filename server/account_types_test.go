@@ -38,3 +38,14 @@ func TestAccountTypes_AreWellFormed(t *testing.T) {
 		t.Fatal("bank detail lookup")
 	}
 }
+
+// Write-off spec Q4: Expense has the detail type bad_debts, "Bad debts".
+func TestAccountTypes_ExpenseHasBadDebts(t *testing.T) {
+	expense, ok := accountType("expense")
+	if !ok {
+		t.Fatal("no expense account type")
+	}
+	if !slices.Contains(expense.DetailTypes, DetailType{Key: "bad_debts", Label: "Bad debts"}) {
+		t.Errorf("expense detail types %v have no {bad_debts, Bad debts}", expense.DetailTypes)
+	}
+}

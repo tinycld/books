@@ -131,6 +131,11 @@ export const DOC_TYPE = [
     { value: 'payment', label: 'Payment' },
     { value: 'bill_payment', label: 'Bill payment' },
     { value: 'vendor_refund', label: 'Vendor refund' },
+    { value: 'write_off', label: 'Write-off' },
+]
+const WRITE_OFF_STATUS = [
+    { value: 'posted', label: 'Posted' },
+    { value: 'void', label: 'Void' },
 ]
 const ENTRY_ORIGIN = [
     ...Object.entries(ENTRY_TYPE_LABELS).map(([value, label]) => ({ value, label })),
@@ -254,6 +259,7 @@ const AUDIT_FIELD_MAPS = {
         message: text('Message'),
         tax_total: money('Tax'),
         balance: money('Open balance'),
+        written_off: money('Written off'),
         estimate: relation('Estimate', 'books_estimates'),
     },
     books_sales_receipts: {
@@ -445,6 +451,26 @@ const AUDIT_FIELD_MAPS = {
         sort_key: internal('Sort key'),
         replaces: relation('Replaces', 'books_vendor_refunds'),
         replaced_by: relation('Replaced by', 'books_vendor_refunds'),
+        ...STAMPS,
+    },
+    books_write_offs: {
+        invoice: relation('Invoice', 'books_invoices'),
+        customer: relation('Customer', 'books_customers'),
+        status: select('Status', WRITE_OFF_STATUS),
+        number: text('Number'),
+        sequence: text('Sequence'),
+        date: day('Write-off date'),
+        account: relation('Written off to', 'books_accounts'),
+        amount: money('Amount written off'),
+        memo: text('Reason'),
+        currency: text('Currency'),
+        entry: relation('Journal entry', 'books_journal_entries'),
+        close_override: relation('Close date override', 'books_close_overrides'),
+        posted_at: datetime('Posted at'),
+        posted_by: relation('Posted by', 'users'),
+        voided_at: datetime('Voided at'),
+        voided_by: relation('Voided by', 'users'),
+        sort_key: internal('Sort key'),
         ...STAMPS,
     },
     books_vendor_refund_lines: {

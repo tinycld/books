@@ -610,6 +610,14 @@ var tdDocumentPosters = map[string]func(t *testing.T) tdPosted{
 		entry := mustPostRefundReceipt(t, rr.app, r.Id, rr.users.bookkeeper.Id).GetString("entry")
 		return tdPosted{rr.app, rr.users.readOnly, entry, rr.checking, r.Id}
 	},
+	// Write-off spec §3.6: a write-off's entry opens the write-off.
+	"write_off": func(t *testing.T) tdPosted {
+		we := newWriteOffEnv(t)
+		registerBooksSources(t)
+		inv := we.postedInvoice(t, 45000)
+		wo := we.mkWriteOff(t, inv, nil)
+		return tdPosted{we.app, we.users.readOnly, wo.GetString("entry"), we.badDebts, wo.Id}
+	},
 	// A bill payment posts only from its batch (bill_payments_test.go).
 	"bill_payment": func(t *testing.T) tdPosted {
 		bp := newBillPayEnv(t)
@@ -646,6 +654,9 @@ func TestTransactionDetailPostersHaveRoutes(t *testing.T) {
 	}
 	if got := routes["refund_receipt"]; got != "refund-receipts" {
 		t.Errorf("entry_routes.json refund_receipt = %q, want refund-receipts", got)
+	}
+	if got := routes["write_off"]; got != "write-offs" {
+		t.Errorf("entry_routes.json write_off = %q, want write-offs", got)
 	}
 }
 

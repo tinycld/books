@@ -24,7 +24,7 @@ To start an invoice, an estimate, a sales receipt, a payment, a credit memo or a
 
 The page has four tabs. To select one from anywhere on the page, press ⌥1 to ⌥4.
 
-- **Transactions** (⌥1) lists the customer's invoices, estimates, sales receipts, payments, credit memos and refund receipts, newest first. Choose a row to open it.
+- **Transactions** (⌥1) lists the customer's invoices, estimates, sales receipts, payments, credit memos, refund receipts and write-offs, newest first. Choose a row to open it.
 - **Contacts** (⌥2) lists the people at the customer.
 - **Details** (⌥3) is the customer form: names, addresses, terms, sales tax and custom fields.
 - **Notes** (⌥4) holds your notes about the customer.
@@ -33,7 +33,7 @@ The page has four tabs. To select one from anywhere on the page, press ⌥1 to �
 
 In the Transactions tab, each row shows its type and its status:
 
-- An invoice is Draft, Paid (nothing open), Partly paid (part of the total open), Overdue (all of the total open, due before today), Open or Void.
+- An invoice is Draft, Paid (nothing open), Written off (nothing open, and a write-off took the rest), Partly paid (part of the total open), Overdue (all of the total open, due before today), Open or Void.
 - A Payment is Draft, Applied (all of it paid invoices), Credit with the amount kept as a credit (such as Credit $100.00), or Void.
 - A credit memo is Draft, Unapplied, Refunded or Void. A posted credit memo is Unapplied while some of its credit is not used yet, also after you refund part of it. A posted credit memo is Refunded when refund receipts pay out all of its credit.
 - A refund receipt is Draft, Refunded (posted) or Void.
@@ -43,6 +43,8 @@ To see the payments only, choose the **Payments** chip above the list. Choose a 
 To see the credit memos only, choose the **Credit memos** chip. A credit memo's total shows with a minus sign, such as −$250.00, because it lowers what the customer owes, and it has no due date. A draft credit memo has no number yet. Choose a credit memo's row to open it.
 
 To see the money you gave back to the customer, choose the **Refunds** chip, after Credit memos. Each row has the type Refund receipt, and its total shows with a minus sign, such as −$150.00. Choose a row to open the refund receipt. A refund receipt that refunds a sale does not change Open, because it does not touch Accounts receivable. A refund receipt that pays out a credit memo raises Open by its total, because it uses up the credit that you owed the customer. See [Refund receipts](help://books:refund-receipts).
+
+To write off an invoice that the customer will not pay, open the row menu at the end of the invoice's row and choose **Write off**. Only a posted invoice with a balance due has it, and only if you can edit the books. The dialog opens over the page. To see the customer's write-offs, choose the **Write-offs** chip, after Refunds. Each row has the type Write-off, a total with a minus sign, such as −$400.00, and the status Written off or Void. A posted write-off lowers Open by its amount. Choose a row to open the write-off. See [Write off an invoice](help://books:write-offs).
 
 ## Edit in place
 

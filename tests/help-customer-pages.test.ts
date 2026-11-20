@@ -92,3 +92,10 @@ describe('help/customer-pages.md', () => {
         expect(customers.body).toContain('(help://books:customer-pages)')
     })
 })
+
+// Write-off checkpoint 4 (write-off spec §3.6 Help): one paragraph on the Write-off rows.
+describe('help/customer-pages.md (write-offs)', () => {
+    it('names a write-off or the Written off status', () => {
+        expect(body).toMatch(/\bwrite-offs?\b|\bWritten off\b/i)
+    })
+})

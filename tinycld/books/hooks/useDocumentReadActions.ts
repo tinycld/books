@@ -18,6 +18,7 @@ import {
     refundCreditOffered,
     refundOffered,
     refundReceiptOffered,
+    writeOffOffered,
 } from '../lib/document-actions'
 import { quoteReadActions } from '../lib/document-lifecycle'
 import { documentNewHref } from '../lib/document-routes'
@@ -30,6 +31,7 @@ import {
     type SalesDocumentKind,
 } from '../lib/sales-document-kinds'
 import { useApplyCreditStore } from '../stores/apply-credit-store'
+import { useWriteOffStore } from '../stores/write-off-store'
 import type { DocumentRecord } from './document-data'
 import { useOpenDocument } from './useOpenDocument'
 import { useOpenFromReadView, useOpenInPlaceOfReadView } from './useOpenFromReadView'
@@ -107,6 +109,7 @@ function offeredActionsOf(
             kind === 'vendor_credit' && refundOffered(record.status, canWrite, balance),
         canRefund: refundReceiptOffered(kind, record.status),
         canRefundCredit: refundCreditOffered(kind, record.status, balance),
+        canWriteOff: writeOffOffered(kind, record.status, balance),
     }
     const actions =
         doc.lifecycle === 'quote'
@@ -131,7 +134,9 @@ function offeredActionsOf(
  * returns to the credit. Refund (a writer on a posted sales receipt) and Refund credit (a
  * writer on a posted credit memo with unapplied credit) push a new refund receipt made from
  * the record, so Back returns to it; a payout's Void dialog says the credit memo's credit is
- * unapplied again. Edit and Copy (the kind's own `new` form) replace the read view (a
+ * unapplied again. Write off (a writer on a posted invoice with an open balance) opens the
+ * write-off dialog through `useWriteOffStore` with `owner`, the `useId()` of the read view
+ * that mounts the dialog. Edit and Copy (the kind's own `new` form) replace the read view (a
  * pushed screen would stay mounted under the new one); View journal entry takes the read
  * view's place, and keeps the kind's list when the list is below it in the child stack
  * (useOpenInPlaceOfReadView);
@@ -143,7 +148,8 @@ function offeredActionsOf(
 export function useDocumentReadActions(
     documentKind: DocumentKind,
     record: ReadRecord,
-    canWrite: boolean
+    canWrite: boolean,
+    owner: string
 ) {
     const { doc } = documentKind
     const orgHref = useOrgHref()
@@ -165,6 +171,7 @@ export function useDocumentReadActions(
     const download = usePdfDownload()
     const openInvoice = useOpenDocument(INVOICE_KIND, invoiceIdOf(record))
     const openApplyDialog = useApplyCreditStore(state => state.open)
+    const openWriteOff = useWriteOffStore(state => state.open)
     const run: Record<DocumentReadAction, () => void> = {
         // The apply dialog, drawn by the vendor credit's read section (vendor credit spec
         // §3.9).
@@ -192,6 +199,8 @@ export function useDocumentReadActions(
         // Pushed, so the memo's link goes back to the invoice below it (useOpenDocument).
         credit_memo: () =>
             router.push(orgHref(documentNewHref(CREDIT_MEMO_KIND, { invoice: record.id }))),
+        // The write-off dialog over this read view (write-off spec §3.2).
+        write_off: () => openWriteOff(record.id, owner),
         // Pushed, so Back returns to the sales receipt or the credit memo (refund receipt
         // spec §3.11, §3.12).
         refund: () =>

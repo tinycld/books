@@ -61,6 +61,7 @@ describe('purchaseAccountOptions', () => {
     it('lists only active expense, other expense and cost of goods accounts, in chart order, indented', () => {
         expect(purchaseAccountOptions(ACCOUNTS, '')).toEqual([
             { id: idOf('5000'), label: '5000 Cost of goods sold', indent: 0 },
+            { id: idOf('6050'), label: '6050 Bad debts', indent: 0 },
             { id: idOf('6100'), label: '6100 Rent', indent: 0 },
             { id: idOf('6200'), label: '6200 Software Subscriptions', indent: 0 },
             { id: idOf('6210'), label: '6210 Design Tools', indent: 1 },

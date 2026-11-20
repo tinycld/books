@@ -39,6 +39,7 @@ describe('help/reports.md', () => {
         '## See the transactions behind an amount',
         '## Download or email a report',
         '## Read the Customer Balance report',
+        '## Read the A/R Aging report',
         '## Read the sales reports',
     ])('has the heading "%s"', heading => {
         expect(body).toMatch(new RegExp(`^${heading}$`, 'm'))
@@ -520,6 +521,66 @@ describe('help/reports.md', () => {
         })
     })
 
+    // A/R Aging checkpoint 4 (spec §3 "Help").
+    describe('the "Read the A/R Aging report" section', () => {
+        const aging = section('## Read the A/R Aging report')
+        const sentences = aging.split(/(?<=[.!?])\s+/)
+        const oneSentence = (...phrases: RegExp[]) =>
+            sentences.some(sentence => phrases.every(phrase => phrase.test(sentence)))
+
+        it('comes directly after "Read the Customer Balance report"', () => {
+            const headings = [...body.matchAll(/^## .*$/gm)].map(m => m[0])
+            const balance = headings.indexOf('## Read the Customer Balance report')
+            expect(balance).toBeGreaterThanOrEqual(0)
+            expect(headings[balance + 1]).toBe('## Read the A/R Aging report')
+        })
+
+        it.each([
+            ['open item', /\bopen items?\b/i],
+            ['due date', /\bdue date\b/i],
+            ['Current', /\bCurrent\b/],
+            ['1 - 30', /\b1 - 30\b/],
+            ['91 and over', /\b91 and over\b/],
+            ['As of', /\bAs of\b/],
+            ['Customer Balance', /\bCustomer Balance\b/],
+            ['Balance Sheet', /\bBalance Sheet\b/],
+            ['No customer', /\bNo customer\b/],
+            ['(inactive)', /\(inactive\)/],
+        ])('names %s', (_name, phrase) => {
+            expect(aging).toMatch(phrase)
+        })
+
+        it('says a credit is a negative figure, in one sentence', () => {
+            expect(oneSentence(/\bcredits?\b/i, /\bnegative\b/i)).toBe(true)
+        })
+
+        it('names the Order choice with Largest balance, in one sentence', () => {
+            expect(oneSentence(/\bOrder\b/, /\bLargest balance\b/)).toBe(true)
+        })
+
+        it('names the Customer filter with its sub-customers pick, in one sentence', () => {
+            // "Customer" alone also matches "Customer Balance" and "No customer".
+            expect(oneSentence(/\bCustomer\b(?! Balance)/, /\bsub-customers\b/)).toBe(true)
+        })
+
+        it('says a customer opens into its items, an item into its invoice and payments, and a line opens its document', () => {
+            expect(oneSentence(/\bcustomer\b/i, /\bopens?\b/i, /\bitems\b/i)).toBe(true)
+            expect(oneSentence(/\bitem\b/i, /\binvoice\b/i, /\bpayments\b/i)).toBe(true)
+            expect(oneSentence(/\bline\b/i, /\bopens?\b/i, /\bdocument\b/i)).toBe(true)
+        })
+
+        it('says that on a phone the Total is on the first line of figures', () => {
+            expect(oneSentence(/\bphone\b/i, /\bTotal\b/, /\bfirst line of figures\b/i)).toBe(true)
+        })
+
+        it('has "a/r aging" in the frontmatter tags', () => {
+            const tags = (/^tags:\s*\[(.*)\]\s*$/m.exec(frontmatter)?.[1] ?? '')
+                .split(',')
+                .map(tag => tag.trim().replace(/^["']|["']$/g, ''))
+            expect(tags).toContain('a/r aging')
+        })
+    })
+
     // Sales reports checkpoint 3 (spec §3 "Help").
     describe('the "Read the sales reports" section', () => {
         const sales = section('## Read the sales reports')
@@ -527,11 +588,13 @@ describe('help/reports.md', () => {
         const oneSentence = (...phrases: RegExp[]) =>
             sentences.some(sentence => phrases.every(phrase => phrase.test(sentence)))
 
-        it('comes right after "Read the Customer Balance report"', () => {
+        // A/R Aging checkpoint 4 put "Read the A/R Aging report" directly after the
+        // Customer Balance section, so the sales reports section comes directly after it.
+        it('comes directly after "Read the A/R Aging report"', () => {
             const headings = [...body.matchAll(/^## .*$/gm)].map(m => m[0])
-            const balance = headings.indexOf('## Read the Customer Balance report')
-            expect(balance).toBeGreaterThanOrEqual(0)
-            expect(headings[balance + 1]).toBe('## Read the sales reports')
+            const aging = headings.indexOf('## Read the A/R Aging report')
+            expect(aging).toBeGreaterThanOrEqual(0)
+            expect(headings[aging + 1]).toBe('## Read the sales reports')
         })
 
         it('starts with the task: open Reports and choose a sales report', () => {
@@ -635,6 +698,10 @@ describe('help/reports.md', () => {
 
     it('"Who sees Books reports" names the Sales Tax Liability', () => {
         expect(section('## Who sees Books reports')).toContain('Sales Tax Liability')
+    })
+
+    it('"Who sees Books reports" names the A/R Aging', () => {
+        expect(section('## Who sees Books reports')).toContain('A/R Aging')
     })
 
     it.each([
@@ -778,6 +845,13 @@ describe('help/reports.md', () => {
     it('drops the Books shell: no Accrual or Cash section and no Show rows', () => {
         expect(body).not.toMatch(/^## Choose Accrual or Cash$/m)
         expect(body).not.toContain('Show rows')
+    })
+})
+
+// Write-off checkpoint 4 (write-off spec §3.6 Help): one paragraph on a write-off in reports.
+describe('help/reports.md (write-offs)', () => {
+    it('names a write-off or the Written off status', () => {
+        expect(body).toMatch(/\bwrite-offs?\b|\bWritten off\b/i)
     })
 })
 

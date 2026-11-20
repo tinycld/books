@@ -28,7 +28,9 @@ const (
 // writes the lines of a reversal, copied from posted lines, so their party is
 // not checked for inactive (an inactive party must not block a void), and nor
 // are a bill payment's (only its post writes them, and an inactive vendor's
-// posted bills still get paid, pay-bills spec §4.2); a line that names both is
+// posted bills still get paid, pay-bills spec §4.2), nor a write-off's (only
+// its post writes them, and an inactive customer does not block a write-off,
+// write-off spec §4.3); a line that names both is
 // refused first, on any entry. A party id that is no record is left to
 // PocketBase's relation validation.
 func checkLineParty(tx core.App, stored, line *core.Record) error {
@@ -46,7 +48,8 @@ func checkLineParty(tx core.App, stored, line *core.Record) error {
 	if err != nil {
 		return err
 	}
-	if entry.GetString("reverses") != "" || entry.GetString("doc_type") == docTypeBillPayment {
+	if entry.GetString("reverses") != "" || entry.GetString("doc_type") == docTypeBillPayment ||
+		entry.GetString("doc_type") == docTypeWriteOff {
 		return nil
 	}
 	field, collection, id := "customer", "books_customers", customer

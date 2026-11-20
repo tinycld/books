@@ -10,8 +10,10 @@ import {
     SALES_BY_CUSTOMER_TITLE,
     SALES_BY_PRODUCT_DESCRIPTION,
     SALES_BY_PRODUCT_TITLE,
+    SALES_REPORTS_SEED,
 } from '~/tinycld/books/lib/sales-reports-fixture'
 import {
+    AR_AGING_SHIPPED_KEY,
     CUSTOMER_BALANCE_SHIPPED_KEY,
     SALES_BY_CUSTOMER_SHIPPED_KEY,
     SALES_BY_PRODUCT_SHIPPED_KEY,
@@ -21,6 +23,7 @@ import {
     browserToday,
     choosePeriod,
     csvRecords,
+    dayWords,
     exportReport,
     openBooksReports,
 } from './books-report-helpers'
@@ -138,6 +141,40 @@ async function openSalesRow(page: Page, name: string): Promise<SalesRow[]> {
     return last.rows
 }
 
+// The seeded family (seed.ts seedSalesFamily).
+const SEEDED_FAMILY = SALES_REPORTS_SEED.family
+
+type FamilyNames = { parent: string; small: string; big: string }
+
+// The parent's own row (depth 1) shows only in the run of the final pick: the first pick,
+// "All <parent> sub-customers", leaves it out. The family as the one depth-0 row before the
+// Total holds only for the filtered run: an unfiltered run also holds the family, but beside
+// other customers.
+function familyShows(rows: SalesRow[], { parent, small, big }: FamilyNames): boolean {
+    return (
+        onlyTopRow(rows, parent) &&
+        rows.some(row => row.kind === 'group' && row.label === parent && row.depth === 1) &&
+        rows.some(row => row.kind === 'subtotal' && row.label === `Total ${parent}`) &&
+        rows.some(row => row.label === small) &&
+        rows.some(row => row.label === big) &&
+        !rows.some(row => row.label === 'No customer')
+    )
+}
+
+// The report filtered to the whole family of `names.parent`: its sub-customers' group,
+// then the parent itself. Core's picker search keeps the options whose own label holds it
+// (server/reports/options.go optionConds), and a group head shows only over options the
+// search kept: so the "All <parent> sub-customers" head is reached by a search for a
+// sub-customer. A search for the parent lists only the parent's own option, in no group.
+function filterToFamily(page: Page, names: FamilyNames): Promise<SalesRow[]> {
+    return filterSalesTo(
+        page,
+        'customers',
+        [{ label: names.small, group: names.parent }, { label: names.parent }],
+        rows => familyShows(rows, names)
+    )
+}
+
 // A share as the view prints it at 2 places: sales ÷ total.
 function shareText(sales: number, total: number): string {
     return `${(Math.round((sales * 10000) / total) / 100).toFixed(2)}%`
@@ -238,8 +275,8 @@ test.describe('sales-reports: Sales by Customer', () => {
         await expect(page).toHaveURL(customerPath(book.customer.id))
 
         // Two sub-customers whose name order (A, B) is the reverse of their sales order: B
-        // sells more than the parent's own row, A less, so only a Largest sales run puts B
-        // before A, and the parent's own row stays first under both orders.
+        // sells more than the parent's own row, A less. The fold and the Largest sales order
+        // are checked on the seeded family (the next test), so this test does no more runs.
         const small = uniqueName('Sale branch A')
         const big = uniqueName('Sale branch B')
         await addSubCustomer(page, small)
@@ -253,25 +290,7 @@ test.describe('sales-reports: Sales by Customer', () => {
         await postSubInvoice(page, book.service, '100.00', '$1,000.00')
 
         await openSalesByCustomer(page)
-        // The parent's own row (depth 1) shows only in the run of the final pick: the first
-        // pick, "All <parent> sub-customers", leaves it out. The family as the one depth-0
-        // row before the Total holds only for the filtered run: an unfiltered run also
-        // holds the family, but beside other customers.
-        const familyShows = (rows: SalesRow[]) =>
-            onlyTopRow(rows, parent) &&
-            rows.some(row => row.kind === 'group' && row.label === parent && row.depth === 1) &&
-            rows.some(row => row.kind === 'subtotal' && row.label === `Total ${parent}`) &&
-            rows.some(row => row.label === small) &&
-            rows.some(row => row.label === big) &&
-            !rows.some(row => row.label === 'No customer')
-        const indexOf = (rows: SalesRow[], label: string) =>
-            rows.findIndex(row => row.label === label)
-        const rows = await filterSalesTo(
-            page,
-            'customers',
-            [{ label: parent, group: parent }, { label: parent }],
-            familyShows
-        )
+        const rows = await filterToFamily(page, { parent, small, big })
         const family = rows.slice(0, 5)
         expect(family.map(row => [row.kind, row.label, row.depth])).toEqual([
             ['group', parent, 0],
@@ -301,9 +320,42 @@ test.describe('sales-reports: Sales by Customer', () => {
             0
         )
         expect(Math.abs(hundredths - 10000)).toBeLessThanOrEqual(1)
+    })
+
+    test('a folded family shows its figures on its header, and Largest sales puts the bigger sub-customer first', async ({
+        page,
+    }) => {
+        const names = {
+            parent: SEEDED_FAMILY.parent.name,
+            small: SEEDED_FAMILY.small.name,
+            big: SEEDED_FAMILY.big.name,
+        }
+        const { parent, small, big } = names
+        await openBooks(page, DESKTOP)
+        await openSalesByCustomer(page)
+        // The seeded family's day, which holds no other sale (sales-reports-fixture.ts), as
+        // seed.ts dates it: `yearsAgo` years before the year the seed (and the test) runs.
+        const year = Number((await browserToday(page)).slice(0, 4)) - SEEDED_FAMILY.yearsAgo
+        const day = `${year}-${SEEDED_FAMILY.day}`
+        await choosePeriod(page, { from: day, to: day })
+        const rows = await filterToFamily(page, names)
+        await expect(page.getByTestId('report-document-period')).toHaveText(dayWords(day))
+        const family = rows.slice(0, 5)
+        expect(family.map(row => [row.kind, row.label, row.depth])).toEqual([
+            ['group', parent, 0],
+            ['group', parent, 1],
+            ['group', small, 1],
+            ['group', big, 1],
+            ['subtotal', `Total ${parent}`, 0],
+        ])
+        const [header, own, smallRow, bigRow, familyTotal] = family
+        expect(salesOf(own)).toBe(SEEDED_FAMILY.parent.cents)
+        expect(salesOf(smallRow)).toBe(SEEDED_FAMILY.small.cents)
+        expect(salesOf(bigRow)).toBe(SEEDED_FAMILY.big.cents)
+        const total = salesOf(familyTotal)
+        expect(total).toBe(salesOf(own) + salesOf(smallRow) + salesOf(bigRow))
 
         // D3: a folded family shows its figures on the header.
-        const header = family[0]
         await pressReportRow(page, header.id)
         const folded = await filterSettled(
             page,
@@ -316,12 +368,13 @@ test.describe('sales-reports: Sales by Customer', () => {
         expect(shareOf(familyRows[0])).toBe('100.00%')
 
         await pressReportRow(page, header.id)
-        await filterSettled(page, familyShows, `the ${parent} family opens again`)
+        await filterSettled(page, r => familyShows(r, names), `the ${parent} family opens again`)
         await chooseSalesOrder(page, 'sales')
         // Only the Largest sales run puts B before A (the Name run has A first).
+        const indexOf = (r: SalesRow[], label: string) => r.findIndex(row => row.label === label)
         const bySales = await filterSettled(
             page,
-            r => familyShows(r) && indexOf(r, big) < indexOf(r, small),
+            r => familyShows(r, names) && indexOf(r, big) < indexOf(r, small),
             'the family under Largest sales'
         )
         expect(bySales.slice(0, 4).map(row => [row.label, row.depth])).toEqual([
@@ -807,7 +860,7 @@ test.describe('sales-reports: entry points and phone', () => {
         const items = page.locator('[data-testid^="customers-reports-"]').filter({ visible: true })
 
         await button.click()
-        await expect(items).toHaveText(['Customer Balance', 'Sales by Customer'])
+        await expect(items).toHaveText(['Customer Balance', 'A/R Aging', 'Sales by Customer'])
         await page.getByTestId('customers-reports-sales').click()
         await expect(page.getByTestId('report-screen')).toBeVisible()
         await expect(shownReportTitle(page)).toHaveText(SALES_BY_CUSTOMER_TITLE)
@@ -815,7 +868,7 @@ test.describe('sales-reports: entry points and phone', () => {
         await page.goBack()
         await expect(page.getByTestId('customers-title').filter({ visible: true })).toBeVisible()
         await button.click()
-        await expect(items).toHaveText(['Customer Balance', 'Sales by Customer'])
+        await expect(items).toHaveText(['Customer Balance', 'A/R Aging', 'Sales by Customer'])
         await page.getByTestId('customers-reports-balance').click()
         await expect(page.getByTestId('report-screen')).toBeVisible()
         await expect(shownReportTitle(page)).toHaveText(CUSTOMER_BALANCE_TITLE)
@@ -832,6 +885,17 @@ test.describe('sales-reports: entry points and phone', () => {
         await openCustomersList(one.fresh)
         const oneButton = one.fresh.getByTestId('customers-reports')
         await expect(oneButton).toBeVisible()
+        // The reads of the A/R Aging and the Sales by Customer were answered with no row, so
+        // their missing items below are proven after their reads, not while they load.
+        await expect
+            .poll(
+                () =>
+                    [AR_AGING_SHIPPED_KEY, SALES_BY_CUSTOMER_SHIPPED_KEY].every(key =>
+                        one.answered.some(filter => filter.includes(key))
+                    ),
+                'the Customers list got its answer for the A/R Aging and the Sales by Customer'
+            )
+            .toBe(true)
         await oneButton.click()
         await expect(
             one.fresh.locator('[data-testid^="customers-reports-"]').filter({ visible: true })
@@ -849,10 +913,12 @@ test.describe('sales-reports: entry points and phone', () => {
         await expect
             .poll(
                 () =>
-                    [CUSTOMER_BALANCE_SHIPPED_KEY, SALES_BY_CUSTOMER_SHIPPED_KEY].every(key =>
-                        none.answered.some(filter => filter.includes(key))
-                    ),
-                'the Customers list got its answer for both shipped reports'
+                    [
+                        CUSTOMER_BALANCE_SHIPPED_KEY,
+                        AR_AGING_SHIPPED_KEY,
+                        SALES_BY_CUSTOMER_SHIPPED_KEY,
+                    ].every(key => none.answered.some(filter => filter.includes(key))),
+                'the Customers list got its answer for the three shipped reports'
             )
             .toBe(true)
         await expect(customerEntries(none.fresh).first()).toBeVisible()

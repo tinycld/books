@@ -67,17 +67,31 @@ describe.each(OWNERSHIPS)('starterChart(%s)', ownership => {
         }
     })
 
-    it('splits its accounts 9/6/<equity>/4/12 across the five groups', () => {
+    it('splits its accounts 9/6/<equity>/4/13 across the five groups', () => {
         const equity = EQUITY_COUNT[ownership]
-        expect(chart).toHaveLength(31 + equity)
+        expect(chart).toHaveLength(32 + equity)
         const counts = groupStarterChart(chart).map(group => [group.label, group.count])
         expect(counts).toEqual([
             ['Assets', 9],
             ['Liabilities', 6],
             ['Equity', equity],
             ['Income', 4],
-            ['Expenses', 12],
+            ['Expenses', 13],
         ])
+    })
+
+    // Write-off spec Q4: 6050 Bad debts, an expense of detail bad_debts, sits between
+    // 6000 and 6100.
+    it('holds 6050 Bad debts between 6000 and 6100', () => {
+        const numbers = chart.map(account => account.number)
+        const badDebts = chart.find(account => account.number === '6050')
+        expect(badDebts).toMatchObject({
+            name: 'Bad debts',
+            type: 'expense',
+            detail_type: 'bad_debts',
+        })
+        expect(numbers.indexOf('6050')).toBe(numbers.indexOf('6000') + 1)
+        expect(numbers.indexOf('6100')).toBe(numbers.indexOf('6050') + 1)
     })
 
     it('holds exactly one retained-earnings account', () => {

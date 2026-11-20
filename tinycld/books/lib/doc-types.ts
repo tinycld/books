@@ -12,6 +12,7 @@ export const DOC_TYPES: Record<string, { label: string; noun: string }> = {
     payment: { label: 'Payments', noun: 'payment' },
     bill_payment: { label: 'Bill payments', noun: 'bill payment' },
     vendor_refund: { label: 'Vendor refunds', noun: 'vendor refund' },
+    write_off: { label: 'Write-offs', noun: 'write-off' },
 }
 
 export function docTypeLabel(docType: string): string {
