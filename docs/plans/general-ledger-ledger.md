@@ -235,3 +235,40 @@ Books (checkpoint 3, in the tree, not committed):
 
 ## Final review
 - eval: approved 2026-11-08 by the human; CI full suite green at 3f5e261 (PR books#34, run 42537025783 attempt 2, after core PR #452 report-engine performance fix); CI fixes: Banking dialog ⌘↵ scope owner (cb19429, 3f5e261); retro items pending the human.
+
+## Performance (p5-report-engine-scale)
+
+Measure: `BOOKS_SCALE=1 BOOKS_SCALE_OUT=<dir> go test -run 'TestGLScale$' -timeout 60m -v .` in `books/server` (`report_general_ledger_scale_test.go`). The book is the A/R Aging bulk writer's book with its income spread over 100 income accounts (107 accounts) and its monthly balances stored. Bar: a run with an Accounts filter (runs 3, 4, 5) takes 1 s or less at 500,000 journal lines, median of 5.
+
+### Baseline (2026-11-19, core 4690f72e, books 381fe701)
+
+| run | 10,000 lines | 100,000 lines | 500,000 lines |
+|---|---|---|---|
+| 1 all accounts, month | 467 ms | 4,328 ms | refused after 19.3 s (time limit) |
+| 2 all accounts, year | 572 ms | 5,208 ms | refused after 19.6 s |
+| 3 busy account, month (filtered) | 326 ms | 2,527 ms | 13,772 ms |
+| 4 small account, month (filtered) | 142 ms | 1,434 ms | 7,219 ms |
+| 5 three accounts, year (filtered) | 401 ms | 3,472 ms | refused after 17.2 s |
+
+Every run grows in line with the journal lines. Run 3 at 500,000 lines: statement 4 (the section rows) takes 2.4 s, statement 5 (the Total row) 3.9 s and statement 6 (the page of detail rows) 7.2 s. They read `books_journal_lines` by `SCAN` 3, 9 and 12 times (the report's rows, read again by each part of the statement; the earlier-years P&L lookups) and by `SEARCH … idx_books_jlines_account_date (account>? AND account<?)` 3, 4 and 6 times (the beginning balance: three subqueries for one sum, read again for each detail row of the page).
+
+### Decision: the beginning balance reads the stored monthly balances
+
+Direct SQL on the 500,000-line book (7 accounts, best of 3):
+
+| read | time | plan |
+|---|---|---|
+| rows of one account and one month, as the engine writes the filter | 81 ms | no search of `books_journal_lines` |
+| the same rows, bounds on the stored `account` and `date` | 0.6 ms | `SEARCH idx_books_jlines_account_date (account=? AND date>? AND date<?)` |
+| beginning balances, 3 correlated subqueries per account (today) | 1,056 ms | 3 × `SEARCH (account=? AND date<?)` |
+| beginning balances, one grouped aggregate over the lines | 414 ms | `SCAN … USING INDEX idx_books_jlines_account_date` |
+| the same, one account's keys pushed in | 84 ms | `SEARCH (account=? AND date<?)` |
+| beginning balances from `books_account_balances` | 0.08 ms | `SCAN books_account_balances USING INDEX idx_books_balances_account_period` |
+| earlier-years P&L sum from the lines (today) | 131 ms | `SEARCH l (account=?)` per P&L account |
+| earlier-years P&L sum from `books_account_balances` | 0.04 ms | `SEARCH g (account=? AND period<?)` |
+
+A beginning balance read from the lines costs time in line with the account's whole history, whatever the query form. `books_account_balances` (one row per account and month, written by posting, with verify and rebuild) answers it at any size. The beginning balance becomes the stored months before the period's first month plus the lines of that month before the period. The filter bounds and the grouped lookup are still needed for the period's own lines. Plan: `tinycld/docs/plans/2026-11-19-report-engine-scale.md`.
+
+### Changes
+
+(Each later task of the plan adds its change here: the SQL before and after, its plan, its time.)
