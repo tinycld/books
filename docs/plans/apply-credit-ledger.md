@@ -187,6 +187,7 @@
 - fix review: round 1 (cp4-fix-review.md): items 1–6 FIXED; conformance: 0; 0 BLOCK; 0 NOTE. Rounds: 1.
 - gate 3 A notes: 2 (NOTE 3, 4) under Design notes.
 - human: n/a (mode C)
+- commit: dc3f6284 (`feat(books): apply-credit on an invoice`)
 
 ## Final review
 - eval: (not run yet)
