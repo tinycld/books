@@ -3,7 +3,7 @@
 - mode: unattended
 - unit: p5-vendor-balance
 - started: 2026-11-20
-- package branch: books/p5-vendor-balance (from books main 9b54d607)   core checkout: main (654110f8)
+- package branch: books/p5-vendor-balance (from books main 9b54d607)   core checkout: books/p5-vendor-balance (from core main 654110f8; main until checkpoint 3 stopped)
 - spec: docs/specs/vendor-balance-design.md
 - checkpoints: docs/plans/vendor-balance-checkpoints.md
 - reference: docs/plans/vendor-balance-reference/
@@ -11,7 +11,7 @@
 - scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
 - capture manifest: docs/plans/vendor-balance-capture.json
 - review mode: C — none (unattended)
-- core extension: none. Every engine feature the report uses has a Books run behind it (the Customer Balance, the A/P Aging). A performance bar of spec §8 that needs a core change stops the run for the human.
+- core extension: none. Every engine feature the report uses has a Books run behind it (the Customer Balance, the A/P Aging). A performance bar of spec §8 that needs a core change stops the run for the human. Amended 2026-11-20: checkpoint 3 stopped on such a bar and the human chose the core fix in this unit: checkpoint 0 (core repo, branch books/p5-vendor-balance), an index-served `eq` of a Select field with a text (plan D16). It runs after checkpoints 1 and 2 and before checkpoint 3 continues. The core PR stays open; the driver merges it before the package PR.
 - sparks:
   - 1. Each vendor is one plain line with one figure → expressible (Books `vendorGroup()`, `server/report_spec_helpers.go`; core `ReportRow` group row; `display.columns.balance.minWidth: "max-content"`)
   - 2. The grand total is the heaviest line of the page → expressible (core `ReportRow` total row: `border-t-2 border-foreground`, `font-semibold`)
@@ -80,6 +80,19 @@
   - F2, F3, F12: e2e 4 names its viewport (1280, own-screen path); the Live causes that e2e does not drive are named with their Go test; the two-page precedent is worded as it is.
   - F9, F11, F13, F14, F15: core files cited for More and Customize; why `vendorBalanceCsv` does not call `withoutLineRecords`; the move takes its imports; run 1 is compared for vendors with a non-zero total; checkpoint 3 has a Size note (about 600 lines are a pure move).
   - Rejected: none.
+- phase 4 amendment (2026-11-20, after "Checkpoint 3 — STOPPED"): the human chose to fix the cause in core in this unit. The plan gains **checkpoint 0 — Index-served Select equality in reports** (core repo `/Users/nas/tmp/tinycld/books/tinycld`, branch `books/p5-vendor-balance` from main 654110f8). Run order 1, 2, 0, 3, 4; the plan's sections are in that order, and `brief.mjs --list` prints them so. The scripts take a checkpoint 0 after committed checkpoints (they find a checkpoint by its number); its brief is built with `--repo /Users/nas/tmp/tinycld/books/tinycld`. plan-check: 0 errors.
+  - The cause, as verified in the lane staging file `cp3-options.md` (it corrects the diagnosis under "Checkpoint 3 — STOPPED"): not `IS`, not the `LEFT JOIN`, not `posted IS true`, but the `NULLIF(column, '')` that core puts around a Select field, which no index serves. The fix: `eq` of a Select field with a text that is one of its option values is written `(NULLIF(c, '') IS ? AND c = 'x')`.
+  - Checkpoint 0: three core files (`core/server/reports/selecteq.go` new, one field and one branch in `formula.go`, `scope.value` in `stmt.go`), a core plan test, a result test and a prepared-once test on zoo collections, the core gates (`go test ./reports/... ./coreserver/...`, `pnpm run checks`), and the Books Go tests on the core branch with no Books edit (`-skip 'TestVendorBalanceQueryPlans'`, which is red until checkpoint 3 writes its statistics file). Plan D16 names each shipped Books comparison whose SQL changes.
+  - Checkpoint 3's brief: it continues from its three staged test files at Do step 4, on the core branch, and its bars are measured with the fix; another core cause still stops the run. The plan rules "Where the work is", "Performance rule" and "Gate 1", and D1 and D14 follow.
+  - Checkpoint 1's Consumes line no longer marks `cbParams` and `cbDisplay` as names: checkpoint 1 removed them (D4), and plan-check reads the source as it is now.
+  - The spec is not edited: its "No core change" (§4) and "No core extension" (§7) are replaced for checkpoint 0 by the human's decision (the plan's Amendment paragraph); §8 "A bar that fails" already names a core engine fix.
+  - Plan review of the amendment (report `plan-review-amend.md` in the lane staging folder): 0 blocker, 2 major, 8 minor; each one fixed in the plan. The reviewer ran Do 1 to 3 as overlay probes with the value bound: the code compiles, the core gate and the Books gate are green, the plan test is red before and green after, the results are equal.
+    - F1 (major): with the stored-column term written with a bound value, SQLite prepares each such statement a second time when `sqlite_stat4` has rows, against the engine's prepared-once rule (`core/server/reports/statement_test.go` lines 342 to 345). Decision: the term holds the value as SQL text (the form `cp3-options.md` probed), only for a registered option value of letters, digits, `_` and `-`; any other text keeps today's SQL; `TestASelectEqualToATextIsPreparedOnce` pins it. The text form was not run by the reviewer: checkpoint 0's tests are its proof.
+    - F2 (major): `document.status` = `posted` (Sales Tax Liability, Sales by Customer, Sales by Product) added to D16 and to Do 6 and 7.
+    - F3 to F5: D16 names `placementRankCase`, `cashCreditMemoFilter` and `entryTypeLabel`, says that a detail formula compiles as before, and that a term under `not` changes no plan.
+    - F6 to F10: the test wording (detail rows and a total row, prefix match), no conditional instruction in Do 1, the full path of the checkpoint 3 reports, a read of the `eq` case after the merge with p5-report-engine-scale, the Books command named a regression run.
+    - Rejected: none.
+  - For the driver: the core PR of this unit and p5-report-engine-scale (lane purchases, not merged) both edit `formula.go` and `stmt.go`; the hunks do not overlap (the `eq` hunks are 3 lines apart). Plan "Integration re-run" step 5 has what the lane that merges second runs. Checkpoint 0 writes the before and after plans of seven shipped reports to the lane staging file `cp0-plans.md` for that lane.
 - review mode switches: none
 
 ## Checkpoint 1
@@ -124,6 +137,7 @@
   - **Time:** S medians above (Performance). L not measured.
   - **Core change that would fix it:** a required to-one relation filter written null-rejecting (`=` or an inner join) and `posted = 1` for a boolean `eq true`; then `idx_books_jlines_account_date` serves the read with no Books index. The Customer Balance (`receivableLines`, the same shape) has the same plan; it has no scale test (Q8).
 - open question for the human: is this fixed by p5-report-engine-scale (Q13; the results of record are on that engine), by a core task, or does checkpoint 3 wait for that merge? Plan D14 has checkpoint 3 prove the bars on this branch's engine first.
+- answer (human, 2026-11-20): fix it in core in this unit. See Phase notes, "phase 4 amendment": the cause is corrected there, checkpoint 0 holds the fix, and this checkpoint continues after it.
 - the checkpoint's code is in the tree, staged and not committed: the three test files above. Gate 1, gate 3: not run. Commit: this ledger alone.
 - also seen (checkpoint 2's area, not acted on): run 6 of the small book labels a void reversal line "2022-11-08 · Void reversal of 1076 1076 · Void of 1076" (the number is in the type label and again as the number; `cp3-tests-dump.txt` line 23).
 
