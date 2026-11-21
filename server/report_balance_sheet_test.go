@@ -243,8 +243,8 @@ func TestBalanceSheetSpecLoads(t *testing.T) {
 	if shipped.Description != "What the business owns and owes on one day, beside the same day a year earlier." {
 		t.Errorf("description = %q", shipped.Description)
 	}
-	if shipped.Revision != 3 || !shipped.Unpublished {
-		t.Errorf("revision %d, unpublished %v; want revision 3 (the Method param), shipped unpublished", shipped.Revision, shipped.Unpublished)
+	if shipped.Revision != 7 || !shipped.Unpublished {
+		t.Errorf("revision %d, unpublished %v; want revision 7 (the stored cash months on Cash), shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	built, err := json.Marshal(balanceSheetSpec())
 	if err != nil {
@@ -1164,7 +1164,7 @@ func TestBalanceSheetShippedUnpublished(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "Balance Sheet" || row.GetInt("shipped_revision") != 3 || row.GetString("source") != "books.basis_lines" {
+	if row.GetString("title") != "Balance Sheet" || row.GetInt("shipped_revision") != 7 || row.GetString("source") != "books.basis_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {
@@ -1248,8 +1248,9 @@ func bsLineLabel(date string, entry *core.Record, memo string) string {
 // Pressing an account row opens its posted lines (spec §3): labelled "<date>
 // · <entry number> · <memo>", the entry's memo when the line has none, in
 // date order then entry sequence, whatever order they were stored in; Current
-// by the account's normal side, Prior year only for a line on or before the
-// prior-year day, Change and % change blank. The line ids run against the
+// by the account's normal side. The months before the as-of month are one
+// opening row that carries the Prior year figure, and each listed line shows 0
+// in Prior year. Change and % change are blank. The line ids run against the
 // date and the sequence order, so storage order fails the order check.
 func TestBalanceSheetOpenedLines(t *testing.T) {
 	b := newBSBook(t)
@@ -1258,21 +1259,25 @@ func TestBalanceSheetOpenedLines(t *testing.T) {
 	owner := b.account(t, "Owner's equity", "3000", "equity", "owners_equity")
 	supplies := b.account(t, "Supplies", "6200", "expense", "office_general")
 	mkRetainedEarnings(t, b.app, "3900")
-	// On or before the prior-year day (2025-11-04).
-	e1 := b.postIDs(t, "2025-10-01", "Owner deposit",
+	// On or before the prior-year day (2025-11-04), and one in an earlier
+	// month of this year: both are in the opening row, not listed.
+	b.postIDs(t, "2025-10-01", "Owner deposit",
 		idLine{id: "bsopenline00003", account: checking, debit: 1000, memo: "Before the prior day"},
 		idLine{account: owner, credit: 1000})
+	b.postIDs(t, "2026-03-10", "March deposit",
+		idLine{id: "bsopenline00004", account: checking, debit: 150},
+		idLine{account: owner, credit: 150})
 	// Same day, posted in this order: e2 has the lower sequence, e3 the lower id.
-	e2 := b.postIDs(t, "2026-03-10", "March deposit",
+	e2 := b.postIDs(t, "2026-11-02", "November deposit",
 		idLine{id: "bsopenline00001", account: checking, debit: 2500},
 		idLine{account: owner, credit: 2500})
-	e3 := b.postIDs(t, "2026-03-10", "Card payment entry",
+	e3 := b.postIDs(t, "2026-11-02", "Card payment entry",
 		idLine{id: "bsopenline00000", account: checking, credit: 400, memo: "Card payment"},
 		idLine{account: owner, debit: 400})
-	e4 := b.postIDs(t, "2026-01-05", "January entry",
-		idLine{id: "bsopenline00002", account: checking, debit: 300, memo: "January"},
+	e4 := b.postIDs(t, "2026-11-01", "First entry",
+		idLine{id: "bsopenline00002", account: checking, debit: 300, memo: "First"},
 		idLine{account: owner, credit: 300})
-	e5 := b.postIDs(t, "2026-04-01", "Card purchase",
+	e5 := b.postIDs(t, "2026-11-03", "Card purchase",
 		idLine{account: supplies, debit: 4500},
 		idLine{account: visa, credit: 4500})
 
@@ -1305,13 +1310,25 @@ func TestBalanceSheetOpenedLines(t *testing.T) {
 		current, prior int64
 	}
 	wants := []want{
-		{bsLineLabel("2025-10-01", e1, "Before the prior day"), 1000, 1000},
-		{bsLineLabel("2026-01-05", e4, "January"), 300, 0},
+		{bsLineLabel("2026-11-01", e4, "First"), 300, 0},
 		// No line memo: the entry's.
-		{bsLineLabel("2026-03-10", e2, "March deposit"), 2500, 0},
+		{bsLineLabel("2026-11-02", e2, "November deposit"), 2500, 0},
 		// A bank account credited reads negative by its normal side.
-		{bsLineLabel("2026-03-10", e3, "Card payment"), -400, 0},
+		{bsLineLabel("2026-11-02", e3, "Card payment"), -400, 0},
 	}
+	// The months before November are one row: 1000 + 150, of which 1000 is on
+	// or before the prior-year day. It and the lines add up to the account row.
+	var opening []reports.Row
+	for _, r := range open.Rows {
+		if r.Kind == reports.KindOpening && r.Section == bsAccount(t, open, checking).ID {
+			opening = append(opening, r)
+		}
+	}
+	if len(opening) != 1 || opening[0].LabelTemplate != "Balance before {value}" || opening[0].LabelValue != "2026-11" {
+		t.Fatalf("Operating's opening rows = %#v, want one \"Balance before {value}\" of month 2026-11", opening)
+	}
+	requireFigures(t, opening[0], 1150, 1000)
+	requireFigures(t, bsAccount(t, open, checking), 3550, 1000)
 	var got []string
 	for _, l := range lines {
 		got = append(got, l.Label)
@@ -1328,8 +1345,8 @@ func TestBalanceSheetOpenedLines(t *testing.T) {
 	}
 
 	visaLines := bsLines(open, bsAccount(t, open, visa))
-	if len(visaLines) != 1 || visaLines[0].Label != bsLineLabel("2026-04-01", e5, "Card purchase") {
-		t.Fatalf("Visa's opened lines = %q, want one labelled %q", bsLabels(&reports.Result{Rows: visaLines}), bsLineLabel("2026-04-01", e5, "Card purchase"))
+	if len(visaLines) != 1 || visaLines[0].Label != bsLineLabel("2026-11-03", e5, "Card purchase") {
+		t.Fatalf("Visa's opened lines = %q, want one labelled %q", bsLabels(&reports.Result{Rows: visaLines}), bsLineLabel("2026-11-03", e5, "Card purchase"))
 	}
 	// A credit card credited 45.00 reads 45.00 (a liability's normal side).
 	requireFigures(t, visaLines[0], 4500, 0)
@@ -1356,8 +1373,10 @@ func TestBalanceSheetPagesOpenedLines(t *testing.T) {
 	owner := b.account(t, "Owner's equity", "3000", "equity", "owners_equity")
 	mkRetainedEarnings(t, b.app, "3900")
 	var want []string
+	// The lines are in the as-of day's month (two a day, November 1 to 4):
+	// an earlier month's lines are one opening row.
 	for k := 1; k <= 8; k++ {
-		date := fmt.Sprintf("2026-08-0%d", k)
+		date := fmt.Sprintf("2026-11-0%d", (k+1)/2)
 		memo := fmt.Sprintf("Line %d", k)
 		entry := b.postIDs(t, date, "Paging",
 			idLine{id: fmt.Sprintf("bspageline0000%d", 9-k), account: petty, debit: 100 * k, memo: memo},
@@ -1395,9 +1414,8 @@ func TestBalanceSheetPagesOpenedLines(t *testing.T) {
 	}
 }
 
-// Every collection the run and its lookups read is a topic, so a post, a
-// void, an account edit or a Books settings change re-runs the open report.
-// The run opens an account, so the detail label's entry read is in it.
+// The report reads every journal line, so it is not live: its run is manual
+// and follows no topic; the reader presses Refresh.
 func TestBalanceSheetTopics(t *testing.T) {
 	b := newBSBook(t)
 	checking := b.account(t, "Operating", "1000", "bank", "checking")
@@ -1406,12 +1424,5 @@ func TestBalanceSheetTopics(t *testing.T) {
 	b.post(t, "2026-03-10", ln{checking, 4000, 0}, ln{owner, 0, 4000})
 
 	res := b.bsOpened(t, reports.Options{Today: bsToday}, checking)
-	for _, topic := range []string{
-		"collection/books_journal_lines", "collection/books_journal_entries",
-		"collection/books_accounts", "collection/books_settings",
-	} {
-		if !slices.Contains(res.Topics, topic) {
-			t.Errorf("topics = %v, want %s", res.Topics, topic)
-		}
-	}
+	requireManual(t, res)
 }

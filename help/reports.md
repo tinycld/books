@@ -5,7 +5,7 @@ tags: [reports, trial balance, general ledger, balance sheet, journal, profit an
 order: 60
 ---
 
-Books reports, such as the Trial Balance, run in the Reports area of the app. A change to a chip or to Customize applies at once. The Accounts filter applies when you press Apply. There is no Run button.
+Books reports, such as the Trial Balance, run in the Reports area of the app. A change to a chip or to Customize applies at once. The Accounts filter applies when you press Apply. There is no Run button. Some large reports do not update by themselves when the books change: see "Reports that you refresh" below.
 
 ## Open Books reports
 
@@ -32,7 +32,7 @@ To change which accounts show, press the Rows chip and pick one:
 
 To show only some accounts, press Add filter, then Accounts. Type in Search to find an account by name, and pick one or more accounts. To pick all the accounts of one type, pick "All <type> accounts", for example "All Expense accounts". The types show in the order of the chart of accounts. Press Apply. To remove the filter, press the × on the Accounts chip. When the filter hides every row, press Clear filters.
 
-To see the lines of an account, press its row. Its posted lines open below it, in date order, then by entry number. Each line shows its date, its entry number and its memo, and its amount in Debit or Credit by its sign. The No. column stays blank on the lines. Press a line to open the transaction that posted it. To open every account, press Expand all. When an account is open, the same button reads Collapse all.
+To see the lines of an account, press its row. The first row below it reads "Balance before" and the month of the As of day, for example "Balance before Nov 2026". It shows the balance of the account at the end of the month before. For the retained earnings account, it also holds the income and expense of earlier fiscal years. Below it are the posted lines of that month, up to the As of day, in date order, then by entry number. Each line shows its date, its entry number and its memo, and its amount in Debit or Credit by its sign. The No. column stays blank on the lines. Press a line to open the transaction that posted it. Lines of earlier months do not show here. To see every line of an account, press its Debit or Credit figure. To open every account, press Expand all. When an account is open, the same button reads Collapse all.
 
 To see the transactions behind the Debit or Credit of an account, press the figure (see "See the transactions behind an amount" below).
 
@@ -40,7 +40,7 @@ When no account shows on the day, the report shows "No rows as of" and the day. 
 
 To change how the numbers look, press Customize. You can divide by 1000, show amounts without cents, show negative numbers as -100 or (100) or in red, and hide the No., Debit or Credit column. Customize never changes the figures.
 
-The report stays current. When someone posts or voids an entry, changes an account, or changes the Books settings, the report runs again.
+The report does not update by itself. To see new changes, press **Refresh** (see "Reports that you refresh" below).
 
 ## Read the General Ledger
 
@@ -68,6 +68,8 @@ To show only some accounts, press Add filter, then Accounts. Pick one or more ac
 To sort the lines, press a column heading, for example Debit. The lines sort inside each section, and the sections keep the order of the chart of accounts. Press the heading again to sort in the opposite direction, and a third time to go back to the order of the report. The Balance heading does not sort: each line keeps its true running balance in every sort. Copy link keeps the sort.
 
 A large book does not load all its lines at once. When you scroll near the end, the report loads the next lines. The running balance continues from the lines above.
+
+The report does not update by itself. To see new changes, press **Refresh** (see "Reports that you refresh" below).
 
 On a phone, each line wraps onto lines in the table: the date, Type and No.; then Name and Description; then Split; then Debit, Credit and Balance. On a tablet, each line keeps the date, Type, No., Debit, Credit and Balance on its first line, and shows Name, Description and Split below them. A narrow desktop window shows the tablet arrangement too. The table does not scroll sideways.
 
@@ -110,7 +112,7 @@ To change which accounts show, press the Rows chip and pick one:
 - Non-zero shows the accounts with a balance that is not zero on the As of day or on the Prior year day. This is the default.
 - Active shows the accounts with a posted line on or before the As of day, also when the balance is zero.
 
-To see the lines of an account, press its account row. Its posted lines open below it, in date order, then by entry number. Each line shows its date, its entry number and its memo. Current shows the amount of the line. Prior year shows the amount when the line is on or before the Prior year day, and 0.00 when it is not. Change and % change stay blank on the lines. Retained earnings and Net income do not open.
+To see the lines of an account, press its account row. The first row below it reads "Balance before" and the month of the As of day, for example "Balance before Nov 2026". Its Current shows the balance of the account at the end of the month before. Its Prior year shows the balance of the account on the Prior year day. Below it are the posted lines of that month, up to the As of day, in date order, then by entry number. Each line shows its date, its entry number and its memo. Current shows the amount of the line. Prior year shows 0.00 on the lines. Change and % change stay blank on the "Balance before" row and on the lines. Lines of earlier months do not show here. To see every line of an account, press its Current figure. An account opens the same way on Accrual and on Cash. Retained earnings and Net income do not open.
 
 To see the transactions behind the Current or Prior year figure of an account, press the figure (see "See the transactions behind an amount" below).
 
@@ -118,7 +120,7 @@ To change how the numbers look, press Customize. You can divide by 1000, show am
 
 On a phone, each row wraps onto two lines in the table: the account, then Current, Prior year and Change. A phone does not show % change. The table does not scroll sideways. On a narrow window, the account name gets shorter and ends in "…", and the figures always show in full.
 
-The report stays current. When someone posts or voids an entry, changes an account, or changes the Books settings, the report runs again.
+The report does not update by itself. To see new changes, press **Refresh** (see "Reports that you refresh" below).
 
 ## Read the Journal
 
@@ -139,7 +141,7 @@ To sort the lines inside each block, press a column heading, for example Debit. 
 
 A long period does not load all its entries at once. When you scroll near the end, the report loads the next blocks. A long entry continues on the next part that loads, and the Total row shows at the end.
 
-The report stays current. When someone posts or voids an entry, changes an account, renames a customer or vendor, or changes the Books settings, the report runs again.
+The report does not update by itself. To see new changes, press **Refresh** (see "Reports that you refresh" below).
 
 On a phone, each line wraps onto three lines in the table: the date and Account; then Name and Description; then Debit and Credit. On a tablet, each line wraps onto two lines: the date, Account, Debit and Credit; then Name and Description. A narrow desktop window shows the tablet arrangement too. The table does not scroll sideways.
 
@@ -181,7 +183,7 @@ To see the transactions behind the Total of an account or a section, or behind a
 
 To change how the numbers look, press Customize. You can divide by 1000, show amounts without cents, show negative numbers as -100 or (100) or in red, and hide the % of income column. Customize never changes the figures.
 
-The report stays current. When someone posts or voids an entry, changes an account, or changes the Books settings, the report runs again.
+The Profit and Loss stays current. When someone posts or voids an entry, changes an account, or changes the Books settings, the report runs again. The Profit and Loss by Month does not update by itself: press **Refresh** (see "Reports that you refresh" below).
 
 On a phone, each row of the Profit and Loss wraps onto two lines in the table: the account; then Total and % of income. The table does not scroll sideways.
 
@@ -219,6 +221,8 @@ The back link at the top of Transaction Detail by Account shows the name of the 
 Press a line to open its transaction. An invoice, sales receipt or bill line opens the document, a transfer line opens the transfer, and any other line opens the journal entry. Back on the transaction returns to the report.
 
 Transaction Detail by Account also opens from Reports, like the other Books reports. From Reports, it shows the lines of every account for This month to date until you pick accounts.
+
+The report does not update by itself. To see new changes, press **Refresh** (see "Reports that you refresh" below).
 
 On the web, ⌘-click or middle-click an amount to open Transaction Detail by Account in a new tab.
 
@@ -475,6 +479,18 @@ The report stays current. When someone posts or voids a bill, an expense, a vend
 
 On a phone, each row shows the name on the first line, then Total and % of expenses on the second. A long name or line wraps to at most three lines, and a figure is never cut. Customize and Export are under **⋯**.
 
+## Reports that you refresh
+
+Six Books reports read every journal line, so they do not run again each time the books change: the General Ledger, Transaction Detail by Account, the Trial Balance, the Balance Sheet, the Journal and the Profit and Loss by Month. Under the chips, each of them shows the note "This report does not update by itself. Press Refresh to see new changes." and a **Refresh** button.
+
+To see the changes made after you opened the report, press **Refresh**, or press the R key. The report runs again and keeps your place. A change that you make to a chip or to a filter runs the report again, and that run reads the newest data. Customize changes only how the figures look.
+
+Transaction Detail by Account opened from a figure, in the panel at the side, has its own **Refresh** button.
+
+The Profit and Loss, the Customer Balance, the Vendor Balance, the A/R Aging, the A/P Aging, the sales reports, the Sales Tax Liability, the Audit Log and the two statement reports stay current: they run again when the books change, and show no **Refresh** button. When someone saves a change to the columns, the filters or the layout of the Profit and Loss, the Customer Balance, the Vendor Balance, the Audit Log or Statement: Balance Forward, that report does not update by itself any more and shows **Refresh**. A change to only the title or the description keeps it current.
+
+A report that you build over journal lines, or that shows columns from journal lines, or over the Audit log, does not update by itself. A copy that you keep with Save as of one of the six reports above, of the Profit and Loss, of the Customer Balance, of the Vendor Balance, of the Audit Log or of Statement: Balance Forward does not update by itself either. Each shows the same note and **Refresh** button. A copy of the A/R Aging, of the A/P Aging, of a sales report, of the Sales Tax Liability or of Statement: Open Items stays current.
+
 ## Download or email a report
 
 To keep or send a copy of a report, press **Export** on a Books report (on a phone, the entries are under **⋯**) and choose a PDF, an Excel or a CSV file, or **Email report…**. The file is named after the report and its period or as-of day, for example `profit-and-loss-2026-01-01-to-2026-11-15.pdf`. For what each file holds and how to email it, see [Download or email a report](help://core:reports).
@@ -492,6 +508,8 @@ A reader can change the chips and Customize for the run, copy a link with Copy l
 ## Build your own Books report
 
 To make your own report from Books data, such as accounts, journal entries, journal lines, monthly account balances or customers, see [Build, share and publish reports](help://core:reports).
+
+A report that you build over journal lines, or that shows columns from journal lines, does not update by itself (see "Reports that you refresh" above).
 
 The sales tax data is in four sources: Sales tax lines, Tax agencies, Tax rates and Sales documents. Sales tax lines has one row for each document and tax rate, written when the document is posted. Sales documents holds the invoices, the sales receipts, the credit memos and the refund receipts together. In Sales documents, a credit memo has the Kind "Credit memo" and a refund receipt the Kind "Refund receipt", and their Subtotal, Tax and Total are positive, as they are on the document. A credit memo lowers what the customer owes, so a report that adds totals across kinds must filter by Kind, for example to invoices and sales receipts only. A voided document keeps its tax lines, so filter on the document's status to count only posted documents. For example, start from Sales tax lines to build the tax of each customer.
 

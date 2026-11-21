@@ -1,4 +1,4 @@
-import { type RefObject, useRef } from 'react'
+import { type RefObject, useEffect, useRef } from 'react'
 import { type TextInputInstance, View } from 'react-native'
 import type { BankConnectionRow } from '../../../hooks/useBankConnections'
 import { useFitsTable } from '../../../hooks/useFitsTable'
@@ -15,8 +15,12 @@ import {
     useReviewQueueRows,
     useReviewTab,
 } from '../../../hooks/useReviewTab'
+import { failedResultText } from '../../../lib/bank-categorize'
 import { REVIEW_TABLE_MIN_WIDTH, type ReviewTab, type TxnTab } from '../../../lib/bank-review'
 import type { LiveRecovery } from '../../../lib/live-recovery'
+import { useBankingUIStore } from '../../../stores/banking-ui-store'
+import { AddedResultLine } from '../categorize/AddedResultLine'
+import { CategorizeChosenDialog } from '../categorize/CategorizeChosenDialog'
 import { ReviewCards } from './ReviewCards'
 import { ReviewEmptyState, ReviewLoadError, ReviewLoading } from './ReviewEmptyState'
 import { ReviewResultLine } from './ReviewResultLine'
@@ -37,6 +41,40 @@ type ReviewTabBodyProps = {
     drawer: ReviewShortcutsInput['drawer']
     // The page's read of the For review row marks; each row gets its own list.
     suggestions: MatchSuggestions
+    // The page's note of the For review rows on screen, in list order, which the drawer
+    // reads for the row it shows after a row leaves.
+    shownRowIds: RefObject<readonly string[]>
+}
+
+type ShownRow = { id: string }
+
+// While For review shows, the page knows its rows on screen in their order; a cleanup
+// empties the note when the tab body goes or its rows change.
+function useShownRowIds(
+    tab: TxnTab,
+    rows: readonly ShownRow[],
+    shownRowIds: RefObject<readonly string[]>
+) {
+    useEffect(() => {
+        if (tab !== 'review') return
+        shownRowIds.current = rows.map(row => row.id)
+        return () => {
+            shownRowIds.current = []
+        }
+    }, [tab, rows, shownRowIds])
+}
+
+// The batch's result line, or else the outcome of the drawer's last Categorize or Record
+// transfer: a failure that arrived after the drawer moved on (failedNote), or its "Added …"
+// line.
+function ResultLine({ result }: { result: ReviewTabModel['result'] }) {
+    const failedNote = useBankingUIStore(s => s.failedNote)
+    if (result) return <ReviewResultLine result={result} />
+    if (failedNote) {
+        const failed = { text: failedResultText(failedNote), tone: 'danger' as const }
+        return <ReviewResultLine result={failed} />
+    }
+    return <AddedResultLine />
 }
 
 type SearchRef = RefObject<TextInputInstance | null>
@@ -111,7 +149,8 @@ type ReviewTabViewProps = ReviewTabBodyProps & {
 
 // The shared view of a transaction tab over the read its tab body made: the toolbar (or
 // the selection bar) in every view state and the last batch's result under it, then the
-// list or its state. The drawer is the page's (BankingScreenView); the inline drawer
+// list or its state, and on For review the selection bar's Categorize dialog, which sends
+// the tab's choice. The drawer is the page's (BankingScreenView); the inline drawer
 // narrows this body, so the list may change from table to cards (ReviewList), and both
 // scroll to the focused row. The tab's keys are registered while this body shows, so none
 // is on the Files tab.
@@ -131,11 +170,19 @@ function ReviewTabView({ read, queryInput, ...props }: ReviewTabViewProps) {
         suggestions,
     })
     useReviewShortcuts({ ...model, tab, searchRef, onTab, drawer })
+    useShownRowIds(tab, model.rows, props.shownRowIds)
     const fits = useFitsTable(REVIEW_TABLE_MIN_WIDTH)
+    const offersCategorize = model.categorizeAction !== null
     return (
         <View testID={`bank-tab-body-${tab}`} className="min-h-0 flex-1 overflow-hidden">
+            <CategorizeChosenDialog
+                isVisible={offersCategorize}
+                tabModel={model}
+                connectionAccountId={connection.account}
+                batch={batch}
+            />
             <ToolbarOrSelection model={model} searchRef={searchRef} />
-            <ReviewResultLine result={model.result} />
+            <ResultLine result={model.result} />
             <View
                 aria-busy={model.isBusy}
                 className="min-h-0 min-w-0 flex-1"

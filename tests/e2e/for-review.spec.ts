@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, type Route, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { openChart } from './account-register-helpers'
+import { expectNextRowShown, shownOrder } from './bank-categorize-helpers'
 import { fileRowByName } from './bank-import-helpers'
 import {
     BANKING_DESKTOP,
@@ -422,7 +423,9 @@ test.describe('for-review: drawer', () => {
         await insurance.click()
         await expect(page.getByTestId('bank-txn-status')).toHaveText('For review')
         await page.getByTestId('bank-txn-exclude').click()
-        await expect(drawer).toHaveCount(0)
+        // The drawer goes on to the next For review row, the only other one.
+        await expect(drawer).toBeVisible()
+        await expect(fieldValue('description', `${stamp} refund`)).toBeVisible()
         await expect(insurance).toHaveCount(0)
         await expect(result).toHaveText('Excluded 1 transaction.')
         await expect(page.getByTestId('bank-tabs-review')).toHaveText('For review (1)')
@@ -653,8 +656,9 @@ test.describe('for-review: choosing', () => {
         await otherCard.click()
         await expect(otherCard).toHaveAttribute('aria-selected', 'true')
         await reviewRow(other, second).getByText(second, { exact: true }).click()
+        const otherOrder = await shownOrder(other, [second, third, fourth])
         await other.getByTestId('bank-txn-exclude').click()
-        await expect(other.getByTestId('bank-txn-drawer')).toHaveCount(0)
+        await expectNextRowShown(other, otherOrder, second)
         await expect(reviewRow(other, second)).toHaveCount(0)
         await other.close()
 
@@ -811,7 +815,11 @@ test.describe('for-review: phone', () => {
             })
             .toBe(true)
         await page.getByTestId('bank-txn-exclude').click()
-        await expect(drawer).toHaveCount(0)
+        // The sheet goes on to the next For review row, the only other one.
+        await expect(drawer).toBeVisible()
+        await expect(
+            page.getByTestId('bank-txn-field-description').getByText(supplies, { exact: true })
+        ).toBeVisible()
         await expect(page.getByTestId('bank-review-result')).toHaveText('Excluded 1 transaction.')
         await expect(depositCard).toHaveCount(0)
         await expect
@@ -890,7 +898,13 @@ test.describe('for-review: keys', () => {
         // After a mouse press, ↵ and Space act on the striped row, not on the pressed row or
         // box that holds DOM focus. Two j presses land on a whether or not the press moved
         // the stripe (they clamp at the last row).
+        // A writer's open puts the focus in the Categorize Account field (the rows have no
+        // suggestion): the first Esc leaves the field, the second closes the drawer.
+        const catAccount = page.getByTestId('bank-cat-account-0')
         await reviewRow(page, c).click()
+        await expect(drawerShows(c)).toBeVisible()
+        await expect(catAccount).toBeFocused()
+        await page.keyboard.press('Escape')
         await expect(drawerShows(c)).toBeVisible()
         await page.keyboard.press('Escape')
         await expect(drawer).toHaveCount(0)
@@ -900,6 +914,9 @@ test.describe('for-review: keys', () => {
         await page.keyboard.press('Enter')
         await expect(drawerShows(a)).toBeVisible()
         await expect(drawerShows(c)).toHaveCount(0)
+        await expect(catAccount).toBeFocused()
+        await page.keyboard.press('Escape')
+        await expect(drawerShows(a)).toBeVisible()
         await page.keyboard.press('Escape')
         await expect(drawer).toHaveCount(0)
         await rowBox(page, c).click()
@@ -914,16 +931,23 @@ test.describe('for-review: keys', () => {
         await page.keyboard.press('k')
         await expect.poll(() => focusedNames(page, names)).toEqual([b])
 
-        // Open the focused row; Esc closes it; E excludes the drawer's transaction.
+        // Open the focused row; Esc leaves the Account field, a second Esc closes it; after
+        // O and Esc, E excludes the drawer's transaction and the drawer shows the next row.
         await page.keyboard.press('Enter')
         await expect(drawer).toBeVisible()
+        await expect(drawerShows(b)).toBeVisible()
+        await expect(catAccount).toBeFocused()
+        await page.keyboard.press('Escape')
         await expect(drawerShows(b)).toBeVisible()
         await page.keyboard.press('Escape')
         await expect(drawer).toHaveCount(0)
         await page.keyboard.press('o')
         await expect(drawerShows(b)).toBeVisible()
+        await expect(catAccount).toBeFocused()
+        await page.keyboard.press('Escape')
         await page.keyboard.press('e')
-        await expect(drawer).toHaveCount(0)
+        await expect(drawer).toBeVisible()
+        await expect(drawerShows(a)).toBeVisible()
         await expect(result).toHaveText('Excluded 1 transaction.')
         await expect(reviewRow(page, b)).toHaveCount(0)
 

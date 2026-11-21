@@ -1,7 +1,7 @@
 import { expect, type Locator, test } from '@playwright/test'
 import { PHONE } from './account-register-helpers'
 import { uniqueMemo } from './invoice-helpers'
-import { tabTo } from './pay-bills-helpers'
+import { tabTo } from './keyboard-helpers'
 import { localDay } from './receive-payment-helpers'
 import {
     openBooks,

@@ -18,9 +18,11 @@ import {
     GL_DAY_2,
     type GlSnapshot,
     glSnapshot,
+    holdReportRuns,
     openEntriesFromSidebar,
     openGeneralLedger,
     postEntryOn,
+    refreshReport,
     snapshotWhen,
 } from './books-report-helpers'
 import { createCustomer } from './customer-form-helpers'
@@ -840,7 +842,7 @@ test.describe('general-ledger: report', () => {
         await expect(page.getByTestId('report-sort-balance')).toHaveCount(0)
     })
 
-    test('a post made on another page appears in the open report without a reload', async ({
+    test('a post made on another page appears in the open report after Refresh, without a reload', async ({
         page,
         browser,
     }) => {
@@ -876,11 +878,13 @@ test.describe('general-ledger: report', () => {
             ],
         })
 
+        // The General Ledger is not live: the post shows when the reader presses Refresh.
+        await refreshReport(page)
         const live = await snapshotWhen(
             page,
             glSnapshot,
             s => linesOf(s, account).length === 1,
-            'the post in the open report'
+            'the post in the open report after Refresh'
         )
         expect(figure(linesOf(live, account)[0]?.cells.debit)).toBe('15.00')
         expect(figure(linesOf(live, account)[0]?.cells.balance)).toBe('15.00')
@@ -1054,14 +1058,9 @@ test.describe('general-ledger: report', () => {
             )
         })
         // The first next page waits until the test has seen the list ask for it.
-        let release = () => {}
-        const held = new Promise<void>(resolve => {
-            release = resolve
-        })
-        await page.route('**/api/reports/run', async route => {
-            const body = route.request().postDataJSON() as SentRun | null
-            if (body?.options?.cursor) await held
-            await route.continue()
+        const release = await holdReportRuns(page, request => {
+            const body = request.postDataJSON() as SentRun | null
+            return Boolean(body?.options?.cursor)
         })
 
         await filterToAccounts(page, [SAVINGS])

@@ -5,6 +5,7 @@ import { DESKTOP, PHONE } from './account-register-helpers'
 import { PURCHASES_CARD_TITLE, setPurchaseLines } from './bill-helpers'
 import { batchAnswered } from './document-batch-helpers'
 import { localToday, uniqueMemo } from './invoice-helpers'
+import { tabTo } from './keyboard-helpers'
 import { moneyCents, shown } from './pay-bills-helpers'
 import { leaveSettings } from './sales-receipt-helpers'
 import {
@@ -74,11 +75,6 @@ const CREDIT_URL_OF = (id: string) => new RegExp(`/books/vendor-credits/${id}$`)
 async function openBooks(page: Page) {
     await login(page)
     await navigateToPackage(page, 'books')
-}
-
-async function tabTo(page: Page, target: Locator) {
-    await page.keyboard.press('Tab')
-    await expect(target).toBeFocused()
 }
 
 // Tab (or Shift+Tab) until the target has focus: for a test whose Tab order another test
@@ -697,7 +693,9 @@ test.describe('vendor-credit-form: purchase lines setting', () => {
         await page.keyboard.press('Alt+Enter')
         await expect(anyLineRows(page, 'account_lines')).toHaveCount(0)
         const product1 = await creditLineRowId(page, 'item_lines', 0)
-        await tabTo(page, cellOf(page, 'item_lines', product1)('product'))
+        // No key takes ⌥↵ here, so its Enter blurs the single-line ref_no (react-native-web
+        // TextInput blurs on Enter); Tab goes on from where the focus was.
+        await tabTo(page, cellOf(page, 'item_lines', product1)('product'), { fromBody: true })
 
         // Cancel leaves the unedited form, so `/` opens search from the list.
         await page.keyboard.press('Escape')

@@ -16,6 +16,7 @@ import {
     chunksOf,
     drawerAction,
     EMPTY_REVIEW_FILTERS,
+    FAILED_VERB,
     hasReviewFilter,
     keptAfterBatch,
     REVIEW_CARD_HEIGHT,
@@ -615,6 +616,52 @@ describe('batchResultText', () => {
         expect(
             batchResultText('match', { done: ['a'], failed: [unsent('b'), unsent('c')] })
         ).toEqual({ text: BANK_BATCH_TRANSPORT_TEXT, tone: 'danger' })
+    })
+
+    it('counts the categorized transactions, muted', () => {
+        expect(
+            batchResultText('categorize', { done: ['a', 'b', 'c', 'd', 'e', 'f'], failed: [] })
+        ).toEqual({ text: 'Categorized 6 transactions.', tone: 'muted' })
+        expect(batchResultText('categorize', { done: ['a'], failed: [] })).toEqual({
+            text: 'Categorized 1 transaction.',
+            tone: 'muted',
+        })
+    })
+
+    it('counts the refused categorizations when the messages differ', () => {
+        const failed = [refused('e', CANNOT_CHANGE), refused('f', 'The books are closed.')]
+        expect(batchResultText('categorize', { done: ['a', 'b', 'c', 'd'], failed })).toEqual({
+            text: '2 of 6 transactions could not be categorized. Try again.',
+            tone: 'danger',
+        })
+    })
+
+    it("shows the server's message when every refused categorization has the same one", () => {
+        const failed = [refused('e', CANNOT_CHANGE), refused('f', CANNOT_CHANGE)]
+        expect(batchResultText('categorize', { done: ['a', 'b', 'c', 'd'], failed })).toEqual({
+            text: CANNOT_CHANGE,
+            tone: 'danger',
+        })
+    })
+
+    it("shows the server's message for a refused undo of a categorization", () => {
+        const closed = 'Entries on or before 2026-06-30 are closed.'
+        expect(
+            batchResultText('uncategorize', { done: [], failed: [refused('a', closed)] })
+        ).toEqual({ text: closed, tone: 'danger' })
+    })
+})
+
+describe('FAILED_VERB', () => {
+    it('has a verb for each batch kind', () => {
+        expect(FAILED_VERB).toEqual({
+            exclude: 'excluded',
+            restore: 'moved to For review',
+            match: 'matched',
+            unmatch: 'unmatched',
+            categorize: 'categorized',
+            uncategorize: 'undone',
+        })
     })
 })
 

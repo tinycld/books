@@ -4,11 +4,13 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router'
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { connectionLabel, selectedConnectionId } from '../lib/bank-connections'
 import { type ReviewTab, reviewTabFromParam } from '../lib/bank-review'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
 import { useBankingUIStore } from '../stores/banking-ui-store'
+import { useBankAdded } from './useBankAdded'
+import { useBankCategorize } from './useBankCategorize'
 import { useBankConnections } from './useBankConnections'
 import { useBankFiles } from './useBankFiles'
 import { useBankMatch } from './useBankMatch'
@@ -94,7 +96,16 @@ export function useBankingScreen() {
     const accountLabel = selected
         ? connectionLabel(selected.accountNumber, selected.accountName)
         : ''
-    const drawer = useReviewDrawer({ accountLabel, canWrite: access.canWrite, batch })
+    // The For review tab's shown row ids, in list order: its body sets them while it shows
+    // (ReviewTabBody), and the drawer reads them at the press of Exclude, Match, Categorize
+    // or Record transfer for the row it shows next.
+    const shownRowIds = useRef<readonly string[]>([])
+    const drawer = useReviewDrawer({
+        accountLabel,
+        canWrite: access.canWrite,
+        batch,
+        shownRowIds,
+    })
     const currency = settings.settings?.currency || 'USD'
     // The row marks of For review, read here so the drawer's Match Retry also recovers
     // them: both read the view books_bank_match_suggestions.
@@ -109,10 +120,33 @@ export function useBankingScreen() {
         suggestionsRecovery: suggestions.recovery,
         accountId: selected?.account ?? '',
         accountLabel,
+        shownRowIds,
     })
+    // The drawer's way switch and its Categorize and Transfer ways.
+    const categorize = useBankCategorize({
+        drawer,
+        match,
+        connectionAccountId: selected?.account ?? '',
+        currency,
+        canWrite: access.canWrite,
+        batch,
+        shownRowIds,
+    })
+    // The drawer's Added to Books section of a Reviewed transaction that was categorized or
+    // transferred, with its Undo, over the same batch.
+    const added = useBankAdded({
+        drawer,
+        canWrite: access.canWrite,
+        batch,
+        connectionAccountId: selected?.account ?? '',
+    })
+    const setAddedNote = useBankingUIStore(s => s.setAddedNote)
+    const setFailedNote = useBankingUIStore(s => s.setFailedNote)
     const leaveRows = () => {
         resetReviewSelection()
         batch.clearResult()
+        setAddedNote(null)
+        setFailedNote(null)
     }
     const onTab = (next: ReviewTab) => {
         leaveRows()
@@ -150,6 +184,9 @@ export function useBankingScreen() {
         batch,
         drawer,
         match,
+        categorize,
+        added,
+        shownRowIds,
         suggestions,
         onRetry,
         pageRecovery,

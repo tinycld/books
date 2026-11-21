@@ -6,11 +6,12 @@ import {
     chooseParamOption,
     downloadReport,
     hubRow,
+    inStatement,
     navigateToPackage,
     type ReportExportFormat,
     rowOf,
 } from '@tinycld/core/e2e-helpers'
-import { rangeWords } from '@tinycld/core/reports/lib/dates'
+import { bucketWords, rangeWords } from '@tinycld/core/reports/lib/dates'
 import {
     PROFIT_AND_LOSS_BY_MONTH_TITLE,
     PROFIT_AND_LOSS_TITLE,
@@ -32,7 +33,7 @@ export type AsOfPreset = 'today' | 'endOfLastMonth' | 'endOfLastQuarter' | 'endO
 export type TbSnapshot = {
     rows: {
         id: string
-        kind: 'group' | 'detail'
+        kind: 'group' | 'opening' | 'detail'
         label: string
         number: string
         debit: string
@@ -315,8 +316,10 @@ export async function filterToAccounts(page: Page, names: readonly string[]): Pr
 
 // Every mounted row of the report table, top to bottom, with its No., Debit and Credit
 // cells, and the Total row, read in ONE pass so no re-render lands between two reads. The
-// table is a FlashList: only mounted rows are read, and a Total row that is not mounted
-// reads as an empty label (a test asserts `total.label` first, as its precondition).
+// row kind comes from core's row id: g: an account, opening: its balance before the as-of
+// month, d: a line. The table is a FlashList: only mounted rows are read, and a Total row
+// that is not mounted reads as an empty label (a test asserts `total.label` first, as its
+// precondition).
 export function tbSnapshot(page: Page): Promise<TbSnapshot> {
     return page.evaluate(() => {
         const table = document.querySelector('[data-testid="report-table"]')
@@ -336,6 +339,12 @@ export function tbSnapshot(page: Page): Promise<TbSnapshot> {
                 top: element.getBoundingClientRect().top,
             }))
             .sort((a, b) => a.top - b.top)
+        const kindOf = (id: string): TbSnapshot['rows'][number]['kind'] | null => {
+            if (id.startsWith('g:')) return 'group'
+            if (id.startsWith('opening:')) return 'opening'
+            if (id.startsWith('d:')) return 'detail'
+            return null
+        }
         const rows: TbSnapshot['rows'] = []
         let total = { label: '', debit: '', credit: '' }
         for (const { id, label } of labels) {
@@ -343,7 +352,7 @@ export function tbSnapshot(page: Page): Promise<TbSnapshot> {
                 total = { label, debit: cellText('debit', id), credit: cellText('credit', id) }
                 continue
             }
-            const kind = id.startsWith('g:') ? 'group' : id.startsWith('d:') ? 'detail' : null
+            const kind = kindOf(id)
             if (!kind) continue
             rows.push({
                 id,
@@ -358,21 +367,45 @@ export function tbSnapshot(page: Page): Promise<TbSnapshot> {
     })
 }
 
-// The rows that follow the account row labelled `label` until the next account row.
-export function detailsUnder(snapshot: TbSnapshot, label: string): TbSnapshot['rows'] {
+// The rows that follow the account row labelled `label` until the next account row: its
+// opening row, then its lines.
+function rowsUnder(snapshot: TbSnapshot, label: string): TbSnapshot['rows'] {
     const start = snapshot.rows.findIndex(row => row.kind === 'group' && row.label === label)
     if (start < 0) return []
     const after = snapshot.rows.slice(start + 1)
-    const end = after.findIndex(row => row.kind !== 'detail')
+    const end = after.findIndex(row => row.kind === 'group')
     return end < 0 ? after : after.slice(0, end)
 }
 
-// Opens an account row and waits until its lines show beneath it.
+// The posted lines under the account row labelled `label`, without its opening row.
+export function detailsUnder(snapshot: TbSnapshot, label: string): TbSnapshot['rows'] {
+    return rowsUnder(snapshot, label).filter(row => row.kind === 'detail')
+}
+
+// The opening row ("Balance before <month>") under the account row labelled `label`.
+export function openingUnder(
+    snapshot: TbSnapshot,
+    label: string
+): TbSnapshot['rows'][number] | undefined {
+    return rowsUnder(snapshot, label).find(row => row.kind === 'opening')
+}
+
+// The opening row's label for an as-of day (YYYY-MM-DD): the month in the words core's
+// report view writes for a month label.
+export function balanceBeforeLabel(day: string): string {
+    return `Balance before ${bucketWords('month', day.slice(0, 7))}`
+}
+
+// Opens an account row and waits until its opening row shows beneath it. Every opened
+// account has one, also an account with no line in the as-of month; a test that reads the
+// lines waits for them itself.
 export async function openAccountRow(page: Page, label: string): Promise<void> {
     await rowOf(page, label).click()
     await expect
-        .poll(async () => detailsUnder(await tbSnapshot(page), label).length)
-        .toBeGreaterThan(0)
+        .poll(async () => openingUnder(await tbSnapshot(page), label) !== undefined, {
+            message: `the opening row under ${label}`,
+        })
+        .toBe(true)
 }
 
 // The General Ledger's two days: after 2026-07-01, so no close date or fiscal start month
@@ -529,7 +562,7 @@ export type ReportSnapshot = {
     headings: Record<string, string>
     rows: {
         id: string
-        kind: 'group' | 'detail' | 'subtotal' | 'computed' | 'total'
+        kind: 'group' | 'opening' | 'detail' | 'subtotal' | 'computed' | 'total'
         // The outline level core indents the label to: 16 + depth × 16 px (ReportRow labelStyle).
         depth: number
         label: string
@@ -573,8 +606,9 @@ export async function chooseRows(page: Page, choice: keyof typeof ROWS_LABELS): 
 
 // The document header, every column heading and every mounted row of the report table, top
 // to bottom, with every cell, read in ONE pass so no re-render lands between two reads. The
-// row kind comes from core's row id: g: a group or an account, d: a line, s: a group's
-// total, c: a computed row, total: the Total.
+// row kind comes from core's row id: g: a group or an account, opening: an opened account's
+// balance before the as-of month, d: a line, s: a group's total, c: a computed row, total:
+// the Total.
 export function reportSnapshot(page: Page): Promise<ReportSnapshot> {
     return page.evaluate(() => {
         const textOf = (element: Element | null | undefined) =>
@@ -606,6 +640,7 @@ export function reportSnapshot(page: Page): Promise<ReportSnapshot> {
         }
         const kindOf = (id: string): ReportSnapshot['rows'][number]['kind'] | null => {
             if (id.startsWith('g:')) return 'group'
+            if (id.startsWith('opening:')) return 'opening'
             if (id.startsWith('d:')) return 'detail'
             if (id.startsWith('s:')) return 'subtotal'
             if (id.startsWith('c:')) return 'computed'
@@ -637,14 +672,34 @@ export function reportSnapshot(page: Page): Promise<ReportSnapshot> {
     })
 }
 
-// The opened lines under the row labelled `label`: the detail rows that follow it until the
-// next row that is not a line. Empty when the row is not mounted or not open.
-export function reportLinesUnder(snapshot: ReportSnapshot, label: string): ReportSnapshot['rows'] {
-    const start = snapshot.rows.findIndex(row => row.kind !== 'detail' && row.label === label)
+// A row that shows only under an opened row: a line, or the opening row above the lines.
+function isOpenedRow(row: ReportSnapshot['rows'][number]): boolean {
+    return row.kind === 'detail' || row.kind === 'opening'
+}
+
+// The rows an opened row labelled `label` shows beneath it, until the next row that is not
+// one of them: its opening row, when the report has one, then its lines.
+function reportRowsUnder(snapshot: ReportSnapshot, label: string): ReportSnapshot['rows'] {
+    const start = snapshot.rows.findIndex(row => !isOpenedRow(row) && row.label === label)
     if (start < 0) return []
     const after = snapshot.rows.slice(start + 1)
-    const end = after.findIndex(row => row.kind !== 'detail')
+    const end = after.findIndex(row => !isOpenedRow(row))
     return end < 0 ? after : after.slice(0, end)
+}
+
+// The opened lines under the row labelled `label`, without its opening row. Empty when the
+// row is not mounted or not open.
+export function reportLinesUnder(snapshot: ReportSnapshot, label: string): ReportSnapshot['rows'] {
+    return reportRowsUnder(snapshot, label).filter(row => row.kind === 'detail')
+}
+
+// The opening row ("Balance before <month>", see balanceBeforeLabel) under the row labelled
+// `label`. Undefined when the row is not mounted, not open, or its report has no opening row.
+export function reportOpeningUnder(
+    snapshot: ReportSnapshot,
+    label: string
+): ReportSnapshot['rows'][number] | undefined {
+    return reportRowsUnder(snapshot, label).find(row => row.kind === 'opening')
 }
 
 // The table mounts only the rows near its scroll position (a FlashList), and a section
@@ -671,7 +726,7 @@ export function isInGroup(snapshot: ReportSnapshot, group: string, label: string
     const titleDepth = snapshot.rows[titleAt].depth
     return snapshot.rows
         .slice(titleAt + 1, at + 1)
-        .every(row => (row.kind === 'group' || row.kind === 'detail') && row.depth > titleDepth)
+        .every(row => (row.kind === 'group' || isOpenedRow(row)) && row.depth > titleDepth)
 }
 
 // Scrolls the report list, its own scroller (the rows' nearest overflow-y: auto ancestor):
@@ -1237,6 +1292,68 @@ export async function figureText(page: Page, columnId: string, rowLabel: string)
 // reads or drives the opened report passes it as its scope.
 export function drillPanel(page: Page): Locator {
     return page.getByTestId('report-drill-panel')
+}
+
+// --- A report that is not live (the six that read every journal line). ---
+
+// The note core draws over a run that is not live (core ReportManualBand MANUAL_NOTE).
+export const MANUAL_NOTE =
+    'This report does not update by itself. Press Refresh to see new changes.'
+
+// The band's parts by surface: the report itself, or the report in the drill panel. Each
+// surface has its own test ids, so the two bands are never mixed up.
+export function manualBand(page: Page, surface: 'report' | 'report-drill' = 'report') {
+    const own = (part: string) =>
+        surface === 'report'
+            ? inStatement(page, `report-${part}`)
+            : drillPanel(page).getByTestId(`report-drill-${part}`)
+    return { band: own('manual-band'), note: own('manual-note'), refresh: own('refresh') }
+}
+
+function isReportRun(url: string, method: string): boolean {
+    return method === 'POST' && new URL(url).pathname === '/api/reports/run'
+}
+
+// Resolves with the next report run the page sends. Start it before the action that
+// sends the run, and await it after.
+export function nextReportRun(page: Page): Promise<Request> {
+    return page.waitForRequest(request => isReportRun(request.url(), request.method()))
+}
+
+// Holds each report run for which `isHeld` is true until the returned release is called,
+// and continues every run. The caller calls release() and then
+// page.unrouteAll({ behavior: 'wait' }), so no handler is still waiting when the test ends.
+export async function holdReportRuns(
+    page: Page,
+    isHeld: (request: Request) => boolean = () => true
+): Promise<() => void> {
+    let release = () => {}
+    const held = new Promise<void>(resolve => {
+        release = resolve
+    })
+    await page.route('**/api/reports/run', async route => {
+        if (isHeld(route.request())) await held
+        await route.continue()
+    })
+    return release
+}
+
+// Presses Refresh on a report that is not live. The note is read first: only a run that is
+// not live draws it. The awaited answer can be an earlier run's (a re-run of the saved
+// report by its topics, from another worker's share or save), so only the caller's poll
+// for the figure it needs proves the Refresh landed. Call it only after the write it must
+// show is committed (postOpenEntry waits for the server's number).
+export async function refreshReport(
+    page: Page,
+    surface: 'report' | 'report-drill' = 'report'
+): Promise<void> {
+    const { note, refresh } = manualBand(page, surface)
+    await expect(note).toHaveText(MANUAL_NOTE)
+    await Promise.all([
+        page.waitForResponse(response => isReportRun(response.url(), response.request().method())),
+        refresh.click(),
+    ])
+    await expect(refresh).toBeEnabled()
 }
 
 // How a wrapped line of Transaction Detail is drawn, read in ONE pass: whether its Amount

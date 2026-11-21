@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
 import { type RecordKind, recordFormHelpers } from './record-form-helpers'
 
 // Shared by the vendor-form e2e specs: the record-form helpers bound to vendors.
@@ -80,20 +80,6 @@ export function openVendorId(page: Page) {
     return new URL(page.url()).pathname.split('/').pop() ?? ''
 }
 
-export function isFocused(locator: Locator) {
-    return locator.evaluate(el => el === document.activeElement)
-}
-
-export type TabKey = 'Tab' | 'Shift+Tab'
-
-// Presses Tab (or Shift+Tab, to move back) until `target` holds the focus (at most `max`
-// presses); no click.
-export async function tabTo(page: Page, target: Locator, max = 20, key: TabKey = 'Tab') {
-    for (let presses = 0; presses < max && !(await isFocused(target)); presses++) {
-        await page.keyboard.press(key)
-    }
-    await expect(target).toBeFocused()
-}
 export const discardDialog = vendorHelpers.discardDialog
 export const vendorsBase = vendorHelpers.base
 export const holdVendorWrite = vendorHelpers.holdRecordWrite

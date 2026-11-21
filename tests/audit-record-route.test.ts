@@ -65,6 +65,8 @@ const GROUPS = [
     { collection: 'books_bank_imports', path: 'books/banking', label: 'Open banking' },
     { collection: 'books_bank_transactions', path: 'books/banking', label: 'Open banking' },
     { collection: 'books_bank_matches', path: 'books/banking', label: 'Open banking' },
+    // Bank-categorize spec §4: a categorization's history opens Banking, as a match's.
+    { collection: 'books_bank_categorizations', path: 'books/banking', label: 'Open banking' },
 ]
 
 describe('auditRecordHref', () => {
