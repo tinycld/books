@@ -70,8 +70,8 @@ async function selectCheckingForShot(page: Page) {
 }
 
 // The seeded checking-2026-10.ofx left nine transactions for review on 1000 Business
-// Checking (fourteen lines, four excluded, one matched by the seed); the page opens on For
-// review.
+// Checking (fifteen lines, four excluded, one matched and one categorized by the seed); the
+// page opens on For review.
 async function openBankReviewForShot(page: Page) {
     await selectCheckingForShot(page)
     await expect(page.getByTestId('bank-tab-body-review')).toBeVisible()

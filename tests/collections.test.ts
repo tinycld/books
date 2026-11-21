@@ -23,6 +23,7 @@ const NAMES = [
     'books_bank_matches',
     'books_bank_match_lines',
     'books_bank_match_suggestions',
+    'books_bank_categorizations',
     'books_tax_agencies',
     'books_tax_rates',
     'books_invoices',
@@ -304,6 +305,27 @@ describe('registerCollections', () => {
         })
         const suggestions = calls.get('books_bank_match_suggestions')
         expect(suggestions?.liveTopics).toEqual(['collection/books_bank_match_suggestions'])
+    })
+
+    // Bank-categorize spec §4: the client inserts a categorization with its bank
+    // transaction, kind, payee, memo and lines; the server stamps the connection, the
+    // entry it posts and who added it, so the insert carries none of them.
+    it('registers the bank categorizations with the relations the Added to Books read follows', () => {
+        const { calls } = register()
+        const categorizations = calls.get('books_bank_categorizations')
+        expect(categorizations?.syncMode).toBe('on-demand')
+        expect([...((categorizations?.omitOnInsert as string[] | undefined) ?? [])].sort()).toEqual(
+            ['connection', 'created', 'created_by', 'entry', 'updated'].sort()
+        )
+        expect(categorizations?.relations).toEqual({
+            bank_transaction: { name: 'books_bank_transactions' },
+            entry: { name: 'books_journal_entries' },
+            customer: { name: 'books_customers' },
+            vendor: { name: 'books_vendors' },
+            created_by: { name: 'users' },
+            connection: { name: 'books_bank_connections' },
+        })
+        expect(categorizations?.alwaysFetchRelations).toBeUndefined()
     })
 
     // The audit log view is never written: the server signals its topic when an
