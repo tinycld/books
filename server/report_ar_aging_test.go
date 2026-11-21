@@ -1,13 +1,10 @@
 package books
 
 import (
-	"bytes"
 	"context"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"reflect"
 	"slices"
@@ -15,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 
 	"tinycld.org/core/reports"
@@ -1319,18 +1315,11 @@ func TestARAgingShippedShared(t *testing.T) {
 	requireNoShare(t, app, row, outsider, "a guest without Books access")
 }
 
-// exportARCSV is the CSV export of the shipped A/R Aging as reader (D11): core
-// exports a stored report by id, so it ships the report and Books' shares on
-// b's app, then posts to /api/reports/export through the app's router. The
-// first call on an app sets it up (no stored A/R Aging row yet); core's
-// shipped registry is global, so the test resets it when it ends.
+// exportARCSV is the CSV export of the shipped A/R Aging as reader (D11,
+// exportShippedCSV).
 func exportARCSV(t testing.TB, b arBook, reader *core.Record, params map[string]any) string {
 	t.Helper()
-	out, err := exportARCSVErr(t, b, reader, params)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return out
+	return exportShippedCSV(t, b.app, arAgingShipped(), arAgingKey, arToday, reader, params)
 }
 
 // exportARCSVErr is exportARCSV that returns a refused export (a run that
@@ -1338,54 +1327,7 @@ func exportARCSV(t testing.TB, b arBook, reader *core.Record, params map[string]
 // the test.
 func exportARCSVErr(t testing.TB, b arBook, reader *core.Record, params map[string]any) (string, error) {
 	t.Helper()
-	if _, err := b.app.FindFirstRecordByFilter("reports", "shipped_key = {:k}", dbx.Params{"k": arAgingKey}); err != nil {
-		t.Cleanup(reports.ResetForTesting)
-		reports.Register(b.app)
-		reports.RegisterShipped(arAgingShipped())
-		// Core stores a shipped report only when an owner or admin exists to own it.
-		mkUser(t, b.app, "owner")
-		if err := reports.ReconcileShipped(b.app); err != nil {
-			t.Fatalf("ReconcileShipped: %v", err)
-		}
-		if err := reconcileBooksReportShares(b.app); err != nil {
-			t.Fatalf("reconcileBooksReportShares: %v", err)
-		}
-	}
-	row, err := b.app.FindFirstRecordByFilter("reports", "shipped_key = {:k}", dbx.Params{"k": arAgingKey})
-	if err != nil {
-		t.Fatalf("no reports row with shipped_key %s: %v", arAgingKey, err)
-	}
-	given := map[string]json.RawMessage{}
-	for id, v := range params {
-		given[id] = mustJSON(v)
-	}
-	body := mustJSON(map[string]any{
-		"reportId": row.Id, "format": "csv", "params": given,
-		"options": map[string]any{"today": arToday},
-	})
-
-	router, err := apis.NewRouter(b.app)
-	if err != nil {
-		t.Fatal(err)
-	}
-	out := ""
-	err = b.app.OnServe().Trigger(&core.ServeEvent{App: b.app, Router: router}, func(e *core.ServeEvent) error {
-		mux, err := e.Router.BuildMux()
-		if err != nil {
-			return err
-		}
-		req := httptest.NewRequest(http.MethodPost, "/api/reports/export", bytes.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", tokenFor(t, reader))
-		rec := httptest.NewRecorder()
-		mux.ServeHTTP(rec, req)
-		if rec.Code != http.StatusOK {
-			return fmt.Errorf("export: status %d, want 200; body: %s", rec.Code, rec.Body.String())
-		}
-		out = rec.Body.String()
-		return nil
-	})
-	return out, err
+	return exportShippedCSVErr(t, b.app, arAgingShipped(), arAgingKey, arToday, reader, params)
 }
 
 func TestARAgingCSVOpensEveryGroup(t *testing.T) {

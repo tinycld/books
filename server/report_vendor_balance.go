@@ -40,6 +40,7 @@ func vendorBalanceSpec() *reports.Spec {
 		Columns: vbColumns(),
 		Groups:  []reports.Group{vbGroup()},
 		Sort:    vendorSort(vbNet(), balanceLineKeys()...),
+		Detail:  &reports.Detail{Label: balanceDetailLabel(), Open: entryOpenPath()},
 		Display: balanceDisplay(),
 	}
 }
