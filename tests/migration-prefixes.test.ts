@@ -7,9 +7,11 @@ import { describe, expect, it } from 'vitest'
 // audit log view reads audit_logs, users (both core) and the line collections of its
 // LINES list, so it runs after each migration that creates one of those line
 // collections. A later migration that creates a collection the view does not read may
-// run after it; each such migration is named in AFTER_AUDIT (none now: the bank matches
-// at 30 came before the credit memo applications at 31, whose lines the view reads, so
-// the view moved to 32, the highest). The vendor party balances rewrite creates no collection, so it
+// run after it; each such migration is named in AFTER_AUDIT (the bank matches at 30 came
+// before the credit memo applications at 31, whose lines the view reads, so the view moved
+// to 32, and then to 34). Bank-categorize spec §4 Schema: the bank categorizations take
+// 2100000035, after the audit view, which reads none of their collections; Books 0.1.0 is
+// unreleased, and the view does not move. The vendor party balances rewrite creates no collection, so it
 // may run before the audit view. A/R Aging (D8): the receivable items migration takes
 // 2100000028, the number the write-off spec left free, after the payments and credit
 // memos it reads. books_receivable_items is stored, not audited: only Books' posting
@@ -26,7 +28,7 @@ const MIGRATIONS = readdirSync(MIGRATIONS_DIR)
 
 const AUDIT = '2100000034_create_books_audit_log.js'
 
-const AFTER_AUDIT: string[] = []
+const AFTER_AUDIT: string[] = ['2100000035_create_books_bank_categorizations.js']
 
 function prefixOf(file: string): string {
     return file.split('_')[0] ?? file
@@ -152,7 +154,7 @@ describe('pb-migrations prefixes', () => {
         expect(MIGRATIONS).not.toContain('2100000027_create_books_audit_log.js')
         expect(MIGRATIONS).not.toContain('2100000029_create_books_audit_log.js')
         expect(MIGRATIONS).not.toContain('2100000030_create_books_audit_log.js')
-        expect(MIGRATIONS[MIGRATIONS.length - 1]).toBe(AUDIT)
+        expect(MIGRATIONS.slice(-1 - AFTER_AUDIT.length)).toEqual([AUDIT, ...AFTER_AUDIT])
         const matches = sourceOf('2100000030_create_books_bank_matches.js')
         const read = auditLineCollections().filter(collection =>
             matches.includes(`name: '${collection}'`)

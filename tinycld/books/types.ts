@@ -12,6 +12,7 @@ export type {
     BooksAdmins,
     BooksAttachments,
     BooksAuditLog,
+    BooksBankCategorizations,
     BooksBankConnections,
     BooksBankFileContents,
     BooksBankFiles,

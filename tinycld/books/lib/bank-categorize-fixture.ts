@@ -7,6 +7,7 @@
 // transaction here is on 1000 Business Checking.
 import type {
     BooksAccounts,
+    BooksBankCategorizations,
     BooksBankMatches,
     BooksBankTransactions,
     BooksJournalEntries,
@@ -362,31 +363,11 @@ export interface BankCategorizationLine {
     memo: string
 }
 
-// A `books_bank_categorizations` row as the spec's Data section declares it. The
-// collection does not exist yet: the migration checkpoint
-// (pb-migrations/2100000035_create_books_bank_categorizations.js) must replace this
-// interface with the generated `BooksBankCategorizations` from '../types' and end
-// CAT_CATEGORIZATIONS with `satisfies BooksBankCategorizations[]`.
-export interface BankCategorizationRecord {
-    id: string
-    bank_transaction: string
-    kind: 'categorize' | 'transfer'
-    customer: string
-    vendor: string
-    memo: string
-    lines: BankCategorizationLine[]
-    connection: string
-    entry: string
-    created_by: string
-    created: string
-    updated: string
-}
-
 const ADDED_AT = '2026-11-18 15:42:00.000Z'
 
 type Added = {
     txn: string
-    kind: BankCategorizationRecord['kind']
+    kind: BooksBankCategorizations['kind']
     entry: string
     lines: BankCategorizationLine[]
     by: string
@@ -441,7 +422,7 @@ export const CAT_CATEGORIZATIONS = ADDED.map((added, index) => ({
     created_by: added.by,
     created: ADDED_AT,
     updated: ADDED_AT,
-})) satisfies BankCategorizationRecord[]
+})) satisfies BooksBankCategorizations[]
 
 // The match row each reviewed transaction has: the Go hook saves one for an added
 // transaction too (the entry's line on the connection's account), and p4-match made the

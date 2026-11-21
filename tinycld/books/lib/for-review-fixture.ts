@@ -377,16 +377,22 @@ export const REVIEW_SEED_ENTRIES = [
     ['20261022', '-200.00', 'ZELLE TO MARCO RUIZ', '', ''],
     ['20261027', '-362.40', 'CHECK 1050', 'Hartwell Insurance, policy BOP-22871', '1050'],
     ['20261030', '-15.49', 'NETFLIX.COM', 'Personal - not a business cost', ''],
-    // The last two fit Books transactions the seed posts on 1000 (bank-match): the
+    // The next two fit Books transactions the seed posts on 1000 (bank-match): the
     // Pacific Power expense 1002 (lib/expense-form-fixture.ts) is their one suggestion,
     // and seedBankMatch matches the bill payment of $400.00 (lib/pay-bills-fixture.ts).
     ['20261006', '-138.37', 'PACIFIC POWER AUTOPAY', 'Account 4471-220', ''],
     ['20261007', '-400.00', 'ONLINE BILL PAY 0915', 'Seed bill partial', ''],
+    // The last one fits no Books transaction: seedBankMatch categorizes it to 6200
+    // Software Subscriptions (bank-categorize), so the Reviewed tab has an added row.
+    ['20261020', '-24.00', 'DROPBOX BUSINESS', 'Team plan October', ''],
 ] as const
 
 function seedFitid(index: number): string {
     return `chk20261000${String(index + 1).padStart(2, '0')}`
 }
+
+const [, CATEGORIZED_SIGNED_AMOUNT, CATEGORIZED_DESCRIPTION] =
+    REVIEW_SEED_ENTRIES[REVIEW_SEED_ENTRIES.length - 1]
 
 // SGML OFX escapes `&`; the parser unescapes it.
 function ofxText(value: string): string {
@@ -433,10 +439,16 @@ export const REVIEW_SEED_STATEMENT = {
         '',
     ].join('\n'),
     excludedFitids: EXCLUDED_SEED_INDEXES.map(seedFitid),
-    // The last two entries: PACIFIC POWER AUTOPAY stays For review with one suggestion,
-    // and seed.ts seedBankMatch matches ONLINE BILL PAY 0915.
-    suggestedFitid: seedFitid(REVIEW_SEED_ENTRIES.length - 2),
-    matchedFitid: seedFitid(REVIEW_SEED_ENTRIES.length - 1),
+    // The last three entries: PACIFIC POWER AUTOPAY stays For review with one suggestion,
+    // seed.ts seedBankMatch matches ONLINE BILL PAY 0915, and it categorizes DROPBOX
+    // BUSINESS to the account categorizedAccountNumber names, with that line's description
+    // and absolute amount in cents (the categorization hook refuses lines that do not total it).
+    suggestedFitid: seedFitid(REVIEW_SEED_ENTRIES.length - 3),
+    matchedFitid: seedFitid(REVIEW_SEED_ENTRIES.length - 2),
+    categorizedFitid: seedFitid(REVIEW_SEED_ENTRIES.length - 1),
+    categorizedAccountNumber: '6200',
+    categorizedDescription: CATEGORIZED_DESCRIPTION,
+    categorizedAmountCents: Math.round(Math.abs(Number(CATEGORIZED_SIGNED_AMOUNT)) * 100),
 } as const
 
 export const REVIEW_REFERENCE_TEXT = {
