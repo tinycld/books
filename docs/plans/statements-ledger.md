@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/statements-checkpoints.md
 - reference: docs/plans/statements-reference/
 - evidence: docs/plans/statements-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs 2026-11-20)
 - capture manifest: docs/plans/statements-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -276,4 +276,5 @@
   - gate 1 again: tests unedited: yes · `packages:generate` exit 0 · `tinycld-pkg check` exit 0 (403 files, 8554 tests) · `go test ./...` ok · gofmt and go vet clean · e2e (the same three files, one command): 13 passed (40.1 s) → pass. No shot captured again (no visible change).
   - fix review round 2 (cp/cp5-fix-review-4.md): clean. Rounds: 2.
   - deferrals: none · rebuttals: none.
+- eval: approved 2026-11-20 (human: "approve"), at books 3886a1f0 (CI green on books #81: E2E shards 1-4, Typecheck & Unit) on core 654110f8. Design notes stand as built. Retro items 1-7 approved (item 3, the shared tabTo check, goes to p4-categorize-split).
 - native: not executed in this run
