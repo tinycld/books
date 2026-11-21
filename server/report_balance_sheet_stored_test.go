@@ -240,8 +240,9 @@ func TestBalanceSheetOfAMonthWithNoLine(t *testing.T) {
 	}
 }
 
-// On Accrual the months before the as-of day's month are read from the stored
-// months and that month from its lines; on Cash no stored month is read.
+// The months before the as-of day's month are read from the stored months and
+// that month from its lines, on both methods: the cash basis is the ledger and
+// the cash-basis rows, and the stored months are the ledger's.
 func TestBalanceSheetReadsTheStoredMonths(t *testing.T) {
 	b := newBSStoredBook(t)
 	figures := func(method string) (current, prior, retained int64) {
@@ -273,9 +274,9 @@ func TestBalanceSheetReadsTheStoredMonths(t *testing.T) {
 	if c, _, _ := figures("accrual"); c != current+10 {
 		t.Errorf("after June's stored debit rose by 5, Operating = %d, want %d: the as-of day's month is read from its lines", c, current+10)
 	}
-	if c, p, r := figures("cash"); c != cashCurrent || p != cashPrior || r != cashRetained {
-		t.Errorf("Cash after the stored months changed: Operating %d / %d, Retained earnings %d; want %d / %d, %d: Cash reads the lines",
-			c, p, r, cashCurrent, cashPrior, cashRetained)
+	if c, p, r := figures("cash"); c != cashCurrent+10 || p != cashPrior+5 || r != cashRetained-5 {
+		t.Errorf("Cash after three earlier stored months rose by 5: Operating %d / %d, Retained earnings %d; want %d / %d, %d: Cash reads the stored months for the ledger part",
+			c, p, r, cashCurrent+10, cashPrior+5, cashRetained-5)
 	}
 }
 
