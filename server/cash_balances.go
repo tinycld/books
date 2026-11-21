@@ -29,6 +29,26 @@ type cashMonthSum struct {
 	Currency string `db:"currency"`
 }
 
+// cashMonthTotalsSQL sums every posted cash-basis row by account and month.
+const cashMonthTotalsSQL = `
+	SELECT account, substr(date, 1, 7) AS period,
+	       CAST(SUM(debit) AS INTEGER) AS debit,
+	       CAST(SUM(credit) AS INTEGER) AS credit,
+	       MAX(currency) AS currency
+	FROM books_cash_basis_lines
+	WHERE posted = {:posted}
+	GROUP BY account, substr(date, 1, 7)`
+
+// cashMonthSumSQL sums the posted cash-basis rows of one account between two
+// days.
+const cashMonthSumSQL = `
+	SELECT COUNT(*) AS n,
+	       COALESCE(CAST(SUM(debit) AS INTEGER), 0) AS debit,
+	       COALESCE(CAST(SUM(credit) AS INTEGER), 0) AS credit,
+	       COALESCE(MAX(currency), '') AS currency
+	FROM books_cash_basis_lines
+	WHERE account = {:account} AND posted = {:posted} AND date >= {:from} AND date <= {:to}`
+
 // cashMonthTotals sums every posted cash-basis row by account and month: what
 // the stored cash months must equal.
 func cashMonthTotals(app core.App) (map[balanceKey]balanceTotals, error) {
@@ -39,14 +59,7 @@ func cashMonthTotals(app core.App) (map[balanceKey]balanceTotals, error) {
 		Credit   int    `db:"credit"`
 		Currency string `db:"currency"`
 	}
-	err := app.DB().NewQuery(`
-		SELECT account, substr(date, 1, 7) AS period,
-		       CAST(SUM(debit) AS INTEGER) AS debit,
-		       CAST(SUM(credit) AS INTEGER) AS credit,
-		       MAX(currency) AS currency
-		FROM books_cash_basis_lines
-		WHERE posted = 1
-		GROUP BY account, substr(date, 1, 7)`).All(&rows)
+	err := app.DB().NewQuery(cashMonthTotalsSQL).Bind(dbx.Params{"posted": true}).All(&rows)
 	if err != nil {
 		return nil, fmt.Errorf("books: sum the cash-basis rows: %w", err)
 	}
@@ -63,14 +76,8 @@ func cashMonthTotals(app core.App) (map[balanceKey]balanceTotals, error) {
 // difference, so a month that had drifted is right after its next write.
 func refreshCashBalance(tx core.App, key balanceKey) error {
 	var sum cashMonthSum
-	err := tx.DB().NewQuery(`
-		SELECT COUNT(*) AS n,
-		       COALESCE(CAST(SUM(debit) AS INTEGER), 0) AS debit,
-		       COALESCE(CAST(SUM(credit) AS INTEGER), 0) AS credit,
-		       COALESCE(MAX(currency), '') AS currency
-		FROM books_cash_basis_lines
-		WHERE account = {:account} AND posted = 1 AND date >= {:from} AND date <= {:to}`).
-		Bind(dbx.Params{"account": key.account, "from": firstDayOf(key.period), "to": key.period + "-31"}).One(&sum)
+	err := tx.DB().NewQuery(cashMonthSumSQL).
+		Bind(dbx.Params{"account": key.account, "posted": true, "from": firstDayOf(key.period), "to": key.period + "-31"}).One(&sum)
 	if err != nil {
 		return fmt.Errorf("books: sum the cash-basis rows of %s %s: %w", key.account, key.period, err)
 	}
