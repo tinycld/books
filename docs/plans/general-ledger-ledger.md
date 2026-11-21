@@ -793,3 +793,41 @@ Median of 5, core 39fb32b8, books aa5831d7 (code commits 502b7c01 and aa5831d7).
 Statement 5 of BS 2 is 558.4ms (1.313s after task 9d-2a), 257,788 chars (261,956). It has 8 `SCAN books_cash_basis_lines` and 8 `SCAN books_journal_lines` (21 of each after task 9d-2a), 4 `SCAN books_account_balances` and 18 `SEARCH books_account_balances` by index (unchanged). Statement 5 of BS 1 has the same counts (497.4ms, 257,878 chars). 13 SCAN pairs of the line tables went with the four reads; which read each of the 8 left belongs to is not checked (the day's own month is still read from its rows). `st-plans.md` lists only the steps that name `books_journal_lines`, `books_cash_basis_lines` or `books_account_balances` (`report_statements_scale_test.go:356`), so the steps over `books_cash_basis_balances` are not in it.
 
 The bar is 2 s at 500,000 lines for both methods. Projected (not measured), whole median × 5.4: BS 1 2.57 s, BS 2 2.80 s (upper figures); with a compile of 0.266 s kept fixed: BS 1 about 1.40 s, BS 2 about 1.63 s. Task 9e-2 of the plan outline (core: the union of a lookup source written once) is decided from the 500k run (task 9e), not from this projection.
+
+#### Task 9b-3: a page's detail rows find their open section through an index (core `server/reports/run.go`, 2026-11-20)
+
+The cause (plan `2026-11-20-report-engine-scale-part27.md`, "The evidence this plan is written from", items 1 and 3): with no Accounts filter the page statement of Transaction Detail read the open sections first and, for each of them, every row of the period (`SCAN gord`, `SEARCH t1 USING AUTOMATIC PARTIAL COVERING INDEX (currency=?)`). A section's key is the id of the joined account, and the index on `t1` held the currency only (one value), so each of the 105 open sections read every row of the period. The scan of the line tables by day (statements 4 and 5, 46 and 37 ms) was not the cost, so no `(date)` index was added.
+
+The change: core `leafFrom` writes `CROSS JOIN gord` with a unary `+` on each key of the row's side. Each of the two is needed. `CROSS JOIN` fixes the join order: SQLite keeps the written order of a CROSS JOIN, so the rows are the outer loop and `gord` is the inner side. The `+` takes the column affinity off the term: a stored column compared with a `json_extract` value of `gord` has an affinity, and an index on `gord` cannot serve such a comparison, so SQLite built none. With no `+`, `CROSS JOIN` alone was slow on a collection: 3.78 s against 0.19 s on 8,000 open groups (`TestAGroupedRunOfManyOpenGroupsReadsItsDetailsOnce`).
+
+General Ledger run 2 did not have the sections x rows join: its plan built one index of all detail rows by the section key (`SEARCH d USING AUTOMATIC PARTIAL COVERING INDEX (k0=? AND ck0=?)`). Its statement changed all the same, so it was measured again.
+
+The tests: the core tests of step 2, `TestAGroupedDetailStatementReadsItsRowsOnce`, `TestAGroupedDetailStatementOfACollectionFindsItsGroupByAnIndex`, `TestTheDetailStatementComputesItsOpenGroupsOnce`, `TestTheOpenGroupJoinOrderKeepsTheResult`, `TestTheOpenGroupJoinMatchesAKeyOfEveryKind`, `TestTheOpenGroupJoinOrderKeepsEveryPage` and `TestAGroupedRunOfAUnionWithManyOpenGroupsReadsItsRowsOnce`; and Books `TestTransactionDetailReadsItsPeriodRowsOnce`.
+
+| lines | run | before | after |
+|---|---|---|---|
+| 100000 | TB 1 all accounts, as of | 359ms | 345ms |
+| 100000 | TB 2 busy account, as of | 162ms | 153ms |
+| 100000 | TB 3 three accounts, as of | 192ms | 181ms |
+| 100000 | BS 1 accrual, as of | 476ms | 455ms |
+| 100000 | BS 2 cash, as of | 519ms | 504ms |
+| 100000 | TD 1 all accounts, month | 165ms | 62ms |
+| 100000 | TD 2 all accounts, year | 1.691s | 232ms |
+| 100000 | TD 3 busy account, month | 33ms | 30ms |
+| 100000 | TD 4 small account, month | 21ms | 19ms |
+| 100000 | TD 5 three accounts, year | 142ms | 135ms |
+| 100000 | TD 6 busy account, month, cash | 35ms | 34ms |
+| 100000 | TD 2, statement 6 (the page) | 1.594s | 140ms |
+| 100000 | GL 1 all accounts, month | 310ms | 322ms |
+| 100000 | GL 2 all accounts, year | 706ms | 694ms |
+| 100000 | GL 3 busy account, month | 167ms | 182ms |
+| 100000 | GL 4 small account, month | 144ms | 164ms |
+| 100000 | GL 5 three accounts, year | 377ms | 396ms |
+
+Median of 5, core ee405c61 (the code commit 9b8ab2ec and the test fix ee405c61), books f89ff706. Before: `scale-task9d2b/st-results.md` for the statements and `scale-task5d-b/gl-results.md` for the General Ledger (other core changes came between that run and this one, so a difference of a General Ledger run is not this task's alone). Both runs PASS and no run is refused. The group rows and rows of every Trial Balance, Balance Sheet and Transaction Detail run, and the sections on the page of every General Ledger run, are the same as before.
+
+The machine was NOT quiet: the human said to run them then. The 1-minute load was 5.86 at the start of the Trial Balance, Balance Sheet and Transaction Detail run and 4.55 at the start of the General Ledger run (`scale-task9b3.quiet`). So the figures may be high; the General Ledger runs 1, 3, 4 and 5 are 4 to 14 % above before, which a noisy machine and the other core changes explain, and this task's change does not reach runs 3 to 5 (they have an Accounts filter).
+
+The plan lines after (`st-plans.md`, `gl-plans.md`), as step 11 expected: TD 2 statement 6 has `SCAN t1`, `BLOOM FILTER ON gord (g0=? AND g1=?)` and `SEARCH gord USING AUTOMATIC PARTIAL COVERING INDEX (g0=? AND g1=?)`, with no `SCAN gord` and no `SEARCH t1`. General Ledger run 2's statement with a `gord` line (statement 6) has `MATERIALIZE gord`, `SCAN d` and `SEARCH gord USING AUTOMATIC PARTIAL COVERING INDEX (g0=? AND g1=?)`, with no `SEARCH d USING AUTOMATIC`. The other Transaction Detail and General Ledger runs have the same lines.
+
+What is left for the 2 s bars at 500,000 lines. By the human's decision of 2026-11-20, General Ledger runs 1 and 2 (no Accounts filter) now also have the 2 s bar at 500k (the bar test and `TestGLScale` of the commit after this record). Projected (not measured), whole median x 5.4, the factor of task 9d-2b: TD 1 about 0.34 s, TD 2 about 1.25 s, GL 1 about 1.74 s, GL 2 about 3.75 s. These are upper figures (a fixed compile cost does not grow, and the load was high); on them TD 1, TD 2 and GL 1 are inside the bar and GL 2 is not, so GL 2 is the run to decide from a 500k run. That earlier 500k measure of GL 2 was 2.733 s (plan, evidence item 2), before this change.
