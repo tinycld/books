@@ -1,0 +1,1101 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "categorize",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [1280],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "categorize",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [390],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "categorize-filled",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [1280],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "pick": "bank-cat-payee",
+                    "label": "Office Supply World"
+                },
+                {
+                    "pick": "bank-cat-account-0",
+                    "label": "6200 Software Subscriptions"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "categorize-filled",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [390],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "pick": "bank-cat-payee",
+                    "label": "Office Supply World"
+                },
+                {
+                    "pick": "bank-cat-account-0",
+                    "label": "6200 Software Subscriptions"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "categorize-picker",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [1280],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "pick": "bank-cat-payee",
+                    "label": "Office Supply World"
+                },
+                {
+                    "pick": "bank-cat-account-0",
+                    "label": "6200 Software Subscriptions"
+                },
+                {
+                    "click": "bank-cat-account-0"
+                },
+                {
+                    "waitFor": "bank-cat-account-0-search"
+                }
+            ]
+        },
+        {
+            "name": "categorize-picker",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [390],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "pick": "bank-cat-payee",
+                    "label": "Office Supply World"
+                },
+                {
+                    "pick": "bank-cat-account-0",
+                    "label": "6200 Software Subscriptions"
+                },
+                {
+                    "click": "bank-cat-account-0"
+                },
+                {
+                    "waitFor": "bank-cat-account-0-search"
+                }
+            ]
+        },
+        {
+            "name": "payee-picker",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [1280],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "click": "bank-cat-payee"
+                },
+                {
+                    "waitFor": "bank-cat-payee-search"
+                }
+            ]
+        },
+        {
+            "name": "payee-picker",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [390],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "click": "bank-cat-payee"
+                },
+                {
+                    "waitFor": "bank-cat-payee-search"
+                }
+            ]
+        },
+        {
+            "name": "picker-failed",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [1280],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "fake": {
+                        "collection": "books_accounts",
+                        "status": 400,
+                        "onlyUnfiltered": true
+                    }
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "click": "bank-cat-account-0"
+                },
+                {
+                    "waitFor": "bank-cat-account-0-option-retry"
+                }
+            ]
+        },
+        {
+            "name": "picker-failed",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [390],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "fake": {
+                        "collection": "books_accounts",
+                        "status": 400,
+                        "onlyUnfiltered": true
+                    }
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "click": "bank-cat-account-0"
+                },
+                {
+                    "waitFor": "bank-cat-account-0-option-retry"
+                }
+            ]
+        },
+        {
+            "name": "sending",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [1280],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 2400,
+            "writes": {
+                "collection": "books_bank_categorizations",
+                "answers": ["hold"]
+            },
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "pick": "bank-cat-account-0",
+                    "label": "6200 Software Subscriptions"
+                },
+                {
+                    "click": "bank-cat-submit"
+                },
+                {
+                    "waitFor": "Categorizing…"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "sending",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [390],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 2400,
+            "writes": {
+                "collection": "books_bank_categorizations",
+                "answers": ["hold"]
+            },
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "pick": "bank-cat-account-0",
+                    "label": "6200 Software Subscriptions"
+                },
+                {
+                    "click": "bank-cat-submit"
+                },
+                {
+                    "waitFor": "Categorizing…"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "refused",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [1280],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 2400,
+            "writes": {
+                "collection": "books_bank_categorizations",
+                "answers": [400],
+                "message": "This transaction is already reviewed."
+            },
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "pick": "bank-cat-account-0",
+                    "label": "6200 Software Subscriptions"
+                },
+                {
+                    "click": "bank-cat-submit"
+                },
+                {
+                    "waitFor": "bank-cat-refusal"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "refused",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [390],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 2400,
+            "writes": {
+                "collection": "books_bank_categorizations",
+                "answers": [400],
+                "message": "This transaction is already reviewed."
+            },
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "pick": "bank-cat-account-0",
+                    "label": "6200 Software Subscriptions"
+                },
+                {
+                    "click": "bank-cat-submit"
+                },
+                {
+                    "waitFor": "bank-cat-refusal"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [1280],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "fake": {
+                        "collection": "books_bank_match_suggestions",
+                        "hold": true
+                    }
+                },
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-way-loading"
+                }
+            ]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [390],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "fake": {
+                        "collection": "books_bank_match_suggestions",
+                        "hold": true
+                    }
+                },
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-way-loading"
+                }
+            ]
+        },
+        {
+            "name": "match",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [1280],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "waitFor": "PACIFIC POWER AUTOPAY"
+                },
+                {
+                    "clickText": "PACIFIC POWER AUTOPAY"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-match-section"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "match",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [390],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "waitFor": "PACIFIC POWER AUTOPAY"
+                },
+                {
+                    "clickText": "PACIFIC POWER AUTOPAY"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-match-section"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "transfer-empty",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [1280],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "click": "bank-way-transfer"
+                },
+                {
+                    "waitFor": "bank-transfer-submit"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "transfer-empty",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [390],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "click": "bank-way-transfer"
+                },
+                {
+                    "waitFor": "bank-transfer-submit"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "transfer",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [1280],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "click": "bank-way-transfer"
+                },
+                {
+                    "waitFor": "bank-transfer-submit"
+                },
+                {
+                    "pick": "bank-transfer-account",
+                    "label": "2100 Company Card"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "transfer",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [390],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "click": "bank-way-transfer"
+                },
+                {
+                    "waitFor": "bank-transfer-submit"
+                },
+                {
+                    "pick": "bank-transfer-account",
+                    "label": "2100 Company Card"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "transfer-in",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [1280],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "waitFor": "DEPOSIT HARBOR DESIGN"
+                },
+                {
+                    "clickText": "DEPOSIT HARBOR DESIGN"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-way"
+                },
+                {
+                    "click": "bank-way-transfer"
+                },
+                {
+                    "waitFor": "bank-transfer-submit"
+                },
+                {
+                    "pick": "bank-transfer-account",
+                    "label": "1010 Business Savings"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "transfer-in",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [390],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "waitFor": "DEPOSIT HARBOR DESIGN"
+                },
+                {
+                    "clickText": "DEPOSIT HARBOR DESIGN"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-way"
+                },
+                {
+                    "click": "bank-way-transfer"
+                },
+                {
+                    "waitFor": "bank-transfer-submit"
+                },
+                {
+                    "pick": "bank-transfer-account",
+                    "label": "1010 Business Savings"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "read-only",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [1280],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "readOnly": true,
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-txn-field-description"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "read-only",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [390],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "readOnly": true,
+            "actions": [
+                {
+                    "waitFor": "AMAZON MARKETPLACE"
+                },
+                {
+                    "clickText": "AMAZON MARKETPLACE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-txn-field-description"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "categorize-long",
+            "url": "/a/books/sales",
+            "widths": [1280],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "importStatement": {
+                        "rows": [
+                            {
+                                "day": "$today",
+                                "amount": "-1200.00",
+                                "name": "ACH DEBIT NORTHWIND CARD SERVICES AUTOPAY PPD ID 9100042271 REF 882134"
+                            }
+                        ],
+                        "expenseAccount": {
+                            "name": "Bank charges, merchant processing and payment app fees",
+                            "number": "6300"
+                        }
+                    }
+                },
+                {
+                    "waitFor": "ACH DEBIT NORTHWIND CARD SERVICES AUTOPAY PPD ID 9100042271 REF 882134"
+                },
+                {
+                    "clickText": "ACH DEBIT NORTHWIND CARD SERVICES AUTOPAY PPD ID 9100042271 REF 882134"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "pick": "bank-cat-payee",
+                    "label": "Willamette Valley Commercial Cleaning and Janitorial Services Cooperative"
+                },
+                {
+                    "pick": "bank-cat-account-0",
+                    "label": "6300 Bank charges, merchant processing and payment app fees"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "categorize-long",
+            "url": "/a/books/sales",
+            "widths": [390],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "viewport": {
+                        "width": 1280,
+                        "height": 1300
+                    }
+                },
+                {
+                    "importStatement": {
+                        "rows": [
+                            {
+                                "day": "$today",
+                                "amount": "-1200.00",
+                                "name": "ACH DEBIT NORTHWIND CARD SERVICES AUTOPAY PPD ID 9100042271 REF 882134"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "viewport": {
+                        "width": 390,
+                        "height": 1300
+                    }
+                },
+                {
+                    "reload": true,
+                    "ready": "bank-strip"
+                },
+                {
+                    "waitFor": "ACH DEBIT NORTHWIND CARD SERVICES AUTOPAY PPD ID 9100042271 REF 882134"
+                },
+                {
+                    "clickText": "ACH DEBIT NORTHWIND CARD SERVICES AUTOPAY PPD ID 9100042271 REF 882134"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "pick": "bank-cat-payee",
+                    "label": "Willamette Valley Commercial Cleaning and Janitorial Services Cooperative"
+                },
+                {
+                    "pick": "bank-cat-account-0",
+                    "label": "6300 Bank charges, merchant processing and payment app fees"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "added-result",
+            "url": "/a/books/sales",
+            "widths": [1280],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "importStatement": {
+                        "rows": [
+                            {
+                                "day": "$today",
+                                "amount": "-45.12",
+                                "name": "CAPTURE OFFICE SUPPLIES"
+                            },
+                            {
+                                "day": "$today",
+                                "amount": "-12.34",
+                                "name": "CAPTURE COFFEE ROASTERS"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "waitFor": "CAPTURE OFFICE SUPPLIES"
+                },
+                {
+                    "clickText": "CAPTURE OFFICE SUPPLIES"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "pick": "bank-cat-account-0",
+                    "label": "6200 Software Subscriptions"
+                },
+                {
+                    "click": "bank-cat-submit"
+                },
+                {
+                    "waitFor": "bank-review-result"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "added-result",
+            "url": "/a/books/sales",
+            "widths": [390],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "viewport": {
+                        "width": 1280,
+                        "height": 1300
+                    }
+                },
+                {
+                    "importStatement": {
+                        "rows": [
+                            {
+                                "day": "$today",
+                                "amount": "-45.12",
+                                "name": "CAPTURE OFFICE SUPPLIES"
+                            },
+                            {
+                                "day": "$today",
+                                "amount": "-12.34",
+                                "name": "CAPTURE COFFEE ROASTERS"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "viewport": {
+                        "width": 390,
+                        "height": 1300
+                    }
+                },
+                {
+                    "reload": true,
+                    "ready": "bank-strip"
+                },
+                {
+                    "waitFor": "CAPTURE OFFICE SUPPLIES"
+                },
+                {
+                    "clickText": "CAPTURE OFFICE SUPPLIES"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "pick": "bank-cat-account-0",
+                    "label": "6200 Software Subscriptions"
+                },
+                {
+                    "click": "bank-cat-submit"
+                },
+                {
+                    "waitFor": "bank-review-result"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        }
+    ]
+}

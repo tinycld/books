@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { uniqueMemo } from './invoice-helpers'
-import { shiftTabTo, tabTo } from './pay-bills-helpers'
+import { shiftTabTo, tabTo } from './keyboard-helpers'
 import { VENDOR_CREDIT_URL } from './vendor-credit-helpers'
 import {
     openBooks,

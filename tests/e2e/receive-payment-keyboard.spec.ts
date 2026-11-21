@@ -1,7 +1,8 @@
-import { expect, type Locator, type Page, test } from '@playwright/test'
+import { expect, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { DESKTOP } from './account-register-helpers'
 import { uniqueMemo } from './invoice-helpers'
+import { shiftTabTo, tabTo } from './keyboard-helpers'
 import {
     customerWithInvoices,
     localDay,
@@ -23,16 +24,6 @@ async function openBooks(page: Page) {
     await login(page)
     await navigateToPackage(page, 'books')
     await page.setViewportSize(DESKTOP)
-}
-
-async function tabTo(page: Page, target: Locator) {
-    await page.keyboard.press('Tab')
-    await expect(target).toBeFocused()
-}
-
-async function shiftTabTo(page: Page, target: Locator) {
-    await page.keyboard.press('Shift+Tab')
-    await expect(target).toBeFocused()
 }
 
 // A successful search for the memo. Registered before `/`: a palette reopened soon after

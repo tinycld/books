@@ -7,7 +7,7 @@ import { DateOrderToggle } from './DateOrderToggle'
 import { ReviewCard, rowChoiceOf } from './ReviewRow'
 
 // Module level: ListCards memoizes the heights on them. A Reviewed card has a third line
-// (what it was matched to).
+// (what it is in Books: "Added · Journal entry 1042" or what it was matched to).
 function heightOf(): number {
     return REVIEW_CARD_HEIGHT
 }

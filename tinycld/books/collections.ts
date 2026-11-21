@@ -190,6 +190,24 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // A writer inserts a categorization with its bank transaction, kind, payee, memo
+    // and lines; the server stamps the connection and who added it, posts the entry,
+    // stamps it, and matches the bank transaction to it (server/bank_categorize.go).
+    // A delete is the undo: the server voids the entry.
+    const books_bank_categorizations = newCollection('books_bank_categorizations', {
+        omitOnInsert: ['connection', 'entry', 'created_by', 'created', 'updated'] as const,
+        ...onDemand,
+        relations: {
+            bank_transaction: books_bank_transactions,
+            entry: books_journal_entries,
+            customer: books_customers,
+            vendor: books_vendors,
+            created_by: coreStores.users,
+            connection: books_bank_connections,
+        },
+        collectionOptions: indexed,
+    })
+
     // A view, never written: the server signals its topic when a bank transaction,
     // a journal line, an entry, a match line or a connection changes
     // (server/register.go), so the For review list follows a post, a void or a
@@ -839,6 +857,7 @@ export function registerCollections(
         books_bank_matches,
         books_bank_match_lines,
         books_bank_match_suggestions,
+        books_bank_categorizations,
         books_journal_lines,
         books_journal_entries,
         books_account_balances,

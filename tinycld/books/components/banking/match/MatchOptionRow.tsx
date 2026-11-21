@@ -7,8 +7,14 @@ import { SelectBox } from '../../SelectBox'
 
 const ROW_STYLE = { minHeight: 44 }
 
+// What the row draws of a Books transaction; Added to Books draws its entry with it too.
+export type OptionRowEntry = Pick<
+    MatchOption,
+    'lineId' | 'label' | 'href' | 'dateText' | 'name' | 'amount'
+>
+
 type MatchOptionRowProps = {
-    option: MatchOption
+    option: OptionRowEntry
     isChosen: boolean
     isDisabled: boolean
     // False for a reader: the row is a link only.
@@ -34,7 +40,7 @@ function OptionBox({ option, isChosen, isDisabled, canChoose, onToggle }: MatchO
 
 // The type and number, opening the Books transaction (entryHref) as a real link, so the
 // web gets an href.
-function OptionLink({ option }: { option: MatchOption }) {
+function OptionLink({ option }: { option: OptionRowEntry }) {
     const orgHref = useOrgHref()
     const href = orgHref(option.href)
     return (

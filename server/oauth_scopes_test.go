@@ -277,6 +277,7 @@ func TestOAuth_BankMatchCollections(t *testing.T) {
 	ro := oauth.Access{Read: []string{scopeRead}}
 	want := map[string]oauth.Access{
 		"books_bank_matches":           rw,
+		"books_bank_categorizations":   rw,
 		"books_bank_match_lines":       ro,
 		"books_bank_match_suggestions": ro,
 	}
@@ -294,17 +295,21 @@ func TestOAuth_BankMatchCollections(t *testing.T) {
 
 	t.Cleanup(oauth.ResetRegistry)
 	oauth.RegisterPackage(oauthPackage())
-	matches := "/api/collections/books_bank_matches/records"
-	for _, method := range []string{http.MethodPost, http.MethodDelete} {
-		p := matches
-		if method == http.MethodDelete {
-			p += "/abc123"
-		}
-		if !oauth.ScopeForRoute(method, p).SatisfiedBy([]string{scopeWrite}) {
-			t.Errorf("%s %s: books:write must write", method, p)
-		}
-		if oauth.ScopeForRoute(method, p).SatisfiedBy([]string{scopeRead}) {
-			t.Errorf("%s %s: books:read alone must not write", method, p)
+	// Bank-categorize spec §4: a token categorizes or transfers a bank
+	// transaction (a create) and undoes it (a delete), as it matches one.
+	for _, written := range []string{"books_bank_matches", "books_bank_categorizations"} {
+		records := "/api/collections/" + written + "/records"
+		for _, method := range []string{http.MethodPost, http.MethodDelete} {
+			p := records
+			if method == http.MethodDelete {
+				p += "/abc123"
+			}
+			if !oauth.ScopeForRoute(method, p).SatisfiedBy([]string{scopeWrite}) {
+				t.Errorf("%s %s: books:write must write", method, p)
+			}
+			if oauth.ScopeForRoute(method, p).SatisfiedBy([]string{scopeRead}) {
+				t.Errorf("%s %s: books:read alone must not write", method, p)
+			}
 		}
 	}
 	for _, c := range []string{"books_bank_match_lines", "books_bank_match_suggestions"} {

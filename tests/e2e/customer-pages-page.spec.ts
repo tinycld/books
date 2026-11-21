@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page, test } from '@playwright/test'
+import { expect, type Page, test } from '@playwright/test'
 import {
     createCustomer,
     customerEntry,
@@ -26,6 +26,7 @@ import {
     WIDE,
     watchForNotFoundAndDiscard,
 } from './customer-form-helpers'
+import { isFocused } from './keyboard-helpers'
 
 // The customer page (customer-pages checkpoint 2): the record width beside a 320 px name
 // column on a very wide window, Details and Notes edited in place with a save bar, driven
@@ -49,10 +50,6 @@ const PHONE = { width: 390, height: 844 }
 // The id of the customer whose page is open, read from the URL.
 function openCustomerId(page: Page) {
     return new URL(page.url()).pathname.split('/').pop() ?? ''
-}
-
-function isFocused(locator: Locator) {
-    return locator.evaluate(el => el === document.activeElement)
 }
 
 async function openMore(page: Page) {

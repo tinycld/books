@@ -14,10 +14,17 @@ type SectionProps = { model: BankMatchModel; scopeOwner: ScopeOwner; currency: s
 const MATCH_KEY = { keys: 'm', scope: 'list' } as const
 const FIND_KEY = { keys: 'f', scope: 'list' } as const
 
-function SectionHeading() {
+function SectionTitle({ isVisible }: { isVisible: boolean }) {
+    if (!isVisible) return null
+    return <Text className="text-base font-semibold text-foreground">Match</Text>
+}
+
+// The title "Match" and its line; under the way switch, which is the heading, the line
+// alone.
+function SectionHeading({ hasTitle }: { hasTitle: boolean }) {
     return (
         <View className="gap-0.5">
-            <Text className="text-base font-semibold text-foreground">Match</Text>
+            <SectionTitle isVisible={hasTitle} />
             <Text className="text-sm text-muted-foreground">
                 Books transactions that fit this bank transaction.
             </Text>
@@ -210,11 +217,24 @@ function FindBody({
     )
 }
 
+const FRAME_CLASS = {
+    own: 'gap-3 border-t border-border pt-4',
+    underSwitch: 'gap-3',
+} as const
+
 // The Match section of a For review transaction, in the drawer's `children` slot, or the
 // Matched to section of a matched Reviewed one. The drawer renders outside the page's
 // ScopeProvider, so the page hands its `list` scope owner in for the M, F and Z buttons.
-// The find mode is a writer's only.
-export function MatchSection({ model, scopeOwner, currency }: SectionProps) {
+// The find mode is a writer's only. Under a writer's way switch (`isUnderSwitch`) the
+// switch carries the top border and is the heading, so the section has no border and no
+// title "Match", only the title's line; a reader's section keeps both. Matched to always
+// keeps its own.
+export function MatchSection({
+    model,
+    scopeOwner,
+    currency,
+    isUnderSwitch = false,
+}: SectionProps & { isUnderSwitch?: boolean }) {
     if (model.kind === 'hidden') return null
     if (model.kind === 'matched') {
         return <MatchedTo model={model} scopeOwner={scopeOwner} currency={currency} />
@@ -222,9 +242,10 @@ export function MatchSection({ model, scopeOwner, currency }: SectionProps) {
     const isReady = !model.isLoading && !model.isError
     const isFind = isReady && model.canWrite && model.mode === 'find'
     const isSuggestions = isReady && !isFind
+    const frame = isUnderSwitch ? FRAME_CLASS.underSwitch : FRAME_CLASS.own
     return (
-        <View testID="bank-match-section" className="gap-3 border-t border-border pt-4">
-            <SectionHeading />
+        <View testID="bank-match-section" className={frame}>
+            <SectionHeading hasTitle={!isUnderSwitch} />
             <MatchLoading isVisible={model.isLoading} testID="bank-match-loading" />
             <MatchLoadError isVisible={model.isError} onRetry={model.onRetry} />
             <SuggestionsBody

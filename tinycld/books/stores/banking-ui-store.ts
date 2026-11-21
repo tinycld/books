@@ -1,4 +1,5 @@
 import { create } from '@tinycld/core/lib/store'
+import type { TxnWay } from '../lib/bank-categorize'
 import type { FindRange } from '../lib/bank-match'
 import {
     type DateOrder,
@@ -27,6 +28,8 @@ export type BankingDialog =
     | { kind: 'edit'; connectionId: string }
     | { kind: 'disconnect'; connectionId: string }
     | { kind: 'remove'; connectionId: string; fileId: string; fileName: string }
+    // The Categorize dialog of the For review rows chosen in the selection bar.
+    | { kind: 'categorize-chosen' }
 
 // The upload line under one connection's upload area. A connection with no entry is idle.
 // `done` keeps the new file's id for its "Import transactions" button.
@@ -81,9 +84,11 @@ interface BankingUIState {
     // choice of a transaction, useBankMatch shows its one suggestion as chosen; the first
     // change stores the whole choice with `matchSeededFor` = that transaction
     // (takeMatchChoice), so from then on `matchChosen` alone counts and an uncheck stays.
-    // `matchRefusal` is the failure text of the last match or undo from the drawer. All of it
-    // belongs to the open transaction, so opening another one, closing the drawer, or
-    // leaving the rows resets it.
+    // `matchRefusal` is the failure text of the last match or undo from the drawer; Added to
+    // Books (useBankAdded) uses it too, for a refused Undo of a categorization, and clears it
+    // when Undo is pressed again. All of it belongs to the open transaction, so opening
+    // another one (openTxn, openNextTxn), closing the drawer (closeTxn, closeAll), or leaving
+    // the rows (resetReviewSelection) resets it (NO_MATCH).
     // Only line ids are kept: useBankMatch reads the chosen lines from the server, so a
     // line that stops being matchable leaves the choice.
     // `matchFindRange` is the find mode's last valid range (null: the window around the
@@ -101,7 +106,45 @@ interface BankingUIState {
     setMatchFindSearch: (search: string) => void
     takeMatchChoice: (txnId: string, lineIds: readonly string[]) => void
     resetMatch: () => void
+    // The drawer's way switch: `txnWay` is the way the user picked, null for the open
+    // transaction's default way (lib/bank-categorize.ts defaultWay). `focusForm` asks the
+    // shown way for the focus once (an open by a writer, the keys C and T, the next row
+    // after a Categorize or a Record transfer); the section that takes the focus clears it.
+    // Both belong to the open transaction, so every open and close resets them.
+    // `isAdding` belongs to the write of a Categorize or Record transfer (`addingTxnId` is
+    // its transaction, `addingWriteId` the write): it holds the form mounted through the
+    // write (the pbtsdb insert is optimistic, so the section is chosen from this flag and
+    // the status, never from a categorization row), and it holds until the write settles,
+    // whatever the drawer or the screen shows, so no second send of any row starts while
+    // one is in flight. Only `finishAdding` of the same write clears it; no open, close or
+    // closeAll touches it.
+    txnWay: TxnWay | null
+    isAdding: boolean
+    addingTxnId: string | null
+    addingWriteId: string | null
+    focusForm: boolean
+    setTxnWay: (way: TxnWay) => void
+    startAdding: (txnId: string, writeId: string) => void
+    // A no-op when another write holds the flag.
+    finishAdding: (writeId: string) => void
+    setFocusForm: (focusForm: boolean) => void
+    // After a write leaves the open row: open `nextId` on its own default way, taking the
+    // focus when asked, or close the drawer for null.
+    openNextTxn: (nextId: string | null, takeFocus: boolean) => void
+    // The categorization the last drawer Categorize or Record transfer created, for its
+    // result line. It outlives the drawer's move to the next row; closeAll and a new batch
+    // run clear it.
+    addedNote: { id: string } | null
+    setAddedNote: (note: { id: string } | null) => void
+    // A Categorize or Record transfer that failed after the drawer moved on (another row,
+    // a close): the result line names the transaction and shows the text, the server's
+    // message or SEND_FAILED_TEXT. The result place shows the latest outcome, so each note
+    // replaces the other; it outlives the drawer's moves, and closeAll clears it.
+    failedNote: FailedNote | null
+    setFailedNote: (note: FailedNote | null) => void
 }
+
+export type FailedNote = { txnId: string; description: string; text: string }
 
 const NO_MATCH = {
     matchMode: 'suggestions' as const,
@@ -110,6 +153,12 @@ const NO_MATCH = {
     matchFindSearch: '',
     matchSeededFor: null,
     matchRefusal: null,
+}
+
+// The drawer's way and its focus request belong to the open transaction.
+const NO_WAY = {
+    txnWay: null,
+    focusForm: false,
 }
 
 export const useBankingUIStore = create<BankingUIState>()(set => ({
@@ -135,6 +184,9 @@ export const useBankingUIStore = create<BankingUIState>()(set => ({
             chosen: new Set(),
             focusedTxnId: null,
             ...NO_MATCH,
+            ...NO_WAY,
+            addedNote: null,
+            failedNote: null,
         }),
     reviewFilters: EMPTY_REVIEW_FILTERS,
     setReviewSearch: search => set(s => ({ reviewFilters: { ...s.reviewFilters, search } })),
@@ -146,16 +198,44 @@ export const useBankingUIStore = create<BankingUIState>()(set => ({
     toggleDateOrder: () =>
         set(s => ({ dateOrder: s.dateOrder === 'newest' ? 'oldest' : 'newest' })),
     openTxnId: null,
-    // Opening the transaction already open keeps its Match section as it is.
-    openTxn: id => set(s => (s.openTxnId === id ? s : { openTxnId: id, ...NO_MATCH })),
-    closeTxn: () => set({ openTxnId: null, ...NO_MATCH }),
+    // Opening the transaction already open keeps its Match section and its way as they are.
+    openTxn: id =>
+        set(s =>
+            s.openTxnId === id ? s : { openTxnId: id, ...NO_MATCH, ...NO_WAY, focusForm: true }
+        ),
+    closeTxn: () => set({ openTxnId: null, ...NO_MATCH, ...NO_WAY }),
+    openNextTxn: (nextId, takeFocus) =>
+        set(
+            nextId === null
+                ? { openTxnId: null, ...NO_MATCH, ...NO_WAY }
+                : { openTxnId: nextId, ...NO_MATCH, ...NO_WAY, focusForm: takeFocus }
+        ),
+    txnWay: null,
+    isAdding: false,
+    addingTxnId: null,
+    addingWriteId: null,
+    focusForm: false,
+    setTxnWay: way => set({ txnWay: way }),
+    startAdding: (txnId, writeId) =>
+        set({ isAdding: true, addingTxnId: txnId, addingWriteId: writeId }),
+    finishAdding: writeId =>
+        set(s =>
+            s.addingWriteId === writeId
+                ? { isAdding: false, addingTxnId: null, addingWriteId: null }
+                : s
+        ),
+    setFocusForm: focusForm => set({ focusForm }),
+    addedNote: null,
+    setAddedNote: note => set(note ? { addedNote: note, failedNote: null } : { addedNote: null }),
+    failedNote: null,
+    setFailedNote: note => set(note ? { failedNote: note, addedNote: null } : { failedNote: null }),
     chosen: new Set(),
     setChosen: ids => set({ chosen: new Set(ids) }),
     clearChosen: () => set({ chosen: new Set() }),
     focusedTxnId: null,
     setFocusedTxn: id => set({ focusedTxnId: id }),
     resetReviewSelection: () =>
-        set({ openTxnId: null, chosen: new Set(), focusedTxnId: null, ...NO_MATCH }),
+        set({ openTxnId: null, chosen: new Set(), focusedTxnId: null, ...NO_MATCH, ...NO_WAY }),
     ...NO_MATCH,
     setMatchMode: mode => set({ matchMode: mode }),
     setMatchFindRange: range => set({ matchFindRange: range }),

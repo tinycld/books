@@ -4,9 +4,17 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { createElement, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useReviewBatch } from '../tinycld/books/hooks/useReviewBatch'
-import { BANK_BATCH_TRANSPORT_TEXT, type BatchOutcome } from '../tinycld/books/lib/bank-review'
+import {
+    BANK_BATCH_TRANSPORT_TEXT,
+    type BatchOutcome,
+    keptAfterBatch,
+} from '../tinycld/books/lib/bank-review'
 import { useBankingUIStore } from '../tinycld/books/stores/banking-ui-store'
-import type { BooksBankMatches, BooksBankTransactions } from '../tinycld/books/types'
+import type {
+    BooksBankCategorizations,
+    BooksBankMatches,
+    BooksBankTransactions,
+} from '../tinycld/books/types'
 import {
     enteredWrites,
     guardedStore,
@@ -93,6 +101,52 @@ function matchedStore(ids: readonly string[]) {
 function matchRows(matches: ReturnType<typeof seedMatches>) {
     return matches.toArray
         .map(row => ({ bank_transaction: row.bank_transaction, lines: [...row.lines] }))
+        .sort((a, b) => a.bank_transaction.localeCompare(b.bank_transaction))
+}
+
+const RENT = 'acct_rent_6100'
+const VENDOR = 'vendor_dropbox1'
+const UNDONE_TEXT = 'Undone. Journal entry 1042 is void and the transaction is back in For review.'
+
+// The categorization rows the client wrote. Registered after seedTxns, so the inserts go
+// through the shared write handler and its refusals.
+function seedCategorizations() {
+    return guardedStore<BooksBankCategorizations>('books_bank_categorizations', [])
+}
+
+// One categorization row for each id (`cat_<id>`), and one of another transaction that an
+// undo must keep.
+function categorizedStore(ids: readonly string[]) {
+    const row = (id: string, txnId: string): BooksBankCategorizations => ({
+        id,
+        bank_transaction: txnId,
+        kind: 'categorize',
+        customer: '',
+        vendor: '',
+        memo: '',
+        lines: [{ account: RENT, amount: 100, memo: '' }],
+        connection: 'bankconncheckng',
+        entry: `entry_${txnId}`,
+        created_by: 'u1',
+        created: '2026-11-18 10:00:00.000Z',
+        updated: '2026-11-18 10:00:00.000Z',
+    })
+    return guardedStore<BooksBankCategorizations>('books_bank_categorizations', [
+        ...ids.map(id => row(`cat_${id}`, id)),
+        row('cat_other', 'txn_other'),
+    ])
+}
+
+function categorizationRows(categorizations: ReturnType<typeof seedCategorizations>) {
+    return categorizations.toArray
+        .map(row => ({
+            bank_transaction: row.bank_transaction,
+            kind: row.kind,
+            customer: row.customer,
+            vendor: row.vendor,
+            memo: row.memo,
+            lines: row.lines,
+        }))
         .sort((a, b) => a.bank_transaction.localeCompare(b.bank_transaction))
 }
 
@@ -563,6 +617,178 @@ describe('useReviewBatch', () => {
         await waitFor(() => expect(result.current.isPending).toBe(false))
         await settle()
         expect(result.current.result).toBeNull()
+    })
+
+    it('categorizes 120 rows in steps of 50, 50 and 20, each with its own memo and the one account and payee', async () => {
+        const ids = seedTxns(120)
+        const categorizations = seedCategorizations()
+        const categorizeRows = Object.fromEntries(ids.map(id => [id, { memo: `Bank ${id}` }]))
+        let release = holdWrites()
+        const { result } = renderHook(() => useReviewBatch(), { wrapper })
+
+        let running: Promise<BatchOutcome> | undefined
+        act(() => {
+            running = result.current.run({
+                kind: 'categorize',
+                ids,
+                summary: '120 selected',
+                origin: 'bar',
+                categorizeRows,
+                categorizeWith: { account: RENT, customer: '', vendor: VENDOR },
+            })
+        })
+
+        // Step 1: 50 inserts, and no more while they are in flight.
+        await waitFor(() => expect(enteredWrites()).toHaveLength(50))
+        await settle()
+        expect(enteredWrites()).toHaveLength(50)
+        expect(result.current.isPending).toBe(true)
+
+        // Step 2: the next 50, held; every insert of this step is refused.
+        const releaseFirst = release
+        release = holdWrites()
+        releaseFirst()
+        await waitFor(() => expect(enteredWrites()).toHaveLength(100))
+        await settle()
+        expect(enteredWrites()).toHaveLength(100)
+        refuseNthWrite(0, messageRefusal(BOOKS_LOCKED))
+
+        // Step 3: the last 20.
+        const releaseSecond = release
+        release = holdWrites()
+        releaseSecond()
+        await waitFor(() => expect(enteredWrites()).toHaveLength(120))
+        await settle()
+        expect(enteredWrites()).toHaveLength(120)
+        release()
+
+        let outcome: BatchOutcome | undefined
+        await act(async () => {
+            outcome = await running
+        })
+        const refusedIds = ids.slice(50, 100)
+        const doneIds = [...ids.slice(0, 50), ...ids.slice(100)]
+        expect([...(outcome?.done ?? [])].sort()).toEqual(doneIds)
+        expect((outcome?.failed ?? []).map(failure => failure.id).sort()).toEqual(refusedIds)
+        expect(
+            outcome?.failed.every(
+                failure => failure.message === BOOKS_LOCKED && !failure.isTransport
+            )
+        ).toBe(true)
+        // The refused rows stay chosen; the rows that went through leave the choice.
+        expect(keptAfterBatch(outcome ?? { done: [], failed: [] }, [], ids)).toEqual(refusedIds)
+
+        // One categorization row for each row that went through: its own bank memo, the one
+        // account for the row's own amount, the one payee. The refused inserts rolled back.
+        await waitFor(() =>
+            expect(categorizationRows(categorizations).map(row => row.bank_transaction)).toEqual(
+                doneIds
+            )
+        )
+        const amountOf = new Map(forReviewRows(120).map(row => [row.id, row.amount]))
+        for (const row of categorizationRows(categorizations)) {
+            expect(row).toEqual({
+                bank_transaction: row.bank_transaction,
+                kind: 'categorize',
+                customer: '',
+                vendor: VENDOR,
+                memo: `Bank ${row.bank_transaction}`,
+                lines: [
+                    expect.objectContaining({
+                        account: RENT,
+                        amount: Math.abs(amountOf.get(row.bank_transaction) ?? 0),
+                    }),
+                ],
+            })
+        }
+        expect(new Set(categorizations.toArray.map(row => row.id)).size).toBe(doneIds.length)
+        // The server moves a categorized transaction to Reviewed; the client writes no status.
+        expect(statusOf('txn_001')).toBe('for_review')
+        await waitFor(() => expect(result.current.isPending).toBe(false))
+        // Every failure carries the one message BOOKS_LOCKED, so the line is that message.
+        expect(result.current.result).toEqual({ text: BOOKS_LOCKED, tone: 'danger' })
+    })
+
+    it('gives the categorized line when every row went through', async () => {
+        const ids = seedTxns(6)
+        seedCategorizations()
+        const { result } = renderHook(() => useReviewBatch(), { wrapper })
+
+        let outcome: BatchOutcome | undefined
+        await act(async () => {
+            outcome = await result.current.run({
+                kind: 'categorize',
+                ids,
+                summary: '6 selected',
+                origin: 'bar',
+                categorizeRows: Object.fromEntries(ids.map(id => [id, { memo: id }])),
+                categorizeWith: { account: RENT, customer: '', vendor: '' },
+            })
+        })
+        expect(outcome?.failed).toEqual([])
+        await waitFor(() =>
+            expect(result.current.result).toEqual({
+                text: 'Categorized 6 transactions.',
+                tone: 'muted',
+            })
+        )
+    })
+
+    it('deletes the named categorization row to undo it', async () => {
+        const [id] = seedTxns(1)
+        const categorizations = categorizedStore([id])
+        const { result } = renderHook(() => useReviewBatch(), { wrapper })
+
+        let outcome: BatchOutcome | undefined
+        await act(async () => {
+            outcome = await result.current.run({
+                kind: 'uncategorize',
+                ids: [id],
+                summary: UNDONE_TEXT,
+                origin: 'drawer',
+                categorizationIds: { [id]: `cat_${id}` },
+            })
+        })
+        expect(outcome).toEqual({ done: [id], failed: [] })
+        expect(enteredWrites()).toEqual([`cat_${id}`])
+        await waitFor(() =>
+            expect(categorizations.toArray.map(row => row.id)).toEqual(['cat_other'])
+        )
+        // The server voids the entry and moves the transaction back; the client writes no status.
+        expect(statusOf(id)).toBe('for_review')
+        await waitFor(() =>
+            expect(result.current.result).toEqual({ text: UNDONE_TEXT, tone: 'muted' })
+        )
+    })
+
+    it("keeps a refused undo in the drawer, which shows the server's message itself", async () => {
+        const [id] = seedTxns(1, { cat_txn_001: messageRefusal(BOOKS_LOCKED) })
+        const categorizations = categorizedStore([id])
+        // The drawer still shows this transaction when the run settles.
+        useBankingUIStore.getState().openTxn(id)
+        const { result } = renderHook(() => useReviewBatch(), { wrapper })
+
+        let outcome: BatchOutcome | undefined
+        await act(async () => {
+            outcome = await result.current.run({
+                kind: 'uncategorize',
+                ids: [id],
+                summary: UNDONE_TEXT,
+                origin: 'drawer',
+                categorizationIds: { [id]: `cat_${id}` },
+            })
+        })
+        expect(outcome?.failed).toEqual([{ id, message: BOOKS_LOCKED, isTransport: false }])
+        await waitFor(() =>
+            expect(categorizations.toArray.map(row => row.id).sort()).toEqual([
+                'cat_other',
+                `cat_${id}`,
+            ])
+        )
+        await waitFor(() => expect(result.current.isPending).toBe(false))
+        await settle()
+        expect(result.current.result).toBeNull()
+        expect(useBankingUIStore.getState().openTxnId).toBe(id)
     })
 
     it('shows the transport text and warns once when nothing reached the server', async () => {
