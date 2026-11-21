@@ -1,0 +1,45 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "opened",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280, 1024, 768],
+            "height": 1640,
+            "actions": [
+                { "clickText": "Expenses by Vendor" },
+                { "waitFor": "report-table" },
+                { "waitFor": "Coastal Coffee Roasters (inactive)" },
+                { "pause": 1500 },
+                { "clickText": "No vendor" },
+                { "pause": 1500 },
+                { "clickText": "Harbor Freight Logistics" },
+                { "pause": 1500 },
+                { "click": "report-document-period" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "cash",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280, 768],
+            "height": 1460,
+            "actions": [
+                { "clickText": "Expenses by Vendor" },
+                { "waitFor": "report-table" },
+                { "waitFor": "Coastal Coffee Roasters (inactive)" },
+                { "click": "report-param-method" },
+                { "click": "report-filter-option-cash" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitFor": "Cash basis" },
+                { "pause": 2000 },
+                { "clickText": "Harbor Freight Logistics" },
+                { "pause": 1500 },
+                { "click": "report-document-period" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}

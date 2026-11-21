@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 import { chooseParamOption, hubRow } from '@tinycld/core/e2e-helpers'
 import { EXPENSES_BY_VENDOR_TITLE } from '~/tinycld/books/lib/expenses-by-vendor-fixture'
 import {
@@ -11,7 +11,7 @@ import {
     pickLineAccount,
     postBill,
 } from './bill-helpers'
-import { openBooksReports, type ReportSnapshot } from './books-report-helpers'
+import { openBooksReports, type ReportSnapshot, reportLinesUnder } from './books-report-helpers'
 import { centsOf } from './customer-balance-helpers'
 import { openVendorsList, searchVendors, vendorEntry } from './vendor-form-helpers'
 
@@ -136,6 +136,47 @@ export function expenseShare(snapshot: ReportSnapshot, label: string): number | 
     const value = Number(text.replace(/%$/, '').replace(/^[−(]/, '-').replace(/[),]/g, ''))
     if (Number.isNaN(value)) throw new Error(`not a share: "${text}"`)
     return value
+}
+
+// The opened lines under the vendor row labelled `label` (expenses-by-vendor checkpoint
+// 2): each line's row id, label, Total in cents and % of expenses text (blank on a line).
+export function expenseLines(
+    snapshot: ReportSnapshot,
+    label: string
+): { id: string; label: string; cents: number; share: string }[] {
+    return reportLinesUnder(snapshot, label).map(row => ({
+        id: row.id,
+        label: row.label,
+        cents: centsOf(row.cells.amount ?? ''),
+        share: (row.cells.pct ?? '').trim(),
+    }))
+}
+
+// The color the label text of the row `rowId` is drawn in: the color of the first element
+// that holds the text itself (a group row's label starts with its caret icon, whose color
+// is the caret's, not the text's).
+export function rowLabelColor(page: Page, rowId: string): Promise<string> {
+    return textColorIn(page.getByTestId('report-table').getByTestId(`report-row-${rowId}`))
+}
+
+// The color core draws a column heading's text in: its `text-muted-foreground` token
+// (core ReportTable HeadingText), the token a muted group row's label uses (ReportRow
+// labelTone).
+export function mutedHeadingColor(page: Page, columnId: string): Promise<string> {
+    return textColorIn(page.getByTestId('report-table').getByTestId(`report-heading-${columnId}`))
+}
+
+// The computed color of the first element under `scope` that holds text itself.
+function textColorIn(scope: Locator): Promise<string> {
+    return scope.evaluate(element => {
+        const holdsText = (candidate: Element) =>
+            [...candidate.childNodes].some(
+                node => node.nodeType === Node.TEXT_NODE && (node.textContent ?? '').trim() !== ''
+            )
+        const leaf = [element, ...element.querySelectorAll('*')].find(holdsText)
+        if (!leaf) throw new Error('the element holds no text')
+        return getComputedStyle(leaf).color
+    })
 }
 
 // The Total of the row labelled exactly `label` (a vendor's group row, or "Total" for the

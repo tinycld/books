@@ -1,18 +1,26 @@
 import { expect, type Page, test } from '@playwright/test'
 import { navigateToPackage } from '@tinycld/core/e2e-helpers'
-import { EXPENSES_BY_VENDOR_TITLE } from '~/tinycld/books/lib/expenses-by-vendor-fixture'
+import {
+    EXPENSES_BY_VENDOR_SEED,
+    EXPENSES_BY_VENDOR_TITLE,
+} from '~/tinycld/books/lib/expenses-by-vendor-fixture'
+import { VENDOR_IDS, VENDORS } from '~/tinycld/books/lib/vendor-form-fixture'
 import { DESKTOP } from './account-register-helpers'
 import { apVendorWithBill, filterToVendors, payPartOfBill } from './ap-aging-helpers'
+import { BILL_URL } from './bill-helpers'
 import {
     browserToday,
     choosePeriod,
+    csvRecords,
     dayWords,
     expectedHeading,
+    exportReport,
     type ReportSnapshot,
     reportSnapshot,
+    reportSnapshotAtTop,
     snapshotWhen,
 } from './books-report-helpers'
-import { chooseBalanceRows } from './customer-balance-helpers'
+import { centsOf, chooseBalanceRows, openBalanceRow } from './customer-balance-helpers'
 import {
     expenseCellTestId,
     openNewExpense,
@@ -25,14 +33,17 @@ import {
     chooseExpenseMethod,
     chooseExpenseOrder,
     expenseCents,
+    expenseLines,
     expenseShare,
+    mutedHeadingColor,
     openExpensesByVendor,
     postBillOnAccounts,
+    rowLabelColor,
     runLanded,
     voidBill,
 } from './expenses-by-vendor-helpers'
 import { BILL_EXPENSE_ACCOUNT, CHECKING, localDay, vendorWithBills } from './pay-bills-helpers'
-import { openBooks, uniqueName } from './record-form-helpers'
+import { escapeRegExp, openBooks, uniqueName } from './record-form-helpers'
 import { postVendorCredit } from './vendor-credit-helpers'
 
 // The Expenses by Vendor (expenses-by-vendor checkpoint 1): the shipped report from the
@@ -44,15 +55,25 @@ import { postVendorCredit } from './vendor-credit-helpers'
 
 const RENT = '6100 Rent'
 
-// Sets the Custom period from `day` to `day` and waits for the run of that period: core
+// Sets the Custom period from `from` to `to` and waits for the run of that period: core
 // keeps the previous run's rows on screen until the new run lands.
-async function chooseDay(page: Page, day: string): Promise<void> {
+async function chooseDays(page: Page, from: string, to: string): Promise<void> {
     const landed = runLanded(page, params => {
         const period = params.period as { from?: string; to?: string } | undefined
-        return period?.from === day && period?.to === day
+        return period?.from === from && period?.to === to
     })
-    await choosePeriod(page, { from: day, to: day })
+    await choosePeriod(page, { from, to })
     await landed
+}
+
+// Sets the Custom period from `day` to `day` and waits for the run of that period.
+function chooseDay(page: Page, day: string): Promise<void> {
+    return chooseDays(page, day, day)
+}
+
+// A line label of the given parts joined by " · ", with nothing after the last part.
+function lineLabel(...parts: string[]): RegExp {
+    return new RegExp(`^${parts.map(escapeRegExp).join(' · ')}$`)
 }
 
 // Opens the report, narrows it to `names` and to today.
@@ -264,5 +285,198 @@ test.describe('expenses-by-vendor: report', () => {
             s => !s.rows.some(row => row.kind === 'group'),
             `no vendor row under Non-zero for ${vendor.name}`
         )
+    })
+
+    test('a vendor opens into its lines with their accounts, and a line opens the bill', async ({
+        page,
+    }) => {
+        // 1280 px: under 1360, so the bill opens as its own screen (spec §3 Opening a
+        // transaction; the panel path at 1360 and wider is p5-drill-down's).
+        await openBooks(page, DESKTOP)
+        const { vendor } = await vendorWithBills(page, { bills: [] })
+        const bill = await postBillOnAccounts(page, vendor.name, [
+            { account: RENT, amount: '300.00' },
+            { account: BILL_EXPENSE_ACCOUNT, amount: '200.00' },
+        ])
+        await navigateToPackage(page, 'books')
+        await openNewExpense(page)
+        await pickExpenseVendor(page, vendor.name)
+        await pickPaidFrom(page, CHECKING)
+        const expenseLine = await pickExpenseLineAccount(page, 0, BILL_EXPENSE_ACCOUNT)
+        await page
+            .getByTestId(expenseCellTestId('account_lines', expenseLine, 'amount'))
+            .fill('50.00')
+        const expenseNo = await postExpense(page)
+        const today = await browserToday(page)
+
+        await openFor(page, [vendor.name])
+        await openBalanceRow(page, vendor.name)
+        const opened = await snapshotWhen(
+            page,
+            reportSnapshot,
+            s => expenseLines(s, vendor.name).length === 3,
+            `three lines under ${vendor.name}`
+        )
+        const lines = expenseLines(opened, vendor.name)
+        // The bill's two lines by position, then the expense, posted after it.
+        expect(lines.map(line => line.label)).toEqual([
+            expect.stringMatching(lineLabel(today, `Bill ${bill.number}`, RENT)),
+            expect.stringMatching(lineLabel(today, `Bill ${bill.number}`, BILL_EXPENSE_ACCOUNT)),
+            expect.stringMatching(lineLabel(today, `Expense ${expenseNo}`, BILL_EXPENSE_ACCOUNT)),
+        ])
+        expect(lines.map(line => line.cents)).toEqual([30000, 20000, 5000])
+        expect(lines.map(line => line.share)).toEqual(['', '', ''])
+        const sum = lines.reduce((acc, line) => acc + line.cents, 0)
+        expect(sum, `the lines add up to ${vendor.name}'s Total`).toBe(
+            expenseCents(opened, vendor.name)
+        )
+
+        await page.getByTestId(`report-row-${lines[0].id}`).click()
+        await expect(page).toHaveURL(BILL_URL)
+        await expect(page).toHaveURL(new RegExp(`/books/bills/${bill.id}$`))
+        await expect(page.getByTestId('bill-read-only').filter({ visible: true })).toBeVisible()
+    })
+
+    test("on Cash an opened vendor shows the bill line, its take-out row and the payment's share", async ({
+        page,
+    }) => {
+        await openBooks(page, DESKTOP)
+        const due = await localDay(page, 30)
+        const { vendor, billId, billNo } = await apVendorWithBill(page, { amount: '400.00', due })
+        const paymentNo = await payPartOfBill(page, { vendor, billId, amount: '100.00' })
+        const today = await browserToday(page)
+
+        await openFor(page, [vendor.name])
+        await chooseExpenseMethod(page, 'Cash')
+        await openBalanceRow(page, vendor.name)
+        const opened = await snapshotWhen(
+            page,
+            reportSnapshot,
+            s => expenseLines(s, vendor.name).length === 3,
+            `three lines under ${vendor.name} on Cash`
+        )
+        const lines = expenseLines(opened, vendor.name)
+        expect(lines.map(line => line.label)).toEqual([
+            expect.stringMatching(lineLabel(today, `Bill ${billNo}`, BILL_EXPENSE_ACCOUNT)),
+            expect.stringMatching(
+                lineLabel(today, `Bill ${billNo}`, BILL_EXPENSE_ACCOUNT, 'Unpaid bill (cash basis)')
+            ),
+            expect.stringMatching(
+                lineLabel(
+                    today,
+                    `Bill payment ${paymentNo}`,
+                    BILL_EXPENSE_ACCOUNT,
+                    `Bill ${billNo} paid (cash basis)`
+                )
+            ),
+        ])
+        expect(lines.map(line => line.cents)).toEqual([40000, -40000, 10000])
+        expect(lines.reduce((acc, line) => acc + line.cents, 0)).toBe(10000)
+        expect(expenseCents(opened, vendor.name)).toBe(10000)
+    })
+
+    test('an open report follows a bill posted in another window', async ({ page }) => {
+        await openBooks(page, DESKTOP)
+        const due = await localDay(page, 30)
+        const { vendor } = await apVendorWithBill(page, { amount: '250.00', due })
+
+        await openFor(page, [vendor.name])
+        const before = await snapshotWhen(
+            page,
+            reportSnapshot,
+            s => expenseCents(s, vendor.name) === 25000,
+            `${vendor.name} reads 250.00 with its one bill`
+        )
+        expect(expenseCents(before, 'Total')).toBe(25000)
+
+        // The report stays open on `page`; a second window of the same session posts.
+        const poster = await page.context().newPage()
+        try {
+            await openBooks(poster, DESKTOP)
+            await postBillOnAccounts(poster, vendor.name, [
+                { account: BILL_EXPENSE_ACCOUNT, amount: '75.00' },
+            ])
+        } finally {
+            await poster.close()
+        }
+
+        const live = await snapshotWhen(
+            page,
+            reportSnapshot,
+            s => expenseCents(s, vendor.name) === 32500,
+            `${vendor.name} reads 325.00 in the open report with no action on it`
+        )
+        expect(expenseCents(live, 'Total')).toBe(32500)
+    })
+
+    test("the seeded book: an inactive vendor marked, the long name, No vendor last, and a CSV that lists every vendor's lines", async ({
+        page,
+    }) => {
+        const nameOf = (id: string) => {
+            const vendor = VENDORS.find(v => v.id === id)
+            if (!vendor) throw new Error(`no seeded vendor ${id}`)
+            return vendor.display_name
+        }
+        const coastal = `${nameOf(VENDOR_IDS.coastalCoffee)} (inactive)`
+        const willamette = nameOf(VENDOR_IDS.willamette)
+        await page.emulateMedia({ colorScheme: 'light' })
+        await openBooks(page, DESKTOP)
+        await openExpensesByVendor(page)
+        await chooseDays(page, '2026-09-01', '2026-09-30')
+
+        // The view is read only for the muted color of the Coastal row: the list is windowed
+        // and other specs add September vendors, so the row order is read from the CSV.
+        const top = await snapshotWhen(
+            page,
+            reportSnapshotAtTop,
+            s => s.rows.some(row => row.kind === 'group' && row.label === coastal),
+            `the ${coastal} row is mounted`
+        )
+        const coastalRow = top.rows.find(row => row.kind === 'group' && row.label === coastal)
+        if (!coastalRow) throw new Error(`the ${coastal} row is not mounted`)
+        expect(
+            await rowLabelColor(page, coastalRow.id),
+            `${coastal} is drawn in the muted foreground of the column headings`
+        ).toBe(await mutedHeadingColor(page, 'name'))
+
+        // Every figure below is of the one CSV run.
+        const { bytes } = await exportReport(page, 'csv')
+        const records = csvRecords(bytes)
+        expect(records[0]).toEqual(['Vendor', 'Total', '% of expenses'])
+        const isLine = (record: string[]) => /^\d{4}-\d{2}-\d{2} · /.test(record[0] ?? '')
+        const totalRecord = records.at(-1)
+        expect(totalRecord?.[0], 'the Total is the last CSV record').toBe('Total')
+        const vendorRecords = records.slice(1, -1).filter(record => !isLine(record))
+        const vendorNames = vendorRecords.map(record => record[0])
+        expect(vendorNames).toContain(coastal)
+        expect(vendorNames).toContain(willamette)
+        expect(vendorNames.at(-1), 'No vendor is the last vendor, above the Total').toBe(
+            'No vendor'
+        )
+        const vendorSum = vendorRecords.reduce((acc, record) => acc + centsOf(record[1] ?? ''), 0)
+        expect(centsOf(totalRecord?.[1] ?? ''), 'the Total adds up the vendors').toBe(vendorSum)
+
+        const coastalAt = records.findIndex(record => record[0] === coastal)
+        const nextVendor = records.findIndex(
+            (record, index) => index > coastalAt && !isLine(record)
+        )
+        const coastalLines = records.slice(coastalAt + 1, nextVendor)
+        const seedLine = EXPENSES_BY_VENDOR_SEED.lines.find(
+            line => line.vendor === VENDOR_IDS.coastalCoffee
+        )
+        if (!seedLine) throw new Error('EXPENSES_BY_VENDOR_SEED has no Coastal Coffee line')
+        expect(
+            coastalLines.map(record => [record[0], centsOf(record[1] ?? ''), record[2]]),
+            `the seeded journal entry's line on 6200 under ${coastal}`
+        ).toContainEqual([
+            expect.stringMatching(
+                new RegExp(
+                    // A seeded entry's number is not only digits ("JE-25").
+                    `^${EXPENSES_BY_VENDOR_SEED.date} · Journal entry \\S+ · ${escapeRegExp(BILL_EXPENSE_ACCOUNT)} · ${escapeRegExp(EXPENSES_BY_VENDOR_SEED.memo)}$`
+                )
+            ),
+            seedLine.debit,
+            '',
+        ])
     })
 })

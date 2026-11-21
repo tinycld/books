@@ -46,9 +46,23 @@ func expensesByVendorSpec() *reports.Spec {
 		Columns: ebvColumns(),
 		Groups:  []reports.Group{ebvGroup()},
 		Sort:    vendorSortBy("amount", ebvNet(), expenseLineKeys()...),
-		Detail:  &reports.Detail{Label: balanceDetailLabel(), Open: entryOpenPath()},
+		Detail:  &reports.Detail{Label: expenseDetailLabel(), Open: entryOpenPath()},
 		Display: ebvDisplay(),
 	}
+}
+
+// expenseDetailLabel labels an opened line "<date> · <type> <number> ·
+// <account> · <description>" (spec §3 Opening a vendor): the account as
+// accountLabel gives it over the line's account link, and no trailing " · "
+// when the line has no description. A cash-basis row carries its source
+// line's account, so it names the same account.
+func expenseDetailLabel() *reports.Node {
+	description := lineDescriptionFormula()
+	account := accountLabel(func(n ...string) *reports.Node { return fld(append([]string{"account"}, n...)...) })
+	return op("concat",
+		fld("date"), lit(" · "), entryTypeNumber(), lit(" · "), account,
+		op("if", op("isEmpty", description), lit(""), op("concat", lit(" · "), description)),
+	)
 }
 
 // ebvParams are Period (This fiscal year to date by default), Method, Rows,
