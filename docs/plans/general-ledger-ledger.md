@@ -831,3 +831,52 @@ The machine was NOT quiet: the human said to run them then. The 1-minute load wa
 The plan lines after (`st-plans.md`, `gl-plans.md`), as step 11 expected: TD 2 statement 6 has `SCAN t1`, `BLOOM FILTER ON gord (g0=? AND g1=?)` and `SEARCH gord USING AUTOMATIC PARTIAL COVERING INDEX (g0=? AND g1=?)`, with no `SCAN gord` and no `SEARCH t1`. General Ledger run 2's statement with a `gord` line (statement 6) has `MATERIALIZE gord`, `SCAN d` and `SEARCH gord USING AUTOMATIC PARTIAL COVERING INDEX (g0=? AND g1=?)`, with no `SEARCH d USING AUTOMATIC`. The other Transaction Detail and General Ledger runs have the same lines.
 
 What is left for the 2 s bars at 500,000 lines. By the human's decision of 2026-11-20, General Ledger runs 1 and 2 (no Accounts filter) now also have the 2 s bar at 500k (the bar test and `TestGLScale` of the commit after this record). Projected (not measured), whole median x 5.4, the factor of task 9d-2b: TD 1 about 0.34 s, TD 2 about 1.25 s, GL 1 about 1.74 s, GL 2 about 3.75 s. These are upper figures (a fixed compile cost does not grow, and the load was high); on them TD 1, TD 2 and GL 1 are inside the bar and GL 2 is not, so GL 2 is the run to decide from a 500k run. That earlier 500k measure of GL 2 was 2.733 s (plan, evidence item 2), before this change.
+
+#### Task 28a: a page's detail statement computes the rows of the sections it can reach (core `server/reports/run.go`, 2026-11-20)
+
+The cause (plan `2026-11-20-report-engine-scale-part28.md`, "The evidence this plan is written from", item 1): at 500k, General Ledger run 2 was 2.624 s = section rows 355 ms + Total row 391 ms + detail page 1,861 ms. The detail page computed its select (the sort keys, the running balance, the record joins) over the 94,512 period rows of all 106 open sections, to show 201 rows of the first section (11,833 rows).
+
+The change: core `leafRows` writes two CTEs after `gord`: `gcut` (the place of the first open section at which the row count reaches the page size + 1) and `wl` (the rows of the sections up to it, materialized), and the detail select reads `wl`. A section held by a cursor counts as no rows and is always kept. Not cut: a select with a percent of the whole report, a select with a probed condition, a run with one open section, a layout. The limit of `gcut` is an integer literal in the SQL text (`limitSQL`), approved by the human on 2026-11-21.
+
+Two facts the build found (plan, evidence item 3): `wl` must be `MATERIALIZED`, because inline SQLite flattens it into the page select and reads `gord` with `SCAN gord` for each row; and the cut must be a scalar (`gcut`), because a CTE that selects from `gord` puts `SCAN gord` in the plan, which `TestAGroupedDetailStatementReadsItsRowsOnce` and Books `TestTransactionDetailReadsItsPeriodRowsOnce` refuse.
+
+Two more changes of the build:
+
+- A moved group that the cursor holds and that is off the reachable sections: `wl` keeps its shown row by id. `heldLeaves` returns `held` and `away`; with `away` not empty, `wl` joins `gord` with `LEFT JOIN gord` and adds the rows of those ids (their sort keys are the same as over all rows, so the page is the same). Review fix cfc3d9d6: one rule, `movedShown`, names the moved ids for `readShownNow` and `heldLeaves`.
+- Books `TestTransactionDetailReadsItsPeriodRowsOnce` (books 3d77acc9, the TD plan guard) read for a `SCAN t1` or `SCAN d` line, which the cut statement does not have (it reads `wl`). It now reads the real plan lines: no `SCAN gord` and no `SEARCH t1`; each line table is scanned once (`SCAN books_journal_lines` and `SCAN books_cash_basis_lines`, one each); at least one `SEARCH gord USING AUTOMATIC` step, and its parent also scans its rows (`SCAN t1`, `SCAN d` or `SCAN w`).
+
+The tests (core `leafrows_test.go`; the plan names six, the file has seven, the last one added by the held-group fix): `TestAPageComputesTheRowsOfTheGroupsItCanReach`, `TestThePagesAreTheSameOverTheGroupsAPageCanReach`, `TestPagesOverTheGroupsTheyReachJoinIntoTheWholeRun`, `TestAPercentOfTheWholeReportKeepsEveryGroupsRows`, `TestAProbedConditionKeepsEveryGroupsRows`, `TestAMovedGroupIsReadOverTheGroupsAPageCanReach` and `TestAMovedGroupOffThePageIsReadOverTheGroupsAPageCanReach`. With the switch on and no change, the first, second and sixth went RED and the others passed (guards); the seventh went RED on the first cut build (the held value of the moved group differed in the next cursor).
+
+One measuring round stands for this task's step 10 and for task 29's step 8 (see that record): core ea0fee56 plus its review fix cfc3d9d6 (the cut), books 3d77acc9, 2026-11-21. It was run at 500,000 lines for both the General Ledger and the statements; the plan's 100k statements run was not made, so the 100k comparison with `scale-task9b3` is not made (the second table is at 500k, before = `scale-500k-final-st`).
+
+General Ledger, 500k (`scale-task28-gl/gl-results.md`; before: `scale-500k-final-gl/gl-results.md`):
+
+| lines | run | before | after |
+|---|---|---|---|
+| 500000 | GL 1 all accounts, month | 614ms | 513ms |
+| 500000 | GL 2 all accounts, year | 2.73s | 1.759s |
+| 500000 | GL 3 busy account, month | 246ms | 232ms |
+| 500000 | GL 4 small account, month | 164ms | 168ms |
+| 500000 | GL 5 three accounts, year | 1.422s | 1.151s |
+
+Trial Balance, Balance Sheet and Transaction Detail, 500k (`scale-task28-st500/st-results.md`; before: `scale-500k-final-st/st-results.md`):
+
+| lines | run | before | after |
+|---|---|---|---|
+| 500000 | TB 1 all accounts, as of | 1.337s | 1.255s |
+| 500000 | TB 2 busy account, as of | 544ms | 511ms |
+| 500000 | TB 3 three accounts, as of | 719ms | 660ms |
+| 500000 | BS 1 accrual, as of | 934ms | 916ms |
+| 500000 | BS 2 cash, as of | 1.244s | 1.218s |
+| 500000 | TD 1 all accounts, month | 227ms | 207ms |
+| 500000 | TD 2 all accounts, year | 1.12s | 898ms |
+| 500000 | TD 3 busy account, month | 63ms | 61ms |
+| 500000 | TD 4 small account, month | 19ms | 19ms |
+| 500000 | TD 5 three accounts, year | 689ms | 590ms |
+| 500000 | TD 6 busy account, month, cash | 76ms | 73ms |
+
+Median of 5. Both runs PASS (`scale-task28-gl.log`, `scale-task28-st500.log`) and no run is refused; the sections on the page of every General Ledger run, and the group rows and rows of every statements run, are the same as before. The before figures ran at a load of 7.8 to 9.3 (not quiet), so part of each gain is the machine. The machine for this round (`scale-task28.quiet`): the General Ledger run started at load 3.00 (quiet, under 4); the statements run started at load 6.34 (above 4: not quiet, a little high).
+
+Checks of step 10: General Ledger run 2's statement with a `gord` line in `gl-plans.md` has no `SCAN gord` line (grep count 0). Every General Ledger run is under the 2 s bar at 500k. Run 2's margin is 241 ms under the bar (1.759 s), about 12 %: more than 10 %, so tasks 28b and 28c are not needed.
+
+What is left of run 2 (plan, evidence item 2): the section rows statement (about 355 ms) and the Total row statement (about 391 ms), and in the detail page `w` (about 317 ms) and the sections computed again (about 229 ms). Two options not built: the Total row read in the section rows statement (about -345 ms, an estimate) and no `shown` CTEs under `wl` (about -230 ms, an estimate).
