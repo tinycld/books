@@ -43,7 +43,17 @@ func balanceSheetShipped() reports.Shipped {
 		// 2: an account's Current and Prior year open Transaction Detail by
 		// Account (drill).
 		// 3: the Method param (Accrual or Cash) over books.basis_lines.
-		Revision:    3,
+		// 4: the months before the as-of day's month (and before the prior
+		// day's month) are read from the stored months on Accrual; an opened
+		// account shows them as one row, then the as-of month's lines.
+		// 5: on Cash too the months before a day's month come from the stored
+		// months; only the cash-basis rows of those months are read as lines.
+		// 6: a drill's period starts on the first day of the account's first
+		// month (read from the stored months), not on its first line's day.
+		// 7: on Cash the cash-basis rows of the months before a day's month
+		// come from the stored cash months (books_cash_basis_balances), not
+		// from the rows.
+		Revision:    7,
 		Unpublished: true,
 	}
 }
@@ -60,11 +70,7 @@ func balanceSheetSpec() *reports.Spec {
 	d := prm("asOf")
 	dPrior := op("addMonths", prm("asOf"), lit(-12))
 	accountType := fld("account", "type")
-	signed := op("if",
-		op("in", accountType, lit(creditNormalTypes())),
-		op("sub", fld("credit"), fld("debit")),
-		op("sub", fld("debit"), fld("credit")),
-	)
+	signed := bsSigned("debit", "credit")
 	return &reports.Spec{
 		Version: reports.CurrentVersion,
 		Source:  "books.basis_lines",
@@ -83,20 +89,31 @@ func balanceSheetSpec() *reports.Spec {
 		Filter: op("and",
 			basisFilter(),
 			op("eq", fld("posted"), lit(true)),
+			op("gte", fld("date"), op("startOfMonth", d)),
 			op("lte", fld("date"), d),
 			op("not", op("in", accountType, lit(profitAndLossTypes()))),
 			op("ne", fld("account", "detail_type"), lit("retained_earnings")),
 		),
 		Columns: []reports.Column{
 			{ID: "account", Label: "Account", Path: reports.Path{{Link: "account"}}},
-			{ID: "current", Label: "Current", Heading: d, Formula: op("coalesce", op("sum", signed), lit(0)), Drill: balanceDrill(d)},
+			// A line shows its own amount. The account's row shows the rollup, and
+			// every row above adds the account rows shown. The stored months stay
+			// out of Formula: core refuses a rows total over a looked-up amount.
 			{
-				ID: "prior", Label: "Prior year", Heading: dPrior,
-				Formula: op("coalesce",
-					op("sum", op("if", op("lte", fld("date"), dPrior), signed, lit(nil))),
-					lit(0),
-				),
-				Drill: balanceDrill(dPrior),
+				ID: "current", Label: "Current", Heading: d, Total: reports.TotalRows,
+				Formula: signed,
+				Rollup:  op("add", bsBefore(d), op("coalesce", op("sum", signed), lit(0))),
+				Drill:   balanceDrill(d),
+			},
+			// The report's rows are the as-of month's lines, all after the prior
+			// day, so a line's Prior year amount is 0. The formula still reads the
+			// line's amount (always cut to 0 here): a plain lit(0) is not a money
+			// formula, so it loses the line's currency and core refuses the % change.
+			{
+				ID: "prior", Label: "Prior year", Heading: dPrior, Total: reports.TotalRows,
+				Formula: op("coalesce", op("if", op("lte", fld("date"), dPrior), signed, lit(nil)), lit(0)),
+				Rollup:  bsBalanceAt(dPrior),
+				Drill:   balanceDrill(dPrior),
 			},
 			{ID: "change", Label: "Change", Detail: reports.DetailBlank, Formula: op("sub", col("current"), col("prior"))},
 			{ID: "pct", Label: "% change", Format: "percent", Detail: reports.DetailBlank, Formula: percentChange()},
@@ -123,11 +140,25 @@ func balanceSheetSpec() *reports.Spec {
 			},
 			{
 				ID: "byAccount", Col: "account", Label: accountLabel(func(n ...string) *reports.Node { return rec("byAccount", n...) }),
+				// Every balance-sheet account may get a row: one with earlier
+				// months and no line in the as-of day's month has no row of its
+				// own to start from. Each sits under its own section, class and
+				// kind, which read only the account.
+				Fill: &reports.Fill{Where: op("and",
+					op("not", op("in", fld("type"), lit(profitAndLossTypes()))),
+					op("ne", fld("detail_type"), lit("retained_earnings")),
+				)},
 				Having: op("or",
-					op("eq", prm("rows"), lit("active")),
+					op("and", op("eq", prm("rows"), lit("active")), op("gt", bsActivity(d), lit(0))),
 					op("ne", col("current"), lit(0)),
 					op("ne", col("prior"), lit(0)),
 				),
+				Opening: &reports.Opening{
+					Label:       trialBalanceBeforeLabel,
+					LabelValue:  d,
+					LabelBucket: "month",
+					Cells:       map[string]*reports.Node{"current": bsBefore(d), "prior": bsBalanceAt(dPrior)},
+				},
 			},
 		},
 		Layout: []reports.LayoutItem{
@@ -171,15 +202,16 @@ func balanceSheetSpec() *reports.Spec {
 }
 
 // balanceDrill opens Transaction Detail by Account from an account row's
-// balance on day d on the run's method: the account's posted lines from its
-// first one up to d, so the section total is the balance. An account with no
-// posted line on or before d still opens (its 0.00 figure): the range is then
-// d to d, an empty run. Class, kind and section rows do not drill: their
-// groups are no account type.
+// balance on day d on the run's method: the account's posted lines from the
+// first day of its first month up to d, so the section total is the balance.
+// An account with no posted line on or before d still opens (its 0.00
+// figure), an empty run: the range is then d to d, or the 1st of d's month to
+// d when the account's first line is later in that month. Class, kind and
+// section rows do not drill: their groups are no account type.
 func balanceDrill(d *reports.Node) *reports.Drill {
 	return tdDrillTarget(map[string]map[string]reports.DrillValue{
 		"byAccount": {
-			"period":   {Range: &reports.DrillRange{From: op("coalesce", firstBasisLine(d), d), To: d}},
+			"period":   {Range: &reports.DrillRange{From: op("coalesce", firstBasisMonth(d), d), To: d}},
 			"method":   methodDrill(),
 			"accounts": tdAccountOf(),
 		},
@@ -298,34 +330,128 @@ func placementLabelCase(rank *reports.Node, level func(placement) (int, string))
 // retained-earnings account's posted lines on or before x, plus every income
 // and expense line dated before the fiscal year that holds x.
 func retainedEarningsAt(x *reports.Node) *reports.Node {
-	return profitAndLossSum(x, op("or",
-		op("eq", fld("account", "detail_type"), lit("retained_earnings")),
-		op("and",
-			op("in", fld("account", "type"), lit(profitAndLossTypes())),
-			op("lt", op("fiscalYear", fld("date")), op("fiscalYear", x)),
-		),
-	))
+	return profitAndLossSum(x, func(day string) *reports.Node {
+		return op("or",
+			op("eq", fld("account", "detail_type"), lit("retained_earnings")),
+			op("and",
+				op("in", fld("account", "type"), lit(profitAndLossTypes())),
+				op("lt", op("fiscalYear", fld(day)), op("fiscalYear", x)),
+			),
+		)
+	})
 }
 
 // netIncomeAt is Net income on day x (credits − debits, so a profit reads
 // positive): the income and expense lines dated in the fiscal year that
 // holds x, on or before x.
 func netIncomeAt(x *reports.Node) *reports.Node {
-	return profitAndLossSum(x, op("and",
-		op("in", fld("account", "type"), lit(profitAndLossTypes())),
-		op("gte", op("fiscalYear", fld("date")), op("fiscalYear", x)),
-	))
+	return profitAndLossSum(x, func(day string) *reports.Node {
+		return op("and",
+			op("in", fld("account", "type"), lit(profitAndLossTypes())),
+			op("gte", op("fiscalYear", fld(day)), op("fiscalYear", x)),
+		)
+	})
 }
 
 // profitAndLossSum adds credits − debits of the posted lines on or before x
-// that match which, on the run's method (the statement's source and
-// condition); 0 when none does.
-func profitAndLossSum(x, which *reports.Node) *reports.Node {
-	return op("coalesce", &reports.Node{
+// that match which, on the run's method; 0 when none does. which names the
+// day it reads: a line's date, or a stored month's first day (a fiscal year
+// starts on the first day of a month, so every day of a month is in the
+// fiscal year of that first day). The ledger lines of the months before x's
+// month come from the stored months on both methods; on Cash the cash-basis
+// rows of those months are added, from the stored cash months; x's month comes
+// from its lines.
+func profitAndLossSum(x *reports.Node, which func(day string) *reports.Node) *reports.Node {
+	monthStart := op("startOfMonth", x)
+	net := op("sub", fld("credit"), fld("debit"))
+	storedNet := op("sub", fld("credit_total"), fld("debit_total"))
+	return op("add",
+		glSum("books.account_balances", storedNet,
+			op("lt", fld("month_start"), monthStart), which("month_start")),
+		glSum("books.cash_basis_balances", storedNet,
+			onCash(), op("lt", fld("month_start"), monthStart), which("month_start")),
+		glSum("books.basis_lines", net,
+			basisFilter(), op("eq", fld("posted"), lit(true)), op("lte", fld("date"), x),
+			op("gte", fld("date"), monthStart), which("date")),
+	)
+}
+
+// bsSigned is debit and credit by the account's normal side: credits less
+// debits on a credit-normal account. It reads a line (debit, credit) or a
+// stored month (debit_total, credit_total); both link to their account.
+func bsSigned(debit, credit string) *reports.Node {
+	return op("if",
+		op("in", fld("account", "type"), lit(creditNormalTypes())),
+		op("sub", fld(credit), fld(debit)),
+		op("sub", fld(debit), fld(credit)),
+	)
+}
+
+// onCash is true on a Cash run. A lookup that holds it reads no row on
+// Accrual.
+func onCash() *reports.Node { return op("eq", prm("method"), lit("cash")) }
+
+// bsAccountLines are the posted lines of the row's account that the run's
+// method reads and that pass more.
+func bsAccountLines(more ...*reports.Node) []*reports.Node {
+	return append([]*reports.Node{
+		op("eq", link("account"), tdAccount()),
+		basisFilter(),
+		op("eq", fld("posted"), lit(true)),
+	}, more...)
+}
+
+// bsStoredBefore are the stored months of the row's account before the month
+// of day x: the ledger's (books.account_balances), which both methods read, or
+// the cash-basis rows' (books.cash_basis_balances). Both sources have the same
+// fields.
+func bsStoredBefore(x *reports.Node) []*reports.Node {
+	return []*reports.Node{
+		op("eq", link("account"), tdAccount()),
+		op("lt", fld("month_start"), op("startOfMonth", x)),
+	}
+}
+
+// bsCashStoredBefore are the stored cash months of the row's account before
+// the month of day x, on a Cash run; no row on Accrual.
+func bsCashStoredBefore(x *reports.Node) []*reports.Node {
+	return append([]*reports.Node{onCash()}, bsStoredBefore(x)...)
+}
+
+// bsBefore is the row's account's balance at the start of the month of day x:
+// the stored months (books_account_balances) and, on Cash, the stored cash
+// months (books_cash_basis_balances), so its cost does not grow with the
+// account's ledger lines or its cash-basis rows.
+func bsBefore(x *reports.Node) *reports.Node {
+	return op("add",
+		glSum("books.account_balances", bsSigned("debit_total", "credit_total"), bsStoredBefore(x)...),
+		glSum("books.cash_basis_balances", bsSigned("debit_total", "credit_total"), bsCashStoredBefore(x)...),
+	)
+}
+
+// bsBalanceAt is the row's account's balance on day x when the report's rows
+// are not the lines of x's month: the balance before that month and the
+// month's lines up to x.
+func bsBalanceAt(x *reports.Node) *reports.Node {
+	return op("add", bsBefore(x), glSum("books.basis_lines", bsSigned("debit", "credit"),
+		bsAccountLines(op("gte", fld("date"), op("startOfMonth", x)), op("lte", fld("date"), x))...))
+}
+
+// bsActivity is above 0 when the row's account has a posted line on or before
+// day x, the day of the report's rows: a stored month exists only for a month
+// with a posted ledger line; on Cash the stored cash months before x's month
+// count too (a stored cash month exists only for a month with a cash-basis
+// row).
+func bsActivity(x *reports.Node) *reports.Node {
+	earlier := &reports.Node{
 		Op:     "lookup",
-		Source: "books.basis_lines",
-		Where:  op("and", basisFilter(), op("eq", fld("posted"), lit(true)), op("lte", fld("date"), x), which),
-		Value:  mustJSON(op("sub", fld("credit"), fld("debit"))),
-		Pick:   "sum",
-	}, lit(0))
+		Source: "books.cash_basis_balances",
+		Where:  op("and", bsCashStoredBefore(x)...),
+		Value:  mustJSON(fld("id")),
+		Pick:   "count",
+	}
+	return op("add",
+		op("add", tbStoredCount(bsStoredBefore(x)...), op("coalesce", earlier, lit(0))),
+		op("count", fld("date")),
+	)
 }

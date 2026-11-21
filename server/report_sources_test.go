@@ -51,6 +51,7 @@ var booksSourceKeys = []string{
 	"books.accounts",
 	"books.audit_log",
 	"books.basis_lines",
+	"books.cash_basis_balances",
 	"books.customers",
 	"books.journal_entries",
 	"books.journal_lines",
@@ -303,6 +304,16 @@ func expectedCatalog(t *testing.T) []wantSource {
 			key: "books.account_balances", collection: "books_account_balances", label: "Monthly account balances",
 			fields: []wantField{
 				{key: "period", typ: reports.Text, aggs: reports.MinMax, label: "Month"},
+				{key: "month_start", typ: reports.Date, textDay: true, aggs: reports.MinMax, label: "Month start"},
+				money("debit_total"), money("credit_total"), text("currency"),
+			},
+			links: []wantLink{toOne("account", "books.accounts", "account")},
+		},
+		{
+			key: "books.cash_basis_balances", collection: "books_cash_basis_balances", label: "Monthly cash-basis balances",
+			fields: []wantField{
+				{key: "period", typ: reports.Text, aggs: reports.MinMax, label: "Month"},
+				{key: "month_start", typ: reports.Date, textDay: true, aggs: reports.MinMax, label: "Month start"},
 				money("debit_total"), money("credit_total"), text("currency"),
 			},
 			links: []wantLink{toOne("account", "books.accounts", "account")},
@@ -669,6 +680,7 @@ func TestReportSourcesCatalog(t *testing.T) {
 			wantCurrency := ""
 			if slices.Contains([]string{
 				"books.journal_entries", "books.journal_lines", "books.basis_lines", "books.account_balances",
+				"books.cash_basis_balances",
 				"books.sales_documents", "books.sales_tax_lines", "books.sales_lines", "books.products",
 				"books.receivable_items", "books.payable_items",
 			}, want.key) {
@@ -1016,11 +1028,8 @@ func TestReportSourcesRun(t *testing.T) {
 	if res.Heading != "Harbor Lane Design LLC" {
 		t.Errorf("heading = %q, want the Books business name", res.Heading)
 	}
-	for _, topic := range []string{"collection/books_journal_lines", "collection/books_settings"} {
-		if !slices.Contains(res.Topics, topic) {
-			t.Errorf("topics = %v, want %s", res.Topics, topic)
-		}
-	}
+	// A report a user builds over journal lines is not live.
+	requireManual(t, res)
 
 	outsider := runAs(t, app, env.users.none, debitToDay)
 	hidden, hiddenTotal := splitRows(t, outsider)

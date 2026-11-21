@@ -14,6 +14,7 @@ import {
 import { batchAnswered } from './document-batch-helpers'
 import { lineCellTestId, uniqueMemo } from './invoice-helpers'
 import { openEntriesList } from './journal-entries-helpers'
+import { tabTo } from './keyboard-helpers'
 
 // The credit memo's keyboard-only create and edit (credit memo spec §3.2, §3.5, §3.10).
 // After the form opens, no click: focus starts in Customer, Tab moves between fields,
@@ -51,11 +52,6 @@ const ZERO_TOTAL =
 async function openBooks(page: Page) {
     await login(page)
     await navigateToPackage(page, 'books')
-}
-
-async function tabTo(page: Page, target: Locator) {
-    await page.keyboard.press('Tab')
-    await expect(target).toBeFocused()
 }
 
 // From a focused Customer with a customer picked to line 1's Qty, one stop at a time

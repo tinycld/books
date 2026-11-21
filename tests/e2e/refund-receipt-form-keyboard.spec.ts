@@ -4,6 +4,7 @@ import { CUSTOMER_IDS, CUSTOMERS } from '../../tinycld/books/lib/customer-form-f
 import { PRODUCT_IDS, PRODUCTS } from '../../tinycld/books/lib/products-services-fixture'
 import { batchAnswered } from './document-batch-helpers'
 import { lineCellTestId, uniqueMemo } from './invoice-helpers'
+import { shiftTabTo, tabTo } from './keyboard-helpers'
 import {
     NEW_REFUND_RECEIPT_URL,
     openNewRefundReceipt,
@@ -44,16 +45,6 @@ const BALANCE = /^Balance \$[\d,]+\.\d{2}$/
 async function openBooks(page: Page) {
     await login(page)
     await navigateToPackage(page, 'books')
-}
-
-async function tabTo(page: Page, target: Locator) {
-    await page.keyboard.press('Tab')
-    await expect(target).toBeFocused()
-}
-
-async function shiftTabTo(page: Page, target: Locator) {
-    await page.keyboard.press('Shift+Tab')
-    await expect(target).toBeFocused()
 }
 
 // The signed amount of a totals row in cents; a minus is "-" or "−" (U+2212).

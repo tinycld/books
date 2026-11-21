@@ -39,6 +39,7 @@ import {
     openTrialBalance,
     postEntryOn,
     pressFigure,
+    refreshReport,
     sectionTopKey,
     snapshotWhen,
     type TdRow,
@@ -508,7 +509,7 @@ test.describe('report-drill-down: screen', () => {
         }
     })
 
-    test('the report runs again on a post from another session, and sorts by Amount', async ({
+    test('Refresh shows a post from another session, and the report sorts by Amount', async ({
         page,
         browser,
     }) => {
@@ -546,11 +547,14 @@ test.describe('report-drill-down: screen', () => {
                     { account: ACCOUNT_LABELS.checking, credit: '21.00' },
                 ],
             })
+            // Transaction Detail is not live: a post shows when the reader presses
+            // Refresh, here from the empty state.
+            await refreshReport(page)
             const first = await snapshotWhen(
                 page,
                 tdSnapshot,
                 s => tdLinesOf(s, expense).length === 1 && tdSubtotalOf(s, expense) !== undefined,
-                `${expense}'s first line without a reload`
+                `${expense}'s first line after Refresh`
             )
             expect(figureDigits(tdLinesOf(first, expense)[0].cells.amount)).toBe('21.00')
             expect(figureDigits(tdSubtotalOf(first, expense)?.cells.amount)).toBe('21.00')
@@ -563,11 +567,12 @@ test.describe('report-drill-down: screen', () => {
                     { account: ACCOUNT_LABELS.checking, credit: '9.00' },
                 ],
             })
+            await refreshReport(page)
             await snapshotWhen(
                 page,
                 tdSnapshot,
                 s => tdLinesOf(s, expense).length === 2,
-                `${expense}'s second line without a reload`
+                `${expense}'s second line after Refresh`
             )
         } finally {
             await otherContext.close()
@@ -831,10 +836,11 @@ test.describe('report-drill-down: screen', () => {
         expect(figureDigits(current)).toBe('325.00')
         await pressFigure(page, 'current', bank)
         await expectTransactionDetailScreen(page)
-        expect(urlPeriod(page)).toBe(`${today}..${today}`)
-        await expect(page.getByTestId('report-document-period')).toHaveText(dayWords(today))
+        // The account's first line is of today: the period starts on the 1st of this month.
+        expect(urlPeriod(page)).toBe(`${firstOfMonth(today)}..${today}`)
+        await expect(page.getByTestId('report-document-period')).toHaveText(monthToDateWords(today))
         await expect(page.getByTestId('report-param-period')).toHaveText(
-            customPeriodChip(today, today)
+            customPeriodChip(firstOfMonth(today), today)
         )
         await expect(page.getByTestId('report-param-accounts')).toContainText(bank)
         const fromBalance = await snapshotWhen(

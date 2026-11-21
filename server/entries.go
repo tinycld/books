@@ -301,6 +301,10 @@ func transitionEntry(tx core.App, stored, next *core.Record, now time.Time) erro
 		if err := unmatchEntry(tx, next.Id); err != nil {
 			return err
 		}
+		// An added bank transaction's categorization goes with its entry's void.
+		if err := uncategorizeEntry(tx, next.Id); err != nil {
+			return err
+		}
 		return voidEntry(tx, next, now)
 	case from == to:
 		changed, err := changesBeyondUnlinks(tx, stored, next, nil, entryUserLinks)

@@ -32,6 +32,7 @@ import {
     openEntriesList,
     searchEntries,
 } from './journal-entries-helpers'
+import { shiftTabTo, tabTo } from './keyboard-helpers'
 import { createProduct } from './products-services-helpers'
 import { uniqueName } from './record-form-helpers'
 import { leaveSettings, visibleTestId } from './sales-receipt-helpers'
@@ -118,16 +119,6 @@ function readEntryLines(page: Page) {
 async function openBooks(page: Page) {
     await login(page)
     await navigateToPackage(page, 'books')
-}
-
-async function tabTo(page: Page, target: Locator) {
-    await page.keyboard.press('Tab')
-    await expect(target).toBeFocused()
-}
-
-async function shiftTabTo(page: Page, target: Locator) {
-    await page.keyboard.press('Shift+Tab')
-    await expect(target).toBeFocused()
 }
 
 // Tab until the target has focus: for a test whose Tab order another test pins.

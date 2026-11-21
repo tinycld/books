@@ -69,8 +69,8 @@ func TestRebuildBalances_FixesDriftAndIsIdempotent(t *testing.T) {
 	income := mkAccount(t, app, "Income", "income", "service_income")
 	rawPost(t, app, mkDraft(t, app, "2026-05-01", ln{cash, 500, 0}, ln{income, 0, 500}), "posted")
 	// A stray row with no ledger behind it, and a wrong one.
-	saveRecord(t, app, "books_account_balances", map[string]any{"account": cash.Id, "period": "2026-01", "debit_total": 1, "currency": "USD"})
-	saveRecord(t, app, "books_account_balances", map[string]any{"account": income.Id, "period": "2026-05", "credit_total": 499, "currency": "USD"})
+	saveRecord(t, app, "books_account_balances", map[string]any{"account": cash.Id, "period": "2026-01", "month_start": "2026-01-01", "debit_total": 1, "currency": "USD"})
+	saveRecord(t, app, "books_account_balances", map[string]any{"account": income.Id, "period": "2026-05", "month_start": "2026-05-01", "credit_total": 499, "currency": "USD"})
 
 	fixed, err := rebuildBalances(app)
 	if err != nil || fixed != 3 {

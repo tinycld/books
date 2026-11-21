@@ -3,6 +3,7 @@ import { useMutation } from '@tinycld/core/lib/mutations'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { newRecordId } from 'pbtsdb/core'
 import { useRef, useState } from 'react'
+import { oneAccountLines } from '../lib/bank-categorize'
 import {
     BATCH_TARGET,
     type BatchFailure,
@@ -13,11 +14,16 @@ import {
     chunksOf,
 } from '../lib/bank-review'
 import { useBankingUIStore } from '../stores/banking-ui-store'
+import type { AddedShown } from './useBankAdded'
 import type { MatchedView } from './useBankMatch'
 
 // Writes in flight at once: enough to move a large choice quickly, few enough that the
 // browser's connection limit and the server see a steady flow.
 const BATCH_SIZE = 50
+
+// The one account and payee every row of a categorize run is categorized to (the
+// Categorize dialog's form, through useReviewTab's onCategorizeChosen).
+export type CategorizeTarget = { account: string; customer: string; vendor: string }
 
 // `summary` is the selection bar's text of the choice as it was sent. `origin` names the
 // control that started the run: the selection bar stays up, busy, for its own run only.
@@ -26,6 +32,12 @@ const BATCH_SIZE = 50
 // gives each id the id of its books_bank_matches row in `matchIds`; the drawer's undo also
 // carries the Matched to section as it showed it (`undoShown`), which the section shows
 // while the run is in flight, as the optimistic delete takes the match row from the store.
+// A categorize run gives each id its memo (its own bank description) in `categorizeRows`
+// and the one account and payee in `categorizeWith`. The undo of a categorize gives each
+// id the id of its books_bank_categorizations row in `categorizationIds`, and its
+// `summary` is the result line of a done undo (undoAddedText, built at the press); the
+// drawer's undo carries the Added to Books section as it showed it (`addedShown`), for the
+// same reason as `undoShown`.
 export type ReviewBatchInput = {
     kind: BatchKind
     ids: readonly string[]
@@ -35,6 +47,10 @@ export type ReviewBatchInput = {
     matchIds?: Readonly<Record<string, string>>
     undoShown?: MatchedView
     skipped?: number
+    categorizeRows?: Readonly<Record<string, { memo: string }>>
+    categorizeWith?: CategorizeTarget
+    categorizationIds?: Readonly<Record<string, string>>
+    addedShown?: AddedShown
 }
 
 const NOT_SENT_TEXT: Record<BatchKind, string> = {
@@ -42,6 +58,8 @@ const NOT_SENT_TEXT: Record<BatchKind, string> = {
     restore: 'bank transaction status change not sent',
     match: 'bank match not sent',
     unmatch: 'bank match undo not sent',
+    categorize: 'bank categorization not sent',
+    uncategorize: 'bank categorization undo not sent',
 }
 
 // Exclude or Move to For review of many transactions: each is a pbtsdb update of its
@@ -50,7 +68,10 @@ const NOT_SENT_TEXT: Record<BatchKind, string> = {
 // books_bank_matches row for each id; the client writes no status: the server moves the
 // transaction to Reviewed and realtime brings the change. An undo is a pbtsdb delete of
 // the id's match row; the server moves the transaction back to For review (its match
-// lines go by the cascade). The run never throws: it
+// lines go by the cascade). A categorize is a pbtsdb insert of one
+// books_bank_categorizations row for each id (the server posts its entry and moves the
+// transaction to Reviewed); its undo is a pbtsdb delete of that row (the server voids the
+// entry and moves the transaction back). The run never throws: it
 // returns which ids went through and why the others did not, so the caller can keep the
 // failed rows chosen.
 //
@@ -60,12 +81,36 @@ const NOT_SENT_TEXT: Record<BatchKind, string> = {
 // @tanstack/db/src/transactions.ts rollback), so a generator could not resume to read
 // the others' outcome.
 export function useReviewBatch() {
-    const [txns, matches] = useStore('books_bank_transactions', 'books_bank_matches')
+    const [txns, matches, categorizations] = useStore(
+        'books_bank_transactions',
+        'books_bank_matches',
+        'books_bank_categorizations'
+    )
 
-    // Starts the write of one id, or throws when there is nothing to send: a moved row that
-    // is no longer in the store (it left by realtime), a match id with no lines, or an
-    // undo id with no match row.
+    // Starts the write of one id, or throws when there is nothing to send: a moved or
+    // categorized row that is no longer in the store (it left by realtime), a match id with
+    // no lines, a categorize run with no account, or an undo id with no match or
+    // categorization row.
     const startWrite = (input: ReviewBatchInput, id: string) => {
+        if (input.kind === 'uncategorize') {
+            const categorizationId = input.categorizationIds?.[id]
+            if (!categorizationId) throw new Error('no categorization to undo')
+            return categorizations.delete(categorizationId)
+        }
+        if (input.kind === 'categorize') {
+            const txn = txns.get(id)
+            const target = input.categorizeWith
+            if (!txn || !target?.account) throw new Error('nothing to categorize')
+            return categorizations.insert({
+                id: newRecordId(),
+                bank_transaction: id,
+                kind: 'categorize',
+                customer: target.customer,
+                vendor: target.vendor,
+                memo: input.categorizeRows?.[id]?.memo ?? txn.description,
+                lines: oneAccountLines(txn.amount, target.account),
+            })
+        }
         if (input.kind === 'unmatch') {
             const matchId = input.matchIds?.[id]
             if (!matchId) throw new Error('no match to undo')
@@ -133,8 +178,13 @@ export function useReviewBatch() {
     // moment it starts, so a second call sends nothing and gets the outcome of that run
     // (its caller then applies the same outcome a second time, which changes nothing).
     const inFlight = useRef<Promise<BatchOutcome> | null>(null)
+    const setAddedNote = useBankingUIStore(s => s.setAddedNote)
+    const setFailedNote = useBankingUIStore(s => s.setFailedNote)
+    // A run's result line takes the place of the last Categorize's "Added …" or failed line.
     const run = (input: ReviewBatchInput): Promise<BatchOutcome> => {
         if (inFlight.current) return inFlight.current
+        setAddedNote(null)
+        setFailedNote(null)
         const started = mutation
             .mutateAsync(input)
             .then(done => done.outcome)
@@ -155,7 +205,8 @@ export function useReviewBatch() {
             ? batchResultText(
                   mutation.variables.kind,
                   mutation.data.outcome,
-                  mutation.variables.skipped ?? 0
+                  mutation.variables.skipped ?? 0,
+                  mutation.variables.summary
               )
             : null
     const pending = mutation.isPending && mutation.variables ? mutation.variables : null
@@ -178,13 +229,15 @@ export type ReviewBatch = ReturnType<typeof useReviewBatch>
 // The outcome of a run and whether the drawer shows its failure itself.
 type BatchRun = { outcome: BatchOutcome; isShownByDrawer: boolean }
 
-// A match or an undo from the drawer that failed keeps the drawer open, which shows the
-// failure itself (useBankMatch's settle), so the result line stays empty. That holds only
-// while the drawer still shows that transaction when the run ends: after Esc, a close or
-// another row, the result line shows the failure, or it would show nowhere.
+// A match, the undo of a match or the undo of a categorize from the drawer that failed
+// keeps the drawer open, which shows the failure itself (useBankMatch's settle, Added to
+// Books' Undo), so the result line stays empty. That holds only while the drawer still
+// shows that transaction when the run ends: after Esc, a close or another row, the result
+// line shows the failure, or it would show nowhere.
+const DRAWER_KINDS: ReadonlySet<BatchKind> = new Set(['match', 'unmatch', 'uncategorize'])
+
 function drawerShowsFailure(input: ReviewBatchInput, outcome: BatchOutcome): boolean {
-    const isMatchKind = input.kind === 'match' || input.kind === 'unmatch'
-    if (input.origin !== 'drawer' || !isMatchKind) return false
+    if (input.origin !== 'drawer' || !DRAWER_KINDS.has(input.kind)) return false
     if (outcome.failed.length === 0) return false
     const openId = useBankingUIStore.getState().openTxnId
     return openId !== null && input.ids.includes(openId)

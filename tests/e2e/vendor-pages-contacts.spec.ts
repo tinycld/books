@@ -1,18 +1,16 @@
 import { expect, type Locator, type Page, test } from '@playwright/test'
+import { isFocused, type TabKey, tabTo } from './keyboard-helpers'
 import {
     createVendor,
     DESKTOP,
     field,
     insertAnswered,
-    isFocused,
     openBooks,
     openNewVendor,
     openVendor,
     openVendorsList,
     PHONE,
     searchVendors,
-    type TabKey,
-    tabTo,
     uniqueName,
     vendorEntry,
 } from './vendor-form-helpers'
@@ -72,7 +70,7 @@ async function addFromKeyboard(
 ) {
     const before = await contactIds(page)
     const dialog = page.getByTestId('contact-dialog')
-    await tabTo(page, add)
+    await tabTo(page, add, { max: 20 })
     await page.keyboard.press('Enter')
     await expect(dialog).toBeVisible()
     await expect(page.getByTestId('contact-name')).toBeFocused()
@@ -86,7 +84,7 @@ async function addFromKeyboard(
     await page.keyboard.press('Tab')
     await expect(page.getByTestId('contact-phone')).toBeFocused()
     await page.keyboard.type(values.phone)
-    await tabTo(page, primarySwitch(page), 3)
+    await tabTo(page, primarySwitch(page), { max: 3 })
     await page.keyboard.press('Space')
     await expect(primarySwitch(page)).toBeChecked()
     await page.keyboard.press('ControlOrMeta+Enter')
@@ -104,7 +102,7 @@ async function addFromKeyboard(
 // Moves the focus to the row's menu trigger with `key` (Shift+Tab for a row above the
 // focus), then Enter opens the menu and the arrow keys reach `item`.
 async function rowMenuItem(page: Page, id: string, item: string, key: TabKey = 'Tab') {
-    await tabTo(page, page.getByTestId(`vendor-contact-menu-${id}`), 20, key)
+    await tabTo(page, page.getByTestId(`vendor-contact-menu-${id}`), { max: 20, key })
     await page.keyboard.press('Enter')
     await expect(page.getByTestId('vendor-contact-edit')).toBeFocused()
     const target = page.getByTestId(item)
@@ -159,7 +157,7 @@ test.describe('vendor-pages: vendor contacts', () => {
         await expect(emptyAdd).toBeVisible()
 
         // ⌘↵ with no name: refused, the dialog stays.
-        await tabTo(page, emptyAdd)
+        await tabTo(page, emptyAdd, { max: 20 })
         await page.keyboard.press('Enter')
         await expect(dialog).toBeVisible()
         await expect(page.getByTestId('contact-name')).toBeFocused()

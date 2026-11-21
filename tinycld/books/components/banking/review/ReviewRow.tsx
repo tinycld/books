@@ -4,6 +4,7 @@ import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Link } from 'expo-router'
 import { Pressable, Text, View } from 'react-native'
 import type { ReviewRowData, ReviewTabModel } from '../../../hooks/useReviewTab'
+import { addedText } from '../../../lib/bank-categorize'
 import { inBooksText } from '../../../lib/bank-match'
 import {
     REVIEW_CELLS,
@@ -83,25 +84,44 @@ function InBooksLink({ txnId, entry, text }: { txnId: string; entry: LinkedEntry
     )
 }
 
-// What a Reviewed transaction was matched to: a link to the one Books transaction, or the
-// count of several as plain text (the row press opens the drawer, which lists them).
-// Nothing for a row with no match.
-function InBooksText({ row }: { row: ReviewRowData }) {
-    const text = inBooksText(row.matchLines)
-    const [only] = row.matchLines
-    if (row.matchLines.length === 1 && only?.entry) {
-        return <InBooksLink txnId={row.id} entry={only.entry} text={text} />
-    }
-    if (!text) return null
+function PlainInBooks({ txnId, text }: { txnId: string; text: string }) {
     return (
         <Text
-            testID={`bank-review-inbooks-${row.id}`}
+            testID={`bank-review-inbooks-${txnId}`}
             numberOfLines={1}
             className="text-sm text-foreground"
         >
             {text}
         </Text>
     )
+}
+
+// A transaction that was added: "Added · Journal entry 1042" as a link to its entry, or
+// "Added" as plain text until the entry arrives.
+function AddedInBooks({ txnId, categorization }: { txnId: string; categorization: Added }) {
+    const { entry } = categorization
+    const text = addedText(categorization.kind, entry)
+    if (!entry) return <PlainInBooks txnId={txnId} text={text} />
+    return <InBooksLink txnId={txnId} entry={entry} text={text} />
+}
+
+type Added = NonNullable<ReviewRowData['categorization']>
+
+// What a Reviewed transaction is in Books. An added one (categorized or transferred) also
+// has the match the server wrote for it, so its categorization is read first. A matched
+// one: a link to the one Books transaction, or the count of several as plain text (the row
+// press opens the drawer, which lists them). Nothing for a row with neither.
+function InBooksText({ row }: { row: ReviewRowData }) {
+    if (row.categorization) {
+        return <AddedInBooks txnId={row.id} categorization={row.categorization} />
+    }
+    const text = inBooksText(row.matchLines)
+    const [only] = row.matchLines
+    if (row.matchLines.length === 1 && only?.entry) {
+        return <InBooksLink txnId={row.id} entry={only.entry} text={text} />
+    }
+    if (!text) return null
+    return <PlainInBooks txnId={row.id} text={text} />
 }
 
 // The In Books cell of the Reviewed table, between Description and Spent.
@@ -243,8 +263,8 @@ export function ReviewRow({
 }
 
 // One transaction on a phone: the check box (when rows can be chosen), description and
-// "day · Check n" (or the day and the match mark), on Reviewed what it was matched to,
-// then the signed amount on the right. Pressing it opens the drawer as a sheet.
+// "day · Check n" (or the day and the match mark), on Reviewed what it is in Books (added
+// or matched, InBooksText), then the signed amount on the right. Pressing it opens the drawer as a sheet.
 export function ReviewCard({
     row,
     currency,

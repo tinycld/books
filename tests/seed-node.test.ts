@@ -14,6 +14,7 @@ import { APPLY_CREDIT_SEED } from '../tinycld/books/lib/apply-credit-fixture'
 import { AR_AGING_SEED } from '../tinycld/books/lib/ar-aging-fixture'
 import { CUSTOMER_BALANCE_SEED } from '../tinycld/books/lib/customer-balance-fixture'
 import { CUSTOMERS } from '../tinycld/books/lib/customer-form-fixture'
+import { REVIEW_SEED_ENTRIES, REVIEW_SEED_STATEMENT } from '../tinycld/books/lib/for-review-fixture'
 import {
     REFUND_FROM_ACCOUNTS,
     REFUND_RECEIPT_IDS,
@@ -776,6 +777,72 @@ describe('seedApAging', () => {
             AP_AGING_SEED.bill.vendor = saved.bill
             AP_AGING_SEED.credit.vendor = saved.credit
         }
+    })
+})
+
+// Bank categorize (cp1): after it matches ONLINE BILL PAY 0915, seedBankMatch categorizes
+// the review statement's last row to 6200 through one books_bank_categorizations create,
+// for the row's description and its absolute amount in cents.
+describe('seedBankMatch', () => {
+    it('matches the matched row, then categorizes the last review row to 6200 in one create', async () => {
+        const seedBankMatch = (seedModule as Record<string, unknown>).seedBankMatch
+        expect(typeof seedBankMatch).toBe('function')
+        if (typeof seedBankMatch !== 'function') return
+        const { pb, writes } = servedPb()
+        const accounts = seededAccounts()
+        const statement = REVIEW_SEED_STATEMENT
+        // The rows the review import and the match suggester leave before seedBankMatch.
+        const txnOf = async (fitid: string) =>
+            (await pb.collection('books_bank_transactions').create({ fitid, status: 'for_review' }))
+                .id
+        const suggested = await txnOf(statement.suggestedFitid)
+        const matched = await txnOf(statement.matchedFitid)
+        const categorized = await txnOf(statement.categorizedFitid)
+        await pb
+            .collection('books_bank_match_suggestions')
+            .create({ bank_transaction: suggested, line: 'line00000000001' })
+        await pb
+            .collection('books_bank_match_suggestions')
+            .create({ bank_transaction: matched, line: 'line00000000002' })
+        const before = writes.length
+
+        await seedBankMatch(pb, { user: USER }, accounts)
+
+        const made = writes.slice(before)
+        const matches = made.filter(w => w.collection === 'books_bank_matches')
+        expect(matches.map(w => [w.op, w.data])).toEqual([
+            [
+                'create',
+                expect.objectContaining({ bank_transaction: matched, lines: ['line00000000002'] }),
+            ],
+        ])
+        const last = REVIEW_SEED_ENTRIES[REVIEW_SEED_ENTRIES.length - 1]
+        expect(last).toBeDefined()
+        if (!last) return
+        const [, signedAmount, description] = last
+        const cents = Math.round(Math.abs(Number(signedAmount)) * 100)
+        const categorizations = made.filter(w => w.collection === 'books_bank_categorizations')
+        expect(categorizations.map(w => [w.op, w.data])).toEqual([
+            [
+                'create',
+                {
+                    bank_transaction: categorized,
+                    kind: 'categorize',
+                    memo: description,
+                    lines: [
+                        expect.objectContaining({
+                            account: accounts.get(statement.categorizedAccountNumber),
+                            amount: cents,
+                        }),
+                    ],
+                    created_by: USER.id,
+                },
+            ],
+        ])
+        const at = (w: Write | undefined) => (w ? made.indexOf(w) : -1)
+        const matchAt = at(matches[0])
+        expect(matchAt).toBeGreaterThanOrEqual(0)
+        expect(matchAt).toBeLessThan(at(categorizations[0]))
     })
 })
 
