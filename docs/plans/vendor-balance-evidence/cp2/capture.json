@@ -1,0 +1,23 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "opened",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280, 1024, 768],
+            "height": 1480,
+            "actions": [
+                { "clickText": "Vendor Balance" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "clickText": "No vendor" },
+                { "pause": 1500 },
+                { "clickText": "Harbor Freight Logistics" },
+                { "pause": 1500 },
+                { "click": "report-document-period" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}
