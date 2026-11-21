@@ -67,6 +67,8 @@
 - gate 3 A notes: 5, listed under Design notes
 - reviewer-caught deferrals: 1 (empty case texts; not self-declared by the implementer, the test writer left them empty) — fixed.
 - fix-round causes: weak-test 1, conformance 1, other: missing-why-comment 1 (cp1-fix-r1.md)
+- commit: 6673cb99a8c9d11156076c609af8e5b1c9213f67
+- human: none (review mode C)
 
 ## Final review
 - eval:
