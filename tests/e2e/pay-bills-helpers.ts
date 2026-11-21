@@ -44,17 +44,6 @@ export type VendorWithBills = {
     bills: { id: string; number: string }[]
 }
 
-// Tab once and check where focus landed (this spec family's own copy).
-export async function tabTo(page: Page, target: Locator) {
-    await page.keyboard.press('Tab')
-    await expect(target).toBeFocused()
-}
-
-export async function shiftTabTo(page: Page, target: Locator) {
-    await page.keyboard.press('Shift+Tab')
-    await expect(target).toBeFocused()
-}
-
 // Nine digits no other worker or run takes at the same time.
 export function uniqueCheckNo(): string {
     return String((Date.now() % 900_000_000) + 100_000_000)

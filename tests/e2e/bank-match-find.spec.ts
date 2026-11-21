@@ -13,6 +13,7 @@ import {
     visibleTestId,
 } from './bank-match-helpers'
 import { BANKING_PHONE } from './banking-helpers'
+import { tabTo } from './keyboard-helpers'
 
 // One serial group: the first test connects its own number-less account and imports one
 // OFX file with the five bank rows of the group, dated today; each test then posts its own
@@ -66,15 +67,6 @@ async function optionIdByAmount(page: Page, amount: string): Promise<string> {
     await expect(option).toHaveCount(1)
     const testId = (await option.getAttribute('data-testid')) ?? ''
     return testId.slice(OPTION_PREFIX.length)
-}
-
-// Presses Tab until `target` holds the focus, as a keyboard user does.
-async function tabTo(page: Page, target: Locator): Promise<void> {
-    for (let i = 0; i < 80; i += 1) {
-        if (await target.evaluate(el => el === document.activeElement)) return
-        await page.keyboard.press('Tab')
-    }
-    throw new Error('Tab never reached the target')
 }
 
 // Whether `inner`'s right edge is at or left of `outer`'s right edge.
@@ -174,8 +166,13 @@ test.describe
             const partTwo = await optionIdByAmount(page, '$200.00')
             await expect.poll(() => shownOptionIds(page)).toEqual([partTwo, partOne])
 
-            // Tab and Space choose part one: short of the bank amount.
-            await tabTo(page, page.getByTestId(`bank-match-box-${partOne}`))
+            // Tab and Space choose part one: short of the bank amount. The inline drawer
+            // narrows the list to cards (ReviewTabBody), so the clicked table row is gone and
+            // the focus is on the body.
+            await tabTo(page, page.getByTestId(`bank-match-box-${partOne}`), {
+                max: 80,
+                fromBody: true,
+            })
             await page.keyboard.press('Space')
             await expect(page.getByTestId(`bank-match-box-${partOne}`)).toHaveAttribute(
                 'aria-checked',
@@ -189,7 +186,7 @@ test.describe
             await search.fill(`${stamp} part two`)
             await expect.poll(() => shownOptionIds(page)).toEqual([partOne, partTwo])
 
-            await tabTo(page, page.getByTestId(`bank-match-box-${partTwo}`))
+            await tabTo(page, page.getByTestId(`bank-match-box-${partTwo}`), { max: 80 })
             await page.keyboard.press('Space')
             await expect(page.getByTestId(`bank-match-box-${partTwo}`)).toHaveAttribute(
                 'aria-checked',
@@ -225,6 +222,8 @@ test.describe
 
             // Another transaction's find mode starts afresh.
             await openMatchDrawer(page, name(stamp, 'four'))
+            // F is registered only once the suggestions have loaded and the button shows.
+            await expect(page.getByTestId('bank-match-find')).toBeVisible()
             await page.keyboard.press('f')
             await expect(page.getByTestId('bank-match-back')).toBeVisible()
             await expect(search).toHaveValue('')

@@ -16,6 +16,7 @@ import {
 import { bankCard, fakeReadOnlyAccess, openBanking } from './banking-helpers'
 import { EXPENSE_URL } from './expense-helpers'
 import { openReviewTab } from './for-review-helpers'
+import { tabTo } from './keyboard-helpers'
 import { uniqueMemo } from './transfer-helpers'
 
 // The drawer group connects its own number-less account and imports one OFX file with a
@@ -73,15 +74,6 @@ async function focusRowByKeys(page: Page, row: Locator): Promise<void> {
     await page.keyboard.press('Escape')
     for (let i = 0; i <= index; i += 1) await page.keyboard.press('j')
     await expect(row).toHaveAttribute('data-focused', 'true')
-}
-
-// Presses Tab until `target` holds the focus, as a keyboard user does.
-async function tabTo(page: Page, target: Locator): Promise<void> {
-    for (let i = 0; i < 80; i += 1) {
-        if (await target.evaluate(el => el === document.activeElement)) return
-        await page.keyboard.press('Tab')
-    }
-    throw new Error('Tab never reached the target')
 }
 
 test.describe
@@ -190,7 +182,8 @@ test.describe
 
             // Tab to the first box; Space toggles it, not the list's row.
             const first = boxes(page).nth(0)
-            await tabTo(page, first)
+            // J, Enter and M put no element in focus: the focus is on the body.
+            await tabTo(page, first, { max: 80, fromBody: true })
             await page.keyboard.press('Space')
             await expect(first).toHaveAttribute('aria-checked', 'true')
             await expect(await inBanking(page, `bank-review-check-${twoId}`)).toHaveAttribute(
