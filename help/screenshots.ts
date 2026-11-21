@@ -137,6 +137,27 @@ async function openBankImportForShot(page: Page) {
     await expect(page.getByTestId('bank-import-map')).toBeVisible()
 }
 
+// The seeded Harborview Kitchen holds the two seeded statements (seed.ts): its page on the
+// Statements tab, with both rows shown.
+async function openStatementsTabForShot(page: Page) {
+    await navigateToPackage(page, 'books')
+    await page.getByTestId('books-nav-lists').click()
+    await page.getByTestId('books-list-card-customers').filter({ visible: true }).click()
+    const list = page.getByTestId('customers-list').filter({ visible: true })
+    await expect(list).toBeVisible()
+    const search = page.getByTestId('customers-search').filter({ visible: true })
+    await search.fill('Harborview Kitchen')
+    await expect(list).not.toHaveAttribute('aria-busy', 'true')
+    await list
+        .locator('[data-testid^="customer-row-"]')
+        .filter({ has: page.getByText('Harborview Kitchen', { exact: true }) })
+        .click()
+    await page.getByTestId('customer-tab-statements').click()
+    const tab = page.getByTestId('customer-statements')
+    await expect(tab).toBeVisible()
+    await expect(tab.locator('[data-testid^="statement-row-menu-"]')).toHaveCount(2)
+}
+
 export default {
     'chart-of-accounts': [
         {
@@ -183,6 +204,13 @@ export default {
             name: 'bank-import-1',
             setup: openBankImportForShot,
             target: '[data-testid="bank-import-screen"]',
+        },
+    ],
+    statements: [
+        {
+            name: 'statements-1',
+            setup: openStatementsTabForShot,
+            target: '[data-testid="customer-statements"]',
         },
     ],
 } satisfies ScreenshotPlan

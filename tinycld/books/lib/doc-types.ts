@@ -13,17 +13,21 @@ export const DOC_TYPES: Record<string, { label: string; noun: string }> = {
     bill_payment: { label: 'Bill payments', noun: 'bill payment' },
     vendor_refund: { label: 'Vendor refunds', noun: 'vendor refund' },
     write_off: { label: 'Write-offs', noun: 'write-off' },
+    statement: { label: 'Statements', noun: 'statement' },
 }
+
+// Documents that never post take their numbers when they are saved.
+const NUMBERED_ON_SAVE = new Set(['estimate', 'statement'])
 
 export function docTypeLabel(docType: string): string {
     return DOC_TYPES[docType]?.label ?? docType
 }
 
-// Estimates never post, so their numbers are taken when they are saved; journal entries
-// keep the word "entries" rather than their label.
+// Estimates and statements never post, so their numbers are taken when they are saved;
+// journal entries keep the word "entries" rather than their label.
 export function sequenceHelper(docType: string): string {
     const what = docType === 'journal' ? 'entries' : docTypeLabel(docType).toLowerCase()
-    const verb = docType === 'estimate' ? 'saved' : 'posted'
+    const verb = NUMBERED_ON_SAVE.has(docType) ? 'saved' : 'posted'
     return `A new prefix applies to ${what} ${verb} from now on. Numbers already issued do not change. The next number can move forward only.`
 }
 

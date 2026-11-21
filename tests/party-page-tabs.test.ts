@@ -12,12 +12,14 @@ import {
 const NO_TRANSACTIONS: readonly PartyTab[] = ['contacts', 'details', 'notes']
 
 describe('PARTY_TABS', () => {
+    // Statements spec §2: Statements is the fifth entry with ⌥5; the four older keys stay.
     it('gives each tab its label and ⌥ key', () => {
         expect(PARTY_TABS).toEqual([
             { key: 'transactions', label: 'Transactions', keys: 'Alt+1' },
             { key: 'contacts', label: 'Contacts', keys: 'Alt+2' },
             { key: 'details', label: 'Details', keys: 'Alt+3' },
             { key: 'notes', label: 'Notes', keys: 'Alt+4' },
+            { key: 'statements', label: 'Statements', keys: 'Alt+5' },
         ])
     })
 })

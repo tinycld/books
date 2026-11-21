@@ -18,13 +18,14 @@ If the balance is in the customer's favour (you owe the customer, for example af
 
 ## Start a transaction for the customer
 
-To start an invoice, an estimate, a sales receipt, a payment, a credit memo or a refund receipt for this customer, choose **New transaction**, or press ⌥N, and pick the type. To record money the customer sent, pick Receive payment: see [Receive payment](help://books:receive-payment). To give the customer a credit, pick Credit memo: see [Credit memos](help://books:credit-memos). The new document opens with the customer filled in. Go back to return to the customer's page. You cannot start a transaction for an inactive customer: make the customer active first.
+To start an invoice, an estimate, a sales receipt, a payment, a credit memo or a refund receipt for this customer, choose **New transaction**, or press ⌥N, and pick the type. To record money the customer sent, pick Receive payment: see [Receive payment](help://books:receive-payment). To give the customer a credit, pick Credit memo: see [Credit memos](help://books:credit-memos). The new document opens with the customer filled in. To show the customer what it owes, pick Statement: the Create statements screen opens with only this customer ticked. Go back to return to the customer's page. You cannot start a transaction for an inactive customer: make the customer active first.
 
 ## The tabs
 
-The page has four tabs. To select one from anywhere on the page, press ⌥1 to ⌥4.
+The page has five tabs. To select one from anywhere on the page, press its key, ⌥1 to ⌥5.
 
 - **Transactions** (⌥1) lists the customer's invoices, estimates, sales receipts, payments, credit memos, refund receipts and write-offs, newest first. Choose a row to open it.
+- **Statements** (⌥5) lists the statements you made for the customer, newest statement date first, with the number, the type, the period, the amount due and when and where each was sent ("Not sent" until it is). Choose a row to open the statement. To make one, choose **Create statement**. See [Customer statements](help://books:statements).
 - **Contacts** (⌥2) lists the people at the customer.
 - **Details** (⌥3) is the customer form: names, addresses, terms, sales tax and custom fields.
 - **Notes** (⌥4) holds your notes about the customer.

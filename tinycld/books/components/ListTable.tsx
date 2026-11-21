@@ -1,7 +1,15 @@
 import { useWindowHeight } from '@tinycld/core/components/workspace/useBreakpoint'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { ArrowDown, ArrowUp } from 'lucide-react-native'
-import { Fragment, type ReactNode, type RefObject, useEffect, useRef } from 'react'
+import {
+    Fragment,
+    type ReactNode,
+    type Ref,
+    type RefObject,
+    useEffect,
+    useImperativeHandle,
+    useRef,
+} from 'react'
 import {
     type LayoutChangeEvent,
     type NativeScrollEvent,
@@ -18,6 +26,10 @@ import { useTableMinWidth } from '../hooks/useTableMinWidth'
 import { PARTY_ROW_CLASS } from '../lib/party-list'
 import { scrollIntoViewY } from '../lib/scroll-into-view'
 
+// The imperative scroll of a windowed list (ListTable, ListCards): it brings row `index`
+// fully into view, and does nothing when it is in view already.
+export type ListScrollHandle = { scrollToIndex(index: number): void }
+
 type ListTableProps<Row> = {
     testID: string
     minWidth: number
@@ -29,6 +41,9 @@ type ListTableProps<Row> = {
     onNearEnd(): void
     // When it changes, the rows scroll so that this row is fully in view under the header.
     scrollToIndex?: number
+    // A scroll the caller asks for at a moment of its own (a refused press), also to the
+    // same row again: `scrollHandle.current.scrollToIndex(index)`.
+    scrollHandle?: Ref<ListScrollHandle>
     // Hears the measured scrollbar gutter each time it changes; the table's scroller
     // content is `minWidth` plus this gutter.
     onGutter?: (gutter: number) => void
@@ -92,6 +107,7 @@ export function ListTable<Row>({
     renderRow,
     onNearEnd,
     scrollToIndex,
+    scrollHandle,
     onGutter,
 }: ListTableProps<Row>) {
     const viewHeight = useWindowHeight()
@@ -123,6 +139,14 @@ export function ListTable<Row>({
     useEffect(() => {
         scrollRowIntoView({ index: scrollToIndex, rowHeight, metrics, rowsScrollRef })
     }, [scrollToIndex, rowHeight, metrics, rowsScrollRef])
+    useImperativeHandle(
+        scrollHandle,
+        () => ({
+            scrollToIndex: (index: number) =>
+                scrollRowIntoView({ index, rowHeight, metrics, rowsScrollRef }),
+        }),
+        [rowHeight, metrics, rowsScrollRef]
+    )
     return (
         <ScrollView
             horizontal

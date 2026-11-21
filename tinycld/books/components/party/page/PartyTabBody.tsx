@@ -14,6 +14,9 @@ interface PartyTabBodyProps {
     page: Pick<PartyPageState, 'canWrite' | 'readOnly' | 'notes' | 'details'>
     // The party's own Transactions tab; mounted only while that tab is selected.
     transactions: ReactNode
+    // The customer's Statements tab; mounted only while that tab is selected. A party
+    // whose tab order has no Statements tab (the vendor page) passes none.
+    statements?: ReactNode
     surface: DetailSurface
     rowClassName: string
     gutterClass: string
@@ -30,12 +33,14 @@ export function PartyTabBody({
     id,
     page,
     transactions,
+    statements = null,
     surface,
     rowClassName,
     gutterClass,
     testIdPrefix,
 }: PartyTabBodyProps) {
     if (tab === 'transactions') return transactions
+    if (tab === 'statements') return statements
     if (tab === 'contacts') {
         return (
             <PartyContactsTab

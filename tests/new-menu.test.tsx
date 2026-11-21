@@ -28,6 +28,25 @@ describe('newMenuForAccess', () => {
         expect(newMenuForAccess(access, NEW_ACTIONS_FIXTURE)).toEqual([])
     })
 
+    // Statements spec §2, §3.9: a writer's Customers column lists Statement right after
+    // Refund receipt; a read-only user's New menu has no Statement.
+    it('lists Statement after Refund receipt in Customers for a writer, and no Statement for a reader', () => {
+        const writer = newMenuForAccess(accessFromRow({ level: 'bookkeeper' }, true), NEW_ACTIONS)
+        const customers = writer.find(column => column.heading === 'Customers')
+        const ids = customers?.actions.map(action => action.id) ?? []
+        expect(ids).toContain('statement')
+        expect(ids.indexOf('statement')).toBe(ids.indexOf('refund_receipt') + 1)
+        expect(customers?.actions.find(action => action.id === 'statement')).toMatchObject({
+            label: 'Statement',
+            href: 'books/statements/new',
+            takesCustomer: true,
+        })
+
+        const reader = newMenuForAccess(accessFromRow({ level: 'read_only' }, true), NEW_ACTIONS)
+        const readerIds = reader.flatMap(column => column.actions.map(action => action.id))
+        expect(readerIds).not.toContain('statement')
+    })
+
     it('returns the three columns for a bookkeeper', () => {
         const access = accessFromRow({ level: 'bookkeeper' }, true)
         const columns = newMenuForAccess(access, NEW_ACTIONS_FIXTURE)

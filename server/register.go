@@ -72,6 +72,8 @@ func Register(app *pocketbase.PocketBase) {
 	reports.RegisterShipped(salesByCustomerShipped())
 	reports.RegisterShipped(salesByProductShipped())
 	reports.RegisterShipped(auditLogShipped())
+	reports.RegisterShipped(statementBalanceForwardShipped())
+	reports.RegisterShipped(statementOpenItemsShipped())
 	registerReportShares(app)
 	registerAudit(app)
 	oauth.RegisterPackage(oauthPackage())
@@ -80,9 +82,11 @@ func Register(app *pocketbase.PocketBase) {
 	quota.RegisterSources(quotaSources()...)
 	registerOffboard()
 	registerAutoReverseSweep(app)
+	registerStatementGuards(app)
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		bindBalanceRoutes(e)
 		bindPDFRoutes(e)
+		bindStatementRoutes(e)
 		return e.Next()
 	})
 }

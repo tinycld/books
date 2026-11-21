@@ -1036,6 +1036,19 @@ describe('help/reports.md (write-offs)', () => {
     })
 })
 
+// Statements spec §3.11: the reports topic names the two statement reports and links the
+// statements topic.
+describe('help/reports.md (statements)', () => {
+    it('names the two statement reports', () => {
+        expect(body).toContain('Statement: Balance Forward')
+        expect(body).toContain('Statement: Open Items')
+    })
+
+    it('links the statements topic', () => {
+        expect(body).toContain('(help://books:statements)')
+    })
+})
+
 describe('help/navigating-books.md', () => {
     it('links the Books reports topic', () => {
         expect(navigatingSource).toContain('help://books:reports')

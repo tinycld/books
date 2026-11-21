@@ -59,6 +59,7 @@ export type {
     BooksSalesReceipts,
     BooksSalesReceiptTaxLines,
     BooksSettings,
+    BooksStatements,
     BooksTaxAgencies,
     BooksTaxRates,
     BooksVendorCreditApplications,

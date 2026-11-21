@@ -38,7 +38,10 @@
 // payments (booksseqpayment), bill payments (booksseqbillpay), credit memos
 // (booksseqcreditm), vendor credits (booksseqvcredit), vendor refunds
 // (booksseqvrefund), refund receipts (booksseqrefundr) and write-offs
-// (booksseqwriteof).
+// (booksseqwriteof). Customer statements number on their own from ST-1001
+// (booksseqstatemt); a statement takes its number when it is saved, and a
+// statement is not a journal entry, so the guard reads its highest number from
+// books_statements.
 //
 // books_close_overrides lets one user post into the closed period until an
 // expiry, with a reason. It is the log of that permission, so it is never
@@ -153,6 +156,7 @@ migrate(
                         'vendor_refund',
                         'refund_receipt',
                         'write_off',
+                        'statement',
                     ],
                 },
                 { name: 'prefix', type: 'text', max: 10, pattern: '^[A-Za-z0-9-]*$' },
@@ -253,6 +257,12 @@ migrate(
         writeOff.set('prefix', '')
         writeOff.set('next_number', 1001)
         app.save(writeOff)
+        const statement = new Record(sequences)
+        statement.set('id', 'booksseqstatemt')
+        statement.set('doc_type', 'statement')
+        statement.set('prefix', 'ST-')
+        statement.set('next_number', 1001)
+        app.save(statement)
 
         app.save(
             new Collection({

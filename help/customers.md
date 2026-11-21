@@ -39,6 +39,8 @@ The Transactions tab lists the customer's invoices, estimates, sales receipts, p
 
 To see one type only, choose Invoices, Estimates, Sales receipts, Payments, Credit memos or Refunds above the list; choose All, or Show all, to see every type again. The list starts on All each time you open the customer or select the Transactions tab again. Choose a row to open the document; go back to return to the customer's page as you left it. If the customer has no transactions yet, choose New transaction to start an invoice, an estimate, a sales receipt, a payment, a credit memo or a refund receipt for the customer. To record money a customer sent, see [Receive payment](help://books:receive-payment). To give a customer a credit, see [Credit memos](help://books:credit-memos). To give a customer money back, see [Refund receipts](help://books:refund-receipts).
 
+To show customers what they owe, send them statements; each customer's statements are on the Statements tab of its page. See [Customer statements](help://books:statements).
+
 ## Sub-customers
 
 A sub-customer is a customer under a parent customer, for example one location of a company. Sub-customers go one level only: a sub-customer cannot have sub-customers of its own.

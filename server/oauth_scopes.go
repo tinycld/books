@@ -105,6 +105,7 @@ func oauthPackage() oauth.Package {
 			"books_close_overrides":            ro,
 			"books_admins":                     ro,
 			"books_access":                     ro,
+			statementsCollection:               rw,
 		},
 	}
 }
