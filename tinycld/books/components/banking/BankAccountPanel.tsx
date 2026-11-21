@@ -3,7 +3,7 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { router } from 'expo-router'
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import type { BankConnectionRow } from '../../hooks/useBankConnections'
 import type { BankFileItem } from '../../hooks/useBankFiles'
@@ -196,6 +196,7 @@ interface TabBodyProps extends PanelBodyProps {
     batch: ReviewBatch
     drawer: ReviewDrawerModel
     suggestions: MatchSuggestions
+    shownRowIds: RefObject<readonly string[]>
 }
 
 // The transaction tabs show their own loading state, so only the Files tab waits for the
@@ -210,6 +211,7 @@ function TabBody({
     batch,
     drawer,
     suggestions,
+    shownRowIds,
     ...files
 }: TabBodyProps) {
     if (tab === 'files') return <FilesTabBody {...files} />
@@ -224,6 +226,7 @@ function TabBody({
             batch={batch}
             drawer={drawer}
             suggestions={suggestions}
+            shownRowIds={shownRowIds}
         />
     )
 }
@@ -253,6 +256,8 @@ interface BankAccountPanelProps {
     drawer: ReviewDrawerModel
     // The page's read of the For review row marks.
     suggestions: MatchSuggestions
+    // The page's note of the For review rows on screen, which the For review tab sets.
+    shownRowIds: RefObject<readonly string[]>
     // What the import and review units add, under the upload area and above the files.
     children?: ReactNode
 }
@@ -272,6 +277,7 @@ export function BankAccountPanel({
     batch,
     drawer,
     suggestions,
+    shownRowIds,
     children,
     ...actions
 }: BankAccountPanelProps) {
@@ -328,6 +334,7 @@ export function BankAccountPanel({
                 onTab={onTab}
                 drawer={drawer}
                 suggestions={suggestions}
+                shownRowIds={shownRowIds}
                 row={row}
                 currency={currency}
                 onGoToFiles={onGoToFiles}

@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, test } from '@playwright/test'
+import { tabTo } from './keyboard-helpers'
 import { localDay, vendorWithBills } from './pay-bills-helpers'
 import {
     createVendor,
@@ -18,7 +19,6 @@ import {
     refusedWrites,
     searchVendors,
     stampDigits,
-    tabTo,
     takesClickAtCenter,
     uniqueName,
     vendorEntry,
@@ -229,12 +229,13 @@ test.describe('vendor-pages: vendor page', () => {
         await createVendor(page, { name })
         const id = await openDetailsFromRowMenu(page, name)
 
-        // No click from here.
-        await tabTo(page, nameInput, TO_DETAILS_FIELD)
+        // No click from here. The row menu's Edit opens the page over the list, so core
+        // gives the focus back to a menu trigger that is now covered: it stays on the body.
+        await tabTo(page, nameInput, { max: TO_DETAILS_FIELD, fromBody: true })
         // Chromium selects the value on Tab focus, so typing replaces it.
         await page.keyboard.type(newName)
         await expect(nameInput).toHaveValue(newName)
-        await tabTo(page, companyInput, TO_DETAILS_FIELD)
+        await tabTo(page, companyInput, { max: TO_DETAILS_FIELD })
         await page.keyboard.type(company)
         await expect(companyInput).toHaveValue(company)
 

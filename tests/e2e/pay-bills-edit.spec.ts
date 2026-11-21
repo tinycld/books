@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { openEntriesList, searchEntries } from './journal-entries-helpers'
+import { tabTo } from './keyboard-helpers'
 import {
     BILL_PAYMENT_URL,
     billPaymentIdFromUrl,
@@ -18,7 +19,6 @@ import {
     replacesUrl,
     searchToBillPayment,
     shown,
-    tabTo,
     vendorWithBills,
 } from './pay-bills-helpers'
 import { isDisabled } from './record-form-helpers'

@@ -20,6 +20,7 @@ export type ReviewKeyAction =
     | 'tabFiles'
     | 'escape'
     | 'match'
+    | 'categorize'
 
 // Key names as tinykeys reads them (core lib/shortcuts/matcher.ts): `event.key` or
 // `event.code`, case ignored.
@@ -38,6 +39,7 @@ export const REVIEW_KEYS: Record<ReviewKeyAction, readonly string[]> = {
     tabFiles: ['4'],
     escape: ['Escape'],
     match: ['m'],
+    categorize: ['c'],
 }
 
 const REVIEW_DESCRIPTIONS: Record<ReviewKeyAction, string> = {
@@ -55,6 +57,7 @@ const REVIEW_DESCRIPTIONS: Record<ReviewKeyAction, string> = {
     tabFiles: 'Files tab',
     escape: 'Close or clear',
     match: 'Match the chosen transactions',
+    categorize: 'Categorize the chosen transactions',
 }
 
 const REVIEW_ACTIONS = Object.keys(REVIEW_KEYS) as ReviewKeyAction[]
@@ -89,9 +92,10 @@ function canMove(state: ReviewKeyState, kind: MoveKind): boolean {
     return state.chosenCount > 0 || state.drawerAction === kind
 }
 
-// The batch match key presses the selection bar's Match: only with rows chosen and the
-// drawer closed, so one M at a time is registered.
-function canMatchChosen(state: ReviewKeyState): boolean {
+// The batch keys M and C press the selection bar's Match and Categorize: only with rows
+// chosen and the drawer closed, so one M and one C at a time are registered (the drawer's
+// own M and C are mounted only while it is open).
+function canActOnChosen(state: ReviewKeyState): boolean {
     if (!state.canWrite || state.isWriteBlocked || state.isBatchPending) return false
     return state.chosenCount > 0 && !state.isDrawerOpen
 }
@@ -102,9 +106,10 @@ function canMatchChosen(state: ReviewKeyState): boolean {
 // while no batch runs; Exclude on For review and Move to For review on Excluded, for
 // writers while the server takes writes; Match the chosen rows (M) on For review for a
 // writer with rows chosen and the drawer closed, while no batch runs and the server takes
-// writes (while the drawer is open, M is the drawer's own Match button); Esc while the
-// drawer is open or rows are chosen. Nothing on the Files tab (the keys are not
-// registered there) or while a menu is open.
+// writes (while the drawer is open, M is the drawer's own Match button); Categorize the
+// chosen rows (C) under the same rule (while the drawer is open, C is the drawer's own
+// Categorize way); Esc while the drawer is open or rows are chosen. Nothing on the Files
+// tab (the keys are not registered there) or while a menu is open.
 export function offeredReviewKeys(state: ReviewKeyState): ReviewKeyAction[] {
     if (state.isMenuOpen || state.tab === 'files') return []
     const offered: ReviewKeyAction[] = [...TAB_ACTIONS]
@@ -115,7 +120,7 @@ export function offeredReviewKeys(state: ReviewKeyState): ReviewKeyAction[] {
     if (state.canChoose && hasRows && !state.isBatchPending) offered.push('toggle', 'toggleAll')
     if (state.tab === 'review' && canMove(state, 'exclude')) offered.push('exclude')
     if (state.tab === 'excluded' && canMove(state, 'restore')) offered.push('restore')
-    if (state.tab === 'review' && canMatchChosen(state)) offered.push('match')
+    if (state.tab === 'review' && canActOnChosen(state)) offered.push('match', 'categorize')
     if (state.isDrawerOpen || state.chosenCount > 0) offered.push('escape')
     return offered
 }
@@ -168,7 +173,9 @@ export function focusPressesKey(key: string): boolean {
 //   hands them the page's scope owner as a prop. A focused Match box takes Space itself
 //   (PRESSABLE_SELECTOR above).
 // - M: the list's `match` is offered only while the drawer is closed, and the drawer's
-//   Match button is mounted only while it is open, so one M is registered at a time.
+//   Match button is mounted only while it is open, so one M is registered at a time. C
+//   follows the same rule: the list's `categorize` with the drawer closed, the drawer's
+//   Categorize way key with it open.
 // - `/` while rows are chosen: the selection bar replaces the toolbar and its search field,
 //   so `search` is not offered then (and not listed in ⇧?).
 // - The ⇧? list: a modal scope, so no list key fires.

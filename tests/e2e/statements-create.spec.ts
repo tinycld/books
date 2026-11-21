@@ -1,5 +1,6 @@
 import { expect, type Page, test } from '@playwright/test'
 import { customerPath, DESKTOP, isDisabled, openBooks } from './customer-form-helpers'
+import { tabTo } from './keyboard-helpers'
 import { localDay } from './receive-payment-helpers'
 import {
     customerEmailOf,
@@ -10,7 +11,6 @@ import {
     statementsOf,
     uniqueEmail,
 } from './statements-helpers'
-import { tabTo } from './vendor-form-helpers'
 
 // Create statements, its list and Save (statements spec §3.2-§3.4, plan checkpoint 3). Every
 // test makes its own customer with a unique name and email and one posted invoice, opens the
@@ -106,19 +106,19 @@ test.describe('statements: create', () => {
 
         // From here on, no click.
         await expect(parts.type).toBeFocused()
-        await tabTo(page, parts.date)
+        await tabTo(page, parts.date, { max: 20 })
         await selectAll(page)
         await page.keyboard.type(yesterday)
         await expect(parts.date).toHaveValue(yesterday)
 
         // Options, the heading tick box, then each row's tick box and address.
-        await tabTo(page, parts.tick, 80)
+        await tabTo(page, parts.tick, { max: 80 })
         await page.keyboard.press('Space')
         await expect(parts.caption).toHaveText('No customer selected')
         await page.keyboard.press('Space')
         await expect(parts.caption).toHaveText('Total balance of 1 customer')
 
-        await tabTo(page, parts.address, 3)
+        await tabTo(page, parts.address, { max: 3 })
         await selectAll(page)
         await page.keyboard.type(typed)
         await expect(parts.address).toHaveValue(typed)

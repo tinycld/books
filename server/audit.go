@@ -121,6 +121,10 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		bankMatchesCollection: {
 			ExtractLabel: func(r *core.Record) string { return bankMatchLabel(app, r) },
 		},
+		// A categorization, as a match, names the bank transaction it added.
+		bankCategorizationsCollection: {
+			ExtractLabel: func(r *core.Record) string { return bankMatchLabel(app, r) },
+		},
 		"books_attachments": {
 			ExtractLabel: func(r *core.Record) string { return attachmentLabel(app, r) },
 		},
@@ -206,6 +210,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_bank_imports", Label: "Bank import"},
 		{Value: "books_bank_transactions", Label: "Bank transaction"},
 		{Value: bankMatchesCollection, Label: "Bank match"},
+		{Value: bankCategorizationsCollection, Label: "Bank categorization"},
 		{Value: "books_settings", Label: "Books settings"},
 		{Value: "books_doc_sequences", Label: "Document numbering"},
 		{Value: "books_close_overrides", Label: "Close date override"},

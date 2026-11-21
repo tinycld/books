@@ -14,6 +14,7 @@ import {
     type BatchKind,
     type BatchOutcome,
     canChoose,
+    chosenSumsText,
     type DateOrder,
     hasReviewFilter,
     keptAfterBatch,
@@ -43,7 +44,7 @@ import { useBankingUIStore } from '../stores/banking-ui-store'
 import { useBooksAccess } from './useBooksAccess'
 import { useBooksSettings } from './useBooksSettings'
 import type { MatchSuggestions, RowSuggestion } from './useMatchSuggestions'
-import type { ReviewBatch } from './useReviewBatch'
+import type { CategorizeTarget, ReviewBatch } from './useReviewBatch'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 const NO_MORE_PAGES = () => {}
@@ -172,13 +173,16 @@ function pagedTxns(q: InitialQueryBuilder, txns: PagedTxns, input: ReviewQueryIn
         .orderBy(({ txn }) => txn.id, ID_ORDER)
 }
 
-// Reviewed rows, each with the books_bank_match_lines rows of its match and their entries
-// (the In Books column).
+// Reviewed rows, each with the books_bank_match_lines rows of its match and their entries,
+// and its books_bank_categorizations row with its entry when the transaction was added
+// (the In Books column). The server also writes a match for an added transaction, so the
+// In Books text reads the categorization first.
 function useReviewedQuery(connectionId: string, input: ReviewQueryInput) {
-    const [txns, matchLines, entries] = useStore(
+    const [txns, matchLines, entries, categorizations] = useStore(
         'books_bank_transactions',
         'books_bank_match_lines',
-        'books_journal_entries'
+        'books_journal_entries',
+        'books_bank_categorizations'
     )
     const queryKey = ['books.review.reviewed', connectionId, ...input.keyParts]
     const query = useLiveInfiniteQuery(
@@ -214,10 +218,34 @@ function useReviewedQuery(connectionId: string, input: ReviewQueryInput) {
                             ),
                         }))
                 ),
+                categorization: materialize(
+                    q
+                        .from({ c: categorizations })
+                        .where(({ c }) => eq(c.bank_transaction, txn.id))
+                        .select(({ c }) => ({
+                            id: c.id,
+                            kind: c.kind,
+                            entry: materialize(
+                                q
+                                    .from({ e: entries })
+                                    .where(({ e }) => eq(e.id, c.entry))
+                                    .select(({ e }) => ({
+                                        id: e.id,
+                                        number: e.number,
+                                        doc_type: e.doc_type,
+                                        origin: e.origin,
+                                        document: e.document,
+                                        date: e.date,
+                                    }))
+                                    .findOne()
+                            ),
+                        }))
+                        .findOne()
+                ),
             })),
         { queryKey, pageSize: LIST_PAGE_SIZE }
     )
-    return { query, queryKey, sources: [txns, matchLines, entries] }
+    return { query, queryKey, sources: [txns, matchLines, entries, categorizations] }
 }
 
 // Excluded rows. Only a Reviewed row has a match (the server takes a match of a For review
@@ -245,16 +273,22 @@ function useExcludedQuery(connectionId: string, input: ReviewQueryInput) {
 
 type ReviewedQueryRow = ReturnType<typeof useReviewedQuery>['query']['data'][number]
 export type ReviewMatchLine = NonNullable<ReviewedQueryRow['matchLines']>[number]
+export type ReviewCategorization = NonNullable<ReviewedQueryRow['categorization']>
 
-// A row as a tab read gives it: only Reviewed rows have match lines.
-type ReviewReadRow = ReviewQueryRow & { matchLines?: ReviewedQueryRow['matchLines'] }
+// A row as a tab read gives it: only Reviewed rows have match lines and a categorization.
+type ReviewReadRow = ReviewQueryRow & {
+    matchLines?: ReviewedQueryRow['matchLines']
+    categorization?: ReviewedQueryRow['categorization']
+}
 
 // A listed transaction with the Books transactions suggested for it (For review only; an
-// empty list on the other tabs, and while the suggestions load or after their read failed)
-// and the match lines of its match (Reviewed only; empty on the other tabs).
+// empty list on the other tabs, and while the suggestions load or after their read failed),
+// the match lines of its match (Reviewed only; empty on the other tabs), and its
+// categorization when it was added (Reviewed only; undefined otherwise).
 export type ReviewRowData = ReviewQueryRow & {
     suggestions: readonly RowSuggestion[]
     matchLines: readonly ReviewMatchLine[]
+    categorization: ReviewCategorization | undefined
 }
 
 const NO_SUGGESTIONS: readonly RowSuggestion[] = []
@@ -392,23 +426,39 @@ export type ReviewTabModel = {
     onBatch: () => void
     batchAction: BarAction | null
     // The selection bar's own run is in flight: the bar stays up, and the button of that
-    // run's kind (`runningKind`) is busy.
+    // run's kind (`runningKind`) is busy, except for a categorize run, whose busy button is
+    // in the Categorize dialog.
     isBatchRunning: boolean
     runningKind: BatchKind | null
     isBatchDisabled: boolean
     batchHint: string | undefined
     // The bar's Match of the chosen rows: For review, writers only.
-    matchAction: MatchBarAction | null
+    matchAction: ChosenBarAction | null
+    // The bar's Categorize of the chosen rows (For review, writers only): it opens the
+    // Categorize dialog, which sends `categorizeChoice` through onCategorizeChosen.
+    categorizeAction: ChosenBarAction | null
+    categorizeChoice: CategorizeChoice
+    onCategorizeChosen: (choice: CategorizeChoice, target: CategorizeTarget) => Promise<void>
 }
 
-type MatchBarAction = {
+type ChosenBarAction = {
     label: string
     busyLabel: string
-    testID: 'bank-review-match-chosen'
+    testID: 'bank-review-match-chosen' | 'bank-review-categorize-chosen'
     isDisabled: boolean
     hint: string | undefined
     isRunning: boolean
     onPress: () => void
+}
+
+// The chosen rows a Categorize of the choice sends, in list order, each with its own bank
+// description as its memo; the bar's text of the choice (shown while the run is in flight)
+// and the sums line of the dialog.
+export type CategorizeChoice = {
+    ids: readonly string[]
+    rows: Readonly<Record<string, { memo: string }>>
+    summary: string
+    sums: string
 }
 
 type BarAction = {
@@ -448,9 +498,11 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
     const isWide = useBreakpoint() !== 'mobile'
     const openTxnId = useBankingUIStore(s => s.openTxnId)
     const openTxn = useBankingUIStore(s => s.openTxn)
+    const isAdding = useBankingUIStore(s => s.isAdding)
     const storedFocus = useBankingUIStore(s => s.focusedTxnId)
     const toggleDateOrder = useBankingUIStore(s => s.toggleDateOrder)
     const clearReviewFilters = useBankingUIStore(s => s.clearReviewFilters)
+    const openDialog = useBankingUIStore(s => s.openDialog)
     const kept = useRef<SettledRows<ReviewReadRow>>(undefined)
     // The state describes the query's result, so it reads the filters the query ran with,
     // not the text still being typed.
@@ -497,8 +549,9 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
     const selection = barRun
         ? { count: barRun.ids.length, text: barRun.summary }
         : { count: summary.count, text: summary.text }
+    // The bar's actions also wait while the drawer sends a Categorize or a Record transfer.
     const control = writeControlState({
-        isPending: batch.isPending,
+        isPending: batch.isPending || isAdding,
         writesDisabled: writes.isDisabled,
         writesHint: writes.accessibilityHint,
     })
@@ -544,11 +597,12 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
         ...row,
         suggestions: marks.get(row.id) ?? NO_SUGGESTIONS,
         matchLines: row.matchLines ?? NO_MATCH_LINES,
+        categorization: row.categorization,
     }))
     const plan = matchPlan(listedRows, shownSet)
     const matchState = barMatchState({
         matchableCount: plan.ids.length,
-        isPending: batch.isPending,
+        isPending: batch.isPending || isAdding,
         writesDisabled: writes.isDisabled,
         writesHint: writes.accessibilityHint,
     })
@@ -567,7 +621,7 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
             .catch(err => log.error('books.banking', err))
     }
     const runningKind = barRun?.kind ?? null
-    const matchAction: MatchBarAction | null =
+    const matchAction: ChosenBarAction | null =
         tab === 'review' && isChoosable
             ? {
                   label: 'Match',
@@ -579,6 +633,47 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
                   onPress: onMatch,
               }
             : null
+    // The Categorize dialog of the choice. The run's rows stay in the list until the
+    // server's update arrives by realtime (the insert writes no status), so the result
+    // and the refused rows follow the move's rules (keepRefused).
+    // The dialog's own button shows the busy form of a categorize run; the bar's
+    // Categorize is only disabled during it (control.isDisabled), as the other actions are.
+    const onCategorizeDialog = () => {
+        if (control.isDisabled || chosenIds.length === 0) return
+        openDialog({ kind: 'categorize-chosen' })
+    }
+    const categorizeAction: ChosenBarAction | null =
+        tab === 'review' && isChoosable
+            ? {
+                  label: 'Categorize',
+                  busyLabel: 'Categorizing…',
+                  testID: 'bank-review-categorize-chosen',
+                  isDisabled: control.isDisabled,
+                  hint: control.hint,
+                  isRunning: false,
+                  onPress: onCategorizeDialog,
+              }
+            : null
+    const categorizeChoice: CategorizeChoice = {
+        ids: chosenIds,
+        rows: Object.fromEntries(
+            rows.filter(row => shownSet.has(row.id)).map(row => [row.id, { memo: row.description }])
+        ),
+        summary: summary.text,
+        sums: chosenSumsText(summary.spent, summary.received, currency),
+    }
+    const onCategorizeChosen = (choice: CategorizeChoice, target: CategorizeTarget) =>
+        batch
+            .run({
+                kind: 'categorize',
+                ids: choice.ids,
+                summary: choice.summary,
+                origin: 'bar',
+                categorizeRows: choice.rows,
+                categorizeWith: target,
+            })
+            .then(outcome => keepRefused(outcome, choice.ids))
+            .catch(err => log.error('books.banking', err))
     return {
         rows: listedRows,
         showsInBooks: tab === 'reviewed',
@@ -617,6 +712,9 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
         isBatchDisabled: control.isDisabled,
         batchHint: control.hint,
         matchAction,
+        categorizeAction,
+        categorizeChoice,
+        onCategorizeChosen,
     }
 }
 
