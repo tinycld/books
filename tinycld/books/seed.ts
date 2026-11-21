@@ -1,4 +1,5 @@
 import type PocketBase from 'pocketbase'
+import { AP_AGING_SEED } from './lib/ap-aging-fixture'
 import {
     APPLY_CREDIT_INVOICES,
     APPLY_CREDIT_MEMOS,
@@ -314,6 +315,10 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedArAging(pb, ctx, accountIds, customerIds)
     // After the A/R Aging rows, so every earlier seeded document keeps its number.
     await seedApplyCredit(pb, ctx, customerIds)
+    // The A/P Aging rows (plan decision D2): after the apply credit seed, so every earlier
+    // seeded document keeps its number, and before the bank match seed, which must see
+    // every seeded document.
+    await seedApAging(pb, ctx, accountIds)
     // After every document seed, so its check that each of its two statement lines has
     // exactly one suggestion sees every seeded document (the review statement is imported
     // before any document posts). It posts no document, so no document number moves.
@@ -2317,6 +2322,97 @@ export async function seedArAging(
     )
     await postArAgingPayment(pb, ctx, accountIds, customerIds, partPayment, galaInvoice.id)
     await postArAgingPayment(pb, ctx, accountIds, customerIds, unappliedPayment)
+}
+
+// A/P Aging's seed rows (AP_AGING_SEED, spec §4.5 Seed, plan decision D2), all of Harbor
+// Freight Logistics: a bill posted through the writes seedVendorCreditApplications makes
+// for VENDOR_CREDIT_SEED_BILL (the draft with the vendor's terms and address, one account
+// line, then the post); a part payment of that bill in one batch, as seedBillPayments
+// writes a payment (the payment created posted with its one line; the server posts it); a
+// vendor credit through the writes seedVendorCredits makes (the draft, one account line,
+// then the post); and part of the credit applied to the bill through the apply dialog's
+// REST create. The server numbers the documents, writes their entries and lowers both
+// balances. `accountIds` maps a seed account number to the created account.
+export async function seedApAging(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>
+): Promise<void> {
+    const { bill, partPayment, credit } = AP_AGING_SEED
+    const vendor = VENDORS.find(row => row.id === bill.vendor)
+    if (vendor === undefined) {
+        throw new Error(`seed: A/P aging vendor ${bill.vendor} is not in VENDORS`)
+    }
+    if (!VENDORS.some(row => row.id === credit.vendor)) {
+        throw new Error(`seed: A/P aging vendor ${credit.vendor} is not in VENDORS`)
+    }
+
+    const createdBill = await pb.collection('books_bills').create({
+        vendor: bill.vendor,
+        status: 'draft',
+        date: bill.date,
+        due_date: bill.due_date,
+        terms: vendor.terms,
+        ref_no: bill.ref_no,
+        memo: bill.memo,
+        mailing_address: vendor.address,
+    })
+    await pb.collection('books_bill_lines').create({
+        bill: createdBill.id,
+        position: 0,
+        kind: 'account',
+        account: seededAccountId(accountIds, bill.accountNumber, 'the A/P aging bill'),
+        amount: bill.cents,
+    })
+    await postSeedDocument(pb, 'books_bills', createdBill.id, ctx.user.id)
+
+    const batch = pb.createBatch()
+    batch.collection('books_bill_payments').create({
+        id: partPayment.id,
+        vendor: bill.vendor,
+        paid_from: seededAccountId(
+            accountIds,
+            partPayment.paidFromNumber,
+            'the A/P aging bill payment'
+        ),
+        payment_method: partPayment.payment_method,
+        reference_no: partPayment.reference_no,
+        status: 'posted',
+        date: partPayment.date,
+        posted_by: ctx.user.id,
+    })
+    batch.collection('books_bill_payment_lines').create({
+        id: partPayment.lineId,
+        payment: partPayment.id,
+        bill: createdBill.id,
+        amount: partPayment.cents,
+        position: 0,
+    })
+    await batch.send()
+
+    const createdCredit = await pb.collection('books_vendor_credits').create({
+        vendor: credit.vendor,
+        status: 'draft',
+        date: credit.date,
+        ref_no: credit.ref_no,
+        memo: credit.memo,
+    })
+    await pb.collection('books_vendor_credit_lines').create({
+        vendor_credit: createdCredit.id,
+        position: 0,
+        kind: 'account',
+        account: seededAccountId(accountIds, credit.accountNumber, 'the A/P aging vendor credit'),
+        amount: credit.cents,
+    })
+    await postSeedDocument(pb, 'books_vendor_credits', createdCredit.id, ctx.user.id)
+
+    await pb.collection('books_vendor_credit_applications').create({
+        vendor_credit: createdCredit.id,
+        bill: createdBill.id,
+        amount: credit.appliedCents,
+        date: credit.appliedDate,
+        applied_by: ctx.user.id,
+    })
 }
 
 // The apply credit seed (APPLY_CREDIT_SEED, apply credit spec §4.5): Fox Hollow
