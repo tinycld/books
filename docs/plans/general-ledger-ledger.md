@@ -752,3 +752,20 @@ A figure's drill opens Transaction Detail by Account from the account's first li
 | 100000 | BS 2 cash, as of | 1.965s | 1.508s |
 
 Median of 5, books 63cdf3cb (the 1-minute load was 5.77 when the run started, so the figures may be slightly high); the group rows (10) and rows (20) of BS 1 and BS 2 are the same as before. Statement 5 of BS 1 (480.2ms, 262,040 chars) and of BS 2 (1.364s, 261,956 chars) each have 21 `SCAN books_journal_lines` and 21 `SCAN books_cash_basis_lines` (21 of each after task 9d-1), 4 `SCAN books_account_balances`, and 18 `SEARCH books_account_balances` by index (14 after task 9d-1: the four new ones are the stored-month lookups of the drills). The count of SCANs did not change: the drills' cash-row lookups SCAN the line tables in place of the old `min(date)` lookups, but on Accrual they hold `method = cash` and read almost nothing. On Cash the cost left is the SCANs of the layer-`cash` rows before the month. The bar is 2 s at 500,000 lines for both methods; tasks 9d-2 and 9e-2 of the plan outline are what is left for it, each decided from a 500k run.
+
+#### Task 9d-2a: the stored cash months (books `server/cash_balances.go`, 2026-11-20)
+
+The table `books_cash_basis_balances` keeps one row for each account and month of the cash-basis rows: `account`, `period` (`YYYY-MM`), `month_start`, `debit_total`, `credit_total` and `currency`, with a unique index on `(account, period)`. Clients can read it and cannot write it. A month with no cash row has no row.
+
+The one writer is `syncCashLineRows`: after it changes the cash rows of a source, it reads again the cash rows of each month it touched and writes that month's totals (`refreshCashBalances`). It does not add a difference, so a month is always the sum of its rows. `verifyCashBalances` compares the stored months with the cash rows added up; `rebuildCashBalances` writes them again from the rows, inside `rebuildBalances`, after `rebuildCashBasis`. `requireNoDrift` and `requireNoCashDrift` now also fail on a drifted cash month.
+
+The collection is an in-place edit of migration `2100000021_create_books_bill_payments.js`, not a new migration: Books has no release (no tag, version 0.1.0), so every database starts empty. The table sits in the file that creates the cash rows it sums, and its `down` drops it with them.
+
+No report reads the table yet; the Cash Balance Sheet reads it in task 9d-2b. So the figures must stay as after task 9e-1, and they do:
+
+| lines | run | before (task 9e-1) | after |
+|---|---|---|---|
+| 100000 | BS 1 accrual, as of | 456ms | 443ms |
+| 100000 | BS 2 cash, as of | 1.508s | 1.465s |
+
+Median of 5, core 8969bdbd, books eb7a2f67, on a quiet machine; no run is refused. The group rows (10) and rows (20) of BS 1 and BS 2 are the same as before, and statement 5 of BS 1 (468.2ms, 262,040 chars) and of BS 2 (1.313s, 261,956 chars) is the same statement as after task 9e-1.
