@@ -5,7 +5,13 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { type ScopeOwner, type Shortcut, useRegisterShortcuts } from '@tinycld/core/lib/shortcuts'
 import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
-import { isFormSubmittable, useForm, zodResolver } from '@tinycld/core/ui/form'
+import {
+    isFormSubmittable,
+    useFieldArray,
+    useForm,
+    useWatch,
+    zodResolver,
+} from '@tinycld/core/ui/form'
 import { newRecordId } from 'pbtsdb/core'
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Platform } from 'react-native'
@@ -14,6 +20,7 @@ import {
     type BankTransferFormValues,
     bankTransferRefusalField,
     bankTransferSchema,
+    CATEGORIZE_MAX_LINES,
     type CategorizationLine,
     type CategorizeFormValues,
     CHOOSE_ACCOUNT_TEXT,
@@ -27,6 +34,9 @@ import {
     nextTxnId,
     pickerStateOf,
     SEND_FAILED_TEXT,
+    SPLIT_LIMIT_TEXT,
+    splitSubmitHint,
+    splitTotals,
     type TxnWay,
     transferLine,
     transferPickerOptions,
@@ -36,6 +46,7 @@ import {
 import { batchFailure } from '../lib/bank-review'
 import { parsePartyOptionId } from '../lib/line-party-options'
 import { mergeRecoveries } from '../lib/live-recovery'
+import { centsToText } from '../lib/money'
 import { useBankingUIStore } from '../stores/banking-ui-store'
 import type { BooksBankCategorizations } from '../types'
 import type { BankMatchModel } from './useBankMatch'
@@ -332,8 +343,104 @@ function usePayeeRead() {
 
 export type PayeeRead = ReturnType<typeof usePayeeRead>
 
+type CategorizeForm = ReturnType<typeof useForm<CategorizeFormValues>>
+
+// The split lines of the Categorize form (useFieldArray on `lines`). Split and Add a line:
+// with one line, its amount becomes the bank amount without its sign; the new line starts
+// with what remains ('' when nothing does) and its account takes the focus. Remove: with
+// one line left, its amount is cleared (the one-account form sends the bank amount); the
+// focus goes to the account of the line above (web). The card nodes are kept by field id,
+// so ⌘⌫ finds the card that holds the focus (web).
+function useSplitLines(form: CategorizeForm, model: BankCategorizeModel) {
+    const { bankAmount, currency, isSending } = model
+    const { fields, append, remove } = useFieldArray({ control: form.control, name: 'lines' })
+    const lines = useWatch({ control: form.control, name: 'lines' })
+    const amounts = lines.map(line => line.amount)
+    const totals = splitTotals(bankAmount, amounts, currency)
+    const isFull = fields.length >= CATEGORIZE_MAX_LINES
+    const { getValues, setValue, setFocus } = form
+    const pendingFocus = useRef<number | null>(null)
+    // Keyed by line index: a remove detaches every moved card before any re-attaches
+    // (React detaches refs before it attaches them in one commit).
+    const cardNodes = useRef(new Map<number, HTMLElement>())
+
+    const addLine = useCallback(() => {
+        const count = getValues('lines').length
+        if (isSending || count >= CATEGORIZE_MAX_LINES) return
+        if (count === 1) {
+            setValue('lines.0.amount', centsToText(Math.abs(bankAmount)), {
+                shouldValidate: true,
+            })
+        }
+        const typed = getValues('lines').map(line => line.amount)
+        const { remaining } = splitTotals(bankAmount, typed, currency)
+        const amount = remaining === 0 ? '' : centsToText(remaining)
+        append({ account: '', amount, memo: '' }, { focusName: `lines.${count}.account` })
+    }, [getValues, setValue, append, bankAmount, currency, isSending])
+
+    const removeLine = useCallback(
+        (index: number) => {
+            const count = getValues('lines').length
+            if (isSending || count < 2) return
+            remove(index)
+            if (count === 2) setValue('lines.0.amount', '', { shouldValidate: true })
+            pendingFocus.current = Math.max(0, index - 1)
+        },
+        [getValues, setValue, remove, isSending]
+    )
+
+    // The focus after a remove goes to a field the next render mounts (the one-account
+    // picker when one line is left), so it moves after the next commit (no dependency
+    // list: the request is a ref, set by the press, read once).
+    useEffect(() => {
+        const index = pendingFocus.current
+        if (index === null) return
+        pendingFocus.current = null
+        if (Platform.OS === 'web') setFocus(`lines.${index}.account`)
+    })
+
+    const attachCard = useCallback((index: number, instance: unknown) => {
+        if (isHtmlElement(instance)) cardNodes.current.set(index, instance)
+        else cardNodes.current.delete(index)
+    }, [])
+
+    // The index of the split line whose card holds the focus, on web; null elsewhere.
+    const focusedLine = useCallback((): number | null => {
+        if (typeof document === 'undefined') return null
+        const active = document.activeElement
+        for (const [index, node] of cardNodes.current) {
+            if (node.contains(active)) return index
+        }
+        return null
+    }, [])
+
+    const removeFocusedLine = useCallback(() => {
+        const index = focusedLine()
+        if (index !== null) removeLine(index)
+    }, [focusedLine, removeLine])
+
+    return {
+        fields,
+        lines,
+        isSplit: fields.length > 1,
+        totals,
+        addLine,
+        removeLine,
+        removeFocusedLine,
+        focusedLine,
+        attachCard,
+        // A pick in a line's Account moves the focus on to its Amount.
+        focusAmount: (index: number) => setFocus(`lines.${index}.amount`),
+        addState: {
+            isDisabled: isFull || isSending,
+            hint: isFull ? SPLIT_LIMIT_TEXT : undefined,
+        },
+    }
+}
+
 // The Categorize form of one transaction: Payee, Account, Memo (it starts as the bank
-// description). A server refusal goes under the field it names, else on the form root.
+// description), or a split's lines. A server refusal goes under the field it names, else
+// on the form root.
 export function useCategorizeForm(model: BankCategorizeModel) {
     const { bankAmount, currency } = model
     const schema = useMemo(() => categorizeSchema(bankAmount, currency), [bankAmount, currency])
@@ -347,9 +454,13 @@ export function useCategorizeForm(model: BankCategorizeModel) {
         mode: 'onChange',
     })
     const payee = usePayeeRead()
+    const split = useSplitLines(form, model)
+    const invalidHint = split.isSplit
+        ? splitSubmitHint(bankAmount, currency, split.lines)
+        : CHOOSE_ACCOUNT_TEXT
     const submitState = submitStateOf(model, {
         isValid: isFormSubmittable(form.formState),
-        invalidHint: CHOOSE_ACCOUNT_TEXT,
+        invalidHint,
         payeeLoadFailed: payee.parties.loadFailed,
     })
     const isMounted = useIsMounted()
@@ -372,7 +483,7 @@ export function useCategorizeForm(model: BankCategorizeModel) {
                 customer: party?.kind === 'customer' ? party.id : '',
                 vendor: party?.kind === 'vendor' ? party.id : '',
                 memo: values.memo,
-                lines: categorizeLines(values, bankAmount),
+                lines: categorizeLines(values, bankAmount, currency),
             },
             refuse
         )
@@ -384,6 +495,7 @@ export function useCategorizeForm(model: BankCategorizeModel) {
     return {
         control: form.control,
         payee,
+        split,
         submitState,
         refusal: form.formState.errors.root?.server?.message ?? null,
         onSubmit,
@@ -522,6 +634,51 @@ export function useWayShortcuts(model: BankCategorizeModel, scopeOwner: ScopeOwn
             },
         ]
     }, [isOffered, onWay, wayFormNode])
+    useRegisterShortcuts(shortcuts, scopeOwner)
+}
+
+export type SplitLinesModel = ReturnType<typeof useSplitLines>
+
+// ⌥↵ and ⌘⌫ of the Categorize form, typed from any of its fields (`allowInInputs`), in
+// the page's `list` scope: ⌥↵ is Split while one line shows (in a split the Add a line
+// ShortcutButton holds the key); ⌘⌫ removes the split line whose card holds the focus,
+// on web (`when` finds the card through the DOM focus; on native the remove button is the
+// path). Neither is registered while the form's write is sent.
+export function useSplitShortcuts(
+    split: SplitLinesModel,
+    isSending: boolean,
+    scopeOwner: ScopeOwner
+) {
+    const { isSplit, addLine, removeFocusedLine, focusedLine } = split
+    const shortcuts = useMemo((): Shortcut[] => {
+        if (isSending) return []
+        if (!isSplit) {
+            return [
+                {
+                    id: 'books.banking.categorize.split',
+                    keys: 'Alt+Enter',
+                    scope: 'list',
+                    description: 'Split the transaction over several accounts',
+                    group: WAY_GROUP,
+                    allowInInputs: true,
+                    run: addLine,
+                },
+            ]
+        }
+        if (Platform.OS !== 'web') return []
+        return [
+            {
+                id: 'books.banking.categorize.remove-line',
+                keys: '$mod+Backspace',
+                scope: 'list',
+                description: 'Remove the split line',
+                group: WAY_GROUP,
+                allowInInputs: true,
+                when: () => focusedLine() !== null,
+                run: removeFocusedLine,
+            },
+        ]
+    }, [isSending, isSplit, addLine, removeFocusedLine, focusedLine])
     useRegisterShortcuts(shortcuts, scopeOwner)
 }
 

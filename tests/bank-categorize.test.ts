@@ -17,12 +17,16 @@ import {
     pickerOptionsMatching,
     pickerStateOf,
     SEND_FAILED_TEXT,
+    splitHintText,
+    splitSubmitHint,
+    splitTotals,
     transferLine,
     transferPickerOptions,
     transferSummaryText,
     wayViewOf,
 } from '../tinycld/books/lib/bank-categorize'
-import { transferAccountOptions } from '../tinycld/books/lib/transfer'
+import { centsToText, maxLineAmount } from '../tinycld/books/lib/money-text'
+import { TRANSFER_ERRORS, transferAccountOptions } from '../tinycld/books/lib/transfer'
 
 // The cases the Go test of the create hook also runs
 // (server/testdata/bank_categorize_cases.json).
@@ -321,6 +325,278 @@ describe('categorizeSchema, one line', () => {
     })
 })
 
+const CONSULTING = 'acctconsult4000'
+const SOFTWARE = 'acctsoftware620'
+
+// A split form: one line for each [account, amount text, memo].
+function split(lines: [string, string, string?][], memo = 'Deposit') {
+    return {
+        payee: '',
+        memo,
+        lines: lines.map(([account, amount, lineMemo = '']) => ({
+            account,
+            amount,
+            memo: lineMemo,
+        })),
+    }
+}
+
+// The message of the issue on the form root (no path, or the `root` key react-hook-form
+// keeps for a form-level error).
+function rootIssue(result: { success: boolean; error?: unknown }): string | undefined {
+    if (result.success) return undefined
+    const issues = (result.error as { issues: { path: PropertyKey[]; message: string }[] }).issues
+    const root = issues.find(issue => issue.path.length === 0 || issue.path.join('.') === 'root')
+    return root?.message
+}
+
+function issueMessages(result: { success: boolean; error?: unknown }): string[] {
+    if (result.success) return []
+    const issues = (result.error as { issues: { message: string }[] }).issues
+    return issues.map(issue => issue.message)
+}
+
+describe('categorizeSchema, a split of a Received $970.00', () => {
+    const schema = categorizeSchema(97000, 'USD')
+
+    it('is valid when 1,000.00 and -30.00 add up to the bank amount', () => {
+        const result = schema.safeParse(
+            split([
+                [CONSULTING, '1,000.00', 'Consulting'],
+                [RENT, '-30.00', 'Bank fee'],
+            ])
+        )
+        expect(result.success).toBe(true)
+    })
+
+    it('puts "The lines must add up to $970.00." on the root when the lines are short', () => {
+        const result = schema.safeParse(
+            split([
+                [CONSULTING, '600.00'],
+                [RENT, '250.00'],
+            ])
+        )
+        expect(result.success).toBe(false)
+        expect(rootIssue(result)).toBe('The lines must add up to $970.00.')
+    })
+
+    it('puts the same message on the root when the lines are over', () => {
+        const result = schema.safeParse(
+            split([
+                [CONSULTING, '1,000.00'],
+                [RENT, '90.00'],
+            ])
+        )
+        expect(result.success).toBe(false)
+        expect(rootIssue(result)).toBe('The lines must add up to $970.00.')
+    })
+
+    it('refuses an amount of 0 on that line', () => {
+        for (const zero of ['0', '0.00']) {
+            const result = schema.safeParse(
+                split([
+                    [CONSULTING, '970.00'],
+                    [RENT, zero],
+                ])
+            )
+            expect(result.success, zero).toBe(false)
+            expect(issueAt(result, 'lines.1.amount'), zero).toBe('Enter an amount other than 0.')
+        }
+    })
+
+    it("refuses an amount that does not read as money with the money field's own message", () => {
+        const result = schema.safeParse(
+            split([
+                [CONSULTING, '970.00'],
+                [RENT, 'abc'],
+            ])
+        )
+        expect(result.success).toBe(false)
+        expect(issueAt(result, 'lines.1.amount')).toBe('Enter an amount like 1,234.50')
+    })
+
+    it('refuses 51 lines', () => {
+        const lines = Array.from({ length: 51 }, () => [RENT, '1.00'] as [string, string])
+        const result = categorizeSchema(5100, 'USD').safeParse(split(lines))
+        expect(result.success).toBe(false)
+        expect(issueMessages(result)).toContain('A split holds at most 50 lines.')
+        const fifty = Array.from({ length: 50 }, () => [RENT, '1.00'] as [string, string])
+        expect(categorizeSchema(5000, 'USD').safeParse(split(fifty)).success).toBe(true)
+    })
+
+    it('refuses an amount above the line limit with the transfer form text', () => {
+        const result = schema.safeParse(
+            split([
+                [CONSULTING, '970.00'],
+                [RENT, centsToText(maxLineAmount + 1)],
+            ])
+        )
+        expect(result.success).toBe(false)
+        expect(issueAt(result, 'lines.1.amount')).toBe(TRANSFER_ERRORS.amountTooLarge)
+    })
+
+    it('refuses a line memo of 1001 characters and takes one of 1000', () => {
+        const long = schema.safeParse(
+            split([
+                [CONSULTING, '1,000.00'],
+                [RENT, '-30.00', 'm'.repeat(1001)],
+            ])
+        )
+        expect(long.success).toBe(false)
+        expect(issueAt(long, 'lines.1.memo')).toBeTruthy()
+        const fits = schema.safeParse(
+            split([
+                [CONSULTING, '1,000.00'],
+                [RENT, '-30.00', 'm'.repeat(1000)],
+            ])
+        )
+        expect(fits.success).toBe(true)
+    })
+
+    it('asks for an account on a line with none', () => {
+        const result = schema.safeParse(
+            split([
+                [CONSULTING, '1,000.00'],
+                ['', '-30.00'],
+            ])
+        )
+        expect(result.success).toBe(false)
+        expect(issueAt(result, 'lines.1.account')).toBe('Choose an account.')
+        expect(issueAt(result, 'lines.0.account')).toBeUndefined()
+    })
+})
+
+describe('categorizeSchema, a split of a Spent $86.47', () => {
+    it('takes the amounts without a sign', () => {
+        const result = categorizeSchema(-8647, 'USD').safeParse(
+            split([
+                [RENT, '50.00'],
+                [SOFTWARE, '36.47'],
+            ])
+        )
+        expect(result.success).toBe(true)
+    })
+})
+
+describe('splitTotals', () => {
+    it('splits the whole amount with nothing remaining', () => {
+        expect(splitTotals(97000, ['1,000.00', '-30.00'], 'USD')).toEqual({
+            split: 97000,
+            remaining: 0,
+        })
+    })
+
+    it('says what remains when the lines are short', () => {
+        expect(splitTotals(97000, ['600.00', '250.00'], 'USD')).toEqual({
+            split: 85000,
+            remaining: 12000,
+        })
+    })
+
+    it('says by how much the lines are over', () => {
+        expect(splitTotals(97000, ['1,000.00', '90.00'], 'USD')).toEqual({
+            split: 109000,
+            remaining: -12000,
+        })
+    })
+
+    it('counts a line with unreadable text as 0', () => {
+        expect(splitTotals(97000, ['850.00', 'abc'], 'USD')).toEqual({
+            split: 85000,
+            remaining: 12000,
+        })
+        expect(splitTotals(97000, ['850.00', ''], 'USD')).toEqual({
+            split: 85000,
+            remaining: 12000,
+        })
+    })
+
+    it('reads a Spent amount without its sign', () => {
+        expect(splitTotals(-8647, ['50.00'], 'USD')).toEqual({ split: 5000, remaining: 3647 })
+    })
+})
+
+describe('splitSubmitHint', () => {
+    it('asks for an account when a line has none, also when the sum is right', () => {
+        const lines = [
+            { account: CONSULTING, amount: '1,000.00' },
+            { account: '', amount: '-30.00' },
+        ]
+        expect(splitSubmitHint(97000, 'USD', lines)).toBe('Choose an account.')
+    })
+
+    it('asks for an account when a line has none and the sum is wrong', () => {
+        const lines = [
+            { account: '', amount: '600.00' },
+            { account: RENT, amount: '250.00' },
+        ]
+        expect(splitSubmitHint(97000, 'USD', lines)).toBe('Choose an account.')
+    })
+
+    it('names an amount of 0 when every line has an account', () => {
+        const lines = [
+            { account: CONSULTING, amount: '970.00' },
+            { account: RENT, amount: '0.00' },
+        ]
+        expect(splitSubmitHint(97000, 'USD', lines)).toBe('Enter an amount other than 0.')
+    })
+
+    it('names an unreadable amount when every line has an account', () => {
+        const lines = [
+            { account: CONSULTING, amount: '970.00' },
+            { account: RENT, amount: 'abc' },
+        ]
+        expect(splitSubmitHint(97000, 'USD', lines)).toBe(TRANSFER_ERRORS.amountNotNumber)
+    })
+
+    it('names the first bad amount', () => {
+        const lines = [
+            { account: CONSULTING, amount: 'abc' },
+            { account: RENT, amount: '0' },
+        ]
+        expect(splitSubmitHint(97000, 'USD', lines)).toBe(TRANSFER_ERRORS.amountNotNumber)
+    })
+
+    it('asks for the sum when the accounts and amounts are good', () => {
+        const lines = [
+            { account: CONSULTING, amount: '600.00' },
+            { account: RENT, amount: '250.00' },
+        ]
+        expect(splitSubmitHint(97000, 'USD', lines)).toBe('The lines must add up to $970.00.')
+    })
+})
+
+describe('categorizeLines, a split', () => {
+    it('writes each typed amount in minor units, with its memo', () => {
+        const values = split([
+            [CONSULTING, '1,000.00', 'Consulting'],
+            [RENT, '-30.00', 'Bank fee'],
+        ])
+        expect(categorizeLines(values, 97000, 'USD')).toEqual([
+            { account: CONSULTING, amount: 100000, memo: 'Consulting' },
+            { account: RENT, amount: -3000, memo: 'Bank fee' },
+        ])
+    })
+
+    it('writes the amounts of a Spent split as positive', () => {
+        const values = split([
+            [RENT, '50.00', 'Rent share'],
+            [SOFTWARE, '36.47', ''],
+        ])
+        expect(categorizeLines(values, -8647, 'USD')).toEqual([
+            { account: RENT, amount: 5000, memo: 'Rent share' },
+            { account: SOFTWARE, amount: 3647, memo: '' },
+        ])
+    })
+})
+
+describe('splitHintText', () => {
+    it('names the bank amount without its sign', () => {
+        expect(splitHintText(97000, 'USD')).toBe('The lines must add up to $970.00.')
+        expect(splitHintText(-8647, 'USD')).toBe('The lines must add up to $86.47.')
+    })
+})
+
 describe('bankTransferSchema', () => {
     it('asks for the other account', () => {
         const result = bankTransferSchema.safeParse({ account: '', memo: 'Payment' })
@@ -342,10 +618,10 @@ describe('bankTransferSchema', () => {
 
 describe('categorizeLines', () => {
     it('writes one line for the bank amount without its sign', () => {
-        expect(categorizeLines(oneLine(RENT), -8647)).toEqual([
+        expect(categorizeLines(oneLine(RENT), -8647, 'USD')).toEqual([
             { account: RENT, amount: 8647, memo: '' },
         ])
-        expect(categorizeLines(oneLine(RENT), 8647)).toEqual([
+        expect(categorizeLines(oneLine(RENT), 8647, 'USD')).toEqual([
             { account: RENT, amount: 8647, memo: '' },
         ])
     })
@@ -522,6 +798,37 @@ describe('the shared cases (server/testdata/bank_categorize_cases.json)', () => 
     for (const testCase of judged) {
         it(testCase.name, () => {
             expect(judge(testCase)).toBe(testCase.valid)
+        })
+    }
+
+    // A split case: two or more lines, typed as the form holds them (money text without
+    // the sign of the transaction's direction). "lines over the bank amount" is one line,
+    // which the one-account form sends as the bank amount, so the form cannot hold it.
+    const splits = cases.filter(testCase => testCase.lines.length > 1)
+
+    it('judges every split case', () => {
+        expect(splits.map(testCase => testCase.name)).toEqual([
+            'an amount of 0',
+            '50 lines',
+            '51 lines',
+            'a split with a negative line that adds up',
+            'lines short of the bank amount',
+        ])
+    })
+
+    for (const testCase of splits) {
+        it(`split: ${testCase.name}`, () => {
+            const values = {
+                payee: '',
+                memo: 'Split',
+                lines: testCase.lines.map((line, index) => ({
+                    account: KIND_ACCOUNT_IDS[testCase.accountKinds[index] ?? 'expense'],
+                    amount: centsToText(line.amount),
+                    memo: line.memo,
+                })),
+            }
+            const parsed = categorizeSchema(testCase.bankAmount, 'USD').safeParse(values)
+            expect(parsed.success).toBe(testCase.valid)
         })
     }
 

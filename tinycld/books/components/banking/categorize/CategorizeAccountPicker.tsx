@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { Text, View } from 'react-native'
 import { useAskedFocus } from '../../../hooks/useBankCategorize'
 import { pickerOptionsMatching } from '../../../lib/bank-categorize'
@@ -22,8 +23,10 @@ type CategorizeAccountPickerProps = {
     isDisabled: boolean
     // This picker takes the focus the store asks for (an open, C or T, the next row).
     takesFocus: boolean
-    // The pick moves the focus on (to Memo).
+    // The pick moves the focus on (to Memo, or to a split line's Amount).
     onPicked?: () => void
+    // The form field's ref (useController), so the form can move the focus here.
+    fieldRef?: (instance: unknown) => void
 }
 
 function FieldError({ text, testID }: { text?: string; testID: string }) {
@@ -52,9 +55,17 @@ export function CategorizeAccountPicker({
     isDisabled,
     takesFocus,
     onPicked,
+    fieldRef,
 }: CategorizeAccountPickerProps) {
     const picker = useSearchPicker()
-    const triggerRef = useAskedFocus(takesFocus, focusNode)
+    const askedRef = useAskedFocus(takesFocus, focusNode)
+    const triggerRef = useCallback(
+        (instance: unknown) => {
+            askedRef(instance)
+            fieldRef?.(instance)
+        },
+        [askedRef, fieldRef]
+    )
     const shown = pickerOptionsMatching(options, picker.debouncedTerm)
     const chosen = options.find(option => option.id === value)
     const triggerLabel = chosen?.label ?? PLACEHOLDER

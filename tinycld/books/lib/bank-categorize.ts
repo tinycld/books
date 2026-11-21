@@ -11,7 +11,8 @@ import { filteredAccountOptions, type OptionAccount } from './account-options'
 import { accountTypeDef } from './account-types'
 import { entryLabel } from './bank-match'
 import { parseLineRefusal } from './entry-messages'
-import { formatMoney, parseMoney } from './money'
+import { formatMoney, isWellFormedMoney, maxLineAmount } from './money'
+import { moneyInputCents } from './money-input'
 import { MEMO_MAX, TRANSFER_ERRORS, transferAccountOptions } from './transfer'
 
 // The `lines` field of a categorization holds 1 to 50 lines (the server's limit).
@@ -114,6 +115,19 @@ const memoField = z
     .string()
     .refine(memo => Array.from(memo).length <= MEMO_MAX, TRANSFER_ERRORS.memoTooLong)
 
+// A split line's memo limit, in characters (the server's limit on a line's memo).
+export const LINE_MEMO_MAX = 1000
+
+export const SPLIT_LIMIT_TEXT = 'A split holds at most 50 lines.'
+export const AMOUNT_NOT_ZERO_TEXT = 'Enter an amount other than 0.'
+
+const lineMemoField = z
+    .string()
+    .refine(
+        memo => Array.from(memo).length <= LINE_MEMO_MAX,
+        `A line memo can have at most ${LINE_MEMO_MAX} characters`
+    )
+
 export type CategorizeFormLine = { account: string; amount: string; memo: string }
 
 export type CategorizeFormValues = {
@@ -122,27 +136,108 @@ export type CategorizeFormValues = {
     lines: CategorizeFormLine[]
 }
 
+// The message of one split amount: text that reads as money (the money field's own
+// message, or the limit text when it is well formed but too large), not 0, and at most
+// the server's line limit. Null when the amount is good. Empty text reads as 0
+// (moneyInputCents).
+export function splitAmountMessage(text: string, currency: string): string | null {
+    const cents = moneyInputCents(text, currency)
+    if (cents === null) {
+        return isWellFormedMoney(text, currency)
+            ? TRANSFER_ERRORS.amountTooLarge
+            : TRANSFER_ERRORS.amountNotNumber
+    }
+    if (cents === 0) return AMOUNT_NOT_ZERO_TEXT
+    if (Math.abs(cents) > maxLineAmount) return TRANSFER_ERRORS.amountTooLarge
+    return null
+}
+
+// What the lines of a split hold, in minor units: `split` is the sum of the typed amounts
+// (a line whose text does not read as money counts 0), `remaining` what is left of the
+// bank amount without its sign (below 0 when the lines are over). The sum is a BigInt, so
+// it stays exact past 2^53 with 50 lines at the line limit.
+export function splitTotals(
+    bankAmount: number,
+    amounts: readonly string[],
+    currency: string
+): { split: number; remaining: number } {
+    const split = amounts.reduce(
+        (sum, text) => sum + BigInt(moneyInputCents(text, currency) ?? 0),
+        BigInt(0)
+    )
+    const target = BigInt(Math.trunc(Math.abs(bankAmount)))
+    return { split: Number(split), remaining: Number(target - split) }
+}
+
+// The hint of a disabled Categorize on a split, and the form's root message.
+export function splitHintText(bankAmount: number, currency: string): string {
+    return `The lines must add up to ${formatMoney(Math.abs(bankAmount), currency)}.`
+}
+
+// The hint of a disabled Categorize on a split, by what the lines miss first: an account
+// on a line, then the first amount that is not good (splitAmountMessage), then the sum.
+export function splitSubmitHint(
+    bankAmount: number,
+    currency: string,
+    lines: readonly Pick<CategorizeFormLine, 'account' | 'amount'>[]
+): string {
+    if (lines.some(line => line.account === '')) return CHOOSE_ACCOUNT_TEXT
+    for (const line of lines) {
+        const message = splitAmountMessage(line.amount, currency)
+        if (message) return message
+    }
+    return splitHintText(bankAmount, currency)
+}
+
+// The totals line: "Split $970.00 of $970.00".
+export function splitTotalText(split: number, bankAmount: number, currency: string): string {
+    return `Split ${formatMoney(split, currency)} of ${formatMoney(Math.abs(bankAmount), currency)}`
+}
+
+// The second line of the totals: what remains, or by how much the lines are over; ''
+// when they add up.
+export function splitRemainingText(remaining: number, currency: string): string {
+    if (remaining === 0) return ''
+    const amount = formatMoney(Math.abs(remaining), currency)
+    return remaining > 0 ? `Remaining ${amount}` : `Over by ${amount}`
+}
+
 // The Categorize form. `payee` is a party option id or ''. A one-line form has no amount
-// field: its line is the whole bank amount. The bank amount and currency are the bank
-// transaction's; only the split rules (each amount, the sum, the line limit) read them,
-// and the one-line form has none of those yet.
+// field: its line is the whole bank amount. A split (two or more lines) asks each line for
+// an amount (splitAmountMessage) and puts splitHintText on the form root when the lines do
+// not add up to the bank amount without its sign.
 export function categorizeSchema(
-    _bankAmount: number,
-    _currency: string
+    bankAmount: number,
+    currency: string
 ): z.ZodType<CategorizeFormValues, CategorizeFormValues> {
-    return z.object({
-        payee: z.string(),
-        memo: memoField,
-        lines: z
-            .array(
-                z.object({
-                    account: z.string().min(1, CHOOSE_ACCOUNT_TEXT),
-                    amount: z.string(),
-                    memo: z.string(),
-                })
-            )
-            .min(1),
-    })
+    return z
+        .object({
+            payee: z.string(),
+            memo: memoField,
+            lines: z
+                .array(
+                    z.object({
+                        account: z.string().min(1, CHOOSE_ACCOUNT_TEXT),
+                        amount: z.string(),
+                        memo: lineMemoField,
+                    })
+                )
+                .min(1)
+                .max(CATEGORIZE_MAX_LINES, SPLIT_LIMIT_TEXT),
+        })
+        .superRefine((values, ctx) => {
+            if (values.lines.length < 2) return
+            values.lines.forEach((line, index) => {
+                const message = splitAmountMessage(line.amount, currency)
+                if (message) {
+                    ctx.addIssue({ code: 'custom', path: ['lines', index, 'amount'], message })
+                }
+            })
+            const amounts = values.lines.map(line => line.amount)
+            if (splitTotals(bankAmount, amounts, currency).remaining !== 0) {
+                ctx.addIssue({ code: 'custom', message: splitHintText(bankAmount, currency) })
+            }
+        })
 }
 
 export type BankTransferFormValues = { account: string; memo: string }
@@ -156,15 +251,17 @@ export const bankTransferSchema: z.ZodType<BankTransferFormValues, BankTransferF
 export type CategorizationLine = { account: string; amount: number; memo: string }
 
 // The `lines` json of a categorize row. One line is the bank amount without its sign; the
-// lines of a split carry their typed amounts, signed for the transaction's own direction.
+// lines of a split carry their typed amounts, signed for the transaction's own direction,
+// read in the currency the schema reads them in.
 export function categorizeLines(
     values: Pick<CategorizeFormValues, 'lines'>,
-    bankAmount: number
+    bankAmount: number,
+    currency: string
 ): CategorizationLine[] {
     const isOneLine = values.lines.length === 1
     return values.lines.map(line => ({
         account: line.account,
-        amount: isOneLine ? Math.abs(bankAmount) : (parseMoney(line.amount) ?? 0),
+        amount: isOneLine ? Math.abs(bankAmount) : (moneyInputCents(line.amount, currency) ?? 0),
         memo: line.memo,
     }))
 }
