@@ -28,6 +28,8 @@ export type BankingDialog =
     | { kind: 'edit'; connectionId: string }
     | { kind: 'disconnect'; connectionId: string }
     | { kind: 'remove'; connectionId: string; fileId: string; fileName: string }
+    // The Categorize dialog of the For review rows chosen in the selection bar.
+    | { kind: 'categorize-chosen' }
 
 // The upload line under one connection's upload area. A connection with no entry is idle.
 // `done` keeps the new file's id for its "Import transactions" button.
@@ -82,9 +84,11 @@ interface BankingUIState {
     // choice of a transaction, useBankMatch shows its one suggestion as chosen; the first
     // change stores the whole choice with `matchSeededFor` = that transaction
     // (takeMatchChoice), so from then on `matchChosen` alone counts and an uncheck stays.
-    // `matchRefusal` is the failure text of the last match or undo from the drawer. All of it
-    // belongs to the open transaction, so opening another one, closing the drawer, or
-    // leaving the rows resets it.
+    // `matchRefusal` is the failure text of the last match or undo from the drawer; Added to
+    // Books (useBankAdded) uses it too, for a refused Undo of a categorization, and clears it
+    // when Undo is pressed again. All of it belongs to the open transaction, so opening
+    // another one (openTxn, openNextTxn), closing the drawer (closeTxn, closeAll), or leaving
+    // the rows (resetReviewSelection) resets it (NO_MATCH).
     // Only line ids are kept: useBankMatch reads the chosen lines from the server, so a
     // line that stops being matchable leaves the choice.
     // `matchFindRange` is the find mode's last valid range (null: the window around the

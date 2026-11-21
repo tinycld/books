@@ -25,20 +25,25 @@ function useChosenName(optionId: string) {
 // The Categorize way's Payee: one active customer or vendor, in the groups "Customers"
 // and "Vendors" (useLinePartyOptions, the journal line's party read), or "No payee".
 // `value` is a party option id ('customer:<id>', 'vendor:<id>') or ''. The read is the
-// form's (`read`, useCategorizeForm), so a failed read also keeps Categorize disabled.
+// form's (`read`, useCategorizeForm or useCategorizeChosen), so a failed read also keeps
+// Categorize disabled. `testID` names the trigger; its search, options and "No payee" row
+// take it as their prefix.
 export function PayeePicker({
     read,
     value,
     onChange,
     isDisabled,
+    testID = 'bank-cat-payee',
 }: {
     read: PayeeRead
     value: string
     onChange: (optionId: string) => void
     isDisabled: boolean
+    testID?: string
 }) {
     const { picker, parties } = read
     const chosen = useChosenName(value)
+    const noneOption = { label: NO_PAYEE, testID: `${testID}-none` }
     return (
         <View className="gap-1.5">
             <Text className="text-sm font-semibold text-foreground">Payee</Text>
@@ -47,16 +52,16 @@ export function PayeePicker({
                 title="Payee"
                 triggerLabel={chosen.label}
                 triggerAccessibilityLabel={`Payee: ${chosen.label}`}
-                triggerTestId="bank-cat-payee"
+                triggerTestId={testID}
                 isPlaceholder={chosen.isPlaceholder}
                 disabled={isDisabled}
                 searchPlaceholder="Search customers and vendors"
-                searchTestId="bank-cat-payee-search"
+                searchTestId={`${testID}-search`}
                 options={parties.options}
-                optionTestIdPrefix="bank-cat-payee-option"
+                optionTestIdPrefix={`${testID}-option`}
                 value={value}
                 onChange={onChange}
-                noneOption={{ label: NO_PAYEE, testID: 'bank-cat-payee-none' }}
+                noneOption={noneOption}
                 isLoading={parties.isLoading}
                 loadFailed={parties.loadFailed}
                 onRetry={parties.retry}

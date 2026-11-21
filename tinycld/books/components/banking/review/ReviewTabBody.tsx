@@ -20,6 +20,7 @@ import { REVIEW_TABLE_MIN_WIDTH, type ReviewTab, type TxnTab } from '../../../li
 import type { LiveRecovery } from '../../../lib/live-recovery'
 import { useBankingUIStore } from '../../../stores/banking-ui-store'
 import { AddedResultLine } from '../categorize/AddedResultLine'
+import { CategorizeChosenDialog } from '../categorize/CategorizeChosenDialog'
 import { ReviewCards } from './ReviewCards'
 import { ReviewEmptyState, ReviewLoadError, ReviewLoading } from './ReviewEmptyState'
 import { ReviewResultLine } from './ReviewResultLine'
@@ -148,7 +149,8 @@ type ReviewTabViewProps = ReviewTabBodyProps & {
 
 // The shared view of a transaction tab over the read its tab body made: the toolbar (or
 // the selection bar) in every view state and the last batch's result under it, then the
-// list or its state. The drawer is the page's (BankingScreenView); the inline drawer
+// list or its state, and on For review the selection bar's Categorize dialog, which sends
+// the tab's choice. The drawer is the page's (BankingScreenView); the inline drawer
 // narrows this body, so the list may change from table to cards (ReviewList), and both
 // scroll to the focused row. The tab's keys are registered while this body shows, so none
 // is on the Files tab.
@@ -170,8 +172,15 @@ function ReviewTabView({ read, queryInput, ...props }: ReviewTabViewProps) {
     useReviewShortcuts({ ...model, tab, searchRef, onTab, drawer })
     useShownRowIds(tab, model.rows, props.shownRowIds)
     const fits = useFitsTable(REVIEW_TABLE_MIN_WIDTH)
+    const offersCategorize = model.categorizeAction !== null
     return (
         <View testID={`bank-tab-body-${tab}`} className="min-h-0 flex-1 overflow-hidden">
+            <CategorizeChosenDialog
+                isVisible={offersCategorize}
+                tabModel={model}
+                connectionAccountId={connection.account}
+                batch={batch}
+            />
             <ToolbarOrSelection model={model} searchRef={searchRef} />
             <ResultLine result={model.result} />
             <View

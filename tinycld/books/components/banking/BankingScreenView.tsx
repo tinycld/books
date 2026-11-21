@@ -12,6 +12,7 @@ import { BankingDialogs } from './BankingDialogs'
 import { BankingHeader } from './BankingHeader'
 import { BankingIntro } from './BankingIntro'
 import { BankingLoadError, BankingLoading } from './BankingStates'
+import { AddedToBooks } from './categorize/AddedToBooks'
 import { CategorizeSection } from './categorize/CategorizeSection'
 import { TransferSection } from './categorize/TransferSection'
 import { TxnWaySwitch } from './categorize/TxnWaySwitch'
@@ -124,19 +125,28 @@ function ReaderMatch({ model, scopeOwner }: WaysProps) {
     return <MatchSection model={match} scopeOwner={scopeOwner} currency={model.currency} />
 }
 
+// A Reviewed transaction that was added (or whose categorization still loads, or failed to
+// load) shows Added to Books; any other Reviewed or Excluded transaction, the Match section
+// as it draws those (Matched to, or nothing). An added transaction also has the match the
+// server wrote, so the categorization is checked first.
+function SettledSection({ model, scopeOwner }: WaysProps) {
+    if (model.added.isShown) {
+        return (
+            <AddedToBooks model={model.added} scopeOwner={scopeOwner} currency={model.currency} />
+        )
+    }
+    return <MatchSection model={model.match} scopeOwner={scopeOwner} currency={model.currency} />
+}
+
 // Under the drawer's fields: for a writer on a For review transaction, the way switch
 // and the section of the shown way (core LoadingState until the suggestions decide the
 // default way); for a reader, the Match list only; for a Reviewed or Excluded
-// transaction, the Match section as it draws those (Matched to, or nothing).
+// transaction, Added to Books or the Match section (SettledSection).
 function DrawerWays({ model, scopeOwner }: WaysProps) {
     const { categorize } = model
     useWayShortcuts(categorize, scopeOwner)
     if (categorize.view === 'reader') return <ReaderMatch model={model} scopeOwner={scopeOwner} />
-    if (categorize.view === 'none') {
-        return (
-            <MatchSection model={model.match} scopeOwner={scopeOwner} currency={model.currency} />
-        )
-    }
+    if (categorize.view === 'none') return <SettledSection model={model} scopeOwner={scopeOwner} />
     const section =
         categorize.view === 'switch' ? <WaySection model={model} scopeOwner={scopeOwner} /> : null
     return (

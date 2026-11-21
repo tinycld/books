@@ -3,13 +3,20 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { accountTypeDef } from '../tinycld/books/lib/account-types'
 import {
+    ADDED_LOAD_ERROR_TEXT,
+    addedLineAmount,
+    addedOnText,
     addedResultText,
+    addedText,
+    addedViewOf,
     bankTransferRefusalField,
     bankTransferSchema,
+    batchCategorizeSchema,
     CATEGORIZE_MAX_LINES,
     categorizeAccountOptions,
     categorizeLines,
     categorizeRefusalField,
+    categorizeResultText,
     categorizeSchema,
     categorizeSubmitState,
     defaultWay,
@@ -23,6 +30,7 @@ import {
     transferLine,
     transferPickerOptions,
     transferSummaryText,
+    undoAddedText,
     wayViewOf,
 } from '../tinycld/books/lib/bank-categorize'
 import { centsToText, maxLineAmount } from '../tinycld/books/lib/money-text'
@@ -658,6 +666,110 @@ describe('addedResultText', () => {
 
     it('is empty while the entry is not there', () => {
         expect(addedResultText(undefined)).toBe('')
+    })
+})
+
+describe('batchCategorizeSchema', () => {
+    it('asks for an account', () => {
+        const result = batchCategorizeSchema.safeParse({ account: '', payee: '' })
+        expect(result.success).toBe(false)
+        expect(issueAt(result, 'account')).toBe('Choose an account.')
+    })
+
+    it('takes an account with or without a payee', () => {
+        expect(batchCategorizeSchema.safeParse({ account: RENT, payee: '' }).success).toBe(true)
+        expect(
+            batchCategorizeSchema.safeParse({ account: RENT, payee: 'vendor_dropbox1' }).success
+        ).toBe(true)
+    })
+})
+
+describe('addedText', () => {
+    const journal = { number: '1042', doc_type: 'journal', origin: 'manual' } as const
+    const transfer = { number: '1008', doc_type: 'transfer', origin: 'manual' } as const
+
+    it('names the entry of a categorized transaction', () => {
+        expect(addedText('categorize', journal)).toBe('Added · Journal entry 1042')
+    })
+
+    it('names the transfer of a transferred transaction', () => {
+        expect(addedText('transfer', transfer)).toBe('Added · Transfer 1008')
+    })
+
+    it('reads "Added" until the entry is there', () => {
+        expect(addedText('categorize', undefined)).toBe('Added')
+        expect(addedText('transfer', undefined)).toBe('Added')
+    })
+})
+
+describe('undoAddedText', () => {
+    it('names the voided journal entry and where the transaction went', () => {
+        expect(undoAddedText({ number: '1042', doc_type: 'journal', origin: 'manual' })).toBe(
+            'Undone. Journal entry 1042 is void and the transaction is back in For review.'
+        )
+    })
+
+    it('names a voided transfer the same way', () => {
+        expect(undoAddedText({ number: '1008', doc_type: 'transfer', origin: 'manual' })).toBe(
+            'Undone. Transfer 1008 is void and the transaction is back in For review.'
+        )
+    })
+})
+
+describe('addedOnText', () => {
+    it('names the day and the user who added the transaction', () => {
+        expect(addedOnText('2026-11-18 10:00:00.000Z', 'Ana Ruiz')).toBe(
+            'Added Nov 18, 2026 by Ana Ruiz'
+        )
+    })
+
+    it('names only the day when the user has no name', () => {
+        expect(addedOnText('2026-11-18 10:00:00.000Z', '')).toBe('Added Nov 18, 2026')
+    })
+})
+
+describe('addedLineAmount', () => {
+    it('shows a line on the side opposite the bank line as positive', () => {
+        // Spent: the bank line is a credit, so a debit line is the money going out.
+        expect(addedLineAmount({ debit: 4120, credit: 0 }, -4120)).toBe(4120)
+        // Received: the bank line is a debit, so a credit line is the money coming in.
+        expect(addedLineAmount({ debit: 0, credit: 97000 }, 97000)).toBe(97000)
+    })
+
+    it("shows a line on the bank line's side as negative", () => {
+        expect(addedLineAmount({ debit: 0, credit: 1500 }, -4120)).toBe(-1500)
+        expect(addedLineAmount({ debit: 2500, credit: 0 }, 97000)).toBe(-2500)
+    })
+})
+
+describe('categorizeResultText', () => {
+    it('counts the categorized transactions', () => {
+        expect(categorizeResultText({ done: ['a', 'b', 'c', 'd', 'e', 'f'], failed: [] })).toBe(
+            'Categorized 6 transactions.'
+        )
+        expect(categorizeResultText({ done: ['a'], failed: [] })).toBe('Categorized 1 transaction.')
+    })
+})
+
+describe('addedViewOf', () => {
+    const row = { id: 'cat_0000000001' }
+
+    it('is loading until the read is ready', () => {
+        expect(addedViewOf({ isReady: false, isError: false, row: undefined })).toBe('loading')
+    })
+
+    it('shows the error before anything else', () => {
+        expect(addedViewOf({ isReady: false, isError: true, row: undefined })).toBe('error')
+        expect(addedViewOf({ isReady: true, isError: true, row })).toBe('error')
+        expect(ADDED_LOAD_ERROR_TEXT).toBe("Books could not load this transaction's entry.")
+    })
+
+    it('shows the added facts once the categorization is read', () => {
+        expect(addedViewOf({ isReady: true, isError: false, row })).toBe('added')
+    })
+
+    it('shows nothing for a transaction with no categorization', () => {
+        expect(addedViewOf({ isReady: true, isError: false, row: undefined })).toBe('none')
     })
 })
 

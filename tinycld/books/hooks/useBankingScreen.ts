@@ -9,6 +9,7 @@ import { connectionLabel, selectedConnectionId } from '../lib/bank-connections'
 import { type ReviewTab, reviewTabFromParam } from '../lib/bank-review'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
 import { useBankingUIStore } from '../stores/banking-ui-store'
+import { useBankAdded } from './useBankAdded'
 import { useBankCategorize } from './useBankCategorize'
 import { useBankConnections } from './useBankConnections'
 import { useBankFiles } from './useBankFiles'
@@ -131,6 +132,14 @@ export function useBankingScreen() {
         batch,
         shownRowIds,
     })
+    // The drawer's Added to Books section of a Reviewed transaction that was categorized or
+    // transferred, with its Undo, over the same batch.
+    const added = useBankAdded({
+        drawer,
+        canWrite: access.canWrite,
+        batch,
+        connectionAccountId: selected?.account ?? '',
+    })
     const setAddedNote = useBankingUIStore(s => s.setAddedNote)
     const setFailedNote = useBankingUIStore(s => s.setFailedNote)
     const leaveRows = () => {
@@ -176,6 +185,7 @@ export function useBankingScreen() {
         drawer,
         match,
         categorize,
+        added,
         shownRowIds,
         suggestions,
         onRetry,
