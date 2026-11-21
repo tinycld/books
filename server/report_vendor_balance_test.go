@@ -2,6 +2,7 @@ package books
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"os"
 	"reflect"
@@ -219,6 +220,19 @@ func TestVendorBalanceSpecLoads(t *testing.T) {
 	wantGroups := []groupShape{{ID: "byVendor", Col: "vendorKey", Having: true, Muted: true}}
 	if !reflect.DeepEqual(gotGroups, wantGroups) {
 		t.Errorf("groups = %+v\nwant %+v", gotGroups, wantGroups)
+	}
+
+	// An opened vendor's line is labelled and opens its document (spec §3
+	// Opening a vendor, Opening a transaction; §4 detail).
+	if spec.Detail == nil || spec.Detail.Label == nil || spec.Detail.Open == nil {
+		t.Errorf("detail = %+v, want a label and an open path", spec.Detail)
+	} else {
+		if got, want := mustJSON(spec.Detail.Label), mustJSON(balanceDetailLabel()); string(got) != string(want) {
+			t.Errorf("detail.label = %s\nwant balanceDetailLabel() %s", got, want)
+		}
+		if got, want := mustJSON(spec.Detail.Open), mustJSON(entryOpenPath()); string(got) != string(want) {
+			t.Errorf("detail.open = %s\nwant entryOpenPath() %s", got, want)
+		}
 	}
 
 	// A run shows the two visible columns only; the vendor key stays hidden.
@@ -696,20 +710,290 @@ func TestVendorBalanceNoAccess(t *testing.T) {
 
 func TestVendorBalanceTopics(t *testing.T) {
 	b := newAPBook(t)
-	apBill(t, b, apVendor(t, b, "Topic Co"), "2026-10-01", "2026-10-31", 10000)
+	topicCo := apVendor(t, b, "Topic Co")
+	apBill(t, b, topicCo, "2026-10-01", "2026-10-31", 10000)
 	res := runVB(t, b.app, b.reader, nil)
 	if len(vbVendorRows(res)) == 0 {
 		t.Fatalf("the run has no vendor row; rows %q", bsLabels(res))
 	}
 	// Core adds the topics of the access rules a run reads, so each wanted topic
 	// is required on its own (D11).
-	for _, topic := range []string{
+	closedTopics := []string{
 		"collection/books_journal_lines", "collection/books_accounts", "collection/books_vendors",
 		"collection/books_settings",
-	} {
+	}
+	for _, topic := range closedTopics {
 		if !slices.Contains(res.Topics, topic) {
 			t.Errorf("the closed run's topics %v miss %s", res.Topics, topic)
 		}
+	}
+
+	// An opened vendor reads its lines' entries (the detail label and open path),
+	// so a post or a void of any entry re-runs it.
+	opened := vbRunOpen(t, b, nil, vbVendorRow(t, res, topicCo).GroupKey)
+	if lines := vbLinesUnder(t, opened, vbVendorRow(t, opened, topicCo)); len(lines) == 0 {
+		t.Fatalf("Topic Co did not open; rows %q", bsLabels(opened))
+	}
+	for _, topic := range append(closedTopics, "collection/books_journal_entries") {
+		if !slices.Contains(opened.Topics, topic) {
+			t.Errorf("the opened run's topics %v miss %s", opened.Topics, topic)
+		}
+	}
+	requireNoDrift(t, b.app)
+}
+
+// vbRunOpen runs the shipped Vendor Balance as b's reader on vbToday with the
+// vendor rows keyed by keys opened, as the view asks when a reader presses rows.
+func vbRunOpen(t *testing.T, b apBook, params map[string]any, keys ...[]any) *reports.Result {
+	t.Helper()
+	res, err := runVBErr(t, b.app, b.reader, params, reports.Options{Expand: keys, Collapse: [][]any{}})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	return res
+}
+
+// vbLinesUnder are the detail rows right after row, in result order.
+func vbLinesUnder(t *testing.T, res *reports.Result, row reports.Row) []reports.Row {
+	t.Helper()
+	at := slices.IndexFunc(res.Rows, func(r reports.Row) bool { return r.ID == row.ID })
+	if at < 0 {
+		t.Fatalf("no row %s (%q); rows %q", row.ID, row.Label, bsLabels(res))
+	}
+	out := []reports.Row{}
+	for _, r := range res.Rows[at+1:] {
+		if r.Kind != reports.KindDetail {
+			break
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+// vbLinesOf is what a test reads of opened line rows.
+func vbLinesOf(t *testing.T, rows []reports.Row) []cbLine {
+	t.Helper()
+	out := make([]cbLine, len(rows))
+	for i, r := range rows {
+		out[i] = cbLine{ID: r.ID, Label: r.Label, Open: r.Open, Balance: amt(t, r, "balance"), Depth: r.Depth}
+	}
+	return out
+}
+
+// vbLineWant is the row the spec gives a posted Accounts payable line:
+// "<date> · <type> <entry number> · <the line's memo, else the entry's memo>",
+// the line's credit less its debit, and the path it opens. A vendor row is at
+// depth 0, so its lines are at depth 1.
+func vbLineWant(t *testing.T, app core.App, line *core.Record, typeLabel, open string) cbLine {
+	t.Helper()
+	line = reload(t, app, "books_journal_lines", line.Id)
+	entry := reload(t, app, "books_journal_entries", line.GetString("entry"))
+	desc := line.GetString("memo")
+	if desc == "" {
+		desc = entry.GetString("memo")
+	}
+	return cbLine{
+		ID:      "d:" + line.Id,
+		Label:   line.GetString("date") + " · " + typeLabel + " " + entry.GetString("number") + " · " + desc,
+		Open:    open,
+		Balance: int64(line.GetInt("credit") - line.GetInt("debit")),
+		Depth:   1,
+	}
+}
+
+// vbDocLine is the Accounts payable line of a posted document's entry.
+func vbDocLine(t *testing.T, b apBook, doc *core.Record) *core.Record {
+	t.Helper()
+	return entryLineOn(t, b.app, doc.GetString("entry"), b.payable)
+}
+
+func TestVendorBalanceDetail(t *testing.T) {
+	b := newAPBook(t)
+
+	// One vendor with every kind of Accounts payable line, one per day.
+	acme := apVendor(t, b, "Acme Detail Co")
+	bill := apBill(t, b, acme, "2026-10-01", "2026-10-31", 100000)
+	pay := apPayBills(t, b, acme, "2026-10-02", map[string]int{bill.Id: 40000})
+	credit := apVendorCredit(t, b, acme, "2026-10-03", 15000)
+	apApply(t, b, credit, reload(t, b.app, "books_bills", bill.Id), "2026-10-04", 10000)
+	refund := apRefund(t, b, acme, "2026-10-05", map[string]int{credit.Id: 5000})
+	manual := apJournal(t, b, "2026-10-06", acme, 0, 2500)
+
+	// Two entries on one day: posting order decides (both orders are pinned
+	// below, so the line ids cannot decide).
+	sameDay := apVendor(t, b, "Same Day Co")
+	madeFirst := postJournal(t, b.app, "", "2026-10-08", "Same day, made first",
+		jnLine{id: "vbsame000000001", account: b.payable, credit: 1000, position: 0, vendor: sameDay.Id},
+		jnLine{account: b.expense, debit: 1000, position: 1})
+	madeSecond := postJournal(t, b.app, "", "2026-10-08", "Same day, made second",
+		jnLine{id: "vbsame999999999", account: b.payable, credit: 2000, position: 0, vendor: sameDay.Id},
+		jnLine{account: b.expense, debit: 2000, position: 1})
+	setPostedAt(t, b.app, madeFirst.Id, "2026-11-12 11:00:00.000Z")
+	setPostedAt(t, b.app, madeSecond.Id, "2026-11-12 10:00:00.000Z")
+
+	// Two Accounts payable lines of one entry: position decides (the ids sort the
+	// other way). The first has its own memo; the second reads the entry's.
+	split := apVendor(t, b, "Split Co")
+	splitEntry := postJournal(t, b.app, "", "2026-10-09", "Split entry memo",
+		jnLine{id: "vbpos0000000001", account: b.payable, credit: 300, position: 1, vendor: split.Id},
+		jnLine{id: "vbpos9999999999", account: b.payable, credit: 700, position: 0, vendor: split.Id, memo: "Line memo wins"},
+		jnLine{account: b.expense, debit: 1000, position: 2})
+
+	// No vendor: a payable and a later debit.
+	noneCredit := apJournal(t, b, "2026-10-07", nil, 0, 7000)
+	noneDebit := apJournal(t, b, "2026-10-10", nil, 1000, 0)
+
+	closed := runVB(t, b.app, b.reader, nil)
+	for _, r := range closed.Rows {
+		if r.Kind == reports.KindDetail {
+			t.Fatalf("the report opens with line rows (%q); a vendor row opens only when pressed", r.Label)
+		}
+	}
+	noneRow, ok := cbGroupRow(closed, 1, "")
+	if !ok {
+		t.Fatalf("no No vendor row; rows %q", bsLabels(closed))
+	}
+	keys := [][]any{noneRow.GroupKey}
+	for _, v := range []*core.Record{acme, sameDay, split} {
+		keys = append(keys, vbVendorRow(t, closed, v).GroupKey)
+	}
+	res := vbRunOpen(t, b, nil, keys...)
+
+	requireLines := func(res *reports.Result, row reports.Row, want []cbLine) {
+		t.Helper()
+		got := vbLinesOf(t, vbLinesUnder(t, res, row))
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("%s opens into\n%+v\nwant\n%+v", row.Label, got, want)
+		}
+		if sum, balance := cbLinesSum(got), amt(t, row, "balance"); sum != balance {
+			t.Errorf("%s's lines add up to %d, want its balance %d", row.Label, sum, balance)
+		}
+	}
+
+	// Five rows, in day order; the apply posts no line, so it has no row.
+	acmeWant := []cbLine{
+		vbLineWant(t, b.app, vbDocLine(t, b, bill), "Bill", apRoute(t, "bill", bill.Id)),
+		vbLineWant(t, b.app, vbDocLine(t, b, pay), "Bill payment", apRoute(t, "bill_payment", pay.Id)),
+		vbLineWant(t, b.app, vbDocLine(t, b, credit), "Vendor credit", apRoute(t, "vendor_credit", credit.Id)),
+		vbLineWant(t, b.app, vbDocLine(t, b, refund), "Vendor refund", apRoute(t, "vendor_refund", refund.Id)),
+		vbLineWant(t, b.app, entryLineOn(t, b.app, manual.Id, b.payable), "Journal entry", "books/entries/"+manual.Id),
+	}
+	for i, want := range []struct {
+		day   string
+		cents int64
+	}{{"2026-10-01", 100000}, {"2026-10-02", -40000}, {"2026-10-03", -15000}, {"2026-10-05", 5000}, {"2026-10-06", 2500}} {
+		if !strings.HasPrefix(acmeWant[i].Label, want.day+" · ") || acmeWant[i].Balance != want.cents {
+			t.Fatalf("Acme's wanted line %d = %q %d, want the day %s and %d", i, acmeWant[i].Label, acmeWant[i].Balance, want.day, want.cents)
+		}
+	}
+	for i, doc := range []*core.Record{bill, pay, credit, refund} {
+		if number := apNo(t, b, doc); !strings.Contains(acmeWant[i].Label, " "+number+" · ") {
+			t.Fatalf("Acme's wanted line %q does not name its document's number %s", acmeWant[i].Label, number)
+		}
+	}
+	acmeRow := vbVendorRow(t, res, acme)
+	if got := amt(t, acmeRow, "balance"); got != 100000-40000-15000+5000+2500 {
+		t.Errorf("Acme Detail Co = %d, want 52500", got)
+	}
+	requireLines(res, acmeRow, acmeWant)
+
+	sameDayWant := func(first, second *core.Record) []cbLine {
+		return []cbLine{
+			vbLineWant(t, b.app, entryLineOn(t, b.app, first.Id, b.payable), "Journal entry", "books/entries/"+first.Id),
+			vbLineWant(t, b.app, entryLineOn(t, b.app, second.Id, b.payable), "Journal entry", "books/entries/"+second.Id),
+		}
+	}
+	requireLines(res, vbVendorRow(t, res, sameDay), sameDayWant(madeSecond, madeFirst))
+
+	splitLines, err := b.app.FindAllRecords("books_journal_lines", dbx.HashExp{"entry": splitEntry.Id, "account": b.payable.Id})
+	if err != nil || len(splitLines) != 2 {
+		t.Fatalf("Split Co's entry has %d payable lines (%v), want 2", len(splitLines), err)
+	}
+	slices.SortFunc(splitLines, func(x, y *core.Record) int { return x.GetInt("position") - y.GetInt("position") })
+	splitWant := []cbLine{
+		vbLineWant(t, b.app, splitLines[0], "Journal entry", "books/entries/"+splitEntry.Id),
+		vbLineWant(t, b.app, splitLines[1], "Journal entry", "books/entries/"+splitEntry.Id),
+	}
+	if !strings.HasSuffix(splitWant[0].Label, " · Line memo wins") || !strings.HasSuffix(splitWant[1].Label, " · Split entry memo") {
+		t.Fatalf("Split Co's wanted labels %q, %q: the first reads its line's memo, the second its entry's", splitWant[0].Label, splitWant[1].Label)
+	}
+	requireLines(res, vbVendorRow(t, res, split), splitWant)
+
+	// The No vendor row opens the same way.
+	openNone, ok := cbGroupRow(res, 1, "")
+	if !ok {
+		t.Fatalf("no No vendor row in the opened run; rows %q", bsLabels(res))
+	}
+	requireLines(res, openNone, []cbLine{
+		vbLineWant(t, b.app, entryLineOn(t, b.app, noneCredit.Id, b.payable), "Journal entry", "books/entries/"+noneCredit.Id),
+		vbLineWant(t, b.app, entryLineOn(t, b.app, noneDebit.Id, b.payable), "Journal entry", "books/entries/"+noneDebit.Id),
+	})
+
+	// The other posting order flips the same-day lines.
+	setPostedAt(t, b.app, madeFirst.Id, "2026-11-12 09:00:00.000Z")
+	flipped := vbRunOpen(t, b, nil, keys...)
+	requireLines(flipped, vbVendorRow(t, flipped, sameDay), sameDayWant(madeFirst, madeSecond))
+	requireNoDrift(t, b.app)
+}
+
+// exportVBCSV is the CSV export of the shipped Vendor Balance as reader
+// (exportShippedCSV).
+func exportVBCSV(t testing.TB, b apBook, reader *core.Record, params map[string]any) string {
+	t.Helper()
+	return exportShippedCSV(t, b.app, vendorBalanceShipped(), vendorBalanceKey, vbToday, reader, params)
+}
+
+func TestVendorBalanceCSVOpensEveryGroup(t *testing.T) {
+	b := newAPBook(t)
+	alpha := apVendor(t, b, "Csv Alpha")
+	alphaBill := apBill(t, b, alpha, "2026-10-01", "2026-10-31", 20000)
+	alphaPay := apPayBills(t, b, alpha, "2026-10-03", map[string]int{alphaBill.Id: 8000})
+	beta := apVendor(t, b, "Csv Beta")
+	betaBill := apBill(t, b, beta, "2026-10-02", "2026-11-01", 5000)
+	none := apJournal(t, b, "2026-10-04", nil, 0, 3000)
+
+	text := exportVBCSV(t, b, b.reader, nil)
+	records, err := csv.NewReader(strings.NewReader(strings.TrimPrefix(text, "\xef\xbb\xbf"))).ReadAll()
+	if err != nil {
+		t.Fatalf("read the CSV: %v\n%s", err, text)
+	}
+	if len(records) == 0 {
+		t.Fatal("the CSV has no line")
+	}
+	if want := []string{"Vendor", "Balance"}; !reflect.DeepEqual(records[0], want) {
+		t.Errorf("the heading line = %q, want %q", records[0], want)
+	}
+
+	type record struct {
+		Label string
+		Cents int64
+	}
+	got := make([]record, 0, len(records))
+	for _, r := range records[1:] {
+		if len(r) < 2 {
+			t.Fatalf("CSV record %q has no Balance", r)
+		}
+		got = append(got, record{r[0], int64(apCSVCents(t, r[1]))})
+	}
+
+	// The vendor records and the Total hold the figures of a closed run.
+	run := runVB(t, b.app, b.reader, nil)
+	line := func(l cbLine) record { return record{l.Label, l.Balance} }
+	want := []record{
+		{"Csv Alpha", vbBalance(t, run, alpha)},
+		line(vbLineWant(t, b.app, vbDocLine(t, b, alphaBill), "Bill", "")),
+		line(vbLineWant(t, b.app, vbDocLine(t, b, alphaPay), "Bill payment", "")),
+		{"Csv Beta", vbBalance(t, run, beta)},
+		line(vbLineWant(t, b.app, vbDocLine(t, b, betaBill), "Bill", "")),
+		{"No vendor", amt(t, bsRow(t, run, "No vendor"), "balance")},
+		line(vbLineWant(t, b.app, entryLineOn(t, b.app, none.Id, b.payable), "Journal entry", "")),
+		{"Total", vbTotal(t, run)},
+	}
+	if want[0].Cents != 12000 || want[3].Cents != 5000 || want[5].Cents != 3000 || want[7].Cents != 20000 {
+		t.Fatalf("the closed run's figures %+v, want Csv Alpha 12000, Csv Beta 5000, No vendor 3000, Total 20000", want)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("the CSV records =\n%+v\nwant every vendor followed by its posted lines, then No vendor with its line, then the Total\n%+v", got, want)
 	}
 	requireNoDrift(t, b.app)
 }

@@ -29,10 +29,16 @@
 - cp 1 · reviewer A: spec §4 still names `vendorGroup()` with `hideEmpty`; the code clears it on the one level because core refuses hideEmpty on the last level (the settled dispute of checkpoint 1). The behavior is the same; the spec line is stale.
 - cp 1 · reviewer A: `tests/e2e/books-vendor-balance.spec.ts` test 3 — the last wait ("no group row") is also true for a moment while the table is empty; it is safe because the Non-zero run's response is awaited first. A stronger proof would also wait for the new run's state.
 - cp 1 · reviewer A: `tinycld/books/seed.ts` — `instanceof ClientResponseError` needs the seed and the client to share one `pocketbase` module; the hoisted workspace makes it so.
+- cp 2 · opened-768 (light, dark): toolbar — the page title is cut to "Vendor Balan…" beside the five toolbar buttons (the same as cp 1's populated-768; core's report view, D9; the document header shows the full title).
+- cp 2 · reviewer A: `server/report_spec_helpers.go` `balanceDetailLabel()` — a line whose memo and entry memo are both empty gets a label that ends in a bare separator ("2026-10-01 · Bill 1001 · "). The spec template does not say what an empty description shows, and the helper is shared with the Customer Balance, whose JSON is frozen (spec §10, Q10). A fix needs the human's decision (a Vendor Balance-only label, or a change to both reports).
+- cp 2 · reviewer A: `server/report_vendor_balance_test.go` `TestVendorBalanceDetail` — the loop that checks a wanted label names its document's number cannot fail (`apNo` and `vbLineWant` read the same entry number). The real cross-check is e2e 4, 5 and 6, which compare the label with the number the UI shows.
+- cp 2 · reviewer A: `docs/plans/vendor-balance-evidence/cp2/capture.json` opens its rows by `clickText` ("No vendor", "Harbor Freight Logistics"), not by test id (lesson 13); the shots show the right rows open, so the evidence is valid.
 
 ## Out-of-plan changes
 - `docs/plans/vendor-balance-evidence/cp1/capture.json`, the cp1 screenshots and `critique.md`: gate-2 evidence. The Files block does not name them; the plan rule "Captures" names `docs/plans/vendor-balance-evidence/cp<N>/capture.json` (reviewer B finding 1, reviewer A NOTE).
 - `docs/plans/vendor-balance-ledger.md`: written by the loop (the runner), by no agent (reviewer B finding 2).
+- `docs/plans/vendor-balance-evidence/cp2/capture.json`, the six cp2 `opened-*` screenshots and `critique.md`: gate-2 evidence of checkpoint 2 (reviewer B finding 1), as for cp 1.
+- `server/report_export_helpers_test.go` (new), `server/report_ap_aging_test.go`, `server/report_ar_aging_test.go` (cp 2 fix round 1, reviewer B finding 2): `exportVBCSV` was a copy of `exportAPCSV` and `exportARCSVErr`; one shared test helper (`exportShippedCSV`, `exportShippedCSVErr`) now holds the export request and its checks, and the four helpers are wrappers with unchanged signatures (lesson 10: move every caller to a new helper). No caller and no assertion changed.
 
 ## Performance
 (none yet — the measured results of spec §8, on the engine with p5-report-engine-scale merged)
@@ -89,6 +95,22 @@
 - gate 3 A notes: 4, listed under Design notes
 - reviewer-caught deferrals: none
 - commit: the commit "feat(books): Vendor Balance report for readers" (this ledger row is in it)
+- human: none (review mode C)
+
+## Checkpoint 2
+- test writer: server/report_vendor_balance_test.go (TestVendorBalanceDetail, TestVendorBalanceCSVOpensEveryGroup, TestVendorBalanceSpecLoads and TestVendorBalanceTopics extended; `vbRunOpen`, `vbLinesUnder`, `exportVBCSV`), tests/e2e/books-vendor-balance.spec.ts (e2e 4 to 8), tests/e2e/vendor-balance-helpers.ts (`vendorBalanceCsv`); red for the right reason: yes for the Detail, SpecLoads and CSV Go tests (core's firstLabel, no Open) and e2e 4, 5, 6, 8 (lines not found by label; line records left in the CSV). Not red: e2e 7 (allowed by Do step 0) and TestVendorBalanceTopics — checkpoint 1's sort already holds `balanceLineKeys()` (`entry.posted_at`), so an opened run already has the `collection/books_journal_entries` topic; the assertion is as the bullet says and fails if the topic is dropped. untestable: none
+- implementer: one line, `Detail: &reports.Detail{Label: balanceDetailLabel(), Open: entryOpenPath()}` in `vendorBalanceSpec()` before `Display` (`server/report_vendor_balance.go`); the opened rows were already in the spec's order (no core gap); DONE
+- test disputes: none
+- self-declared differences: none
+- gate 1: tests unedited: yes · `go test ./...` ok · `packages:generate` then `tinycld-pkg check` exit 0 (1901 files, 8423 tests) · e2e books-vendor-balance.spec.ts 8/8 · pass. After fix round 1: `go test ./...` ok, check exit 0 (1902 files, 8423 tests), e2e 8/8 · pass
+- gate 2 capture: lessons that apply: 9 (one snapshot), 13 (a page loaded at each width), 24 (seeded rows reached through the UI by name), 31 (drop focus on `report-document-period`). Manifest `evidence/cp2/capture.json` (`opened` at 1280, 1024, 768, light and dark; through the Reports hub; "No vendor" then "Harbor Freight Logistics" opened); one capture, 1 passed.
+- gate 2: invalid shots: none · blocking: none · notes: 2 (opened-768 light and dark, the cut title), listed under Design notes · "For gate 3": none
+- gate 3 A (correctness): 0 BLOCK, 4 NOTE: NOTE 3 (e2e 5 checks only the payment line) accepted with reviewer B finding 3 and fixed; NOTEs 1, 2, 4 to Design notes
+- gate 3 B (conformance): script lines: 0 · findings: 3 — 1 (cp2 evidence outside the Files block) recorded under Out-of-plan changes; 2 (`exportVBCSV` copies `exportAPCSV`/`exportARCSVErr`) accepted+fixed by a test-writer dispatch (shared `exportShippedCSV`, out-of-plan files recorded); 3 (e2e 5 does not pin the vendor's two lines) accepted+fixed by the same dispatch (`[90000, -35000]`)
+- fix review: n/a — round 1 (`cp2-fix-r1.md`, 2 items: causes mirror, weak-test) touched test code only (test writer), no non-test source, so no fix review and no re-capture; 1 fix round, 0 fix-review rounds
+- gate 3 A notes: 3, listed under Design notes
+- reviewer-caught deferrals: none
+- commit: the commit "feat(books): open a Vendor Balance vendor into its posted lines" (this ledger row is in it)
 - human: none (review mode C)
 
 ## Final review
