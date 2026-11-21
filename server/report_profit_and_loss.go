@@ -19,6 +19,10 @@ func profitAndLossShipped() reports.Shipped {
 		// 3: the Method param (Accrual or Cash) over books.basis_lines.
 		Revision:    3,
 		Unpublished: true,
+		// It reads books.basis_lines, a source that is NotLive. Its rows are
+		// sums per account, and an opened account reads only its own lines,
+		// so its run stays fast on a large book: it stays live.
+		Live: true,
 	}
 }
 

@@ -24,14 +24,9 @@ func applyToBalances(tx core.App, account, day string, debit, credit int, curren
 		return fmt.Errorf("books: read balance %s %s: %w", account, period, err)
 	}
 	if row == nil {
-		col, err := tx.FindCachedCollectionByNameOrId("books_account_balances")
-		if err != nil {
+		if row, err = newBalanceRow(tx, account, period, currency); err != nil {
 			return err
 		}
-		row = core.NewRecord(col)
-		row.Set("account", account)
-		row.Set("period", period)
-		row.Set("currency", currency)
 	}
 	debitTotal, creditTotal := row.GetInt("debit_total")+debit, row.GetInt("credit_total")+credit
 	if debitTotal > maxStoredAmount || creditTotal > maxStoredAmount {
@@ -43,6 +38,29 @@ func applyToBalances(tx core.App, account, day string, debit, credit int, curren
 		return fmt.Errorf("books: save balance %s %s: %w", account, period, err)
 	}
 	return nil
+}
+
+// firstDayOf is the first day of a month row's month ("2026-05" gives
+// "2026-05-01"). A report reads it as the row's date (the source field
+// month_start), because the report engine compares days, not months.
+func firstDayOf(period string) string {
+	return period + "-01"
+}
+
+// newBalanceRow is the month row of account for period, with no totals yet.
+// Posting and the rebuild both make a row here, so month_start always agrees
+// with period.
+func newBalanceRow(tx core.App, account, period, currency string) (*core.Record, error) {
+	col, err := tx.FindCachedCollectionByNameOrId("books_account_balances")
+	if err != nil {
+		return nil, err
+	}
+	row := core.NewRecord(col)
+	row.Set("account", account)
+	row.Set("period", period)
+	row.Set("month_start", firstDayOf(period))
+	row.Set("currency", currency)
+	return row, nil
 }
 
 // balanceOverflow refuses a post that would take a month row past what a
@@ -103,6 +121,9 @@ type BalanceDrift struct {
 	StoredCredit int    `json:"storedCredit"`
 	LedgerDebit  int    `json:"ledgerDebit"`
 	LedgerCredit int    `json:"ledgerCredit"`
+	// StoredMonthStart is the stored row's day, so a drift whose totals agree
+	// still shows what differs.
+	StoredMonthStart string `json:"storedMonthStart"`
 }
 
 func verifyBalances(app core.App) ([]BalanceDrift, error) {
@@ -120,14 +141,18 @@ func verifyBalances(app core.App) ([]BalanceDrift, error) {
 		key := balanceKey{row.GetString("account"), row.GetString("period")}
 		seen[key] = true
 		w := want[key]
-		if row.GetInt("debit_total") != w.debit || row.GetInt("credit_total") != w.credit {
+		// A row whose month_start is not its month's first day is a drift too:
+		// the totals agree, but a report that reads the row by its day (the
+		// General Ledger's beginning balance) leaves it out or misplaces it.
+		if row.GetInt("debit_total") != w.debit || row.GetInt("credit_total") != w.credit ||
+			row.GetString("month_start") != firstDayOf(key.period) {
 			drifts = append(drifts, BalanceDrift{key.account, key.period,
-				row.GetInt("debit_total"), row.GetInt("credit_total"), w.debit, w.credit})
+				row.GetInt("debit_total"), row.GetInt("credit_total"), w.debit, w.credit, row.GetString("month_start")})
 		}
 	}
 	for key, w := range want {
 		if !seen[key] {
-			drifts = append(drifts, BalanceDrift{key.account, key.period, 0, 0, w.debit, w.credit})
+			drifts = append(drifts, BalanceDrift{key.account, key.period, 0, 0, w.debit, w.credit, ""})
 		}
 	}
 	sort.Slice(drifts, func(i, j int) bool {
@@ -149,6 +174,18 @@ type LineDrift struct {
 	EntryDate   string `db:"entry_date" json:"entryDate"`
 }
 
+// verifyLinesSQL selects every line whose posted flag or date disagrees with
+// its entry, and every line whose entry row is gone.
+const verifyLinesSQL = `
+	SELECT l.id AS line, l.entry AS entry, COALESCE(e.status, '') AS entry_status,
+	       l.posted AS posted, l.date AS date, COALESCE(e.date, '') AS entry_date
+	FROM books_journal_lines l
+	LEFT JOIN books_journal_entries e ON e.id = l.entry
+	WHERE e.id IS NULL
+	   OR (e.status IN ({:posted}, {:void}) AND (l.posted = {:unstamped} OR l.date != e.date))
+	   OR (e.status = {:draft} AND (l.posted = {:stamped} OR l.date != ''))
+	ORDER BY l.entry, l.position, l.id`
+
 // verifyLines reports every line whose posted flag or date disagrees with its
 // entry: a line of a posted or void entry that is not stamped or carries
 // another date, a line of a draft that is stamped or carries a date, and a
@@ -159,15 +196,10 @@ type LineDrift struct {
 // was written past the hooks.
 func verifyLines(app core.App) ([]LineDrift, error) {
 	drifts := []LineDrift{}
-	err := app.DB().NewQuery(`
-		SELECT l.id AS line, l.entry AS entry, COALESCE(e.status, '') AS entry_status,
-		       l.posted AS posted, l.date AS date, COALESCE(e.date, '') AS entry_date
-		FROM books_journal_lines l
-		LEFT JOIN books_journal_entries e ON e.id = l.entry
-		WHERE e.id IS NULL
-		   OR (e.status IN ('posted', 'void') AND (l.posted = 0 OR l.date != e.date))
-		   OR (e.status = 'draft' AND (l.posted = 1 OR l.date != ''))
-		ORDER BY l.entry, l.position, l.id`).All(&drifts)
+	err := app.DB().NewQuery(verifyLinesSQL).Bind(dbx.Params{
+		"posted": statusPosted, "void": statusVoid, "draft": statusDraft,
+		"stamped": true, "unstamped": false,
+	}).All(&drifts)
 	if err != nil {
 		return nil, fmt.Errorf("books: compare the lines with their entries: %w", err)
 	}
@@ -210,11 +242,13 @@ func itemDriftReport(drifts []ItemDrift) (listed []ItemDrift, count int) {
 // bill's balance equal its total less the posted payments that pay it (the
 // verify part of the document balances is verifyDocumentBalances), and every
 // cash-basis row equal what the entries and payments give (rebuildCashBasis;
-// its verify part is verifyCashBasis), in one transaction, touching only the
-// rows that differ. It returns how many month rows, document balances and
-// cash-basis rows it fixed. It also rebuilds the stored receivable rows when they
-// disagree with the book (receivableItems.repair); those rows are not in the count.
-// The stored payable rows are repaired the same way (payableItems.repair).
+// its verify part is verifyCashBasis), and every stored cash month equal its
+// cash rows (rebuildCashBalances; its verify part is verifyCashBalances), in
+// one transaction, touching only the rows that differ. It returns how many
+// month rows, document balances, cash-basis rows and cash months it fixed. It
+// also rebuilds the stored receivable rows when they disagree with the book
+// (receivableItems.repair); those rows are not in the count. The stored
+// payable rows are repaired the same way (payableItems.repair).
 func rebuildBalances(app core.App) (int, error) {
 	fixed := 0
 	err := app.RunInTransaction(func(tx core.App) error {
@@ -223,6 +257,10 @@ func rebuildBalances(app core.App) (int, error) {
 			return err
 		}
 		cash, err := rebuildCashBasis(tx)
+		if err != nil {
+			return err
+		}
+		cashMonths, err := rebuildCashBalances(tx)
 		if err != nil {
 			return err
 		}
@@ -248,22 +286,18 @@ func rebuildBalances(app core.App) (int, error) {
 				continue
 			}
 			if row == nil {
-				col, err := tx.FindCachedCollectionByNameOrId("books_account_balances")
-				if err != nil {
+				if row, err = newBalanceRow(tx, d.Account, d.Period, w.currency); err != nil {
 					return err
 				}
-				row = core.NewRecord(col)
-				row.Set("account", d.Account)
-				row.Set("period", d.Period)
-				row.Set("currency", w.currency)
 			}
+			row.Set("month_start", firstDayOf(d.Period))
 			row.Set("debit_total", w.debit)
 			row.Set("credit_total", w.credit)
 			if err := tx.Save(row); err != nil {
 				return fmt.Errorf("books: save rebuilt balance row: %w", err)
 			}
 		}
-		fixed = len(drifts) + documents + cash
+		fixed = len(drifts) + documents + cash + cashMonths
 		if err := receivableItems.repair(tx); err != nil {
 			return err
 		}

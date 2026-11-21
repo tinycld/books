@@ -16,6 +16,10 @@ func auditLogShipped() reports.Shipped {
 		Spec:        mustJSON(auditLogSpec()),
 		Revision:    1,
 		Unpublished: true,
+		// Its view (books_audit_log) reads the journal lines, so without Live
+		// the run would be manual. A run reads one page of audit rows, newest
+		// first, so it stays fast and stays live.
+		Live: true,
 	}
 }
 

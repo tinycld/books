@@ -67,7 +67,7 @@ func runVBErr(t *testing.T, app core.App, reader *core.Record, params map[string
 	}
 	return reports.Run(context.Background(), app, reports.Request{
 		Spec: spec, Loaded: info, Params: given, Options: opts, Auth: reader,
-		Headers: readerInfo(reader).Headers,
+		Headers: readerInfo(reader).Headers, Live: vendorBalanceShipped().Live,
 	})
 }
 

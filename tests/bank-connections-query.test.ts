@@ -28,7 +28,13 @@ const STAMP = '2026-01-01 00:00:00.000Z'
 function balance(
     seed: Pick<BooksAccountBalances, 'id' | 'account' | 'period' | 'debit_total' | 'credit_total'>
 ): BooksAccountBalances {
-    return { currency: 'USD', created: STAMP, updated: STAMP, ...seed }
+    return {
+        month_start: `${seed.period}-01`,
+        currency: 'USD',
+        created: STAMP,
+        updated: STAMP,
+        ...seed,
+    }
 }
 
 // Checking's totals split across two periods, so the query must sum them; the card and
