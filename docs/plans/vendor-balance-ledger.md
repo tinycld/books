@@ -48,6 +48,8 @@
 - cp 4 · opened-phone-390/375 (light, dark): line rows — the wrapped labels of adjacent line rows have no space between them, so the row limits are hard to see (core's row layout; the reference has the same).
 - cp 4 · vendors-reports-menu-1280/390 (light, dark): menu items — the labels start about 40 px from the menu's left edge with no icon in that space (core `Menu`).
 - cp 4 · reviewer A NOTE 3: `help/reports.md` — the Customer Balance, A/R Aging and A/P Aging sections (about lines 290, 335, 406) say a document "opens beside the report on a very wide window"; Books registers a report panel only for the history path (`manifest.ts`, D10), so a document opens as its own screen at every width. The new Vendor Balance section says that. Those sections are outside this unit's additive edits of `help/reports.md` (plan rule "Files other units also edit"); a follow-up for the driver.
+- cp5-core-readtx · reviewer A: core run.go `rn.query` — a runner without a tx reads through app.DB() with no log (only the hand-built runner of nest_test.go reaches it).
+- cp5-core-readtx · reviewer A: core `readRows` — the topics read asks the pool for a second connection while the run holds its read connection; about 120 concurrent runs could wait on each other up to the 10 s statement limit (theoretical for one install).
 
 ## Out-of-plan changes
 - `docs/helix-lessons.md` (cp 3): one line from the driver, committed with checkpoint 3 as the driver's hand-off asked (Rebuttals, reviewer B finding 1).
@@ -269,6 +271,17 @@
 - reviewer-caught deferrals: none
 - commit: the commit "feat(books): Vendor Balance in the Vendors Reports menu, phone rows and help" (this ledger row is in it)
 - human: amendment 3 (the plan); no other message (review mode C)
+
+## Core task cp5-core-readtx — one read snapshot per report Run (CI race, human option 1)
+- cause: CI shard 1 `books-customer-balance.spec.ts:289` — a parallel spec posted a payment during the export; core `reports.Run` read each statement through app.DB() with no read tx, so rows and Total came from two snapshots
+- brief: staging cp/cp5-core-readtx.md
+- test writer: core `reports/readtx_test.go` (3 tests); TestARunReadsOneSnapshot red for the right reason ("Total 5500, group subtotals add to 4500, detail rows add to 5500"); the other two guard the tx-reuse and rollback paths
+- implementer: one deferred read-only tx per Run on app.ConcurrentDB() (reuses a caller's *dbx.Tx), passed as dbx.Builder to readRows/rn.query; rollback by defer on every path; no SQL text changed. DONE
+- gate 1: tests unedited: yes · core gofmt, vet, go test reports + coreserver pass · `pnpm run checks` pass · Books go test pass
+- gate 2: n/a
+- gate 3 A: 0 BLOCK, 3 NOTE (NOTE 3 fixed; NOTE 1, 2 to Design notes) · gate 3 B: 0 findings · fix review: round 1 clean
+- deferrals: none · out-of-plan files: none
+- commit: core dec1946 (branch books/p5-vendor-balance, #509)
 
 ## Final review
 - eval: (unattended only) approved | revised → <notes, fix sha> | stopped
