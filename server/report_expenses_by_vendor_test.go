@@ -2,7 +2,9 @@ package books
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"reflect"
@@ -1014,4 +1016,658 @@ func TestExpensesByVendorShippedShared(t *testing.T) {
 	requireViewer(t, app, row, reader, "a guest with Books readonly access")
 	requireNoShare(t, app, row, outsider, "a guest without Books access")
 	requireNoDrift(t, app)
+}
+
+// Checkpoint 2: an opened vendor's lines, the cash-basis rows on Method =
+// Cash, the path a line opens, the run's topics and the CSV (spec §3 Opening
+// a vendor, Opening a transaction, Live, Export; plan D3, D4, D9). The wanted
+// Cash labels were written from a dumped Cash run (a bill of 700.00 and
+// 300.00 with a payment of 400.00, a vendor credit applied, a vendor credit
+// refunded, a void bill, an expense) and from D3.
+
+const (
+	ebvOfficeLabel   = "6150 Office Expenses"
+	ebvSoftwareLabel = "6200 Software Subscriptions"
+)
+
+// ebvRunOpen runs the shipped Expenses by Vendor as b's reader on ebvToday
+// with the vendor rows keyed by keys opened, as the view asks when a reader
+// presses rows.
+func ebvRunOpen(t *testing.T, b ebvBook, params map[string]any, keys ...[]any) *reports.Result {
+	t.Helper()
+	return runEBVOpenAs(t, b.app, b.reader, params, keys...)
+}
+
+func runEBVOpenAs(t *testing.T, app core.App, reader *core.Record, params map[string]any, keys ...[]any) *reports.Result {
+	t.Helper()
+	res, err := runEBVErr(t, app, reader, params, reports.Options{Expand: keys, Collapse: [][]any{}})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	return res
+}
+
+// ebvLinesUnder are the detail rows right after row, in result order.
+func ebvLinesUnder(t *testing.T, res *reports.Result, row reports.Row) []reports.Row {
+	t.Helper()
+	at := slices.IndexFunc(res.Rows, func(r reports.Row) bool { return r.ID == row.ID })
+	if at < 0 {
+		t.Fatalf("no row %s (%q); rows %q", row.ID, row.Label, bsLabels(res))
+	}
+	out := []reports.Row{}
+	for _, r := range res.Rows[at+1:] {
+		if r.Kind != reports.KindDetail {
+			break
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+// ebvLine is what a test reads of an opened line: its label and its Total.
+type ebvLine struct {
+	Label  string
+	Amount int64
+}
+
+// ebvLinesOf reads opened lines, and fails a line whose % of expenses is not
+// blank.
+func ebvLinesOf(t *testing.T, rows []reports.Row) []ebvLine {
+	t.Helper()
+	out := make([]ebvLine, len(rows))
+	for i, r := range rows {
+		requireEBVBlankShare(t, r, "an opened line")
+		out[i] = ebvLine{Label: r.Label, Amount: amt(t, r, "amount")}
+	}
+	return out
+}
+
+func ebvLinesSum(lines []ebvLine) int64 {
+	var sum int64
+	for _, l := range lines {
+		sum += l.Amount
+	}
+	return sum
+}
+
+// ebvRowOf is vendor's row, or the No vendor row when vendor is nil.
+func ebvRowOf(t *testing.T, res *reports.Result, vendor *core.Record) reports.Row {
+	t.Helper()
+	if vendor == nil {
+		r, ok := cbGroupRow(res, 1, "")
+		if !ok {
+			t.Fatalf("no No vendor row; rows %q", bsLabels(res))
+		}
+		return r
+	}
+	return ebvVendorRow(t, res, vendor)
+}
+
+// ebvOpenVendor runs params with every row closed, then with vendor's row
+// opened (nil: the No vendor row), and gives the opened run's row and lines.
+func ebvOpenVendor(t *testing.T, b ebvBook, params map[string]any, vendor *core.Record) (reports.Row, []reports.Row) {
+	t.Helper()
+	closed := b.run(t, params)
+	res := ebvRunOpen(t, b, params, ebvRowOf(t, closed, vendor).GroupKey)
+	row := ebvRowOf(t, res, vendor)
+	return row, ebvLinesUnder(t, res, row)
+}
+
+// ebvAccountText is Books accountLabel() written by hand: "<number> <full
+// name>", the full name alone when the account has no number.
+func ebvAccountText(t *testing.T, app core.App, accountID string) string {
+	t.Helper()
+	account := reload(t, app, "books_accounts", accountID)
+	if number := account.GetString("number"); number != "" {
+		return number + " " + account.GetString("full_name")
+	}
+	return account.GetString("full_name")
+}
+
+// ebvLedgerLabel is the label the spec gives a posted line: "<date> · <type
+// and number> · <account> · <the line's memo, else the entry's memo>", the
+// description left out with its " · " when blank.
+func ebvLedgerLabel(t *testing.T, app core.App, line *core.Record, typeNumber string) string {
+	t.Helper()
+	line = reload(t, app, "books_journal_lines", line.Id)
+	label := line.GetString("date") + " · " + typeNumber + " · " + ebvAccountText(t, app, line.GetString("account"))
+	if desc := balanceLineDesc(t, app, line); desc != "" {
+		label += " · " + desc
+	}
+	return label
+}
+
+// ebvLedgerLine is a posted line as an opened row: its label and debit less
+// credit.
+func ebvLedgerLine(t *testing.T, app core.App, line *core.Record, typeNumber string) ebvLine {
+	t.Helper()
+	line = reload(t, app, "books_journal_lines", line.Id)
+	return ebvLine{Label: ebvLedgerLabel(t, app, line, typeNumber), Amount: int64(line.GetInt("debit") - line.GetInt("credit"))}
+}
+
+func ebvEntryNumber(t *testing.T, app core.App, entryID string) string {
+	t.Helper()
+	return reload(t, app, "books_journal_entries", entryID).GetString("number")
+}
+
+func requireEBVLines(t *testing.T, what string, got, want []ebvLine) {
+	t.Helper()
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("%s opens into\n%+v\nwant\n%+v", what, got, want)
+	}
+}
+
+func TestExpensesByVendorDetailLabels(t *testing.T) {
+	b := newEBVBook(t)
+	v := apVendor(t, b.apBook, "Label Co")
+	draft := mkBill(t, b.app, v, map[string]any{"date": "2026-10-05", "due_date": "2026-10-05", "memo": "Spring supplies"})
+	mkBillLine(t, b.app, draft, 0, accountLine(b.office, 70000))
+	mkBillLine(t, b.app, draft, 1, accountLine(b.expense, 30000))
+	bill := mustPostBill(t, b.app, draft.Id, b.users.bookkeeper.Id)
+	exp := b.postExpense(t, v, "2026-10-06", billAmount{b.office, 2500})
+	credit := apVendorCredit(t, b.apBook, v, "2026-10-07", 5000)
+	manual := b.postEntry(t, "2026-10-08", v, b.expense, 1200)
+
+	billNo := apNo(t, b.apBook, bill)
+	want := []ebvLine{
+		ebvLedgerLine(t, b.app, entryLineOn(t, b.app, bill.GetString("entry"), b.office), "Bill "+billNo),
+		ebvLedgerLine(t, b.app, entryLineOn(t, b.app, bill.GetString("entry"), b.expense), "Bill "+billNo),
+		ebvLedgerLine(t, b.app, entryLineOn(t, b.app, exp.GetString("entry"), b.office), "Expense "+apNo(t, b.apBook, exp)),
+		ebvLedgerLine(t, b.app, entryLineOn(t, b.app, credit.GetString("entry"), b.expense), "Vendor credit "+apNo(t, b.apBook, credit)),
+		ebvLedgerLine(t, b.app, entryLineOn(t, b.app, manual.Id, b.expense), "Journal entry "+ebvEntryNumber(t, b.app, manual.Id)),
+	}
+	// The wanted labels name each line's account by hand, so a helper that
+	// read the label from the run could not pass this test.
+	for i, prefix := range []string{
+		"2026-10-05 · Bill " + billNo + " · " + ebvOfficeLabel + " · Spring supplies",
+		"2026-10-05 · Bill " + billNo + " · " + ebvSoftwareLabel + " · Spring supplies",
+		"2026-10-06 · Expense " + apNo(t, b.apBook, exp) + " · " + ebvOfficeLabel,
+		"2026-10-07 · Vendor credit " + apNo(t, b.apBook, credit) + " · " + ebvSoftwareLabel,
+		"2026-10-08 · Journal entry " + ebvEntryNumber(t, b.app, manual.Id) + " · " + ebvSoftwareLabel + " · Expense adjustment",
+	} {
+		if !strings.HasPrefix(want[i].Label, prefix) {
+			t.Fatalf("wanted line %d = %q, want it to start %q", i, want[i].Label, prefix)
+		}
+	}
+	for i, cents := range []int64{70000, 30000, 2500, -5000, 1200} {
+		if want[i].Amount != cents {
+			t.Fatalf("wanted line %d = %d, want debit less credit %d", i, want[i].Amount, cents)
+		}
+	}
+
+	row, rows := ebvOpenVendor(t, b, map[string]any{"period": ebvOctober}, v)
+	got := ebvLinesOf(t, rows)
+	requireEBVLines(t, "Label Co", got, want)
+	if sum, total := ebvLinesSum(got), amt(t, row, "amount"); sum != total || total != 98700 {
+		t.Errorf("Label Co's lines add up to %d, its Total is %d; want both 98700", sum, total)
+	}
+	requireNoDrift(t, b.app)
+}
+
+func TestExpensesByVendorDetailLabelParts(t *testing.T) {
+	b := newEBVBook(t)
+	v := apVendor(t, b.apBook, "Parts Co")
+	plain := mkAccount(t, b.app, "Unnumbered Supplies", "expense", "office_general")
+	child := saveRecord(t, b.app, "books_accounts", map[string]any{
+		"name": "Postage", "number": "6151", "type": "expense", "detail_type": "office_general",
+		"parent": b.office.Id, "currency": "USD",
+	})
+	if got := reload(t, b.app, "books_accounts", child.Id).GetString("full_name"); got != "Office Expenses:Postage" {
+		t.Fatalf("the child account's full name is %q, want Office Expenses:Postage", got)
+	}
+	entry := postJournal(t, b.app, "", "2026-10-05", "",
+		jnLine{account: plain, debit: 1000, position: 0, vendor: v.Id, memo: "Paper"},
+		jnLine{account: child, debit: 2000, position: 1, vendor: v.Id},
+		jnLine{account: b.bank, credit: 3000, position: 2})
+	entryNo := ebvEntryNumber(t, b.app, entry.Id)
+	plainLine := entryLineOn(t, b.app, entry.Id, plain)
+	childLine := entryLineOn(t, b.app, entry.Id, child)
+	if desc := balanceLineDesc(t, b.app, childLine); desc != "" {
+		t.Fatalf("the child account's line has the description %q; the test needs a blank one", desc)
+	}
+
+	draft := mkBill(t, b.app, v, map[string]any{"date": "2026-10-06", "due_date": "2026-10-06", "memo": "Office chairs"})
+	mkBillLine(t, b.app, draft, 0, accountLine(b.expense, 30000))
+	bill := mustPostBill(t, b.app, draft.Id, b.users.bookkeeper.Id)
+	number := apNo(t, b.apBook, bill)
+	if err := voidBillAs(b.app, bill.Id, b.users.admin.Id); err != nil {
+		t.Fatalf("void the bill: %v", err)
+	}
+	rev, err := b.app.FindFirstRecordByFilter("books_journal_entries", "reverses = {:e} && origin = 'void_reversal'",
+		dbx.Params{"e": bill.GetString("entry")})
+	if err != nil {
+		t.Fatalf("no void reversal of the bill's entry: %v", err)
+	}
+	original := entryLineOn(t, b.app, bill.GetString("entry"), b.expense)
+	reversal := entryLineOn(t, b.app, rev.Id, b.expense)
+
+	_, rows := ebvOpenVendor(t, b, map[string]any{"period": ebvOctober, "rows": "activity"}, v)
+	labels := map[string]string{}
+	for _, r := range rows {
+		labels[r.ID] = r.Label
+	}
+	want := map[string]string{
+		"d:" + plainLine.Id: "2026-10-05 · Journal entry " + entryNo + " · Unnumbered Supplies · Paper",
+		"d:" + childLine.Id: "2026-10-05 · Journal entry " + entryNo + " · 6151 Office Expenses:Postage",
+		"d:" + original.Id:  "2026-10-06 · Bill " + number + " · " + ebvSoftwareLabel + " · " + balanceLineDesc(t, b.app, original),
+		"d:" + reversal.Id:  "2026-10-06 · Void reversal of " + number + " · " + ebvSoftwareLabel + " · Void of " + number,
+	}
+	if !reflect.DeepEqual(labels, want) {
+		t.Errorf("Parts Co opens into\n%q\nwant (an unnumbered account by its full name, a child by its full name, no trailing \" · \" on a blank description, the reversal's number once)\n%q", labels, want)
+	}
+	requireNoDrift(t, b.app)
+}
+
+func TestExpensesByVendorDetailOrder(t *testing.T) {
+	b := newEBVBook(t)
+	v := apVendor(t, b.apBook, "Order Co")
+	line := func(id string, cents, position int) jnLine {
+		return jnLine{id: id, account: b.expense, debit: cents, position: position, vendor: v.Id}
+	}
+	bank := func(cents, position int) jnLine { return jnLine{account: b.bank, credit: cents, position: position} }
+
+	// The last day, posted earliest: the date decides before the posting time.
+	late := postJournal(t, b.app, "", "2026-10-07", "Late day", line("ebvord000000001", 100, 0), bank(100, 1))
+	setPostedAt(t, b.app, late.Id, "2026-11-12 08:00:00.000Z")
+	// Two entries on one day: posting order decides (the ids sort the other way).
+	madeFirst := postJournal(t, b.app, "", "2026-10-05", "Same day, made first", line("ebvsame00000001", 200, 0), bank(200, 1))
+	madeSecond := postJournal(t, b.app, "", "2026-10-05", "Same day, made second", line("ebvsame99999999", 300, 0), bank(300, 1))
+	setPostedAt(t, b.app, madeFirst.Id, "2026-11-12 11:00:00.000Z")
+	setPostedAt(t, b.app, madeSecond.Id, "2026-11-12 10:00:00.000Z")
+	// Two lines of one entry: position decides (the ids sort the other way).
+	split := postJournal(t, b.app, "", "2026-10-03", "Split",
+		line("ebvpos000000001", 400, 1), line("ebvpos999999999", 500, 0), bank(900, 2))
+	setPostedAt(t, b.app, split.Id, "2026-11-12 12:00:00.000Z")
+
+	ids := func() []string {
+		t.Helper()
+		_, rows := ebvOpenVendor(t, b, map[string]any{"period": ebvOctober}, v)
+		out := make([]string, len(rows))
+		for i, r := range rows {
+			out[i] = r.ID
+		}
+		return out
+	}
+	want := []string{"d:ebvpos999999999", "d:ebvpos000000001", "d:ebvsame99999999", "d:ebvsame00000001", "d:ebvord000000001"}
+	if got := ids(); !reflect.DeepEqual(got, want) {
+		t.Errorf("Order Co's lines = %q, want %q (date, then posting time, then position)", got, want)
+	}
+
+	setPostedAt(t, b.app, madeFirst.Id, "2026-11-12 09:00:00.000Z")
+	want = []string{"d:ebvpos999999999", "d:ebvpos000000001", "d:ebvsame00000001", "d:ebvsame99999999", "d:ebvord000000001"}
+	if got := ids(); !reflect.DeepEqual(got, want) {
+		t.Errorf("after the posting order flips, Order Co's lines = %q, want %q", got, want)
+	}
+	requireNoDrift(t, b.app)
+}
+
+// D3: a cash-basis row carries its source line's vendor and account; a
+// take-out row names the bill's entry, a share row the payment's.
+func TestExpensesByVendorCashRowsCarryVendorAndAccount(t *testing.T) {
+	b := newEBVBook(t)
+	v := apVendor(t, b.apBook, "Cash Rows Co")
+	bill := b.postBill(t, v, "2026-10-05", billAmount{b.office, 70000}, billAmount{b.expense, 30000})
+	pay := b.payOn(t, v, "2026-11-03", payLine{bill, 40000})
+	billNo := apNo(t, b.apBook, bill)
+
+	stored, err := b.app.FindRecordsByFilter("books_cash_basis_lines", "account = {:o} || account = {:e}", "", 0, 0,
+		dbx.Params{"o": b.office.Id, "e": b.expense.Id})
+	if err != nil {
+		t.Fatalf("read the cash-basis rows: %v", err)
+	}
+	type cashShape struct {
+		Entry, PaymentEntry, Account, Vendor, Memo string
+		Debit, Credit                              int
+	}
+	got := make([]cashShape, len(stored))
+	for i, r := range stored {
+		got[i] = cashShape{
+			Entry: r.GetString("entry"), PaymentEntry: r.GetString("payment_entry"), Account: r.GetString("account"),
+			Vendor: r.GetString("vendor"), Memo: r.GetString("memo"), Debit: r.GetInt("debit"), Credit: r.GetInt("credit"),
+		}
+	}
+	billEntry, payEntry := bill.GetString("entry"), pay.GetString("entry")
+	unpaid, paid := "Unpaid bill (cash basis)", "Bill "+billNo+" paid (cash basis)"
+	want := []cashShape{
+		{Entry: billEntry, Account: b.office.Id, Vendor: v.Id, Memo: unpaid, Credit: 70000},
+		{Entry: billEntry, Account: b.expense.Id, Vendor: v.Id, Memo: unpaid, Credit: 30000},
+		{Entry: payEntry, PaymentEntry: payEntry, Account: b.office.Id, Vendor: v.Id, Memo: paid, Debit: 28000},
+		{Entry: payEntry, PaymentEntry: payEntry, Account: b.expense.Id, Vendor: v.Id, Memo: paid, Debit: 12000},
+	}
+	order := func(x, y cashShape) int {
+		return strings.Compare(fmt.Sprint(x), fmt.Sprint(y))
+	}
+	slices.SortFunc(got, order)
+	slices.SortFunc(want, order)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("the cash-basis rows on the expense accounts =\n%+v\nwant\n%+v", got, want)
+	}
+	requireNoDrift(t, b.app)
+}
+
+// D3, D4: the cash-basis rows of an opened vendor, step by step.
+func TestExpensesByVendorCashDetail(t *testing.T) {
+	b := newEBVBook(t)
+	v := apVendor(t, b.apBook, "Cash Detail Co")
+	cash := map[string]any{"period": ebvPeriod("2026-10-01", "2026-11-30"), "method": "cash"}
+
+	// open opens the vendor on params and checks that its lines add up to its
+	// Total, and that the Total is the Cash Profit and Loss's three expense
+	// sections (the vendor holds every expense line of the book).
+	open := func(step string, params map[string]any) []ebvLine {
+		t.Helper()
+		row, rows := ebvOpenVendor(t, b, params, v)
+		lines := ebvLinesOf(t, rows)
+		total := amt(t, row, "amount")
+		if sum := ebvLinesSum(lines); sum != total {
+			t.Errorf("%s: the lines add up to %d, want the vendor's Total %d", step, sum, total)
+		}
+		pl := runPL(t, b.app, profitAndLossShipped(), b.reader, params, reports.Options{Today: ebvToday})
+		if want := plExpenseSections(t, pl); total != want {
+			t.Errorf("%s: the vendor's Total %d, want the Profit and Loss's expense sections %d", step, total, want)
+		}
+		return lines
+	}
+	requireHas := func(step string, lines []ebvLine, want ...ebvLine) {
+		t.Helper()
+		for _, w := range want {
+			if !slices.Contains(lines, w) {
+				t.Errorf("%s: no line %q %d; lines\n%+v", step, w.Label, w.Amount, lines)
+			}
+		}
+	}
+
+	// A bill of 1,000.00 (700.00, 300.00) with a payment of 400.00.
+	bill := b.postBill(t, v, "2026-10-05", billAmount{b.office, 70000}, billAmount{b.expense, 30000})
+	pay := b.payOn(t, v, "2026-11-03", payLine{bill, 40000})
+	billNo, payNo := apNo(t, b.apBook, bill), apNo(t, b.apBook, pay)
+	billOn := "2026-10-05 · Bill " + billNo + " · "
+	paidOn := "2026-11-03 · Bill payment " + payNo + " · "
+	paid := " · Bill " + billNo + " paid (cash basis)"
+	lines := open("the part-paid bill", cash)
+	requireEBVLines(t, "the part-paid bill", lines, []ebvLine{
+		{billOn + ebvOfficeLabel, 70000},
+		{billOn + ebvOfficeLabel + " · Unpaid bill (cash basis)", -70000},
+		{billOn + ebvSoftwareLabel, 30000},
+		{billOn + ebvSoftwareLabel + " · Unpaid bill (cash basis)", -30000},
+		{paidOn + ebvOfficeLabel + paid, 28000},
+		{paidOn + ebvSoftwareLabel + paid, 12000},
+	})
+	if sum := ebvLinesSum(lines); sum != 40000 {
+		t.Errorf("the part-paid bill's lines add up to %d, want the paid 40000", sum)
+	}
+
+	// A vendor credit is taken out on its date.
+	credit := apVendorCredit(t, b.apBook, v, "2026-10-06", 5000)
+	creditNo := apNo(t, b.apBook, credit)
+	creditOn := "2026-10-06 · Vendor credit " + creditNo + " · " + ebvSoftwareLabel
+	requireHas("the vendor credit", open("the vendor credit", cash),
+		ebvLine{creditOn, -5000},
+		ebvLine{creditOn + " · Unapplied vendor credit (cash basis)", 5000})
+
+	// A second bill paid in part by the vendor credit.
+	bill2 := b.postBill(t, v, "2026-10-07", billAmount{b.expense, 20000})
+	apApply(t, b.apBook, credit, reload(t, b.app, "books_bills", bill2.Id), "2026-11-05", 5000)
+	appliedOn := "2026-11-05 · Vendor credit " + creditNo + " · " + ebvSoftwareLabel
+	requireHas("the application", open("the application", cash),
+		ebvLine{appliedOn + " · Bill " + apNo(t, b.apBook, bill2) + " paid by vendor credit (cash basis)", 5000},
+		ebvLine{appliedOn + " · Vendor credit " + creditNo + " applied (cash basis)", -5000})
+
+	// A vendor credit refunded.
+	refunded := apVendorCredit(t, b.apBook, v, "2026-10-08", 6000)
+	refund := apRefund(t, b.apBook, v, "2026-11-06", map[string]int{refunded.Id: 6000})
+	requireHas("the refund", open("the refund", cash),
+		ebvLine{"2026-11-06 · Vendor refund " + apNo(t, b.apBook, refund) + " · " + ebvSoftwareLabel +
+			" · Vendor credit " + apNo(t, b.apBook, refunded) + " refunded (cash basis)", -6000})
+
+	// A void bill: its line, its reversal line and their take-out rows add up
+	// to 0 (the set and the sum; D4).
+	voided := b.postBill(t, v, "2026-10-09", billAmount{b.expense, 9000})
+	voidedNo := apNo(t, b.apBook, voided)
+	if err := voidBillAs(b.app, voided.Id, b.users.admin.Id); err != nil {
+		t.Fatalf("void the bill: %v", err)
+	}
+	var onVoidDay []ebvLine
+	for _, l := range open("the void", cash) {
+		if strings.HasPrefix(l.Label, "2026-10-09 · ") {
+			onVoidDay = append(onVoidDay, l)
+		}
+	}
+	wantVoid := []ebvLine{
+		{"2026-10-09 · Bill " + voidedNo + " · " + ebvSoftwareLabel, 9000},
+		{"2026-10-09 · Bill " + voidedNo + " · " + ebvSoftwareLabel + " · Unpaid bill (cash basis)", -9000},
+		{"2026-10-09 · Void reversal of " + voidedNo + " · " + ebvSoftwareLabel + " · Void of " + voidedNo, -9000},
+		{"2026-10-09 · Void reversal of " + voidedNo + " · " + ebvSoftwareLabel + " · Unpaid bill (cash basis)", 9000},
+	}
+	byLabel := func(x, y ebvLine) int { return strings.Compare(fmt.Sprint(x), fmt.Sprint(y)) }
+	slices.SortFunc(onVoidDay, byLabel)
+	slices.SortFunc(wantVoid, byLabel)
+	requireEBVLines(t, "the void bill's day", onVoidDay, wantVoid)
+	if sum := ebvLinesSum(onVoidDay); sum != 0 {
+		t.Errorf("the void bill's rows add up to %d, want 0", sum)
+	}
+
+	// An expense has one row on both Methods.
+	exp := b.postExpense(t, v, "2026-10-10", billAmount{b.office, 2500})
+	expOn := "2026-10-10 · Expense " + apNo(t, b.apBook, exp)
+	for _, method := range []string{"cash", "accrual"} {
+		params := map[string]any{"period": cash["period"], "method": method}
+		var rows []ebvLine
+		for _, l := range open("the expense, "+method, params) {
+			if strings.HasPrefix(l.Label, expOn+" · ") {
+				rows = append(rows, l)
+			}
+		}
+		requireEBVLines(t, "the expense on "+method, rows, []ebvLine{{expOn + " · " + ebvOfficeLabel, 2500}})
+	}
+	requireNoDrift(t, b.app)
+}
+
+// D9: on Cash a write-off's bad debt line and its take-out row are under No
+// vendor and add up to 0.
+func TestExpensesByVendorWriteOffCashRows(t *testing.T) {
+	we := newWriteOffEnv(t)
+	registerBooksSources(t)
+	inv := we.postedInvoice(t, 25000)
+	we.mkWriteOff(t, inv, nil)
+	reader := we.users.readOnly
+	params := map[string]any{"period": ebvPeriod("2026-11-01", "2026-11-30"), "method": "cash", "rows": "activity"}
+
+	closed := runEBV(t, we.app, reader, params, reports.Options{})
+	res := runEBVOpenAs(t, we.app, reader, params, ebvRowOf(t, closed, nil).GroupKey)
+	none := ebvRowOf(t, res, nil)
+	lines := ebvLinesOf(t, ebvLinesUnder(t, res, none))
+	if len(lines) != 2 {
+		t.Fatalf("No vendor opens into %+v, want the bad debt line and its take-out row", lines)
+	}
+	badDebt := ebvAccountText(t, we.app, we.badDebts.Id)
+	if badDebt != "6050 Bad debts" {
+		t.Fatalf("the bad debts account reads %q, want 6050 Bad debts", badDebt)
+	}
+	var line, takeOut ebvLine
+	for _, l := range lines {
+		if l.Amount > 0 {
+			line = l
+		} else {
+			takeOut = l
+		}
+	}
+	if line.Amount != 25000 || !strings.HasPrefix(line.Label, writeOffDay+" · ") || !strings.Contains(line.Label, " · "+badDebt) {
+		t.Errorf("the bad debt line = %q %d, want 25000 dated %s on %s", line.Label, line.Amount, writeOffDay, badDebt)
+	}
+	if takeOut.Amount != -25000 || !strings.HasPrefix(takeOut.Label, writeOffDay+" · ") ||
+		!strings.HasSuffix(takeOut.Label, " · "+badDebt+" · Write-off (cash basis)") {
+		t.Errorf("the take-out row = %q %d, want -25000 dated %s ending \" · %s · Write-off (cash basis)\"", takeOut.Label, takeOut.Amount, writeOffDay, badDebt)
+	}
+	if sum := ebvLinesSum(lines); sum != 0 || amt(t, none, "amount") != 0 {
+		t.Errorf("No vendor's lines add up to %d (row %d), want 0", sum, amt(t, none, "amount"))
+	}
+	requireNoDrift(t, we.app)
+}
+
+func TestExpensesByVendorNoVendorOpens(t *testing.T) {
+	b := newEBVBook(t)
+	b.postBill(t, apVendor(t, b.apBook, "Named Co"), "2026-10-05", billAmount{b.expense, 2000})
+	exp := b.postExpense(t, nil, "2026-10-09", billAmount{b.office, 9000})
+	manual := b.postEntry(t, "2026-10-10", nil, b.rent, 1000)
+
+	want := []ebvLine{
+		ebvLedgerLine(t, b.app, entryLineOn(t, b.app, exp.GetString("entry"), b.office), "Expense "+apNo(t, b.apBook, exp)),
+		ebvLedgerLine(t, b.app, entryLineOn(t, b.app, manual.Id, b.rent), "Journal entry "+ebvEntryNumber(t, b.app, manual.Id)),
+	}
+	if !strings.HasPrefix(want[0].Label, "2026-10-09 · Expense "+apNo(t, b.apBook, exp)+" · "+ebvOfficeLabel) ||
+		!strings.HasPrefix(want[1].Label, "2026-10-10 · Journal entry "+ebvEntryNumber(t, b.app, manual.Id)+" · 6100 Rent") {
+		t.Fatalf("wanted labels %+v", want)
+	}
+	row, rows := ebvOpenVendor(t, b, map[string]any{"period": ebvOctober}, nil)
+	got := ebvLinesOf(t, rows)
+	requireEBVLines(t, "No vendor", got, want)
+	if sum, total := ebvLinesSum(got), amt(t, row, "amount"); sum != total || total != 10000 {
+		t.Errorf("No vendor's lines add up to %d, its Total is %d; want both 10000", sum, total)
+	}
+	requireNoDrift(t, b.app)
+}
+
+func TestExpensesByVendorDetailOpen(t *testing.T) {
+	b := newEBVBook(t)
+	v := apVendor(t, b.apBook, "Open Co")
+	bill := b.postBill(t, v, "2026-10-05", billAmount{b.office, 10000})
+	pay := b.payOn(t, v, "2026-10-20", payLine{bill, 4000})
+	exp := b.postExpense(t, v, "2026-10-06", billAmount{b.office, 2500})
+	credit := apVendorCredit(t, b.apBook, v, "2026-10-07", 500)
+	manual := b.postEntry(t, "2026-10-08", v, b.expense, 1200)
+
+	opens := func(params map[string]any) map[string]string {
+		t.Helper()
+		_, rows := ebvOpenVendor(t, b, params, v)
+		out := map[string]string{}
+		for _, r := range rows {
+			out[r.ID] = r.Open
+		}
+		return out
+	}
+	accrual := opens(map[string]any{"period": ebvOctober})
+	want := map[string]string{
+		"d:" + entryLineOn(t, b.app, bill.GetString("entry"), b.office).Id:    apRoute(t, "bill", bill.Id),
+		"d:" + entryLineOn(t, b.app, exp.GetString("entry"), b.office).Id:     apRoute(t, "expense", exp.Id),
+		"d:" + entryLineOn(t, b.app, credit.GetString("entry"), b.expense).Id: apRoute(t, "vendor_credit", credit.Id),
+		"d:" + entryLineOn(t, b.app, manual.Id, b.expense).Id:                 "books/entries/" + manual.Id,
+	}
+	if !reflect.DeepEqual(accrual, want) {
+		t.Errorf("Accrual: the opened lines open\n%q\nwant\n%q", accrual, want)
+	}
+
+	// On Cash a take-out row opens its document and a share row its payment.
+	_, rows := ebvOpenVendor(t, b, map[string]any{"period": ebvOctober, "method": "cash"}, v)
+	for _, r := range rows {
+		wantOpen := ""
+		switch {
+		case strings.Contains(r.Label, " paid (cash basis)"):
+			wantOpen = apRoute(t, "bill_payment", pay.Id)
+		case strings.HasPrefix(r.Label, "2026-10-05 · Bill "):
+			wantOpen = apRoute(t, "bill", bill.Id)
+		case strings.HasPrefix(r.Label, "2026-10-07 · Vendor credit "):
+			wantOpen = apRoute(t, "vendor_credit", credit.Id)
+		default:
+			wantOpen = accrual[r.ID]
+		}
+		if r.Open != wantOpen || wantOpen == "" {
+			t.Errorf("Cash: %q opens %q, want %q", r.Label, r.Open, wantOpen)
+		}
+	}
+	requireNoDrift(t, b.app)
+}
+
+func TestExpensesByVendorTopics(t *testing.T) {
+	b := newEBVBook(t)
+	v := apVendor(t, b.apBook, "Topic Co")
+	b.postBill(t, v, "2026-10-05", billAmount{b.expense, 10000})
+	// On Cash the unpaid bill nets to 0, so With activity keeps the vendor; the
+	// run then reads both layers of books.basis_lines.
+	params := map[string]any{"period": ebvOctober, "method": "cash", "rows": "activity"}
+	closed := b.run(t, params)
+	opened := ebvRunOpen(t, b, params, ebvVendorRow(t, closed, v).GroupKey)
+	if lines := ebvLinesUnder(t, opened, ebvVendorRow(t, opened, v)); len(lines) == 0 {
+		t.Fatalf("Topic Co did not open; rows %q", bsLabels(opened))
+	}
+	// The six topics of the spec, and the three of the access rules the run reads:
+	// core adds the collections a source's view rule names (the books_journal_lines
+	// rule reads books_admins, org_pkg_access and users), because a change there
+	// changes which rows the reader sees.
+	want := []string{
+		"collection/books_accounts", "collection/books_admins", "collection/books_cash_basis_lines",
+		"collection/books_journal_entries", "collection/books_journal_lines", "collection/books_settings",
+		"collection/books_vendors", "collection/org_pkg_access", "collection/users",
+	}
+	got := slices.Sorted(slices.Values(opened.Topics))
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("the opened run's topics = %v, want exactly %v", got, want)
+	}
+	requireNoDrift(t, b.app)
+}
+
+// exportEBVCSV is the CSV export of the shipped Expenses by Vendor as reader
+// (exportShippedCSV).
+func exportEBVCSV(t testing.TB, b ebvBook, reader *core.Record, params map[string]any) string {
+	t.Helper()
+	return exportShippedCSV(t, b.app, expensesByVendorShipped(), expensesByVendorKey, ebvToday, reader, params)
+}
+
+func TestExpensesByVendorCSVOpensEveryGroup(t *testing.T) {
+	b := newEBVBook(t)
+	alpha := apVendor(t, b.apBook, "Csv Alpha")
+	alphaBill := b.postBill(t, alpha, "2026-10-01", billAmount{b.office, 20000}, billAmount{b.expense, 5000})
+	beta := apVendor(t, b.apBook, "Csv Beta")
+	betaExp := b.postExpense(t, beta, "2026-10-02", billAmount{b.expense, 4000})
+	none := b.postEntry(t, "2026-10-04", nil, b.rent, 3000)
+	params := map[string]any{"period": ebvOctober}
+
+	text := exportEBVCSV(t, b, b.reader, params)
+	records, err := csv.NewReader(strings.NewReader(strings.TrimPrefix(text, "\xef\xbb\xbf"))).ReadAll()
+	if err != nil {
+		t.Fatalf("read the CSV: %v\n%s", err, text)
+	}
+	if len(records) == 0 {
+		t.Fatal("the CSV has no line")
+	}
+	if want := []string{"Vendor", "Total", "% of expenses"}; !reflect.DeepEqual(records[0], want) {
+		t.Errorf("the heading line = %q, want %q", records[0], want)
+	}
+
+	type record struct {
+		Label      string
+		Cents      int64
+		ShareBlank bool
+	}
+	got := make([]record, 0, len(records))
+	for _, r := range records[1:] {
+		if len(r) < 3 {
+			t.Fatalf("CSV record %q has no Total or %% of expenses", r)
+		}
+		got = append(got, record{r[0], int64(apCSVCents(t, r[1])), r[2] == ""})
+	}
+
+	run := b.run(t, params)
+	line := func(l ebvLine) record { return record{l.Label, l.Amount, true} }
+	alphaNo := apNo(t, b.apBook, alphaBill)
+	want := []record{
+		{"Csv Alpha", ebvAmount(t, run, alpha), false},
+		line(ebvLedgerLine(t, b.app, entryLineOn(t, b.app, alphaBill.GetString("entry"), b.office), "Bill "+alphaNo)),
+		line(ebvLedgerLine(t, b.app, entryLineOn(t, b.app, alphaBill.GetString("entry"), b.expense), "Bill "+alphaNo)),
+		{"Csv Beta", ebvAmount(t, run, beta), false},
+		line(ebvLedgerLine(t, b.app, entryLineOn(t, b.app, betaExp.GetString("entry"), b.expense), "Expense "+apNo(t, b.apBook, betaExp))),
+		{"No vendor", amt(t, bsRow(t, run, "No vendor"), "amount"), false},
+		line(ebvLedgerLine(t, b.app, entryLineOn(t, b.app, none.Id, b.rent), "Journal entry "+ebvEntryNumber(t, b.app, none.Id))),
+		{"Total", ebvTotal(t, run), false},
+	}
+	if want[0].Cents != 25000 || want[3].Cents != 4000 || want[5].Cents != 3000 || want[7].Cents != 32000 {
+		t.Fatalf("the closed run's figures %+v, want Csv Alpha 25000, Csv Beta 4000, No vendor 3000, Total 32000", want)
+	}
+	if !strings.HasPrefix(want[1].Label, "2026-10-01 · Bill "+alphaNo+" · "+ebvOfficeLabel) {
+		t.Fatalf("the wanted first line %q does not name 6150 Office Expenses", want[1].Label)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("the CSV records =\n%+v\nwant every vendor followed by its lines (a blank %% of expenses on each line), then No vendor with its line, then the Total\n%+v", got, want)
+	}
+	requireNoDrift(t, b.app)
 }
