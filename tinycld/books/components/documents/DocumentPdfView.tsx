@@ -1,16 +1,11 @@
-import { LoadingState } from '@tinycld/core/components/LoadingState'
-import { PdfCanvasViewer } from '@tinycld/core/file-viewer/previews/PdfCanvasViewer'
 import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { Text, View } from 'react-native'
 import { useDocumentPdf } from '../../hooks/useDocumentPdf'
 import { useDocumentKind } from './document-kind-context'
+import { PdfPage } from './PdfPage'
 
 const TAP = { minHeight: 44 }
-
-// A letter-size page, as the reference draws it: the viewer scrolls inside it.
-const PAGE = { width: '100%', maxWidth: 640, aspectRatio: 0.773 } as const
-const PAGE_CLASS = 'self-center overflow-hidden rounded-md border border-border bg-background'
 
 interface UnsavedProps {
     isSaving: boolean
@@ -55,46 +50,6 @@ function StaleNotice({ isVisible }: { isVisible: boolean }) {
     )
 }
 
-interface PageProps {
-    uri: string | null
-    error: string | null
-    onRetry: () => void
-}
-
-// The page frame holds the viewer, or what stands in its place after a refusal and
-// while it loads (useDocumentPdf gives no uri and no error then).
-function Page({ uri, error, onRetry }: PageProps) {
-    const { doc } = useDocumentKind()
-    const testId = doc.testId
-    if (error !== null) {
-        const errorId = `${testId}-pdf-error`
-        const retryId = `${testId}-pdf-retry`
-        const errorClass = `${PAGE_CLASS} items-center justify-center gap-3 p-6`
-        return (
-            <View testID={errorId} accessibilityRole="alert" className={errorClass} style={PAGE}>
-                <Text className="text-center text-base font-medium text-foreground">{error}</Text>
-                <Button testID={retryId} variant="outline" style={TAP} onPress={onRetry}>
-                    <ButtonText>Retry</ButtonText>
-                </Button>
-            </View>
-        )
-    }
-    if (uri === null) {
-        const loadingId = `${testId}-pdf-loading`
-        return (
-            <View testID={loadingId} className={PAGE_CLASS} style={PAGE}>
-                <LoadingState />
-            </View>
-        )
-    }
-    const pdfId = `${testId}-pdf`
-    return (
-        <View testID={pdfId} className={PAGE_CLASS} style={PAGE}>
-            <PdfCanvasViewer url={uri} />
-        </View>
-    )
-}
-
 interface DocumentPdfViewProps {
     // The saved document; null on a new form that has written nothing.
     documentId: string | null
@@ -122,10 +77,11 @@ export function DocumentPdfView({
     const { doc } = useDocumentKind()
     const pdf = useDocumentPdf(doc, documentId, version)
     if (documentId === null) return <Unsaved isSaving={isSaving} onSave={onSave} />
+    const pageId = `${doc.testId}-pdf`
     return (
         <View className="gap-3">
             <StaleNotice isVisible={isDirty} />
-            <Page uri={pdf.uri} error={pdf.error} onRetry={pdf.retry} />
+            <PdfPage uri={pdf.uri} error={pdf.error} onRetry={pdf.retry} testId={pageId} />
         </View>
     )
 }

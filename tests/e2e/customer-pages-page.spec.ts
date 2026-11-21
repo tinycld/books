@@ -177,6 +177,28 @@ test.describe('customer-pages: customer page', () => {
         await createCustomer(page, { name })
         const id = openCustomerId(page)
 
+        // Statements spec §2, §3.7: five tabs in the customer's order, Statements second,
+        // with no count in its label.
+        const strip = page.locator('[role="tab"][data-testid^="customer-tab-"]').filter({
+            visible: true,
+        })
+        await expect(strip).toHaveText([
+            'Transactions',
+            'Statements',
+            'Contacts',
+            'Details',
+            'Notes',
+        ])
+        expect(
+            await strip.evaluateAll(tabs => tabs.map(tab => tab.getAttribute('data-testid')))
+        ).toEqual([
+            'customer-tab-transactions',
+            'customer-tab-statements',
+            'customer-tab-contacts',
+            'customer-tab-details',
+            'customer-tab-notes',
+        ])
+
         // No click from here.
         await page.keyboard.press('Alt+3')
         await expect(page.getByTestId('customer-tab-details')).toHaveAttribute(

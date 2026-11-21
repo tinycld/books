@@ -143,7 +143,7 @@ type PaymentInput = Pick<
 >
 type CreditMemoInput = Pick<
     BooksCreditMemos,
-    'id' | 'status' | 'number' | 'date' | 'total' | 'balance' | 'currency' | 'created'
+    'id' | 'status' | 'number' | 'date' | 'total' | 'balance' | 'applied' | 'currency' | 'created'
 >
 type RefundReceiptInput = Pick<
     BooksRefundReceipts,
@@ -227,14 +227,21 @@ function paymentStatus(row: PaymentInput): StatusBadge {
     return lifecycleStatus(row.status, posted)
 }
 
-// A posted credit memo reads Unapplied while credit is left on it (a partly refunded memo
-// too), else Refunded: refund receipts paid out all of it (refund receipt spec §3.12). The
-// Transactions tab, the Sales lists and the invoice's Credit memos section use it.
-export function creditMemoStatus(row: { status: string; balance: number }): StatusBadge {
-    return creditStatus(row, {
-        open: { label: 'Unapplied', tone: 'warning' },
-        closed: { label: 'Refunded', tone: 'success' },
-    })
+// A posted credit memo reads Unapplied while credit is left on it (a memo partly applied or
+// partly refunded too); with none left it reads Applied when a part of it was applied to
+// invoices (`applied` above 0, apply credit spec §3.5), else Refunded: refund receipts paid
+// out all of it (refund receipt spec §3.12). The Transactions tab, the Sales lists and the
+// invoice's Credit memos section use it.
+export function creditMemoStatus(row: {
+    status: string
+    balance: number
+    applied: number
+}): StatusBadge {
+    const closed: StatusBadge =
+        row.applied > 0
+            ? { label: 'Applied', tone: 'success' }
+            : { label: 'Refunded', tone: 'success' }
+    return creditStatus(row, { open: { label: 'Unapplied', tone: 'warning' }, closed })
 }
 
 // A posted refund receipt reads Refunded (refund receipt spec §3.11–§3.13). The sales

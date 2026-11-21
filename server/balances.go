@@ -228,12 +228,12 @@ func cashDriftReport(drifts []CashBasisDrift) (listed []CashBasisDrift, count in
 	return drifts, len(drifts)
 }
 
-// receivableDriftReport is the stored-receivable part of the rebuild route's
-// answer: the first maxReceivableDriftsReported rows that drifted and the count
+// itemDriftReport is the stored open-item part of the rebuild route's
+// answer: the first maxItemDriftsReported rows that drifted and the count
 // of all.
-func receivableDriftReport(drifts []ReceivableDrift) (listed []ReceivableDrift, count int) {
-	if len(drifts) > maxReceivableDriftsReported {
-		return drifts[:maxReceivableDriftsReported], len(drifts)
+func itemDriftReport(drifts []ItemDrift) (listed []ItemDrift, count int) {
+	if len(drifts) > maxItemDriftsReported {
+		return drifts[:maxItemDriftsReported], len(drifts)
 	}
 	return drifts, len(drifts)
 }
@@ -247,7 +247,8 @@ func receivableDriftReport(drifts []ReceivableDrift) (listed []ReceivableDrift, 
 // one transaction, touching only the rows that differ. It returns how many
 // month rows, document balances, cash-basis rows and cash months it fixed. It
 // also rebuilds the stored receivable rows when they disagree with the book
-// (repairReceivables); those rows are not in the count.
+// (receivableItems.repair); those rows are not in the count. The stored
+// payable rows are repaired the same way (payableItems.repair).
 func rebuildBalances(app core.App) (int, error) {
 	fixed := 0
 	err := app.RunInTransaction(func(tx core.App) error {
@@ -297,13 +298,18 @@ func rebuildBalances(app core.App) (int, error) {
 			}
 		}
 		fixed = len(drifts) + documents + cash + cashMonths
-		return repairReceivables(tx)
+		if err := receivableItems.repair(tx); err != nil {
+			return err
+		}
+		return payableItems.repair(tx)
 	})
 	return fixed, err
 }
 
 // bindBalanceRoutes mounts a Books route: a maintenance action, not a
 // data endpoint (the rows it fixes reach clients through their live queries).
+// Its answer lists the drifts it found, the stored receivable and payable rows
+// among them (receivableDrifts, payableDrifts, each with its count).
 // Session only: it is not in the OAuth registration, so a token cannot call it.
 func bindBalanceRoutes(e *core.ServeEvent) {
 	e.Router.POST("/api/books/balances/rebuild", func(re *core.RequestEvent) error {
@@ -324,12 +330,20 @@ func bindBalanceRoutes(e *core.ServeEvent) {
 			log.ErrorContext(re.Request.Context(), "cash-basis rows disagree with their documents", "count", len(cashDrifts))
 		}
 		// Read before the rebuild repairs them, as the cash-basis rows above.
-		receivableDrifts, err := verifyReceivables(re.App)
+		receivableDrifts, err := receivableItems.verify(re.App)
 		if err != nil {
 			return err
 		}
 		if len(receivableDrifts) > 0 {
 			log.ErrorContext(re.Request.Context(), "receivable rows disagree with the book", "count", len(receivableDrifts))
+		}
+		// The stored payable rows too, read before the rebuild repairs them.
+		payableDrifts, err := payableItems.verify(re.App)
+		if err != nil {
+			return err
+		}
+		if len(payableDrifts) > 0 {
+			log.ErrorContext(re.Request.Context(), "payable rows disagree with the book", "count", len(payableDrifts))
 		}
 		// Every write path keeps a document's balance and an invoice's
 		// written_off with its payers, so a drift here means one missed it.
@@ -358,12 +372,14 @@ func bindBalanceRoutes(e *core.ServeEvent) {
 		}
 		listed, count := lineDriftReport(lineDrifts)
 		cashListed, cashCount := cashDriftReport(cashDrifts)
-		receivableListed, receivableCount := receivableDriftReport(receivableDrifts)
+		receivableListed, receivableCount := itemDriftReport(receivableDrifts)
+		payableListed, payableCount := itemDriftReport(payableDrifts)
 		documentListed, documentCount := documentDriftReport(documentDrifts)
 		return re.JSON(http.StatusOK, map[string]any{
 			"fixed": fixed, "lineDrifts": listed, "lineDriftCount": count,
 			"cashDrifts": cashListed, "cashDriftCount": cashCount,
 			"receivableDrifts": receivableListed, "receivableDriftCount": receivableCount,
+			"payableDrifts": payableListed, "payableDriftCount": payableCount,
 			"documentDrifts": documentListed, "documentDriftCount": documentCount,
 		})
 	})

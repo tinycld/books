@@ -99,3 +99,23 @@ describe('help/customer-pages.md (write-offs)', () => {
         expect(body).toMatch(/\bwrite-offs?\b|\bWritten off\b/i)
     })
 })
+
+// Statements spec §3.11: the page gains the Statements tab, and the topic links the
+// statements topic.
+describe('help/customer-pages.md (statements)', () => {
+    it('names the Statements tab and its ⌥5 key', () => {
+        expect(body).toMatch(/\bStatements\b/)
+        expect(body).toContain('⌥5')
+    })
+
+    it('links the statements topic', () => {
+        expect(body).toContain('(help://books:statements)')
+    })
+})
+
+// Apply credit spec §3.8 Help: one paragraph on the credit memo row's menu item.
+describe('help/customer-pages.md (apply credit)', () => {
+    it('names Apply to invoices', () => {
+        expect(body).toContain('Apply to invoices')
+    })
+})

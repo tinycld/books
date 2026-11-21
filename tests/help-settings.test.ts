@@ -82,3 +82,19 @@ describe('help/settings.md', () => {
         expect(body).toContain('(help://books:documents)')
     })
 })
+
+// Statements spec §3.11: Numbering names the Statements card, says a statement takes its
+// number when it is saved, and links the statements topic.
+describe('help/settings.md (statements)', () => {
+    it('names the Statements card of Numbering', () => {
+        expect(body).toMatch(/\bStatements\b[^.\n]*\bcard\b|\bcard\b[^.\n]*\bStatements\b/)
+    })
+
+    it('says a statement takes its number when it is saved', () => {
+        expect(body).toMatch(/\bstatement\b[^.\n]*when it is saved/i)
+    })
+
+    it('links the statements topic', () => {
+        expect(body).toContain('(help://books:statements)')
+    })
+})

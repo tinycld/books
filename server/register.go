@@ -34,6 +34,7 @@ func Register(app *pocketbase.PocketBase) {
 	registerPaymentGuards(app)
 	registerBillPaymentGuards(app)
 	registerVendorCreditApplications(app)
+	registerCreditMemoApplications(app)
 	registerVendorRefundGuards(app)
 	registerWriteOffGuards(app)
 	registerPartyBalances()
@@ -49,6 +50,10 @@ func Register(app *pocketbase.PocketBase) {
 	// The sale-lines view reads the refund lines and, for the payout filter,
 	// their refund's credit_memo.
 	changesignal.RegisterView("books_refund_receipt_sale_lines", "books_refund_receipt_lines", "books_refund_receipts")
+	// The match suggestions read the bank transactions with their connection,
+	// the journal lines with their entry, and the matched lines.
+	changesignal.RegisterView("books_bank_match_suggestions", "books_bank_transactions", "books_journal_lines",
+		"books_journal_entries", "books_bank_match_lines", "books_bank_connections")
 	for _, s := range reportSources() {
 		reports.RegisterSource(s)
 	}
@@ -62,9 +67,12 @@ func Register(app *pocketbase.PocketBase) {
 	reports.RegisterShipped(salesTaxLiabilityShipped())
 	reports.RegisterShipped(customerBalanceShipped())
 	reports.RegisterShipped(arAgingShipped())
+	reports.RegisterShipped(apAgingShipped())
 	reports.RegisterShipped(salesByCustomerShipped())
 	reports.RegisterShipped(salesByProductShipped())
 	reports.RegisterShipped(auditLogShipped())
+	reports.RegisterShipped(statementBalanceForwardShipped())
+	reports.RegisterShipped(statementOpenItemsShipped())
 	registerReportShares(app)
 	registerAudit(app)
 	oauth.RegisterPackage(oauthPackage())
@@ -73,9 +81,11 @@ func Register(app *pocketbase.PocketBase) {
 	quota.RegisterSources(quotaSources()...)
 	registerOffboard()
 	registerAutoReverseSweep(app)
+	registerStatementGuards(app)
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		bindBalanceRoutes(e)
 		bindPDFRoutes(e)
+		bindStatementRoutes(e)
 		return e.Next()
 	})
 }

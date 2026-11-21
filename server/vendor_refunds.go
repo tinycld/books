@@ -171,6 +171,7 @@ func registerVendorRefundGuards(app core.App) {
 			return nil
 		})
 	})
+	bindPayableRefundRefresh(app)
 }
 
 // createVendorRefund guards a new vendor refund: it starts as a draft with

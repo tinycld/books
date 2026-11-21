@@ -1517,3 +1517,139 @@ func TestARAgingMatchesSharedSpecFile(t *testing.T) {
 		t.Errorf("display =\n%s\nwant testdata/ar_aging_spec.json display\n%s", got, file.Display)
 	}
 }
+
+// A credit memo application in A/R Aging (apply credit spec §3.8): it counts
+// against its invoice's item from the apply date, and the credit memo's item
+// is its unapplied rest from that date. The memo apply env's invoice is dated
+// and due 2026-11-04, its credit memo dated 2026-11-12, and the credit is
+// applied on 2026-11-16.
+
+// memoApplyAR runs the A/R Aging as the memo apply env's reader.
+func memoApplyAR(t *testing.T, me *memoApplyEnv) arBook {
+	t.Helper()
+	registerBooksSources(t)
+	return arBook{app: me.app, reader: me.users.readOnly, receivable: me.receivable}
+}
+
+// itemTotal is the Total of item's row in a run with customer opened.
+func (b arBook) itemTotal(t *testing.T, day string, customer *core.Record, item string) int64 {
+	t.Helper()
+	res, _ := b.openCustomer(t, map[string]any{"asOf": day}, customer)
+	v, _ := agedCell(t, requireItemRow(t, res, item), "total")
+	return v
+}
+
+func TestARAgingCreditApplication_BeforeAndOnTheApplyDate(t *testing.T) {
+	me := newMemoApplyEnv(t)
+	inv := me.invoice(t, me.customer, 40000)
+	memo := me.postedMemo(t, me.customer, memoApplyCreditDay, 25000)
+	me.apply(t, memo, inv, 15000, memoApplyDay)
+	b := memoApplyAR(t, me)
+
+	for _, tc := range []struct {
+		day                string
+		invoice, memoTotal int64
+	}{
+		{"2026-11-15", 40000, -25000},
+		{memoApplyDay, 40000 - 15000, -(25000 - 15000)},
+	} {
+		if got := b.itemTotal(t, tc.day, me.customer, inv.Id); got != tc.invoice {
+			t.Errorf("as of %s the invoice item = %d, want %d", tc.day, got, tc.invoice)
+		}
+		if got := b.itemTotal(t, tc.day, me.customer, memo.Id); got != tc.memoTotal {
+			t.Errorf("as of %s the credit memo item = %d, want %d", tc.day, got, tc.memoTotal)
+		}
+	}
+	requireNoDrift(t, me.app)
+}
+
+func TestARAgingCreditApplication_SettledItemsLeave(t *testing.T) {
+	me := newMemoApplyEnv(t)
+	covered := me.invoice(t, me.customer, 10000)
+	open := me.invoice(t, me.customer, 30000)
+	memo := me.postedMemo(t, me.customer, memoApplyCreditDay, 10000)
+	me.apply(t, memo, covered, 10000, memoApplyDay)
+	b := memoApplyAR(t, me)
+
+	before, _ := b.openCustomer(t, map[string]any{"asOf": "2026-11-15"}, me.customer)
+	for what, id := range map[string]string{"the covered invoice": covered.Id, "the credit memo": memo.Id} {
+		if _, ok := arItemRow(before, id); !ok {
+			t.Errorf("as of 2026-11-15 (before the apply date) %s has no item; rows %q", what, bsLabels(before))
+		}
+	}
+	on, row := b.openCustomer(t, map[string]any{"asOf": memoApplyDay}, me.customer)
+	for what, id := range map[string]string{"an invoice credit covers in full": covered.Id, "a credit memo applied in full": memo.Id} {
+		if r, ok := arItemRow(on, id); ok {
+			t.Errorf("as of the apply date %s has the item %q, want none", what, r.Label)
+		}
+	}
+	if got, want := labelsOf(arItemsOf(t, on, row)), []string{"Invoice " + open.GetString("number")}; !reflect.DeepEqual(got, want) {
+		t.Errorf("as of the apply date the customer's items = %q, want %q", got, want)
+	}
+	requireNoDrift(t, me.app)
+}
+
+// A memo applied in part and refunded in part: the totals still tie.
+func TestARAgingCreditApplication_TotalsTie(t *testing.T) {
+	me := newMemoApplyEnv(t)
+	inv := me.invoice(t, me.customer, 40000)
+	memo := me.postedMemo(t, me.customer, memoApplyCreditDay, 25000)
+	me.apply(t, memo, inv, 15000, memoApplyDay)
+	me.postedPayoutOn(t, memo, 5000, "2026-11-17")
+	b := memoApplyAR(t, me)
+
+	if got := b.itemTotal(t, arToday, me.customer, inv.Id); got != 40000-15000 {
+		t.Errorf("as of %s the invoice item = %d, want %d (the applied credit counted)", arToday, got, 40000-15000)
+	}
+	for _, day := range []string{"2026-11-15", arToday} {
+		opts := reports.Options{Today: day}
+		res := runAR(t, b.app, b.reader, map[string]any{"asOf": day}, opts)
+		bs := runBS(t, b.app, b.reader, map[string]any{"asOf": day}, opts)
+		total := amt(t, totalOf(t, res), "total")
+		if want := amt(t, bsAccount(t, bs, b.receivable), "current"); total != want {
+			t.Errorf("as of %s the Total %d, want the Balance Sheet's Accounts receivable %d", day, total, want)
+		}
+		if day != arToday {
+			continue
+		}
+		row, ok := cbGroupRow(res, 2, me.customer.Id)
+		if !ok {
+			t.Fatalf("as of %s the customer has no row; rows %q", day, bsLabels(res))
+		}
+		balances := partyBalances(t, b.app)
+		if got, want := amt(t, row, "total"), balances[me.customer.Id]; got != int64(want) {
+			t.Errorf("as of %s the customer's Total %d, want its books_party_balances balance %d", day, got, want)
+		}
+	}
+	requireNoDrift(t, me.app)
+}
+
+// An opened invoice item lists the application, which opens the credit memo.
+func TestARAgingCreditApplication_ItemLines(t *testing.T) {
+	me := newMemoApplyEnv(t)
+	inv := me.invoice(t, me.customer, 40000)
+	memo := me.postedMemo(t, me.customer, memoApplyCreditDay, 25000)
+	me.apply(t, memo, inv, 15000, memoApplyDay)
+	b := memoApplyAR(t, me)
+	inv = reload(t, me.app, "books_invoices", inv.Id)
+	memo = reload(t, me.app, "books_credit_memos", memo.Id)
+
+	res, item := b.openItem(t, nil, me.customer, inv.Id)
+	type lineShape struct {
+		Label, Open string
+		Total       int64
+	}
+	var got []lineShape
+	for _, l := range arLinesOf(t, res, item) {
+		v, _ := agedCell(t, l, "total")
+		got = append(got, lineShape{l.Label, l.Open, v})
+	}
+	want := []lineShape{
+		{memoApplyInvoiceDay + " · Invoice " + entryNumber(t, b, inv.GetString("entry")), "books/invoices/" + inv.Id, 40000},
+		{memoApplyDay + " · Credit memo " + entryNumber(t, b, memo.GetString("entry")), "books/credit-memos/" + memo.Id, -15000},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("the invoice's lines =\n%+v\nwant\n%+v", got, want)
+	}
+	requireNoDrift(t, me.app)
+}

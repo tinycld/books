@@ -235,13 +235,13 @@ The Profit and Loss, the Profit and Loss by Month, the Balance Sheet, Transactio
 - Each payment brings back its share of each line of the bill or invoice. For example, a bill with 700.00 of office supplies and 300.00 of software, paid 400.00, counts 280.00 of office supplies and 120.00 of software.
 - On Cash, a vendor credit counts only when you apply it to a bill, and only as far as you apply it, on the apply date. The bill counts that part as paid on the same date, so a credit applied in full shows the bill's cost less the credit. An unapplied vendor credit changes no figure on Cash. See [Vendor credits](help://books:vendor-credits).
 - On Cash, a vendor refund counts as a payment of its vendor credits on the refund date: it brings back each credit's share of its lines on that day. So a vendor credit that you never apply to a bill but the vendor refunds lowers the expense on the day the money comes back. See [Vendor refunds](help://books:vendor-refunds).
-- On Cash, a credit memo counts only when its credit is used. A refund receipt that pays out a credit memo counts as a payment of the credit memo on the refund date: it brings back the credit memo's share of its lines and tax on that day. So a credit memo that you refund lowers income and sales tax on the day the money goes back. See [Refund receipts](help://books:refund-receipts).
+- On Cash, a credit memo counts only when its credit is used. A refund receipt that pays out a credit memo counts as a payment of the credit memo on the refund date: it brings back the credit memo's share of its lines and tax on that day. So a credit memo that you refund lowers income and sales tax on the day the money goes back. A credit memo that you apply to an invoice counts on the apply date, and the invoice counts that part as paid on the same date. See [Refund receipts](help://books:refund-receipts) and [Apply a credit memo to invoices](help://books:apply-credit).
 - On Cash, a write-off is no payment: the part of an invoice that you wrote off never counts as income or as sales tax collected, and the write-off's own entry does not count either. On Accrual, the write-off's account goes up and Accounts receivable goes down on the write-off date. See [Write off an invoice](help://books:write-offs).
 - All other entries count on their own date on Cash too: journal entries, transfers, expenses, sales receipts, refund receipts that refund a sale, bill payments, customer payments and opening balances. A customer payment that is more than its invoices counts in full on its date, because the business has the money.
 - On the Balance Sheet on Cash, Accounts payable and Accounts receivable do not hold the unpaid part of bills and invoices. Total assets still equals Total liabilities and equity.
 - When you void or edit a payment, Books calculates again the shares of the other payments of the same bill or invoice. Thus voiding a payment can move another payment's share between the lines of the document by one cent. The total of each payment does not change.
 
-When you press an amount on Cash, Transaction Detail by Account opens on Cash too. Its lines show the parts that the cash basis moves: a line "Unpaid bill (cash basis)" or "Unpaid invoice (cash basis)" takes a document out on its own date, with the number of the document, and a line such as "Bill 1003 paid (cash basis)" or "Invoice 1004 paid (cash basis)" brings back a payment's share on the payment date, with the number of the payment. For a vendor credit, "Unapplied vendor credit (cash basis)" takes the credit out on its own date, and "Vendor credit 1002 applied (cash basis)" and "Bill 1003 paid by vendor credit (cash basis)" bring back the applied share on the apply date, with the number of the vendor credit. For a vendor refund, "Vendor credit 1002 refunded (cash basis)" brings back the refunded share on the refund date. For a refund receipt that pays out a credit memo, "Credit memo 1001 refunded (cash basis)" brings back the refunded share on the refund date.
+When you press an amount on Cash, Transaction Detail by Account opens on Cash too. Its lines show the parts that the cash basis moves: a line "Unpaid bill (cash basis)" or "Unpaid invoice (cash basis)" takes a document out on its own date, with the number of the document, and a line such as "Bill 1003 paid (cash basis)" or "Invoice 1004 paid (cash basis)" brings back a payment's share on the payment date, with the number of the payment. For a vendor credit, "Unapplied vendor credit (cash basis)" takes the credit out on its own date, and "Vendor credit 1002 applied (cash basis)" and "Bill 1003 paid by vendor credit (cash basis)" bring back the applied share on the apply date, with the number of the vendor credit. For a vendor refund, "Vendor credit 1002 refunded (cash basis)" brings back the refunded share on the refund date. For a refund receipt that pays out a credit memo, "Credit memo 1001 refunded (cash basis)" brings back the refunded share on the refund date. For a credit memo applied to an invoice, "Credit memo 1001 applied (cash basis)" and "Invoice 1009 paid by credit memo (cash basis)" bring back the applied share on the apply date, with the number of the credit memo.
 
 The General Ledger, the Trial Balance and the Journal show the accrual basis only.
 
@@ -254,7 +254,7 @@ The report shows the sales tax that you charged in the period, by agency and the
 - Only posted invoices, posted sales receipts, posted credit memos and posted refund receipts count: a draft does not count, and a voided document does not count. A credit memo lowers the figures of its rate: its Gross total, Taxable amount and Tax amount show as negative figures. A refund receipt that refunds a sale lowers them in the same way, on its own date, and shows as a row such as "Refund receipt 1003". A refund receipt that pays out a credit memo has no tax figures, because the credit memo already lowered them. When you edit a posted document, Books voids the original, so only the new version counts.
 - The report opens on Accrual. To change the method, press the Method chip and pick Accrual or Cash (see "Accrual and cash basis" above). The heading shows "Accrual basis" or "Cash basis" under the period.
 - On Accrual, a sale counts in the period of its own date, not the day it is paid.
-- On Cash, the tax of an invoice counts only when the invoice is paid, and only as far as it is paid. Each payment brings back its share of the invoice's Gross total, Taxable amount and Tax amount on the date of the payment. For example, an invoice of 1,080.00 with 80.00 of tax, paid 540.00, counts 40.00 of tax on the payment date. A sales receipt counts on its own date, because it is paid when you enter it. A refund receipt that refunds a sale counts on its own date too. A credit memo counts only when its credit is used: a refund receipt that pays out the credit brings back its share of the credit memo's figures on the refund date. Books cannot yet apply a credit to an invoice. So on Cash, a credit memo that no refund receipt pays out changes no figure.
+- On Cash, the tax of an invoice counts only when the invoice is paid, and only as far as it is paid. Each payment brings back its share of the invoice's Gross total, Taxable amount and Tax amount on the date of the payment. For example, an invoice of 1,080.00 with 80.00 of tax, paid 540.00, counts 40.00 of tax on the payment date. A sales receipt counts on its own date, because it is paid when you enter it. A refund receipt that refunds a sale counts on its own date too. A credit memo counts only when its credit is used: a refund receipt that pays out the credit brings back its share of the credit memo's figures on the refund date, and an application to an invoice brings back its share on the apply date, for the credit memo and as a payment of the invoice. So on Cash, a credit memo that is not applied and that no refund receipt pays out changes no figure.
 - On Cash, an open rate shows each invoice on its own date with its tax, and again with the same tax taken out, so the two add up to 0.00. Each payment shows its share as one more row of the invoice, on the payment date.
 - Gross total is the sale before tax. Taxable amount is the part of the sale that the tax was calculated on. Non-taxable is Gross total minus Taxable amount. Tax amount is the tax of the rate.
 - Each figure is the one Books stored when the document was posted. A later change to a rate, to a product's Taxable setting or to a customer's exemption does not change the report.
@@ -311,9 +311,9 @@ To see what each customer owes and how late it is, open Reports and choose A/R A
 
 The report lists the open items of each customer on the As of day. An open item is one of these:
 
-- An invoice, less the payments dated on or before the day that apply to it.
+- An invoice, less the payments and the applied credits dated on or before the day that apply to it.
 - The part of a payment that applies to no invoice.
-- A credit memo, for its total.
+- A credit memo, for the part of its total that is not applied to an invoice on the day.
 - A posted journal entry line on Accounts receivable that comes from none of these documents.
 
 Only posted transactions dated on or before the As of day count. A draft does not count. A voided document and its void reversal cancel each other, and a voided payment no longer pays its invoices. An item that adds up to 0 on the day does not show.
@@ -326,7 +326,9 @@ An item's age is the number of days from its due date to the As of day. An invoi
 - An age column with no money on a row is blank. Total always shows a figure.
 - A credit, such as the unapplied part of a payment or a credit memo, is a negative figure in the column of its age, and it lowers Total.
 
-The figures agree with the other reports. A customer's Total equals its figure on the [Customer Balance](help://books:reports) for the same day, and the Open figure on its customer's page for today. The Total row at the end equals Accounts receivable on the Balance Sheet for the same day. These figures agree because every row comes from a posted Accounts receivable line, and the line of a payment is split into the parts that pay invoices and its unapplied part, which add up to the line.
+When you apply a credit memo to an invoice, the applied credit lowers the invoice's item from the apply date, and on an As of day before the apply date the invoice shows its full open amount. From the apply date, the credit memo shows only its unapplied rest, the part of its total that is not applied, as a negative figure. An invoice that credit pays in full, and a credit memo that is applied in full, do not show from the apply date. Applying a credit does not change the customer's Total or the report's Total, because the invoice's item goes down by the amount and the credit memo's item goes up by the same amount. When you remove the credit from the invoice, both items show their full amounts again.
+
+The figures agree with the other reports. A customer's Total equals its figure on the [Customer Balance](help://books:reports) for the same day, and the Open figure on its customer's page for today. The Total row at the end equals Accounts receivable on the Balance Sheet for the same day. These figures agree because every row comes from a posted Accounts receivable line, and the line of a payment is split into the parts that pay invoices and its unapplied part, which add up to the line. An applied credit moves an amount from the credit memo's item to the invoice's item, so it adds up to zero.
 
 - A customer with no open item on the day does not show.
 - A customer shows as a group when one of its sub-customers is in your Customer pick (with no Customer filter, every sub-customer is) and has an invoice, payment, credit memo or journal entry on Accounts receivable dated on or before the As of day, also one that is now paid in full. The group has a heading with the customer's name, then a row for the customer's own items, then a row for each sub-customer with an open item, then "Total" and the customer's name. So a customer whose only sub-customer has nothing open still shows its heading, its own row and its total.
@@ -334,7 +336,7 @@ The figures agree with the other reports. A customer's Total equals its figure o
 - The No customer row holds the items of Accounts receivable lines that name no customer. It shows after every customer.
 - An inactive customer with an open item shows with "(inactive)" after its name, in lighter text.
 
-To see a customer's open items, press the customer row: it opens into one row for each open item, in due date order, oldest first, then by number. Each item shows its type and number, for example "Invoice 1042" or "Payment 17", its Due date, and its amount in the column of its age. To see the lines of an item, press the item row: an invoice opens into the invoice and the payments that apply to it on or before the day, for example "2026-11-03 · Payment 317". The invoice is a positive figure and a payment a negative one, and the lines add up to the item's amount. To open a line's document, press the line: the invoice, payment, credit memo or journal entry opens beside the report on a very wide window, else as its own screen. To fold a family, press its heading.
+To see a customer's open items, press the customer row: it opens into one row for each open item, in due date order, oldest first, then by number. Each item shows its type and number, for example "Invoice 1042" or "Payment 17", its Due date, and its amount in the column of its age. To see the lines of an item, press the item row: an invoice opens into the invoice and the payments and credit memos that apply to it on or before the day, for example "2026-11-03 · Payment 317" or "2026-11-16 · Credit memo 1001". The invoice is a positive figure and a payment or an applied credit a negative one, and the lines add up to the item's amount. To open a line's document, press the line: the invoice, payment, credit memo or journal entry opens beside the report on a very wide window, else as its own screen. To fold a family, press its heading.
 
 To change the day, press the As of chip. The default is Today. A past day shows the items as they were open on that day. When no item is open on the day, the report shows "No rows as of" and the day.
 
@@ -342,7 +344,7 @@ To show only some customers, press Add filter, then Customer, and pick one or mo
 
 To change the order, press the Order chip and pick Name or Largest balance. Name, the default, orders families and customers by name. Largest balance puts the largest Total first; a family counts by its total, inside a family the parent's own row stays first, and the No customer row stays last. The items of a customer keep their due date order.
 
-The report stays current. When someone posts or voids an invoice, a payment, a credit memo or a journal entry, corrects an invoice or a payment, renames a customer or changes its parent, or changes the Books settings, the report runs again.
+The report stays current. When someone posts or voids an invoice, a payment, a credit memo or a journal entry, corrects an invoice or a payment, applies a credit memo to an invoice or removes it, renames a customer or changes its parent, or changes the Books settings, the report runs again.
 
 On a phone, each row wraps onto lines in the table: the name and the Due date; then Current, 1 - 30 and Total on the first line of figures; then 31 - 60, 61 - 90 and 91 and over. On a tablet, each row keeps the name and Total on its first line, and shows the Due date and the five age columns below them. A narrow desktop window shows the tablet arrangement too. A long name wraps to at most three lines, a figure is never cut, and the table does not scroll sideways. Customize and Export are under **⋯** on a phone.
 
@@ -377,6 +379,46 @@ The reports stay current. When someone posts or voids an invoice, a sales receip
 
 On a phone, a Sales by Customer row shows the name on the first line, then Sales and % of sales. A Sales by Product/Service row shows the name, then Quantity and Amount, then % of sales and Avg price. A long name wraps to at most three lines, and a figure is never cut. Customize and Export are under **⋯**.
 
+## Read the A/P Aging report
+
+To see what you owe each vendor and how late it is, open Reports and choose A/P Aging. You can also press Reports at the top of the Vendors list, then A/P Aging. The heading shows your business name, A/P Aging, and the day, for example "As of November 16, 2026".
+
+The report lists the open items of each vendor on the As of day. An open item is one of these:
+
+- A bill, less the bill payments and the applied vendor credits dated on or before the day that apply to it.
+- A vendor credit, less the parts of it that are applied to bills and the vendor refunds dated on or before the day.
+- A posted journal entry line on Accounts payable that comes from none of these documents.
+
+A bill payment and a vendor refund are never items of their own: each of their lines is a part of the bill or the vendor credit it names. Only posted transactions dated on or before the As of day count. A draft does not count. A voided document and its void reversal cancel each other, and a voided bill payment or vendor refund no longer applies. An item that adds up to 0 on the day does not show.
+
+An item's age is the number of days from its due date to the As of day. A bill ages from its due date. Every other item ages from its own date, and its Due date shows that date. The columns are Vendor, Due date, Current, 1 - 30, 31 - 60, 61 - 90, 91 and over, and Total.
+
+- Current holds the items that are not yet due on the day: age 0 or less.
+- 1 - 30, 31 - 60, 61 - 90 and 91 and over hold the items that are that many days past their due date.
+- Each item is in the one column of its age, and in Total. A vendor row and the Total row add their items in each column.
+- An age column with no money on a row is blank. Total always shows a figure.
+- A figure is what you owe. A vendor credit is a negative figure in the column of its age, and it lowers the vendor's Total.
+
+When you apply a vendor credit to a bill, the applied credit lowers the bill's item from the apply date, and the vendor credit shows only the part that is not applied. Applying a credit does not change the vendor's Total or the report's Total, because the bill's item goes down by the amount and the credit's item goes up by the same amount. When you remove the credit from the bill, both items show their full amounts again, also on a past As of day: a removed application reads as never applied.
+
+The figures agree with the other reports. A vendor's Total for today equals the Open balance on its vendor page (the Open figure, or the Credit figure when the vendor owes you). The Total row at the end equals Accounts payable on the Balance Sheet for the same day. These figures agree because every row comes from a posted Accounts payable line or is a part of one: the lines of a bill payment add up to its Accounts payable figure, and so do the lines of a vendor refund, and an applied credit moves an amount from the vendor credit's item to the bill's item, so it adds up to zero.
+
+- A vendor with no open item on the day does not show.
+- The No vendor row holds the items of Accounts payable lines that name no vendor. It shows after every vendor.
+- An inactive vendor with an open item shows with "(inactive)" after its name, in lighter text.
+
+To see a vendor's open items, press the vendor row: it opens into one row for each open item, in due date order, oldest first, then by number. Each item shows its type and number, for example "Bill 1042" or "Vendor credit 3", its Due date, and its amount in the column of its age. To see the lines of an item, press the item row: a bill opens into the bill and the bill payments and vendor credits that apply to it on or before the day, for example "2026-11-03 · Bill payment 317" or "2026-11-05 · Vendor credit 12", each a negative figure. A vendor credit opens into the credit, the bills it is applied to and its vendor refunds, for example "2026-11-05 · Bill 1042" or "2026-11-09 · Vendor refund 4", each a positive figure. The lines add up to the item's amount. To open a line's document, press the line: the bill, bill payment, vendor credit, vendor refund or journal entry opens beside the report on a very wide window, else as its own screen.
+
+To change the day, press the As of chip. The default is Today. A past day shows the items as they were open on that day. When no item is open on the day, the report shows "No rows as of" and the day.
+
+To show only some vendors, press Add filter, then Vendor, and pick one or more vendors, inactive vendors included. Then press Apply. With vendors picked, the No vendor row does not show, and a line under the date names your picks. To remove the filter, press the × on the Vendor chip.
+
+To change the order, press the Order chip and pick Name or Largest balance. Name, the default, orders the vendors by name. Largest balance puts the largest Total first, and the No vendor row stays last. The items of a vendor keep their due date order.
+
+The report stays current. When someone posts or voids a bill, a bill payment, a vendor credit, a vendor refund or a journal entry, corrects one of them, applies a vendor credit to a bill or removes it, renames a vendor, or changes the Books settings, the report runs again.
+
+On a phone, each row wraps onto lines in the table: the name and the Due date; then Current, 1 - 30 and Total on the first line of figures; then 31 - 60, 61 - 90 and 91 and over. On a tablet, each row keeps the name and Total on its first line, and shows the Due date and the five age columns below them. A narrow desktop window shows the tablet arrangement too. A long name wraps to at most three lines, a figure is never cut, and the table does not scroll sideways. Customize and Export are under **⋯** on a phone.
+
 ## Reports that you refresh
 
 Six Books reports read every journal line, so they do not run again each time the books change: the General Ledger, Transaction Detail by Account, the Trial Balance, the Balance Sheet, the Journal and the Profit and Loss by Month. Under the chips, each of them shows the note "This report does not update by itself. Press Refresh to see new changes." and a **Refresh** button.
@@ -385,9 +427,9 @@ To see the changes made after you opened the report, press **Refresh**, or press
 
 Transaction Detail by Account opened from a figure, in the panel at the side, has its own **Refresh** button.
 
-The Profit and Loss, the Customer Balance, the A/R Aging, the sales reports, the Sales Tax Liability and the Audit Log stay current: they run again when the books change, and show no **Refresh** button. When someone saves a change to the columns, the filters or the layout of the Profit and Loss, the Customer Balance or the Audit Log, that report does not update by itself any more and shows **Refresh**. A change to only the title or the description keeps it current.
+The Profit and Loss, the Customer Balance, the A/R Aging, the A/P Aging, the sales reports, the Sales Tax Liability, the Audit Log and the two statement reports stay current: they run again when the books change, and show no **Refresh** button. When someone saves a change to the columns, the filters or the layout of the Profit and Loss, the Customer Balance, the Audit Log or Statement: Balance Forward, that report does not update by itself any more and shows **Refresh**. A change to only the title or the description keeps it current.
 
-A report that you build over journal lines, or that shows columns from journal lines, or over the Audit log, does not update by itself. A copy that you keep with Save as of one of the six reports above, of the Profit and Loss, of the Customer Balance or of the Audit Log does not update by itself either. Each shows the same note and **Refresh** button. A copy of the A/R Aging, of a sales report or of the Sales Tax Liability stays current.
+A report that you build over journal lines, or that shows columns from journal lines, or over the Audit log, does not update by itself. A copy that you keep with Save as of one of the six reports above, of the Profit and Loss, of the Customer Balance, of the Audit Log or of Statement: Balance Forward does not update by itself either. Each shows the same note and **Refresh** button. A copy of the A/R Aging, of the A/P Aging, of a sales report, of the Sales Tax Liability or of Statement: Open Items stays current.
 
 ## Download or email a report
 
@@ -399,7 +441,7 @@ The Audit Log lists every change that people made to Books records: when, who, w
 
 ## Who sees Books reports
 
-Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month, Transaction Detail by Account, the Sales Tax Liability, the Customer Balance, the A/R Aging, Sales by Customer, Sales by Product/Service and the Audit Log, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
+Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month, Transaction Detail by Account, the Sales Tax Liability, the Customer Balance, the A/R Aging, the A/P Aging, Sales by Customer, Sales by Product/Service and the Audit Log, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
 
 A reader can change the chips and Customize for the run, copy a link with Copy link, and keep a copy with Save as. Each reader sees only the data that the reader can access.
 
@@ -410,3 +452,7 @@ To make your own report from Books data, such as accounts, journal entries, jour
 A report that you build over journal lines, or that shows columns from journal lines, does not update by itself (see "Reports that you refresh" above).
 
 The sales tax data is in four sources: Sales tax lines, Tax agencies, Tax rates and Sales documents. Sales tax lines has one row for each document and tax rate, written when the document is posted. Sales documents holds the invoices, the sales receipts, the credit memos and the refund receipts together. In Sales documents, a credit memo has the Kind "Credit memo" and a refund receipt the Kind "Refund receipt", and their Subtotal, Tax and Total are positive, as they are on the document. A credit memo lowers what the customer owes, so a report that adds totals across kinds must filter by Kind, for example to invoices and sales receipts only. A voided document keeps its tax lines, so filter on the document's status to count only posted documents. For example, start from Sales tax lines to build the tax of each customer.
+
+## Statement reports
+
+Two Books reports hold the lines of customer statements: **Statement: Balance Forward** (a customer's balance before a period, then each Accounts receivable line of the period with the running balance) and **Statement: Open Items** (each item open on a day, with its due date and aging). Every Books reader sees them in the Reports hub. Each statement's PDF is built from one run of its type's report for that customer, as the user who opens it. To make and send statements, see [Customer statements](help://books:statements).

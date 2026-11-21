@@ -115,3 +115,24 @@ describe('the Write-offs numbering card', () => {
         )
     })
 })
+
+// Statements spec §4.7: the seeded `statement` row is the "Statements" card, with the
+// prefix "ST-", next 1001.
+describe('the Statements numbering card', () => {
+    it('is seeded as booksseqstatemt: statement, prefix ST-, next 1001', () => {
+        expect(seededSequence('booksseqstatemt')).toEqual({
+            id: 'booksseqstatemt',
+            doc_type: 'statement',
+            prefix: 'ST-',
+            next_number: '1001',
+        })
+    })
+
+    it('reads "Statements" and previews "Next statement: ST-1001"', () => {
+        const row = seededSequence('booksseqstatemt')
+        expect(docTypeLabel(row.doc_type ?? '')).toBe('Statements')
+        expect(nextNumberPreview(row.doc_type ?? '', row.prefix ?? '', row.next_number ?? '')).toBe(
+            'Next statement: ST-1001'
+        )
+    })
+})

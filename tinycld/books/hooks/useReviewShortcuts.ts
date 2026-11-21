@@ -67,6 +67,7 @@ function relayTo(ref: RefObject<KeyHandlers>): KeyHandlers {
         tabExcluded: () => ref.current.tabExcluded(),
         tabFiles: () => ref.current.tabFiles(),
         escape: () => ref.current.escape(),
+        match: () => ref.current.match(),
     }
 }
 
@@ -132,6 +133,9 @@ export function useReviewShortcuts(input: ReviewShortcutsInput): void {
             if (input.openTxnId !== null) input.drawer.onClose()
             else input.onClearChoice()
         },
+        // The selection bar's Match; it refuses itself while disabled, so M then does
+        // nothing.
+        match: () => input.matchAction?.onPress(),
     }
     const runRef = useRef(run)
     runRef.current = run

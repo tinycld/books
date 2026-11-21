@@ -19,6 +19,7 @@ import { PRODUCT_TYPES } from './product-types'
 import { PURCHASE_LINES_OPTIONS } from './purchase-lines'
 import { isIsoDay } from './register-range'
 import { ratePercentText } from './sales-tax'
+import { STATEMENT_TYPE_LABELS } from './statement-texts'
 import { TAX_ID_TYPES } from './tax-id'
 
 // `money`: integer cents in the record's currency. `day`: a text day (YYYY-MM-DD).
@@ -132,7 +133,12 @@ export const DOC_TYPE = [
     { value: 'bill_payment', label: 'Bill payment' },
     { value: 'vendor_refund', label: 'Vendor refund' },
     { value: 'write_off', label: 'Write-off' },
+    { value: 'statement', label: 'Statement' },
 ]
+const STATEMENT_TYPE = Object.entries(STATEMENT_TYPE_LABELS).map(([value, label]) => ({
+    value,
+    label,
+}))
 const WRITE_OFF_STATUS = [
     { value: 'posted', label: 'Posted' },
     { value: 'void', label: 'Void' },
@@ -320,6 +326,7 @@ const AUDIT_FIELD_MAPS = {
         message: text('Message'),
         tax_total: money('Tax'),
         balance: money('Unapplied credit'),
+        applied: money('Applied'),
         invoice: relation('Invoice', 'books_invoices'),
     },
     books_refund_receipts: {
@@ -365,6 +372,16 @@ const AUDIT_FIELD_MAPS = {
     books_vendor_credit_applications: {
         vendor_credit: relation('Vendor credit', 'books_vendor_credits'),
         bill: relation('Bill', 'books_bills'),
+        amount: money('Credit applied'),
+        date: day('Apply date'),
+        applied_by: relation('Applied by', 'users'),
+        close_override: relation('Close date override', 'books_close_overrides'),
+        id: STAMPS.id,
+        created: STAMPS.created,
+    },
+    books_credit_memo_applications: {
+        credit_memo: relation('Credit memo', 'books_credit_memos'),
+        invoice: relation('Invoice', 'books_invoices'),
         amount: money('Credit applied'),
         date: day('Apply date'),
         applied_by: relation('Applied by', 'users'),
@@ -471,6 +488,21 @@ const AUDIT_FIELD_MAPS = {
         voided_at: datetime('Voided at'),
         voided_by: relation('Voided by', 'users'),
         sort_key: internal('Sort key'),
+        ...STAMPS,
+    },
+    books_statements: {
+        customer: relation('Customer', 'books_customers'),
+        number: text('No.'),
+        sequence: text('Sequence'),
+        type: select('Type', STATEMENT_TYPE),
+        statement_date: day('Statement date'),
+        start_date: day('Start date'),
+        end_date: day('End date'),
+        email: text('Email address'),
+        balance: money('Amount due'),
+        currency: text('Currency'),
+        sent_at: datetime('Sent'),
+        sent_to: text('Sent to'),
         ...STAMPS,
     },
     books_vendor_refund_lines: {
@@ -701,6 +733,13 @@ const AUDIT_FIELD_MAPS = {
         status: select('Status', BANK_TXN_STATUS),
         ...STAMPS,
     },
+    books_bank_matches: {
+        bank_transaction: relation('Bank transaction', 'books_bank_transactions'),
+        lines: internal('Matched lines'),
+        connection: relation('Bank connection', 'books_bank_connections'),
+        created_by: relation('Matched by', 'users'),
+        ...STAMPS,
+    },
     books_settings: {
         close_date: day('Close date'),
         fiscal_year_start_month: select('First month of the fiscal year', MONTHS),
@@ -898,8 +937,14 @@ const EVENT_WORDS: Record<AuditEvent, string> = {
     deleted: 'Deleted',
 }
 
-export function eventWords(event: AuditEvent): string {
-    return EVENT_WORDS[event]
+// A collection whose events read in its own words (apply credit spec §3.8).
+const COLLECTION_EVENT_WORDS: Record<string, Partial<Record<AuditEvent, string>>> = {
+    books_credit_memo_applications: { added: 'Credit applied', deleted: 'Credit removed' },
+}
+
+export function eventWords(event: AuditEvent, collection?: string): string {
+    const own = collection ? COLLECTION_EVENT_WORDS[collection]?.[event] : undefined
+    return own ?? EVENT_WORDS[event]
 }
 
 /**
@@ -926,12 +971,12 @@ export function isLineEvent(row: Pick<AuditLogRow, 'record_type'>, collection: s
  * `position` (0-based), else the delete snapshot's, else the record label.
  */
 export function lineEventTitle(
-    row: Pick<AuditLogRow, 'event' | 'record_label' | 'snapshot'>,
+    row: Pick<AuditLogRow, 'event' | 'record_label' | 'record_type' | 'snapshot'>,
     livePosition: number | null | undefined
 ): string {
     const position = [livePosition, row.snapshot?.position].find(
         (value): value is number => typeof value === 'number'
     )
     const name = position === undefined ? row.record_label : `Line ${position + 1}`
-    return `${name} — ${eventWords(row.event)}`
+    return `${name} — ${eventWords(row.event, row.record_type)}`
 }

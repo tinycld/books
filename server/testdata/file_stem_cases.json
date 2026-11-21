@@ -1,0 +1,17 @@
+[
+    { "in": "ST-1001", "out": "st-1001" },
+    { "in": "Aspen Ridge Landscaping", "out": "aspen-ridge-landscaping" },
+    { "in": "Feeding Costs", "out": "feeding-costs" },
+    { "in": "Animal Balances", "out": "animal-balances" },
+    { "in": "Отчёт О Кормлении", "out": "отчёт-о-кормлении" },
+    { "in": "खर्च रिपोर्ट", "out": "खर्च-रिपोर्ट" },
+    { "in": "給餌の記録", "out": "給餌の記録" },
+    { "in": "../../etc/Feeding \"Costs\" Keeper's.csv", "out": "etcfeeding-costs-keeperscsv" },
+    { "in": "  Profit -  and --  Loss  ", "out": "profit-and-loss" },
+    { "in": "Tab\tand\nnew line", "out": "tab-and-new-line" },
+    { "in": "?!/...", "out": "" },
+    { "in": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "out": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
+    { "in": "жжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжж", "out": "жжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжж" },
+    { "in": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa Landscaping", "out": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    { "in": "", "out": "" }
+]

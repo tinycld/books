@@ -33,6 +33,14 @@ export const AUDIT_EVENT_OPTIONS: SelectOption[] = [
     { value: 'deleted', label: 'Deleted' },
 ]
 
+// The Event column's options, the view's event_shown (auditShownEvents in
+// server/audit.go): the events, then a credit memo application's create and delete.
+export const AUDIT_SHOWN_EVENT_OPTIONS: SelectOption[] = [
+    ...AUDIT_EVENT_OPTIONS,
+    { value: 'credit_applied', label: 'Credit applied' },
+    { value: 'credit_removed', label: 'Credit removed' },
+]
+
 // In the order of the Record type param: Documents, Lines, Lists, Banking, Settings
 // and access (auditRecordTypeOptions in server/audit.go).
 export const AUDIT_RECORD_TYPE_OPTIONS: SelectOption[] = [
@@ -43,6 +51,7 @@ export const AUDIT_RECORD_TYPE_OPTIONS: SelectOption[] = [
     { value: 'books_credit_memos', label: 'Credit memo' },
     { value: 'books_refund_receipts', label: 'Refund receipt' },
     { value: 'books_write_offs', label: 'Write-off' },
+    { value: 'books_statements', label: 'Customer statement' },
     { value: 'books_bills', label: 'Bill' },
     { value: 'books_expenses', label: 'Expense' },
     { value: 'books_vendor_credits', label: 'Vendor credit' },
@@ -61,6 +70,7 @@ export const AUDIT_RECORD_TYPE_OPTIONS: SelectOption[] = [
     { value: 'books_payment_applications', label: 'Payment application' },
     { value: 'books_bill_payment_lines', label: 'Bill payment line' },
     { value: 'books_vendor_credit_applications', label: 'Vendor credit application' },
+    { value: 'books_credit_memo_applications', label: 'Credit memo application' },
     { value: 'books_vendor_refund_lines', label: 'Vendor refund line' },
     { value: 'books_journal_lines', label: 'Journal line' },
     { value: 'books_attachments', label: 'Attachment' },
@@ -76,6 +86,7 @@ export const AUDIT_RECORD_TYPE_OPTIONS: SelectOption[] = [
     { value: 'books_bank_files', label: 'Bank file' },
     { value: 'books_bank_imports', label: 'Bank import' },
     { value: 'books_bank_transactions', label: 'Bank transaction' },
+    { value: 'books_bank_matches', label: 'Bank match' },
     { value: 'books_settings', label: 'Books settings' },
     { value: 'books_doc_sequences', label: 'Document numbering' },
     { value: 'books_close_overrides', label: 'Close date override' },

@@ -2,7 +2,7 @@ import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { log } from '@tinycld/core/lib/logger'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
-import { type BatchKind, drawerAction, writeControlState } from '../lib/bank-review'
+import { drawerAction, type MoveKind, writeControlState } from '../lib/bank-review'
 import { useBankingUIStore } from '../stores/banking-ui-store'
 import { type BankTxnDetail, useBankTxnDetail } from './useBankTxnDetail'
 import type { ReviewBatch } from './useReviewBatch'
@@ -13,7 +13,7 @@ export type ReviewDrawerModel = {
     isError: boolean
     onRetry: () => void
     onClose: () => void
-    action: { kind: BatchKind; label: string; busyLabel: string; testID: string } | null
+    action: { kind: MoveKind; label: string; busyLabel: string; testID: string } | null
     onAction: () => void
     // The running change is this transaction's own; another row's run only disables it.
     isActionPending: boolean
@@ -59,7 +59,15 @@ export function useReviewDrawer({
         writesDisabled: writes.isDisabled,
         writesHint: writes.accessibilityHint,
     })
-    const isActionPending = openTxnId !== null && (batch.pending?.ids.includes(openTxnId) ?? false)
+    // Busy only for a run of the action's own kind: while a match of this transaction is
+    // sent, Exclude is disabled (the batch is pending) but does not read "Excluding…".
+    const pending = batch.pending
+    const isActionPending =
+        openTxnId !== null &&
+        action !== null &&
+        pending !== null &&
+        pending.kind === action.kind &&
+        pending.ids.includes(openTxnId)
     // The row leaves the tab at once (optimistic), so the drawer closes first; a refusal
     // rolls the row back into the list and the result line shows why. The run never
     // throws: its outcome is the result line.

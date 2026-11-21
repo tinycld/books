@@ -232,8 +232,15 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 	bindSerializedGuardThen(app, kind.Collection, func(tx core.App, stored, r *core.Record) error {
 		return validateSalesDoc(tx, kind, stored, r)
 	}, kind.AfterCreate)
-	if kind.Collection == invoiceKind.Collection {
+	switch kind.Collection {
+	case invoiceKind.Collection:
 		bindReceivableInvoiceRefresh(app)
+	case creditMemoKind.Collection:
+		bindReceivableCreditMemoRefresh(app)
+	case billKind.Collection:
+		bindPayableBillRefresh(app)
+	case vendorCreditKind.Collection:
+		bindPayableVendorCreditRefresh(app)
 	}
 	bindSerializedGuard(app, kind.LinesCollection, func(tx core.App, stored, r *core.Record) error {
 		return validateSalesDocLine(tx, kind, stored, r)
@@ -446,14 +453,16 @@ func startRevision(tx core.App, kind salesDocKind, r *core.Record) {
 // against it only then (checkInvoiceEstimate). balance (an invoice's, a
 // bill's or a credit memo's open amount) is written only by
 // document_balance.go and the posting; an invoice's written_off only with its
-// balance, by a write-off's post and void (write_off_posting.go).
+// balance, by a write-off's post and void (write_off_posting.go); a credit
+// memo's applied only with its balance, by an application's create and delete
+// (credit_applications.go), and by a correction's post (replaceCreditMemo).
 //
 // quoteBooksFields are Books' own on a quote only: an estimate's invoice is
 // written by the conversion, while a credit memo's invoice is the link a
 // person chooses (checkCreditMemoInvoice holds it).
 var (
-	salesDocNewBooksFields  = []string{"entry", "replaced_by", "posted_at", "posted_by", "voided_at", "voided_by", "balance", "written_off"}
-	salesDocKeptBooksFields = []string{"number", "sequence", "currency", "entry", "replaces", "replaced_by", "posted_at", "voided_at", "voided_by", "balance", "written_off"}
+	salesDocNewBooksFields  = []string{"entry", "replaced_by", "posted_at", "posted_by", "voided_at", "voided_by", "balance", "written_off", "applied"}
+	salesDocKeptBooksFields = []string{"number", "sequence", "currency", "entry", "replaces", "replaced_by", "posted_at", "voided_at", "voided_by", "balance", "written_off", "applied"}
 	quoteBooksFields        = []string{"invoice"}
 )
 
@@ -543,12 +552,12 @@ func bindTaxLineGuards(app core.App, kind salesDocKind) {
 var salesDocUnlinks = map[string]string{"posted_by": "users", "voided_by": "users", "form": "forms"}
 
 // voidSalesDocEditable are the only fields a void changes; a correction's post
-// also sets replaced_by on the document it replaces, and the 0 balance of a
-// kind that tracks one (voidReplacedSalesDoc).
+// also sets replaced_by on the document it replaces, and the 0 balance (and a
+// credit memo's 0 applied) of a kind that tracks one (voidReplacedSalesDoc).
 var (
 	voidSalesDocEditable    = map[string]bool{"status": true, "voided_by": true, "voided_at": true}
-	replaceSalesDocEditable = map[string]bool{"status": true, "voided_by": true, "voided_at": true, "replaced_by": true, "balance": true}
-	balanceOnly             = map[string]bool{"balance": true, "written_off": true}
+	replaceSalesDocEditable = map[string]bool{"status": true, "voided_by": true, "voided_at": true, "replaced_by": true, "balance": true, "applied": true}
+	balanceOnly             = map[string]bool{"balance": true, "written_off": true, "applied": true}
 )
 
 // transitionSalesDoc is a document's lifecycle: a draft is edited or posted

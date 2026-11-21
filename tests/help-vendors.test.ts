@@ -61,6 +61,15 @@ describe('help/vendors.md', () => {
         expect(body).toContain('the app search ignores all case and accents')
     })
 
+    // A/P Aging checkpoint 5 (spec §3 "Help"): the Vendors list's Reports menu, linked to
+    // the report's section of the reports topic.
+    it('says where the Reports menu is and links the A/P Aging report', () => {
+        expect(body.replace(/\s+/g, ' ')).toContain(
+            'press Reports at the top of the Vendors list and choose A/P Aging'
+        )
+        expect(body).toContain('help://books:reports')
+    })
+
     it('links the 1099 tracking topic', () => {
         expect(body).toContain('help://books:1099-tracking')
     })

@@ -56,24 +56,11 @@ func arNet() *reports.Node { return op("sub", fld("debit"), fld("credit")) }
 
 // arAge is a row's age on the As of day: the days from its item's due date to
 // the day (core diffDays(a, b) is b − a).
-func arAge() *reports.Node { return op("diffDays", fld("due_date"), prm("asOf")) }
+func arAge() *reports.Node { return agingAge() }
 
 // arParams are As of (Today by default), Customer (unset: every customer) and
 // Order (Name by default).
-func arParams() []reports.ParamDef {
-	return []reports.ParamDef{
-		{ID: "asOf", Type: reports.ParamAsOf, Label: "As of", Default: mustJSON(map[string]string{"preset": "today"})},
-		customersParam(),
-		{
-			ID: "order", Type: reports.ParamChoice, Label: "Order",
-			Options: []reports.Option{
-				{Value: "name", Label: "Name"},
-				{Value: "balance", Label: "Largest balance"},
-			},
-			Default: mustJSON("name"),
-		},
-	}
-}
+func arParams() []reports.ParamDef { return agingParams(customersParam()) }
 
 // arColumns are the label, the item's due date, the five age columns and
 // Total, and the hidden group keys (a group names a spec column): the family
@@ -118,33 +105,7 @@ func arGroups() []reports.Group {
 	}
 	groups[0].Inline = op("or", op("isEmpty", rec("byTop", "id")), op("eq", subCustomers, lit(0)))
 	groups[1].HideEmpty = true
-	return append(groups, reports.Group{
-		ID: "byItem", Col: "itemKey",
-		Label:  op("concat", arItemKindLabel(), lit(" "), op("min", fld("item_number"))),
-		Having: op("ne", op("sum", arNet()), lit(0)),
-	})
-}
-
-// arItemKindLabel is the label of an item's kind (min(item_kind): every row
-// of an item has the one kind), from the item_kind options of
-// books.receivable_items; the last option (Journal entry) is the fallback.
-func arItemKindLabel() *reports.Node {
-	kind := op("min", fld("item_kind"))
-	var options []reports.Option
-	for _, f := range receivableItemsSource().Fields {
-		if f.Key == "item_kind" {
-			options = f.Options
-		}
-	}
-	if len(options) == 0 {
-		panic("books: books.receivable_items has no item_kind options")
-	}
-	last := len(options) - 1
-	args := make([]*reports.Node, 0, 2*last+1)
-	for _, o := range options[:last] {
-		args = append(args, op("eq", kind, lit(o.Value)), lit(o.Label))
-	}
-	return op("case", append(args, lit(options[last].Label))...)
+	return append(groups, agingItemGroup(arNet(), itemKindLabel(receivableItemsSource())))
 }
 
 // arSort is the report's order (D6): customerFamilySort with No customer
@@ -166,59 +127,7 @@ func arSort() []reports.SortKey {
 }
 
 // arDetailLabel labels an opened line "<date> · <type> <number>".
-func arDetailLabel() *reports.Node {
-	return op("concat", fld("date"), lit(" · "), lineEntryTypeLabel(), lit(" "), fld("entry", "number"))
-}
+func arDetailLabel() *reports.Node { return agingDetailLabel() }
 
-// arDisplay is the fixture's AR_AGING_DISPLAY: the eight columns on one line
-// where the rows are 940 px wide or wider, a long customer name wraps to
-// three lines, and no figure is cut. Narrower rows wrap onto the tablet
-// arrangement (rows of 640 px and wider) or the phone arrangement.
-func arDisplay() *reports.Display {
-	figure := reports.ColumnFit{MinWidth: "max-content"}
-	return &reports.Display{
-		OneLine: &reports.DisplayOneLine{MinWidth: "940px"},
-		Columns: map[string]reports.ColumnFit{
-			"name":    {WhiteSpace: "normal", LineClamp: 3},
-			"due":     figure,
-			"current": figure,
-			"d30":     figure,
-			"d60":     figure,
-			"d90":     figure,
-			"d91":     figure,
-			"total":   figure,
-		},
-		Layouts: []reports.DisplayLayout{
-			// Total is on the phone's second line, not its last (F1, option a):
-			// core draws a group row with only the lines it has a value on, and
-			// Total always has one, so the second line is on every row and each
-			// figure keeps the place that names its age.
-			{
-				Width: "mobile", Tracks: 3,
-				Cells: []reports.DisplayCell{
-					{Col: "name", Line: 1, Span: 2},
-					{Col: "due", Line: 1},
-					{Col: "current", Line: 2},
-					{Col: "d30", Line: 2},
-					{Col: "total", Line: 2},
-					{Col: "d60", Line: 3},
-					{Col: "d90", Line: 3},
-					{Col: "d91", Line: 3},
-				},
-			},
-			{
-				Width: "tablet", MinWidth: "640px", Tracks: 12,
-				Cells: []reports.DisplayCell{
-					{Col: "name", Line: 1, Span: 10},
-					{Col: "total", Line: 1, Span: 2},
-					{Col: "due", Line: 2, Span: 2},
-					{Col: "current", Line: 2, Span: 2},
-					{Col: "d30", Line: 2, Span: 2},
-					{Col: "d60", Line: 2, Span: 2},
-					{Col: "d90", Line: 2, Span: 2},
-					{Col: "d91", Line: 2, Span: 2},
-				},
-			},
-		},
-	}
-}
+// arDisplay is the fixture's AR_AGING_DISPLAY (agingDisplay).
+func arDisplay() *reports.Display { return agingDisplay() }

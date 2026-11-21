@@ -18,13 +18,14 @@ If the balance is in the customer's favour (you owe the customer, for example af
 
 ## Start a transaction for the customer
 
-To start an invoice, an estimate, a sales receipt, a payment, a credit memo or a refund receipt for this customer, choose **New transaction**, or press ⌥N, and pick the type. To record money the customer sent, pick Receive payment: see [Receive payment](help://books:receive-payment). To give the customer a credit, pick Credit memo: see [Credit memos](help://books:credit-memos). The new document opens with the customer filled in. Go back to return to the customer's page. You cannot start a transaction for an inactive customer: make the customer active first.
+To start an invoice, an estimate, a sales receipt, a payment, a credit memo or a refund receipt for this customer, choose **New transaction**, or press ⌥N, and pick the type. To record money the customer sent, pick Receive payment: see [Receive payment](help://books:receive-payment). To give the customer a credit, pick Credit memo: see [Credit memos](help://books:credit-memos). The new document opens with the customer filled in. To show the customer what it owes, pick Statement: the Create statements screen opens with only this customer ticked. Go back to return to the customer's page. You cannot start a transaction for an inactive customer: make the customer active first.
 
 ## The tabs
 
-The page has four tabs. To select one from anywhere on the page, press ⌥1 to ⌥4.
+The page has five tabs. To select one from anywhere on the page, press its key, ⌥1 to ⌥5.
 
 - **Transactions** (⌥1) lists the customer's invoices, estimates, sales receipts, payments, credit memos, refund receipts and write-offs, newest first. Choose a row to open it.
+- **Statements** (⌥5) lists the statements you made for the customer, newest statement date first, with the number, the type, the period, the amount due and when and where each was sent ("Not sent" until it is). Choose a row to open the statement. To make one, choose **Create statement**. See [Customer statements](help://books:statements).
 - **Contacts** (⌥2) lists the people at the customer.
 - **Details** (⌥3) is the customer form: names, addresses, terms, sales tax and custom fields.
 - **Notes** (⌥4) holds your notes about the customer.
@@ -35,12 +36,14 @@ In the Transactions tab, each row shows its type and its status:
 
 - An invoice is Draft, Paid (nothing open), Written off (nothing open, and a write-off took the rest), Partly paid (part of the total open), Overdue (all of the total open, due before today), Open or Void.
 - A Payment is Draft, Applied (all of it paid invoices), Credit with the amount kept as a credit (such as Credit $100.00), or Void.
-- A credit memo is Draft, Unapplied, Refunded or Void. A posted credit memo is Unapplied while some of its credit is not used yet, also after you refund part of it. A posted credit memo is Refunded when refund receipts pay out all of its credit.
+- A credit memo is Draft, Unapplied, Applied, Refunded or Void. A posted credit memo is Unapplied while some of its credit is not used yet, also after you apply or refund part of it. A posted credit memo is Applied when none of its credit is left and a part of it is applied to invoices. A posted credit memo is Refunded when refund receipts pay out all of its credit.
 - A refund receipt is Draft, Refunded (posted) or Void.
 
 To see the payments only, choose the **Payments** chip above the list. Choose a payment's row to open the payment.
 
 To see the credit memos only, choose the **Credit memos** chip. A credit memo's total shows with a minus sign, such as −$250.00, because it lowers what the customer owes, and it has no due date. A draft credit memo has no number yet. Choose a credit memo's row to open it.
+
+To use a credit memo's credit on the customer's open invoices, open the row menu at the end of the credit memo's row and choose **Apply to invoices**. Only a posted credit memo with unapplied credit has it, and only if you can edit the books. The credit memo opens with its apply dialog open (Apply credit memo 1001). Applying a credit does not change Open, because the credit memo already lowered it. Overdue goes down when the credit pays an overdue invoice. An application is not a transaction of its own, so the Transactions tab has no row or chip for it. See [Apply a credit memo to invoices](help://books:apply-credit).
 
 To see the money you gave back to the customer, choose the **Refunds** chip, after Credit memos. Each row has the type Refund receipt, and its total shows with a minus sign, such as −$150.00. Choose a row to open the refund receipt. A refund receipt that refunds a sale does not change Open, because it does not touch Accounts receivable. A refund receipt that pays out a credit memo raises Open by its total, because it uses up the credit that you owed the customer. See [Refund receipts](help://books:refund-receipts).
 

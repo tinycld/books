@@ -55,6 +55,7 @@ var booksSourceKeys = []string{
 	"books.customers",
 	"books.journal_entries",
 	"books.journal_lines",
+	"books.payable_items",
 	"books.products",
 	"books.receivable_items",
 	"books.sales_documents",
@@ -204,6 +205,9 @@ func expectedCatalog(t *testing.T) []wantSource {
 				{key: "actor", typ: reports.Text, label: "User ID"},
 				{key: "actor_name", typ: reports.Text, aggs: reports.MinMax, label: "User"},
 				{key: "event", typ: reports.Select, label: "Event", options: auditEventOptions(t)},
+				// The Event column's value (apply credit spec §3.8): the
+				// events, plus the words a credit memo application reads.
+				{key: "event_shown", typ: reports.Select, options: auditShownEventOptions(t)},
 				{key: "record_type", typ: reports.Select, label: "Record type", options: auditRecordTypeOptions()},
 				text("record_id"),
 				{key: "record_label", typ: reports.Text, label: "Record"},
@@ -550,6 +554,26 @@ func expectedCatalog(t *testing.T) []wantSource {
 			},
 		},
 		{
+			// The stored payable items (A/P Aging spec §4.3).
+			key: "books.payable_items", collection: "books_payable_items", label: "Payable items",
+			fields: []wantField{
+				{key: "date", typ: reports.Date, textDay: true, aggs: reports.MinMax},
+				{key: "due_date", typ: reports.Date, textDay: true, aggs: reports.MinMax},
+				money("debit"), money("credit"), text("currency"), text("item"),
+				{key: "item_kind", typ: reports.Select, options: []reports.Option{
+					{Value: "bill", Label: "Bill"}, {Value: "vendor_credit", Label: "Vendor credit"},
+					{Value: "entry", Label: "Journal entry"},
+				}},
+				textMinMax("item_number"),
+				{key: "item_seq", typ: reports.Number, aggs: reports.MinMax},
+				{key: "settled", typ: reports.Text},
+			},
+			links: []wantLink{
+				toOne("vendor", "books.vendors", "vendor"),
+				toOne("entry", "books.journal_entries", "entry"),
+			},
+		},
+		{
 			// Purchase fields, form columns and the name and sort keys are left
 			// out (sales-reports spec §5).
 			key: "books.products", collection: "books_products", label: "Products and services",
@@ -582,6 +606,17 @@ func auditEventOptions(t *testing.T) []reports.Option {
 		t.Fatalf("the golden file holds %d event options, want 5", len(options))
 	}
 	return options
+}
+
+// auditShownEventOptions are the options of the Event column's value: the
+// golden events, then a credit memo application's create and delete (apply
+// credit spec §3.8).
+func auditShownEventOptions(t *testing.T) []reports.Option {
+	t.Helper()
+	return append(slices.Clone(auditEventOptions(t)),
+		reports.Option{Value: "credit_applied", Label: "Credit applied"},
+		reports.Option{Value: "credit_removed", Label: "Credit removed"},
+	)
 }
 
 func mergeColumns(maps ...map[string]string) map[string]string {
@@ -647,7 +682,7 @@ func TestReportSourcesCatalog(t *testing.T) {
 				"books.journal_entries", "books.journal_lines", "books.basis_lines", "books.account_balances",
 				"books.cash_basis_balances",
 				"books.sales_documents", "books.sales_tax_lines", "books.sales_lines", "books.products",
-				"books.receivable_items",
+				"books.receivable_items", "books.payable_items",
 			}, want.key) {
 				wantCurrency = "USD"
 			}
