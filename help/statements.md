@@ -45,7 +45,13 @@ If the server cannot send email, Save and send is disabled and the line "Email s
 
 ## When a send fails
 
-Books stores all the statements first and then sends them. If a statement cannot be stored or sent, the screen stays open, and a notice above the list says how many statements were sent (or saved) and names each customer that failed with the reason. The rows that succeeded lose their tick, so choose Save and send again to try only the failed rows. A statement that was stored but not sent shows on its customer's Statements tab as "Not sent"; you can send it from there.
+Books stores all the statements first and then sends them. When the email server does not answer, Books tries the delivery of that statement again a few times before it gives up. An address that the email server refuses is not tried again.
+
+If a statement cannot be stored or sent, the screen stays open, and a notice above the list says how many statements were sent (or saved) and names each customer that failed with the reason. The rows that succeeded lose their tick. A row whose statement was stored but not sent stays ticked, and a line under its address gives the statement number and the reason, for example "ST-1003 not sent: The email could not be sent. Try again."
+
+Choose Save and send again to try only the failed rows. For a row with a stored statement, Books sends the same saved statement to the address now in the row, so correct the address first if the email server refused it. Books stores no new statement for that row, and the statement takes no new number. A customer whose statement could not be stored has no statement yet, so Save and send stores it again.
+
+If you close the screen, a statement that was stored but not sent stays on its customer's Statements tab as "Not sent". Open it and choose Send… to send it.
 
 ## What the email says
 

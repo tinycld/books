@@ -29,11 +29,16 @@ import {
 } from '../lib/statement-schema'
 import {
     type StatementBalanceFilter,
+    savedNotSentText,
     savedToast,
     sentToast,
     statementBarState,
 } from '../lib/statement-texts'
-import { useStatementsStore } from '../stores/statements-store'
+import {
+    type SavedStatement,
+    type StatementRunOutcome,
+    useStatementsStore,
+} from '../stores/statements-store'
 import { useBooksSettings } from './useBooksSettings'
 import { type StatementRun, useCreateStatements } from './useCreateStatements'
 import { useEmailStatus } from './useEmailStatus'
@@ -80,6 +85,22 @@ function runValuesOf(
     const { choices, check: _check, ...runOptions } = values
     const listed = listedOf(rows, runOptions.balanceFilter)
     return { ...runOptions, recipients: recipientsOf(choices, listed, only) }
+}
+
+// The danger line of each customer whose saved statement the last run failed to send, keyed
+// by customer id (spec §3.4): the statement's number and the server's message. A customer
+// with no saved entry left (its send succeeded later) has none.
+function notSentLinesOf(
+    outcome: StatementRunOutcome | null,
+    saved: Record<string, SavedStatement>
+): Map<string, string> {
+    const lines = new Map<string, string>()
+    for (const failure of outcome?.failed ?? []) {
+        const entry = saved[failure.customer]
+        if (failure.saved === null || entry === undefined) continue
+        lines.set(failure.customer, savedNotSentText(entry.number, failure.message))
+    }
+    return lines
 }
 
 /**
@@ -139,11 +160,14 @@ export function useCreateStatementsForm({
     const settings = useBooksSettings()
     const writes = useWritesAvailable()
     const isHeld = useStatementsStore(state => state.isHeld)
+    const outcome = useStatementsStore(state => state.outcome)
+    const saved = useStatementsStore(state => state.saved)
     const createStatements = useCreateStatements()
     const emailStatus = useEmailStatus()
     const preview = useStatementPreview()
-    // The last run's notice belongs to this screen: it goes when the screen does.
-    useEffect(() => () => useStatementsStore.getState().clear(), [])
+    // The last run's notice and the saved, unsent statements belong to this screen: they go
+    // when the screen does.
+    useEffect(() => () => useStatementsStore.getState().reset(), [])
     // The defaults are read once, when the form mounts.
     const [initial] = useState<CreateStatementsFormValues>(() => ({
         ...defaultStatementOptions(todayIso()),
@@ -181,11 +205,13 @@ export function useCreateStatementsForm({
 
     const listed = listedOf(list.rows, balanceFilter)
     const recipients = recipientsOf(choices, listed, customer)
+    const notSentLines = notSentLinesOf(outcome, saved)
     const entries = listed.map((row, index) => ({
         row,
         isTicked: recipients[index].ticked,
         email: recipients[index].email,
         error: get(errors, `${choiceEmailPath(row.customer)}.message`) ?? '',
+        notSent: notSentLines.get(row.customer) ?? '',
     }))
     const tickedCount = recipients.filter(recipient => recipient.ticked).length
     const total = recipientTotal(list.rows, recipients)

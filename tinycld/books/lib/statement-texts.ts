@@ -1,6 +1,6 @@
 // The words of customer statements (statements spec §3). A plain module: no React, no
 // React Native, so the seed, the audit labels and e2e helpers can import it.
-import type { StatementRunOutcome } from '../stores/statements-store'
+import type { StatementRunFailure, StatementRunOutcome } from '../stores/statements-store'
 import type { BooksStatements } from '../types'
 import { formatDay } from './register-range'
 
@@ -47,10 +47,18 @@ export function sentToast(count: number): string {
     return count === 1 ? '1 statement sent' : `${count} statements sent`
 }
 
-// The first line of the run notice after a part of a run failed (spec §3.4).
-export function runNoticeText(outcome: StatementRunOutcome): string {
+// The first line of the run notice after a part of a run failed (spec §3.4). It reads the
+// counts only, so a failure need not carry its saved statement.
+export function runNoticeText(
+    outcome: Omit<StatementRunOutcome, 'failed'> & { failed: readonly StatementRunFailure[] }
+): string {
     const verb = outcome.intent === 'send' ? 'sent' : 'saved'
     return `${outcome.done} of ${outcome.total} statements were ${verb}.`
+}
+
+// The danger line under the address of a row whose saved statement was not sent (spec §3.4).
+export function savedNotSentText(number: string, message: string): string {
+    return `${number} not sent: ${message}`
 }
 
 // The line under the bar when the server cannot send email (spec §3.4).

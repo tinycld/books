@@ -6,6 +6,7 @@ import {
     emptyRecipientsText,
     fileStem,
     runNoticeText,
+    savedNotSentText,
     savedToast,
     sentToast,
     statementActions,
@@ -31,6 +32,14 @@ describe('sentToast', () => {
     it('counts the sent statements', () => {
         expect(sentToast(1)).toBe('1 statement sent')
         expect(sentToast(7)).toBe('7 statements sent')
+    })
+})
+
+describe('savedNotSentText', () => {
+    it("marks a saved statement that was not sent with its number and the server's message", () => {
+        expect(savedNotSentText('ST-1003', 'The email could not be sent. Try again.')).toBe(
+            'ST-1003 not sent: The email could not be sent. Try again.'
+        )
     })
 })
 

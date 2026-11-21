@@ -15,10 +15,12 @@ import {
 // balance "All", only that customer ticked), and reads what it stored through the page's own
 // fetch. The e2e server captures email, so a send succeeds.
 //
-// Not covered here (plan, "States with no e2e test"): a part failure (the useCreateStatements
+// Not covered here (plan, "States with no e2e test"): a refused store (the useCreateStatements
 // harness test), email not set up, "Preparing…" and "Sending…" (statementBarState's unit test).
 
 const PREVIEW_PATH = '/api/books/statements/preview'
+const SEND_PATH = '/api/books/statements/send'
+const NOT_SENT = 'The email could not be sent. Try again.'
 const TOO_MANY = 'Select at most 200 customers. Narrow the list with Customer balance.'
 const PHONE = { width: 390, height: 844 }
 
@@ -207,6 +209,62 @@ test.describe('statements: preview and send', () => {
         expect(rows).toHaveLength(1)
         expect(rows[0].email).toBe('')
         expect(rows[0].sent_at).toBe('')
+    })
+
+    // Spec §3.4 "A failed send never makes a new statement" (human, 2026-11-20). The first
+    // send answer is fulfilled with the row failed and never reaches the server, so the row
+    // stays stored and unsent on the server; later sends go through.
+    test('a failed send: the row keeps its saved statement, and a second ⌘↵ sends that same statement', async ({
+        page,
+    }) => {
+        await openBooks(page, DESKTOP)
+        const customer = await statementCustomer(page)
+        await openNewStatementFor(page, customer)
+        const parts = screenParts(page, customer)
+
+        const sendBodies: { statements: { id: string; to: string }[] }[] = []
+        await page.route(`**${SEND_PATH}`, async route => {
+            const body = route.request().postDataJSON() as (typeof sendBodies)[number]
+            sendBodies.push(body)
+            if (sendBodies.length > 1) return route.continue()
+            return route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    sent: [],
+                    failed: body.statements.map(item => ({ id: item.id, message: NOT_SENT })),
+                }),
+            })
+        })
+
+        await expect(parts.type).toBeFocused()
+        const firstSend = page.waitForResponse(response => response.url().endsWith(SEND_PATH))
+        await page.keyboard.press('ControlOrMeta+Enter')
+        await firstSend
+        await expect(page.getByTestId('statements-run-notice')).toContainText(
+            '0 of 1 statements were sent.'
+        )
+        await expect(page).toHaveURL(newStatementUrl(customer.id))
+        const [first] = await statementsOf(page, customer.id)
+        expect(first.sent_at).toBe('')
+        expect(first.id).toBe(sendBodies[0].statements[0].id)
+        await expect(page.getByTestId(`statements-recipient-failed-${customer.id}`)).toHaveText(
+            `${first.number} not sent: ${NOT_SENT}`
+        )
+
+        const secondSend = page.waitForResponse(response => response.url().endsWith(SEND_PATH))
+        await page.keyboard.press('ControlOrMeta+Enter')
+        await secondSend
+        expect(sendBodies[1].statements.map(item => item.id)).toEqual([first.id])
+        await expect(toast(page, '1 statement sent')).toBeVisible()
+        await expectBackOnCustomer(page, customer)
+
+        const rows = await statementsOf(page, customer.id)
+        expect(rows).toHaveLength(1)
+        expect(rows[0].id).toBe(first.id)
+        expect(rows[0].number).toBe(first.number)
+        expect(rows[0].sent_to).toBe(customer.email)
+        expect(rows[0].sent_at).not.toBe('')
     })
 
     test('phone (390 × 844): total first, cards with the address, Select all, and More → Save', async ({

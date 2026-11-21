@@ -56,6 +56,16 @@ describe('help/statements.md', () => {
         expect(body).not.toMatch(/\bCtrl\b/i)
     })
 
+    it('says that a second Save and send sends the same saved statement and takes no new number', () => {
+        expect(exists).toBe(true)
+        const failSection = body
+            .split(/^## /m)
+            .find(section => section.startsWith('When a send fails'))
+        expect(failSection, 'the "When a send fails" section').toBeDefined()
+        expect(failSection).toContain('sends the same saved statement')
+        expect(failSection).toContain('no new number')
+    })
+
     it('hand-writes no hostname', () => {
         expect(exists).toBe(true)
         const stripped = body.replaceAll('{{server-host}}', '')

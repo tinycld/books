@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/mail"
@@ -33,14 +34,16 @@ const (
 	msgStatementEmailNotSetUp = "Email sending is not set up."
 	msgStatementFileTooLarge  = "The statement PDF is larger than 10 MB."
 	msgStatementNotSent       = "The email could not be sent. Try again."
-	msgStatementAddress       = "Enter a valid email address."
-	msgStatementNoAccess      = "You do not have write access to Books."
-	msgStatementNoCustomer    = "Select at least one customer."
-	msgStatementNoStatement   = "Select at least one statement."
-	msgStatementType          = "Choose Balance forward or Open items"
-	msgStatementNotFound      = "Document not found."
-	msgStatementSentNotSaved  = "The email was sent, but the statement could not be marked as sent."
-	msgStatementBadRequest    = "The request is not valid."
+	// A format with the refused address.
+	msgStatementRecipientRefused = "The email server refused %s. Correct the address and send again."
+	msgStatementAddress          = "Enter a valid email address."
+	msgStatementNoAccess         = "You do not have write access to Books."
+	msgStatementNoCustomer       = "Select at least one customer."
+	msgStatementNoStatement      = "Select at least one statement."
+	msgStatementType             = "Choose Balance forward or Open items"
+	msgStatementNotFound         = "Document not found."
+	msgStatementSentNotSaved     = "The email was sent, but the statement could not be marked as sent."
+	msgStatementBadRequest       = "The request is not valid."
 )
 
 // maxStatementsPerRequest bounds one preview or send.
@@ -49,6 +52,14 @@ const maxStatementsPerRequest = 200
 // maxStatementFileBytes is the largest statement PDF the send attaches. A var
 // so a test can lower it.
 var maxStatementFileBytes = 10 << 20
+
+// statementSendTries is how many times one statement's delivery is tried when
+// the sender returns an error: the first try and 2 retries (spec §3.5).
+const statementSendTries = 3
+
+// statementSendRetryPause is the pause between two tries of one delivery. A
+// var so a test can set it to 0.
+var statementSendRetryPause = 2 * time.Second
 
 // statementSender is the sender of statement emails; a test replaces it.
 var statementSender = mailer.DefaultSender
@@ -208,8 +219,15 @@ func serveStatementSend(re *core.RequestEvent) error {
 	}
 	sent := []*core.Record{}
 	failed := []statementSendFailure{}
+	// Once one statement has failed all its tries, the outage is known: each later
+	// statement gets one try, so a request of 200 answers inside the server's
+	// write timeout (spec §3.5 "Retries").
+	tries := statementSendTries
 	for _, item := range body.Statements {
-		record, msg := sendStatement(re, info, sender, business, item)
+		record, msg, outage := sendStatement(re, info, sender, business, item, tries)
+		if outage {
+			tries = 1
+		}
 		if msg != "" {
 			failed = append(failed, statementSendFailure{ID: item.ID, Message: msg})
 			continue
@@ -222,46 +240,47 @@ func serveStatementSend(re *core.RequestEvent) error {
 	return re.JSON(http.StatusOK, map[string]any{"sent": sent, "failed": failed})
 }
 
-// sendStatement sends one statement and saves its sent fields; a message is
-// its failure.
+// sendStatement sends one statement, trying its delivery at most tries times,
+// and saves its sent fields; a message is its failure. outage is true when
+// every try of the delivery failed with a sender error.
 func sendStatement(
 	re *core.RequestEvent, info *core.RequestInfo, sender mailer.FullSender,
-	business statementBusiness, item statementSendItem,
-) (*core.Record, string) {
+	business statementBusiness, item statementSendItem, tries int,
+) (record *core.Record, msg string, outage bool) {
 	ctx := re.Request.Context()
 	record, err := reports.FindViewableRecord(re.App, info, statementsCollection, item.ID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, msgStatementNotFound
+		return nil, msgStatementNotFound, false
 	}
 	if err != nil {
 		log.ErrorContext(ctx, "read a statement to send", "statement", item.ID, "err", err)
-		return nil, msgStatementNotSent
+		return nil, msgStatementNotSent, false
 	}
 	to := strings.TrimSpace(item.To)
 	if !isOneBareAddress(to) || !statementFieldsTake(ctx, re.App, record, to) {
-		return nil, msgStatementAddress
+		return nil, msgStatementAddress, false
 	}
 	data, err := buildStoredStatementData(ctx, re.App, re.Auth, record)
 	if err != nil {
 		log.ErrorContext(ctx, "build a statement to send", "statement", item.ID, "err", err)
-		return nil, msgStatementNotSent
+		return nil, msgStatementNotSent, false
 	}
 	doc := statementPDFDocument(data)
 	pdf, err := renderDocumentsPDF(re, []pdfDocument{doc})
 	if err != nil {
 		log.ErrorContext(ctx, "render a statement to send", "statement", item.ID, "err", err)
-		return nil, msgStatementNotSent
+		return nil, msgStatementNotSent, false
 	}
 	if len(pdf) > maxStatementFileBytes {
-		return nil, msgStatementFileTooLarge
+		return nil, msgStatementFileTooLarge, false
 	}
-	// The token is taken here, so only a statement that reaches the send counts
-	// against the hour's 500 emails.
+	// The token is taken here, once for all the tries, so only a statement that
+	// reaches the send counts against the hour's 500 emails.
 	if !statementEmailLimiter.For(re.App).Allow(re.Auth.Id) {
-		return nil, msgStatementEmailLimit
+		return nil, msgStatementEmailLimit, false
 	}
 	message := statementEmail(data, business)
-	result, err := sender.SendFull(ctx, &mailer.SendRequest{
+	request := &mailer.SendRequest{
 		From:     (&mail.Address{Name: oneLine(business.Name), Address: mailer.FromAddress(re.App)}).String(),
 		To:       []mailer.Recipient{{Email: to}},
 		ReplyTo:  re.Auth.Email(),
@@ -272,23 +291,66 @@ func sendStatement(
 			ContentType: "application/pdf",
 			Content:     base64.StdEncoding.EncodeToString(pdf),
 		}},
-	})
-	if err == nil && result != nil && len(result.FailedRecipients) > 0 {
-		err = errors.New(result.FailedRecipients[0].Reason)
 	}
-	if err != nil {
-		log.ErrorContext(ctx, "send a statement", "statement", item.ID, "err", err)
-		return nil, msgStatementNotSent
+	msg, outage = deliverStatement(ctx, sender, request, item.ID, to, tries)
+	if msg != "" {
+		return nil, msg, outage
 	}
 	if err := saveStatementSent(re, record, to); err != nil {
 		log.ErrorContext(ctx, "save a sent statement", "statement", item.ID, "err", err)
 		var apiErr *router.ApiError
 		if errors.As(err, &apiErr) {
-			return nil, apiErr.Message
+			return nil, apiErr.Message, false
 		}
-		return nil, msgStatementSentNotSaved
+		return nil, msgStatementSentNotSaved, false
 	}
-	return record, ""
+	return record, "", false
+}
+
+// deliverStatement hands one statement email to the sender, and tries again
+// after a pause when the sender returns an error (a transport or provider
+// error, which can pass), at most tries times in all. An error that comes after
+// the provider accepted the message is retried too, so in that rare case the
+// customer can get the email twice (spec §3.5). A recipient the email server
+// refused is a permanent refusal: it fails at once. A message is the failure;
+// "" is a delivery. outage is true when every try failed with a sender error.
+func deliverStatement(
+	ctx context.Context, sender mailer.FullSender, request *mailer.SendRequest, id, to string, tries int,
+) (msg string, outage bool) {
+	for try := 1; ; try++ {
+		result, err := sender.SendFull(ctx, request)
+		if err == nil {
+			if result != nil && len(result.FailedRecipients) > 0 {
+				log.WarnContext(ctx, "the email server refused a statement's recipient",
+					"statement", id, "reason", result.FailedRecipients[0].Reason)
+				return fmt.Sprintf(msgStatementRecipientRefused, to), false
+			}
+			return "", false
+		}
+		if try >= tries {
+			log.ErrorContext(ctx, "send a statement", "statement", id, "try", try, "err", err)
+			return msgStatementNotSent, true
+		}
+		log.WarnContext(ctx, "send a statement, will try again", "statement", id, "try", try, "err", err)
+		if !pauseBeforeRetry(ctx) {
+			log.ErrorContext(ctx, "send a statement: the request ended before a retry",
+				"statement", id, "try", try, "err", ctx.Err())
+			return msgStatementNotSent, false
+		}
+	}
+}
+
+// pauseBeforeRetry waits statementSendRetryPause, and is false when the
+// request's context ends first.
+func pauseBeforeRetry(ctx context.Context) bool {
+	timer := time.NewTimer(statementSendRetryPause)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
 }
 
 // isOneBareAddress is true for one email address with no display name and a
