@@ -8,10 +8,10 @@
 - checkpoints: docs/plans/bank-categorize-checkpoints.md
 - reference: docs/plans/bank-categorize-reference/
 - evidence: docs/plans/bank-categorize-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs 2026-11-21)
 - capture manifest: docs/plans/bank-categorize-capture.json
 - review mode: C — none (unattended)
-- core extension: none
+- core extension: tinycld PR #510 (branch books/p4-categorize-split; core tasks sheet-in-drawer and Escape-in-drawer, approved by the human 2026-11-21 after the cp 3 stop)
 - sparks:
   - The ways to handle a transaction are one line of choices directly above the form → expressible (core `SetupTabs` with three values over one mounted section)
   - The bank's own full text stays in view while the user decides → expressible (the drawer's fact rows stay above the form; Memo starts as the bank description)
@@ -269,6 +269,6 @@
 - human: none (review mode C)
 
 ## Final review
-- eval:
-- human comments and what changed
+- eval: approved 2026-11-21 (no revise); retrospective accepted (3 lessons, 4 process changes)
+- human comments and what changed: none
 - native: not executed in this run
