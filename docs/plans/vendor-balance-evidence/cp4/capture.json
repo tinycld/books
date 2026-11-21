@@ -1,0 +1,63 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated-phone",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390, 375],
+            "height": 1100,
+            "actions": [
+                { "clickText": "Vendor Balance" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "click": "report-document-period" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "opened-phone",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390, 375],
+            "height": 1560,
+            "actions": [
+                { "clickText": "Vendor Balance" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 },
+                { "clickText": "Harbor Freight Logistics" },
+                { "pause": 1500 },
+                { "click": "report-document-period" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "empty-phone",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390],
+            "actions": [
+                { "clickText": "Vendor Balance" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-asOf" },
+                { "fill": "report-period-as-of", "value": "2020-01-01" },
+                { "press": "Escape" },
+                { "waitFor": "report-empty" },
+                { "waitFor": "As of January 1, 2020" },
+                { "click": "report-document-period" }
+            ]
+        },
+        {
+            "name": "vendors-reports-menu",
+            "url": "/a/books/vendors",
+            "ready": "vendors-reports",
+            "widths": [1280, 390],
+            "actions": [
+                { "click": "vendors-reports" },
+                { "waitFor": "vendors-reports-balance" },
+                { "waitFor": "vendors-reports-aging" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}

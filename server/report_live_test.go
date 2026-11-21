@@ -42,6 +42,9 @@ var shippedNotLive = map[string]bool{
 	"books.ap_aging":                  false,
 	"books.statement_balance_forward": false,
 	"books.statement_open_items":      false,
+	// The Vendor Balance came from main after the decision: it is the
+	// Customer Balance's twin over Accounts payable.
+	"books.vendor_balance": false,
 }
 
 // requireManual fails unless res is a manual run: marked, and with no topic.
@@ -150,6 +153,7 @@ func TestShippedReportsNotLive(t *testing.T) {
 		drafts := map[string]json.RawMessage{
 			"a copy of the Profit and Loss":     profitAndLossShipped().Spec,
 			"a copy of the Customer Balance":    customerBalanceShipped().Spec,
+			"a copy of the Vendor Balance":      vendorBalanceShipped().Spec,
 			"a copy of the Audit Log":           auditLogShipped().Spec,
 			"a report built over journal lines": json.RawMessage(debitToDay),
 		}
@@ -169,7 +173,7 @@ func TestShippedReportsNotLive(t *testing.T) {
 	}
 }
 
-// Only the four reports that read the journal lines and stay live declare
+// Only the five reports that read the journal lines and stay live declare
 // Live. A report that does not read them needs no mark.
 func TestShippedLiveDeclarations(t *testing.T) {
 	all := []reports.Shipped{
@@ -178,6 +182,7 @@ func TestShippedLiveDeclarations(t *testing.T) {
 		salesTaxLiabilityShipped(), customerBalanceShipped(), arAgingShipped(),
 		salesByCustomerShipped(), salesByProductShipped(), auditLogShipped(),
 		apAgingShipped(), statementBalanceForwardShipped(), statementOpenItemsShipped(),
+		vendorBalanceShipped(),
 	}
 	var live []string
 	for _, s := range all {
@@ -186,7 +191,7 @@ func TestShippedLiveDeclarations(t *testing.T) {
 		}
 	}
 	slices.Sort(live)
-	want := []string{"books.audit_log", "books.customer_balance", "books.profit_and_loss", "books.statement_balance_forward"}
+	want := []string{"books.audit_log", "books.customer_balance", "books.profit_and_loss", "books.statement_balance_forward", "books.vendor_balance"}
 	if !slices.Equal(live, want) {
 		t.Errorf("shipped reports with Live = %v, want %v", live, want)
 	}
