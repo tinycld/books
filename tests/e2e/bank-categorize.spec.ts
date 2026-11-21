@@ -34,6 +34,8 @@ const VENDOR = 'Harbor Freight Logistics'
 const CHECKING = '1000 Business Checking'
 const PACIFIC = 'PACIFIC POWER AUTOPAY'
 const AMAZON = 'AMAZON MARKETPLACE'
+// The seeded review statement's row that the seed categorized (seed.ts seedBankMatch).
+const DROPBOX = 'DROPBOX BUSINESS'
 const CREATE_URL = '**/api/collections/books_bank_categorizations/records*'
 const ALREADY_REVIEWED = 'This transaction is already reviewed.'
 const SEND_FAILED = 'The transaction could not be sent. Check your connection and try again.'
@@ -429,6 +431,26 @@ test.describe('bank-categorize: drawer', () => {
         await matchOptionIds(page, 1)
         await expect(page.getByTestId('bank-match-submit')).toHaveCount(0)
         await expect(ways).toHaveCount(0)
+
+        // For review offers a reader no choosing and no Categorize for chosen rows.
+        await expect(
+            page.locator('[data-testid^="bank-review-check-"]').filter({ visible: true })
+        ).toHaveCount(0)
+        await expect(page.getByTestId('bank-review-categorize-chosen')).toHaveCount(0)
+
+        // Reviewed: the seeded added row reads "Added · Journal entry n" as a link, and its
+        // drawer shows the Added to Books facts with no Undo.
+        await openReviewTab(page, 'reviewed')
+        const dropbox = await visibleRow(page, DROPBOX)
+        const dropboxId = await reviewRowId(dropbox)
+        const inBooks = await inBanking(page, `bank-review-inbooks-${dropboxId}`)
+        await expect(inBooks).toHaveText(/^Added · Journal entry \S+$/)
+        await expect(inBooks).toHaveAttribute('href', /books\/entries\/[^/]+$/)
+        await dropbox.getByText(DROPBOX, { exact: true }).click()
+        await expect(drawerShows(page, DROPBOX)).toBeVisible()
+        await expect(page.getByTestId('bank-added-section')).toBeVisible()
+        await expect(page.getByTestId('bank-added-by')).toHaveText(/^Added .+ by .+$/)
+        await expect(page.getByTestId('bank-added-undo')).toHaveCount(0)
         await page.unrouteAll({ behavior: 'wait' })
     })
 })

@@ -117,6 +117,47 @@ async function openBankMatchDrawerForShot(page: Page) {
     await expect(page.getByTestId('bank-match-submit')).toBeEnabled()
 }
 
+// The seeded AMAZON MARKETPLACE row of 1000 Business Checking fits no Books transaction,
+// so its drawer opens on the Categorize way.
+const AMAZON = 'AMAZON MARKETPLACE'
+
+async function openBankCategorizeForShot(page: Page) {
+    await openBankReviewForShot(page)
+    await page
+        .locator('[data-testid="bank-review-table-rows"] [data-testid^="bank-review-row-"]')
+        .filter({ has: page.getByText(AMAZON, { exact: true }) })
+        .getByText(AMAZON, { exact: true })
+        .click()
+    await expect(page.getByTestId('bank-cat-section')).toBeVisible()
+    await expect(page.getByTestId('bank-cat-account-0')).toBeVisible()
+}
+
+// The same drawer after Split: two line cards and the totals line.
+async function openBankSplitForShot(page: Page) {
+    await openBankCategorizeForShot(page)
+    await page.getByTestId('bank-cat-split').click()
+    await expect(page.getByTestId('bank-cat-line-1')).toBeVisible()
+    await expect(page.getByTestId('bank-cat-totals')).toBeVisible()
+}
+
+// The seed categorizes DROPBOX BUSINESS to 6200 Software Subscriptions, so its Reviewed
+// drawer shows Added to Books.
+const DROPBOX = 'DROPBOX BUSINESS'
+
+async function openBankAddedForShot(page: Page) {
+    await selectCheckingForShot(page)
+    await page.getByTestId('bank-tabs-reviewed').click()
+    const body = page.getByTestId('bank-tab-body-reviewed')
+    await expect(body).toBeVisible()
+    await body
+        .locator('[data-testid^="bank-review-row-"]')
+        .filter({ has: page.getByText(DROPBOX, { exact: true }) })
+        .getByText(DROPBOX, { exact: true })
+        .click()
+    await expect(page.getByTestId('bank-added-section')).toBeVisible()
+    await expect(page.getByTestId('bank-added-by')).toBeVisible()
+}
+
 async function openBankingForShot(page: Page) {
     await selectCheckingForShot(page)
     // The upload area and the file list live in the panel's Files tab.
@@ -196,6 +237,23 @@ export default {
         {
             name: 'bank-match-2',
             setup: openBankMatchDrawerForShot,
+            target: '[data-testid="bank-txn-drawer"]',
+        },
+    ],
+    'bank-categorize': [
+        {
+            name: 'bank-categorize-1',
+            setup: openBankCategorizeForShot,
+            target: '[data-testid="bank-txn-drawer"]',
+        },
+        {
+            name: 'bank-categorize-2',
+            setup: openBankSplitForShot,
+            target: '[data-testid="bank-txn-drawer"]',
+        },
+        {
+            name: 'bank-categorize-3',
+            setup: openBankAddedForShot,
             target: '[data-testid="bank-txn-drawer"]',
         },
     ],

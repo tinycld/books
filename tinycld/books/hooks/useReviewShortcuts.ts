@@ -69,6 +69,7 @@ function relayTo(ref: RefObject<KeyHandlers>): KeyHandlers {
         tabFiles: () => ref.current.tabFiles(),
         escape: () => ref.current.escape(),
         match: () => ref.current.match(),
+        categorize: () => ref.current.categorize(),
     }
 }
 
@@ -141,6 +142,9 @@ export function useReviewShortcuts(input: ReviewShortcutsInput): void {
         // The selection bar's Match; it refuses itself while disabled, so M then does
         // nothing.
         match: () => input.matchAction?.onPress(),
+        // The selection bar's Categorize, which opens the dialog of the chosen rows; it
+        // refuses itself while disabled (a run, a drawer write, no server writes).
+        categorize: () => input.categorizeAction?.onPress(),
     }
     const runRef = useRef(run)
     runRef.current = run

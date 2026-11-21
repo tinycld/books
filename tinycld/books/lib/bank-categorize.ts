@@ -9,7 +9,8 @@ import type { SearchPickerOption } from '../components/SearchPicker'
 import type { BooksJournalEntries } from '../types'
 import { filteredAccountOptions, type OptionAccount } from './account-options'
 import { accountTypeDef } from './account-types'
-import { entryLabel } from './bank-match'
+import { entryLabel, madeOnText } from './bank-match'
+import type { BatchOutcome } from './bank-review'
 import { parseLineRefusal } from './entry-messages'
 import { formatMoney, isWellFormedMoney, maxLineAmount } from './money'
 import { moneyInputCents } from './money-input'
@@ -266,9 +267,15 @@ export function categorizeLines(
     }))
 }
 
+// The `lines` json of one account for the whole bank amount without its sign, no memo: a
+// transfer row, and each row of a Categorize of chosen rows (the dialog has no split).
+export function oneAccountLines(bankAmount: number, accountId: string): CategorizationLine[] {
+    return [{ account: accountId, amount: Math.abs(bankAmount), memo: '' }]
+}
+
 // The `lines` json of a transfer row: the other account for the bank amount, no memo.
 export function transferLine(bankAmount: number, accountId: string): CategorizationLine[] {
-    return [{ account: accountId, amount: Math.abs(bankAmount), memo: '' }]
+    return oneAccountLines(bankAmount, accountId)
 }
 
 // The line over the Transfer fields: money out leaves the connection's account, money in
@@ -278,13 +285,77 @@ export function transferSummaryText(amount: number, accountLabel: string, curren
     return `A transfer of ${formatMoney(Math.abs(amount), currency)} ${direction} ${accountLabel}.`
 }
 
+type AddedEntry = Pick<BooksJournalEntries, 'number' | 'doc_type' | 'origin'>
+
 // The result line after a Categorize or a Record transfer, once the posted entry is read.
-export function addedResultText(
-    entry: Pick<BooksJournalEntries, 'number' | 'doc_type' | 'origin'> | undefined
-): string {
+export function addedResultText(entry: AddedEntry | undefined): string {
     if (!entry) return ''
     return `Added ${entryLabel(entry)}.`
 }
+
+export type CategorizationKind = 'categorize' | 'transfer'
+
+// The Reviewed tab's In Books text of an added transaction: "Added · Journal entry 1042"
+// or "Added · Transfer 1008"; "Added" until the entry arrives. The entry's own doc_type
+// names it (a categorize posts a journal entry, a transfer a transfer), so the row's kind
+// is taken for the callers' symmetry and not read.
+export function addedText(_kind: CategorizationKind, entry: AddedEntry | undefined): string {
+    if (!entry) return 'Added'
+    return `Added · ${entryLabel(entry)}`
+}
+
+// The result line of an Undo, built at the press from the entry the drawer shows.
+export function undoAddedText(entry: AddedEntry): string {
+    return `Undone. ${entryLabel(entry)} is void and the transaction is back in For review.`
+}
+
+// The result line of a Categorize of chosen rows that all went through.
+export function categorizeResultText(outcome: BatchOutcome): string {
+    const count = outcome.done.length
+    return `Categorized ${count} ${count === 1 ? 'transaction' : 'transactions'}.`
+}
+
+// "Added Nov 18, 2026 by Ana Ruiz": the local day the categorization was made, and by whom.
+export function addedOnText(created: string, userName: string): string {
+    return madeOnText('Added', created, userName)
+}
+
+// A posted line of an added transaction as its split line was typed: positive on the
+// side opposite the bank line (a debit for money out, a credit for money in), negative
+// on the bank line's side.
+export function addedLineAmount(
+    line: { debit: number; credit: number },
+    bankAmount: number
+): number {
+    return bankAmount < 0 ? line.debit - line.credit : line.credit - line.debit
+}
+
+export const ADDED_LOAD_ERROR_TEXT = "Books could not load this transaction's entry."
+
+export type AddedView = 'loading' | 'error' | 'added' | 'none'
+
+// What the Added to Books place draws from its read: the error (with Retry) before
+// anything else, the loading state until the read is ready, then the section when the
+// transaction has a categorization, and nothing when it has none.
+export function addedViewOf(input: {
+    isReady: boolean
+    isError: boolean
+    row: unknown
+}): AddedView {
+    if (input.isError) return 'error'
+    if (!input.isReady) return 'loading'
+    return input.row === undefined ? 'none' : 'added'
+}
+
+export type BatchCategorizeValues = { account: string; payee: string }
+
+// The Categorize dialog of the chosen rows: one account (required) and an optional payee
+// (a party option id or '').
+export const batchCategorizeSchema: z.ZodType<BatchCategorizeValues, BatchCategorizeValues> =
+    z.object({
+        account: z.string().min(1, CHOOSE_ACCOUNT_TEXT),
+        payee: z.string(),
+    })
 
 // A "Line n:" refusal goes under that line's Account, or its Amount when the text is about
 // the amount; any other refusal names no field.

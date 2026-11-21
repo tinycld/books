@@ -57,9 +57,10 @@ import type { ReviewDrawerModel } from './useReviewDrawer'
 // The accounts of the book, for the Categorize and Transfer pickers. Every account is read,
 // inactive ones too, because a sub-account's depth comes from the whole chart; the pure
 // helpers offer the active ones only. The read runs only while the way switch shows for a
-// writer (`isEnabled`): a reader sees no form, and a Banking visit with no open For review
+// writer (`isEnabled`), and while the Categorize dialog of chosen rows is open
+// (useCategorizeChosen): a reader sees no form, and a Banking visit with no open For review
 // transaction needs no chart.
-function useCategorizeAccounts(isEnabled: boolean) {
+export function useCategorizeAccounts(isEnabled: boolean) {
     const [accountsCollection] = useStore('books_accounts')
     const query = useLiveQuery({
         query: q => {
@@ -332,8 +333,9 @@ function useIsMounted() {
 // The Payee picker's read (useLinePartyOptions) lives in the form, so its failure keeps
 // Categorize disabled. The read starts at the picker's first open and then runs for the
 // rest of the form's life, so a failed read stays known after the picker closes; the
-// first open is seen during a render (React state adjusted in render, no effect).
-function usePayeeRead() {
+// first open is seen during a render (React state adjusted in render, no effect). The
+// Categorize dialog of chosen rows reads its Payee the same way (useCategorizeChosen).
+export function usePayeeRead() {
     const picker = useSearchPicker()
     const [hasOpened, setHasOpened] = useState(false)
     if (picker.isOpen && !hasOpened) setHasOpened(true)
