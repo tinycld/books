@@ -207,31 +207,30 @@ func explainStatements(t testing.TB, app core.App, statements []string) []planSt
 	return steps
 }
 
-// outsideLists is steps without the subtrees of a LIST SUBQUERY: SQLite
-// builds such a list once for its statement (core's cut of the rows to the
-// open sections reads gord in one), so a scan inside it reads no table again
-// for each row.
-func outsideLists(steps []planStep) []planStep {
+// stepsRunPerRow is steps without the subtrees of a LIST SUBQUERY that SQLite
+// builds once for its statement (core's cut of the rows to the open sections
+// reads gord in one), so a scan inside it reads no table again for each row.
+// A subquery the plan names CORRELATED runs once per outer row: its steps stay,
+// also under a list, because each of its runs reads its tables.
+func stepsRunPerRow(steps []planStep) []planStep {
 	type node struct{ statement, id int }
-	parent := map[node]int{}
-	var lists []node
+	byID := map[node]planStep{}
 	for _, s := range steps {
-		parent[node{s.Statement, s.ID}] = s.Parent
-		if strings.HasPrefix(s.Detail, "LIST SUBQUERY") {
-			lists = append(lists, node{s.Statement, s.ID})
-		}
+		byID[node{s.Statement, s.ID}] = s
 	}
-	inList := func(s planStep) bool {
-		for id := s.ID; id != 0; id = parent[node{s.Statement, id}] {
-			if slices.Contains(lists, node{s.Statement, id}) {
-				return true
+	builtOnce := func(s planStep) bool {
+		once := false
+		for cur, ok := s, true; ok; cur, ok = byID[node{s.Statement, cur.Parent}] {
+			if strings.HasPrefix(cur.Detail, "CORRELATED ") {
+				return false
 			}
+			once = once || strings.HasPrefix(cur.Detail, "LIST SUBQUERY")
 		}
-		return false
+		return once
 	}
 	var out []planStep
 	for _, s := range steps {
-		if !inList(s) {
+		if !builtOnce(s) {
 			out = append(out, s)
 		}
 	}
