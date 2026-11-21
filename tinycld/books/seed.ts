@@ -1,4 +1,5 @@
 import type PocketBase from 'pocketbase'
+import { ClientResponseError } from 'pocketbase'
 import { AP_AGING_SEED } from './lib/ap-aging-fixture'
 import {
     APPLY_CREDIT_INVOICES,
@@ -94,6 +95,7 @@ import {
 import { TRANSFER_SEED } from './lib/transfer-fixture'
 import { PRIOR_YEAR_SEED } from './lib/trial-balance-fixture'
 import { ACCOUNT_BOXES, VENDOR_1099_PATCHES } from './lib/vendor-1099-fixture'
+import { VENDOR_BALANCE_SEED } from './lib/vendor-balance-fixture'
 import {
     VENDOR_CREDIT_APPLICATIONS,
     VENDOR_CREDIT_LINES,
@@ -319,6 +321,10 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     // seeded document keeps its number, and before the bank match seed, which must see
     // every seeded document.
     await seedApAging(pb, ctx, accountIds)
+    // The Vendor Balance rows (plan D2, D3): after the A/P Aging rows, whose bill post makes
+    // the Accounts payable account, and before the bank match seed. They are journal entries
+    // only, so no document number moves.
+    await seedVendorBalance(pb, ctx, accountIds)
     // After every document seed, so its check that each of its two statement lines has
     // exactly one suggestion sees every seeded document (the review statement is imported
     // before any document posts). Its categorization posts one journal entry, last, so no
@@ -2413,6 +2419,79 @@ export async function seedApAging(
         amount: credit.appliedCents,
         date: credit.appliedDate,
         applied_by: ctx.user.id,
+    })
+}
+
+// The Vendor Balance's seed rows (VENDOR_BALANCE_SEED, plan D2, D3): a posted journal
+// entry on Accounts payable that names no vendor (the No vendor row), then one that names
+// the inactive Old Town Print Shop (a muted row). The seed chart has no Accounts payable
+// account: the server makes it on the first bill post, so it is read by its type.
+// `accountIds` maps a seed account number to the created account.
+export async function seedVendorBalance(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>
+): Promise<void> {
+    const payable = await payableAccountId(pb)
+    const { noVendorEntry, inactiveEntry } = VENDOR_BALANCE_SEED
+    const noVendorOther = vendorBalanceOther(accountIds, noVendorEntry)
+    const inactiveOther = vendorBalanceOther(accountIds, inactiveEntry)
+
+    await postVendorBalanceEntry(pb, ctx, payable, noVendorOther, noVendorEntry)
+    // The line guard (checkLineParty, server/lines.go) refuses a new line that names an
+    // inactive vendor, so Old Town Print Shop is made active for the post and inactive
+    // again after it, as seedCustomerBalance does for Old Mill Bakery.
+    await pb.collection('books_vendors').update(inactiveEntry.vendor, { inactive: false })
+    await postVendorBalanceEntry(pb, ctx, payable, inactiveOther, inactiveEntry)
+    await pb.collection('books_vendors').update(inactiveEntry.vendor, { inactive: true })
+}
+
+// The book's Accounts payable account. Only "no row" becomes the seed's error; any other
+// failure of the read passes as it is.
+async function payableAccountId(pb: PocketBase): Promise<string> {
+    try {
+        const account = await pb
+            .collection('books_accounts')
+            .getFirstListItem<{ id: string }>("type = 'accounts_payable'")
+        return account.id
+    } catch (error) {
+        if (error instanceof ClientResponseError && error.status === 404) {
+            throw new Error(
+                'seed: vendor balance entries need an Accounts payable account, and no bill has made one'
+            )
+        }
+        throw error
+    }
+}
+
+type VendorBalanceEntry = (typeof VENDOR_BALANCE_SEED)['noVendorEntry' | 'inactiveEntry']
+
+function vendorBalanceOther(accountIds: Map<string, string>, entry: VendorBalanceEntry): string {
+    const other = accountIds.get(entry.otherNumber)
+    if (other === undefined) {
+        throw new Error(
+            `seed: vendor balance entry "${entry.memo}" names an account that was not created`
+        )
+    }
+    return other
+}
+
+// A posted entry: a credit of `cents` on Accounts payable naming the entry's vendor ('' for
+// none), debited to the other account.
+async function postVendorBalanceEntry(
+    pb: PocketBase,
+    ctx: SeedContext,
+    payable: string,
+    other: string,
+    entry: VendorBalanceEntry
+): Promise<void> {
+    await postSeedJournalEntry(pb, ctx, {
+        date: entry.date,
+        memo: entry.memo,
+        lines: [
+            { account: payable, debit: 0, credit: entry.cents, customer: '', vendor: entry.vendor },
+            { account: other, debit: entry.cents, credit: 0, customer: '', vendor: '' },
+        ],
     })
 }
 

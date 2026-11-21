@@ -70,6 +70,14 @@ describe('help/vendors.md', () => {
         expect(body).toContain('help://books:reports')
     })
 
+    // Vendor Balance checkpoint 4 (spec §3 "Help"): the menu's new item, linked to the
+    // report's section of the reports topic by a link whose text names the report.
+    it('names the Vendor Balance menu item and links the Vendor Balance report', () => {
+        expect(body.replace(/\s+/g, ' ')).toContain('choose Vendor Balance')
+        const links = [...body.matchAll(/\[([^\]]+)\]\(help:\/\/books:reports\)/g)].map(m => m[1])
+        expect(links.some(text => /\bVendor Balance report\b/.test(text))).toBe(true)
+    })
+
     it('links the 1099 tracking topic', () => {
         expect(body).toContain('help://books:1099-tracking')
     })

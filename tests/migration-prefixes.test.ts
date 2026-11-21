@@ -9,9 +9,12 @@ import { describe, expect, it } from 'vitest'
 // collections. A later migration that creates a collection the view does not read may
 // run after it; each such migration is named in AFTER_AUDIT (the bank matches at 30 came
 // before the credit memo applications at 31, whose lines the view reads, so the view moved
-// to 32, and then to 34). Bank-categorize spec §4 Schema: the bank categorizations take
-// 2100000035, after the audit view, which reads none of their collections; Books 0.1.0 is
-// unreleased, and the view does not move. The vendor party balances rewrite creates no collection, so it
+// to 32, then to 34). Vendor Balance (D17, amendment 2): the books_journal_lines
+// (account, posted, vendor, date) index takes 2100000032, the number the audit view left
+// free when it moved to 34, because it adds an index and creates no collection the view
+// reads. Bank-categorize spec §4 Schema: the bank categorizations take 2100000035, after
+// the audit view, which reads none of their collections; Books 0.1.0 is unreleased, and
+// the view does not move. The vendor party balances rewrite creates no collection, so it
 // may run before the audit view. A/R Aging (D8): the receivable items migration takes
 // 2100000028, the number the write-off spec left free, after the payments and credit
 // memos it reads. books_receivable_items is stored, not audited: only Books' posting
@@ -154,7 +157,7 @@ describe('pb-migrations prefixes', () => {
         expect(MIGRATIONS).not.toContain('2100000027_create_books_audit_log.js')
         expect(MIGRATIONS).not.toContain('2100000029_create_books_audit_log.js')
         expect(MIGRATIONS).not.toContain('2100000030_create_books_audit_log.js')
-        expect(MIGRATIONS.slice(-1 - AFTER_AUDIT.length)).toEqual([AUDIT, ...AFTER_AUDIT])
+        expect(MIGRATIONS.filter(file => !AFTER_AUDIT.includes(file)).at(-1)).toBe(AUDIT)
         const matches = sourceOf('2100000030_create_books_bank_matches.js')
         const read = auditLineCollections().filter(collection =>
             matches.includes(`name: '${collection}'`)
