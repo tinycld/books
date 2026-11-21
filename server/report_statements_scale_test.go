@@ -21,7 +21,7 @@ import (
 // The scale measure of the Trial Balance, the Balance Sheet and Transaction
 // Detail by Account (p5-report-engine-scale): the General Ledger's scale book
 // with cash-basis rows (writeStatementsScaleBook) and its bar (glMonthBar,
-// glYearBar). The book check runs in every test run (TestStatementsScaleBook);
+// glLongRunBar). The book check runs in every test run (TestStatementsScaleBook);
 // the three sizes start only with BOOKS_SCALE=1 (TestStatementsScale).
 //
 // The bars are the human's (2026-11-20), at 500,000 lines: Transaction Detail
@@ -87,16 +87,16 @@ func stScaleRuns(b glScaleBook) []stScaleRun {
 	busy := []string{b.receivable.Id}
 	three := []string{b.receivable.Id, b.incomes[0].Id, b.docs.checking.Id}
 	return []stScaleRun{
-		{name: "TB 1 all accounts, as of", shipped: trialBalanceShipped, params: map[string]any{"asOf": b.lastDay}, bar: glYearBar},
+		{name: "TB 1 all accounts, as of", shipped: trialBalanceShipped, params: map[string]any{"asOf": b.lastDay}, bar: glLongRunBar},
 		{name: "TB 2 busy account, as of", shipped: trialBalanceShipped, params: map[string]any{"asOf": b.lastDay, "accounts": busy}, bar: glMonthBar},
 		{name: "TB 3 three accounts, as of", shipped: trialBalanceShipped, params: map[string]any{"asOf": b.lastDay, "accounts": three}, bar: glMonthBar},
-		{name: "BS 1 accrual, as of", shipped: balanceSheetShipped, params: map[string]any{"asOf": b.lastDay}, bar: glYearBar},
-		{name: "BS 2 cash, as of", shipped: balanceSheetShipped, params: map[string]any{"asOf": b.lastDay, "method": "cash"}, bar: glYearBar},
-		{name: "TD 1 all accounts, month", shipped: transactionDetailShipped, params: map[string]any{"period": month}, bar: glYearBar},
-		{name: "TD 2 all accounts, year", shipped: transactionDetailShipped, params: map[string]any{"period": year}, bar: glYearBar},
+		{name: "BS 1 accrual, as of", shipped: balanceSheetShipped, params: map[string]any{"asOf": b.lastDay}, bar: glLongRunBar},
+		{name: "BS 2 cash, as of", shipped: balanceSheetShipped, params: map[string]any{"asOf": b.lastDay, "method": "cash"}, bar: glLongRunBar},
+		{name: "TD 1 all accounts, month", shipped: transactionDetailShipped, params: map[string]any{"period": month}, bar: glLongRunBar},
+		{name: "TD 2 all accounts, year", shipped: transactionDetailShipped, params: map[string]any{"period": year}, bar: glLongRunBar},
 		{name: "TD 3 busy account, month", shipped: transactionDetailShipped, params: map[string]any{"period": month, "accounts": busy}, bar: glMonthBar},
 		{name: "TD 4 small account, month", shipped: transactionDetailShipped, params: map[string]any{"period": month, "accounts": []string{b.incomes[0].Id}}, bar: glMonthBar},
-		{name: "TD 5 three accounts, year", shipped: transactionDetailShipped, params: map[string]any{"period": year, "accounts": three}, bar: glYearBar},
+		{name: "TD 5 three accounts, year", shipped: transactionDetailShipped, params: map[string]any{"period": year, "accounts": three}, bar: glLongRunBar},
 		{name: "TD 6 busy account, month, cash", shipped: transactionDetailShipped, params: map[string]any{"period": month, "accounts": busy, "method": "cash"}, bar: glMonthBar},
 	}
 }
