@@ -28,6 +28,7 @@ import {
     uniqueMemo,
 } from './invoice-helpers'
 import { openEntriesList } from './journal-entries-helpers'
+import { tabTo } from './keyboard-helpers'
 
 // Credit memos from an invoice (credit memo spec §3.2, §3.3, §3.6, §3.10, Q2, Q18, Q20):
 // "Create credit memo" (key M) on a posted invoice, the form started from the invoice with
@@ -186,11 +187,6 @@ async function openAnyInvoiceBySearch(page: Page, memo: string) {
         .click()
     await expect(page).toHaveURL(INVOICE_URL)
     await expect(shown(page, 'invoice-read-only')).toBeVisible()
-}
-
-async function tabTo(page: Page, target: Locator) {
-    await page.keyboard.press('Tab')
-    await expect(target).toBeFocused()
 }
 
 test.describe('credit-memo-form: from an invoice', () => {

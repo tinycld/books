@@ -5,6 +5,7 @@ import { PRODUCT_IDS, PRODUCTS } from '../../tinycld/books/lib/products-services
 import { accountItem, DESKTOP, openChart, PHONE } from './account-register-helpers'
 import { NEW_ESTIMATE_URL, openNewEstimate } from './estimate-helpers'
 import { lineCellTestId, NEW_INVOICE_URL, openNewInvoice, uniqueMemo } from './invoice-helpers'
+import { tabTo } from './keyboard-helpers'
 import {
     chooseReceiptSelect,
     leaveSettings,
@@ -78,11 +79,6 @@ function uniqueReference() {
 async function openBooks(page: Page) {
     await login(page)
     await navigateToPackage(page, 'books')
-}
-
-async function tabTo(page: Page, target: Locator) {
-    await page.keyboard.press('Tab')
-    await expect(target).toBeFocused()
 }
 
 // Tabs until the target has focus, past stops whose order this test does not pin (the
