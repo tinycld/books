@@ -93,6 +93,20 @@
 - commit: the commit "feat(books): expenses by vendor opened lines with accounts and cash rows" (this row is in it)
 - human: review mode C, no message
 
+## Checkpoint 3
+- test writer: server/report_expenses_by_vendor_scale_test.go (BulkCashRowsMatchPosters, QueryPlans, RunsAgreeWithSmallBook, Scale; helpers `ebvLargeTables`, `ebvRuns`, `ebvCheckRuns` and their run, export and plan-sum helpers); red for the right reason: yes (build fails: `writeEBVDataset` undefined); overlay stub of the D7 body: posters and RunsAgree pass, a stub with no cash rebuild fails both; untestable: none. Staging cp/cp3-tests.md.
+- implementer: `writeEBVDataset` (`writeAPDataset`, then `rebuildCashBasis`) in server/report_expenses_by_vendor_dataset_test.go; BulkCashRowsMatchPosters and RunsAgreeWithSmallBook pass, Scale skips. BLOCKED (Do step 5): `TestExpensesByVendorQueryPlans` fails the no-statistics plan bars on apSmall (normal suite, not a scale run). Staging cp/cp3-impl.md; probe record staging cp3-probe/.
+- root cause (probes one SQL term at a time, lessons 31 and 36): two parts of core's report SQL; no index on books_journal_lines or books_cash_basis_lines changes the plans (three candidate indexes probed).
+  1. Core renders `in` on a linked field as `NULLIF(x,'') IN (SELECT +value FROM json_each(?))` (core/server/reports/stmt.go:79 `jsonSelect`) with no plain-column term, so the LEFT JOIN to books_accounts stays and both line tables are the outer loop, read by SCAN. The Vendor Balance passes because its `eq` adds a plain `t3.type = ?` term. Probe P11 (a plain `t3.type IN (list)` added) makes the main statement pass; P1 (plain column, still json_each) and P9 (inner join) do not.
+  2. `materializeShared` (core/server/reports/rows.go:649) makes `w` MATERIALIZED only when a statement reads it twice; the Total statement reads it once, so the UNION ALL of `books.basis_lines` becomes a CO-ROUTINE that scans both tables. P13 alone fails; P14 (P11 + `w AS MATERIALIZED`) passes every statement of runs 1 to 8.
+- proposed core task: (a) `in` over a linked field adds a NULL-rejecting plain-column term with one bound placeholder per value for a short list (a literal list is SQL text: human approval rule 2026-11-20), keeping `jsonSelect` above a length limit, proven by core's own EXPLAIN with bound arguments (the Books harness cannot EXPLAIN bound arguments, probe P15); (b) `materializeShared` also materializes `w` for a compound (union) source. A fictional-package test for each; then `TestExpensesByVendorQueryPlans` again, then the scale NEEDS-RUN of Do step 3. Note: p5-report-engine-scale (lane purchases) also changes core's report engine and merges first (spec §9, Q16).
+- test disputes: none
+- self-declared differences: `writeEBVDataset` in a new file (out-of-plan, below); no scale NEEDS-RUN handed back (the small book already fails); no index migration.
+- out-of-plan: server/report_expenses_by_vendor_dataset_test.go (the Files block names only the test writer's scale test file for the helper).
+- gate 1: not run to green — `go test -count=1 ./...` fails on TestExpensesByVendorQueryPlans only (the bars above, then the expected missing testdata/expenses_by_vendor_stat1.json); `tinycld-pkg check` pass (implementer's run).
+- gate 3: not run (gate 1 red).
+- stopped: checkpoint 3, 2026-11-21 — a failed plan bar needs a core change (brief Do step 5 "when the statement's shape is core's, a core task: stop for the human with the probe's record"). The checkpoint's two test files stay in the tree (the scale test file staged, the dataset file untracked), not committed.
+
 ## Final review
 - eval:
 - human comments and what changed
