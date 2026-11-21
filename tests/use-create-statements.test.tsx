@@ -218,6 +218,7 @@ describe('useCreateStatements: save', () => {
                     customer: KITCHEN,
                     name: 'Harborview Hospitality Group:Harborview Kitchen',
                     message: refusalText,
+                    saved: null,
                 },
             ],
         })
@@ -240,9 +241,16 @@ type SendItem = { id: string; to: string }
 type SendAnswer = { sent: BooksStatements[]; failed: { id: string; message: string }[] }
 
 // The statements store with pbtsdb's `accept` (core lib/server-rows): the rows a custom
-// endpoint returns land as server state, through no write handler.
+// endpoint returns land as server state, through no write handler. An insert carries the
+// number the server gives the row (NUMBERS), as pbtsdb files the created record before the
+// insert settles.
 function acceptingStatements() {
     const collection = guardedStore<BooksStatements>('books_statements', [])
+    const numbered = (row: BooksStatements): BooksStatements =>
+        row.number ? row : { ...row, number: NUMBERS[row.customer] ?? 'ST-1999' }
+    const insert = collection.insert.bind(collection)
+    const insertNumbered: typeof insert = (data, config) =>
+        insert(Array.isArray(data) ? data.map(numbered) : numbered(data), config)
     const accept = async (rows: readonly BooksStatements[]) => {
         await arriveFromServer(() => {
             for (const row of rows) {
@@ -256,7 +264,7 @@ function acceptingStatements() {
             }
         })
     }
-    return Object.assign(collection, { accept })
+    return Object.assign(collection, { accept, insert: insertNumbered })
 }
 
 function storedRow(id: string): BooksStatements {
@@ -336,7 +344,9 @@ describe('useCreateStatements: a part failure and Save and send', () => {
             intent: 'save',
             done: 2,
             total: 3,
-            failed: [{ customer: KITCHEN, name: KITCHEN_NAME, message: STORE_REFUSAL }],
+            failed: [
+                { customer: KITCHEN, name: KITCHEN_NAME, message: STORE_REFUSAL, saved: null },
+            ],
         })
         expect([...ran.succeeded].sort()).toEqual([HARBOR, STJUDE].sort())
         expect(useStatementsStore.getState().outcome).toEqual(ran.outcome)
@@ -359,7 +369,9 @@ describe('useCreateStatements: a part failure and Save and send', () => {
             intent: 'send',
             done: 2,
             total: 3,
-            failed: [{ customer: KITCHEN, name: KITCHEN_NAME, message: STORE_REFUSAL }],
+            failed: [
+                { customer: KITCHEN, name: KITCHEN_NAME, message: STORE_REFUSAL, saved: null },
+            ],
         })
     })
 
@@ -388,7 +400,14 @@ describe('useCreateStatements: a part failure and Save and send', () => {
             intent: 'send',
             done: 1,
             total: 2,
-            failed: [{ customer: STJUDE, name: STJUDE_NAME, message: SEND_REFUSAL }],
+            failed: [
+                {
+                    customer: STJUDE,
+                    name: STJUDE_NAME,
+                    message: SEND_REFUSAL,
+                    saved: expect.objectContaining({ id: idOf(STJUDE) }),
+                },
+            ],
         })
         expect(ran?.succeeded).toEqual([HARBOR])
         expect(useStatementsStore.getState().outcome).toEqual(ran?.outcome)
@@ -432,7 +451,14 @@ describe('useCreateStatements: a part failure and Save and send', () => {
             intent: 'send',
             done: 0,
             total: 1,
-            failed: [{ customer: HARBOR, name: HARBOR_NAME, message: SEND_REFUSAL }],
+            failed: [
+                {
+                    customer: HARBOR,
+                    name: HARBOR_NAME,
+                    message: SEND_REFUSAL,
+                    saved: expect.objectContaining({ id: idOf(HARBOR) }),
+                },
+            ],
         })
         expect(ran?.succeeded).toEqual([])
         expect(useStatementsStore.getState().outcome).toEqual(ran?.outcome)
@@ -445,5 +471,293 @@ describe('useCreateStatements: a part failure and Save and send', () => {
             ([context]) => typeof context === 'string' && context.startsWith('mutation.')
         )
         expect(unhandled).toEqual([])
+    })
+})
+
+// --- A failed send never makes a new statement (statements spec §3.4, §4.5; fix round 3) ---
+//
+// Store names for the implementer: `saved: Record<customer, { id, number }>` holds the
+// statements this screen stored and did not send; `clear()` (the run's own reset of the
+// outcome) keeps them; `reset()` (the screen's unmount) drops them with the outcome.
+
+const NEW_ADDRESS = 'accounts.corrected@example.com'
+
+// The numbers the server gives the stored rows, by customer.
+const NUMBERS: Record<string, string> = {
+    [HARBOR]: 'ST-1002',
+    [STJUDE]: 'ST-1003',
+    [KITCHEN]: 'ST-1004',
+}
+
+// A fake of the send route's network call. The stored rows first get the number the server
+// gave them (as their realtime update files it), then every item of a customer in
+// `failing` fails with SEND_REFUSAL and the others are sent.
+function sendingExcept(failing: Set<string>) {
+    return vi.fn(async (items: SendItem[]): Promise<SendAnswer> => {
+        await arriveFromServer(() => {
+            for (const item of items) {
+                const row = storedRow(item.id)
+                if (!row.number) {
+                    statements.update(item.id, draft => {
+                        draft.number = NUMBERS[row.customer] ?? 'ST-1999'
+                    })
+                }
+            }
+        })
+        const fails = (item: SendItem) => failing.has(storedRow(item.id).customer)
+        return {
+            sent: items.filter(item => !fails(item)).map(sentRow),
+            failed: items.filter(fails).map(item => ({ id: item.id, message: SEND_REFUSAL })),
+        }
+    })
+}
+
+const HARBOR_AND_STJUDE: CreateStatementsValues['recipients'] = [
+    { customer: HARBOR, ticked: true, email: emailOf(HARBOR) },
+    { customer: STJUDE, ticked: true, email: emailOf(STJUDE) },
+]
+
+// A first Save and send whose send fails St. Jude's statement; Harbor's is sent.
+async function failStJudeSend() {
+    const failing = new Set([STJUDE])
+    const sendRequest = sendingExcept(failing)
+    const hook = renderHook(() => useCreateStatements({ sendRequest }), { wrapper })
+    let first: StatementRunResult | undefined
+    await act(async () => {
+        first = await hook.result.current.saveAndSend(
+            run({ intent: 'send', recipients: HARBOR_AND_STJUDE })
+        )
+    })
+    if (first === undefined) throw new Error('the first run did not resolve')
+    return { hook, sendRequest, failing, first, firstId: idOf(STJUDE) }
+}
+
+type StatementRunResult = Awaited<ReturnType<Hook['saveAndSend']>>
+
+describe('useCreateStatements: a failed send keeps its saved statement', () => {
+    beforeEach(() => {
+        statements = acceptingStatements()
+        useStatementsStore.setState({ saved: {} })
+    })
+
+    it("(a) the failed customer's outcome entry and the store carry the saved statement's id and number", async () => {
+        const { first, firstId } = await failStJudeSend()
+
+        expect(first.outcome.failed).toEqual([
+            {
+                customer: STJUDE,
+                name: STJUDE_NAME,
+                message: SEND_REFUSAL,
+                saved: { id: firstId, number: 'ST-1003' },
+            },
+        ])
+        expect(useStatementsStore.getState().saved).toEqual({
+            [STJUDE]: { id: firstId, number: 'ST-1003' },
+        })
+    })
+
+    it('(b) a second Save and send inserts nothing and sends the saved id to the address now in the row', async () => {
+        const { hook, sendRequest, failing, firstId } = await failStJudeSend()
+        failing.clear()
+        const rowsBefore = statements.toArray.length
+        const writesBefore = enteredWrites().length
+
+        let second: StatementRunResult | undefined
+        await act(async () => {
+            second = await hook.result.current.saveAndSend(
+                run({
+                    intent: 'send',
+                    recipients: [
+                        { customer: HARBOR, ticked: false, email: emailOf(HARBOR) },
+                        { customer: STJUDE, ticked: true, email: NEW_ADDRESS },
+                    ],
+                })
+            )
+        })
+
+        expect(statements.toArray.length).toBe(rowsBefore)
+        expect(enteredWrites().length).toBe(writesBefore)
+        expect(sendRequest).toHaveBeenCalledTimes(2)
+        expect(sendRequest.mock.calls[1][0]).toEqual([{ id: firstId, to: NEW_ADDRESS }])
+        expect(second?.succeeded).toEqual([STJUDE])
+        expect(useStatementsStore.getState().saved).toEqual({})
+        expect(storedRow(firstId).sent_to).toBe(NEW_ADDRESS)
+    })
+
+    it('(c) a second Save inserts nothing and counts the saved statement as saved', async () => {
+        const { hook, sendRequest } = await failStJudeSend()
+        const rowsBefore = statements.toArray.length
+        const writesBefore = enteredWrites().length
+
+        let second: Awaited<ReturnType<Hook['save']>> | undefined
+        await act(async () => {
+            second = await hook.result.current.save(
+                run({ recipients: [{ customer: STJUDE, ticked: true, email: emailOf(STJUDE) }] })
+            )
+        })
+
+        expect(statements.toArray.length).toBe(rowsBefore)
+        expect(enteredWrites().length).toBe(writesBefore)
+        expect(sendRequest).toHaveBeenCalledTimes(1)
+        expect(second?.succeeded).toEqual([STJUDE])
+        expect(second?.outcome).toEqual({ intent: 'save', done: 1, total: 1, failed: [] })
+    })
+
+    it('(d) a customer whose store was refused has no saved statement, and the next press stores it once', async () => {
+        const refusals: Record<string, unknown> = {}
+        seedBooks({ refusalFor: refusals })
+        statements = acceptingStatements()
+        customers = guardedStore('books_customers', [...CUSTOMERS])
+        const sendRequest = sendingExcept(new Set())
+        const { result } = renderHook(() => useCreateStatements({ sendRequest }), { wrapper })
+        const release = holdWrites()
+        let running: Promise<StatementRunResult> | undefined
+        act(() => {
+            running = result.current.saveAndSend(
+                run({ intent: 'send', recipients: THREE_WITH_KITCHEN })
+            )
+        })
+        await waitFor(() => expect(enteredWrites()).toHaveLength(3))
+        const refusedId = idOf(KITCHEN)
+        refusals[refusedId] = messageRefusal(STORE_REFUSAL)
+        release()
+        let first: StatementRunResult | undefined
+        await act(async () => {
+            first = await running
+        })
+        expect(first?.outcome.failed).toEqual([
+            { customer: KITCHEN, name: KITCHEN_NAME, message: STORE_REFUSAL, saved: null },
+        ])
+        expect(useStatementsStore.getState().saved).toEqual({})
+
+        const writesBefore = enteredWrites().length
+        await act(async () => {
+            await result.current.saveAndSend(
+                run({
+                    intent: 'send',
+                    recipients: [{ customer: KITCHEN, ticked: true, email: emailOf(KITCHEN) }],
+                })
+            )
+        })
+
+        expect(enteredWrites().length).toBe(writesBefore + 1)
+        const kitchenRows = statements.toArray.filter(row => row.customer === KITCHEN)
+        expect(kitchenRows).toHaveLength(1)
+        expect(kitchenRows[0].id).not.toBe(refusedId)
+        expect(sendRequest.mock.calls[1][0]).toEqual([
+            { id: kitchenRows[0].id, to: emailOf(KITCHEN) },
+        ])
+    })
+
+    it("(e) the run's clear keeps the saved statements and the screen's reset drops them", async () => {
+        const { firstId } = await failStJudeSend()
+
+        useStatementsStore.getState().clear()
+        expect(useStatementsStore.getState().saved).toEqual({
+            [STJUDE]: { id: firstId, number: 'ST-1003' },
+        })
+
+        useStatementsStore.getState().reset()
+        expect(useStatementsStore.getState().saved).toEqual({})
+        expect(useStatementsStore.getState().outcome).toBeNull()
+    })
+})
+
+// --- The number of a failed send outlives its row in the store (fix round 4, T1) ---
+//
+// The create screen has no live query on `books_statements`, so pbtsdb can drop a stored
+// row from the collection; the "<number> not sent" mark keeps the number read when the
+// insert settled (statements spec §3.4).
+
+const ONLY_STJUDE: CreateStatementsValues['recipients'] = [
+    { customer: STJUDE, ticked: true, email: emailOf(STJUDE) },
+]
+
+const STJUDE_NUMBER = NUMBERS[STJUDE]
+
+// A fake of the send route's network call that fails every item. With `dropFirst`, the
+// stored rows leave the collection before the answer arrives.
+function failingAll(dropFirst = false) {
+    return vi.fn(async (items: SendItem[]): Promise<SendAnswer> => {
+        if (dropFirst) {
+            await arriveFromServer(() => {
+                for (const item of items) statements.delete(item.id)
+            })
+        }
+        return {
+            sent: [],
+            failed: items.map(item => ({ id: item.id, message: SEND_REFUSAL })),
+        }
+    })
+}
+
+describe('useCreateStatements: a failed send keeps the number of a row that left the store', () => {
+    beforeEach(() => {
+        statements = acceptingStatements()
+        useStatementsStore.setState({ saved: {} })
+    })
+
+    it('(a) a second failed Save and send after the row left the collection still carries the first number', async () => {
+        const sendRequest = failingAll()
+        const { result } = renderHook(() => useCreateStatements({ sendRequest }), { wrapper })
+        let first: StatementRunResult | undefined
+        await act(async () => {
+            first = await result.current.saveAndSend(
+                run({ intent: 'send', recipients: ONLY_STJUDE })
+            )
+        })
+        const firstId = idOf(STJUDE)
+        expect(first?.outcome.failed[0]?.saved).toEqual({ id: firstId, number: STJUDE_NUMBER })
+
+        await act(async () => {
+            await arriveFromServer(() => {
+                statements.delete(firstId)
+            })
+        })
+        expect(statements.has(firstId)).toBe(false)
+
+        let second: StatementRunResult | undefined
+        await act(async () => {
+            second = await result.current.saveAndSend(
+                run({ intent: 'send', recipients: ONLY_STJUDE })
+            )
+        })
+
+        expect(sendRequest.mock.calls[1][0]).toEqual([{ id: firstId, to: emailOf(STJUDE) }])
+        expect(second?.outcome.failed).toEqual([
+            {
+                customer: STJUDE,
+                name: STJUDE_NAME,
+                message: SEND_REFUSAL,
+                saved: { id: firstId, number: STJUDE_NUMBER },
+            },
+        ])
+        expect(useStatementsStore.getState().saved).toEqual({
+            [STJUDE]: { id: firstId, number: STJUDE_NUMBER },
+        })
+    })
+
+    it('(b) a first-run failure whose row left the collection before the answer carries the number read when the insert settled', async () => {
+        const sendRequest = failingAll(true)
+        const { result } = renderHook(() => useCreateStatements({ sendRequest }), { wrapper })
+        let ran: StatementRunResult | undefined
+        await act(async () => {
+            ran = await result.current.saveAndSend(run({ intent: 'send', recipients: ONLY_STJUDE }))
+        })
+
+        const sentId = sendRequest.mock.calls[0]?.[0][0]?.id
+        if (sentId === undefined) throw new Error('the run sent no statement')
+        expect(statements.has(sentId)).toBe(false)
+        expect(ran?.outcome.failed).toEqual([
+            {
+                customer: STJUDE,
+                name: STJUDE_NAME,
+                message: SEND_REFUSAL,
+                saved: { id: sentId, number: STJUDE_NUMBER },
+            },
+        ])
+        expect(useStatementsStore.getState().saved).toEqual({
+            [STJUDE]: { id: sentId, number: STJUDE_NUMBER },
+        })
     })
 })

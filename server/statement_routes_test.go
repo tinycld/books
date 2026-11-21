@@ -702,6 +702,7 @@ func TestStatementSend_PartFailure(t *testing.T) {
 	})
 	t.Run("the sender fails for one address", func(t *testing.T) {
 		env := newSREnv(t)
+		srSwap(t, &statementSendRetryPause, 0)
 		srSwap(t, &statementSender, func(core.App) mailer.Sender {
 			return srFailingSender{errorFor: "down@aspenridge.example", rejectFor: "bounce@aspenridge.example"}
 		})
@@ -717,9 +718,13 @@ func TestStatementSend_PartFailure(t *testing.T) {
 		if len(answer.Sent) != 1 || answer.sentRow(good.Id) == nil {
 			t.Errorf("sent %v, want only the good statement", answer.Sent)
 		}
+		wants := map[string]string{
+			down.Id:   msgStatementNotSent,
+			bounce.Id: "The email server refused bounce@aspenridge.example. Correct the address and send again.",
+		}
 		for _, r := range []*core.Record{down, bounce} {
-			if msg, _ := answer.failure(r.Id); msg != msgStatementNotSent {
-				t.Errorf("failure of %s = %q, want %q", r.Id, msg, msgStatementNotSent)
+			if msg, _ := answer.failure(r.Id); msg != wants[r.Id] {
+				t.Errorf("failure of %s = %q, want %q", r.Id, msg, wants[r.Id])
 			}
 			if got := reload(t, env.app, statementsCollection, r.Id).GetString("sent_at"); got != "" {
 				t.Errorf("a statement not sent has sent_at %q, want it empty", got)
@@ -748,6 +753,190 @@ func TestStatementSend_Limit(t *testing.T) {
 	if n := len(env.capturedTo(t, srAddress)); n != 2 {
 		t.Errorf("%d messages, want 2", n)
 	}
+}
+
+// srFlakySender counts its SendFull calls. The first errorTries calls fail
+// with an error; with reject set, every call reports that address as a
+// refused recipient; else a call sends through the capture log.
+type srFlakySender struct {
+	calls      *int
+	errorTries int
+	reject     string
+}
+
+func (f srFlakySender) Send(ctx context.Context, msg *mailer.Message) error {
+	return (&mailer.LogSender{}).Send(ctx, msg)
+}
+
+func (f srFlakySender) SendFull(ctx context.Context, req *mailer.SendRequest) (*mailer.SendResult, error) {
+	*f.calls++
+	if f.reject != "" {
+		return &mailer.SendResult{FailedRecipients: []mailer.RecipientFailure{{Email: f.reject, Reason: "mailbox unavailable"}}}, nil
+	}
+	if *f.calls <= f.errorTries {
+		return nil, errors.New("the provider is down for a moment")
+	}
+	return (&mailer.LogSender{}).SendFull(ctx, req)
+}
+
+// srUseFlaky makes statementSender a srFlakySender, with no pause between
+// tries, and gives back its call count.
+func srUseFlaky(t *testing.T, errorTries int, reject string) *int {
+	t.Helper()
+	calls := 0
+	srSwap(t, &statementSendRetryPause, 0)
+	srSwap(t, &statementSender, func(core.App) mailer.Sender {
+		return srFlakySender{calls: &calls, errorTries: errorTries, reject: reject}
+	})
+	return &calls
+}
+
+// Spec §3.5 "Retries": the server tries a delivery at most 3 times when the
+// sender returns an error, never retries a refusal that cannot pass, and takes
+// one token of the hour's limit for one statement.
+func TestStatementSend_Retries(t *testing.T) {
+	if statementSendTries != 3 {
+		t.Errorf("statementSendTries = %d, want 3", statementSendTries)
+	}
+	t.Run("an error that passes is retried to success", func(t *testing.T) {
+		env := newSREnv(t)
+		srSwap(t, &statementEmailLimiter, srTwoPerHour)
+		calls := srUseFlaky(t, 2, "")
+		stored := env.statement(t, env.aspen)
+		client := newSRClient(t, env.app)
+		answer := srAnswerOf(t, client.do(tokenFor(t, env.users.bookkeeper), http.MethodPost, srSendURL,
+			srSendBody(srSendItem{ID: stored.Id, To: srAddress})))
+		if answer.sentRow(stored.Id) == nil || len(answer.Failed) != 0 {
+			t.Errorf("answer %+v, want the statement sent on its third try", answer)
+		}
+		if *calls != 3 {
+			t.Errorf("SendFull called %d times, want 3", *calls)
+		}
+		if n := len(env.capturedTo(t, srAddress)); n != 1 {
+			t.Errorf("%d messages in the capture log, want 1", n)
+		}
+		if got := reload(t, env.app, statementsCollection, stored.Id).GetString("sent_at"); got == "" {
+			t.Error("the statement sent on its third try has no sent_at")
+		}
+		// A limit of 2: one token is left when the three tries took one.
+		limiter := srTwoPerHour.For(env.app)
+		if !limiter.Allow(env.users.bookkeeper.Id) {
+			t.Error("no token left of 2: the retried statement took more than one")
+		}
+		if limiter.Allow(env.users.bookkeeper.Id) {
+			t.Error("two tokens left of 2: the sent statement took none")
+		}
+	})
+	t.Run("an error on every try fails after 3 tries", func(t *testing.T) {
+		env := newSREnv(t)
+		calls := srUseFlaky(t, 1000, "")
+		stored := env.statement(t, env.aspen)
+		client := newSRClient(t, env.app)
+		answer := srAnswerOf(t, client.do(tokenFor(t, env.users.bookkeeper), http.MethodPost, srSendURL,
+			srSendBody(srSendItem{ID: stored.Id, To: srAddress})))
+		if msg, _ := answer.failure(stored.Id); msg != msgStatementNotSent || len(answer.Sent) != 0 {
+			t.Errorf("answer %+v, want the statement failed with %q", answer, msgStatementNotSent)
+		}
+		if *calls != 3 {
+			t.Errorf("SendFull called %d times, want exactly 3", *calls)
+		}
+		if got := reload(t, env.app, statementsCollection, stored.Id).GetString("sent_at"); got != "" {
+			t.Errorf("sent_at = %q after 3 failed tries, want it empty", got)
+		}
+	})
+	t.Run("a recipient the email server refused is not retried", func(t *testing.T) {
+		env := newSREnv(t)
+		refused := "gone@aspenridge.example"
+		calls := srUseFlaky(t, 0, refused)
+		stored := env.statement(t, env.aspen)
+		client := newSRClient(t, env.app)
+		answer := srAnswerOf(t, client.do(tokenFor(t, env.users.bookkeeper), http.MethodPost, srSendURL,
+			srSendBody(srSendItem{ID: stored.Id, To: refused})))
+		want := "The email server refused gone@aspenridge.example. Correct the address and send again."
+		if msg, _ := answer.failure(stored.Id); msg != want {
+			t.Errorf("failure = %q, want %q", msg, want)
+		}
+		if *calls != 1 {
+			t.Errorf("SendFull called %d times, want 1", *calls)
+		}
+		if got := reload(t, env.app, statementsCollection, stored.Id).GetString("sent_at"); got != "" {
+			t.Errorf("sent_at = %q, want it empty", got)
+		}
+	})
+	t.Run("a Books refusal and a spent limit are not retried", func(t *testing.T) {
+		env := newSREnv(t)
+		srSwap(t, &statementEmailLimiter, srTwoPerHour)
+		calls := srUseFlaky(t, 1000, "")
+		badAddress := env.statement(t, env.aspen)
+		overLimit := env.statement(t, env.birch)
+		limiter := srTwoPerHour.For(env.app)
+		for range 2 {
+			if !limiter.Allow(env.users.bookkeeper.Id) {
+				t.Fatal("the test limiter had no token to spend")
+			}
+		}
+		client := newSRClient(t, env.app)
+		answer := srAnswerOf(t, client.do(tokenFor(t, env.users.bookkeeper), http.MethodPost, srSendURL, srSendBody(
+			srSendItem{ID: badAddress.Id, To: "not-an-address"},
+			srSendItem{ID: overLimit.Id, To: srAddress},
+		)))
+		if msg, _ := answer.failure(badAddress.Id); msg != msgStatementAddress {
+			t.Errorf("the bad address's failure = %q, want %q", msg, msgStatementAddress)
+		}
+		if msg, _ := answer.failure(overLimit.Id); msg != msgStatementEmailLimit {
+			t.Errorf("the over-limit statement's failure = %q, want %q", msg, msgStatementEmailLimit)
+		}
+		if *calls != 0 {
+			t.Errorf("SendFull called %d times, want 0 (no retry of a Books refusal)", *calls)
+		}
+	})
+}
+
+// Spec §3.5 "Retries": once one statement of a request has failed all its
+// tries, every later statement of that request gets one try only, so a large
+// request stays inside the server's write timeout.
+func TestStatementSend_RetriesStopAfterAFailedStatement(t *testing.T) {
+	t.Run("a sender that always fails: the first statement gets all its tries, the others one", func(t *testing.T) {
+		env := newSREnv(t)
+		calls := srUseFlaky(t, 1000, "")
+		items := []srSendItem{}
+		for range 4 {
+			items = append(items, srSendItem{ID: env.statement(t, env.aspen).Id, To: srAddress})
+		}
+		client := newSRClient(t, env.app)
+		answer := srAnswerOf(t, client.do(tokenFor(t, env.users.bookkeeper), http.MethodPost, srSendURL, srSendBody(items...)))
+		if want := statementSendTries + (len(items) - 1); *calls != want {
+			t.Errorf("SendFull called %d times, want %d (%d tries, then one try for each later statement)", *calls, want, statementSendTries)
+		}
+		if len(answer.Sent) != 0 || len(answer.Failed) != len(items) {
+			t.Errorf("answer %+v, want all %d statements failed", answer, len(items))
+		}
+		for _, item := range items {
+			if msg, _ := answer.failure(item.ID); msg != msgStatementNotSent {
+				t.Errorf("failure of %s = %q, want %q", item.ID, msg, msgStatementNotSent)
+			}
+		}
+	})
+	t.Run("the first statement fails all its tries and the second is sent on its one try", func(t *testing.T) {
+		env := newSREnv(t)
+		calls := srUseFlaky(t, statementSendTries, "")
+		first := env.statement(t, env.aspen)
+		second := env.statement(t, env.birch)
+		client := newSRClient(t, env.app)
+		answer := srAnswerOf(t, client.do(tokenFor(t, env.users.bookkeeper), http.MethodPost, srSendURL, srSendBody(
+			srSendItem{ID: first.Id, To: srAddress},
+			srSendItem{ID: second.Id, To: srAddress},
+		)))
+		if msg, _ := answer.failure(first.Id); msg != msgStatementNotSent {
+			t.Errorf("the first statement's failure = %q, want %q", msg, msgStatementNotSent)
+		}
+		if answer.sentRow(second.Id) == nil || len(answer.Sent) != 1 {
+			t.Errorf("sent %v, want only the second statement", answer.Sent)
+		}
+		if want := statementSendTries + 1; *calls != want {
+			t.Errorf("SendFull called %d times, want %d", *calls, want)
+		}
+	})
 }
 
 // srPDFSize is the size of a saved statement's PDF from the document route.

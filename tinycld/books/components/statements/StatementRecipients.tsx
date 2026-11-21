@@ -26,6 +26,8 @@ const INPUT_STYLE = iosInputCenteringStyle(16)
 // address field and the space under it. An address error makes its row taller.
 const ROW_HEIGHT = 56
 const CARD_HEIGHT = 136
+// The not-sent line: its 4 px top margin and one 16 px line of text-xs.
+const NOT_SENT_LINE_HEIGHT = 20
 const ROW_STYLE = {
     minHeight: ROW_HEIGHT,
     gap: RECIPIENT_CELL_GAP,
@@ -40,6 +42,9 @@ export type RecipientEntry = {
     isTicked: boolean
     email: string
     error: string
+    // "<number> not sent: <message>" when the screen's saved statement of this customer
+    // was not sent (spec §3.4), else ''.
+    notSent: string
 }
 
 export type RecipientsListState = 'loading' | 'error' | 'empty' | 'list'
@@ -60,8 +65,9 @@ function keyOfEntry(entry: RecipientEntry): string {
     return entry.row.customer
 }
 
-function cardHeightOf(): number {
-    return CARD_HEIGHT
+// A card with the not-sent line under its address is that line taller.
+function cardHeightOf(entry: RecipientEntry): number {
+    return entry.notSent === '' ? CARD_HEIGHT : CARD_HEIGHT + NOT_SENT_LINE_HEIGHT
 }
 
 // The parent's name (muted) before the customer's, and " (inactive)" after it.
@@ -89,7 +95,8 @@ function EmailField({
     isDisabled,
     onEmailChange,
 }: Pick<RecipientPartProps, 'entry' | 'isDisabled' | 'onEmailChange'>) {
-    const { row, email, error } = entry
+    const { row, email, error, notSent } = entry
+    const isNotSent = notSent !== ''
     const placeholderColor = useThemeColor('field-placeholder')
     const border = error ? 'border-danger' : 'border-border'
     const change = (text: string) => onEmailChange(row.customer, text)
@@ -111,7 +118,30 @@ function EmailField({
                 style={INPUT_STYLE}
             />
             <FieldError message={error} testID={`statements-address-error-${row.customer}`} />
+            <NotSentLine
+                isVisible={isNotSent}
+                text={notSent}
+                testID={`statements-recipient-failed-${row.customer}`}
+            />
         </View>
+    )
+}
+
+// The mark of a row whose saved statement was not sent, under its address.
+function NotSentLine({
+    isVisible,
+    text,
+    testID,
+}: {
+    isVisible: boolean
+    text: string
+    testID: string
+}) {
+    if (!isVisible) return null
+    return (
+        <Text testID={testID} className="mt-1 text-xs text-danger">
+            {text}
+        </Text>
     )
 }
 
