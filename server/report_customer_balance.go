@@ -34,7 +34,7 @@ func customerBalanceSpec() *reports.Spec {
 	return &reports.Spec{
 		Version: reports.CurrentVersion,
 		Source:  "books.journal_lines",
-		Params:  cbParams(),
+		Params:  balanceParams(customersParam()),
 		// An unset Customer keeps every line; a set one drops the blank key,
 		// so the No customer row does not show.
 		Filter:  op("and", append(receivableLines(prm("asOf")), op("in", col("customerKey"), prm("customers")))...),
@@ -42,19 +42,14 @@ func customerBalanceSpec() *reports.Spec {
 		Groups:  cbGroups(),
 		Sort:    cbSort(),
 		Detail:  &reports.Detail{Label: cbDetailLabel(), Open: entryOpenPath()},
-		Display: cbDisplay(),
+		Display: balanceDisplay(),
 	}
 }
 
 // cbDetailLabel labels an opened line "<date> · <type> <number> ·
-// <description>".
-func cbDetailLabel() *reports.Node {
-	return op("concat",
-		fld("date"), lit(" · "),
-		lineEntryTypeLabel(), lit(" "), fld("entry", "number"),
-		lit(" · "), lineDescriptionFormula(),
-	)
-}
+// <description>". It stays as a wrapper because TestCustomerBalanceSpecLoads
+// calls it.
+func cbDetailLabel() *reports.Node { return balanceDetailLabel() }
 
 // cbNet is a line's debit less its credit: what it adds to a customer's
 // balance.
@@ -63,31 +58,6 @@ func cbNet() *reports.Node { return op("sub", fld("debit"), fld("credit")) }
 // cbParent is the parent of the line's customer.
 func cbParent() *reports.Node {
 	return &reports.Node{Path: reports.Path{{Link: "customer"}, {Link: "parent"}}}
-}
-
-// cbParams are As of (Today by default), Rows (Non-zero by default),
-// Customer (unset: every customer) and Order (Name by default).
-func cbParams() []reports.ParamDef {
-	return []reports.ParamDef{
-		{ID: "asOf", Type: reports.ParamAsOf, Label: "As of", Default: mustJSON(map[string]string{"preset": "today"})},
-		{
-			ID: "rows", Type: reports.ParamChoice, Label: "Rows",
-			Options: []reports.Option{
-				{Value: "nonzero", Label: "Non-zero"},
-				{Value: "activity", Label: "With activity"},
-			},
-			Default: mustJSON("nonzero"),
-		},
-		customersParam(),
-		{
-			ID: "order", Type: reports.ParamChoice, Label: "Order",
-			Options: []reports.Option{
-				{Value: "name", Label: "Name"},
-				{Value: "balance", Label: "Largest balance"},
-			},
-			Default: mustJSON("name"),
-		},
-	}
 }
 
 // cbColumns are the label, the balance and the two hidden group keys (D6: a
@@ -106,7 +76,7 @@ func cbColumns() []reports.Column {
 // customer shown by the Rows choice.
 func cbGroups() []reports.Group {
 	groups := customerFamilyGroups()
-	groups[1].Having = op("or", op("eq", prm("rows"), lit("activity")), op("ne", op("sum", cbNet()), lit(0)))
+	groups[1].Having = balanceRowsHaving(cbNet())
 	return groups
 }
 
@@ -117,20 +87,5 @@ func cbGroups() []reports.Group {
 // balance key: they order the opened rows of one customer, and core skips
 // them on group levels because they read a line.
 func cbSort() []reports.SortKey {
-	return customerFamilySort(cbNet(), false,
-		reports.SortKey{Formula: fld("date")},
-		reports.SortKey{Formula: fld("entry", "posted_at")},
-		reports.SortKey{Formula: fld("position")},
-	)
-}
-
-// cbDisplay is the fixture's CUSTOMER_BALANCE_DISPLAY: a long customer name
-// wraps to three lines, and Balance is never cut.
-func cbDisplay() *reports.Display {
-	return &reports.Display{
-		Columns: map[string]reports.ColumnFit{
-			"name":    {WhiteSpace: "normal", LineClamp: 3},
-			"balance": {MinWidth: "max-content"},
-		},
-	}
+	return customerFamilySort(cbNet(), false, balanceLineKeys()...)
 }

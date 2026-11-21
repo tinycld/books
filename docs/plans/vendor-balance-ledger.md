@@ -20,16 +20,19 @@
 (none yet)
 
 ## Rebuttals
-(none yet — every reviewer finding rejected in triage is listed here verbatim,
-with the reason, and shown to the human at the end)
+- **finding:** critic (gate 2 "For gate 3"), checkpoint 1: "The Vendor and Balance column headers show sort arrows. The report also has the Order param, and the spec requires "No vendor" "after every vendor under both Order choices". Check that a header sort does not move the No vendor row above a vendor, or that the two sort controls do not disagree."
+  **rebutted because:** the spec bar is on the Order param: "after every vendor under both Order choices" (spec §3, No vendor), and Order is "**Name** (default …) or **Largest balance**" (spec §3, Params). Both choices are pinned by `TestVendorBalanceNoVendor` ("after every vendor row and directly before the Total, under `order` = `name` and under `order` = `balance`"). The heading sort is core's report view on every report (`tinycld/core/reports/components/ReportTable.tsx:137`, `report-sort-${column.id}`, `useHeadingSort`), the same on the Customer Balance and the A/P Aging, and plan D9 makes core's view behavior core-owned. A heading sort is a sort the user chose, not an Order choice.
 
 ## Design notes
-(none yet — gate-2 NOTEs the loop did not act on, as
-`cp N · <shot>: <where> — <what>`; shown to the human at each checkpoint
-and again at the end)
+- cp 1 · populated-768 (light, dark): toolbar — the page title is cut to "Vendor Balan…" beside the five toolbar buttons (core's report view; the full title is in the document header below it). A fix moves a toolbar action into More at this width, a core change.
+- cp 1 · reviewer A: `tinycld/books/seed.ts` `seedVendorBalance` — if the second entry's post throws, Old Town Print Shop stays active (no try/finally); the same as the model `seedCustomerBalance`; a seed failure stops the whole seed.
+- cp 1 · reviewer A: spec §4 still names `vendorGroup()` with `hideEmpty`; the code clears it on the one level because core refuses hideEmpty on the last level (the settled dispute of checkpoint 1). The behavior is the same; the spec line is stale.
+- cp 1 · reviewer A: `tests/e2e/books-vendor-balance.spec.ts` test 3 — the last wait ("no group row") is also true for a moment while the table is empty; it is safe because the Non-zero run's response is awaited first. A stronger proof would also wait for the new run's state.
+- cp 1 · reviewer A: `tinycld/books/seed.ts` — `instanceof ClientResponseError` needs the seed and the client to share one `pocketbase` module; the hoisted workspace makes it so.
 
 ## Out-of-plan changes
-(none yet — every file touched that no checkpoint's Files block named, with why)
+- `docs/plans/vendor-balance-evidence/cp1/capture.json`, the cp1 screenshots and `critique.md`: gate-2 evidence. The Files block does not name them; the plan rule "Captures" names `docs/plans/vendor-balance-evidence/cp<N>/capture.json` (reviewer B finding 1, reviewer A NOTE).
+- `docs/plans/vendor-balance-ledger.md`: written by the loop (the runner), by no agent (reviewer B finding 2).
 
 ## Performance
 (none yet — the measured results of spec §8, on the engine with p5-report-engine-scale merged)
@@ -71,6 +74,22 @@ and again at the end)
   - F9, F11, F13, F14, F15: core files cited for More and Customize; why `vendorBalanceCsv` does not call `withoutLineRecords`; the move takes its imports; run 1 is compared for vendors with a non-zero total; checkpoint 3 has a Size note (about 600 lines are a pure move).
   - Rejected: none.
 - review mode switches: none
+
+## Checkpoint 1
+- test writer: server/report_vendor_balance_test.go, server/testdata/vendor_balance_spec.json, tests/vendor-balance-fixture.test.ts, tests/seed-node.test.ts (describe seedVendorBalance), tests/e2e/books-vendor-balance.spec.ts, tests/e2e/vendor-balance-helpers.ts; red for the right reason: yes (13 Go, 4 seed vitest, 3 e2e; the fixture vitest green from the start and proved able to fail with a changed copy of the JSON); untestable: none
+- test disputes: TestVendorBalanceSpecLoads — the Tests bullet says the `byVendor` group has `HideEmpty` set; core refuses hideEmpty on the last level (`tinycld/core/server/reports/bind.go:851`, "the last level has no child groups to be empty of"). Resolution (runner): the test as written (HideEmpty false) is right and `vbGroup()` clears `HideEmpty`. Settled by the plan's core gap rule: "A different way to write the same report with what core has is allowed"; on a one-level report a group exists only when it has lines, so nothing is lost. Not a core gap.
+- implementer: Do 1 to 8 built (shared balance helpers, Customer Balance extraction D4, `report_vendor_balance.go`, registration, `seedVendorBalance` with its call after `seedApAging`); DONE. The first implementer's report came late (it was still running when the runner was told it had ended); a second dispatch found the tree complete, made no edit, and merged both reports into cp1-impl.md. `server/registrations_test.go` and the fixture not touched.
+- self-declared differences: (1) `vbGroup()` sets `HideEmpty = false` (the settled dispute above); (2) `seedVendorBalance` reads the 6200 account of both entries before the first post, so a missing account writes nothing (same error text); (3) three private seed helpers (`payableAccountId`, `vendorBalanceOther`, `postVendorBalanceEntry`), modelled on `postCustomerBalanceEntry`.
+- gate 1: tests unedited: yes · `go test ./...` ok · `packages:generate` then `tinycld-pkg check` exit 0 (399 files, 8423 tests) · implementer e2e of books-vendor-balance.spec.ts 3/3 · the Do 9 e2e list of 9 files (run by the driver): pass, 58 passed · pass
+- gate 2 capture: lessons that apply: 9 (one snapshot), 13 (a page loaded at each width), 21 (phone report display), 24 (seed ids, seed run once), 31 (drop focus on `report-document-period`), 33 (e2e months). Manifest `evidence/cp1/capture.json` (8 shots, light and dark, built through the Reports hub). First capture: the `empty` shot failed on an action the capture spec does not have (`waitForTextIn`); the manifest now waits for the text "As of January 1, 2020"; second capture 6/6. The built `populated` shows "Old Town Print Shop (inactive)" muted and "No vendor" directly above the Total.
+- gate 2: invalid shots: none · blocking: none · notes: 1, listed under Design notes · "For gate 3": 1 (heading sort vs Order), rebutted (see Rebuttals)
+- gate 3 A (correctness): 0 BLOCK, 5 NOTE; no fix; 4 NOTEs to Design notes, 1 (out-of-plan files) recorded under Out-of-plan changes
+- gate 3 B (conformance): script lines: 0 real, 1 false positive (`tests/seed-node.test.ts` `new PocketBase(...)` in a vitest seed stand-in, used only for `sdk.filter`) · findings: 2 (capture.json and the ledger outside the Files block), each recorded under Out-of-plan changes, no code change
+- fix review: n/a (no accepted finding, no fix round; 0 rounds)
+- gate 3 A notes: 4, listed under Design notes
+- reviewer-caught deferrals: none
+- commit: the commit "feat(books): Vendor Balance report for readers" (this ledger row is in it)
+- human: none (review mode C)
 
 ## Final review
 - eval: (unattended only) approved | revised → <notes, fix sha> | stopped

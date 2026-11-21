@@ -437,6 +437,74 @@ func receivableLines(asOf *reports.Node) []*reports.Node {
 	}
 }
 
+// payableLines are the filter terms of the posted Accounts payable lines on
+// or before asOf: the mirror of receivableLines. The Vendor Balance reads them.
+func payableLines(asOf *reports.Node) []*reports.Node {
+	return []*reports.Node{
+		op("eq", fld("posted"), lit(true)),
+		op("eq", fld("account", "type"), lit("accounts_payable")),
+		op("lte", fld("date"), asOf),
+	}
+}
+
+// balanceParams are the params of a balance report: As of (Today by default),
+// Rows (Non-zero by default), the party param and Order (Name by default).
+func balanceParams(party reports.ParamDef) []reports.ParamDef {
+	return []reports.ParamDef{
+		{ID: "asOf", Type: reports.ParamAsOf, Label: "As of", Default: mustJSON(map[string]string{"preset": "today"})},
+		{
+			ID: "rows", Type: reports.ParamChoice, Label: "Rows",
+			Options: []reports.Option{
+				{Value: "nonzero", Label: "Non-zero"},
+				{Value: "activity", Label: "With activity"},
+			},
+			Default: mustJSON("nonzero"),
+		},
+		party,
+		{
+			ID: "order", Type: reports.ParamChoice, Label: "Order",
+			Options: []reports.Option{
+				{Value: "name", Label: "Name"},
+				{Value: "balance", Label: "Largest balance"},
+			},
+			Default: mustJSON("name"),
+		},
+	}
+}
+
+// balanceRowsHaving shows a party under With activity, or when its net is not zero.
+func balanceRowsHaving(net *reports.Node) *reports.Node {
+	return op("or", op("eq", prm("rows"), lit("activity")), op("ne", op("sum", net), lit(0)))
+}
+
+// balanceLineKeys order the opened lines of one party: date, posting order, position.
+func balanceLineKeys() []reports.SortKey {
+	return []reports.SortKey{
+		{Formula: fld("date")},
+		{Formula: fld("entry", "posted_at")},
+		{Formula: fld("position")},
+	}
+}
+
+// balanceDetailLabel labels an opened line "<date> · <type> <number> · <description>".
+func balanceDetailLabel() *reports.Node {
+	return op("concat",
+		fld("date"), lit(" · "),
+		lineEntryTypeLabel(), lit(" "), fld("entry", "number"),
+		lit(" · "), lineDescriptionFormula(),
+	)
+}
+
+// balanceDisplay: a long party name wraps to three lines, and Balance is never cut.
+func balanceDisplay() *reports.Display {
+	return &reports.Display{
+		Columns: map[string]reports.ColumnFit{
+			"name":    {WhiteSpace: "normal", LineClamp: 3},
+			"balance": {MinWidth: "max-content"},
+		},
+	}
+}
+
 // postedSaleLines are the filter terms of the sale lines in period (spec §3
 // What counts): the item and percent lines of a posted document dated in the
 // period. Description and subtotal lines never count: a subtotal line repeats

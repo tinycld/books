@@ -1,0 +1,95 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280, 1024, 768],
+            "height": 1500,
+            "actions": [
+                { "clickText": "Vendor Balance" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "with-activity",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "height": 1500,
+            "actions": [
+                { "clickText": "Vendor Balance" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-rows" },
+                { "clickRole": "radio", "name": "With activity" },
+                { "waitForHidden": "report-filter-picker" },
+                { "pause": 2000 }
+            ]
+        },
+        {
+            "name": "by-balance",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "height": 1500,
+            "actions": [
+                { "clickText": "Vendor Balance" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-order" },
+                { "clickRole": "radio", "name": "Largest balance" },
+                { "waitForHidden": "report-filter-picker" },
+                { "pause": 2000 }
+            ]
+        },
+        {
+            "name": "filtered",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "actions": [
+                { "clickText": "Vendor Balance" },
+                { "waitFor": "report-table" },
+                { "click": "report-add-filter" },
+                { "click": "report-add-filter-vendors" },
+                { "fill": "report-filter-search", "value": "Harbor Freight" },
+                { "clickRole": "checkbox", "name": "Harbor Freight Logistics" },
+                { "fill": "report-filter-search", "value": "Pacific Power" },
+                { "clickRole": "checkbox", "name": "Pacific Power" },
+                { "click": "report-filter-apply" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitFor": "report-header-param-vendors" },
+                { "pause": 2000 }
+            ]
+        },
+        {
+            "name": "empty",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1024],
+            "actions": [
+                { "clickText": "Vendor Balance" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-asOf" },
+                { "fill": "report-period-as-of", "value": "2020-01-01" },
+                { "press": "Escape" },
+                { "waitFor": "report-empty" },
+                { "waitFor": "As of January 1, 2020" },
+                { "click": "report-document-period" }
+            ]
+        },
+        {
+            "name": "populated-phone",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390],
+            "height": 1800,
+            "actions": [
+                { "clickText": "Vendor Balance" },
+                { "waitFor": "report-table" },
+                { "pause": 1500 }
+            ]
+        }
+    ]
+}
