@@ -741,3 +741,14 @@ The cash basis is the ledger and the cash-basis rows. The stored months are the 
 | 100000 | BS 2 cash, as of | 4.551s | 1.965s |
 
 Median of 5, core 25d6ecac, books 627e24c7; the group rows (10) and rows (20) of BS 1 and BS 2 are the same as before. Statement 5 of BS 2 (1.751s) has 21 `SCAN books_journal_lines` and 21 `SCAN books_cash_basis_lines` (17 of each after task 9c-2; BS 1 has the same 21 of each), and the statement is 259,542 chars (195,543 after task 9c-2). The SCANs are still there, but the Cash history lookups now keep only the rows of layer `cash`, so each reads less. The bar is 2 s at 500,000 lines for both methods; tasks 9d-2, 9e-1 and 9e-2 of the plan outline are what is left for it.
+
+#### Task 9e-1: the Balance Sheet drill reads its first day from the stored months (books `server/report_spec_helpers.go`, 2026-11-20)
+
+A figure's drill opens Transaction Detail by Account from the account's first line up to the column's day. The first day was a `min(date)` over the account's lines, once for Current and once for Prior year (about 0.5 s of the Accrual run at 100,000 lines). It is now the first day of the account's first stored month; on Cash the month of the account's first cash-basis row is read too. The drilled period starts on the 1st of the first line's month (human decision, 2026-11-20) and lists the same lines.
+
+| lines | run | before (task 9d-1) | after |
+|---|---|---|---|
+| 100000 | BS 1 accrual, as of | 940ms | 456ms |
+| 100000 | BS 2 cash, as of | 1.965s | 1.508s |
+
+Median of 5, books 63cdf3cb (the 1-minute load was 5.77 when the run started, so the figures may be slightly high); the group rows (10) and rows (20) of BS 1 and BS 2 are the same as before. Statement 5 of BS 1 (480.2ms, 262,040 chars) and of BS 2 (1.364s, 261,956 chars) each have 21 `SCAN books_journal_lines` and 21 `SCAN books_cash_basis_lines` (21 of each after task 9d-1), 4 `SCAN books_account_balances`, and 18 `SEARCH books_account_balances` by index (14 after task 9d-1: the four new ones are the stored-month lookups of the drills). The count of SCANs did not change: the drills' cash-row lookups SCAN the line tables in place of the old `min(date)` lookups, but on Accrual they hold `method = cash` and read almost nothing. On Cash the cost left is the SCANs of the layer-`cash` rows before the month. The bar is 2 s at 500,000 lines for both methods; tasks 9d-2 and 9e-2 of the plan outline are what is left for it, each decided from a 500k run.
