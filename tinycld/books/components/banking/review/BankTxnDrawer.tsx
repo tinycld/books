@@ -17,6 +17,7 @@ import { uploadedOnText } from '../../../lib/bank-connections'
 import { txnSourceText, txnStatusLabel } from '../../../lib/bank-review'
 import { drawerPlacement } from '../../../lib/drawer-placement'
 import { formatMoney } from '../../../lib/money'
+import { isNearEnd, type ScrollMetrics } from '../../../lib/near-end'
 import { formatDay } from '../../../lib/register-range'
 
 type DrawerModel = ReviewDrawerModel
@@ -25,6 +26,8 @@ type Detail = NonNullable<DrawerModel['detail']>
 const CLOSE_STYLE = { minWidth: 44, minHeight: 44 }
 const BODY_STYLE = { flexShrink: 1 }
 const ACTION_STYLE = { minHeight: 44 }
+
+type ScrollEvent = { nativeEvent: ScrollMetrics }
 
 // A label/value row; a fact with no value (no memo, no check number) is not drawn.
 function Field({ id, label, value }: { id: string; label: string; value: string }) {
@@ -162,17 +165,24 @@ function TxnBody({
 
 // The facts of the pressed transaction, in the register's placement: inline beside the
 // Banking page on a wide window, over it from the right on a tablet, a sheet on a phone. The
-// `children` slot under the fields is where the match and categorize forms go.
+// `children` slot under the fields is where the match and categorize forms go. A list in
+// that slot that loads page by page (the Match section's find mode) is told through
+// `onNearEnd` when the drawer's scroll nears its end.
 export function BankTxnDrawer({
     drawer,
     currency,
+    onNearEnd,
     children,
 }: {
     drawer: DrawerModel
     currency: string
+    onNearEnd?: () => void
     children?: ReactNode
 }) {
     const closeColor = useThemeColor('foreground')
+    const onScroll = ({ nativeEvent }: ScrollEvent) => {
+        if (onNearEnd && isNearEnd(nativeEvent)) onNearEnd()
+    }
     const { contentClassName, ...placement } = drawerPlacement({
         isWide: drawer.isWide,
         isTablet: drawer.isTablet,
@@ -199,7 +209,7 @@ export function BankTxnDrawer({
                         <X size={18} color={closeColor} />
                     </DrawerCloseButton>
                 </DrawerHeader>
-                <DrawerBody style={BODY_STYLE}>
+                <DrawerBody style={BODY_STYLE} onScroll={onScroll} scrollEventThrottle={100}>
                     <TxnBody drawer={drawer} currency={currency}>
                         {children}
                     </TxnBody>

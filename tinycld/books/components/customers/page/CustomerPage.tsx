@@ -18,6 +18,7 @@ import { DiscardDialog } from '../../RecordChild'
 import { RecordSurface } from '../../RecordSurface'
 import { CustomerIdentity } from './CustomerIdentity'
 import { CustomerMoreMenu } from './CustomerMoreMenu'
+import { CustomerStatementsTab } from './CustomerStatementsTab'
 import { CustomerTransactionsTab } from './CustomerTransactionsTab'
 
 const PREFIX = 'customer'
@@ -104,6 +105,15 @@ export function CustomerPage({ record }: { record: BooksCustomers }) {
         <CustomerHeader record={record} page={page} surface={surface} isPhone={isPhone} />
     )
     const transactions = <TransactionsTab record={record} page={page} gutterClass={gutterClass} />
+    const statements = (
+        <CustomerStatementsTab
+            customerId={record.id}
+            customerName={record.display_name}
+            customerEmail={record.email}
+            canWrite={page.canWrite}
+            gutterClass={gutterClass}
+        />
+    )
     const dismissBanner = () => actions.clearActionError()
     const save = () => void page.save()
     return (
@@ -141,6 +151,7 @@ export function CustomerPage({ record }: { record: BooksCustomers }) {
                     id={record.id}
                     page={page}
                     transactions={transactions}
+                    statements={statements}
                     surface={surface}
                     rowClassName={rowClassName}
                     gutterClass={gutterClass}

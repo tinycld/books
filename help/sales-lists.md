@@ -36,6 +36,8 @@ Each row ends with a More actions button. Its row menu holds Open and the action
 
 A posted invoice with a balance due has **Write off** in its row menu, directly after Receive payment, if you can edit the books. It opens the Write off dialog over the list, and the list stays. After the write-off, the invoice's status reads **Written off** on the Invoices tab and on All sales, and its Balance is $0.00. On the Invoices tab, the **Written off** chip lists the invoices that a write-off closed; Paid lists the invoices that payments paid in full. There is no batch write-off. See [Write off an invoice](help://books:write-offs).
 
+A posted credit memo with unapplied credit has **Apply to invoices** first in its row menu, if you can edit the books. It opens the credit memo with its apply dialog open (Apply credit memo 1001). An invoice's row menu has no Apply: open the invoice and choose Apply credit. On the Credit memos tab, the status chips are Unapplied (credit is left, also when a part is applied or refunded), Applied (no credit is left, and a part of it is applied to invoices), Refunded (refund receipts paid out all of it), Draft and Void. See [Apply a credit memo to invoices](help://books:apply-credit).
+
 ## Batch actions
 
 If you can edit the books, each row has a tick box, and the table's header box ticks or clears every loaded row. Then choose Batch actions:

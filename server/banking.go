@@ -85,6 +85,8 @@ const utf8BOM = "\xEF\xBB\xBF"
 // A file's rows are parsed before the transaction (parsing reads no row) and
 // stored after the file row, in its transaction, so every stored file has its
 // rows and a refused one has none.
+//
+// It also binds the import (bank_import.go) and the match (bank_match.go).
 func registerBanking(app core.App) {
 	app.OnRecordCreateRequest("books_bank_connections").BindFunc(func(e *core.RecordRequestEvent) error {
 		stampActor(e.Record, "created_by", e.Auth)
@@ -108,6 +110,7 @@ func registerBanking(app core.App) {
 			func(tx core.App) error { return saveBankContent(tx, e.Record, content.Columns, rows) })
 	})
 	registerBankImport(app)
+	registerBankMatch(app)
 }
 
 // checkBankConnection refuses a connection to an account that is missing,

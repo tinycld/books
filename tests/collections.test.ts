@@ -20,6 +20,9 @@ const NAMES = [
     'books_bank_file_contents',
     'books_bank_imports',
     'books_bank_transactions',
+    'books_bank_matches',
+    'books_bank_match_lines',
+    'books_bank_match_suggestions',
     'books_tax_agencies',
     'books_tax_rates',
     'books_invoices',
@@ -49,6 +52,7 @@ const NAMES = [
     'books_credit_memos',
     'books_credit_memo_lines',
     'books_credit_memo_tax_lines',
+    'books_credit_memo_applications',
     'books_vendor_credits',
     'books_vendor_credit_lines',
     'books_vendor_credit_applications',
@@ -60,6 +64,7 @@ const NAMES = [
     'books_refund_receipt_credits',
     'books_refund_receipt_sale_lines',
     'books_write_offs',
+    'books_statements',
 ]
 
 function register() {
@@ -275,6 +280,32 @@ describe('registerCollections', () => {
         expect(balances?.relations).toBeUndefined()
     })
 
+    // Bank-match spec §4: the client inserts a match with its bank transaction and
+    // its lines; the server stamps the connection and who matched. The match lines
+    // are the server's. The suggestions view is never written: the server signals
+    // its topic when a bank transaction, a line, an entry, a match line or a
+    // connection changes.
+    it('registers the bank match collections and keeps the suggestions view live', () => {
+        const { calls } = register()
+        const matches = calls.get('books_bank_matches')
+        expect(matches?.omitOnInsert).toEqual(['connection', 'created_by', 'created', 'updated'])
+        expect(matches?.relations).toEqual({
+            bank_transaction: { name: 'books_bank_transactions' },
+            lines: { name: 'books_journal_lines' },
+            connection: { name: 'books_bank_connections' },
+        })
+        const lines = calls.get('books_bank_match_lines')
+        expect(lines?.omitOnInsert).toEqual(['created', 'updated'])
+        expect(lines?.relations).toEqual({
+            match: { name: 'books_bank_matches' },
+            bank_transaction: { name: 'books_bank_transactions' },
+            line: { name: 'books_journal_lines' },
+            entry: { name: 'books_journal_entries' },
+        })
+        const suggestions = calls.get('books_bank_match_suggestions')
+        expect(suggestions?.liveTopics).toEqual(['collection/books_bank_match_suggestions'])
+    })
+
     // The audit log view is never written: the server signals its topic when an
     // audit row is written or a line it reads its parent from changes, so an open
     // report or history stays live.
@@ -321,6 +352,27 @@ describe('registerCollections', () => {
         expect(applications).toEqual(expect.arrayContaining(['created', 'applied_by']))
         for (const written of ['vendor_credit', 'bill', 'amount', 'date']) {
             expect(applications, written).not.toContain(written)
+        }
+    })
+
+    // Apply credit spec §4.1: the server writes a credit memo's applied cents, as an
+    // invoice's written_off, and who applied an application; the client never sends them.
+    it('never inserts a credit memo applied sum or an application column the server writes', () => {
+        const { calls } = register()
+        expect(calls.get('books_credit_memos')?.omitOnInsert).toEqual(
+            expect.arrayContaining(['balance', 'applied'])
+        )
+        const applications = calls.get('books_credit_memo_applications')
+        expect(applications?.syncMode).toBe('on-demand')
+        expect(applications?.realtime).toBe('query')
+        expect(applications?.omitOnInsert).toEqual(
+            calls.get('books_vendor_credit_applications')?.omitOnInsert
+        )
+        expect(applications?.omitOnInsert).toEqual(
+            expect.arrayContaining(['created', 'applied_by'])
+        )
+        for (const written of ['credit_memo', 'invoice', 'amount', 'date']) {
+            expect(applications?.omitOnInsert, written).not.toContain(written)
         }
     })
 
@@ -375,6 +427,25 @@ describe('registerCollections', () => {
         for (const written of ['refund', 'vendor_credit', 'amount', 'position']) {
             expect(lines?.omitOnInsert, written).not.toContain(written)
         }
+    })
+
+    // Statements spec §4.2: the client sends the customer, the type, the dates and the
+    // address; the server sets the number, the sequence, the balance, the currency and the
+    // sent fields. The customer files into its collection.
+    it('never inserts a statement column the server sets, and relates its customer', () => {
+        const { calls } = register()
+        const statements = calls.get('books_statements')
+        expect(statements?.omitOnInsert).toEqual([
+            'created',
+            'updated',
+            'number',
+            'sequence',
+            'balance',
+            'currency',
+            'sent_at',
+            'sent_to',
+        ])
+        expect(statements?.relations).toEqual({ customer: { name: 'books_customers' } })
     })
 
     // The contacts tab reads the contacts of one customer; nothing else enters

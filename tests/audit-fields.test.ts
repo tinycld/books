@@ -1,6 +1,11 @@
 import * as zodSchemas from '@tinycld/core/types/pbZodSchema'
 import { describe, expect, it } from 'vitest'
-import { AUDIT_FIELDS, changedFieldRows, DOC_TYPE } from '../tinycld/books/lib/audit-fields'
+import {
+    AUDIT_FIELDS,
+    changedFieldRows,
+    DOC_TYPE,
+    eventWords,
+} from '../tinycld/books/lib/audit-fields'
 import { recordTypeLabel } from '../tinycld/books/lib/audit-log'
 import { AUDIT_RECORD_TYPE_OPTIONS } from '../tinycld/books/lib/audit-log-fixture'
 
@@ -71,6 +76,46 @@ describe('the credit memo fields', () => {
             balance: { before: 0, after: 1_000 },
         })
         expect(rows.map(row => row.label).sort()).toEqual(['Invoice', 'Unapplied credit'])
+    })
+})
+
+// Apply credit spec §3.8: a credit memo's applications are audited, link to the memo
+// and the invoice, and their added and deleted events read as the credit's words.
+describe('the credit memo application fields', () => {
+    it('audits the applications, every field of the generated schema has an entry', () => {
+        expect(AUDITED).toContain('books_credit_memo_applications')
+        expect(recordTypeLabel('books_credit_memo_applications')).toBe('Credit memo application')
+        expect(Object.keys(AUDIT_FIELDS.books_credit_memo_applications ?? {}).sort()).toEqual(
+            schemaFields('books_credit_memo_applications')
+        )
+    })
+
+    it('links an application to its credit memo and its invoice, and reads its amount as money', () => {
+        expect(AUDIT_FIELDS.books_credit_memo_applications?.credit_memo).toMatchObject({
+            kind: 'relation',
+            target: 'books_credit_memos',
+            label: 'Credit memo',
+        })
+        expect(AUDIT_FIELDS.books_credit_memo_applications?.invoice).toMatchObject({
+            kind: 'relation',
+            target: 'books_invoices',
+            label: 'Invoice',
+        })
+        expect(AUDIT_FIELDS.books_credit_memo_applications?.amount).toMatchObject({
+            kind: 'money',
+            label: 'Credit applied',
+        })
+        expect(AUDIT_FIELDS.books_credit_memo_applications?.date?.label).toBe('Apply date')
+    })
+
+    it('reads an application added as "Credit applied" and deleted as "Credit removed"', () => {
+        expect(eventWords('added', 'books_credit_memo_applications')).toBe('Credit applied')
+        expect(eventWords('deleted', 'books_credit_memo_applications')).toBe('Credit removed')
+    })
+
+    it('keeps the words of every other event and collection', () => {
+        expect(eventWords('added')).toBe('Added')
+        expect(eventWords('deleted', 'books_vendor_credit_applications')).toBe('Deleted')
     })
 })
 

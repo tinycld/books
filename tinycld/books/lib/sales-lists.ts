@@ -128,7 +128,7 @@ export const SALES_TABS: readonly DocumentListTab[] = [
         label: 'Credit memos',
         noun: 'credit memos',
         columns: ['date', 'number', 'customer', 'balance', 'total', 'status'],
-        chips: chips('All', 'Unapplied', 'Refunded', 'Draft', 'Void'),
+        chips: chips('All', 'Unapplied', 'Applied', 'Refunded', 'Draft', 'Void'),
         sortKeys: ['balance'],
     }),
     // Refund receipt spec §3.13: the sales receipts tab's columns; a posted refund reads
@@ -153,18 +153,18 @@ export function salesTabForKind(kind: SalesKind): DocumentListTab {
     return tab
 }
 
-function kindOfAction(actionId: string): SalesKind {
-    const kind = ALL_KINDS.find(entry => NEW_ACTION_IDS[entry] === actionId)
-    if (kind === undefined) throw new Error(`NEW_ACTIONS ${actionId} is not a sales kind`)
-    return kind
+function kindOfAction(actionId: string): SalesKind | undefined {
+    return ALL_KINDS.find(entry => NEW_ACTION_IDS[entry] === actionId)
 }
 
-// The All sales New menu: the NEW_ACTIONS that take a customer, in their order, with the
-// kind tabs' New labels.
+// The All sales New menu: the NEW_ACTIONS of a sales kind, in their order, with the kind
+// tabs' New labels. An action that takes a customer but makes no sales document (a
+// statement, statements spec §4.8) has no row here.
 export const SALES_NEW_ITEMS: readonly { kind: SalesKind; label: string; href: string }[] =
-    NEW_ACTIONS.filter(action => action.takesCustomer).map(action => {
+    NEW_ACTIONS.flatMap(action => {
         const kind = kindOfAction(action.id)
-        return { kind, label: NEW_LABELS[kind], href: action.href }
+        if (!action.takesCustomer || kind === undefined) return []
+        return [{ kind, label: NEW_LABELS[kind], href: action.href }]
     })
 
 // The customer page's Transactions tab (spec §3.5 of the customer pages): one customer's

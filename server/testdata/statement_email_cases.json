@@ -1,0 +1,11 @@
+[
+    { "to": "billing@aspenridge.example", "ok": true },
+    { "to": "  billing@aspenridge.example  ", "ok": true },
+    { "to": "", "ok": false },
+    { "to": "a@b", "ok": false },
+    { "to": "not-an-address", "ok": false },
+    { "to": "a@b.co, c@d.co", "ok": false },
+    { "to": "Name <a@b.co>", "ok": false },
+    { "to": "a@[10.0.0.1]", "ok": false },
+    { "to": "billingx@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example", "ok": false }
+]

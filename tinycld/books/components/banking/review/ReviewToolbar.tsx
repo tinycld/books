@@ -157,8 +157,10 @@ function Filters({ model }: { model: ReviewTabModel }) {
 }
 
 // Search, Dates and Type of the transaction tabs: one row on wide, two on a phone (the
-// search alone on the first, the menus and "Clear filters" on one line under it). It stays
-// in every view state, the first load included.
+// search alone on the first, the menus and "Clear filters" on one line under it). On wide,
+// where the list is narrower than the search's and the two menus' minimums (beside the
+// inline drawer), the menus wrap as one group under the search, so the toolbar never
+// scrolls sideways. It stays in every view state, the first load included.
 export function ReviewToolbar({
     model,
     searchRef,
@@ -166,7 +168,7 @@ export function ReviewToolbar({
     model: ReviewTabModel
     searchRef: SearchRef
 }) {
-    const layout = model.isWide ? 'flex-row items-center gap-2' : 'gap-2'
+    const layout = model.isWide ? 'flex-row flex-wrap items-center gap-2' : 'gap-2'
     return (
         <View testID="bank-review-toolbar" className={`pb-2 ${layout}`}>
             <SearchBox search={model.filters.search} isWide={model.isWide} searchRef={searchRef} />

@@ -108,6 +108,9 @@ func TestOAuth_CreditMemosAreScopedAsInvoices(t *testing.T) {
 		"books_credit_memos":          rw,
 		"books_credit_memo_lines":     rw,
 		"books_credit_memo_tax_lines": {Read: []string{scopeRead}},
+		// Apply credit spec §4.3: the applications are read and written as the
+		// vendor credit's are.
+		"books_credit_memo_applications": rw,
 	}
 	for c, access := range want {
 		got, ok := collections[c]
@@ -123,7 +126,7 @@ func TestOAuth_CreditMemosAreScopedAsInvoices(t *testing.T) {
 
 	t.Cleanup(oauth.ResetRegistry)
 	oauth.RegisterPackage(oauthPackage())
-	for _, c := range []string{"books_credit_memos", "books_credit_memo_lines"} {
+	for _, c := range []string{"books_credit_memos", "books_credit_memo_lines", "books_credit_memo_applications"} {
 		path := "/api/collections/" + c + "/records"
 		if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
 			t.Errorf("GET %s: books:read must read", path)
@@ -265,6 +268,56 @@ func TestOAuth_PartyContactsAndBalances(t *testing.T) {
 	}
 }
 
+// Bank-match spec §4: a token makes and undoes a match (books_bank_matches),
+// and only reads the match lines, which the match hook writes, and the
+// suggestion view.
+func TestOAuth_BankMatchCollections(t *testing.T) {
+	collections := oauthPackage().Collections
+	rw := oauth.Access{Read: []string{scopeRead}, Write: []string{scopeWrite}}
+	ro := oauth.Access{Read: []string{scopeRead}}
+	want := map[string]oauth.Access{
+		"books_bank_matches":           rw,
+		"books_bank_match_lines":       ro,
+		"books_bank_match_suggestions": ro,
+	}
+	for c, access := range want {
+		got, ok := collections[c]
+		if !ok {
+			t.Errorf("%s has no OAuth entry", c)
+			continue
+		}
+		if !reflect.DeepEqual(got.Read, access.Read) || len(got.Write) != len(access.Write) ||
+			(len(access.Write) > 0 && !reflect.DeepEqual(got.Write, access.Write)) {
+			t.Errorf("%s OAuth access = %+v, want Read %v and Write %v", c, got, access.Read, access.Write)
+		}
+	}
+
+	t.Cleanup(oauth.ResetRegistry)
+	oauth.RegisterPackage(oauthPackage())
+	matches := "/api/collections/books_bank_matches/records"
+	for _, method := range []string{http.MethodPost, http.MethodDelete} {
+		p := matches
+		if method == http.MethodDelete {
+			p += "/abc123"
+		}
+		if !oauth.ScopeForRoute(method, p).SatisfiedBy([]string{scopeWrite}) {
+			t.Errorf("%s %s: books:write must write", method, p)
+		}
+		if oauth.ScopeForRoute(method, p).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("%s %s: books:read alone must not write", method, p)
+		}
+	}
+	for _, c := range []string{"books_bank_match_lines", "books_bank_match_suggestions"} {
+		path := "/api/collections/" + c + "/records"
+		if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("GET %s: books:read must read", path)
+		}
+		if oauth.ScopeForRoute(http.MethodPost, path).SatisfiedBy([]string{scopeRead, scopeWrite}) {
+			t.Errorf("POST %s: no Books scope may write", path)
+		}
+	}
+}
+
 // A/R Aging spec §4: a token only reads the stored receivable items, which
 // only Books writes. The two views they replaced have no entry.
 func TestOAuth_ReceivableItems(t *testing.T) {
@@ -290,6 +343,38 @@ func TestOAuth_ReceivableItems(t *testing.T) {
 	}
 	if oauth.ScopeForRoute(http.MethodPatch, path+"/x").SatisfiedBy([]string{scopeRead}) {
 		t.Errorf("PATCH %s/x: books:read must not write", path)
+	}
+}
+
+// A/P Aging spec §4.1: a token only reads the stored payable items, which
+// only Books writes.
+func TestOAuth_PayableItems(t *testing.T) {
+	collections := oauthPackage().Collections
+	got, ok := collections[payableItemsCollection]
+	if !ok {
+		t.Fatalf("%s has no OAuth entry", payableItemsCollection)
+	}
+	if !reflect.DeepEqual(got.Read, []string{scopeRead}) || len(got.Write) != 0 {
+		t.Errorf("%s OAuth access = %+v, want Read [%s] and no Write", payableItemsCollection, got, scopeRead)
+	}
+
+	t.Cleanup(oauth.ResetRegistry)
+	oauth.RegisterPackage(oauthPackage())
+	path := "/api/collections/" + payableItemsCollection + "/records"
+	if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
+		t.Errorf("GET %s: books:read must read", path)
+	}
+	if !oauth.ScopeForRoute(http.MethodGet, path+"/x").SatisfiedBy([]string{scopeRead}) {
+		t.Errorf("GET %s/x: books:read must read one row", path)
+	}
+	for _, method := range []string{http.MethodPost, http.MethodPatch, http.MethodDelete} {
+		url := path + "/x"
+		if method == http.MethodPost {
+			url = path
+		}
+		if oauth.ScopeForRoute(method, url).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("%s %s: books:read must not write", method, url)
+		}
 	}
 }
 
@@ -557,6 +642,37 @@ func TestOAuth_EstimatesAreReadWrite(t *testing.T) {
 		}
 		if oauth.ScopeForRoute(http.MethodPost, path).SatisfiedBy([]string{scopeRead}) {
 			t.Errorf("POST %s: books:read alone must not write", path)
+		}
+	}
+}
+
+// Statements spec §4.2: a token reads the statements with books:read and
+// creates or deletes one with books:write.
+func TestOAuth_StatementsAreReadWrite(t *testing.T) {
+	got, ok := oauthPackage().Collections[statementsCollection]
+	if !ok {
+		t.Fatalf("%s has no OAuth entry", statementsCollection)
+	}
+	if !reflect.DeepEqual(got.Read, []string{scopeRead}) || !reflect.DeepEqual(got.Write, []string{scopeWrite}) {
+		t.Errorf("%s OAuth access = %+v, want Read [%s] and Write [%s]", statementsCollection, got, scopeRead, scopeWrite)
+	}
+
+	t.Cleanup(oauth.ResetRegistry)
+	oauth.RegisterPackage(oauthPackage())
+	path := "/api/collections/" + statementsCollection + "/records"
+	if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
+		t.Errorf("GET %s: books:read must read", path)
+	}
+	for _, method := range []string{http.MethodPost, http.MethodDelete} {
+		p := path
+		if method == http.MethodDelete {
+			p += "/abc123"
+		}
+		if !oauth.ScopeForRoute(method, p).SatisfiedBy([]string{scopeWrite}) {
+			t.Errorf("%s %s: books:write must write", method, p)
+		}
+		if oauth.ScopeForRoute(method, p).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("%s %s: books:read alone must not write", method, p)
 		}
 	}
 }

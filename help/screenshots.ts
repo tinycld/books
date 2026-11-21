@@ -69,14 +69,52 @@ async function selectCheckingForShot(page: Page) {
     await expect(checking).toHaveAttribute('aria-selected', 'true')
 }
 
-// The seeded checking-2026-10.ofx left eight transactions for review on 1000 Business
-// Checking (twelve lines, four excluded); the page opens on For review.
+// The seeded checking-2026-10.ofx left nine transactions for review on 1000 Business
+// Checking (fourteen lines, four excluded, one matched by the seed); the page opens on For
+// review.
 async function openBankReviewForShot(page: Page) {
     await selectCheckingForShot(page)
     await expect(page.getByTestId('bank-tab-body-review')).toBeVisible()
     await expect(
         page.locator('[data-testid="bank-review-table-rows"] [data-testid^="bank-review-row-"]')
-    ).toHaveCount(8)
+    ).toHaveCount(9)
+}
+
+// The seeded PACIFIC POWER AUTOPAY row of 1000 Business Checking has one suggestion
+// (seed.ts REVIEW_SEED_ENTRIES), so the For review row shows its check and suggestion.
+const PACIFIC_POWER = 'PACIFIC POWER AUTOPAY'
+
+function pacificPowerRow(page: Page) {
+    return page
+        .locator('[data-testid="bank-review-table-rows"] [data-testid^="bank-review-row-"]')
+        .filter({ has: page.getByText(PACIFIC_POWER, { exact: true }) })
+}
+
+// A viewport tall enough for the nine rows, then fitted to the last one, so the shot holds
+// the PACIFIC POWER AUTOPAY row with its mark.
+async function openBankMatchListForShot(page: Page) {
+    const viewport = page.viewportSize()
+    if (!viewport) throw new Error('no viewport')
+    await page.setViewportSize({ width: viewport.width, height: 1300 })
+    await openBankReviewForShot(page)
+    const row = pacificPowerRow(page)
+    await expect(row.locator('[data-testid^="bank-review-suggestion-"]')).toBeVisible()
+    await fitToContent(
+        page,
+        page.getByTestId('bank-review-table'),
+        page
+            .locator('[data-testid="bank-review-table-rows"] [data-testid^="bank-review-row-"]')
+            .last()
+    )
+}
+
+// The row's drawer, with the Match section and its one suggestion checked.
+async function openBankMatchDrawerForShot(page: Page) {
+    await openBankMatchListForShot(page)
+    await pacificPowerRow(page).getByText(PACIFIC_POWER, { exact: true }).click()
+    await expect(page.getByTestId('bank-match-section')).toBeVisible()
+    await expect(page.locator('[data-testid^="bank-match-option-"]')).toHaveCount(1)
+    await expect(page.getByTestId('bank-match-submit')).toBeEnabled()
 }
 
 async function openBankingForShot(page: Page) {
@@ -97,6 +135,27 @@ async function openBankImportForShot(page: Page) {
         .first()
     await row.locator('[data-testid^="bank-file-import-"]').click()
     await expect(page.getByTestId('bank-import-map')).toBeVisible()
+}
+
+// The seeded Harborview Kitchen holds the two seeded statements (seed.ts): its page on the
+// Statements tab, with both rows shown.
+async function openStatementsTabForShot(page: Page) {
+    await navigateToPackage(page, 'books')
+    await page.getByTestId('books-nav-lists').click()
+    await page.getByTestId('books-list-card-customers').filter({ visible: true }).click()
+    const list = page.getByTestId('customers-list').filter({ visible: true })
+    await expect(list).toBeVisible()
+    const search = page.getByTestId('customers-search').filter({ visible: true })
+    await search.fill('Harborview Kitchen')
+    await expect(list).not.toHaveAttribute('aria-busy', 'true')
+    await list
+        .locator('[data-testid^="customer-row-"]')
+        .filter({ has: page.getByText('Harborview Kitchen', { exact: true }) })
+        .click()
+    await page.getByTestId('customer-tab-statements').click()
+    const tab = page.getByTestId('customer-statements')
+    await expect(tab).toBeVisible()
+    await expect(tab.locator('[data-testid^="statement-row-menu-"]')).toHaveCount(2)
 }
 
 export default {
@@ -128,11 +187,30 @@ export default {
             target: '[data-testid="banking-screen"]',
         },
     ],
+    'bank-match': [
+        {
+            name: 'bank-match-1',
+            setup: openBankMatchListForShot,
+            target: '[data-testid="banking-screen"]',
+        },
+        {
+            name: 'bank-match-2',
+            setup: openBankMatchDrawerForShot,
+            target: '[data-testid="bank-txn-drawer"]',
+        },
+    ],
     'bank-import': [
         {
             name: 'bank-import-1',
             setup: openBankImportForShot,
             target: '[data-testid="bank-import-screen"]',
+        },
+    ],
+    statements: [
+        {
+            name: 'statements-1',
+            setup: openStatementsTabForShot,
+            target: '[data-testid="customer-statements"]',
         },
     ],
 } satisfies ScreenshotPlan

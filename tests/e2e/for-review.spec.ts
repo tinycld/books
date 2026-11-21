@@ -15,7 +15,8 @@ import { importReviewStatement, openReviewTab, reviewRow } from './for-review-he
 // The lists' first test and the filters test each connect their own number-less account and
 // import their own OFX file through the UI; the filters test only presses the 1000 card.
 // The load-error test only reads the seeded connections: 1000 Business Checking, whose seeded
-// checking-2026-10.ofx import left 8 rows for review and 4 excluded, and 2100 Company
+// checking-2026-10.ofx import left 9 rows for review and 4 excluded (the seed matched a
+// tenth, which is Reviewed), and 2100 Company
 // Card, whose card-2026-10.ofx waits to import.
 
 const CHECKING = '1000 Business Checking'
@@ -176,7 +177,7 @@ test.describe('for-review: lists', () => {
             error.getByText('Books could not load these transactions.', { exact: true })
         ).toBeVisible()
         await expect(page.getByTestId('bank-tabs-review')).toBeVisible()
-        await expect(page.getByTestId('bank-tabs-review')).toHaveText('For review (8)')
+        await expect(page.getByTestId('bank-tabs-review')).toHaveText('For review (9)')
 
         await page.unrouteAll({ behavior: 'wait' })
         await page.getByTestId('bank-review-retry').click()
@@ -707,7 +708,7 @@ test.describe('for-review: choosing', () => {
         const rows = page.locator('[data-testid^="bank-review-row-"]')
         const boxes = page.locator('[data-testid^="bank-review-check-"]')
         const drawer = page.getByTestId('bank-txn-drawer')
-        await expect(rows).toHaveCount(8)
+        await expect(rows).toHaveCount(9)
         await expect(boxes).toHaveCount(0)
         await expect(page.getByTestId('bank-review-select-all')).toHaveCount(0)
         await expect(page.getByTestId('bank-review-search')).toBeVisible()

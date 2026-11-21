@@ -186,6 +186,44 @@ const INVOICE_ROWS = [
     },
 ]
 
+// Apply credit spec §3.5 (Q7): the fixture's credit memos carry `applied` 0 (a value the
+// fixture sets wins), and two rows an application touched: one applied in full (balance 0,
+// Applied) and one applied in part (balance above 0, still Unapplied).
+const APPLIED_MEMO_BASE = {
+    ...SALES_LIST_CREDIT_MEMOS[1],
+    date: '2026-11-12',
+    memo: 'Applied to an invoice',
+    total: 25_000,
+}
+const CREDIT_MEMO_ROWS = [
+    ...SALES_LIST_CREDIT_MEMOS.map(row => ({ applied: 0, ...row })),
+    {
+        ...APPLIED_MEMO_BASE,
+        id: 'slcmappliedfull',
+        status: 'posted' as const,
+        number: '28',
+        balance: 0,
+        applied: 25_000,
+    },
+    {
+        ...APPLIED_MEMO_BASE,
+        id: 'slcmappliedpart',
+        status: 'posted' as const,
+        number: '29',
+        balance: 10_000,
+        applied: 15_000,
+    },
+    // A void memo with balance 0 and a stored `applied` above zero: Applied needs posted.
+    {
+        ...APPLIED_MEMO_BASE,
+        id: 'slcmappliedvoid',
+        status: 'void' as const,
+        number: '30',
+        balance: 0,
+        applied: 15_000,
+    },
+]
+
 // The rows of one kind with the badge label each one shows on SALES_LIST_TODAY.
 const KIND_ROWS = {
     invoice: () => keepBadges(INVOICE_ROWS, row => invoiceRow(row, today).status.label, 'invoice'),
@@ -199,7 +237,7 @@ const KIND_ROWS = {
         ),
     payment: () => keepBadges(SALES_LIST_PAYMENTS, row => paymentRow(row).status.label, 'payment'),
     credit_memo: () =>
-        keepBadges(SALES_LIST_CREDIT_MEMOS, row => creditMemoRow(row).status.label, 'credit_memo'),
+        keepBadges(CREDIT_MEMO_ROWS, row => creditMemoRow(row).status.label, 'credit_memo'),
     refund_receipt: () =>
         keepBadges(REFUND_ROWS, row => refundReceiptRow(row).status.label, 'refund_receipt'),
 } satisfies Record<SalesKind, unknown>
@@ -280,6 +318,7 @@ const KIND_TAB_CHIPS: readonly {
         kind: 'credit_memo',
         chips: [
             { id: 'unapplied', isChip: label => label === 'Unapplied' },
+            { id: 'applied', isChip: label => label === 'Applied' },
             { id: 'refunded', isChip: label => label === 'Refunded' },
             { id: 'draft', isChip: label => label === 'Draft' },
             { id: 'void', isChip: label => label === 'Void' },
@@ -320,6 +359,20 @@ describe('chipClause on a kind tab', () => {
         expect((await rows.chip('estimates', 'pending')).ids).not.toContain('slest0000000086')
         expect((await rows.chip('estimates', 'accepted')).ids).not.toContain('slest0000000083')
     })
+
+    // Apply credit spec §3.5: Applied is balance 0 with a part applied, Refunded balance 0
+    // with nothing applied; a memo applied in part stays under Unapplied.
+    it('credit-memos: Applied keeps only the memo applied in full, Refunded only the refunded one', async () => {
+        const rows = KIND_ROWS.credit_memo()
+        expect((await rows.chip('credit-memos', 'applied')).ids).toEqual(['slcmappliedfull'])
+        expect((await rows.chip('credit-memos', 'refunded')).ids).toEqual(['slcm00000000026'])
+        expect((await rows.chip('credit-memos', 'unapplied')).ids).toEqual([
+            'slcm00000000027',
+            'slcmappliedpart',
+        ])
+        expect((await rows.chip('credit-memos', 'void')).ids).toContain('slcmappliedvoid')
+        expect((await rows.chip('credit-memos', 'applied')).ids).not.toContain('slcmappliedvoid')
+    })
 })
 
 // The All sales chip table (spec §3), per kind; `null` is a "none" cell.
@@ -338,7 +391,7 @@ const ALL_SALES_TABLE: {
     estimate: Record<string, RowRule<EstimateFixture>>
     sales_receipt: Record<string, RowRule<(typeof SALES_LIST_SALES_RECEIPTS)[number]>>
     payment: Record<string, RowRule<(typeof SALES_LIST_PAYMENTS)[number]>>
-    credit_memo: Record<string, RowRule<(typeof SALES_LIST_CREDIT_MEMOS)[number]>>
+    credit_memo: Record<string, RowRule<(typeof CREDIT_MEMO_ROWS)[number]>>
     refund_receipt: Record<string, RowRule<(typeof REFUND_ROWS)[number]>>
 } = {
     invoice: {
@@ -426,12 +479,7 @@ describe('chipClause and chipRuns on All sales', () => {
     it.each(ALL_SALES_CHIPS)('chip %s keeps per payment what the table says', chip =>
         allSalesCase('payment', SALES_LIST_PAYMENTS, ALL_SALES_TABLE.payment[chip], chip))
     it.each(ALL_SALES_CHIPS)('chip %s keeps per credit memo what the table says', chip =>
-        allSalesCase(
-            'credit_memo',
-            SALES_LIST_CREDIT_MEMOS,
-            ALL_SALES_TABLE.credit_memo[chip],
-            chip
-        ))
+        allSalesCase('credit_memo', CREDIT_MEMO_ROWS, ALL_SALES_TABLE.credit_memo[chip], chip))
     it.each(ALL_SALES_CHIPS)('chip %s keeps per refund receipt what the table says', chip =>
         allSalesCase('refund_receipt', REFUND_ROWS, ALL_SALES_TABLE.refund_receipt[chip], chip))
 

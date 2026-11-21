@@ -64,6 +64,7 @@ const GROUPS = [
     { collection: 'books_bank_files', path: 'books/banking', label: 'Open banking' },
     { collection: 'books_bank_imports', path: 'books/banking', label: 'Open banking' },
     { collection: 'books_bank_transactions', path: 'books/banking', label: 'Open banking' },
+    { collection: 'books_bank_matches', path: 'books/banking', label: 'Open banking' },
 ]
 
 describe('auditRecordHref', () => {
@@ -122,8 +123,25 @@ describe('auditRecordHref', () => {
         expect(auditOpenLabel('books_vendor_credits')).toBe('Open vendor credit')
     })
 
+    // Apply credit spec §3.8: a credit memo application's history opens its credit memo's
+    // read view, from the application's live row, never the invoice's.
+    it('a credit memo application opens its credit memo’s read view', () => {
+        const memo = 'crmo1001foxhv01'
+        const live = { id: ID, credit_memo: memo, invoice: 'invc1001foxhv01' }
+        expect(auditRecordHref('books_credit_memo_applications', ID, live)).toBe(
+            documentHref(CREDIT_MEMO_KIND, memo)
+        )
+        expect(auditRecordHref('books_credit_memo_applications', ID, live)).toBe(
+            `books/credit-memos/${memo}`
+        )
+        expect(auditRecordOpenLabel('books_credit_memo_applications', live)).toBe(
+            'Open credit memo'
+        )
+        expect(auditRecordHref('books_credit_memo_applications', ID, undefined)).toBeNull()
+    })
+
     // Vendor refund spec §3.11: a vendor refund's lines are filed under their refund
-    // (parent_type books_vendor_refunds, parent_id the refund id: migration 2100000029's
+    // (parent_type books_vendor_refunds, parent_id the refund id: migration 2100000034's
     // LINES), so the history of a line is the refund's, and its Open is the refund's read
     // view; a refund's entry opens on its refund, and its void reversal as an entry.
     it('a vendor refund record, the refund id a line’s history is filed under, and its entry open books/vendor-refunds/<id>', () => {

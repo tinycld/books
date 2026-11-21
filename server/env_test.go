@@ -373,7 +373,9 @@ func grantOverride(t testing.TB, app core.App, user *core.Record, expires time.T
 }
 
 // requireNoDrift fails when a month row disagrees with the ledger, a line's
-// posting stamp disagrees with its entry, a stored receivable row disagrees with the book, or a stored cash month disagrees with the cash-basis rows.
+// posting stamp disagrees with its entry, a stored receivable or payable row
+// disagrees with the book, or a stored cash month disagrees with the cash-basis
+// rows.
 func requireNoDrift(t testing.TB, app core.App) {
 	t.Helper()
 	drifts, err := verifyBalances(app)
@@ -390,12 +392,19 @@ func requireNoDrift(t testing.TB, app core.App) {
 	if len(lines) > 0 {
 		t.Fatalf("lines disagree with their entries: %+v", lines)
 	}
-	receivables, err := verifyReceivables(app)
+	receivables, err := receivableItems.verify(app)
 	if err != nil {
 		t.Fatalf("verify receivables: %v", err)
 	}
 	if len(receivables) > 0 {
 		t.Fatalf("receivable rows drifted from the book: %+v", receivables)
+	}
+	payables, err := payableItems.verify(app)
+	if err != nil {
+		t.Fatalf("verify payables: %v", err)
+	}
+	if len(payables) > 0 {
+		t.Fatalf("payable rows drifted from the book: %+v", payables)
 	}
 	cashMonths, err := verifyCashBalances(app)
 	if err != nil {

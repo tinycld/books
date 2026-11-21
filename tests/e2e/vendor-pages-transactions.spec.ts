@@ -109,19 +109,31 @@ function transaction(page: Page, id: string) {
     return page.getByTestId(`vendor-transaction-${id}`)
 }
 
+// One read of the DOM that never waits for an element: the list swaps its table for cards
+// on a later layout, so a locator read could wait for a table that has unmounted.
+function readListWidth(page: Page) {
+    return page.evaluate(() => {
+        const shown = (id: string) => {
+            const el = document.querySelector<HTMLElement>(`[data-testid="${id}"]`)
+            return el !== null && el.getClientRects().length > 0 ? el : null
+        }
+        const table = shown('vendor-transactions-table')
+        return {
+            cards: shown('vendor-transactions-cards') !== null,
+            tableFits: table !== null && table.scrollWidth <= table.clientWidth,
+        }
+    })
+}
+
 // True when the list shows cards, or a table whose own scroller does not reach past its
 // box (no sideways scroll).
 async function listFitsItsWidth(page: Page) {
-    if (await page.getByTestId('vendor-transactions-cards').isVisible()) return true
-    const table = page.getByTestId('vendor-transactions-table')
-    if (!(await table.isVisible())) return false
-    return table.evaluate(el => el.scrollWidth <= el.clientWidth)
+    const list = await readListWidth(page)
+    return list.cards || list.tableFits
 }
 
 async function tableFitsItsWidth(page: Page) {
-    const table = page.getByTestId('vendor-transactions-table')
-    if (!(await table.isVisible())) return false
-    return table.evaluate(el => el.scrollWidth <= el.clientWidth)
+    return (await readListWidth(page)).tableFits
 }
 
 function refusal(route: Route) {

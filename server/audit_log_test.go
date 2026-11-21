@@ -44,6 +44,8 @@ var wantAuditParentFields = map[string]string{
 	"books_vendor_refund_lines": "refund",
 	// A refund receipt's line names its refund receipt (refund receipt spec §4.1).
 	"books_refund_receipt_lines": "refund_receipt",
+	// A credit memo's application names the credit memo (apply credit spec §4.1).
+	"books_credit_memo_applications": "credit_memo",
 }
 
 // auditGolden is server/testdata/audit_log_spec.json, which the vitest
@@ -173,7 +175,7 @@ func TestAuditLogViewColumns(t *testing.T) {
 		types[f.GetName()] = f.Type()
 	}
 	want := []string{
-		"id", "created", "actor", "actor_name", "event", "record_type", "record_id", "record_label",
+		"id", "created", "actor", "actor_name", "event", "event_shown", "record_type", "record_id", "record_label",
 		"changes", "snapshot", "parent_type", "parent_id", "history_type", "history_id",
 	}
 	if !reflect.DeepEqual(slices.Sorted(slices.Values(names)), slices.Sorted(slices.Values(want))) {
@@ -184,7 +186,7 @@ func TestAuditLogViewColumns(t *testing.T) {
 			t.Errorf("%s lists %s, which the view must leave out", auditLogView, hidden)
 		}
 	}
-	for _, name := range []string{"actor", "actor_name", "event", "parent_type", "parent_id", "history_type", "history_id"} {
+	for _, name := range []string{"actor", "actor_name", "event", "event_shown", "parent_type", "parent_id", "history_type", "history_id"} {
 		if types[name] != core.FieldTypeText {
 			t.Errorf("%s.%s is a %q field, want text (a CAST(… AS TEXT) column, B1)", auditLogView, name, types[name])
 		}

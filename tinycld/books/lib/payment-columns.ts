@@ -99,6 +99,28 @@ export const CREDIT_APPLY_GRID_MIN_WIDTH = gridMinWidth(
     ]
 )
 
+// The credit memo's apply dialog (apply credit spec §3.2): Tick, Invoice, Due date, Open
+// balance, Credit to apply. The one column set whose least widths pass the spec's 95 px:
+// Due date takes 154 px, so "Oct 14, 2026 · Overdue" is not cut, and Credit to apply 114 px.
+// The grid's least width (566 px) still fits the xl dialog's 598 px of content.
+export const MEMO_APPLY_COLUMNS = {
+    tick: 44,
+    invoice: DATA_COLUMN,
+    dueDate: { flex: 1, minWidth: 154 },
+    open: DATA_COLUMN,
+    payment: { flex: 1, minWidth: 114 },
+} as const
+
+export const MEMO_APPLY_GRID_MIN_WIDTH = gridMinWidth(
+    [MEMO_APPLY_COLUMNS.tick],
+    [
+        MEMO_APPLY_COLUMNS.invoice,
+        MEMO_APPLY_COLUMNS.dueDate,
+        MEMO_APPLY_COLUMNS.open,
+        MEMO_APPLY_COLUMNS.payment,
+    ]
+)
+
 // The vendor refund's credits (vendor refund spec §3.4): Tick, Vendor credit (with the
 // vendor's credit no. under it), Credit date, Credit total, Unapplied credit, Refund. No
 // Vendor column (the credits are one vendor's); the Vendor credit column takes two shares,

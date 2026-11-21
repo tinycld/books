@@ -295,6 +295,12 @@ func transitionEntry(tx core.App, stored, next *core.Record, now time.Time) erro
 			return refuse("%s cannot change (%s) when it is voided. A void changes only the status.",
 				entryName(stored), strings.Join(changed, ", "))
 		}
+		// Every void passes here (an entry void, the original of an edit, a
+		// document void), so a matched line's bank transaction returns to For
+		// review in the void's transaction.
+		if err := unmatchEntry(tx, next.Id); err != nil {
+			return err
+		}
 		return voidEntry(tx, next, now)
 	case from == to:
 		changed, err := changesBeyondUnlinks(tx, stored, next, nil, entryUserLinks)

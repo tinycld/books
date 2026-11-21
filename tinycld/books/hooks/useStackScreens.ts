@@ -30,6 +30,23 @@ export function useStackPosition<T extends string | number>(
     })
 }
 
+// useStackPosition's selection read when it is called, in an event handler, where
+// getState() is current: for a target known only then (a row of a list). A screen outside
+// a stack has no state, so the selection gets no screens.
+export function useStackPositionAtCall(): (
+    select: (state: { routes: readonly StackScreen[] }, key: string) => number
+) => number {
+    const navigation = useNavigation()
+    const { key } = useRoute()
+    const kindStack = useKindStack()
+    return select => {
+        const state = navigation.getState()
+        if (state === undefined) return select({ routes: [] }, key)
+        if (kindStack === null) return select({ routes: flattenStack(state) }, key)
+        return select({ routes: nestedStack(kindStack.below, kindStack.kindRoute, state) }, key)
+    }
+}
+
 // Pops `count` flat screens (the count useStackPosition's selectors give). It reads the
 // stack when it is called, in an event handler, where getState() is current.
 export function usePopScreens(): (count: number) => void {
@@ -73,6 +90,23 @@ export function usePopToScreenBelow(name: string): () => boolean {
     return () => {
         const state = navigation.getState?.()
         if (state === undefined || state.routes[state.index - 1]?.name !== name) return false
+        router.back()
+        return true
+    }
+}
+
+// Pops this screen when the root route right below it is the kind route `kindRoute` with
+// the record `id` on top of its child stack (a record page this screen was opened from),
+// and gives false when it is not, so the caller replaces the screen instead. It reads the
+// stack when it is called, in an event handler. A screen outside a stack has no state.
+export function usePopToRecordBelow(kindRoute: string): (id: string) => boolean {
+    const navigation = useNavigation()
+    const { key } = useRoute()
+    return id => {
+        const state = navigation.getState?.()
+        if (state === undefined || kindRouteBelowShowing(state, key, kindRoute, id) < 0) {
+            return false
+        }
         router.back()
         return true
     }

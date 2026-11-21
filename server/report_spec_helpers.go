@@ -257,6 +257,47 @@ func noCustomerLast() reports.SortKey {
 	return reports.SortKey{Formula: op("if", op("isEmpty", rec("byTop", "id")), lit(1), lit(0))}
 }
 
+// vendorsParam is the Vendor param of the vendor reports: any number of
+// vendors, inactive ones included. The document header names the picks.
+func vendorsParam() reports.ParamDef {
+	return reports.ParamDef{
+		ID: "vendors", Type: reports.ParamChoice, Label: "Vendor", Multiple: true,
+		Header:      "Vendor: {label}",
+		OptionsFrom: &reports.OptionsFrom{Source: "books.vendors", Value: path("id"), Label: path("display_name")},
+	}
+}
+
+// vendorGroup is the vendor level: shown only with a row, muted when
+// inactive. A blank key (no vendor) labels "No vendor".
+func vendorGroup() reports.Group {
+	inactive := op("eq", rec("byVendor", "inactive"), lit(true))
+	return reports.Group{
+		ID: "byVendor", Col: "vendorKey", HideEmpty: true,
+		// The suffix keeps the mark in exports and screen readers, which do
+		// not read the muted tone.
+		Label: op("concat",
+			op("coalesce", rec("byVendor", "display_name"), lit("No vendor")),
+			op("if", inactive, lit(" (inactive)"), lit("")),
+		),
+		Muted: inactive,
+	}
+}
+
+// vendorSort is the vendor order (D7): the report's inner keys; No vendor
+// last, before the balance key, so it stays last under Largest balance;
+// under Largest balance the vendor's sum of net, largest first; then
+// vendors by name, ignoring case. Core skips a key that reads a row value on
+// a group level and a key that reads a column blank above its level, so
+// inner keys that read an item or a line order the opened rows only.
+func vendorSort(net *reports.Node, inner ...reports.SortKey) []reports.SortKey {
+	keys := append([]reports.SortKey{}, inner...)
+	return append(keys,
+		reports.SortKey{Formula: op("if", op("isEmpty", rec("byVendor", "id")), lit(1), lit(0))},
+		reports.SortKey{Formula: op("if", op("eq", prm("order"), lit("balance")), op("sum", net), lit(0)), Dir: "desc"},
+		reports.SortKey{Formula: op("lower", rec("byVendor", "display_name"))},
+	)
+}
+
 // agingBand is one age column: its id, its label and the ages it holds.
 type agingBand struct {
 	id, label string
@@ -289,6 +330,118 @@ func agingColumns(age, net *reports.Node) []reports.Column {
 		})
 	}
 	return append(out, reports.Column{ID: "total", Label: "Total", Formula: op("sum", net)})
+}
+
+// itemKindLabel is the label of an item's kind (min(item_kind): every row of
+// an item has the one kind), from the item_kind options of source; the last
+// option (Journal entry) is the fallback.
+func itemKindLabel(source reports.Source) *reports.Node {
+	kind := op("min", fld("item_kind"))
+	var options []reports.Option
+	for _, f := range source.Fields {
+		if f.Key == "item_kind" {
+			options = f.Options
+		}
+	}
+	if len(options) == 0 {
+		panic("books: " + source.Key + " has no item_kind options")
+	}
+	last := len(options) - 1
+	args := make([]*reports.Node, 0, 2*last+1)
+	for _, o := range options[:last] {
+		args = append(args, op("eq", kind, lit(o.Value)), lit(o.Label))
+	}
+	return op("case", append(args, lit(options[last].Label))...)
+}
+
+// agingItemGroup is the open-item level of an aging report: labelled
+// "<type> <number>" and shown only when its amount on the day is not zero.
+func agingItemGroup(net, kindLabel *reports.Node) reports.Group {
+	return reports.Group{
+		ID: "byItem", Col: "itemKey",
+		Label:  op("concat", kindLabel, lit(" "), op("min", fld("item_number"))),
+		Having: op("ne", op("sum", net), lit(0)),
+	}
+}
+
+// agingParams are As of (Today by default), the party param and Order (Name
+// by default).
+func agingParams(party reports.ParamDef) []reports.ParamDef {
+	return []reports.ParamDef{
+		{ID: "asOf", Type: reports.ParamAsOf, Label: "As of", Default: mustJSON(map[string]string{"preset": "today"})},
+		party,
+		{
+			ID: "order", Type: reports.ParamChoice, Label: "Order",
+			Options: []reports.Option{
+				{Value: "name", Label: "Name"},
+				{Value: "balance", Label: "Largest balance"},
+			},
+			Default: mustJSON("name"),
+		},
+	}
+}
+
+// agingAge is a row's age on the As of day: the days from its item's due
+// date to the day (core diffDays(a, b) is b − a).
+func agingAge() *reports.Node { return op("diffDays", fld("due_date"), prm("asOf")) }
+
+// agingDetailLabel labels an opened line "<date> · <type> <number>".
+func agingDetailLabel() *reports.Node {
+	return op("concat", fld("date"), lit(" · "), lineEntryTypeLabel(), lit(" "), fld("entry", "number"))
+}
+
+// agingDisplay is the fixtures' AR_AGING_DISPLAY (ar-aging-fixture.ts) and
+// AP_AGING_DISPLAY (ap-aging-fixture.ts): the eight columns on one line where
+// the rows are 940 px wide or wider, a long party name wraps to three lines,
+// and no figure is cut. Narrower rows wrap onto the tablet arrangement (rows
+// of 640 px and wider) or the phone arrangement.
+func agingDisplay() *reports.Display {
+	figure := reports.ColumnFit{MinWidth: "max-content"}
+	return &reports.Display{
+		OneLine: &reports.DisplayOneLine{MinWidth: "940px"},
+		Columns: map[string]reports.ColumnFit{
+			"name":    {WhiteSpace: "normal", LineClamp: 3},
+			"due":     figure,
+			"current": figure,
+			"d30":     figure,
+			"d60":     figure,
+			"d90":     figure,
+			"d91":     figure,
+			"total":   figure,
+		},
+		Layouts: []reports.DisplayLayout{
+			// Total is on the phone's second line, not its last (F1, option a):
+			// core draws a group row with only the lines it has a value on, and
+			// Total always has one, so the second line is on every row and each
+			// figure keeps the place that names its age.
+			{
+				Width: "mobile", Tracks: 3,
+				Cells: []reports.DisplayCell{
+					{Col: "name", Line: 1, Span: 2},
+					{Col: "due", Line: 1},
+					{Col: "current", Line: 2},
+					{Col: "d30", Line: 2},
+					{Col: "total", Line: 2},
+					{Col: "d60", Line: 3},
+					{Col: "d90", Line: 3},
+					{Col: "d91", Line: 3},
+				},
+			},
+			{
+				Width: "tablet", MinWidth: "640px", Tracks: 12,
+				Cells: []reports.DisplayCell{
+					{Col: "name", Line: 1, Span: 10},
+					{Col: "total", Line: 1, Span: 2},
+					{Col: "due", Line: 2, Span: 2},
+					{Col: "current", Line: 2, Span: 2},
+					{Col: "d30", Line: 2, Span: 2},
+					{Col: "d60", Line: 2, Span: 2},
+					{Col: "d90", Line: 2, Span: 2},
+					{Col: "d91", Line: 2, Span: 2},
+				},
+			},
+		},
+	}
 }
 
 // receivableLines are the filter terms of the posted Accounts receivable

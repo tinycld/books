@@ -162,6 +162,44 @@ export function registerCollections(
 
     Object.assign(lineRelations, { entry: books_journal_entries })
 
+    // The bank collections that read journal lines come after the lines. A writer
+    // inserts a match with its bank transaction and lines; the server stamps the
+    // connection and who matched, writes the match lines and moves the bank
+    // transaction to reviewed (server/bank_match.go).
+    const books_bank_matches = newCollection('books_bank_matches', {
+        omitOnInsert: ['connection', 'created_by', 'created', 'updated'] as const,
+        ...onDemand,
+        relations: {
+            bank_transaction: books_bank_transactions,
+            lines: books_journal_lines,
+            connection: books_bank_connections,
+        },
+        collectionOptions: indexed,
+    })
+
+    // Written only by the server, one row for each matched journal line.
+    const books_bank_match_lines = newCollection('books_bank_match_lines', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        relations: {
+            match: books_bank_matches,
+            bank_transaction: books_bank_transactions,
+            line: books_journal_lines,
+            entry: books_journal_entries,
+        },
+        collectionOptions: indexed,
+    })
+
+    // A view, never written: the server signals its topic when a bank transaction,
+    // a journal line, an entry, a match line or a connection changes
+    // (server/register.go), so the For review list follows a post, a void or a
+    // match with no reload.
+    const books_bank_match_suggestions = newCollection('books_bank_match_suggestions', {
+        ...onDemand,
+        ...liveViewOptions('books_bank_match_suggestions'),
+        collectionOptions: indexed,
+    })
+
     // Server-maintained; reports read these instead of summing lines.
     const books_account_balances = newCollection('books_account_balances', {
         omitOnInsert: ['created', 'updated'] as const,
@@ -320,8 +358,10 @@ export function registerCollections(
 
     // As the invoice's three: server-owned fields below the omit line (the
     // number at posting, the totals at every draft write, the credit not yet
-    // applied at posting and void), no relations (the credit memo screen reads
-    // its customer, tax rate, invoice and users through its own queries).
+    // applied at posting and void, the cents applied to invoices at each
+    // application, as the invoice's written_off), no relations (the credit memo
+    // screen reads its customer, tax rate, invoice and users through its own
+    // queries).
     const books_credit_memos = newCollection('books_credit_memos', {
         omitOnInsert: [
             'created',
@@ -332,6 +372,7 @@ export function registerCollections(
             'tax_total',
             'total',
             'balance',
+            'applied',
             'revision',
             'currency',
             'entry',
@@ -643,6 +684,16 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // One row per invoice a credit memo is applied to, written as the vendor
+    // credit's applications: the client sends the memo, the invoice, the amount
+    // and the apply date; the server stamps applied_by and close_override.
+    const books_credit_memo_applications = newCollection('books_credit_memo_applications', {
+        omitOnInsert: ['created', 'applied_by', 'close_override'] as const,
+        ...onDemand,
+        relations: { credit_memo: books_credit_memos, invoice: books_invoices },
+        collectionOptions: indexed,
+    })
+
     // As the payment's: server-owned fields below the omit line (the number at
     // posting, who and when by the request). The read view materializes its vendor,
     // Refunded to account, entry, poster and voider, and the correction reads the
@@ -717,6 +768,26 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // A customer statement: the client sends the customer, the type, the dates and the
+    // address; the server's create guard (server/statements.go) sets the number, the
+    // sequence, the balance and the currency, and only the send route sets the sent
+    // fields. The customer files into its collection for the screens that materialize it.
+    const books_statements = newCollection('books_statements', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'number',
+            'sequence',
+            'balance',
+            'currency',
+            'sent_at',
+            'sent_to',
+        ] as const,
+        ...onDemand,
+        relations: { customer: books_customers },
+        collectionOptions: indexed,
+    })
+
     // Written by the server from payments (the cash basis); clients only read them.
     const books_cash_basis_lines = newCollection('books_cash_basis_lines', {
         omitOnInsert: ['created', 'updated'] as const,
@@ -765,6 +836,9 @@ export function registerCollections(
         books_bank_file_contents,
         books_bank_imports,
         books_bank_transactions,
+        books_bank_matches,
+        books_bank_match_lines,
+        books_bank_match_suggestions,
         books_journal_lines,
         books_journal_entries,
         books_account_balances,
@@ -788,6 +862,7 @@ export function registerCollections(
         books_credit_memos,
         books_credit_memo_lines,
         books_credit_memo_tax_lines,
+        books_credit_memo_applications,
         books_refund_receipts,
         books_refund_receipt_lines,
         books_refund_receipt_tax_lines,
@@ -811,6 +886,7 @@ export function registerCollections(
         books_vendor_refunds,
         books_vendor_refund_lines,
         books_write_offs,
+        books_statements,
         books_cash_basis_lines,
         books_cash_basis_tax_lines,
         books_party_balances,

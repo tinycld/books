@@ -41,6 +41,7 @@ describe('help/reports.md', () => {
         '## Read the Customer Balance report',
         '## Read the A/R Aging report',
         '## Read the sales reports',
+        '## Read the A/P Aging report',
     ])('has the heading "%s"', heading => {
         expect(body).toMatch(new RegExp(`^${heading}$`, 'm'))
     })
@@ -569,6 +570,25 @@ describe('help/reports.md', () => {
             expect(oneSentence(/\bline\b/i, /\bopens?\b/i, /\bdocument\b/i)).toBe(true)
         })
 
+        // Apply credit checkpoint 2 (spec §3.8 "A/R Aging" and "Help").
+        it('says an applied credit lowers the invoice from the apply date, in one sentence', () => {
+            expect(
+                oneSentence(
+                    /\bappl(?:y|ied)\b/i,
+                    /\bcredit\b/i,
+                    /\binvoice\b/i,
+                    /\blowers?\b/i,
+                    /\bapply date\b/i
+                )
+            ).toBe(true)
+        })
+
+        it('says a credit memo then shows only its unapplied rest, in one sentence', () => {
+            expect(
+                oneSentence(/\bcredit memo\b/i, /\bonly\b/i, /\bunapplied\b/i, /\bappl(?:y|ied)\b/i)
+            ).toBe(true)
+        })
+
         it('says that on a phone the Total is on the first line of figures', () => {
             expect(oneSentence(/\bphone\b/i, /\bTotal\b/, /\bfirst line of figures\b/i)).toBe(true)
         })
@@ -702,6 +722,77 @@ describe('help/reports.md', () => {
 
     it('"Who sees Books reports" names the A/R Aging', () => {
         expect(section('## Who sees Books reports')).toContain('A/R Aging')
+    })
+
+    // A/P Aging checkpoint 5 (spec §3 "Help").
+    it('"Who sees Books reports" names the A/P Aging', () => {
+        expect(section('## Who sees Books reports')).toContain('the A/P Aging')
+    })
+
+    // A/P Aging checkpoint 5 (spec §3 "Help", §2 the Vendors list's Reports menu).
+    describe('the "Read the A/P Aging report" section', () => {
+        const payables = section('## Read the A/P Aging report')
+        const sentences = payables.split(/(?<=[.!?])\s+/)
+        const oneSentence = (...phrases: RegExp[]) =>
+            sentences.some(sentence => phrases.every(phrase => phrase.test(sentence)))
+
+        // The sales reports stay directly after the A/R Aging; the A/P Aging comes after them.
+        it('comes directly after "Read the sales reports"', () => {
+            const headings = [...body.matchAll(/^## .*$/gm)].map(m => m[0])
+            const sales = headings.indexOf('## Read the sales reports')
+            expect(sales).toBeGreaterThanOrEqual(0)
+            expect(headings[sales + 1]).toBe('## Read the A/P Aging report')
+        })
+
+        it('names open items', () => {
+            expect(payables).toMatch(/\bopen items?\b/i)
+        })
+
+        it('says age is counted from the due date', () => {
+            expect(payables).toMatch(/\bdue date\b/i)
+        })
+
+        // "Due date" is also a column name and "As of" is also in the heading example, so the
+        // age rule is held as one sentence.
+        it('says age is the days from the due date to the As of day, in one sentence', () => {
+            expect(oneSentence(/\bage\b/i, /\bdue date\b/i, /\bAs of day\b/)).toBe(true)
+        })
+
+        it('says a vendor opens into its open items, an item into its lines, and a line opens its document', () => {
+            expect(
+                oneSentence(/\bpress the vendor row\b/i, /\bopens into\b/i, /\bopen item\b/i)
+            ).toBe(true)
+            expect(oneSentence(/\bpress the item row\b/i, /\blines of an item\b/i)).toBe(true)
+            expect(oneSentence(/\bpress the line\b/i, /\bdocument\b/i, /\bopens\b/i)).toBe(true)
+        })
+
+        it('says a vendor credit is a negative figure', () => {
+            expect(payables).toMatch(/\bnegative\b/i)
+        })
+
+        it("says a vendor's Total equals its page's Open balance", () => {
+            expect(payables).toMatch(/\bOpen balance\b/)
+        })
+
+        it("says the report's Total equals the Balance Sheet", () => {
+            expect(payables).toMatch(/\bBalance Sheet\b/)
+        })
+
+        it('names the As of day', () => {
+            expect(payables).toMatch(/\bAs of\b/)
+        })
+
+        it('names the Order choice Largest balance', () => {
+            expect(payables).toMatch(/\bLargest balance\b/)
+        })
+
+        it('names the No vendor row', () => {
+            expect(payables).toMatch(/\bNo vendor\b/)
+        })
+
+        it("names the Vendors list's Reports menu in one sentence", () => {
+            expect(oneSentence(/\bReports\b/, /\bVendors list\b/, /\bA\/P Aging\b/)).toBe(true)
+        })
     })
 
     it.each([
@@ -852,6 +943,19 @@ describe('help/reports.md', () => {
 describe('help/reports.md (write-offs)', () => {
     it('names a write-off or the Written off status', () => {
         expect(body).toMatch(/\bwrite-offs?\b|\bWritten off\b/i)
+    })
+})
+
+// Statements spec §3.11: the reports topic names the two statement reports and links the
+// statements topic.
+describe('help/reports.md (statements)', () => {
+    it('names the two statement reports', () => {
+        expect(body).toContain('Statement: Balance Forward')
+        expect(body).toContain('Statement: Open Items')
+    })
+
+    it('links the statements topic', () => {
+        expect(body).toContain('(help://books:statements)')
     })
 })
 

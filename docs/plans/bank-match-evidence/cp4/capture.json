@@ -1,0 +1,217 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "reviewed",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-reviewed",
+            "widths": [390],
+            "actions": [
+                { "click": "bank-tabs-reviewed" },
+                { "waitForCount": "bank-review-inbooks-", "count": 1 },
+                { "waitFor": "ONLINE BILL PAY 0915" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "reviewed",
+            "url": "/a/books/banking",
+            "ready": "bank-tabs-reviewed",
+            "widths": [1280],
+            "actions": [
+                { "click": "bank-tabs-reviewed" },
+                { "waitForCount": "bank-review-inbooks-", "count": 1 },
+                { "waitFor": "ONLINE BILL PAY 0915" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "matched",
+            "url": "/a/books/banking",
+            "ready": "bank-matched-section",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [390],
+            "actions": [
+                { "waitFor": "bank-tabs-reviewed" },
+                { "click": "bank-tabs-reviewed" },
+                { "waitForCount": "bank-review-inbooks-", "count": 1 },
+                { "clickText": "ONLINE BILL PAY 0915" },
+                { "waitForCount": "bank-match-link-", "count": 1 },
+                { "waitFor": "bank-match-undo" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "matched",
+            "url": "/a/books/banking",
+            "ready": "bank-matched-section",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [1280],
+            "actions": [
+                { "waitFor": "bank-tabs-reviewed" },
+                { "click": "bank-tabs-reviewed" },
+                { "waitForCount": "bank-review-inbooks-", "count": 1 },
+                { "clickText": "ONLINE BILL PAY 0915" },
+                { "waitForCount": "bank-match-link-", "count": 1 },
+                { "waitFor": "bank-match-undo" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "read-only-matched",
+            "url": "/a/books/banking",
+            "ready": "bank-matched-section",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [390],
+            "hideLabels": ["Reconnecting…"],
+            "rewriteRecords": [
+                {
+                    "collection": "books_access",
+                    "set": {
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                }
+            ],
+            "actions": [
+                { "waitFor": "bank-tabs-reviewed" },
+                { "click": "bank-tabs-reviewed" },
+                { "waitForCount": "bank-review-inbooks-", "count": 1 },
+                { "clickText": "ONLINE BILL PAY 0915" },
+                { "waitForCount": "bank-match-link-", "count": 1 },
+                { "waitFor": "bank-matched-by" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "read-only-matched",
+            "url": "/a/books/banking",
+            "ready": "bank-matched-section",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [1280],
+            "hideLabels": ["Reconnecting…"],
+            "rewriteRecords": [
+                {
+                    "collection": "books_access",
+                    "set": {
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                }
+            ],
+            "actions": [
+                { "waitFor": "bank-tabs-reviewed" },
+                { "click": "bank-tabs-reviewed" },
+                { "waitForCount": "bank-review-inbooks-", "count": 1 },
+                { "clickText": "ONLINE BILL PAY 0915" },
+                { "waitForCount": "bank-match-link-", "count": 1 },
+                { "waitFor": "bank-matched-by" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "matched-three",
+            "url": "/a/books/banking",
+            "ready": "bank-matched-section",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [390],
+            "actions": [
+                { "waitFor": "1 match · Expense 1002" },
+                { "clickText": "DEPOSIT CEDAR & PINE LLC" },
+                { "click": "bank-match-find" },
+                { "waitFor": "bank-match-back" },
+                { "fill": "bank-match-to", "value": "2026-11-30" },
+                { "waitForCount": "bank-match-option-", "count": 3, "atLeast": true },
+                { "fill": "bank-match-search", "value": "JE-10" },
+                { "waitForCount": "bank-match-option-", "count": 1 },
+                { "clickPrefix": "bank-match-box-", "checked": false },
+                { "fill": "bank-match-search", "value": "JE-11" },
+                { "waitForCount": "bank-match-option-", "count": 2 },
+                { "clickPrefix": "bank-match-box-", "checked": false },
+                { "click": "bank-match-submit" },
+                { "waitForHidden": "bank-txn-drawer" },
+                { "waitFor": "bank-review-result" },
+                { "click": "bank-tabs-reviewed" },
+                { "waitForCount": "bank-review-inbooks-", "count": 2 },
+                { "clickText": "DEPOSIT CEDAR & PINE LLC" },
+                { "waitForCount": "bank-match-link-", "count": 2 },
+                { "waitFor": "bank-match-undo" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "matched-three",
+            "url": "/a/books/banking",
+            "ready": "bank-matched-section",
+            "readyAfterActions": true,
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "widths": [1280],
+            "actions": [
+                { "waitFor": "bank-tabs-reviewed" },
+                { "click": "bank-tabs-reviewed" },
+                { "waitForCount": "bank-review-inbooks-", "count": 2 },
+                { "clickText": "DEPOSIT CEDAR & PINE LLC" },
+                { "waitForCount": "bank-match-link-", "count": 2 },
+                { "waitFor": "bank-match-undo" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "undone",
+            "url": "/a/books/banking",
+            "ready": "bank-review-result",
+            "readyAfterActions": true,
+            "widths": [390],
+            "actions": [
+                { "waitFor": "bank-tabs-reviewed" },
+                { "click": "bank-tabs-reviewed" },
+                { "waitForCount": "bank-review-inbooks-", "count": 2 },
+                { "clickText": "ONLINE BILL PAY 0915" },
+                { "waitFor": "bank-match-undo" },
+                { "click": "bank-match-undo" },
+                { "waitForHidden": "bank-txn-drawer" },
+                { "waitFor": "bank-review-result" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "undone",
+            "url": "/a/books/banking",
+            "ready": "bank-review-result",
+            "readyAfterActions": true,
+            "widths": [1280],
+            "actions": [
+                { "waitFor": "bank-tabs-reviewed" },
+                { "click": "bank-tabs-reviewed" },
+                { "waitForCount": "bank-review-inbooks-", "count": 1 },
+                { "clickText": "DEPOSIT CEDAR & PINE LLC" },
+                { "waitFor": "bank-match-undo" },
+                { "click": "bank-match-undo" },
+                { "waitForHidden": "bank-txn-drawer" },
+                { "waitFor": "bank-review-result" },
+                { "blur": true }
+            ]
+        }
+    ]
+}

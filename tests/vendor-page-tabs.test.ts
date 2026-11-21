@@ -82,6 +82,14 @@ describe('vendorTabOf', () => {
     })
 })
 
+// Statements spec §2: the vendor page does not show the Statements tab.
+describe('VENDOR_TAB_ORDER', () => {
+    it('holds transactions, contacts, details and notes, and no statements', () => {
+        expect(VENDOR_TAB_ORDER).toEqual(['transactions', 'contacts', 'details', 'notes'])
+        expect(SHOWN_VENDOR_TABS.map(tab => tab.key)).not.toContain('statements')
+    })
+})
+
 describe('SHOWN_VENDOR_TABS', () => {
     it('draws Transactions, Contacts, Details and Notes with ⌥1 to ⌥4', () => {
         expect(SHOWN_VENDOR_TABS).toEqual([

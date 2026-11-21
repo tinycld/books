@@ -19,10 +19,10 @@ import {
     SALES_RECEIPT_KIND,
     type SalesDocumentKind,
 } from '../lib/sales-document-kinds'
-import { useApplyCreditStore } from '../stores/apply-credit-store'
 import { type RowDialog, useDocumentListStore } from '../stores/document-list-store'
 import { useWriteOffStore } from '../stores/write-off-store'
 import { useDeleteDraftDocument } from './useDeleteDraftDocument'
+import { useOpenCreditWithApply } from './useOpenCreditWithApply'
 import { usePdfDownload } from './usePdfDownload'
 import { useVoidDocument } from './useVoidDocument'
 
@@ -66,10 +66,11 @@ interface RowActionsInput {
  * The actions of a list's row menus, sales and purchases (spec §3 "Row menu"), as the read
  * view runs them: Open opens the row; Receive payment, Pay bill, Copy, Create credit memo,
  * Record refund, View journal entry and Open invoice push their route
- * (`listRowActionHref`), so Back returns to the list; Apply to bills pushes the vendor
- * credit and opens its apply dialog there (`useApplyCreditStore`, drawn by the credit's
- * read section); Download PDF saves the server's PDF; Void and Delete draft open their
- * confirm dialog over the list, with the kind's own Void texts (`listVoidTexts`). A
+ * (`listRowActionHref`), so Back returns to the list; Apply (Apply to bills of a vendor
+ * credit, Apply to invoices of a credit memo) pushes the credit and opens its apply dialog
+ * there (`useOpenCreditWithApply`); Download PDF saves the server's PDF; Void and Delete
+ * draft open their confirm dialog over the list, with the kind's own Void texts
+ * (`listVoidTexts`). A
  * dialog's write is the one the read view and the forms share (`useVoidDocument`,
  * `useDeleteDraftDocument`); a refusal closes the dialog and shows in the list's banner.
  * Write off opens the write-off dialog over the list (`useWriteOffStore` with the list's
@@ -91,6 +92,7 @@ export function useDocumentRowActions({
     const voidWrite = useVoidDocument()
     const deleteWrite = useDeleteDraftDocument()
     const download = usePdfDownload()
+    const openCreditWithApply = useOpenCreditWithApply()
     const target = stored?.listKey === listKey ? stored : null
     const close = () => setRowDialog(null)
     const refuse = (error: unknown) => {
@@ -143,11 +145,13 @@ export function useDocumentRowActions({
             openWriteOff(row.id, owner)
             return
         }
+        if (action === 'apply_credit') {
+            openCreditWithApply(row)
+            return
+        }
         const href = listRowActionHref(row, action)
         if (href === null) return
         router.push(orgHref(href))
-        // After the push, so the credit's read section, which draws the dialog, finds it.
-        if (action === 'apply_credit') useApplyCreditStore.getState().open(row.id)
     }
     // The menu rows that start a write (Void, Delete draft, Write off) wait for writes to be
     // available and for a running write; Download PDF waits for its download.

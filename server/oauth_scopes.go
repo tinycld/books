@@ -14,12 +14,14 @@ const (
 // The ledger, the customers, the vendors, their contact people, the products
 // (with their bundle rows), the sales and purchase documents with their lines,
 // the bill and expense attachments, the received payments with the invoices
-// they pay, the bill payments with the bills they pay, the write-offs, the
+// they pay, the bill payments with the bills they pay, the vendor credit and
+// credit memo applications, the write-offs, the
 // sales tax agencies,
 // rates and groups, the bank connections, their files and the imports of those
-// files are read-write; a file's parsed rows, the bank transactions and the
-// cash-basis rows, which only the server writes, and the party balances and
-// audit log views are read-only. Everything that
+// files, and the bank matches are read-write; a file's parsed rows, the bank
+// transactions, the matched lines and the cash-basis rows, which only the
+// server writes, and the party balances, match suggestions and audit log views
+// are read-only. Everything that
 // decides who may do what (the settings with the close date, numbering,
 // overrides, admin grants) is read-only for tokens, as is a sales document's
 // tax snapshot, which only posting writes: "record transactions" on a consent
@@ -51,6 +53,9 @@ func oauthPackage() oauth.Package {
 			"books_bank_imports":               rw,
 			"books_bank_file_contents":         ro,
 			"books_bank_transactions":          ro,
+			bankMatchesCollection:              rw,
+			bankMatchLinesCollection:           ro,
+			"books_bank_match_suggestions":     ro,
 			"books_tax_agencies":               rw,
 			"books_tax_rates":                  rw,
 			"books_invoices":                   rw,
@@ -83,6 +88,7 @@ func oauthPackage() oauth.Package {
 			vendorCreditsCollection:            rw,
 			vendorCreditLinesCollection:        rw,
 			vendorCreditApplicationsCollection: rw,
+			creditMemoApplicationsCollection:   rw,
 			vendorRefundsCollection:            rw,
 			vendorRefundLinesCollection:        rw,
 			writeOffsCollection:                rw,
@@ -92,6 +98,7 @@ func oauthPackage() oauth.Package {
 			"books_party_contacts":             rw,
 			"books_party_balances":             ro,
 			"books_receivable_items":           ro,
+			"books_payable_items":              ro,
 			"books_audit_log":                  ro,
 			"books_account_balances":           ro,
 			"books_settings":                   ro,
@@ -99,6 +106,7 @@ func oauthPackage() oauth.Package {
 			"books_close_overrides":            ro,
 			"books_admins":                     ro,
 			"books_access":                     ro,
+			statementsCollection:               rw,
 		},
 	}
 }

@@ -1,0 +1,243 @@
+{
+    "outDir": "apply-credit-reference",
+    "shots": [
+        {
+            "name": "memo",
+            "url": "/a/books/helix-mockup?state=memo",
+            "ready": "credit-memo-read-only",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "memo-partly",
+            "url": "/a/books/helix-mockup?state=memo-partly",
+            "ready": "credit-memo-applications",
+            "height": 1100,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "memo-applied",
+            "url": "/a/books/helix-mockup?state=memo-applied",
+            "ready": "credit-memo-applications",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "memo-refunded",
+            "url": "/a/books/helix-mockup?state=memo-refunded",
+            "ready": "credit-memo-refunds",
+            "height": 1100,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "memo-long",
+            "url": "/a/books/helix-mockup?state=memo-long",
+            "ready": "credit-memo-read-only",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "memo-reader",
+            "url": "/a/books/helix-mockup?state=memo-reader",
+            "ready": "credit-memo-applications",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "memo-block-error",
+            "url": "/a/books/helix-mockup?state=memo-block-error",
+            "ready": "credit-memo-applications",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "invoice",
+            "url": "/a/books/helix-mockup?state=invoice",
+            "ready": "invoice-apply-notice",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "invoice-credited",
+            "url": "/a/books/helix-mockup?state=invoice-credited",
+            "ready": "invoice-payments",
+            "height": 1100,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "invoice-paid",
+            "url": "/a/books/helix-mockup?state=invoice-paid",
+            "ready": "invoice-payments",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "invoice-mixed",
+            "url": "/a/books/helix-mockup?state=invoice-mixed",
+            "ready": "invoice-write-offs",
+            "height": 1100,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "invoice-block-error",
+            "url": "/a/books/helix-mockup?state=invoice-block-error",
+            "ready": "invoice-payments",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "memo-dialog",
+            "url": "/a/books/helix-mockup?state=memo-dialog",
+            "ready": "apply-credit-summary",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "memo-dialog-part",
+            "url": "/a/books/helix-mockup?state=memo-dialog-part",
+            "ready": "apply-credit-summary",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "memo-dialog-spread",
+            "url": "/a/books/helix-mockup?state=memo-dialog-spread",
+            "ready": "apply-credit-summary",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "memo-dialog-errors",
+            "url": "/a/books/helix-mockup?state=memo-dialog-errors",
+            "ready": "apply-credit-summary",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "memo-dialog-saving",
+            "url": "/a/books/helix-mockup?state=memo-dialog-saving",
+            "ready": "apply-credit-summary",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "memo-dialog-loading",
+            "url": "/a/books/helix-mockup?state=memo-dialog-loading",
+            "ready": "apply-credit-loading",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "memo-dialog-load-error",
+            "url": "/a/books/helix-mockup?state=memo-dialog-load-error",
+            "ready": "apply-credit-load-error",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "memo-dialog-long",
+            "url": "/a/books/helix-mockup?state=memo-dialog-long",
+            "ready": "apply-credit-summary",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "memo-dialog-empty",
+            "url": "/a/books/helix-mockup?state=memo-dialog-empty",
+            "ready": "apply-credit-empty",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "invoice-dialog",
+            "url": "/a/books/helix-mockup?state=invoice-dialog",
+            "ready": "apply-credit-summary",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "invoice-dialog-part",
+            "url": "/a/books/helix-mockup?state=invoice-dialog-part",
+            "ready": "apply-credit-summary",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "invoice-dialog-errors",
+            "url": "/a/books/helix-mockup?state=invoice-dialog-errors",
+            "ready": "apply-credit-summary",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "invoice-dialog-no-credit",
+            "url": "/a/books/helix-mockup?state=invoice-dialog-no-credit",
+            "ready": "apply-credit-empty",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "invoice-dialog-load-error",
+            "url": "/a/books/helix-mockup?state=invoice-dialog-load-error",
+            "ready": "apply-credit-load-error",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "remove",
+            "url": "/a/books/helix-mockup?state=remove",
+            "ready": "remove-application-confirm",
+            "opaque": "remove-application-dialog",
+            "stable": "remove-application-dialog",
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "remove-refused",
+            "url": "/a/books/helix-mockup?state=remove-refused",
+            "ready": "remove-application-confirm",
+            "opaque": "remove-application-dialog",
+            "stable": "remove-application-dialog",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "invoice-remove",
+            "url": "/a/books/helix-mockup?state=invoice-remove",
+            "ready": "remove-application-confirm",
+            "opaque": "remove-application-dialog",
+            "stable": "remove-application-dialog",
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "receive-payment",
+            "url": "/a/books/helix-mockup?state=receive-payment",
+            "ready": "payment-credits-notice",
+            "hideLabels": ["New"]
+        }
+    ]
+}

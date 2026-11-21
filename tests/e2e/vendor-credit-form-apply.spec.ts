@@ -152,9 +152,9 @@ test.describe('vendor-credit-form: apply from the keyboard', () => {
         const dialog = applyDialog(page)
         await expect(dialog).toBeVisible()
         await expect(dialog).toContainText(`Apply vendor credit ${credit.number}`)
-        await expect(page.getByTestId('apply-credit-unapplied')).toHaveText(
-            /^Unapplied credit\s*\$50\.00$/
-        )
+        // The figure (apply credit spec §3.2): the label "Unapplied credit" over the value.
+        await expect(dialog).toContainText('Unapplied credit')
+        await expect(page.getByTestId('apply-credit-figure')).toContainText('$50.00')
         const cell1 = applyAmountCell(page, first.id)
         const cell2 = applyAmountCell(page, second.id)
         await expect(cell1).toBeFocused()

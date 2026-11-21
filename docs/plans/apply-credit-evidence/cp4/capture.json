@@ -1,0 +1,1217 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "invoice-credited",
+            "url": "/a/books/invoices/invcac1009foxh1",
+            "ready": "invoice-payments",
+            "height": 1100,
+            "widths": [390],
+            "actions": [
+                {
+                    "waitFor": "invoice-total-credits-applied"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "invoice-title"
+                },
+                {
+                    "scrollTo": "invoice-payments"
+                }
+            ]
+        },
+        {
+            "name": "./invoice-credited",
+            "url": "/a/books/invoices/invcac1009foxh1",
+            "ready": "invoice-payments",
+            "height": 1100,
+            "widths": [1280],
+            "actions": [
+                {
+                    "waitFor": "invoice-total-credits-applied"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "invoice-title"
+                },
+                {
+                    "scrollTo": "invoice-payments"
+                }
+            ]
+        },
+        {
+            "name": "invoice-block-error",
+            "url": "/a/books/invoices/invcac1009foxh1",
+            "ready": "invoice-read-only",
+            "schemes": ["light"],
+            "fakeRecords": {
+                "collection": "books_credit_memo_applications",
+                "status": 400
+            },
+            "hideLabels": ["Reconnecting…"],
+            "height": 1200,
+            "widths": [390],
+            "actions": [
+                {
+                    "waitFor": "invoice-payments-credits-retry"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "invoice-title"
+                },
+                {
+                    "scrollTo": "invoice-payments"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "./invoice-block-error",
+            "url": "/a/books/invoices/invcac1009foxh1",
+            "ready": "invoice-read-only",
+            "schemes": ["light"],
+            "fakeRecords": {
+                "collection": "books_credit_memo_applications",
+                "status": 400
+            },
+            "hideLabels": ["Reconnecting…"],
+            "height": 1100,
+            "widths": [1280],
+            "actions": [
+                {
+                    "waitFor": "invoice-payments-credits-retry"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "invoice-title"
+                },
+                {
+                    "scrollTo": "invoice-payments"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "invoice-remove",
+            "url": "/a/books/invoices/invcac1009foxh1",
+            "ready": "invoice-payments",
+            "schemes": ["light"],
+            "opaque": "remove-application-dialog",
+            "stable": "remove-application-dialog",
+            "widths": [390],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "invoice-credit-remove-cmapp1001to1009"
+                },
+                {
+                    "waitFor": "remove-application-confirm"
+                },
+                {
+                    "clickTextIn": "remove-application-dialog",
+                    "text": "Remove credit"
+                }
+            ]
+        },
+        {
+            "name": "./invoice-remove",
+            "url": "/a/books/invoices/invcac1009foxh1",
+            "ready": "invoice-payments",
+            "schemes": ["light"],
+            "opaque": "remove-application-dialog",
+            "stable": "remove-application-dialog",
+            "widths": [1280],
+            "actions": [
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "invoice-credit-remove-cmapp1001to1009"
+                },
+                {
+                    "waitFor": "remove-application-confirm"
+                },
+                {
+                    "clickTextIn": "remove-application-dialog",
+                    "text": "Remove credit"
+                }
+            ]
+        },
+        {
+            "name": "invoice",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "widths": [390],
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Cedar & Pine"
+                },
+                {
+                    "clickMenuItem": "Cedar & Pine Landscaping"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "fillCss": "input[data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"], [data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"] input",
+                    "value": "400.00"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "invoice-read-only"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "invoice-read-more"
+                },
+                {
+                    "click": "invoice-read-credit-memo"
+                },
+                {
+                    "waitFor": "credit-memo-invoice-link"
+                },
+                {
+                    "hoverOn": "credit-memo-title"
+                },
+                {
+                    "fillCss": "input[data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"], [data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"] input",
+                    "value": "250.00"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Helix cp4 Cedar credit"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-invoice-link"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "reload": true,
+                    "ready": "invoice-read-only"
+                },
+                {
+                    "waitFor": "invoice-apply-notice"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "invoice-title"
+                }
+            ]
+        },
+        {
+            "name": "./invoice",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "widths": [1280],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "clickText": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "waitFor": "invoice-read-only"
+                },
+                {
+                    "waitFor": "invoice-apply-notice"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "invoice-title"
+                }
+            ]
+        },
+        {
+            "name": "invoice-dialog",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "widths": [390],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "clickText": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "waitFor": "invoice-read-only"
+                },
+                {
+                    "waitFor": "invoice-apply-notice"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Open balance"
+                }
+            ]
+        },
+        {
+            "name": "./invoice-dialog",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "widths": [1280],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "clickText": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "waitFor": "invoice-read-only"
+                },
+                {
+                    "waitFor": "invoice-apply-notice"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Open balance"
+                }
+            ]
+        },
+        {
+            "name": "invoice-dialog-part",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "schemes": ["light"],
+            "widths": [390],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "clickText": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "waitFor": "invoice-read-only"
+                },
+                {
+                    "waitFor": "invoice-apply-notice"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "fillCss": "[data-testid^=\"apply-credit-row-amount-\"]",
+                    "value": "60.00"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Open balance"
+                }
+            ]
+        },
+        {
+            "name": "./invoice-dialog-part",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "schemes": ["light"],
+            "widths": [1280],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "clickText": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "waitFor": "invoice-read-only"
+                },
+                {
+                    "waitFor": "invoice-apply-notice"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "fillCss": "[data-testid^=\"apply-credit-row-amount-\"]",
+                    "value": "60.00"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Open balance"
+                }
+            ]
+        },
+        {
+            "name": "invoice-dialog-errors",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "schemes": ["light"],
+            "widths": [390],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "clickText": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "waitFor": "invoice-read-only"
+                },
+                {
+                    "waitFor": "invoice-apply-notice"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "atRest": "apply-credit-dialog"
+                },
+                {
+                    "fillCss": "[data-testid^=\"apply-credit-row-amount-\"]",
+                    "value": "300.00"
+                },
+                {
+                    "fill": "apply-credit-date",
+                    "value": "2026-11-10"
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "apply-credit-date-error"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Open balance"
+                }
+            ]
+        },
+        {
+            "name": "./invoice-dialog-errors",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "schemes": ["light"],
+            "widths": [1280],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "clickText": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "waitFor": "invoice-read-only"
+                },
+                {
+                    "waitFor": "invoice-apply-notice"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "atRest": "apply-credit-dialog"
+                },
+                {
+                    "fillCss": "[data-testid^=\"apply-credit-row-amount-\"]",
+                    "value": "300.00"
+                },
+                {
+                    "fill": "apply-credit-date",
+                    "value": "2026-11-10"
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "apply-credit-date-error"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Open balance"
+                }
+            ]
+        },
+        {
+            "name": "invoice-dialog-load-error",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "schemes": ["light"],
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_close_overrides",
+                "status": 400
+            },
+            "widths": [390],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "clickText": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "waitFor": "invoice-read-only"
+                },
+                {
+                    "waitFor": "invoice-apply-notice"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-load-error"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Open balance"
+                }
+            ]
+        },
+        {
+            "name": "./invoice-dialog-load-error",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "schemes": ["light"],
+            "hideLabels": ["Reconnecting…"],
+            "fakeRecords": {
+                "collection": "books_close_overrides",
+                "status": 400
+            },
+            "widths": [1280],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "clickText": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "waitFor": "invoice-read-only"
+                },
+                {
+                    "waitFor": "invoice-apply-notice"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-load-error"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Open balance"
+                }
+            ]
+        },
+        {
+            "name": "invoice-dialog-no-credit",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "schemes": ["light"],
+            "widths": [390],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "clickText": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "waitFor": "invoice-read-only"
+                },
+                {
+                    "waitFor": "invoice-apply-notice"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "atRest": "apply-credit-dialog"
+                },
+                {
+                    "otherPage": {
+                        "url": "/a/books/entries",
+                        "ready": "entries-screen",
+                        "actions": [
+                            {
+                                "click": "entries-range"
+                            },
+                            {
+                                "clickMenuItem": "All dates"
+                            },
+                            {
+                                "fill": "entries-search",
+                                "value": "Helix cp4 Cedar credit"
+                            },
+                            {
+                                "clickText": "Helix cp4 Cedar credit"
+                            },
+                            {
+                                "waitFor": "credit-memo-read-only"
+                            },
+                            {
+                                "pause": 500
+                            },
+                            {
+                                "press": "v"
+                            },
+                            {
+                                "waitFor": "void-dialog"
+                            },
+                            {
+                                "click": "void-confirm"
+                            },
+                            {
+                                "waitForHidden": "void-dialog"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "waitFor": "apply-credit-empty"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Open balance"
+                }
+            ]
+        },
+        {
+            "name": "./invoice-dialog-no-credit",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "opaque": "apply-credit-dialog",
+            "stable": "apply-credit-dialog",
+            "schemes": ["light"],
+            "widths": [1280],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "clickText": "Helix cp4 Cedar invoice"
+                },
+                {
+                    "waitFor": "invoice-read-only"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "m"
+                },
+                {
+                    "waitFor": "credit-memo-invoice-link"
+                },
+                {
+                    "hoverOn": "credit-memo-title"
+                },
+                {
+                    "fillCss": "input[data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"], [data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"] input",
+                    "value": "100.00"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Helix cp4 Cedar second credit"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-invoice-link"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "reload": true,
+                    "ready": "invoice-read-only"
+                },
+                {
+                    "waitFor": "invoice-apply-notice"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "atRest": "apply-credit-dialog"
+                },
+                {
+                    "otherPage": {
+                        "url": "/a/books/entries",
+                        "ready": "entries-screen",
+                        "actions": [
+                            {
+                                "click": "entries-range"
+                            },
+                            {
+                                "clickMenuItem": "All dates"
+                            },
+                            {
+                                "fill": "entries-search",
+                                "value": "Helix cp4 Cedar second credit"
+                            },
+                            {
+                                "clickText": "Helix cp4 Cedar second credit"
+                            },
+                            {
+                                "waitFor": "credit-memo-read-only"
+                            },
+                            {
+                                "pause": 500
+                            },
+                            {
+                                "press": "v"
+                            },
+                            {
+                                "waitFor": "void-dialog"
+                            },
+                            {
+                                "click": "void-confirm"
+                            },
+                            {
+                                "waitForHidden": "void-dialog"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "waitFor": "apply-credit-empty"
+                },
+                {
+                    "clickTextIn": "apply-credit-dialog",
+                    "text": "Open balance"
+                }
+            ]
+        },
+        {
+            "name": "invoice-paid",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-form",
+            "schemes": ["light"],
+            "widths": [390],
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "fill": "form-input-customer-search",
+                    "value": "Granite Peak"
+                },
+                {
+                    "clickMenuItem": "Granite Peak Outfitters"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1, line 1"
+                },
+                {
+                    "clickMenuItem": "Wireless access point"
+                },
+                {
+                    "fillCss": "input[data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"], [data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"] input",
+                    "value": "300.00"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Helix cp4 Granite paid invoice"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "invoice-read-only"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "invoice-read-more"
+                },
+                {
+                    "click": "invoice-read-credit-memo"
+                },
+                {
+                    "waitFor": "credit-memo-invoice-link"
+                },
+                {
+                    "hoverOn": "credit-memo-title"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Helix cp4 Granite paid credit"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-invoice-link"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "reload": true,
+                    "ready": "invoice-read-only"
+                },
+                {
+                    "waitFor": "invoice-apply-notice"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitForHidden": "apply-credit-dialog"
+                },
+                {
+                    "waitFor": "invoice-total-credits-applied"
+                },
+                {
+                    "waitForHidden": "toast-card"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "invoice-title"
+                }
+            ]
+        },
+        {
+            "name": "./invoice-paid",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "schemes": ["light"],
+            "widths": [1280],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Helix cp4 Granite paid invoice"
+                },
+                {
+                    "clickText": "Helix cp4 Granite paid invoice"
+                },
+                {
+                    "waitFor": "invoice-read-only"
+                },
+                {
+                    "waitFor": "invoice-total-credits-applied"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "invoice-title"
+                }
+            ]
+        },
+        {
+            "name": "invoice-mixed",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "height": 1200,
+            "schemes": ["light"],
+            "widths": [390],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Seed customer balance: programs, bid sheets, table numbers and sponsor boards for the Annual Spring Gala"
+                },
+                {
+                    "clickText": "Seed customer balance: programs, bid sheets, table numbers and sponsor boards for the Annual Spring Gala"
+                },
+                {
+                    "waitFor": "invoice-read-only"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "invoice-read-more"
+                },
+                {
+                    "click": "invoice-read-credit-memo"
+                },
+                {
+                    "waitFor": "credit-memo-invoice-link"
+                },
+                {
+                    "hoverOn": "credit-memo-title"
+                },
+                {
+                    "fillCss": "input[data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"], [data-testid^=\"form-table-lines-\"][data-testid$=\"-rate\"] input",
+                    "value": "300.00"
+                },
+                {
+                    "fill": "form-input-memo",
+                    "value": "Helix cp4 gala mixed credit"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "credit-memo-read-only"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "credit-memo-invoice-link"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "reload": true,
+                    "ready": "invoice-read-only"
+                },
+                {
+                    "waitFor": "invoice-apply-notice"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "press": "a"
+                },
+                {
+                    "waitFor": "apply-credit-summary"
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitForHidden": "apply-credit-dialog"
+                },
+                {
+                    "waitFor": "invoice-total-credits-applied"
+                },
+                {
+                    "waitForHidden": "toast-card"
+                },
+                {
+                    "press": "w"
+                },
+                {
+                    "waitFor": "write-off-dialog"
+                },
+                {
+                    "click": "write-off-account"
+                },
+                {
+                    "clickMenuItem": "6050 Bad debts"
+                },
+                {
+                    "click": "write-off-submit"
+                },
+                {
+                    "waitForHidden": "write-off-dialog"
+                },
+                {
+                    "waitFor": "invoice-write-offs"
+                },
+                {
+                    "waitForHidden": "toast-card"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "invoice-title"
+                },
+                {
+                    "scrollTo": "invoice-payments"
+                },
+                {
+                    "pause": 500
+                }
+            ]
+        },
+        {
+            "name": "./invoice-mixed",
+            "url": "/a/books/entries",
+            "ready": "entries-screen",
+            "height": 1100,
+            "schemes": ["light"],
+            "widths": [1280],
+            "actions": [
+                {
+                    "click": "entries-range"
+                },
+                {
+                    "clickMenuItem": "All dates"
+                },
+                {
+                    "fill": "entries-search",
+                    "value": "Seed customer balance: programs, bid sheets, table numbers and sponsor boards for the Annual Spring Gala"
+                },
+                {
+                    "clickText": "Seed customer balance: programs, bid sheets, table numbers and sponsor boards for the Annual Spring Gala"
+                },
+                {
+                    "waitFor": "invoice-read-only"
+                },
+                {
+                    "waitFor": "invoice-write-offs"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "invoice-title"
+                },
+                {
+                    "scrollTo": "invoice-payments"
+                }
+            ]
+        }
+    ]
+}

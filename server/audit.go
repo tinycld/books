@@ -28,10 +28,11 @@ import (
 // It takes the app because these labels read another row: an admin grant is
 // labeled by the user it grants, a line by its account or its document, a
 // bundle row by its bundle and product, a bank connection by its account, a
-// bank import by its file, a customer's response by its estimate, a vendor
-// credit application by its credit and its bill, a vendor refund line by its
-// refund and its credit, and an attachment by its
-// bill, expense or vendor credit.
+// bank import by its file, a bank match by its bank transaction, a customer's
+// response by its estimate, a vendor credit application by its credit and its
+// bill, a credit memo application by its memo and its invoice, a vendor refund
+// line by its refund and its credit, and an attachment by its bill, expense or
+// vendor credit.
 //
 // A tax ID (an SSN for a sole proprietor) is redacted: it must not stay
 // readable in the audit log after it is corrected or the vendor is deleted.
@@ -86,6 +87,9 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		vendorCreditApplicationsCollection: {
 			ExtractLabel: func(r *core.Record) string { return vendorCreditApplicationLabel(app, r) },
 		},
+		creditMemoApplicationsCollection: {
+			ExtractLabel: func(r *core.Record) string { return creditMemoApplicationLabel(app, r) },
+		},
 		"books_payments": {ExtractLabel: paymentLabel, Redact: []string{"sort_key"}},
 		"books_payment_applications": {
 			ExtractLabel: func(r *core.Record) string { return paymentApplicationLabel(app, r) },
@@ -114,14 +118,18 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 			ExtractLabel: func(r *core.Record) string { return bankImportLabel(app, r) },
 		},
 		"books_bank_transactions": {ExtractLabel: bankTransactionLabel},
+		bankMatchesCollection: {
+			ExtractLabel: func(r *core.Record) string { return bankMatchLabel(app, r) },
+		},
 		"books_attachments": {
 			ExtractLabel: func(r *core.Record) string { return attachmentLabel(app, r) },
 		},
+		statementsCollection: {ExtractLabel: audit.LabelFromField("number")},
 	}
 }
 
 // auditParentFields maps each line collection to the field that names its
-// document. The books_audit_log view (migration 2100000029) reads the same
+// document. The books_audit_log view (migration 2100000034) reads the same
 // collections to give a line's audit row its document, and Register declares them
 // as the view's sources, because a line write can change that document.
 var auditParentFields = map[string]string{
@@ -139,6 +147,7 @@ var auditParentFields = map[string]string{
 	billPaymentLinesCollection:         "payment",
 	vendorCreditLinesCollection:        "vendor_credit",
 	vendorCreditApplicationsCollection: "vendor_credit",
+	creditMemoApplicationsCollection:   "credit_memo",
 	vendorRefundLinesCollection:        "refund",
 }
 
@@ -161,6 +170,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_credit_memos", Label: "Credit memo"},
 		{Value: "books_refund_receipts", Label: "Refund receipt"},
 		{Value: writeOffsCollection, Label: "Write-off"},
+		{Value: statementsCollection, Label: "Customer statement"},
 		{Value: "books_bills", Label: "Bill"},
 		{Value: "books_expenses", Label: "Expense"},
 		{Value: vendorCreditsCollection, Label: "Vendor credit"},
@@ -179,6 +189,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_payment_applications", Label: "Payment application"},
 		{Value: billPaymentLinesCollection, Label: "Bill payment line"},
 		{Value: vendorCreditApplicationsCollection, Label: "Vendor credit application"},
+		{Value: creditMemoApplicationsCollection, Label: "Credit memo application"},
 		{Value: vendorRefundLinesCollection, Label: "Vendor refund line"},
 		{Value: "books_journal_lines", Label: "Journal line"},
 		{Value: "books_attachments", Label: "Attachment"},
@@ -194,6 +205,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_bank_files", Label: "Bank file"},
 		{Value: "books_bank_imports", Label: "Bank import"},
 		{Value: "books_bank_transactions", Label: "Bank transaction"},
+		{Value: bankMatchesCollection, Label: "Bank match"},
 		{Value: "books_settings", Label: "Books settings"},
 		{Value: "books_doc_sequences", Label: "Document numbering"},
 		{Value: "books_close_overrides", Label: "Close date override"},
@@ -211,6 +223,16 @@ func auditEvents() []reports.Option {
 		{Value: "voided", Label: "Voided"},
 		{Value: "deleted", Label: "Deleted"},
 	}
+}
+
+// auditShownEvents are the values of the view's event_shown column, which the
+// Audit Log's Event column shows: the events, then a credit memo
+// application's create and delete (apply credit spec §3.8).
+func auditShownEvents() []reports.Option {
+	return append(auditEvents(),
+		reports.Option{Value: "credit_applied", Label: "Credit applied"},
+		reports.Option{Value: "credit_removed", Label: "Credit removed"},
+	)
 }
 
 func registerAudit(app *pocketbase.PocketBase) {
@@ -433,6 +455,21 @@ func vendorCreditApplicationLabel(app core.App, r *core.Record) string {
 	return credit + ": " + bill
 }
 
+// creditMemoApplicationLabel names an application by its credit memo and its
+// invoice: "Credit memo 1001: Invoice 1009". A memo or an invoice that cannot
+// be read falls back to its id, so the audit row is still written.
+func creditMemoApplicationLabel(app core.App, r *core.Record) string {
+	memo := r.GetString("credit_memo")
+	if rec, err := app.FindRecordById("books_credit_memos", memo); err == nil {
+		memo = creditMemoLabel(rec)
+	}
+	invoice := r.GetString("invoice")
+	if inv, err := app.FindRecordById("books_invoices", invoice); err == nil {
+		invoice = invoiceLabel(inv)
+	}
+	return memo + ": " + invoice
+}
+
 // vendorRefundLineLabel names a refund line by its refund and the vendor
 // credit it refunds: "Vendor refund 1001: Vendor credit 1002". A refund or a
 // credit that cannot be read (deleted with a draft refund) falls back to its
@@ -530,4 +567,16 @@ func bankImportLabel(app core.App, r *core.Record) string {
 // the For review list, so the audit log names it the same way.
 func bankTransactionLabel(r *core.Record) string {
 	return strings.TrimSpace(r.GetString("date") + " " + r.GetString("description"))
+}
+
+// bankMatchLabel names a match by the bank transaction it reviewed, as the
+// For review list shows it. A bank transaction that cannot be read (the
+// cascade of its own delete removes the match after it) gives "", so the
+// audit row is still written.
+func bankMatchLabel(app core.App, r *core.Record) string {
+	txn, err := app.FindRecordById("books_bank_transactions", r.GetString("bank_transaction"))
+	if err != nil {
+		return ""
+	}
+	return bankTransactionLabel(txn)
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
     applyCreditOffered,
+    applyInvoiceCreditOffered,
     creditMemoOffered,
     DOCUMENT_READ_ACTION_KEYS,
     DOCUMENT_READ_KEYS,
@@ -469,7 +470,6 @@ describe('Apply to bills', () => {
         expect(applyCreditOffered('vendor_credit', 'void', 5_000)).toBe(false)
         expect(applyCreditOffered('vendor_credit', 'draft', 5_000)).toBe(false)
         expect(applyCreditOffered('bill', 'posted', 5_000)).toBe(false)
-        expect(applyCreditOffered('credit_memo', 'posted', 5_000)).toBe(false)
     })
 
     it('comes first, before Edit, for a writer on a posted credit with a balance', () => {
@@ -519,6 +519,54 @@ describe('Apply to bills', () => {
         for (const [action, key] of others) {
             expect(key.toLowerCase(), action).not.toBe('a')
         }
+    })
+})
+
+// Apply to invoices (apply credit spec §3.1): a writer's action on a posted credit memo with
+// a balance (unapplied credit) above zero, key A, first in the bar (before Edit). Not an
+// invoice's: its Apply credit is applyInvoiceCreditOffered (checkpoint 4).
+describe('Apply to invoices', () => {
+    const NONE = { canReceivePayment: false, canPayBill: false, canCreateCreditMemo: false }
+    const memo = (status: 'posted' | 'void' | 'draft', canWrite: boolean, balance: number) =>
+        documentReadActions(status, canWrite, CREDIT_MEMO_KIND.features, {
+            ...NONE,
+            canApplyCredit: applyCreditOffered('credit_memo', status, balance),
+            canRefundCredit: canWrite && status === 'posted' && balance > 0,
+        })
+
+    it('applyCreditOffered is true for a posted credit memo with a balance above zero', () => {
+        expect(applyCreditOffered('credit_memo', 'posted', 1)).toBe(true)
+        expect(applyCreditOffered('credit_memo', 'posted', 25_000)).toBe(true)
+    })
+
+    it('applyCreditOffered is false for a draft, a void memo, a zero balance and an invoice', () => {
+        expect(applyCreditOffered('credit_memo', 'draft', 25_000)).toBe(false)
+        expect(applyCreditOffered('credit_memo', 'void', 25_000)).toBe(false)
+        expect(applyCreditOffered('credit_memo', 'posted', 0)).toBe(false)
+        expect(applyCreditOffered('invoice', 'posted', 25_000)).toBe(false)
+    })
+
+    it('starts a writer’s actions on such a memo, before Edit', () => {
+        const actions = memo('posted', true, 25_000)
+        expect(actions[0]).toBe('apply_credit')
+        expect(actions.indexOf('apply_credit')).toBeLessThan(actions.indexOf('edit'))
+    })
+
+    it('is gone once the memo has no unapplied credit', () => {
+        expect(memo('posted', true, 0)).not.toContain('apply_credit')
+    })
+
+    it('is never offered to a reader', () => {
+        expect(memo('posted', false, 25_000)).toEqual(['entry', 'pdf'])
+    })
+
+    it('removeApplicationOffered is false for a reader and for a void record, of both kinds', () => {
+        // A reader sees the Applied to rows of a credit memo and of a vendor credit with no
+        // Remove; a void record's applications were released by its void.
+        expect(removeApplicationOffered(false, 'posted')).toBe(false)
+        expect(removeApplicationOffered(true, 'void')).toBe(false)
+        expect(removeApplicationOffered(false, 'void')).toBe(false)
+        expect(removeApplicationOffered(true, 'posted')).toBe(true)
     })
 })
 
@@ -699,6 +747,100 @@ describe('Write off', () => {
         for (const [action, key] of others) {
             expect(key.toLowerCase(), action).not.toBe('w')
         }
+    })
+})
+
+// Apply credit on an invoice (apply credit spec §3.1, plan decision 10): a writer's action on
+// a posted invoice with a balance above zero while its customer has unapplied credit, key A,
+// after Receive payment and before Edit. The read view sets `canApplyInvoiceCredit` from
+// applyInvoiceCreditOffered.
+describe('Apply credit on an invoice', () => {
+    const invoice = (
+        status: 'posted' | 'void' | 'draft',
+        canWrite: boolean,
+        balance: number,
+        hasUnappliedCredit: boolean
+    ) =>
+        documentReadActions(status, canWrite, SALES_FEATURES, {
+            canReceivePayment: receivePaymentOffered('invoice', status, balance),
+            canPayBill: false,
+            canCreateCreditMemo: creditMemoOffered('invoice', status),
+            canWriteOff: writeOffOffered('invoice', status, balance),
+            canApplyInvoiceCredit: applyInvoiceCreditOffered(
+                'invoice',
+                status,
+                balance,
+                hasUnappliedCredit
+            ),
+        })
+
+    it('applyInvoiceCreditOffered is true for a posted invoice with a balance and unapplied credit', () => {
+        expect(applyInvoiceCreditOffered('invoice', 'posted', 1, true)).toBe(true)
+        expect(applyInvoiceCreditOffered('invoice', 'posted', 40_000, true)).toBe(true)
+    })
+
+    it('applyInvoiceCreditOffered is false with no unapplied credit, a balance of 0, a draft or a void invoice', () => {
+        expect(applyInvoiceCreditOffered('invoice', 'posted', 40_000, false)).toBe(false)
+        expect(applyInvoiceCreditOffered('invoice', 'posted', 0, true)).toBe(false)
+        expect(applyInvoiceCreditOffered('invoice', 'draft', 40_000, true)).toBe(false)
+        expect(applyInvoiceCreditOffered('invoice', 'void', 40_000, true)).toBe(false)
+    })
+
+    it('applyInvoiceCreditOffered is false for every other kind', () => {
+        for (const kind of [
+            'sales_receipt',
+            'estimate',
+            'bill',
+            'expense',
+            'credit_memo',
+            'vendor_credit',
+            'refund_receipt',
+        ]) {
+            expect(applyInvoiceCreditOffered(kind, 'posted', 40_000, true), kind).toBe(false)
+        }
+    })
+
+    it('comes after Receive payment and before Edit for a writer', () => {
+        expect(invoice('posted', true, 40_000, true)).toEqual([
+            'receive_payment',
+            'apply_credit',
+            'edit',
+            'void',
+            'copy',
+            'credit_memo',
+            'write_off',
+            'entry',
+            'pdf',
+        ])
+    })
+
+    it('is not offered while the customer has no unapplied credit', () => {
+        expect(invoice('posted', true, 40_000, false)).not.toContain('apply_credit')
+    })
+
+    it('is never offered to a reader, even when canApplyInvoiceCredit is set', () => {
+        expect(invoice('posted', false, 40_000, true)).toEqual(['entry', 'pdf'])
+        expect(
+            documentReadActions('posted', false, SALES_FEATURES, {
+                canReceivePayment: true,
+                canPayBill: false,
+                canCreateCreditMemo: true,
+                canApplyInvoiceCredit: true,
+            })
+        ).not.toContain('apply_credit')
+    })
+
+    it('is never offered on a draft or a void invoice, even when canApplyInvoiceCredit is set', () => {
+        expect(invoice('draft', true, 40_000, true)).toEqual([])
+        expect(invoice('void', true, 40_000, true)).not.toContain('apply_credit')
+        expect(
+            documentReadActions('void', true, SALES_FEATURES, {
+                canReceivePayment: false,
+                canPayBill: false,
+                canCreateCreditMemo: false,
+                canApplyInvoiceCredit: true,
+            })
+        ).toEqual(['copy', 'entry', 'pdf'])
     })
 })
 

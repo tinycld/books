@@ -1,4 +1,11 @@
 import type PocketBase from 'pocketbase'
+import { AP_AGING_SEED } from './lib/ap-aging-fixture'
+import {
+    APPLY_CREDIT_INVOICES,
+    APPLY_CREDIT_MEMOS,
+    APPLY_CREDIT_SEED,
+    CREDIT_MEMO_APPLICATIONS,
+} from './lib/apply-credit-fixture'
 import { AR_AGING_SEED } from './lib/ar-aging-fixture'
 import { ATTACHMENT_SEED_FILES } from './lib/attachment-seed-files'
 import { ATTACHMENTS, SEED_ATTACHMENT_IDS } from './lib/attachments-fixture'
@@ -75,6 +82,7 @@ import {
     salesTaxLiabilitySeedMemo,
 } from './lib/sales-tax-liability-fixture'
 import { SEED_ACCOUNTS } from './lib/seed-accounts'
+import { STATEMENT_SEED } from './lib/statements-fixture'
 import {
     CUSTOMER_TAX_PATCHES,
     TAX_AGENCIES,
@@ -305,6 +313,18 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     // The A/R Aging rows, last among the document seeds so the earlier seeded documents
     // keep their numbers. Unit p3-vendor-pages also edits this file: keep both blocks.
     await seedArAging(pb, ctx, accountIds, customerIds)
+    // After the A/R Aging rows, so every earlier seeded document keeps its number.
+    await seedApplyCredit(pb, ctx, customerIds)
+    // The A/P Aging rows (plan decision D2): after the apply credit seed, so every earlier
+    // seeded document keeps its number, and before the bank match seed, which must see
+    // every seeded document.
+    await seedApAging(pb, ctx, accountIds)
+    // After every document seed, so its check that each of its two statement lines has
+    // exactly one suggestion sees every seeded document (the review statement is imported
+    // before any document posts). It posts no document, so no document number moves.
+    await seedBankMatch(pb, ctx)
+    // Two unsent statements; a statement posts nothing, so no seeded figure moves.
+    await seedStatements(pb, customerIds)
     // Created active and deactivated last, because the app makes an account
     // inactive by updating it, and the vendor and product guards refuse a row
     // that names an inactive account when it is saved.
@@ -615,17 +635,9 @@ export async function seedWriteOffs(
         bill_to: invoice.bill_to,
         email: invoice.email,
     }
-    const line = {
-        position: 0,
-        kind: 'item' as const,
-        product: 'prodbookkeep001',
-        description: invoice.memo,
-        quantity: 1,
-        rate: invoice.total,
-        percent_ppm: 0,
-        taxable: false,
-    }
-    const invoiceId = await createSeedInvoice(pb, ctx, header, [line])
+    const invoiceId = await createSeedInvoice(pb, ctx, header, [
+        untaxedSeedLine(invoice.memo, invoice.total),
+    ])
     await pb.collection('books_write_offs').create({
         id: writeOff.id,
         invoice: invoiceId,
@@ -2312,6 +2324,182 @@ export async function seedArAging(
     await postArAgingPayment(pb, ctx, accountIds, customerIds, unappliedPayment)
 }
 
+// A/P Aging's seed rows (AP_AGING_SEED, spec §4.5 Seed, plan decision D2), all of Harbor
+// Freight Logistics: a bill posted through the writes seedVendorCreditApplications makes
+// for VENDOR_CREDIT_SEED_BILL (the draft with the vendor's terms and address, one account
+// line, then the post); a part payment of that bill in one batch, as seedBillPayments
+// writes a payment (the payment created posted with its one line; the server posts it); a
+// vendor credit through the writes seedVendorCredits makes (the draft, one account line,
+// then the post); and part of the credit applied to the bill through the apply dialog's
+// REST create. The server numbers the documents, writes their entries and lowers both
+// balances. `accountIds` maps a seed account number to the created account.
+export async function seedApAging(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>
+): Promise<void> {
+    const { bill, partPayment, credit } = AP_AGING_SEED
+    const vendor = VENDORS.find(row => row.id === bill.vendor)
+    if (vendor === undefined) {
+        throw new Error(`seed: A/P aging vendor ${bill.vendor} is not in VENDORS`)
+    }
+    if (!VENDORS.some(row => row.id === credit.vendor)) {
+        throw new Error(`seed: A/P aging vendor ${credit.vendor} is not in VENDORS`)
+    }
+
+    const createdBill = await pb.collection('books_bills').create({
+        vendor: bill.vendor,
+        status: 'draft',
+        date: bill.date,
+        due_date: bill.due_date,
+        terms: vendor.terms,
+        ref_no: bill.ref_no,
+        memo: bill.memo,
+        mailing_address: vendor.address,
+    })
+    await pb.collection('books_bill_lines').create({
+        bill: createdBill.id,
+        position: 0,
+        kind: 'account',
+        account: seededAccountId(accountIds, bill.accountNumber, 'the A/P aging bill'),
+        amount: bill.cents,
+    })
+    await postSeedDocument(pb, 'books_bills', createdBill.id, ctx.user.id)
+
+    const batch = pb.createBatch()
+    batch.collection('books_bill_payments').create({
+        id: partPayment.id,
+        vendor: bill.vendor,
+        paid_from: seededAccountId(
+            accountIds,
+            partPayment.paidFromNumber,
+            'the A/P aging bill payment'
+        ),
+        payment_method: partPayment.payment_method,
+        reference_no: partPayment.reference_no,
+        status: 'posted',
+        date: partPayment.date,
+        posted_by: ctx.user.id,
+    })
+    batch.collection('books_bill_payment_lines').create({
+        id: partPayment.lineId,
+        payment: partPayment.id,
+        bill: createdBill.id,
+        amount: partPayment.cents,
+        position: 0,
+    })
+    await batch.send()
+
+    const createdCredit = await pb.collection('books_vendor_credits').create({
+        vendor: credit.vendor,
+        status: 'draft',
+        date: credit.date,
+        ref_no: credit.ref_no,
+        memo: credit.memo,
+    })
+    await pb.collection('books_vendor_credit_lines').create({
+        vendor_credit: createdCredit.id,
+        position: 0,
+        kind: 'account',
+        account: seededAccountId(accountIds, credit.accountNumber, 'the A/P aging vendor credit'),
+        amount: credit.cents,
+    })
+    await postSeedDocument(pb, 'books_vendor_credits', createdCredit.id, ctx.user.id)
+
+    await pb.collection('books_vendor_credit_applications').create({
+        vendor_credit: createdCredit.id,
+        bill: createdBill.id,
+        amount: credit.appliedCents,
+        date: credit.appliedDate,
+        applied_by: ctx.user.id,
+    })
+}
+
+// The apply credit seed (APPLY_CREDIT_SEED, apply credit spec §4.5): Fox Hollow
+// Vineyards' invoice of 2026-09-14, $400.00 with no sales tax, created with its fixture id
+// and posted through createSeedInvoice; a credit memo of 2026-11-12 made from it, $250.00
+// with no sales tax, created as a draft with its fixture id and one line, then posted;
+// then $150.00 of the memo applied to the invoice on 2026-11-16 through the dialog's one
+// write, a books_credit_memo_applications create with the fixture's id. The server numbers
+// both documents, lowers both balances and raises the memo's `applied`. The seed sends
+// applied_by itself, because the server stamps no actor for a superuser. `customerIds`
+// maps a customer-form fixture id to the created customer.
+export async function seedApplyCredit(
+    pb: PocketBase,
+    ctx: SeedContext,
+    customerIds: Map<string, string>
+): Promise<void> {
+    const invoice = APPLY_CREDIT_INVOICES.find(row => row.id === APPLY_CREDIT_SEED.invoice)
+    const memo = APPLY_CREDIT_MEMOS.find(row => row.id === APPLY_CREDIT_SEED.creditMemo)
+    const application = CREDIT_MEMO_APPLICATIONS.find(
+        row => row.id === APPLY_CREDIT_SEED.application
+    )
+    if (invoice === undefined || memo === undefined || application === undefined) {
+        throw new Error('seed: APPLY_CREDIT_SEED names a row that is not in the fixture')
+    }
+    const customer = customerIds.get(invoice.customer)
+    if (customer === undefined || customerIds.get(memo.customer) !== customer) {
+        throw new Error(
+            `seed: apply credit invoice ${invoice.id} names customer ${invoice.customer}, which was not created or is not the memo's`
+        )
+    }
+    const invoiceId = await createSeedInvoice(
+        pb,
+        ctx,
+        {
+            id: invoice.id,
+            customer,
+            date: invoice.date,
+            due_date: invoice.due_date,
+            terms: invoice.terms,
+            message: invoice.message,
+            memo: invoice.memo,
+            bill_to: invoice.bill_to,
+            email: invoice.email,
+        },
+        [untaxedSeedLine(invoice.memo, invoice.total)]
+    )
+    const created = await pb.collection('books_credit_memos').create({
+        id: memo.id,
+        customer,
+        status: 'draft',
+        date: memo.date,
+        bill_to: memo.bill_to,
+        email: memo.email,
+        message: memo.message,
+        memo: memo.memo,
+        invoice: invoiceId,
+    })
+    await pb.collection('books_credit_memo_lines').create({
+        credit_memo: created.id,
+        ...untaxedSeedLine(memo.memo, memo.total),
+    })
+    await postSeedDocument(pb, 'books_credit_memos', created.id, ctx.user.id)
+    await pb.collection('books_credit_memo_applications').create({
+        id: application.id,
+        credit_memo: created.id,
+        invoice: invoiceId,
+        amount: application.amount,
+        date: application.date,
+        applied_by: ctx.user.id,
+    })
+}
+
+// One untaxed item line of the bookkeeping product for `cents`: the one line of the
+// write-off seed's invoice and of the apply credit seed's invoice and credit memo.
+function untaxedSeedLine(description: string, cents: number) {
+    return {
+        position: 0,
+        kind: 'item' as const,
+        product: 'prodbookkeep001',
+        description,
+        quantity: 1,
+        rate: cents,
+        percent_ppm: 0,
+        taxable: false,
+    }
+}
+
 type ArAgingPayment = (typeof AR_AGING_SEED)['partPayment' | 'unappliedPayment']
 
 // A posted payment as seedPayments posts one: a draft, its application to `invoice` for
@@ -2547,7 +2735,8 @@ function contentLines(rows: unknown): number[] {
 
 // Uploads and imports the For review statement on 1000 Business Checking, through the same
 // upload and import hooks the app uses, then excludes four of its rows, so the e2e book and
-// the help screenshots show For review and Excluded lists. Nothing is marked reviewed.
+// the help screenshots show For review and Excluded lists. seedBankMatch later moves one row
+// to Reviewed by a match.
 async function seedReviewStatement(
     pb: PocketBase,
     ctx: SeedContext,
@@ -2596,5 +2785,53 @@ async function seedReviewStatement(
     }
     for (const txn of toExclude) {
         await pb.collection('books_bank_transactions').update(txn.id, { status: 'excluded' })
+    }
+}
+
+// The review statement's last two lines each fit one Books transaction the seed posted on
+// 1000 Business Checking: PACIFIC POWER AUTOPAY stays For review with its one suggestion,
+// and ONLINE BILL PAY 0915 is matched through the same create hook the app uses, so the
+// Reviewed tab has a matched row. The superuser attributes the match to the seeded user.
+async function seedBankMatch(pb: PocketBase, ctx: SeedContext) {
+    const statement = REVIEW_SEED_STATEMENT
+    const onlySuggestion = async (fitid: string) => {
+        const txn = await pb
+            .collection('books_bank_transactions')
+            .getFirstListItem(pb.filter('fitid = {:f}', { f: fitid }))
+        const rows = await pb.collection('books_bank_match_suggestions').getFullList({
+            filter: pb.filter('bank_transaction = {:t}', { t: txn.id }),
+        })
+        const [row] = rows
+        if (rows.length !== 1 || row === undefined) {
+            throw new Error(
+                `seed: bank transaction ${fitid} has ${rows.length} match suggestions, want 1`
+            )
+        }
+        return { txn: txn.id, line: String(row.line) }
+    }
+    await onlySuggestion(statement.suggestedFitid)
+    const matched = await onlySuggestion(statement.matchedFitid)
+    await pb.collection('books_bank_matches').create({
+        bank_transaction: matched.txn,
+        lines: [matched.line],
+        created_by: ctx.user.id,
+    })
+}
+
+// Statements spec §4.7: two saved, unsent statements of Harborview Kitchen (one Balance
+// forward, one Open items), through the collection's create. The create guard
+// (server/statements.go) sets the number, the sequence, the balance and the currency and
+// refuses a client value of any of them or of the sent fields, so the seed sends only the
+// fixture's columns. `customerIds` maps a customer-form fixture id to the created customer.
+export async function seedStatements(
+    pb: PocketBase,
+    customerIds: Map<string, string>
+): Promise<void> {
+    for (const row of STATEMENT_SEED) {
+        const customer = customerIds.get(row.customer)
+        if (customer === undefined) {
+            throw new Error(`seed: statement names customer ${row.customer}, which was not created`)
+        }
+        await pb.collection('books_statements').create({ ...row, customer })
     }
 }

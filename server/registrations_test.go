@@ -37,11 +37,16 @@ var serverOnly = map[string]bool{
 	"books_credit_memo_tax_lines":   true,
 	"books_invoice_tax_lines":       true,
 	"books_receivable_items":        true,
+	"books_payable_items":           true,
 	"books_sales_receipt_tax_lines": true,
 	// A refund receipt's tax lines are its posting snapshot, and its credits
 	// row is written by the payout's post (refund receipt spec §4.1).
 	"books_refund_receipt_tax_lines": true,
 	"books_refund_receipt_credits":   true,
+	// A bank match's lines are written by the match hook inside the audited
+	// match, as its parsed rows are a bank file's (bank-match spec §4). The
+	// suggestions are a view; booksCollections(…, base) never lists a view.
+	"books_bank_match_lines": true,
 }
 
 func booksCollections(t testing.TB, app core.App, kinds ...string) []*core.Collection {
@@ -981,17 +986,20 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 	registerPaymentGuards(parts)
 	registerBillPaymentGuards(parts)
 	registerVendorCreditApplications(parts)
+	registerCreditMemoApplications(parts)
 	registerVendorRefundGuards(parts)
 	registerWriteOffGuards(parts)
 	registerEstimateResponses(parts)
 	registerAudit(&pocketbase.PocketBase{App: parts})
 	registerSearchIndex(&pocketbase.PocketBase{App: parts})
 	registerAutoReverseSweep(parts)
+	registerStatementGuards(parts)
 	registerReportShares(parts)
 	registerPartyBalances()
 	parts.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		bindBalanceRoutes(e)
 		bindPDFRoutes(e)
+		bindStatementRoutes(e)
 		return e.Next()
 	})
 

@@ -1,19 +1,10 @@
 package books
 
-import (
-	"fmt"
-	"strings"
-
-	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase/core"
-
-	"tinycld.org/core/changesignal"
-)
-
 // receivableItemsCollection stores the rows of every receivable item: one row
-// per posted Accounts receivable journal line (source line) and one per
-// application of a posted payment (source application). Only Books writes it,
-// with raw SQL from the two queries below, inside the transaction of the write
+// per posted Accounts receivable journal line (source line), one per
+// application of a posted payment and two per application of a posted credit
+// memo (source application). Only Books writes it, with raw SQL from the three
+// queries below (receivableQueries), inside the transaction of the write
 // that changes a row. settled is the day the balance of the row's customer
 // and item becomes zero and stays zero, or receivableOpen while the item is
 // open: the A/R Aging reads only the rows with settled after its As of day.
@@ -21,10 +12,10 @@ const (
 	receivableItemsCollection   = "books_receivable_items"
 	receivableSourceLine        = "line"
 	receivableSourceApplication = "application"
-	receivableOpen              = "9999-12-31"
+	receivableOpen              = openItemDay
 )
 
-// receivableColumns are the columns the two queries give, in their order.
+// receivableColumns are the columns the three queries give, in their order.
 const receivableColumns = "id, source, customer, entry, date, currency, debit, credit, item, item_kind, item_number, item_seq, due_date"
 
 // A line's entry names its document (e), or the entry it reverses names it
@@ -83,149 +74,36 @@ const receivableApplicationsSQL = "SELECT pa.id AS id, '" + receivableSourceAppl
 	"JOIN books_journal_entries ie ON ie.id = i.entry " +
 	"WHERE p.status = 'posted'"
 
-// receivableSettledSQL gives, for each customer and item of the stored rows
-// (%s: "" for all of them, or a WHERE on the stored rows that keeps or drops
-// each customer and item whole), the day its balance becomes zero and stays zero: the
-// first day with no later day (itself included) whose end-of-day balance is
-// not zero. An item whose last balance is not zero is open.
-const receivableSettledSQL = `
-	WITH d AS (
-		SELECT customer, item, date, SUM(debit - credit) AS net
-		FROM books_receivable_items %s GROUP BY customer, item, date
-	), r AS (
-		SELECT customer, item, date,
-		       SUM(net) OVER (PARTITION BY customer, item ORDER BY date) AS bal
-		FROM d
-	), z AS (
-		SELECT customer, item, date,
-		       SUM(bal != 0) OVER (PARTITION BY customer, item ORDER BY date
-		                           ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS later
-		FROM r
-	)
-	SELECT z.customer AS customer, z.item AS item,
-	       COALESCE(MIN(CASE WHEN z.later = 0 THEN z.date END), '` + receivableOpen + `') AS settled
-	FROM z
-	GROUP BY z.customer, z.item`
+// receivableCreditApplicationsSQL is two rows per application of a posted
+// credit memo, both at the apply date with the memo's customer, currency and
+// entry: a credit of the amount on the invoice's item (the application's id)
+// and a debit of the amount on the memo's item (the application's id in upper
+// case: 15 characters, the same on every run, and never a PocketBase id, which
+// is lower case). The memo's own line keeps its full credit at its date, so
+// the memo's item is its unapplied rest from the apply date, and the two rows
+// add to zero. It is wrapped, so a refresh adds " AND ca.entry = {:entry}" or
+// " AND ca.item = {:invoice}" on its own columns; the extra credit_memo column
+// is not stored (receivableItems.insert selects receivableColumns).
+const receivableCreditApplicationsSQL = "SELECT * FROM (" +
+	"SELECT ca.id AS id, '" + receivableSourceApplication + "' AS source, m.customer AS customer, m.entry AS entry, ca.date AS date, m.currency AS currency, " +
+	"CAST(0 AS INTEGER) AS debit, ca.amount AS credit, CAST(ca.invoice AS TEXT) AS item, CAST('invoice' AS TEXT) AS item_kind, " +
+	"CAST(ie.number AS TEXT) AS item_number, CAST(ie.sequence AS INTEGER) AS item_seq, CAST(i.due_date AS TEXT) AS due_date, ca.credit_memo AS credit_memo " +
+	"FROM " + creditMemoApplicationsCollection + " ca JOIN books_credit_memos m ON m.id = ca.credit_memo " +
+	"JOIN books_invoices i ON i.id = ca.invoice JOIN books_journal_entries ie ON ie.id = i.entry WHERE m.status = 'posted' " +
+	"UNION ALL " +
+	"SELECT UPPER(ca.id) AS id, '" + receivableSourceApplication + "' AS source, m.customer, m.entry, ca.date, m.currency, " +
+	"ca.amount AS debit, CAST(0 AS INTEGER) AS credit, CAST(ca.credit_memo AS TEXT), CAST('credit_memo' AS TEXT), " +
+	"CAST(me.number AS TEXT), CAST(me.sequence AS INTEGER), CAST(m.date AS TEXT), ca.credit_memo " +
+	"FROM " + creditMemoApplicationsCollection + " ca JOIN books_credit_memos m ON m.id = ca.credit_memo " +
+	"JOIN books_journal_entries me ON me.id = m.entry WHERE m.status = 'posted'" +
+	") ca WHERE TRUE"
 
-// insertReceivables stores the rows query gives; where narrows it (" AND
-// l.entry = {:entry}"). It returns how many rows it wrote.
-func insertReceivables(tx core.App, query, where string, params dbx.Params) (int64, error) {
-	res, err := tx.DB().NewQuery("INSERT INTO " + receivableItemsCollection + " (" + receivableColumns + ", settled) SELECT " +
-		receivableColumns + ", '" + receivableOpen + "' FROM (" + query + where + ")").Bind(params).Execute()
-	if err != nil {
-		return 0, fmt.Errorf("books: store receivable rows: %w", err)
-	}
-	return res.RowsAffected()
-}
+// receivableQueries are the three queries of the stored rows.
+var receivableQueries = []string{receivableLinesSQL, receivableApplicationsSQL, receivableCreditApplicationsSQL}
 
-// receivablePair names one item of one customer: the unit settled is computed
-// for. A blank Customer is the rows with no customer.
-type receivablePair struct {
-	Customer string `db:"customer"`
-	Item     string `db:"item"`
-}
-
-// receivablePairChunk bounds the pairs of one settle statement, under SQLite's
-// limit of bound values.
-const receivablePairChunk = 500
-
-// settleReceivablesSQL writes settled on the stored rows of the pairs that
-// where (a WHERE on the stored rows, or "" for all) selects: only the rows whose
-// day changes are written.
-func settleReceivablesSQL(where string) string {
-	t := receivableItemsCollection
-	return "UPDATE " + t + " SET settled = s.settled FROM (" +
-		fmt.Sprintf(receivableSettledSQL, where) + ") s WHERE s.customer = " + t + ".customer AND s.item = " +
-		t + ".item AND s.settled != " + t + ".settled"
-}
-
-// settleReceivables writes settled on the stored rows of pairs (a blank customer
-// is the rows with no customer), or of every item when pairs is nil. It
-// returns how many rows it changed.
-func settleReceivables(tx core.App, pairs []receivablePair) (int64, error) {
-	update := func(where string, params dbx.Params) (int64, error) {
-		res, err := tx.DB().NewQuery(settleReceivablesSQL(where)).Bind(params).Execute()
-		if err != nil {
-			return 0, fmt.Errorf("books: settle receivable items: %w", err)
-		}
-		return res.RowsAffected()
-	}
-	if pairs == nil {
-		return update("", nil)
-	}
-	// A row with no customer holds '' (PocketBase writes '' for an empty
-	// relation), never NULL: a NULL would match neither the comparison nor the
-	// join on customer, so the blank customer here finds exactly those rows.
-	var changed int64
-	for start := 0; start < len(pairs); start += receivablePairChunk {
-		chunk := pairs[start:min(start+receivablePairChunk, len(pairs))]
-		params := dbx.Params{}
-		terms := make([]string, len(chunk))
-		for i, p := range chunk {
-			c, it := fmt.Sprintf("c%d", i), fmt.Sprintf("i%d", i)
-			terms[i], params[c], params[it] = "(customer = {:"+c+"} AND item = {:"+it+"})", p.Customer, p.Item
-		}
-		n, err := update("WHERE "+strings.Join(terms, " OR "), params)
-		if err != nil {
-			return 0, err
-		}
-		changed += n
-	}
-	return changed, nil
-}
-
-// rebuildReceivables makes the stored rows equal the two queries over the
-// whole book, for a book written past the hooks (a test's raw rows, a repair).
-func rebuildReceivables(tx core.App) error {
-	if _, err := tx.DB().NewQuery("DELETE FROM " + receivableItemsCollection).Execute(); err != nil {
-		return fmt.Errorf("books: clear receivable rows: %w", err)
-	}
-	for _, query := range []string{receivableLinesSQL, receivableApplicationsSQL} {
-		if _, err := insertReceivables(tx, query, "", nil); err != nil {
-			return err
-		}
-	}
-	if _, err := settleReceivables(tx, nil); err != nil {
-		return err
-	}
-	changesignal.Touch(tx, receivableItemsCollection)
-	return nil
-}
-
-// ReceivableDrift is one stored receivable row that disagrees with the book.
-// Problem is "stale" (stored, and the queries give no such row), "missing"
-// (the queries give it, and it is not stored so) or "settled" (its settled day
-// is not the day its item's balance stays zero from).
-type ReceivableDrift struct {
-	ID      string `db:"id" json:"id"`
-	Entry   string `db:"entry" json:"entry"`
-	Item    string `db:"item" json:"item"`
-	Problem string `db:"problem" json:"problem"`
-}
-
-// maxReceivableDriftsReported bounds the rows the rebuild route lists; the
-// route also answers the count of all of them.
-const maxReceivableDriftsReported = 100
-
-// verifyReceivables compares the stored rows with the two queries, both ways,
-// and each row's settled with the day its item settles. Every write path
-// refreshes the rows it changes, so a drift means one missed it.
-func verifyReceivables(app core.App) ([]ReceivableDrift, error) {
-	computed := "SELECT " + receivableColumns + " FROM (" + receivableLinesSQL + " UNION ALL " + receivableApplicationsSQL + ")"
-	stored := "SELECT " + receivableColumns + " FROM " + receivableItemsCollection
-	drifts := []ReceivableDrift{}
-	err := app.DB().NewQuery(`
-		SELECT id, entry, item, problem FROM (
-			SELECT id, entry, item, 'stale' AS problem FROM (` + stored + ` EXCEPT ` + computed + `)
-			UNION ALL
-			SELECT id, entry, item, 'missing' AS problem FROM (` + computed + ` EXCEPT ` + stored + `)
-			UNION ALL
-			SELECT t.id, t.entry, t.item, 'settled' AS problem FROM ` + receivableItemsCollection + ` t
-			JOIN (` + fmt.Sprintf(receivableSettledSQL, "") + `) s ON s.customer = t.customer AND s.item = t.item
-			WHERE s.settled != t.settled
-		) ORDER BY problem, id`).All(&drifts)
-	if err != nil {
-		return nil, fmt.Errorf("books: compare the receivable rows with the book: %w", err)
-	}
-	return drifts, nil
+// receivableItems is the stored receivable table: its rows, settled days,
+// refresh, verify and rebuild are the open-items engine's (open_items.go).
+var receivableItems = openItemsTable{
+	Collection: receivableItemsCollection, Party: "customer", Columns: receivableColumns,
+	Queries: receivableQueries, Open: receivableOpen, Noun: "receivable", ReadOnly: msgReceivableItemsReadOnly,
 }

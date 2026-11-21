@@ -165,6 +165,7 @@ func registerBillPaymentGuards(app core.App) {
 	app.OnRecordDelete(billPaymentLinesCollection).BindFunc(func(e *core.RecordEvent) error {
 		return refuse(msgBillPayBillsFixed)
 	})
+	bindPayablePaymentRefresh(app)
 }
 
 // createBillPayment guards a new bill payment: its batch's request hook
