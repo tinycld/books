@@ -207,6 +207,36 @@ func explainStatements(t testing.TB, app core.App, statements []string) []planSt
 	return steps
 }
 
+// stepsRunPerRow is steps without the subtrees of a LIST SUBQUERY that SQLite
+// builds once for its statement (core's cut of the rows to the open sections
+// reads gord in one), so a scan inside it reads no table again for each row.
+// A subquery the plan names CORRELATED runs once per outer row: its steps stay,
+// also under a list, because each of its runs reads its tables.
+func stepsRunPerRow(steps []planStep) []planStep {
+	type node struct{ statement, id int }
+	byID := map[node]planStep{}
+	for _, s := range steps {
+		byID[node{s.Statement, s.ID}] = s
+	}
+	builtOnce := func(s planStep) bool {
+		once := false
+		for cur, ok := s, true; ok; cur, ok = byID[node{s.Statement, cur.Parent}] {
+			if strings.HasPrefix(cur.Detail, "CORRELATED ") {
+				return false
+			}
+			once = once || strings.HasPrefix(cur.Detail, "LIST SUBQUERY")
+		}
+		return once
+	}
+	var out []planStep
+	for _, s := range steps {
+		if !builtOnce(s) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 // explainReading reads each statement's plan under reading, on ONE connection
 // (D10): a transaction that creates sqlite_stat1, sets its rows (or runs a real
 // ANALYZE), has the planner load them, explains, and rolls back. It returns

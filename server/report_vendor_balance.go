@@ -19,6 +19,10 @@ func vendorBalanceShipped() reports.Shipped {
 		// checkpoints keep 1 (core re-stores a spec only on a higher revision).
 		Revision:    1,
 		Unpublished: true,
+		// It reads books.journal_lines, a source that is NotLive. Its rows are
+		// sums per vendor, and an opened vendor reads only its own lines, so its
+		// run stays fast on a large book: it stays live, as its help says.
+		Live: true,
 	}
 }
 

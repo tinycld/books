@@ -32,7 +32,7 @@ func seedLedgerRows(t testing.TB, app core.App) ledgerRows {
 	postedLine, _ := app.FindFirstRecordByFilter("books_journal_lines", "entry = {:e}", map[string]any{"e": posted.Id})
 	draftLine, _ := app.FindFirstRecordByFilter("books_journal_lines", "entry = {:e}", map[string]any{"e": draft.Id})
 	balance := saveRecord(t, app, "books_account_balances", map[string]any{
-		"account": account.Id, "period": "2026-05", "debit_total": 100, "currency": "USD",
+		"account": account.Id, "period": "2026-05", "month_start": "2026-05-01", "debit_total": 100, "currency": "USD",
 	})
 	return ledgerRows{account, posted, draft, postedLine, draftLine, balance}
 }
