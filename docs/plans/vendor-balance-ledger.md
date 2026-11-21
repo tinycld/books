@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/vendor-balance-checkpoints.md
 - reference: docs/plans/vendor-balance-reference/
 - evidence: docs/plans/vendor-balance-evidence/cp<N>/ (built screenshots, capture.json, critique.md); docs/plans/vendor-balance-evidence/perf-plans.md (the query plans of spec §8)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs 2026-11-21)
 - capture manifest: docs/plans/vendor-balance-capture.json
 - review mode: C — none (unattended)
 - core extension: none. Every engine feature the report uses has a Books run behind it (the Customer Balance, the A/P Aging). A performance bar of spec §8 that needs a core change stops the run for the human. Amended 2026-11-20: checkpoint 3 stopped on such a bar and the human chose the core fix in this unit: checkpoint 0 (core repo, branch books/p5-vendor-balance), an index-served `eq` of a Select field with a text (plan D16). It runs after checkpoints 1 and 2 and before checkpoint 3 continues. The core PR stays open; the driver merges it before the package PR.
@@ -284,6 +284,6 @@
 - commit: core dec1946 (branch books/p5-vendor-balance, #509)
 
 ## Final review
-- eval: (unattended only) approved | revised → <notes, fix sha> | stopped
+- eval: approved 2026-11-21 (e2e sha 1add69e3; core #509 green at f5415b1)
 - human comments and what changed
 - native: not executed in this run
