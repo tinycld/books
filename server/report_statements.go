@@ -198,7 +198,7 @@ func statementOpenItemsSpec() *reports.Spec {
 			byCustomer,
 			{
 				ID: "byItem", Col: "itemKey",
-				Label:  op("concat", arItemKindLabel(), lit(" "), op("min", fld("item_number"))),
+				Label:  op("concat", itemKindLabel(receivableItemsSource()), lit(" "), op("min", fld("item_number"))),
 				Having: op("ne", op("sum", arNet()), lit(0)),
 			},
 		},
