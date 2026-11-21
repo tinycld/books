@@ -1,0 +1,107 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280, 1024, 768],
+            "height": 1160,
+            "actions": [
+                { "clickText": "Expenses by Vendor" },
+                { "waitFor": "report-table" },
+                { "waitFor": "Coastal Coffee Roasters (inactive)" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "with-activity",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "height": 1340,
+            "actions": [
+                { "clickText": "Expenses by Vendor" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-rows" },
+                { "clickRole": "radio", "name": "With activity" },
+                { "waitForHidden": "report-filter-picker" },
+                { "pause": 2000 }
+            ]
+        },
+        {
+            "name": "by-amount",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "height": 1160,
+            "actions": [
+                { "clickText": "Expenses by Vendor" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-order" },
+                { "clickRole": "radio", "name": "Largest expenses" },
+                { "waitForHidden": "report-filter-picker" },
+                { "pause": 2000 }
+            ]
+        },
+        {
+            "name": "filtered",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "actions": [
+                { "clickText": "Expenses by Vendor" },
+                { "waitFor": "report-table" },
+                { "click": "report-add-filter" },
+                { "click": "report-add-filter-vendors" },
+                { "fill": "report-filter-search", "value": "Harbor Freight" },
+                { "clickRole": "checkbox", "name": "Harbor Freight Logistics" },
+                { "fill": "report-filter-search", "value": "Pacific Power" },
+                { "clickRole": "checkbox", "name": "Pacific Power" },
+                { "click": "report-filter-apply" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitFor": "report-header-param-vendors" },
+                { "pause": 2000 }
+            ]
+        },
+        {
+            "name": "zero",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "actions": [
+                { "clickText": "Expenses by Vendor" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-period" },
+                { "click": "report-period-preset-custom" },
+                { "fill": "report-period-from", "value": "2026-09-16" },
+                { "fill": "report-period-to", "value": "2026-09-16" },
+                { "press": "Escape" },
+                { "waitForHidden": "report-period-popover" },
+                { "click": "report-param-rows" },
+                { "clickRole": "radio", "name": "With activity" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitFor": "Coastal Coffee Roasters (inactive)" },
+                { "pause": 2000 }
+            ]
+        },
+        {
+            "name": "empty",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1024],
+            "actions": [
+                { "clickText": "Expenses by Vendor" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-period" },
+                { "click": "report-period-preset-custom" },
+                { "fill": "report-period-from", "value": "2020-01-01" },
+                { "fill": "report-period-to", "value": "2020-01-31" },
+                { "press": "Escape" },
+                { "waitForHidden": "report-period-popover" },
+                { "waitFor": "report-empty" },
+                { "click": "report-document-period" }
+            ]
+        }
+    ]
+}

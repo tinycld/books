@@ -10,7 +10,7 @@ import type {
     ResultRow,
     RunResult,
 } from '@tinycld/core/reports/lib/types'
-import { VENDORS, type VendorFixtureRecord } from './vendor-form-fixture'
+import { VENDOR_IDS, VENDORS, type VendorFixtureRecord } from './vendor-form-fixture'
 
 export const EXPENSES_BY_VENDOR_HEADING = 'Harbor Lane Design LLC'
 export const EXPENSES_BY_VENDOR_TITLE = 'Expenses by Vendor'
@@ -29,6 +29,21 @@ export const EXPENSES_BY_VENDOR_ZERO_TO = '2025-12-31'
 // No posted expense line: the empty report.
 export const EXPENSES_BY_VENDOR_EMPTY_FROM = '2025-07-01'
 export const EXPENSES_BY_VENDOR_EMPTY_TO = '2025-09-30'
+// The seed's one entry (plan D5, seedExpensesByVendor in seed.ts): a posted journal
+// entry on 6200 Software Subscriptions that nets to zero, so no statement figure moves.
+// It gives the seeded book an expense line for the inactive Coastal Coffee Roasters and
+// one for the long-named Willamette vendor; the credit names no vendor. 6200 has no 1099
+// box, so no 1099 figure moves either. Money is integer cents; the account is its seed
+// number.
+export const EXPENSES_BY_VENDOR_SEED = {
+    date: '2026-09-16',
+    memo: 'Seed expenses by vendor: software by vendor',
+    lines: [
+        { account: '6200', debit: 9600, credit: 0, vendor: VENDOR_IDS.coastalCoffee },
+        { account: '6200', debit: 18400, credit: 0, vendor: VENDOR_IDS.willamette },
+        { account: '6200', debit: 0, credit: 28000, vendor: '' },
+    ],
+}
 const CURRENCY = 'USD'
 const NO_VENDOR_LABEL = 'No vendor'
 const INACTIVE_SUFFIX = ' (inactive)'

@@ -35,6 +35,7 @@ import {
     DECLINE_RESPONSES,
 } from './lib/estimate-public-link-fixture'
 import { EXPENSE_LINES, EXPENSE_SEED_IDS, EXPENSES } from './lib/expense-form-fixture'
+import { EXPENSES_BY_VENDOR_SEED } from './lib/expenses-by-vendor-fixture'
 import { REVIEW_SEED_STATEMENT } from './lib/for-review-fixture'
 import {
     GENERAL_LEDGER_LONG_SECTION,
@@ -325,6 +326,9 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     // the Accounts payable account, and before the bank match seed. They are journal entries
     // only, so no document number moves.
     await seedVendorBalance(pb, ctx, accountIds)
+    // The Expenses by Vendor row (plan D5): a journal entry only, so no document number
+    // moves, and before the bank match seed.
+    await seedExpensesByVendor(pb, ctx, accountIds)
     // After every document seed, so its check that each of its two statement lines has
     // exactly one suggestion sees every seeded document (the review statement is imported
     // before any document posts). It posts no document, so no document number moves.
@@ -2443,6 +2447,72 @@ export async function seedVendorBalance(
     await pb.collection('books_vendors').update(inactiveEntry.vendor, { inactive: false })
     await postVendorBalanceEntry(pb, ctx, payable, inactiveOther, inactiveEntry)
     await pb.collection('books_vendors').update(inactiveEntry.vendor, { inactive: true })
+}
+
+// The Expenses by Vendor's seed row (EXPENSES_BY_VENDOR_SEED, plan D5): one posted journal
+// entry on 6200 Software Subscriptions that nets to zero, with a debit naming the inactive
+// Coastal Coffee Roasters, a debit naming the long-named Willamette vendor and a credit
+// naming no vendor. `accountIds` maps a seed account number to the created account.
+export async function seedExpensesByVendor(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>
+): Promise<void> {
+    const { date, memo, lines } = EXPENSES_BY_VENDOR_SEED
+    const seedLines = lines.map(line => {
+        const account = accountIds.get(line.account)
+        if (account === undefined) {
+            throw new Error(
+                `seed: expenses by vendor entry "${memo}" names account ${line.account}, which was not created`
+            )
+        }
+        return {
+            account,
+            debit: line.debit,
+            credit: line.credit,
+            customer: '',
+            vendor: line.vendor,
+        }
+    })
+    const vendors = await expensesByVendorRows(pb, memo, lines)
+    const inactive = vendors.filter(row => row.inactive)
+    // The line guard (checkLineParty, server/lines.go) refuses a new line that names an
+    // inactive vendor, so Coastal Coffee Roasters is made active for the post and inactive
+    // again after it, as seedVendorBalance does for Old Town Print Shop. The restore runs
+    // also when the post fails, so a failed seed leaves no inactive vendor active.
+    for (const row of inactive) {
+        await pb.collection('books_vendors').update(row.id, { inactive: false })
+    }
+    try {
+        await postSeedJournalEntry(pb, ctx, { date, memo, lines: seedLines })
+    } finally {
+        for (const row of inactive) {
+            await pb.collection('books_vendors').update(row.id, { inactive: true })
+        }
+    }
+}
+
+// The created vendor rows that the Expenses by Vendor entry names, read before any write
+// so that a vendor the seed did not create gives the seed's own error, not PocketBase's
+// relation error on the line.
+async function expensesByVendorRows(
+    pb: PocketBase,
+    memo: string,
+    lines: readonly { vendor: string }[]
+): Promise<{ id: string; inactive: boolean }[]> {
+    const ids = [...new Set(lines.map(line => line.vendor).filter(id => id !== ''))]
+    const params = Object.fromEntries(ids.map((id, i) => [`v${i}`, id]))
+    const filter = ids.map((_, i) => `id = {:v${i}}`).join(' || ')
+    const rows = await pb
+        .collection('books_vendors')
+        .getFullList<{ id: string; inactive: boolean }>({ filter: pb.filter(filter, params) })
+    const missing = ids.filter(id => !rows.some(row => row.id === id))
+    if (missing.length > 0) {
+        throw new Error(
+            `seed: expenses by vendor entry "${memo}" names vendor ${missing.join(', ')}, which was not created`
+        )
+    }
+    return rows
 }
 
 // The book's Accounts payable account. Only "no row" becomes the seed's error; any other
