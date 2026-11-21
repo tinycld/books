@@ -730,3 +730,14 @@ SCAN books_cash_basis_lines
 No run is refused at 100k.
 
 BS 2 cash, as of is a regression: 4.551s after task 9c-2 against 1.852s after task 9c-1. BS 1 accrual, as of is faster (972ms against 1.424s). The group rows (10) and rows (20) of BS 1 and BS 2 are the same as in the run before.
+
+#### Task 9d-1: the Cash Balance Sheet reads the stored months (books `server/report_balance_sheet.go`, 2026-11-20)
+
+The cash basis is the ledger and the cash-basis rows. The stored months are the ledger's, so a Cash run reads them too; of the months before a day's month it reads as lines only the cash-basis rows (layer `cash`). Before this task a Cash run added every journal line of the book for each lookup (4.551 s at 100,000 lines: 0.26 s compile, the rest SCANs of both line tables).
+
+| lines | run | before (task 9c-2) | after |
+|---|---|---|---|
+| 100000 | BS 1 accrual, as of | 972ms | 940ms |
+| 100000 | BS 2 cash, as of | 4.551s | 1.965s |
+
+Median of 5, core 25d6ecac, books 627e24c7; the group rows (10) and rows (20) of BS 1 and BS 2 are the same as before. Statement 5 of BS 2 (1.751s) has 21 `SCAN books_journal_lines` and 21 `SCAN books_cash_basis_lines` (17 of each after task 9c-2; BS 1 has the same 21 of each), and the statement is 259,542 chars (195,543 after task 9c-2). The SCANs are still there, but the Cash history lookups now keep only the rows of layer `cash`, so each reads less. The bar is 2 s at 500,000 lines for both methods; tasks 9d-2, 9e-1 and 9e-2 of the plan outline are what is left for it.
