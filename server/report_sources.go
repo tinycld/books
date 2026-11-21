@@ -116,6 +116,24 @@ func reportSources() []reports.Source {
 			},
 		},
 		{
+			// The cash-basis rows added up by account and month
+			// (cash_balances.go): what a Cash statement reads for the months
+			// before its day's month, beside the ledger's stored months.
+			Key: "books.cash_basis_balances", Collection: cashBalancesCollection, Label: "Monthly cash-basis balances",
+			Fields: []reports.Field{
+				{Key: "period", Label: "Month", Type: reports.Text, Aggregates: reports.MinMax},
+				{Key: "month_start", Label: "Month start", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
+				{Key: "debit_total", Label: "Debit total", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+				{Key: "credit_total", Label: "Credit total", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+				// A cash row carries its journal line's currency, and so does its
+				// month, so a report adds stored cash months to lines.
+				{Key: "currency", Label: "Currency", Type: reports.Text, SameCurrencyAs: "books.journal_lines.currency"},
+			},
+			Links: []reports.Link{
+				{Key: "account", Label: "Account", Target: "books.accounts", Cardinality: reports.ToOne, Field: "account"},
+			},
+		},
+		{
 			Key: "books.customers", Collection: "books_customers", Label: "Customers",
 			Fields: []reports.Field{
 				{Key: "display_name", Label: "Display name", Type: reports.Text, Aggregates: reports.MinMax},

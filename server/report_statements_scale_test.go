@@ -47,7 +47,10 @@ const stCashEvery = 4
 // each of its posted lines taken out again (debit and credit changed over) on
 // the line's own day, as the cash basis takes out an unpaid invoice. An
 // entry's cash rows add to zero, so a Cash run stays in balance, and a Cash
-// run reads about a quarter more rows than an Accrual run.
+// run reads about a quarter more rows than an Accrual run. The bulk insert
+// does not pass through syncCashLineRows, so the book's stored cash months
+// (books_cash_basis_balances) are written here too, as that writer keeps them:
+// one row for each account and month with a cash row.
 func writeStatementsScaleBook(t *testing.T, size arSize) glScaleBook {
 	t.Helper()
 	b := writeGLScaleBook(t, size)
@@ -57,6 +60,12 @@ FROM books_journal_lines l JOIN books_journal_entries e ON e.id = l.entry
 WHERE l.posted IS true AND e.rowid % {:n} = 0`).Bind(map[string]any{"n": stCashEvery}).Execute()
 	if err != nil {
 		t.Fatalf("write the cash-basis rows: %v", err)
+	}
+	_, err = b.app.DB().NewQuery(`INSERT INTO books_cash_basis_balances (id, account, period, month_start, debit_total, credit_total, currency, created, updated)
+SELECT 'm' || substr(lower(hex(randomblob(8))), 1, 14), account, substr(date, 1, 7), substr(date, 1, 7) || '-01', SUM(debit), SUM(credit), MAX(currency), '', ''
+FROM books_cash_basis_lines WHERE posted IS true GROUP BY account, substr(date, 1, 7)`).Execute()
+	if err != nil {
+		t.Fatalf("write the stored cash months: %v", err)
 	}
 	return b
 }
@@ -173,6 +182,12 @@ func TestStatementsScaleBook(t *testing.T) {
 	}
 	if cashRows == 0 || cashNet != 0 {
 		t.Fatalf("the book has %d cash-basis rows with a net of %d, want some rows and a net of 0", cashRows, cashNet)
+	}
+	// The stored cash months equal the cash rows, or a Cash Balance Sheet of
+	// this book would not be the book's.
+	requireCashMonthsEqualRows(t, b.app)
+	if drifts, err := verifyCashBalances(b.app); err != nil || len(drifts) != 0 {
+		t.Fatalf("verifyCashBalances on the scale book = %d drifts, err %v; want none", len(drifts), err)
 	}
 	results := map[string]*reports.Result{}
 	for _, run := range stScaleRuns(b) {
