@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
-import PocketBase from 'pocketbase'
+import PocketBase, { ClientResponseError } from 'pocketbase'
 import { describe, expect, it } from 'vitest'
 import { AP_AGING_SEED } from '../tinycld/books/lib/ap-aging-fixture'
 import { APPLY_CREDIT_SEED } from '../tinycld/books/lib/apply-credit-fixture'
@@ -27,6 +27,7 @@ import {
 } from '../tinycld/books/lib/refund-receipt-form-fixture'
 import { SALES_RECEIPT_IDS } from '../tinycld/books/lib/sales-receipt-form-fixture'
 import { SEED_ACCOUNTS } from '../tinycld/books/lib/seed-accounts'
+import { VENDOR_BALANCE_SEED } from '../tinycld/books/lib/vendor-balance-fixture'
 import { VENDORS } from '../tinycld/books/lib/vendor-form-fixture'
 import { VENDOR_REFUND_VENDOR_IDS } from '../tinycld/books/lib/vendor-refund-fixture'
 import {
@@ -774,6 +775,211 @@ describe('seedApAging', () => {
             AP_AGING_SEED.bill.vendor = saved.bill
             AP_AGING_SEED.credit.vendor = saved.credit
         }
+    })
+})
+
+type VendorBalanceCall =
+    | { op: 'read'; collection: string; filter: string }
+    | { op: 'create' | 'update'; collection: string; id: string; data: Record<string, unknown> }
+
+type VendorBalanceWrite = Exclude<VendorBalanceCall, { op: 'read' }>
+
+const isVendorBalanceWrite = (c: VendorBalanceCall): c is VendorBalanceWrite => c.op !== 'read'
+
+const VB_PAYABLE = 'acctpayable0000'
+
+// A PocketBase stand-in for seedVendorBalance: it records every read and write in order,
+// answers the books_accounts read of the Accounts payable account with `payable`, and
+// rejects every other first-item read as PocketBase does when no row matches (404).
+function vendorBalancePb(payable: string | null) {
+    const calls: VendorBalanceCall[] = []
+    const sdk = new PocketBase('http://127.0.0.1')
+    let next = 0
+    const notFound = (name: string) =>
+        new ClientResponseError({
+            url: `http://127.0.0.1/api/collections/${name}/records`,
+            status: 404,
+            response: { code: 404, message: "The requested resource wasn't found.", data: {} },
+        })
+    const collection = (name: string) => ({
+        create: async (data: Record<string, unknown>) => {
+            next += 1
+            const id =
+                typeof data.id === 'string' ? data.id : `rec${String(next).padStart(12, '0')}`
+            calls.push({ op: 'create', collection: name, id, data })
+            return { revision: 0, ...data, id }
+        },
+        update: async (id: string, data: Record<string, unknown>) => {
+            calls.push({ op: 'update', collection: name, id, data })
+            return { id, ...data }
+        },
+        getOne: async (id: string) => ({ id, revision: 0 }),
+        getFirstListItem: async (filter: string) => {
+            calls.push({ op: 'read', collection: name, filter })
+            if (
+                name === 'books_accounts' &&
+                filter === "type = 'accounts_payable'" &&
+                payable !== null
+            ) {
+                return { id: payable }
+            }
+            throw notFound(name)
+        },
+    })
+    const pb = {
+        collection,
+        filter: (raw: string, params?: Record<string, unknown>) => sdk.filter(raw, params),
+    }
+    return { pb, calls }
+}
+
+// Vendor Balance plan D2, D3: one posted journal entry on Accounts payable with no vendor,
+// then one that names the inactive Old Town Print Shop, which is made active for its post
+// and inactive again after it. The payable account is read by its type, because the seed
+// chart has none: the server makes it on the first bill post.
+describe('seedVendorBalance', () => {
+    it('runs after the A/P Aging seed and before the bank match seed', () => {
+        const source = readFileSync(seedPath, 'utf8')
+        const body = source.slice(source.indexOf('export default async function seed('))
+        const apAging = body.indexOf('seedApAging(')
+        const vendorBalance = body.indexOf('seedVendorBalance(')
+        const bankMatch = body.indexOf('seedBankMatch(')
+        expect(apAging).toBeGreaterThan(-1)
+        expect(vendorBalance).toBeGreaterThan(apAging)
+        expect(bankMatch).toBeGreaterThan(vendorBalance)
+    })
+
+    it('posts the entry with no vendor, then the entry for Old Town Print Shop, which it makes active for the post and inactive again', async () => {
+        const seedVendorBalance = (seedModule as Record<string, unknown>).seedVendorBalance
+        expect(typeof seedVendorBalance).toBe('function')
+        if (typeof seedVendorBalance !== 'function') return
+        const { pb, calls } = vendorBalancePb(VB_PAYABLE)
+        const accounts = seededAccounts()
+        await seedVendorBalance(pb, { user: USER }, accounts)
+
+        const { noVendorEntry, inactiveEntry } = VENDOR_BALANCE_SEED
+        const oldTown = VENDORS.find(row => row.id === inactiveEntry.vendor)
+        expect(oldTown?.display_name).toBe('Old Town Print Shop')
+        const other = accounts.get('6200')
+        expect(other).toBeDefined()
+
+        expect(calls[0]).toEqual({
+            op: 'read',
+            collection: 'books_accounts',
+            filter: "type = 'accounts_payable'",
+        })
+        const writes = calls.filter(isVendorBalanceWrite)
+        const entries = writes.filter(
+            c => c.op === 'create' && c.collection === 'books_journal_entries'
+        )
+        expect(entries.map(c => ({ date: c.data.date, memo: c.data.memo }))).toEqual([
+            { date: noVendorEntry.date, memo: noVendorEntry.memo },
+            { date: inactiveEntry.date, memo: inactiveEntry.memo },
+        ])
+        const entryIds = entries.map(c => c.id)
+        const linesOf = (entry: string) =>
+            writes
+                .filter(
+                    c =>
+                        c.op === 'create' &&
+                        c.collection === 'books_journal_lines' &&
+                        c.data.entry === entry
+                )
+                .map(c => ({
+                    account: c.data.account,
+                    debit: c.data.debit,
+                    credit: c.data.credit,
+                    customer: c.data.customer ?? '',
+                    vendor: c.data.vendor ?? '',
+                }))
+        expect(linesOf(entryIds[0] ?? '')).toEqual([
+            {
+                account: VB_PAYABLE,
+                debit: 0,
+                credit: noVendorEntry.cents,
+                customer: '',
+                vendor: '',
+            },
+            { account: other, debit: noVendorEntry.cents, credit: 0, customer: '', vendor: '' },
+        ])
+        expect(linesOf(entryIds[1] ?? '')).toEqual([
+            {
+                account: VB_PAYABLE,
+                debit: 0,
+                credit: inactiveEntry.cents,
+                customer: '',
+                vendor: inactiveEntry.vendor,
+            },
+            { account: other, debit: inactiveEntry.cents, credit: 0, customer: '', vendor: '' },
+        ])
+
+        const at = (keep: (c: VendorBalanceCall) => boolean) => calls.findIndex(keep)
+        const created = (id: string) =>
+            at(c => c.op === 'create' && c.collection === 'books_journal_entries' && c.id === id)
+        const posted = (id: string) =>
+            at(
+                c =>
+                    c.op === 'update' &&
+                    c.collection === 'books_journal_entries' &&
+                    c.id === id &&
+                    c.data.status === 'posted'
+            )
+        const firstLine = (id: string) =>
+            at(
+                c =>
+                    c.op === 'create' &&
+                    c.collection === 'books_journal_lines' &&
+                    c.data.entry === id
+            )
+        const [first = '', second = ''] = entryIds
+        expect(posted(first)).toBeGreaterThan(firstLine(first))
+        expect(posted(second)).toBeGreaterThan(firstLine(second))
+
+        const vendorWrites = calls.filter(c => c.collection === 'books_vendors')
+        expect(vendorWrites).toEqual([
+            {
+                op: 'update',
+                collection: 'books_vendors',
+                id: inactiveEntry.vendor,
+                data: { inactive: false },
+            },
+            {
+                op: 'update',
+                collection: 'books_vendors',
+                id: inactiveEntry.vendor,
+                data: { inactive: true },
+            },
+        ])
+        const activate = calls.indexOf(vendorWrites[0] as VendorBalanceCall)
+        const retire = calls.indexOf(vendorWrites[1] as VendorBalanceCall)
+        expect(created(first)).toBeGreaterThan(0)
+        expect(posted(first)).toBeLessThan(activate)
+        expect(activate).toBeLessThan(created(second))
+        expect(retire).toBeGreaterThan(posted(second))
+    })
+
+    it('throws when the book has no Accounts payable account', async () => {
+        const seedVendorBalance = (seedModule as Record<string, unknown>).seedVendorBalance
+        expect(typeof seedVendorBalance).toBe('function')
+        if (typeof seedVendorBalance !== 'function') return
+        const { pb, calls } = vendorBalancePb(null)
+        await expect(seedVendorBalance(pb, { user: USER }, seededAccounts())).rejects.toThrow(
+            'seed: vendor balance entries need an Accounts payable account, and no bill has made one'
+        )
+        expect(calls.filter(c => c.op !== 'read')).toEqual([])
+    })
+
+    it('throws when account 6200 was not created', async () => {
+        const seedVendorBalance = (seedModule as Record<string, unknown>).seedVendorBalance
+        expect(typeof seedVendorBalance).toBe('function')
+        if (typeof seedVendorBalance !== 'function') return
+        const { pb, calls } = vendorBalancePb(VB_PAYABLE)
+        const accounts = seededAccounts()
+        accounts.delete('6200')
+        await expect(seedVendorBalance(pb, { user: USER }, accounts)).rejects.toThrow(
+            `seed: vendor balance entry "${VENDOR_BALANCE_SEED.noVendorEntry.memo}" names an account that was not created`
+        )
+        expect(calls.filter(c => c.collection === 'books_journal_entries')).toEqual([])
     })
 })
 
