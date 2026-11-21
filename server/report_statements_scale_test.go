@@ -384,6 +384,20 @@ func writeStatementsScaleOut(t *testing.T, results, plans string) {
 	}
 }
 
+// periodRowsRead is true for a step that reads a line table's rows of the
+// period: a scan, or a search by the account and the day, which core's cut of
+// the rows to the open sections (an IN over gord in each part) lets SQLite
+// use. A search by entry is a page row's lookup, not the period's rows.
+func periodRowsRead(detail string) bool {
+	switch {
+	case detail == "SCAN books_journal_lines" || detail == "SCAN books_cash_basis_lines":
+		return true
+	case strings.HasPrefix(detail, "SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date "):
+		return true
+	}
+	return strings.HasPrefix(detail, "SEARCH books_cash_basis_lines USING INDEX idx_books_cash_basis_lines_account_date ")
+}
+
 // TestTransactionDetailReadsItsPeriodRowsOnce: the page statement of a run
 // with no Accounts filter reads the period's rows once, and each row finds
 // its open section through an index on the open sections. Read the other way
@@ -409,17 +423,19 @@ func TestTransactionDetailReadsItsPeriodRowsOnce(t *testing.T) {
 			t.Fatalf("%d page statements that join the open sections, want 1", len(page))
 		}
 		var steps []string
-		// reads counts the scans of the period's line tables; searched and
+		// reads counts the reads of the period's line-table rows (a scan, or a
+		// search by account and day: periodRowsRead); searched and
 		// scanned are the selects (a step's parent) that search gord by its
 		// automatic index and that scan the rows (t1 over the union source, d
-		// over computed rows, w over the period's rows read once).
+		// over computed rows, w over the period's rows read once). The list of
+		// open keys that cuts w is built once and left out (outsideLists).
 		reads, searched, scanned := 0, map[int]bool{}, map[int]bool{}
-		for _, step := range explainStatements(t, b.app, page) {
+		for _, step := range outsideLists(explainStatements(t, b.app, page)) {
 			if scaleOpenGroupStep(step.Detail) {
 				steps = append(steps, step.Detail)
 			}
 			switch {
-			case step.Detail == "SCAN books_journal_lines" || step.Detail == "SCAN books_cash_basis_lines":
+			case periodRowsRead(step.Detail):
 				reads++
 			case strings.HasPrefix(step.Detail, "SEARCH gord USING AUTOMATIC "):
 				searched[step.Parent] = true
@@ -432,7 +448,7 @@ func TestTransactionDetailReadsItsPeriodRowsOnce(t *testing.T) {
 			t.Fatalf("every open section reads the period's rows:\n%s", plan)
 		}
 		if reads != 2 {
-			t.Fatalf("the line tables are scanned %d times, want each once", reads)
+			t.Fatalf("the period's rows of the line tables are read %d times, want each table once", reads)
 		}
 		if len(searched) == 0 {
 			t.Fatalf("the rows do not find their section by its keys:\n%s", plan)
