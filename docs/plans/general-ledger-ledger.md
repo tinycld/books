@@ -988,3 +988,86 @@ The 100k round (`scale-task9e2/st-results.md`; before = `scale-task9b3/st-result
 `TestStatementsScale/100k` passes, no run is refused, the group rows and rows of each run are the same as in `scale-task9b3`, and the 1-minute load at the start was 5.66 (prepare measure) and 4.62 (100k round).
 
 Not done here (each a later, larger step, from the investigation): one select for the currencies of all computed rows of a layout (about 100 ms to 66 ms on the copy); the `__probes` reads (66 ms to 56 ms); a staged run with the shared CTEs in temp tables (the floor, about 20 ms). The prepare cost of the other large statements (General Ledger, Transaction Detail, Trial Balance, Journal, Profit and Loss) is not measured yet: the human asked for that benchmark after this task.
+
+#### Task 31: `in` of a Select with a list of its option values tests the stored column too (core `server/reports/selectin.go`, 2026-11-21)
+
+The cause (found by the Expenses by Vendor unit's plan bars): `in(account.type, [three types])` read the type as `NULLIF(type, '')` and the list from one bound JSON array. No index serves that term and SQLite does not see that a row with no account fails it, so it kept the LEFT JOIN to the accounts and scanned `books_journal_lines` and `books_cash_basis_lines`. `eq` had a stored-column term since `selectEq`; `in` had none.
+
+The change (core): `selectIn` writes `(NULLIF(c, '') IN (<the list>) AND c IN ({:p}, …, NULL))` when the left side is a Select read from a stored column and every value of the list is one of its option values. One placeholder is bound for each distinct value; no value is written into the SQL text. The `NULL` at the end of the list keeps the value of the condition unknown for a blank or missing `c`, as before. A list with another value, an empty list, and a column's formula are written as before.
+
+The tests (core `selectin_test.go`): `TestASelectInAListIsServedByTheColumnIndex`, `TestASelectInAListKeepsItsResult`, `TestASelectInAListOnOtherSourcesKeepsItsResult`, `TestASelectInAListIsBound`, `TestASelectInAListIsPreparedOnceWithoutStatistics`.
+
+Code: core 83ce8c78.
+
+Books reports whose filters carry the term: Profit and Loss, Trial Balance, Balance Sheet, General Ledger (`account.type`) and Statements (`entry.origin`). The Books Go tests pass on it (three shards).
+
+The 100k round (`scale-task31-st/st-results.md`; before = `scale-task9e2/st-results.md`):
+
+| lines | run | before | after |
+|---|---|---|---|
+| 100000 | TB 1 all accounts, as of | 317ms | 329ms |
+| 100000 | TB 2 busy account, as of | 141ms | 137ms |
+| 100000 | TB 3 three accounts, as of | 170ms | 163ms |
+| 100000 | BS 1 accrual, as of | 268ms | 286ms |
+| 100000 | BS 2 cash, as of | 307ms | 328ms |
+| 100000 | TD 1 all accounts, month | 51ms | 53ms |
+| 100000 | TD 2 all accounts, year | 209ms | 205ms |
+| 100000 | TD 3 busy account, month | 30ms | 26ms |
+| 100000 | TD 4 small account, month | 17ms | 15ms |
+| 100000 | TD 5 three accounts, year | 123ms | 120ms |
+| 100000 | TD 6 busy account, month, cash | 30ms | 28ms |
+
+The General Ledger at 500k (`scale-task31-gl/gl-results.md`; before = `scale-500k-final-gl/gl-results.md`):
+
+| lines | run | before | after |
+|---|---|---|---|
+| 500000 | 1 all accounts, month | 614ms | 424ms |
+| 500000 | 2 all accounts, year | 2.73s | 1.647s |
+| 500000 | 3 busy account, month | 246ms | 161ms |
+| 500000 | 4 small account, month | 164ms | 82ms |
+| 500000 | 5 three accounts, year | 1.422s | 1.014s |
+
+Beyond the plan, the statements at 500k (`scale-task31-st500/st-results.md`; before = `scale-task28-st500/st-results.md`):
+
+| lines | run | before | after |
+|---|---|---|---|
+| 500000 | TB 1 all accounts, as of | 1.255s | 1.313s |
+| 500000 | TB 2 busy account, as of | 511ms | 489ms |
+| 500000 | TB 3 three accounts, as of | 660ms | 644ms |
+| 500000 | BS 1 accrual, as of | 916ms | 746ms |
+| 500000 | BS 2 cash, as of | 1.218s | 1.056s |
+| 500000 | TD 1 all accounts, month | 207ms | 185ms |
+| 500000 | TD 2 all accounts, year | 898ms | 1.098s |
+| 500000 | TD 3 busy account, month | 61ms | 61ms |
+| 500000 | TD 4 small account, month | 19ms | 16ms |
+| 500000 | TD 5 three accounts, year | 590ms | 647ms |
+| 500000 | TD 6 busy account, month, cash | 73ms | 74ms |
+
+All three runs PASS (`scale-task31-st.log`, `scale-task31-gl.log`, `scale-task31-st500.log`) and no run is refused; the group rows and rows of every statements run and the sections on the page of every General Ledger run are the same as before. The machine was not quiet (the human said to run): the 1-minute load at the start was 8.04 (100k statements, `scale-task31-st/load.txt`), 9.30 (General Ledger, `scale-task31-gl/load.txt`) and 7.16 (500k statements, `scale-task31-st500/load.txt`), so a small change up or down in a figure is the machine.
+
+For the Expenses by Vendor unit: with this change on core `books/p5-report-engine-scale`, its `TestExpensesByVendorQueryPlans` has no plan-bar failure with no statistics (21 before; planner's overlay run, 2026-11-21).
+
+#### All bars at 500k, final (2026-11-21, task 31)
+
+These are the final figures; they replace the table "All bars at 500k (2026-11-21)" above. The bars are the same (read from the test code, as above).
+
+| report | run | bar | median at 500k | pass |
+|---|---|---|---|---|
+| General Ledger | 1 all accounts, month | 2s | 424ms | yes |
+| General Ledger | 2 all accounts, year | 2s | 1.647s | yes |
+| General Ledger | 3 busy account, month | 1s | 161ms | yes |
+| General Ledger | 4 small account, month | 1s | 82ms | yes |
+| General Ledger | 5 three accounts, year | 2s | 1.014s | yes |
+| Trial Balance | TB 1 all accounts, as of | 2s | 1.313s | yes |
+| Trial Balance | TB 2 busy account, as of | 1s | 489ms | yes |
+| Trial Balance | TB 3 three accounts, as of | 1s | 644ms | yes |
+| Balance Sheet | BS 1 accrual, as of | 2s | 746ms | yes |
+| Balance Sheet | BS 2 cash, as of | 2s | 1.056s | yes |
+| Transaction Detail | TD 1 all accounts, month | 2s | 185ms | yes |
+| Transaction Detail | TD 2 all accounts, year | 2s | 1.098s | yes |
+| Transaction Detail | TD 3 busy account, month | 1s | 61ms | yes |
+| Transaction Detail | TD 4 small account, month | 1s | 16ms | yes |
+| Transaction Detail | TD 5 three accounts, year | 2s | 647ms | yes |
+| Transaction Detail | TD 6 busy account, month, cash | 1s | 74ms | yes |
+
+The round: core 83ce8c78, books 5674f9c6, 2026-11-21; load at start 9.30 (General Ledger) and 7.16 (statements), both not quiet; every run passes its bar.
