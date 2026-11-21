@@ -3,6 +3,7 @@ package books
 import (
 	"encoding/json"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -232,6 +233,70 @@ func TestCashBasisReport_BalanceSheetBalancesOnCash(t *testing.T) {
 	requireMethodDrill(t, row, "current", "cash")
 }
 
+// On Cash an account's Current drills from the first day of the month of its
+// first line on the cash basis, a cash-basis row included, and lists the same
+// lines as a range from that line's own day.
+func TestCashBasisReport_BalanceSheetDrillStartsOnTheFirstOfTheMonth(t *testing.T) {
+	b, _, _ := paidBook(t)
+	const cashMethod = `"cash"`
+	tdOnCash := func(account *core.Record, from string) *reports.Result {
+		return runTD(t, b.app, b.reader, map[string]any{
+			"period": glPeriod(from, cashDay2), "method": "cash", "accounts": []string{account.Id},
+		}, reports.Options{Today: plToday})
+	}
+	requireSameLines := func(what string, res *reports.Result, account *core.Record, firstDay string, wantLines int) {
+		t.Helper()
+		row := bsAccount(t, res, account)
+		td := drillTD(t, b.app, b.reader, res, row.ID, "current")
+		requireHeaderLines(t, what+": the drilled Transaction Detail", td, "Cash basis")
+		got, want := tdLineIDs(t, td, account), tdLineIDs(t, tdOnCash(account, firstDay), account)
+		if len(got) != wantLines || !slices.Equal(got, want) {
+			t.Errorf("%s drills to lines %v, want the %d lines of a range from the first line's day %s: %v", what, got, wantLines, firstDay, want)
+		}
+		if total, figure := tdSectionTotal(t, td, account), bsFigure(t, res, account); total != figure {
+			t.Errorf("%s drills to a total of %d, want the figure %d", what, total, figure)
+		}
+	}
+
+	cash := b.bs(t, cashDay2, "cash")
+	// Accounts Payable's first line is of March 10 (the bills).
+	requireDrill(t, bsAccount(t, cash, b.payable), "current", map[string]string{
+		"period": rangeJSON("2026-03-01", cashDay2), "method": cashMethod, "accounts": idList(b.payable.Id)})
+	requireSameLines("Accounts Payable", cash, b.payable, cashDay1, 6)
+	// Business Checking's first line is the payment of April 15.
+	requireDrill(t, bsAccount(t, cash, b.checking1000), "current", map[string]string{
+		"period": rangeJSON("2026-04-01", cashDay2), "method": cashMethod, "accounts": idList(b.checking1000.Id)})
+	requireSameLines("Business Checking", cash, b.checking1000, cashDay2, 1)
+
+	// Both months exist and differ: with the March stored month gone, the stored
+	// month is April and the cash month is March; the drill takes the earlier.
+	if _, err := b.app.DB().NewQuery("DELETE FROM books_account_balances WHERE account = {:a} AND month_start = '2026-03-01'").Bind(dbx.Params{"a": b.payable.Id}).Execute(); err != nil {
+		t.Fatalf("delete the March stored month of Accounts Payable: %v", err)
+	}
+	stored := b.bs(t, cashDay2, "cash")
+	requireDrill(t, bsAccount(t, stored, b.payable), "current", map[string]string{
+		"period": rangeJSON("2026-03-01", cashDay2), "method": cashMethod, "accounts": idList(b.payable.Id)})
+	storedTD := drillTD(t, b.app, b.reader, stored, bsAccount(t, stored, b.payable).ID, "current")
+	if got, want := tdLineIDs(t, storedTD, b.payable), tdLineIDs(t, tdOnCash(b.payable, cashDay1), b.payable); len(got) == 0 || !slices.Equal(got, want) {
+		t.Errorf("Accounts Payable with only its April stored month drills to lines %v, want the lines of a range from %s: %v", got, cashDay1, want)
+	}
+
+	// An account whose cash-basis rows start in a month with no ledger line of
+	// its own: with Accounts Payable's stored months gone, only its cash-basis
+	// rows give the first month.
+	if _, err := b.app.DB().NewQuery("DELETE FROM books_account_balances WHERE account = {:a}").Bind(dbx.Params{"a": b.payable.Id}).Execute(); err != nil {
+		t.Fatalf("delete the stored months of Accounts Payable: %v", err)
+	}
+	cashOnly := b.bs(t, cashDay2, "cash")
+	requireDrill(t, bsAccount(t, cashOnly, b.payable), "current", map[string]string{
+		"period": rangeJSON("2026-03-01", cashDay2), "method": cashMethod, "accounts": idList(b.payable.Id)})
+	// No total check: the figure falls with its stored months, the lines do not.
+	cashOnlyTD := drillTD(t, b.app, b.reader, cashOnly, bsAccount(t, cashOnly, b.payable).ID, "current")
+	if got, want := tdLineIDs(t, cashOnlyTD, b.payable), tdLineIDs(t, tdOnCash(b.payable, cashDay1), b.payable); len(got) == 0 || !slices.Equal(got, want) {
+		t.Errorf("Accounts Payable with no stored month drills to lines %v, want the lines of a range from %s: %v", got, cashDay1, want)
+	}
+}
+
 // A bill dated in the prior fiscal year and paid in the current one counts in
 // the current year only on Cash: Retained earnings at a date after the
 // fiscal-year end take the prior year's cash net income, which has none of it.
@@ -323,13 +388,16 @@ func TestCashBasisReport_ShippedSpecs(t *testing.T) {
 	}{
 		{profitAndLossShipped(), 3, "period"},
 		{profitAndLossByMonthShipped(), 3, "period"},
-		{balanceSheetShipped(), 3, "asOf"},
+		// 3 for the Method param, 4 for the stored months, 5 for the stored
+		// months on Cash, 6 for the drill's first day from the stored months,
+		// 7 for the stored cash months on Cash.
+		{balanceSheetShipped(), 7, "asOf"},
 		{transactionDetailShipped(), 2, "period"},
 	}
 	for _, c := range cases {
 		t.Run(c.shipped.Title, func(t *testing.T) {
 			if c.shipped.Revision != c.revision {
-				t.Errorf("revision %d, want %d (one more for the Method param)", c.shipped.Revision, c.revision)
+				t.Errorf("revision %d, want %d (the Method param's, or a later one)", c.shipped.Revision, c.revision)
 			}
 			if strings.Contains(strings.ToLower(c.shipped.Description), "accrual basis") {
 				t.Errorf("description %q still says \"accrual basis\"", c.shipped.Description)

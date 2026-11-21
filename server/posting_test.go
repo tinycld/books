@@ -444,7 +444,7 @@ func TestPost_TotalOverTheStoredLimitIsRefused(t *testing.T) {
 func TestPost_BalanceRowOverTheStoredLimitIsRefused(t *testing.T) {
 	env := newLedgerEnv(t)
 	saveRecord(t, env.app, "books_account_balances", map[string]any{
-		"account": env.checking.Id, "period": "2026-05", "debit_total": maxStoredAmount - 50, "currency": "USD",
+		"account": env.checking.Id, "period": "2026-05", "month_start": "2026-05-01", "debit_total": maxStoredAmount - 50, "currency": "USD",
 	})
 	entry := env.sale(t, "2026-05-01", 100)
 	before := draftTotal(t, env, entry.Id)
@@ -606,7 +606,7 @@ func TestPostEnsuresRetainedEarnings(t *testing.T) {
 	t.Run("a post refused later in its check leaves no account", func(t *testing.T) {
 		env := newLedgerEnv(t)
 		saveRecord(t, env.app, "books_account_balances", map[string]any{
-			"account": env.revenue.Id, "period": "2026-05", "credit_total": maxStoredAmount - 50, "currency": "USD",
+			"account": env.revenue.Id, "period": "2026-05", "month_start": "2026-05-01", "credit_total": maxStoredAmount - 50, "currency": "USD",
 		})
 		entry := env.sale(t, "2026-05-01", 100)
 		requireRefused(t, setStatus(env.app, entry.Id, statusPosted, env.users.bookkeeper.Id),

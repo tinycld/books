@@ -31,6 +31,7 @@ import (
 var serverOnly = map[string]bool{
 	"books_account_balances":        true,
 	"books_bank_file_contents":      true,
+	"books_cash_basis_balances":     true,
 	"books_cash_basis_lines":        true,
 	"books_cash_basis_tax_lines":    true,
 	"books_credit_memo_tax_lines":   true,

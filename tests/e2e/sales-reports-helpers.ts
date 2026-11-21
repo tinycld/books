@@ -4,7 +4,7 @@ import {
     SALES_BY_CUSTOMER_TITLE,
     SALES_BY_PRODUCT_TITLE,
 } from '~/tinycld/books/lib/sales-reports-fixture'
-import { openBooksReports, reportSnapshot } from './books-report-helpers'
+import { openBooksReports, type ReportSnapshot, reportSnapshot } from './books-report-helpers'
 import { centsOf } from './customer-balance-helpers'
 import { createCustomer, customerPath } from './customer-form-helpers'
 import { INVOICE_URL, invoiceIdFromUrl, lineCellTestId, pickLineProduct } from './invoice-helpers'
@@ -24,7 +24,7 @@ import {
 // and each cell's text as printed, by the column's heading ("Sales", "% of sales").
 export interface SalesRow {
     id: string
-    kind: 'group' | 'detail' | 'subtotal' | 'computed' | 'total'
+    kind: ReportSnapshot['rows'][number]['kind']
     depth: number
     label: string
     cells: Record<string, string>
