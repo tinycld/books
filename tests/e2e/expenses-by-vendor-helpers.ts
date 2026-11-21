@@ -103,12 +103,15 @@ export async function voidBill(
 /**
  * Books must be open. Posts a bill of `vendor` dated today with one account line for each
  * of `lines` (the account's "<number> <name>" label and the amount), the second and later
- * lines added with Add account line. Returns the bill's id and number.
+ * lines added with Add account line, and the bill's `memo` when one is given (saved as the
+ * journal entry memo, which the report's lines show as their description). Returns the
+ * bill's id and number.
  */
 export async function postBillOnAccounts(
     page: Page,
     vendor: string,
-    lines: readonly { account: string; amount: string }[]
+    lines: readonly { account: string; amount: string }[],
+    options: { memo?: string } = {}
 ): Promise<{ id: string; number: string }> {
     await openNewBill(page)
     await pickBillVendor(page, vendor)
@@ -120,6 +123,7 @@ export async function postBillOnAccounts(
         const rowId = await pickLineAccount(page, index, line.account)
         await page.getByTestId(billCellTestId('account_lines', rowId, 'amount')).fill(line.amount)
     }
+    if (options.memo !== undefined) await page.getByTestId('form-input-memo').fill(options.memo)
     const number = await postBill(page)
     return { id: billIdFromUrl(page), number }
 }
@@ -177,6 +181,81 @@ function textColorIn(scope: Locator): Promise<string> {
         if (!leaf) throw new Error('the element holds no text')
         return getComputedStyle(leaf).color
     })
+}
+
+// How the label of each row in `rowIds` is drawn, read in ONE pass (lesson 11): its text,
+// its drawn lines (the text box's height over its line height: a clamped label's hidden
+// lines still have boxes) and whether any element of the label shows less than its content
+// (wider or taller than its box: an ellipsis on one line, or a clamp).
+function readRowLabels(
+    page: Page,
+    rowIds: readonly string[]
+): Promise<{ id: string; text: string; lines: number; cut: boolean }[]> {
+    return page.evaluate(ids => {
+        const table = document.querySelector('[data-testid="report-table"]')
+        // Row ids hold quotes and brackets, so labels are keyed by test id, not selected.
+        const labels = new Map<string, Element>()
+        for (const node of table?.querySelectorAll('[data-testid^="report-row-"]') ?? []) {
+            labels.set((node.getAttribute('data-testid') ?? '').slice('report-row-'.length), node)
+        }
+        const textElementOf = (element: Element): HTMLElement | null => {
+            const whole = (element.textContent ?? '').trim()
+            if (whole === '') return null
+            let found: HTMLElement | null = element instanceof HTMLElement ? element : null
+            for (const node of element.querySelectorAll('*')) {
+                if (node instanceof HTMLElement && (node.textContent ?? '').trim() === whole) {
+                    found = node
+                }
+            }
+            return found
+        }
+        return ids.map(id => {
+            const label = labels.get(id)
+            const text = label ? textElementOf(label) : null
+            if (!label || !text) return { id, text: '', lines: 0, cut: false }
+            const style = getComputedStyle(text)
+            const parsed = Number.parseFloat(style.lineHeight)
+            const lineHeight = Number.isNaN(parsed)
+                ? Number.parseFloat(style.fontSize) * 1.2
+                : parsed
+            const cut = [label, ...label.querySelectorAll('*')].some(
+                node =>
+                    node instanceof HTMLElement &&
+                    (node.scrollWidth > node.clientWidth + 1 ||
+                        node.scrollHeight > node.clientHeight + 1)
+            )
+            return {
+                id,
+                text: (text.textContent ?? '').replace(/\s+/g, ' ').trim(),
+                lines: Math.round(text.getBoundingClientRect().height / lineHeight),
+                cut,
+            }
+        })
+    }, rowIds)
+}
+
+/**
+ * Spec §3 "Phone": the label of each row in `rowIds` wraps (two or three drawn lines) and
+ * shows its whole text (no ellipsis, no clamp). Polled: the layout settles a frame after a
+ * resize or a press; each poll is one read.
+ */
+export async function expectLabelsWrapWhole(page: Page, rowIds: readonly string[]): Promise<void> {
+    await expect
+        .poll(
+            async () =>
+                (await readRowLabels(page, rowIds)).flatMap(label => {
+                    const name = `row ${label.id} "${label.text.slice(0, 40)}"`
+                    const problems: string[] = []
+                    if (label.text === '') return [`row ${label.id} has no mounted label`]
+                    if (label.lines < 2 || label.lines > 3) {
+                        problems.push(`${name}: its label takes ${label.lines} line(s), not 2 or 3`)
+                    }
+                    if (label.cut) problems.push(`${name}: its label is cut`)
+                    return problems
+                }),
+            { message: 'each label wraps onto 2 or 3 lines and shows its whole text' }
+        )
+        .toEqual([])
 }
 
 // The Total of the row labelled exactly `label` (a vendor's group row, or "Total" for the

@@ -885,6 +885,127 @@ describe('help/reports.md', () => {
         })
     })
 
+    // Expenses by Vendor checkpoint 4 (spec §3 "Help").
+    describe('the "Read the Expenses by Vendor report" section', () => {
+        const expenses = section('## Read the Expenses by Vendor report')
+        const sentences = expenses.split(/(?<=[.!?])\s+/)
+        const oneSentence = (...phrases: RegExp[]) =>
+            sentences.some(sentence => phrases.every(phrase => phrase.test(sentence)))
+
+        it('comes directly after "Read the Vendor Balance report"', () => {
+            const headings = [...body.matchAll(/^## .*$/gm)].map(m => m[0])
+            const balances = headings.indexOf('## Read the Vendor Balance report')
+            expect(balances).toBeGreaterThanOrEqual(0)
+            expect(headings[balances + 1]).toBe('## Read the Expenses by Vendor report')
+        })
+
+        it('says what counts: Cost of goods sold, Expense and Other expense accounts, in one sentence', () => {
+            expect(oneSentence(/\bCost of goods sold\b/, /\bExpense\b/, /\bOther expense\b/)).toBe(
+                true
+            )
+        })
+
+        it('names the period and the basis', () => {
+            expect(expenses).toMatch(/\bperiod\b/i)
+            expect(expenses).toMatch(/\bAccrual\b/)
+            expect(expenses).toMatch(/\bCash\b/)
+        })
+
+        it("says a vendor credit lowers the vendor's figure, in one sentence", () => {
+            expect(oneSentence(/\bvendor credits?\b/i, /\b(lowers?|reduces?|below zero)\b/i)).toBe(
+                true
+            )
+        })
+
+        it('says the Total equals the expense sections of the Profit and Loss, in one sentence', () => {
+            expect(oneSentence(/\bTotal\b/, /\bProfit and Loss\b/, /\b(equals?|same)\b/i)).toBe(
+                true
+            )
+        })
+
+        it('names the No vendor row', () => {
+            expect(expenses).toMatch(/\bNo vendor\b/)
+        })
+
+        it('names % of expenses', () => {
+            expect(expenses).toContain('% of expenses')
+        })
+
+        it('says a vendor row opens into its lines', () => {
+            expect(oneSentence(/\bpress\b/i, /\bvendor\b/i, /\b(lines?|transactions?)\b/i)).toBe(
+                true
+            )
+        })
+
+        it('says a transaction opens its document', () => {
+            expect(oneSentence(/\bpress\b/i, /\b(line|transaction)\b/i, /\bopens?\b/i)).toBe(true)
+        })
+
+        it('names the Rows choice With activity and the Order choice Largest expenses', () => {
+            expect(expenses).toMatch(/\bWith activity\b/)
+            expect(expenses).toMatch(/\bLargest expenses\b/)
+        })
+
+        it('says to read the Vendor Balance for what is still owed', () => {
+            expect(oneSentence(/\bVendor Balance\b/, /\b(owe|owed|owes)\b/i)).toBe(true)
+        })
+
+        it('says that on Cash an opened vendor also shows the rows that take an unpaid bill out', () => {
+            expect(
+                oneSentence(
+                    /\bCash\b/,
+                    /\bunpaid bills?\b/i,
+                    /\b(take|takes|taken|taking)\b[^.]*\bout\b/i
+                )
+            ).toBe(true)
+        })
+
+        // Fix round 1: a write-off line (No vendor, Cash "Write-off (cash basis)") and a
+        // vendor refund's Cash row open their own documents too (server/entry_routes.json).
+        it("lists a vendor refund and a write-off among the documents a line's press opens", () => {
+            expect(
+                oneSentence(
+                    /\bpress\b/i,
+                    /\bline\b/i,
+                    /\bopens\b/i,
+                    /\bvendor refund\b/i,
+                    /\bwrite-off\b/i
+                )
+            ).toBe(true)
+        })
+
+        it('the Cash paragraph names the "paid by vendor credit (cash basis)" row of a bill', () => {
+            const cash = expenses
+                .split(/\n\s*\n/)
+                .find(paragraph => paragraph.includes('Unpaid bill (cash basis)'))
+            expect(cash, 'the Cash paragraph of the section').toBeDefined()
+            expect(cash).toMatch(/\bBill \d+ paid by vendor credit \(cash basis\)/)
+        })
+
+        // Fix round 1: a line's label ends with lineDescriptionFormula() (the journal line's
+        // memo, else the entry's memo); a bill posts no line memo, so its lines show the bill's.
+        it("the open-a-vendor paragraph says a line shows its memo, or the entry's memo when it has none", () => {
+            const opened = expenses
+                .split(/\n\s*\n/)
+                .find(paragraph => /\bpress the vendor row\b/i.test(paragraph))
+            expect(opened, 'the open-a-vendor paragraph of the section').toBeDefined()
+            const openedSentences = (opened ?? '').split(/(?<=[.!?])\s+/)
+            expect(
+                openedSentences.some(
+                    sentence =>
+                        /\bline'?s? memo\b|\bits memo\b|\bline memo\b/i.test(sentence) &&
+                        /\b(entry|transaction)(?:'s)? memo\b/i.test(sentence) &&
+                        /\b(no|none|not|empty|without)\b/i.test(sentence)
+                ),
+                "a sentence that names the line's memo, and the entry's memo when the line has none"
+            ).toBe(true)
+        })
+    })
+
+    it('"Who sees Books reports" names the Expenses by Vendor', () => {
+        expect(section('## Who sees Books reports')).toContain('the Expenses by Vendor')
+    })
+
     it.each([
         'Sales tax lines',
         'Tax agencies',
