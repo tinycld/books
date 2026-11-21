@@ -97,6 +97,7 @@ func oauthPackage() oauth.Package {
 			"books_party_contacts":             rw,
 			"books_party_balances":             ro,
 			"books_receivable_items":           ro,
+			"books_payable_items":              ro,
 			"books_audit_log":                  ro,
 			"books_account_balances":           ro,
 			"books_settings":                   ro,

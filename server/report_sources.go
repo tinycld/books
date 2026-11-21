@@ -170,6 +170,7 @@ func reportSources() []reports.Source {
 		},
 		basisLinesSource(),
 		receivableItemsSource(),
+		payableItemsSource(),
 		salesDocumentsSource(),
 		salesTaxLinesSource(),
 		salesLinesSource(),
@@ -289,6 +290,43 @@ func receivableItemsSource() reports.Source {
 		},
 		Links: []reports.Link{
 			{Key: "customer", Label: "Customer", Target: "books.customers", Cardinality: reports.ToOne, Field: "customer"},
+			{Key: "entry", Label: "Entry", Target: "books.journal_entries", Cardinality: reports.ToOne, Field: "entry"},
+		},
+	}
+}
+
+// payableItemsSource is every part of every payable item (A/P Aging spec
+// §4.3), the stored rows of books_payable_items: the posted A/P lines, the
+// lines of posted bill payments and vendor refunds, and both rows of each
+// vendor credit application. item is the item a row belongs to; a report
+// groups by it to add up an item's open amount. settled is the day the item's
+// balance stays zero from (9999-12-31 while it is open): a report of one day
+// reads the rows with settled after that day and never the paid history.
+func payableItemsSource() reports.Source {
+	return reports.Source{
+		Key: "books.payable_items", Collection: payableItemsCollection, Label: "Payable items",
+		Fields: []reports.Field{
+			{Key: "date", Label: "Date", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
+			{Key: "due_date", Label: "Due date", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
+			// Text, not Date: the engine compares a text field as the bare
+			// column, so idx_books_payable_items_settled_date serves the filter.
+			{Key: "settled", Label: "Settled", Type: reports.Text},
+			{Key: "debit", Label: "Debit", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "credit", Label: "Credit", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "currency", Label: "Currency", Type: reports.Text},
+			{Key: "item", Label: "Item", Type: reports.Text},
+			// Journal entry last: the fallback of the kind label.
+			{Key: "item_kind", Label: "Item type", Type: reports.Select, Options: []reports.Option{
+				{Value: "bill", Label: "Bill"},
+				{Value: "vendor_credit", Label: "Vendor credit"},
+				{Value: "entry", Label: "Journal entry"},
+			}},
+			{Key: "item_number", Label: "Number", Type: reports.Text, Aggregates: reports.MinMax},
+			// The integer item_number formats (server/numbering.go).
+			{Key: "item_seq", Label: "Sequence", Type: reports.Number, Aggregates: reports.MinMax},
+		},
+		Links: []reports.Link{
+			{Key: "vendor", Label: "Vendor", Target: "books.vendors", Cardinality: reports.ToOne, Field: "vendor"},
 			{Key: "entry", Label: "Entry", Target: "books.journal_entries", Cardinality: reports.ToOne, Field: "entry"},
 		},
 	}

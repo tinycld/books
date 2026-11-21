@@ -346,6 +346,38 @@ func TestOAuth_ReceivableItems(t *testing.T) {
 	}
 }
 
+// A/P Aging spec §4.1: a token only reads the stored payable items, which
+// only Books writes.
+func TestOAuth_PayableItems(t *testing.T) {
+	collections := oauthPackage().Collections
+	got, ok := collections[payableItemsCollection]
+	if !ok {
+		t.Fatalf("%s has no OAuth entry", payableItemsCollection)
+	}
+	if !reflect.DeepEqual(got.Read, []string{scopeRead}) || len(got.Write) != 0 {
+		t.Errorf("%s OAuth access = %+v, want Read [%s] and no Write", payableItemsCollection, got, scopeRead)
+	}
+
+	t.Cleanup(oauth.ResetRegistry)
+	oauth.RegisterPackage(oauthPackage())
+	path := "/api/collections/" + payableItemsCollection + "/records"
+	if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
+		t.Errorf("GET %s: books:read must read", path)
+	}
+	if !oauth.ScopeForRoute(http.MethodGet, path+"/x").SatisfiedBy([]string{scopeRead}) {
+		t.Errorf("GET %s/x: books:read must read one row", path)
+	}
+	for _, method := range []string{http.MethodPost, http.MethodPatch, http.MethodDelete} {
+		url := path + "/x"
+		if method == http.MethodPost {
+			url = path
+		}
+		if oauth.ScopeForRoute(method, url).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("%s %s: books:read must not write", method, url)
+		}
+	}
+}
+
 // Spec §4.3: a token only reads the public view (nothing writes a view), and
 // reads and writes the customers' responses. The public PDF route is not in
 // the registration.

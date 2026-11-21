@@ -184,7 +184,7 @@ func TestReceivableSettleReadsOneItem(t *testing.T) {
 	var steps []struct {
 		Detail string `db:"detail"`
 	}
-	err := b.app.DB().NewQuery("EXPLAIN QUERY PLAN " + settleReceivablesSQL("WHERE (customer = {:c0} AND item = {:i0}) OR (customer = {:c1} AND item = {:i1})")).
+	err := b.app.DB().NewQuery("EXPLAIN QUERY PLAN " + receivableItems.settleSQL("WHERE (customer = {:c0} AND item = {:i0}) OR (customer = {:c1} AND item = {:i1})")).
 		Bind(dbx.Params{"c0": b.docs.customer.Id, "i0": "x", "c1": b.docs.customer.Id, "i1": "y"}).All(&steps)
 	if err != nil {
 		t.Fatalf("explain the settle statement: %v", err)
