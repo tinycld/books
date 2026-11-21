@@ -238,8 +238,9 @@ func receivableDriftReport(drifts []ReceivableDrift) (listed []ReceivableDrift, 
 // its verify part is verifyCashBasis), and every stored cash month equal its
 // cash rows (rebuildCashBalances; its verify part is verifyCashBalances), in
 // one transaction, touching only the rows that differ. It returns how many
-// month rows, document balances, cash-basis rows and cash months it fixed. It also rebuilds the stored receivable rows when they
-// disagree with the book (repairReceivables); those rows are not in the count.
+// month rows, document balances, cash-basis rows and cash months it fixed. It
+// also rebuilds the stored receivable rows when they disagree with the book
+// (repairReceivables); those rows are not in the count.
 func rebuildBalances(app core.App) (int, error) {
 	fixed := 0
 	err := app.RunInTransaction(func(tx core.App) error {

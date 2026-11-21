@@ -29,7 +29,9 @@
 //
 // CASH BASIS. books_cash_basis_lines and books_cash_basis_tax_lines are the
 // cash-basis rows the server derives from payments (server/cash_basis.go).
-// Readers list them; no client writes them. books_cash_basis_balances holds the totals of the cash-basis rows per account and month (server/cash_balances.go).
+// Readers list them; no client writes them. books_cash_basis_balances holds
+// the totals of the cash-basis rows per account and month
+// (server/cash_balances.go).
 //
 // MONEY is integer minor units (onlyInt), at most 2^53-1, the largest integer
 // a number field (float64) stores exactly. DATES are YYYY-MM-DD text, as on
