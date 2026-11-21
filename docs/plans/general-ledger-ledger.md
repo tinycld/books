@@ -880,3 +880,45 @@ Median of 5. Both runs PASS (`scale-task28-gl.log`, `scale-task28-st500.log`) an
 Checks of step 10: General Ledger run 2's statement with a `gord` line in `gl-plans.md` has no `SCAN gord` line (grep count 0). Every General Ledger run is under the 2 s bar at 500k. Run 2's margin is 241 ms under the bar (1.759 s), about 12 %: more than 10 %, so tasks 28b and 28c are not needed.
 
 What is left of run 2 (plan, evidence item 2): the section rows statement (about 355 ms) and the Total row statement (about 391 ms), and in the detail page `w` (about 317 ms) and the sections computed again (about 229 ms). Two options not built: the Total row read in the section rows statement (about -345 ms, an estimate) and no `shown` CTEs under `wl` (about -230 ms, an estimate).
+
+#### Task 29: every value in a statement is bound (core `server/reports`, Books `server`, 2026-11-20)
+
+The cause: the rule "bind every value in SQL" and the audit (`sql-literal-audit.md`). The human's decision of 2026-11-20 was to bind the audit's places and the seven row limits, with the `x'ff'` sentinel kept. The human changed it on 2026-11-21: the integer `LIMIT` literals are approved and task 2 (bind the row limits) is dropped. The approved constants (the human's list, `docs/plans/auto-helix/p5-report-engine-scale.md`, 2026-11-21): `LIMIT 1` (lookup.go), `'Yes'`/`'No'` (options.go), the place number `%[3]d` (options.go), `' '` (options.go), `'-Q'` (rows.go), `'%+d days'` (formula.go), `'text'` and `'$.k'` (label.go, options.go) and the `x'ff'` sentinel.
+
+The change, one line each:
+
+- `startOfMonth` binds `"01"`.
+- A percent binds its scale (2 places).
+- A blank pivot cell's bounds are bound.
+- `placeholderDay` (the drill) is bound.
+- The four Books statements bind the posted flag, the status and the origin.
+- The row limits stay integer literals (human-approved 2026-11-21; task 2 dropped), so `limitSQL` stays; the `gcut` limit of part 28 is an approved integer literal too.
+
+The tests: core `TestAPercentBindsItsScale`, `TestStartOfMonthBindsItsDay`, `TestABlankPivotBoundIsBound` (`boundvalues_test.go`); Books `TestLedgerStatementsBindTheirValues` (`bound_values_test.go`).
+
+Code: core e5807277 and cf10acf6 (task 1), Books c7a43ff6 (task 3).
+
+The figures are the round of task 28a (above): core cfc3d9d6, books 3d77acc9, 2026-11-21, with these changes in the tree. It ran at 500,000 lines, not 100,000, so the 100k figures of task 9b-3 are not compared. All 16 runs, before = the 500k final files (`scale-500k-final-st`, `scale-500k-final-gl`), after = `scale-task28-st500`, `scale-task28-gl`:
+
+| lines | run | before | after |
+|---|---|---|---|
+| 500000 | TB 1 all accounts, as of | 1.337s | 1.255s |
+| 500000 | TB 2 busy account, as of | 544ms | 511ms |
+| 500000 | TB 3 three accounts, as of | 719ms | 660ms |
+| 500000 | BS 1 accrual, as of | 934ms | 916ms |
+| 500000 | BS 2 cash, as of | 1.244s | 1.218s |
+| 500000 | TD 1 all accounts, month | 227ms | 207ms |
+| 500000 | TD 2 all accounts, year | 1.12s | 898ms |
+| 500000 | TD 3 busy account, month | 63ms | 61ms |
+| 500000 | TD 4 small account, month | 19ms | 19ms |
+| 500000 | TD 5 three accounts, year | 689ms | 590ms |
+| 500000 | TD 6 busy account, month, cash | 76ms | 73ms |
+| 500000 | GL 1 all accounts, month | 614ms | 513ms |
+| 500000 | GL 2 all accounts, year | 2.73s | 1.759s |
+| 500000 | GL 3 busy account, month | 246ms | 232ms |
+| 500000 | GL 4 small account, month | 164ms | 168ms |
+| 500000 | GL 5 three accounts, year | 1.422s | 1.151s |
+
+Both runs PASS and no run is refused; the rows and sections are the same as before. Load: General Ledger start 3.00 (quiet), statements start 6.34 (not quiet, a little high); the before figures ran at 7.8 to 9.3. The tree also holds task 28a, so a gain is not this task's alone.
+
+Not done here: nothing is left. The `gcut` limit of part 28 is an approved integer literal.
