@@ -949,3 +949,42 @@ The human's bars (the human, 2026-11-20): Transaction Detail with an account fil
 | Transaction Detail | TD 6 busy account, month, cash | 1s | 73ms | yes |
 
 The round: core cfc3d9d6 (with ea0fee56), books 3d77acc9, 2026-11-21; load at start 3.00 (General Ledger, quiet) and 6.34 (statements, not quiet, a little high); every run passes its bar.
+
+#### Task 9e-2a: a list rule that reads no row is answered once for each run (core `server/reports/rules.go`, 2026-11-21)
+
+The cause (`9e2-investigation.md`): SQLite copies a CTE at every reference, so the prepare cost of a statement follows its expanded text. The Balance Sheet statement expands to 4.03 MB and holds 3,172 copies of a rule CTE; each copy carried the grant rule as `EXISTS (… LEFT JOIN users … LEFT JOIN books_access …)`, about 205 ms of a 310 ms prepare. The rule reads no row of its collection: its answer is the same for every row.
+
+The change (core): `ruleFormOf` returns the rule in full and, for a joined rule that reads no row and does not name its collection's table, the probe `SELECT EXISTS (…)`. A run asks each distinct probe one time through its read transaction (`askRules`; the key is the probe's text and bound values, the answers live in the runner of that one run) and the statement's rule CTE is `SELECT t.* FROM t`, or `SELECT t.* FROM t WHERE 0` for a refused reader. `stmt.ruleReads` keeps the rule in full, so a run's topics are the same. A rule that reads its row, the comparison with every joined row and `:changed` stay in the statement. A probe that fails fails the run.
+
+The tests (core `ruleonce_test.go`): `TestEveryRuleKindReadsTheListAPIsRows`, `TestARuleOneAnswerServesLeavesTheStatement`, `TestARuleThatReadsItsRowStaysInTheStatement`, `TestARuleAnswerBelongsToOneRunAndOneReader`, `TestAProbeKeyHoldsItsValues`, `TestAFailedRuleProbeFailsTheRun`, `TestARuleProbeIsUnderTheRunTimeLimit`, `TestAnAnsweredRuleKeepsTheRunsTopics`, `TestAUnionPartsRuleIsAnswered`, `TestNamesTable`, `TestParamOptionsUnderAnAnsweredRule`, `TestABalanceSheetShapedStatementHoldsNoRule`.
+
+Code: core 8c8d86ec.
+
+Prepare of the long Balance Sheet statement (`EXPLAIN` read to its end, 20 times, the 100k book; `scale-task9e2/prepare.log`):
+
+| run | before (10k book, load 12) | after: median (min to max) | opcodes before | opcodes after |
+|---|---|---|---|---|
+| BS 1 accrual, as of | 324 ms | 109.7 ms (104.7 to 113.9 ms) | 49,666 | 36,570 |
+| BS 2 cash, as of | 315 ms | 106.1 ms (103.1 to 111.8 ms) | 49,665 | 36,569 |
+
+The statement is statement 6 of 8 of each run; after the change it is 257,770 chars (BS 1) and 257,680 chars (BS 2) and holds 0 `__rule` (5 before).
+
+The 100k round (`scale-task9e2/st-results.md`; before = `scale-task9b3/st-results.md`, the last 100k round, which did not hold tasks 28a and 29):
+
+| lines | run | before | after |
+|---|---|---|---|
+| 100000 | TB 1 all accounts, as of | 345ms | 317ms |
+| 100000 | TB 2 busy account, as of | 153ms | 141ms |
+| 100000 | TB 3 three accounts, as of | 181ms | 170ms |
+| 100000 | BS 1 accrual, as of | 455ms | 268ms |
+| 100000 | BS 2 cash, as of | 504ms | 307ms |
+| 100000 | TD 1 all accounts, month | 62ms | 51ms |
+| 100000 | TD 2 all accounts, year | 232ms | 209ms |
+| 100000 | TD 3 busy account, month | 30ms | 30ms |
+| 100000 | TD 4 small account, month | 19ms | 17ms |
+| 100000 | TD 5 three accounts, year | 135ms | 123ms |
+| 100000 | TD 6 busy account, month, cash | 34ms | 30ms |
+
+`TestStatementsScale/100k` passes, no run is refused, the group rows and rows of each run are the same as in `scale-task9b3`, and the 1-minute load at the start was 5.66 (prepare measure) and 4.62 (100k round).
+
+Not done here (each a later, larger step, from the investigation): one select for the currencies of all computed rows of a layout (about 100 ms to 66 ms on the copy); the `__probes` reads (66 ms to 56 ms); a staged run with the shared CTEs in temp tables (the floor, about 20 ms). The prepare cost of the other large statements (General Ledger, Transaction Detail, Trial Balance, Journal, Profit and Loss) is not measured yet: the human asked for that benchmark after this task.
