@@ -353,7 +353,7 @@ func TestStatementsScale(t *testing.T) {
 						fmt.Fprintf(&plans, "\n### statement %d: %s, %d rows, %d chars\n\n```\n", i, d.Round(100*time.Microsecond), n, len(s))
 					}
 					for _, step := range steps {
-						if step.Statement == i && (strings.Contains(step.Detail, "books_journal_lines") || strings.Contains(step.Detail, "books_cash_basis_lines") || strings.Contains(step.Detail, "books_account_balances")) {
+						if step.Statement == i && (strings.Contains(step.Detail, "books_journal_lines") || strings.Contains(step.Detail, "books_cash_basis_lines") || strings.Contains(step.Detail, "books_account_balances") || scaleOpenGroupStep(step.Detail)) {
 							fmt.Fprintf(&plans, "%s\n", step.Detail)
 						}
 					}
@@ -382,4 +382,43 @@ func writeStatementsScaleOut(t *testing.T, results, plans string) {
 			t.Fatal(err)
 		}
 	}
+}
+
+// TestTransactionDetailReadsItsPeriodRowsOnce: the page statement of a run
+// with no Accounts filter reads the period's rows once, and each row finds
+// its open section through an index on the open sections. Read the other way
+// (the open sections first), every section read every row of the period: a
+// section's key is the id of a joined account, which no index on the rows
+// holds.
+func TestTransactionDetailReadsItsPeriodRowsOnce(t *testing.T) {
+	b := writeStatementsScaleBook(t, arSmall)
+	for _, run := range stScaleRuns(b) {
+		if run.name != "TD 2 all accounts, year" {
+			continue
+		}
+		var page []string
+		for _, s := range stScaleStatements(t, b, run) {
+			if strings.Contains(s, "JOIN gord ON") {
+				page = append(page, s)
+			}
+		}
+		if len(page) != 1 {
+			t.Fatalf("%d page statements that join the open sections, want 1", len(page))
+		}
+		var steps []string
+		for _, step := range explainStatements(t, b.app, page) {
+			if scaleOpenGroupStep(step.Detail) {
+				steps = append(steps, step.Detail)
+			}
+		}
+		plan := strings.Join(steps, "\n")
+		if strings.Contains(plan, "SCAN gord") || strings.Contains(plan, "SEARCH t1") {
+			t.Fatalf("every open section reads the period's rows:\n%s", plan)
+		}
+		if !strings.Contains(plan, "SCAN t1") || !strings.Contains(plan, "SEARCH gord USING AUTOMATIC") {
+			t.Fatalf("the rows do not find their section by its keys:\n%s", plan)
+		}
+		return
+	}
+	t.Fatal("the measure has no run TD 2 all accounts, year")
 }

@@ -348,7 +348,7 @@ func TestGLScale(t *testing.T) {
 					d, n := arProfileTime(t, b.arBook, s)
 					fmt.Fprintf(&plans, "\n### statement %d: %s, %d rows, %d chars\n\n```\n", i, d.Round(100*time.Microsecond), n, len(s))
 					for _, step := range steps {
-						if step.Statement == i && strings.Contains(step.Detail, "books_journal_lines") {
+						if step.Statement == i && (strings.Contains(step.Detail, "books_journal_lines") || scaleOpenGroupStep(step.Detail)) {
 							fmt.Fprintf(&plans, "%s\n", step.Detail)
 						}
 					}
@@ -359,6 +359,16 @@ func TestGLScale(t *testing.T) {
 		// After each size, so a timeout in a later size keeps the earlier results.
 		writeGLScaleOut(t, results.String(), plans.String())
 	}
+}
+
+// scaleOpenGroupStep is true for a plan step of the join of a page's detail
+// rows to their open sections: a step that names the open sections (gord), or
+// a read of the detail rows (t1 over a union source, d over computed rows).
+func scaleOpenGroupStep(detail string) bool {
+	if strings.Contains(detail, "gord") || detail == "SCAN t1" || detail == "SCAN d" {
+		return true
+	}
+	return strings.HasPrefix(detail, "SEARCH t1 ") || strings.HasPrefix(detail, "SEARCH d ")
 }
 
 // writeGLScaleOut writes gl-results.md and gl-plans.md under BOOKS_SCALE_OUT
