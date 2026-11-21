@@ -42,6 +42,7 @@ describe('help/reports.md', () => {
         '## Read the A/R Aging report',
         '## Read the sales reports',
         '## Read the A/P Aging report',
+        '## Read the Vendor Balance report',
     ])('has the heading "%s"', heading => {
         expect(body).toMatch(new RegExp(`^${heading}$`, 'm'))
     })
@@ -514,6 +515,10 @@ describe('help/reports.md', () => {
             expect(oneSentence(/\btransaction\b/i, /\bopens?\b/i, /\bdocument\b/i)).toBe(true)
         })
 
+        it('says a transaction with no description ends after its number (Amendment 3)', () => {
+            expect(balance).toContain('A transaction with no description ends after its number.')
+        })
+
         it('has "customer balance" in the frontmatter tags', () => {
             const tags = (/^tags:\s*\[(.*)\]\s*$/m.exec(frontmatter)?.[1] ?? '')
                 .split(',')
@@ -792,6 +797,91 @@ describe('help/reports.md', () => {
 
         it("names the Vendors list's Reports menu in one sentence", () => {
             expect(oneSentence(/\bReports\b/, /\bVendors list\b/, /\bA\/P Aging\b/)).toBe(true)
+        })
+    })
+
+    // Vendor Balance checkpoint 4 (spec §3 "Help").
+    it('"Who sees Books reports" names the Vendor Balance', () => {
+        expect(section('## Who sees Books reports')).toContain('the Vendor Balance')
+    })
+
+    // Vendor Balance checkpoint 4 (spec §3 "Help", §2 the Vendors list's Reports menu).
+    describe('the "Read the Vendor Balance report" section', () => {
+        const balances = section('## Read the Vendor Balance report')
+        const sentences = balances.split(/(?<=[.!?])\s+/)
+        const oneSentence = (...phrases: RegExp[]) =>
+            sentences.some(sentence => phrases.every(phrase => phrase.test(sentence)))
+
+        it('comes directly after "Read the A/P Aging report"', () => {
+            const headings = [...body.matchAll(/^## .*$/gm)].map(m => m[0])
+            const payables = headings.indexOf('## Read the A/P Aging report')
+            expect(payables).toBeGreaterThanOrEqual(0)
+            expect(headings[payables + 1]).toBe('## Read the Vendor Balance report')
+        })
+
+        it('says what counts: posted transactions on Accounts payable accounts', () => {
+            expect(balances).toMatch(/\bAccounts payable\b/)
+        })
+
+        it('names the As of day', () => {
+            expect(balances).toMatch(/\bAs of\b/)
+        })
+
+        it("says a row equals the vendor page's Open balance, with a link to the vendor page", () => {
+            expect(balances).toMatch(/\bOpen balance\b/)
+            expect(balances).toContain('(help://books:vendor-pages)')
+        })
+
+        it("says a row equals the vendor's Total in the A/P Aging, in one sentence", () => {
+            expect(oneSentence(/\bA\/P Aging\b/, /\bTotal\b/)).toBe(true)
+        })
+
+        it("says the report's Total equals the Balance Sheet", () => {
+            expect(balances).toMatch(/\bBalance Sheet\b/)
+        })
+
+        it('names the No vendor row', () => {
+            expect(balances).toMatch(/\bNo vendor\b/)
+        })
+
+        it('says a vendor row opens into its transactions', () => {
+            expect(oneSentence(/\bpress the vendor row\b/i, /\btransactions\b/i)).toBe(true)
+        })
+
+        it('says a transaction opens its document', () => {
+            expect(oneSentence(/\bpress\b/i, /\btransaction\b/i, /\bopens\b/i)).toBe(true)
+        })
+
+        it('names the Rows choices Non-zero and With activity', () => {
+            expect(balances).toMatch(/\bNon-zero\b/)
+            expect(balances).toMatch(/\bWith activity\b/)
+        })
+
+        it('names the Order choice Largest balance', () => {
+            expect(balances).toMatch(/\bLargest balance\b/)
+        })
+
+        it('says a negative figure is money the vendor owes the business', () => {
+            expect(oneSentence(/\bnegative\b/i, /\bowes\b/i)).toBe(true)
+        })
+
+        it('says to read the A/P Aging for open bills with their due dates', () => {
+            expect(oneSentence(/\bA\/P Aging\b/, /\bdue dates?\b/i)).toBe(true)
+        })
+
+        it('says an inactive vendor is marked "(inactive)"', () => {
+            expect(balances).toMatch(/\(inactive\)/)
+        })
+
+        it("names the Vendors list's Reports menu in one sentence", () => {
+            expect(oneSentence(/\bReports\b/, /\bVendors list\b/, /\bVendor Balance\b/)).toBe(true)
+        })
+
+        it('has "vendor balance" in the frontmatter tags', () => {
+            const tags = (/^tags:\s*\[(.*)\]\s*$/m.exec(frontmatter)?.[1] ?? '')
+                .split(',')
+                .map(tag => tag.trim().replace(/^["']|["']$/g, ''))
+            expect(tags).toContain('vendor balance')
         })
     })
 
