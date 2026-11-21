@@ -5,7 +5,7 @@ tags: [vendors, payment terms, expense account, inactive, delete, custom fields]
 order: 31
 ---
 
-A vendor is a person or a company that you buy from. To see your vendors, choose Lists in the sidebar and pick the Vendors card. On a phone, Books opens where you left it. To get back to Lists on a phone, choose All lists at the top of the Vendors list. You can also swipe in from the left edge of the screen to open the sidebar, then choose Lists. A read-only user can open vendors but cannot change them. To see what you owe each vendor, press Reports at the top of the Vendors list and choose A/P Aging. To read it, see the [A/P Aging report](help://books:reports).
+A vendor is a person or a company that you buy from. To see your vendors, choose Lists in the sidebar and pick the Vendors card. On a phone, Books opens where you left it. To get back to Lists on a phone, choose All lists at the top of the Vendors list. You can also swipe in from the left edge of the screen to open the sidebar, then choose Lists. A read-only user can open vendors but cannot change them. To see what you owe each vendor, press Reports at the top of the Vendors list and choose A/P Aging. To read it, see the [A/P Aging report](help://books:reports). To see what you owe each vendor in one figure, press Reports and choose Vendor Balance. To read it, see the [Vendor Balance report](help://books:reports).
 
 ## Find a vendor
 

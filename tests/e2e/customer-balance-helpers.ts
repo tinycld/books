@@ -214,8 +214,20 @@ function readBalanceRows(page: Page): Promise<DrawnBalanceRows> {
     })
 }
 
+// What the phone check asks beyond every row fitting (vendor-balance plan D12): a
+// family header on two or three lines (the default, the Customer Balance), and the row
+// labelled `wrappedLabel` on two or three lines (a report with no family, the Vendor
+// Balance, names its long vendor here).
+export interface BalanceRowsFitOptions {
+    familyHeader?: boolean
+    wrappedLabel?: string
+}
+
 // What is wrong with the drawn rows, in words; empty when every row fits.
-function balanceRowProblems(read: DrawnBalanceRows): string[] {
+function balanceRowProblems(
+    read: DrawnBalanceRows,
+    options: BalanceRowsFitOptions = { familyHeader: true }
+): string[] {
     const problems: string[] = []
     if (read.rows.length === 0) problems.push('no report row is mounted')
     const labels = new Set(read.rows.map(row => row.label))
@@ -225,10 +237,24 @@ function balanceRowProblems(read: DrawnBalanceRows): string[] {
         row.id.startsWith('g:') && row.balance === '' && labels.has(`Total ${row.label}`)
     // The 2-to-3-line check below runs only on these rows; with none it would pass unseen.
     const familyHeaders = read.rows.filter(isFamilyHeader).length
-    if (familyHeaders === 0) {
+    if (options.familyHeader !== false && familyHeaders === 0) {
         problems.push(
             'no family header (no figure, its total mounted) was checked for 2 or 3 lines'
         )
+    }
+    if (options.wrappedLabel !== undefined) {
+        const wanted = options.wrappedLabel
+        const wrapped = read.rows.filter(row => row.label === wanted)
+        if (wrapped.length === 0) {
+            problems.push(`no mounted row is labelled "${wanted.slice(0, 40)}"`)
+        }
+        for (const row of wrapped) {
+            if (row.labelLines < 2 || row.labelLines > 3) {
+                problems.push(
+                    `row ${row.id} "${wanted.slice(0, 40)}": its label takes ${row.labelLines} line(s), not 2 or 3`
+                )
+            }
+        }
     }
     for (const row of read.rows) {
         const name = `row ${row.id} "${row.label.slice(0, 40)}"`
@@ -273,13 +299,17 @@ function balanceRowProblems(read: DrawnBalanceRows): string[] {
  * family header has no Balance cell) has its label and its Balance on one line band, the Balance inside the row and right of the
  * label, its text whole and ending in the figure's last digit; every label at most three
  * lines and not cut before the third; a family's header label (a long parent name) on two
- * or three lines; and nothing scrolls sideways. Polled: the layout settles a frame after
- * a resize or a press; each poll is one read.
+ * or three lines, unless `options.familyHeader` is false; the row labelled
+ * `options.wrappedLabel`, when given, on two or three lines; and nothing scrolls sideways.
+ * Polled: the layout settles a frame after a resize or a press; each poll is one read.
  */
-export async function expectBalanceRowsFit(page: Page): Promise<void> {
+export async function expectBalanceRowsFit(
+    page: Page,
+    options: BalanceRowsFitOptions = { familyHeader: true }
+): Promise<void> {
     await expect
-        .poll(async () => balanceRowProblems(await readBalanceRows(page)), {
-            message: 'the Customer Balance rows fit the phone',
+        .poll(async () => balanceRowProblems(await readBalanceRows(page), options), {
+            message: 'the balance report rows fit the phone',
         })
         .toEqual([])
     await expectTableFits(page)
