@@ -2,6 +2,7 @@ import { and, eq, gt, gte, ilike, lt, lte, or, type Ref } from '@tanstack/db'
 import type { SetupTab } from '@tinycld/core/components/setup/wizard/SetupTabs'
 import { errorToString } from '@tinycld/core/lib/errors'
 import type { BooksBankTransactions } from '../types'
+import { categorizeResultText } from './bank-categorize'
 import type { SelectBoxState } from './bank-import-view'
 import { matchResultText, unmatchResultText } from './bank-match'
 import { searchPieces } from './list-search'
@@ -294,9 +295,12 @@ export function settleRows<Row>(
 // update rule allows only these two moves (pb-migrations/2100000008_create_books_banking.js).
 export type MoveKind = 'exclude' | 'restore'
 // A run of the page's one batch: a status move, a match (an insert into
-// books_bank_matches; the server moves the transaction to Reviewed), or the undo of a
-// match (a delete of its books_bank_matches row; the server moves it back to For review).
-export type BatchKind = MoveKind | 'match' | 'unmatch'
+// books_bank_matches; the server moves the transaction to Reviewed), the undo of a
+// match (a delete of its books_bank_matches row; the server moves it back to For review),
+// a categorize (an insert into books_bank_categorizations; the server posts the entry and
+// moves the transaction to Reviewed), or the undo of a categorize (a delete of that row;
+// the server voids the entry and moves the transaction back to For review).
+export type BatchKind = MoveKind | 'match' | 'unmatch' | 'categorize' | 'uncategorize'
 export const BATCH_TARGET: Record<MoveKind, TxnStatus> = {
     exclude: 'excluded',
     restore: 'for_review',
@@ -337,34 +341,49 @@ const DONE_TEXT: Record<MoveKind, (count: number) => string> = {
     restore: count => `Moved ${count} ${transactionsNoun(count)} to For review.`,
 }
 
-const FAILED_VERB: Record<BatchKind, string> = {
+// The verb of "2 of 6 transactions could not be <verb>. Try again."
+export const FAILED_VERB: Record<BatchKind, string> = {
     exclude: 'excluded',
     restore: 'moved to For review',
     match: 'matched',
     unmatch: 'unmatched',
+    categorize: 'categorized',
+    uncategorize: 'undone',
 }
 
-function doneText(kind: Exclude<BatchKind, 'unmatch'>, outcome: BatchOutcome, skipped: number) {
+function doneText(
+    kind: Exclude<BatchKind, 'unmatch'>,
+    outcome: BatchOutcome,
+    skipped: number,
+    summary: string
+) {
     if (kind === 'match') return matchResultText(outcome, skipped)
+    if (kind === 'categorize') return categorizeResultText(outcome)
+    if (kind === 'uncategorize') return summary
     return DONE_TEXT[kind](outcome.done.length)
 }
 
 // The line under the toolbar after a batch: the count when every change went through
-// (for a match, matchResultText, with the chosen rows the batch skipped); the transport
-// text when none of the failures reached the server; the server's message when every
-// failure is a refusal with the same non-empty one; else how many of the batch failed. A
-// failure with no message (a row that left the store before its change was sent) is
-// only counted. An undo (one transaction, from the drawer) reads unmatchResultText.
+// (for a match, matchResultText, with the chosen rows the batch skipped; for the undo of
+// a categorize, the run's `summary`, which the drawer built from the entry at the press,
+// undoAddedText); the transport text when none of the failures reached the server; the
+// server's message when every failure is a refusal with the same non-empty one; else how
+// many of the batch failed. A failure with no message (a row that left the store before
+// its change was sent) is only counted. The undo of a match (one transaction, from the
+// drawer) reads unmatchResultText.
 export function batchResultText(
     kind: BatchKind,
     outcome: BatchOutcome,
-    skipped = 0
+    skipped = 0,
+    summary = ''
 ): { text: string; tone: 'muted' | 'danger' } {
     const { done, failed } = outcome
     const [first] = failed
     const tone = first === undefined ? 'muted' : 'danger'
     if (kind === 'unmatch') return { text: unmatchResultText(outcome), tone }
-    if (first === undefined) return { text: doneText(kind, outcome, skipped), tone: 'muted' }
+    if (first === undefined) {
+        return { text: doneText(kind, outcome, skipped, summary), tone: 'muted' }
+    }
     if (failed.every(failure => failure.isTransport)) {
         return { text: BANK_BATCH_TRANSPORT_TEXT, tone: 'danger' }
     }
@@ -458,8 +477,14 @@ export function shownChoice(rows: readonly ChoiceRow[], chosen: ReadonlySet<stri
     return rows.filter(row => chosen.has(row.id)).map(row => row.id)
 }
 
+// The sums of the chosen rows: "Spent $412.30 · Received $0.00" (the selection bar's text
+// after the count, and the Categorize dialog's line).
+export function chosenSumsText(spent: number, received: number, currency: string): string {
+    return `Spent ${formatMoney(spent, currency)} · Received ${formatMoney(received, currency)}`
+}
+
 function selectedText(count: number, spent: number, received: number, currency: string) {
-    return `${count} selected · Spent ${formatMoney(spent, currency)} · Received ${formatMoney(received, currency)}`
+    return `${count} selected · ${chosenSumsText(spent, received, currency)}`
 }
 
 // The selection bar's count and sums, over the shown choice only. Amounts are integer

@@ -21,6 +21,7 @@ import {
 } from './estimate-helpers'
 import { lineCellTestId, localToday, uniqueMemo } from './invoice-helpers'
 import { batchOperations } from './journal-entries-helpers'
+import { tabTo } from './keyboard-helpers'
 import { isDisabled } from './record-form-helpers'
 
 // The estimate form, its Save bar and its states (spec §3.2–§3.10). Every estimate is made
@@ -72,11 +73,6 @@ function addDays(day: string, days: number): string {
 async function openBooks(page: Page) {
     await login(page)
     await navigateToPackage(page, 'books')
-}
-
-async function tabTo(page: Page, target: Locator) {
-    await page.keyboard.press('Tab')
-    await expect(target).toBeFocused()
 }
 
 async function moneyIn(locator: Locator): Promise<string> {

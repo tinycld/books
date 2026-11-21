@@ -1,0 +1,173 @@
+[
+    {
+        "name": "one expense line for money out",
+        "bankAmount": -8647,
+        "kind": "categorize",
+        "lines": [{ "amount": 8647, "memo": "" }],
+        "accountKinds": ["expense"],
+        "valid": true,
+        "message": ""
+    },
+    {
+        "name": "the connection's own account",
+        "bankAmount": -8647,
+        "kind": "categorize",
+        "lines": [{ "amount": 8647, "memo": "" }],
+        "accountKinds": ["connection"],
+        "valid": false,
+        "message": "Line 1: choose an account other than 1000 Business Checking."
+    },
+    {
+        "name": "an Accounts receivable account",
+        "bankAmount": 8647,
+        "kind": "categorize",
+        "lines": [{ "amount": 8647, "memo": "" }],
+        "accountKinds": ["accounts_receivable"],
+        "valid": false,
+        "message": "Line 1: record a customer payment with Receive payment, or a bill payment with Pay bills, then match it."
+    },
+    {
+        "name": "an Accounts payable account",
+        "bankAmount": -8647,
+        "kind": "categorize",
+        "lines": [{ "amount": 8647, "memo": "" }],
+        "accountKinds": ["accounts_payable"],
+        "valid": false,
+        "message": "Line 1: record a customer payment with Receive payment, or a bill payment with Pay bills, then match it."
+    },
+    {
+        "name": "an amount of 0",
+        "bankAmount": -8647,
+        "kind": "categorize",
+        "lines": [
+            { "amount": 8647, "memo": "" },
+            { "amount": 0, "memo": "" }
+        ],
+        "accountKinds": ["expense", "income"],
+        "valid": false,
+        "message": "Line 2: enter an amount other than 0."
+    },
+    {
+        "name": "50 lines",
+        "bankAmount": -5000,
+        "kind": "categorize",
+        "lines": [
+            { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" },
+            { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" },
+            { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" },
+            { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" },
+            { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" },
+            { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" },
+            { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" },
+            { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" },
+            { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" },
+            { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }
+        ],
+        "accountKinds": [
+            "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense",
+            "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense",
+            "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense",
+            "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense",
+            "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense"
+        ],
+        "valid": true,
+        "message": ""
+    },
+    {
+        "name": "51 lines",
+        "bankAmount": -5100,
+        "kind": "categorize",
+        "lines": [
+            { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" },
+            { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" },
+            { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" },
+            { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" },
+            { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" },
+            { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" },
+            { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" },
+            { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" },
+            { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" },
+            { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" }, { "amount": 100, "memo": "" },
+            { "amount": 100, "memo": "" }
+        ],
+        "accountKinds": [
+            "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense",
+            "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense",
+            "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense",
+            "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense",
+            "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense", "expense",
+            "expense"
+        ],
+        "valid": false,
+        "message": "A split holds at most 50 lines."
+    },
+    {
+        "name": "a split with a negative line that adds up",
+        "bankAmount": 97000,
+        "kind": "categorize",
+        "lines": [
+            { "amount": 100000, "memo": "Consulting" },
+            { "amount": -3000, "memo": "Bank fee" }
+        ],
+        "accountKinds": ["income", "expense"],
+        "valid": true,
+        "message": ""
+    },
+    {
+        "name": "lines short of the bank amount",
+        "bankAmount": 97000,
+        "kind": "categorize",
+        "lines": [
+            { "amount": 60000, "memo": "" },
+            { "amount": 25000, "memo": "" }
+        ],
+        "accountKinds": ["income", "income"],
+        "valid": false,
+        "message": "The lines total $850.00. The bank transaction is $970.00."
+    },
+    {
+        "name": "lines over the bank amount",
+        "bankAmount": -85000,
+        "kind": "categorize",
+        "lines": [{ "amount": 97000, "memo": "" }],
+        "accountKinds": ["expense"],
+        "valid": false,
+        "message": "The lines total $970.00. The bank transaction is $850.00."
+    },
+    {
+        "name": "a transfer to a bank account",
+        "bankAmount": -50000,
+        "kind": "transfer",
+        "lines": [{ "amount": 50000, "memo": "" }],
+        "accountKinds": ["bank"],
+        "valid": true,
+        "message": ""
+    },
+    {
+        "name": "a transfer from a credit card account",
+        "bankAmount": 50000,
+        "kind": "transfer",
+        "lines": [{ "amount": 50000, "memo": "" }],
+        "accountKinds": ["credit_card"],
+        "valid": true,
+        "message": ""
+    },
+    {
+        "name": "a transfer to an expense account",
+        "bankAmount": -50000,
+        "kind": "transfer",
+        "lines": [{ "amount": 50000, "memo": "" }],
+        "accountKinds": ["expense"],
+        "valid": false,
+        "message": "Line 1: Rent cannot be used in a transfer. Choose a bank, credit card, asset, liability or equity account."
+    },
+    {
+        "name": "a transfer from an income account",
+        "bankAmount": 50000,
+        "kind": "transfer",
+        "lines": [{ "amount": 50000, "memo": "" }],
+        "accountKinds": ["income"],
+        "valid": false,
+        "message": "Line 1: Consulting Income cannot be used in a transfer. Choose a bank, credit card, asset, liability or equity account."
+    }
+]

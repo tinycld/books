@@ -1,5 +1,6 @@
 import { expect, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
+import { shiftTabTo, tabTo } from './keyboard-helpers'
 import {
     CHECKING,
     DESKTOP,
@@ -13,8 +14,6 @@ import {
     payBillsRowAmount,
     pickFocusedSelect,
     postedNumber,
-    shiftTabTo,
-    tabTo,
     uniqueCheckNo,
     vendorWithBills,
 } from './pay-bills-helpers'

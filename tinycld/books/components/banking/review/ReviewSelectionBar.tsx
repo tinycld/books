@@ -61,8 +61,8 @@ function moveButton(model: ReviewTabModel): BarButtonModel | null {
 }
 
 // In place of the toolbar while rows are chosen: the count and sums of the chosen rows on
-// screen, Match (For review), the tab's move button and Clear. It stays up, busy, for the
-// whole of its run.
+// screen, Match and Categorize (For review), the tab's move button and Clear. It stays up,
+// busy, for the whole of its run.
 export function ReviewSelectionBar({ model }: { model: ReviewTabModel }) {
     const move = moveButton(model)
     return (
@@ -79,6 +79,7 @@ export function ReviewSelectionBar({ model }: { model: ReviewTabModel }) {
             </Text>
             <View className="flex-row gap-2">
                 <BatchButton action={model.matchAction} />
+                <BatchButton action={model.categorizeAction} />
                 <BatchButton action={move} />
                 <Button
                     testID="bank-review-unselect"

@@ -7,7 +7,8 @@ import { useDebouncedValue } from '@tinycld/core/lib/use-debounced-value'
 import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { useController, useForm, zodResolver } from '@tinycld/core/ui/form'
 import { materialize } from 'pbtsdb'
-import { useEffect, useRef, useState } from 'react'
+import { type RefObject, useEffect, useRef, useState } from 'react'
+import { nextTxnId } from '../lib/bank-categorize'
 import {
     chosenWhere,
     defaultFindRange,
@@ -474,8 +475,9 @@ function useMatchedModel(input: {
     canWrite: boolean
     batch: ReviewBatch
     writes: ReturnType<typeof useServerActionState>
-    settle: (id: string, outcome: BatchOutcome, refusalOf: RefusalOf) => void
+    settle: (id: string, outcome: BatchOutcome, refusalOf: RefusalOf, onDone: () => void) => void
     clearRefusal: () => void
+    onClose: () => void
 }) {
     const { txnId, canWrite, batch, writes } = input
     const { query, sources } = useMatchedQuery(txnId)
@@ -507,7 +509,7 @@ function useMatchedModel(input: {
                 matchIds: { [txnId]: view.matchId },
                 undoShown: view,
             })
-            .then(outcome => input.settle(txnId, outcome, undoRefusal))
+            .then(outcome => input.settle(txnId, outcome, undoRefusal, input.onClose))
             .catch(err => log.error('books.banking', err))
     }
     const recovery: LiveRecovery =
@@ -565,6 +567,9 @@ type BankMatchInput = {
     // drawer closes on an account change, so the open transaction is always of it.
     accountId: string
     accountLabel: string
+    // The For review tab's shown row ids, in list order (ReviewTabBody sets them), for the
+    // row the drawer shows after a match.
+    shownRowIds: RefObject<readonly string[]>
 }
 
 // The drawer's Match section: the suggestions of the open For review transaction, the
@@ -579,8 +584,10 @@ export function useBankMatch({
     suggestionsRecovery,
     accountId,
     accountLabel,
+    shownRowIds,
 }: BankMatchInput) {
     const { detail } = drawer
+    const openNextTxn = useBankingUIStore(s => s.openNextTxn)
     const txnId = detail?.status === 'for_review' ? detail.id : null
     const side = matchSide(detail?.amount ?? 0)
     const { query, sources } = useMatchOptionsQuery(txnId)
@@ -601,7 +608,14 @@ export function useBankMatch({
     const findPager = useRef<() => void>(NO_PAGE)
 
     const isActive = txnId !== null
-    const options = toOptions(isActive && query.isReady ? (query.data ?? NO_OPTIONS) : NO_OPTIONS)
+    const suggestionRows = isActive && query.isReady ? (query.data ?? NO_OPTIONS) : NO_OPTIONS
+    const options = toOptions(suggestionRows)
+    // Every suggestion of the transaction: useMatchOptionsQuery (this file, lines 50-119)
+    // reads them all, with no `.limit()` and no paging; the drawer's onNearEnd (this file,
+    // lines 793-795) pages only the find mode. The
+    // count is of the view's rows, not of `options`, which leaves out a row whose line or
+    // entry has not arrived yet, so "Match (n)" and the default way never count short.
+    const suggestionCount = suggestionRows.length
 
     // One suggestion starts chosen; several start with none. Until the user changes the
     // choice of this transaction, it is derived here from the options as they stand; the
@@ -662,15 +676,21 @@ export function useBankMatch({
     }
 
     // The server moves a matched transaction to Reviewed (an undone one back to For
-    // review), so the row leaves the tab and the drawer closes. A failure keeps the drawer
-    // open with its text (refusalOf: the server's message, or the transport text, which the
+    // review), so the row leaves the tab and the drawer moves on (`onDone`: the next For
+    // review row after a match, a close after an undo). A failure keeps the drawer open
+    // with its text (refusalOf: the server's message, or the transport text, which the
     // batch has logged). The drawer may show another transaction (or be closed) by the
     // time the run ends; the outcome then touches nothing here, and the batch's result line
     // shows a failure (useReviewBatch).
-    const settle = (id: string, outcome: BatchOutcome, refusalOf: RefusalOf) => {
+    const settle = (
+        id: string,
+        outcome: BatchOutcome,
+        refusalOf: RefusalOf,
+        onDone: () => void
+    ) => {
         if (useBankingUIStore.getState().openTxnId !== id) return
         if (outcome.done.includes(id)) {
-            drawer.onClose()
+            onDone()
             return
         }
         const failure = outcome.failed.find(f => f.id === id)
@@ -684,9 +704,14 @@ export function useBankMatch({
         writes,
         settle,
         clearRefusal: () => setMatchRefusal(null),
+        onClose: drawer.onClose,
     })
+    // The next row is read at the press: the matched row leaves the list by realtime
+    // before the run ends. It takes no focus, so M, M, M works down the list.
     const onMatch = () => {
         if (!txnId || !canWrite || submit.isDisabled) return
+        const next = nextTxnId(shownRowIds.current, txnId)
+        const openNext = () => openNextTxn(next, false)
         setMatchRefusal(null)
         void batch
             .run({
@@ -696,7 +721,7 @@ export function useBankMatch({
                 origin: 'drawer',
                 matchLines: { [txnId]: chosenIds },
             })
-            .then(outcome => settle(txnId, outcome, matchRefusal))
+            .then(outcome => settle(txnId, outcome, matchRefusal, openNext))
             .catch(err => log.error('books.banking', err))
     }
 
@@ -730,6 +755,7 @@ export function useBankMatch({
         matched,
         canWrite,
         options,
+        suggestionCount,
         chosenIds: heldIds,
         chosenOptions,
         foundChosen,

@@ -1,6 +1,7 @@
 import { type ScopeOwner, ScopeProvider, useShortcutScope } from '@tinycld/core/lib/shortcuts'
 import { useIsFocused } from 'expo-router'
 import { ScrollView, View } from 'react-native'
+import { useWayShortcuts } from '../../hooks/useBankCategorize'
 import { type BankFileUpload, useBankFileUpload } from '../../hooks/useBankFileUpload'
 import type { BankingScreenModel } from '../../hooks/useBankingScreen'
 import { useBankingShortcuts } from '../../hooks/useBankingShortcuts'
@@ -11,6 +12,10 @@ import { BankingDialogs } from './BankingDialogs'
 import { BankingHeader } from './BankingHeader'
 import { BankingIntro } from './BankingIntro'
 import { BankingLoadError, BankingLoading } from './BankingStates'
+import { AddedToBooks } from './categorize/AddedToBooks'
+import { CategorizeSection } from './categorize/CategorizeSection'
+import { TransferSection } from './categorize/TransferSection'
+import { TxnWaySwitch } from './categorize/TxnWaySwitch'
 import { MatchSection } from './match/MatchSection'
 import { BankTxnDrawer } from './review/BankTxnDrawer'
 
@@ -46,6 +51,7 @@ function BankingContent({ model, upload }: { model: BankingScreenModel; upload: 
                 batch={model.batch}
                 drawer={model.drawer}
                 suggestions={model.suggestions}
+                shownRowIds={model.shownRowIds}
             />
         </>
     )
@@ -75,8 +81,79 @@ function PageDrawer({ model, scopeOwner }: { model: BankingScreenModel; scopeOwn
             currency={model.currency}
             onNearEnd={model.match.onNearEnd}
         >
-            <MatchSection model={model.match} scopeOwner={scopeOwner} currency={model.currency} />
+            <DrawerWays model={model} scopeOwner={scopeOwner} />
         </BankTxnDrawer>
+    )
+}
+
+type WaysProps = { model: BankingScreenModel; scopeOwner: ScopeOwner }
+
+// The section of the shown way: the drawer keys the Categorize and Transfer forms by the
+// transaction, so another transaction starts with fresh forms.
+function WaySection({ model, scopeOwner }: WaysProps) {
+    const { categorize, currency } = model
+    if (categorize.way === 'categorize') {
+        return (
+            <CategorizeSection
+                key={categorize.formKey}
+                model={categorize}
+                scopeOwner={scopeOwner}
+            />
+        )
+    }
+    if (categorize.way === 'transfer') {
+        return (
+            <TransferSection key={categorize.formKey} model={categorize} scopeOwner={scopeOwner} />
+        )
+    }
+    return (
+        <MatchSection
+            model={model.match}
+            scopeOwner={scopeOwner}
+            currency={currency}
+            isUnderSwitch
+        />
+    )
+}
+
+// A reader sees the Match list when Books has suggestions (or while they load, or after
+// their read failed), and nothing when it has none.
+function ReaderMatch({ model, scopeOwner }: WaysProps) {
+    const { match } = model
+    const hasSomething = match.isLoading || match.isError || match.options.length > 0
+    if (!hasSomething) return null
+    return <MatchSection model={match} scopeOwner={scopeOwner} currency={model.currency} />
+}
+
+// A Reviewed transaction that was added (or whose categorization still loads, or failed to
+// load) shows Added to Books; any other Reviewed or Excluded transaction, the Match section
+// as it draws those (Matched to, or nothing). An added transaction also has the match the
+// server wrote, so the categorization is checked first.
+function SettledSection({ model, scopeOwner }: WaysProps) {
+    if (model.added.isShown) {
+        return (
+            <AddedToBooks model={model.added} scopeOwner={scopeOwner} currency={model.currency} />
+        )
+    }
+    return <MatchSection model={model.match} scopeOwner={scopeOwner} currency={model.currency} />
+}
+
+// Under the drawer's fields: for a writer on a For review transaction, the way switch
+// and the section of the shown way (core LoadingState until the suggestions decide the
+// default way); for a reader, the Match list only; for a Reviewed or Excluded
+// transaction, Added to Books or the Match section (SettledSection).
+function DrawerWays({ model, scopeOwner }: WaysProps) {
+    const { categorize } = model
+    useWayShortcuts(categorize, scopeOwner)
+    if (categorize.view === 'reader') return <ReaderMatch model={model} scopeOwner={scopeOwner} />
+    if (categorize.view === 'none') return <SettledSection model={model} scopeOwner={scopeOwner} />
+    const section =
+        categorize.view === 'switch' ? <WaySection model={model} scopeOwner={scopeOwner} /> : null
+    return (
+        <>
+            <TxnWaySwitch model={categorize} />
+            {section}
+        </>
     )
 }
 

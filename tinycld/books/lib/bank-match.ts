@@ -192,8 +192,14 @@ export function inBooksText(lines: readonly { entry: LabelledEntry | undefined }
 // made it (the day alone when the user has no name). Local, as the bank and Books dates
 // beside it are the user's days.
 export function matchedOnText(created: string, userName: string): string {
+    return madeOnText('Matched', created, userName)
+}
+
+// "<verb> Nov 18, 2026 by Ana Ruiz", the wording of matchedOnText and of Added to Books'
+// addedOnText (lib/bank-categorize.ts).
+export function madeOnText(verb: string, created: string, userName: string): string {
     const day = localDayOf(created)
-    const parts = ['Matched', day ? formatDay(day) : '']
+    const parts = [verb, day ? formatDay(day) : '']
     if (userName) parts.push(`by ${userName}`)
     return parts.filter(part => part !== '').join(' ')
 }

@@ -9,6 +9,8 @@ To mark an imported bank transaction as money you already recorded in Books, mat
 
 A match only links the bank transaction to one or more Books transactions: a deposit, payment, sales receipt, expense, bill payment, transfer, refund or journal entry that moved the same account. Nothing posts. A match changes no journal entry, register, balance or report.
 
+When the money is not in Books yet, categorize the transaction or record it as a transfer instead: see [Categorize a bank transaction](help://books:bank-categorize).
+
 ## How Books finds a match
 
 For each transaction on For review, Books looks for posted Books transactions on the same account that have exactly the same amount, on the same side (money in matches money in), and that are dated from 90 days before to 7 days after the bank date. A void transaction, and a transaction already matched to another bank transaction, is never a suggestion. The nearest date comes first.

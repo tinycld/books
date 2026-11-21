@@ -1,0 +1,1469 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "selected",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [1280],
+            "actions": [
+                {
+                    "waitFor": "CHECK 1050"
+                },
+                {
+                    "clickLabel": "Choose CHECK 1047"
+                },
+                {
+                    "clickLabel": "Choose AMAZON MARKETPLACE"
+                },
+                {
+                    "clickLabel": "Choose CHECK 1050"
+                },
+                {
+                    "waitFor": "bank-review-categorize-chosen"
+                },
+                {
+                    "click": "bank-panel-title"
+                }
+            ]
+        },
+        {
+            "name": "selected",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [390],
+            "actions": [
+                {
+                    "waitFor": "CHECK 1050"
+                },
+                {
+                    "clickLabel": "Choose CHECK 1047"
+                },
+                {
+                    "clickLabel": "Choose AMAZON MARKETPLACE"
+                },
+                {
+                    "clickLabel": "Choose CHECK 1050"
+                },
+                {
+                    "waitFor": "bank-review-categorize-chosen"
+                },
+                {
+                    "click": "bank-panel-title"
+                }
+            ]
+        },
+        {
+            "name": "dialog",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [1280],
+            "opaque": "bank-categorize-dialog",
+            "settleMs": 500,
+            "actions": [
+                {
+                    "waitFor": "CHECK 1050"
+                },
+                {
+                    "clickLabel": "Choose CHECK 1047"
+                },
+                {
+                    "clickLabel": "Choose AMAZON MARKETPLACE"
+                },
+                {
+                    "clickLabel": "Choose CHECK 1050"
+                },
+                {
+                    "waitFor": "bank-review-categorize-chosen"
+                },
+                {
+                    "click": "bank-panel-title"
+                },
+                {
+                    "press": "c"
+                },
+                {
+                    "waitFor": "bank-categorize-dialog"
+                }
+            ]
+        },
+        {
+            "name": "dialog",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [390],
+            "opaque": "bank-categorize-dialog",
+            "settleMs": 500,
+            "actions": [
+                {
+                    "waitFor": "CHECK 1050"
+                },
+                {
+                    "clickLabel": "Choose CHECK 1047"
+                },
+                {
+                    "clickLabel": "Choose AMAZON MARKETPLACE"
+                },
+                {
+                    "clickLabel": "Choose CHECK 1050"
+                },
+                {
+                    "waitFor": "bank-review-categorize-chosen"
+                },
+                {
+                    "click": "bank-panel-title"
+                },
+                {
+                    "press": "c"
+                },
+                {
+                    "waitFor": "bank-categorize-dialog"
+                }
+            ]
+        },
+        {
+            "name": "dialog-busy",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [1280],
+            "opaque": "bank-categorize-dialog",
+            "settleMs": 500,
+            "writes": {
+                "collection": "books_bank_categorizations",
+                "answers": ["hold", "hold", "hold"]
+            },
+            "actions": [
+                {
+                    "waitFor": "CHECK 1050"
+                },
+                {
+                    "clickLabel": "Choose CHECK 1047"
+                },
+                {
+                    "clickLabel": "Choose AMAZON MARKETPLACE"
+                },
+                {
+                    "clickLabel": "Choose CHECK 1050"
+                },
+                {
+                    "waitFor": "bank-review-categorize-chosen"
+                },
+                {
+                    "click": "bank-panel-title"
+                },
+                {
+                    "press": "c"
+                },
+                {
+                    "waitFor": "bank-categorize-dialog"
+                },
+                {
+                    "pick": "bank-categorize-dialog-account",
+                    "label": "6100 Rent"
+                },
+                {
+                    "click": "bank-categorize-dialog-confirm"
+                },
+                {
+                    "waitForIn": "bank-categorize-dialog-confirm",
+                    "text": "Categorizing…"
+                }
+            ]
+        },
+        {
+            "name": "dialog-busy",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [390],
+            "opaque": "bank-categorize-dialog",
+            "settleMs": 500,
+            "writes": {
+                "collection": "books_bank_categorizations",
+                "answers": ["hold", "hold", "hold"]
+            },
+            "actions": [
+                {
+                    "waitFor": "CHECK 1050"
+                },
+                {
+                    "clickLabel": "Choose CHECK 1047"
+                },
+                {
+                    "clickLabel": "Choose AMAZON MARKETPLACE"
+                },
+                {
+                    "clickLabel": "Choose CHECK 1050"
+                },
+                {
+                    "waitFor": "bank-review-categorize-chosen"
+                },
+                {
+                    "click": "bank-panel-title"
+                },
+                {
+                    "press": "c"
+                },
+                {
+                    "waitFor": "bank-categorize-dialog"
+                },
+                {
+                    "pick": "bank-categorize-dialog-account",
+                    "label": "6100 Rent"
+                },
+                {
+                    "click": "bank-categorize-dialog-confirm"
+                },
+                {
+                    "waitForIn": "bank-categorize-dialog-confirm",
+                    "text": "Categorizing…"
+                }
+            ]
+        },
+        {
+            "name": "reviewed",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [1280],
+            "actions": [
+                {
+                    "click": "bank-tabs-reviewed"
+                },
+                {
+                    "waitFor": "bank-tab-body-reviewed"
+                },
+                {
+                    "waitFor": "DROPBOX BUSINESS"
+                },
+                {
+                    "click": "bank-panel-title"
+                }
+            ]
+        },
+        {
+            "name": "reviewed",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [390],
+            "actions": [
+                {
+                    "click": "bank-tabs-reviewed"
+                },
+                {
+                    "waitFor": "bank-tab-body-reviewed"
+                },
+                {
+                    "waitFor": "DROPBOX BUSINESS"
+                },
+                {
+                    "click": "bank-panel-title"
+                }
+            ]
+        },
+        {
+            "name": "added",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [1280],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "click": "bank-tabs-reviewed"
+                },
+                {
+                    "waitFor": "bank-tab-body-reviewed"
+                },
+                {
+                    "waitFor": "DROPBOX BUSINESS"
+                },
+                {
+                    "clickText": "DROPBOX BUSINESS"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-added-by"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "added",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [390],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "click": "bank-tabs-reviewed"
+                },
+                {
+                    "waitFor": "bank-tab-body-reviewed"
+                },
+                {
+                    "waitFor": "DROPBOX BUSINESS"
+                },
+                {
+                    "clickText": "DROPBOX BUSINESS"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-added-by"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "added-loading",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [1280],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "click": "bank-tabs-reviewed"
+                },
+                {
+                    "waitFor": "bank-tab-body-reviewed"
+                },
+                {
+                    "waitFor": "DROPBOX BUSINESS"
+                },
+                {
+                    "fake": {
+                        "collection": "books_bank_categorizations",
+                        "hold": true
+                    }
+                },
+                {
+                    "clickText": "DROPBOX BUSINESS"
+                },
+                {
+                    "waitFor": "bank-added-loading"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "added-loading",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [390],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "click": "bank-tabs-reviewed"
+                },
+                {
+                    "waitFor": "bank-tab-body-reviewed"
+                },
+                {
+                    "waitFor": "DROPBOX BUSINESS"
+                },
+                {
+                    "fake": {
+                        "collection": "books_bank_categorizations",
+                        "hold": true
+                    }
+                },
+                {
+                    "clickText": "DROPBOX BUSINESS"
+                },
+                {
+                    "waitFor": "bank-added-loading"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "added-error",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [1280],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "click": "bank-tabs-reviewed"
+                },
+                {
+                    "waitFor": "bank-tab-body-reviewed"
+                },
+                {
+                    "waitFor": "DROPBOX BUSINESS"
+                },
+                {
+                    "fake": {
+                        "collection": "books_bank_categorizations",
+                        "status": 400
+                    }
+                },
+                {
+                    "clickText": "DROPBOX BUSINESS"
+                },
+                {
+                    "waitFor": "bank-added-error"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "added-error",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [390],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "click": "bank-tabs-reviewed"
+                },
+                {
+                    "waitFor": "bank-tab-body-reviewed"
+                },
+                {
+                    "waitFor": "DROPBOX BUSINESS"
+                },
+                {
+                    "fake": {
+                        "collection": "books_bank_categorizations",
+                        "status": 400
+                    }
+                },
+                {
+                    "clickText": "DROPBOX BUSINESS"
+                },
+                {
+                    "waitFor": "bank-added-error"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "read-only-added",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [1280],
+            "readOnly": true,
+            "hideLabels": ["Reconnecting…"],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "click": "bank-tabs-reviewed"
+                },
+                {
+                    "waitFor": "bank-tab-body-reviewed"
+                },
+                {
+                    "waitFor": "DROPBOX BUSINESS"
+                },
+                {
+                    "clickText": "DROPBOX BUSINESS"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-added-by"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "read-only-added",
+            "url": "/a/books/banking",
+            "ready": "bank-strip",
+            "widths": [390],
+            "readOnly": true,
+            "hideLabels": ["Reconnecting…"],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "click": "bank-tabs-reviewed"
+                },
+                {
+                    "waitFor": "bank-tab-body-reviewed"
+                },
+                {
+                    "waitFor": "DROPBOX BUSINESS"
+                },
+                {
+                    "clickText": "DROPBOX BUSINESS"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-added-by"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "batch-done",
+            "url": "/a/books/sales",
+            "widths": [1280],
+            "actions": [
+                {
+                    "importStatement": {
+                        "rows": [
+                            {
+                                "day": "$today",
+                                "amount": "-42.18",
+                                "name": "CAPTURE STAPLES 0412"
+                            },
+                            {
+                                "day": "$today",
+                                "amount": "-15.99",
+                                "name": "CAPTURE ZOOM US"
+                            },
+                            {
+                                "day": "$today",
+                                "amount": "-28.40",
+                                "name": "CAPTURE FEDEX OFFICE"
+                            },
+                            {
+                                "day": "$today",
+                                "amount": "970.00",
+                                "name": "CAPTURE DEPOSIT BRIGHTLINE"
+                            },
+                            {
+                                "day": "$today",
+                                "amount": "-89.95",
+                                "name": "CAPTURE COMCAST BUSINESS"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "waitFor": "CAPTURE STAPLES 0412"
+                },
+                {
+                    "clickLabel": "Choose CAPTURE STAPLES 0412"
+                },
+                {
+                    "clickLabel": "Choose CAPTURE ZOOM US"
+                },
+                {
+                    "clickLabel": "Choose CAPTURE FEDEX OFFICE"
+                },
+                {
+                    "waitFor": "bank-review-categorize-chosen"
+                },
+                {
+                    "click": "bank-panel-title"
+                },
+                {
+                    "press": "c"
+                },
+                {
+                    "waitFor": "bank-categorize-dialog"
+                },
+                {
+                    "pick": "bank-categorize-dialog-account",
+                    "label": "6100 Rent"
+                },
+                {
+                    "click": "bank-categorize-dialog-confirm"
+                },
+                {
+                    "waitForHidden": "bank-categorize-dialog"
+                },
+                {
+                    "waitFor": "Categorized 3 transactions."
+                },
+                {
+                    "click": "bank-panel-title"
+                }
+            ]
+        },
+        {
+            "name": "batch-done",
+            "url": "/a/books/sales",
+            "widths": [390],
+            "actions": [
+                {
+                    "viewport": {
+                        "width": 1280,
+                        "height": 800
+                    }
+                },
+                {
+                    "importStatement": {
+                        "rows": [
+                            {
+                                "day": "$today",
+                                "amount": "-42.18",
+                                "name": "CAPTURE STAPLES 0412"
+                            },
+                            {
+                                "day": "$today",
+                                "amount": "-15.99",
+                                "name": "CAPTURE ZOOM US"
+                            },
+                            {
+                                "day": "$today",
+                                "amount": "-28.40",
+                                "name": "CAPTURE FEDEX OFFICE"
+                            },
+                            {
+                                "day": "$today",
+                                "amount": "970.00",
+                                "name": "CAPTURE DEPOSIT BRIGHTLINE"
+                            },
+                            {
+                                "day": "$today",
+                                "amount": "-89.95",
+                                "name": "CAPTURE COMCAST BUSINESS"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "viewport": {
+                        "width": 390,
+                        "height": 844
+                    }
+                },
+                {
+                    "reload": true,
+                    "ready": "bank-strip"
+                },
+                {
+                    "waitFor": "CAPTURE STAPLES 0412"
+                },
+                {
+                    "clickLabel": "Choose CAPTURE STAPLES 0412"
+                },
+                {
+                    "clickLabel": "Choose CAPTURE ZOOM US"
+                },
+                {
+                    "clickLabel": "Choose CAPTURE FEDEX OFFICE"
+                },
+                {
+                    "waitFor": "bank-review-categorize-chosen"
+                },
+                {
+                    "click": "bank-panel-title"
+                },
+                {
+                    "press": "c"
+                },
+                {
+                    "waitFor": "bank-categorize-dialog"
+                },
+                {
+                    "pick": "bank-categorize-dialog-account",
+                    "label": "6100 Rent"
+                },
+                {
+                    "click": "bank-categorize-dialog-confirm"
+                },
+                {
+                    "waitForHidden": "bank-categorize-dialog"
+                },
+                {
+                    "waitFor": "Categorized 3 transactions."
+                },
+                {
+                    "click": "bank-panel-title"
+                }
+            ]
+        },
+        {
+            "name": "batch-failed",
+            "url": "/a/books/sales",
+            "widths": [1280],
+            "writes": {
+                "collection": "books_bank_categorizations",
+                "answers": [
+                    "pass",
+                    {
+                        "status": 400,
+                        "message": "This transaction is already reviewed."
+                    },
+                    {
+                        "status": 400,
+                        "message": "Choose an active account."
+                    }
+                ]
+            },
+            "actions": [
+                {
+                    "importStatement": {
+                        "rows": [
+                            {
+                                "day": "$today",
+                                "amount": "-42.18",
+                                "name": "CAPTURE STAPLES 0412"
+                            },
+                            {
+                                "day": "$today",
+                                "amount": "-15.99",
+                                "name": "CAPTURE ZOOM US"
+                            },
+                            {
+                                "day": "$today",
+                                "amount": "-28.40",
+                                "name": "CAPTURE FEDEX OFFICE"
+                            },
+                            {
+                                "day": "$today",
+                                "amount": "970.00",
+                                "name": "CAPTURE DEPOSIT BRIGHTLINE"
+                            },
+                            {
+                                "day": "$today",
+                                "amount": "-89.95",
+                                "name": "CAPTURE COMCAST BUSINESS"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "waitFor": "CAPTURE STAPLES 0412"
+                },
+                {
+                    "clickLabel": "Choose CAPTURE STAPLES 0412"
+                },
+                {
+                    "clickLabel": "Choose CAPTURE ZOOM US"
+                },
+                {
+                    "clickLabel": "Choose CAPTURE FEDEX OFFICE"
+                },
+                {
+                    "waitFor": "bank-review-categorize-chosen"
+                },
+                {
+                    "click": "bank-panel-title"
+                },
+                {
+                    "press": "c"
+                },
+                {
+                    "waitFor": "bank-categorize-dialog"
+                },
+                {
+                    "pick": "bank-categorize-dialog-account",
+                    "label": "6100 Rent"
+                },
+                {
+                    "click": "bank-categorize-dialog-confirm"
+                },
+                {
+                    "waitForHidden": "bank-categorize-dialog"
+                },
+                {
+                    "waitFor": "2 of 3 transactions could not be categorized. Try again."
+                },
+                {
+                    "click": "bank-panel-title"
+                }
+            ]
+        },
+        {
+            "name": "batch-failed",
+            "url": "/a/books/sales",
+            "widths": [390],
+            "writes": {
+                "collection": "books_bank_categorizations",
+                "answers": [
+                    "pass",
+                    {
+                        "status": 400,
+                        "message": "This transaction is already reviewed."
+                    },
+                    {
+                        "status": 400,
+                        "message": "Choose an active account."
+                    }
+                ]
+            },
+            "actions": [
+                {
+                    "viewport": {
+                        "width": 1280,
+                        "height": 800
+                    }
+                },
+                {
+                    "importStatement": {
+                        "rows": [
+                            {
+                                "day": "$today",
+                                "amount": "-42.18",
+                                "name": "CAPTURE STAPLES 0412"
+                            },
+                            {
+                                "day": "$today",
+                                "amount": "-15.99",
+                                "name": "CAPTURE ZOOM US"
+                            },
+                            {
+                                "day": "$today",
+                                "amount": "-28.40",
+                                "name": "CAPTURE FEDEX OFFICE"
+                            },
+                            {
+                                "day": "$today",
+                                "amount": "970.00",
+                                "name": "CAPTURE DEPOSIT BRIGHTLINE"
+                            },
+                            {
+                                "day": "$today",
+                                "amount": "-89.95",
+                                "name": "CAPTURE COMCAST BUSINESS"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "viewport": {
+                        "width": 390,
+                        "height": 844
+                    }
+                },
+                {
+                    "reload": true,
+                    "ready": "bank-strip"
+                },
+                {
+                    "waitFor": "CAPTURE STAPLES 0412"
+                },
+                {
+                    "clickLabel": "Choose CAPTURE STAPLES 0412"
+                },
+                {
+                    "clickLabel": "Choose CAPTURE ZOOM US"
+                },
+                {
+                    "clickLabel": "Choose CAPTURE FEDEX OFFICE"
+                },
+                {
+                    "waitFor": "bank-review-categorize-chosen"
+                },
+                {
+                    "click": "bank-panel-title"
+                },
+                {
+                    "press": "c"
+                },
+                {
+                    "waitFor": "bank-categorize-dialog"
+                },
+                {
+                    "pick": "bank-categorize-dialog-account",
+                    "label": "6100 Rent"
+                },
+                {
+                    "click": "bank-categorize-dialog-confirm"
+                },
+                {
+                    "waitForHidden": "bank-categorize-dialog"
+                },
+                {
+                    "waitFor": "2 of 3 transactions could not be categorized. Try again."
+                },
+                {
+                    "click": "bank-panel-title"
+                }
+            ]
+        },
+        {
+            "name": "added-split",
+            "url": "/a/books/sales",
+            "widths": [1280],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "importStatement": {
+                        "rows": [
+                            {
+                                "day": "$today",
+                                "amount": "485.00",
+                                "name": "CAPTURE DEPOSIT CEDAR PINE"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "waitFor": "CAPTURE DEPOSIT CEDAR PINE"
+                },
+                {
+                    "clickText": "CAPTURE DEPOSIT CEDAR PINE"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "pick": "bank-cat-payee",
+                    "label": "Northwind Traders"
+                },
+                {
+                    "pick": "bank-cat-account-0",
+                    "label": "4000 Consulting Income"
+                },
+                {
+                    "click": "bank-cat-split"
+                },
+                {
+                    "waitFor": "bank-cat-line-1"
+                },
+                {
+                    "fill": "bank-cat-amount-0",
+                    "value": "500.00"
+                },
+                {
+                    "fill": "bank-cat-line-memo-0",
+                    "value": "INV-1049"
+                },
+                {
+                    "pick": "bank-cat-account-1",
+                    "label": "6100 Rent"
+                },
+                {
+                    "fill": "bank-cat-amount-1",
+                    "value": "-15.00"
+                },
+                {
+                    "fill": "bank-cat-line-memo-1",
+                    "value": "Incoming wire fee"
+                },
+                {
+                    "click": "bank-cat-submit"
+                },
+                {
+                    "waitFor": "bank-review-result"
+                },
+                {
+                    "waitForHidden": "bank-txn-drawer"
+                },
+                {
+                    "click": "bank-tabs-reviewed"
+                },
+                {
+                    "waitFor": "bank-tab-body-reviewed"
+                },
+                {
+                    "waitFor": "CAPTURE DEPOSIT CEDAR PINE"
+                },
+                {
+                    "clickText": "CAPTURE DEPOSIT CEDAR PINE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-added-lines"
+                },
+                {
+                    "waitFor": "bank-added-by"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "added-split",
+            "url": "/a/books/sales",
+            "widths": [390],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "viewport": {
+                        "width": 1280,
+                        "height": 1300
+                    }
+                },
+                {
+                    "importStatement": {
+                        "rows": [
+                            {
+                                "day": "$today",
+                                "amount": "485.00",
+                                "name": "CAPTURE DEPOSIT CEDAR PINE"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "waitFor": "CAPTURE DEPOSIT CEDAR PINE"
+                },
+                {
+                    "clickText": "CAPTURE DEPOSIT CEDAR PINE"
+                },
+                {
+                    "waitFor": "bank-cat-submit"
+                },
+                {
+                    "pick": "bank-cat-payee",
+                    "label": "Northwind Traders"
+                },
+                {
+                    "pick": "bank-cat-account-0",
+                    "label": "4000 Consulting Income"
+                },
+                {
+                    "click": "bank-cat-split"
+                },
+                {
+                    "waitFor": "bank-cat-line-1"
+                },
+                {
+                    "fill": "bank-cat-amount-0",
+                    "value": "500.00"
+                },
+                {
+                    "fill": "bank-cat-line-memo-0",
+                    "value": "INV-1049"
+                },
+                {
+                    "pick": "bank-cat-account-1",
+                    "label": "6100 Rent"
+                },
+                {
+                    "fill": "bank-cat-amount-1",
+                    "value": "-15.00"
+                },
+                {
+                    "fill": "bank-cat-line-memo-1",
+                    "value": "Incoming wire fee"
+                },
+                {
+                    "click": "bank-cat-submit"
+                },
+                {
+                    "waitFor": "bank-review-result"
+                },
+                {
+                    "waitForHidden": "bank-txn-drawer"
+                },
+                {
+                    "viewport": {
+                        "width": 390,
+                        "height": 1300
+                    }
+                },
+                {
+                    "reload": true,
+                    "ready": "bank-strip"
+                },
+                {
+                    "click": "bank-tabs-reviewed"
+                },
+                {
+                    "waitFor": "bank-tab-body-reviewed"
+                },
+                {
+                    "waitFor": "CAPTURE DEPOSIT CEDAR PINE"
+                },
+                {
+                    "clickText": "CAPTURE DEPOSIT CEDAR PINE"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-added-lines"
+                },
+                {
+                    "waitFor": "bank-added-by"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "undone",
+            "url": "/a/books/sales",
+            "widths": [1280],
+            "actions": [
+                {
+                    "importStatement": {
+                        "rows": [
+                            {
+                                "day": "$today",
+                                "amount": "-45.00",
+                                "name": "CAPTURE FIGMA INC"
+                            },
+                            {
+                                "day": "$today",
+                                "amount": "-21.00",
+                                "name": "CAPTURE GITHUB INC"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "waitFor": "CAPTURE FIGMA INC"
+                },
+                {
+                    "clickLabel": "Choose CAPTURE FIGMA INC"
+                },
+                {
+                    "clickLabel": "Choose CAPTURE GITHUB INC"
+                },
+                {
+                    "waitFor": "bank-review-categorize-chosen"
+                },
+                {
+                    "click": "bank-panel-title"
+                },
+                {
+                    "press": "c"
+                },
+                {
+                    "waitFor": "bank-categorize-dialog"
+                },
+                {
+                    "pick": "bank-categorize-dialog-account",
+                    "label": "6100 Rent"
+                },
+                {
+                    "click": "bank-categorize-dialog-confirm"
+                },
+                {
+                    "waitForHidden": "bank-categorize-dialog"
+                },
+                {
+                    "waitFor": "Categorized 2 transactions."
+                },
+                {
+                    "click": "bank-tabs-reviewed"
+                },
+                {
+                    "waitFor": "bank-tab-body-reviewed"
+                },
+                {
+                    "waitFor": "CAPTURE FIGMA INC"
+                },
+                {
+                    "clickText": "CAPTURE FIGMA INC"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-added-undo"
+                },
+                {
+                    "click": "bank-added-undo"
+                },
+                {
+                    "waitForHidden": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-review-result"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "bank-panel-title"
+                }
+            ]
+        },
+        {
+            "name": "undone",
+            "url": "/a/books/sales",
+            "widths": [390],
+            "actions": [
+                {
+                    "viewport": {
+                        "width": 1280,
+                        "height": 800
+                    }
+                },
+                {
+                    "importStatement": {
+                        "rows": [
+                            {
+                                "day": "$today",
+                                "amount": "-45.00",
+                                "name": "CAPTURE FIGMA INC"
+                            },
+                            {
+                                "day": "$today",
+                                "amount": "-21.00",
+                                "name": "CAPTURE GITHUB INC"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "waitFor": "CAPTURE FIGMA INC"
+                },
+                {
+                    "clickLabel": "Choose CAPTURE FIGMA INC"
+                },
+                {
+                    "clickLabel": "Choose CAPTURE GITHUB INC"
+                },
+                {
+                    "waitFor": "bank-review-categorize-chosen"
+                },
+                {
+                    "click": "bank-panel-title"
+                },
+                {
+                    "press": "c"
+                },
+                {
+                    "waitFor": "bank-categorize-dialog"
+                },
+                {
+                    "pick": "bank-categorize-dialog-account",
+                    "label": "6100 Rent"
+                },
+                {
+                    "click": "bank-categorize-dialog-confirm"
+                },
+                {
+                    "waitForHidden": "bank-categorize-dialog"
+                },
+                {
+                    "waitFor": "Categorized 2 transactions."
+                },
+                {
+                    "viewport": {
+                        "width": 390,
+                        "height": 844
+                    }
+                },
+                {
+                    "reload": true,
+                    "ready": "bank-strip"
+                },
+                {
+                    "click": "bank-tabs-reviewed"
+                },
+                {
+                    "waitFor": "bank-tab-body-reviewed"
+                },
+                {
+                    "waitFor": "CAPTURE FIGMA INC"
+                },
+                {
+                    "clickText": "CAPTURE FIGMA INC"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-added-undo"
+                },
+                {
+                    "click": "bank-added-undo"
+                },
+                {
+                    "waitForHidden": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-review-result"
+                },
+                {
+                    "pause": 500
+                },
+                {
+                    "click": "bank-panel-title"
+                }
+            ]
+        },
+        {
+            "name": "added-transfer",
+            "url": "/a/books/sales",
+            "widths": [1280],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "importStatement": {
+                        "rows": [
+                            {
+                                "day": "$today",
+                                "amount": "-1200.00",
+                                "name": "CAPTURE PAYMENT TO COMPANY CARD"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "waitFor": "CAPTURE PAYMENT TO COMPANY CARD"
+                },
+                {
+                    "clickText": "CAPTURE PAYMENT TO COMPANY CARD"
+                },
+                {
+                    "waitFor": "bank-way"
+                },
+                {
+                    "click": "bank-way-transfer"
+                },
+                {
+                    "waitFor": "bank-transfer-submit"
+                },
+                {
+                    "pick": "bank-transfer-account",
+                    "label": "2100 Company Card"
+                },
+                {
+                    "click": "bank-transfer-submit"
+                },
+                {
+                    "waitFor": "bank-review-result"
+                },
+                {
+                    "waitForHidden": "bank-txn-drawer"
+                },
+                {
+                    "click": "bank-tabs-reviewed"
+                },
+                {
+                    "waitFor": "bank-tab-body-reviewed"
+                },
+                {
+                    "waitFor": "CAPTURE PAYMENT TO COMPANY CARD"
+                },
+                {
+                    "clickText": "CAPTURE PAYMENT TO COMPANY CARD"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-added-by"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        },
+        {
+            "name": "added-transfer",
+            "url": "/a/books/sales",
+            "widths": [390],
+            "stable": "bank-txn-drawer",
+            "settleMs": 500,
+            "height": 1300,
+            "actions": [
+                {
+                    "viewport": {
+                        "width": 1280,
+                        "height": 1300
+                    }
+                },
+                {
+                    "importStatement": {
+                        "rows": [
+                            {
+                                "day": "$today",
+                                "amount": "-1200.00",
+                                "name": "CAPTURE PAYMENT TO COMPANY CARD"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "waitFor": "CAPTURE PAYMENT TO COMPANY CARD"
+                },
+                {
+                    "clickText": "CAPTURE PAYMENT TO COMPANY CARD"
+                },
+                {
+                    "waitFor": "bank-way"
+                },
+                {
+                    "click": "bank-way-transfer"
+                },
+                {
+                    "waitFor": "bank-transfer-submit"
+                },
+                {
+                    "pick": "bank-transfer-account",
+                    "label": "2100 Company Card"
+                },
+                {
+                    "click": "bank-transfer-submit"
+                },
+                {
+                    "waitFor": "bank-review-result"
+                },
+                {
+                    "waitForHidden": "bank-txn-drawer"
+                },
+                {
+                    "viewport": {
+                        "width": 390,
+                        "height": 1300
+                    }
+                },
+                {
+                    "reload": true,
+                    "ready": "bank-strip"
+                },
+                {
+                    "click": "bank-tabs-reviewed"
+                },
+                {
+                    "waitFor": "bank-tab-body-reviewed"
+                },
+                {
+                    "waitFor": "CAPTURE PAYMENT TO COMPANY CARD"
+                },
+                {
+                    "clickText": "CAPTURE PAYMENT TO COMPANY CARD"
+                },
+                {
+                    "waitFor": "bank-txn-drawer"
+                },
+                {
+                    "waitFor": "bank-added-by"
+                },
+                {
+                    "click": "bank-txn-field-description"
+                }
+            ]
+        }
+    ]
+}

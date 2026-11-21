@@ -7,7 +7,7 @@ order: 26
 
 To bring your bank transactions into Books, connect the account and upload the file your bank exports. Each connected account shows as a card at the top of the Banking page, with the number of its transactions to review. Press a card to see its bank details and its four tabs:
 
-- For review, Reviewed and Excluded list the account's imported transactions. See [Review bank transactions](help://books:bank-review). A transaction moves to Reviewed when you match it to a transaction already in Books: see [Match a bank transaction](help://books:bank-match).
+- For review, Reviewed and Excluded list the account's imported transactions. See [Review bank transactions](help://books:bank-review). A transaction moves to Reviewed when you match it to a transaction already in Books (see [Match a bank transaction](help://books:bank-match)), or when you categorize it or record it as a transfer (see [Categorize a bank transaction](help://books:bank-categorize)).
 - The Files tab holds the upload area and the account's uploaded files.
 
 The page opens on For review. To upload or import a file, open the Files tab first.
