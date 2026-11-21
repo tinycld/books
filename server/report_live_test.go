@@ -35,6 +35,13 @@ var shippedNotLive = map[string]bool{
 	"books.sales_by_customer":   false,
 	"books.sales_by_product":    false,
 	"books.sales_tax_liability": false,
+
+	// Added after the decision: the A/P Aging and the Open Items statement
+	// read stored item rows, and the Balance Forward statement reads only the
+	// Accounts receivable lines of its customers in its period.
+	"books.ap_aging":                  false,
+	"books.statement_balance_forward": false,
+	"books.statement_open_items":      false,
 }
 
 // requireManual fails unless res is a manual run: marked, and with no topic.
@@ -162,7 +169,7 @@ func TestShippedReportsNotLive(t *testing.T) {
 	}
 }
 
-// Only the three reports that read the journal lines and stay live declare
+// Only the four reports that read the journal lines and stay live declare
 // Live. A report that does not read them needs no mark.
 func TestShippedLiveDeclarations(t *testing.T) {
 	all := []reports.Shipped{
@@ -170,6 +177,7 @@ func TestShippedLiveDeclarations(t *testing.T) {
 		profitAndLossShipped(), profitAndLossByMonthShipped(), transactionDetailShipped(),
 		salesTaxLiabilityShipped(), customerBalanceShipped(), arAgingShipped(),
 		salesByCustomerShipped(), salesByProductShipped(), auditLogShipped(),
+		apAgingShipped(), statementBalanceForwardShipped(), statementOpenItemsShipped(),
 	}
 	var live []string
 	for _, s := range all {
@@ -178,7 +186,7 @@ func TestShippedLiveDeclarations(t *testing.T) {
 		}
 	}
 	slices.Sort(live)
-	want := []string{"books.audit_log", "books.customer_balance", "books.profit_and_loss"}
+	want := []string{"books.audit_log", "books.customer_balance", "books.profit_and_loss", "books.statement_balance_forward"}
 	if !slices.Equal(live, want) {
 		t.Errorf("shipped reports with Live = %v, want %v", live, want)
 	}
