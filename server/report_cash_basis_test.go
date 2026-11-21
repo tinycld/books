@@ -268,6 +268,19 @@ func TestCashBasisReport_BalanceSheetDrillStartsOnTheFirstOfTheMonth(t *testing.
 		"period": rangeJSON("2026-04-01", cashDay2), "method": cashMethod, "accounts": idList(b.checking1000.Id)})
 	requireSameLines("Business Checking", cash, b.checking1000, cashDay2, 1)
 
+	// Both months exist and differ: with the March stored month gone, the stored
+	// month is April and the cash month is March; the drill takes the earlier.
+	if _, err := b.app.DB().NewQuery("DELETE FROM books_account_balances WHERE account = {:a} AND month_start = '2026-03-01'").Bind(dbx.Params{"a": b.payable.Id}).Execute(); err != nil {
+		t.Fatalf("delete the March stored month of Accounts Payable: %v", err)
+	}
+	stored := b.bs(t, cashDay2, "cash")
+	requireDrill(t, bsAccount(t, stored, b.payable), "current", map[string]string{
+		"period": rangeJSON("2026-03-01", cashDay2), "method": cashMethod, "accounts": idList(b.payable.Id)})
+	storedTD := drillTD(t, b.app, b.reader, stored, bsAccount(t, stored, b.payable).ID, "current")
+	if got, want := tdLineIDs(t, storedTD, b.payable), tdLineIDs(t, tdOnCash(b.payable, cashDay1), b.payable); len(got) == 0 || !slices.Equal(got, want) {
+		t.Errorf("Accounts Payable with only its April stored month drills to lines %v, want the lines of a range from %s: %v", got, cashDay1, want)
+	}
+
 	// An account whose cash-basis rows start in a month with no ledger line of
 	// its own: with Accounts Payable's stored months gone, only its cash-basis
 	// rows give the first month.
@@ -277,6 +290,11 @@ func TestCashBasisReport_BalanceSheetDrillStartsOnTheFirstOfTheMonth(t *testing.
 	cashOnly := b.bs(t, cashDay2, "cash")
 	requireDrill(t, bsAccount(t, cashOnly, b.payable), "current", map[string]string{
 		"period": rangeJSON("2026-03-01", cashDay2), "method": cashMethod, "accounts": idList(b.payable.Id)})
+	// No total check: the figure falls with its stored months, the lines do not.
+	cashOnlyTD := drillTD(t, b.app, b.reader, cashOnly, bsAccount(t, cashOnly, b.payable).ID, "current")
+	if got, want := tdLineIDs(t, cashOnlyTD, b.payable), tdLineIDs(t, tdOnCash(b.payable, cashDay1), b.payable); len(got) == 0 || !slices.Equal(got, want) {
+		t.Errorf("Accounts Payable with no stored month drills to lines %v, want the lines of a range from %s: %v", got, cashDay1, want)
+	}
 }
 
 // A bill dated in the prior fiscal year and paid in the current one counts in
