@@ -42,8 +42,8 @@ var shippedNotLive = map[string]bool{
 	"books.ap_aging":                  false,
 	"books.statement_balance_forward": false,
 	"books.statement_open_items":      false,
-	// The Vendor Balance came from main after the decision: it is the
-	// Customer Balance's twin over Accounts payable.
+	// Like the Customer Balance: its rows are sums per vendor, and an opened
+	// vendor reads only its own lines.
 	"books.vendor_balance": false,
 }
 
