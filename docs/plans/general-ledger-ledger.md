@@ -586,3 +586,147 @@ SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? 
 A `SCAN books_journal_lines` line is still in a Trial Balance statement only in TB 1 all accounts, as of (statements 5 and 6: the base rows of the month have no Accounts filter, and no index of the table starts with the day); TB 2 and TB 3 read the lines by `SEARCH` on `idx_books_jlines_account_date` alone.
 
 No run is refused at 100k.
+
+#### Task 9c-2: the Balance Sheet reads the stored months (books `server/report_balance_sheet.go`, 2026-11-20)
+
+Before: Current and Prior year of every account, Retained earnings and Net income were sums over the posted lines up to the day of the column, so each run read the whole history. After: the report's rows are the posted lines of the month of the As of day, on both methods. Current and Prior year of an account add the balance before the month of their day and the lines of that month. On Accrual the balance before the month is a lookup over the stored month balances (`books_account_balances`); on Cash it is a lookup of the account's lines, because no stored month holds the cash rows. An account with stored months and no line in the month gets a row through the fill, under its own section, class and type. Retained earnings and Net income read the stored months plus the lines of their day's month on Accrual. The figures do not change on either method: `TestBalanceSheetStoredMonthsEqualTheLines` runs the line read beside the new read.
+
+What the reader sees (human decision, 2026-11-20): an opened account shows "Balance before" and the month of the As of day, then the posted lines of that month up to the day, on Accrual and on Cash. Lines of earlier months do not show there; a press on the Current or Prior year figure still opens every line.
+
+At 100,000 lines (median of 5, core 04ce7268, books 454c8775):
+
+| run | after task 9c-1 | after task 9c-2 | group rows | rows |
+|---|---|---|---|---|
+| TB 1 all accounts, as of | 330ms | 334ms | 106 | 107 |
+| TB 2 busy account, as of | 149ms | 151ms | 1 | 2 |
+| TB 3 three accounts, as of | 178ms | 180ms | 3 | 4 |
+| BS 1 accrual, as of | 1.424s | 972ms | 10 | 20 |
+| BS 2 cash, as of | 1.852s | 4.551s | 10 | 20 |
+| TD 1 all accounts, month | 163ms | 166ms | 2 | 201 |
+| TD 2 all accounts, year | 1.646s | 1.62s | 1 | 201 |
+| TD 3 busy account, month | 30ms | 30ms | 1 | 201 |
+| TD 4 small account, month | 18ms | 18ms | 1 | 4 |
+| TD 5 three accounts, year | 130ms | 139ms | 1 | 201 |
+| TD 6 busy account, month, cash | 32ms | 34ms | 1 | 201 |
+
+Reads of the line tables and of the stored months in the longest statement of BS 1 accrual, as of, and of BS 2 cash, as of (scale-task9c2/st-plans.md):
+
+BS 1 accrual, as of (statement 5: 952.1ms, 14 rows, 195681 chars):
+
+```
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_account_balances
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_account_balances
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_account_balances
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_account_balances
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+```
+
+BS 2 cash, as of (statement 5: 4.3398s, 14 rows, 195543 chars):
+
+```
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_account_balances
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_account_balances
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_account_balances
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_account_balances
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+```
+
+`SCAN books_journal_lines` and `SCAN books_cash_basis_lines` lines are still in a Balance Sheet statement, in statement 5 of BS 1 accrual, as of and in statement 5 of BS 2 cash, as of (17 of each in both runs).
+
+No run is refused at 100k.
+
+BS 2 cash, as of is a regression: 4.551s after task 9c-2 against 1.852s after task 9c-1. BS 1 accrual, as of is faster (972ms against 1.424s). The group rows (10) and rows (20) of BS 1 and BS 2 are the same as in the run before.
