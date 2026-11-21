@@ -7,17 +7,18 @@
 // `items_total`, `lines_total` and `total` are the values the server writes at posting
 // (spec §3.7).
 //
-// The collections do not exist yet. The record interfaces below mirror the spec's Data
-// section (bank-deposit-design.md §4.1). Checkpoint 1 (the migration
-// `<next>_create_books_deposits.js`) must replace them with the generated types
-// (`BooksDeposits`, `BooksDepositItems`, `BooksDepositLines`, `BooksUndepositedItems`
-// from '../types') and keep every `satisfies` below, so a fixture row that drifts from
-// the schema fails tsc. `doc_type` must then also allow 'deposit'.
+// The record types are the generated ones of migration 2100000036 (`BooksDeposits`,
+// `BooksDepositItems`, `BooksDepositLines`, `BooksUndepositedItems`); every `satisfies`
+// below makes a fixture row that drifts from the schema fail tsc.
 
-import type { BooksJournalEntries } from '../types'
+import type {
+    BooksDepositItems,
+    BooksDepositLines,
+    BooksDeposits,
+    BooksUndepositedItems,
+} from '../types'
 import { CUSTOMER_IDS } from './customer-form-fixture'
 import type { DepositAccountRow } from './deposit-accounts'
-import type { PaymentMethodKey } from './payment-methods'
 import { VENDOR_IDS } from './vendor-form-fixture'
 
 export const DEPOSIT_CURRENCY = 'USD'
@@ -26,93 +27,19 @@ export const DEPOSIT_TODAY = '2026-11-20'
 
 const STAMP = '2026-11-20 09:00:00.000Z'
 
-type DepositStatus = 'draft' | 'posted' | 'void'
-type ItemDocType = BooksJournalEntries['doc_type']
-type ItemOrigin = BooksJournalEntries['origin']
-
-// books_deposits (spec §4.1). Replaced by the generated `BooksDeposits` in checkpoint 1.
-export interface DepositRecord {
-    id: string
-    status: DepositStatus
-    number: string
-    sequence: number
-    date: string
-    deposit_to: string
-    memo: string
-    total: number
-    items_total: number
-    lines_total: number
-    currency: string
-    entry: string
-    replaces: string
-    replaced_by: string
-    posted_by: string
-    posted_at: string
-    voided_by: string
-    voided_at: string
-    sort_key: string
-    created: string
-    updated: string
-}
+// books_deposits (spec §4.1).
+export type DepositRecord = BooksDeposits
 
 // books_deposit_items (spec §4.1): one ticked item. The server fills the copy fields
 // (`entry` to `reference_no`) from the line, its entry and its source document.
-// Replaced by the generated `BooksDepositItems` in checkpoint 1.
-export interface DepositItemRecord {
-    id: string
-    deposit: string
-    line: string
-    position: number
-    entry: string
-    account: string
-    customer: string
-    vendor: string
-    amount: number
-    date: string
-    doc_type: ItemDocType
-    number: string
-    document: string
-    payment_method: PaymentMethodKey | ''
-    reference_no: string
-    posted: boolean
-    created: string
-    updated: string
-}
+export type DepositItemRecord = BooksDepositItems
 
-// books_deposit_lines (spec §4.1): an other funds line. Replaced by the generated
-// `BooksDepositLines` in checkpoint 1.
-export interface DepositLineRecord {
-    id: string
-    deposit: string
-    customer: string
-    vendor: string
-    account: string
-    description: string
-    amount: number
-    position: number
-    created: string
-    updated: string
-}
+// books_deposit_lines (spec §4.1): an other funds line.
+export type DepositLineRecord = BooksDepositLines
 
 // books_undeposited_items (spec §4.1): the view's row, one per undeposited item; `id` is
-// the journal line's id. Replaced by the generated `BooksUndepositedItems` in checkpoint 1.
-export interface UndepositedItemRecord {
-    id: string
-    line: string
-    entry: string
-    account: string
-    date: string
-    doc_type: ItemDocType
-    origin: ItemOrigin
-    number: string
-    document: string
-    customer: string
-    vendor: string
-    amount: number
-    payment_method: PaymentMethodKey | ''
-    reference_no: string
-    memo: string
-}
+// the journal line's id.
+export type UndepositedItemRecord = BooksUndepositedItems
 
 // An account the deposit form lists, with its own posted balance (the Chart of Accounts
 // figure the form shows under Deposit to).
@@ -126,8 +53,7 @@ export const DEPOSIT_FIXTURE_ACCOUNT_IDS = {
     // A second Undeposited funds account, for the variant that names the account under
     // the Transaction link (spec §3.4). Not in the seeded book.
     cardTerminal: 'acctfixundep002',
-    // Other funds accounts. Not in the seeded book (lib/seed-accounts.ts) today: the
-    // checkpoint that wires the seed adds them, or maps these lines to seeded accounts.
+    // Other funds accounts, seeded as 4900, 6300 and 4000 (lib/seed-accounts.ts).
     interest: 'acctfixintrst01',
     bankCharges: 'acctfixbankch01',
     consulting: 'acctfixconsul01',
@@ -752,19 +678,18 @@ export const DEPOSIT_TEXTS = {
 } as const
 
 /**
- * What seed.ts posts (spec §4.6): two more sales receipts to 1200 Undeposited funds and one
- * deposit to 1000 Business Checking that holds the first of them plus an interest line.
- * The seeded payments stay undeposited. The days are after mid-2026, on days no report spec
- * reads; the checkpoint that wires the seed greps the specs and Go tests that read 1200,
- * the bank accounts and the entry counts before it adds them.
+ * What seed.ts posts (spec §4.6, seedDeposits): two more sales receipts to 1200
+ * Undeposited funds and one deposit to 1000 Business Checking that holds the first of them
+ * plus an interest line. The seeded payments stay undeposited. Every row is dated the seed
+ * run's day: Trial Balance pins its rows as of the end of last month, which such a row
+ * never enters, and no spec pins a today or this-month total of the shared database.
  */
 export const DEPOSIT_SEED = {
     receipts: [
-        { key: 'deposited', date: '2026-11-04', amount: 18_000, payment_method: 'check' },
-        { key: 'waiting', date: '2026-11-18', amount: 6_400, payment_method: 'cash' },
+        { key: 'deposited', amount: 18_000, payment_method: 'check' },
+        { key: 'waiting', amount: 6_400, payment_method: 'cash' },
     ],
     deposit: {
-        date: '2026-11-19',
         depositNumber: '1000',
         holds: 'deposited',
         line: { accountNumber: '4900', description: 'October interest', amount: 1_240 },

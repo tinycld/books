@@ -734,3 +734,28 @@ func TestCashBasis_ABillPaidBesideARefundKeepsItsMemo(t *testing.T) {
 	requireCashRowsBalancePerDate(t, re.app)
 	requireNoCashDrift(t, re.app)
 }
+
+// A deposit is not a deferred kind: its entry counts as posted on the cash
+// basis, so the bank reads the deposit's total there too, and the deposit
+// writes no cash-basis row of its own.
+func TestCashBasis_ADepositCountsAsPosted(t *testing.T) {
+	src := depositSourcePosters["payment"](t)
+	d := src.depositOf(t)
+	if _, deferred := cashDeferralOf(depositsCol); deferred {
+		t.Error("books_deposits is a deferred kind of the cash basis")
+	}
+	if rows := cashRowsOf(t, src.app, dbx.HashExp{"entry": d.GetString("entry")}); len(rows) != 0 {
+		t.Errorf("the deposit's entry has cash-basis rows %+v, want none", rows)
+	}
+	if rows := cashRowsOf(t, src.app, dbx.HashExp{"payment_entry": d.GetString("entry")}); len(rows) != 0 {
+		t.Errorf("the deposit's entry brought back cash-basis rows %+v, want none", rows)
+	}
+	net := cashNet(t, src.app)
+	if got := net[src.bank.Id]; got != 55000 {
+		t.Errorf("the bank's cash-basis net = %d, want the deposit total 55000", got)
+	}
+	if got := net[src.undeposited.Id]; got != 0 {
+		t.Errorf("Undeposited funds' cash-basis net = %d, want 0 after the deposit", got)
+	}
+	requireNoCashDrift(t, src.app)
+}

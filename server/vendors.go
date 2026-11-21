@@ -59,7 +59,8 @@ func registerVendorGuard(app core.App) {
 }
 
 // checkVendorDelete counts the vendor's bills, then its expenses, then its
-// vendor credits, then its vendor refunds, before its journal lines: a posted
+// vendor credits, then its vendor refunds, then its deposit lines, before its
+// journal lines: a posted
 // document's entry names
 // the vendor on every line, and the document text says what holds the vendor.
 func checkVendorDelete(tx core.App, vendor *core.Record) error {
@@ -90,6 +91,9 @@ func checkVendorDelete(tx core.App, vendor *core.Record) error {
 	}
 	if refunds > 0 {
 		return refuseNamed(msgVendorOnVendorRefunds, vendor.GetString("display_name"))
+	}
+	if err := refusePartyOnDeposits(tx, "vendor", vendor); err != nil {
+		return err
 	}
 	return refusePartyOnLines(tx, "vendor", vendor)
 }

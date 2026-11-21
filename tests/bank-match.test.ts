@@ -206,6 +206,16 @@ describe('suggestionText', () => {
             )
         ).toBe('1 match · Expense 1002 · Oct 5, 2026')
     })
+
+    it('labels a deposit bank line by its deposit number and day', () => {
+        expect(
+            suggestionText(
+                1,
+                { number: '1004', doc_type: 'deposit', origin: 'document', date: '2026-10-03' },
+                'row'
+            )
+        ).toBe('1 match · Deposit 1004 · Oct 3, 2026')
+    })
 })
 
 describe('matchSubmitState', () => {

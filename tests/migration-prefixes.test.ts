@@ -29,9 +29,12 @@ const MIGRATIONS = readdirSync(MIGRATIONS_DIR)
     .filter(file => file.endsWith('.js'))
     .sort()
 
-const AUDIT = '2100000034_create_books_audit_log.js'
+// Bank deposit spec §4.1: the deposits take 2100000036, and because the view reads their
+// items and lines, the audit view moves to 2100000037, the highest, after the bank
+// categorizations too.
+const AUDIT = '2100000037_create_books_audit_log.js'
 
-const AFTER_AUDIT: string[] = ['2100000035_create_books_bank_categorizations.js']
+const AFTER_AUDIT: string[] = []
 
 function prefixOf(file: string): string {
     return file.split('_')[0] ?? file
@@ -128,9 +131,10 @@ describe('pb-migrations prefixes', () => {
     // 2100000030; the view reads none of their collections. Apply credit spec §4.1: the
     // credit memo applications take 2100000031, and because the view reads their lines,
     // the audit view moved to 2100000032. A/P Aging spec §4.1: the payable items take
-    // 2100000029. Statements spec §4.2 (Q21): the statements take 2100000033, and the audit
-    // view moves to 2100000034, the highest, with no change of content.
-    it('holds the vendor credits at 2100000023, the vendor refunds at 2100000024, the refund receipts at 2100000025, the vendor party balances at 2100000026, the write-offs at 2100000027, the receivable items at 2100000028, the payable items at 2100000029, the bank matches at 2100000030, the credit memo applications at 2100000031 and the statements at 2100000033, before the audit log at 2100000034', () => {
+    // 2100000029. Statements spec §4.2 (Q21): the statements take 2100000033. Bank-deposit
+    // spec: the deposits take 2100000036, and because the view reads their item and line
+    // rows, the audit view moves to 2100000037, the highest.
+    it('holds the vendor credits at 2100000023, the vendor refunds at 2100000024, the refund receipts at 2100000025, the vendor party balances at 2100000026, the write-offs at 2100000027, the receivable items at 2100000028, the payable items at 2100000029, the bank matches at 2100000030, the credit memo applications at 2100000031 and the statements at 2100000033, before the audit log at 2100000037', () => {
         expect(MIGRATIONS).toContain('2100000023_create_books_vendor_credits.js')
         expect(MIGRATIONS).toContain('2100000024_create_books_vendor_refunds.js')
         expect(MIGRATIONS).toContain('2100000025_create_books_refund_receipts.js')
@@ -164,5 +168,18 @@ describe('pb-migrations prefixes', () => {
         )
         expect(read).toEqual([])
         expect(auditLineCollections()).toContain('books_credit_memo_applications')
+    })
+
+    it('holds the deposits at 2100000036, before the audit log at 2100000037, which reads their items and lines', () => {
+        expect(MIGRATIONS.filter(file => prefixOf(file) === '2100000036')).toEqual([
+            '2100000036_create_books_deposits.js',
+        ])
+        expect(MIGRATIONS.filter(file => prefixOf(file) === '2100000037')).toEqual([AUDIT])
+        expect(MIGRATIONS).not.toContain('2100000034_create_books_audit_log.js')
+        expect(numberOf(AUDIT)).toBeGreaterThan(numberOf('2100000036_create_books_deposits.js'))
+        expect(MIGRATIONS.at(-1)).toBe(AUDIT)
+        expect(auditLineCollections()).toEqual(
+            expect.arrayContaining(['books_deposit_items', 'books_deposit_lines'])
+        )
     })
 })

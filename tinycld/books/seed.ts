@@ -11,6 +11,7 @@ import { AR_AGING_SEED } from './lib/ar-aging-fixture'
 import { ATTACHMENT_SEED_FILES } from './lib/attachment-seed-files'
 import { ATTACHMENTS, SEED_ATTACHMENT_IDS } from './lib/attachments-fixture'
 import { BANK_SEED } from './lib/bank-connection-fixture'
+import { DEPOSIT_SEED } from './lib/bank-deposit-fixture'
 import { BANK_IMPORT_SEED_STATEMENT } from './lib/bank-import-mapping-fixture'
 import { BILL_LINES, BILL_SEED_IDS, BILLS } from './lib/bill-form-fixture'
 import {
@@ -325,6 +326,10 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     // the Accounts payable account, and before the bank match seed. They are journal entries
     // only, so no document number moves.
     await seedVendorBalance(pb, ctx, accountIds)
+    // Two sales receipts and a deposit of one of them (bank deposit spec §4.6): after
+    // every other document seed, so the earlier seeded receipts keep their numbers, and
+    // before the bank match seed, which must see every seeded document.
+    await seedDeposits(pb, ctx, accountIds, salesReceiptIds)
     // After every document seed, so its check that each of its two statement lines has
     // exactly one suggestion sees every seeded document (the review statement is imported
     // before any document posts). Its categorization posts one journal entry, last, so no
@@ -867,6 +872,106 @@ export async function seedSalesReceipts(
     }
     await createSeedSalesReceipt(pb, accountIds, customerIds, SALES_RECEIPT_SEED_DRAFT_ID)
     return salesReceiptIds
+}
+
+// The fixed id of the seeded deposit, so a capture or a spec reaches it.
+export const SEED_DEPOSIT_ID = 'seeddeposit0001'
+
+// Bank deposit spec §4.6: two sales receipts to 1200 Undeposited funds, each with the
+// customer and the first untaxed product line of the first seeded sales receipt (so they
+// enter the sales rows that receipt enters), then one deposit to 1000 Business Checking
+// that holds the first receipt's 1200 line plus an other funds line on 4900. All dated the
+// run day. The draft, its item and its line are written as superuser, then posted, so the
+// server's deposit guards copy the item and post the entry. `salesReceiptIds` maps a
+// sales receipt fixture id to the created receipt (seedSalesReceipts).
+export async function seedDeposits(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>,
+    salesReceiptIds: Map<string, string>
+): Promise<void> {
+    const today = isoDay(new Date())
+    const undeposited = seededAccountId(accountIds, '1200', 'the seeded deposit receipts')
+    const firstFixture = SALES_RECEIPT_SEED_IDS[0]
+    const firstId = salesReceiptIds.get(firstFixture)
+    if (firstId === undefined) {
+        throw new Error(`seed: sales receipt ${firstFixture} was not created`)
+    }
+    const first = await pb
+        .collection('books_sales_receipts')
+        .getOne<{ customer: string }>(firstId, { fields: 'customer' })
+    const productLine = SALES_RECEIPT_LINES.find(
+        line =>
+            line.sales_receipt === firstFixture &&
+            line.kind === 'item' &&
+            line.product !== '' &&
+            !line.taxable
+    )
+    if (productLine === undefined) {
+        throw new Error(`seed: sales receipt ${firstFixture} has no untaxed product line`)
+    }
+    const receiptIds = new Map<string, string>()
+    for (const receipt of DEPOSIT_SEED.receipts) {
+        const created = await pb.collection('books_sales_receipts').create({
+            customer: first.customer,
+            status: 'draft',
+            date: today,
+            tax_rate: '',
+            payment_method: receipt.payment_method,
+            reference_no: '',
+            deposit_to: undeposited,
+            memo: `Seed deposit receipt ${receipt.key}`,
+        })
+        await pb.collection('books_sales_receipt_lines').create({
+            sales_receipt: created.id,
+            position: 0,
+            kind: 'item',
+            product: productLine.product,
+            description: productLine.description,
+            quantity: 1,
+            rate: receipt.amount,
+            percent_ppm: 0,
+            taxable: false,
+        })
+        await postSeedDocument(pb, 'books_sales_receipts', created.id, ctx.user.id)
+        receiptIds.set(receipt.key, created.id)
+    }
+    const heldId = receiptIds.get(DEPOSIT_SEED.deposit.holds)
+    if (heldId === undefined) {
+        throw new Error(`seed: the deposit holds receipt ${DEPOSIT_SEED.deposit.holds}, not seeded`)
+    }
+    const held = await pb
+        .collection('books_sales_receipts')
+        .getOne<{ entry: string }>(heldId, { fields: 'entry' })
+    const heldLine = await pb.collection('books_journal_lines').getFirstListItem(
+        pb.filter('entry = {:entry} && account = {:account}', {
+            entry: held.entry,
+            account: undeposited,
+        })
+    )
+    const { deposit: seed } = DEPOSIT_SEED
+    await pb.collection('books_deposits').create({
+        id: SEED_DEPOSIT_ID,
+        status: 'draft',
+        date: today,
+        deposit_to: seededAccountId(accountIds, seed.depositNumber, 'the seeded deposit'),
+        memo: seed.memo,
+    })
+    await pb
+        .collection('books_deposit_items')
+        .create({ deposit: SEED_DEPOSIT_ID, line: heldLine.id, position: 0 })
+    await pb.collection('books_deposit_lines').create({
+        deposit: SEED_DEPOSIT_ID,
+        account: seededAccountId(accountIds, seed.line.accountNumber, 'the seeded deposit line'),
+        description: seed.line.description,
+        amount: seed.line.amount,
+        position: 0,
+    })
+    // A deposit has no revision (postSeedDocument's), so the post is the status update
+    // alone; the superuser names the seeded user as the poster.
+    await pb
+        .collection('books_deposits')
+        .update(SEED_DEPOSIT_ID, { status: 'posted', posted_by: ctx.user.id })
 }
 
 // The memo of a seeded refund receipt names its role, so a spec finds it.

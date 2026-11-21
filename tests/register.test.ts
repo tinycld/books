@@ -576,6 +576,7 @@ describe('entry type labels match server/entry_type_labels.json', () => {
             vendor_refund: 'Vendor refund',
             refund_receipt: 'Refund receipt',
             write_off: 'Write-off',
+            deposit: 'Deposit',
         })
     })
 
@@ -585,6 +586,7 @@ describe('entry type labels match server/entry_type_labels.json', () => {
             'bill',
             'bill_payment',
             'credit_memo',
+            'deposit',
             'expense',
             'invoice',
             'payment',

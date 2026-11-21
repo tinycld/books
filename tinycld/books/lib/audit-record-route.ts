@@ -55,6 +55,7 @@ const RECORD_PATHS: Record<string, (id: string) => string> = {
     books_vendor_refunds: id => `books/vendor-refunds/${id}`,
     books_write_offs: id => `books/write-offs/${id}`,
     books_statements: id => `books/statements/${id}`,
+    books_deposits: id => `books/deposits/${id}`,
 }
 
 // A record whose Open label names its screen in fewer words than its record type
@@ -104,6 +105,7 @@ export const ROUTED_DOC_TYPES: readonly string[] = [
     'bill_payment',
     'vendor_refund',
     'write_off',
+    'deposit',
 ] satisfies readonly RoutedEntry['doc_type'][]
 const ROUTED_ORIGINS: readonly string[] = [
     'manual',
@@ -160,6 +162,13 @@ function memoApplicationParent(live: LiveRecord): { collection: string; id: stri
     return memo ? { collection: 'books_credit_memos', id: memo } : null
 }
 
+// The deposit a deposit item or an other funds line belongs to (bank deposit spec §3.10:
+// its history is filed under the deposit, and opens the deposit).
+function depositParent(live: LiveRecord): { collection: string; id: string } | null {
+    const deposit = textOf(live, 'deposit')
+    return deposit ? { collection: 'books_deposits', id: deposit } : null
+}
+
 // Records that open the document they belong to, by their collection.
 const PARENT_DOCUMENTS: Record<
     string,
@@ -167,16 +176,21 @@ const PARENT_DOCUMENTS: Record<
 > = {
     books_attachments: attachmentParent,
     books_credit_memo_applications: memoApplicationParent,
+    books_deposit_items: depositParent,
+    books_deposit_lines: depositParent,
 }
 
-// An attachment opens its bill, expense or vendor credit; an application its credit memo.
+// An attachment opens its bill, expense or vendor credit; an application its credit memo;
+// a deposit item or line its deposit (a record path, as the deposit is no sales document).
 function parentDocumentPath(
     parentOf: (live: LiveRecord) => { collection: string; id: string } | null,
     live: LiveRecord
 ): string | null {
     const parent = parentOf(live)
-    const kind = parent ? DOCUMENT_KINDS.get(parent.collection) : undefined
-    return parent && kind ? documentHref(kind, parent.id) : null
+    if (!parent) return null
+    const kind = DOCUMENT_KINDS.get(parent.collection)
+    if (kind) return documentHref(kind, parent.id)
+    return RECORD_PATHS[parent.collection]?.(parent.id) ?? null
 }
 
 /**
@@ -212,8 +226,8 @@ export function auditOpenLabel(collection: string): string {
 /**
  * The Open button's label for a record's live row: it names the screen the button opens,
  * so a party contact reads "Open customer" or "Open vendor" (contactPath), an attachment
- * "Open bill", "Open expense" or "Open vendor credit", and a credit memo application
- * "Open credit memo" (PARENT_DOCUMENTS).
+ * "Open bill", "Open expense" or "Open vendor credit", a credit memo application
+ * "Open credit memo", and a deposit item or line "Open deposit" (PARENT_DOCUMENTS).
  */
 export function auditRecordOpenLabel(collection: string, live: LiveRecord | undefined): string {
     if (!live) return auditOpenLabel(collection)

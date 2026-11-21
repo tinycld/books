@@ -550,6 +550,10 @@ var auditParentOf = map[string]string{
 	"books_refund_receipt_lines": "books_refund_receipts",
 	// A credit memo's application opens the credit memo (apply credit spec §3.8).
 	"books_credit_memo_applications": "books_credit_memos",
+	// A deposit's item and its other funds line open the deposit (bank deposit
+	// spec §4.1).
+	"books_deposit_items": "books_deposits",
+	"books_deposit_lines": "books_deposits",
 }
 
 // lineFixture makes a new document of a line collection and one row under it,
@@ -638,6 +642,20 @@ func lineFixture(t *testing.T, app core.App, lines string) (parent, line *core.R
 		invoice := saveRecord(t, app, "books_invoices", map[string]any{"customer": customer.Id, "status": "posted", "date": "2026-11-10", "due_date": "2026-12-10"})
 		parent = saveRecord(t, app, "books_credit_memos", map[string]any{"customer": customer.Id, "status": "posted", "date": "2026-11-12"})
 		line = saveRecord(t, app, lines, map[string]any{"credit_memo": parent.Id, "invoice": invoice.Id, "amount": 100, "date": "2026-11-16"})
+	case "books_deposit_items":
+		funds := mkAccount(t, app, fmt.Sprintf("Undeposited funds %d", n), "other_current_asset", "undeposited_funds")
+		entry := saveRecord(t, app, "books_journal_entries", map[string]any{
+			"date": "2026-11-10", "status": "posted", "doc_type": "journal", "origin": "manual", "currency": "USD",
+		})
+		fundsLine := saveRecord(t, app, "books_journal_lines", map[string]any{
+			"entry": entry.Id, "account": funds.Id, "debit": 100, "position": 0, "posted": true, "date": "2026-11-10", "currency": "USD",
+		})
+		parent = saveRecord(t, app, "books_deposits", map[string]any{"status": "draft", "date": "2026-11-16", "deposit_to": account.Id, "currency": "USD"})
+		line = saveRecord(t, app, lines, map[string]any{"deposit": parent.Id, "line": fundsLine.Id, "position": 0})
+	case "books_deposit_lines":
+		income := mkAccount(t, app, fmt.Sprintf("Interest earned %d", n), "other_income", "interest_earned")
+		parent = saveRecord(t, app, "books_deposits", map[string]any{"status": "draft", "date": "2026-11-16", "deposit_to": account.Id, "currency": "USD"})
+		line = saveRecord(t, app, lines, map[string]any{"deposit": parent.Id, "account": income.Id, "amount": 100, "position": 0})
 	default:
 		t.Fatalf("no fixture for %s", lines)
 	}

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/pocketbase/dbx"
@@ -111,6 +113,38 @@ func TestPostDocument_GoPassesTheDocumentGuards(t *testing.T) {
 
 	if err := setStatus(de.app, corrected.Id, statusVoid, de.users.bookkeeper.Id); err != nil {
 		t.Fatalf("a Go void of a document entry was refused: %v", err)
+	}
+	requireNoDrift(t, de.app)
+}
+
+// A posting line may carry its own memo and its own party (a deposit's other
+// funds lines do); a line that sets none keeps the post's party and no memo.
+func TestPostDocument_LineMemoAndParty(t *testing.T) {
+	de := newDocumentEnv(t)
+	vendor := mkVendor(t, de.app, "Pacific Power")
+	p := de.post(de.mkInvoice(t, nil).Id, "", 0)
+	p.Lines = []postingLine{
+		{Account: de.receivable.Id, Debit: 30000},
+		{Account: de.revenue.Id, Credit: 20000, Memo: "October interest"},
+		{Account: de.revenue.Id, Credit: 10000, Memo: "Monthly fee", Customer: "", Vendor: vendor.Id},
+	}
+	entry, err := postDocument(de.app, p)
+	if err != nil {
+		t.Fatalf("postDocument: %v", err)
+	}
+	var got []string
+	for _, l := range linesOf(t, de.app, entry.Id) {
+		got = append(got, fmt.Sprintf("%d %s dr %d cr %d memo %q customer %q vendor %q", l.GetInt("position"), l.GetString("account"),
+			l.GetInt("debit"), l.GetInt("credit"), l.GetString("memo"), l.GetString("customer"), l.GetString("vendor")))
+	}
+	sort.Strings(got)
+	want := []string{
+		fmt.Sprintf("0 %s dr 30000 cr 0 memo \"\" customer %q vendor \"\"", de.receivable.Id, de.customer.Id),
+		fmt.Sprintf("1 %s dr 0 cr 20000 memo \"October interest\" customer %q vendor \"\"", de.revenue.Id, de.customer.Id),
+		fmt.Sprintf("2 %s dr 0 cr 10000 memo \"Monthly fee\" customer \"\" vendor %q", de.revenue.Id, vendor.Id),
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("entry lines =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 	requireNoDrift(t, de.app)
 }

@@ -618,6 +618,13 @@ var tdDocumentPosters = map[string]func(t *testing.T) tdPosted{
 		wo := we.mkWriteOff(t, inv, nil)
 		return tdPosted{we.app, we.users.readOnly, wo.GetString("entry"), we.badDebts, wo.Id}
 	},
+	// Bank deposit spec §3.7: a deposit's entry opens the deposit.
+	"deposit": func(t *testing.T) tdPosted {
+		de := newDepositEnv(t)
+		registerBooksSources(t)
+		d := de.postedDeposit(t, []*core.Record{de.undepositedItem(t, de.undeposited, depositItemDay, 5000, "Check one")})
+		return tdPosted{de.app, de.users.readOnly, d.GetString("entry"), de.checking, d.Id}
+	},
 	// A bill payment posts only from its batch (bill_payments_test.go).
 	"bill_payment": func(t *testing.T) tdPosted {
 		bp := newBillPayEnv(t)
@@ -657,6 +664,23 @@ func TestTransactionDetailPostersHaveRoutes(t *testing.T) {
 	}
 	if got := routes["write_off"]; got != "write-offs" {
 		t.Errorf("entry_routes.json write_off = %q, want write-offs", got)
+	}
+	if got := routes["deposit"]; got != "deposits" {
+		t.Errorf("entry_routes.json deposit = %q, want deposits", got)
+	}
+}
+
+// Bank deposit spec §3.7: Transaction Detail lists a deposit's line with Type
+// "Deposit" and its number, and the line opens books/deposits/<id>.
+func TestTransactionDetail_ADepositReadsItsTypeAndOpensTheDeposit(t *testing.T) {
+	p := tdDocumentPosters["deposit"](t)
+	res := tdRun(t, p.app, p.reader, map[string]any{"period": glAllDates})
+	row := lineRow(t, res, entryLineOn(t, p.app, p.entry, p.account))
+	if got, want := [2]string{textCell(t, row, "type"), textCell(t, row, "number")}, [2]string{"Deposit", "1001"}; got != want {
+		t.Errorf("the deposit's line type/number = %v, want %v", got, want)
+	}
+	if want := "books/deposits/" + p.document; row.Open != want {
+		t.Errorf("the deposit's line opens %q, want %q", row.Open, want)
 	}
 }
 

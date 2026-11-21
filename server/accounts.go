@@ -668,6 +668,9 @@ func checkAccountDelete(app core.App, r *core.Record) error {
 	if refundReceipts > 1 {
 		return refuse(msgAccountRefundOfRefundReceipts, refundReceipts)
 	}
+	if err := refuseAccountOnDeposits(app, r); err != nil {
+		return err
+	}
 	children, err := app.CountRecords("books_accounts", dbx.HashExp{"parent": r.Id})
 	if err != nil {
 		return err
