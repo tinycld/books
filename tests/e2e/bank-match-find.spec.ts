@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, type Route, test } from '@playwright/test'
+import { expectNextRowShown, shownOrder } from './bank-categorize-helpers'
 import {
     inBanking,
     matchOptionIds,
@@ -33,6 +34,8 @@ function findGroup(): Group {
 }
 
 const name = (stamp: string, which: string) => `${stamp} find ${which}`
+const groupNames = (stamp: string) =>
+    ['three hundred', 'one', 'two', 'four', 'five'].map(which => name(stamp, which))
 
 const drawer = (page: Page) => visibleTestId(page, 'bank-txn-drawer')
 const result = (page: Page) => inBanking(page, 'bank-review-result')
@@ -133,9 +136,10 @@ test.describe
             await expect(page.getByTestId('bank-match-back')).toHaveCount(0)
             await expect(page.getByTestId('bank-match-find')).toBeVisible()
 
-            // The hardware key M matches from the sheet.
+            // The hardware key M matches from the sheet, which then shows the next row.
+            const order = await shownOrder(page, groupNames(stamp))
             await page.keyboard.press('m')
-            await expect(drawer(page)).toHaveCount(0)
+            await expectNextRowShown(page, order, name(stamp, 'five'))
             await expect(await result(page)).toHaveText('Matched 1 transaction.')
         })
 
@@ -152,7 +156,12 @@ test.describe
             const from = page.getByTestId('bank-match-from')
             const to = page.getByTestId('bank-match-to')
 
+            // The row has no suggestion, so it opens on Categorize with the focus in its
+            // Account: Escape leaves the field and ⇧M shows Match.
             await openMatchDrawer(page, name(stamp, 'three hundred'))
+            await expect(page.getByTestId('bank-cat-account-0')).toBeFocused()
+            await page.keyboard.press('Escape')
+            await page.keyboard.press('Shift+M')
             await expect(page.getByTestId('bank-match-section')).toContainText(
                 `Books found no transaction of $300.00 near ${todayText()}.`
             )
@@ -216,12 +225,20 @@ test.describe
             await expect(page.getByTestId('bank-match-back')).toHaveCount(0)
             await expect(totals).toHaveText('Chosen $300.00 of $300.00')
 
+            const order = await shownOrder(page, groupNames(stamp))
             await page.keyboard.press('m')
-            await expect(drawer(page)).toHaveCount(0)
+            await expectNextRowShown(page, order, name(stamp, 'three hundred'))
             await expect(await result(page)).toHaveText('Matched 1 transaction.')
+            // The next row after a match takes no focus, so Escape closes the drawer.
+            await page.keyboard.press('Escape')
+            await expect(drawer(page)).toHaveCount(0)
 
-            // Another transaction's find mode starts afresh.
+            // Another transaction's find mode starts afresh. It has no suggestion: Escape
+            // leaves its Account field and ⇧M shows Match.
             await openMatchDrawer(page, name(stamp, 'four'))
+            await expect(page.getByTestId('bank-cat-account-0')).toBeFocused()
+            await page.keyboard.press('Escape')
+            await page.keyboard.press('Shift+M')
             // F is registered only once the suggestions have loaded and the button shows.
             await expect(page.getByTestId('bank-match-find')).toBeVisible()
             await page.keyboard.press('f')

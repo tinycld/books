@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, type Route, test } from '@playwright/test'
+import { expectNextRowShown, shownOrder } from './bank-categorize-helpers'
 import {
     inBanking,
     matchOption,
@@ -43,6 +44,8 @@ function drawerGroup(): Group {
 }
 
 const name = (stamp: string, which: string) => `${stamp} match ${which}`
+const groupNames = (stamp: string) =>
+    ['one', 'two', 'three', 'four'].map(which => name(stamp, which))
 const memo = (stamp: string, which: string) => `${stamp} memo ${which}`
 
 const drawer = (page: Page) => visibleTestId(page, 'bank-txn-drawer')
@@ -131,13 +134,22 @@ test.describe
                 new RegExp(`books/transfers/${transfer.id}$`)
             )
 
+            // After the match the drawer shows the next For review row.
+            const order = await shownOrder(page, groupNames(stamp))
             await page.getByTestId('bank-match-submit').click()
-            await expect(drawer(page)).toHaveCount(0)
+            await expectNextRowShown(page, order, name(stamp, 'one'))
             await expect(await result(page)).toHaveText('Matched 1 transaction.')
             await expect(one).toHaveCount(0)
+            // The next row after a match takes no focus, so Escape closes the drawer.
+            await page.keyboard.press('Escape')
+            await expect(drawer(page)).toHaveCount(0)
 
-            // A row with no suggestion: the empty text and Find other matches.
+            // A row with no suggestion opens on Categorize with the focus in its Account:
+            // Escape leaves the field, ⇧M shows the empty text and Find other matches.
             await openMatchDrawer(page, name(stamp, 'four'))
+            await expect(page.getByTestId('bank-cat-account-0')).toBeFocused()
+            await page.keyboard.press('Escape')
+            await page.keyboard.press('Shift+M')
             await expect(page.getByTestId('bank-match-section')).toContainText(
                 `Books found no transaction of $154.40 near ${todayText()}.`
             )
@@ -201,8 +213,9 @@ test.describe
 
             await page.keyboard.press('Space')
             await expect(first).toHaveAttribute('aria-checked', 'true')
+            const order = await shownOrder(page, groupNames(stamp))
             await page.keyboard.press('m')
-            await expect(drawer(page)).toHaveCount(0)
+            await expectNextRowShown(page, order, name(stamp, 'two'))
             await expect(await result(page)).toHaveText('Matched 1 transaction.')
             await expect(two).toHaveCount(0)
         })
@@ -269,8 +282,9 @@ test.describe
 
             const release = held as Route | null
             if (!release) throw new Error('the create was not held')
+            const order = await shownOrder(page, groupNames(stamp))
             await release.continue()
-            await expect(drawer(page)).toHaveCount(0)
+            await expectNextRowShown(page, order, name(stamp, 'three'))
             await expect(await result(page)).toHaveText('Matched 1 transaction.')
             await expect(matchOption(page, lineId)).toHaveCount(0)
             await expect(three).toHaveCount(0)

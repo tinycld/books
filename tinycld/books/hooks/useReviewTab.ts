@@ -448,6 +448,7 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
     const isWide = useBreakpoint() !== 'mobile'
     const openTxnId = useBankingUIStore(s => s.openTxnId)
     const openTxn = useBankingUIStore(s => s.openTxn)
+    const isAdding = useBankingUIStore(s => s.isAdding)
     const storedFocus = useBankingUIStore(s => s.focusedTxnId)
     const toggleDateOrder = useBankingUIStore(s => s.toggleDateOrder)
     const clearReviewFilters = useBankingUIStore(s => s.clearReviewFilters)
@@ -497,8 +498,9 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
     const selection = barRun
         ? { count: barRun.ids.length, text: barRun.summary }
         : { count: summary.count, text: summary.text }
+    // The bar's actions also wait while the drawer sends a Categorize or a Record transfer.
     const control = writeControlState({
-        isPending: batch.isPending,
+        isPending: batch.isPending || isAdding,
         writesDisabled: writes.isDisabled,
         writesHint: writes.accessibilityHint,
     })
@@ -548,7 +550,7 @@ export function useReviewTab(input: ReviewTabInput): ReviewTabModel {
     const plan = matchPlan(listedRows, shownSet)
     const matchState = barMatchState({
         matchableCount: plan.ids.length,
-        isPending: batch.isPending,
+        isPending: batch.isPending || isAdding,
         writesDisabled: writes.isDisabled,
         writesHint: writes.accessibilityHint,
     })

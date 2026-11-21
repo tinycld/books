@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, type Route, test } from '@playwright/test'
 import { TEST_USER_NAME } from '@tinycld/core/e2e-helpers'
+import { drawerShows } from './bank-categorize-helpers'
 import {
     inBanking,
     matchOptionIds,
@@ -79,13 +80,17 @@ async function sidewaysScrollers(page: Page) {
     })
 }
 
-// Matches the open For review row's one suggestion from the drawer.
-async function matchFromDrawer(page: Page, description: string): Promise<void> {
+// Matches the open For review row's one suggestion from the drawer. The drawer then shows
+// `next`, the group's other For review row, with no field focused, so Escape closes it.
+async function matchFromDrawer(page: Page, description: string, next: string): Promise<void> {
     await openMatchDrawer(page, description)
     await matchOptionIds(page, 1)
     await page.getByTestId('bank-match-submit').click()
-    await expect(drawer(page)).toHaveCount(0)
+    await expect(drawer(page)).toBeVisible()
+    await expect(drawerShows(page, next)).toBeVisible()
     await expect(await result(page)).toHaveText('Matched 1 transaction.')
+    await page.keyboard.press('Escape')
+    await expect(drawer(page)).toHaveCount(0)
 }
 
 // The transfer's read view must be open. Voids it through its Void action and confirm.
@@ -124,7 +129,7 @@ test.describe
             )
             const one = await visibleRow(page, name(stamp, 'one'))
             const oneId = await reviewRowId(one)
-            await matchFromDrawer(page, name(stamp, 'one'))
+            await matchFromDrawer(page, name(stamp, 'one'), name(stamp, 'two'))
 
             // Reviewed: the In Books cell links to the matched transfer.
             await openReviewTab(page, 'reviewed')
@@ -181,7 +186,8 @@ test.describe
             await signInWide(page)
             const transferMemo = uniqueMemo('bank-match reviewed two')
             await postMatchTransfer(page, account, '172.20', transferMemo)
-            await matchFromDrawer(page, name(stamp, 'two'))
+            // The undo of the first test put row one back on For review.
+            await matchFromDrawer(page, name(stamp, 'two'), name(stamp, 'one'))
 
             await openTransferFromList(page, transferMemo)
             await voidOpenTransfer(page)

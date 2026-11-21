@@ -1,4 +1,4 @@
-import { type RefObject, useRef } from 'react'
+import { type RefObject, useEffect, useRef } from 'react'
 import { type TextInputInstance, View } from 'react-native'
 import type { BankConnectionRow } from '../../../hooks/useBankConnections'
 import { useFitsTable } from '../../../hooks/useFitsTable'
@@ -15,8 +15,11 @@ import {
     useReviewQueueRows,
     useReviewTab,
 } from '../../../hooks/useReviewTab'
+import { failedResultText } from '../../../lib/bank-categorize'
 import { REVIEW_TABLE_MIN_WIDTH, type ReviewTab, type TxnTab } from '../../../lib/bank-review'
 import type { LiveRecovery } from '../../../lib/live-recovery'
+import { useBankingUIStore } from '../../../stores/banking-ui-store'
+import { AddedResultLine } from '../categorize/AddedResultLine'
 import { ReviewCards } from './ReviewCards'
 import { ReviewEmptyState, ReviewLoadError, ReviewLoading } from './ReviewEmptyState'
 import { ReviewResultLine } from './ReviewResultLine'
@@ -37,6 +40,40 @@ type ReviewTabBodyProps = {
     drawer: ReviewShortcutsInput['drawer']
     // The page's read of the For review row marks; each row gets its own list.
     suggestions: MatchSuggestions
+    // The page's note of the For review rows on screen, in list order, which the drawer
+    // reads for the row it shows after a row leaves.
+    shownRowIds: RefObject<readonly string[]>
+}
+
+type ShownRow = { id: string }
+
+// While For review shows, the page knows its rows on screen in their order; a cleanup
+// empties the note when the tab body goes or its rows change.
+function useShownRowIds(
+    tab: TxnTab,
+    rows: readonly ShownRow[],
+    shownRowIds: RefObject<readonly string[]>
+) {
+    useEffect(() => {
+        if (tab !== 'review') return
+        shownRowIds.current = rows.map(row => row.id)
+        return () => {
+            shownRowIds.current = []
+        }
+    }, [tab, rows, shownRowIds])
+}
+
+// The batch's result line, or else the outcome of the drawer's last Categorize or Record
+// transfer: a failure that arrived after the drawer moved on (failedNote), or its "Added …"
+// line.
+function ResultLine({ result }: { result: ReviewTabModel['result'] }) {
+    const failedNote = useBankingUIStore(s => s.failedNote)
+    if (result) return <ReviewResultLine result={result} />
+    if (failedNote) {
+        const failed = { text: failedResultText(failedNote), tone: 'danger' as const }
+        return <ReviewResultLine result={failed} />
+    }
+    return <AddedResultLine />
 }
 
 type SearchRef = RefObject<TextInputInstance | null>
@@ -131,11 +168,12 @@ function ReviewTabView({ read, queryInput, ...props }: ReviewTabViewProps) {
         suggestions,
     })
     useReviewShortcuts({ ...model, tab, searchRef, onTab, drawer })
+    useShownRowIds(tab, model.rows, props.shownRowIds)
     const fits = useFitsTable(REVIEW_TABLE_MIN_WIDTH)
     return (
         <View testID={`bank-tab-body-${tab}`} className="min-h-0 flex-1 overflow-hidden">
             <ToolbarOrSelection model={model} searchRef={searchRef} />
-            <ReviewResultLine result={model.result} />
+            <ResultLine result={model.result} />
             <View
                 aria-busy={model.isBusy}
                 className="min-h-0 min-w-0 flex-1"
