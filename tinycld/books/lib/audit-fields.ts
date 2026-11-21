@@ -19,6 +19,7 @@ import { PRODUCT_TYPES } from './product-types'
 import { PURCHASE_LINES_OPTIONS } from './purchase-lines'
 import { isIsoDay } from './register-range'
 import { ratePercentText } from './sales-tax'
+import { STATEMENT_TYPE_LABELS } from './statement-texts'
 import { TAX_ID_TYPES } from './tax-id'
 
 // `money`: integer cents in the record's currency. `day`: a text day (YYYY-MM-DD).
@@ -132,7 +133,12 @@ export const DOC_TYPE = [
     { value: 'bill_payment', label: 'Bill payment' },
     { value: 'vendor_refund', label: 'Vendor refund' },
     { value: 'write_off', label: 'Write-off' },
+    { value: 'statement', label: 'Statement' },
 ]
+const STATEMENT_TYPE = Object.entries(STATEMENT_TYPE_LABELS).map(([value, label]) => ({
+    value,
+    label,
+}))
 const WRITE_OFF_STATUS = [
     { value: 'posted', label: 'Posted' },
     { value: 'void', label: 'Void' },
@@ -482,6 +488,21 @@ const AUDIT_FIELD_MAPS = {
         voided_at: datetime('Voided at'),
         voided_by: relation('Voided by', 'users'),
         sort_key: internal('Sort key'),
+        ...STAMPS,
+    },
+    books_statements: {
+        customer: relation('Customer', 'books_customers'),
+        number: text('No.'),
+        sequence: text('Sequence'),
+        type: select('Type', STATEMENT_TYPE),
+        statement_date: day('Statement date'),
+        start_date: day('Start date'),
+        end_date: day('End date'),
+        email: text('Email address'),
+        balance: money('Amount due'),
+        currency: text('Currency'),
+        sent_at: datetime('Sent'),
+        sent_to: text('Sent to'),
         ...STAMPS,
     },
     books_vendor_refund_lines: {

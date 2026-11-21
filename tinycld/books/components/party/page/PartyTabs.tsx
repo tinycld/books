@@ -19,7 +19,7 @@ interface PartyTabsProps {
 }
 
 /**
- * A party page's tab strip. ⌥1–⌥4 belong to the surface's `modal` scope, the top scope
+ * A party page's tab strip. ⌥1–⌥5 belong to the surface's `modal` scope, the top scope
  * on the page, so they select a tab from anywhere on it, a text field included. The
  * shortcut ids are per instance: while one record's page replaces another's, both are
  * mounted, and a shared id would let the leaving page unregister the new one's keys.

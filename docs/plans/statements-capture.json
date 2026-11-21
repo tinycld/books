@@ -1,0 +1,262 @@
+{
+    "outDir": "statements-reference",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "statements-create",
+            "height": 1900,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "open-items",
+            "url": "/a/books/helix-mockup?state=open-items",
+            "ready": "statements-create",
+            "height": 1900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "one-customer",
+            "url": "/a/books/helix-mockup?state=one-customer",
+            "ready": "statements-create",
+            "height": 2300,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "overdue",
+            "url": "/a/books/helix-mockup?state=overdue",
+            "ready": "statements-create",
+            "height": 1200,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "send-error",
+            "url": "/a/books/helix-mockup?state=send-error",
+            "ready": "statements-create",
+            "height": 1900,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "failed",
+            "url": "/a/books/helix-mockup?state=failed",
+            "ready": "statements-run-notice",
+            "height": 1900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "no-email",
+            "url": "/a/books/helix-mockup?state=no-email",
+            "ready": "statements-email-note",
+            "height": 1900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "none",
+            "url": "/a/books/helix-mockup?state=none",
+            "ready": "statements-create",
+            "height": 1900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/helix-mockup?state=empty",
+            "ready": "statements-empty",
+            "height": 900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "statements-loading",
+            "height": 900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "statements-create",
+            "height": 900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "no-write",
+            "url": "/a/books/helix-mockup?state=no-write",
+            "ready": "statements-message",
+            "height": 900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "saving",
+            "url": "/a/books/helix-mockup?state=saving",
+            "ready": "statements-create",
+            "height": 1900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "preview",
+            "url": "/a/books/helix-mockup?state=preview",
+            "ready": "statements-preview-page",
+            "height": 1100,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "more-menu",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "statements-create",
+            "height": 844,
+            "widths": [390],
+            "schemes": ["light"],
+            "actions": [{ "click": "statements-more" }, { "waitFor": "statements-preview" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "tab",
+            "url": "/a/books/helix-mockup?state=tab",
+            "ready": "customer-statements",
+            "height": 1000,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "tab-empty",
+            "url": "/a/books/helix-mockup?state=tab-empty",
+            "ready": "customer-statements-empty",
+            "height": 900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "tab-reader",
+            "url": "/a/books/helix-mockup?state=tab-reader",
+            "ready": "customer-statements",
+            "height": 1000,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "tab-reader-empty",
+            "url": "/a/books/helix-mockup?state=tab-reader-empty",
+            "ready": "customer-statements-empty",
+            "height": 900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "tab-menu",
+            "url": "/a/books/helix-mockup?state=tab",
+            "ready": "customer-statements",
+            "height": 1000,
+            "widths": [390],
+            "schemes": ["light"],
+            "stable": "statement-row-send-stmt_aspen_0006",
+            "actions": [
+                { "click": "statement-row-menu-stmt_aspen_0006" },
+                { "waitFor": "statement-row-send-stmt_aspen_0006" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "tab-menu-wide",
+            "url": "/a/books/helix-mockup?state=tab",
+            "ready": "customer-statements",
+            "height": 1000,
+            "widths": [1280],
+            "schemes": ["light"],
+            "stable": "statement-row-send-stmt_aspen_0006",
+            "actions": [
+                { "click": "statement-row-menu-stmt_aspen_0006" },
+                { "waitFor": "statement-row-send-stmt_aspen_0006" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "statement",
+            "url": "/a/books/helix-mockup?state=statement",
+            "ready": "statement-pdf",
+            "height": 1300,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "statement-unsent",
+            "url": "/a/books/helix-mockup?state=statement-unsent",
+            "ready": "statement-amount-changed",
+            "height": 1300,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "statement-reader",
+            "url": "/a/books/helix-mockup?state=statement-reader",
+            "ready": "statement-pdf",
+            "height": 1300,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "statement-no-email",
+            "url": "/a/books/helix-mockup?state=statement-no-email",
+            "ready": "statements-email-note",
+            "height": 1300,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "statement-pdf-error",
+            "url": "/a/books/helix-mockup?state=statement-pdf-error",
+            "ready": "statement-pdf-error",
+            "height": 1300,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "statement-missing",
+            "url": "/a/books/helix-mockup?state=statement-missing",
+            "ready": "statement-not-found",
+            "height": 900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "statement-more",
+            "url": "/a/books/helix-mockup?state=statement",
+            "ready": "statement-pdf",
+            "height": 900,
+            "schemes": ["light"],
+            "actions": [{ "click": "statement-more" }, { "waitFor": "statement-delete" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "statement-send",
+            "url": "/a/books/helix-mockup?state=statement-send",
+            "ready": "statement-send-dialog",
+            "height": 900,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "statement-send-refused",
+            "url": "/a/books/helix-mockup?state=statement-send-refused",
+            "ready": "statement-send-errors",
+            "height": 900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "statement-delete",
+            "url": "/a/books/helix-mockup?state=statement-delete",
+            "ready": "statement-delete-confirm",
+            "height": 900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        }
+    ]
+}

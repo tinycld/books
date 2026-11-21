@@ -54,6 +54,13 @@ const RECORD_PATHS: Record<string, (id: string) => string> = {
     books_bill_payments: id => `books/bill-payments/${id}`,
     books_vendor_refunds: id => `books/vendor-refunds/${id}`,
     books_write_offs: id => `books/write-offs/${id}`,
+    books_statements: id => `books/statements/${id}`,
+}
+
+// A record whose Open label names its screen in fewer words than its record type
+// ("Customer statement").
+const OPEN_LABELS: Record<string, string> = {
+    books_statements: 'Open statement',
 }
 
 // Records shown on a screen that holds a group of them, and that screen's Open label.
@@ -196,6 +203,8 @@ export function auditRecordHref(
 export function auditOpenLabel(collection: string): string {
     const group = GROUP_SCREENS[collection]
     if (group) return group.label
+    const own = OPEN_LABELS[collection]
+    if (own) return own
     return `Open ${recordTypeLabel(collection).toLowerCase()}`
 }
 

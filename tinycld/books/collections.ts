@@ -768,6 +768,26 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // A customer statement: the client sends the customer, the type, the dates and the
+    // address; the server's create guard (server/statements.go) sets the number, the
+    // sequence, the balance and the currency, and only the send route sets the sent
+    // fields. The customer files into its collection for the screens that materialize it.
+    const books_statements = newCollection('books_statements', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'number',
+            'sequence',
+            'balance',
+            'currency',
+            'sent_at',
+            'sent_to',
+        ] as const,
+        ...onDemand,
+        relations: { customer: books_customers },
+        collectionOptions: indexed,
+    })
+
     // Written by the server from payments (the cash basis); clients only read them.
     const books_cash_basis_lines = newCollection('books_cash_basis_lines', {
         omitOnInsert: ['created', 'updated'] as const,
@@ -866,6 +886,7 @@ export function registerCollections(
         books_vendor_refunds,
         books_vendor_refund_lines,
         books_write_offs,
+        books_statements,
         books_cash_basis_lines,
         books_cash_basis_tax_lines,
         books_party_balances,

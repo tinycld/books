@@ -10,3 +10,6 @@ export const AP_AGING_SHIPPED_KEY = 'books.ap_aging'
 export const VENDOR_BALANCE_SHIPPED_KEY = 'books.vendor_balance'
 export const SALES_BY_CUSTOMER_SHIPPED_KEY = 'books.sales_by_customer'
 export const SALES_BY_PRODUCT_SHIPPED_KEY = 'books.sales_by_product'
+// server/report_statements.go: the rows of a customer statement's PDF.
+export const STATEMENT_BALANCE_FORWARD_SHIPPED_KEY = 'books.statement_balance_forward'
+export const STATEMENT_OPEN_ITEMS_SHIPPED_KEY = 'books.statement_open_items'

@@ -1,0 +1,401 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "statement-unsent",
+            "url": "/a/books/customers",
+            "ready": "customers-search",
+            "height": 1300,
+            "schemes": ["light"],
+            "pdfAmountDue": 312500,
+            "actions": [
+                { "fill": "customers-search", "value": "Harborview Kitchen" },
+                { "pause": 500 },
+                {
+                    "idFromText": "Harborview Kitchen",
+                    "goto": "/a/books/customers/$urlId?tab=statements"
+                },
+                { "waitFor": "customer-statements" },
+                { "clickLabel": "Actions for statement ST-1001" },
+                { "clickMenuItem": "Open" },
+                { "waitFor": "statement-pdf" },
+                { "waitFor": "statement-amount-changed" },
+                { "click": "statement-title" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "statement-no-email",
+            "url": "/a/books/customers",
+            "ready": "customers-search",
+            "height": 1300,
+            "schemes": ["light"],
+            "fakeJson": [{ "path": "/api/reports/email-status", "body": { "canSend": false } }],
+            "actions": [
+                { "fill": "customers-search", "value": "Harborview Kitchen" },
+                { "pause": 500 },
+                {
+                    "idFromText": "Harborview Kitchen",
+                    "goto": "/a/books/customers/$urlId?tab=statements"
+                },
+                { "waitFor": "customer-statements" },
+                { "clickLabel": "Actions for statement ST-1001" },
+                { "clickMenuItem": "Open" },
+                { "waitFor": "statement-pdf" },
+                { "waitFor": "statements-email-note" },
+                { "click": "statement-title" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "statement-pdf-error",
+            "url": "/a/books/customers",
+            "ready": "customers-search",
+            "height": 1300,
+            "schemes": ["light"],
+            "fakeJson": [
+                {
+                    "path": "/api/books/pdf/statement/",
+                    "status": 500,
+                    "body": { "status": 500, "message": "Something went wrong.", "data": {} }
+                }
+            ],
+            "actions": [
+                { "fill": "customers-search", "value": "Harborview Kitchen" },
+                { "pause": 500 },
+                {
+                    "idFromText": "Harborview Kitchen",
+                    "goto": "/a/books/customers/$urlId?tab=statements"
+                },
+                { "waitFor": "customer-statements" },
+                { "clickLabel": "Actions for statement ST-1001" },
+                { "clickMenuItem": "Open" },
+                { "waitFor": "statement-pdf-error" },
+                { "click": "statement-title" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "statement-missing",
+            "url": "/a/books/customers",
+            "ready": "customers-search",
+            "height": 900,
+            "schemes": ["light"],
+            "actions": [
+                { "pushPath": "/a/books/statements/zzzzzzzzzzzzzzz" },
+                { "waitFor": "statement-not-found" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "statement-more",
+            "url": "/a/books/customers",
+            "ready": "customers-search",
+            "height": 900,
+            "schemes": ["light"],
+            "actions": [
+                { "fill": "customers-search", "value": "Harborview Kitchen" },
+                { "pause": 500 },
+                {
+                    "idFromText": "Harborview Kitchen",
+                    "goto": "/a/books/customers/$urlId?tab=statements"
+                },
+                { "waitFor": "customer-statements" },
+                { "clickLabel": "Actions for statement ST-1001" },
+                { "clickMenuItem": "Open" },
+                { "waitFor": "statement-pdf" },
+                { "click": "statement-more" },
+                { "waitFor": "statement-delete" }
+            ],
+            "settleMs": 500,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "statement-send",
+            "url": "/a/books/customers",
+            "ready": "customers-search",
+            "height": 900,
+            "actions": [
+                { "fill": "customers-search", "value": "Harborview Kitchen" },
+                { "pause": 500 },
+                {
+                    "idFromText": "Harborview Kitchen",
+                    "goto": "/a/books/customers/$urlId?tab=statements"
+                },
+                { "waitFor": "customer-statements" },
+                { "clickLabel": "Actions for statement ST-1001" },
+                { "clickMenuItem": "Open" },
+                { "waitFor": "statement-pdf" },
+                { "click": "statement-send" },
+                { "waitFor": "statement-send-dialog" }
+            ],
+            "opaque": "statement-send-dialog",
+            "settleMs": 500,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "statement-send-refused",
+            "url": "/a/books/customers",
+            "ready": "customers-search",
+            "height": 900,
+            "schemes": ["light"],
+            "fakeJson": [
+                {
+                    "path": "/api/books/statements/send",
+                    "status": 429,
+                    "body": {
+                        "status": 429,
+                        "message": "You have sent 500 statement emails in the last hour. Try again later.",
+                        "data": {}
+                    }
+                }
+            ],
+            "actions": [
+                { "fill": "customers-search", "value": "Harborview Kitchen" },
+                { "pause": 500 },
+                {
+                    "idFromText": "Harborview Kitchen",
+                    "goto": "/a/books/customers/$urlId?tab=statements"
+                },
+                { "waitFor": "customer-statements" },
+                { "clickLabel": "Actions for statement ST-1001" },
+                { "clickMenuItem": "Open" },
+                { "waitFor": "statement-pdf" },
+                { "click": "statement-send" },
+                { "waitFor": "statement-send-dialog" },
+                { "click": "statement-send-submit" },
+                { "waitFor": "statement-send-errors" }
+            ],
+            "opaque": "statement-send-dialog",
+            "settleMs": 500,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "statement-delete",
+            "url": "/a/books/customers",
+            "ready": "customers-search",
+            "height": 900,
+            "schemes": ["light"],
+            "actions": [
+                { "fill": "customers-search", "value": "Harborview Kitchen" },
+                { "pause": 500 },
+                {
+                    "idFromText": "Harborview Kitchen",
+                    "goto": "/a/books/customers/$urlId?tab=statements"
+                },
+                { "waitFor": "customer-statements" },
+                { "clickLabel": "Actions for statement ST-1001" },
+                { "clickMenuItem": "Open" },
+                { "waitFor": "statement-pdf" },
+                { "click": "statement-more" },
+                { "click": "statement-delete" },
+                { "waitFor": "statement-delete-confirm" }
+            ],
+            "opaque": "statement-delete-confirm",
+            "settleMs": 500,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "statement-reader",
+            "url": "/a/books/customers",
+            "ready": "customers-search",
+            "height": 1300,
+            "schemes": ["light"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                { "fill": "customers-search", "value": "Harborview Kitchen" },
+                { "pause": 500 },
+                {
+                    "idFromText": "Harborview Kitchen",
+                    "goto": "/a/books/customers/$urlId?tab=statements"
+                },
+                { "waitFor": "customer-statements" },
+                { "clickLabel": "Actions for statement ST-1001" },
+                { "clickMenuItem": "Open" },
+                { "waitFor": "statement-pdf" },
+                { "click": "statement-title" }
+            ],
+            "hideLabels": ["New", "Reconnecting…"]
+        },
+        {
+            "name": "statement",
+            "url": "/a/books/customers",
+            "ready": "customers-search",
+            "height": 1300,
+            "actions": [
+                { "fill": "customers-search", "value": "Harborview Kitchen" },
+                { "pause": 500 },
+                {
+                    "idFromText": "Harborview Kitchen",
+                    "goto": "/a/books/customers/$urlId?tab=statements"
+                },
+                { "waitFor": "customer-statements" },
+                { "clickLabel": "Actions for statement ST-1001" },
+                { "clickMenuItem": "Open" },
+                { "waitFor": "statement-pdf" },
+                { "click": "statement-send" },
+                { "waitFor": "statement-send-dialog" },
+                { "click": "statement-send-submit" },
+                { "waitForHidden": "statement-send-dialog" },
+                { "pause": 4500 },
+                { "click": "statement-title" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "tab",
+            "url": "/a/books/customers",
+            "ready": "customers-search",
+            "height": 1000,
+            "actions": [
+                { "fill": "customers-search", "value": "Harborview Kitchen" },
+                { "pause": 500 },
+                {
+                    "idFromText": "Harborview Kitchen",
+                    "goto": "/a/books/customers/$urlId?tab=statements"
+                },
+                { "waitFor": "customer-statements" },
+                { "waitFor": "Not sent" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "tab-menu",
+            "url": "/a/books/customers",
+            "ready": "customers-search",
+            "height": 1000,
+            "widths": [390],
+            "schemes": ["light"],
+            "actions": [
+                { "fill": "customers-search", "value": "Harborview Kitchen" },
+                { "pause": 500 },
+                {
+                    "idFromText": "Harborview Kitchen",
+                    "goto": "/a/books/customers/$urlId?tab=statements"
+                },
+                { "waitFor": "customer-statements" },
+                { "clickLabel": "Actions for statement ST-1001" },
+                { "waitFor": "Download PDF" }
+            ],
+            "settleMs": 600,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "tab-menu-wide",
+            "url": "/a/books/customers",
+            "ready": "customers-search",
+            "height": 1000,
+            "widths": [1280],
+            "schemes": ["light"],
+            "actions": [
+                { "fill": "customers-search", "value": "Harborview Kitchen" },
+                { "pause": 500 },
+                {
+                    "idFromText": "Harborview Kitchen",
+                    "goto": "/a/books/customers/$urlId?tab=statements"
+                },
+                { "waitFor": "customer-statements" },
+                { "clickLabel": "Actions for statement ST-1001" },
+                { "waitFor": "Download PDF" }
+            ],
+            "settleMs": 600,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "tab-reader",
+            "url": "/a/books/customers",
+            "ready": "customers-search",
+            "height": 1000,
+            "schemes": ["light"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                { "fill": "customers-search", "value": "Harborview Kitchen" },
+                { "pause": 500 },
+                {
+                    "idFromText": "Harborview Kitchen",
+                    "goto": "/a/books/customers/$urlId?tab=statements"
+                },
+                { "waitFor": "customer-statements" },
+                { "waitFor": "Not sent" }
+            ],
+            "hideLabels": ["New", "Reconnecting…"]
+        },
+        {
+            "name": "tab-empty",
+            "url": "/a/books/customers",
+            "ready": "customers-search",
+            "height": 900,
+            "schemes": ["light"],
+            "actions": [
+                { "fill": "customers-search", "value": "Aspen Ridge Dental" },
+                { "pause": 500 },
+                {
+                    "idFromText": "Aspen Ridge Dental",
+                    "goto": "/a/books/customers/$urlId?tab=statements"
+                },
+                { "waitFor": "customer-statements-empty" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "tab-reader-empty",
+            "url": "/a/books/customers",
+            "ready": "customers-search",
+            "height": 900,
+            "schemes": ["light"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [
+                { "fill": "customers-search", "value": "Aspen Ridge Dental" },
+                { "pause": 500 },
+                {
+                    "idFromText": "Aspen Ridge Dental",
+                    "goto": "/a/books/customers/$urlId?tab=statements"
+                },
+                { "waitFor": "customer-statements-empty" }
+            ],
+            "hideLabels": ["New", "Reconnecting…"]
+        }
+    ]
+}

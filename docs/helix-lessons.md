@@ -34,3 +34,6 @@
 - With the inline drawer open, check every table and toolbar in the panel beside it against the panel's width (page width − 380), not the page width; switch to cards or wrap the toolbar below that width. — bank-match, retro, p4-match
 - Never spread a `materialize()` key into a `.select()` under a condition; the row type becomes `never`. Write one query for each shape. — bank-match, retro, p4-match
 - A plan-bar failure is diagnosed with a probe that changes one SQL term at a time (go test -overlay), before a fix is proposed. — vendor-balance, retro, p5-vendor-balance
+- A second visit of a list or record in one page leaves the first screen mounted in the stack: e2e locators match only the shown screen, and per-record UI (an apply dialog, a store keyed by record id) draws only on the focused screen. — apply-credit, retro, p2-apply-credit
+- A capture reaches a load-error or empty state by faking the read before the screen mounts; core does not reload live collections on auth refresh or web resume. — apply-credit, retro, p2-apply-credit
+- A failed send never creates a new document: the record is saved and numbered once, the server retries transient delivery errors (not a refusal), the screen marks each failed row with its reason, and the next press resends that same saved record. — statements, human, eval revise 1

@@ -77,7 +77,7 @@
     | 6 vendor opened | 7 | 69.6 ms | 614.3 ms | 8.8 | 1,000 ms, ratio 15 | pass |
     | 7 CSV export | 40 | 391.6 ms (Total = run 1's) | 3,355.1 ms, refused: "This report has more than 50,000 rows. Narrow the period." | n/a | 5,000 ms at S; at L refused with that message, 5,000 ms | pass |
 
-  - Index added: `idx_books_jlines_account_posted_vendor_date` on `books_journal_lines (account, posted, vendor, date)` (`pb-migrations/2100000033_index_books_journal_lines_account_posted_vendor_date.js`). Core fixes measured: checkpoint 0 (Select equality) and checkpoint 5 (opened-group cut).
+  - Index added: `idx_books_jlines_account_posted_vendor_date` on `books_journal_lines (account, posted, vendor, date)` (`pb-migrations/2100000032_index_books_journal_lines_account_posted_vendor_date.js`; it was 2100000033 until the merge of main, where the statements took 33 and the audit view 34). Core fixes measured: checkpoint 0 (Select equality) and checkpoint 5 (opened-group cut).
   - These are not the results of record: those are the integration re-run on the engine with p5-report-engine-scale merged (plan D14, "Integration re-run").
 
 ## Phase notes

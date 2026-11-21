@@ -118,6 +118,7 @@ describe('registries', () => {
             'receive_payment',
             'credit_memo',
             'refund_receipt',
+            'statement',
         ])
         expect(columns.map(c => c.heading)).toEqual(['Customers', 'Vendors', 'Other'])
         expect(columns[1]?.actions.map(a => a.id)).toEqual([
@@ -210,6 +211,7 @@ describe('registries', () => {
             'Receive payment',
             'Credit memo',
             'Refund receipt',
+            'Statement',
         ])
         const invoice = NEW_ACTIONS.find(a => a.id === 'invoice')
         expect(invoice).toMatchObject({
@@ -309,6 +311,7 @@ describe('registries', () => {
             'receive_payment',
             'credit_memo',
             'refund_receipt',
+            'statement',
         ])
         for (const other of NEW_ACTIONS.filter(a => !a.takesCustomer)) {
             expect(other).not.toHaveProperty('takesCustomer')

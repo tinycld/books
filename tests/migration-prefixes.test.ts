@@ -9,9 +9,10 @@ import { describe, expect, it } from 'vitest'
 // collections. A later migration that creates a collection the view does not read may
 // run after it; each such migration is named in AFTER_AUDIT (the bank matches at 30 came
 // before the credit memo applications at 31, whose lines the view reads, so the view moved
-// to 32). Vendor Balance (D17, amendment 2): the books_journal_lines (account, posted, vendor, date) index
-// takes 2100000033 and may run after the view, because it adds an index and creates no
-// collection, so the view reads nothing it makes. The vendor party balances rewrite creates no collection, so it
+// to 32, then to 34). AFTER_AUDIT is empty now. Vendor Balance (D17, amendment 2): the
+// books_journal_lines (account, posted, vendor, date) index takes 2100000032, the number
+// the audit view left free when it moved to 34, because it adds an index and creates no
+// collection the view reads, and the view stays last. The vendor party balances rewrite creates no collection, so it
 // may run before the audit view. A/R Aging (D8): the receivable items migration takes
 // 2100000028, the number the write-off spec left free, after the payments and credit
 // memos it reads. books_receivable_items is stored, not audited: only Books' posting
@@ -26,9 +27,9 @@ const MIGRATIONS = readdirSync(MIGRATIONS_DIR)
     .filter(file => file.endsWith('.js'))
     .sort()
 
-const AUDIT = '2100000032_create_books_audit_log.js'
+const AUDIT = '2100000034_create_books_audit_log.js'
 
-const AFTER_AUDIT = ['2100000033_index_books_journal_lines_account_posted_vendor_date.js']
+const AFTER_AUDIT: string[] = []
 
 function prefixOf(file: string): string {
     return file.split('_')[0] ?? file
@@ -124,9 +125,10 @@ describe('pb-migrations prefixes', () => {
     // receivable items take 2100000028. Bank-match spec §4 Schema: the bank matches take
     // 2100000030; the view reads none of their collections. Apply credit spec §4.1: the
     // credit memo applications take 2100000031, and because the view reads their lines,
-    // the audit view moves to 2100000032, the highest. A/P Aging spec §4.1: the payable
-    // items take 2100000029.
-    it('holds the vendor credits at 2100000023, the vendor refunds at 2100000024, the refund receipts at 2100000025, the vendor party balances at 2100000026, the write-offs at 2100000027, the receivable items at 2100000028, the payable items at 2100000029, the bank matches at 2100000030 and the credit memo applications at 2100000031, before the audit log at 2100000032', () => {
+    // the audit view moved to 2100000032. A/P Aging spec §4.1: the payable items take
+    // 2100000029. Statements spec §4.2 (Q21): the statements take 2100000033, and the audit
+    // view moves to 2100000034, the highest, with no change of content.
+    it('holds the vendor credits at 2100000023, the vendor refunds at 2100000024, the refund receipts at 2100000025, the vendor party balances at 2100000026, the write-offs at 2100000027, the receivable items at 2100000028, the payable items at 2100000029, the bank matches at 2100000030, the credit memo applications at 2100000031 and the statements at 2100000033, before the audit log at 2100000034', () => {
         expect(MIGRATIONS).toContain('2100000023_create_books_vendor_credits.js')
         expect(MIGRATIONS).toContain('2100000024_create_books_vendor_refunds.js')
         expect(MIGRATIONS).toContain('2100000025_create_books_refund_receipts.js')
@@ -144,7 +146,11 @@ describe('pb-migrations prefixes', () => {
         expect(MIGRATIONS.filter(file => prefixOf(file) === '2100000031')).toEqual([
             '2100000031_create_books_credit_memo_applications.js',
         ])
+        expect(MIGRATIONS.filter(file => prefixOf(file) === '2100000033')).toEqual([
+            '2100000033_create_books_statements.js',
+        ])
         expect(MIGRATIONS).toContain(AUDIT)
+        expect(MIGRATIONS).not.toContain('2100000032_create_books_audit_log.js')
         expect(MIGRATIONS).not.toContain('2100000025_create_books_audit_log.js')
         expect(MIGRATIONS).not.toContain('2100000027_create_books_audit_log.js')
         expect(MIGRATIONS).not.toContain('2100000029_create_books_audit_log.js')

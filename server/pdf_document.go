@@ -38,6 +38,7 @@ type pdfDocument struct {
 	Expiration    string     // YYYY-MM-DD, printed as "Expiration date" under the dates when set; only an estimate sets it
 	Payment       string     // printed under the dates when set: "Check · 43567"; the invoice leaves it empty
 	Source        string     // printed under the dates when set: "For invoice 1004"; only a linked credit memo sets it
+	Period        string     // printed under the dates as "Period <text>" when set: "Oct 21, 2026 to Nov 20, 2026"; only a Balance forward statement sets it
 	Company       pdfCompany // the seller, from books_settings
 	Parties       []pdfParty // "Bill to", "Ship to"
 	Lines         []pdfLine
@@ -46,6 +47,32 @@ type pdfDocument struct {
 	Totals        []pdfAmount // after the tax lines; the last prints bold
 	BigAmount     pdfAmount   // top right; Label "" prints none
 	Notes         string      // free text; line breaks kept
+	// Statement is a customer statement's table, printed in place of Lines and
+	// the summary; nil for every other document.
+	Statement *pdfStatement
+	// FileStem names the download when the kind names it from the document (a
+	// statement); "" for the kinds that name it themselves.
+	FileStem string
+}
+
+// pdfStatement is the table of a customer statement (statements spec §3.6):
+// its headings, the Balance forward opening line, one row per line, the Open
+// items aging line under it, and the text printed when it has no row.
+type pdfStatement struct {
+	Columns []string // the four headings, in print order
+	Opening *pdfAmount
+	Rows    []pdfStatementRow
+	Aging   []pdfAmount // five, in agingBands order; none for Balance forward
+	Empty   string
+}
+
+// pdfStatementRow is one line of a statement. A Balance forward row prints
+// Date, Activity, Amount and Balance (HasBalance); an Open items row prints
+// Date, Activity, Due and its open amount.
+type pdfStatementRow struct {
+	Date, Activity, Due       string
+	AmountCents, BalanceCents int64
+	HasBalance                bool
 }
 
 type pdfDate struct{ Label, Day string }
@@ -96,7 +123,7 @@ func (d pdfDocument) validate() error {
 	if utf8.RuneCountInString(d.Number) > maxPDFNumberLen {
 		return fmt.Errorf("books: pdf: number is longer than %d characters", maxPDFNumberLen)
 	}
-	if len(d.Totals) == 0 {
+	if len(d.Totals) == 0 && d.Statement == nil {
 		return fmt.Errorf("books: pdf: document has no totals row")
 	}
 	if !currencyCode.MatchString(d.Currency) {
@@ -128,6 +155,13 @@ func (d pdfDocument) validate() error {
 	for _, t := range d.Totals {
 		amounts = append(amounts, t.Cents)
 	}
+	if s := d.Statement; s != nil {
+		statementAmounts, err := s.validate()
+		if err != nil {
+			return err
+		}
+		amounts = append(amounts, statementAmounts...)
+	}
 	for _, a := range amounts {
 		if a > maxStoredAmount || a < -maxStoredAmount {
 			return fmt.Errorf("books: pdf: amount %d is past 2^53-1 cents", a)
@@ -136,12 +170,40 @@ func (d pdfDocument) validate() error {
 	return nil
 }
 
+// validate checks a statement table's size and days, and returns its amounts
+// for the caller's range check.
+func (s *pdfStatement) validate() ([]int64, error) {
+	if len(s.Rows) > maxPDFLines {
+		return nil, fmt.Errorf("books: pdf: %d statement lines is more than %d", len(s.Rows), maxPDFLines)
+	}
+	var amounts []int64
+	if s.Opening != nil {
+		amounts = append(amounts, s.Opening.Cents)
+	}
+	for _, r := range s.Rows {
+		if _, err := parseDay(r.Date); err != nil {
+			return nil, fmt.Errorf("books: pdf: statement line date: %w", err)
+		}
+		if r.Due != "" {
+			if _, err := parseDay(r.Due); err != nil {
+				return nil, fmt.Errorf("books: pdf: statement line due date: %w", err)
+			}
+		}
+		amounts = append(amounts, r.AmountCents, r.BalanceCents)
+	}
+	for _, a := range s.Aging {
+		amounts = append(amounts, a.Cents)
+	}
+	return amounts, nil
+}
+
 // pdfView is the document as the template prints it: every value a string.
 type pdfView struct {
 	Title, Number string
 	Dates         []pdfText
 	Payment       string
 	Source        string
+	Period        string
 	Company       pdfBlock
 	Parties       []pdfBlock
 	Rows          []pdfRow
@@ -149,6 +211,25 @@ type pdfView struct {
 	BigAmount     pdfText
 	Notes         []string
 	Brand         pdfBrand
+	// Statement is printed in place of Rows and Summary when set.
+	Statement *pdfStatementView
+}
+
+// pdfStatementView is a statement table as the template prints it: each row
+// has one cell per heading; Empty prints across the table when there is no
+// line; Aging prints under the table.
+type pdfStatementView struct {
+	Columns []pdfCell
+	Opening []pdfCell
+	Rows    [][]pdfCell
+	Empty   string
+	Aging   []pdfText
+}
+
+// pdfCell is one statement table cell; a figure aligns right.
+type pdfCell struct {
+	Text   string
+	Figure bool
 }
 
 type pdfText struct {
@@ -179,7 +260,7 @@ func pdfViewOf(doc pdfDocument, org branding.Org) pdfView {
 	money := func(cents int64) string { return formatMoney(cents, doc.Currency) }
 	v := pdfView{
 		Title: doc.Title, Number: doc.Number, Payment: strings.TrimSpace(doc.Payment),
-		Source: strings.TrimSpace(doc.Source), Brand: brandOf(org),
+		Source: strings.TrimSpace(doc.Source), Period: strings.TrimSpace(doc.Period), Brand: brandOf(org),
 	}
 	for _, d := range doc.Dates {
 		v.Dates = append(v.Dates, pdfText{Label: d.Label, Text: formatDay(d.Day)})
@@ -205,6 +286,14 @@ func pdfViewOf(doc pdfDocument, org branding.Org) pdfView {
 		block.Lines = append(block.Lines, formatAddressLines(p.Address)...)
 		v.Parties = append(v.Parties, block)
 	}
+	if doc.BigAmount.Label != "" {
+		v.BigAmount = pdfText{Label: doc.BigAmount.Label, Text: money(doc.BigAmount.Cents)}
+	}
+	v.Notes = lines(doc.Notes)
+	if doc.Statement != nil {
+		v.Statement = statementViewOf(*doc.Statement, money)
+		return v
+	}
 	for _, l := range doc.Lines {
 		v.Rows = append(v.Rows, rowOf(l, money))
 	}
@@ -219,10 +308,40 @@ func pdfViewOf(doc pdfDocument, org branding.Org) pdfView {
 		v.Summary = append(v.Summary, pdfText{Label: t.Label, Text: money(t.Cents)})
 	}
 	v.Summary[len(v.Summary)-1].Final = true
-	if doc.BigAmount.Label != "" {
-		v.BigAmount = pdfText{Label: doc.BigAmount.Label, Text: money(doc.BigAmount.Cents)}
+	return v
+}
+
+// statementViewOf formats a statement table: money with formatMoney, days
+// with formatDay; a blank due day prints nothing.
+func statementViewOf(s pdfStatement, money func(int64) string) *pdfStatementView {
+	v := &pdfStatementView{Empty: s.Empty}
+	for i, c := range s.Columns {
+		// Date and Activity align left; the last two columns (Amount and
+		// Balance, or Due date and Open amount) align right.
+		v.Columns = append(v.Columns, pdfCell{Text: c, Figure: i >= 2})
 	}
-	v.Notes = lines(doc.Notes)
+	if s.Opening != nil {
+		v.Opening = []pdfCell{{}, {Text: s.Opening.Label}, {Figure: true}, {Text: money(s.Opening.Cents), Figure: true}}
+	}
+	for _, r := range s.Rows {
+		row := []pdfCell{{Text: formatDay(r.Date)}, {Text: r.Activity}}
+		if r.HasBalance {
+			row = append(row, pdfCell{Text: money(r.AmountCents), Figure: true}, pdfCell{Text: money(r.BalanceCents), Figure: true})
+		} else {
+			due := ""
+			if r.Due != "" {
+				due = formatDay(r.Due)
+			}
+			row = append(row, pdfCell{Text: due, Figure: true}, pdfCell{Text: money(r.AmountCents), Figure: true})
+		}
+		v.Rows = append(v.Rows, row)
+	}
+	if len(s.Rows) > 0 {
+		v.Empty = ""
+	}
+	for _, a := range s.Aging {
+		v.Aging = append(v.Aging, pdfText{Label: a.Label, Text: money(a.Cents)})
+	}
 	return v
 }
 
