@@ -207,6 +207,37 @@ func explainStatements(t testing.TB, app core.App, statements []string) []planSt
 	return steps
 }
 
+// outsideLists is steps without the subtrees of a LIST SUBQUERY: SQLite
+// builds such a list once for its statement (core's cut of the rows to the
+// open sections reads gord in one), so a scan inside it reads no table again
+// for each row.
+func outsideLists(steps []planStep) []planStep {
+	type node struct{ statement, id int }
+	parent := map[node]int{}
+	var lists []node
+	for _, s := range steps {
+		parent[node{s.Statement, s.ID}] = s.Parent
+		if strings.HasPrefix(s.Detail, "LIST SUBQUERY") {
+			lists = append(lists, node{s.Statement, s.ID})
+		}
+	}
+	inList := func(s planStep) bool {
+		for id := s.ID; id != 0; id = parent[node{s.Statement, id}] {
+			if slices.Contains(lists, node{s.Statement, id}) {
+				return true
+			}
+		}
+		return false
+	}
+	var out []planStep
+	for _, s := range steps {
+		if !inList(s) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 // explainReading reads each statement's plan under reading, on ONE connection
 // (D10): a transaction that creates sqlite_stat1, sets its rows (or runs a real
 // ANALYZE), has the planner load them, explains, and rolls back. It returns
