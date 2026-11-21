@@ -487,11 +487,22 @@ func balanceLineKeys() []reports.SortKey {
 }
 
 // balanceDetailLabel labels an opened line "<date> · <type> <number> · <description>".
+// A line with no description has no trailing " · ". A reversal's type label
+// ("Void reversal of 1076") already holds its number when the entry reverses an
+// entry of the same number, so the number is not written again.
 func balanceDetailLabel() *reports.Node {
+	numberInType := op("and",
+		op("in", fld("entry", "origin"), lit(entryTypeLabels.ReversalOrigins)),
+		op("eq", fld("entry", "reverses", "number"), fld("entry", "number")),
+	)
+	typePart := op("if", numberInType,
+		lineEntryTypeLabel(),
+		op("concat", lineEntryTypeLabel(), lit(" "), fld("entry", "number")),
+	)
+	description := lineDescriptionFormula()
 	return op("concat",
-		fld("date"), lit(" · "),
-		lineEntryTypeLabel(), lit(" "), fld("entry", "number"),
-		lit(" · "), lineDescriptionFormula(),
+		fld("date"), lit(" · "), typePart,
+		op("if", op("isEmpty", description), lit(""), op("concat", lit(" · "), description)),
 	)
 }
 

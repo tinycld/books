@@ -1,18 +1,26 @@
 import { expect, type Page, test } from '@playwright/test'
+import { AP_AGING_TITLE } from '~/tinycld/books/lib/ap-aging-fixture'
+import {
+    AP_AGING_SHIPPED_KEY,
+    VENDOR_BALANCE_SHIPPED_KEY,
+} from '~/tinycld/books/lib/shipped-reports'
 import {
     VENDOR_BALANCE_EMPTY_DAY,
     VENDOR_BALANCE_SEED,
     VENDOR_BALANCE_TITLE,
 } from '~/tinycld/books/lib/vendor-balance-fixture'
 import { VENDORS } from '~/tinycld/books/lib/vendor-form-fixture'
-import { DESKTOP } from './account-register-helpers'
+import { DESKTOP, PHONE } from './account-register-helpers'
 import { apVendorWithBill, filterToVendors, payPartOfBill } from './ap-aging-helpers'
+import { freshPageWithReports } from './ar-aging-helpers'
+import { fakeReadOnlyAccess } from './banking-helpers'
 import { BILL_URL } from './bill-helpers'
 import {
     browserToday,
     chooseAsOf,
     dayWords,
     expectedHeading,
+    expectTableFits,
     type ReportSnapshot,
     reportLinesUnder,
     reportSnapshot,
@@ -22,6 +30,7 @@ import {
     centsOf,
     chooseBalanceOrder,
     chooseBalanceRows,
+    expectBalanceRowsFit,
     openBalanceRow,
 } from './customer-balance-helpers'
 import { BILL_EXPENSE_ACCOUNT, localDay, vendorWithBills } from './pay-bills-helpers'
@@ -33,7 +42,13 @@ import {
     vendorRowCents,
 } from './vendor-balance-helpers'
 import { postVendorCredit } from './vendor-credit-helpers'
-import { openVendor, openVendorsList, searchVendors, vendorEntry } from './vendor-form-helpers'
+import {
+    openVendor,
+    openVendorsList,
+    searchVendors,
+    vendorEntries,
+    vendorEntry,
+} from './vendor-form-helpers'
 
 // The Vendor Balance (vendor-balance checkpoint 1): the shipped report from the Books hub,
 // and the vendors each test creates through the UI, each bill due 30 days after today (so
@@ -309,6 +324,142 @@ test.describe('vendor-balance: report', () => {
             .slice(0, -1)
             .reduce((acc, record) => acc + (recordCents(record) ?? 0), 0)
         expect(total, 'the Total is the sum of every other record').toBe(sum)
+    })
+})
+
+// A prefix that, with uniqueName's stamp, makes a name of about 60 characters: long enough
+// to wrap to two lines at 375 and 390 (as LONG_VENDOR_PREFIX of books-ap-aging.spec.ts).
+const LONG_VENDOR_PREFIX = 'Cascade Mountain Industrial Freight Supply'
+
+// The widest figure of the fixture (spec §3 Phone: Balance is never cut).
+const WIDE_AMOUNT = '130115.25'
+
+/**
+ * Spec §3 "Phone" at `viewport`: at the default viewport a vendor with a long name and one
+ * bill of the widest figure, the report narrowed to it; then at the phone size the toolbar
+ * folds Customize into More, every mounted row has its label and Balance on one line band
+ * with the Balance whole, the vendor's label takes two or three lines, and nothing scrolls
+ * sideways, closed and with the vendor opened into its bill line.
+ */
+async function expectOpenedVendorFitsPhone(
+    page: Page,
+    viewport: { width: number; height: number }
+): Promise<void> {
+    await openBooks(page, DESKTOP)
+    const due = await localDay(page, 30)
+    const { vendor } = await apVendorWithBill(page, {
+        amount: WIDE_AMOUNT,
+        due,
+        name: uniqueName(LONG_VENDOR_PREFIX),
+    })
+    await openVendorBalance(page)
+    await filterToVendors(page, [vendor.name])
+    expect(vendorRowCents(await reportSnapshot(page), vendor.name)).toBe(13011525)
+
+    await page.setViewportSize(viewport)
+    // At a phone width the report toolbar moves its actions into More (lesson 13).
+    const more = page.getByTestId('toolbar-more-button')
+    await expect(more).toBeVisible()
+    await expect(page.getByTestId('report-customize-open')).toHaveCount(0)
+    const fit = { familyHeader: false, wrappedLabel: vendor.name }
+    await expectBalanceRowsFit(page, fit)
+
+    await openBalanceRow(page, vendor.name)
+    // The bill's line row is now mounted under the vendor.
+    await expectBalanceRowsFit(page, fit)
+    await expectTableFits(page)
+
+    await more.click()
+    await expect(page.getByRole('menuitem', { name: 'Customize', exact: true })).toBeVisible()
+    await expect(page.getByTestId('report-export-csv')).toHaveAttribute('role', 'menuitem')
+}
+
+test.describe('vendor-balance: entry points and phone rows', () => {
+    // No phone run: the header and the menu are the same component and logic at both widths.
+    test("the Vendors list's Reports menu lists Vendor Balance above A/P Aging, for a reader too, and draws only the reports that are found", async ({
+        page,
+    }) => {
+        await fakeReadOnlyAccess(page)
+        await openBooks(page, DESKTOP)
+        await openVendorsList(page)
+        // A reader page: the header shows the Reports menu and no New vendor button.
+        const reports = page.getByTestId('vendors-reports')
+        await expect(reports).toBeVisible()
+        await expect(page.getByTestId('vendor-new-header')).toHaveCount(0)
+        await reports.click()
+        const balance = page.getByTestId('vendors-reports-balance').filter({ visible: true })
+        const aging = page.getByTestId('vendors-reports-aging').filter({ visible: true })
+        await expect(balance).toHaveText('Vendor Balance')
+        await expect(aging).toHaveText('A/P Aging')
+        await expect
+            .poll(
+                async () => {
+                    const [balanceBox, agingBox] = await Promise.all([
+                        balance.boundingBox(),
+                        aging.boundingBox(),
+                    ])
+                    return balanceBox !== null && agingBox !== null && balanceBox.y < agingBox.y
+                },
+                { message: 'Vendor Balance is above A/P Aging in the menu' }
+            )
+            .toBe(true)
+        await balance.click()
+        await expect(page.getByTestId('report-screen')).toBeVisible()
+        await expect(page).toHaveURL(/\/a\/reports\//)
+        await expect(
+            page.getByTestId('report-document-title').filter({ visible: true })
+        ).toHaveText(VENDOR_BALANCE_TITLE)
+
+        // Only the A/P Aging is found: after the Vendor Balance read answered with no row,
+        // the menu holds the A/P Aging alone.
+        const agingOnly = await freshPageWithReports(page, [
+            { id: 'vbagingreport01', shipped_key: AP_AGING_SHIPPED_KEY, title: AP_AGING_TITLE },
+        ])
+        await openBooks(agingOnly.fresh, DESKTOP)
+        await openVendorsList(agingOnly.fresh)
+        await expect
+            .poll(
+                () =>
+                    agingOnly.answered.some(filter => filter.includes(VENDOR_BALANCE_SHIPPED_KEY)),
+                {
+                    message: 'the Vendors list got its answer for the Vendor Balance',
+                }
+            )
+            .toBe(true)
+        await agingOnly.fresh.getByTestId('vendors-reports').click()
+        await expect(
+            agingOnly.fresh.getByTestId('vendors-reports-aging').filter({ visible: true })
+        ).toHaveText('A/P Aging')
+        await expect(agingOnly.fresh.getByTestId('vendors-reports-balance')).toHaveCount(0)
+        await agingOnly.fresh.close()
+
+        // Neither report is found: after both reads answered with no row, the list's header
+        // draws no Reports menu, and the list itself shows.
+        const none = await freshPageWithReports(page, [])
+        await openBooks(none.fresh, DESKTOP)
+        await openVendorsList(none.fresh)
+        await expect
+            .poll(
+                () =>
+                    [VENDOR_BALANCE_SHIPPED_KEY, AP_AGING_SHIPPED_KEY].every(key =>
+                        none.answered.some(filter => filter.includes(key))
+                    ),
+                { message: 'the Vendors list got its answers for both reports' }
+            )
+            .toBe(true)
+        await expect(vendorEntries(none.fresh).first()).toBeVisible()
+        await expect(none.fresh.getByTestId('vendors-reports')).toHaveCount(0)
+        await none.fresh.close()
+    })
+
+    // Phone runs: the phone path is other code (core's phone row layout from the `display`
+    // block, the toolbar's More). 375 and 390 wrap differently (lesson 21).
+    test('an opened vendor reads on a 390 px phone with no sideways scroll', async ({ page }) => {
+        await expectOpenedVendorFitsPhone(page, PHONE)
+    })
+
+    test('an opened vendor reads on a 375 px phone with no sideways scroll', async ({ page }) => {
+        await expectOpenedVendorFitsPhone(page, { width: 375, height: 812 })
     })
 })
 

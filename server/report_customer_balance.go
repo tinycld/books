@@ -15,9 +15,10 @@ func customerBalanceShipped() reports.Shipped {
 		Title:       "Customer Balance",
 		Description: "What each customer owes on one day, from posted transactions on Accounts receivable accounts.",
 		Spec:        mustJSON(customerBalanceSpec()),
-		// 1: the first shipped spec. The report is unreleased, so later
-		// checkpoints keep 1 (core re-stores a spec only on a higher revision).
-		Revision:    1,
+		// 2: the detail label drops an empty description's " · " and a
+		// reversal's repeated number (p5-vendor-balance, Amendment 3). Core
+		// re-stores a shipped spec only on a higher revision.
+		Revision:    2,
 		Unpublished: true,
 	}
 }
