@@ -323,8 +323,8 @@ func TestCashBasisReport_ShippedSpecs(t *testing.T) {
 	}{
 		{profitAndLossShipped(), 3, "period"},
 		{profitAndLossByMonthShipped(), 3, "period"},
-		// 3 for the Method param, 4 for the stored months.
-		{balanceSheetShipped(), 4, "asOf"},
+		// 3 for the Method param, 4 for the stored months, 5 for the stored months on Cash.
+		{balanceSheetShipped(), 5, "asOf"},
 		{transactionDetailShipped(), 2, "period"},
 	}
 	for _, c := range cases {
