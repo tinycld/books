@@ -94,19 +94,18 @@ FROM books_journal_lines WHERE posted IS true GROUP BY account, substr(date, 1, 
 type glScaleRun struct {
 	name   string
 	params map[string]any
-	// filtered is a run with an Accounts filter: the unit's bar is its.
+	// filtered is a run with an Accounts filter.
 	filtered bool
-	// bar is the most the run's median may take at 500,000 lines; 0 for a
-	// run with no bar.
+	// bar is the most the run's median may take at 500,000 lines.
 	bar time.Duration
 }
 
-// The unit's bar at 500,000 lines (the human, 2026-11-20): a filtered run of
-// one month takes 1 s or less; a filtered run of a year may be slightly
-// over, which this measure holds to 2 s.
+// The bars at 500,000 lines (the human, 2026-11-20): a filtered run of one
+// month takes 1 s or less; a filtered run of a year and a run with no
+// Accounts filter take 2 s or less.
 const (
-	glMonthBar = time.Second
-	glYearBar  = 2 * time.Second
+	glMonthBar   = time.Second
+	glLongRunBar = 2 * time.Second
 )
 
 // glScaleRuns are the runs of the measure: the default period (this month to
@@ -118,12 +117,12 @@ func glScaleRuns(b glScaleBook) []glScaleRun {
 	year := glPeriod(b.lastDay[:5]+"01-01", b.lastDay)
 	three := []string{b.receivable.Id, b.incomes[0].Id, b.docs.checking.Id}
 	return []glScaleRun{
-		{name: "1 all accounts, month", params: map[string]any{"period": month}},
-		{name: "2 all accounts, year", params: map[string]any{"period": year}},
+		{name: "1 all accounts, month", params: map[string]any{"period": month}, bar: glLongRunBar},
+		{name: "2 all accounts, year", params: map[string]any{"period": year}, bar: glLongRunBar},
 		{name: "3 busy account, month", params: map[string]any{"period": month, "accounts": []string{b.receivable.Id}}, filtered: true, bar: glMonthBar},
 		// Rows: All, so the section shows also in a month with no line of it.
 		{name: "4 small account, month", params: map[string]any{"period": month, "rows": "all", "accounts": []string{b.incomes[0].Id}}, filtered: true, bar: glMonthBar},
-		{name: "5 three accounts, year", params: map[string]any{"period": year, "accounts": three}, filtered: true, bar: glYearBar},
+		{name: "5 three accounts, year", params: map[string]any{"period": year, "accounts": three}, filtered: true, bar: glLongRunBar},
 	}
 }
 
@@ -298,10 +297,11 @@ GROUP BY account ORDER BY count(*) DESC, account LIMIT 1`).Bind(days).Row(&incom
 }
 
 // TestGLScale measures each run at 10,000, 100,000 and 500,000 journal lines
-// (median of 5) and holds the unit's bar at 500,000 lines: a run with an
-// Accounts filter takes its bar or less (glMonthBar for a month, glYearBar for
-// a year). A run core refuses (its time limit) is recorded as refused; a
-// refused filtered run fails the bar. With BOOKS_SCALE_OUT=<dir> it writes
+// (median of 5) and holds the human's bar at 500,000 lines (2026-11-20): a
+// filtered month takes 1 s or less (glMonthBar), a filtered year and a run with
+// no Accounts filter 2 s or less (glLongRunBar). A run core refuses (its time
+// limit) is recorded as refused; a refused run fails the bar, as every run has
+// one. With BOOKS_SCALE_OUT=<dir> it writes
 // gl-results.md (the times) and gl-plans.md (each statement of each run at
 // each size: its time, its rows, its plan).
 func TestGLScale(t *testing.T) {
@@ -323,7 +323,7 @@ func TestGLScale(t *testing.T) {
 				if err != nil {
 					fmt.Fprintf(&results, "| %d | %s | refused after %s: %v | n/a |\n", b.lines, run.name, took.Round(time.Millisecond), err)
 					t.Logf("%s run %s: refused after %s: %v", size.name, run.name, took.Round(time.Millisecond), err)
-					if last && run.filtered {
+					if last && run.bar > 0 {
 						t.Errorf("run %s at %s lines was refused: %v", run.name, size.name, err)
 					}
 					continue
