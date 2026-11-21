@@ -922,3 +922,28 @@ The figures are the round of task 28a (above): core cfc3d9d6, books 3d77acc9, 20
 Both runs PASS and no run is refused; the rows and sections are the same as before. Load: General Ledger start 3.00 (quiet), statements start 6.34 (not quiet, a little high); the before figures ran at 7.8 to 9.3. The tree also holds task 28a, so a gain is not this task's alone.
 
 Not done here: nothing is left. The `gcut` limit of part 28 is an approved integer literal.
+
+#### All bars at 500k (2026-11-21)
+
+The human's bars: Trial Balance and Transaction Detail runs with an account filter, month: 1 s; every other run of every report: 2 s (the human, 2026-11-20). The General Ledger runs with no account filter got 2 s by Ruling #100. Each bar below is read from the test code (`report_general_ledger_scale_test.go`, `glMonthBar` 1 s and `glLongRunBar` 2 s, the runs at lines 120-125; `report_statements_scale_test.go`, lines 90-100).
+
+| report | run | bar | median at 500k | pass |
+|---|---|---|---|---|
+| General Ledger | 1 all accounts, month | 2s | 513ms | yes |
+| General Ledger | 2 all accounts, year | 2s | 1.759s | yes |
+| General Ledger | 3 busy account, month | 1s | 232ms | yes |
+| General Ledger | 4 small account, month | 1s | 168ms | yes |
+| General Ledger | 5 three accounts, year | 2s | 1.151s | yes |
+| Trial Balance | TB 1 all accounts, as of | 2s | 1.255s | yes |
+| Trial Balance | TB 2 busy account, as of | 1s | 511ms | yes |
+| Trial Balance | TB 3 three accounts, as of | 1s | 660ms | yes |
+| Balance Sheet | BS 1 accrual, as of | 2s | 916ms | yes |
+| Balance Sheet | BS 2 cash, as of | 2s | 1.218s | yes |
+| Transaction Detail | TD 1 all accounts, month | 2s | 207ms | yes |
+| Transaction Detail | TD 2 all accounts, year | 2s | 898ms | yes |
+| Transaction Detail | TD 3 busy account, month | 1s | 61ms | yes |
+| Transaction Detail | TD 4 small account, month | 1s | 19ms | yes |
+| Transaction Detail | TD 5 three accounts, year | 2s | 590ms | yes |
+| Transaction Detail | TD 6 busy account, month, cash | 1s | 73ms | yes |
+
+The round: core cfc3d9d6 (with ea0fee56), books 3d77acc9, 2026-11-21; load at start 3.00 (General Ledger, quiet) and 6.34 (statements, not quiet, a little high); every run passes its bar.
