@@ -42,6 +42,7 @@
 
 ## Performance
 (none yet — the measured results of spec §8, on the engine with p5-report-engine-scale merged)
+- cp 3 (engine: this branch, before p5-report-engine-scale; macOS dev machine; 2026-11-20; on dc06c23a + the uncommitted cp 3 test files): the query-plan bar "no step is a SCAN of a large table" fails in every run 1 to 7 (`MATERIALIZE w` → `SCAN books_journal_lines`). L not measured. S medians, median of 5 after one warm-up, no index added (an implementer probe, not the scale test): run 1 97.6 ms, 2 60.1, 3 99.1, 4 97.7, 5 55.2, 6 240.0, 7 473.3. Index added: none (a tried expression index was removed, see Checkpoint 3). The run stopped: see Checkpoint 3.
 
 ## Phase notes
 - phase 1: no corrections to the extractions. The packet was built on `books/p5-ap-aging`@edcdcff2; books PR #80 merged before the gate, so the branch starts from books main 9b54d607.
@@ -112,6 +113,19 @@
 - reviewer-caught deferrals: none
 - commit: the commit "feat(books): open a Vendor Balance vendor into its posted lines" (this ledger row is in it)
 - human: none (review mode C)
+
+## Checkpoint 3 — STOPPED: core SQL fails a performance bar
+- test writer: server/report_scale_harness_test.go (the payables bulk writer moved in, D13), server/report_ap_aging_scale_test.go (moved code out, `writeAPAgingDataset`, its four tests call it, no assertion changed; `go test -run 'TestAPAging'` ok; `git diff --color-moved` shows the move), server/report_vendor_balance_scale_test.go (new: `TestVendorBalanceQueryPlans`, `TestVendorBalanceRunsAgreeWithSmallBook`, `TestVendorBalanceScale`); red for the right reason: yes (`TestVendorBalanceQueryPlans`: no `testdata/vendor_balance_stat1.json`; `TestVendorBalanceRunsAgreeWithSmallBook` green on the real report and red under `go test -overlay` with `vbNet` = debit − credit; `TestVendorBalanceScale` skipped without `BOOKS_SCALE=1`); untestable: none. The first test-writer dispatch ended on an API usage limit in the middle of the move; a second dispatch checked the appended block against the A/P file (only `apLargeTables` kept in place and D13's three lines differ) and finished it. Reports `cp3-tests.md`.
+- test writer finding: with no statistics, every run 1 to 7 fails the bar `step "SCAN books_journal_lines" scans books_journal_lines or books_journal_entries (each must be read by SEARCH)` (18 failures, the same bar).
+- implementer: STOPPED (Performance rule). No repo change. Report `cp3-impl.md`.
+  - **Statement** (run 1, statement 4; the same in runs 1 to 7): `w AS MATERIALIZED (SELECT … FROM r0 t1 LEFT JOIN r1 t2 ON t2.id = t1.vendor LEFT JOIN r2 t3 ON t3.id = t1.account WHERE ((t1.posted IS true) AND (NULLIF(t3.type, '') IS 'accounts_payable') AND (NULLIF(substr(t1.date, 1, 10), '') <= ?)))`.
+  - **Plan** (no statistics and after ANALYZE): `MATERIALIZE w` · `SCAN books_journal_lines` · `SEARCH books_vendors … LEFT-JOIN` · `SEARCH books_accounts … LEFT-JOIN`.
+  - **Why no index fixes it:** core writes `eq` as `IS` (`tinycld/core/server/reports/formula.go:859`, checked by the runner) and joins a relation field by `LEFT JOIN` (`stmt.go:310`, `:378`). `IS` is not null-rejecting, so SQLite keeps the LEFT JOIN and `books_journal_lines` is the outer loop; the existing `idx_books_jlines_account_date (account, date)` cannot be reached through the account. `posted IS true` is a truth test no index serves (an index `(posted, account, vendor, date)` left the SCAN). The only usable index, an expression index on `NULLIF(substr(date, 1, 10), '')` (core `fieldSQL`, `stmt.go:262-271`), tried as `pb-migrations/2100000033_index_books_journal_lines_date.js`: passes with no statistics, but after ANALYZE runs 1, 3, 4, 5, 6, 7 return to `SCAN books_journal_lines` (on the default day every line is on or before As of) and every S median is slower (130/68/131/130/83/346/578 ms). Removed; a copy is in the lane cp folder.
+  - **Time:** S medians above (Performance). L not measured.
+  - **Core change that would fix it:** a required to-one relation filter written null-rejecting (`=` or an inner join) and `posted = 1` for a boolean `eq true`; then `idx_books_jlines_account_date` serves the read with no Books index. The Customer Balance (`receivableLines`, the same shape) has the same plan; it has no scale test (Q8).
+- open question for the human: is this fixed by p5-report-engine-scale (Q13; the results of record are on that engine), by a core task, or does checkpoint 3 wait for that merge? Plan D14 has checkpoint 3 prove the bars on this branch's engine first.
+- the checkpoint's code is in the tree, staged and not committed: the three test files above. Gate 1, gate 3: not run. Commit: this ledger alone.
+- also seen (checkpoint 2's area, not acted on): run 6 of the small book labels a void reversal line "2022-11-08 · Void reversal of 1076 1076 · Void of 1076" (the number is in the type label and again as the number; `cp3-tests-dump.txt` line 23).
 
 ## Final review
 - eval: (unattended only) approved | revised → <notes, fix sha> | stopped
