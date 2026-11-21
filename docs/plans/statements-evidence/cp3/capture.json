@@ -1,0 +1,139 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/statements/new",
+            "ready": "statements-tick-all",
+            "height": 1900,
+            "actions": [{ "click": "statements-title" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "open-items",
+            "url": "/a/books/statements/new",
+            "ready": "statements-create",
+            "height": 1900,
+            "schemes": ["light"],
+            "actions": [
+                { "click": "statements-type" },
+                { "click": "statements-type-open_items" },
+                { "waitForHidden": "statements-start" },
+                { "click": "statements-title" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "one-customer",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "height": 2300,
+            "schemes": ["light"],
+            "actions": [
+                {
+                    "idFromText": "Aspen Ridge Dental",
+                    "goto": "/a/books/statements/new?customer=$urlId"
+                },
+                { "waitFor": "Total balance of 1 customer" },
+                { "click": "statements-title" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "overdue",
+            "url": "/a/books/statements/new",
+            "ready": "statements-create",
+            "height": 1200,
+            "schemes": ["light"],
+            "actions": [
+                { "click": "statements-filter" },
+                { "click": "statements-filter-overdue" },
+                { "pause": 500 },
+                { "click": "statements-title" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "none",
+            "url": "/a/books/statements/new",
+            "ready": "statements-create",
+            "height": 1900,
+            "schemes": ["light"],
+            "actions": [
+                { "waitFor": "statements-tick-all" },
+                { "click": "statements-tick-all" },
+                { "waitFor": "No customer selected" },
+                { "click": "statements-title" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/statements/new",
+            "ready": "statements-empty",
+            "height": 900,
+            "schemes": ["light"],
+            "emptyRecords": "books_customers",
+            "hideLabels": ["New", "Reconnecting…"]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/statements/new",
+            "ready": "statements-loading",
+            "height": 900,
+            "schemes": ["light"],
+            "fakeRecords": { "collection": "books_customers", "hold": true },
+            "hideLabels": ["New", "Reconnecting…"]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/statements/new",
+            "ready": "statements-retry",
+            "height": 900,
+            "schemes": ["light"],
+            "fakeRecords": { "collection": "books_customers", "status": 400 },
+            "hideLabels": ["New", "Reconnecting…"]
+        },
+        {
+            "name": "no-write",
+            "url": "/a/books/statements/new",
+            "ready": "statements-message",
+            "height": 900,
+            "schemes": ["light"],
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "hideLabels": ["New", "Reconnecting…"]
+        },
+        {
+            "name": "saving",
+            "url": "/a/books/customers",
+            "ready": "customers-list",
+            "height": 1900,
+            "schemes": ["light"],
+            "writes": { "collection": "books_statements", "answers": ["hold"] },
+            "actions": [
+                {
+                    "idFromText": "Aspen Ridge Dental",
+                    "goto": "/a/books/statements/new?customer=$urlId"
+                },
+                { "waitFor": "Total balance of 1 customer" },
+                { "click": "statements-save" },
+                { "waitFor": "Saving…" }
+            ],
+            "hideLabels": ["New"]
+        }
+    ]
+}

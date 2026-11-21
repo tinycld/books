@@ -40,6 +40,8 @@ A table that the setting hides still shows on a bill, expense or vendor credit t
 
 To change how entries are numbered, open Settings and choose Numbering. Each document type has a card with a prefix and a next number, such as Invoices and Estimates. A new prefix applies to entries posted from now on (on the Estimates card, to estimates saved from now on, because an estimate takes its number when you first save it), and numbers already issued do not change. The next number can move forward only, so it never repeats a number. If a number is already used, Books shows a message under Next number.
 
+The **Statements** card numbers customer statements. A statement takes its number when it is saved, so a preview uses none, and its next number cannot be set at or below the number of a stored statement. See [Customer statements](help://books:statements).
+
 ## 1099s
 
 To set up 1099 reporting, open Settings and choose 1099s. The section has three cards:

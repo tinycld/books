@@ -15,8 +15,9 @@ export type CustomerRoute = RecordRoute
 
 export type OpenCustomer = OpenRecord
 
-export function customerPath(id: string): CustomerRoute {
-    return recordPath(CUSTOMERS_PATH, id)
+// `params` (the page's `tab`) follow the id in the route's search params.
+export function customerPath(id: string, params?: Record<string, string>): CustomerRoute {
+    return recordPath(CUSTOMERS_PATH, id, params)
 }
 
 export function newCustomerPath(parentId?: string): CustomerRoute {

@@ -188,7 +188,7 @@ func reportSources() []reports.Source {
 	return sources
 }
 
-// auditLogSource is the books_audit_log view (migration 2100000032): one row
+// auditLogSource is the books_audit_log view (migration 2100000034): one row
 // per audit row of a Books record. The view's computed columns are text, so
 // event, event_shown, record_type and parent_type are Selects over text
 // columns. event is what the Event filter matches; event_shown is what the

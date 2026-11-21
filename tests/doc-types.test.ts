@@ -121,6 +121,16 @@ describe('write_off doc type', () => {
     })
 })
 
+// The seeded `statement` row (booksseqstatemt) gets the "Statements" card; a statement
+// takes its number when it is saved, as an estimate does (statements spec §3.1, §4.8).
+describe('statement doc type', () => {
+    it('names the Numbering card "Statements", says saved and previews the next statement', () => {
+        expect(docTypeLabel('statement')).toBe('Statements')
+        expect(sequenceHelper('statement')).toContain('statements saved from now on')
+        expect(nextNumberPreview('statement', 'ST-', '1001')).toBe('Next statement: ST-1001')
+    })
+})
+
 describe('sequenceHelper', () => {
     it('says a new estimate prefix applies to estimates saved from now on', () => {
         expect(sequenceHelper('estimate')).toBe(

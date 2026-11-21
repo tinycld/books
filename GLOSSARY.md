@@ -107,3 +107,13 @@ _Avoid_: ID, reference
 **Override**:
 Time-limited permission for one user to post on or before the Closed Through Date. An admin grants it and gives a reason.
 _Avoid_: Unlock, reopen
+
+**Customer Statement**:
+A numbered summary for one Customer of what it owes, saved and sent by email as a PDF. It posts nothing. Its type is Balance Forward or Open Items.
+_Avoid_: Bank statement (a bank's record of an account, used in Reconciliation), invoice
+
+**Balance Forward**:
+A Customer Statement type: the Customer's balance before a period, each Accounts receivable line of the period with the running balance, and the amount due on the period's last day.
+
+**Open Items**:
+A Customer Statement type: each invoice, payment, credit or journal line of the Customer that is still open on the statement date, by due date, with the amount due and an aging line.

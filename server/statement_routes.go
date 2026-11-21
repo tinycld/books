@@ -1,0 +1,401 @@
+package books
+
+import (
+	"context"
+	"database/sql"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/mail"
+	"strings"
+	"time"
+
+	"github.com/pocketbase/pocketbase/apis"
+	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/router"
+	"github.com/pocketbase/pocketbase/tools/types"
+
+	"tinycld.org/core/mailer"
+	"tinycld.org/core/ratelimit"
+	"tinycld.org/core/reports"
+)
+
+// The statement preview and send routes (statements spec §3.5, §4.4). Like
+// the PDF routes they are session only: they are not in the OAuth
+// registration, so core's grant middleware denies them to every token.
+
+// The whole-request and per-statement texts of the routes.
+const (
+	msgStatementTooMany       = "Select at most 200 customers. Narrow the list with Customer balance."
+	msgStatementEmailLimit    = "You have sent 500 statement emails in the last hour. Try again later."
+	msgStatementEmailNotSetUp = "Email sending is not set up."
+	msgStatementFileTooLarge  = "The statement PDF is larger than 10 MB."
+	msgStatementNotSent       = "The email could not be sent. Try again."
+	// A format with the refused address.
+	msgStatementRecipientRefused = "The email server refused %s. Correct the address and send again."
+	msgStatementAddress          = "Enter a valid email address."
+	msgStatementNoAccess         = "You do not have write access to Books."
+	msgStatementNoCustomer       = "Select at least one customer."
+	msgStatementNoStatement      = "Select at least one statement."
+	msgStatementType             = "Choose Balance forward or Open items"
+	msgStatementNotFound         = "Document not found."
+	msgStatementSentNotSaved     = "The email was sent, but the statement could not be marked as sent."
+	msgStatementBadRequest       = "The request is not valid."
+)
+
+// maxStatementsPerRequest bounds one preview or send.
+const maxStatementsPerRequest = 200
+
+// maxStatementFileBytes is the largest statement PDF the send attaches. A var
+// so a test can lower it.
+var maxStatementFileBytes = 10 << 20
+
+// statementSendTries is how many times one statement's delivery is tried when
+// the sender returns an error: the first try and 2 retries (spec §3.5).
+const statementSendTries = 3
+
+// statementSendRetryPause is the pause between two tries of one delivery. A
+// var so a test can set it to 0.
+var statementSendRetryPause = 2 * time.Second
+
+// statementSender is the sender of statement emails; a test replaces it.
+var statementSender = mailer.DefaultSender
+
+// statementEmailLimiter allows each user 500 statement emails an hour.
+var statementEmailLimiter = ratelimit.NewPerApp("books.statements.send", 500, time.Hour)
+
+func bindStatementRoutes(e *core.ServeEvent) {
+	e.Router.POST("/api/books/statements/preview", serveStatementPreview)
+	e.Router.POST("/api/books/statements/send", serveStatementSend)
+}
+
+// requireStatementWriter refuses a caller with no session, a disabled account
+// or no Books write access.
+func requireStatementWriter(re *core.RequestEvent) error {
+	if re.Auth == nil {
+		return re.UnauthorizedError("Sign in to use statements.", nil)
+	}
+	// A token minted before the account was disabled still authenticates, and a
+	// raw route has no collection rule to refuse it (servePDF).
+	if re.Auth.GetBool("disabled") {
+		return re.ForbiddenError("Your account is disabled.", nil)
+	}
+	level, err := levelFor(re.App, re.Auth)
+	if err != nil {
+		return err
+	}
+	if !level.CanWrite() {
+		return re.ForbiddenError(msgStatementNoAccess, nil)
+	}
+	return nil
+}
+
+// decodeStatementBody reads one JSON object with no unknown field and nothing
+// after it.
+func decodeStatementBody(re *core.RequestEvent, into any) error {
+	dec := json.NewDecoder(re.Request.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(into); err != nil {
+		log.WarnContext(re.Request.Context(), "decode a statement request", "err", err)
+		return re.BadRequestError(msgStatementBadRequest, nil)
+	}
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		log.WarnContext(re.Request.Context(), "decode a statement request: data after the first object", "err", err)
+		return re.BadRequestError(msgStatementBadRequest, nil)
+	}
+	return nil
+}
+
+type statementPreviewBody struct {
+	Type          string   `json:"type"`
+	StatementDate string   `json:"statement_date"`
+	StartDate     string   `json:"start_date"`
+	EndDate       string   `json:"end_date"`
+	Customers     []string `json:"customers"`
+}
+
+// serveStatementPreview answers one PDF of the statements of the customers
+// with the options given, each on a new page, with no number; nothing is
+// stored.
+func serveStatementPreview(re *core.RequestEvent) error {
+	if err := requireStatementWriter(re); err != nil {
+		return err
+	}
+	info, err := re.RequestInfo()
+	if err != nil {
+		return err
+	}
+	var body statementPreviewBody
+	if err := decodeStatementBody(re, &body); err != nil {
+		return err
+	}
+	if body.Type != statementTypeBalanceForward && body.Type != statementTypeOpenItems {
+		return refuseField("type", msgStatementType)
+	}
+	if err := checkStatementDates(body.Type, body.StatementDate, body.StartDate, body.EndDate); err != nil {
+		return err
+	}
+	switch {
+	case len(body.Customers) == 0:
+		return re.BadRequestError(msgStatementNoCustomer, nil)
+	case len(body.Customers) > maxStatementsPerRequest:
+		return re.BadRequestError(msgStatementTooMany, nil)
+	}
+	ctx := re.Request.Context()
+	docs := make([]pdfDocument, 0, len(body.Customers))
+	for _, id := range body.Customers {
+		customer, err := reports.FindViewableRecord(re.App, info, "books_customers", id)
+		if errors.Is(err, sql.ErrNoRows) {
+			return re.NotFoundError("Customer not found.", nil)
+		}
+		if err != nil {
+			return err
+		}
+		data, err := buildStatementData(ctx, re.App, re.Auth, statementInput{
+			Type: body.Type, StatementDate: body.StatementDate, StartDate: body.StartDate, EndDate: body.EndDate,
+			Customer: customer,
+		})
+		if err != nil {
+			return re.InternalServerError("Could not create the PDF.", err)
+		}
+		docs = append(docs, statementPDFDocument(data))
+	}
+	pdf, err := renderDocumentsPDF(re, docs)
+	if err != nil {
+		return re.InternalServerError("Could not create the PDF.", err)
+	}
+	return sendPDF(re, "statements-preview-"+body.StatementDate, pdf)
+}
+
+type statementSendItem struct {
+	ID string `json:"id"`
+	To string `json:"to"`
+}
+
+type statementSendBody struct {
+	Statements []statementSendItem `json:"statements"`
+}
+
+type statementSendFailure struct {
+	ID      string `json:"id"`
+	Message string `json:"message"`
+}
+
+// serveStatementSend emails each statement to its address with its PDF, and
+// saves the sent fields. A statement that fails is listed with its message
+// and the others go on.
+func serveStatementSend(re *core.RequestEvent) error {
+	if err := requireStatementWriter(re); err != nil {
+		return err
+	}
+	info, err := re.RequestInfo()
+	if err != nil {
+		return err
+	}
+	var body statementSendBody
+	if err := decodeStatementBody(re, &body); err != nil {
+		return err
+	}
+	switch {
+	case len(body.Statements) == 0:
+		return re.BadRequestError(msgStatementNoStatement, nil)
+	case len(body.Statements) > maxStatementsPerRequest:
+		return re.BadRequestError(msgStatementTooMany, nil)
+	}
+	// CaptureLogOn first: CanDeliver asks the provider for its token.
+	if !mailer.CaptureLogOn() && !mailer.CanDeliver(re.App) {
+		return re.BadRequestError(msgStatementEmailNotSetUp, nil)
+	}
+	sender, ok := statementSender(re.App).(mailer.FullSender)
+	if !ok {
+		return re.BadRequestError(msgStatementEmailNotSetUp, nil)
+	}
+	business, err := loadStatementBusiness(re.App)
+	if err != nil {
+		return err
+	}
+	sent := []*core.Record{}
+	failed := []statementSendFailure{}
+	// Once one statement has failed all its tries, the outage is known: each later
+	// statement gets one try, so a request of 200 answers inside the server's
+	// write timeout (spec §3.5 "Retries").
+	tries := statementSendTries
+	for _, item := range body.Statements {
+		record, msg, outage := sendStatement(re, info, sender, business, item, tries)
+		if outage {
+			tries = 1
+		}
+		if msg != "" {
+			failed = append(failed, statementSendFailure{ID: item.ID, Message: msg})
+			continue
+		}
+		sent = append(sent, record)
+	}
+	if err := apis.EnrichRecords(re, sent); err != nil {
+		return re.InternalServerError("", err)
+	}
+	return re.JSON(http.StatusOK, map[string]any{"sent": sent, "failed": failed})
+}
+
+// sendStatement sends one statement, trying its delivery at most tries times,
+// and saves its sent fields; a message is its failure. outage is true when
+// every try of the delivery failed with a sender error.
+func sendStatement(
+	re *core.RequestEvent, info *core.RequestInfo, sender mailer.FullSender,
+	business statementBusiness, item statementSendItem, tries int,
+) (record *core.Record, msg string, outage bool) {
+	ctx := re.Request.Context()
+	record, err := reports.FindViewableRecord(re.App, info, statementsCollection, item.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, msgStatementNotFound, false
+	}
+	if err != nil {
+		log.ErrorContext(ctx, "read a statement to send", "statement", item.ID, "err", err)
+		return nil, msgStatementNotSent, false
+	}
+	to := strings.TrimSpace(item.To)
+	if !isOneBareAddress(to) || !statementFieldsTake(ctx, re.App, record, to) {
+		return nil, msgStatementAddress, false
+	}
+	data, err := buildStoredStatementData(ctx, re.App, re.Auth, record)
+	if err != nil {
+		log.ErrorContext(ctx, "build a statement to send", "statement", item.ID, "err", err)
+		return nil, msgStatementNotSent, false
+	}
+	doc := statementPDFDocument(data)
+	pdf, err := renderDocumentsPDF(re, []pdfDocument{doc})
+	if err != nil {
+		log.ErrorContext(ctx, "render a statement to send", "statement", item.ID, "err", err)
+		return nil, msgStatementNotSent, false
+	}
+	if len(pdf) > maxStatementFileBytes {
+		return nil, msgStatementFileTooLarge, false
+	}
+	// The token is taken here, once for all the tries, so only a statement that
+	// reaches the send counts against the hour's 500 emails.
+	if !statementEmailLimiter.For(re.App).Allow(re.Auth.Id) {
+		return nil, msgStatementEmailLimit, false
+	}
+	message := statementEmail(data, business)
+	request := &mailer.SendRequest{
+		From:     (&mail.Address{Name: oneLine(business.Name), Address: mailer.FromAddress(re.App)}).String(),
+		To:       []mailer.Recipient{{Email: to}},
+		ReplyTo:  re.Auth.Email(),
+		Subject:  message.Subject,
+		TextBody: message.Text,
+		Attachments: []mailer.Attachment{{
+			Name:        doc.FileStem + ".pdf",
+			ContentType: "application/pdf",
+			Content:     base64.StdEncoding.EncodeToString(pdf),
+		}},
+	}
+	msg, outage = deliverStatement(ctx, sender, request, item.ID, to, tries)
+	if msg != "" {
+		return nil, msg, outage
+	}
+	if err := saveStatementSent(re, record, to); err != nil {
+		log.ErrorContext(ctx, "save a sent statement", "statement", item.ID, "err", err)
+		var apiErr *router.ApiError
+		if errors.As(err, &apiErr) {
+			return nil, apiErr.Message, false
+		}
+		return nil, msgStatementSentNotSaved, false
+	}
+	return record, "", false
+}
+
+// deliverStatement hands one statement email to the sender, and tries again
+// after a pause when the sender returns an error (a transport or provider
+// error, which can pass), at most tries times in all. An error that comes after
+// the provider accepted the message is retried too, so in that rare case the
+// customer can get the email twice (spec §3.5). A recipient the email server
+// refused is a permanent refusal: it fails at once. A message is the failure;
+// "" is a delivery. outage is true when every try failed with a sender error.
+func deliverStatement(
+	ctx context.Context, sender mailer.FullSender, request *mailer.SendRequest, id, to string, tries int,
+) (msg string, outage bool) {
+	for try := 1; ; try++ {
+		result, err := sender.SendFull(ctx, request)
+		if err == nil {
+			if result != nil && len(result.FailedRecipients) > 0 {
+				log.WarnContext(ctx, "the email server refused a statement's recipient",
+					"statement", id, "reason", result.FailedRecipients[0].Reason)
+				return fmt.Sprintf(msgStatementRecipientRefused, to), false
+			}
+			return "", false
+		}
+		if try >= tries {
+			log.ErrorContext(ctx, "send a statement", "statement", id, "try", try, "err", err)
+			return msgStatementNotSent, true
+		}
+		log.WarnContext(ctx, "send a statement, will try again", "statement", id, "try", try, "err", err)
+		if !pauseBeforeRetry(ctx) {
+			log.ErrorContext(ctx, "send a statement: the request ended before a retry",
+				"statement", id, "try", try, "err", ctx.Err())
+			return msgStatementNotSent, false
+		}
+	}
+}
+
+// pauseBeforeRetry waits statementSendRetryPause, and is false when the
+// request's context ends first.
+func pauseBeforeRetry(ctx context.Context) bool {
+	timer := time.NewTimer(statementSendRetryPause)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
+// isOneBareAddress is true for one email address with no display name and a
+// dot in its domain (testdata/statement_email_cases.json).
+func isOneBareAddress(to string) bool {
+	addr, err := mail.ParseAddress(to)
+	if err != nil || addr.Name != "" || addr.Address != to {
+		return false
+	}
+	at := strings.LastIndexByte(to, '@')
+	return at > 0 && strings.Contains(to[at+1:], ".")
+}
+
+// statementFieldsTake is true when the statement's email and sent_to fields
+// each take to, by their own validators (the sent_to max of 320 characters,
+// PocketBase's email format), so an address is refused before its email is
+// sent and never fails the save after it.
+func statementFieldsTake(ctx context.Context, app core.App, record *core.Record, to string) bool {
+	probe := core.NewRecord(record.Collection())
+	for _, name := range []string{"email", "sent_to"} {
+		field := record.Collection().Fields.GetByName(name)
+		if field == nil {
+			return false
+		}
+		probe.Set(name, to)
+		if err := field.ValidateValue(ctx, app, probe); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+// saveStatementSent sets the sent fields and saves the row through the
+// update-request hook chain, as the record API does, so the audit hook bound
+// there writes the "updated" row with the changes; a plain app.Save writes no
+// audit row.
+func saveStatementSent(re *core.RequestEvent, record *core.Record, to string) error {
+	record.Set("email", to)
+	record.Set("sent_at", types.NowDateTime())
+	record.Set("sent_to", to)
+	event := new(core.RecordRequestEvent)
+	event.RequestEvent = re
+	event.Collection = record.Collection()
+	event.Record = record
+	return re.App.OnRecordUpdateRequest(statementsCollection).Trigger(event, func(e *core.RecordRequestEvent) error {
+		return e.App.Save(e.Record)
+	})
+}

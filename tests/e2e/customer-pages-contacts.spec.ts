@@ -226,6 +226,9 @@ test.describe('customer-pages: contacts tab', () => {
         const idB = await addContact(page, { name: nameB, role: 'Owner', primary: true })
         const idA = await addContact(page, { name: nameA, role: oldRole })
         await expect.poll(() => contactIds(page)).toEqual([idB, idA])
+        // The second dialog was opened from Add contact and hands the focus back to it;
+        // the Tab walk to A's row menu starts from there.
+        await expect(page.getByTestId('customer-contacts-add')).toBeFocused()
 
         // No click from here.
         await editFromKeyboard(page, idA)
@@ -239,6 +242,9 @@ test.describe('customer-pages: contacts tab', () => {
         await expect(primarySwitch(page)).toBeChecked()
         await page.keyboard.press('ControlOrMeta+Enter')
         await expect(dialog).toBeHidden()
+        // The menu row put the focus on its trigger before it opened the dialog, so the
+        // dialog hands it back there; the next edit's Tab walk starts from it.
+        await expect(page.getByTestId(`customer-contact-menu-${idA}`)).toBeFocused()
 
         // A is primary, with its new role, and sorts first; B lost its badge.
         await expect(contact(page, idA)).toContainText(newRole)

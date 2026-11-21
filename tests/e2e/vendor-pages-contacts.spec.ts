@@ -168,6 +168,9 @@ test.describe('vendor-pages: vendor contacts', () => {
         await expect(dialog).toBeVisible()
         await page.keyboard.press('Escape')
         await expect(dialog).toBeHidden()
+        // The dialog hands the focus back to its opener one frame after it closes; the next
+        // Tab walk starts from there.
+        await expect(emptyAdd).toBeFocused()
 
         const firstId = await addFromKeyboard(page, emptyAdd, first)
         // The empty state and its button are gone: the focus returns to the header's Add
@@ -183,6 +186,9 @@ test.describe('vendor-pages: vendor contacts', () => {
 
         // A second primary: the server clears the first's mark, and the second sorts first.
         const secondId = await addFromKeyboard(page, add, second)
+        // The dialog hands the focus back to Add contact; the Tab walk to the row menu
+        // starts from there.
+        await expect(add).toBeFocused()
         await expect(page.getByTestId(`vendor-contact-primary-${secondId}`)).toHaveText('Primary')
         await expect(page.getByTestId(`vendor-contact-primary-${firstId}`)).toHaveCount(0)
         await expect.poll(() => contactIds(page)).toEqual([secondId, firstId])
@@ -197,6 +203,9 @@ test.describe('vendor-pages: vendor contacts', () => {
         await page.keyboard.type(newRole)
         await page.keyboard.press('ControlOrMeta+Enter')
         await expect(dialog).toBeHidden()
+        // The menu row put the focus on its trigger before it opened the dialog, so the
+        // dialog hands it back there.
+        await expect(page.getByTestId(`vendor-contact-menu-${firstId}`)).toBeFocused()
         await expect(firstRow).toContainText(newRole)
         await expect(firstRow).not.toContainText(first.role)
 
