@@ -243,8 +243,8 @@ func TestBalanceSheetSpecLoads(t *testing.T) {
 	if shipped.Description != "What the business owns and owes on one day, beside the same day a year earlier." {
 		t.Errorf("description = %q", shipped.Description)
 	}
-	if shipped.Revision != 5 || !shipped.Unpublished {
-		t.Errorf("revision %d, unpublished %v; want revision 5 (the stored months on Cash too), shipped unpublished", shipped.Revision, shipped.Unpublished)
+	if shipped.Revision != 6 || !shipped.Unpublished {
+		t.Errorf("revision %d, unpublished %v; want revision 6 (the drill's first day from the stored months), shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	built, err := json.Marshal(balanceSheetSpec())
 	if err != nil {
@@ -1164,7 +1164,7 @@ func TestBalanceSheetShippedUnpublished(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "Balance Sheet" || row.GetInt("shipped_revision") != 5 || row.GetString("source") != "books.basis_lines" {
+	if row.GetString("title") != "Balance Sheet" || row.GetInt("shipped_revision") != 6 || row.GetString("source") != "books.basis_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {

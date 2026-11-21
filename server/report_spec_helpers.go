@@ -82,12 +82,26 @@ func firstLine(d *reports.Node) *reports.Node {
 	return firstLineWhere("books.journal_lines", d)
 }
 
-// firstBasisLine is the day of the account row's first posted line on or
-// before day d on the run's method (books.basis_lines under basisFilter):
-// where a Balance Sheet drill's range starts, so it holds every line a
-// balance on d sums. No value when the account has no such line.
-func firstBasisLine(d *reports.Node) *reports.Node {
-	return firstLineWhere("books.basis_lines", d, basisFilter())
+// firstBasisMonth is the first day of the first month, on or before day d, in
+// which the account row has a posted line on the run's method: where a Balance
+// Sheet drill's range starts, so it holds every line a balance on d sums. It
+// reads the account's stored months (books_account_balances: one row for each
+// month with a posted ledger line), not its lines, so its cost does not grow
+// with them; on Cash also the month of the account's first cash-basis row,
+// which no stored month holds. No value when the account has neither.
+func firstBasisMonth(d *reports.Node) *reports.Node {
+	stored := &reports.Node{
+		Op:     "lookup",
+		Source: "books.account_balances",
+		Where:  op("and", op("eq", link("account"), tdAccount()), op("lte", fld("month_start"), d)),
+		Value:  mustJSON(fld("month_start")),
+		Pick:   "min",
+	}
+	cash := op("startOfMonth", firstLineWhere("books.basis_lines", d, onCash(), onCashLayer()))
+	// The earlier of the two; either may have no value. Core's min takes
+	// numbers only, so the days are compared.
+	a, b := op("coalesce", stored, cash), op("coalesce", cash, stored)
+	return op("if", op("lte", a, b), a, b)
 }
 
 // firstLineFY is the day of the account row's first posted journal line on or
