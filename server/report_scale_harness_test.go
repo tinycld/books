@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -631,4 +632,609 @@ func arPlanText(steps []planStep) string {
 		b.WriteString(strings.Repeat("  ", max(depth[s.ID], 0)) + s.Detail + "\n")
 	}
 	return b.String()
+}
+
+// apLastDay is the last day of every dataset and the reader's day of every
+// run: the runs' default As of (Today) is the last day of the data.
+const apLastDay = apToday
+
+const (
+	apKindBill        = "bill"
+	apKindPayment     = "bill_payment"
+	apKindCredit      = "vendor_credit"
+	apKindApplication = "application" // a vendor credit application: no entry, no number
+	apKindRefund      = "vendor_refund"
+	apKindJournal     = "journal"
+)
+
+const (
+	apBills        = "books_bills"
+	apPayments     = "books_bill_payments"
+	apPaymentLines = "books_bill_payment_lines"
+	apCredits      = "books_vendor_credits"
+	apApplications = "books_vendor_credit_applications"
+	apRefunds      = "books_vendor_refunds"
+	apRefundLines  = "books_vendor_refund_lines"
+)
+
+// apTableColumns are the columns of each table posting writes (all of them).
+var apTableColumns = map[string][]string{
+	arEntries: arTableColumns[arEntries],
+	arLines:   arTableColumns[arLines],
+	apBills: {"balance", "created", "currency", "date", "due_date", "entry", "fields", "form", "id", "mailing_address",
+		"memo", "number", "posted_at", "posted_by", "ref_no", "replaced_by", "replaces", "revision", "sequence", "sort_key",
+		"status", "subtotal", "terms", "total", "updated", "vendor", "voided_at", "voided_by"},
+	apPayments: {"created", "currency", "date", "entry", "id", "number", "paid_from", "payment_method", "posted_at",
+		"posted_by", "reference_no", "replaced_by", "replaces", "sequence", "sort_key", "status", "total", "updated",
+		"vendor", "voided_at", "voided_by"},
+	apPaymentLines: {"amount", "bill", "created", "id", "payment", "position", "updated"},
+	apCredits: {"balance", "created", "currency", "date", "entry", "fields", "form", "id", "memo", "number", "posted_at",
+		"posted_by", "ref_no", "replaced_by", "replaces", "revision", "sequence", "sort_key", "status", "subtotal", "total",
+		"updated", "vendor", "voided_at", "voided_by"},
+	apApplications: {"amount", "applied_by", "bill", "close_override", "created", "date", "id", "vendor_credit"},
+	apRefunds: {"amount", "created", "currency", "date", "entry", "id", "memo", "number", "payment_method", "posted_at",
+		"posted_by", "reference_no", "refunded_to", "replaced_by", "replaces", "sequence", "sort_key", "status", "updated",
+		"vendor", "voided_at", "voided_by"},
+	apRefundLines: {"amount", "created", "id", "position", "refund", "updated", "vendor_credit"},
+}
+
+// apSize is one dataset size, chosen so that the generated book has the row
+// counts of the spec §9 table (apSpecTable) within 5 %: openBills stay open
+// (partPaid of them part paid), closedBills are paid in full by one payment
+// line each, pairPayments of the payments pay two bills of one vendor,
+// voidPayments pay part of a closed bill and are voided; fullApplied credits
+// are applied whole and partApplied in part to an open bill, refunded credits
+// are refunded whole; manual are manual Accounts payable lines, one in ten
+// with no vendor.
+type apSize struct {
+	name                                        string
+	lines, vendors                              int
+	openBills, partPaid, closedBills, voidBills int
+	pairPayments, voidPayments                  int
+	fullApplied, partApplied, refunded          int
+	manual                                      int
+	// plan, when set, is written as it is in place of a generated book.
+	plan []apDoc
+}
+
+var (
+	// apSmall is the plan check's book (about 500 lines) with every row kind
+	// of the §9 table.
+	apSmall = apSize{
+		name: "small", lines: 500, vendors: 30,
+		openBills: 15, partPaid: 3, closedBills: 80, voidBills: 2, pairPayments: 8, voidPayments: 3,
+		fullApplied: 3, partApplied: 2, refunded: 2, manual: 10,
+	}
+	// Spec §9's counts cannot all hold at once: 10,000 bills with 9,000
+	// payment lines leave about 850 or more open items, against "about 800".
+	// So S and L write bills 3 % under the table (9,700 and 97,000), inside
+	// arWithin's 5 %.
+	apS = apSize{
+		name: "S", lines: 50000, vendors: 200,
+		openBills: 650, partPaid: 50, closedBills: 8950, voidBills: 100, pairPayments: 1100, voidPayments: 100,
+		fullApplied: 100, partApplied: 50, refunded: 50, manual: 100,
+	}
+	apL = apSize{
+		name: "L", lines: 500000, vendors: 2000,
+		openBills: 6500, partPaid: 500, closedBills: 89500, voidBills: 1000, pairPayments: 11000, voidPayments: 1000,
+		fullApplied: 1000, partApplied: 500, refunded: 500, manual: 1000,
+	}
+)
+
+// apCounts are the row counts of the spec §9 table.
+type apCounts struct {
+	lines, vendors, bills, payments, paymentLines, credits, applications int
+	refunds, manual, voidBills, voidPayments, openItems                  int
+}
+
+// apSpecTable is the spec §9 Dataset table.
+var apSpecTable = map[string]apCounts{
+	"S": {lines: 50000, vendors: 200, bills: 10000, payments: 8000, paymentLines: 9000, credits: 200, applications: 150,
+		refunds: 50, manual: 100, voidBills: 100, voidPayments: 100, openItems: 800},
+	"L": {lines: 500000, vendors: 2000, bills: 100000, payments: 80000, paymentLines: 90000, credits: 2000, applications: 1500,
+		refunds: 500, manual: 1000, voidBills: 1000, voidPayments: 1000, openItems: 8000},
+}
+
+// apPart is cents of a payment line or a refund line on the plan document at
+// index doc (a bill, a vendor credit).
+type apPart struct{ doc, cents int }
+
+// apDoc is one document of a dataset plan.
+type apDoc struct {
+	kind   string
+	vendor string
+	date   string
+	due    string // a bill's due day
+	// cents is a bill's or vendor credit's total, an application's amount.
+	cents int
+	parts []apPart // a bill payment's or vendor refund's lines
+	// bill and credit are an application's bill and vendor credit (plan indexes).
+	bill, credit int
+	lines        []arJELine // a journal entry's lines, in position order
+	memo         string     // a journal entry's memo
+	void         bool       // voided, with its reversal entry
+	actor        string     // who saved and posted it ("" for postJournal's entries)
+	voider       string     // who voided it
+}
+
+// apWritten are the ids the writer gave one document of the plan.
+type apWritten struct {
+	kind, id, entry, number string
+	lines, parts            []string
+	reversal                string
+	reversalLines           []string
+}
+
+// apItem is one open item of the writer's record: its vendor ("" for none)
+// and what the business owes on it (a vendor credit is negative).
+type apItem struct {
+	vendor string
+	owed   int
+}
+
+// apDataset is a written book: its days, its vendors, what the runs of spec §9
+// pick from it, and the writer's record of the open items on the last and the
+// middle day (item id → item).
+type apDataset struct {
+	size                      apSize
+	firstDay, midDay, lastDay string
+	vendors                   []string
+	// picked are the five vendors of run 4.
+	picked []string
+	// busiest is the vendor with the most open items (run 5), busiestBill its
+	// oldest open bill that has a payment (run 6).
+	busiest, busiestBill string
+	// vendorKey and itemKey are the group keys of the busiest vendor's row and
+	// of busiestBill's row, as a run gives them.
+	vendorKey, itemKey []any
+	docs               []apWritten
+	// plan is what the writer wrote, in the order of docs.
+	plan              []apDoc
+	openLast, openMid map[string]apItem
+}
+
+// writeAPDataset writes size's book to b in one transaction, straight to the
+// tables through the shared row writer, with the columns posting writes:
+// vendors through the app (their guards set the sort keys), every posted row
+// by batched inserts, then the stored payable rows by payableItems.rebuild.
+func writeAPDataset(t *testing.T, b apBook, size apSize) apDataset {
+	t.Helper()
+	data := apDataset{size: size, firstDay: arDay(0), midDay: arDay(arDayCount() / 2), lastDay: apLastDay}
+	var plan []apDoc
+	err := b.app.RunInTransaction(func(tx core.App) error {
+		plan = size.plan
+		busiestBill := -1
+		if plan == nil {
+			data.vendors = make([]string, size.vendors)
+			for i := range data.vendors {
+				data.vendors[i] = mkVendor(t, tx, arClip(fmt.Sprintf("Vendor %05d", i))).Id
+			}
+			plan, busiestBill = apGeneratePlan(t, b, size, &data)
+		}
+		w := newARWriter(t, tx, apTableColumns, apKindBill, apKindPayment, apKindCredit, apKindRefund, apKindJournal)
+		data.docs = apWrite(w, plan, b)
+		if busiestBill >= 0 {
+			data.busiestBill = data.docs[busiestBill].id
+		}
+		w.finish()
+		return payableItems.rebuild(tx)
+	})
+	if err != nil {
+		t.Fatalf("write the %s dataset: %v", size.name, err)
+	}
+	data.plan = plan
+	data.openLast = apRecord(plan, data.docs, b.payable.Id, data.lastDay)
+	data.openMid = apRecord(plan, data.docs, b.payable.Id, data.midDay)
+	return data
+}
+
+// apGeneratePlan builds size's documents from a fixed seed. It returns the
+// plan and the plan index of the busiest vendor's oldest part-paid bill.
+func apGeneratePlan(t testing.TB, b apBook, size apSize, data *apDataset) ([]apDoc, int) {
+	t.Helper()
+	rng := rand.New(rand.NewPCG(20261120, uint64(size.lines)))
+	actor, voider := b.users.bookkeeper.Id, b.users.admin.Id
+	vendors := data.vendors
+	n := arDayCount()
+	anyVendor := func() string { return vendors[rng.IntN(len(vendors))] }
+	cents := func() int { return 5000 + rng.IntN(495000) }
+	later := func(day, most int) int { return min(day+rng.IntN(most+1), n-1) }
+
+	var plan []apDoc
+	var days []int
+	add := func(d apDoc, day int) int {
+		d.date, d.actor = arDay(day), actor
+		if d.void {
+			d.voider = voider
+		}
+		plan = append(plan, d)
+		days = append(days, day)
+		return len(plan) - 1
+	}
+	bill := func(vendor string, day int, void bool) int {
+		return add(apDoc{kind: apKindBill, vendor: vendor, due: arDay(day + 30), cents: cents(), void: void}, day)
+	}
+	payment := func(vendor string, day int, void bool, parts ...apPart) int {
+		return add(apDoc{kind: apKindPayment, vendor: vendor, parts: parts, void: void}, day)
+	}
+
+	busiestOpen := min(size.openBills, max(size.openBills/20, 5))
+	open := make([]int, size.openBills)
+	for k := range open {
+		v := anyVendor()
+		if k < busiestOpen {
+			v = vendors[0]
+		}
+		open[k] = bill(v, rng.IntN(n), false)
+	}
+	closed := make([]int, size.closedBills)
+	for k := range closed {
+		closed[k] = bill(anyVendor(), rng.IntN(n), false)
+	}
+	for range size.voidBills {
+		bill(anyVendor(), rng.IntN(n), true)
+	}
+
+	partPaid := map[int]bool{}
+	for _, bl := range open[:size.partPaid] {
+		payment(plan[bl].vendor, later(days[bl], 30), false, apPart{doc: bl, cents: plan[bl].cents / 2})
+		partPaid[bl] = true
+	}
+
+	byVendor := map[string][]int{}
+	for _, bl := range closed {
+		byVendor[plan[bl].vendor] = append(byVendor[plan[bl].vendor], bl)
+	}
+	pairsLeft := size.pairPayments
+	var singles []int
+	for _, v := range vendors {
+		list := byVendor[v]
+		for len(list) >= 2 && pairsLeft > 0 {
+			x, y := list[0], list[1]
+			list = list[2:]
+			pairsLeft--
+			payment(v, later(max(days[x], days[y]), 45), false,
+				apPart{doc: x, cents: plan[x].cents}, apPart{doc: y, cents: plan[y].cents})
+		}
+		singles = append(singles, list...)
+	}
+	if pairsLeft > 0 || len(singles) < size.voidPayments {
+		t.Fatalf("%s: the closed bills cannot make %d two-bill payments", size.name, size.pairPayments)
+	}
+	for _, bl := range singles {
+		payment(plan[bl].vendor, later(days[bl], 45), false, apPart{doc: bl, cents: plan[bl].cents})
+	}
+	// A void payment paid part of a bill that a later payment closes: it reads
+	// as never applied.
+	for _, bl := range singles[:size.voidPayments] {
+		payment(plan[bl].vendor, days[bl], true, apPart{doc: bl, cents: max(plan[bl].cents/3, 1)})
+	}
+
+	// Vendor credits: applied whole or in part to an open bill (never part
+	// paid, so each application leaves the bill open), or refunded whole.
+	applied := open[size.partPaid:]
+	if len(applied) < size.fullApplied+size.partApplied {
+		t.Fatalf("%s: %d open bills cannot take %d applications", size.name, len(applied), size.fullApplied+size.partApplied)
+	}
+	for k := range size.fullApplied + size.partApplied {
+		target := applied[k]
+		amount := 1000 + rng.IntN(4000)
+		day := rng.IntN(n)
+		credit := add(apDoc{kind: apKindCredit, vendor: plan[target].vendor, cents: amount}, day)
+		part := amount
+		if k >= size.fullApplied {
+			part = amount / 2
+		}
+		add(apDoc{kind: apKindApplication, vendor: plan[target].vendor, cents: part, bill: target, credit: credit},
+			later(max(day, days[target]), 30))
+	}
+	for range size.refunded {
+		amount := 1000 + rng.IntN(4000)
+		day := rng.IntN(n)
+		credit := add(apDoc{kind: apKindCredit, vendor: anyVendor(), cents: amount}, day)
+		add(apDoc{kind: apKindRefund, vendor: plan[credit].vendor, parts: []apPart{{doc: credit, cents: amount}}},
+			later(day, 30))
+	}
+
+	for k := range size.manual {
+		v := anyVendor()
+		if k%10 == 9 {
+			v = ""
+		}
+		amount := cents()
+		ap := arJELine{account: b.payable.Id, credit: amount, vendor: v}
+		other := arJELine{account: b.expense.Id, debit: amount}
+		if rng.IntN(5) == 0 {
+			ap.debit, ap.credit, other.debit, other.credit = amount, 0, 0, amount
+		}
+		add(apDoc{kind: apKindJournal, memo: arClip("A/P adjustment"), lines: []arJELine{ap, other}}, rng.IntN(n))
+	}
+
+	entries := 0
+	for _, d := range plan {
+		if d.kind == apKindApplication {
+			continue
+		}
+		entries++
+		if d.void {
+			entries++
+		}
+	}
+	rest := size.lines - 2*entries
+	if rest < 0 || rest%2 != 0 {
+		t.Fatalf("%s: %d entries leave %d journal lines for the other entries, want an even number of 0 or more", size.name, entries, rest)
+	}
+	for range rest / 2 {
+		amount := cents()
+		add(apDoc{kind: apKindJournal, memo: arClip("Rent"), lines: []arJELine{
+			{account: b.expense.Id, debit: amount},
+			{account: b.bank.Id, credit: amount},
+		}}, rng.IntN(n))
+	}
+
+	// The busiest vendor and run 4's five vendors read the plan's own record
+	// of the last day; the ids are not written yet, so the record is keyed by
+	// plan index here.
+	counts := map[string]int{}
+	for _, it := range apPlanOpen(plan, b.payable.Id, data.lastDay) {
+		counts[it.vendor]++
+	}
+	for _, v := range vendors {
+		if counts[v] > counts[data.busiest] {
+			data.busiest = v
+		}
+	}
+	for _, v := range vendors[1:] {
+		if len(data.picked) < 5 && counts[v] > 0 && v != data.busiest {
+			data.picked = append(data.picked, v)
+		}
+	}
+	if len(data.picked) < 5 {
+		t.Fatalf("%s: fewer than five vendors have an open item", size.name)
+	}
+	oldest := -1
+	for bl := range partPaid {
+		if plan[bl].vendor == data.busiest && (oldest < 0 || days[bl] < days[oldest] || (days[bl] == days[oldest] && bl < oldest)) {
+			oldest = bl
+		}
+	}
+	if oldest < 0 {
+		t.Fatalf("%s: the busiest vendor has no part-paid bill", size.name)
+	}
+	return plan, oldest
+}
+
+// apPlanOpen is the plan's open items on day, keyed by "<plan index>" for a
+// document and "<plan index>/<position>" for a manual line.
+func apPlanOpen(plan []apDoc, payable, day string) map[string]apItem {
+	ids := make([]apWritten, len(plan))
+	for i, d := range plan {
+		ids[i] = apWritten{id: fmt.Sprint(i)}
+		for pos := range d.lines {
+			ids[i].lines = append(ids[i].lines, fmt.Sprintf("%d/%d", i, pos))
+		}
+	}
+	return apRecord(plan, ids, payable, day)
+}
+
+// apRecord is the writer's record of the open items on day: a bill owes its
+// total less its payment lines and applications dated on or before day, a
+// vendor credit is minus its total less its applications and refund lines
+// dated on or before day, and a manual Accounts payable line owes its credit
+// less its debit. A void document and a void payment are none. An item that
+// owes 0 is not open.
+func apRecord(plan []apDoc, written []apWritten, payable, day string) map[string]apItem {
+	owed := map[int]int{}
+	for _, d := range plan {
+		if d.void || d.date > day {
+			continue
+		}
+		switch d.kind {
+		case apKindPayment:
+			for _, p := range d.parts {
+				owed[p.doc] -= p.cents
+			}
+		case apKindRefund:
+			for _, p := range d.parts {
+				owed[p.doc] += p.cents
+			}
+		case apKindApplication:
+			owed[d.bill] -= d.cents
+			owed[d.credit] += d.cents
+		}
+	}
+	out := map[string]apItem{}
+	for i, d := range plan {
+		if d.void || d.date > day {
+			continue
+		}
+		switch d.kind {
+		case apKindBill:
+			if v := d.cents + owed[i]; v != 0 {
+				out[written[i].id] = apItem{vendor: d.vendor, owed: v}
+			}
+		case apKindCredit:
+			if v := -d.cents + owed[i]; v != 0 {
+				out[written[i].id] = apItem{vendor: d.vendor, owed: v}
+			}
+		case apKindJournal:
+			for pos, l := range d.lines {
+				if l.account == payable && l.credit != l.debit {
+					out[written[i].lines[pos]] = apItem{vendor: l.vendor, owed: l.credit - l.debit}
+				}
+			}
+		}
+	}
+	return out
+}
+
+// apWrite writes plan with w and returns the ids it gave each document.
+func apWrite(w *arWriter, plan []apDoc, b apBook) []apWritten {
+	w.t.Helper()
+	out := make([]apWritten, len(plan))
+	for i, d := range plan {
+		out[i] = apWritten{kind: d.kind}
+		switch d.kind {
+		case apKindBill:
+			out[i].id = w.id("b")
+		case apKindPayment:
+			out[i].id = w.id("p")
+		case apKindCredit:
+			out[i].id = w.id("c")
+		case apKindApplication:
+			out[i].id = w.id("a")
+			continue
+		case apKindRefund:
+			out[i].id = w.id("r")
+		}
+		out[i].entry = w.id("e")
+		if out[i].id == "" {
+			out[i].id = out[i].entry
+		}
+	}
+	// What each bill and vendor credit has left: posting keeps a document's
+	// balance, which a void payment does not move.
+	used := map[int]int{}
+	for _, d := range plan {
+		switch {
+		case d.void:
+		case d.kind == apKindPayment || d.kind == apKindRefund:
+			for _, p := range d.parts {
+				used[p.doc] += p.cents
+			}
+		case d.kind == apKindApplication:
+			used[d.bill] += d.cents
+			used[d.credit] += d.cents
+		}
+	}
+	for i, d := range plan {
+		apWriteDoc(w, d, &out[i], out, used[i], b)
+	}
+	return out
+}
+
+// apWriteDoc writes one document as posting leaves it: the document row, its
+// entry and lines, a payment's or refund's lines, and for a void the voided
+// marks and the reversal entry with its lines. An application is its one row.
+func apWriteDoc(w *arWriter, d apDoc, wr *apWritten, all []apWritten, used int, b apBook) {
+	w.t.Helper()
+	stamp := d.date + " 12:00:00.000Z"
+	if d.kind == apKindApplication {
+		w.row(apApplications, map[string]any{
+			"id": wr.id, "amount": d.cents, "applied_by": d.actor, "bill": all[d.bill].id, "close_override": "",
+			"created": stamp, "date": d.date, "vendor_credit": all[d.credit].id,
+		})
+		return
+	}
+	seq := w.next[d.kind]
+	w.next[d.kind]++
+	number := formatNumber(w.prefix[d.kind], seq)
+	wr.number = number
+	status, voidedAt, voidedBy := statusPosted, "", ""
+	if d.void {
+		status, voidedAt, voidedBy = statusVoid, stamp, d.voider
+	}
+	sortKey := fmt.Sprintf("%s %010d%s%s", d.date, seq, sortIDSep, wr.id)
+	common := func(values map[string]any) map[string]any {
+		values["id"], values["created"], values["updated"] = wr.id, stamp, stamp
+		values["currency"], values["vendor"], values["date"], values["entry"] = "USD", d.vendor, d.date, wr.entry
+		values["number"], values["sequence"], values["sort_key"] = number, seq, sortKey
+		values["posted_at"], values["posted_by"], values["status"] = stamp, d.actor, status
+		values["replaced_by"], values["replaces"], values["voided_at"], values["voided_by"] = "", "", voidedAt, voidedBy
+		return values
+	}
+	// parts writes a payment's or refund's lines and returns their sum.
+	parts := func(table, parent, docField string) int {
+		sum := 0
+		for pos, p := range d.parts {
+			sum += p.cents
+			id := w.id("q")
+			wr.parts = append(wr.parts, id)
+			w.row(table, map[string]any{
+				"id": id, "amount": p.cents, "created": stamp, "updated": stamp,
+				docField: all[p.doc].id, parent: wr.id, "position": pos,
+			})
+		}
+		return sum
+	}
+	total, revision, origin, document, memo := d.cents, 1, "document", wr.id, ""
+	var lines []arJELine
+	switch d.kind {
+	case apKindBill:
+		balance := d.cents - used
+		if d.void {
+			balance = 0
+		}
+		lines = []arJELine{
+			{account: b.payable.Id, credit: d.cents, vendor: d.vendor},
+			{account: b.expense.Id, debit: d.cents, vendor: d.vendor},
+		}
+		w.row(apBills, common(map[string]any{
+			"balance": balance, "due_date": d.due, "fields": nil, "form": "", "mailing_address": nil, "memo": "",
+			"ref_no": "", "revision": 3, "subtotal": d.cents, "terms": "", "total": d.cents,
+		}))
+	case apKindPayment:
+		total = parts(apPaymentLines, "payment", "bill")
+		names := make([]string, len(d.parts))
+		for i, p := range d.parts {
+			names[i] = "Bill " + all[p.doc].number
+		}
+		memo = "Payment of " + strings.Join(names, ", ")
+		lines = []arJELine{
+			{account: b.payable.Id, debit: total, vendor: d.vendor},
+			{account: b.bank.Id, credit: total, vendor: d.vendor},
+		}
+		w.row(apPayments, common(map[string]any{
+			"paid_from": b.bank.Id, "payment_method": "check", "reference_no": "", "total": total,
+		}))
+	case apKindCredit:
+		balance := d.cents - used
+		if d.void {
+			balance = 0
+		}
+		lines = []arJELine{
+			{account: b.payable.Id, debit: d.cents, vendor: d.vendor},
+			{account: b.expense.Id, credit: d.cents, vendor: d.vendor},
+		}
+		w.row(apCredits, common(map[string]any{
+			"balance": balance, "fields": nil, "form": "", "memo": "", "ref_no": "", "revision": 3,
+			"subtotal": d.cents, "total": d.cents,
+		}))
+	case apKindRefund:
+		total = parts(apRefundLines, "refund", "vendor_credit")
+		lines = []arJELine{
+			{account: b.bank.Id, debit: total, vendor: d.vendor},
+			{account: b.payable.Id, credit: total, vendor: d.vendor},
+		}
+		w.row(apRefunds, common(map[string]any{
+			"amount": total, "memo": "", "payment_method": "", "reference_no": "", "refunded_to": b.bank.Id,
+		}))
+	default:
+		lines, origin, document, memo = d.lines, "manual", "", d.memo
+		total = 0
+		for _, l := range lines {
+			total += l.debit
+		}
+		// A manual entry is saved, then each line, then it posts: each step
+		// moves its revision.
+		revision = 2 + len(lines)
+	}
+	w.entry(map[string]any{
+		"id": wr.entry, "created_by": d.actor, "date": d.date, "doc_type": d.kind, "document": document,
+		"memo": memo, "number": number, "origin": origin, "posted_at": stamp, "posted_by": d.actor,
+		"reverses": "", "revision": revision, "sequence": seq, "status": status, "total": total,
+		"created": stamp, "updated": stamp, "voided_at": voidedAt, "voided_by": voidedBy,
+	})
+	wr.lines = w.lines(wr.entry, d.date, stamp, lines, false)
+	if !d.void {
+		return
+	}
+	wr.reversal = w.id("e")
+	w.entry(map[string]any{
+		"id": wr.reversal, "created_by": d.voider, "date": d.date, "doc_type": d.kind, "document": "",
+		"memo": arClip("Void of " + number), "number": number, "origin": "void_reversal", "posted_at": stamp,
+		"posted_by": d.voider, "reverses": wr.entry, "revision": 1, "sequence": seq, "status": statusPosted,
+		"total": total, "created": stamp, "updated": stamp, "voided_at": "", "voided_by": "",
+	})
+	wr.reversalLines = w.lines(wr.reversal, d.date, stamp, lines, true)
 }

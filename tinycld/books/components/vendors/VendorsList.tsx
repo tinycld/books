@@ -14,7 +14,7 @@ import {
     recordMenuItems,
     recordMenuTestIds,
 } from '../../lib/record-menu'
-import { AP_AGING_SHIPPED_KEY } from '../../lib/shipped-reports'
+import { AP_AGING_SHIPPED_KEY, VENDOR_BALANCE_SHIPPED_KEY } from '../../lib/shipped-reports'
 import { vendorListCopy } from '../../lib/vendor-display'
 import { VENDOR_LOAD_ERROR } from '../../lib/vendor-messages'
 import { VENDORS_PATH } from '../../lib/vendor-route'
@@ -56,10 +56,17 @@ export function VendorsList({ openId, layout }: { openId: string; layout: ListLa
     const list = useRecordList(filters, source)
     const loadError = list.viewState === 'error' ? VENDOR_LOAD_ERROR : null
     // Null while the report loads, when its read fails and when the reader has none:
-    // then there is no menu and the list stays usable; the live query shows it once it
-    // loads.
+    // then that item is not drawn (ShippedReportsMenu keeps only items with an href),
+    // the list stays usable, and the live query shows the item once the report loads.
+    const balanceHref = useShippedReportHref(VENDOR_BALANCE_SHIPPED_KEY)
     const agingHref = useShippedReportHref(AP_AGING_SHIPPED_KEY)
     const reportItems = [
+        {
+            key: VENDOR_BALANCE_SHIPPED_KEY,
+            label: 'Vendor Balance',
+            href: balanceHref,
+            testID: 'vendors-reports-balance',
+        },
         {
             key: AP_AGING_SHIPPED_KEY,
             label: 'A/P Aging',
@@ -68,7 +75,7 @@ export function VendorsList({ openId, layout }: { openId: string; layout: ListLa
         },
     ]
     // Undefined, not a menu that renders null, so the header draws no empty button group.
-    const hasReport = agingHref !== null
+    const hasReport = balanceHref !== null || agingHref !== null
     const reportsMenu = hasReport ? (
         <ShippedReportsMenu items={reportItems} testID="vendors-reports" />
     ) : undefined

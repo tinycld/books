@@ -1,7 +1,7 @@
 ---
 title: Run and customize a report
 summary: Pick a report, set its period and filters, and change how its numbers look.
-tags: [reports, trial balance, general ledger, balance sheet, journal, profit and loss, transaction detail, sales tax liability, customer balance, a/r aging, Audit Log]
+tags: [reports, trial balance, general ledger, balance sheet, journal, profit and loss, transaction detail, sales tax liability, customer balance, a/r aging, vendor balance, Audit Log]
 order: 60
 ---
 
@@ -291,7 +291,7 @@ The report adds the posted transactions on your Accounts receivable accounts, da
 - A credit balance, for example after an overpayment, is a negative figure, and a family's Total and the report's Total subtract it.
 - An inactive customer with a balance shows with "(inactive)" after its name, in lighter text.
 
-To see the transactions behind a balance, press the customer row: it opens into its transactions, one row for each posted line, in date order. Each transaction shows its date, its type and number, and its description, for example "2026-10-14 · Invoice 1042 · Catering deposit". An invoice is a positive figure and a payment a negative one, and the transactions add up to the customer's balance. To open a transaction's document, press its row: the invoice, payment or journal entry opens beside the report on a very wide window, else as its own screen. To fold a family, press its heading.
+To see the transactions behind a balance, press the customer row: it opens into its transactions, one row for each posted line, in date order. Each transaction shows its date, its type and number, and its description, for example "2026-10-14 · Invoice 1042 · Catering deposit". A transaction with no description ends after its number. An invoice is a positive figure and a payment a negative one, and the transactions add up to the customer's balance. To open a transaction's document, press its row: the invoice, payment or journal entry opens beside the report on a very wide window, else as its own screen. To fold a family, press its heading.
 
 To change the day, press the As of chip. The default is Today.
 
@@ -419,6 +419,36 @@ The report stays current. When someone posts or voids a bill, a bill payment, a 
 
 On a phone, each row wraps onto lines in the table: the name and the Due date; then Current, 1 - 30 and Total on the first line of figures; then 31 - 60, 61 - 90 and 91 and over. On a tablet, each row keeps the name and Total on its first line, and shows the Due date and the five age columns below them. A narrow desktop window shows the tablet arrangement too. A long name wraps to at most three lines, a figure is never cut, and the table does not scroll sideways. Customize and Export are under **⋯** on a phone.
 
+## Read the Vendor Balance report
+
+To see what you owe each vendor on a day, open Reports and choose Vendor Balance. You can also press Reports at the top of the Vendors list, then Vendor Balance. The heading shows your business name, Vendor Balance, and the day, for example "As of November 16, 2026".
+
+The report adds the posted transactions on your Accounts payable accounts, dated on or before the As of day. A draft does not count. A voided document does not count, because its void reversal cancels the original. A vendor's balance is its credits minus its debits on those accounts, so a figure is what you owe.
+
+- Each vendor row equals the Open balance on the [vendor's page](help://books:vendor-pages) for the same day (the Open figure, or the Credit figure when the vendor owes you).
+- Each vendor row also equals the vendor's Total in the A/P Aging for the same day.
+- The Total row at the end equals Accounts payable on the Balance Sheet for the same day.
+- These figures agree because the report, the vendor's page, the A/P Aging and the Balance Sheet add the same posted Accounts payable lines up to that day. Each line names at most one vendor, so it counts in exactly one vendor row, and the No vendor row holds the lines that name none.
+- The No vendor row adds the Accounts payable lines that name no vendor, such as an opening balance or a journal entry with no name. Because the report includes those lines, the Total equals the Balance Sheet. The row shows after every vendor.
+- A negative figure is money the vendor owes you, for example a vendor credit that is not applied to a bill, and the report's Total subtracts it.
+- An inactive vendor with a balance shows with "(inactive)" after its name, in lighter text.
+
+To see the transactions behind a balance, press the vendor row: it opens into its transactions, one row for each posted line, in date order. Each transaction shows its date, its type and number, and its description, for example "2026-10-14 · Bill 1042 · Office chairs". A transaction with no description ends after its number. A bill and a vendor refund are positive figures, and a bill payment and a vendor credit are negative ones, and the transactions add up to the vendor's balance. A vendor credit that you apply to a bill has no row, because the apply does not change what you owe the vendor. To open a transaction's document, press its row: the bill, bill payment, vendor credit, vendor refund or journal entry opens as its own screen.
+
+To change the day, press the As of chip. The default is Today. When no posted Accounts payable line is on or before the day, the report shows "No rows as of" and the day.
+
+To choose which vendors show, press the Rows chip. Non-zero, the default, shows each vendor whose balance is not 0. With activity also shows a vendor whose transactions add up to 0, for example a bill that is paid in full.
+
+To show only some vendors, press Add filter, then Vendor, and pick one or more vendors, inactive vendors included. Then press Apply. With vendors picked, the No vendor row does not show, and a line under the date names your picks. To remove the filter, press the × on the Vendor chip.
+
+To change the order, press the Order chip. Name, the default, orders the vendors by name. Largest balance puts the largest balance first. The No vendor row stays last in both.
+
+To see the open bills with their due dates and how late they are, read the A/P Aging instead. The Vendor Balance shows one figure for each vendor and the transactions behind it.
+
+The report stays current. When someone posts or voids a bill, a bill payment, a vendor credit, a vendor refund or a journal entry, renames a vendor, changes an account's type, or changes the Books settings, the report runs again.
+
+On a phone, each row keeps its name and its Balance on one line. A long name or transaction wraps to at most three lines, and the Balance is never cut. Customize and Export are under **⋯**.
+
 ## Reports that you refresh
 
 Six Books reports read every journal line, so they do not run again each time the books change: the General Ledger, Transaction Detail by Account, the Trial Balance, the Balance Sheet, the Journal and the Profit and Loss by Month. Under the chips, each of them shows the note "This report does not update by itself. Press Refresh to see new changes." and a **Refresh** button.
@@ -427,9 +457,9 @@ To see the changes made after you opened the report, press **Refresh**, or press
 
 Transaction Detail by Account opened from a figure, in the panel at the side, has its own **Refresh** button.
 
-The Profit and Loss, the Customer Balance, the A/R Aging, the A/P Aging, the sales reports, the Sales Tax Liability, the Audit Log and the two statement reports stay current: they run again when the books change, and show no **Refresh** button. When someone saves a change to the columns, the filters or the layout of the Profit and Loss, the Customer Balance, the Audit Log or Statement: Balance Forward, that report does not update by itself any more and shows **Refresh**. A change to only the title or the description keeps it current.
+The Profit and Loss, the Customer Balance, the Vendor Balance, the A/R Aging, the A/P Aging, the sales reports, the Sales Tax Liability, the Audit Log and the two statement reports stay current: they run again when the books change, and show no **Refresh** button. When someone saves a change to the columns, the filters or the layout of the Profit and Loss, the Customer Balance, the Vendor Balance, the Audit Log or Statement: Balance Forward, that report does not update by itself any more and shows **Refresh**. A change to only the title or the description keeps it current.
 
-A report that you build over journal lines, or that shows columns from journal lines, or over the Audit log, does not update by itself. A copy that you keep with Save as of one of the six reports above, of the Profit and Loss, of the Customer Balance, of the Audit Log or of Statement: Balance Forward does not update by itself either. Each shows the same note and **Refresh** button. A copy of the A/R Aging, of the A/P Aging, of a sales report, of the Sales Tax Liability or of Statement: Open Items stays current.
+A report that you build over journal lines, or that shows columns from journal lines, or over the Audit log, does not update by itself. A copy that you keep with Save as of one of the six reports above, of the Profit and Loss, of the Customer Balance, of the Vendor Balance, of the Audit Log or of Statement: Balance Forward does not update by itself either. Each shows the same note and **Refresh** button. A copy of the A/R Aging, of the A/P Aging, of a sales report, of the Sales Tax Liability or of Statement: Open Items stays current.
 
 ## Download or email a report
 
@@ -441,7 +471,7 @@ The Audit Log lists every change that people made to Books records: when, who, w
 
 ## Who sees Books reports
 
-Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month, Transaction Detail by Account, the Sales Tax Liability, the Customer Balance, the A/R Aging, the A/P Aging, Sales by Customer, Sales by Product/Service and the Audit Log, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
+Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month, Transaction Detail by Account, the Sales Tax Liability, the Customer Balance, the A/R Aging, the A/P Aging, the Vendor Balance, Sales by Customer, Sales by Product/Service and the Audit Log, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
 
 A reader can change the chips and Customize for the run, copy a link with Copy link, and keep a copy with Save as. Each reader sees only the data that the reader can access.
 

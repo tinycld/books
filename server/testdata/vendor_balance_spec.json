@@ -1,0 +1,51 @@
+{
+    "title": "Vendor Balance",
+    "description": "What you owe each vendor on one day, from posted transactions on Accounts payable accounts.",
+    "emptyDay": "2020-01-01",
+    "params": [
+        {
+            "id": "asOf",
+            "type": "asOf",
+            "label": "As of",
+            "default": { "preset": "today" }
+        },
+        {
+            "id": "rows",
+            "type": "choice",
+            "label": "Rows",
+            "options": [
+                { "value": "nonzero", "label": "Non-zero" },
+                { "value": "activity", "label": "With activity" }
+            ],
+            "default": "nonzero"
+        },
+        {
+            "id": "vendors",
+            "type": "choice",
+            "label": "Vendor",
+            "multiple": true,
+            "header": "Vendor: {label}",
+            "optionsFrom": {
+                "source": "books.vendors",
+                "value": [{ "field": "id" }],
+                "label": [{ "field": "display_name" }]
+            }
+        },
+        {
+            "id": "order",
+            "type": "choice",
+            "label": "Order",
+            "options": [
+                { "value": "name", "label": "Name" },
+                { "value": "balance", "label": "Largest balance" }
+            ],
+            "default": "name"
+        }
+    ],
+    "display": {
+        "columns": {
+            "name": { "whiteSpace": "normal", "lineClamp": 3 },
+            "balance": { "minWidth": "max-content" }
+        }
+    }
+}
