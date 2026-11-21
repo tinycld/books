@@ -5,6 +5,7 @@ import { notify } from '@tinycld/core/lib/notify'
 import { pb } from '@tinycld/core/lib/pocketbase'
 import { saveFile } from '@tinycld/core/lib/save-file'
 import { serverFetch } from '@tinycld/core/lib/server-fetch'
+import { authHeaders } from '../lib/auth-headers'
 import { isExpectedRefusal, PdfRefusalError, pdfDownloadName, pdfPath } from '../lib/pdf-download'
 
 export interface PdfDownloadInput {
@@ -24,13 +25,9 @@ export interface PdfDownloadInput {
  * bytes; text would corrupt a PDF.
  */
 export async function fetchPdf(kind: string, id?: string) {
-    const headers: Record<string, string> = {}
-    if (pb.authStore.token) {
-        headers.Authorization = `Bearer ${pb.authStore.token}`
-    }
     const response = await serverFetch(pb.buildURL(pdfPath(kind, id)), {
         method: 'GET',
-        headers,
+        headers: authHeaders(),
     })
     if (!response.ok) {
         const body: unknown = await response.json().catch(() => null)
@@ -39,6 +36,7 @@ export async function fetchPdf(kind: string, id?: string) {
     return {
         bytes: new Uint8Array(await response.arrayBuffer()),
         disposition: response.headers.get('Content-Disposition'),
+        headers: response.headers,
     }
 }
 

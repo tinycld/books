@@ -1,6 +1,6 @@
 import type { DocumentPartyKey } from './sales-document-kinds'
 
-export type PartyTab = 'transactions' | 'contacts' | 'details' | 'notes'
+export type PartyTab = 'transactions' | 'contacts' | 'details' | 'notes' | 'statements'
 
 // One party record: which party, and its id.
 export type PartyRef = { party: DocumentPartyKey; id: string }
@@ -14,6 +14,7 @@ export const PARTY_TABS: readonly PartyTabEntry[] = [
     { key: 'contacts', label: 'Contacts', keys: 'Alt+2' },
     { key: 'details', label: 'Details', keys: 'Alt+3' },
     { key: 'notes', label: 'Notes', keys: 'Alt+4' },
+    { key: 'statements', label: 'Statements', keys: 'Alt+5' },
 ]
 
 // The tabs the strip draws, in the order given.

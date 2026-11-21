@@ -104,18 +104,25 @@ func documentPDFParty(app core.App, doc *core.Record, label string) (pdfParty, e
 	if err != nil {
 		return pdfParty{}, fmt.Errorf("books: read the document's customer: %w", err)
 	}
+	return customerPDFParty(customer, label, doc.GetString("bill_to"), "the document's bill to")
+}
+
+// customerPDFParty is the customer's name and company over rawAddress (a
+// postal address JSON; blank, "null" or an empty address prints none), under
+// label. what names the address in a read error.
+func customerPDFParty(customer *core.Record, label, rawAddress, what string) (pdfParty, error) {
 	party := pdfParty{
 		Label:   label,
 		Name:    customer.GetString("display_name"),
 		Company: customer.GetString("company"),
 	}
-	raw := strings.TrimSpace(doc.GetString("bill_to"))
+	raw := strings.TrimSpace(rawAddress)
 	if raw == "" || raw == "null" {
 		return party, nil
 	}
 	var address postalAddress
 	if err := json.Unmarshal([]byte(raw), &address); err != nil {
-		return pdfParty{}, fmt.Errorf("books: read the document's bill to: %w", err)
+		return pdfParty{}, fmt.Errorf("books: read %s: %w", what, err)
 	}
 	if address != (postalAddress{}) {
 		party.Address = &address

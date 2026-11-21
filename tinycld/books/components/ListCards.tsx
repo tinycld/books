@@ -1,5 +1,14 @@
 import { useWindowHeight } from '@tinycld/core/components/workspace/useBreakpoint'
-import { Fragment, type ReactNode, type RefObject, useEffect, useMemo, useRef } from 'react'
+import {
+    Fragment,
+    type ReactNode,
+    type Ref,
+    type RefObject,
+    useEffect,
+    useImperativeHandle,
+    useMemo,
+    useRef,
+} from 'react'
 import {
     type LayoutChangeEvent,
     type NativeScrollEvent,
@@ -12,6 +21,7 @@ import {
 import { useRowWindow } from '../hooks/useRowWindow'
 import { useFabClearanceStyle } from '../lib/fab-clearance'
 import { scrollIntoViewY } from '../lib/scroll-into-view'
+import type { ListScrollHandle } from './ListTable'
 
 type ListCardsProps<Row> = {
     testID: string
@@ -23,6 +33,9 @@ type ListCardsProps<Row> = {
     onNearEnd(): void
     // When it changes, the list scrolls so that this card is fully in view.
     scrollToIndex?: number
+    // A scroll the caller asks for at a moment of its own (a refused press), also to the
+    // same card again: `scrollHandle.current.scrollToIndex(index)`.
+    scrollHandle?: Ref<ListScrollHandle>
 }
 
 function sumBefore(heights: readonly number[], index: number): number {
@@ -60,6 +73,7 @@ export function ListCards<Row>({
     renderCard,
     onNearEnd,
     scrollToIndex,
+    scrollHandle,
 }: ListCardsProps<Row>) {
     const fabClearanceStyle = useFabClearanceStyle()
     const viewHeight = useWindowHeight()
@@ -116,6 +130,19 @@ export function ListCards<Row>({
             scrollRef,
         })
     }, [scrollToIndex])
+    useImperativeHandle(
+        scrollHandle,
+        () => ({
+            scrollToIndex: (index: number) =>
+                scrollCardIntoView({
+                    index,
+                    heights: heightsRef.current,
+                    metrics: metrics.current,
+                    scrollRef,
+                }),
+        }),
+        []
+    )
     return (
         <ScrollView
             ref={scrollRef}

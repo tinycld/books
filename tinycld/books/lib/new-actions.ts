@@ -73,6 +73,14 @@ export const NEW_ACTIONS: NewAction[] = [
         takesCustomer: true,
     },
     {
+        id: 'statement',
+        label: 'Statement',
+        href: 'books/statements/new',
+        column: 'customers',
+        available: true,
+        takesCustomer: true,
+    },
+    {
         id: 'vendor',
         label: 'Vendor',
         href: 'books/vendors/new',

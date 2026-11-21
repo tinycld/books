@@ -645,3 +645,34 @@ func TestOAuth_EstimatesAreReadWrite(t *testing.T) {
 		}
 	}
 }
+
+// Statements spec §4.2: a token reads the statements with books:read and
+// creates or deletes one with books:write.
+func TestOAuth_StatementsAreReadWrite(t *testing.T) {
+	got, ok := oauthPackage().Collections[statementsCollection]
+	if !ok {
+		t.Fatalf("%s has no OAuth entry", statementsCollection)
+	}
+	if !reflect.DeepEqual(got.Read, []string{scopeRead}) || !reflect.DeepEqual(got.Write, []string{scopeWrite}) {
+		t.Errorf("%s OAuth access = %+v, want Read [%s] and Write [%s]", statementsCollection, got, scopeRead, scopeWrite)
+	}
+
+	t.Cleanup(oauth.ResetRegistry)
+	oauth.RegisterPackage(oauthPackage())
+	path := "/api/collections/" + statementsCollection + "/records"
+	if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
+		t.Errorf("GET %s: books:read must read", path)
+	}
+	for _, method := range []string{http.MethodPost, http.MethodDelete} {
+		p := path
+		if method == http.MethodDelete {
+			p += "/abc123"
+		}
+		if !oauth.ScopeForRoute(method, p).SatisfiedBy([]string{scopeWrite}) {
+			t.Errorf("%s %s: books:write must write", method, p)
+		}
+		if oauth.ScopeForRoute(method, p).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("%s %s: books:read alone must not write", method, p)
+		}
+	}
+}

@@ -992,11 +992,13 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 	registerAudit(&pocketbase.PocketBase{App: parts})
 	registerSearchIndex(&pocketbase.PocketBase{App: parts})
 	registerAutoReverseSweep(parts)
+	registerStatementGuards(parts)
 	registerReportShares(parts)
 	registerPartyBalances()
 	parts.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		bindBalanceRoutes(e)
 		bindPDFRoutes(e)
+		bindStatementRoutes(e)
 		return e.Next()
 	})
 
