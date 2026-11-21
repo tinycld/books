@@ -58,13 +58,13 @@ Rules for every checkpoint:
   - What changes in Books with the core fix (each is a result-equal change of SQL; the Books Go tests of checkpoint 0's gate prove the results):
     - `account.type` = text, a Select of `books.accounts` through the `account` link: `receivableLines` (the Customer Balance) and `payableLines` (the Vendor Balance). The plan changes to the two searches above. This is the wanted change.
     - Where the change applies: where a path is read through `scope.value` (a filter, a group or pivot key, an `exists`, fill, options or `lookup` where). A formula of a detail row (a detail column, `detail.label`, `detail.open`) reads a selected column of `w`, has no `sel`, and compiles as before (plan review F4, probed).
-    - `layer` = `ledger`, a Select of a union source whose parts hold it as a constant (`basisFilter()`: the Balance Sheet, the Profit and Loss, the Sales Tax Liability, the Transaction Detail, and `firstLineWhere` over `books.basis_lines`). The SQL gains `AND <alias>.layer = 'ledger'`; the plan can change. The same `eq` in `cashCreditMemoFilter` (`server/report_sales_tax_liability.go` lines 130 to 132, with `document.kind` = `credit_memo`) is under `not(and(…))`: the SQL text changes; no plan change is expected.
+    - `layer` = `ledger`, a Select of a union source whose parts hold it as a constant (`basisFilter()`: the Balance Sheet, the Profit and Loss, the Sales Tax Liability, the Transaction Detail, and `firstLineWhere` over `books.basis_lines`). The SQL gains `AND <alias>.layer = {:p}` (bound to `ledger`); the plan can change. The same `eq` in `cashCreditMemoFilter` (`server/report_sales_tax_liability.go` lines 130 to 132, with `document.kind` = `credit_memo`) is under `not(and(…))`: the SQL text changes; no plan change is expected.
     - `document.status` = `posted`, a Select and a stored column of the sales documents union source (`server/report_sources.go` line 374): a top-level filter term of the Sales Tax Liability (`server/report_sales_tax_liability.go` line 46) and of `postedSaleLines` (`server/report_spec_helpers.go` line 516: Sales by Customer and Sales by Product, `server/report_sales.go` lines 40 and 209). Each part has an index that starts with `status` (`idx_books_invoices_status_date`, `idx_books_sales_receipts_status_date`, `idx_books_refund_receipts_status_date`), so the plan of these three reports can change.
     - `account.type` = text inside a `case` of the Balance Sheet's hidden group keys (`placementRankCase`, `server/report_balance_sheet.go` line 272): the SQL text changes; no plan change is expected (the term is not in a `WHERE`).
     - `document.kind` = text in `server/report_sales_tax_liability.go` line 88, and `entry.origin` and `entry.doc_type` = text (Selects of `books.journal_entries`) in `entryOpenPath()` and `entryTypeLabel` (`server/report_spec_helpers.go` lines 47 to 57 and 660 to 676): the SQL text changes only where they are compiled in a filter or a group key; as a detail label, a detail column or `detail.open` they compile as before. No plan change is expected.
     - `account.detail_type` is a Text field (`server/report_sources.go` line 31), not a Select: core reads it as the bare column today, and its SQL does not change (`server/report_balance_sheet.go` lines 88 and 302).
     - Not changed: `ne`, `in` (`in(account.type, <list>)` of the Balance Sheet, the Profit and Loss and the General Ledger), an `eq` with a param or with another field (`eq(layer, outer(layer))` of the Transaction Detail), an `eq` with a blank text, and an `eq` with a text that is not one of the field's option values.
-  - **The stored-column term holds the value as SQL text, not as a bound value (plan review F1).** Probed by the plan review: with the term written `c = {:rpN}`, SQLite prepares each such statement a second time when `sqlite_stat4` has rows (it plans an indexed `column = ?` by the bound value), which breaks the engine's rule "Every statement the engine sends … is prepared once. The engine's own SQL binds nothing SQLite plans by" (`core/server/reports/statement_test.go` lines 342 to 345). So `selectEq` writes `c = 'x'` with the value in the text, the form `cp3-options.md` probed, and only for a value that is one of the Select field's registered option values and holds only letters, digits, `_` and `-`. Such a value needs no quoting and holds nothing that the SQL builder reads (`{:`, `[[`, `{{`). The `IS` term keeps its bound value. Any other text keeps today's SQL. A test pins that no statement is prepared a second time after `ANALYZE`.
+  - **The stored-column term binds its value (human decision 2026-11-20; replaces plan review F1).** Plan review F1 had the term hold the value as SQL text, because with `c = {:rpN}` SQLite prepares a statement a second time (SQLITE_STMTSTATUS_REPREPARE) when `sqlite_stat4` has rows. The human ruled SQL-text literals out: the term is `c = <the same bound value>`, only for a text that is one of the Select field's registered option values, with no character whitelist. Measured in checkpoint 0 (lane staging file `cp/cp0-bind-vs-literal.md`): core prepares each read anew in each run (no statement cache), so the reprepare is at most one compile per statement per run; on the Vendor Balance S dataset after `ANALYZE` the plans of runs 1 to 7 are byte-identical in the two forms (SEARCH `books_accounts` by `idx_books_accounts_type`, SEARCH `books_journal_lines` by `idx_books_jlines_account_date`), the medians are within noise, and the bound form adds no compile there (every statement already reprepares once for the bound user id of the `org_pkg_access` rule read). A test pins that no statement holds the option value as SQL text.
   - The other lane (p5-report-engine-scale, core branch `books/p5-report-engine-scale`, not merged) edits `formula.go` (new `expr` fields near the `link` field and after the struct; the two `return` lines of `eq` after the `ne` branch; `linkedEq`'s signature) and `stmt.go` (from `scope` on). Checkpoint 0 keeps its core edit away from those lines: one new file, one field next to `options` in `expr`, one branch in `eq` before the `ne` branch, and `scope.value`. The lane that merges second resolves what is left and runs its plan pins again ("Integration re-run", step 5).
 
 ## Integration re-run (for the driver, after p5-report-engine-scale is merged into this branch)
@@ -329,7 +329,7 @@ Run order (checkpoint 0 was added after checkpoint 3 stopped; 1 and 2 are commit
 
 ### Checkpoint 0 — Index-served Select equality in reports
 
-**Delivers:** in core's report engine, an `eq` of a Select field with a text that is one of its option values also tests the stored column, `(NULLIF(c, '') IS 'x' AND c = 'x')`, so a plain index on that column can serve it; every result stays the same and no statement is prepared a second time. Core repo `/Users/nas/tmp/tinycld/books/tinycld`, branch `books/p5-vendor-balance`; D16 has the cause and the probe.
+**Delivers:** in core's report engine, an `eq` of a Select field with a text that is one of its option values also tests the stored column, `(NULLIF(c, '') IS {:p} AND c = {:p})` with the value bound in both terms, so a plain index on that column can serve it; every result stays the same and no value is written into the SQL text. Core repo `/Users/nas/tmp/tinycld/books/tinycld`, branch `books/p5-vendor-balance`; D16 has the cause and the probe.
 
 **Files:** (relative to the core repo root `/Users/nas/tmp/tinycld/books/tinycld`)
 - Create: `core/server/reports/selecteq.go` (`storedSelect`, `selectEq`, `storedOption`)
@@ -341,7 +341,7 @@ Run order (checkpoint 0 was added after checkpoint 3 stopped; 1 and 2 are commit
 
 **Interfaces:**
 - Consumes: core `expr` (its `sql`, `options` and `text` fields), `fieldSQL`, `pathExpr`, `linkedEq` (the model of a bound next to a comparison), `storedLink` (the model of a stored column kept with the sql it was read as), `literal` (the one place that sets `text`); tests: `newZoo`, `observeReads`, `readStatement`, `fillOuterLoops` (the model of a plan read), `reprepares`, `rawStatement`, `readPool` (`core/server/reports/statement_test.go`, the count of second prepares), `RegisterSource`, `rule`
-- Produces: `storedSelect` (a struct of the two texts `col` and `sql`), `expr.sel`, `selectEq(args []expr) string`, `storedOption(options []Option, text string) bool`; core tests `TestASelectEqualToATextIsServedByTheColumnIndex`, `TestASelectEqualToATextKeepsItsResult`, `TestASelectEqualToATextIsPreparedOnce`; for checkpoint 3: on this core branch the Vendor Balance's `w` reads `books_accounts` by `idx_books_accounts_type` and `books_journal_lines` by `idx_books_jlines_account_date`
+- Produces: `storedSelect` (a struct of the two texts `col` and `sql`), `expr.sel`, `selectEq(args []expr) string`, `storedOption(options []Option, text string) bool`; core tests `TestASelectEqualToATextIsServedByTheColumnIndex`, `TestASelectEqualToATextKeepsItsResult`, `TestASelectEqualToATextIsBound`; for checkpoint 3: on this core branch the Vendor Balance's `w` reads `books_accounts` by `idx_books_accounts_type` and `books_journal_lines` by `idx_books_jlines_account_date`
 
 **Gates:** 1 · 3 (nothing renders and no e2e runs: the change is Go in core's report engine, no core component or helper changes, and the Go tests pin the results; gate 1 is `cd /Users/nas/tmp/tinycld/books/tinycld/core/server && gofmt -l reports && go vet ./reports/ && go test -count=1 ./reports/... ./coreserver/...`, then `cd /Users/nas/tmp/tinycld/books/tinycld && pnpm run checks`, then `cd /Users/nas/tmp/tinycld/books/books/server && go test -count=1 -skip 'TestVendorBalanceQueryPlans' ./...`, a regression run of about 4 minutes whose red-before test is in core; gate 3 reads the core diff with `--repo /Users/nas/tmp/tinycld/books/tinycld`)
 
@@ -370,7 +370,7 @@ Run order (checkpoint 0 was added after checkpoint 3 stopped; 1 and 2 are commit
     8. a `lookup` of the sum of `zoo.sales` `amount` whose `where` is `eq(stall.kind, "food")`, as a column of a report on `zoo.stalls` (the lookup forms of `core/server/reports/lookup_test.go`): the value is 1 for the reader `ann` (only `S1`; `S5`'s stall is hidden).
     9. a direct read on `z.app.DB()`: for each stored value NULL, `''`, `'food'` and `'gift'`, `SELECT (NULLIF(c, '') IS 'food' AND c = 'food') IS (NULLIF(c, '') IS 'food')` is 1.
     The test fails when the new form changes which rows a condition holds for, or turns a false condition into an unknown one.
-  - `TestASelectEqualToATextIsPreparedOnce` (with `bulk`; D16, plan review F1): for the filters of plan cases 1 and 3, the statements of one run are captured with `observeReads`; `reprepares` of each is 0 with no statistics; then `ANALYZE` on `z.app.DB()` and a new read connection (`SetMaxIdleConns(0)` on the read pool, as the helpers of `core/server/reports/statement_test.go` do), and `reprepares` of each is still 0. The test also requires that `sqlite_stat4` has rows after `ANALYZE` (else it proves nothing). Fails when the stored-column term holds a bound value (1 second prepare for each statement, as the plan review measured). It is green before the fix (today's SQL is prepared once): the test writer proves that it can fail with `go test -overlay` on scratchpad copies of the three files of Do 1 to 3 whose term is `c = ` and the placeholder, never touching repo source, and says so.
+  - `TestASelectEqualToATextIsBound` (no bulk rows; D16, human decision 2026-11-20; it replaces `TestASelectEqualToATextIsPreparedOnce`, which is removed): for the filters of plan cases 1 (`eq(stall.kind, "food")`) and 3 (`eq(state, "open")`), the statements of one run are captured with `observeReads`; the test requires that at least one statement names the table of the Select, and that no statement holds the option value as SQL text (`'food'`, `'open'`, in any quoting). Fails when the stored-column term writes the value into the SQL text (the form in the tree before the human's decision, so it is red on that tree).
 - No test of a new error path: the change adds none (no new refusal at row level or at table level).
 
 **Do:**
@@ -385,38 +385,31 @@ Run order (checkpoint 0 was added after checkpoint 3 stopped; 1 and 2 are commit
 
    // selectEq is eq of a Select field with a text literal that is one of its
    // option values, with the same test on the stored column:
-   // (NULLIF(c, '') IS 'x' AND c = 'x'). A Select reads as NULLIF(c, ''),
+   // (NULLIF(c, '') IS {:p} AND c = {:p}). A Select reads as NULLIF(c, ''),
    // which no index on c serves, so SQLite cannot tell that the condition is
    // selective and scans the rows it could search. The second term is one a
    // plain index on c serves. It never changes the value: a NULL c (no linked
    // row, or one the reader cannot see) gives 0 AND NULL, which is 0; a blank
-   // c gives 0 and 0; any other c gives the same answer two times. The second
-   // term holds the value as SQL text: a bound value on an indexed column
-   // makes SQLite prepare the statement again when it has statistics
-   // (TestEveryReportStatementIsPreparedOnce). "" when neither side is such
-   // a pair, and eq is written as before.
+   // c gives 0 and 0; any other c gives the same answer two times. Both terms
+   // bind the value; no value is ever written into the SQL text. "" when
+   // neither side is such a pair, and eq is written as before.
    func selectEq(args []expr) string {
        for i, a := range args[:2] {
            v := args[1-i]
            if a.sel.col == "" || a.sel.sql != a.sql || v.text == nil || !storedOption(a.options, *v.text) {
                continue
            }
-           return "(" + a.sql + " IS " + v.sql + " AND " + a.sel.col + " = '" + *v.text + "')"
+           return "(" + a.sql + " IS " + v.sql + " AND " + a.sel.col + " = " + v.sql + ")"
        }
        return ""
    }
 
-   // plainOption is an option value that is safe as SQL text with no quoting:
-   // nothing in it ends the text or is read by the SQL builder.
-   var plainOption = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
-
-   // storedOption is true for a text that is one of a Select's option values
-   // and plain.
+   // storedOption is true for a text that is one of a Select's option values.
    func storedOption(options []Option, text string) bool {
-       return plainOption.MatchString(text) && slices.ContainsFunc(options, func(o Option) bool { return o.Value == text })
+       return slices.ContainsFunc(options, func(o Option) bool { return o.Value == text })
    }
    ```
-   with the imports `regexp` and `slices`. `text` is set only by `literal` (`core/server/reports/formula.go` line 557), whose `sql` is one named placeholder; `a.options` are the field's registered options (`pathExpr`, `optionsOf`), and the guard `a.sel.sql != a.sql` refuses a copy whose sql changed (plan review, section 1). The plan review ran Do 1 to 3 with the bound form (results equal, plans as the tests want, core and Books gates green); the text form of the second term is new here, and the three tests of this checkpoint are its proof.
+   with the import `slices`. `text` is set only by `literal` (`core/server/reports/formula.go` line 557), whose `sql` is one named placeholder; the second term uses the same placeholder, so it binds the same value (the implementer checks that dbx binds a placeholder named two times, and else gives the second term a placeholder of its own bound to the same value); `a.options` are the field's registered options (`pathExpr`, `optionsOf`), and the guard `a.sel.sql != a.sql` refuses a copy whose sql changed (plan review, section 1). Human decision 2026-11-20 (D16, "The stored-column term binds its value"): no SQL-text literal and no character whitelist.
 2. `core/server/reports/formula.go`, two edits and no other:
    - in `type expr struct`, directly after the `options []Option` field:
      ```go
