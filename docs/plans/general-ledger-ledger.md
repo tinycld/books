@@ -769,3 +769,27 @@ No report reads the table yet; the Cash Balance Sheet reads it in task 9d-2b. So
 | 100000 | BS 2 cash, as of | 1.508s | 1.465s |
 
 Median of 5, core 8969bdbd, books eb7a2f67, on a quiet machine; no run is refused. The group rows (10) and rows (20) of BS 1 and BS 2 are the same as before, and statement 5 of BS 1 (468.2ms, 262,040 chars) and of BS 2 (1.313s, 261,956 chars) is the same statement as after task 9e-1.
+
+#### Task 9d-2b: the Cash Balance Sheet reads the stored cash months (2026-11-20)
+
+The report source `books.cash_basis_balances` reads the table `books_cash_basis_balances` of task 9d-2a (link `account`; fields `period`, `month_start`, `debit_total`, `credit_total`, `currency`). On Cash, the four reads of the months before a day's month now read the stored cash months in place of the layer-`cash` rows:
+
+- `bsBefore`: the cash part of the beginning balance (`bsCashStoredBefore`).
+- `profitAndLossSum`: the cash part of the P&L sums before the month.
+- `bsActivity`: an account is active when it has a stored cash month before the month (a month with no cash row has no stored row).
+- `firstBasisMonth`: on Cash, the first `month_start` of the account's stored cash months on or before the day.
+
+Each read keeps `onCash()`, so an Accrual run reads no stored cash month. The day's own month is still read from its rows. `onCashLayer` has no caller left and is deleted. `Revision: 7`. The scale book (`writeStatementsScaleBook`) writes its stored cash months by one `INSERT … SELECT … GROUP BY account, substr(date, 1, 7)`, and `TestStatementsScaleBook` checks them against the cash rows.
+
+The tests that hold the figures: `TestBalanceSheetCashMonthsEqualTheLines_Bills` (a bill book with posts, payments, a void, a replaced payment and a corrected bill) and `TestBalanceSheetCashMonthsEqualTheLines_InvoiceCorrection` (an invoice correction that takes over a payment), each with the fiscal year starting in January and in July. They passed before the change and after it. The tests that prove the reads: `TestBalanceSheetReadsTheStoredCashMonths` (a raw change of a stored cash month moves the Cash figure and not the Accrual figure), `TestBalanceSheetCashMonthMakesAnAccountActive`, `TestBalanceSheetCashOpenedAccountRows` and `TestBalanceSheetCashDrillStartsAtTheFirstStoredCashMonth`.
+
+| lines | run | before (task 9d-2a) | after |
+|---|---|---|---|
+| 100000 | BS 1 accrual, as of | 443ms | 476ms |
+| 100000 | BS 2 cash, as of | 1.465s | 519ms |
+
+Median of 5, core 39fb32b8, books aa5831d7 (code commits 502b7c01 and aa5831d7). The machine was NOT quiet: the human said to run it then, with other lanes' Go tests running; the 1-minute load was 6.81 at the start. So the figures may be high; the 7 % rise of BS 1 is not from the code (its plan has fewer SCANs, below). No run is refused, and the group rows (10) and rows (20) of BS 1 and BS 2 are the same as before.
+
+Statement 5 of BS 2 is 558.4ms (1.313s after task 9d-2a), 257,788 chars (261,956). It has 8 `SCAN books_cash_basis_lines` and 8 `SCAN books_journal_lines` (21 of each after task 9d-2a), 4 `SCAN books_account_balances` and 18 `SEARCH books_account_balances` by index (unchanged). Statement 5 of BS 1 has the same counts (497.4ms, 257,878 chars). 13 SCAN pairs of the line tables went with the four reads; which read each of the 8 left belongs to is not checked (the day's own month is still read from its rows). `st-plans.md` lists only the steps that name `books_journal_lines`, `books_cash_basis_lines` or `books_account_balances` (`report_statements_scale_test.go:356`), so the steps over `books_cash_basis_balances` are not in it.
+
+The bar is 2 s at 500,000 lines for both methods. Projected (not measured), whole median × 5.4: BS 1 2.57 s, BS 2 2.80 s (upper figures); with a compile of 0.266 s kept fixed: BS 1 about 1.40 s, BS 2 about 1.63 s. Task 9e-2 of the plan outline (core: the union of a lookup source written once) is decided from the 500k run (task 9e), not from this projection.
