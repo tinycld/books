@@ -206,6 +206,8 @@ func TestBalanceSheetReadsTheStoredCashMonths(t *testing.T) {
 // before the day's month has a row on Cash and none on Accrual.
 func TestBalanceSheetCashMonthMakesAnAccountActive(t *testing.T) {
 	b, _, _ := paidBook(t)
+	// This row is a fixture the write paths never make: they store no month
+	// without a posted cash row. It leaves the account's only activity a stored cash month.
 	saveRecord(t, b.app, cashBalancesCollection, map[string]any{
 		"account": b.savings1010.Id, "period": "2026-03", "month_start": "2026-03-01", "currency": "USD",
 	})
