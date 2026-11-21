@@ -1,12 +1,21 @@
 import { expect, type Page, test } from '@playwright/test'
 import { navigateToPackage } from '@tinycld/core/e2e-helpers'
+import { AP_AGING_TITLE } from '~/tinycld/books/lib/ap-aging-fixture'
 import {
     EXPENSES_BY_VENDOR_SEED,
     EXPENSES_BY_VENDOR_TITLE,
 } from '~/tinycld/books/lib/expenses-by-vendor-fixture'
+import {
+    AP_AGING_SHIPPED_KEY,
+    EXPENSES_BY_VENDOR_SHIPPED_KEY,
+    VENDOR_BALANCE_SHIPPED_KEY,
+} from '~/tinycld/books/lib/shipped-reports'
+import { VENDOR_BALANCE_TITLE } from '~/tinycld/books/lib/vendor-balance-fixture'
 import { VENDOR_IDS, VENDORS } from '~/tinycld/books/lib/vendor-form-fixture'
-import { DESKTOP } from './account-register-helpers'
+import { DESKTOP, PHONE } from './account-register-helpers'
 import { apVendorWithBill, filterToVendors, payPartOfBill } from './ap-aging-helpers'
+import { freshPageWithReports } from './ar-aging-helpers'
+import { fakeReadOnlyAccess } from './banking-helpers'
 import { BILL_URL } from './bill-helpers'
 import {
     browserToday,
@@ -14,6 +23,7 @@ import {
     csvRecords,
     dayWords,
     expectedHeading,
+    expectTableFits,
     exportReport,
     type ReportSnapshot,
     reportSnapshot,
@@ -32,6 +42,7 @@ import {
 import {
     chooseExpenseMethod,
     chooseExpenseOrder,
+    expectLabelsWrapWhole,
     expenseCents,
     expenseLines,
     expenseShare,
@@ -44,7 +55,9 @@ import {
 } from './expenses-by-vendor-helpers'
 import { BILL_EXPENSE_ACCOUNT, CHECKING, localDay, vendorWithBills } from './pay-bills-helpers'
 import { escapeRegExp, openBooks, uniqueName } from './record-form-helpers'
+import { expectSalesPhoneLines, expectSalesRowsFit } from './sales-reports-helpers'
 import { postVendorCredit } from './vendor-credit-helpers'
+import { openVendorsList, vendorEntries } from './vendor-form-helpers'
 
 // The Expenses by Vendor (expenses-by-vendor checkpoint 1): the shipped report from the
 // Books hub. Each test creates its own vendors through the UI, posts documents dated today
@@ -478,5 +491,178 @@ test.describe('expenses-by-vendor: report', () => {
             seedLine.debit,
             '',
         ])
+    })
+})
+
+// The menu's items in the order they are drawn: the visible `vendors-reports-…` test ids.
+function reportsMenuItems(page: Page): Promise<(string | null)[]> {
+    return page
+        .locator('[data-testid^="vendors-reports-"]')
+        .filter({ visible: true })
+        .evaluateAll(elements => elements.map(element => element.getAttribute('data-testid')))
+}
+
+// A prefix that, with uniqueName's stamp, makes a name of about 60 characters: long enough
+// to wrap at 375 and 390 (as in books-vendor-balance.spec.ts).
+const LONG_VENDOR_PREFIX = 'Cascade Mountain Industrial Freight Supply'
+
+// Two lines whose figures are wide (spec §3 "Phone").
+const LONG_LINES = [
+    { account: RENT, amount: '64015.25' },
+    { account: BILL_EXPENSE_ACCOUNT, amount: '66100.00' },
+] as const
+// The bill's memo, saved as its journal entry memo: a bill line's description in the report
+// (lineDescriptionFormula: the line memo, else the entry memo). Long enough that each bill
+// line's label wraps at 375 and 390, short enough to stay within three lines.
+const LONG_MEMO = 'Warehouse dock rent and route software, Q4'
+
+// The phone arrangement of D1: the name on line 1, Total and % of expenses on line 2. The
+// helper places the label on line 1 itself; `lines` are the lines below it.
+const EXPENSE_PHONE_LINES = [['amount', 'pct']] as const
+const EXPENSE_COLUMNS = ['amount', 'pct'] as const
+
+/**
+ * Spec §3 "Phone" at `viewport`: at the default viewport a vendor with a long name and a
+ * bill on two accounts with a long memo (paid in part when `method` is Cash), the report
+ * narrowed to it and to today; then at the phone size the table takes its `mobile`
+ * arrangement, the vendor row and an opened line have their figures on line 2, every label
+ * takes at most three lines, the long vendor name and the bill lines' labels wrap and show
+ * whole, no figure is cut, and nothing scrolls sideways.
+ */
+async function expectOpenedVendorFitsPhone(
+    page: Page,
+    viewport: { width: number; height: number },
+    method: 'Accrual' | 'Cash'
+): Promise<void> {
+    await openBooks(page, DESKTOP)
+    const { vendor } = await vendorWithBills(page, {
+        name: uniqueName(LONG_VENDOR_PREFIX),
+        bills: [],
+    })
+    const bill = await postBillOnAccounts(page, vendor.name, LONG_LINES, { memo: LONG_MEMO })
+    if (method === 'Cash') {
+        await payPartOfBill(page, { vendor, billId: bill.id, amount: '1000.00' })
+    }
+    await openFor(page, [vendor.name])
+    if (method === 'Cash') await chooseExpenseMethod(page, 'Cash')
+    const lineCount = method === 'Cash' ? 6 : 2
+
+    await page.setViewportSize(viewport)
+    await expect(page.getByTestId('toolbar-more-button')).toBeVisible()
+    await expect(page.getByTestId('report-table')).toHaveAttribute('data-layout', 'mobile')
+    const closed = await snapshotWhen(
+        page,
+        reportSnapshot,
+        s => vendorLabels(s).includes(vendor.name),
+        `the ${vendor.name} row is mounted`
+    )
+    const row = closed.rows.find(r => r.kind === 'group' && r.label === vendor.name)
+    if (!row) throw new Error(`no mounted row "${vendor.name}"`)
+    await expectSalesPhoneLines(page, row.id, EXPENSE_PHONE_LINES)
+    await expectSalesRowsFit(page, EXPENSE_COLUMNS)
+    // The long vendor name wraps and shows whole (whiteSpace normal, not one line cut).
+    await expectLabelsWrapWhole(page, [row.id])
+
+    await openBalanceRow(page, vendor.name)
+    const opened = await snapshotWhen(
+        page,
+        reportSnapshot,
+        s => expenseLines(s, vendor.name).length === lineCount,
+        `${lineCount} lines under ${vendor.name} on ${method}`
+    )
+    const lines = expenseLines(opened, vendor.name)
+    for (const line of lines) await expectSalesPhoneLines(page, line.id, EXPENSE_PHONE_LINES)
+    await expectSalesRowsFit(page, EXPENSE_COLUMNS)
+    // The bill's own lines carry the long memo as their description; each wraps and shows whole.
+    const today = await browserToday(page)
+    const described = lines.filter(line => line.label.endsWith(` · ${LONG_MEMO}`))
+    expect(
+        described.map(line => line.label),
+        'the two bill lines are opened with the memo as their description'
+    ).toEqual([
+        expect.stringMatching(lineLabel(today, `Bill ${bill.number}`, RENT, LONG_MEMO)),
+        expect.stringMatching(
+            lineLabel(today, `Bill ${bill.number}`, BILL_EXPENSE_ACCOUNT, LONG_MEMO)
+        ),
+    ])
+    await expectLabelsWrapWhole(
+        page,
+        described.map(line => line.id)
+    )
+    await expectTableFits(page)
+}
+
+test.describe('expenses-by-vendor: entry points and phone rows', () => {
+    // No phone run: the menu is the same component and logic at both widths.
+    test("the Vendors list's Reports menu lists Expenses by Vendor third, for a reader too, and draws only the reports that are found", async ({
+        page,
+    }) => {
+        await fakeReadOnlyAccess(page)
+        await openBooks(page, DESKTOP)
+        await openVendorsList(page)
+        // A reader page: the header shows the Reports menu and no New vendor button.
+        const reports = page.getByTestId('vendors-reports')
+        await expect(reports).toBeVisible()
+        await expect(page.getByTestId('vendor-new-header')).toHaveCount(0)
+        await reports.click()
+        const expenses = page.getByTestId('vendors-reports-expenses').filter({ visible: true })
+        await expect(expenses).toHaveText('Expenses by Vendor')
+        await expect
+            .poll(() => reportsMenuItems(page), {
+                message: 'the menu holds Vendor Balance, A/P Aging, Expenses by Vendor in order',
+            })
+            .toEqual([
+                'vendors-reports-balance',
+                'vendors-reports-aging',
+                'vendors-reports-expenses',
+            ])
+        await expenses.click()
+        await expect(page.getByTestId('report-screen')).toBeVisible()
+        await expect(page).toHaveURL(/\/a\/reports\//)
+        await expect(
+            page.getByTestId('report-document-title').filter({ visible: true })
+        ).toHaveText(EXPENSES_BY_VENDOR_TITLE)
+
+        // The Expenses by Vendor is not found: after its read answered with no row, the menu
+        // holds the other two only.
+        const twoOnly = await freshPageWithReports(page, [
+            {
+                id: 'ebvbalancerep01',
+                shipped_key: VENDOR_BALANCE_SHIPPED_KEY,
+                title: VENDOR_BALANCE_TITLE,
+            },
+            { id: 'ebvagingreport1', shipped_key: AP_AGING_SHIPPED_KEY, title: AP_AGING_TITLE },
+        ])
+        await openBooks(twoOnly.fresh, DESKTOP)
+        await openVendorsList(twoOnly.fresh)
+        await expect
+            .poll(
+                () =>
+                    twoOnly.answered.some(filter =>
+                        filter.includes(EXPENSES_BY_VENDOR_SHIPPED_KEY)
+                    ),
+                { message: 'the Vendors list got its answer for the Expenses by Vendor' }
+            )
+            .toBe(true)
+        await expect(vendorEntries(twoOnly.fresh).first()).toBeVisible()
+        await twoOnly.fresh.getByTestId('vendors-reports').click()
+        await expect(
+            twoOnly.fresh.getByTestId('vendors-reports-aging').filter({ visible: true })
+        ).toHaveText('A/P Aging')
+        await expect
+            .poll(() => reportsMenuItems(twoOnly.fresh))
+            .toEqual(['vendors-reports-balance', 'vendors-reports-aging'])
+        await expect(twoOnly.fresh.getByTestId('vendors-reports-expenses')).toHaveCount(0)
+        await twoOnly.fresh.close()
+    })
+
+    // Phone runs: the phone path is other code (the report's `display.layouts` arrangement,
+    // core's phone row layout). 375 and 390 are both measured widths of D1 (lesson 21).
+    test('an opened vendor reads on a 390 px phone with no sideways scroll', async ({ page }) => {
+        await expectOpenedVendorFitsPhone(page, PHONE, 'Accrual')
+    })
+
+    test('an opened vendor reads on a 375 px phone with no sideways scroll', async ({ page }) => {
+        await expectOpenedVendorFitsPhone(page, { width: 375, height: 844 }, 'Cash')
     })
 })

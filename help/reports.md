@@ -1,7 +1,7 @@
 ---
 title: Run and customize a report
 summary: Pick a report, set its period and filters, and change how its numbers look.
-tags: [reports, trial balance, general ledger, balance sheet, journal, profit and loss, transaction detail, sales tax liability, customer balance, a/r aging, vendor balance, Audit Log]
+tags: [reports, trial balance, general ledger, balance sheet, journal, profit and loss, transaction detail, sales tax liability, customer balance, a/r aging, vendor balance, expenses by vendor, Audit Log]
 order: 60
 ---
 
@@ -445,6 +445,36 @@ The report stays current. When someone posts or voids a bill, a bill payment, a 
 
 On a phone, each row keeps its name and its Balance on one line. A long name or transaction wraps to at most three lines, and the Balance is never cut. Customize and Export are under **⋯**.
 
+## Read the Expenses by Vendor report
+
+To see what you spent with each vendor in a period, open Reports and choose Expenses by Vendor. You can also press Reports at the top of the Vendors list, then Expenses by Vendor. The heading shows your business name, Expenses by Vendor, the period, and the basis, for example "Accrual basis".
+
+The report adds the posted lines on your Cost of goods sold, Expense and Other expense accounts, dated in the period, on the basis you choose. A line's figure is its debit minus its credit, so an expense is a positive figure. A draft does not count. A voided document does not count, because its void reversal cancels the original. A line on an asset, liability or equity account never counts, so a bill that buys equipment on a fixed asset account is not in the report.
+
+- A vendor credit lowers the vendor's figure, and so does a refund of an expense. A vendor that has only a vendor credit in the period shows below zero.
+- The No vendor row adds the expense lines that name no vendor, such as an expense with no payee, a journal entry line with no name, or the bad debt line of a write-off. It shows after every vendor.
+- % of expenses is the row's Total as a share of the report's Total, to two places, so the Total row shows 100.00% and a row below zero has a share below zero. An opened line shows no share. When the report's Total is 0, the column is blank.
+- An inactive vendor with expenses in the period shows with "(inactive)" after its name, in lighter text.
+- With no vendor picked, the Total row at the end equals Cost of goods sold plus Expenses plus Other expenses of the Profit and Loss for the same period and basis. These figures agree because both reports add the same posted lines on the same three account types, and each line names at most one vendor, so it counts in exactly one row.
+
+To see the lines behind a vendor's figure, press the vendor row: it opens into one row for each posted expense line, in date order. Each line shows its date, its type and number, its account and its line memo, or the entry memo when the line has none, for example "2026-10-14 · Bill 1042 · 6600 Rent or lease · Office rent". A bill's lines show the bill's memo. A line with no memo, in an entry with no memo, ends after its account. The lines add up to the vendor's Total. To open a line's document, press the line: the bill, expense, vendor credit, vendor refund, bill payment, write-off or journal entry opens as its own screen.
+
+To change the basis, press the Method chip and pick Accrual, the default, or Cash. On Accrual a bill counts on its date. On Cash a bill counts when it is paid, by each payment's share, on the payment's date, and an expense counts on its date on both. On Cash an opened vendor also shows the rows that take an unpaid bill out of the cash basis: each bill line is followed by a row "Unpaid bill (cash basis)" with the opposite figure, and each payment adds a row for each bill line, such as "Bill 1042 paid (cash basis)", with the line's share of the payment. A vendor credit and a write-off have the same kind of rows ("Unapplied vendor credit (cash basis)", "Write-off (cash basis)"), and a vendor credit that is applied to a bill or refunded shows "Vendor credit 12 applied (cash basis)" or "Vendor credit 12 refunded (cash basis)". A bill that a vendor credit pays shows "Bill 1042 paid by vendor credit (cash basis)".
+
+To change the period, press the Period chip. The default is This fiscal year to date. When no posted expense line is in the period, the report shows "No rows for" and the period.
+
+To choose which vendors show, press the Rows chip. Non-zero, the default, shows each vendor whose Total is not 0. With activity also shows a vendor whose lines add up to 0, for example a bill and its void in the period, with 0.00% as its share.
+
+To show only some vendors, press Add filter, then Vendor, and pick one or more vendors, inactive vendors included. Then press Apply. With vendors picked, the No vendor row does not show, the Total is the total of your picks, % of expenses is the share of that total, and a line under the period names your picks. To remove the filter, press the × on the Vendor chip.
+
+To change the order, press the Order chip. Name, the default, orders the vendors by name. Largest expenses puts the largest Total first. The No vendor row stays last in both.
+
+To see what you still owe each vendor, read the Vendor Balance instead, as [Read the Vendor Balance report](help://books:reports) above says. The Expenses by Vendor shows what you spent in the period, paid or not.
+
+The report stays current. When someone posts or voids a bill, an expense, a vendor credit, a bill payment or a journal entry, renames a vendor, changes an account's type, or changes the Books settings, the report runs again.
+
+On a phone, each row shows the name on the first line, then Total and % of expenses on the second. A long name or line wraps to at most three lines, and a figure is never cut. Customize and Export are under **⋯**.
+
 ## Download or email a report
 
 To keep or send a copy of a report, press **Export** on a Books report (on a phone, the entries are under **⋯**) and choose a PDF, an Excel or a CSV file, or **Email report…**. The file is named after the report and its period or as-of day, for example `profit-and-loss-2026-01-01-to-2026-11-15.pdf`. For what each file holds and how to email it, see [Download or email a report](help://core:reports).
@@ -455,7 +485,7 @@ The Audit Log lists every change that people made to Books records: when, who, w
 
 ## Who sees Books reports
 
-Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month, Transaction Detail by Account, the Sales Tax Liability, the Customer Balance, the A/R Aging, the A/P Aging, the Vendor Balance, Sales by Customer, Sales by Product/Service and the Audit Log, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
+Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month, Transaction Detail by Account, the Sales Tax Liability, the Customer Balance, the A/R Aging, the A/P Aging, the Vendor Balance, the Expenses by Vendor, Sales by Customer, Sales by Product/Service and the Audit Log, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
 
 A reader can change the chips and Customize for the run, copy a link with Copy link, and keep a copy with Save as. Each reader sees only the data that the reader can access.
 
