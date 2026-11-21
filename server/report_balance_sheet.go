@@ -48,7 +48,9 @@ func balanceSheetShipped() reports.Shipped {
 		// account shows them as one row, then the as-of month's lines.
 		// 5: on Cash too the months before a day's month come from the stored
 		// months; only the cash-basis rows of those months are read as lines.
-		Revision:    5,
+		// 6: a drill's period starts on the first day of the account's first
+		// month (read from the stored months), not on its first line's day.
+		Revision:    6,
 		Unpublished: true,
 	}
 }
@@ -197,15 +199,16 @@ func balanceSheetSpec() *reports.Spec {
 }
 
 // balanceDrill opens Transaction Detail by Account from an account row's
-// balance on day d on the run's method: the account's posted lines from its
-// first one up to d, so the section total is the balance. An account with no
-// posted line on or before d still opens (its 0.00 figure): the range is then
-// d to d, an empty run. Class, kind and section rows do not drill: their
-// groups are no account type.
+// balance on day d on the run's method: the account's posted lines from the
+// first day of its first month up to d, so the section total is the balance.
+// An account with no posted line on or before d still opens (its 0.00
+// figure), an empty run: the range is then d to d, or the 1st of d's month to
+// d when the account's first line is later in that month. Class, kind and
+// section rows do not drill: their groups are no account type.
 func balanceDrill(d *reports.Node) *reports.Drill {
 	return tdDrillTarget(map[string]map[string]reports.DrillValue{
 		"byAccount": {
-			"period":   {Range: &reports.DrillRange{From: op("coalesce", firstBasisLine(d), d), To: d}},
+			"period":   {Range: &reports.DrillRange{From: op("coalesce", firstBasisMonth(d), d), To: d}},
 			"method":   methodDrill(),
 			"accounts": tdAccountOf(),
 		},

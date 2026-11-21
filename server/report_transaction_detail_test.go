@@ -1014,6 +1014,26 @@ func tdSectionTotal(t *testing.T, res *reports.Result, account *core.Record) int
 	return tdAmountOf(t, *s.total)
 }
 
+// tdLineIDs are the ids of the line rows of the account's section, in order.
+func tdLineIDs(t *testing.T, res *reports.Result, account *core.Record) []string {
+	t.Helper()
+	var out []string
+	for _, l := range sectionFor(t, res, account).lines {
+		out = append(out, l.ID)
+	}
+	return out
+}
+
+// tdFrom runs Transaction Detail by Account for one account from day from to
+// day to on Accrual: the run a Balance Sheet drill opened when its range
+// started on the account's first line.
+func tdFrom(t *testing.T, b drillBook, account *core.Record, from, to string) *reports.Result {
+	t.Helper()
+	return runTD(t, b.app, b.reader, map[string]any{
+		"period": glPeriod(from, to), "accounts": []string{account.Id},
+	}, reports.Options{Today: drillToday})
+}
+
 func idList(ids ...string) string { return string(mustJSON(ids)) }
 
 func rangeJSON(from, to string) string { return string(mustJSON(glPeriod(from, to))) }
@@ -1200,8 +1220,9 @@ func TestDrillProfitAndLossByMonth(t *testing.T) {
 }
 
 // Current and Prior year of an account row drill to the account's lines from
-// its first posted line up to the column's day; the drilled total equals the
-// figure. Nothing else on the Balance Sheet drills.
+// the first day of the month of its first posted line up to the column's day:
+// the same lines as a range from the first line's own day, and the drilled
+// total equals the figure. Nothing else on the Balance Sheet drills.
 func TestDrillBalanceSheet(t *testing.T) {
 	b := newDrillBook(t)
 	b.fiscalStart(t, 1)
@@ -1227,8 +1248,12 @@ func TestDrillBalanceSheet(t *testing.T) {
 	row := bsAccount(t, res, bank)
 	requireFigures(t, row, 8500, 12500)
 
-	requireDrill(t, row, "current", map[string]string{"period": rangeJSON("2025-06-10", asOf), "method": accrualMethod, "accounts": idList(bank.Id)})
+	// Operating's first line is of June 10: the range starts on June 1.
+	requireDrill(t, row, "current", map[string]string{"period": rangeJSON("2025-06-01", asOf), "method": accrualMethod, "accounts": idList(bank.Id)})
 	current := drillTD(t, b.app, b.reader, res, row.ID, "current")
+	if got, want := tdLineIDs(t, current, bank), tdLineIDs(t, tdFrom(t, b, bank, "2025-06-10", asOf), bank); !slices.Equal(got, want) {
+		t.Errorf("Current drills to lines %v, want the lines of a range from the first line's day %v", got, want)
+	}
 	if got := tdSectionTotal(t, current, bank); got != amt(t, row, "current") {
 		t.Errorf("Current drills to a total of %d, want the figure %d", got, amt(t, row, "current"))
 	}
@@ -1239,8 +1264,11 @@ func TestDrillBalanceSheet(t *testing.T) {
 		t.Errorf("the line dated after the as-of day shows in the drilled report")
 	}
 
-	requireDrill(t, row, "prior", map[string]string{"period": rangeJSON("2025-06-10", priorDay), "method": accrualMethod, "accounts": idList(bank.Id)})
+	requireDrill(t, row, "prior", map[string]string{"period": rangeJSON("2025-06-01", priorDay), "method": accrualMethod, "accounts": idList(bank.Id)})
 	prior := drillTD(t, b.app, b.reader, res, row.ID, "prior")
+	if got, want := tdLineIDs(t, prior, bank), tdLineIDs(t, tdFrom(t, b, bank, "2025-06-10", priorDay), bank); !slices.Equal(got, want) {
+		t.Errorf("Prior year drills to lines %v, want the lines of a range from the first line's day %v", got, want)
+	}
 	if got := tdSectionTotal(t, prior, bank); got != amt(t, row, "prior") {
 		t.Errorf("Prior year drills to a total of %d, want the figure %d", got, amt(t, row, "prior"))
 	}
@@ -1263,6 +1291,20 @@ func TestDrillBalanceSheet(t *testing.T) {
 	if v, has := totalOf(t, none).Cells["amount"]; has && v != nil {
 		t.Errorf("Savings' Prior year 0.00 drills to a Total amount %#v, want blank", v)
 	}
+
+	// Reserve's first line is of October 20, 2025. On a prior-year day before
+	// it in the same month, the month is stored and no line is on or before the
+	// day: the range starts on the 1st and the transaction report is empty.
+	reserve := plAccount(t, b.app, "Reserve", "1040", "bank", "savings", "")
+	b.post(t, "2025-10-20", ln{reserve, 600, 0}, ln{owner, 0, 600})
+	mid := b.bs(t, "2026-10-15")
+	rv := bsAccount(t, mid, reserve)
+	requireFigures(t, rv, 600, 0)
+	requireDrill(t, rv, "prior", map[string]string{"period": rangeJSON("2025-10-01", "2025-10-15"), "method": accrualMethod, "accounts": idList(reserve.Id)})
+	if secs := glSections(t, drillTD(t, b.app, b.reader, mid, rv.ID, "prior")); len(secs) != 0 {
+		t.Errorf("Reserve's Prior year 0.00 drills to sections %v, want none", sectionLabels(secs))
+	}
+	requireDrill(t, rv, "current", map[string]string{"period": rangeJSON("2025-10-01", "2026-10-15"), "method": accrualMethod, "accounts": idList(reserve.Id)})
 
 	requireNoDrill(t, row, "change")
 	requireNoDrill(t, row, "pct")

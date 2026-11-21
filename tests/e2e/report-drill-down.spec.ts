@@ -836,10 +836,11 @@ test.describe('report-drill-down: screen', () => {
         expect(figureDigits(current)).toBe('325.00')
         await pressFigure(page, 'current', bank)
         await expectTransactionDetailScreen(page)
-        expect(urlPeriod(page)).toBe(`${today}..${today}`)
-        await expect(page.getByTestId('report-document-period')).toHaveText(dayWords(today))
+        // The account's first line is of today: the period starts on the 1st of this month.
+        expect(urlPeriod(page)).toBe(`${firstOfMonth(today)}..${today}`)
+        await expect(page.getByTestId('report-document-period')).toHaveText(monthToDateWords(today))
         await expect(page.getByTestId('report-param-period')).toHaveText(
-            customPeriodChip(today, today)
+            customPeriodChip(firstOfMonth(today), today)
         )
         await expect(page.getByTestId('report-param-accounts')).toContainText(bank)
         const fromBalance = await snapshotWhen(
