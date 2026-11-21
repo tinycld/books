@@ -292,6 +292,38 @@ describe('the refund receipt fields', () => {
     })
 })
 
+// Bank-categorize spec §4: the categorization is audited as "Bank categorization", as the
+// bank match is, and links to its bank transaction, its entry, its payee, its connection
+// and who added it.
+describe('the bank categorization fields', () => {
+    it('audits the categorization as "Bank categorization"', () => {
+        expect(AUDITED).toContain('books_bank_categorizations')
+        expect(recordTypeLabel('books_bank_categorizations')).toBe('Bank categorization')
+    })
+
+    it('has an entry for every field of the generated schema, and no entry names a missing field', () => {
+        expect(Object.keys(AUDIT_FIELDS.books_bank_categorizations ?? {}).sort()).toEqual(
+            schemaFields('books_bank_categorizations')
+        )
+    })
+
+    it('links a categorization to the records it names', () => {
+        const fields = AUDIT_FIELDS.books_bank_categorizations
+        expect(fields?.bank_transaction).toMatchObject({
+            kind: 'relation',
+            target: 'books_bank_transactions',
+        })
+        expect(fields?.entry).toMatchObject({ kind: 'relation', target: 'books_journal_entries' })
+        expect(fields?.customer).toMatchObject({ kind: 'relation', target: 'books_customers' })
+        expect(fields?.vendor).toMatchObject({ kind: 'relation', target: 'books_vendors' })
+        expect(fields?.connection).toMatchObject({
+            kind: 'relation',
+            target: 'books_bank_connections',
+        })
+        expect(fields?.created_by).toMatchObject({ kind: 'relation', target: 'users' })
+    })
+})
+
 describe('a field with no entry', () => {
     it('reads its key in words', () => {
         const rows = changedFieldRows('books_not_audited', {

@@ -1,14 +1,8 @@
-import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { type Control, useController } from '@tinycld/core/ui/form'
-import {
-    Pressable,
-    TextInput as RNTextInput,
-    Text,
-    type TextInputInstance,
-    View,
-} from 'react-native'
-import { amountCents, amountError, centsToText } from '../lib/opening-balances'
+import { Pressable, Text, type TextInputInstance, View } from 'react-native'
+import { amountCents, amountError } from '../lib/opening-balances'
 import type { OpeningFormValues } from '../lib/opening-balances-schema'
+import { MoneyTextField } from './MoneyTextField'
 
 interface MoneyInputProps {
     control: Control<OpeningFormValues>
@@ -56,16 +50,7 @@ export function MoneyInput({
     inputRef,
 }: MoneyInputProps) {
     const { field, text, message } = useAmountMessage(control, accountId)
-    const placeholderColor = useThemeColor('field-placeholder')
-    const border = message ? 'border-danger' : 'border-border'
-    const tone = text.trim().startsWith('-') ? 'text-danger' : 'text-foreground'
 
-    const onBlur = () => {
-        field.onBlur()
-        const cents = amountCents(text)
-        if (cents === null) return
-        field.onChange(cents === 0 ? '' : centsToText(cents))
-    }
     const flipSign = () => {
         const trimmed = text.trim()
         if (trimmed === '' || amountCents(text) === null) return
@@ -74,23 +59,18 @@ export function MoneyInput({
 
     return (
         <View className="relative" style={{ minHeight: 44 }}>
-            <RNTextInput
-                ref={inputRef}
+            <MoneyTextField
+                inputRef={inputRef}
                 testID={testID}
                 accessibilityLabel={`Amount for ${accountLabel}`}
                 value={text}
                 onChangeText={field.onChange}
-                onBlur={onBlur}
+                onBlur={field.onBlur}
+                error={message}
                 onSubmitEditing={onSubmitEditing}
                 returnKeyType={returnKeyType}
-                submitBehavior="submit"
-                inputMode="decimal"
-                placeholder="0.00"
-                placeholderTextColor={placeholderColor}
-                autoCapitalize="none"
-                autoCorrect={false}
-                className={`rounded-lg border bg-background py-2.5 pl-11 pr-3 text-right text-base ${border} ${tone}`}
-                style={{ minHeight: 44 }}
+                hasPrefix
+                marksNegative
             />
             <Pressable
                 testID={`opening-sign-${accountId}`}

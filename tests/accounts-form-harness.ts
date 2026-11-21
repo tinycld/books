@@ -33,6 +33,7 @@ import type {
     BooksAccounts,
     BooksAdmins,
     BooksAttachments,
+    BooksBankCategorizations,
     BooksBankConnections,
     BooksBankFiles,
     BooksBankImports,
@@ -1096,6 +1097,12 @@ export function seedBooks(
         books_bank_imports: local<BooksBankImports>('books_bank_imports', opts.bankImports ?? []),
         // Read by the Banking screens' match queries; empty unless a test replaces them.
         books_bank_matches: local<BooksBankMatches>('books_bank_matches', []),
+        // Read by the Banking screens' Added to Books and Reviewed queries; empty unless a
+        // test replaces it.
+        books_bank_categorizations: local<BooksBankCategorizations>(
+            'books_bank_categorizations',
+            []
+        ),
         books_bank_match_lines: local<BooksBankMatchLines>('books_bank_match_lines', []),
         books_bank_match_suggestions: local<BooksBankMatchSuggestions>(
             'books_bank_match_suggestions',

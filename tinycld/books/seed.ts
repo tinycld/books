@@ -327,8 +327,9 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedVendorBalance(pb, ctx, accountIds)
     // After every document seed, so its check that each of its two statement lines has
     // exactly one suggestion sees every seeded document (the review statement is imported
-    // before any document posts). It posts no document, so no document number moves.
-    await seedBankMatch(pb, ctx)
+    // before any document posts). Its categorization posts one journal entry, last, so no
+    // earlier seeded document number moves.
+    await seedBankMatch(pb, ctx, accountIds)
     // Two unsent statements; a statement posts nothing, so no seeded figure moves.
     await seedStatements(pb, customerIds)
     // Created active and deactivated last, because the app makes an account
@@ -2867,11 +2868,18 @@ async function seedReviewStatement(
     }
 }
 
-// The review statement's last two lines each fit one Books transaction the seed posted on
-// 1000 Business Checking: PACIFIC POWER AUTOPAY stays For review with its one suggestion,
-// and ONLINE BILL PAY 0915 is matched through the same create hook the app uses, so the
-// Reviewed tab has a matched row. The superuser attributes the match to the seeded user.
-async function seedBankMatch(pb: PocketBase, ctx: SeedContext) {
+// Two of the review statement's last three lines each fit one Books transaction the seed
+// posted on 1000 Business Checking: PACIFIC POWER AUTOPAY stays For review with its one
+// suggestion, and ONLINE BILL PAY 0915 is matched through the same create hook the app
+// uses, so the Reviewed tab has a matched row. The last line, DROPBOX BUSINESS, is
+// categorized through the categorization create hook (server/bank_categorize.go), which
+// posts its journal entry and moves it to Reviewed, so the Reviewed tab has an added row.
+// The superuser attributes the match and the categorization to the seeded user.
+export async function seedBankMatch(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>
+) {
     const statement = REVIEW_SEED_STATEMENT
     const onlySuggestion = async (fitid: string) => {
         const txn = await pb
@@ -2893,6 +2901,21 @@ async function seedBankMatch(pb: PocketBase, ctx: SeedContext) {
     await pb.collection('books_bank_matches').create({
         bank_transaction: matched.txn,
         lines: [matched.line],
+        created_by: ctx.user.id,
+    })
+    const categorized = await pb
+        .collection('books_bank_transactions')
+        .getFirstListItem(pb.filter('fitid = {:f}', { f: statement.categorizedFitid }))
+    const account = seededAccountId(
+        accountIds,
+        statement.categorizedAccountNumber,
+        `bank transaction ${statement.categorizedFitid}`
+    )
+    await pb.collection('books_bank_categorizations').create({
+        bank_transaction: categorized.id,
+        kind: 'categorize',
+        memo: statement.categorizedDescription,
+        lines: [{ account, amount: statement.categorizedAmountCents, memo: '' }],
         created_by: ctx.user.id,
     })
 }

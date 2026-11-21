@@ -1,6 +1,6 @@
 import { buildAccountTree, defaultSort, type TreeNode } from './account-tree'
 
-type OptionAccount = {
+export type OptionAccount = {
     id: string
     name: string
     number: string

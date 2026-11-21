@@ -6,6 +6,7 @@ import { formatDay } from '../../tinycld/books/lib/register-range'
 import { PHONE } from './account-register-helpers'
 import { creditMemoUrlOf, openCreditMemoBySearch, postCreditMemo } from './credit-memo-helpers'
 import { lineCellTestId, localToday, uniqueMemo } from './invoice-helpers'
+import { shiftTabTo, tabTo } from './keyboard-helpers'
 import {
     pickRefundCustomer,
     pickRefundLineProduct,
@@ -184,16 +185,6 @@ async function postNorthwindMemo(page: Page, memo: string) {
     })
     const total = await centsIn(shown(page, 'credit-memo-total-credit'))
     return { ...posted, total }
-}
-
-async function tabTo(page: Page, target: Locator) {
-    await page.keyboard.press('Tab')
-    await expect(target).toBeFocused()
-}
-
-async function shiftTabTo(page: Page, target: Locator) {
-    await page.keyboard.press('Shift+Tab')
-    await expect(target).toBeFocused()
 }
 
 // Shift+Tab until focus leaves the band's first row (Customer, Bill to, Email); the

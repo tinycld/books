@@ -170,6 +170,10 @@ const BANK_TXN_STATUS = (['for_review', 'reviewed', 'excluded'] as const).map(va
     value,
     label: txnStatusLabel(value),
 }))
+const BANK_CATEGORIZATION_KIND = [
+    { value: 'categorize', label: 'Categorize' },
+    { value: 'transfer', label: 'Transfer' },
+]
 
 // --- Fields every collection shares. ---
 
@@ -738,6 +742,19 @@ const AUDIT_FIELD_MAPS = {
         lines: internal('Matched lines'),
         connection: relation('Bank connection', 'books_bank_connections'),
         created_by: relation('Matched by', 'users'),
+        ...STAMPS,
+    },
+    books_bank_categorizations: {
+        bank_transaction: relation('Bank transaction', 'books_bank_transactions'),
+        kind: select('Kind', BANK_CATEGORIZATION_KIND),
+        customer: relation('Customer', 'books_customers'),
+        vendor: relation('Vendor', 'books_vendors'),
+        memo: text('Memo'),
+        // The posted entry shows the lines; the json is the request the server posted from.
+        lines: internal('Categorized lines'),
+        connection: relation('Bank connection', 'books_bank_connections'),
+        entry: relation('Journal entry', 'books_journal_entries'),
+        created_by: relation('Added by', 'users'),
         ...STAMPS,
     },
     books_settings: {

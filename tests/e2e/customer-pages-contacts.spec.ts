@@ -12,6 +12,7 @@ import {
     searchCustomers,
     uniqueName,
 } from './customer-form-helpers'
+import { tabTo } from './keyboard-helpers'
 
 // The customer page's Contacts tab (customer-pages checkpoint 5, spec §3.6): adding,
 // editing, making primary and deleting the people at a customer, from the keyboard on a
@@ -51,18 +52,6 @@ const TABLET = { width: 800, height: 900 }
 // How far a table's own scroller reaches past its box; above 0 it scrolls sideways.
 function sideOverflow(scroller: Locator) {
     return scroller.evaluate(el => el.scrollWidth - el.clientWidth)
-}
-
-function isFocused(locator: Locator) {
-    return locator.evaluate(el => el === document.activeElement)
-}
-
-// Presses Tab until `target` holds the focus (at most `max` presses); no click.
-async function tabTo(page: Page, target: Locator, max = 30) {
-    for (let presses = 0; presses < max && !(await isFocused(target)); presses++) {
-        await page.keyboard.press('Tab')
-    }
-    await expect(target).toBeFocused()
 }
 
 function primarySwitch(page: Page) {
@@ -119,7 +108,7 @@ async function addContact(page: Page, values: ContactValues & { primary?: boolea
 // From a focused row menu trigger: Enter opens it with Edit focused, Enter opens the
 // dialog with the focus in Name.
 async function editFromKeyboard(page: Page, id: string) {
-    await tabTo(page, page.getByTestId(`customer-contact-menu-${id}`))
+    await tabTo(page, page.getByTestId(`customer-contact-menu-${id}`), { max: 30 })
     await page.keyboard.press('Enter')
     await expect(page.getByTestId('customer-contact-edit')).toBeFocused()
     await page.keyboard.press('Enter')
@@ -157,7 +146,12 @@ test.describe('customer-pages: contacts tab', () => {
             'true'
         )
         await expect(page.getByTestId('customer-contacts-empty')).toBeVisible()
-        await tabTo(page, page.getByTestId('customer-contacts-empty-add'))
+        // Save replaced the New form with the customer page, so the pressed Save button is
+        // gone and the focus is on the body.
+        await tabTo(page, page.getByTestId('customer-contacts-empty-add'), {
+            max: 30,
+            fromBody: true,
+        })
         await page.keyboard.press('Enter')
         await expect(dialog).toBeVisible()
         await expect(nameInput).toBeFocused()
@@ -177,7 +171,7 @@ test.describe('customer-pages: contacts tab', () => {
         await page.keyboard.press('Tab')
         await expect(page.getByTestId('contact-phone')).toBeFocused()
         await page.keyboard.type(phone)
-        await tabTo(page, primarySwitch(page), 3)
+        await tabTo(page, primarySwitch(page), { max: 3 })
         await page.keyboard.press('Space')
         await expect(primarySwitch(page)).toBeChecked()
         await page.keyboard.press('ControlOrMeta+Enter')
@@ -237,7 +231,7 @@ test.describe('customer-pages: contacts tab', () => {
         await expect(page.getByTestId('contact-role')).toBeFocused()
         await page.keyboard.press('ControlOrMeta+a')
         await page.keyboard.type(newRole)
-        await tabTo(page, primarySwitch(page), 3)
+        await tabTo(page, primarySwitch(page), { max: 3 })
         await page.keyboard.press('Space')
         await expect(primarySwitch(page)).toBeChecked()
         await page.keyboard.press('ControlOrMeta+Enter')

@@ -23,6 +23,11 @@ const (
 	docTypeTransfer = "transfer"
 )
 
+// msgNotTransferAccount refuses an account of a type a transfer may not use:
+// the line number, then the account's name. checkTransfer numbers the journal
+// lines; a bank categorization numbers its form's lines (bank_categorize.go).
+const msgNotTransferAccount = "Line %d: %s cannot be used in a transfer. Choose a bank, credit card, asset, liability or equity account."
+
 func mustParseTransferAccountTypes(raw []byte) []string {
 	var out []string
 	if err := json.Unmarshal(raw, &out); err != nil {
@@ -100,8 +105,7 @@ func checkTransfer(tx core.App, entry *core.Record, lines []*core.Record) error 
 			return fmt.Errorf("books: read the account of line %d: %w", n, err)
 		}
 		if !isTransferAccountType(account.GetString("type")) {
-			return refuse("Line %d: %s cannot be used in a transfer. Choose a bank, credit card, asset, liability or equity account.",
-				n, account.GetString("name"))
+			return refuse(msgNotTransferAccount, n, account.GetString("name"))
 		}
 	}
 	if entry.GetString("auto_reverse_on") != "" {

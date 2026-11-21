@@ -87,6 +87,7 @@ const utf8BOM = "\xEF\xBB\xBF"
 // rows and a refused one has none.
 //
 // It also binds the import (bank_import.go) and the match (bank_match.go).
+// The categorization (bank_categorize.go) is bound after the match.
 func registerBanking(app core.App) {
 	app.OnRecordCreateRequest("books_bank_connections").BindFunc(func(e *core.RecordRequestEvent) error {
 		stampActor(e.Record, "created_by", e.Auth)
@@ -111,6 +112,7 @@ func registerBanking(app core.App) {
 	})
 	registerBankImport(app)
 	registerBankMatch(app)
+	registerBankCategorize(app)
 }
 
 // checkBankConnection refuses a connection to an account that is missing,
