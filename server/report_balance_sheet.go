@@ -50,7 +50,10 @@ func balanceSheetShipped() reports.Shipped {
 		// months; only the cash-basis rows of those months are read as lines.
 		// 6: a drill's period starts on the first day of the account's first
 		// month (read from the stored months), not on its first line's day.
-		Revision:    6,
+		// 7: on Cash the cash-basis rows of the months before a day's month
+		// come from the stored cash months (books_cash_basis_balances), not
+		// from the rows.
+		Revision:    7,
 		Unpublished: true,
 	}
 }
@@ -356,16 +359,17 @@ func netIncomeAt(x *reports.Node) *reports.Node {
 // starts on the first day of a month, so every day of a month is in the
 // fiscal year of that first day). The ledger lines of the months before x's
 // month come from the stored months on both methods; on Cash the cash-basis
-// rows of those months are added; x's month comes from its lines.
+// rows of those months are added, from the stored cash months; x's month comes
+// from its lines.
 func profitAndLossSum(x *reports.Node, which func(day string) *reports.Node) *reports.Node {
 	monthStart := op("startOfMonth", x)
 	net := op("sub", fld("credit"), fld("debit"))
+	storedNet := op("sub", fld("credit_total"), fld("debit_total"))
 	return op("add",
-		glSum("books.account_balances", op("sub", fld("credit_total"), fld("debit_total")),
+		glSum("books.account_balances", storedNet,
 			op("lt", fld("month_start"), monthStart), which("month_start")),
-		glSum("books.basis_lines", net,
-			onCash(), onCashLayer(), op("eq", fld("posted"), lit(true)),
-			op("lt", fld("date"), monthStart), which("date")),
+		glSum("books.cash_basis_balances", storedNet,
+			onCash(), op("lt", fld("month_start"), monthStart), which("month_start")),
 		glSum("books.basis_lines", net,
 			basisFilter(), op("eq", fld("posted"), lit(true)), op("lte", fld("date"), x),
 			op("gte", fld("date"), monthStart), which("date")),
@@ -387,10 +391,6 @@ func bsSigned(debit, credit string) *reports.Node {
 // Accrual.
 func onCash() *reports.Node { return op("eq", prm("method"), lit("cash")) }
 
-// onCashLayer is true for a cash-basis row of books.basis_lines. A lookup
-// that holds it reads no ledger line.
-func onCashLayer() *reports.Node { return op("eq", fld("layer"), lit("cash")) }
-
 // bsAccountLines are the posted lines of the row's account that the run's
 // method reads and that pass more.
 func bsAccountLines(more ...*reports.Node) []*reports.Node {
@@ -402,7 +402,9 @@ func bsAccountLines(more ...*reports.Node) []*reports.Node {
 }
 
 // bsStoredBefore are the stored months of the row's account before the month
-// of day x. They hold the ledger lines, which both methods read.
+// of day x: the ledger's (books.account_balances), which both methods read, or
+// the cash-basis rows' (books.cash_basis_balances). Both sources have the same
+// fields.
 func bsStoredBefore(x *reports.Node) []*reports.Node {
 	return []*reports.Node{
 		op("eq", link("account"), tdAccount()),
@@ -410,15 +412,20 @@ func bsStoredBefore(x *reports.Node) []*reports.Node {
 	}
 }
 
+// bsCashStoredBefore are the stored cash months of the row's account before
+// the month of day x, on a Cash run; no row on Accrual.
+func bsCashStoredBefore(x *reports.Node) []*reports.Node {
+	return append([]*reports.Node{onCash()}, bsStoredBefore(x)...)
+}
+
 // bsBefore is the row's account's balance at the start of the month of day x:
-// the stored months (books_account_balances), so its cost does not grow with
-// the account's ledger lines, and on Cash the account's cash-basis rows before
-// that month, which no stored month holds.
+// the stored months (books_account_balances) and, on Cash, the stored cash
+// months (books_cash_basis_balances), so its cost does not grow with the
+// account's ledger lines or its cash-basis rows.
 func bsBefore(x *reports.Node) *reports.Node {
 	return op("add",
 		glSum("books.account_balances", bsSigned("debit_total", "credit_total"), bsStoredBefore(x)...),
-		glSum("books.basis_lines", bsSigned("debit", "credit"),
-			bsAccountLines(onCash(), onCashLayer(), op("lt", fld("date"), op("startOfMonth", x)))...),
+		glSum("books.cash_basis_balances", bsSigned("debit_total", "credit_total"), bsCashStoredBefore(x)...),
 	)
 }
 
@@ -432,14 +439,15 @@ func bsBalanceAt(x *reports.Node) *reports.Node {
 
 // bsActivity is above 0 when the row's account has a posted line on or before
 // day x, the day of the report's rows: a stored month exists only for a month
-// with a posted ledger line; on Cash the cash-basis rows before x's month
-// count too.
+// with a posted ledger line; on Cash the stored cash months before x's month
+// count too (a stored cash month exists only for a month with a cash-basis
+// row).
 func bsActivity(x *reports.Node) *reports.Node {
 	earlier := &reports.Node{
 		Op:     "lookup",
-		Source: "books.basis_lines",
-		Where:  op("and", bsAccountLines(onCash(), onCashLayer(), op("lt", fld("date"), op("startOfMonth", x)))...),
-		Value:  mustJSON(fld("date")),
+		Source: "books.cash_basis_balances",
+		Where:  op("and", bsCashStoredBefore(x)...),
+		Value:  mustJSON(fld("id")),
 		Pick:   "count",
 	}
 	return op("add",

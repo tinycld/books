@@ -87,17 +87,22 @@ func firstLine(d *reports.Node) *reports.Node {
 // Sheet drill's range starts, so it holds every line a balance on d sums. It
 // reads the account's stored months (books_account_balances: one row for each
 // month with a posted ledger line), not its lines, so its cost does not grow
-// with them; on Cash also the month of the account's first cash-basis row,
-// which no stored month holds. No value when the account has neither.
+// with them; on Cash also its stored cash months (books_cash_basis_balances:
+// one row for each month with a cash-basis row). No value when the account
+// has neither.
 func firstBasisMonth(d *reports.Node) *reports.Node {
-	stored := &reports.Node{
-		Op:     "lookup",
-		Source: "books.account_balances",
-		Where:  op("and", op("eq", link("account"), tdAccount()), op("lte", fld("month_start"), d)),
-		Value:  mustJSON(fld("month_start")),
-		Pick:   "min",
+	firstMonth := func(source string, more ...*reports.Node) *reports.Node {
+		where := append([]*reports.Node{op("eq", link("account"), tdAccount()), op("lte", fld("month_start"), d)}, more...)
+		return &reports.Node{
+			Op:     "lookup",
+			Source: source,
+			Where:  op("and", where...),
+			Value:  mustJSON(fld("month_start")),
+			Pick:   "min",
+		}
 	}
-	cash := op("startOfMonth", firstLineWhere("books.basis_lines", d, onCash(), onCashLayer()))
+	stored := firstMonth("books.account_balances")
+	cash := firstMonth("books.cash_basis_balances", onCash())
 	// The earlier of the two; either may have no value. Core's min takes
 	// numbers only, so the days are compared.
 	a, b := op("coalesce", stored, cash), op("coalesce", cash, stored)
