@@ -389,7 +389,10 @@ func writeStatementsScaleOut(t *testing.T, results, plans string) {
 // its open section through an index on the open sections. Read the other way
 // (the open sections first), every section read every row of the period: a
 // section's key is the id of a joined account, which no index on the rows
-// holds.
+// holds. The statement reads the period's rows (each line table once) into
+// w, and each select that joins the open sections (gord) scans its rows and
+// searches gord by the keys: the cut to the sections the page can reach (gcut,
+// wl) and the page itself.
 func TestTransactionDetailReadsItsPeriodRowsOnce(t *testing.T) {
 	b := writeStatementsScaleBook(t, arSmall)
 	for _, run := range stScaleRuns(b) {
@@ -406,17 +409,38 @@ func TestTransactionDetailReadsItsPeriodRowsOnce(t *testing.T) {
 			t.Fatalf("%d page statements that join the open sections, want 1", len(page))
 		}
 		var steps []string
+		// reads counts the scans of the period's line tables; searched and
+		// scanned are the selects (a step's parent) that search gord by its
+		// automatic index and that scan the rows (t1 over the union source, d
+		// over computed rows, w over the period's rows read once).
+		reads, searched, scanned := 0, map[int]bool{}, map[int]bool{}
 		for _, step := range explainStatements(t, b.app, page) {
 			if scaleOpenGroupStep(step.Detail) {
 				steps = append(steps, step.Detail)
+			}
+			switch {
+			case step.Detail == "SCAN books_journal_lines" || step.Detail == "SCAN books_cash_basis_lines":
+				reads++
+			case strings.HasPrefix(step.Detail, "SEARCH gord USING AUTOMATIC "):
+				searched[step.Parent] = true
+			case step.Detail == "SCAN t1" || step.Detail == "SCAN d" || step.Detail == "SCAN w":
+				scanned[step.Parent] = true
 			}
 		}
 		plan := strings.Join(steps, "\n")
 		if strings.Contains(plan, "SCAN gord") || strings.Contains(plan, "SEARCH t1") {
 			t.Fatalf("every open section reads the period's rows:\n%s", plan)
 		}
-		if !strings.Contains(plan, "SCAN t1") || !strings.Contains(plan, "SEARCH gord USING AUTOMATIC") {
+		if reads != 2 {
+			t.Fatalf("the line tables are scanned %d times, want each once", reads)
+		}
+		if len(searched) == 0 {
 			t.Fatalf("the rows do not find their section by its keys:\n%s", plan)
+		}
+		for parent := range searched {
+			if !scanned[parent] {
+				t.Fatalf("a select searches the open sections but does not scan its rows (step %d):\n%s", parent, plan)
+			}
 		}
 		return
 	}
