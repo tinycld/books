@@ -398,6 +398,24 @@ func periodRowsRead(detail string) bool {
 	return strings.HasPrefix(detail, "SEARCH books_cash_basis_lines USING INDEX idx_books_cash_basis_lines_account_date ")
 }
 
+// readsEverySection is true when a step of the statement scans gord or searches
+// t1, so that each open section would read the period's rows. The one scan of
+// gord that stays is inside a list SQLite builds once (the open keys): a scan
+// under a CORRELATED subquery, or outside any list, runs for each row.
+func readsEverySection(steps []planStep) bool {
+	for _, step := range steps {
+		if strings.HasPrefix(step.Detail, "SEARCH t1 ") {
+			return true
+		}
+	}
+	for _, step := range stepsRunPerRow(steps) {
+		if strings.Contains(step.Detail, "SCAN gord") {
+			return true
+		}
+	}
+	return false
+}
+
 // TestTransactionDetailReadsItsPeriodRowsOnce: the page statement of a run
 // with no Accounts filter reads the period's rows once, and each row finds
 // its open section through an index on the open sections. Read the other way
@@ -428,12 +446,16 @@ func TestTransactionDetailReadsItsPeriodRowsOnce(t *testing.T) {
 		// scanned are the selects (a step's parent) that search gord by its
 		// automatic index and that scan the rows (t1 over the union source, d
 		// over computed rows, w over the period's rows read once). The list of
-		// open keys that cuts w is built once and left out (outsideLists).
+		// open keys that cuts w is built once and left out of these counts
+		// (stepsRunPerRow); the must-not-appear guard reads every step.
 		reads, searched, scanned := 0, map[int]bool{}, map[int]bool{}
-		for _, step := range outsideLists(explainStatements(t, b.app, page)) {
+		all := explainStatements(t, b.app, page)
+		for _, step := range all {
 			if scaleOpenGroupStep(step.Detail) {
 				steps = append(steps, step.Detail)
 			}
+		}
+		for _, step := range stepsRunPerRow(all) {
 			switch {
 			case periodRowsRead(step.Detail):
 				reads++
@@ -444,7 +466,7 @@ func TestTransactionDetailReadsItsPeriodRowsOnce(t *testing.T) {
 			}
 		}
 		plan := strings.Join(steps, "\n")
-		if strings.Contains(plan, "SCAN gord") || strings.Contains(plan, "SEARCH t1") {
+		if readsEverySection(all) {
 			t.Fatalf("every open section reads the period's rows:\n%s", plan)
 		}
 		if reads != 2 {
