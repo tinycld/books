@@ -879,7 +879,9 @@ Median of 5. Both runs PASS (`scale-task28-gl.log`, `scale-task28-st500.log`) an
 
 Checks of step 10: General Ledger run 2's statement with a `gord` line in `gl-plans.md` has no `SCAN gord` line (grep count 0). Every General Ledger run is under the 2 s bar at 500k. Run 2's margin is 241 ms under the bar (1.759 s), about 12 %: more than 10 %, so tasks 28b and 28c are not needed.
 
-What is left of run 2 (plan, evidence item 2): the section rows statement (about 355 ms) and the Total row statement (about 391 ms), and in the detail page `w` (about 317 ms) and the sections computed again (about 229 ms). Two options not built: the Total row read in the section rows statement (about -345 ms, an estimate) and no `shown` CTEs under `wl` (about -230 ms, an estimate).
+What is left of run 2 (plan, evidence item 2): the section rows statement (about 355 ms) and the Total row statement (about 391 ms), and in the detail page `w` (about 317 ms) and the sections computed again (about 229 ms). These four figures are the plan's, measured before the cut; they were not measured again after it. Two options not built: the Total row read in the section rows statement (about -345 ms, an estimate) and no `shown` CTEs under `wl` (about -230 ms, an estimate).
+
+For a later task that builds those two options (a "28b"): it must pass `away` from `heldLeaves` to `leafRows`; `TestAMovedGroupOffThePageIsReadOverTheGroupsAPageCanReach` catches its omission.
 
 #### Task 29: every value in a statement is bound (core `server/reports`, Books `server`, 2026-11-20)
 
@@ -925,7 +927,7 @@ Not done here: nothing is left. The `gcut` limit of part 28 is an approved integ
 
 #### All bars at 500k (2026-11-21)
 
-The human's bars: Trial Balance and Transaction Detail runs with an account filter, month: 1 s; every other run of every report: 2 s (the human, 2026-11-20). The General Ledger runs with no account filter got 2 s by Ruling #100. Each bar below is read from the test code (`report_general_ledger_scale_test.go`, `glMonthBar` 1 s and `glLongRunBar` 2 s, the runs at lines 120-125; `report_statements_scale_test.go`, lines 90-100).
+The human's bars (the human, 2026-11-20): Transaction Detail with an account filter, month, 1 s; Trial Balance with an account filter (as of), 1 s; every other run 2 s. The General Ledger runs with no account filter got 2 s by Ruling #100. Each bar below is read from the test code (`report_general_ledger_scale_test.go`, `glMonthBar` 1 s and `glLongRunBar` 2 s, the runs at lines 120-125; `report_statements_scale_test.go`, lines 90-100).
 
 | report | run | bar | median at 500k | pass |
 |---|---|---|---|---|
