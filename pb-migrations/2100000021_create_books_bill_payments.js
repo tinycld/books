@@ -29,7 +29,7 @@
 //
 // CASH BASIS. books_cash_basis_lines and books_cash_basis_tax_lines are the
 // cash-basis rows the server derives from payments (server/cash_basis.go).
-// Readers list them; no client writes them.
+// Readers list them; no client writes them. books_cash_basis_balances holds the totals of the cash-basis rows per account and month (server/cash_balances.go).
 //
 // MONEY is integer minor units (onlyInt), at most 2^53-1, the largest integer
 // a number field (float64) stores exactly. DATES are YYYY-MM-DD text, as on
@@ -227,6 +227,35 @@ migrate(
             })
         )
 
+        // The stored cash months: for each account and month, the totals of the
+        // posted books_cash_basis_lines rows (server/cash_balances.go). The server
+        // keeps them with the rows. Readers list them; no client writes them.
+        app.save(
+            new Collection({
+                id: 'pbc_books_cash_months',
+                name: 'books_cash_basis_balances',
+                type: 'base',
+                listRule: READ,
+                viewRule: READ,
+                createRule: null,
+                updateRule: null,
+                deleteRule: null,
+                fields: [
+                    relation('account', accounts.id, { required: true }),
+                    { name: 'period', type: 'text', required: true, max: 7, pattern: '^\\d{4}-\\d{2}$' },
+                    // The first day of the month, so a report compares the row with a day.
+                    { name: 'month_start', type: 'text', required: true, max: 10, pattern: '^\\d{4}-\\d{2}-01$' },
+                    { name: 'debit_total', type: 'number', onlyInt: true, min: 0, max: MAX_STORED },
+                    { name: 'credit_total', type: 'number', onlyInt: true, min: 0, max: MAX_STORED },
+                    { name: 'currency', type: 'text', required: true, pattern: '^[A-Z]{3}$' },
+                    ...AUTODATES,
+                ],
+                indexes: [
+                    'CREATE UNIQUE INDEX idx_books_cash_balances_account_period ON books_cash_basis_balances (account, period)',
+                ],
+            })
+        )
+
         app.save(
             new Collection({
                 id: 'pbc_books_cash_tax',
@@ -273,6 +302,7 @@ migrate(
     app => {
         app.db().newQuery('DROP TABLE IF EXISTS fts_books_bill_payments').execute()
         for (const name of [
+            'books_cash_basis_balances',
             'books_cash_basis_tax_lines',
             'books_cash_basis_lines',
             'books_bill_payment_lines',

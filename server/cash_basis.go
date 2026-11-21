@@ -30,7 +30,8 @@ import (
 // Every write that changes a document's entries or payments rebuilds that
 // document's rows in its own transaction (rebuildCashBasisFor); the ledger
 // rebuild recomputes every document (rebuildCashBasis). Nothing else writes the
-// rows. An invoice's and a credit memo's sales tax has its own rows, rebuilt with these
+// rows. Each write of a row refreshes the stored cash month of its account
+// (cash_balances.go). An invoice's and a credit memo's sales tax has its own rows, rebuilt with these
 // (cash_basis_tax.go). Whether a payment counts is read from its entry (posted, origin
 // document, naming the payment), not from the payment row: a payment's post
 // and void change its entry before its own row is saved.
@@ -482,25 +483,29 @@ func syncCashRows(tx core.App, d cashDeferral, docID string) (int, error) {
 }
 
 // syncCashLineRows makes the document's stored books_cash_basis_lines rows
-// equal the derived ones.
+// equal the derived ones, and refreshes the stored cash month
+// (cash_balances.go) of every row it deletes or writes.
 func syncCashLineRows(tx core.App, d cashDeferral, docID string) (int, error) {
 	stray, missing, err := cashRowDiff(tx, d, docID)
 	if err != nil {
 		return 0, err
 	}
+	months := map[balanceKey]bool{}
 	for _, r := range stray {
+		months[balanceKey{r.GetString("account"), periodOf(r.GetString("date"))}] = true
 		if err := tx.Delete(r); err != nil {
 			return 0, fmt.Errorf("books: delete a cash-basis row of %s %s: %w", d.Kind, docID, err)
 		}
 	}
 	if len(missing) == 0 {
-		return len(stray), nil
+		return len(stray), refreshCashBalances(tx, months)
 	}
 	col, err := tx.FindCachedCollectionByNameOrId(cashLinesCollection)
 	if err != nil {
 		return 0, err
 	}
 	for _, w := range missing {
+		months[balanceKey{w.Account, periodOf(w.Date)}] = true
 		r := core.NewRecord(col)
 		r.Set("document_kind", d.Kind)
 		r.Set(d.Kind, docID)
@@ -519,6 +524,9 @@ func syncCashLineRows(tx core.App, d cashDeferral, docID string) (int, error) {
 		if err := tx.Save(r); err != nil {
 			return 0, fmt.Errorf("books: write a cash-basis row of %s %s: %w", d.Kind, docID, err)
 		}
+	}
+	if err := refreshCashBalances(tx, months); err != nil {
+		return 0, err
 	}
 	return len(stray) + len(missing), nil
 }

@@ -87,6 +87,7 @@ func oauthPackage() oauth.Package {
 			vendorRefundLinesCollection:        rw,
 			writeOffsCollection:                rw,
 			"books_cash_basis_lines":           ro,
+			"books_cash_basis_balances":        ro,
 			"books_cash_basis_tax_lines":       ro,
 			"books_party_contacts":             rw,
 			"books_party_balances":             ro,

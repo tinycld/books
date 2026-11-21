@@ -235,9 +235,10 @@ func receivableDriftReport(drifts []ReceivableDrift) (listed []ReceivableDrift, 
 // bill's balance equal its total less the posted payments that pay it (the
 // verify part of the document balances is verifyDocumentBalances), and every
 // cash-basis row equal what the entries and payments give (rebuildCashBasis;
-// its verify part is verifyCashBasis), in one transaction, touching only the
-// rows that differ. It returns how many month rows, document balances and
-// cash-basis rows it fixed. It also rebuilds the stored receivable rows when they
+// its verify part is verifyCashBasis), and every stored cash month equal its
+// cash rows (rebuildCashBalances; its verify part is verifyCashBalances), in
+// one transaction, touching only the rows that differ. It returns how many
+// month rows, document balances, cash-basis rows and cash months it fixed. It also rebuilds the stored receivable rows when they
 // disagree with the book (repairReceivables); those rows are not in the count.
 func rebuildBalances(app core.App) (int, error) {
 	fixed := 0
@@ -247,6 +248,10 @@ func rebuildBalances(app core.App) (int, error) {
 			return err
 		}
 		cash, err := rebuildCashBasis(tx)
+		if err != nil {
+			return err
+		}
+		cashMonths, err := rebuildCashBalances(tx)
 		if err != nil {
 			return err
 		}
@@ -283,7 +288,7 @@ func rebuildBalances(app core.App) (int, error) {
 				return fmt.Errorf("books: save rebuilt balance row: %w", err)
 			}
 		}
-		fixed = len(drifts) + documents + cash
+		fixed = len(drifts) + documents + cash + cashMonths
 		return repairReceivables(tx)
 	})
 	return fixed, err
