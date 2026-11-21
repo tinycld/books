@@ -133,8 +133,13 @@ export function useReviewBatch() {
     // moment it starts, so a second call sends nothing and gets the outcome of that run
     // (its caller then applies the same outcome a second time, which changes nothing).
     const inFlight = useRef<Promise<BatchOutcome> | null>(null)
+    const setAddedNote = useBankingUIStore(s => s.setAddedNote)
+    const setFailedNote = useBankingUIStore(s => s.setFailedNote)
+    // A run's result line takes the place of the last Categorize's "Added …" or failed line.
     const run = (input: ReviewBatchInput): Promise<BatchOutcome> => {
         if (inFlight.current) return inFlight.current
+        setAddedNote(null)
+        setFailedNote(null)
         const started = mutation
             .mutateAsync(input)
             .then(done => done.outcome)

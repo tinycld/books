@@ -12,6 +12,7 @@ import {
     reviewShortcuts,
 } from '../lib/review-shortcuts'
 import { useBankingUIStore } from '../stores/banking-ui-store'
+import { leaveWayField } from './useBankCategorize'
 import type { ReviewDrawerModel } from './useReviewDrawer'
 import type { ReviewTabModel } from './useReviewTab'
 
@@ -75,7 +76,7 @@ export type ReviewShortcutsInput = ReviewTabModel & {
     tab: TxnTab
     searchRef: RefObject<TextInputInstance | null>
     onTab: (tab: ReviewTab) => void
-    drawer: Pick<ReviewDrawerModel, 'action' | 'onAction' | 'onClose'>
+    drawer: Pick<ReviewDrawerModel, 'action' | 'onAction' | 'onClose' | 'wayFormNode'>
 }
 
 // The keys of a transaction tab, registered in the Banking page's `list` scope (the page's
@@ -129,7 +130,11 @@ export function useReviewShortcuts(input: ReviewShortcutsInput): void {
         tabReviewed: () => input.onTab('reviewed'),
         tabExcluded: () => input.onTab('excluded'),
         tabFiles: () => input.onTab('files'),
+        // Esc on a focused field of the drawer's Categorize or Transfer form (a picker
+        // trigger) leaves the field, so the list keys work again; else it closes the drawer
+        // or clears the choice. Memo, a text field, has its own Esc (useWayShortcuts).
         escape: () => {
+            if (leaveWayField(input.drawer.wayFormNode)) return
             if (input.openTxnId !== null) input.drawer.onClose()
             else input.onClearChoice()
         },
