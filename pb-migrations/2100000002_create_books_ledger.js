@@ -19,10 +19,10 @@
 // (server/revision.go).
 //
 // DOCUMENT ENTRIES. An entry with origin 'document' is the posting of a sales
-// or purchase document, of a received or bill payment, or of a write-off
-// (doc_type 'invoice', 'sales_receipt', 'credit_memo', 'refund_receipt', 'bill',
-// 'expense', 'vendor_credit', 'payment', 'bill_payment', 'vendor_refund' or
-// 'write_off'); document is
+// or purchase document, of a received or bill payment, of a write-off or of a
+// bank deposit (doc_type 'invoice', 'sales_receipt', 'credit_memo',
+// 'refund_receipt', 'bill', 'expense', 'vendor_credit', 'payment',
+// 'bill_payment', 'vendor_refund', 'write_off' or 'deposit'); document is
 // that document's id. Only the document's Go hooks create, post and void such
 // an entry, so document is server-owned and origin 'document' is not among the
 // origins a client may create. A client creates no entry with a document's
@@ -190,6 +190,7 @@ migrate(
                             'vendor_refund',
                             'refund_receipt',
                             'write_off',
+                            'deposit',
                         ],
                     },
                     {

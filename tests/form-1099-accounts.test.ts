@@ -36,6 +36,13 @@ describe('form1099Accounts', () => {
                 box: 'nec_1',
             },
             {
+                id: 'bank-charges',
+                label: '6300 Bank charges and fees',
+                depth: 1,
+                inactive: false,
+                box: '',
+            },
+            {
                 id: 'petty',
                 label: '6900 Old Petty Cash',
                 depth: 1,
@@ -47,19 +54,26 @@ describe('form1099Accounts', () => {
 
     it('leaves out an inactive expense account that has no box', () => {
         const rows = form1099Accounts(withAccount('petty', { form_1099_box: '' }))
-        expect(ids(rows)).toEqual(['bad-debts', 'rent', 'software', 'design-tools'])
+        expect(ids(rows)).toEqual(['bad-debts', 'rent', 'software', 'design-tools', 'bank-charges'])
     })
 
     it('keeps the chart depth of an active sub-account whose inactive parent is left out', () => {
         const rows = form1099Accounts(withAccount('software', { inactive: true }))
-        expect(ids(rows)).toEqual(['bad-debts', 'rent', 'design-tools', 'petty'])
+        expect(ids(rows)).toEqual(['bad-debts', 'rent', 'design-tools', 'bank-charges', 'petty'])
         expect(rows.find(row => row.id === 'design-tools')?.depth).toBe(2)
     })
 
     it('leaves out a non-expense account that has a stray box', () => {
         const rows = form1099Accounts(withAccount('consulting', { form_1099_box: 'nec_1' }))
         expect(ids(rows)).not.toContain('consulting')
-        expect(ids(rows)).toEqual(['bad-debts', 'rent', 'software', 'design-tools', 'petty'])
+        expect(ids(rows)).toEqual([
+            'bad-debts',
+            'rent',
+            'software',
+            'design-tools',
+            'bank-charges',
+            'petty',
+        ])
     })
 
     it('labels an account with no number by its name alone, trimmed', () => {
@@ -72,7 +86,14 @@ describe('form1099Accounts', () => {
             withAccount('petty', { form_1099_box: '' }),
             new Set(['petty'])
         )
-        expect(ids(rows)).toEqual(['bad-debts', 'rent', 'software', 'design-tools', 'petty'])
+        expect(ids(rows)).toEqual([
+            'bad-debts',
+            'rent',
+            'software',
+            'design-tools',
+            'bank-charges',
+            'petty',
+        ])
         expect(rows.find(row => row.id === 'petty')).toEqual({
             id: 'petty',
             label: '6900 Old Petty Cash',
@@ -87,7 +108,7 @@ describe('form1099Accounts', () => {
             withAccount('petty', { form_1099_box: '' }),
             new Set(['rent', 'software'])
         )
-        expect(ids(rows)).toEqual(['bad-debts', 'rent', 'software', 'design-tools'])
+        expect(ids(rows)).toEqual(['bad-debts', 'rent', 'software', 'design-tools', 'bank-charges'])
     })
 
     it('lists nothing for a book with no expense-group account', () => {

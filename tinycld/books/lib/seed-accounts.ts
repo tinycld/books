@@ -79,6 +79,14 @@ export const SEED_ACCOUNTS: SeedAccount[] = [
         type: 'income',
         detail_type: 'service_income',
     },
+    // The other funds account of the seeded deposit (seed.ts seedDeposits).
+    {
+        key: 'interest',
+        name: 'Interest earned',
+        number: '4900',
+        type: 'other_income',
+        detail_type: 'interest_earned',
+    },
     // The write-off account of the seeded write-off (seed.ts seedWriteOffs).
     {
         key: 'bad-debts',
@@ -102,6 +110,14 @@ export const SEED_ACCOUNTS: SeedAccount[] = [
         type: 'expense',
         detail_type: 'dues_subscriptions',
         parent: 'software',
+    },
+    // An active account for a deposit's bank fee line (the seeded 6900 is inactive).
+    {
+        key: 'bank-charges',
+        name: 'Bank charges and fees',
+        number: '6300',
+        type: 'expense',
+        detail_type: 'bank_charges',
     },
     {
         key: 'petty',

@@ -806,6 +806,96 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // As the vendor refund's: server-owned fields below the omit line (the number and the
+    // totals at posting, who and when by the request). The form and the read view
+    // materialize Deposit to, the poster and the voider, and a correction reads the
+    // deposit it replaces or is replaced by; the self-relations are added once the
+    // collection exists (Object.assign, as the vendor refund's).
+    const depositRelations = {
+        deposit_to: books_accounts,
+        posted_by: coreStores.users,
+        voided_by: coreStores.users,
+    }
+    const books_deposits = newCollection('books_deposits', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'number',
+            'sequence',
+            'total',
+            'items_total',
+            'lines_total',
+            'currency',
+            'entry',
+            'replaced_by',
+            'posted_by',
+            'posted_at',
+            'voided_by',
+            'voided_at',
+            'sort_key',
+        ] as const,
+        ...onDemand,
+        relations: depositRelations,
+        collectionOptions: indexed,
+    })
+
+    Object.assign(depositRelations, {
+        replaces: books_deposits,
+        replaced_by: books_deposits,
+    })
+
+    // One row per ticked item: the client writes the deposit, the line and the position;
+    // the server copies the rest from the line, its entry and its source document
+    // (server/deposits.go), so the read view and a correction read this one collection.
+    const books_deposit_items = newCollection('books_deposit_items', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'entry',
+            'account',
+            'customer',
+            'vendor',
+            'amount',
+            'date',
+            'doc_type',
+            'number',
+            'document',
+            'payment_method',
+            'reference_no',
+            'posted',
+        ] as const,
+        ...onDemand,
+        relations: {
+            deposit: books_deposits,
+            account: books_accounts,
+            customer: books_customers,
+            vendor: books_vendors,
+        },
+        collectionOptions: indexed,
+    })
+
+    // One row per other funds line; the client writes every column but the autodates.
+    const books_deposit_lines = newCollection('books_deposit_lines', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        relations: {
+            deposit: books_deposits,
+            account: books_accounts,
+            customer: books_customers,
+            vendor: books_vendors,
+        },
+        collectionOptions: indexed,
+    })
+
+    // A view, never written: the server signals its topic when a journal line, an entry,
+    // an account, a deposit item or a source document changes (server/register.go), so
+    // the deposit form follows a post, a void or another deposit with no reload.
+    const books_undeposited_items = newCollection('books_undeposited_items', {
+        ...onDemand,
+        ...liveViewOptions('books_undeposited_items'),
+        collectionOptions: indexed,
+    })
+
     // Written by the server from payments (the cash basis); clients only read them.
     const books_cash_basis_lines = newCollection('books_cash_basis_lines', {
         omitOnInsert: ['created', 'updated'] as const,
@@ -906,6 +996,10 @@ export function registerCollections(
         books_vendor_refund_lines,
         books_write_offs,
         books_statements,
+        books_deposits,
+        books_deposit_items,
+        books_deposit_lines,
+        books_undeposited_items,
         books_cash_basis_lines,
         books_cash_basis_tax_lines,
         books_party_balances,

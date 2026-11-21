@@ -103,6 +103,13 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		vendorRefundLinesCollection: {
 			ExtractLabel: func(r *core.Record) string { return vendorRefundLineLabel(app, r) },
 		},
+		depositsCollection: {ExtractLabel: depositName, Redact: []string{"sort_key"}},
+		depositItemsCollection: {
+			ExtractLabel: func(r *core.Record) string { return depositItemLabel(app, r) },
+		},
+		depositLinesCollection: {
+			ExtractLabel: func(r *core.Record) string { return depositLineLabel(app, r) },
+		},
 		"books_settings": {
 			ExtractLabel: func(*core.Record) string { return "Books settings" },
 			Redact:       []string{"tax_id"},
@@ -133,7 +140,7 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 }
 
 // auditParentFields maps each line collection to the field that names its
-// document. The books_audit_log view (migration 2100000034) reads the same
+// document. The books_audit_log view (migration 2100000037) reads the same
 // collections to give a line's audit row its document, and Register declares them
 // as the view's sources, because a line write can change that document.
 var auditParentFields = map[string]string{
@@ -153,6 +160,8 @@ var auditParentFields = map[string]string{
 	vendorCreditApplicationsCollection: "vendor_credit",
 	creditMemoApplicationsCollection:   "credit_memo",
 	vendorRefundLinesCollection:        "refund",
+	depositItemsCollection:             "deposit",
+	depositLinesCollection:             "deposit",
 }
 
 // auditLineCollections are the keys of auditParentFields in name order.
@@ -181,6 +190,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_payments", Label: "Payment"},
 		{Value: billPaymentsCollection, Label: "Bill payment"},
 		{Value: vendorRefundsCollection, Label: "Vendor refund"},
+		{Value: depositsCollection, Label: "Deposit"},
 		{Value: "books_journal_entries", Label: "Journal entry"},
 		{Value: "books_invoice_lines", Label: "Invoice line"},
 		{Value: "books_sales_receipt_lines", Label: "Sales receipt line"},
@@ -195,6 +205,8 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: vendorCreditApplicationsCollection, Label: "Vendor credit application"},
 		{Value: creditMemoApplicationsCollection, Label: "Credit memo application"},
 		{Value: vendorRefundLinesCollection, Label: "Vendor refund line"},
+		{Value: depositItemsCollection, Label: "Deposit item"},
+		{Value: depositLinesCollection, Label: "Deposit line"},
 		{Value: "books_journal_lines", Label: "Journal line"},
 		{Value: "books_attachments", Label: "Attachment"},
 		{Value: "books_accounts", Label: "Account"},
@@ -489,6 +501,28 @@ func vendorRefundLineLabel(app core.App, r *core.Record) string {
 		credit = vendorCreditLabel(rec)
 	}
 	return refund + ": " + credit
+}
+
+// depositItemLabel names a deposit item by its deposit and the transaction it
+// deposits, from the item's copy of the entry: "Deposit 1004: Payment 1001". A
+// deposit that cannot be read (deleted with a draft deposit) falls back to its
+// id, so the audit row is still written.
+func depositItemLabel(app core.App, r *core.Record) string {
+	return depositParentLabel(app, r) + ": " + entryName(r)
+}
+
+// depositLineLabel names an other funds line by its deposit and its place:
+// "Deposit 1004: line 2".
+func depositLineLabel(app core.App, r *core.Record) string {
+	return fmt.Sprintf("%s: line %d", depositParentLabel(app, r), r.GetInt("position")+1)
+}
+
+func depositParentLabel(app core.App, r *core.Record) string {
+	deposit := r.GetString("deposit")
+	if rec, err := app.FindRecordById(depositsCollection, deposit); err == nil {
+		deposit = depositName(rec)
+	}
+	return deposit
 }
 
 // paymentLabel names a payment by its number: "Payment 1004". A draft has no

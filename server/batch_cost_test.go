@@ -139,8 +139,10 @@ const (
 	// Each line of a replace and post: its delete, its create, and its post.
 	// Measured 2026-11-15 at 16; measured again 2026-11-19 at 18: the two
 	// relation fields that point at books_journal_lines (books_bank_match_lines.line
-	// and books_bank_matches.lines) add one cascade lookup each to a line delete.
-	draftReplaceStatementsPerLine = 18
+	// and books_bank_matches.lines) add one cascade lookup each to a line delete;
+	// measured again 2026-11-21 at 19: books_deposit_items.line, a relation to
+	// books_journal_lines, adds one more.
+	draftReplaceStatementsPerLine = 19
 )
 
 func TestBatchCost_Create1000LineDraft(t *testing.T) {

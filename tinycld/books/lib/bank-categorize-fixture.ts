@@ -42,7 +42,7 @@ type FixtureAccount = Pick<
 
 // The one account the seeded chart does not have: 61 characters with its number, so a
 // picker trigger and a posted line must put it on one line with an ellipsis.
-export const CAT_LONG_ACCOUNT_NUMBER = '6300'
+export const CAT_LONG_ACCOUNT_NUMBER = '6310'
 const LONG_ACCOUNT: FixtureAccount = {
     id: accountId(CAT_LONG_ACCOUNT_NUMBER),
     name: 'Bank charges, merchant processing and payment gateway fees',

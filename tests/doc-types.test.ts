@@ -121,6 +121,18 @@ describe('write_off doc type', () => {
     })
 })
 
+// The seeded `deposit` row (booksseqdeposit) gets the "Deposits" card; registers and
+// the ledger read "Deposit" as its Type (bank deposit spec §3.7, Q8).
+describe('deposit doc type', () => {
+    it('names the Numbering card "Deposits", previews the next deposit and labels the Type "Deposit"', () => {
+        expect(DOC_TYPES.deposit).toEqual({ label: 'Deposits', noun: 'deposit' })
+        expect(DOC_TYPE_LABELS.deposit).toBe('Deposit')
+        expect(docTypeLabel('deposit')).toBe('Deposits')
+        expect(nextNumberPreview('deposit', '', '1001')).toBe('Next deposit: 1001')
+        expect(sequenceHelper('deposit')).toContain('applies to deposits posted from now on.')
+    })
+})
+
 // The seeded `statement` row (booksseqstatemt) gets the "Statements" card; a statement
 // takes its number when it is saved, as an estimate does (statements spec §3.1, §4.8).
 describe('statement doc type', () => {

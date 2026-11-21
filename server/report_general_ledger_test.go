@@ -156,6 +156,36 @@ func TestGeneralLedger_AWriteOffReadsItsTypeNumberAndCustomer(t *testing.T) {
 	}
 }
 
+// Bank deposit spec §3.7: a posted deposit's entry reads Type "Deposit" and
+// No. 1004 on its lines, and the void reversal of a void deposit reads Type
+// "Void reversal of 1004".
+func TestGeneralLedger_ADepositReadsItsTypeAndNumberAndItsVoidReversal(t *testing.T) {
+	de := newDepositEnv(t)
+	registerBooksSources(t)
+	if err := setFields(t, de.app, "books_doc_sequences", depositSequenceID, map[string]any{"next_number": 1004}); err != nil {
+		t.Fatalf("move the deposit sequence to 1004: %v", err)
+	}
+	d := de.postedDeposit(t, []*core.Record{de.undepositedItem(t, de.undeposited, depositItemDay, 5000, "Check one")},
+		map[string]any{"account": de.interest.Id, "amount": 1240})
+	entryID := d.GetString("entry")
+	if err := voidDepositAs(de.app, d.Id, de.users.bookkeeper.Id); err != nil {
+		t.Fatalf("void the deposit: %v", err)
+	}
+	reversal := findReversal(t, de.app, entryID)
+
+	res := runGL(t, de.app, de.users.readOnly, map[string]any{"period": glPeriod("2026-11-01", "2026-11-30")}, reports.Options{Today: glToday})
+	for _, account := range []*core.Record{de.checking, de.undeposited, de.interest} {
+		row := lineRow(t, res, entryLineOn(t, de.app, entryID, account))
+		if got, want := [2]string{textCell(t, row, "type"), textCell(t, row, "number")}, [2]string{"Deposit", "1004"}; got != want {
+			t.Errorf("the deposit's line on %s type/number = %v, want %v", account.GetString("name"), got, want)
+		}
+		rev := lineRow(t, res, entryLineOn(t, de.app, reversal.Id, account))
+		if got, want := textCell(t, rev, "type"), "Void reversal of 1004"; got != want {
+			t.Errorf("the void reversal's line on %s type = %q, want %q", account.GetString("name"), got, want)
+		}
+	}
+}
+
 // glSection is one account's section: its heading row, then the rows that
 // name it as their section, in the order the result holds them.
 type glSection struct {
@@ -1325,6 +1355,9 @@ const generalLedgerSpecGolden = "" +
 	`{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"credit_memo"}]},` +
 	`{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},` +
 	`{"value":"Credit memo"},` +
+	`{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"deposit"}]},` +
+	`{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},` +
+	`{"value":"Deposit"},` +
 	`{"op":"and","args":[{"op":"eq","args":[{"path":[{"link":"entry"},{"field":"doc_type"}]},{"value":"expense"}]},` +
 	`{"op":"not","args":[{"op":"in","args":[{"path":[{"link":"entry"},{"field":"origin"}]},{"value":["reversal","void_reversal","auto_reversal"]}]}]}]},` +
 	`{"value":"Expense"},` +
