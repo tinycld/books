@@ -886,9 +886,16 @@ test.describe('balance-sheet: report', () => {
             `${bank} opened onto its opening row and its two lines on Cash`
         )
         expect(openedAccount(onCash, bank), `${bank} on Cash`).toEqual(expected)
+    })
 
-        // Retained earnings is a computed row: no fold chevron, and a press opens nothing.
-        // The next run (Liabilities opened again) carries whatever the press changed.
+    test('Retained earnings is a computed row: no fold chevron, and a press opens nothing', async ({
+        page,
+    }) => {
+        await startBooks(page)
+        await openBalanceSheet(page)
+
+        // A press on Retained earnings changes nothing: the next run (Liabilities opened
+        // again) carries whatever the press changed.
         // Retained earnings stands at the end of Equity, so it is pressed with the list
         // scrolled to its end, and Liabilities is opened again from the list's top.
         await foldRow(page, SECTION_TITLES.asset)
