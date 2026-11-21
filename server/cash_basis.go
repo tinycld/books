@@ -170,24 +170,30 @@ type cashPayment struct {
 	Memo     string `db:"-"`
 }
 
+// documentEntryLinesSQL selects the posted lines of one document's entries
+// and of their void reversals, in date order.
+const documentEntryLinesSQL = `
+	SELECT l.entry AS entry, e.status AS status, e.origin AS origin, e.number AS number,
+	       l.account AS account, CAST(l.debit AS INTEGER) AS debit, CAST(l.credit AS INTEGER) AS credit,
+	       l.date AS date, CAST(l.position AS INTEGER) AS position,
+	       l.vendor AS vendor, l.customer AS customer, l.currency AS currency
+	FROM books_journal_lines l
+	JOIN books_journal_entries e ON e.id = l.entry
+	WHERE l.posted = {:posted} AND e.doc_type = {:type} AND (
+		(e.origin = {:document} AND e.document = {:doc})
+		OR (e.origin = {:reversal} AND e.reverses != '' AND e.reverses IN (
+			SELECT id FROM books_journal_entries
+			WHERE document = {:doc} AND doc_type = {:type} AND origin = {:document})))
+	ORDER BY l.date, e.sequence, e.origin, l.entry, l.position, l.id`
+
 // documentEntryLines reads the posted lines of the document's entries (origin
 // document, naming it) and of their void reversals, in date order.
 func documentEntryLines(tx core.App, d cashDeferral, docID string) ([]cashSourceLine, error) {
 	var lines []cashSourceLine
-	err := tx.DB().NewQuery(`
-		SELECT l.entry AS entry, e.status AS status, e.origin AS origin, e.number AS number,
-		       l.account AS account, CAST(l.debit AS INTEGER) AS debit, CAST(l.credit AS INTEGER) AS credit,
-		       l.date AS date, CAST(l.position AS INTEGER) AS position,
-		       l.vendor AS vendor, l.customer AS customer, l.currency AS currency
-		FROM books_journal_lines l
-		JOIN books_journal_entries e ON e.id = l.entry
-		WHERE l.posted = 1 AND e.doc_type = {:type} AND (
-			(e.origin = 'document' AND e.document = {:doc})
-			OR (e.origin = 'void_reversal' AND e.reverses != '' AND e.reverses IN (
-				SELECT id FROM books_journal_entries
-				WHERE document = {:doc} AND doc_type = {:type} AND origin = 'document')))
-		ORDER BY l.date, e.sequence, e.origin, l.entry, l.position, l.id`).
-		Bind(dbx.Params{"type": d.DocType, "doc": docID}).All(&lines)
+	err := tx.DB().NewQuery(documentEntryLinesSQL).Bind(dbx.Params{
+		"type": d.DocType, "doc": docID, "posted": true,
+		"document": originDocument, "reversal": originVoidReversal,
+	}).All(&lines)
 	if err != nil {
 		return nil, fmt.Errorf("books: read the entries of %s %s: %w", d.Kind, docID, err)
 	}

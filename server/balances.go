@@ -174,6 +174,18 @@ type LineDrift struct {
 	EntryDate   string `db:"entry_date" json:"entryDate"`
 }
 
+// verifyLinesSQL selects every line whose posted flag or date disagrees with
+// its entry, and every line whose entry row is gone.
+const verifyLinesSQL = `
+	SELECT l.id AS line, l.entry AS entry, COALESCE(e.status, '') AS entry_status,
+	       l.posted AS posted, l.date AS date, COALESCE(e.date, '') AS entry_date
+	FROM books_journal_lines l
+	LEFT JOIN books_journal_entries e ON e.id = l.entry
+	WHERE e.id IS NULL
+	   OR (e.status IN ({:posted}, {:void}) AND (l.posted = {:unstamped} OR l.date != e.date))
+	   OR (e.status = {:draft} AND (l.posted = {:stamped} OR l.date != ''))
+	ORDER BY l.entry, l.position, l.id`
+
 // verifyLines reports every line whose posted flag or date disagrees with its
 // entry: a line of a posted or void entry that is not stamped or carries
 // another date, a line of a draft that is stamped or carries a date, and a
@@ -184,15 +196,10 @@ type LineDrift struct {
 // was written past the hooks.
 func verifyLines(app core.App) ([]LineDrift, error) {
 	drifts := []LineDrift{}
-	err := app.DB().NewQuery(`
-		SELECT l.id AS line, l.entry AS entry, COALESCE(e.status, '') AS entry_status,
-		       l.posted AS posted, l.date AS date, COALESCE(e.date, '') AS entry_date
-		FROM books_journal_lines l
-		LEFT JOIN books_journal_entries e ON e.id = l.entry
-		WHERE e.id IS NULL
-		   OR (e.status IN ('posted', 'void') AND (l.posted = 0 OR l.date != e.date))
-		   OR (e.status = 'draft' AND (l.posted = 1 OR l.date != ''))
-		ORDER BY l.entry, l.position, l.id`).All(&drifts)
+	err := app.DB().NewQuery(verifyLinesSQL).Bind(dbx.Params{
+		"posted": statusPosted, "void": statusVoid, "draft": statusDraft,
+		"stamped": true, "unstamped": false,
+	}).All(&drifts)
 	if err != nil {
 		return nil, fmt.Errorf("books: compare the lines with their entries: %w", err)
 	}
