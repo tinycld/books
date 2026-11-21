@@ -792,9 +792,14 @@ func vbLineWant(t *testing.T, app core.App, line *core.Record, typeLabel, open s
 	if desc == "" {
 		desc = entry.GetString("memo")
 	}
+	// Amendment 3: a line with no description has no trailing " · ".
+	label := line.GetString("date") + " · " + typeLabel + " " + entry.GetString("number")
+	if desc != "" {
+		label += " · " + desc
+	}
 	return cbLine{
 		ID:      "d:" + line.Id,
-		Label:   line.GetString("date") + " · " + typeLabel + " " + entry.GetString("number") + " · " + desc,
+		Label:   label,
 		Open:    open,
 		Balance: int64(line.GetInt("credit") - line.GetInt("debit")),
 		Depth:   1,
@@ -887,7 +892,8 @@ func TestVendorBalanceDetail(t *testing.T) {
 		}
 	}
 	for i, doc := range []*core.Record{bill, pay, credit, refund} {
-		if number := apNo(t, b, doc); !strings.Contains(acmeWant[i].Label, " "+number+" · ") {
+		// The number ends the label when the line has no description (Amendment 3).
+		if number := apNo(t, b, doc); !strings.Contains(acmeWant[i].Label+" · ", " "+number+" · ") {
 			t.Fatalf("Acme's wanted line %q does not name its document's number %s", acmeWant[i].Label, number)
 		}
 	}
@@ -934,6 +940,92 @@ func TestVendorBalanceDetail(t *testing.T) {
 	flipped := vbRunOpen(t, b, nil, keys...)
 	requireLines(flipped, vbVendorRow(t, flipped, sameDay), sameDayWant(madeFirst, madeSecond))
 	requireNoDrift(t, b.app)
+}
+
+// balanceLineDesc is the description the detail label reads: the line's memo,
+// else its entry's memo.
+func balanceLineDesc(t *testing.T, app core.App, line *core.Record) string {
+	t.Helper()
+	line = reload(t, app, "books_journal_lines", line.Id)
+	if memo := line.GetString("memo"); memo != "" {
+		return memo
+	}
+	return reload(t, app, "books_journal_entries", line.GetString("entry")).GetString("memo")
+}
+
+// vbOpenedLabels runs the Vendor Balance with params, opens vendor's row and
+// gives the labels of its lines by row id.
+func vbOpenedLabels(t *testing.T, b apBook, params map[string]any, vendor *core.Record) map[string]string {
+	t.Helper()
+	closed := runVB(t, b.app, b.reader, params)
+	res := vbRunOpen(t, b, params, vbVendorRow(t, closed, vendor).GroupKey)
+	labels := map[string]string{}
+	for _, l := range vbLinesOf(t, vbLinesUnder(t, res, vbVendorRow(t, res, vendor))) {
+		labels[l.ID] = l.Label
+	}
+	return labels
+}
+
+// Amendment 3 (a): a line with no description ends at its number, with no
+// trailing " · ".
+func TestVendorBalanceDetailLabelNoDescription(t *testing.T) {
+	b := newAPBook(t)
+	plain := apVendor(t, b, "Plain Bill Co")
+	bill := apBill(t, b, plain, "2026-10-01", "2026-10-31", 12500)
+	line := vbDocLine(t, b, bill)
+	if desc := balanceLineDesc(t, b.app, line); desc != "" {
+		t.Fatalf("the bill's Accounts payable line has the description %q; the test needs a line and an entry with no memo", desc)
+	}
+
+	labels := vbOpenedLabels(t, b, nil, plain)
+	want := "2026-10-01 · Bill " + apNo(t, b, bill)
+	if got := labels["d:"+line.Id]; got != want || len(labels) != 1 {
+		t.Errorf("Plain Bill Co opens into %q; want one line labelled %q", labels, want)
+	}
+}
+
+// Amendment 3 (b): a void reversal's type label already holds the number it
+// reverses (the reversal takes that number), so the label names it once; the
+// voided bill's own line keeps "<date> · Bill <number> · <description>".
+func TestVendorBalanceDetailLabelVoidReversal(t *testing.T) {
+	b := newAPBook(t)
+	vendor := apVendor(t, b, "Void Label Co")
+	draft := mkBill(t, b.app, vendor, map[string]any{"date": "2026-10-01", "due_date": "2026-10-31", "memo": "Office chairs"})
+	mkBillLine(t, b.app, draft, 0, accountLine(b.expense, 30000))
+	bill := mustPostBill(t, b.app, draft.Id, b.users.bookkeeper.Id)
+	number := apNo(t, b, bill)
+	if err := voidBillAs(b.app, bill.Id, b.users.admin.Id); err != nil {
+		t.Fatalf("void the bill: %v", err)
+	}
+	rev, err := b.app.FindFirstRecordByFilter("books_journal_entries", "reverses = {:e} && origin = 'void_reversal'",
+		dbx.Params{"e": bill.GetString("entry")})
+	if err != nil {
+		t.Fatalf("no void reversal of the bill's entry: %v", err)
+	}
+	if rev.GetString("number") != number {
+		t.Fatalf("the void reversal is number %q, want the voided bill's %q", rev.GetString("number"), number)
+	}
+	original := entryLineOn(t, b.app, bill.GetString("entry"), b.payable)
+	reversal := entryLineOn(t, b.app, rev.Id, b.payable)
+	originalDesc := balanceLineDesc(t, b.app, original)
+	reversalDesc := balanceLineDesc(t, b.app, reversal)
+	if originalDesc != "Office chairs" || reversalDesc != "Void of "+number {
+		t.Fatalf("descriptions %q and %q; want the bill's memo and \"Void of %s\"", originalDesc, reversalDesc, number)
+	}
+
+	// The voided bill nets to zero, so it shows under With activity only.
+	labels := vbOpenedLabels(t, b, map[string]any{"rows": "activity"}, vendor)
+	wantOriginal := "2026-10-01 · Bill " + number + " · Office chairs"
+	wantReversal := "2026-10-01 · Void reversal of " + number + " · Void of " + number
+	if got := labels["d:"+original.Id]; got != wantOriginal {
+		t.Errorf("the voided bill's line = %q, want %q", got, wantOriginal)
+	}
+	if got := labels["d:"+reversal.Id]; got != wantReversal {
+		t.Errorf("the void reversal's line = %q, want %q (the number once)", got, wantReversal)
+	}
+	if len(labels) != 2 {
+		t.Errorf("Void Label Co opens into %q; want the bill's line and its reversal's", labels)
+	}
 }
 
 // exportVBCSV is the CSV export of the shipped Vendor Balance as reader

@@ -251,8 +251,10 @@ func TestCustomerBalanceSpecLoads(t *testing.T) {
 	if shipped.Description != "What each customer owes on one day, from posted transactions on Accounts receivable accounts." {
 		t.Errorf("description = %q", shipped.Description)
 	}
-	if shipped.Revision != 1 || !shipped.Unpublished {
-		t.Errorf("revision %d, unpublished %v; want revision 1, shipped unpublished", shipped.Revision, shipped.Unpublished)
+	// Revision 2: vendor-balance Amendment 3 changed the detail label, and core
+	// re-stores a shipped spec only on a higher revision.
+	if shipped.Revision != 2 || !shipped.Unpublished {
+		t.Errorf("revision %d, unpublished %v; want revision 2, shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	built, err := json.Marshal(customerBalanceSpec())
 	if err != nil {
@@ -959,7 +961,7 @@ func TestCustomerBalanceShippedShared(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "Customer Balance" || row.GetInt("shipped_revision") != 1 || row.GetString("source") != "books.journal_lines" {
+	if row.GetString("title") != "Customer Balance" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.journal_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {
@@ -1012,9 +1014,14 @@ func cbLineWant(t *testing.T, app core.App, line *core.Record, typeLabel, open s
 	if desc == "" {
 		desc = entry.GetString("memo")
 	}
+	// Amendment 3: a line with no description has no trailing " · ".
+	label := line.GetString("date") + " · " + typeLabel + " " + entry.GetString("number")
+	if desc != "" {
+		label += " · " + desc
+	}
 	return cbLine{
 		ID:      "d:" + line.Id,
-		Label:   line.GetString("date") + " · " + typeLabel + " " + entry.GetString("number") + " · " + desc,
+		Label:   label,
 		Open:    open,
 		Balance: int64(line.GetInt("debit") - line.GetInt("credit")),
 		Depth:   depth,
@@ -1120,10 +1127,11 @@ func TestCustomerBalanceDetail(t *testing.T) {
 	if invLine.Balance != 100000 || payLine.Balance != -40000 {
 		t.Fatalf("the invoice line nets %d and the payment line %d, want 100000 and -40000", invLine.Balance, payLine.Balance)
 	}
-	if want := "Invoice " + inv.GetString("number") + " · "; !strings.Contains(invLine.Label, want) {
+	// The number ends the label when the line has no description (Amendment 3).
+	if want := "Invoice " + inv.GetString("number") + " · "; !strings.Contains(invLine.Label+" · ", want) {
 		t.Errorf("the invoice line's label %q does not name %q (the invoice's number)", invLine.Label, want)
 	}
-	if want := "Payment " + pay.GetString("number") + " · "; !strings.Contains(payLine.Label, want) {
+	if want := "Payment " + pay.GetString("number") + " · "; !strings.Contains(payLine.Label+" · ", want) {
 		t.Errorf("the payment line's label %q does not name %q (the payment's number)", payLine.Label, want)
 	}
 	requireLines(res, acmeRow, []cbLine{invLine, payLine})
@@ -1182,6 +1190,87 @@ func TestCustomerBalanceDetail(t *testing.T) {
 	setPostedAt(t, b.app, madeFirst.Id, "2026-11-12 09:00:00.000Z")
 	flipped := b.runOpen(t, nil, keys...)
 	requireLines(flipped, cbCustomerRow(t, flipped, sameDay), sameDayWant(madeFirst, madeSecond))
+}
+
+// cbOpenedLabels runs the Customer Balance with params, opens customer's row
+// and gives the labels of its lines by row id.
+func cbOpenedLabels(t *testing.T, b cbBook, params map[string]any, customer *core.Record) map[string]string {
+	t.Helper()
+	closed := b.run(t, params)
+	res := b.runOpen(t, params, cbCustomerRow(t, closed, customer).GroupKey)
+	labels := map[string]string{}
+	for _, l := range cbLinesUnder(t, res, cbCustomerRow(t, res, customer)) {
+		labels[l.ID] = l.Label
+	}
+	return labels
+}
+
+// Amendment 3 (a): a line with no description ends at its number, with no
+// trailing " · ".
+func TestCustomerBalanceDetailLabelNoDescription(t *testing.T) {
+	b := newCBDocBook(t)
+	plain := b.customer(t, "Plain Invoice Co", nil)
+	inv := b.invoice(t, plain, 12500)
+	line := entryLineOn(t, b.app, inv.GetString("entry"), b.receivable)
+	if desc := balanceLineDesc(t, b.app, line); desc != "" {
+		t.Fatalf("the invoice's Accounts receivable line has the description %q; the test needs a line and an entry with no memo", desc)
+	}
+	number := reload(t, b.app, "books_journal_entries", inv.GetString("entry")).GetString("number")
+
+	labels := cbOpenedLabels(t, b, nil, plain)
+	want := line.GetString("date") + " · Invoice " + number
+	if got := labels["d:"+line.Id]; got != want || len(labels) != 1 {
+		t.Errorf("Plain Invoice Co opens into %q; want one line labelled %q", labels, want)
+	}
+}
+
+// Amendment 3 (b): a void reversal's type label already holds the number it
+// reverses (the reversal takes that number), so the label names it once; the
+// voided invoice's own line keeps "<date> · Invoice <number> · <description>".
+func TestCustomerBalanceDetailLabelVoidReversal(t *testing.T) {
+	b := newCBDocBook(t)
+	customer := b.customer(t, "Void Label Co", nil)
+	draft, err := newInvoice(b.app, customer, map[string]any{"memo": "Spring catering"})
+	if err != nil {
+		t.Fatalf("save a draft invoice: %v", err)
+	}
+	mkInvoiceLine(t, b.app, draft, 0, item(b.docs.service, 1, 30000, false))
+	inv := mustPostInvoice(t, b.app, draft.Id, b.docs.users.bookkeeper.Id)
+	number := reload(t, b.app, "books_journal_entries", inv.GetString("entry")).GetString("number")
+	if err := voidInvoiceAs(b.app, inv.Id, b.docs.users.bookkeeper.Id); err != nil {
+		t.Fatalf("void the invoice: %v", err)
+	}
+	rev, err := b.app.FindFirstRecordByFilter("books_journal_entries", "reverses = {:e} && origin = 'void_reversal'",
+		dbx.Params{"e": inv.GetString("entry")})
+	if err != nil {
+		t.Fatalf("no void reversal of the invoice's entry: %v", err)
+	}
+	if rev.GetString("number") != number {
+		t.Fatalf("the void reversal is number %q, want the voided invoice's %q", rev.GetString("number"), number)
+	}
+	original := entryLineOn(t, b.app, inv.GetString("entry"), b.receivable)
+	reversal := entryLineOn(t, b.app, rev.Id, b.receivable)
+	originalDesc := balanceLineDesc(t, b.app, original)
+	reversalDesc := balanceLineDesc(t, b.app, reversal)
+	if originalDesc != "Spring catering" || reversalDesc != "Void of "+number {
+		t.Fatalf("descriptions %q and %q; want the invoice's memo and \"Void of %s\"", originalDesc, reversalDesc, number)
+	}
+
+	// The voided invoice nets to zero, so it shows under With activity only.
+	labels := cbOpenedLabels(t, b, map[string]any{"rows": "activity"}, customer)
+	day := original.GetString("date")
+	wantOriginal := day + " · Invoice " + number + " · Spring catering"
+	wantReversal := reload(t, b.app, "books_journal_lines", reversal.Id).GetString("date") +
+		" · Void reversal of " + number + " · Void of " + number
+	if got := labels["d:"+original.Id]; got != wantOriginal {
+		t.Errorf("the voided invoice's line = %q, want %q", got, wantOriginal)
+	}
+	if got := labels["d:"+reversal.Id]; got != wantReversal {
+		t.Errorf("the void reversal's line = %q, want %q (the number once)", got, wantReversal)
+	}
+	if len(labels) != 2 {
+		t.Errorf("Void Label Co opens into %q; want the invoice's line and its reversal's", labels)
+	}
 }
 
 func TestCustomerBalanceCustomersParam(t *testing.T) {
@@ -1414,13 +1503,13 @@ func TestCustomerBalanceOrder(t *testing.T) {
 }
 
 // customerBalanceSpecSHA256 is the sha256 of mustJSON(customerBalanceSpec())
-// before p5-ar-aging moved its groups and sort into customerFamilyGroups and
-// customerFamilySort: the move must not change the shipped JSON, so the
-// Revision stays 1 (core re-stores a spec only on a higher revision). The
-// value is main's spec after the refund receipt and write-off units added
-// "Refund receipt" and "Write-off" to the entry type labels the detail label
-// reads (same Revision on main).
-const customerBalanceSpecSHA256 = "9b0224867d3249cf1d8098910861e4c65b8c5680fd974a7f6095292a30177125"
+// at Revision 2: vendor-balance Amendment 3 (2026-11-20) changed the shared
+// balanceDetailLabel(), so a line with no description has no trailing " · "
+// and a void reversal names its number once. A change of the shipped JSON
+// needs a higher Revision (core re-stores a spec only on a higher revision);
+// a move that keeps the JSON (p5-ar-aging's customerFamilyGroups and
+// customerFamilySort, p5-vendor-balance's balance… helpers) keeps the sha.
+const customerBalanceSpecSHA256 = "805b3601bac80f147764b596b02e796f7499c557a789f679cf0bbcad67400a58"
 
 func TestCustomerBalanceSpecJSONUnchanged(t *testing.T) {
 	sum := sha256.Sum256(mustJSON(customerBalanceSpec()))
