@@ -15,15 +15,16 @@ export type DepositReadRecord = Pick<BooksDeposits, 'id' | 'status' | 'number' |
 
 /**
  * The deposit read view's actions as rows of the shared DocumentReadActions (bank deposit
- * spec §3.8), and its Void dialog. A writer on a posted deposit gets Void (V) and View
- * journal entry (J); a writer on a void deposit and a reader get View journal entry only.
- * Edit comes with the correction form, so `canEdit` is false here. Void writes
+ * spec §3.8), and its Void dialog. A writer on a posted deposit gets Edit (E), Void (V)
+ * and View journal entry (J); a writer on a void deposit and a reader get View journal
+ * entry only. Edit replaces the read view with the correction form
+ * (`books/deposits/new?replaces=<id>`, useOpenFromReadView). Void writes
  * `status: 'void'` on the deposit (the server posts the reversing entry and releases the
  * items); a deposit has no list kind, so the write is its own and not useVoidPayment's.
- * Void waits for the server and for writes to be available; View journal entry waits for
- * a running void. The dialog's open state lives here, on the read view, which stays
- * mounted while the optimistic void changes the deposit under it, so a refusal stays in
- * the dialog.
+ * Void waits for the server and for writes to be available; Edit and View journal entry
+ * only open a screen, so they wait for a running void. The dialog's open state lives
+ * here, on the read view, which stays mounted while the optimistic void changes the
+ * deposit under it, so a refusal stays in the dialog.
  */
 export function useDepositReadActions(deposit: DepositReadRecord, canWrite: boolean) {
     const orgHref = useOrgHref()
@@ -37,9 +38,8 @@ export function useDepositReadActions(deposit: DepositReadRecord, canWrite: bool
     const isVoiding = voidDialogState.isPending
     const voidState = useServerActionState({ isDisabled: isVoiding })
     const writesAvailable = useWritesAvailable().available
-    const offered = depositReadActions(deposit.status, canWrite, deposit.entry !== '', false)
+    const offered = depositReadActions(deposit.status, canWrite, deposit.entry !== '', true)
     const run: Record<DepositReadAction, () => void> = {
-        // The correction form; not offered while canEdit is false.
         edit: () => openFromReadView(`books/deposits/new?replaces=${deposit.id}`),
         void: voidDialogState.open,
         entry: () => router.push(orgHref(`books/entries/${deposit.entry}`)),

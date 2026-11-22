@@ -4,7 +4,7 @@ import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { PICKER_LIMIT } from '../lib/customer-tree'
-import { linePartyOptions } from '../lib/line-party-options'
+import { linePartyOptions, type StoredLineParty } from '../lib/line-party-options'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
@@ -15,9 +15,10 @@ const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
  * true: the Name picker of an entry line passes its open state, the bank Payee picker
  * keeps them on from its first open (useBankCategorize `usePayeeRead`). The server limit
  * applies only while not searching: a limit pushed during a search would cut matches
- * before the filter sees them (the CustomerPicker pattern).
+ * before the filter sees them (the CustomerPicker pattern). `stored` is the party a line
+ * held when its picker mounted, listed once even when it is no longer active (PartyPicker).
  */
-export function useLinePartyOptions(term: string, isEnabled: boolean) {
+export function useLinePartyOptions(term: string, isEnabled: boolean, stored?: StoredLineParty) {
     const [customersCollection, vendorsCollection] = useStore('books_customers', 'books_vendors')
     const isSearching = term.trim() !== ''
     const customersQuery = useLiveQuery({
@@ -52,6 +53,7 @@ export function useLinePartyOptions(term: string, isEnabled: boolean) {
         customers: customersQuery.data ?? [],
         vendors: vendorsQuery.data ?? [],
         term,
+        stored,
     })
 
     // Each part is non-empty only when its own query failed, so a retry restarts only the

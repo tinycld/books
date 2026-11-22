@@ -4,6 +4,7 @@
 // registered only while its action is offered (lib/deposit-read-actions.ts for the read
 // view, `depositFormKeysOffered` below for the form).
 
+import { canAddLine } from './deposit'
 import type { DepositReadAction } from './deposit-read-actions'
 import { DOCUMENT_READ_KEYS } from './document-actions'
 import { FORM_KEYS, type FormKeyAction } from './entry-shortcuts'
@@ -23,14 +24,22 @@ export const DEPOSIT_READ_DESCRIPTIONS: Record<DepositReadAction, string> = {
     entry: 'View journal entry',
 }
 
-// The form's keys (spec §3.2): the shared form keys of the document bars (FORM_KEYS), and
-// ⌥A (tick every listed item, or clear them when all are ticked) and ⌥⌫ (Clear selection).
-export type DepositFormKeyAction = FormKeyAction | 'selectAll' | 'clearSelection'
+// The form's keys (spec §3.2): the shared form keys of the document bars (FORM_KEYS), ⌥A
+// (tick every listed item, or clear them when all are ticked), ⌥⌫ (Clear selection), ⌥↵
+// (Add an other funds line) and ⌘⌥⌫ (Remove the line that holds the focus).
+export type DepositFormKeyAction =
+    | FormKeyAction
+    | 'selectAll'
+    | 'clearSelection'
+    | 'addLine'
+    | 'removeLine'
 
 export const DEPOSIT_FORM_KEYS: Record<DepositFormKeyAction, string> = {
     ...FORM_KEYS,
     selectAll: 'Alt+a',
     clearSelection: 'Alt+Backspace',
+    addLine: 'Alt+Enter',
+    removeLine: '$mod+Alt+Backspace',
 }
 
 export const DEPOSIT_FORM_DESCRIPTIONS: Record<DepositFormKeyAction, string> = {
@@ -41,9 +50,20 @@ export const DEPOSIT_FORM_DESCRIPTIONS: Record<DepositFormKeyAction, string> = {
     deleteDraft: 'Delete draft',
     selectAll: 'Select all',
     clearSelection: 'Clear selection',
+    addLine: 'Add line',
+    removeLine: 'Remove line',
 }
 
-const WRITE_KEYS: readonly DepositFormKeyAction[] = ['post', 'postAndNew', 'saveDraft']
+// The bar's write keys: a new form or a draft posts, posts and starts a new one, and saves
+// a draft; a correction (`?replaces`, the shared DocumentBar with Cancel and Save) only
+// saves, which posts it (⌘↵).
+const WRITE_KEYS: Record<DepositFormMode, readonly DepositFormKeyAction[]> = {
+    new: ['post', 'postAndNew', 'saveDraft'],
+    replaces: ['post'],
+}
+
+// `new`: a new deposit or a saved draft; `replaces`: the correction of a posted deposit.
+export type DepositFormMode = 'new' | 'replaces'
 
 export type DepositFormKeyState = {
     // The form's scope is the top one (no other screen layer holds the keys).
@@ -62,6 +82,12 @@ export type DepositFormKeyState = {
     // the set below does not change with it; useDepositShortcuts registers ⌘⇧↵ itself on
     // a phone bar because no drawn button owns it.
     isPhoneBar: boolean
+    // The form's bar: a new deposit or a draft, or a correction (`?replaces`).
+    mode: DepositFormMode
+    // The other funds lines the form holds.
+    lineCount: number
+    // The focus is inside an other funds line (the line container's focus events).
+    isLineFocused: boolean
 }
 
 /**
@@ -70,13 +96,29 @@ export type DepositFormKeyState = {
  * screen's keys do nothing"). Core's ⇧? list ignores `when`, so a key is registered only
  * while this lists it. Every key is off while a write runs, as the bar's buttons are busy;
  * the write keys are off without write access or while writes are unavailable, and the
- * tick keys stay (the tick boxes stay usable offline).
+ * tick keys stay (the tick boxes stay usable offline). A correction offers Save (⌘↵) and
+ * no ⌘S or ⌘⇧↵; ⌘⌫ (Delete draft) is offered on any saved draft, a stored correction draft
+ * too (a correction whose post was refused after its header was written). ⌥↵ is offered to a writer while the form holds fewer than 100 lines
+ * (canAddLine), also offline (adding a line writes nothing); ⌘⌥⌫ only while the focus is
+ * inside a line.
  */
 export function depositFormKeysOffered(state: DepositFormKeyState): DepositFormKeyAction[] {
     if (!state.holdsKeys || state.isDialogOpen || state.isWriteHeld) return []
     const canWriteNow = state.canWrite && state.writesAvailable
-    const writes = canWriteNow ? [...WRITE_KEYS] : []
+    const writes = canWriteNow ? [...WRITE_KEYS[state.mode]] : []
     const deleteDraft: DepositFormKeyAction[] =
         canWriteNow && state.isSavedDraft ? ['deleteDraft'] : []
-    return [...writes, 'cancel', ...deleteDraft, 'selectAll', 'clearSelection']
+    const addLine: DepositFormKeyAction[] =
+        state.canWrite && canAddLine(state.lineCount) ? ['addLine'] : []
+    const removeLine: DepositFormKeyAction[] =
+        state.canWrite && state.isLineFocused && state.lineCount > 0 ? ['removeLine'] : []
+    return [
+        ...writes,
+        'cancel',
+        ...deleteDraft,
+        'selectAll',
+        'clearSelection',
+        ...addLine,
+        ...removeLine,
+    ]
 }

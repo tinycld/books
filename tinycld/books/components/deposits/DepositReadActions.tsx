@@ -12,10 +12,11 @@ interface DepositReadActionsProps {
 
 /**
  * The deposit read view's bar (bank deposit spec §3.2, §3.8), drawn by the shared
- * DocumentReadActions from the deposit's chrome (`deposit-read-void`, `deposit-read-entry`,
- * `deposit-read-more`; ⇧? group "Bank deposit"): wide, a ShortcutButton per action with
- * the screen's scope owner; phone, the actions in More with their keys. A hidden action's
- * key is not registered, and the open Void dialog's own scope holds the keys.
+ * DocumentReadActions from the deposit's chrome (`deposit-read-edit`, `deposit-read-void`,
+ * `deposit-read-entry`, `deposit-read-more`; ⇧? group "Bank deposit"): wide, a
+ * ShortcutButton per action with the screen's scope owner; phone, the actions in More with
+ * their keys. Edit (E) opens the correction form (useDepositReadActions). A hidden
+ * action's key is not registered, and the open Void dialog's own scope holds the keys.
  */
 export function DepositReadActions({ deposit, canWrite, scopeOwner }: DepositReadActionsProps) {
     const isPhone = useBreakpoint() === 'mobile'

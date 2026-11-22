@@ -10,6 +10,7 @@ import { DOC_TYPES } from './doc-types'
 import { entryHref } from './entry-route'
 import { type LinePartyRow, linePartyName } from './line-party-options'
 import { formatMoney, MINUS, maxStoredAmount, TOO_LARGE_TEXT } from './money'
+import { moneyInputCents } from './money-input'
 import { fillPaymentText } from './payment-texts'
 import { formatDay } from './register-range'
 
@@ -267,6 +268,36 @@ export function itemLineOfRefusal(
     if (!match) return null
     const ordered = [...rows].sort((a, b) => a.position - b.position)
     return ordered[Number(match[1])]?.line ?? null
+}
+
+// The most other funds lines a deposit holds (spec §3.5; server/deposits.go
+// `maxDepositLines`).
+export const DEPOSIT_LINE_LIMIT = 100
+
+// "Add line" (and ⌥↵) adds a line while the deposit holds fewer than the limit.
+export function canAddLine(count: number): boolean {
+    return count < DEPOSIT_LINE_LIMIT
+}
+
+const LINE_KEY = /^lines\.(\d+)\.(account|amount|description|customer|vendor)$/
+
+// The form path a line refusal `lines.<n>.<field>` shows under: `n` is the line's rank,
+// which is its index in the form's `lines` array (the save writes positions in that
+// order). null for a key that names no line field the form draws.
+export function lineRefusalPath(key: string): string | null {
+    const match = LINE_KEY.exec(key)
+    return match ? `lines.${match[1]}.${match[2]}` : null
+}
+
+// The other funds amounts in cents (moneyInputCents: an empty text is 0), with a text that
+// does not read as money counted as 0 and flagged, so the totals stay numbers and the
+// figure shows "—" (depositFigureText).
+export function depositLineCents(lines: readonly { amount: string }[], currency: string) {
+    const cents = lines.map(line => moneyInputCents(line.amount, currency))
+    return {
+        amounts: cents.map(value => value ?? 0),
+        hasInvalidAmount: cents.some(value => value === null),
+    }
 }
 
 const NO_FIGURE = '—'

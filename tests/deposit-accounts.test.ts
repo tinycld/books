@@ -5,6 +5,7 @@ import {
     defaultBankAccount,
     defaultDepositAccount,
     depositAccountOptions,
+    otherFundsAccountOptions,
     paymentText,
 } from '../tinycld/books/lib/deposit-accounts'
 import {
@@ -166,6 +167,142 @@ describe('defaultBankAccount', () => {
     it('is empty when the chart has no bank account', () => {
         expect(defaultBankAccount(BANK_CHART.filter(row => row.type !== 'bank'))).toBe('')
         expect(defaultBankAccount([])).toBe('')
+    })
+})
+
+// The Other funds Account chart (bank deposit spec §3.5): out of chart order, with the
+// Deposit to account, a second bank account, Accounts receivable, Undeposited funds,
+// Accounts payable, income and expense accounts, a sub-account and an inactive expense.
+function account(
+    fields: Pick<DepositAccountRow, 'id' | 'number' | 'name' | 'type'> & Partial<DepositAccountRow>
+): DepositAccountRow {
+    return { detail_type: '', parent: '', inactive: false, ...fields }
+}
+
+const LINE_ACCOUNT = {
+    checking: account({ id: 'acctlinecheck01', number: '1000', name: 'Checking', type: 'bank' }),
+    savings: account({ id: 'acctlinesave001', number: '1010', name: 'Savings', type: 'bank' }),
+    receivable: account({
+        id: 'acctlinear00001',
+        number: '1100',
+        name: 'Accounts receivable',
+        type: 'accounts_receivable',
+    }),
+    undeposited: account({
+        id: 'acctlineundep01',
+        number: '1200',
+        name: 'Undeposited funds',
+        type: 'other_current_asset',
+        detail_type: 'undeposited_funds',
+    }),
+    payable: account({
+        id: 'acctlineap00001',
+        number: '2000',
+        name: 'Accounts payable',
+        type: 'accounts_payable',
+    }),
+    interest: account({
+        id: 'acctlineint0001',
+        number: '4900',
+        name: 'Interest earned',
+        type: 'other_income',
+    }),
+    fees: account({
+        id: 'acctlinefees001',
+        number: '6300',
+        name: 'Bank charges and fees',
+        type: 'expense',
+    }),
+    wire: account({
+        id: 'acctlinewire001',
+        number: '6310',
+        name: 'Wire fees',
+        type: 'expense',
+        parent: 'acctlinefees001',
+    }),
+    oldFees: account({
+        id: 'acctlineold0001',
+        number: '6900',
+        name: 'Old bank fees',
+        type: 'expense',
+        inactive: true,
+    }),
+}
+
+const LINE_CHART: DepositAccountRow[] = [
+    LINE_ACCOUNT.fees,
+    LINE_ACCOUNT.payable,
+    LINE_ACCOUNT.oldFees,
+    LINE_ACCOUNT.interest,
+    LINE_ACCOUNT.checking,
+    LINE_ACCOUNT.wire,
+    LINE_ACCOUNT.undeposited,
+    LINE_ACCOUNT.receivable,
+    LINE_ACCOUNT.savings,
+]
+
+describe('otherFundsAccountOptions', () => {
+    const labelsOf = (depositTo: string, stored = '') =>
+        otherFundsAccountOptions(LINE_CHART, depositTo, stored).options.map(option => option.label)
+
+    it('offers every active account but AR, AP and Deposit to, in chart order, as "<number> <name>"', () => {
+        expect(labelsOf(LINE_ACCOUNT.checking.id)).toEqual([
+            '1010 Savings',
+            '1200 Undeposited funds',
+            '4900 Interest earned',
+            '6300 Bank charges and fees',
+            '6310 Wire fees',
+        ])
+    })
+
+    it('leaves out Accounts receivable and Accounts payable', () => {
+        const values = otherFundsAccountOptions(
+            LINE_CHART,
+            LINE_ACCOUNT.checking.id,
+            ''
+        ).options.map(option => option.value)
+        expect(values).not.toContain(LINE_ACCOUNT.receivable.id)
+        expect(values).not.toContain(LINE_ACCOUNT.payable.id)
+    })
+
+    it('leaves out the account chosen in Deposit to, whichever it is', () => {
+        expect(labelsOf(LINE_ACCOUNT.checking.id)).not.toContain('1000 Checking')
+        expect(labelsOf(LINE_ACCOUNT.savings.id)).toContain('1000 Checking')
+        expect(labelsOf(LINE_ACCOUNT.savings.id)).not.toContain('1010 Savings')
+    })
+
+    it('leaves out an inactive account', () => {
+        expect(labelsOf(LINE_ACCOUNT.checking.id)).not.toContain('6900 Old bank fees')
+    })
+
+    it('keeps a stored inactive account once, for the line that stored it', () => {
+        const { options, triggerLabel } = otherFundsAccountOptions(
+            LINE_CHART,
+            LINE_ACCOUNT.checking.id,
+            LINE_ACCOUNT.oldFees.id
+        )
+        const named = [...options.map(option => option.label), triggerLabel].filter(
+            label => label === '6900 Old bank fees'
+        )
+        expect(named).toHaveLength(1)
+        // Another line, which stored no inactive account, is not offered it.
+        expect(labelsOf(LINE_ACCOUNT.checking.id, LINE_ACCOUNT.interest.id)).not.toContain(
+            '6900 Old bank fees'
+        )
+    })
+
+    it('names an offered stored account by its option, not again in the trigger', () => {
+        const { options, triggerLabel } = otherFundsAccountOptions(
+            LINE_CHART,
+            LINE_ACCOUNT.checking.id,
+            LINE_ACCOUNT.interest.id
+        )
+        expect(options.filter(option => option.value === LINE_ACCOUNT.interest.id)).toHaveLength(1)
+        expect(triggerLabel).toBe('')
+    })
+
+    it('offers nothing for an empty chart', () => {
+        expect(otherFundsAccountOptions([], '', '').options).toEqual([])
     })
 })
 

@@ -10,7 +10,8 @@
 
 import { z } from '@tinycld/core/ui/form'
 import { accountLabel } from './account-options'
-import { itemLabel } from './deposit'
+import { DEPOSIT_LINE_LIMIT, itemLabel } from './deposit'
+import { LINE_CONTROL_TYPES } from './deposit-accounts'
 import { DEPOSIT_MESSAGES } from './deposit-texts'
 import type { DepositFormValues, DepositLineValues } from './deposit-values'
 import { moneyInputCents } from './money-input'
@@ -22,13 +23,8 @@ import { formatDay, isIsoDay } from './register-range'
 // text max of books_deposits.memo and books_deposit_lines.description). The server counts
 // text in code points (PocketBase text max), not UTF-16 units.
 const MAX_ITEMS = 500
-const MAX_LINES = 100
 const MAX_DESCRIPTION = 1000
 const MAX_MEMO = 4000
-
-// The account types an other funds line may not name (server/deposits.go
-// `msgDepositLineControl`): a deposit writes no document or party balance.
-const CONTROL_TYPES = new Set(['accounts_receivable', 'accounts_payable'])
 
 export type DepositSchemaContext = {
     // The Deposit to option values the form lists (lib/deposit-accounts.ts
@@ -73,7 +69,7 @@ function lineAccountMessage(
     if (line.account === '') return DEPOSIT_MESSAGES.lineAccountRequired
     const account = accounts[line.account]
     if (account === undefined) return null
-    if (CONTROL_TYPES.has(account.type)) return DEPOSIT_MESSAGES.lineAccountControl
+    if (LINE_CONTROL_TYPES.has(account.type)) return DEPOSIT_MESSAGES.lineAccountControl
     if (line.account === depositTo) return DEPOSIT_MESSAGES.lineAccountDepositTo
     if (account.inactive) {
         return fillPaymentText(DEPOSIT_MESSAGES.lineAccountInactive, accountLabel(account))
@@ -87,6 +83,9 @@ export function depositSchema(
 ): z.ZodType<DepositFormValues, DepositFormValues> {
     const banks = new Set(context.bankOptions)
     const lineSchema = z.object({
+        // The line's row id (lib/deposit-values.ts): the save plans each line by it. It is
+        // never typed, so it carries no rule; values without one parse with ''.
+        id: z.string().catch(''),
         customer: z.string(),
         vendor: z.string(),
         account: z.string(),
@@ -143,7 +142,7 @@ export function depositSchema(
             })
 
             if (values.items.length > MAX_ITEMS) add(['root'], DEPOSIT_MESSAGES.itemLimit)
-            if (values.lines.length > MAX_LINES) add(['root'], DEPOSIT_MESSAGES.lineLimit)
+            if (values.lines.length > DEPOSIT_LINE_LIMIT) add(['root'], DEPOSIT_MESSAGES.lineLimit)
 
             if (values.items.length === 0 && values.lines.length === 0) {
                 add(['root'], DEPOSIT_MESSAGES.nothingToDeposit)
