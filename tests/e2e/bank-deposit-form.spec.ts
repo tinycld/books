@@ -37,7 +37,9 @@ import { isDisabled } from './record-form-helpers'
 // Each test posts its own sales receipts to Undeposited funds, dated today, with a per-run
 // reference no. and memo, and finds their rows by the reference. No step ticks or posts a
 // seeded item, and no assertion counts or sums the whole list (other workers add rows to
-// it). Refusals are forced with route.fulfill(400); the held post with holdRequests.
+// it). Refusals are forced with route.fulfill(400); the held post with holdRequests. The
+// keyboard create and the keyboard post & new are two tests because each receipt is posted
+// through its form: three receipts and both flows in one test do not fit one test's time on CI.
 //
 // Not covered here: Save draft, a draft's reopen, the stale item and Delete draft
 // (bank-deposit-drafts.spec.ts); the Other funds section and the correction (checkpoint 4);
@@ -96,14 +98,12 @@ function readEntryLines(page: Page) {
 }
 
 test.describe('bank-deposit: form', () => {
-    test('a writer creates and posts a deposit from the keyboard only, then posts and starts a new one', async ({
-        page,
-    }) => {
+    test('a writer creates and posts a deposit from the keyboard only', async ({ page }) => {
         await openBooks(page)
         const memo = uniqueMemo('Deposit keyboard')
-        const [a, b, c] = amountsOf(3)
-        const refs = [uniqueReference('KA'), uniqueReference('KB'), uniqueReference('KC')]
-        for (const [index, cents] of [a, b, c].entries()) {
+        const [a, b] = amountsOf(2)
+        const refs = [uniqueReference('KA'), uniqueReference('KB')]
+        for (const [index, cents] of [a, b].entries()) {
             await postUndepositedReceipt(page, {
                 reference: refs[index] as string,
                 memo: uniqueMemo('Deposit keyboard receipt'),
@@ -188,8 +188,22 @@ test.describe('bank-deposit: form', () => {
             'Deposit'
         )
         await expect(registerRow.locator('[data-testid^="register-cell-debit-"]')).toHaveText(total)
+    })
 
-        // A second deposit: one own row ticked from the keyboard, ⌘⇧↵.
+    test('a writer posts a deposit and starts a new one from the keyboard only', async ({
+        page,
+    }) => {
+        await openBooks(page)
+        const [c] = amountsOf(1)
+        // Only KC is posted; the list keeps the indexes of the keyboard create test's refs.
+        const refs = [uniqueReference('KA'), uniqueReference('KB'), uniqueReference('KC')]
+        await postUndepositedReceipt(page, {
+            reference: refs[2] as string,
+            memo: uniqueMemo('Deposit keyboard receipt'),
+            amount: rate(c as number),
+        })
+
+        // One own row ticked from the keyboard, ⌘⇧↵.
         await openNewDeposit(page)
         await expect(shownDeposit(page, 'deposit-to')).toBeFocused()
         const tickC = await depositItemTick(page, refs[2] as string)
