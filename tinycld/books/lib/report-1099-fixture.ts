@@ -161,7 +161,7 @@ export const REPORT_1099_COLUMNS: ResultColumn[] = [
         labelType: 'text',
     },
     { id: 'reportable', label: 'Reportable', type: 'money', aggregate: 'sum', currency: CURRENCY },
-    { id: 'excluded', label: 'Excluded', type: 'money', aggregate: 'sum', currency: CURRENCY },
+    { id: 'excluded', label: 'Excluded', type: 'money', currency: CURRENCY },
     { id: 'all', label: 'All payments', type: 'money', aggregate: 'sum', currency: CURRENCY },
 ]
 

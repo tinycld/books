@@ -10,6 +10,8 @@ export const AR_AGING_SHIPPED_KEY = 'books.ar_aging'
 export const AP_AGING_SHIPPED_KEY = 'books.ap_aging'
 export const VENDOR_BALANCE_SHIPPED_KEY = 'books.vendor_balance'
 export const EXPENSES_BY_VENDOR_SHIPPED_KEY = 'books.expenses_by_vendor'
+// server/report_form_1099.go registers the 1099 Summary and Detail.
+export const FORM_1099_SHIPPED_KEY = 'books.form_1099'
 export const SALES_BY_CUSTOMER_SHIPPED_KEY = 'books.sales_by_customer'
 export const SALES_BY_PRODUCT_SHIPPED_KEY = 'books.sales_by_product'
 // server/report_statements.go: the rows of a customer statement's PDF.
