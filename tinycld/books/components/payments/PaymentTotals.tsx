@@ -13,16 +13,32 @@ interface TotalLineProps {
     testID: string
     // The figure in the danger tone (Pay Bills: a bank account's New balance below zero).
     isDanger?: boolean
+    // Muted text between the label and the figure, outside the figure's box, so every
+    // figure stays aligned (the deposit's Selected line: "2 of 3").
+    detail?: string
+}
+
+function TotalDetail({ detail }: { detail: string }) {
+    if (detail === '') return null
+    return <Text className="text-sm text-muted-foreground">{detail}</Text>
 }
 
 // A total, its figure under the Payment column.
-export function TotalLine({ label, amount, isStrong, testID, isDanger = false }: TotalLineProps) {
+export function TotalLine({
+    label,
+    amount,
+    isStrong,
+    testID,
+    isDanger = false,
+    detail = '',
+}: TotalLineProps) {
     const weight = isStrong ? 'font-semibold' : ''
     const rule = isStrong ? 'border-t border-border' : ''
     const tone = isDanger ? 'text-danger' : 'text-foreground'
     return (
         <View testID={testID} className={`flex-row items-center justify-end gap-4 py-1 ${rule}`}>
             <Text className={`text-sm text-muted-foreground ${weight}`}>{label}</Text>
+            <TotalDetail detail={detail} />
             <Text
                 className={`text-right text-base tabular-nums ${tone} ${weight}`}
                 style={{ width: FIGURE_WIDTH }}

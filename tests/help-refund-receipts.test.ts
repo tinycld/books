@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import manifest from '../manifest'
-import { readHelpTopic } from './help-topic'
+import { paragraphWith, readHelpTopic } from './help-topic'
 
 // The refund receipt help topic (refund receipt spec §3.13 Help, checkpoint 5): task-led,
 // the key map in Mac glyphs, links to the sales receipt and credit memo topics. The form's
@@ -121,5 +121,15 @@ describe('help/refund-receipts.md', () => {
 describe('help/refund-receipts.md (apply credit)', () => {
     it('says a refund pays out what is left', () => {
         expect(body).toContain('what is left')
+    })
+})
+
+// Bank deposit spec §3.10 Help: where the topic names Undeposited funds, it links the
+// Bank deposits topic.
+describe('help/refund-receipts.md (bank deposits)', () => {
+    it('links help://books:bank-deposits where it names Undeposited funds', () => {
+        expect(
+            paragraphWith(body, /Undeposited funds/, /help:\/\/books:bank-deposits\b/)
+        ).toBeDefined()
     })
 })

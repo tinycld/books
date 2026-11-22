@@ -1,0 +1,192 @@
+{
+    "outDir": "reconcile-reference",
+    "shots": [
+        {
+            "name": "accounts",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=accounts",
+            "ready": "reconcile-accounts-screen"
+        },
+        {
+            "name": "accounts-empty",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=accounts-empty",
+            "ready": "reconcile-accounts-empty"
+        },
+        {
+            "name": "accounts-reader",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=accounts-reader",
+            "ready": "reconcile-accounts-screen"
+        },
+        {
+            "name": "start",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=start",
+            "ready": "reconcile-start-dialog",
+            "actions": [{ "pause": 500 }],
+            "settleMs": 500,
+            "opaque": "reconcile-start-dialog"
+        },
+        {
+            "name": "start-first",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=start-first",
+            "ready": "reconcile-start-dialog",
+            "actions": [{ "pause": 500 }],
+            "settleMs": 500,
+            "opaque": "reconcile-start-dialog"
+        },
+        {
+            "name": "start-errors",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=start-errors",
+            "ready": "reconcile-start-dialog",
+            "actions": [{ "pause": 500 }],
+            "settleMs": 500,
+            "opaque": "reconcile-start-dialog"
+        },
+        {
+            "name": "start-sending",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=start-sending",
+            "ready": "reconcile-start-dialog",
+            "actions": [{ "pause": 500 }],
+            "settleMs": 500,
+            "opaque": "reconcile-start-dialog"
+        },
+        {
+            "name": "work",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=work",
+            "ready": "reconcile-summary"
+        },
+        {
+            "name": "band-open",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=band-open",
+            "ready": "reconcile-summary",
+            "widths": [390]
+        },
+        {
+            "name": "balanced",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=balanced",
+            "ready": "reconcile-summary"
+        },
+        {
+            "name": "hints",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=hints",
+            "ready": "reconcile-hints"
+        },
+        {
+            "name": "hints-open",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=hints-open",
+            "ready": "reconcile-hints"
+        },
+        {
+            "name": "filtered",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=filtered",
+            "ready": "reconcile-summary"
+        },
+        {
+            "name": "no-match",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=no-match",
+            "ready": "reconcile-no-match"
+        },
+        {
+            "name": "empty",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=empty",
+            "ready": "reconcile-empty"
+        },
+        {
+            "name": "batch-busy",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=batch-busy",
+            "ready": "reconcile-summary"
+        },
+        {
+            "name": "batch-done",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=batch-done",
+            "ready": "reconcile-result"
+        },
+        {
+            "name": "refused",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=refused",
+            "ready": "reconcile-result"
+        },
+        {
+            "name": "card",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=card",
+            "ready": "reconcile-summary"
+        },
+        {
+            "name": "read-only",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=read-only",
+            "ready": "reconcile-summary"
+        },
+        {
+            "name": "finishing",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=finishing",
+            "ready": "reconcile-summary"
+        },
+        {
+            "name": "loading",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "reconcile-loading"
+        },
+        {
+            "name": "error",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "reconcile-error"
+        },
+        {
+            "name": "not-found",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=not-found",
+            "ready": "reconcile-not-found"
+        },
+        {
+            "name": "edit-info",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=edit-info",
+            "ready": "reconcile-start-dialog",
+            "actions": [{ "pause": 500 }],
+            "settleMs": 500,
+            "opaque": "reconcile-start-dialog"
+        },
+        {
+            "name": "discard",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=discard",
+            "ready": "reconcile-discard-confirm",
+            "actions": [{ "pause": 500 }],
+            "settleMs": 500,
+            "opaque": "reconcile-discard-confirm"
+        },
+        {
+            "name": "finished",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=finished",
+            "ready": "reconcile-finished"
+        },
+        {
+            "name": "register",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=register",
+            "ready": "register-reconcile"
+        }
+    ]
+}

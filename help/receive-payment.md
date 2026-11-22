@@ -41,7 +41,7 @@ When Amount received is more than the payments you apply, Books shows the rest a
 
 ## Undeposited funds and why
 
-Deposit to is the account that gets the money. Books starts with your Undeposited funds account. Use it when you take several payments to the bank together: the money waits in Undeposited funds until you record the bank deposit, so your bank account matches your bank statement. To record money that went straight into the bank, pick the bank account instead.
+Deposit to is the account that gets the money. Books starts with your Undeposited funds account. Use it when you take several payments to the bank together: the money waits in Undeposited funds until you record the bank deposit, so your bank account matches your bank statement. To record money that went straight into the bank, pick the bank account instead. To move the money from Undeposited funds into the bank account, see [Bank deposits](help://books:bank-deposits).
 
 If your chart of accounts has no Undeposited funds account, the list starts with "Undeposited funds (created when you post)". Books creates the account when you post the payment. A payment does not use the **Sales deposited to** setting of sales receipts.
 

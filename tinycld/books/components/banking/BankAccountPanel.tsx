@@ -29,6 +29,7 @@ interface PanelActionsProps {
     setPanelMenuOpen: (open: boolean) => void
     onEditDetails: () => void
     onViewRegister: () => void
+    onReconcile?: () => void
     onDisconnect: () => void
 }
 
@@ -241,6 +242,8 @@ interface BankAccountPanelProps {
     setPanelMenuOpen: (open: boolean) => void
     onEditDetails: () => void
     onViewRegister: () => void
+    // The More menu's Reconcile; absent when the account cannot be reconciled by this user.
+    onReconcile?: () => void
     onDisconnect: () => void
     // The selected connection's upload; a writer gets its upload area.
     upload: BankFileUpload

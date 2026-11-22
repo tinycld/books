@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { useVendorRefundReadActions } from '../tinycld/books/hooks/useVendorRefundReadActions'
+import { NOT_DEPOSITED } from '../tinycld/books/lib/deposit'
 import {
     type PaymentReadAction,
     paymentReadActions,
@@ -37,6 +40,92 @@ describe('paymentReadActions', () => {
     })
 })
 
+// A payment or vendor refund that a posted deposit holds (bank deposit spec §3.10): Edit
+// and Void are not offered, View journal entry stays.
+describe('paymentReadActions with isDeposited', () => {
+    it('gives a writer on a deposited posted payment only entry', () => {
+        expect(paymentReadActions('posted', true, true, true)).toEqual(['entry'])
+    })
+
+    it('gives a writer edit, void and entry when it is not deposited, or with no fourth argument', () => {
+        expect(paymentReadActions('posted', true, true, false)).toEqual(['edit', 'void', 'entry'])
+        expect(paymentReadActions('posted', true, true)).toEqual(['edit', 'void', 'entry'])
+    })
+
+    it('keeps a reader and a void payment at entry when deposited', () => {
+        expect(paymentReadActions('posted', false, true, true)).toEqual(['entry'])
+        expect(paymentReadActions('void', true, true, true)).toEqual(['entry'])
+    })
+})
+
+// Both read bars take their actions from paymentReadActions, with the deposit read as its
+// fourth argument: the customer payment's bar (PaymentFlowReadBar) and the vendor refund's
+// hook. Neither keeps its own copy of the rule.
+const BOOKS_SRC = join(__dirname, '..', 'tinycld', 'books')
+
+// The arguments of the first `<name>(` call in a source text, split at its top level commas.
+function callArguments(source: string, name: string): string[] {
+    const start = source.search(new RegExp(`\\b${name}\\(`))
+    if (start < 0) return []
+    let depth = 0
+    let current = ''
+    const args: string[] = []
+    for (const char of source.slice(start + name.length + 1)) {
+        if (char === ')' && depth === 0) break
+        if (char === '(' || char === '[' || char === '{') depth++
+        if (char === ')' || char === ']' || char === '}') depth--
+        if (char === ',' && depth === 0) {
+            args.push(current.trim())
+            current = ''
+            continue
+        }
+        current += char
+    }
+    if (current.trim()) args.push(current.trim())
+    return args
+}
+
+describe('the read bars that call paymentReadActions', () => {
+    it.each([
+        ['the payment bar', join('components', 'payments', 'PaymentReadActions.tsx')],
+        ['the vendor refund hook', join('hooks', 'useVendorRefundReadActions.ts')],
+    ])('%s passes the deposit read as the fourth argument', (_name, file) => {
+        const source = readFileSync(join(BOOKS_SRC, file), 'utf8')
+        expect(source).toMatch(
+            /import\s*\{[^}]*\bpaymentReadActions\b[^}]*\}\s*from\s*'[^']*lib\/payment-read-actions'/
+        )
+        expect(source).toContain('depositedOffer')
+        expect(callArguments(source, 'paymentReadActions')).toHaveLength(4)
+    })
+})
+
+// The vendor refund's deposit read has no silent default (checkpoint 5 fix round 1): the hook
+// takes it as a required argument, and the vendor refund read bar passes its own
+// `depositRead` prop on, so a caller that forgets it does not offer Edit and Void on a
+// deposited refund.
+describe('the vendor refund read bar and its deposit read', () => {
+    const hookSource = readFileSync(
+        join(BOOKS_SRC, 'hooks', 'useVendorRefundReadActions.ts'),
+        'utf8'
+    )
+    const barSource = readFileSync(
+        join(BOOKS_SRC, 'components', 'vendor-refunds', 'VendorRefundReadActions.tsx'),
+        'utf8'
+    )
+
+    it('takes the deposit read as a required last argument of the hook', () => {
+        expect(hookSource).toMatch(
+            /export function useVendorRefundReadActions\([^)]*\bdepositRead\s*:\s*DepositRead,?\s*\)/
+        )
+    })
+
+    it('passes the bar its own depositRead prop as the third argument', () => {
+        expect(barSource).toMatch(/\{[^}]*\bdepositRead\b[^}]*\}\s*:\s*PaymentReadBarProps/)
+        const args = callArguments(barSource, 'useVendorRefundReadActions')
+        expect(args).toEqual(['payment', 'canWrite', 'depositRead'])
+    })
+})
+
 // Void writes `status: 'void'` on the read view's own collection (vendor refund spec §3.7):
 // a vendor refund's void must not land on another payment collection.
 describe('voidWriteCollection', () => {
@@ -64,25 +153,40 @@ const VOID_REFUND = { ...POSTED_REFUND, status: 'void' as const }
 
 describe('useVendorRefundReadActions', () => {
     it('offers a writer on a posted refund edit, void and entry, in that order', () => {
-        expect(useVendorRefundReadActions(POSTED_REFUND, true).offered).toEqual([
+        expect(useVendorRefundReadActions(POSTED_REFUND, true, NOT_DEPOSITED).offered).toEqual([
             'edit',
             'void',
             'entry',
         ])
     })
 
+    it('offers a writer on a deposited posted refund only entry', () => {
+        const held = {
+            isReady: true,
+            isError: false,
+            deposit: { id: 'deposit00000001', number: '1002' },
+        }
+        expect(useVendorRefundReadActions(POSTED_REFUND, true, held).offered).toEqual(['entry'])
+    })
+
     it('offers a writer on a void refund only entry', () => {
-        expect(useVendorRefundReadActions(VOID_REFUND, true).offered).toEqual(['entry'])
+        expect(useVendorRefundReadActions(VOID_REFUND, true, NOT_DEPOSITED).offered).toEqual([
+            'entry',
+        ])
     })
 
     it('offers a reader only entry, posted or void', () => {
-        expect(useVendorRefundReadActions(POSTED_REFUND, false).offered).toEqual(['entry'])
-        expect(useVendorRefundReadActions(VOID_REFUND, false).offered).toEqual(['entry'])
+        expect(useVendorRefundReadActions(POSTED_REFUND, false, NOT_DEPOSITED).offered).toEqual([
+            'entry',
+        ])
+        expect(useVendorRefundReadActions(VOID_REFUND, false, NOT_DEPOSITED).offered).toEqual([
+            'entry',
+        ])
     })
 
     it('names E, V and J only for the offered actions', () => {
         const keysOf = (record: typeof POSTED_REFUND | typeof VOID_REFUND, canWrite: boolean) =>
-            useVendorRefundReadActions(record, canWrite).offered.map(
+            useVendorRefundReadActions(record, canWrite, NOT_DEPOSITED).offered.map(
                 (action: PaymentReadAction) => PAYMENT_READ_KEYS[action]
             )
         expect(keysOf(POSTED_REFUND, true)).toEqual(['e', 'v', 'j'])
@@ -92,7 +196,7 @@ describe('useVendorRefundReadActions', () => {
     })
 
     it('targets the refund: its collection, its correction form and its void texts', () => {
-        expect(useVendorRefundReadActions(POSTED_REFUND, true).target).toEqual({
+        expect(useVendorRefundReadActions(POSTED_REFUND, true, NOT_DEPOSITED).target).toEqual({
             collection: 'books_vendor_refunds',
             editHref: 'books/vendor-refunds/new?replaces=refundposted001',
             voidBody:

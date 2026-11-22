@@ -46,6 +46,10 @@ var wantAuditParentFields = map[string]string{
 	"books_refund_receipt_lines": "refund_receipt",
 	// A credit memo's application names the credit memo (apply credit spec §4.1).
 	"books_credit_memo_applications": "credit_memo",
+	// A deposit's item and its other funds line each name the deposit (bank
+	// deposit spec §4.1).
+	"books_deposit_items": "deposit",
+	"books_deposit_lines": "deposit",
 }
 
 // auditGolden is server/testdata/audit_log_spec.json, which the vitest

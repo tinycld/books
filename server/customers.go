@@ -78,9 +78,9 @@ func registerCustomerGuard(app core.App) {
 			}
 			// Any sales document or payment, draft or posted, keeps its
 			// customer: invoices first, then sales receipts, then credit memos,
-			// then refund receipts, then estimates, then payments, all before the
-			// journal lines, so a customer on a posted document gets that
-			// document's text.
+			// then refund receipts, then estimates, then payments, then deposit
+			// lines, all before the journal lines, so a customer on a posted
+			// document gets that document's text.
 			for _, kind := range []salesDocKind{invoiceKind, salesReceiptKind, creditMemoKind, refundReceiptKind, estimateKind} {
 				docs, err := tx.CountRecords(kind.Collection, dbx.HashExp{"customer": e.Record.Id})
 				if err != nil {
@@ -96,6 +96,9 @@ func registerCustomerGuard(app core.App) {
 			}
 			if payments > 0 {
 				return refuseNamed(msgCustomerOnPayments, e.Record.GetString("display_name"))
+			}
+			if err := refusePartyOnDeposits(tx, "customer", e.Record); err != nil {
+				return err
 			}
 			return refusePartyOnLines(tx, "customer", e.Record)
 		})

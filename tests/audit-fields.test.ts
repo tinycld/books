@@ -268,6 +268,58 @@ describe('the write-off fields', () => {
     })
 })
 
+// The deposit's history (bank deposit spec §3.7): the deposit, its items and its other
+// funds lines are audited as "Deposit", "Deposit item" and "Deposit line"; each field
+// reads in words, links where it names a record, and an entry of type deposit reads
+// "Deposit".
+const DEPOSIT_COLLECTIONS = ['books_deposits', 'books_deposit_items', 'books_deposit_lines']
+
+describe('the deposit fields', () => {
+    it('audits the deposit, its items and its lines', () => {
+        expect(AUDITED).toEqual(expect.arrayContaining(DEPOSIT_COLLECTIONS))
+        expect(recordTypeLabel('books_deposits')).toBe('Deposit')
+        expect(recordTypeLabel('books_deposit_items')).toBe('Deposit item')
+        expect(recordTypeLabel('books_deposit_lines')).toBe('Deposit line')
+    })
+
+    it.each(
+        DEPOSIT_COLLECTIONS
+    )('%s: has an entry for every field of the generated schema', collection => {
+        expect(Object.keys(AUDIT_FIELDS[collection] ?? {}).sort()).toEqual(schemaFields(collection))
+    })
+
+    it('labels the deposit fields and links them to what they name', () => {
+        const deposit = AUDIT_FIELDS.books_deposits
+        expect(deposit?.deposit_to).toMatchObject({
+            label: 'Deposit to',
+            kind: 'relation',
+            target: 'books_accounts',
+        })
+        expect(deposit?.entry).toMatchObject({ kind: 'relation', target: 'books_journal_entries' })
+        expect(deposit?.replaces).toMatchObject({ kind: 'relation', target: 'books_deposits' })
+        for (const money of ['total', 'items_total', 'lines_total']) {
+            expect(deposit?.[money]?.kind, money).toBe('money')
+        }
+        expect(deposit?.sort_key?.kind).toBe('internal')
+        const item = AUDIT_FIELDS.books_deposit_items
+        expect(item?.line).toMatchObject({ kind: 'relation', target: 'books_journal_lines' })
+        expect(item?.deposit).toMatchObject({ kind: 'relation', target: 'books_deposits' })
+        expect(item?.amount?.kind).toBe('money')
+        const line = AUDIT_FIELDS.books_deposit_lines
+        expect(line?.account).toMatchObject({ kind: 'relation', target: 'books_accounts' })
+        expect(line?.customer).toMatchObject({ kind: 'relation', target: 'books_customers' })
+        expect(line?.vendor).toMatchObject({ kind: 'relation', target: 'books_vendors' })
+        expect(line?.amount?.kind).toBe('money')
+        expect(line?.description?.label).toBe('Description')
+    })
+
+    it('reads an entry of type deposit as "Deposit"', () => {
+        expect(DOC_TYPE).toContainEqual({ value: 'deposit', label: 'Deposit' })
+        const options = AUDIT_FIELDS.books_journal_entries?.doc_type?.options ?? []
+        expect(options).toContainEqual({ value: 'deposit', label: 'Deposit' })
+    })
+})
+
 // The refund receipt's history (as the credit memo's): the refund and its lines are
 // audited, and an entry of type refund_receipt reads "Refund receipt".
 const REFUND_RECEIPT_COLLECTIONS = ['books_refund_receipts', 'books_refund_receipt_lines']
@@ -321,6 +373,48 @@ describe('the bank categorization fields', () => {
             target: 'books_bank_connections',
         })
         expect(fields?.created_by).toMatchObject({ kind: 'relation', target: 'users' })
+    })
+})
+
+// Reconcile spec §4 Server: a reconciliation is audited, so a start, a change of the
+// statement information, a finish and a discard show in the audit log; its cleared rows
+// are not (one row for each press).
+describe('the reconciliation fields', () => {
+    it('audits the reconciliation as "Reconciliation", and not its cleared rows', () => {
+        expect(AUDITED).toContain('books_reconciliations')
+        expect(AUDITED).not.toContain('books_reconciliation_lines')
+        expect(AUDITED).not.toContain('books_reconcile_lines')
+        expect(recordTypeLabel('books_reconciliations')).toBe('Reconciliation')
+    })
+
+    it('has an entry for every field of the generated schema, each labelled in words', () => {
+        const fields = AUDIT_FIELDS.books_reconciliations
+        expect(Object.keys(fields ?? {}).sort()).toEqual(schemaFields('books_reconciliations'))
+        for (const [key, field] of Object.entries(fields ?? {})) {
+            expect(field.label, key).not.toBe('')
+            expect(field.label, key).not.toContain('_')
+        }
+    })
+
+    it('links a reconciliation to its account and people, and reads its amounts as money and its dates as days', () => {
+        const fields = AUDIT_FIELDS.books_reconciliations
+        expect(fields?.account).toMatchObject({ kind: 'relation', target: 'books_accounts' })
+        expect(fields?.created_by).toMatchObject({ kind: 'relation', target: 'users' })
+        expect(fields?.finished_by).toMatchObject({ kind: 'relation', target: 'users' })
+        expect(fields?.statement_date?.kind).toBe('day')
+        expect(fields?.finished_at?.kind).toBe('datetime')
+        for (const key of [
+            'statement_balance',
+            'beginning_balance',
+            'statement_out',
+            'statement_in',
+            'cleared_out',
+            'cleared_in',
+        ]) {
+            expect(fields?.[key]?.kind, key).toBe('money')
+        }
+        expect(fields?.status?.kind).toBe('select')
+        expect(fields?.has_statement_totals?.kind).toBe('bool')
     })
 })
 

@@ -58,8 +58,20 @@ func TestSearchIndex_TablesHoldTheConfiguredColumns(t *testing.T) {
 			t.Errorf("%s indexes %s: %v", cfg.Table, cfg.Collection, err)
 		}
 	}
-	if len(searchIndexes) != 17 {
-		t.Fatalf("%d indexes, want one per search source (17)", len(searchIndexes))
+	if len(searchIndexes) != 18 {
+		t.Fatalf("%d indexes, want one per search source (18)", len(searchIndexes))
+	}
+	for _, cfg := range searchIndexes {
+		if cfg.Table != "fts_books_deposits" {
+			continue
+		}
+		var cols []string
+		for _, c := range cfg.Columns {
+			cols = append(cols, c.FTS+"="+c.Field)
+		}
+		if got := strings.Join(cols, ","); got != "number=number,memo=memo" {
+			t.Errorf("fts_books_deposits columns %s, want number, memo", got)
+		}
 	}
 	if writeOffsIndex != "fts_books_write_offs" {
 		t.Errorf("writeOffsIndex = %q, want fts_books_write_offs", writeOffsIndex)
@@ -96,6 +108,7 @@ func TestSearchIndex_TablesHoldTheConfiguredColumns(t *testing.T) {
 		"fts_books_vendor_credits":  "books_vendor_credits",
 		"fts_books_vendor_refunds":  "books_vendor_refunds",
 		"fts_books_write_offs":      "books_write_offs",
+		"fts_books_deposits":        "books_deposits",
 	} {
 		var indexed []string
 		for _, cfg := range searchIndexes {

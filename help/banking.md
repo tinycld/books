@@ -16,6 +16,8 @@ A sale that a customer pays at once is recorded with a [sales receipt](help://bo
 
 Money that a vendor sends back for a vendor credit is recorded with a [vendor refund](help://books:vendor-refunds), which puts the money in a bank account, a credit card account or Undeposited funds.
 
+Money that waits in Undeposited funds (payments, sales receipts and vendor refunds that you take to the bank together) goes into the bank account with a [bank deposit](help://books:bank-deposits). The deposit posts one line on the bank account for the total, the same as the line on your bank statement.
+
 ![Banking: a strip of connected accounts above the selected account's tabs, with the Files tab and its upload area open.](images/banking-1.png)
 
 ## Connect an account
@@ -41,6 +43,10 @@ After an upload, choose Import transactions beside the "uploaded." line to impor
 ## Remove a file
 
 To remove a file, choose Remove on its row, then choose Remove file. The uploaded file is deleted. Nothing in your books changes.
+
+## Reconcile an account
+
+To compare the account with its bank statement, select its card, choose More and choose Reconcile. Books opens the account's reconciliation in progress, or the dialog to start one. Reconcile is in the menu for an active account, and for an account with a reconciliation in progress. See [Reconcile an account](help://books:reconcile).
 
 ## Disconnect an account
 

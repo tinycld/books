@@ -2,6 +2,7 @@ import { expect, type Locator, type Page } from '@playwright/test'
 import {
     connectTestAccount,
     type OfxEntry,
+    type OfxLedger,
     ofxStatement,
     openImportFromUpload,
 } from './bank-import-helpers'
@@ -23,15 +24,17 @@ export type ReviewImport = {
 }
 
 // Connects a new account, uploads an OFX statement of `entriesOf(stamp)`, imports every
-// line, and returns on For review through "Review transactions".
+// line, and returns on For review through "Review transactions". With `ledger` the file
+// carries that ledger balance (the statement balance and date).
 export async function importReviewStatement(
     page: Page,
-    entriesOf: (stamp: string) => ReviewEntry[]
+    entriesOf: (stamp: string) => ReviewEntry[],
+    ledger?: OfxLedger
 ): Promise<ReviewImport> {
     const stamp = stampDigits()
     const accountName = await connectTestAccount(page)
     const connectionId = await connectionIdOf(bankCard(page, accountName))
-    const file = ofxStatement(stamp, entriesOf(stamp))
+    const file = ofxStatement(stamp, entriesOf(stamp), ledger)
     await chooseBankFile(page, file)
     await expect(page.getByTestId('bank-upload-done')).toBeVisible()
     await openImportFromUpload(page)

@@ -133,6 +133,7 @@ export const DOC_TYPE = [
     { value: 'bill_payment', label: 'Bill payment' },
     { value: 'vendor_refund', label: 'Vendor refund' },
     { value: 'write_off', label: 'Write-off' },
+    { value: 'deposit', label: 'Deposit' },
     { value: 'statement', label: 'Statement' },
 ]
 const STATEMENT_TYPE = Object.entries(STATEMENT_TYPE_LABELS).map(([value, label]) => ({
@@ -173,6 +174,10 @@ const BANK_TXN_STATUS = (['for_review', 'reviewed', 'excluded'] as const).map(va
 const BANK_CATEGORIZATION_KIND = [
     { value: 'categorize', label: 'Categorize' },
     { value: 'transfer', label: 'Transfer' },
+]
+const RECONCILIATION_STATUS = [
+    { value: 'in_progress', label: 'In progress' },
+    { value: 'finished', label: 'Finished' },
 ]
 
 // --- Fields every collection shares. ---
@@ -516,6 +521,57 @@ const AUDIT_FIELD_MAPS = {
         position: internal('Position'),
         ...STAMPS,
     },
+    books_deposits: {
+        status: select('Status', DOCUMENT_STATUS),
+        number: text('Number'),
+        sequence: text('Sequence'),
+        date: day('Deposit date'),
+        deposit_to: relation('Deposit to', 'books_accounts'),
+        memo: text('Memo'),
+        total: money('Deposit total'),
+        items_total: money('Selected items'),
+        lines_total: money('Other funds'),
+        currency: text('Currency'),
+        entry: relation('Journal entry', 'books_journal_entries'),
+        posted_at: datetime('Posted at'),
+        posted_by: relation('Posted by', 'users'),
+        voided_at: datetime('Voided at'),
+        voided_by: relation('Voided by', 'users'),
+        sort_key: internal('Sort key'),
+        replaces: relation('Replaces', 'books_deposits'),
+        replaced_by: relation('Replaced by', 'books_deposits'),
+        ...STAMPS,
+    },
+    // The server copies every field from `entry` on from the item's journal line, its
+    // entry and its source document.
+    books_deposit_items: {
+        deposit: relation('Deposit', 'books_deposits'),
+        line: relation('Journal line', 'books_journal_lines'),
+        position: internal('Position'),
+        entry: relation('Journal entry', 'books_journal_entries'),
+        account: relation('Account', 'books_accounts'),
+        customer: relation('Customer', 'books_customers'),
+        vendor: relation('Vendor', 'books_vendors'),
+        amount: money('Amount'),
+        date: day('Date'),
+        doc_type: select('Type', DOC_TYPE),
+        number: text('Number'),
+        document: text('Document'),
+        payment_method: select('Payment method', PAYMENT_METHOD),
+        reference_no: text('Reference no.'),
+        posted: bool('Deposited'),
+        ...STAMPS,
+    },
+    books_deposit_lines: {
+        deposit: relation('Deposit', 'books_deposits'),
+        customer: relation('Customer', 'books_customers'),
+        vendor: relation('Vendor', 'books_vendors'),
+        account: relation('Account', 'books_accounts'),
+        description: text('Description'),
+        amount: money('Amount'),
+        position: internal('Position'),
+        ...STAMPS,
+    },
     books_attachments: {
         bill: relation('Bill', 'books_bills'),
         expense: relation('Expense', 'books_expenses'),
@@ -755,6 +811,26 @@ const AUDIT_FIELD_MAPS = {
         connection: relation('Bank connection', 'books_bank_connections'),
         entry: relation('Journal entry', 'books_journal_entries'),
         created_by: relation('Added by', 'users'),
+        ...STAMPS,
+    },
+    // `_out` is the credit side (a bank payment, a card charge), `_in` the debit side.
+    books_reconciliations: {
+        account: relation('Account', 'books_accounts'),
+        statement_date: day('Ending date'),
+        statement_balance: money('Ending balance'),
+        has_statement_totals: bool('Statement totals entered'),
+        statement_out: money('Statement money out'),
+        statement_in: money('Statement money in'),
+        status: select('Status', RECONCILIATION_STATUS),
+        beginning_balance: money('Beginning balance'),
+        cleared_out: money('Cleared money out'),
+        cleared_in: money('Cleared money in'),
+        cleared_out_count: text('Cleared money out count'),
+        cleared_in_count: text('Cleared money in count'),
+        created_by: relation('Started by', 'users'),
+        finished_by: relation('Finished by', 'users'),
+        finished_at: datetime('Finished at'),
+        currency: text('Currency'),
         ...STAMPS,
     },
     books_settings: {

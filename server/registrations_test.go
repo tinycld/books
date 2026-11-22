@@ -47,6 +47,8 @@ var serverOnly = map[string]bool{
 	// match, as its parsed rows are a bank file's (bank-match spec §4). The
 	// suggestions are a view; booksCollections(…, base) never lists a view.
 	"books_bank_match_lines": true,
+	// one row for each press; the reconciliation is audited
+	"books_reconciliation_lines": true,
 }
 
 func booksCollections(t testing.TB, app core.App, kinds ...string) []*core.Collection {
@@ -989,11 +991,13 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 	registerCreditMemoApplications(parts)
 	registerVendorRefundGuards(parts)
 	registerWriteOffGuards(parts)
+	registerDepositGuards(parts)
 	registerEstimateResponses(parts)
 	registerAudit(&pocketbase.PocketBase{App: parts})
 	registerSearchIndex(&pocketbase.PocketBase{App: parts})
 	registerAutoReverseSweep(parts)
 	registerStatementGuards(parts)
+	registerReconcile(parts)
 	registerReportShares(parts)
 	registerPartyBalances()
 	parts.OnServe().BindFunc(func(e *core.ServeEvent) error {

@@ -373,15 +373,16 @@ export function mapIntroText(remembered: boolean, accountLabel: string): string 
 // balance: a bank states what the account holds, and a card statement states what the card
 // owes as a negative ledger balance, so a card's balance is negated. `0 - x` keeps a zero
 // balance from turning into -0. No file, or a file with no statement date (every CSV
-// file), has no balance.
+// file), has no balance. The file's name goes with it: the reconcile start dialog names the
+// file its values come from.
 export function statementBalance(
-    file: Pick<BooksBankFiles, 'statement_balance' | 'statement_date'> | undefined,
+    file: Pick<BooksBankFiles, 'statement_balance' | 'statement_date' | 'name'> | undefined,
     accountType: string
-): { cents: number; day: string } | null {
+): { cents: number; day: string; fileName: string } | null {
     if (!file || file.statement_date === '') return null
     const cents =
         accountType === 'credit_card' ? 0 - file.statement_balance : file.statement_balance
-    return { cents, day: file.statement_date }
+    return { cents, day: file.statement_date, fileName: file.name }
 }
 
 export type BankImportPageState =

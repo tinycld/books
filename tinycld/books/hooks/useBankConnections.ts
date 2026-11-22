@@ -4,8 +4,8 @@ import { bankConnectionsQuery } from '../lib/bank-connections-query'
 import type { LiveRecovery } from '../lib/live-recovery'
 
 // Every connection in chart order, with its account, its posted totals, its count of
-// files waiting to import and its count of transactions for review: the cards of the
-// account strip.
+// files waiting to import, its count of transactions for review and its reconciliation in
+// progress: the cards of the account strip and the More menu's Reconcile.
 export function useBankConnections() {
     const [
         connectionsCollection,
@@ -13,12 +13,14 @@ export function useBankConnections() {
         balancesCollection,
         filesCollection,
         transactionsCollection,
+        reconciliationsCollection,
     ] = useStore(
         'books_bank_connections',
         'books_accounts',
         'books_account_balances',
         'books_bank_files',
-        'books_bank_transactions'
+        'books_bank_transactions',
+        'books_reconciliations'
     )
     const query = useLiveQuery({
         query: bankConnectionsQuery(
@@ -26,7 +28,8 @@ export function useBankConnections() {
             accountsCollection,
             balancesCollection,
             filesCollection,
-            transactionsCollection
+            transactionsCollection,
+            reconciliationsCollection
         ),
         queryKey: ['books.banking.connections'],
     })
@@ -41,6 +44,7 @@ export function useBankConnections() {
                   balancesCollection,
                   filesCollection,
                   transactionsCollection,
+                  reconciliationsCollection,
               ],
           }
         : { queries: [], sources: [] }

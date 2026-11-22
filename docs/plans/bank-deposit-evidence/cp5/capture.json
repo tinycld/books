@@ -1,0 +1,18 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "in-deposit",
+            "url": "/a/books/deposits/seeddeposit0001",
+            "ready": "deposit-read-only",
+            "hideLabels": ["New"],
+            "actions": [
+                { "clickPrefix": "deposit-item-link-" },
+                { "waitFor": "in-deposit-notice" },
+                {
+                    "clickText": "To edit or void this sales receipt, remove it from the deposit first."
+                }
+            ]
+        }
+    ]
+}
