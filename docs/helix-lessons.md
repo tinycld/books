@@ -41,3 +41,4 @@
 - Before a key press or a picker step in e2e, assert the state it needs (the section is visible, the field has focus); a shortcut registers only after its section loads. — bank-categorize, retro, p4-categorize-split
 - The core overlay Drawer is a gluestack modal: read its creator (an Escape listener on document.body, an Android BackHandler, a portal drawn above the `sheet` host) before you judge focus, Escape or stacking in it. — bank-categorize, retro, p4-categorize-split
 - Capture: size the shot height from the tallest state, start each shot where its helpers expect, fake a store read before mount, move the pointer off the last click, and choose list rows bottom-up. — bank-categorize, retro, p4-categorize-split
+- A plan probe of a union source EXPLAINs every branch, not one. — expenses-by-vendor, retro, p5-expenses-by-vendor

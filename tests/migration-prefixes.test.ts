@@ -22,6 +22,8 @@ import { describe, expect, it } from 'vitest'
 // migration takes 2100000029, the number left free between the receivable items and the
 // bank matches, after the bills, bill payments, vendor credits and vendor refunds it
 // reads; books_payable_items is stored, not audited, and the audit view does not read it.
+// Expenses by Vendor (D11): the covering line indexes take 2100000036, after the audit
+// view, because they add indexes only and create no collection the view reads.
 // Reconcile spec §4 Schema: the reconciliations take the next free number at build time,
 // after the audit view, which reads none of their collections (books_reconciliations is
 // audited through the audit_logs rows the core audit writes, not through the view's LINES).
@@ -40,7 +42,11 @@ const RECONCILE_SUFFIX = '_create_books_reconciliations.js'
 
 const RECONCILE = MIGRATIONS.filter(file => file.endsWith(RECONCILE_SUFFIX))
 
-const AFTER_AUDIT: string[] = ['2100000035_create_books_bank_categorizations.js', ...RECONCILE]
+const AFTER_AUDIT: string[] = [
+    '2100000035_create_books_bank_categorizations.js',
+    '2100000036_index_books_lines_account_date_covering.js',
+    ...RECONCILE,
+]
 
 function prefixOf(file: string): string {
     return file.split('_')[0] ?? file

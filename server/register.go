@@ -74,6 +74,7 @@ func Register(app *pocketbase.PocketBase) {
 	reports.RegisterShipped(arAgingShipped())
 	reports.RegisterShipped(apAgingShipped())
 	reports.RegisterShipped(vendorBalanceShipped())
+	reports.RegisterShipped(expensesByVendorShipped())
 	reports.RegisterShipped(salesByCustomerShipped())
 	reports.RegisterShipped(salesByProductShipped())
 	reports.RegisterShipped(auditLogShipped())

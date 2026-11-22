@@ -1,0 +1,76 @@
+{
+    "title": "Expenses by Vendor",
+    "description": "What you spent with each vendor in a period, from posted transactions on expense accounts.",
+    "params": [
+        {
+            "id": "period",
+            "type": "dateRange",
+            "label": "Period",
+            "default": { "preset": "thisFiscalYearToDate" }
+        },
+        {
+            "id": "method",
+            "type": "choice",
+            "label": "Method",
+            "options": [
+                { "value": "accrual", "label": "Accrual" },
+                { "value": "cash", "label": "Cash" }
+            ],
+            "default": "accrual",
+            "header": "{label} basis"
+        },
+        {
+            "id": "rows",
+            "type": "choice",
+            "label": "Rows",
+            "options": [
+                { "value": "nonzero", "label": "Non-zero" },
+                { "value": "activity", "label": "With activity" }
+            ],
+            "default": "nonzero"
+        },
+        {
+            "id": "vendors",
+            "type": "choice",
+            "label": "Vendor",
+            "multiple": true,
+            "header": "Vendor: {label}",
+            "optionsFrom": {
+                "source": "books.vendors",
+                "value": [{ "field": "id" }],
+                "label": [{ "field": "display_name" }]
+            }
+        },
+        {
+            "id": "order",
+            "type": "choice",
+            "label": "Order",
+            "options": [
+                { "value": "name", "label": "Name" },
+                { "value": "amount", "label": "Largest expenses" }
+            ],
+            "default": "name"
+        }
+    ],
+    "display": {
+        "oneLine": { "minWidth": "640px" },
+        "columns": {
+            "name": { "whiteSpace": "normal", "lineClamp": 3 },
+            "amount": { "minWidth": "max-content" },
+            "pct": { "minWidth": "max-content" }
+        },
+        "layouts": [
+            {
+                "width": "mobile",
+                "tracks": 2,
+                "cells": [
+                    { "col": "name", "line": 1, "span": 2 },
+                    { "col": "amount", "line": 2 },
+                    { "col": "pct", "line": 2 }
+                ]
+            }
+        ]
+    },
+    "emptyFrom": "2025-07-01",
+    "emptyTo": "2025-09-30"
+}

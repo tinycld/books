@@ -14,7 +14,11 @@ import {
     recordMenuItems,
     recordMenuTestIds,
 } from '../../lib/record-menu'
-import { AP_AGING_SHIPPED_KEY, VENDOR_BALANCE_SHIPPED_KEY } from '../../lib/shipped-reports'
+import {
+    AP_AGING_SHIPPED_KEY,
+    EXPENSES_BY_VENDOR_SHIPPED_KEY,
+    VENDOR_BALANCE_SHIPPED_KEY,
+} from '../../lib/shipped-reports'
 import { vendorListCopy } from '../../lib/vendor-display'
 import { VENDOR_LOAD_ERROR } from '../../lib/vendor-messages'
 import { VENDORS_PATH } from '../../lib/vendor-route'
@@ -60,6 +64,7 @@ export function VendorsList({ openId, layout }: { openId: string; layout: ListLa
     // the list stays usable, and the live query shows the item once the report loads.
     const balanceHref = useShippedReportHref(VENDOR_BALANCE_SHIPPED_KEY)
     const agingHref = useShippedReportHref(AP_AGING_SHIPPED_KEY)
+    const expensesHref = useShippedReportHref(EXPENSES_BY_VENDOR_SHIPPED_KEY)
     const reportItems = [
         {
             key: VENDOR_BALANCE_SHIPPED_KEY,
@@ -73,9 +78,15 @@ export function VendorsList({ openId, layout }: { openId: string; layout: ListLa
             href: agingHref,
             testID: 'vendors-reports-aging',
         },
+        {
+            key: EXPENSES_BY_VENDOR_SHIPPED_KEY,
+            label: 'Expenses by Vendor',
+            href: expensesHref,
+            testID: 'vendors-reports-expenses',
+        },
     ]
     // Undefined, not a menu that renders null, so the header draws no empty button group.
-    const hasReport = balanceHref !== null || agingHref !== null
+    const hasReport = balanceHref !== null || agingHref !== null || expensesHref !== null
     const reportsMenu = hasReport ? (
         <ShippedReportsMenu items={reportItems} testID="vendors-reports" />
     ) : undefined
