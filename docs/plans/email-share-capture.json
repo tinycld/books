@@ -1,0 +1,293 @@
+{
+    "outDir": "email-share-reference",
+    "shots": [
+        {
+            "name": "send",
+            "url": "/a/books/helix-mockup?state=send",
+            "ready": "document-send-body",
+            "height": 900,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "send-full",
+            "url": "/a/books/helix-mockup?state=send",
+            "ready": "document-send-body",
+            "height": 1400,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "send-estimate",
+            "url": "/a/books/helix-mockup?state=send-estimate",
+            "ready": "document-send-body",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "send-receipt",
+            "url": "/a/books/helix-mockup?state=send-receipt",
+            "ready": "document-send-body",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "send-long",
+            "url": "/a/books/helix-mockup?state=send-long",
+            "ready": "document-send-body",
+            "height": 900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "send-formatted",
+            "url": "/a/books/helix-mockup?state=send-formatted",
+            "ready": "document-send-body",
+            "height": 900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "send-errors",
+            "url": "/a/books/helix-mockup?state=send-errors",
+            "ready": "document-send-body",
+            "height": 900,
+            "schemes": ["light"],
+            "actions": [
+                { "click": "document-send-submit" },
+                { "waitFor": "document-send-body-error" }
+            ],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "send-sending",
+            "url": "/a/books/helix-mockup?state=send-sending",
+            "ready": "document-send-body",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "send-refused",
+            "url": "/a/books/helix-mockup?state=send-refused",
+            "ready": "document-send-body",
+            "height": 1400,
+            "schemes": ["light"],
+            "actions": [{ "click": "document-send-submit" }, { "waitFor": "document-send-errors" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "send-no-email",
+            "url": "/a/books/helix-mockup?state=send-no-email",
+            "ready": "document-send-not-set-up",
+            "height": 900,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "send-no-email-receipt",
+            "url": "/a/books/helix-mockup?state=send-no-email-receipt",
+            "ready": "document-send-not-set-up",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "send-loading",
+            "url": "/a/books/helix-mockup?state=send-loading",
+            "ready": "document-send-loading",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "send-load-error",
+            "url": "/a/books/helix-mockup?state=send-load-error",
+            "ready": "document-send-load-error",
+            "height": 900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "batch",
+            "url": "/a/books/helix-mockup?state=batch",
+            "ready": "batch-send-skipped",
+            "height": 900,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "batch-clean",
+            "url": "/a/books/helix-mockup?state=batch-clean",
+            "ready": "batch-send-confirm",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "batch-none",
+            "url": "/a/books/helix-mockup?state=batch-none",
+            "ready": "batch-send-body",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "batch-too-many",
+            "url": "/a/books/helix-mockup?state=batch-too-many",
+            "ready": "batch-send-refusal",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "batch-no-email",
+            "url": "/a/books/helix-mockup?state=batch-no-email",
+            "ready": "batch-send-close",
+            "height": 900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "batch-result",
+            "url": "/a/books/helix-mockup?state=batch-result",
+            "ready": "batch-send-banner",
+            "height": 900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read",
+            "url": "/a/books/helix-mockup?state=read",
+            "ready": "invoice-read-actions",
+            "height": 900,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read-more",
+            "url": "/a/books/helix-mockup?state=read",
+            "ready": "invoice-read-actions",
+            "height": 900,
+            "widths": [390],
+            "schemes": ["light"],
+            "stable": "invoice-read-link",
+            "actions": [{ "click": "invoice-read-more" }, { "waitFor": "invoice-read-link" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read-long",
+            "url": "/a/books/helix-mockup?state=read-long",
+            "ready": "invoice-sent-line",
+            "height": 900,
+            "widths": [390],
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "form",
+            "url": "/a/books/helix-mockup?state=form",
+            "ready": "invoice-actions",
+            "height": 900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "form-more",
+            "url": "/a/books/helix-mockup?state=form",
+            "ready": "invoice-actions",
+            "height": 900,
+            "widths": [390],
+            "schemes": ["light"],
+            "stable": "invoice-post-send",
+            "actions": [{ "click": "invoice-more" }, { "waitFor": "invoice-post-send" }],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "public",
+            "url": "/a/books/helix-mockup?state=public",
+            "ready": "invoice-public",
+            "height": 900,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "public-open",
+            "url": "/a/books/helix-mockup?state=public-open",
+            "ready": "invoice-public",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "public-overdue",
+            "url": "/a/books/helix-mockup?state=public-overdue",
+            "ready": "invoice-public",
+            "height": 900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "public-paid",
+            "url": "/a/books/helix-mockup?state=public-paid",
+            "ready": "invoice-public-paid",
+            "height": 900,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "public-void",
+            "url": "/a/books/helix-mockup?state=public-void",
+            "ready": "invoice-public-void",
+            "height": 900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "public-replaced",
+            "url": "/a/books/helix-mockup?state=public-replaced",
+            "ready": "invoice-public-replaced",
+            "height": 900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "public-long",
+            "url": "/a/books/helix-mockup?state=public-long",
+            "ready": "invoice-public",
+            "height": 1200,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "public-loading",
+            "url": "/a/books/helix-mockup?state=public-loading",
+            "ready": "invoice-public-loading",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "public-not-found",
+            "url": "/a/books/helix-mockup?state=public-not-found",
+            "ready": "invoice-public-not-found",
+            "height": 900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "public-error",
+            "url": "/a/books/helix-mockup?state=public-error",
+            "ready": "invoice-public-error",
+            "height": 900,
+            "schemes": ["light"],
+            "hideLabels": ["New"]
+        }
+    ]
+}
