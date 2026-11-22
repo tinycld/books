@@ -397,6 +397,9 @@ export function useReconcileScreen(id: string) {
     const onViewReport = () => {
         if (reportHref) router.push(reportHref)
     }
+    // The account's history (reconciliation report spec §3 "The finished summary").
+    const onOpenHistory = () =>
+        router.push(orgHref('books/reconcile/history', { account: statementAccount }))
 
     return {
         state,
@@ -444,6 +447,7 @@ export function useReconcileScreen(id: string) {
         onViewRegister,
         reportHref,
         onViewReport,
+        onOpenHistory,
     }
 }
 

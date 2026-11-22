@@ -33,6 +33,24 @@ describe('reconcile store: batch flag', () => {
     })
 })
 
+// Reconciliation report spec §3 "The history": the Account filter is in the store, not
+// persisted, and resets when the screen loses focus (resetHistory).
+describe('reconcile store: history filter and sort', () => {
+    it('resetHistory gives back All accounts and the newest-first sort', () => {
+        store().setHistoryAccount('a')
+        store().toggleHistorySort()
+        expect(store().historyAccount).toBe('a')
+        expect(store().historySort).toBe('ascending')
+        store().resetHistory()
+        expect(store().historyAccount).toBe('')
+        expect(store().historySort).toBe('descending')
+    })
+
+    it('is not persisted: the store has no persist part', () => {
+        expect('persist' in useReconcileStore).toBe(false)
+    })
+})
+
 describe('reconcile store: result line', () => {
     it('reads the result only on the reconciliation that made it', () => {
         store().setResult('recona000000001', { text: 'Cleared 2 transactions.', tone: 'muted' })

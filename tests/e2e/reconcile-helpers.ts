@@ -324,6 +324,105 @@ export async function expectDifference(page: Page, text: string): Promise<void> 
     )
 }
 
+// Opens the History tab of Reconcile from any Books screen with the sidebar and waits for
+// the history screen.
+export async function openHistory(page: Page): Promise<Locator> {
+    await openReconcile(page)
+    await page.getByTestId('reconcile-tab-history').filter({ visible: true }).click()
+    return visibleScreen(page, 'reconcile-history-screen')
+}
+
+// The visible row (wide table) or card (phone) of the finished reconciliation `id`. An
+// earlier history screen can stay stacked and hidden (lesson 38).
+export function historyRow(page: Page, id: string): Locator {
+    return page.getByTestId(`reconcile-history-row-${id}`).filter({ visible: true })
+}
+
+// The history's Account filter chip on the shown screen.
+export function historyFilter(page: Page): Locator {
+    return page.getByTestId('reconcile-history-account').filter({ visible: true })
+}
+
+// Picks the account `accountId` in the history's Account filter and waits until the menu
+// has closed, so the list keys are offered again.
+export async function pickHistoryAccount(page: Page, accountId: string): Promise<void> {
+    await historyFilter(page).click()
+    const item = page.getByTestId(`reconcile-history-account-${accountId}`).filter({
+        visible: true,
+    })
+    await item.click()
+    await expect(item).toHaveCount(0)
+}
+
+const HISTORY_ITEMS = '[data-testid^="reconcile-history-row-"]'
+
+// The reconciliation ids of the history's mounted, visible rows, in screen order, read in
+// one snapshot (lesson 9).
+export function shownHistoryIds(page: Page): Promise<string[]> {
+    return page.evaluate(
+        items =>
+            Array.from(document.querySelectorAll(items))
+                .filter(node => (node as HTMLElement).offsetParent !== null)
+                .map(node =>
+                    (node.getAttribute('data-testid') ?? '').slice('reconcile-history-row-'.length)
+                ),
+        HISTORY_ITEMS
+    )
+}
+
+// Runs in the page. Moves the history list's vertical scroller (found from its last mounted
+// row) to its top, or one step down, in one synchronous pass. `atEnd` is true when the
+// scroller cannot move further down.
+function moveHistoryList({ move, items }: { move: 'top' | 'step'; items: string }) {
+    const mountedRows = Array.from(document.querySelectorAll(items)).filter(
+        node => (node as HTMLElement).offsetParent !== null
+    )
+    const last = mountedRows[mountedRows.length - 1]
+    let list = last?.parentElement ?? null
+    while (list && !/auto|scroll/.test(getComputedStyle(list).overflowY)) {
+        list = list.parentElement
+    }
+    if (!last || !list) return { mounted: false, atEnd: true }
+    if (move === 'top') list.scrollTop = 0
+    if (move === 'step') {
+        list.scrollTop += Math.max(
+            last.getBoundingClientRect().top - list.getBoundingClientRect().top,
+            1
+        )
+    }
+    return {
+        mounted: true,
+        atEnd: list.scrollTop + list.clientHeight >= list.scrollHeight - 1,
+    }
+}
+
+// Every reconciliation id of the history, in screen order. The list mounts only the rows
+// near its scroll position and the shared e2e DB holds the reconciliations of every spec,
+// so the list is read from its top, step by step, until it reaches its end; ids are kept in
+// the order they first show (lesson 9).
+export async function historyOrder(page: Page): Promise<string[]> {
+    await expect(page.locator(HISTORY_ITEMS).filter({ visible: true }).first()).toBeVisible()
+    const order: string[] = []
+    const take = async () => {
+        for (const id of await shownHistoryIds(page)) {
+            if (!order.includes(id)) order.push(id)
+        }
+    }
+    await page.evaluate(moveHistoryList, { move: 'top' as const, items: HISTORY_ITEMS })
+    await nextFrames(page)
+    for (;;) {
+        await take()
+        const { atEnd } = await page.evaluate(moveHistoryList, {
+            move: 'step' as const,
+            items: HISTORY_ITEMS,
+        })
+        await nextFrames(page)
+        if (atEnd) break
+    }
+    await take()
+    return order
+}
+
 // The test id of the visible row that has the keyboard focus, or '' when none has it. The
 // focused row carries data-focused="true" on the web (rowFocusStyle).
 function focusedAccountTestId(page: Page): Promise<string> {

@@ -10,6 +10,7 @@ import {
     type ReconcileSort,
     type ReconcileSortColumn,
 } from '../lib/reconcile'
+import type { HistorySort } from '../lib/reconcile-history'
 
 // The result is kept as its own object so resultFor hands a selector the same reference on
 // every read (a new object each time would re-render without end).
@@ -61,6 +62,11 @@ interface ReconcileState {
     // The result line: the last batch result or refusal, until the next action, stamped
     // with the reconciliation that made it; another reconciliation reads none (resultFor).
     result: StampedResult | null
+    // The history's Account filter: an account id, or '' for All accounts (reconciliation
+    // report spec §3 "The history"). It resets when the history loses focus.
+    historyAccount: string
+    // The history's statement date order; a press on its header reverses it.
+    historySort: HistorySort
     openStart: (accountId: string) => void
     closeStart: () => void
     setStarting: (isStarting: boolean) => void
@@ -87,6 +93,10 @@ interface ReconcileState {
     // row, the result line, the open hints, Edit info, the Discard confirm and the discard
     // flag start over.
     resetWork: () => void
+    setHistoryAccount: (accountId: string) => void
+    toggleHistorySort: () => void
+    // The history lost focus: All accounts, newest first.
+    resetHistory: () => void
 }
 
 // Not persisted: an open dialog, an open band or the work screen's filters do not outlive
@@ -106,6 +116,8 @@ export const useReconcileStore = create<ReconcileState>()(set => ({
     focusedLineId: null,
     runningBatchIds: [],
     result: null,
+    historyAccount: '',
+    historySort: 'descending',
     openStart: accountId => set({ startAccountId: accountId }),
     closeStart: () => set({ startAccountId: null }),
     setStarting: isStarting => set({ isStarting }),
@@ -145,6 +157,12 @@ export const useReconcileStore = create<ReconcileState>()(set => ({
             isDiscardOpen: false,
             isDiscarding: false,
         }),
+    setHistoryAccount: accountId => set({ historyAccount: accountId }),
+    toggleHistorySort: () =>
+        set(state => ({
+            historySort: state.historySort === 'descending' ? 'ascending' : 'descending',
+        })),
+    resetHistory: () => set({ historyAccount: '', historySort: 'descending' }),
 }))
 
 type BatchSlice = Pick<ReconcileState, 'runningBatchIds'>
