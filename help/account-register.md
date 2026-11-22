@@ -17,6 +17,8 @@ To open a register, go to [Chart of Accounts](help://books:chart-of-accounts). O
 
 The header shows the account number (when set), the name, the type and the detail type. An inactive account also shows Inactive.
 
+When the account has a finished reconciliation, "Reconciled through" and the date of its last reconciled statement show under the balances.
+
 Opening balance is the balance before the first day of the range. Ending balance is the balance at the end of the range. The text under it, "through" and a date, is the last day of the range. The Ending balance can differ from the figure in the Chart of Accounts. The Chart counts every posting, including postings dated after the "through" date. The register counts only up to that date. This is true even for This month.
 
 ## Choose a date range
@@ -25,10 +27,11 @@ To change the range, use the date range menu. The choices are This month, Last m
 
 ## Read the rows
 
-Each row shows the Date, Ref no., Type, Memo, Account, Debit, Credit and Balance. The rows are cards on a phone, in a window too narrow for the columns, and beside an open entry; the table does not scroll sideways. A card shows the date, the Ref no., the memo, the other account with the entry type (and Void), the amount marked Debit or Credit, and the running balance.
+Each row shows the Date, Ref no., Type, Memo, Account, Status, Debit, Credit and Balance. The rows are cards on a phone, in a window too narrow for the columns, and beside an open entry; the table does not scroll sideways. A card shows the date, the Ref no. and the status word, the memo, the other account with the entry type (and Void), the amount marked Debit or Credit, and the running balance.
 
 - **Type** is Journal entry, Transfer, Reversal, Void reversal or Auto reversal. A reversal also shows the entry it reverses, for example "Reversal of JE-1046". A voided entry shows Void.
 - **Account** is the other account of the entry. An entry with more than two lines shows -Split-.
+- **Status** is Reconciled for a transaction in a finished reconciliation, Cleared for one cleared in the reconciliation in progress, and Matched for one matched to an imported bank transaction and not cleared. It is empty otherwise. See [Reconcile an account](help://books:reconcile).
 - **Balance** is the running balance, signed for the normal side of the account. It shows Too large when the number is too big to store.
 
 The Opening balance row is the earliest row. It is last when the newest entry is on top (the default). It is first when the oldest entry is on top. It shows the balance at the start of the range. It appears only when the opening balance is not zero or the range has rows.
@@ -41,7 +44,7 @@ To sort, press the Date heading. Press it again to reverse the order. The newest
 
 ## See an entry
 
-To see an entry, press its row. A drawer opens with the entry, its status, its memo and all its lines. The line for this account is highlighted. The drawer is read only. To close it, press the close button. To open the full entry, choose Open entry in the drawer. A transfer opens on its own transfer screen. See [Journal entries](help://books:journal-entries).
+To see an entry, press its row. A drawer opens with the entry, its status, its memo and all its lines. The line for this account is highlighted, with its status word, and "Statement of" and the date for a reconciled line. The drawer is read only. To close it, press the close button. To open the full entry, choose Open entry in the drawer. A transfer opens on its own transfer screen. See [Journal entries](help://books:journal-entries).
 
 ## Parent accounts
 
@@ -52,6 +55,8 @@ A parent account shows Own transactions only. Transactions of its sub-accounts a
 When journal entries are available and you have bookkeeper access, the New journal entry button appears next to the date range. A read-only user does not see it.
 
 To move money out of this account, choose Transfer. The Transfer button appears only on an active account that a transfer can use, such as a bank or credit card account. A read-only user does not see it. See [Transfers](help://books:transfers).
+
+To compare a bank or credit card account with its bank statement, choose Reconcile (or press R). Books opens the account's reconciliation in progress, or the dialog to start one. The Reconcile button appears for bookkeeper and admin access, on an active bank or credit card account, and on any account that has a reconciliation in progress. A read-only user does not see it. See [Reconcile an account](help://books:reconcile).
 
 To upload the statements your bank exports for a bank or credit card account, see [Banking](help://books:banking).
 

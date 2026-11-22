@@ -1,11 +1,27 @@
 import type { Ref } from 'react'
 import { Pressable, Text, View, type ViewInstance } from 'react-native'
 import { balanceText, balanceTone, formatMoney } from '../../lib/money'
+import { lineStatusTone } from '../../lib/reconcile-status'
 import type { RegisterLine } from '../../lib/register'
 import { formatDay } from '../../lib/register-range'
 import { useAccountName } from './RegisterRow'
 
 export const CARD_HEIGHT = 96
+
+// The Status word after the Ref no., in the tones of the table's Status cell.
+function StatusWord({ row }: { row: RegisterLine }) {
+    if (row.reconcileWord === '') return null
+    const tone = lineStatusTone(row.reconcileWord)
+    return (
+        <Text
+            testID={`register-cell-status-${row.id}`}
+            numberOfLines={1}
+            className={`shrink-0 text-xs ${tone}`}
+        >
+            {row.reconcileWord}
+        </Text>
+    )
+}
 
 interface RegisterCardProps {
     row: RegisterLine
@@ -52,6 +68,7 @@ export function RegisterCard({
                     >
                         {row.number}
                     </Text>
+                    <StatusWord row={row} />
                 </View>
                 <Text numberOfLines={2} className="text-sm font-medium text-foreground">
                     {row.memo}

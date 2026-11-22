@@ -41,6 +41,7 @@ function BankingContent({ model, upload }: { model: BankingScreenModel; upload: 
                 setPanelMenuOpen={model.setPanelMenuOpen}
                 onEditDetails={model.onEditDetails}
                 onViewRegister={model.onViewRegister}
+                onReconcile={model.onReconcile}
                 onDisconnect={model.onDisconnect}
                 upload={upload}
                 tab={model.tab}

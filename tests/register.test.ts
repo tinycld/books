@@ -23,6 +23,7 @@ import {
     toggleOrder,
 } from '../tinycld/books/lib/register'
 import { rangeForPreset } from '../tinycld/books/lib/register-range'
+import type { BooksReconcileLines } from '../tinycld/books/types'
 
 const ME = REGISTER_ACCOUNT_ID
 
@@ -35,6 +36,7 @@ function fixtureLines(): RegisterSourceLine[] {
             entryRecord,
             entryLines: LINES.filter(x => x.entry === l.entry),
             reversesNumber: reversed?.number ?? '',
+            reconcileRow: undefined,
         }
     })
 }
@@ -91,6 +93,7 @@ function synthetic(
         entryRecord: entryOf(`e_${id}`, posted_at),
         entryLines: [],
         reversesNumber: '',
+        reconcileRow: undefined,
         ...rest,
     }
 }
@@ -444,6 +447,7 @@ describe('entryDetail fields', () => {
                     memo: 'first',
                     partyName: '',
                     isThisAccount: true,
+                    reconcileWord: '',
                 },
                 {
                     id: 'x2',
@@ -453,6 +457,7 @@ describe('entryDetail fields', () => {
                     memo: 'second',
                     partyName: '',
                     isThisAccount: false,
+                    reconcileWord: '',
                 },
                 {
                     id: 'x3',
@@ -462,9 +467,157 @@ describe('entryDetail fields', () => {
                     memo: 'third',
                     partyName: '',
                     isThisAccount: false,
+                    reconcileWord: '',
                 },
             ],
         })
+    })
+})
+
+// The register's Status word and statement (reconcile spec §3 "The account register"; plan
+// checkpoint 6): read from the source line's `books_reconcile_lines` row.
+function viewRow(
+    line: RegisterSourceLine,
+    seed: Partial<Pick<BooksReconcileLines, 'reconciliation' | 'finished' | 'bank_matched'>>,
+    // The reconciliation row the view row names, as registerLinesQuery materializes it.
+    statement?: { statement_date: string }
+): BooksReconcileLines & { statement?: { statement_date: string } } {
+    return {
+        statement,
+        id: line.id,
+        line: line.id,
+        account: line.account,
+        entry: line.entry,
+        date: line.date,
+        debit: line.debit,
+        credit: line.credit,
+        memo: line.memo,
+        number: '',
+        doc_type: 'journal',
+        origin: 'manual',
+        document: '',
+        payee: '',
+        reconciliation: '',
+        finished: false,
+        bank_matched: false,
+        ...seed,
+    }
+}
+
+describe('buildRegister reconcile words', () => {
+    const reconciled = synthetic('r1', { date: '2026-10-02' })
+    const cleared = synthetic('r2', { date: '2026-10-03' })
+    const matched = synthetic('r3', { date: '2026-10-04' })
+    const clearedMatched = synthetic('r4', { date: '2026-10-05' })
+    const plain = synthetic('r5', { date: '2026-10-06' })
+    const lines: RegisterSourceLine[] = [
+        {
+            ...reconciled,
+            reconcileRow: viewRow(
+                reconciled,
+                { reconciliation: 'recfin', finished: true },
+                { statement_date: '2026-09-30' }
+            ),
+        },
+        {
+            ...cleared,
+            reconcileRow: viewRow(
+                cleared,
+                { reconciliation: 'recprog' },
+                { statement_date: '2026-10-31' }
+            ),
+        },
+        { ...matched, reconcileRow: viewRow(matched, { bank_matched: true }) },
+        {
+            ...clearedMatched,
+            reconcileRow: viewRow(clearedMatched, {
+                reconciliation: 'recprog',
+                bank_matched: true,
+            }),
+        },
+        plain,
+    ]
+    const rows = buildRegister({
+        accountType: 'bank',
+        lines,
+        priorTotals: emptyPrior,
+        range: wholeMonth,
+        order: 'oldest',
+    }).rows
+    const rowOf = (id: string) => rows.find(r => r.id === id)
+
+    it("carries the word of the line's view row", () => {
+        expect(rowOf('r1')?.reconcileWord).toBe('Reconciled')
+        expect(rowOf('r2')?.reconcileWord).toBe('Cleared')
+        expect(rowOf('r3')?.reconcileWord).toBe('Matched')
+        expect(rowOf('r4')?.reconcileWord).toBe('Cleared')
+    })
+
+    // Fix round 1 of checkpoint 6 (one query): the statement day comes from the line's own
+    // materialized reconciliation row, and only a reconciled (finished) line carries it; the
+    // cleared line's reconciliation in progress has a statement day too, which must not show.
+    it('carries the statement day of a reconciled line only, from its own row', () => {
+        expect(rowOf('r1')?.statementDate).toBe('2026-09-30')
+        expect(rowOf('r2')?.statementDate).toBe('')
+        expect(rowOf('r3')?.statementDate).toBe('')
+        expect(rowOf('r4')?.statementDate).toBe('')
+    })
+
+    it('gives a line with no view row no word and no statement', () => {
+        expect(rowOf('r5')).toBeDefined()
+        expect(rowOf('r5')?.reconcileWord).toBe('')
+        expect(rowOf('r5')?.statementDate).toBe('')
+    })
+
+    it('gives a reconciled line whose reconciliation row is not loaded no statement day', () => {
+        const line = synthetic('r6', { date: '2026-10-07' })
+        const register = buildRegister({
+            accountType: 'bank',
+            lines: [
+                {
+                    ...line,
+                    reconcileRow: viewRow(line, { reconciliation: 'recfin', finished: true }),
+                },
+            ],
+            priorTotals: emptyPrior,
+            range: wholeMonth,
+            order: 'oldest',
+        })
+        expect(register.rows[0].reconcileWord).toBe('Reconciled')
+        expect(register.rows[0].statementDate).toBe('')
+    })
+})
+
+describe('entryDetail reconcile word', () => {
+    const base = synthetic('d1')
+    const withLines = (reconcileRow: BooksReconcileLines | undefined): RegisterSourceLine => ({
+        ...base,
+        reconcileRow,
+        entryLines: [
+            { id: 'd1', account: ME, debit: 500, credit: 0, memo: '', position: 0 },
+            { id: 'd1-other', account: 'acct_other', debit: 0, credit: 500, memo: '', position: 1 },
+        ],
+    })
+
+    it("gives the word to the register account's line only", () => {
+        const detail = entryDetail(
+            withLines(viewRow(base, { reconciliation: 'recfin', finished: true })),
+            ME
+        )
+        expect(detail?.lines.map(l => [l.id, l.reconcileWord])).toEqual([
+            ['d1', 'Reconciled'],
+            ['d1-other', ''],
+        ])
+    })
+
+    it('reads Cleared for a line of a reconciliation in progress', () => {
+        const detail = entryDetail(withLines(viewRow(base, { reconciliation: 'recprog' })), ME)
+        expect(detail?.lines.find(l => l.id === 'd1')?.reconcileWord).toBe('Cleared')
+    })
+
+    it('gives no word when the line has no view row', () => {
+        const detail = entryDetail(withLines(undefined), ME)
+        expect(detail?.lines.map(l => l.reconcileWord)).toEqual(['', ''])
     })
 })
 

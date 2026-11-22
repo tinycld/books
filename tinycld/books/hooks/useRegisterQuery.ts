@@ -1,9 +1,8 @@
 import { useLiveQuery } from '@tanstack/react-db'
-import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { useMemo } from 'react'
+import type { LiveRecovery } from '../lib/live-recovery'
 import {
     anyActivityQuery,
     openingTotalsQuery,
@@ -34,10 +33,18 @@ export function useRegisterQuery(accountId: string, rangeInput: RegisterRangeInp
         'books_journal_entries',
         'books_account_balances'
     )
-    const [settingsCollection, customersCollection, vendorsCollection] = useStore(
+    const [
+        settingsCollection,
+        customersCollection,
+        vendorsCollection,
+        reconcileLinesCollection,
+        reconciliationsCollection,
+    ] = useStore(
         'books_settings',
         'books_customers',
-        'books_vendors'
+        'books_vendors',
+        'books_reconcile_lines',
+        'books_reconciliations'
     )
     const parties = { customers: customersCollection, vendors: vendorsCollection }
     const settingsQuery = useLiveQuery({
@@ -58,7 +65,9 @@ export function useRegisterQuery(accountId: string, rangeInput: RegisterRangeInp
                       entriesCollection,
                       accountId,
                       range,
-                      parties
+                      parties,
+                      reconcileLinesCollection,
+                      reconciliationsCollection
                   )(query)
                 : undefined,
         queryKey: ['books.register.lines', accountId, range?.start, range?.end],
@@ -106,27 +115,28 @@ export function useRegisterQuery(accountId: string, rangeInput: RegisterRangeInp
         credit: opening?.credit_total ?? 0,
     }
 
-    const retry = () => {
-        void recoverLiveQueries({
-            queries: [
-                settingsQuery,
-                linesQuery,
-                openingQuery,
-                subAccountResult,
-                activityQuery,
-                originsQuery,
-            ].map(q => q.collection),
-            sources: [
-                settingsCollection,
-                accountsCollection,
-                linesCollection,
-                entriesCollection,
-                balancesCollection,
-                customersCollection,
-                vendorsCollection,
-            ],
-            onError: err => log.error('books.register', err),
-        })
+    // The register screen merges this with its own reads (mergeRecoveries), so one Retry
+    // recovers every failed read once.
+    const recovery: LiveRecovery = {
+        queries: [
+            settingsQuery,
+            linesQuery,
+            openingQuery,
+            subAccountResult,
+            activityQuery,
+            originsQuery,
+        ].map(q => q.collection),
+        sources: [
+            settingsCollection,
+            accountsCollection,
+            linesCollection,
+            entriesCollection,
+            balancesCollection,
+            customersCollection,
+            vendorsCollection,
+            reconcileLinesCollection,
+            reconciliationsCollection,
+        ],
     }
 
     return {
@@ -145,6 +155,6 @@ export function useRegisterQuery(accountId: string, rangeInput: RegisterRangeInp
             settingsQuery,
             originsQuery,
         ].some(q => q.isError),
-        retry,
+        recovery,
     }
 }

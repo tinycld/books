@@ -1,5 +1,6 @@
 import { LoadingState } from '@tinycld/core/components/LoadingState'
 import { useWindowHeight } from '@tinycld/core/components/workspace/useBreakpoint'
+import { useShortcutScope } from '@tinycld/core/lib/shortcuts'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { useRef } from 'react'
 import { ScrollView, type ScrollViewInstance, Text, View } from 'react-native'
@@ -168,11 +169,14 @@ function NotFound({ model }: { model: RegisterScreenModel }) {
 }
 
 export function RegisterScreenView(model: RegisterScreenModel) {
+    // The register's keys (R: Reconcile) belong to this screen's scope; the core Drawer
+    // pushes none, so they also work while the entry drawer is open.
+    const scopeOwner = useShortcutScope('list')
     if (model.state === 'not-found') return <NotFound model={model} />
     return (
         <View className="flex-1 flex-row bg-background">
             <View testID="register-main" className="min-w-0 flex-1" onLayout={model.onMainLayout}>
-                <RegisterHeader model={model} />
+                <RegisterHeader model={model} scopeOwner={scopeOwner} />
                 <LoadingBody isVisible={model.state === 'loading'} />
                 <ErrorBody isVisible={model.state === 'error'} onRetry={model.onRetry} />
                 <EmptyBody model={model} />
@@ -180,6 +184,7 @@ export function RegisterScreenView(model: RegisterScreenModel) {
             </View>
             <EntryDrawer
                 detail={model.selectedEntry}
+                statementTexts={model.selectedStatementTexts}
                 currency={model.currency}
                 isWide={model.isWide}
                 isTablet={model.isTablet}

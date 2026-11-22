@@ -10,7 +10,7 @@ import { chooseViewRegister, openRegister, revealRegisterItem } from './account-
 
 const ROWS = '[data-testid^="register-row-"]'
 const ACCENT = /(^|\s)bg-accent(\s|$)/
-const COLUMNS = ['date', 'ref', 'type', 'memo', 'account', 'debit', 'credit', 'balance']
+const COLUMNS = ['date', 'ref', 'type', 'memo', 'account', 'status', 'debit', 'credit', 'balance']
 const DESKTOP_TALL = { width: 1280, height: 900 }
 
 // Runs in the page: every element in the register's list column that scrolls sideways. A one-line
@@ -38,17 +38,20 @@ async function sidewaysScrollers(page: Page) {
 }
 
 // Runs in the page, in one pass: each heading cell and each cell of the first mounted row whose
-// left or right edge is outside the box of `register-table`, and the widths of the cells that
-// shrink.
+// left or right edge is outside the box of `register-table`, and the widths of the row's cells
+// and of the heading cells.
 async function tableCells(page: Page) {
     return page.evaluate(columns => {
         const table = document.querySelector('[data-testid="register-table"]')
         const row = document.querySelector('[data-testid^="register-row-"]')
-        if (!table || !row) return { outside: ['no table or no row'], widths: {} }
+        if (!table || !row) {
+            return { outside: ['no table or no row'], widths: {}, headingWidths: {} }
+        }
         const lineId = (row.getAttribute('data-testid') ?? '').replace('register-row-', '')
         const box = table.getBoundingClientRect()
         const outside: string[] = []
         const widths: Record<string, number> = {}
+        const headingWidths: Record<string, number> = {}
         for (const column of columns) {
             for (const id of [`register-heading-${column}`, `register-cell-${column}-${lineId}`]) {
                 const cell = document.querySelector(`[data-testid="${CSS.escape(id)}"]`)
@@ -59,9 +62,10 @@ async function tableCells(page: Page) {
                 const rect = cell.getBoundingClientRect()
                 if (rect.left < box.left || rect.right > box.right) outside.push(id)
                 if (id.startsWith('register-cell-')) widths[column] = rect.width
+                else headingWidths[column] = rect.width
             }
         }
-        return { outside, widths }
+        return { outside, widths, headingWidths }
     }, COLUMNS)
 }
 
@@ -151,10 +155,13 @@ test.describe('reconcile: register table fit', () => {
         await expect(table).toBeVisible()
         await expect.poll(() => sidewaysScrollers(page)).toEqual([])
         await expect.poll(async () => (await tableCells(page)).outside).toEqual([])
-        const { widths } = await tableCells(page)
+        const { widths, headingWidths } = await tableCells(page)
         expect(widths.type).toBeGreaterThanOrEqual(72)
         expect(widths.memo).toBeGreaterThanOrEqual(88)
         expect(widths.account).toBeGreaterThanOrEqual(72)
+        // The Status column (reconcile spec §3 "The account register") is a fixed cell of 96.
+        expect(headingWidths.status).toBe(96)
+        expect(widths.status).toBe(96)
 
         await page.setViewportSize({ width: narrowest - 1, height: 800 })
         await expect(page.getByTestId('register-cards')).toBeVisible()
@@ -195,6 +202,23 @@ test.describe('reconcile: register table fit', () => {
                 return drawerBox.x - (mainBox.x + mainBox.width)
             })
             .toBeGreaterThanOrEqual(0)
+        // Beside the drawer the header is about 576 wide: its buttons wrap, so the Reconcile
+        // button is neither cut nor under the drawer.
+        const reconcile = page.getByTestId('register-reconcile').filter({ visible: true })
+        await expect(reconcile).toBeVisible()
+        await expect
+            .poll(async () => {
+                const mainBox = await page.getByTestId('register-main').boundingBox()
+                const buttonBox = await reconcile.boundingBox()
+                if (!mainBox || !buttonBox) return 'no box'
+                const inside =
+                    buttonBox.x >= mainBox.x &&
+                    buttonBox.y >= mainBox.y &&
+                    buttonBox.x + buttonBox.width <= mainBox.x + mainBox.width &&
+                    buttonBox.y + buttonBox.height <= mainBox.y + mainBox.height
+                return inside ? 'inside' : JSON.stringify({ mainBox, buttonBox })
+            })
+            .toBe('inside')
         const card = page.getByTestId(`register-card-${lineId}`)
         await expect(card).toHaveClass(ACCENT)
         await expect(card).toBeInViewport()

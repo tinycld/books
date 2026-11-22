@@ -42,6 +42,10 @@ After an upload, choose Import transactions beside the "uploaded." line to impor
 
 To remove a file, choose Remove on its row, then choose Remove file. The uploaded file is deleted. Nothing in your books changes.
 
+## Reconcile an account
+
+To compare the account with its bank statement, select its card, choose More and choose Reconcile. Books opens the account's reconciliation in progress, or the dialog to start one. Reconcile is in the menu for an active account, and for an account with a reconciliation in progress. See [Reconcile an account](help://books:reconcile).
+
 ## Disconnect an account
 
 To disconnect an account, select its card, choose More and choose Disconnect. Its files waiting to import are deleted. The account, its balance and its journal entries stay in Books.

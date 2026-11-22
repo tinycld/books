@@ -6,6 +6,7 @@ import {
     accountParamTarget,
     batchResultText,
     countText,
+    lineStatusText,
     offeredAccountKeyActions,
     RECONCILE_ACCOUNT_KEY_LABELS,
     RECONCILE_ACCOUNT_KEYS,
@@ -744,6 +745,37 @@ describe('batchResultText', () => {
                 messages: ['Expense 12 is void.', 'Expense 13 is void.', 'Expense 12 is void.'],
             })
         ).toBe('3 of 42 transactions could not be cleared. Try again.')
+    })
+})
+
+// The register's Status word of a line (reconcile spec §3 "The account register").
+describe('lineStatusText', () => {
+    const word = (reconciliation: string, finished: boolean, bank_matched: boolean) =>
+        lineStatusText({ reconciliation, finished, bank_matched })
+
+    it('is empty for a line with no view row', () => {
+        expect(lineStatusText(undefined)).toBe('')
+    })
+
+    it('reads Reconciled for a line of a finished reconciliation', () => {
+        expect(word('rec_finished_01', true, false)).toBe('Reconciled')
+        expect(word('rec_finished_01', true, true)).toBe('Reconciled')
+    })
+
+    it('reads Cleared for a line of a reconciliation in progress', () => {
+        expect(word('rec_progress_01', false, false)).toBe('Cleared')
+    })
+
+    it('reads Matched for a line that is only matched to a bank transaction', () => {
+        expect(word('', false, true)).toBe('Matched')
+    })
+
+    it('reads Cleared for a line that is cleared and matched', () => {
+        expect(word('rec_progress_01', false, true)).toBe('Cleared')
+    })
+
+    it('is empty for a line that is neither cleared nor matched', () => {
+        expect(word('', false, false)).toBe('')
     })
 })
 

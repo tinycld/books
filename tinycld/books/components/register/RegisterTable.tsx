@@ -18,6 +18,7 @@ import {
     RegisterRow,
     ROW_CLASS,
     ROW_HEIGHT,
+    STATUS_CELL_STYLE,
     TYPE_CELL_STYLE,
 } from './RegisterRow'
 
@@ -101,6 +102,9 @@ function HeadingRow({ order, onToggleOrder }: Pick<RegisterTableProps, 'order' |
             </View>
             <View testID="register-heading-account" style={ACCOUNT_CELL_STYLE}>
                 <HeadingText label="Account" />
+            </View>
+            <View testID="register-heading-status" style={STATUS_CELL_STYLE}>
+                <HeadingText label="Status" />
             </View>
             <View testID="register-heading-debit" className="items-end" style={AMOUNT_CELL_STYLE}>
                 <HeadingText label="Debit" />

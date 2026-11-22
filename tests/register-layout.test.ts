@@ -10,6 +10,7 @@ import {
     REGISTER_ROW_GAP,
     REGISTER_ROW_PADDING,
     REGISTER_TABLE_MIN_WIDTH,
+    STATUS_CELL_STYLE,
     TYPE_CELL_STYLE,
 } from '../tinycld/books/lib/register-layout'
 import { tableMinWidth } from '../tinycld/books/lib/table-fit'
@@ -21,7 +22,7 @@ const LIST_WIDTH_AT_1280 = 956
 const CLASSIC_GUTTER = 15
 
 describe('register layout', () => {
-    it('computes the table minimum width from its cells, and it is 824', () => {
+    it('computes the table minimum width from its cells, and it is 928', () => {
         expect(REGISTER_TABLE_MIN_WIDTH).toBe(
             tableMinWidth({
                 cells: REGISTER_CELLS,
@@ -29,16 +30,17 @@ describe('register layout', () => {
                 padding: REGISTER_ROW_PADDING,
             })
         )
-        expect(REGISTER_TABLE_MIN_WIDTH).toBe(824)
+        expect(REGISTER_TABLE_MIN_WIDTH).toBe(928)
     })
 
-    it('lists the 8 cells of a row left to right', () => {
+    it('lists the 9 cells of a row left to right, Status between Account and Debit', () => {
         expect(REGISTER_CELLS).toEqual([
             DATE_CELL_STYLE,
             REF_CELL_STYLE,
             TYPE_CELL_STYLE,
             MEMO_CELL_STYLE,
             ACCOUNT_CELL_STYLE,
+            STATUS_CELL_STYLE,
             AMOUNT_CELL_STYLE,
             AMOUNT_CELL_STYLE,
             BALANCE_CELL_STYLE,
@@ -48,9 +50,14 @@ describe('register layout', () => {
         expect(REGISTER_CELLS[2]).toBe(TYPE_CELL_STYLE)
         expect(REGISTER_CELLS[3]).toBe(MEMO_CELL_STYLE)
         expect(REGISTER_CELLS[4]).toBe(ACCOUNT_CELL_STYLE)
-        expect(REGISTER_CELLS[5]).toBe(AMOUNT_CELL_STYLE)
+        expect(REGISTER_CELLS[5]).toBe(STATUS_CELL_STYLE)
         expect(REGISTER_CELLS[6]).toBe(AMOUNT_CELL_STYLE)
-        expect(REGISTER_CELLS[7]).toBe(BALANCE_CELL_STYLE)
+        expect(REGISTER_CELLS[7]).toBe(AMOUNT_CELL_STYLE)
+        expect(REGISTER_CELLS[8]).toBe(BALANCE_CELL_STYLE)
+    })
+
+    it('gives the Status cell a fixed width of 96', () => {
+        expect(STATUS_CELL_STYLE).toEqual({ width: 96, flexShrink: 0 })
     })
 
     it('gives every cell that can shrink or grow a minimum of 72 or more', () => {

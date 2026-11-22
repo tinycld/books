@@ -97,9 +97,82 @@ export function accountRow(page: Page, name: string): Locator {
         .filter({ has: page.getByText(name, { exact: true }), visible: true })
 }
 
+const ACCOUNT_ITEMS = '[data-testid^="reconcile-account-"]'
+
+type AccountListMove = { move: 'top' | 'step'; items: string }
+
+function accountListMove(move: AccountListMove['move']): AccountListMove {
+    return { move, items: ACCOUNT_ITEMS }
+}
+
+// Runs in the page. Finds the accounts list's vertical scroller (table or cards) from its
+// last mounted row and moves it, in one synchronous pass, so a re-render cannot detach the
+// row it measures. Rows of a hidden, stacked screen are skipped. `offset` is where the first
+// mounted row starts in the scrolled content: 0 when the list renders from its first row. A
+// 'step' brings the last mounted row to the top edge, so a step never passes a row that has
+// not mounted yet. `atEnd` is true when a step could not move the list and the mounted rows
+// already reach its end (the spacer after the last one has no height).
+function moveAccountList({ move, items }: AccountListMove) {
+    const mountedRows = Array.from(document.querySelectorAll(items)).filter(
+        node => (node as HTMLElement).offsetParent !== null
+    )
+    const first = mountedRows[0]
+    const last = mountedRows[mountedRows.length - 1]
+    let list = last?.parentElement ?? null
+    while (list && !/auto|scroll/.test(getComputedStyle(list).overflowY)) {
+        list = list.parentElement
+    }
+    if (!first || !last || !list) return { mounted: false, offset: -1, atEnd: false }
+    const top = list.getBoundingClientRect().top
+    const before = list.scrollTop
+    if (move === 'top') list.scrollTop = 0
+    if (move === 'step') list.scrollTop += last.getBoundingClientRect().top - top
+    const spacerAfterLast = last.nextElementSibling?.getBoundingClientRect().height ?? 0
+    return {
+        mounted: true,
+        offset: Math.round(first.getBoundingClientRect().top - top + list.scrollTop),
+        atEnd: move === 'step' && list.scrollTop === before && spacerAfterLast === 0,
+    }
+}
+
+// Waits two animation frames, so a render the last scroll started can land.
+async function nextFrames(page: Page): Promise<void> {
+    await page.evaluate(
+        () =>
+            new Promise<void>(resolve =>
+                requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+            )
+    )
+}
+
+// The accounts list mounts only the rows near its scroll position (useRowWindow), and the
+// shared e2e DB holds the accounts of every reconcile spec of the run, so a test's account
+// can sort below the mounted rows. Scroll the list from its top, as a user would, until
+// `row` mounts, then bring it into view.
+export async function revealAccountRow(page: Page, row: Locator): Promise<void> {
+    await expect(page.locator(ACCOUNT_ITEMS).filter({ visible: true }).last()).toBeAttached()
+    if ((await row.count()) === 0) {
+        await expect
+            .poll(async () => (await page.evaluate(moveAccountList, accountListMove('top'))).offset)
+            .toBe(0)
+        while ((await row.count()) === 0) {
+            const { atEnd } = await page.evaluate(moveAccountList, accountListMove('step'))
+            // A render can land between the count and the step, so count once more first.
+            if (atEnd && (await row.count()) === 0) {
+                throw new Error(
+                    'The accounts list scrolled to its end and the account never mounted: it is not on the accounts screen.'
+                )
+            }
+            await nextFrames(page)
+        }
+    }
+    await row.scrollIntoViewIfNeeded()
+}
+
 // The account id of a row, from its test id `reconcile-account-<id>`.
 export async function accountIdOf(page: Page, name: string): Promise<string> {
     const row = accountRow(page, name)
+    await revealAccountRow(page, row)
     await expect(row).toHaveCount(1)
     const testId = (await row.getAttribute('data-testid')) ?? ''
     return testId.replace('reconcile-account-', '')
@@ -205,20 +278,35 @@ export async function expectDifference(page: Page, text: string): Promise<void> 
     )
 }
 
-// Presses J until the row of `accountId` has the keyboard focus, or K when it is above the
-// focused row, at most once for each row on the screen (the shared database's account count
-// grows). The focused row carries data-focused="true" on the web (rowFocusStyle).
+// The test id of the visible row that has the keyboard focus, or '' when none has it. The
+// focused row carries data-focused="true" on the web (rowFocusStyle).
+function focusedAccountTestId(page: Page): Promise<string> {
+    return page.evaluate(items => {
+        const focused = Array.from(document.querySelectorAll(items)).find(
+            node =>
+                (node as HTMLElement).offsetParent !== null &&
+                node.getAttribute('data-focused') === 'true'
+        )
+        return focused?.getAttribute('data-testid') ?? ''
+    }, ACCOUNT_ITEMS)
+}
+
+// Presses J until the row of `accountId` has the keyboard focus, then K when it is above
+// the focused row. Each key stops at the list's end, when a press no longer moves the focus:
+// the row count of the shared database grows, and the list mounts only part of its rows.
 export async function focusAccountRow(page: Page, accountId: string): Promise<void> {
-    const row = page.getByTestId(`reconcile-account-${accountId}`).filter({ visible: true })
+    const testId = `reconcile-account-${accountId}`
+    const row = page.getByTestId(testId).filter({ visible: true })
+    await revealAccountRow(page, row)
     await expect(row).toBeVisible()
-    const rowCount = await page
-        .locator('[data-testid^="reconcile-account-"]')
-        .filter({ visible: true })
-        .count()
-    const isRowFocused = async () => (await row.getAttribute('data-focused')) === 'true'
     for (const key of ['j', 'k']) {
-        for (let presses = 0; presses < rowCount && !(await isRowFocused()); presses++) {
+        let focused = await focusedAccountTestId(page)
+        while (focused !== testId) {
             await page.keyboard.press(key)
+            await nextFrames(page)
+            const next = await focusedAccountTestId(page)
+            if (next === focused) break
+            focused = next
         }
     }
     await expect(row).toHaveAttribute('data-focused', 'true')
