@@ -26,7 +26,7 @@
 // 2100000023_create_books_vendor_credits, 2100000024_create_books_vendor_refunds,
 // 2100000025_create_books_refund_receipts,
 // 2100000031_create_books_credit_memo_applications and
-// 2100000036_create_books_deposits.
+// 2100000037_create_books_deposits.
 //
 // The query is one SELECT: PocketBase's view parser refuses UNION ALL. Every
 // computed column is cast to TEXT, because PocketBase types an uncast

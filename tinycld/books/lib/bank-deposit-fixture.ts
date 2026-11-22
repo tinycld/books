@@ -7,7 +7,7 @@
 // `items_total`, `lines_total` and `total` are the values the server writes at posting
 // (spec §3.7).
 //
-// The record types are the generated ones of migration 2100000036 (`BooksDeposits`,
+// The record types are the generated ones of migration 2100000037 (`BooksDeposits`,
 // `BooksDepositItems`, `BooksDepositLines`, `BooksUndepositedItems`); every `satisfies`
 // below makes a fixture row that drifts from the schema fail tsc.
 

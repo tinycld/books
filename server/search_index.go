@@ -20,7 +20,7 @@ import (
 // 2100000024_create_books_vendor_refunds.js, the refund receipts' by
 // 2100000025_create_books_refund_receipts.js, the write-offs' by
 // 2100000027_create_books_write_offs.js, and the deposits' by
-// 2100000036_create_books_deposits.js.
+// 2100000037_create_books_deposits.js.
 const (
 	accountsIndex       = "fts_books_accounts"
 	entriesIndex        = "fts_books_journal_entries"
