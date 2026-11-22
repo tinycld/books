@@ -1,3 +1,4 @@
+import type { Transaction } from '@tanstack/react-db'
 import { useMutation } from '@tinycld/core/lib/mutations'
 import { useState } from 'react'
 import type { ListKind } from '../lib/document-list'
@@ -22,19 +23,17 @@ function useVoidWrite(collection: PaymentCollectionName) {
 }
 
 /**
- * The void of a payment read view (received payment, bill payment, vendor refund): ONE
- * update of `status` to `void` on the read view's collection. The dialog's open state lives
- * on the read view, which stays mounted while the optimistic void changes the payment
- * under it, so a refusal (the close date) stays in the dialog with its text; a success
- * closes it.
+ * The Void dialog of a read view, over the write the caller gives: `markVoid(id)` returns
+ * the transaction that writes the void. The dialog's open state lives on the read view,
+ * which stays mounted while the optimistic void changes the record under it, so a refusal
+ * (the close date) stays in the dialog with its text; a success closes it.
  *
- * The update is optimistic, so the payment reads `void` (and Void is no longer offered)
+ * The update is optimistic, so the record reads `void` (and Void is no longer offered)
  * while the write runs. The dialog stays visible through its own void because the mutation
  * reports `isPending` before the optimistic write runs: React Query sets the mutation
  * pending before it calls the mutationFn, and this hook reads that state in each render.
  */
-export function useVoidPayment(collection: PaymentCollectionName) {
-    const markVoid = useVoidWrite(collection)
+export function useVoidDialogState(markVoid: (id: string) => Transaction) {
     const [isOpen, setOpen] = useState(false)
     const mutation = useMutation({
         mutationFn: function* (id: string) {
@@ -58,4 +57,10 @@ export function useVoidPayment(collection: PaymentCollectionName) {
         errorMessage: mutation.error ? writeRefusalText(mutation.error) : null,
         confirm,
     }
+}
+
+// The void of a payment read view (received payment, bill payment, vendor refund): ONE
+// update of `status` to `void` on the read view's collection.
+export function useVoidPayment(collection: PaymentCollectionName) {
+    return useVoidDialogState(useVoidWrite(collection))
 }

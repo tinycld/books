@@ -198,6 +198,7 @@ type ReadActionExtra = {
     canRefund?: boolean
     canRefundCredit?: boolean
     canWriteOff?: boolean
+    isDeposited?: boolean
 }
 
 // A writer edits or voids a posted document and copies any; a void document (a replaced
@@ -217,6 +218,8 @@ type ReadActionExtra = {
 // `extra.canWriteOff` is set (only for a posted invoice with a balance above zero), Refund when
 // `extra.canRefund` is set (only for a posted sales receipt) and Refund credit when
 // `extra.canRefundCredit` is set (only for a posted credit memo with unapplied credit).
+// Edit and Void are left out when `extra.isDeposited` is set (a sales receipt or refund
+// receipt that a posted deposit holds, bank deposit spec §3.10); every other action stays.
 export function documentReadActions(
     status: DocumentStatus,
     canWrite: boolean,
@@ -242,14 +245,14 @@ export function documentReadActions(
         const writeOff: DocumentReadAction[] = extra.canWriteOff ? ['write_off'] : []
         const refundSale: DocumentReadAction[] = extra.canRefund ? ['refund'] : []
         const refundCredit: DocumentReadAction[] = extra.canRefundCredit ? ['refund_credit'] : []
+        const change: DocumentReadAction[] = extra.isDeposited ? [] : ['edit', 'void']
         return [
             ...apply,
             ...refund,
             ...pay,
             ...receive,
             ...applyInvoice,
-            'edit',
-            'void',
+            ...change,
             'copy',
             ...credit,
             ...writeOff,

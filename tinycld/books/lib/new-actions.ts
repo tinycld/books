@@ -142,6 +142,13 @@ export const NEW_ACTIONS: NewAction[] = [
         available: true,
     },
     {
+        id: 'deposit',
+        label: 'Bank deposit',
+        href: 'books/deposits/new',
+        column: 'other',
+        available: true,
+    },
+    {
         id: 'product',
         label: 'Product or service',
         href: 'books/products/new',

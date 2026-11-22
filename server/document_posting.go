@@ -23,16 +23,30 @@ import (
 // documentPost is one document's posting. Replaces is the journal entry of the
 // posted document this one corrects ("" for none): the new entry replaces it
 // and takes its number. Customer (a sales document's) or Vendor (a purchase
-// document's) is named on every line; the other is empty.
+// document's) is named on every line that names no party of its own; the
+// other is empty.
 type documentPost struct {
 	DocType, DocumentID, Date, Memo, Actor, Customer, Vendor, Replaces string
 	Lines                                                              []postingLine
 }
 
-// postingLine is one line of a document's entry: one side is 0.
+// postingLine is one line of a document's entry: one side is 0. Memo is the
+// line's own memo. A line that names a Customer or a Vendor names that party
+// alone in place of the post's (a deposit's other funds lines do); a line that
+// names neither names the post's party.
 type postingLine struct {
-	Account       string
-	Debit, Credit int64
+	Account                string
+	Debit, Credit          int64
+	Memo, Customer, Vendor string
+}
+
+// party is the customer and vendor the line names: its own when it sets one,
+// else the post's.
+func (l postingLine) party(p documentPost) (customer, vendor string) {
+	if l.Customer != "" || l.Vendor != "" {
+		return l.Customer, l.Vendor
+	}
+	return p.Customer, p.Vendor
 }
 
 // postDocument creates the entry draft and its lines, in order, each naming
@@ -68,8 +82,10 @@ func postDocument(tx core.App, p documentPost) (*core.Record, error) {
 			line.Set("debit", l.Debit)
 			line.Set("credit", l.Credit)
 			line.Set("position", i)
-			line.Set("customer", p.Customer)
-			line.Set("vendor", p.Vendor)
+			line.Set("memo", l.Memo)
+			customer, vendor := l.party(p)
+			line.Set("customer", customer)
+			line.Set("vendor", vendor)
 			if err := tx.Save(line); err != nil {
 				return err
 			}

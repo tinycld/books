@@ -98,7 +98,7 @@ The form keys also work while the cursor is in a text box. E, V, J and R do not.
 
 ## Where the money goes
 
-Refunded to can be a bank account, a credit card account or Undeposited funds. Use Undeposited funds when the refund check waits to go to the bank with other money. See [Banking](help://books:banking).
+Refunded to can be a bank account, a credit card account or Undeposited funds. Use Undeposited funds when the refund check waits to go to the bank with other money, then record the trip to the bank as a [bank deposit](help://books:bank-deposits). See [Banking](help://books:banking).
 
 ## Who can do what
 
