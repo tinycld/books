@@ -227,6 +227,7 @@ and again at the end)
 - gate 3 A notes: 1 to Design notes (NOTE 6); NOTEs 2, 4, 5, 7, 8 fixed in r1; NOTE 3 a test; NOTE 9 a core request and a run
 - reviewer-caught deferrals: reviewer B — phone keys E / ⌘S (not self-declared as a deferral: declared as difference 9, accepted by the runner in error), the More menu's write hint (not self-declared), the `scopeOwner` red proof (the implementer's self-check 9 said no red run was made) → all fixed now; reviewer A — the untested For review read → test added
 - self-declared: 9 differences (one withdrawn: 9), 1 dispute; out-of-plan: listed under Out-of-plan changes (cp 4)
+- commit: 5c6e52d6 (with the uncommitted "Core task (cp 2 request)" ledger section)
 
 ## Final review
 - eval: (unattended only) approved | revised → <notes, fix sha> | stopped
