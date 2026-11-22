@@ -98,6 +98,7 @@ const ENTRY_SERVER_FIELDS = [
     'close_override',
     'currency',
     'document',
+    'card_payment',
 ]
 const LINE_SERVER_FIELDS = ['posted', 'date', 'currency']
 
@@ -211,6 +212,11 @@ migrate(
                     // books_sales_receipts row) of an
                     // entry with origin 'document'; server-written.
                     { name: 'document', type: 'text', max: 15 },
+                    // A payment's entry (an expense, a bill payment, a vendor
+                    // refund) paid by credit or debit card or from a credit card
+                    // account; a reversal copies it. Server-written
+                    // (server/card_payment.go); the 1099 report reads it.
+                    { name: 'card_payment', type: 'bool' },
                     { name: 'number', type: 'text', max: 40 },
                     { name: 'sequence', type: 'number', onlyInt: true, min: 0 },
                     { name: 'memo', type: 'text', max: 4000 },

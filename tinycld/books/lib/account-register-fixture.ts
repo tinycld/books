@@ -81,6 +81,7 @@ function entry(seed: EntrySeed): BooksJournalEntries {
         reverses: '',
         replaces: '',
         document: '',
+        card_payment: false,
         ...seed,
     }
 }

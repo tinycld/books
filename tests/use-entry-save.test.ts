@@ -113,6 +113,7 @@ const savedEntry: BooksJournalEntries = {
     reverses: '',
     replaces: '',
     document: '',
+    card_payment: false,
     created: NOW,
     updated: NOW,
 }

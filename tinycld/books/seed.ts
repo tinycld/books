@@ -69,6 +69,7 @@ import {
     type RefundReceiptLineRecord,
     type RefundReceiptRecord,
 } from './lib/refund-receipt-form-fixture'
+import { REPORT_1099_SEED } from './lib/report-1099-fixture'
 import { SALES_LIST_SEED_DRAFTS } from './lib/sales-lists-fixture'
 import {
     DEPOSIT_ACCOUNTS,
@@ -331,6 +332,10 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     // The Expenses by Vendor row (plan D5): a journal entry only, so no document number
     // moves, and before the bank match seed.
     await seedExpensesByVendor(pb, ctx, accountIds)
+    // The 1099 report rows (plan D5): a journal entry, then one card expense, which takes
+    // the next expense number after every earlier seeded expense; before the bank match
+    // seed, which must see every seeded document.
+    await seedForm1099(pb, ctx, accountIds)
     // Two sales receipts and a deposit of one of them (bank deposit spec §4.6): after
     // every other document seed, so the earlier seeded receipts keep their numbers, and
     // before the bank match seed, which must see every seeded document.
@@ -2584,7 +2589,7 @@ export async function seedExpensesByVendor(
             vendor: line.vendor,
         }
     })
-    const vendors = await expensesByVendorRows(pb, memo, lines)
+    const vendors = await seededVendorRows(pb, `expenses by vendor entry "${memo}"`, lines)
     const inactive = vendors.filter(row => row.inactive)
     // The line guard (checkLineParty, server/lines.go) refuses a new line that names an
     // inactive vendor, so Coastal Coffee Roasters is made active for the post and inactive
@@ -2602,12 +2607,12 @@ export async function seedExpensesByVendor(
     }
 }
 
-// The created vendor rows that the Expenses by Vendor entry names, read before any write
-// so that a vendor the seed did not create gives the seed's own error, not PocketBase's
-// relation error on the line.
-async function expensesByVendorRows(
+// The created vendor rows that a seed row names, read before any write so that a vendor
+// the seed did not create gives the seed's own error, not PocketBase's relation error on
+// the line. `owner` names the seed row in that error.
+async function seededVendorRows(
     pb: PocketBase,
-    memo: string,
+    owner: string,
     lines: readonly { vendor: string }[]
 ): Promise<{ id: string; inactive: boolean }[]> {
     const ids = [...new Set(lines.map(line => line.vendor).filter(id => id !== ''))]
@@ -2618,11 +2623,69 @@ async function expensesByVendorRows(
         .getFullList<{ id: string; inactive: boolean }>({ filter: pb.filter(filter, params) })
     const missing = ids.filter(id => !rows.some(row => row.id === id))
     if (missing.length > 0) {
-        throw new Error(
-            `seed: expenses by vendor entry "${memo}" names vendor ${missing.join(', ')}, which was not created`
-        )
+        throw new Error(`seed: ${owner} names vendor ${missing.join(', ')}, which was not created`)
     }
     return rows
+}
+
+// The 1099 report's seed rows (REPORT_1099_SEED, plan D5): one posted journal entry that
+// gives the 1099 vendors their payments by box, then one posted expense of Jamal Okafor by
+// credit card from 2100, saved through the writes seedExpenses makes, so the server posts
+// it and marks its entry as a card payment. Every account and vendor is checked before the
+// first write. `accountIds` maps a seed account number to the created account.
+export async function seedForm1099(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>
+): Promise<void> {
+    const { entry, cardExpense } = REPORT_1099_SEED
+    const entryOwner = `1099 entry "${entry.memo}"`
+    const expenseOwner = `1099 expense "${cardExpense.lines[0]?.description ?? ''}"`
+    const seedLines = entry.lines.map(line => ({
+        account: seededAccountId(accountIds, line.account, entryOwner),
+        debit: line.debit,
+        credit: line.credit,
+        customer: '',
+        vendor: line.vendor,
+    }))
+    const paidFrom = seededAccountId(accountIds, cardExpense.paid_from, expenseOwner)
+    const expenseLines = cardExpense.lines.map(line => ({
+        ...line,
+        account: seededAccountId(accountIds, line.account, expenseOwner),
+    }))
+    const vendors = await seededVendorRows(pb, entryOwner, [...entry.lines, cardExpense])
+    const inactive = vendors.filter(row => row.inactive)
+    // The line guard (checkLineParty, server/lines.go) refuses a new line that names an
+    // inactive vendor, so Old Town Print Shop is made active for the post and inactive
+    // again after it, also when the post fails, as seedExpensesByVendor does.
+    for (const row of inactive) {
+        await pb.collection('books_vendors').update(row.id, { inactive: false })
+    }
+    try {
+        await postSeedJournalEntry(pb, ctx, {
+            date: entry.date,
+            memo: entry.memo,
+            lines: seedLines,
+        })
+    } finally {
+        for (const row of inactive) {
+            await pb.collection('books_vendors').update(row.id, { inactive: true })
+        }
+    }
+
+    const created = await pb.collection('books_expenses').create({
+        vendor: cardExpense.vendor,
+        status: 'draft',
+        date: cardExpense.date,
+        paid_from: paidFrom,
+        payment_method: cardExpense.payment_method,
+    })
+    for (const [position, line] of expenseLines.entries()) {
+        await pb
+            .collection('books_expense_lines')
+            .create({ expense: created.id, position, ...line })
+    }
+    await postSeedDocument(pb, 'books_expenses', created.id, ctx.user.id)
 }
 
 // The book's Accounts payable account. Only "no row" becomes the seed's error; any other

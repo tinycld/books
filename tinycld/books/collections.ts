@@ -133,7 +133,7 @@ export function registerCollections(
 
     // Every field below the omit line is Books' own: the number and totals
     // are assigned at posting, who and when by the request, the override by
-    // the close-date check.
+    // the close-date check, the card mark by the poster (server/card_payment.go).
     const books_journal_entries = newCollection('books_journal_entries', {
         omitOnInsert: [
             'created',
@@ -150,6 +150,7 @@ export function registerCollections(
             'close_override',
             'currency',
             'document',
+            'card_payment',
         ] as const,
         ...onDemand,
         relations: {
