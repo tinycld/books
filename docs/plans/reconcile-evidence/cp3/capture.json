@@ -1,0 +1,152 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "work",
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile/recnseedprogrs1",
+            "ready": "reconcile-summary",
+            "actions": [{ "waitFor": "reconcile-toolbar" }, { "click": "reconcile-title" }]
+        },
+        {
+            "name": "filtered",
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile/recnseedprogrs1",
+            "ready": "reconcile-summary",
+            "actions": [
+                { "waitFor": "reconcile-toolbar" },
+                { "click": "reconcile-side-tab-in" },
+                { "fill": "reconcile-search", "value": "Reconcile seed" },
+                { "pause": 700 },
+                { "click": "reconcile-title" }
+            ]
+        },
+        {
+            "name": "no-match",
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile/recnseedprogrs1",
+            "ready": "reconcile-summary",
+            "actions": [
+                { "waitFor": "reconcile-toolbar" },
+                { "fill": "reconcile-search", "value": "no such payee" },
+                { "waitFor": "reconcile-no-match" },
+                { "click": "reconcile-title" }
+            ]
+        },
+        {
+            "name": "empty",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/recnseedprogrs1",
+            "emptyRecords": "books_reconcile_lines",
+            "ready": "reconcile-empty",
+            "actions": [{ "click": "reconcile-title" }]
+        },
+        {
+            "name": "read-only",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/recnseedprogrs1",
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "ready": "reconcile-summary",
+            "actions": [
+                { "waitFor": "reconcile-toolbar" },
+                { "fill": "reconcile-search", "value": "Reconcile seed" },
+                { "pause": 700 },
+                { "click": "reconcile-title" }
+            ]
+        },
+        {
+            "name": "refused",
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile/recnseedprogrs1",
+            "writes": {
+                "collection": "books_reconciliation_lines",
+                "answers": [400],
+                "message": "Journal entry JE-29 is void."
+            },
+            "ready": "reconcile-summary",
+            "actions": [
+                { "waitFor": "reconcile-toolbar" },
+                { "fill": "reconcile-search", "value": "Reconcile seed" },
+                { "pause": 700 },
+                { "clickLabel": "Clear Journal entry JE-29" },
+                { "waitFor": "Journal entry JE-29 is void." },
+                { "click": "reconcile-title" }
+            ]
+        },
+        {
+            "name": "batch-busy",
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile/recnseedprogrs1",
+            "writes": {
+                "collection": "books_reconciliation_lines",
+                "answers": ["hold", "hold", "hold"]
+            },
+            "ready": "reconcile-summary",
+            "actions": [
+                { "waitFor": "reconcile-toolbar" },
+                { "fill": "reconcile-search", "value": "Reconcile seed" },
+                { "pause": 700 },
+                { "click": "reconcile-select-all" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "batch-done",
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile/recnseedprogrs1",
+            "ready": "reconcile-summary",
+            "actions": [
+                { "waitFor": "reconcile-toolbar" },
+                { "fill": "reconcile-search", "value": "Reconcile seed" },
+                { "pause": 700 },
+                { "click": "reconcile-select-all" },
+                { "waitFor": "Cleared 1 transaction." },
+                { "click": "reconcile-title" }
+            ]
+        },
+        {
+            "name": "card",
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile",
+            "ready": "reconcile-accounts-screen",
+            "actions": [
+                { "clickText": "2100 Company Card" },
+                { "waitFor": "reconcile-start-dialog" },
+                { "fill": "reconcile-ending-balance", "value": "864.20" },
+                { "fill": "reconcile-statement-out", "value": "580.00" },
+                { "fill": "reconcile-statement-in", "value": "120.00" },
+                { "click": "reconcile-start-submit" },
+                { "waitFor": "reconcile-toolbar" },
+                { "click": "reconcile-title" }
+            ]
+        },
+        {
+            "name": "balanced",
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile",
+            "ready": "reconcile-accounts-screen",
+            "actions": [
+                { "clickText": "1000 Business Checking" },
+                { "waitFor": "reconcile-start-dialog" },
+                { "fill": "reconcile-ending-balance", "value": "0.00" },
+                { "click": "reconcile-start-submit" },
+                { "waitFor": "reconcile-toolbar" },
+                { "click": "reconcile-title" }
+            ]
+        }
+    ]
+}

@@ -4,7 +4,9 @@
 // from the components so tests/reconcile.test.ts can run them over the case table the Go
 // test runs too (server/testdata/reconcile_cases.json).
 import { z } from '@tinycld/core/ui/form'
-import type { BooksAccounts, BooksReconciliations } from '../types'
+import type { BooksAccounts, BooksReconcileLines, BooksReconciliations } from '../types'
+import type { SelectBoxState } from './bank-import-view'
+import { searchPieces } from './list-search'
 import {
     formatMoney,
     isWellFormedMoney,
@@ -12,7 +14,9 @@ import {
     parseMoney,
     TOO_LARGE_TEXT,
 } from './money'
+import { entryTypeLabel } from './register'
 import { formatDay, isIsoDay } from './register-range'
+import { parseSearchAmount } from './search-amount'
 
 // The account types the server's create hook takes (server/reconcile.go); the detail type
 // is not read.
@@ -298,7 +302,222 @@ export const RECONCILE_TEXTS = {
     notBalanced: 'Not balanced',
     showBalances: 'Show the balances',
     hideBalances: 'Hide the balances',
+    sendFailed: 'The change could not be sent. Check your connection and try again.',
+    searchPlaceholder: 'Search number, payee, memo or amount',
+    clearFilters: 'Clear filters',
+    noMatch: 'No transactions match these filters.',
+    selectAllLabel: 'Clear all shown transactions',
+    clearAllShown: 'Clear all shown',
+    oldestFirst: 'Oldest first',
+    newestFirst: 'Newest first',
+    matchedLabel: 'Matched to a bank transaction',
+    clearedMark: 'Cleared',
 } as const
+
+// The work screen's filters (spec §3 "Toolbar"): the side tab, the search text and the Show
+// choice. `out` is the credit side, `in` the debit side (sideWords).
+export type ReconcileSide = 'all' | 'out' | 'in'
+export type ReconcileShow = 'all' | 'uncleared' | 'cleared'
+export type ReconcileFilters = { side: ReconcileSide; search: string; show: ReconcileShow }
+export type ReconcileSortColumn = 'date' | 'out' | 'in'
+export type ReconcileSort = { column: ReconcileSortColumn; direction: 'asc' | 'desc' }
+
+export const RECONCILE_DEFAULT_FILTERS: ReconcileFilters = { side: 'all', search: '', show: 'all' }
+export const RECONCILE_DEFAULT_SORT: ReconcileSort = { column: 'date', direction: 'asc' }
+
+export const RECONCILE_SHOW_LABELS: Record<ReconcileShow, string> = {
+    all: 'All transactions',
+    uncleared: 'Not cleared',
+    cleared: 'Cleared',
+}
+
+// The search has text when it holds more than spaces: the one rule of "Clear filters"
+// (hasReconcileFilter) and Esc (hooks/useReconcileShortcuts.ts).
+export function hasSearchText(search: string): boolean {
+    return search.trim() !== ''
+}
+
+// "Clear filters" shows while a side, a search or a Show choice is set.
+export function hasReconcileFilter(filters: ReconcileFilters): boolean {
+    return filters.side !== 'all' || hasSearchText(filters.search) || filters.show !== 'all'
+}
+
+// A second press on the sorted column reverses it; a press on another column sorts it
+// ascending.
+export function nextReconcileSort(sort: ReconcileSort, column: ReconcileSortColumn): ReconcileSort {
+    if (sort.column !== column) return { column, direction: 'asc' }
+    return { column, direction: sort.direction === 'asc' ? 'desc' : 'asc' }
+}
+
+// The lines query's row as the pure helpers read it: the view's columns, then whether the
+// row has its books_reconciliation_lines row (hooks/useReconcileLines.ts).
+type ShownLine = Pick<
+    BooksReconcileLines,
+    'id' | 'date' | 'number' | 'payee' | 'memo' | 'debit' | 'credit'
+> & { isCleared: boolean }
+
+// A line is on one side only, so its amount is the side's figure.
+function lineAmount(line: ShownLine): number {
+    return line.credit > 0 ? line.credit : line.debit
+}
+
+function keepsLine(
+    line: ShownLine,
+    filters: ReconcileFilters,
+    pieces: readonly string[],
+    amount: number | null
+): boolean {
+    if (filters.side === 'out' && line.credit === 0) return false
+    if (filters.side === 'in' && line.debit === 0) return false
+    if (filters.show === 'uncleared' && line.isCleared) return false
+    if (filters.show === 'cleared' && !line.isCleared) return false
+    if (pieces.length === 0) return true
+    if (amount !== null && lineAmount(line) === amount) return true
+    const text = `${line.number} ${line.payee} ${line.memo}`.toLowerCase()
+    return pieces.every(piece => text.includes(piece))
+}
+
+const numberOrder = new Intl.Collator('en', { numeric: true })
+
+// The list's own order: date, then entry number (numeric, "9" before "10"), then id.
+function compareByDate(a: ShownLine, b: ShownLine): number {
+    if (a.date !== b.date) return a.date < b.date ? -1 : 1
+    const byNumber = numberOrder.compare(a.number, b.number)
+    if (byNumber !== 0) return byNumber
+    if (a.id === b.id) return 0
+    return a.id < b.id ? -1 : 1
+}
+
+function sideAmount(line: ShownLine, column: 'out' | 'in'): number {
+    return column === 'out' ? line.credit : line.debit
+}
+
+function comparerOf(sort: ReconcileSort): (a: ShownLine, b: ShownLine) => number {
+    const sign = sort.direction === 'asc' ? 1 : -1
+    const { column } = sort
+    if (column === 'date') return (a, b) => sign * compareByDate(a, b)
+    // An amount sort keeps the rows of the other side last, in the list's own order.
+    return (a, b) => {
+        const left = sideAmount(a, column)
+        const right = sideAmount(b, column)
+        if (left > 0 !== right > 0) return left > 0 ? -1 : 1
+        if (left !== right) return sign * (left - right)
+        return compareByDate(a, b)
+    }
+}
+
+// The rows the list shows: one pass to filter, then one sort. Every piece of the search
+// (searchPieces) is in the number, the payee or the memo, case ignored; a search that reads
+// as an amount (parseSearchAmount) also keeps the rows of that amount. `currency` is the
+// reconciliation's; without one it is USD, the work screen's own fallback
+// (hooks/useReconcileScreen.ts).
+export function shownRows<T extends ShownLine>(
+    rows: readonly T[],
+    filters: ReconcileFilters,
+    sort: ReconcileSort,
+    currency = 'USD'
+): T[] {
+    const pieces = searchPieces(filters.search.toLowerCase())
+    const amount = pieces.length > 0 ? parseSearchAmount(filters.search, currency) : null
+    const kept = rows.filter(line => keepsLine(line, filters, pieces, amount))
+    return kept.sort(comparerOf(sort))
+}
+
+// The header box and "Clear all shown": checked when every shown row is cleared, mixed
+// when some are.
+export function allShownState(rows: readonly { isCleared: boolean }[]): SelectBoxState {
+    const cleared = rows.filter(row => row.isCleared).length
+    if (cleared === 0) return 'empty'
+    return cleared === rows.length ? 'checked' : 'mixed'
+}
+
+// The rows Clear matched clears: matched to a bank transaction and not cleared, whatever
+// the filters.
+export function matchedOpenRows<T extends { bank_matched: boolean; isCleared: boolean }>(
+    rows: readonly T[]
+): T[] {
+    return rows.filter(row => row.bank_matched && !row.isCleared)
+}
+
+export function clearMatchedText(count: number): string {
+    return `Clear matched (${count})`
+}
+
+// What a sort header shows for `column` (ListSortHeaderCell's `sorted`).
+export function sortStateOf(
+    sort: ReconcileSort,
+    column: ReconcileSortColumn
+): 'ascending' | 'descending' | 'none' {
+    if (sort.column !== column) return 'none'
+    return sort.direction === 'asc' ? 'ascending' : 'descending'
+}
+
+// The phone bar's order toggle, in words: the order shown now.
+export function dateOrderText(sort: ReconcileSort): string {
+    const isNewest = sort.column === 'date' && sort.direction === 'desc'
+    return isNewest ? RECONCILE_TEXTS.newestFirst : RECONCILE_TEXTS.oldestFirst
+}
+
+// "Expense 12": the entry's type and its number, as the Transaction column and the clear
+// box's label read it.
+export function lineTypeNumber(
+    line: Pick<BooksReconcileLines, 'origin' | 'doc_type' | 'number'>
+): string {
+    return `${entryTypeLabel(line.origin, '', line.doc_type)} ${line.number}`
+}
+
+// A table amount cell: the side's amount without a sign, '' on the other side.
+export function amountCellText(cents: number, currency: string): string {
+    return cents > 0 ? formatMoney(cents, currency) : ''
+}
+
+// A card's amount, signed by its effect on the account's balance: a bank payment and a
+// card payment lower it ("-$250.00"); a deposit and a charge raise it ("$250.00").
+export function signedLineText(
+    line: Pick<BooksReconcileLines, 'debit' | 'credit'>,
+    accountType: string,
+    currency: string
+): string {
+    const isCard = accountType === 'credit_card'
+    const raises = isCard ? line.credit : line.debit
+    const lowers = isCard ? line.debit : line.credit
+    return formatMoney(raises - lowers, currency)
+}
+
+// The clear box's label: "Clear Expense 12" / "Unclear Expense 12".
+export function clearBoxLabel(typeAndNumber: string, isCleared: boolean): string {
+    return `${isCleared ? 'Unclear' : 'Clear'} ${typeAndNumber}`
+}
+
+export function emptyLinesText(accountLabel: string, statementDate: string): string {
+    return `No transaction on ${accountLabel} up to ${formatDay(statementDate)} waits to be cleared.`
+}
+
+// The result line: the last batch result, or a refusal in text-danger.
+export type ReconcileResult = { text: string; tone: 'muted' | 'danger' }
+
+export type ReconcileBatchAction = 'clear' | 'unclear'
+
+// The result of a batch (Clear all shown, Clear matched). `messages` holds one message for
+// each failure: the server's refusal, or RECONCILE_TEXTS.sendFailed for a transport
+// failure. When every failure has the same message, the line reads it.
+export function batchResultText(outcome: {
+    action: ReconcileBatchAction
+    done: number
+    failed: number
+    messages: readonly string[]
+}): string {
+    const { action, done, failed, messages } = outcome
+    const verb = action === 'clear' ? 'cleared' : 'uncleared'
+    if (failed === 0) {
+        const past = action === 'clear' ? 'Cleared' : 'Uncleared'
+        return `${past} ${countText(done, 'transaction', 'transactions')}.`
+    }
+    const [first] = messages
+    if (first !== undefined && messages.every(message => message === first)) return first
+    const total = countText(done + failed, 'transaction', 'transactions')
+    return `${failed} of ${total} could not be ${verb}. Try again.`
+}
 
 export function startTitleText(accountLabel: string): string {
     return `Reconcile ${accountLabel}`

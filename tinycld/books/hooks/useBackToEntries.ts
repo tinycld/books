@@ -36,18 +36,20 @@ const SALES_LIST_LABELS = listLabels(LIST_AREAS.sales)
 const PURCHASE_LIST_LABELS = listLabels(LIST_AREAS.purchases)
 
 // The screens Back pops to when one is right below this screen, each with the back link's
-// text: the journal entry list, a Sales or purchase list, a register, and every record
-// route (a document, a bill payment, a payment, a vendor refund, a write-off, an entry, a
-// transfer), so Back
-// leads to the screen the user came from and the label names it. A new vendor refund is
-// one too: its "New vendor credit" pushes the credit form over it, and that form's Back,
-// Cancel and post return to the refund with what was typed in it. Any other screen below
-// (or none) is replaced with the journal entry list.
+// text: the journal entry list, a Sales or purchase list, a register, the reconcile work
+// screen, and every record route (a document, a bill payment, a payment, a vendor refund,
+// a write-off, an entry, a transfer), so Back leads to the screen the user came from and
+// the label names it. A new vendor refund is one too: its "New vendor credit" pushes the
+// credit form over it, and that form's Back, Cancel and post return to the refund with
+// what was typed in it. Any other screen below (or none) is replaced with the journal
+// entry list.
 const LABELS: Record<string, string> = {
     [LIST_ROUTE]: 'Journal entries',
     ...SALES_LIST_LABELS,
     ...PURCHASE_LIST_LABELS,
     [REGISTER_ROUTE]: 'Register',
+    // The reconcile work screen, whose Transaction links open the entry.
+    'reconcile/[id]': 'Reconcile',
     'entries/[id]': 'Journal entry',
     'transfers/[id]': 'Transfer',
     'payments/[id]': 'Payment',

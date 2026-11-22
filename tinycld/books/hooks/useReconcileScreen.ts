@@ -5,15 +5,29 @@ import { log } from '@tinycld/core/lib/logger'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
+import { useDebouncedValue } from '@tinycld/core/lib/use-debounced-value'
 import { router, useFocusEffect } from 'expo-router'
 import { materialize } from 'pbtsdb'
-import { useCallback } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
+import type { TextInputInstance } from 'react-native'
+import type { ListScrollHandle } from '../components/ListTable'
 import { accountLabel } from '../lib/account-options'
+import { entryHref } from '../lib/entry-route'
+import { SEARCH_DELAY_MS } from '../lib/list-search'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
-import { type ReconcileTotals, reconcileTotals, sideWords, stampedTotals } from '../lib/reconcile'
-import { useReconcileStore } from '../stores/reconcile-store'
+import {
+    hasReconcileFilter,
+    type ReconcileTotals,
+    reconcileTotals,
+    shownRows,
+    sideWords,
+    stampedTotals,
+} from '../lib/reconcile'
+import { resultFor, useReconcileStore } from '../stores/reconcile-store'
 import { useBooksAccess } from './useBooksAccess'
-import { useReconcileLines } from './useReconcileLines'
+import { useReconcileClear } from './useReconcileClear'
+import { type ReconcileLineRow, useReconcileLines } from './useReconcileLines'
+import { useReconcileShortcuts } from './useReconcileShortcuts'
 import { usePopToScreenBelow } from './useStackScreens'
 
 const LOG_CONTEXT = 'books.reconcile'
@@ -57,6 +71,10 @@ function totalsOf(
  * access read failed, `not-found` when the record answered with no row (a bad id, or
  * another user discarded it). Retry recovers every failed read with one call. Back pops to
  * the accounts screen when it is right below, and replaces this screen with it otherwise.
+ * The list (§3 "Toolbar", "Clearing", "Keys"): `shown` is `shownRows` of the lines under
+ * the store's side, Show choice and sort, with the search applied after SEARCH_DELAY_MS;
+ * `clear` is useReconcileClear, and the keys (useReconcileShortcuts) register in the
+ * screen's `list` scope, whose owner every ShortcutButton of the screen takes.
  */
 export function useReconcileScreen(id: string) {
     const [reconciliationsCollection, accountsCollection, usersCollection, accessCollection] =
@@ -102,13 +120,16 @@ export function useReconcileScreen(id: string) {
     const reconciliation = recordQuery.isError ? undefined : recordQuery.data
     const lines = useReconcileLines(reconciliation)
 
-    // The phone's band opens in place for one visit: it is closed again when the screen
-    // loses focus.
+    // The phone's band opens in place for one visit, and the side, the search, the Show
+    // choice, the focused row and the result line hold for one visit too: all start over
+    // when the screen loses focus. The route is keyed by the id (screens/reconcile/[id]),
+    // so another reconciliation unmounts this screen, which runs the same cleanup.
     useFocusEffect(
         useCallback(
             () => () => {
-                if (useReconcileStore.getState().isBandOpen)
-                    useReconcileStore.getState().toggleBand()
+                const store = useReconcileStore.getState()
+                if (store.isBandOpen) store.toggleBand()
+                store.resetWork()
             },
             []
         )
@@ -125,6 +146,59 @@ export function useReconcileScreen(id: string) {
         isLinesLoading: lines.isLoading,
     })
     const totals = totalsOf(reconciliation, lines.rows, accountType)
+    const currency = reconciliation?.currency || account?.currency || 'USD'
+
+    // The list: the filters as typed, the search applied after a pause in typing.
+    const filters = useReconcileStore(s => s.filters)
+    const sort = useReconcileStore(s => s.sort)
+    const focusedLineId = useReconcileStore(s => s.focusedLineId)
+    // A result of another reconciliation (a batch that settled after this one opened) is
+    // not this screen's.
+    const result = useReconcileStore(s => resultFor(s, id))
+    const appliedSearch = useDebouncedValue(filters.search, SEARCH_DELAY_MS)
+    // Keyed by the primitives it reads, not by `filters`: a keystroke in the search changes
+    // `filters` but not the applied search, and must not filter and sort every row again.
+    const { side, show } = filters
+    const shown = useMemo(
+        () => shownRows(lines.rows, { side, show, search: appliedSearch }, sort, currency),
+        [lines.rows, side, show, appliedSearch, sort, currency]
+    )
+    const canWrite = access.canWrite
+    const clear = useReconcileClear({
+        reconciliationId: id,
+        rows: lines.rows,
+        shown,
+        canWrite,
+    })
+    const searchRef = useRef<TextInputInstance>(null)
+    const listScrollRef = useRef<ListScrollHandle>(null)
+    const onOpen = (row: ReconcileLineRow) =>
+        router.push(
+            orgHref(
+                entryHref({
+                    id: row.entry,
+                    doc_type: row.doc_type,
+                    origin: row.origin,
+                    document: row.document,
+                })
+            )
+        )
+    const scopeOwner = useReconcileShortcuts({
+        isEnabled: state === 'work',
+        canWrite,
+        isBatchRunning: clear.isBatchRunning,
+        isWriteBlocked: clear.isWriteBlocked,
+        shown,
+        focusedLineId,
+        matchedCount: clear.matchedCount,
+        search: filters.search,
+        searchRef,
+        listScrollRef,
+        onToggle: clear.onToggle,
+        onToggleAllShown: clear.onToggleAllShown,
+        onClearMatched: clear.onClearMatched,
+        onOpen,
+    })
 
     const onRetry = () => {
         const recordRecovery: LiveRecovery = recordQuery.isError
@@ -151,11 +225,23 @@ export function useReconcileScreen(id: string) {
         reconciliation,
         account,
         accountLabel: account ? accountLabel(account) : '',
-        currency: reconciliation?.currency || account?.currency || 'USD',
+        accountType,
+        currency,
         words: sideWords(accountType),
         totals,
         rows: lines.rows,
-        canWrite: access.canWrite,
+        shown,
+        filters,
+        hasFilter: hasReconcileFilter(filters),
+        sort,
+        focusedLineId,
+        result,
+        clear,
+        searchRef,
+        listScrollRef,
+        scopeOwner,
+        onOpen,
+        canWrite,
         isWide,
         isBandOpen,
         onToggleBand: toggleBand,
