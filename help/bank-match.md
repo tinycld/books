@@ -34,7 +34,7 @@ When the match is done, the panel closes and a line under the toolbar says "Matc
 
 ### Choose several Books transactions
 
-One bank deposit can hold several payments. Check every Books transaction that is part of it. A match holds 1 to 50 Books transactions, and their amounts must add up to the bank amount exactly.
+One bank deposit can hold several payments. Check every Books transaction that is part of it. A match holds 1 to 50 Books transactions, and their amounts must add up to the bank amount exactly. When the payments went to Undeposited funds and you recorded the trip to the bank as a [bank deposit](help://books:bank-deposits), the deposit is the one Books transaction that the bank line matches.
 
 ## Find other matches
 

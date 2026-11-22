@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { readHelpTopic } from './help-topic'
+import { paragraphWith, readHelpTopic } from './help-topic'
 
 const helpDir = path.resolve(__dirname, '../help')
 
@@ -61,6 +61,16 @@ describe('help/receive-payment.md', () => {
 describe('help/receive-payment.md (write-offs)', () => {
     it('names a write-off or the Written off status', () => {
         expect(body).toMatch(/\bwrite-offs?\b|\bWritten off\b/i)
+    })
+})
+
+// Bank deposit spec §3.10 Help: where the topic names Undeposited funds, it links the
+// Bank deposits topic.
+describe('help/receive-payment.md (bank deposits)', () => {
+    it('links help://books:bank-deposits where it names Undeposited funds', () => {
+        expect(
+            paragraphWith(body, /Undeposited funds/, /help:\/\/books:bank-deposits\b/)
+        ).toBeDefined()
     })
 })
 

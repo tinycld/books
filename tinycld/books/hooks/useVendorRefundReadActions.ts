@@ -1,4 +1,5 @@
 import type { PaymentReadTarget } from '../components/payments/PaymentReadActions'
+import { type DepositRead, depositedOffer } from '../lib/deposit'
 import { paymentReadActions } from '../lib/payment-read-actions'
 import { VENDOR_REFUND_FLOW } from '../lib/vendor-refund-flow'
 import type { BooksVendorRefunds } from '../types'
@@ -8,15 +9,20 @@ const FLOW = VENDOR_REFUND_FLOW
 /**
  * The vendor refund read view's actions (vendor refund spec §3.7): the offered ones
  * (Edit, Void and View journal entry for a writer on a posted refund, else View journal
- * entry; View journal entry waits for the entry), and the refund's routes and texts the
- * shared PaymentReadActions bar uses: Edit opens the correction form on `?replaces`, Void
- * writes `status: 'void'` to books_vendor_refunds with the refund's dialog text.
+ * entry; View journal entry waits for the entry; no Edit or Void while a posted deposit
+ * holds the refund, or while that read, `depositRead` of useDepositOf, is not ready: bank
+ * deposit spec §3.10), and the refund's routes and texts the shared PaymentReadActions bar
+ * uses: Edit opens the correction form on `?replaces`, Void writes `status: 'void'` to
+ * books_vendor_refunds with the refund's dialog text.
  */
 export function useVendorRefundReadActions(
     refund: Pick<BooksVendorRefunds, 'id' | 'status' | 'entry'>,
-    canWrite: boolean
+    canWrite: boolean,
+    depositRead: DepositRead
 ) {
-    const offered = paymentReadActions(refund.status, canWrite, refund.entry !== '')
+    const hasEntry = refund.entry !== ''
+    const isDeposited = depositedOffer({ hasEntry, ...depositRead })
+    const offered = paymentReadActions(refund.status, canWrite, hasEntry, isDeposited)
     const target: PaymentReadTarget = {
         collection: 'books_vendor_refunds',
         editHref: `${FLOW.routeBase}/new?replaces=${refund.id}`,

@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { readHelpTopic } from './help-topic'
+import { paragraphWith, readHelpTopic } from './help-topic'
 
 // The vendor refund help topic `books:vendor-refunds` (vendor refund spec §3.12, checkpoint
 // 5 and its carry items): when to record a vendor refund, recording the vendor credit
@@ -251,5 +251,15 @@ describe('help/vendor-refunds.md', () => {
         expect(exists).toBe(true)
         const stripped = body.replaceAll('{{server-host}}', '')
         expect(stripped).not.toMatch(/\b[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|org|net|io|dev|app|co)\b/i)
+    })
+})
+
+// Bank deposit spec §3.10 Help: where the topic names Undeposited funds, it links the
+// Bank deposits topic.
+describe('help/vendor-refunds.md (bank deposits)', () => {
+    it('links help://books:bank-deposits where it names Undeposited funds', () => {
+        expect(
+            paragraphWith(body, /Undeposited funds/, /help:\/\/books:bank-deposits\b/)
+        ).toBeDefined()
     })
 })

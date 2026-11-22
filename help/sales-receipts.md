@@ -23,7 +23,7 @@ The second row of the form holds the payment:
 
 - Payment method: how the customer paid, such as Cash, Check or Credit card. Choose None if you do not want to record it.
 - Reference no.: a check number or a card reference, at most 40 characters.
-- Deposit to: the account that gets the money. You can pick a bank account or an Undeposited funds account. Books starts with your first Undeposited funds account, or your first bank account when you have no Undeposited funds account. Use Undeposited funds when you take the money to the bank later with other payments.
+- Deposit to: the account that gets the money. You can pick a bank account or an Undeposited funds account. Books starts with your first Undeposited funds account, or your first bank account when you have no Undeposited funds account. Use Undeposited funds when you take the money to the bank later with other payments, then record the trip to the bank as a [bank deposit](help://books:bank-deposits).
 
 If your chart of accounts has no bank account and no Undeposited funds account, Deposit to says so. Add one in Chart of Accounts first.
 

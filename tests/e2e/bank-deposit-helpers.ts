@@ -3,7 +3,19 @@ import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { CUSTOMER_IDS, CUSTOMERS } from '../../tinycld/books/lib/customer-form-fixture'
 import { DESKTOP, isPhone } from './account-register-helpers'
 import { lineCellTestId } from './invoice-helpers'
-import { openEntriesList } from './journal-entries-helpers'
+import {
+    fillLine,
+    openEntriesList,
+    openNewEntry,
+    postedEntryNumber,
+    postOpenEntry,
+} from './journal-entries-helpers'
+import {
+    customerWithInvoices,
+    localDay,
+    PAYMENT_URL,
+    paymentIdFromUrl,
+} from './receive-payment-helpers'
 import {
     chooseReceiptSelect,
     openNewSalesReceipt,
@@ -197,6 +209,112 @@ export async function tickDepositItem(page: Page, reference: string) {
     const tick = await depositItemTick(page, reference)
     await tick.click()
     await expect(tick).toHaveAttribute('aria-checked', 'true')
+}
+
+// The shown form's item row or card whose Payment text is exactly `text`: "Check · <ref>"
+// for a document paid by check, the line memo for a journal entry line.
+export function depositItemRowWithText(page: Page, text: string): Locator {
+    return page
+        .locator(
+            '[data-testid^="deposit-item-"]:not([data-testid^="deposit-item-tick-"]):not([data-testid^="deposit-item-link-"]):not([data-testid^="deposit-item-error-"])'
+        )
+        .filter({ has: page.getByText(text, { exact: true }), visible: true })
+}
+
+// Ticks the item row whose Payment text is `text` and returns its journal line id.
+export async function tickDepositItemWithText(page: Page, text: string): Promise<string> {
+    const row = depositItemRowWithText(page, text)
+    await expect(row).toBeVisible()
+    const id = (await row.getAttribute('data-testid'))?.slice('deposit-item-'.length)
+    if (!id) throw new Error(`no item row for ${text}`)
+    const tick = shownDeposit(page, `deposit-item-tick-${id}`)
+    await tick.click()
+    await expect(tick).toHaveAttribute('aria-checked', 'true')
+    return id
+}
+
+// The deposit form must be open with its items ticked. Types the memo, posts, and returns
+// the posted deposit's id and number. Leaves the page on the deposit's read view.
+export async function postOpenDeposit(
+    page: Page,
+    memo: string
+): Promise<{ id: string; number: string }> {
+    await shownDeposit(page, 'deposit-memo').fill(memo)
+    await shownDeposit(page, 'deposit-post').click()
+    await expect(shownDeposit(page, 'deposit-read-only')).toBeVisible()
+    await expect(page).toHaveURL(DEPOSIT_URL)
+    const title = shownDeposit(page, 'deposit-title')
+    await expect(title).toHaveText(/^Deposit \d+$/)
+    const number = /^Deposit (\d+)$/.exec(await title.innerText())?.[1]
+    if (!number) throw new Error('the deposit read view title has no number')
+    return { id: depositIdFromUrl(page), number }
+}
+
+/**
+ * Books must be open at desktop width. Makes an own customer with one invoice for `amount`
+ * ("250.00") and receives a payment for it in full from the customer's page: deposited to
+ * the default account (1200 Undeposited funds), by check with this reference no., with this
+ * memo. Returns the payment's id and number. Leaves the page on the payment's read view.
+ */
+export async function postUndepositedPayment(
+    page: Page,
+    input: { reference: string; memo: string; amount: string }
+): Promise<{ id: string; number: string }> {
+    const { customerId, invoices } = await customerWithInvoices(
+        page,
+        [{ rate: input.amount, dueDate: await localDay(page, 10) }],
+        'Depositor'
+    )
+    const invoice = invoices[0]
+    if (!invoice) throw new Error('no invoice was posted')
+    await page.getByTestId('customer-new-transaction').click()
+    await page.getByTestId('customer-new-receive-payment').click()
+    await expect(page).toHaveURL(new RegExp(`/books/payments/new\\?customer=${customerId}$`))
+    await page.getByTestId(`payment-row-tick-${invoice.id}`).click()
+    await expect(page.getByTestId(`payment-row-amount-${invoice.id}`)).toHaveValue(input.amount)
+    await page.getByTestId('payment-method').click()
+    const check = page.getByRole('menuitem', { name: 'Check', exact: true })
+    await check.click()
+    await expect(check).toHaveCount(0)
+    await expect(page.getByTestId('payment-method')).toContainText('Check')
+    await page.getByTestId('payment-reference').fill(input.reference)
+    await page.getByTestId('payment-memo').fill(input.memo)
+    await page.getByTestId('payment-post').click()
+    await expect(page).toHaveURL(PAYMENT_URL)
+    await expect(page.getByTestId('payment-read-only')).toBeVisible()
+    const title = page.getByTestId('payment-title')
+    await expect(title).toHaveText(/^Payment \d+$/)
+    const number = /^Payment (\d+)$/.exec(await title.innerText())?.[1]
+    if (!number) throw new Error('the payment read view title has no number')
+    return { id: paymentIdFromUrl(page), number }
+}
+
+const UNDEPOSITED_FUNDS = '1200 Undeposited funds'
+const CONSULTING_INCOME = '4000 Consulting Income'
+const ENTRY_URL = /\/books\/entries\/([^/?#]+)$/
+
+/**
+ * Books must already be open. Posts a journal entry dated today that debits 1200
+ * Undeposited funds and credits 4000 Consulting Income for `amount` ("75.00"), with this
+ * entry memo and this memo on the 1200 line (the item's Payment text in a deposit). Returns
+ * the entry's id and number ("JE-12"). Leaves the page on the entry's read view.
+ */
+export async function postUndepositedEntry(
+    page: Page,
+    input: { memo: string; lineMemo: string; amount: string }
+): Promise<{ id: string; number: string }> {
+    await openNewEntry(page)
+    await page.getByTestId('entry-memo').fill(input.memo)
+    await fillLine(page, 0, {
+        account: UNDEPOSITED_FUNDS,
+        debit: input.amount,
+        memo: input.lineMemo,
+    })
+    await fillLine(page, 1, { account: CONSULTING_INCOME, credit: input.amount })
+    await postOpenEntry(page)
+    const id = ENTRY_URL.exec(new URL(page.url()).pathname)?.[1]
+    if (!id || id === 'new') throw new Error(`Not on a posted entry: ${page.url()}`)
+    return { id, number: await postedEntryNumber(page) }
 }
 
 // The shown form's other funds lines (`deposit-line-<n>`), counted by their own test id:

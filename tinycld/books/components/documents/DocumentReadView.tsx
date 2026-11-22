@@ -15,6 +15,7 @@ import {
 import { useReadAttachmentSession } from '../../hooks/useAttachmentUpload'
 import { type CreditApplicationRow, useCreditApplications } from '../../hooks/useCreditApplications'
 import { type CreditRefunds, useCreditRefunds } from '../../hooks/useCreditRefunds'
+import { useDepositOf } from '../../hooks/useDepositOf'
 import { useDocumentReadActions } from '../../hooks/useDocumentReadActions'
 import type { DocumentScreenData } from '../../hooks/useDocumentScreen'
 import { useHistoryItem } from '../../hooks/useHistoryItem'
@@ -30,6 +31,7 @@ import {
     type CreditApplicationKind,
     VENDOR_CREDIT_APPLICATION,
 } from '../../lib/credit-application-kinds'
+import { depositEntryOf } from '../../lib/deposit'
 import { removeApplicationOffered } from '../../lib/document-actions'
 import { DOCUMENT_NOTE_LABELS, memoLabelFor } from '../../lib/document-notes'
 import { type DocumentTab, documentHref } from '../../lib/document-routes'
@@ -42,6 +44,7 @@ import { formatMoney, MINUS } from '../../lib/money'
 import { formatDay, todayIso } from '../../lib/register-range'
 import { DOCUMENT_PARTIES, type SalesDocumentKind } from '../../lib/sales-document-kinds'
 import { groupPpm, ratePercentText } from '../../lib/sales-tax'
+import { InDepositNotice } from '../deposits/InDepositNotice'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { VoidDialog } from '../entries/VoidDialog'
 import { WriteOffDialog } from '../write-offs/WriteOffDialog'
@@ -563,10 +566,10 @@ interface DocumentReadViewProps {
 
 /**
  * A posted or void sales document, or a quote shown read only (a closed estimate, or any
- * estimate for a reader): the header, the kind's notice (in its ReadFrame: a vendor
- * credit's Apply to bills, a credit memo's Apply to invoices, an invoice's Apply credit),
- * Customer, Bill to, Email, the date and the kind's
- * own details, Tax, the lines with their stored amounts, the stored totals with the tax
+ * estimate for a reader): the header, the "In Deposit <n>" notice of a sales receipt or a
+ * refund receipt that a posted deposit holds (bank deposit spec §3.10), the kind's notice
+ * (in its ReadFrame: a vendor credit's Apply to bills, a credit memo's Apply to invoices,
+ * an invoice's Apply credit), Customer, Bill to, Email, the date and the kind's own details, Tax, the lines with their stored amounts, the stored totals with the tax
  * snapshot (an invoice's or a bill's with its Payments row and its Balance due from its
  * open balance, and Credits applied), Message and Memo, an invoice's or a bill's
  * Payments block (with its credit rows and their Remove, whose confirm this view
@@ -588,7 +591,9 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     // Write off opens useWriteOffStore with this screen as the owner, so only the dialog this
     // screen mounts (ReadWriteOffDialog) draws, not one of a list under it in the stack.
     const owner = useId()
-    const read = useDocumentReadActions(documentKind, record, data.canWrite, owner)
+    const depositRead = useDepositOf(depositEntryOf(record))
+    const read = useDocumentReadActions(documentKind, record, data.canWrite, owner, depositRead)
+    const isInDeposit = depositRead.deposit !== null
     const historyItem = useHistoryItem(DOCUMENT_COLLECTIONS[doc.key], record.id)
     const writes = useServerActionState()
     useReadAttachmentSession(record.id, doc.features.attachments)
@@ -619,6 +624,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     const date = record.date ? formatDay(record.date) : ''
     const tax = totals.tax?.label ?? ''
     const title = `${doc.noun} ${record.number}`
+    const noun = doc.noun.toLowerCase()
     const isDetailsTab = tab === 'edit'
     const isPdfTab = tab === 'pdf'
     const isPosting = doc.lifecycle === 'posting'
@@ -700,6 +706,12 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                         figure={totals.last}
                         isExpired={isExpired}
                         badge={badge}
+                    />
+                    <InDepositNotice
+                        deposit={depositRead.deposit}
+                        noun={noun}
+                        canWrite={data.canWrite}
+                        isVisible={isInDeposit}
                     />
                     <DocumentTabs selected={tab} firstLabel="Details" scopeOwner={scopeOwner} />
                     <TabPanel isVisible={isDetailsTab}>{details}</TabPanel>

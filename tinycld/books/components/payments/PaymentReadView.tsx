@@ -3,6 +3,7 @@ import type { ScopeOwner } from '@tinycld/core/lib/shortcuts'
 import { router } from 'expo-router'
 import type { ComponentType } from 'react'
 import { ScrollView, Text, View } from 'react-native'
+import { useDepositOf } from '../../hooks/useDepositOf'
 import type { PaymentRecordHeader, PaymentRecordView } from '../../hooks/usePaymentRecord'
 import { paymentText } from '../../lib/deposit-accounts'
 import { formatMoney } from '../../lib/money'
@@ -11,6 +12,7 @@ import type { PaymentFlow } from '../../lib/payment-flow'
 import type { PaymentCollectionName } from '../../lib/payment-read-actions'
 import { fillPaymentText, PAYMENT_MESSAGES } from '../../lib/payment-texts'
 import { formatDay } from '../../lib/register-range'
+import { InDepositNotice } from '../deposits/InDepositNotice'
 import { DocumentHeader } from '../documents/DocumentHeader'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { AppliedInvoices } from './AppliedInvoices'
@@ -103,7 +105,8 @@ interface PaymentReadViewProps {
 
 /**
  * A posted or void payment (receive-payment spec §3.7, vendor refund spec §3.7): the
- * header, the party (a link), the date and the payment line, the applied documents, the
+ * header, the "In Deposit <n>" notice while a posted deposit holds the payment (bank
+ * deposit spec §3.10), the party (a link), the date and the payment line, the applied documents, the
  * flow's applied and credited totals, the memo, the stamps, and the bar. The flow gives
  * every text, test id and route.
  */
@@ -134,6 +137,9 @@ export function PaymentReadView({
     const figure = formatMoney(payment.amount, currency)
     const date = formatDay(payment.date.slice(0, 10))
     const appliedRows = appliedRowsOf(lines)
+    // The posted deposit that holds the payment's entry: the notice, and the bar's rule.
+    const depositRead = useDepositOf(payment.entry)
+    const isInDeposit = depositRead.deposit !== null
     return (
         <View testID={`${testId}-read-only`} className="flex-1 bg-background">
             <ScrollView className="flex-1" contentContainerClassName="gap-4 px-4 pt-2 pb-6">
@@ -143,6 +149,12 @@ export function PaymentReadView({
                     status={payment.status}
                     figure={figure}
                     isExpired={false}
+                />
+                <InDepositNotice
+                    deposit={depositRead.deposit}
+                    noun={texts.voidNoun}
+                    canWrite={canWrite}
+                    isVisible={isInDeposit}
                 />
                 <View className={`${READ_BAND} flex-row flex-wrap gap-x-6 gap-y-3`}>
                     <View testID={`${testId}-detail-${ids.party}`} className="gap-0.5">
@@ -196,6 +208,7 @@ export function PaymentReadView({
                 collection={collection}
                 payment={payment}
                 canWrite={canWrite}
+                depositRead={depositRead}
                 scopeOwner={scopeOwner}
             />
         </View>
