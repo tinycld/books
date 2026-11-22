@@ -1,4 +1,4 @@
-import { Landmark, List, Percent, Receipt } from 'lucide-react-native'
+import { Landmark, List, ListChecks, Percent, Receipt } from 'lucide-react-native'
 import { describe, expect, it } from 'vitest'
 import { accessFromRow } from '../tinycld/books/lib/access'
 import { NEW_ACTIONS, type NewAction } from '../tinycld/books/lib/new-actions'
@@ -569,6 +569,33 @@ describe('taxes sidebar entry', () => {
 
     it('keeps the New button on the Taxes page', () => {
         expect(hidesNewFab('/a/books/taxes')).toBe(false)
+    })
+})
+
+// Reconcile spec §2: Reconcile is in the Accounting group, right after Journal Entries; the
+// work screen's phone Finish bar owns the bottom, so the New button stays off it (plan
+// settled difference 6).
+describe('reconcile sidebar entry', () => {
+    it('is an available Accounting entry at books/reconcile, directly after entries', () => {
+        expect(SIDEBAR_ENTRIES.find(e => e.id === 'reconcile')).toEqual({
+            id: 'reconcile',
+            label: 'Reconcile',
+            icon: ListChecks,
+            href: 'books/reconcile',
+            group: 'accounting',
+            available: true,
+        })
+        const ids = SIDEBAR_ENTRIES.map(e => e.id)
+        expect(ids.indexOf('reconcile')).toBe(ids.indexOf('entries') + 1)
+        const accounting = sidebarSections(availableOnly(SIDEBAR_ENTRIES)).accounting.map(e => e.id)
+        expect(accounting.indexOf('reconcile')).toBe(accounting.indexOf('entries') + 1)
+    })
+
+    it('hides the New button on a reconciliation and keeps it on the accounts screen', () => {
+        expect(hidesNewFab('/a/books/reconcile/abc123def456ghi')).toBe(true)
+        expect(hidesNewFab('/a/acme/books/reconcile/abc123def456ghi/')).toBe(true)
+        expect(hidesNewFab('/a/books/reconcile')).toBe(false)
+        expect(hidesNewFab('/a/books/reconcile/')).toBe(false)
     })
 })
 
