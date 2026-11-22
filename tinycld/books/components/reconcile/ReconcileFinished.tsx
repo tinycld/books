@@ -45,7 +45,9 @@ function DifferenceRow({ value }: { value: string }) {
 }
 
 // View report, key R in the screen's `list` scope; drawn only while the reader has the
-// Reconciliation Report (`reportHref`). On a phone it takes the full width.
+// Reconciliation Report (`reportHref`). On a phone it takes the full width. It is disabled
+// while the header's More menu is open, so R does not open the report under the menu (a
+// core Menu pushes no shortcut scope, and a disabled ShortcutButton does not take its key).
 function ViewReportButton({
     model,
     isVisible,
@@ -61,6 +63,7 @@ function ViewReportButton({
             label={RECONCILE_TEXTS.viewReport}
             shortcut={VIEW_REPORT_KEY}
             onPress={model.onViewReport}
+            isDisabled={model.isMenuOpen}
             className={width}
             scopeOwner={model.scopeOwner}
         />

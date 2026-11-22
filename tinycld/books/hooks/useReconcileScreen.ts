@@ -6,6 +6,7 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { useDebouncedValue } from '@tinycld/core/lib/use-debounced-value'
+import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { router, useFocusEffect } from 'expo-router'
 import { materialize } from 'pbtsdb'
 import { useCallback, useMemo, useRef } from 'react'
@@ -100,7 +101,11 @@ function totalsOf(
  * review count read the stored date (the store's `heldStatement`), so the state stays `work`
  * and the dialog stays open until the server has answered. The finished summary's View
  * report (`reportHref`, `onViewReport`) opens the Reconciliation Report with its Statement
- * filter set to this reconciliation; its key R is in the same `list` scope.
+ * filter set to this reconciliation; its key R is in the same `list` scope. For a Books
+ * admin on the account's latest finished reconciliation (`lastFinished`), `canUndo` offers
+ * Undo reconciliation in the header's More menu; while that undo is sent (the store's
+ * `undoingId`) the screen stays the finished summary, and after the server has answered the
+ * same route draws the work screen.
  */
 export function useReconcileScreen(id: string) {
     const [
@@ -145,7 +150,8 @@ export function useReconcileScreen(id: string) {
                             }))
                             .findOne()
                     ),
-                    // Edit info's date rule: the account's latest finished statement.
+                    // The account's latest finished reconciliation: Edit info's date rule, and
+                    // on the finished summary whether this one can be undone.
                     lastFinished: materialize(
                         q
                             .from({ f: reconciliationsCollection })
@@ -153,7 +159,7 @@ export function useReconcileScreen(id: string) {
                                 and(eq(f.account, r.account), eq(f.status, 'finished'))
                             )
                             .orderBy(({ f }) => f.statement_date, 'desc')
-                            .select(({ f }) => ({ statement_date: f.statement_date }))
+                            .select(({ f }) => ({ id: f.id, statement_date: f.statement_date }))
                             .findOne()
                     ),
                 }))
@@ -164,16 +170,19 @@ export function useReconcileScreen(id: string) {
     const isFinishing = useReconcileStore(s => isFinishingFor(s, id))
     const isDiscarding = useReconcileStore(s => s.isDiscarding)
     const heldDate = useReconcileStore(s => heldStatementDate(s, id))
+    const isUndoing = useReconcileStore(s => s.undoingId === id)
     // While Finish is sent the optimistic row reads finished; the screen stays the work
-    // screen, with its lines and their sums, until the server has answered.
-    const isFinished = reconciliation?.status === 'finished' && !isFinishing
-    const workRecord = useMemo(
-        () =>
-            reconciliation && !isFinished
-                ? { ...reconciliation, status: 'in_progress' as const }
-                : reconciliation,
-        [reconciliation, isFinished]
-    )
+    // screen, with its lines and their sums, until the server has answered. While an undo
+    // is sent the optimistic row reads in progress; the screen stays the finished summary,
+    // under the undo dialog, until the server has answered.
+    const isFinished =
+        (reconciliation?.status === 'finished' && !isFinishing) ||
+        (reconciliation !== undefined && isUndoing)
+    const workRecord = useMemo(() => {
+        if (!reconciliation) return reconciliation
+        const status = isFinished ? ('finished' as const) : ('in_progress' as const)
+        return reconciliation.status === status ? reconciliation : { ...reconciliation, status }
+    }, [reconciliation, isFinished])
     // While Edit info's save is in flight the optimistic row has the new date; the lines and
     // the For review count stay those of the stored date until the server has answered, so
     // the screen does not load again under the open dialog and a refusal shows in it.
@@ -232,6 +241,9 @@ export function useReconcileScreen(id: string) {
                 const store = useReconcileStore.getState()
                 if (store.isBandOpen) store.toggleBand()
                 store.resetWork()
+                // An undo dialog opened on the finished summary does not follow the user
+                // back to the history; it does nothing while an undo is sent.
+                store.closeUndo()
             },
             []
         )
@@ -400,6 +412,18 @@ export function useReconcileScreen(id: string) {
     // The account's history (reconciliation report spec §3 "The finished summary").
     const onOpenHistory = () =>
         router.push(orgHref('books/reconcile/history', { account: statementAccount }))
+    // Undo reconciliation (spec §3 "The finished summary", "Undo"): a Books admin, on the
+    // latest finished reconciliation of its account. The More menu that holds it is open
+    // (`isMenuOpen`): View report's key R is off under it, as a core Menu pushes no scope.
+    const canUndo =
+        access.isAdmin && state === 'finished' && reconciliation?.lastFinished?.id === id
+    const isMenuOpen = useReconcileStore(s => s.isFinishedMenuOpen) && canUndo
+    const onMenuOpenChange = (isOpen: boolean) =>
+        useReconcileStore.getState().setFinishedMenuOpen(isOpen)
+    const onUndo = () => useReconcileStore.getState().openUndo(id)
+    const undoWrites = useServerActionState()
+    const isUndoDisabled = undoWrites.isDisabled || isUndoing
+    const undoHint = undoWrites.accessibilityHint
 
     return {
         state,
@@ -448,6 +472,12 @@ export function useReconcileScreen(id: string) {
         reportHref,
         onViewReport,
         onOpenHistory,
+        canUndo,
+        isMenuOpen,
+        onMenuOpenChange,
+        onUndo,
+        isUndoDisabled,
+        undoHint,
     }
 }
 

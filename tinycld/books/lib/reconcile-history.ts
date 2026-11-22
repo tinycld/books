@@ -184,7 +184,9 @@ export function reconciledCardText(row: ReconciledPart): string {
 }
 
 // The history's body: loading until every read has answered, the error when one failed
-// (also while another still loads), the empty states, else the rows.
+// (also while another still loads), the empty states, else the rows. A picked account with
+// no row reads empty-filtered also when no reconciliation is finished at all, so the body
+// keeps the filter's text and its Clear filter when the last row leaves.
 export function historyState(input: {
     isLoading: boolean
     isError: boolean
@@ -194,9 +196,79 @@ export function historyState(input: {
 }): HistoryState {
     if (input.isError) return 'error'
     if (input.isLoading) return 'loading'
-    if (input.all.length === 0) return 'empty'
     if (input.accountId !== '' && input.shown.length === 0) return 'empty-filtered'
+    if (input.all.length === 0) return 'empty'
     return 'rows'
+}
+
+// The undo dialog's texts (reconciliation report spec §3 "Undo").
+export const UNDO_TEXTS = {
+    title: 'Undo this reconciliation?',
+    submit: 'Undo reconciliation',
+    sending: 'Undoing…',
+    openIt: 'Open it',
+    close: 'Close',
+    loadError: 'Books could not load this reconciliation.',
+    retry: 'Retry',
+    gone: 'This reconciliation is no longer finished, so there is nothing to undo.',
+} as const
+
+type UndoPart = Pick<
+    BooksReconciliations,
+    'statement_date' | 'cleared_out_count' | 'cleared_in_count'
+>
+
+// What the undo does to the cleared transactions, by their count.
+function undoCountText(count: number): string {
+    if (count === 0) {
+        return 'It has no cleared transaction. The reconciliation returns to In progress.'
+    }
+    if (count === 1) {
+        return 'Its 1 transaction is no longer reconciled, so it can be changed or voided again. It stays cleared: the reconciliation returns to In progress.'
+    }
+    return `Its ${count} transactions are no longer reconciled, so they can be changed or voided again. They stay cleared: the reconciliation returns to In progress.`
+}
+
+// The undo dialog: its title, its text, and whether a reconciliation in progress on the
+// account (`openOne`) blocks the undo.
+export function undoDialogTexts(
+    reconciliation: UndoPart,
+    account: Pick<BooksAccounts, 'number' | 'name'>,
+    openOne: Pick<BooksReconciliations, 'statement_date'> | null | undefined
+): { title: string; text: string; isBlocked: boolean } {
+    const label = accountLabel(account)
+    if (openOne) {
+        return {
+            title: UNDO_TEXTS.title,
+            text: `${label} has a reconciliation in progress (statement of ${formatDay(openOne.statement_date)}). Discard it before you undo this one.`,
+            isBlocked: true,
+        }
+    }
+    const count = reconciliation.cleared_out_count + reconciliation.cleared_in_count
+    return {
+        title: UNDO_TEXTS.title,
+        text: `${label}, statement of ${formatDay(reconciliation.statement_date)}. ${undoCountText(count)} Correct it and finish it again, or discard it.`,
+        isBlocked: false,
+    }
+}
+
+// The work screen's result line after an undo of a reconciliation that cleared `count`
+// transactions.
+export function undoResultText(count: number): string {
+    const again = 'The reconciliation is in progress again.'
+    if (count === 0) return again
+    if (count === 1) return `${again} Its 1 transaction stays cleared.`
+    return `${again} Its ${count} transactions stay cleared.`
+}
+
+// Undo is offered on a row only to a Books admin, and only on the latest finished
+// reconciliation of its account (`latestIds`, latestFinishedIds).
+export function canUndoRow(
+    row: Pick<BooksReconciliations, 'id'>,
+    latestIds: ReadonlySet<string>,
+    isAdmin: boolean
+): boolean {
+    return isAdmin && latestIds.has(row.id)
 }
 
 // A row's menu: View report always; Undo reconciliation only when `canUndo` (a Books admin,

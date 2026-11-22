@@ -51,6 +51,51 @@ describe('reconcile store: history filter and sort', () => {
     })
 })
 
+// Reconciliation report spec §3 "Undo", §4 "Writes": the undo dialog's target, and the
+// synchronous flag that holds the dialog open until the server has answered.
+describe('reconcile store: undo', () => {
+    beforeEach(() => {
+        useReconcileStore.setState({ undoTarget: null, undoingId: null, undoError: null })
+    })
+
+    it('openUndo sets the target', () => {
+        store().openUndo('a')
+        expect(store().undoTarget).toBe('a')
+    })
+
+    it('startUndo sets the undoing id and clears the error', () => {
+        store().openUndo('a')
+        useReconcileStore.setState({ undoError: 'Only a Books admin can undo a reconciliation.' })
+        store().startUndo('a')
+        expect(store().undoingId).toBe('a')
+        expect(store().undoError).toBeNull()
+    })
+
+    it('endUndo clears the undoing id', () => {
+        store().startUndo('a')
+        store().endUndo()
+        expect(store().undoingId).toBeNull()
+    })
+
+    it('closeUndo does nothing while an undo is sent', () => {
+        store().openUndo('a')
+        store().startUndo('a')
+        useReconcileStore.setState({ undoError: 'The change could not be sent.' })
+        store().closeUndo()
+        expect(store().undoTarget).toBe('a')
+        expect(store().undoingId).toBe('a')
+        expect(store().undoError).toBe('The change could not be sent.')
+    })
+
+    it('closeUndo clears the target and the error when no undo is sent', () => {
+        store().openUndo('a')
+        useReconcileStore.setState({ undoError: 'Only a Books admin can undo a reconciliation.' })
+        store().closeUndo()
+        expect(store().undoTarget).toBeNull()
+        expect(store().undoError).toBeNull()
+    })
+})
+
 describe('reconcile store: result line', () => {
     it('reads the result only on the reconciliation that made it', () => {
         store().setResult('recona000000001', { text: 'Cleared 2 transactions.', tone: 'muted' })

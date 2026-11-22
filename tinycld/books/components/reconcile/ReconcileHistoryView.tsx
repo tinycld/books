@@ -23,6 +23,7 @@ import {
     ReconcileHistoryRow,
 } from './ReconcileHistoryRow'
 import { ReconcileTabs } from './ReconcileTabs'
+import { ReconcileUndoDialog } from './ReconcileUndoDialog'
 
 type Fits = ReturnType<typeof useFitsTable>
 
@@ -103,8 +104,12 @@ function HistoryList({ model, fits }: { model: ReconcileHistoryModel; fits: Fits
         row,
         isFocused: row.id === model.focusedId,
         hasReport: model.hasReport,
+        canUndo: model.canUndo(row),
+        isUndoDisabled: model.isUndoDisabled,
+        undoHint: model.undoHint,
         onOpen: model.onOpenRow,
         onOpenReport: model.onOpenReport,
+        onUndo: model.onUndo,
     })
     if (fits.showCards) {
         const renderCard = (row: ReconcileHistoryRowData) => (
@@ -182,7 +187,8 @@ function AccountFilter({ model }: { model: ReconcileHistoryModel }) {
  * The History tab of Reconcile, `books/reconcile/history` (reconciliation report spec §3
  * "The history"): the title, the tab row with History selected and the line; the Account
  * filter with Clear filter; then the finished reconciliations (a table, or cards below the
- * table's own minimum width), or the loading, error or empty state.
+ * table's own minimum width), or the loading, error or empty state; and the undo dialog of
+ * the row menus' Undo reconciliation.
  */
 export function ReconcileHistoryView(model: ReconcileHistoryModel) {
     const fits = useFitsTable(HISTORY_MIN_WIDTH)
@@ -199,6 +205,7 @@ export function ReconcileHistoryView(model: ReconcileHistoryModel) {
             <View className="min-h-0 min-w-0 flex-1" onLayout={fits.onLayout}>
                 <HistoryBody model={model} fits={fits} />
             </View>
+            <ReconcileUndoDialog />
         </View>
     )
 }

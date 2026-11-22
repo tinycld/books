@@ -100,13 +100,97 @@ describe('help/reconcile.md', () => {
     it('names only images that help/screenshots.ts plans for the topic', () => {
         expect(topicExists).toBe(true)
         const shots = plannedShots()
-        expect(shots).toEqual(['reconcile-1', 'reconcile-2', 'reconcile-3'])
+        expect(shots).toEqual([
+            'reconcile-1',
+            'reconcile-2',
+            'reconcile-3',
+            'reconcile-4',
+            'reconcile-5',
+            'reconcile-6',
+        ])
         const images = [...body.matchAll(/!\[[^\]]*\]\(([^)\s]+)\)/g)].map(m => m[1])
         expect(images.length).toBeGreaterThan(0)
         for (const image of images) {
             expect(image.startsWith('images/'), image).toBe(true)
             expect(shots, image).toContain(path.basename(image, '.png'))
         }
+    })
+})
+
+// Reconciliation report spec §4 "Help" (plan checkpoint 4): the history, the report and
+// the undo.
+
+// The body under `heading`, up to the next second-level heading.
+function section(heading: string): string {
+    const start = body.indexOf(`${heading}\n`)
+    if (start < 0) return ''
+    const rest = body.slice(start + heading.length)
+    const next = rest.search(/^## /m)
+    return next < 0 ? rest : rest.slice(0, next)
+}
+
+function inOneSentence(text: string, ...phrases: RegExp[]): boolean {
+    return text.split(/(?<=[.!?])\s+/).some(s => phrases.every(phrase => phrase.test(s)))
+}
+
+// The rows of the key table that follows the first line naming the History tab in the
+// "Keyboard shortcuts" section.
+function historyKeyRows(): string[] {
+    const lines = section('## Keyboard shortcuts').split('\n')
+    const intro = lines.findIndex(
+        line => !line.trimStart().startsWith('|') && /\bHistory\b/.test(line)
+    )
+    if (intro < 0) return []
+    const rows: string[] = []
+    for (const line of lines.slice(intro + 1)) {
+        if (line.trimStart().startsWith('|')) rows.push(line)
+        else if (rows.length > 0) break
+    }
+    return rows
+}
+
+describe('help/reconcile.md: history, report and undo', () => {
+    it.each([
+        '## See past reconciliations',
+        '## Open the reconciliation report',
+        '## Undo a reconciliation',
+    ])('has the heading "%s"', heading => {
+        expect(body).toMatch(new RegExp(`^${heading}$`, 'm'))
+    })
+
+    describe('the "Undo a reconciliation" section', () => {
+        const undo = section('## Undo a reconciliation')
+
+        it('says only a Books admin can undo, in one sentence', () => {
+            expect(inOneSentence(undo, /\bonly\b/i, /\bBooks admin\b/i, /\bundo\b/i)).toBe(true)
+        })
+
+        it('says only the latest reconciliation of an account can be undone, in one sentence', () => {
+            expect(
+                inOneSentence(
+                    undo,
+                    /\bonly\b/i,
+                    /\blatest reconciliation\b/i,
+                    /\baccount\b/i,
+                    /\bundo(ne)?\b/i
+                )
+            ).toBe(true)
+        })
+
+        it('says the transactions stay cleared, in one sentence', () => {
+            expect(inOneSentence(undo, /\btransactions\b/i, /\bstay cleared\b/i)).toBe(true)
+        })
+    })
+
+    it.each(['J', 'K', 'O', 'R'])('lists the key %s in the History key table', key => {
+        const rows = historyKeyRows()
+        expect(rows.length, 'a key table after a line that names the History tab').toBeGreaterThan(
+            0
+        )
+        expect(
+            rows.some(row => namesKey(row, key)),
+            `no History table row names ${key}`
+        ).toBe(true)
     })
 })
 

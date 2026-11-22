@@ -28,8 +28,15 @@ export type HistoryRowProps = {
     isFocused: boolean
     // The reader has the Reconciliation Report: View report is drawn.
     hasReport: boolean
+    // A Books admin on the latest reconciliation of its account: Undo reconciliation is drawn.
+    canUndo: boolean
+    // An undo is sent or the server takes no writes: Undo reconciliation is disabled.
+    isUndoDisabled: boolean
+    // Why it is disabled while the server takes no writes (core's reason); else undefined.
+    undoHint: string | undefined
     onOpen: (id: string) => void
     onOpenReport: (id: string) => void
+    onUndo: (id: string) => void
 }
 
 const ROW_MENU_LABELS: Record<HistoryMenuItem, string> = {
@@ -37,6 +44,9 @@ const ROW_MENU_LABELS: Record<HistoryMenuItem, string> = {
     undo: HISTORY_TEXTS.undo,
 }
 const UNDO_WRITES: ReadonlySet<string> = new Set(['undo'])
+// Undo reconciliation is red in both menus (the ledger's settled difference 7).
+const UNDO_DESTRUCTIVE: ReadonlySet<string> = new Set(['undo'])
+const TABLE_MENU_ITEMS: readonly HistoryMenuItem[] = ['undo']
 const MENU_SPACER = { width: 44 }
 
 function rowMenuIds(id: string): Record<HistoryMenuItem, string> {
@@ -80,15 +90,47 @@ function ReportLink({
     )
 }
 
+// The table row's More menu, with only Undo reconciliation; with no Undo the 44 px place
+// stays empty.
+function TableRowMenu({
+    row,
+    canUndo,
+    isUndoDisabled,
+    undoHint,
+    onUndo,
+}: Pick<HistoryRowProps, 'row' | 'canUndo' | 'isUndoDisabled' | 'undoHint' | 'onUndo'>) {
+    if (!canUndo) return <View style={MENU_SPACER} />
+    const onSelect = () => onUndo(row.id)
+    return (
+        <RecordRowMenu
+            title={RECONCILE_TEXTS.menuTitle}
+            triggerTestId={`reconcile-history-more-${row.id}`}
+            triggerLabel={RECONCILE_TEXTS.more}
+            items={TABLE_MENU_ITEMS}
+            labels={ROW_MENU_LABELS}
+            testIds={rowMenuIds(row.id)}
+            onSelect={onSelect}
+            isWriting={isUndoDisabled}
+            writes={UNDO_WRITES}
+            destructive={UNDO_DESTRUCTIVE}
+            writeHint={undoHint}
+        />
+    )
+}
+
 // One finished reconciliation of the wide table. The row's own press opens the finished
 // summary; the action cell (View report and the 44 px menu place) is its sibling, so a
-// press on the link does not open the summary.
+// press on the link or the menu does not open the summary.
 export function ReconcileHistoryRow({
     row,
     isFocused,
     hasReport,
+    canUndo,
+    isUndoDisabled,
+    undoHint,
     onOpen,
     onOpenReport,
+    onUndo,
 }: HistoryRowProps) {
     const focus = useRowFocus(isFocused)
     const rowStyle = { height: HISTORY_ROW_HEIGHT }
@@ -136,24 +178,36 @@ export function ReconcileHistoryRow({
             </Pressable>
             <View className="flex-row items-center justify-end gap-1" style={HISTORY_CELLS.action}>
                 <ReportLink row={row} hasReport={hasReport} onOpenReport={onOpenReport} />
-                <View style={MENU_SPACER} />
+                <TableRowMenu
+                    row={row}
+                    canUndo={canUndo}
+                    isUndoDisabled={isUndoDisabled}
+                    undoHint={undoHint}
+                    onUndo={onUndo}
+                />
             </View>
         </View>
     )
 }
 
 // The card's More menu, a sibling of the card's press, so a press on it or one of its items
-// does not open the summary. View report is offered only while the reader has the report;
-// with no item the menu's place stays empty.
+// does not open the summary. View report is offered only while the reader has the report,
+// Undo reconciliation by the table's rule (`canUndo`); with no item the menu's place stays
+// empty.
 function CardMenu({
     row,
     hasReport,
+    canUndo,
+    isUndoDisabled,
+    undoHint,
     onOpenReport,
-}: Pick<HistoryRowProps, 'row' | 'hasReport' | 'onOpenReport'>) {
-    const items = historyMenuItems(row, false).filter(item => item !== 'report' || hasReport)
+    onUndo,
+}: Omit<HistoryRowProps, 'isFocused' | 'onOpen'>) {
+    const items = historyMenuItems(row, canUndo).filter(item => item !== 'report' || hasReport)
     if (items.length === 0) return <View style={MENU_SPACER} />
     const onSelect = (item: HistoryMenuItem) => {
         if (item === 'report') onOpenReport(row.id)
+        if (item === 'undo') onUndo(row.id)
     }
     return (
         <RecordRowMenu
@@ -164,8 +218,10 @@ function CardMenu({
             labels={ROW_MENU_LABELS}
             testIds={rowMenuIds(row.id)}
             onSelect={onSelect}
-            isWriting={false}
+            isWriting={isUndoDisabled}
             writes={UNDO_WRITES}
+            destructive={UNDO_DESTRUCTIVE}
+            writeHint={undoHint}
         />
     )
 }
@@ -176,8 +232,12 @@ export function ReconcileHistoryCard({
     row,
     isFocused,
     hasReport,
+    canUndo,
+    isUndoDisabled,
+    undoHint,
     onOpen,
     onOpenReport,
+    onUndo,
 }: HistoryRowProps) {
     const focus = useRowFocus(isFocused)
     const cardStyle = { height: HISTORY_CARD_HEIGHT }
@@ -217,7 +277,15 @@ export function ReconcileHistoryCard({
                     {texts.reconciledCard}
                 </Text>
             </Pressable>
-            <CardMenu row={row} hasReport={hasReport} onOpenReport={onOpenReport} />
+            <CardMenu
+                row={row}
+                hasReport={hasReport}
+                canUndo={canUndo}
+                isUndoDisabled={isUndoDisabled}
+                undoHint={undoHint}
+                onOpenReport={onOpenReport}
+                onUndo={onUndo}
+            />
         </View>
     )
 }
