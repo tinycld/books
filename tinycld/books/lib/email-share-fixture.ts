@@ -63,6 +63,9 @@ function estimateOf(id: string) {
 
 const BUSINESS = COMPANY_SETTINGS.business_name
 const PHONE = COMPANY_SETTINGS.phone
+// A sentence that ends with the business name takes no second period after a name that
+// ends with one ("from Hartwell Supply Co."; plan decision 10).
+const BUSINESS_SENTENCE = BUSINESS.endsWith('.') ? BUSINESS : `${BUSINESS}.`
 
 const POSTED = invoiceOf(INVOICE_IDS.posted)
 const NO_TAX = invoiceOf(INVOICE_IDS.noTax)
@@ -137,7 +140,7 @@ export const SEND_TARGETS = {
         subject: `Invoice 1004 from ${BUSINESS}`,
         bodyHtml: paragraphs([
             `Hello ${HARBORVIEW.display_name},`,
-            `Attached is invoice 1004 from ${BUSINESS}.`,
+            `Attached is invoice 1004 from ${BUSINESS_SENTENCE}`,
             'Invoice date: Oct 21, 2026<br>Due date: Nov 20, 2026<br>Total: $2,111.77<br><strong>Balance due: $2,111.77</strong>',
             INVOICE_MESSAGE_HTML,
             `View this invoice online:<br>${linkHtml(POSTED_LINK)}`,
@@ -158,7 +161,7 @@ export const SEND_TARGETS = {
         subject: `Estimate 1001 from ${BUSINESS}`,
         bodyHtml: paragraphs([
             `Hello ${HARBORVIEW.display_name},`,
-            `Attached is estimate 1001 from ${BUSINESS}.`,
+            `Attached is estimate 1001 from ${BUSINESS_SENTENCE}`,
             'Estimate date: Nov 2, 2026<br>Expires: Jan 15, 2027<br>Total: $2,111.77',
             'Thank you for the chance to quote this work. Prices hold until the expiration date.',
             `To accept or decline this estimate, open:<br>${linkHtml(ESTIMATE_LINK)}`,
@@ -180,7 +183,7 @@ export const SEND_TARGETS = {
         subject: `Sales receipt 2003 from ${BUSINESS}`,
         bodyHtml: paragraphs([
             `Hello ${ALVAREZ.display_name},`,
-            `Attached is sales receipt 2003 from ${BUSINESS}.`,
+            `Attached is sales receipt 2003 from ${BUSINESS_SENTENCE}`,
             'Date: Nov 10, 2026<br>Total: $1,250.00<br>Paid. No payment is due.',
             `To ask about this sales receipt, reply to this email or call ${PHONE}.`,
         ]),
@@ -198,7 +201,7 @@ export const SEND_TARGETS = {
         subject: `Credit memo 3001 from ${BUSINESS}`,
         bodyHtml: paragraphs([
             `Hello ${NORTHWIND.display_name},`,
-            `Attached is credit memo 3001 from ${BUSINESS}.`,
+            `Attached is credit memo 3001 from ${BUSINESS_SENTENCE}`,
             'Date: Nov 12, 2026<br>Credit: $344.00<br>Unapplied credit: $120.00',
             `To ask about this credit memo, reply to this email or call ${PHONE}.`,
         ]),
@@ -216,7 +219,7 @@ export const SEND_TARGETS = {
         subject: `Refund receipt 4001 from ${BUSINESS}`,
         bodyHtml: paragraphs([
             `Hello ${ALVAREZ.display_name},`,
-            `Attached is refund receipt 4001 from ${BUSINESS}.`,
+            `Attached is refund receipt 4001 from ${BUSINESS_SENTENCE}`,
             'Date: Nov 13, 2026<br>Refund: $180.00',
             `To ask about this refund receipt, reply to this email or call ${PHONE}.`,
         ]),
@@ -252,7 +255,7 @@ export const SEND_TARGETS = {
 // content scrolls.
 export const FORMATTED_BODY_HTML = [
     `<p>Hello ${HARBORVIEW.display_name},</p>`,
-    `<p>Attached is invoice 1004 from ${BUSINESS}. <strong>Please note the new bank details</strong> before you pay; the <em>old account closes</em> on <u>Nov 30, 2026</u>.</p>`,
+    `<p>Attached is invoice 1004 from ${BUSINESS_SENTENCE} <strong>Please note the new bank details</strong> before you pay; the <em>old account closes</em> on <u>Nov 30, 2026</u>.</p>`,
     '<p>What this invoice covers:</p>',
     '<ul><li>October catch-up bookkeeping</li><li>Wi-Fi refresh for the front office, six access points</li><li>One on-site visit</li></ul>',
     '<p>To pay:</p>',
@@ -294,7 +297,7 @@ export const SEND_REFUSAL =
 
 const SEND_BODY_TEXT = [
     `Hello ${HARBORVIEW.display_name},`,
-    `Attached is invoice 1004 from ${BUSINESS}.`,
+    `Attached is invoice 1004 from ${BUSINESS_SENTENCE}`,
     'Invoice date: Oct 21, 2026\nDue date: Nov 20, 2026\nTotal: $2,111.77\nBalance due: $2,111.77',
     'Thank you for your business. Please pay by bank transfer or check to Fern & Ledger Bookkeeping, and put the invoice number on the payment.',
     `View this invoice online:\n${POSTED_LINK}`,
@@ -304,7 +307,7 @@ const SEND_BODY_TEXT = [
 // The text of SEND_TARGETS.estimate.bodyHtml, block for block.
 const ESTIMATE_BODY_TEXT = [
     `Hello ${HARBORVIEW.display_name},`,
-    `Attached is estimate 1001 from ${BUSINESS}.`,
+    `Attached is estimate 1001 from ${BUSINESS_SENTENCE}`,
     'Estimate date: Nov 2, 2026\nExpires: Jan 15, 2027\nTotal: $2,111.77',
     'Thank you for the chance to quote this work. Prices hold until the expiration date.',
     `To accept or decline this estimate, open:\n${ESTIMATE_LINK}`,

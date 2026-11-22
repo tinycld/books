@@ -138,7 +138,7 @@ export const DOC_TYPE = [
     { value: 'statement', label: 'Statement' },
 ]
 // The five kinds a send's doc_type takes (migration 2100000034; Go `sendDocTypes` in
-// server/document_sends.go holds the same list). audit-record-route.ts reads it too.
+// server/document_sends.go holds the same list).
 export const SEND_DOC_TYPES = [
     'invoice',
     'estimate',

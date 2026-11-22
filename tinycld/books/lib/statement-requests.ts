@@ -8,8 +8,8 @@ import { pdfRefusalMessage } from './pdf-download'
 export const STATEMENT_PREVIEW_PATH = '/api/books/statements/preview'
 export const STATEMENT_SEND_PATH = '/api/books/statements/send'
 
-// A refusal of a statement route, shaped as PocketBase's own (`status`, `response.message`),
-// so lib/refusal.ts reads its message.
+// A refusal of a Books route that postBooksRoute posts to, shaped as PocketBase's own
+// (`status`, `response.message`), so lib/refusal.ts reads its message.
 export class StatementRouteError extends Error {
     readonly status: number
     readonly response: { message: string; data: Record<string, never> }
@@ -24,11 +24,11 @@ export class StatementRouteError extends Error {
 }
 
 /**
- * Posts `body` as JSON to a statement route. A refusal throws a StatementRouteError with
- * the server's message; a fetch that never reached the server throws core's
- * ServerUnreachableError.
+ * Posts `body` as JSON to a Books route (the statement routes, the document send). A
+ * refusal throws a StatementRouteError with the server's message; a fetch that never
+ * reached the server throws core's ServerUnreachableError.
  */
-export async function postStatementRoute(path: string, body: unknown): Promise<Response> {
+export async function postBooksRoute(path: string, body: unknown): Promise<Response> {
     const response = await serverFetch(pb.buildURL(path), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
