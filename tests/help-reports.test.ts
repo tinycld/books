@@ -827,6 +827,38 @@ describe('help/reports.md', () => {
         it.each(live)('says a copy of %s does not update', name => {
             expect(sentenceWith('A copy that you keep with Save as')).toContain(name.toLowerCase())
         })
+
+        // Plan D11 (checkpoint 3): the Expenses by Vendor ships Live: false, so it
+        // shows Refresh, and a copy of it with Save as shows Refresh too.
+        it('does not list the Expenses by Vendor among the reports that stay current', () => {
+            expect(sentenceWith('stay current: they run again')).not.toContain(
+                'the expenses by vendor'
+            )
+            expect(sentenceWith('When someone saves a change')).not.toContain(
+                'the expenses by vendor'
+            )
+        })
+
+        it('says the Expenses by Vendor shows Refresh', () => {
+            const refresh = sentences.filter(
+                s =>
+                    s.includes('Expenses by Vendor') &&
+                    /\bRefresh\b/.test(s) &&
+                    !s.includes('stay current') &&
+                    !s.includes('When someone saves a change') &&
+                    !s.includes('A copy that you keep with Save as')
+            )
+            expect(
+                refresh,
+                'a sentence that says the Expenses by Vendor shows Refresh'
+            ).not.toEqual([])
+        })
+
+        it('says a copy of the Expenses by Vendor does not update', () => {
+            expect(sentenceWith('A copy that you keep with Save as')).toContain(
+                'the expenses by vendor'
+            )
+        })
     })
 
     // Vendor Balance checkpoint 4 (spec §3 "Help").
@@ -977,6 +1009,12 @@ describe('help/reports.md', () => {
 
         it('says to read the Vendor Balance for what is still owed', () => {
             expect(oneSentence(/\bVendor Balance\b/, /\b(owe|owed|owes)\b/i)).toBe(true)
+        })
+
+        // Plan D11 (checkpoint 3): the report ships Live: false.
+        it('says the report shows Refresh and does not say it stays current', () => {
+            expect(oneSentence(/\bRefresh\b/)).toBe(true)
+            expect(expenses).not.toMatch(/\bstays? current\b/i)
         })
 
         it('says that on Cash an opened vendor also shows the rows that take an unpaid bill out', () => {

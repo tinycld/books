@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test'
+import { expect, type Page, type Request, test } from '@playwright/test'
 import { navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { AP_AGING_TITLE } from '~/tinycld/books/lib/ap-aging-fixture'
 import {
@@ -25,7 +25,10 @@ import {
     expectedHeading,
     expectTableFits,
     exportReport,
+    MANUAL_NOTE,
+    manualBand,
     type ReportSnapshot,
+    refreshReport,
     reportSnapshot,
     reportSnapshotAtTop,
     snapshotWhen,
@@ -95,6 +98,21 @@ async function openFor(page: Page, names: readonly string[]): Promise<void> {
     await openExpensesByVendor(page)
     await filterToVendors(page, names)
     await chooseDay(page, today)
+}
+
+// The change-signal topics (core changesignal.Topic) of the ledger tables the report
+// reads: a live report subscribes to them and runs again on each of their signals.
+const LEDGER_TOPICS = [
+    'collection/books_journal_lines',
+    'collection/books_cash_basis_lines',
+    'collection/books_journal_entries',
+]
+
+// The topics of one realtime subscribe request (`{ clientId, subscriptions }`).
+function realtimeTopics(request: Request): string[] {
+    const body = request.postDataJSON() as { subscriptions?: unknown } | null
+    const topics = body?.subscriptions
+    return Array.isArray(topics) ? topics.filter(t => typeof t === 'string') : []
 }
 
 // The vendor rows' labels of one snapshot, top to bottom.
@@ -388,7 +406,22 @@ test.describe('expenses-by-vendor: report', () => {
         expect(expenseCents(opened, vendor.name)).toBe(10000)
     })
 
-    test('an open report follows a bill posted in another window', async ({ page }) => {
+    // Plan D11 (human, 2026-11-21): the report is not live. It shows core's note and
+    // Refresh, and a post made in another window shows only after Refresh.
+    test('an open report shows Refresh, and a bill posted in another window shows after Refresh', async ({
+        page,
+    }) => {
+        // Every report run `page` sends, and the topic set of each realtime subscribe
+        // it sends (each subscribe carries the client's whole set).
+        const runs: (string | null)[] = []
+        let subscribed: string[] = []
+        page.on('request', request => {
+            const path = new URL(request.url()).pathname
+            if (request.method() !== 'POST') return
+            if (path === '/api/reports/run') runs.push(request.postData())
+            if (path === '/api/realtime') subscribed = realtimeTopics(request)
+        })
+
         await openBooks(page, DESKTOP)
         const due = await localDay(page, 30)
         const { vendor } = await apVendorWithBill(page, { amount: '250.00', due })
@@ -401,6 +434,14 @@ test.describe('expenses-by-vendor: report', () => {
             `${vendor.name} reads 250.00 with its one bill`
         )
         expect(expenseCents(before, 'Total')).toBe(25000)
+        const { note, refresh } = manualBand(page)
+        await expect(note).toHaveText(MANUAL_NOTE)
+        await expect(refresh).toBeVisible()
+        // The open report's own body: a run with another body (another worker's share
+        // or save of another report) is not a re-run of this one.
+        const openBody = runs.at(-1)
+        expect(openBody, 'the open report sent its run').toBeTruthy()
+        const runsBeforePost = runs.length
 
         // The report stays open on `page`; a second window of the same session posts.
         const poster = await page.context().newPage()
@@ -413,13 +454,25 @@ test.describe('expenses-by-vendor: report', () => {
             await poster.close()
         }
 
-        const live = await snapshotWhen(
+        // A report re-runs by itself only on a change signal of a table it reads, and a
+        // signal reaches `page` only for a topic it subscribes to. A live report
+        // subscribes to its ledger tables once its run lands, long before the post
+        // ends; this one holds none, so no change of the post can reach it, however
+        // late the reads below come.
+        expect(subscribed.filter(topic => LEDGER_TOPICS.includes(topic))).toEqual([])
+        const unchanged = await reportSnapshot(page)
+        expect(expenseCents(unchanged, vendor.name)).toBe(25000)
+        expect(expenseCents(unchanged, 'Total')).toBe(25000)
+        expect(runs.slice(runsBeforePost).filter(body => body === openBody)).toEqual([])
+
+        await refreshReport(page)
+        const refreshed = await snapshotWhen(
             page,
             reportSnapshot,
             s => expenseCents(s, vendor.name) === 32500,
-            `${vendor.name} reads 325.00 in the open report with no action on it`
+            `${vendor.name} reads 325.00 in the open report after Refresh`
         )
-        expect(expenseCents(live, 'Total')).toBe(32500)
+        expect(expenseCents(refreshed, 'Total')).toBe(32500)
     })
 
     test("the seeded book: an inactive vendor marked, the long name, No vendor last, and a CSV that lists every vendor's lines", async ({

@@ -159,7 +159,7 @@ func runEBVErr(t *testing.T, app core.App, reader *core.Record, params map[strin
 	}
 	return reports.Run(context.Background(), app, reports.Request{
 		Spec: spec, Loaded: info, Params: given, Options: opts, Auth: reader,
-		Headers: readerInfo(reader).Headers,
+		Headers: readerInfo(reader).Headers, Live: expensesByVendorShipped().Live,
 	})
 }
 
@@ -1590,19 +1590,13 @@ func TestExpensesByVendorTopics(t *testing.T) {
 	if lines := ebvLinesUnder(t, opened, ebvVendorRow(t, opened, v)); len(lines) == 0 {
 		t.Fatalf("Topic Co did not open; rows %q", bsLabels(opened))
 	}
-	// The six topics of the spec, and the three of the access rules the run reads:
-	// core adds the collections a source's view rule names (the books_journal_lines
-	// rule reads books_admins, org_pkg_access and users), because a change there
-	// changes which rows the reader sees.
-	want := []string{
-		"collection/books_accounts", "collection/books_admins", "collection/books_cash_basis_lines",
-		"collection/books_journal_entries", "collection/books_journal_lines", "collection/books_settings",
-		"collection/books_vendors", "collection/org_pkg_access", "collection/users",
-	}
-	got := slices.Sorted(slices.Values(opened.Topics))
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("the opened run's topics = %v, want exactly %v", got, want)
-	}
+	// Plan D11 (human, 2026-11-21): the report reads books.basis_lines, a source
+	// core marks NotLive, and ships with Live false, as the six journal-line
+	// reports do: each run is manual and follows no topic; the reader presses
+	// Refresh. Core sets Manual and leaves Topics empty (reports/run.go).
+	requireManual(t, closed)
+	requireManual(t, opened)
+	requireManual(t, b.run(t, map[string]any{"period": ebvOctober}))
 	requireNoDrift(t, b.app)
 }
 
