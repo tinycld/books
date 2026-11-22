@@ -74,7 +74,7 @@ describe('registries', () => {
         })
     })
 
-    it('NEW_ACTIONS has an available Product or service action in the other column, after Transfer', () => {
+    it('NEW_ACTIONS has an available Product or service action in the other column, after Bank deposit', () => {
         const product = NEW_ACTIONS.find(a => a.id === 'product')
         expect(product).toEqual({
             id: 'product',
@@ -85,7 +85,8 @@ describe('registries', () => {
         })
         const ids = NEW_ACTIONS.map(a => a.id)
         expect(ids.indexOf('transfer')).toBe(ids.indexOf('journal-entry') + 1)
-        expect(ids.indexOf('product')).toBe(ids.indexOf('transfer') + 1)
+        expect(ids.indexOf('deposit')).toBe(ids.indexOf('transfer') + 1)
+        expect(ids.indexOf('product')).toBe(ids.indexOf('deposit') + 1)
     })
 
     it('NEW_ACTIONS has an available Transfer action in the other column at books/transfers/new', () => {
@@ -98,11 +99,12 @@ describe('registries', () => {
         })
     })
 
-    it('the New menu Other column lists Journal entry, then Transfer, then Product or service', () => {
+    it('the New menu Other column lists Journal entry, then Transfer, then Bank deposit, then Product or service', () => {
         const other = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Other')
         expect(other?.actions.map(a => a.label)).toEqual([
             'Journal entry',
             'Transfer',
+            'Bank deposit',
             'Product or service',
         ])
     })

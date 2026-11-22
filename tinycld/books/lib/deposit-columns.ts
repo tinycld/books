@@ -9,6 +9,8 @@ const FIXED_COLUMN = 44
 // as the grids draw them.
 export const DEPOSIT_CELL_GAP = 12
 export const DEPOSIT_ROW_PADDING = 8
+// From an item card's right edge to its amount's: the card's padding (`p-3`) and border.
+export const DEPOSIT_CARD_INSET = 12 + 1
 
 type Column = { readonly width: number } | { readonly flex: number; readonly minWidth: number }
 

@@ -1,6 +1,16 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
-import { DESKTOP } from './account-register-helpers'
+import { CUSTOMER_IDS, CUSTOMERS } from '../../tinycld/books/lib/customer-form-fixture'
+import { DESKTOP, isPhone } from './account-register-helpers'
+import { lineCellTestId } from './invoice-helpers'
+import { openEntriesList } from './journal-entries-helpers'
+import {
+    chooseReceiptSelect,
+    openNewSalesReceipt,
+    pickReceiptCustomer,
+    pickReceiptLineProduct,
+    SALES_RECEIPT_URL,
+} from './sales-receipt-helpers'
 
 // A deposit's own screen: `books/deposits/<id>`, never `.../new`.
 export const DEPOSIT_URL = /\/books\/deposits\/(?!new(?:[?#]|$))[^/?#]+$/
@@ -72,4 +82,119 @@ export async function openDepositBySearch(page: Page, memo: string) {
     await expect(
         shownDeposit(page, 'deposit-form').or(shownDeposit(page, 'deposit-read-only'))
     ).toBeVisible()
+}
+
+// A fresh deposit form: `books/deposits/new`.
+export const NEW_DEPOSIT_URL = /\/books\/deposits\/new(?:[?#].*)?$/
+
+// Northwind Traders is tax exempt, so a receipt for it totals its rate.
+export const RECEIPT_CUSTOMER = customerName(CUSTOMER_IDS.northwind)
+export const OTHER_RECEIPT_CUSTOMER = customerName(CUSTOMER_IDS.harborview)
+
+function customerName(id: string) {
+    const row = CUSTOMERS.find(candidate => candidate.id === id)
+    if (!row) throw new Error(`no customer ${id} in the fixture`)
+    return row.display_name
+}
+
+// Year-end tax preparation: a service, never taxed.
+const SERVICE = 'Year-end tax preparation'
+
+// A per-run reference no. (at most 40 characters) that finds an item row by its Payment text.
+export function uniqueReference(label: string) {
+    return `${label}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+}
+
+/**
+ * Books must already be open. Posts a sales receipt dated today to the default deposit
+ * account (1200 Undeposited funds in either settings mode), paid by check with this
+ * reference no. and memo, for `amount` ("123.45") on one service line. Returns its number.
+ * Leaves the page on the receipt's read view.
+ */
+export async function postUndepositedReceipt(
+    page: Page,
+    input: { reference: string; memo: string; amount: string; customer?: string }
+): Promise<{ number: string }> {
+    await openNewSalesReceipt(page)
+    await pickReceiptCustomer(page, input.customer ?? RECEIPT_CUSTOMER)
+    const rowId = await pickReceiptLineProduct(page, 0, SERVICE)
+    await page.getByTestId(lineCellTestId(rowId, 'rate')).fill(input.amount)
+    await chooseReceiptSelect(page, 'payment_method', 'Check')
+    await page.getByTestId('form-input-reference_no').fill(input.reference)
+    await page.getByTestId('form-input-memo').fill(input.memo)
+    await page.getByTestId('sales-receipt-post').click()
+    await expect(page.getByTestId('sales-receipt-read-only')).toBeVisible()
+    await expect(page).toHaveURL(SALES_RECEIPT_URL)
+    const title = page.getByTestId('sales-receipt-title')
+    await expect(title).toHaveText(/^Sales receipt \d+$/)
+    const number = /^Sales receipt (\d+)$/.exec(await title.innerText())?.[1]
+    if (!number) throw new Error('the read view title has no number')
+    return { number }
+}
+
+// The shown form's item row or card whose Payment text is "Check · <reference>". The row's
+// own test id is `deposit-item-<lineId>`; its tick, link and error have longer ones.
+export function depositItemRow(page: Page, reference: string): Locator {
+    return page
+        .locator(
+            '[data-testid^="deposit-item-"]:not([data-testid^="deposit-item-tick-"]):not([data-testid^="deposit-item-link-"]):not([data-testid^="deposit-item-error-"])'
+        )
+        .filter({ has: page.getByText(`Check · ${reference}`, { exact: true }), visible: true })
+}
+
+// The journal line id of an item row, from its test id.
+export async function depositItemLineId(page: Page, reference: string): Promise<string> {
+    const row = depositItemRow(page, reference)
+    await expect(row).toBeVisible()
+    const testId = await row.getAttribute('data-testid')
+    const id = testId?.slice('deposit-item-'.length)
+    if (!id) throw new Error(`no item row for ${reference}`)
+    return id
+}
+
+export async function depositItemTick(page: Page, reference: string): Promise<Locator> {
+    const id = await depositItemLineId(page, reference)
+    return shownDeposit(page, `deposit-item-tick-${id}`)
+}
+
+// Books must already be open. Reaches the Journal Entries list from the screen on top, the
+// way a user would: a deposit's own Back, or the sidebar from any other screen. A list pushed
+// earlier stays mounted but hidden under the screens above it, so only the visible list counts.
+async function showEntriesList(page: Page) {
+    const shownEntries = page.getByTestId('entries-screen').filter({ visible: true })
+    const depositBack = shownDeposit(page, 'deposit-back')
+    if (await depositBack.isVisible()) {
+        await depositBack.click()
+        await expect(shownEntries).toBeVisible()
+        return
+    }
+    if (await shownEntries.isVisible()) return
+    if (isPhone(page) || !(await page.getByTestId('entries-screen').count())) {
+        await openEntriesList(page)
+        return
+    }
+    const navItem = page.getByTestId('books-nav-entries')
+    if (!(await navItem.isVisible())) await page.getByTestId('books-nav-accounting-toggle').click()
+    await navItem.click()
+    await expect(shownEntries).toBeVisible()
+}
+
+// Books must already be open. + New → Bank deposit, from the Journal Entries list.
+export async function openNewDeposit(page: Page) {
+    await showEntriesList(page)
+    if (isPhone(page)) {
+        await page.getByLabel('New', { exact: true }).click()
+    } else {
+        await page.getByText('New', { exact: true }).filter({ visible: true }).click()
+    }
+    await page.getByTestId('books-new-deposit').click()
+    await expect(page).toHaveURL(NEW_DEPOSIT_URL)
+    await expect(shownDeposit(page, 'deposit-form')).toBeVisible()
+}
+
+// Ticks the own item by pressing its tick box, and waits for the tick.
+export async function tickDepositItem(page: Page, reference: string) {
+    const tick = await depositItemTick(page, reference)
+    await tick.click()
+    await expect(tick).toHaveAttribute('aria-checked', 'true')
 }
