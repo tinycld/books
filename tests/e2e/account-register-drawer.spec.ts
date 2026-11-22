@@ -170,25 +170,29 @@ test.describe('account-register: cards and drawer', () => {
 
         const panel = drawer(page)
         await expect(panel).toBeVisible()
-        await expect(sale).toHaveClass(ACCENT)
         await expect(panel).toHaveCount(1)
         await expect(page.getByRole('complementary', { name: /Entry/ })).toBeVisible()
         await expect(page.getByRole('dialog')).toHaveCount(0)
         await expect(page.getByTestId('register-drawer-backdrop')).toHaveCount(0)
         await expect(memo).toContainText(REGISTER_SEED.sale)
         await expect(page.locator(LINES)).toHaveCount(2)
+        // Beside the drawer the list is too narrow for the table's columns, so it draws cards.
+        await expect(page.getByTestId('register-cards')).toBeVisible()
+        await expect(page.getByTestId('register-table')).toHaveCount(0)
+        await expect(await cardByMemo(page, REGISTER_SEED.sale)).toHaveClass(ACCENT)
 
-        // Inline, nothing covers the table, so another row replaces the open entry.
-        await (await rowByMemo(page, REGISTER_SEED.split)).click()
+        // Inline, nothing covers the list, so another card replaces the open entry.
+        await (await cardByMemo(page, REGISTER_SEED.split)).click()
         await expect(memo).toContainText(REGISTER_SEED.split)
         await expect(page.locator(LINES)).toHaveCount(3)
-        await (await rowByMemo(page, REGISTER_SEED.sale)).click()
+        await (await cardByMemo(page, REGISTER_SEED.sale)).click()
         await expect(memo).toContainText(REGISTER_SEED.sale)
 
         await page.getByTestId('register-drawer-close').click()
         await expect(panel).not.toBeVisible()
         await expect.poll(() => panel.count()).toBe(0)
-        await expect(sale).not.toHaveClass(ACCENT)
+        await expect(page.getByTestId('register-table')).toBeVisible()
+        await expect(await rowByMemo(page, REGISTER_SEED.sale)).not.toHaveClass(ACCENT)
 
         await sale.focus()
         await page.keyboard.press('Enter')
@@ -225,8 +229,10 @@ test.describe('account-register: cards and drawer', () => {
 
     test('tablet: the drawer is an overlay with a backdrop', async ({ page }) => {
         await openChecking(page, TABLET)
-        await expect(page.getByTestId('register-table')).toBeVisible()
-        await (await rowByMemo(page, REGISTER_SEED.sale)).click()
+        // At 900 the list is narrower than the table's own minimum width, so it draws cards.
+        await expect(page.getByTestId('register-cards')).toBeVisible()
+        await expect(page.getByTestId('register-table')).toHaveCount(0)
+        await (await cardByMemo(page, REGISTER_SEED.sale)).click()
 
         await expect(drawer(page)).toBeVisible()
         await expect(page.getByRole('dialog', { name: /Entry/ })).toBeVisible()
