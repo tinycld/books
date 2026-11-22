@@ -154,6 +154,9 @@ func newReversalDraft(tx core.App, target *core.Record, origin, date, memo, crea
 	rev.Set("origin", origin)
 	rev.Set("reverses", target.Id)
 	rev.Set("memo", memo)
+	// A reversal of a card payment's entry is a card payment too, so the
+	// reversal cancels the original in the same 1099 column.
+	rev.Set("card_payment", target.GetBool("card_payment"))
 	rev.Set("created_by", createdBy)
 	if err := tx.Save(rev); err != nil {
 		return nil, fmt.Errorf("books: write reversal of %s: %w", target.Id, err)

@@ -22,6 +22,7 @@ import {
     takesClickAtCenter,
     textLeft,
     textTop,
+    vendorEntries,
     vendorEntry,
     vendorIdOf,
 } from './vendor-form-helpers'
@@ -350,7 +351,8 @@ test.describe('vendor-form: vendors list', () => {
             }
 
             // (4) A vendor's lines: name, then company (only when it differs), email, phone.
-            await searchVendors(page, 'Cascade')
+            // Not 'Cascade' alone: other specs create 'Cascade Mountain …' vendors.
+            await searchVendors(page, 'Cascade Fuel')
             await expectEntriesInOrder(page, [CASCADE])
             if (phone) {
                 const card = vendorEntry(page, CASCADE)
@@ -419,7 +421,11 @@ test.describe('vendor-form: vendors list', () => {
             await page.getByTestId('vendors-clear-search').click()
             await expect(page.getByTestId('vendors-search')).toHaveValue('')
             await expect(noMatch).toHaveCount(0)
-            await expect(vendorEntry(page, OFFICE_SUPPLY)).toBeVisible()
+            // Other specs add vendors that sort before any seeded name and push it out of
+            // the window, so the step names no row: the list shows rows again.
+            const shown = vendorEntries(page)
+            await expect(shown.first()).toBeVisible()
+            await expect.poll(() => shown.count()).toBeGreaterThan(1)
 
             // (9) Layout.
             if (phone) {

@@ -11,6 +11,12 @@ import type {
     ResultRow,
     RunResult,
 } from '@tinycld/core/reports/lib/types'
+import type {
+    BooksExpenseLines,
+    BooksExpenses,
+    BooksJournalEntries,
+    BooksJournalLines,
+} from '../types'
 import { BOX_1099_KEYS, type Box1099Key, box1099Label } from './form-1099'
 import { SETTINGS_1099, VENDORS_1099, type Vendor1099Row } from './vendor-1099-fixture'
 
@@ -686,3 +692,78 @@ check(
     report1099Result().rows.find(row => row.label.startsWith(WILLAMETTE)),
     REPORT_1099_TOTALS.willamette
 )
+
+// --- The seed rows of the 1099 report (plan D5); `seedForm1099` in seed.ts writes them. ---
+
+// No test file and no other fixture names this day.
+const SEED_1099_DAY = '2026-09-23'
+
+// A line as the seed sends it: `account` holds a seed account number, which the seed maps
+// to the created account; a blank `vendor` names no vendor.
+type Seed1099Line = Pick<BooksJournalLines, 'account' | 'debit' | 'credit' | 'vendor'>
+type Seed1099ExpenseLine = Pick<BooksExpenseLines, 'kind' | 'account' | 'amount' | 'description'>
+
+// One posted journal entry that gives the 1099 vendors their payments by box: Jamal Okafor
+// on NEC 1 (6210), MISC 1 (6100) and no box (6200); Greenline Landscaping below the
+// threshold; the inactive Old Town Print Shop exactly at it; the untracked Metro Commercial
+// Properties on a boxed account. The credits and the 2100 debit take the amounts back out,
+// so with the card expense below every account's balance is as it was before the rows.
+const SEED_1099_ENTRY = {
+    date: SEED_1099_DAY,
+    memo: 'Seed 1099: payments by box',
+    lines: [
+        { account: '6210', debit: 240_000, credit: 0, vendor: vendor(OKAFOR).id },
+        { account: '6100', debit: 65_000, credit: 0, vendor: vendor(OKAFOR).id },
+        { account: '6200', debit: 31_000, credit: 0, vendor: vendor(OKAFOR).id },
+        { account: '6210', debit: 125_000, credit: 0, vendor: vendor(GREENLINE).id },
+        { account: '6210', debit: 200_000, credit: 0, vendor: vendor(OLD_TOWN).id },
+        { account: '6100', debit: 90_000, credit: 0, vendor: vendor(METRO).id },
+        { account: '2100', debit: 48_000, credit: 0, vendor: '' },
+        { account: '6210', debit: 0, credit: 613_000, vendor: '' },
+        { account: '6100', debit: 0, credit: 155_000, vendor: '' },
+        { account: '6200', debit: 0, credit: 31_000, vendor: '' },
+    ] satisfies Seed1099Line[],
+} satisfies Pick<BooksJournalEntries, 'date' | 'memo'> & { lines: Seed1099Line[] }
+
+// One posted expense of Jamal Okafor by credit card from the seeded card account 2100, with
+// one account line on 6210. `paid_from` and the line's `account` hold seed account numbers.
+// `card_payment` is the mark the server sets on its entry when it posts it.
+const SEED_1099_CARD_EXPENSE = {
+    date: SEED_1099_DAY,
+    vendor: vendor(OKAFOR).id,
+    paid_from: '2100',
+    payment_method: 'credit_card',
+    card_payment: true,
+    lines: [
+        {
+            kind: 'account',
+            account: '6210',
+            amount: 48_000,
+            description: 'Seed 1099: design software by card',
+        },
+    ] satisfies Seed1099ExpenseLine[],
+} satisfies Pick<BooksExpenses, 'date' | 'vendor' | 'paid_from' | 'payment_method'> & {
+    card_payment: BooksJournalEntries['card_payment']
+    lines: Seed1099ExpenseLine[]
+}
+
+export const REPORT_1099_SEED = {
+    entry: SEED_1099_ENTRY,
+    cardExpense: SEED_1099_CARD_EXPENSE,
+}
+
+const seedNet = (number: string) =>
+    SEED_1099_ENTRY.lines
+        .filter(line => line.account === number)
+        .reduce((sum, line) => sum + line.debit - line.credit, 0) +
+    SEED_1099_CARD_EXPENSE.lines
+        .filter(line => line.account === number)
+        .reduce((sum, line) => sum + line.amount, 0) -
+    (SEED_1099_CARD_EXPENSE.paid_from === number
+        ? SEED_1099_CARD_EXPENSE.lines.reduce((sum, line) => sum + line.amount, 0)
+        : 0)
+for (const number of ['6210', '6100', '6200', '2100']) {
+    if (seedNet(number) !== 0) {
+        throw new Error(`report-1099 fixture: the seed rows move the balance of ${number}`)
+    }
+}

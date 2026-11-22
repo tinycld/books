@@ -146,6 +146,10 @@ type salesDocKind struct {
 	// payout's posted entry); original is nil for a first post. nil is no
 	// step. Only refundReceiptKind sets it.
 	AfterPost func(tx core.App, doc, original *core.Record) error
+	// CardPayment answers the card mark of the entry the document posts
+	// (isCardPayment; documentPost.CardPayment); nil is false. Only expenseKind
+	// sets it.
+	CardPayment func(tx core.App, doc *core.Record) (bool, error)
 }
 
 // isEditableStatus reports whether a person may change a document in status

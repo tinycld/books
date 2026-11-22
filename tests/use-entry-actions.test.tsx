@@ -60,6 +60,7 @@ function entryRow(id: string): BooksJournalEntries {
         reverses: '',
         replaces: '',
         document: '',
+        card_payment: false,
         created: NOW,
         updated: NOW,
     }

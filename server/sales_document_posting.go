@@ -59,7 +59,8 @@ func salesDocName(kind salesDocKind, r *core.Record) string {
 // kind with tax and builds its lines with salesDocPostingLines (the kind's
 // debit or credit account for the total, its line accounts on the other
 // side). It posts the journal entry through postDocument, every line naming
-// the party, and copies the entry's number. A correction voids its original.
+// the party and, for a kind with a CardPayment hook (an expense), its card
+// mark, and copies the entry's number. A correction voids its original.
 // Then the kind's AfterPost runs. A deferred kind (a bill, an invoice;
 // cash_basis.go) rebuilds the cash-basis rows of the document and of its
 // original. A kind that tracks a balance (an invoice, a bill) then writes it:
@@ -141,6 +142,11 @@ func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 	}
 	if original != nil {
 		post.Replaces = original.GetString("entry")
+	}
+	if kind.CardPayment != nil {
+		if post.CardPayment, err = kind.CardPayment(tx, doc); err != nil {
+			return err
+		}
 	}
 	entry, err := postDocument(tx, post)
 	if err != nil {
