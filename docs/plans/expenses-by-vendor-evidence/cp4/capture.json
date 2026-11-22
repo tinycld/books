@@ -1,0 +1,89 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated-phone",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390, 375],
+            "height": 1700,
+            "actions": [
+                { "clickText": "Expenses by Vendor" },
+                { "waitFor": "report-table" },
+                { "waitFor": "Coastal Coffee Roasters (inactive)" },
+                { "pause": 1500 },
+                { "click": "report-document-period" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "opened-phone",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390, 375],
+            "height": 2700,
+            "actions": [
+                { "clickText": "Expenses by Vendor" },
+                { "waitFor": "report-table" },
+                { "waitFor": "Coastal Coffee Roasters (inactive)" },
+                { "pause": 1500 },
+                { "clickText": "Harbor Freight Logistics" },
+                { "pause": 1500 },
+                { "click": "report-document-period" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "cash-phone",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390],
+            "height": 2300,
+            "actions": [
+                { "clickText": "Expenses by Vendor" },
+                { "waitFor": "report-table" },
+                { "waitFor": "Coastal Coffee Roasters (inactive)" },
+                { "click": "report-param-method" },
+                { "click": "report-filter-option-cash" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitFor": "Cash basis" },
+                { "pause": 2000 },
+                { "clickText": "Harbor Freight Logistics" },
+                { "pause": 1500 },
+                { "click": "report-document-period" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "empty-phone",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390],
+            "actions": [
+                { "clickText": "Expenses by Vendor" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-period" },
+                { "click": "report-period-preset-custom" },
+                { "fill": "report-period-from", "value": "2020-01-01" },
+                { "fill": "report-period-to", "value": "2020-01-31" },
+                { "press": "Escape" },
+                { "waitForHidden": "report-period-popover" },
+                { "waitFor": "report-empty" },
+                { "click": "report-document-period" }
+            ]
+        },
+        {
+            "name": "vendors-reports-menu",
+            "url": "/a/books/vendors",
+            "ready": "vendors-reports",
+            "widths": [1280, 390],
+            "actions": [
+                { "click": "vendors-reports" },
+                { "waitFor": "vendors-reports-balance" },
+                { "waitFor": "vendors-reports-aging" },
+                { "waitFor": "vendors-reports-expenses" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}

@@ -290,10 +290,17 @@ func vendorGroup() reports.Group {
 // a group level and a key that reads a column blank above its level, so
 // inner keys that read an item or a line order the opened rows only.
 func vendorSort(net *reports.Node, inner ...reports.SortKey) []reports.SortKey {
+	return vendorSortBy("balance", net, inner...)
+}
+
+// vendorSortBy is vendorSort with the Order value that orders by the vendor's
+// sum of net: "balance" (Largest balance) on the balance reports, "amount"
+// (Largest expenses) on the Expenses by Vendor.
+func vendorSortBy(orderValue string, net *reports.Node, inner ...reports.SortKey) []reports.SortKey {
 	keys := append([]reports.SortKey{}, inner...)
 	return append(keys,
 		reports.SortKey{Formula: op("if", op("isEmpty", rec("byVendor", "id")), lit(1), lit(0))},
-		reports.SortKey{Formula: op("if", op("eq", prm("order"), lit("balance")), op("sum", net), lit(0)), Dir: "desc"},
+		reports.SortKey{Formula: op("if", op("eq", prm("order"), lit(orderValue)), op("sum", net), lit(0)), Dir: "desc"},
 		reports.SortKey{Formula: op("lower", rec("byVendor", "display_name"))},
 	)
 }
@@ -471,14 +478,7 @@ func payableLines(asOf *reports.Node) []*reports.Node {
 func balanceParams(party reports.ParamDef) []reports.ParamDef {
 	return []reports.ParamDef{
 		{ID: "asOf", Type: reports.ParamAsOf, Label: "As of", Default: mustJSON(map[string]string{"preset": "today"})},
-		{
-			ID: "rows", Type: reports.ParamChoice, Label: "Rows",
-			Options: []reports.Option{
-				{Value: "nonzero", Label: "Non-zero"},
-				{Value: "activity", Label: "With activity"},
-			},
-			Default: mustJSON("nonzero"),
-		},
+		rowsParam(),
 		party,
 		{
 			ID: "order", Type: reports.ParamChoice, Label: "Order",
@@ -488,6 +488,20 @@ func balanceParams(party reports.ParamDef) []reports.ParamDef {
 			},
 			Default: mustJSON("name"),
 		},
+	}
+}
+
+// rowsParam is the Rows choice: Non-zero (the default) shows a party whose net
+// is not zero; With activity also shows one whose lines add up to zero
+// (balanceRowsHaving reads it).
+func rowsParam() reports.ParamDef {
+	return reports.ParamDef{
+		ID: "rows", Type: reports.ParamChoice, Label: "Rows",
+		Options: []reports.Option{
+			{Value: "nonzero", Label: "Non-zero"},
+			{Value: "activity", Label: "With activity"},
+		},
+		Default: mustJSON("nonzero"),
 	}
 }
 
@@ -505,23 +519,37 @@ func balanceLineKeys() []reports.SortKey {
 	}
 }
 
+// expenseLineKeys order the opened lines of one vendor of the Expenses by
+// Vendor: balanceLineKeys, then the ledger layer before the cash layer, so a
+// ledger line comes directly above its cash-basis take-out row (they have the
+// same date, posting time and position).
+func expenseLineKeys() []reports.SortKey {
+	return append(balanceLineKeys(),
+		reports.SortKey{Formula: op("if", op("eq", fld("layer"), lit("ledger")), lit(0), lit(1))},
+	)
+}
+
 // balanceDetailLabel labels an opened line "<date> · <type> <number> · <description>".
-// A line with no description has no trailing " · ". A reversal's type label
-// ("Void reversal of 1076") already holds its number when the entry reverses an
-// entry of the same number, so the number is not written again.
+// A line with no description has no trailing " · ".
 func balanceDetailLabel() *reports.Node {
+	description := lineDescriptionFormula()
+	return op("concat",
+		fld("date"), lit(" · "), entryTypeNumber(),
+		op("if", op("isEmpty", description), lit(""), op("concat", lit(" · "), description)),
+	)
+}
+
+// entryTypeNumber is a line's "<type> <number>" ("Bill 1042"). A reversal's
+// type label ("Void reversal of 1076") already holds its number when the entry
+// reverses an entry of the same number, so the number is not written again.
+func entryTypeNumber() *reports.Node {
 	numberInType := op("and",
 		op("in", fld("entry", "origin"), lit(entryTypeLabels.ReversalOrigins)),
 		op("eq", fld("entry", "reverses", "number"), fld("entry", "number")),
 	)
-	typePart := op("if", numberInType,
+	return op("if", numberInType,
 		lineEntryTypeLabel(),
 		op("concat", lineEntryTypeLabel(), lit(" "), fld("entry", "number")),
-	)
-	description := lineDescriptionFormula()
-	return op("concat",
-		fld("date"), lit(" · "), typePart,
-		op("if", op("isEmpty", description), lit(""), op("concat", lit(" · "), description)),
 	)
 }
 

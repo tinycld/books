@@ -192,11 +192,24 @@ type arStat struct {
 	Stat string  `json:"stat"`
 }
 
-// arReading is how the planner sees the statistics: none, the rows given, or
-// a real ANALYZE of the dataset.
+// arStat4 is one sqlite_stat4 row: the samples a real ANALYZE takes of an
+// index, which the planner reads for a range or an IN term.
+type arStat4 struct {
+	Tbl    string `json:"tbl" db:"tbl"`
+	Idx    string `json:"idx" db:"idx"`
+	Neq    string `json:"neq" db:"neq"`
+	Nlt    string `json:"nlt" db:"nlt"`
+	Ndlt   string `json:"ndlt" db:"ndlt"`
+	Sample []byte `json:"sample" db:"sample"`
+}
+
+// arReading is how the planner sees the statistics: none, the rows given
+// (sqlite_stat1, and sqlite_stat4 when stat4 has rows), or a real ANALYZE of
+// the dataset.
 type arReading struct {
 	name    string
 	stats   []arStat
+	stat4   []arStat4
 	analyze bool
 }
 
@@ -243,6 +256,16 @@ func stepsRunPerRow(steps []planStep) []planStep {
 // the steps and, for a real ANALYZE, the sqlite_stat1 rows it wrote.
 func explainReading(t testing.TB, app core.App, reading arReading, statements []string) ([]planStep, []arStat) {
 	t.Helper()
+	steps, stats, _ := explainReadingStats(t, app, reading, statements)
+	return steps, stats
+}
+
+// explainReadingStats is explainReading that also returns, for a real ANALYZE,
+// the sqlite_stat4 rows it wrote. A reading with stat4 rows inserts them into
+// sqlite_stat4 with its sqlite_stat1 rows, so a replay of an ANALYZE gives the
+// planner the same samples.
+func explainReadingStats(t testing.TB, app core.App, reading arReading, statements []string) ([]planStep, []arStat, []arStat4) {
+	t.Helper()
 	db, ok := app.NonconcurrentDB().(*dbx.DB)
 	if !ok {
 		t.Fatalf("the app's builder is %T, want *dbx.DB", app.NonconcurrentDB())
@@ -259,23 +282,37 @@ func explainReading(t testing.TB, app core.App, reading arReading, statements []
 		}
 	}
 	var stats []arStat
+	var samples []arStat4
 	if reading.analyze {
 		exec("ANALYZE", nil)
 		if err := tx.NewQuery("SELECT tbl, idx, stat FROM sqlite_stat1 ORDER BY tbl, idx").All(&stats); err != nil {
 			t.Fatalf("%s: read sqlite_stat1: %v", reading.name, err)
 		}
+		if arHasStat4(tx) {
+			// rowid order is the order ANALYZE wrote them: each index's
+			// samples in key order, as the planner loads them.
+			if err := tx.NewQuery("SELECT tbl, idx, neq, nlt, ndlt, sample FROM sqlite_stat4 ORDER BY rowid").All(&samples); err != nil {
+				t.Fatalf("%s: read sqlite_stat4: %v", reading.name, err)
+			}
+		}
 	} else {
 		// ANALYZE of a small table creates sqlite_stat1 without reading the book.
 		exec("ANALYZE `books_doc_sequences`", nil)
 		exec("DELETE FROM sqlite_stat1", nil)
-		var stat4 int
-		_ = tx.NewQuery("SELECT COUNT(*) FROM sqlite_master WHERE name = 'sqlite_stat4'").Row(&stat4)
-		if stat4 > 0 {
+		hasStat4 := arHasStat4(tx)
+		if hasStat4 {
 			exec("DELETE FROM sqlite_stat4", nil)
 		}
 		for _, s := range reading.stats {
 			exec("INSERT INTO sqlite_stat1 (tbl, idx, stat) VALUES ({:t}, {:i}, {:s})",
 				dbx.Params{"t": s.Tbl, "i": s.Idx, "s": s.Stat})
+		}
+		if len(reading.stat4) > 0 && !hasStat4 {
+			t.Fatalf("%s: the reading has %d sqlite_stat4 rows, but this SQLite has no sqlite_stat4 table", reading.name, len(reading.stat4))
+		}
+		for _, s := range reading.stat4 {
+			exec("INSERT INTO sqlite_stat4 (tbl, idx, neq, nlt, ndlt, sample) VALUES ({:t}, {:i}, {:neq}, {:nlt}, {:ndlt}, {:sample})",
+				dbx.Params{"t": s.Tbl, "i": s.Idx, "neq": s.Neq, "nlt": s.Nlt, "ndlt": s.Ndlt, "sample": s.Sample})
 		}
 		exec("ANALYZE sqlite_schema", nil)
 	}
@@ -312,7 +349,15 @@ func explainReading(t testing.TB, app core.App, reading arReading, statements []
 			steps = append(steps, step)
 		}
 	}
-	return steps, stats
+	return steps, stats, samples
+}
+
+// arHasStat4 reports whether tx's database has a sqlite_stat4 table: ANALYZE
+// creates it when SQLite is built with STAT4.
+func arHasStat4(tx *dbx.Tx) bool {
+	var n int
+	_ = tx.NewQuery("SELECT COUNT(*) FROM sqlite_master WHERE name = {:name}").Bind(dbx.Params{"name": "sqlite_stat4"}).Row(&n)
+	return n > 0
 }
 
 // arSchema is what the plan's names resolve against.
@@ -592,6 +637,28 @@ func arLStats(t testing.TB, file string) []arStat {
 		t.Fatalf("parse the L statistics: %v", err)
 	}
 	return stats
+}
+
+// arStatsFile is a testdata statistics file with the sqlite_stat1 and the
+// sqlite_stat4 rows of one real ANALYZE (written by a BOOKS_SCALE run).
+type arStatsFile struct {
+	Stat1 []arStat  `json:"stat1"`
+	Stat4 []arStat4 `json:"stat4"`
+}
+
+// arLStatReading is the reading named name that replays the sqlite_stat1 and
+// sqlite_stat4 rows of testdata/file (an arStatsFile).
+func arLStatReading(t testing.TB, name, file string) arReading {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("testdata", file))
+	if err != nil {
+		t.Fatalf("read the L statistics: %v", err)
+	}
+	var stats arStatsFile
+	if err := json.Unmarshal(raw, &stats); err != nil {
+		t.Fatalf("parse the L statistics: %v", err)
+	}
+	return arReading{name: name, stats: stats.Stat1, stat4: stats.Stat4}
 }
 
 // arPlanRecorder takes the failures checkPlanBars reports, so a test can
