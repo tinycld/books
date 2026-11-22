@@ -54,6 +54,11 @@ func Register(app *pocketbase.PocketBase) {
 	// the journal lines with their entry, and the matched lines.
 	changesignal.RegisterView("books_bank_match_suggestions", "books_bank_transactions", "books_journal_lines",
 		"books_journal_entries", "books_bank_match_lines", "books_bank_connections")
+	// The reconcile lines read the journal lines with their account, entry and
+	// party, the cleared rows, and the matched lines.
+	changesignal.RegisterView(reconcileLinesView, "books_journal_lines", "books_journal_entries", "books_accounts",
+		"books_customers", "books_vendors", reconciliationLinesCollection, reconciliationsCollection,
+		bankMatchLinesCollection)
 	for _, s := range reportSources() {
 		reports.RegisterSource(s)
 	}
@@ -83,6 +88,7 @@ func Register(app *pocketbase.PocketBase) {
 	registerOffboard()
 	registerAutoReverseSweep(app)
 	registerStatementGuards(app)
+	registerReconcile(app)
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		bindBalanceRoutes(e)
 		bindPDFRoutes(e)

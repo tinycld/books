@@ -22,6 +22,11 @@ import { describe, expect, it } from 'vitest'
 // migration takes 2100000029, the number left free between the receivable items and the
 // bank matches, after the bills, bill payments, vendor credits and vendor refunds it
 // reads; books_payable_items is stored, not audited, and the audit view does not read it.
+// Reconcile spec §4 Schema: the reconciliations take the next free number at build time,
+// after the audit view, which reads none of their collections (books_reconciliations is
+// audited through the audit_logs rows the core audit writes, not through the view's LINES).
+// The number is not named here: the file is found by its suffix, so a rename to the next
+// free number before the unit merges changes no test.
 
 const MIGRATIONS_DIR = join(__dirname, '..', 'pb-migrations')
 
@@ -31,7 +36,11 @@ const MIGRATIONS = readdirSync(MIGRATIONS_DIR)
 
 const AUDIT = '2100000034_create_books_audit_log.js'
 
-const AFTER_AUDIT: string[] = ['2100000035_create_books_bank_categorizations.js']
+const RECONCILE_SUFFIX = '_create_books_reconciliations.js'
+
+const RECONCILE = MIGRATIONS.filter(file => file.endsWith(RECONCILE_SUFFIX))
+
+const AFTER_AUDIT: string[] = ['2100000035_create_books_bank_categorizations.js', ...RECONCILE]
 
 function prefixOf(file: string): string {
     return file.split('_')[0] ?? file
@@ -74,8 +83,20 @@ describe('pb-migrations prefixes', () => {
     })
 
     it('runs only the named later migrations after the audit log view', () => {
+        expect(RECONCILE).toHaveLength(1)
         const afterAudit = MIGRATIONS.filter(file => numberOf(file) > numberOf(AUDIT))
         expect(afterAudit).toEqual(AFTER_AUDIT)
+    })
+
+    it('runs the reconciliations after the audit log view, which reads none of their collections', () => {
+        expect(RECONCILE).toHaveLength(1)
+        const reconcile = RECONCILE[0] ?? ''
+        expect(numberOf(reconcile)).toBeGreaterThan(numberOf(AUDIT))
+        const source = sourceOf(reconcile)
+        const read = auditLineCollections().filter(collection =>
+            source.includes(`name: '${collection}'`)
+        )
+        expect(read).toEqual([])
     })
 
     it('runs the receivable items after the payments and the credit memos', () => {

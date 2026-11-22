@@ -49,6 +49,9 @@ import type {
     BooksExpenses,
     BooksJournalEntries,
     BooksJournalLines,
+    BooksReconcileLines,
+    BooksReconciliationLines,
+    BooksReconciliations,
     BooksSettings,
     BooksTaxAgencies,
     BooksTaxRates,
@@ -1108,6 +1111,14 @@ export function seedBooks(
             'books_bank_match_suggestions',
             []
         ),
+        // Read by the Reconcile screens and the register's Status column; empty unless a
+        // test replaces them.
+        books_reconciliations: local<BooksReconciliations>('books_reconciliations', []),
+        books_reconciliation_lines: local<BooksReconciliationLines>(
+            'books_reconciliation_lines',
+            []
+        ),
+        books_reconcile_lines: local<BooksReconcileLines>('books_reconcile_lines', []),
         books_bank_transactions: onDemandCollection<BooksBankTransactions>(
             'books_bank_transactions',
             opts.bankTransactions ?? [],

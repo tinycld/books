@@ -66,6 +66,16 @@ describe('audit log fixture against the Go golden spec', () => {
         expect(golden.recordTypeOptions).toEqual(AUDIT_RECORD_TYPE_OPTIONS)
     })
 
+    // Reconcile spec §4 Server: a reconciliation is audited; its cleared rows are not.
+    it('offers the reconciliation as a record type, and not its cleared rows', () => {
+        const reconciliation = { value: 'books_reconciliations', label: 'Reconciliation' }
+        expect(AUDIT_RECORD_TYPE_OPTIONS).toContainEqual(reconciliation)
+        expect(golden.recordTypeOptions).toContainEqual(reconciliation)
+        const values = AUDIT_RECORD_TYPE_OPTIONS.map(option => option.value)
+        expect(values).not.toContain('books_reconciliation_lines')
+        expect(values).not.toContain('books_reconcile_lines')
+    })
+
     it('draws the rows with the display the report ships with', () => {
         expect(AUDIT_LOG_DISPLAY).toEqual(golden.display)
         expect(AUDIT_LOG_DISPLAY).toEqual(golden.spec.display)

@@ -174,6 +174,10 @@ const BANK_CATEGORIZATION_KIND = [
     { value: 'categorize', label: 'Categorize' },
     { value: 'transfer', label: 'Transfer' },
 ]
+const RECONCILIATION_STATUS = [
+    { value: 'in_progress', label: 'In progress' },
+    { value: 'finished', label: 'Finished' },
+]
 
 // --- Fields every collection shares. ---
 
@@ -755,6 +759,26 @@ const AUDIT_FIELD_MAPS = {
         connection: relation('Bank connection', 'books_bank_connections'),
         entry: relation('Journal entry', 'books_journal_entries'),
         created_by: relation('Added by', 'users'),
+        ...STAMPS,
+    },
+    // `_out` is the credit side (a bank payment, a card charge), `_in` the debit side.
+    books_reconciliations: {
+        account: relation('Account', 'books_accounts'),
+        statement_date: day('Ending date'),
+        statement_balance: money('Ending balance'),
+        has_statement_totals: bool('Statement totals entered'),
+        statement_out: money('Statement money out'),
+        statement_in: money('Statement money in'),
+        status: select('Status', RECONCILIATION_STATUS),
+        beginning_balance: money('Beginning balance'),
+        cleared_out: money('Cleared money out'),
+        cleared_in: money('Cleared money in'),
+        cleared_out_count: text('Cleared money out count'),
+        cleared_in_count: text('Cleared money in count'),
+        created_by: relation('Started by', 'users'),
+        finished_by: relation('Finished by', 'users'),
+        finished_at: datetime('Finished at'),
+        currency: text('Currency'),
         ...STAMPS,
     },
     books_settings: {

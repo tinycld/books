@@ -102,3 +102,74 @@ describe('Books settings collections with the real pbtsdb', () => {
         expect(rows.get('ovnogrant')?.granter).toBeUndefined()
     })
 })
+
+// Reconcile spec §4 "Reads": the work screen's one lines query reads the view by account
+// and statement date, with materialize() of the cleared row of each line.
+describe('Reconcile collections with the real pbtsdb', () => {
+    it('registers the two reconciliation collections and the lines view', () => {
+        const books = realBooks()
+        expect(books.books_reconciliations).toBeDefined()
+        expect(books.books_reconciliation_lines).toBeDefined()
+        expect(books.books_reconcile_lines).toBeDefined()
+    })
+
+    it('loads the view rows of one account on demand, with the cleared row of each line', async () => {
+        const { books, pb } = realBooksWithUsers()
+        const view = { entry: 'entry0000000001', debit: 0, credit: 2500, memo: '', number: '12' }
+        pb.tables.books_reconcile_lines = [
+            {
+                id: 'line00000000001',
+                line: 'line00000000001',
+                account: 'acctsavings0001',
+                date: '2026-09-10',
+                reconciliation: 'recn00000000001',
+                ...view,
+            },
+            {
+                id: 'line00000000002',
+                line: 'line00000000002',
+                account: 'acctsavings0001',
+                date: '2026-09-12',
+                reconciliation: '',
+                ...view,
+            },
+            {
+                id: 'line00000000003',
+                line: 'line00000000003',
+                account: 'acctchecking001',
+                date: '2026-09-12',
+                reconciliation: '',
+                ...view,
+            },
+        ]
+        pb.tables.books_reconciliation_lines = [
+            {
+                id: 'clear0000000001',
+                reconciliation: 'recn00000000001',
+                line: 'line00000000001',
+                finished: false,
+            },
+        ]
+        const query = createLiveQueryCollection(q =>
+            q
+                .from({ row: books.books_reconcile_lines })
+                .where(({ row }) => eq(row.account, 'acctsavings0001'))
+                .select(({ row }) => ({
+                    ...row,
+                    cleared: materialize(
+                        q
+                            .from({ c: books.books_reconciliation_lines })
+                            .where(({ c }) => eq(c.line, row.line))
+                            .findOne()
+                    ),
+                }))
+        )
+        await query.preload()
+        type Row = { id: string; cleared?: { id: string } }
+        const rows = new Map((query.toArray as Row[]).map(r => [r.id, r]))
+        expect([...rows.keys()].sort()).toEqual(['line00000000001', 'line00000000002'])
+        expect(rows.get('line00000000001')?.cleared?.id).toBe('clear0000000001')
+        expect(rows.get('line00000000002')?.cleared).toBeUndefined()
+        expect(pb.filters.some(filter => filter.includes('acctsavings0001'))).toBe(true)
+    })
+})
