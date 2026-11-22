@@ -12,6 +12,7 @@
 // holds the line (cleared), else ''.
 import type { BooksAccounts, BooksReconcileLines, BooksReconciliations } from '../types'
 import { BANK_ACCOUNT_IDS, BANK_ACCOUNTS, BANK_USERS } from './bank-connection-fixture'
+import { GENERAL_LEDGER_LONG_SECTION } from './general-ledger-fixture'
 
 export const RECONCILE_CURRENCY = 'USD'
 
@@ -370,12 +371,19 @@ export const RECONCILE_CARD_LINES = linesOf('rccd', RECONCILIATION_CARD, CARD_PO
 export const RECONCILE_REVIEW_COUNT = 3
 export const RECONCILE_REVIEW_CONNECTION_ID = 'bankconncheckng'
 
+// The 260 "Daily sweep" debits of the General Ledger's long section on 1010 (seed.ts
+// seedLongSection, dated 2020-09): $260.00. The finished seed reconciliation clears them
+// too, so the one in progress opens on its own rows.
+const SWEEP = GENERAL_LEDGER_LONG_SECTION
+const SWEEP_CENTS = SWEEP.dates.length * SWEEP.linesPerEntry * SWEEP.cents
+
 // What seed.ts posts for Reconcile (spec §4 "Fixture and seed", settled difference 10):
 // four entries of its own on 1010 Business Savings with unique memos and fixed past dates
 // (debit 1010, credit 3000 Owner's Equity), one finished reconciliation that clears the
-// first two ($0.00 + $2,500.00 + $4.12 = $2,504.12), and one in progress that clears the
-// third and leaves the fourth: $2,504.12 + $4.31 = $2,508.43 against a statement of
-// $2,523.43, a difference of $15.00 (the fee refund). `clears` are indexes into `entries`.
+// sweep lines and the first two entries ($0.00 + $260.00 + $2,500.00 + $4.12 = $2,764.12),
+// and one in progress that clears the third and leaves the fourth: $2,764.12 + $4.31 =
+// $2,768.43 against a statement of $2,783.43, a difference of $15.00 (the fee refund).
+// `clears` are indexes into `entries`; the sweep lines are found by their memo and dates.
 // The reconciliations are written as superuser through the same Go hooks; their fixed ids
 // are how a second seed run knows it ran.
 export const RECONCILE_SEED = {
@@ -389,13 +397,13 @@ export const RECONCILE_SEED = {
     finished: {
         id: 'recnseedfinish1',
         statement_date: '2026-08-31',
-        statement_balance: 250_412,
+        statement_balance: SWEEP_CENTS + 250_412,
         clears: [0, 1],
     },
     inProgress: {
         id: 'recnseedprogrs1',
         statement_date: '2026-09-30',
-        statement_balance: 252_343,
+        statement_balance: SWEEP_CENTS + 252_343,
         clears: [2],
     },
 } as const

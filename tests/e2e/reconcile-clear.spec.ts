@@ -3,14 +3,7 @@ import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { RECONCILE_SEED } from '../../tinycld/books/lib/reconcile-fixture'
 import { DESKTOP } from './account-register-helpers'
 import { fakeReadOnlyAccess } from './banking-helpers'
-import {
-    ACCOUNT_LABELS,
-    fillLine,
-    type LineInput,
-    openNewEntry,
-    openOtherBooksPage,
-    postOpenEntry,
-} from './journal-entries-helpers'
+import { ACCOUNT_LABELS, openOtherBooksPage } from './journal-entries-helpers'
 import {
     accountIdOf,
     bandFigure,
@@ -22,6 +15,8 @@ import {
     lineRow,
     openReconcile,
     openWorkScreen,
+    postEntryLines,
+    pressRow,
     shownLineIds,
     startReconciliation,
 } from './reconcile-helpers'
@@ -50,22 +45,6 @@ let account: Account | null = null
 function group(): Account {
     if (!account) throw new Error('beforeAll made no account')
     return account
-}
-
-// Posts one journal entry dated `date` with `lines` (two lines come with the form; the
-// others are added) and waits until the server numbered it.
-async function postEntryLines(
-    page: Page,
-    input: { date: string; memo: string; lines: LineInput[] }
-): Promise<void> {
-    await openNewEntry(page)
-    await page.getByTestId('entry-date').fill(input.date)
-    await page.getByTestId('entry-memo').fill(input.memo)
-    for (const [index, line] of input.lines.entries()) {
-        if (index >= 2) await page.getByTestId('entry-add-line').click()
-        await fillLine(page, index, line)
-    }
-    await postOpenEntry(page)
 }
 
 // Every request that would clear or unclear a row.
@@ -105,11 +84,6 @@ function rowById(page: Page, lineId: string) {
 
 function boxById(page: Page, lineId: string) {
     return page.getByTestId(`reconcile-check-${lineId}`).filter({ visible: true })
-}
-
-// A press on the row's memo: on the row, away from its link and its box.
-async function pressRow(page: Page, memo: string): Promise<void> {
-    await lineRow(page, memo).getByText(memo, { exact: true }).click()
 }
 
 async function expectShown(page: Page, ids: string[]): Promise<void> {
@@ -427,6 +401,16 @@ test.describe('reconcile: clear transactions', () => {
             new RegExp(`/books/reconcile/${RECONCILE_SEED.inProgress.id}/?$`)
         )
         const work = await visibleScreen(page, 'reconcile-screen')
+        // A reader's header has no action.
+        for (const id of [
+            'reconcile-edit-info',
+            'reconcile-later',
+            'reconcile-finish',
+            'reconcile-more',
+            'reconcile-finish-bar',
+        ]) {
+            await expect(page.getByTestId(id).filter({ visible: true })).toHaveCount(0)
+        }
 
         const clearedMemo = RECONCILE_SEED.entries[RECONCILE_SEED.inProgress.clears[0]].memo
         const openMemo = RECONCILE_SEED.entries[3].memo
@@ -438,6 +422,23 @@ test.describe('reconcile: clear transactions', () => {
         await expect(clearedRow).toBeVisible()
         await expect(openRow).toBeVisible()
         const clearedId = await lineIdOf(clearedRow)
+
+        // The seeded statement is $15.00 above the cleared balance, and the fee refund of
+        // $15.00 is not cleared: the one-transaction hint names it, with no Show for a reader.
+        const openId = await lineIdOf(openRow)
+        const openLabel = (
+            (await page
+                .getByTestId(`reconcile-link-${openId}`)
+                .filter({ visible: true })
+                .textContent()) ?? ''
+        ).trim()
+        // The entry number has the book's prefix ("Journal entry JE-29").
+        expect(openLabel).toMatch(/^Journal entry \S+$/)
+        const hints = work.getByTestId('reconcile-hints')
+        await expect(hints).toContainText(
+            `Clearing ${openLabel} ($15.00) makes the difference zero.`
+        )
+        await expect(work.getByTestId('reconcile-hint-action-one')).toHaveCount(0)
 
         await expect(work.locator('[data-testid^="reconcile-check-"]')).toHaveCount(0)
         await expect(work.getByTestId('reconcile-select-all')).toHaveCount(0)

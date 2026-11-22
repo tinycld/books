@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { createAccount, openChart } from './account-register-helpers'
-import { fillLine, openNewEntry, postOpenEntry } from './journal-entries-helpers'
+import { fillLine, type LineInput, openNewEntry, postOpenEntry } from './journal-entries-helpers'
 import { uniqueName } from './record-form-helpers'
 import { visibleScreen } from './screen-helpers'
 
@@ -73,6 +73,22 @@ export async function postDatedEntry(page: Page, input: DatedEntryInput): Promis
     await postOpenEntry(page)
 }
 
+// Posts one journal entry dated `date` with `lines` (two lines come with the form; the
+// others are added) and waits until the server numbered it.
+export async function postEntryLines(
+    page: Page,
+    input: { date: string; memo: string; lines: LineInput[] }
+): Promise<void> {
+    await openNewEntry(page)
+    await page.getByTestId('entry-date').fill(input.date)
+    await page.getByTestId('entry-memo').fill(input.memo)
+    for (const [index, line] of input.lines.entries()) {
+        if (index >= 2) await page.getByTestId('entry-add-line').click()
+        await fillLine(page, index, line)
+    }
+    await postOpenEntry(page)
+}
+
 // The visible row (wide) or card (phone) of the account named `name` on the accounts screen.
 // The name matches exactly: `hasText` is a caseless substring of the whole row.
 export function accountRow(page: Page, name: string): Locator {
@@ -142,6 +158,22 @@ export function lineRow(page: Page, memo: string): Locator {
     return page
         .locator('[data-testid^="reconcile-row-"]')
         .filter({ has: page.getByText(memo, { exact: true }), visible: true })
+}
+
+// A press on the row's memo: on the row, away from its link and its box (wide table).
+export async function pressRow(page: Page, memo: string): Promise<void> {
+    await lineRow(page, memo).getByText(memo, { exact: true }).click()
+}
+
+// Presses the visible Finish (the wide header's, or the phone's bottom bar's) and waits
+// for the finished summary, which the route shows after the server has answered.
+export async function finishReconciliation(page: Page): Promise<Locator> {
+    const finish = page.getByTestId('reconcile-finish').filter({ visible: true })
+    await expect(finish).toBeEnabled()
+    await finish.click()
+    const finished = page.getByTestId('reconcile-finished').filter({ visible: true })
+    await expect(finished).toBeVisible()
+    return finished
 }
 
 // The clear box of the row that shows `memo`.

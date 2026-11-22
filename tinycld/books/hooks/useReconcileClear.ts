@@ -42,6 +42,8 @@ export type ReconcileClearInput = {
     // The rows the list shows under the filters, for the header box and A.
     shown: readonly ReconcileLineRow[]
     canWrite: boolean
+    // Finish is being sent: the list takes no press until the server has answered.
+    isPaused: boolean
 }
 
 /**
@@ -58,8 +60,9 @@ export type ReconcileClearInput = {
  * parallel, and the result line reads `batchResultText` of its `{ done, failed }`. The
  * batch flag and the result are stamped with the reconciliation the press was made on, so
  * a batch that settles after the screen shows another reconciliation neither disables it
- * nor writes on its result line. While a batch runs or the server takes no writes (core
- * useServerActionState, whose hint goes on the controls), every control here is disabled;
+ * nor writes on its result line. While a batch runs, Finish is sent (`isPaused`) or the
+ * server takes no writes (core useServerActionState, whose hint goes on the controls),
+ * every control here is disabled;
  * a reader gets none. A write on a row whose previous write is still in flight waits for
  * it, and is skipped when the row is then already in the state it asks for.
  *
@@ -76,7 +79,8 @@ export function useReconcileClear(input: ReconcileClearInput) {
     const endBatch = useReconcileStore(s => s.endBatch)
     const setResult = useReconcileStore(s => s.setResult)
     const writes = useServerActionState()
-    const isControlDisabled = !input.canWrite || isBatchRunning || writes.isDisabled
+    const isControlDisabled =
+        !input.canWrite || isBatchRunning || input.isPaused || writes.isDisabled
 
     const startWrite = (row: ReconcileLineRow, action: ReconcileBatchAction, target: string) => {
         if (action === 'unclear') return clearedCollection.delete(row.clearedId)

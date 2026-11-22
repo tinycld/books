@@ -3,7 +3,47 @@ import { activeElementMatches } from './dom-focus'
 
 // The keys of the reconcile work screen's list (reconcile spec §3 "Keys"). Pure, so the
 // key map and when each key may fire are unit-tested (tests/reconcile-shortcuts.test.ts).
-// E, ⌘S and ⌘↵ are the header's ShortcutButtons, not entries of this map.
+// E, ⌘S and ⌘↵ are the header's ShortcutButtons on wide (components/reconcile/
+// ReconcileHeader.tsx), not entries of this map: their keys are the constants below, in the
+// screen's `list` scope. On a phone, where Edit info and Finish later are More menu items,
+// E and ⌘S are registered by headerKeyShortcuts and ⌘↵ is the bar's Finish button.
+
+export const EDIT_KEY = { keys: 'e', scope: 'list' } as const
+export const LATER_KEY = { keys: '$mod+s', scope: 'list' } as const
+export const FINISH_KEY = { keys: '$mod+Enter', scope: 'list' } as const
+
+export type ReconcileHeaderKey = 'edit' | 'later'
+
+const HEADER_KEYS: Record<ReconcileHeaderKey, { keys: string; description: string }> = {
+    edit: { keys: EDIT_KEY.keys, description: 'Edit info' },
+    later: { keys: LATER_KEY.keys, description: 'Finish later' },
+}
+
+const HEADER_ACTIONS: ReconcileHeaderKey[] = ['edit', 'later']
+
+// The phone's E and ⌘S, each only while its menu item is offered (`offered`); `when`
+// re-checks the offer at press time (core's ⇧? list does not read `when`), so a key does
+// nothing while a menu or popover is open.
+export function headerKeyShortcuts(input: {
+    id: string
+    offered: readonly ReconcileHeaderKey[]
+    read: () => { offered: readonly ReconcileHeaderKey[]; isMenuOpen: boolean }
+    run: Record<ReconcileHeaderKey, () => void>
+}): Shortcut[] {
+    const { id, offered, read, run } = input
+    return HEADER_ACTIONS.filter(action => offered.includes(action)).map(action => ({
+        id: `${id}.${action}`,
+        keys: HEADER_KEYS[action].keys,
+        scope: 'list' as const,
+        description: HEADER_KEYS[action].description,
+        group: GROUP,
+        when: () => {
+            const now = read()
+            return !now.isMenuOpen && now.offered.includes(action)
+        },
+        run: () => run[action](),
+    }))
+}
 
 export type ReconcileKeyAction =
     | 'next'

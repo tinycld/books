@@ -619,7 +619,9 @@ export const GENERAL_LEDGER_PARTY_SEED = [
 // One long section, so the first page of 200 detail rows ends inside it (spec §7
 // item 8): two entries of 130 one-dollar lines to savings and their offsets, one
 // credit to equity each. Savings gets 260 lines; each entry has 131 lines, under
-// the entry form's 200-line limit, so a user can still edit either one. The offset is
+// the entry form's 200-line limit. The seed's finished reconciliation of 1010
+// (lib/reconcile-fixture.ts RECONCILE_SEED) reconciles the 260 savings lines, so neither
+// entry can be voided or changed. The offset is
 // equity, not checking: these days come before checking's first seeded line, and the
 // register and transfer specs rely on the seeded Business Checking balance never going
 // below zero. `dates` are whole days of a fixed past year: specs post on today or days

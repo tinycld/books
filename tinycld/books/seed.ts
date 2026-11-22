@@ -2924,9 +2924,41 @@ export async function seedBankMatch(
     })
 }
 
+// The ids of the General Ledger long section's lines on `savings` (seedLongSection, which
+// runs before seedReconcile): the 130 debits of each posted "Daily sweep" entry.
+async function longSectionLines(pb: PocketBase, savings: string): Promise<string[]> {
+    const { dates, memo, linesPerEntry } = GENERAL_LEDGER_LONG_SECTION
+    const ids: string[] = []
+    for (const date of dates) {
+        const entries = await pb.collection('books_journal_entries').getFullList<{ id: string }>({
+            filter: pb.filter('memo = {:memo} && date = {:date} && status = "posted"', {
+                memo,
+                date,
+            }),
+        })
+        for (const entry of entries) {
+            const lines = await pb.collection('books_journal_lines').getFullList<{ id: string }>({
+                filter: pb.filter('entry = {:entry} && account = {:account}', {
+                    entry: entry.id,
+                    account: savings,
+                }),
+            })
+            ids.push(...lines.map(line => line.id))
+        }
+    }
+    const expected = dates.length * linesPerEntry
+    if (ids.length !== expected) {
+        throw new Error(
+            `seed: the reconcile seed finds ${ids.length} long section lines on 1010, want ${expected}`
+        )
+    }
+    return ids
+}
+
 // Reconcile spec §4 "Fixture and seed": posts the four RECONCILE_SEED entries on 1010
 // Business Savings (debit 1010, credit 3000 Owner's Equity), finishes one reconciliation
-// that clears the first two, and leaves one in progress that clears the third. Every write
+// that clears the General Ledger long section's 260 sweep lines on 1010 and the first two
+// entries, and leaves one in progress that clears the third. Every write
 // goes through the collection API, so the Go hooks (server/reconcile.go) stamp the
 // beginning balance, the cleared sums, the currency and each cleared row's line fields;
 // the seed sends none of them. It sends the people (created_by on each create,
@@ -2964,6 +2996,7 @@ export async function seedReconcile(
         )
         lineIds.push(line.id)
     }
+    const sweepLines = await longSectionLines(pb, savings)
     const reconciliations = pb.collection('books_reconciliations')
     const cleared = pb.collection('books_reconciliation_lines')
     const clear = async (reconciliation: string, indexes: readonly number[]) => {
@@ -2985,6 +3018,9 @@ export async function seedReconcile(
         status: 'in_progress',
         created_by: ctx.user.id,
     })
+    for (const line of sweepLines) {
+        await cleared.create({ reconciliation: seed.finished.id, line })
+    }
     await clear(seed.finished.id, seed.finished.clears)
     await reconciliations.update(seed.finished.id, {
         status: 'finished',
