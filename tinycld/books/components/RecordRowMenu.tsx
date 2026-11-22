@@ -20,6 +20,11 @@ interface RecordRowMenuProps<I extends string> {
     // The items that start a write (default: the record lists' Make inactive, Make
     // active and Delete).
     writes?: ReadonlySet<string>
+    // The items drawn red (default: Delete).
+    destructive?: ReadonlySet<string>
+    // Why the write items are disabled (core useServerActionState's reason), drawn under
+    // each write item while it is disabled (default: none).
+    writeHint?: string
 }
 
 // On a phone the menu is a sheet that slides out for a moment after it closes. Its items
@@ -43,15 +48,21 @@ export function RecordRowMenu<I extends string>({
     onSelect,
     isWriting,
     writes = RECORD_MENU_WRITES,
+    destructive,
+    writeHint,
 }: RecordRowMenuProps<I>) {
     const color = useThemeColor('muted-foreground')
+    const isDestructive = (item: I) => (destructive ? destructive.has(item) : item === 'delete')
+    const isDisabled = (item: I) => isWriting && writes.has(item)
+    const descriptionOf = (item: I) => (isDisabled(item) ? writeHint : undefined)
     const menuItems = items.map(item => (
         <Menu.Item
             key={item}
             testID={testIds[item]}
             label={labels[item]}
-            isDestructive={item === 'delete'}
-            isDisabled={isWriting && writes.has(item)}
+            description={descriptionOf(item)}
+            isDestructive={isDestructive(item)}
+            isDisabled={isDisabled(item)}
             onSelect={() => onSelect(item)}
         />
     ))

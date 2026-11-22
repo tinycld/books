@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+    canUndoRow,
     clearedCountText,
     HISTORY_KEYS,
     HISTORY_TEXTS,
@@ -11,6 +12,8 @@ import {
     reconciledByText,
     reconciledCardText,
     shownHistory,
+    undoDialogTexts,
+    undoResultText,
 } from '../tinycld/books/lib/reconcile-history'
 import type { BooksAccounts, BooksReconciliations } from '../tinycld/books/types'
 
@@ -233,6 +236,81 @@ describe('historyMenuItems', () => {
 
     it('offers View report and Undo reconciliation on the latest row of an admin', () => {
         expect(historyMenuItems(CHECKING_OCT, true)).toEqual(['report', 'undo'])
+    })
+})
+
+// Reconciliation report spec §3 "Undo" (plan checkpoint 4): the dialog's texts, the work
+// screen's result line after an undo, and who sees Undo on a history row.
+describe('undoDialogTexts', () => {
+    const counted = (out: number, inCount: number) =>
+        row('rundo0000000001', CHECKING, '2026-10-31', {
+            cleared_out_count: out,
+            cleared_in_count: inCount,
+        })
+
+    it('with none in progress: the title, not blocked, and the text with the count of both sides', () => {
+        const texts = undoDialogTexts(counted(4, 10), CHECKING, undefined)
+        expect(texts.title).toBe('Undo this reconciliation?')
+        expect(texts.isBlocked).toBe(false)
+        expect(texts.text).toBe(
+            '1000 Business Checking, statement of Oct 31, 2026. Its 14 transactions are no longer reconciled, so they can be changed or voided again. They stay cleared: the reconciliation returns to In progress. Correct it and finish it again, or discard it.'
+        )
+    })
+
+    it('with one cleared transaction: the singular text', () => {
+        const texts = undoDialogTexts(counted(0, 1), CHECKING, undefined)
+        expect(texts.isBlocked).toBe(false)
+        expect(texts.text).toBe(
+            '1000 Business Checking, statement of Oct 31, 2026. Its 1 transaction is no longer reconciled, so it can be changed or voided again. It stays cleared: the reconciliation returns to In progress. Correct it and finish it again, or discard it.'
+        )
+    })
+
+    it('with no cleared transaction: the text says it has none', () => {
+        const texts = undoDialogTexts(counted(0, 0), CHECKING, undefined)
+        expect(texts.isBlocked).toBe(false)
+        expect(texts.text).toBe(
+            '1000 Business Checking, statement of Oct 31, 2026. It has no cleared transaction. The reconciliation returns to In progress. Correct it and finish it again, or discard it.'
+        )
+    })
+
+    it('with a reconciliation in progress on the account: blocked, and the text names its statement', () => {
+        const open = row('ropen0000000001', CHECKING, '2026-11-30', { status: 'in_progress' })
+        const texts = undoDialogTexts(counted(4, 10), CHECKING, open)
+        expect(texts.isBlocked).toBe(true)
+        expect(texts.text).toBe(
+            '1000 Business Checking has a reconciliation in progress (statement of Nov 30, 2026). Discard it before you undo this one.'
+        )
+    })
+})
+
+describe('undoResultText', () => {
+    it('names the count of transactions that stay cleared, or none at 0', () => {
+        expect(undoResultText(14)).toBe(
+            'The reconciliation is in progress again. Its 14 transactions stay cleared.'
+        )
+        expect(undoResultText(1)).toBe(
+            'The reconciliation is in progress again. Its 1 transaction stays cleared.'
+        )
+        expect(undoResultText(0)).toBe('The reconciliation is in progress again.')
+    })
+})
+
+describe('canUndoRow', () => {
+    const latest = new Set([CHECKING_OCT.id, SAVINGS_OCT.id])
+
+    it('is true for an admin on the latest row of its account', () => {
+        expect(canUndoRow(CHECKING_OCT, latest, true)).toBe(true)
+        expect(canUndoRow(SAVINGS_OCT, latest, true)).toBe(true)
+    })
+
+    it('is false for an admin on an earlier row', () => {
+        expect(canUndoRow(CHECKING_SEP, latest, true)).toBe(false)
+        expect(canUndoRow(CHECKING_AUG, latest, true)).toBe(false)
+    })
+
+    it('is false for a user who is not an admin, also on the latest row', () => {
+        expect(canUndoRow(CHECKING_OCT, latest, false)).toBe(false)
+        expect(canUndoRow(CHECKING_SEP, latest, false)).toBe(false)
     })
 })
 

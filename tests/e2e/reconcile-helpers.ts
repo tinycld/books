@@ -423,6 +423,39 @@ export async function historyOrder(page: Page): Promise<string[]> {
     return order
 }
 
+// Fakes the signed-in user's Books level as `level` (lesson 32): the books_access read
+// answers with that level and no admin flag. Realtime is cut, so no realtime event brings
+// the real row back. Install it before `login`.
+export async function fakeAccessLevel(
+    page: Page,
+    level: 'read_only' | 'bookkeeper'
+): Promise<void> {
+    await page.route('**/api/realtime*', route => route.abort())
+    await page.route('**/api/collections/books_access/records*', async route => {
+        const response = await route.fetch()
+        const body = await response.json()
+        const items = (body.items ?? []).map((item: Record<string, unknown>) => ({
+            ...item,
+            level,
+            can_read: true,
+            can_write: level === 'bookkeeper',
+            is_admin: false,
+        }))
+        await route.fulfill({ response, json: { ...body, items } })
+    })
+}
+
+// On the shown history, with the row of the finished reconciliation `id` visible: opens the
+// row's More menu (the table row's or the card's), presses Undo reconciliation and waits for
+// the undo dialog (a sheet on a phone, found by its test id). Returns the dialog.
+export async function openUndoFromHistory(page: Page, id: string): Promise<Locator> {
+    await page.getByTestId(`reconcile-history-more-${id}`).filter({ visible: true }).click()
+    await page.getByTestId(`reconcile-history-undo-${id}`).filter({ visible: true }).click()
+    const dialog = page.getByTestId('reconcile-undo-dialog').filter({ visible: true })
+    await expect(dialog).toBeVisible()
+    return dialog
+}
+
 // The test id of the visible row that has the keyboard focus, or '' when none has it. The
 // focused row carries data-focused="true" on the web (rowFocusStyle).
 function focusedAccountTestId(page: Page): Promise<string> {

@@ -85,15 +85,71 @@ The account register has a Status column. A transaction reads:
 
 The register's header shows "Reconciled through" and the date of the last finished statement. The entry drawer shows the same word for this account's line, and "Statement of" and the date for a reconciled line.
 
+## See past reconciliations
+
+To see every finished reconciliation, choose the History tab at the top of Reconcile. The list shows the newest statement first. Each row shows the statement's ending date, the account, the ending balance, the number of cleared transactions, and the day and the person that finished it. On a narrow screen each reconciliation is a card.
+
+- To see only one account, choose it in the Account filter. Choose Clear filter to see all accounts again. "All reconciliations of" the account, under the buttons of a finished summary, opens the History tab with that account chosen.
+- To show the oldest statement first, press the Statement ending header. Press it again to show the newest first.
+- To open a reconciliation's summary, press its row.
+
+![Reconcile: the History tab, with the finished reconciliations, newest first.](images/reconcile-4.png)
+
+## Open the reconciliation report
+
+The Reconciliation Report is the saved record of a finished reconciliation. To open it, press View report on the row in the History tab (on a card, in its More menu), or press View report on the finished summary.
+
+For each finished reconciliation the report shows the account and who reconciled it, the statement's ending date and when it was reconciled. Under it are the Beginning balance, each cleared transaction with its date, payee, memo, debit, credit and the running balance, and the total, whose balance is the statement's ending balance. Press a transaction's row to open it.
+
+![The Reconciliation Report of the statement of Aug 31, 2026 of 2100 Company Card.](images/reconcile-5.png)
+
+- To see another statement, change the Statement filter. To see the statements of some accounts, use the Account filter. With neither filter set, the report shows every finished reconciliation.
+- To print the report or keep a copy, press Export, then Download PDF. Export also gives Excel and CSV files, and the report has Email and Link. See [Run and customize a report](help://books:reports).
+
+## Undo a reconciliation
+
+When a finished reconciliation holds a mistake, a Books admin can undo it. Only a Books admin can undo a reconciliation. Only the latest reconciliation of an account can be undone: to undo an earlier one, undo the later ones first.
+
+To undo, press More on the row in the History tab, or More at the top of the finished summary, then choose Undo reconciliation. A dialog says what the undo does. Choose Undo reconciliation to confirm.
+
+![Reconcile: the dialog that asks to undo a reconciliation.](images/reconcile-6.png)
+
+After the undo, the reconciliation is In progress again and its work screen opens. Its transactions are no longer reconciled, so you can change or void them again, but the transactions stay cleared. Correct the reconciliation and finish it again, or discard it. The reconciliation leaves the History tab and the Reconciliation Report until it is finished again.
+
+When the account has another reconciliation in progress, you cannot undo: the dialog names that reconciliation and has Open it. Discard that reconciliation first, then undo.
+
+The Audit Log shows each undo, with the admin who made it and the time. See [Audit log](help://books:audit-log).
+
 ## Who can do what
 
-Everyone with access to Books can see Reconcile, the work screen, the summaries and the register's Status words. With bookkeeper or admin access you can also start, clear, edit, finish and discard. With read-only access a row with a reconciliation in progress shows View, the list shows a check mark for a cleared transaction, and there are no boxes and no buttons that change it.
+Everyone with access to Books can see Reconcile, the work screen, the summaries, the History tab, the Reconciliation Report and the register's Status words. With bookkeeper or admin access you can also start, clear, edit, finish and discard. Only an admin can undo a reconciliation. With read-only access a row with a reconciliation in progress shows View, the list shows a check mark for a cleared transaction, and there are no boxes and no buttons that change it.
 
-While the server cannot take changes, the boxes, Clear matched, Edit info, Finish and Discard are turned off.
+While the server cannot take changes, the boxes, Clear matched, Edit info, Finish, Discard and Undo reconciliation are turned off.
 
 ## Keyboard shortcuts
 
-In a web browser or with a hardware keyboard. On the Reconcile list:
+In a web browser or with a hardware keyboard. On the History tab:
+
+| Key | What it does |
+| --- | --- |
+| ↓ or J, ↑ or K | Move to the next or the previous reconciliation |
+| ↵ or O | Open the reconciliation's summary |
+| R | Open the reconciliation's report |
+
+On a finished summary:
+
+| Key | What it does |
+| --- | --- |
+| R | View report |
+
+In the Undo reconciliation dialog:
+
+| Key | What it does |
+| --- | --- |
+| ⌘↵ | Undo reconciliation |
+| Esc | Cancel |
+
+On the Reconcile list:
 
 | Key | What it does |
 | --- | --- |

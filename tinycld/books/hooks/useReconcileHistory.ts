@@ -5,6 +5,7 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { type Shortcut, useRegisterShortcuts, useShortcutScope } from '@tinycld/core/lib/shortcuts'
+import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import type { PickItem } from '@tinycld/core/ui/pick-menu'
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router'
 import { materialize } from 'pbtsdb'
@@ -14,6 +15,7 @@ import { releaseDomFocus } from '../lib/dom-focus'
 import { movedFocus } from '../lib/list-shortcuts'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
 import {
+    canUndoRow,
     HISTORY_KEY_LABELS,
     HISTORY_KEYS,
     HISTORY_TEXTS,
@@ -58,6 +60,10 @@ function relayTo(
  * once, at the first focus of this screen, and both reset when the screen loses focus. The
  * keys ↓ / J, ↑ / K, ↵ / O and R are registered in the screen's `list` scope, each while its
  * action is offered and no menu is open. Realtime needs no code: both reads are live.
+ * Undo reconciliation (`canUndo`, `onUndo`) opens the undo dialog (ReconcileUndoDialog);
+ * while its undo is sent the row stays listed as it was (the store's `undoingId`). A lost
+ * focus closes the dialog (closeUndo), unless its undo is sent. While the server takes no
+ * writes, `undoHint` is core's reason, which the row menus show under the disabled item.
  */
 export function useReconcileHistory() {
     const [reconciliationsCollection, accountsCollection, accessCollection] = useStore(
@@ -66,6 +72,7 @@ export function useReconcileHistory() {
         'books_access'
     )
     const access = useBooksAccess()
+    const writes = useServerActionState()
     const orgHref = useOrgHref()
     const owner = useShortcutScope('list')
     const instance = useId()
@@ -115,7 +122,7 @@ export function useReconcileHistory() {
     const isHistoryReady = historyQuery.isReady && !historyQuery.isError
     const historyData = historyQuery.data
     // A row whose account did not load (deleted, or not readable) has no label to show.
-    const rows = useMemo(
+    const listedRows = useMemo(
         () =>
             isHistoryReady
                 ? (historyData ?? []).flatMap(row =>
@@ -123,6 +130,25 @@ export function useReconcileHistory() {
                   )
                 : [],
         [isHistoryReady, historyData]
+    )
+    // The undo dialog's row as it was listed, taken by `onUndo` from the row the user
+    // pressed: while its undo is sent the optimistic row has left the finished query, and
+    // the row stays until the server has answered, so the screen does not change under the
+    // dialog. It counts only while its dialog is open (closeUndo clears `undoTarget`), and
+    // it is dropped during the render after both its dialog and its undo have ended, so the
+    // row object does not outlive them.
+    const undoTarget = useReconcileStore(s => s.undoTarget)
+    const undoingId = useReconcileStore(s => s.undoingId)
+    const [pressedRow, setPressedRow] = useState<(typeof listedRows)[number] | null>(null)
+    if (pressedRow !== null && pressedRow.id !== undoTarget && pressedRow.id !== undoingId) {
+        setPressedRow(null)
+    }
+    const held = pressedRow !== null && pressedRow.id === undoTarget ? pressedRow : null
+    const isHeld =
+        undoingId !== null && held?.id === undoingId && !listedRows.some(r => r.id === undoingId)
+    const rows = useMemo(
+        () => (isHeld && held ? [...listedRows, held] : listedRows),
+        [isHeld, held, listedRows]
     )
     const openRows = openQuery.isReady && !openQuery.isError ? (openQuery.data ?? []) : []
 
@@ -134,9 +160,30 @@ export function useReconcileHistory() {
     )
 
     // The picked account's label when the history has none of its rows: the empty state
-    // under the filter names it.
+    // under the filter names it. When its last row leaves (an undo, here or by realtime) the
+    // label it had while its rows were listed is kept, so the body goes straight to the
+    // empty state and never back to loading (the ledger's Design note 27).
+    // The label is remembered during the render that lists it (a guarded set of this hook's
+    // own state, React's "adjust state while rendering"), and counts only while its account is
+    // the picked one; a lost focus clears it.
     const pickedListed = accounts.find(account => account.id === historyAccount)
-    const needsAccountRead = historyAccount !== '' && isHistoryReady && !pickedListed
+    const [rememberedLabel, setRememberedLabel] = useState<{
+        accountId: string
+        label: string
+    } | null>(null)
+    if (
+        pickedListed &&
+        (rememberedLabel?.accountId !== pickedListed.id ||
+            rememberedLabel.label !== pickedListed.label)
+    ) {
+        setRememberedLabel({ accountId: pickedListed.id, label: pickedListed.label })
+    }
+    const keptLabel =
+        rememberedLabel?.accountId === historyAccount && historyAccount !== ''
+            ? rememberedLabel.label
+            : ''
+    const needsAccountRead =
+        historyAccount !== '' && isHistoryReady && !pickedListed && keptLabel === ''
     const accountQuery = useLiveQuery({
         query: q => {
             if (!needsAccountRead) return undefined
@@ -150,7 +197,8 @@ export function useReconcileHistory() {
     })
     const isAccountError = needsAccountRead && accountQuery.isError
     const readAccount = needsAccountRead && !isAccountError ? accountQuery.data : undefined
-    const pickedLabel = pickedListed?.label ?? (readAccount ? accountLabel(readAccount) : '')
+    const readLabel = readAccount ? accountLabel(readAccount) : ''
+    const pickedLabel = pickedListed?.label ?? (keptLabel || readLabel)
     const isAccountLoading = needsAccountRead && !accountQuery.isReady
     const filterLabel = historyAccount === '' ? HISTORY_TEXTS.allAccounts : pickedLabel
 
@@ -172,8 +220,13 @@ export function useReconcileHistory() {
                     useReconcileStore.getState().setHistoryAccount(paramAccount)
             }
             return () => {
-                useReconcileStore.getState().resetHistory()
+                const store = useReconcileStore.getState()
+                store.resetHistory()
+                // An undo dialog opened here (or on a summary above) does not follow the
+                // user back; it does nothing while an undo is sent.
+                store.closeUndo()
                 setFocusedId('')
+                setRememberedLabel(null)
             }
         }, [paramAccount])
     )
@@ -220,6 +273,18 @@ export function useReconcileHistory() {
     const onPickAccount = (accountId: string) => setHistoryAccount(accountId)
     const onSort = toggleHistorySort
     const onGoToAccounts = () => router.replace(orgHref('books/reconcile'))
+    // Undo reconciliation (spec §3 "Undo"): a Books admin, on the latest row of an account;
+    // the item is disabled while an undo is sent or the server takes no writes.
+    const isAdmin = access.isAdmin
+    const canUndo = (row: { id: string }) => canUndoRow(row, latestIds, isAdmin)
+    const onUndo = (id: string) => {
+        // The dialog opens first: a render between the two sets then holds no stale row.
+        useReconcileStore.getState().openUndo(id)
+        setPressedRow(listedRows.find(row => row.id === id) ?? null)
+    }
+    const isUndoDisabled = writes.isDisabled || undoingId !== null
+    // Why Undo reconciliation is disabled while the server takes no writes (core's reason).
+    const undoHint = writes.accessibilityHint
 
     // The Account filter's items: "All accounts", then each account that has a finished
     // reconciliation, by account number.
@@ -285,7 +350,11 @@ export function useReconcileHistory() {
         latestIds,
         accounts,
         openRows,
-        isAdmin: access.isAdmin,
+        isAdmin,
+        canUndo,
+        onUndo,
+        isUndoDisabled,
+        undoHint,
         historyAccount,
         historySort,
         filterLabel,
