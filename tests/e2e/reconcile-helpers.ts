@@ -277,6 +277,46 @@ export function shownLineIds(page: Page): Promise<string[]> {
     )
 }
 
+export type FinishOneStatementInput = {
+    accountName: string
+    date: string
+    balance: string
+    // The memos of the rows to clear, as `pressRow` finds them.
+    clears: readonly string[]
+}
+
+export type FinishedStatement = { id: string }
+
+// Starts a reconciliation of `accountName` at `date` and `balance`, clears the row of each
+// memo in `clears`, finishes it and waits for its finished summary. Returns its id.
+export async function finishOneStatement(
+    page: Page,
+    input: FinishOneStatementInput
+): Promise<FinishedStatement> {
+    await startReconciliation(page, input.accountName, {
+        balance: input.balance,
+        date: input.date,
+    })
+    for (const memo of input.clears) {
+        await pressRow(page, memo)
+        await expect(lineBox(page, memo)).toHaveAttribute('aria-checked', 'true')
+    }
+    await finishReconciliation(page)
+    return { id: reconciliationIdOf(page) }
+}
+
+// From any Books screen with the sidebar: the accounts screen, then the "Reconciled through"
+// link of the account named `accountName`; waits for that finished summary.
+export async function openFinishedSummary(page: Page, accountName: string): Promise<Locator> {
+    await openReconcile(page)
+    const id = await accountIdOf(page, accountName)
+    await page.getByTestId(`reconcile-through-${id}`).filter({ visible: true }).click()
+    await expect(page).toHaveURL(/\/books\/reconcile\/[a-z0-9]{15}\/?$/)
+    const finished = page.getByTestId('reconcile-finished').filter({ visible: true })
+    await expect(finished).toBeVisible()
+    return finished
+}
+
 // The difference of the visible summary band holds `text` ("$600.00").
 export async function expectDifference(page: Page, text: string): Promise<void> {
     await expect(page.getByTestId('reconcile-difference').filter({ visible: true })).toContainText(

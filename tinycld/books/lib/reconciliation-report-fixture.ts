@@ -375,7 +375,24 @@ export const RECONCILIATION_REPORT_PARAMS: ParamDef[] = [
         optionsFrom: {
             source: 'books.accounts',
             value: [{ field: 'id' }],
-            label: [{ field: 'full_name' }],
+            // accountLabel of server/report_spec_helpers.go: "<number> <full name>",
+            // the full name alone for an account with no number.
+            labelFormula: {
+                op: 'if',
+                args: [
+                    { op: 'isEmpty', args: [{ path: [{ field: 'number' }] }] },
+                    { path: [{ field: 'full_name' }] },
+                    {
+                        op: 'concat',
+                        args: [
+                            { path: [{ field: 'number' }] },
+                            { value: ' ' },
+                            { path: [{ field: 'full_name' }] },
+                        ],
+                    },
+                ],
+            },
+            order: [{ field: 'number' }],
         },
     },
     {
@@ -515,9 +532,11 @@ function sectionRows(reconciliation: BooksReconciliations): ResultRow[] {
     const account = accountOf(reconciliation.account)
     const id = groupId(reconciliation)
     const label = `${accountText(account)} · reconciled by ${reconciliation.finished_by_name}`
+    // The engine adds each side on the section's rows, so a side with no line reads 0, not
+    // blank (only a cleared row leaves its zero side blank).
     const figures = {
-        debit: blankZero(reconciliation.cleared_in),
-        credit: blankZero(reconciliation.cleared_out),
+        debit: reconciliation.cleared_in,
+        credit: reconciliation.cleared_out,
         balance: reconciliation.statement_balance,
     }
     const group: ResultRow = {
@@ -621,10 +640,11 @@ export function reconciliationReportResult(input: ReconciliationReportInput = {}
     }
 }
 
-// No finished reconciliation under the filters: only the Total row, so the view is empty.
+// No finished reconciliation under the filters: only the Total row, which then has no cell
+// (as the engine sends it), so the view is empty.
 export function emptyReconciliationReportResult(): RunResult {
     const input = { accounts: [RECONCILIATION_NONE_ACCOUNT] }
-    return { ...reconciliationReportResult(input), rows: [totalRow([])] }
+    return { ...reconciliationReportResult(input), rows: [{ ...totalRow([]), cells: {} }] }
 }
 
 // The chips' labels, which the view reads from the server in the product: a statement by
