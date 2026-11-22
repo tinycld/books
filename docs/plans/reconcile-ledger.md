@@ -123,6 +123,7 @@ and again at the end)
 - fix review: round 1 (staging `cp/cp2-fix-review.md`): 0 BLOCK, 3 NOTE (Design notes), 0 not fixed
 - gate 3 A notes: 0 to Design notes (every NOTE was fixed in r1)
 - reviewer-caught deferrals: the `mode` prop of `ReconcileStartDialog` (reviewers A and B; not self-declared: the implementer built the start only and did not name the interface) → fixed now; the untested singular count word (reviewer A) → test added
+- commit: 3c7555de
 
 ## Final review
 - eval: (unattended only) approved | revised → <notes, fix sha> | stopped
