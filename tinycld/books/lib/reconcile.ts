@@ -312,7 +312,69 @@ export const RECONCILE_TEXTS = {
     newestFirst: 'Newest first',
     matchedLabel: 'Matched to a bank transaction',
     clearedMark: 'Cleared',
+    editInfo: 'Edit info',
+    finishLater: 'Finish later',
+    finish: 'Finish',
+    finishing: 'Finishing…',
+    finishHint: 'The difference must be $0.00 to finish.',
+    more: 'More actions',
+    menuTitle: 'Reconciliation',
+    discardItem: 'Discard reconciliation',
+    discardTitle: 'Discard this reconciliation?',
+    discardConfirm: 'Discard',
+    balancedHint: 'Balanced. Finish to record this reconciliation.',
+    lessHints: 'Show less',
+    another: 'Reconcile another account',
+    viewRegister: 'View register',
+    statementBalance: 'Statement ending balance',
+    beginningBalance: 'Beginning balance',
+    clearedBalance: 'Cleared balance',
+    differenceBalanced: 'Difference · Balanced',
 } as const
+
+// "2 more" at the end of the hint line opens the other hints; "Show less" closes them.
+export function moreHintsText(count: number, isOpen: boolean): string {
+    return isOpen ? RECONCILE_TEXTS.lessHints : `${count} more`
+}
+
+// Edit info's result line, when the new statement date is earlier: the server unclears
+// the cleared transactions dated after it. '' when none was.
+export function unclearedAfterText(count: number, statementDate: string): string {
+    if (count === 0) return ''
+    const day = formatDay(statementDate)
+    if (count === 1) return `1 cleared transaction after ${day} was uncleared.`
+    return `${count} cleared transactions after ${day} were uncleared.`
+}
+
+// The cleared rows dated after `statementDate`: the ones Edit info's earlier date unclears.
+export function clearedAfterCount(
+    rows: readonly { date: string; isCleared: boolean }[],
+    statementDate: string
+): number {
+    return rows.filter(row => row.isCleared && row.date > statementDate).length
+}
+
+export function discardMessageText(clearedCount: number): string {
+    const marks = clearedCount === 1 ? '1 cleared mark' : `${clearedCount} cleared marks`
+    const verb = clearedCount === 1 ? 'is' : 'are'
+    return `The ${marks} of this statement ${verb} removed. No transaction changes.`
+}
+
+// The finished summary's line: "4 transactions of this statement are reconciled. …".
+export function reconciledCountText(count: number): string {
+    if (count === 1) {
+        return '1 transaction of this statement is reconciled. It cannot be voided or changed.'
+    }
+    return `${count} transactions of this statement are reconciled. They cannot be voided or changed.`
+}
+
+// "Finished Nov 21, 2026 by Ana Ruiz": `day` is the local day of `finished_at` ('' when the
+// stamp does not parse), `name` the finisher's ('' when the user row is gone).
+export function finishedByText(day: string, name: string): string {
+    const when = day === '' ? 'Finished' : `Finished ${formatDay(day)}`
+    if (name === '') return when
+    return `${when} by ${name}`
+}
 
 // The work screen's filters (spec §3 "Toolbar"): the side tab, the search text and the Show
 // choice. `out` is the credit side, `in` the debit side (sideWords).

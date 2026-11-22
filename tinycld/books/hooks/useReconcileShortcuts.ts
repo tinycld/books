@@ -1,4 +1,9 @@
-import { type Shortcut, useRegisterShortcuts, useShortcutScope } from '@tinycld/core/lib/shortcuts'
+import {
+    type ScopeOwner,
+    type Shortcut,
+    useRegisterShortcuts,
+    useShortcutScope,
+} from '@tinycld/core/lib/shortcuts'
 import { topLayer } from '@tinycld/core/ui/overlay/layer-stack'
 import { type RefObject, useId, useMemo, useRef } from 'react'
 import type { TextInputInstance } from 'react-native'
@@ -6,8 +11,10 @@ import type { ListScrollHandle } from '../components/ListTable'
 import { releaseDomFocus } from '../lib/dom-focus'
 import { hasSearchText, type ReconcileSide } from '../lib/reconcile'
 import {
+    headerKeyShortcuts,
     offeredReconcileKeys,
     RECONCILE_KEYS,
+    type ReconcileHeaderKey,
     type ReconcileKeyAction,
     type ReconcileKeyState,
     reconcileShortcuts,
@@ -151,4 +158,43 @@ export function useReconcileShortcuts(input: ReconcileShortcutsInput) {
     }, [instance, offeredNames])
     useRegisterShortcuts(shortcuts, owner)
     return owner
+}
+
+export type ReconcileHeaderKeysInput = {
+    owner: ScopeOwner
+    // The header actions the phone's More menu offers now (none on wide, where the
+    // ShortcutButtons hold E and ⌘S).
+    offered: readonly ReconcileHeaderKey[]
+    onEdit: () => void
+    onLater: () => void
+}
+
+/**
+ * The phone's E (Edit info) and ⌘S (Finish later), in the screen's `list` scope (reconcile
+ * spec §3 "Keys"): on a phone these actions are More menu items, which have no key of their
+ * own. Each key is registered only while its item is offered; the offer and the handlers
+ * are read at press time through refs, and a key does nothing while a menu is open.
+ */
+export function useReconcileHeaderKeys(input: ReconcileHeaderKeysInput) {
+    const instance = useId()
+    const offeredRef = useRef(input.offered)
+    offeredRef.current = input.offered
+    const run = { edit: input.onEdit, later: input.onLater }
+    const runRef = useRef(run)
+    runRef.current = run
+    const offeredNames = input.offered.join(',')
+    const shortcuts = useMemo(() => {
+        if (offeredNames === '') return NO_SHORTCUTS
+        return headerKeyShortcuts({
+            id: `books.reconcile.header.${instance}`,
+            offered: offeredNames.split(',').filter(isHeaderKey),
+            read: () => ({ offered: offeredRef.current, isMenuOpen: isMenuOpenNow() }),
+            run: { edit: () => runRef.current.edit(), later: () => runRef.current.later() },
+        })
+    }, [instance, offeredNames])
+    useRegisterShortcuts(shortcuts, input.owner)
+}
+
+function isHeaderKey(name: string): name is ReconcileHeaderKey {
+    return name === 'edit' || name === 'later'
 }

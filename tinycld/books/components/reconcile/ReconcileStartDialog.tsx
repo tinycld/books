@@ -3,25 +3,24 @@ import { Button, ButtonSpinner, ButtonText } from '@tinycld/core/ui/button'
 import { DIALOG_SUBMIT_SHORTCUT, Dialog } from '@tinycld/core/ui/dialog'
 import { FormErrorSummary } from '@tinycld/core/ui/form'
 import { DateField } from '@tinycld/core/ui/forms/fields/DateField'
-import type { RefObject } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { type Control, useController } from 'react-hook-form'
 import { Platform, Text, type TextInputInstance, View } from 'react-native'
 import { useFocusOnOpen } from '../../hooks/useFocusOnOpen'
 import type { ReconcileAccountRowData } from '../../hooks/useReconcileAccounts'
 import {
+    closeEditDialog,
     closeStartDialog,
+    type ReconcileEditTarget,
     type StartPrefill,
+    type StatementDialogModel,
     startPrefill,
+    useReconcileEdit,
     useReconcileStart,
 } from '../../hooks/useReconcileStart'
 import { useStatementBalance } from '../../hooks/useStatementBalance'
 import { accountLabel } from '../../lib/account-options'
-import {
-    RECONCILE_TEXTS,
-    type ReconcileStartMode,
-    type ReconcileStartValues,
-    startDialogTexts,
-} from '../../lib/reconcile'
+import { RECONCILE_TEXTS, type ReconcileStartValues, startDialogTexts } from '../../lib/reconcile'
 import { rootErrorOnly } from '../../lib/root-errors'
 import { MoneyTextField } from '../MoneyTextField'
 import { FieldError } from '../payments/PaymentMoneyField'
@@ -133,20 +132,16 @@ function StartSubmit({
     )
 }
 
-// The fields, the refusals and the buttons. A prefill that arrives after the form drew
-// fills the fields the user has not changed (useReconcileStart).
-function StartFormPart({
-    account,
-    prefill,
+// The fields, the refusals and the buttons, of a start and of Edit info.
+function StatementFormBody({
+    model,
     balanceRef,
     texts,
 }: {
-    account: ReconcileAccountRowData
-    prefill: StartPrefill | null
+    model: StatementDialogModel
     balanceRef: BalanceRef
     texts: StartTexts
 }) {
-    const model = useReconcileStart(account, account.lastFinished, prefill)
     const { control, formState } = model.form
     const isWide = useBreakpoint() !== 'mobile'
     const pair = isWide ? 'flex-row items-start gap-3' : 'gap-4'
@@ -211,7 +206,7 @@ function StartFormPart({
             </Dialog.Body>
             <Dialog.Footer>
                 <Dialog.CancelButton
-                    onPress={closeStartDialog}
+                    onPress={model.onClose}
                     isDisabled={model.isStarting}
                     testID="reconcile-start-cancel"
                 />
@@ -221,37 +216,80 @@ function StartFormPart({
     )
 }
 
-// The core Dialog (a sheet on a phone). The ending balance takes the focus when the dialog
-// opens (web only: a native keyboard would cover the sheet). Escape, the backdrop and the
-// sheet's close button go through closeStartDialog, which refuses while the insert runs.
-function StartFrame({
+// A start's form. A prefill that arrives after the form drew fills the fields the user has
+// not changed (useReconcileStart).
+function StartFormPart({
     account,
     prefill,
-    mode,
+    balanceRef,
+    texts,
 }: {
     account: ReconcileAccountRowData
     prefill: StartPrefill | null
-    mode: ReconcileStartMode
+    balanceRef: BalanceRef
+    texts: StartTexts
+}) {
+    const model = useReconcileStart(account, account.lastFinished, prefill)
+    return <StatementFormBody model={model} balanceRef={balanceRef} texts={texts} />
+}
+
+// Edit info's form, with the stored values (useReconcileEdit).
+function EditFormPart({
+    target,
+    balanceRef,
+    texts,
+}: {
+    target: ReconcileEditTarget
+    balanceRef: BalanceRef
+    texts: StartTexts
+}) {
+    const model = useReconcileEdit(target)
+    return <StatementFormBody model={model} balanceRef={balanceRef} texts={texts} />
+}
+
+// The core Dialog (a sheet on a phone). The ending balance takes the focus when the dialog
+// opens (web only: a native keyboard would cover the sheet). Escape, the backdrop and the
+// sheet's close button go through `onClose`, which refuses while the write runs.
+function StatementFrame({
+    texts,
+    onClose,
+    children,
+}: {
+    texts: StartTexts
+    onClose: () => void
+    children: (balanceRef: BalanceRef) => ReactNode
 }) {
     const focus = useFocusOnOpen(IS_WEB)
-    const texts = startDialogTexts(mode, accountLabel(account))
     return (
         <Dialog
             isOpen
-            onClose={closeStartDialog}
+            onClose={onClose}
             title={texts.title}
             size="lg"
             testID="reconcile-start-dialog"
             hasCloseButton={false}
             initialFocusRef={focus.ref}
         >
-            <StartFormPart
-                account={account}
-                prefill={prefill}
-                balanceRef={focus.ref}
-                texts={texts}
-            />
+            {children(focus.ref)}
         </Dialog>
+    )
+}
+
+function StartFrame({
+    account,
+    prefill,
+}: {
+    account: ReconcileAccountRowData
+    prefill: StartPrefill | null
+}) {
+    const texts = startDialogTexts('start', accountLabel(account))
+    const form = (balanceRef: BalanceRef) => (
+        <StartFormPart account={account} prefill={prefill} balanceRef={balanceRef} texts={texts} />
+    )
+    return (
+        <StatementFrame texts={texts} onClose={closeStartDialog}>
+            {form}
+        </StatementFrame>
     )
 }
 
@@ -262,40 +300,54 @@ function StartFrame({
 function ConnectedStart({
     account,
     connectionId,
-    mode,
 }: {
     account: ReconcileAccountRowData
     connectionId: string
-    mode: ReconcileStartMode
 }) {
     const { statement, isReady, isError } = useStatementBalance(connectionId, account.type)
     const lastDate = account.lastFinished?.statement_date ?? ''
     const isRead = isReady && !isError
     const prefill = startPrefill(isRead ? statement : null, lastDate)
-    return <StartFrame account={account} prefill={prefill} mode={mode} />
+    return <StartFrame account={account} prefill={prefill} />
 }
 
+function EditFrame({ target }: { target: ReconcileEditTarget }) {
+    const texts = startDialogTexts('edit', '')
+    const form = (balanceRef: BalanceRef) => (
+        <EditFormPart target={target} balanceRef={balanceRef} texts={texts} />
+    )
+    return (
+        <StatementFrame texts={texts} onClose={closeEditDialog}>
+            {form}
+        </StatementFrame>
+    )
+}
+
+type StartDialogProps =
+    | { mode: 'start'; account: ReconcileAccountRowData | undefined }
+    | { mode: 'edit'; target: ReconcileEditTarget | null }
+
 /**
- * The start dialog of `books/reconcile` (reconcile spec §3 "The start dialog"): drawn for
- * the account the store names (`account`, a listed account and a writer; the caller gives
- * none to a reader). `mode` sets the title and the submit label ('start': "Reconcile
- * <account>", Start reconciling; 'edit': "Edit statement information", Save); the submit
- * inserts a reconciliation in both, until the work screen's Edit info gives 'edit' its
- * data and its update. An account with a bank connection reads its latest statement file
- * (ConnectedStart, so the statement hook runs only with a connection id) while the form
- * already shows.
+ * The statement dialog (reconcile spec §3 "The start dialog", "Edit info"). 'start', on
+ * `books/reconcile`: drawn for the account the store names (`account`, a listed account and
+ * a writer; the caller gives none to a reader), titled "Reconcile <account>", and Start
+ * reconciling inserts a reconciliation; an account with a bank connection reads its latest
+ * statement file (ConnectedStart, so the statement hook runs only with a connection id)
+ * while the form already shows. 'edit', on the work screen: drawn while Edit info is open
+ * (`target`, from the screen's record query; the dialog loads nothing of its own), titled
+ * "Edit statement information", with the stored values, and Save updates the
+ * reconciliation.
  */
-export function ReconcileStartDialog({
-    account,
-    mode,
-}: {
-    account: ReconcileAccountRowData | undefined
-    mode: ReconcileStartMode
-}) {
+export function ReconcileStartDialog(props: StartDialogProps) {
+    if (props.mode === 'edit') {
+        if (!props.target) return null
+        return <EditFrame target={props.target} />
+    }
+    const { account } = props
     if (!account) return null
     const connectionId = account.connection?.id ?? ''
     if (connectionId !== '') {
-        return <ConnectedStart account={account} connectionId={connectionId} mode={mode} />
+        return <ConnectedStart account={account} connectionId={connectionId} />
     }
-    return <StartFrame account={account} prefill={null} mode={mode} />
+    return <StartFrame account={account} prefill={null} />
 }

@@ -1,4 +1,4 @@
-import { eq } from '@tanstack/db'
+import { and, eq, lte } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { log } from '@tinycld/core/lib/logger'
@@ -15,7 +15,9 @@ import { accountLabel } from '../lib/account-options'
 import { entryHref } from '../lib/entry-route'
 import { SEARCH_DELAY_MS } from '../lib/list-search'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
+import { localDayOf } from '../lib/opening-balances'
 import {
+    finishedByText,
     hasReconcileFilter,
     type ReconcileTotals,
     reconcileTotals,
@@ -23,11 +25,20 @@ import {
     sideWords,
     stampedTotals,
 } from '../lib/reconcile'
-import { resultFor, useReconcileStore } from '../stores/reconcile-store'
+import { reconcileHints } from '../lib/reconcile-hints'
+import type { ReconcileHeaderKey } from '../lib/reconcile-shortcuts'
+import {
+    heldStatementDate,
+    isFinishingFor,
+    resultFor,
+    useReconcileStore,
+} from '../stores/reconcile-store'
 import { useBooksAccess } from './useBooksAccess'
+import { useReconcileActions } from './useReconcileActions'
 import { useReconcileClear } from './useReconcileClear'
 import { type ReconcileLineRow, useReconcileLines } from './useReconcileLines'
-import { useReconcileShortcuts } from './useReconcileShortcuts'
+import { useReconcileHeaderKeys, useReconcileShortcuts } from './useReconcileShortcuts'
+import type { ReconcileEditTarget } from './useReconcileStart'
 import { usePopToScreenBelow } from './useStackScreens'
 
 const LOG_CONTEXT = 'books.reconcile'
@@ -40,12 +51,14 @@ function screenState(input: {
     isError: boolean
     isRecordReady: boolean
     hasRecord: boolean
+    isDiscarding: boolean
     isFinished: boolean
     isLinesLoading: boolean
 }): ReconcileScreenState {
     if (input.isError) return 'error'
     if (!input.isRecordReady) return 'loading'
-    if (!input.hasRecord) return 'not-found'
+    // The user's own Discard removed the row; the screen goes back once the server answers.
+    if (!input.hasRecord) return input.isDiscarding ? 'loading' : 'not-found'
     if (input.isFinished) return 'finished'
     return input.isLinesLoading ? 'loading' : 'work'
 }
@@ -75,16 +88,40 @@ function totalsOf(
  * the store's side, Show choice and sort, with the search applied after SEARCH_DELAY_MS;
  * `clear` is useReconcileClear, and the keys (useReconcileShortcuts) register in the
  * screen's `list` scope, whose owner every ShortcutButton of the screen takes.
+ * The hint line (§3 "Hints"): `reconcileHints` over the lines, with the For review count of
+ * the account's bank connection (key `books.reconcile.review`, whose load error is the
+ * screen's too). The header's actions and the hints' actions are useReconcileActions; while
+ * Finish is sent (`isFinishing`) the state stays `work` with the lines, and a Discard of
+ * the user's own (`isDiscarding`) reads `loading`, not `not-found`. `editTarget` is Edit
+ * info's data from this one record query (with the account's latest finished statement
+ * date), null while the dialog is closed. While its save is in flight the lines and the For
+ * review count read the stored date (the store's `heldStatement`), so the state stays `work`
+ * and the dialog stays open until the server has answered.
  */
 export function useReconcileScreen(id: string) {
-    const [reconciliationsCollection, accountsCollection, usersCollection, accessCollection] =
-        useStore('books_reconciliations', 'books_accounts', 'users', 'books_access')
+    const [
+        reconciliationsCollection,
+        accountsCollection,
+        usersCollection,
+        accessCollection,
+        connectionsCollection,
+        transactionsCollection,
+    ] = useStore(
+        'books_reconciliations',
+        'books_accounts',
+        'users',
+        'books_access',
+        'books_bank_connections',
+        'books_bank_transactions'
+    )
     const access = useBooksAccess()
     const orgHref = useOrgHref()
     const isWide = useBreakpoint() !== 'mobile'
     const popToAccounts = usePopToScreenBelow(ACCOUNTS_ROUTE)
     const isBandOpen = useReconcileStore(s => s.isBandOpen)
     const toggleBand = useReconcileStore(s => s.toggleBand)
+    const areHintsOpen = useReconcileStore(s => s.areHintsOpen)
+    const toggleHints = useReconcileStore(s => s.toggleHints)
 
     const recordQuery = useLiveQuery({
         query: q =>
@@ -113,12 +150,82 @@ export function useReconcileScreen(id: string) {
                             .select(({ u }) => ({ name: u.name }))
                             .findOne()
                     ),
+                    // Edit info's date rule: the account's latest finished statement.
+                    lastFinished: materialize(
+                        q
+                            .from({ f: reconciliationsCollection })
+                            .where(({ f }) =>
+                                and(eq(f.account, r.account), eq(f.status, 'finished'))
+                            )
+                            .orderBy(({ f }) => f.statement_date, 'desc')
+                            .select(({ f }) => ({ statement_date: f.statement_date }))
+                            .findOne()
+                    ),
                 }))
                 .findOne(),
         queryKey: ['books.reconcile.record', id],
     })
     const reconciliation = recordQuery.isError ? undefined : recordQuery.data
-    const lines = useReconcileLines(reconciliation)
+    const isFinishing = useReconcileStore(s => isFinishingFor(s, id))
+    const isDiscarding = useReconcileStore(s => s.isDiscarding)
+    const heldDate = useReconcileStore(s => heldStatementDate(s, id))
+    // While Finish is sent the optimistic row reads finished; the screen stays the work
+    // screen, with its lines and their sums, until the server has answered.
+    const isFinished = reconciliation?.status === 'finished' && !isFinishing
+    const workRecord = useMemo(
+        () =>
+            reconciliation && !isFinished
+                ? { ...reconciliation, status: 'in_progress' as const }
+                : reconciliation,
+        [reconciliation, isFinished]
+    )
+    // While Edit info's save is in flight the optimistic row has the new date; the lines and
+    // the For review count stay those of the stored date until the server has answered, so
+    // the screen does not load again under the open dialog and a refusal shows in it.
+    const readRecord = useMemo(
+        () =>
+            workRecord && heldDate !== null
+                ? { ...workRecord, statement_date: heldDate }
+                : workRecord,
+        [workRecord, heldDate]
+    )
+    const lines = useReconcileLines(readRecord)
+
+    // The For review hint (key `books.reconcile.review`): the account's bank connection with
+    // its For review transactions dated on or before the statement date, through
+    // `materialize()` by the connection, so only that connection's transactions load; the
+    // count is their number.
+    const statementAccount = reconciliation?.account ?? ''
+    const statementDate = readRecord?.statement_date ?? ''
+    const isReviewEnabled = workRecord !== undefined && !isFinished
+    const reviewQuery = useLiveQuery({
+        query: q => {
+            if (!isReviewEnabled) return undefined
+            return q
+                .from({ c: connectionsCollection })
+                .where(({ c }) => eq(c.account, statementAccount))
+                .select(({ c }) => ({
+                    id: c.id,
+                    review: materialize(
+                        q
+                            .from({ t: transactionsCollection })
+                            .where(({ t }) =>
+                                and(
+                                    eq(t.connection, c.id),
+                                    eq(t.status, 'for_review'),
+                                    lte(t.date, statementDate)
+                                )
+                            )
+                            .select(({ t }) => ({ id: t.id }))
+                    ),
+                }))
+                .findOne()
+        },
+        queryKey: ['books.reconcile.review', statementAccount, statementDate, isReviewEnabled],
+    })
+    const isReviewError = isReviewEnabled && reviewQuery.isError
+    const connection = isReviewError ? undefined : reviewQuery.data
+    const reviewCount = connection?.review?.length ?? 0
 
     // The phone's band opens in place for one visit, and the side, the search, the Show
     // choice, the focused row and the result line hold for one visit too: all start over
@@ -137,15 +244,21 @@ export function useReconcileScreen(id: string) {
 
     const account = reconciliation?.accountRow
     const accountType = account?.type ?? 'bank'
-    const isFinished = reconciliation?.status === 'finished'
     const state = screenState({
-        isError: recordQuery.isError || lines.isError || access.isError,
+        isError: recordQuery.isError || lines.isError || access.isError || isReviewError,
         isRecordReady: recordQuery.isReady && access.isReady,
         hasRecord: reconciliation !== undefined,
+        isDiscarding,
         isFinished,
         isLinesLoading: lines.isLoading,
     })
-    const totals = totalsOf(reconciliation, lines.rows, accountType)
+    // Memoized with the cleared count below: each is a pass over every line (spec §4, up to
+    // 20,000), and a keystroke in the search must not run them again.
+    const totals = useMemo(
+        () => totalsOf(workRecord, lines.rows, accountType),
+        [workRecord, lines.rows, accountType]
+    )
+    const clearedCount = useMemo(() => lines.rows.filter(row => row.isCleared).length, [lines.rows])
     const currency = reconciliation?.currency || account?.currency || 'USD'
 
     // The list: the filters as typed, the search applied after a pause in typing.
@@ -155,7 +268,10 @@ export function useReconcileScreen(id: string) {
     // A result of another reconciliation (a batch that settled after this one opened) is
     // not this screen's.
     const result = useReconcileStore(s => resultFor(s, id))
-    const appliedSearch = useDebouncedValue(filters.search, SEARCH_DELAY_MS)
+    // A cleared search applies at once (Clear filters, a hint's Show), so the row a Show
+    // scrolls to is in the list it scrolls.
+    const typedSearch = useDebouncedValue(filters.search, SEARCH_DELAY_MS)
+    const appliedSearch = filters.search === '' ? '' : typedSearch
     // Keyed by the primitives it reads, not by `filters`: a keystroke in the search changes
     // `filters` but not the applied search, and must not filter and sort every row again.
     const { side, show } = filters
@@ -169,6 +285,7 @@ export function useReconcileScreen(id: string) {
         rows: lines.rows,
         shown,
         canWrite,
+        isPaused: isFinishing,
     })
     const searchRef = useRef<TextInputInstance>(null)
     const listScrollRef = useRef<ListScrollHandle>(null)
@@ -184,7 +301,7 @@ export function useReconcileScreen(id: string) {
             )
         )
     const scopeOwner = useReconcileShortcuts({
-        isEnabled: state === 'work',
+        isEnabled: state === 'work' && !isFinishing,
         canWrite,
         isBatchRunning: clear.isBatchRunning,
         isWriteBlocked: clear.isWriteBlocked,
@@ -210,8 +327,14 @@ export function useReconcileScreen(id: string) {
         const accessRecovery: LiveRecovery = access.isError
             ? { queries: [access.collection], sources: [accessCollection] }
             : NO_RECOVERY
+        const reviewRecovery: LiveRecovery = isReviewError
+            ? {
+                  queries: [reviewQuery.collection],
+                  sources: [connectionsCollection, transactionsCollection],
+              }
+            : NO_RECOVERY
         void recoverLiveQueries({
-            ...mergeRecoveries([recordRecovery, lines.recovery, accessRecovery]),
+            ...mergeRecoveries([recordRecovery, lines.recovery, accessRecovery, reviewRecovery]),
             onError: err => log.error(LOG_CONTEXT, err),
         })
     }
@@ -219,6 +342,61 @@ export function useReconcileScreen(id: string) {
         if (popToAccounts()) return
         router.replace(orgHref('books/reconcile'))
     }
+
+    const connectionId = connection?.id ?? ''
+    const hints = useMemo(
+        () =>
+            totals && state === 'work'
+                ? reconcileHints(lines.rows, totals, reviewCount, {
+                      accountType,
+                      statementDate,
+                      currency,
+                      connectionId,
+                  })
+                : [],
+        [lines.rows, totals, state, reviewCount, accountType, statementDate, currency, connectionId]
+    )
+    const actions = useReconcileActions({
+        reconciliationId: id,
+        rows: lines.rows,
+        sort,
+        currency,
+        difference: totals?.difference ?? null,
+        isBatchRunning: clear.isBatchRunning,
+        canWrite,
+        listScrollRef,
+        connectionId,
+        onBack,
+    })
+    // On a phone Edit info and Finish later are More menu items (a writer's reconciliation in
+    // progress, as ReconcileHeader draws them); their keys follow the items.
+    const hasPhoneMenu = !isWide && canWrite && state === 'work'
+    const phoneKeys: ReconcileHeaderKey[] = []
+    if (hasPhoneMenu && !actions.isActionDisabled) phoneKeys.push('edit')
+    if (hasPhoneMenu) phoneKeys.push('later')
+    useReconcileHeaderKeys({
+        owner: scopeOwner,
+        offered: phoneKeys,
+        onEdit: actions.onEdit,
+        onLater: actions.onLater,
+    })
+    const editTarget: ReconcileEditTarget | null =
+        actions.isEditOpen && reconciliation && state === 'work'
+            ? {
+                  reconciliation,
+                  accountType,
+                  currency,
+                  lastDate: reconciliation.lastFinished?.statement_date ?? '',
+                  rows: lines.rows,
+              }
+            : null
+    const finishedText = reconciliation
+        ? finishedByText(
+              localDayOf(reconciliation.finished_at),
+              reconciliation.finishedBy?.name ?? ''
+          )
+        : ''
+    const onViewRegister = () => router.push(orgHref(`books/accounts/${statementAccount}`))
 
     return {
         state,
@@ -247,6 +425,23 @@ export function useReconcileScreen(id: string) {
         onToggleBand: toggleBand,
         onRetry,
         onBack,
+        hints,
+        areHintsOpen,
+        onToggleHints: toggleHints,
+        actions,
+        canFinish: actions.canFinish,
+        isFinishing,
+        onFinish: actions.onFinish,
+        onLater: actions.onLater,
+        onEdit: actions.onEdit,
+        onDiscard: actions.onDiscard,
+        onShowHint: actions.onShowHint,
+        editTarget,
+        // The Discard confirm's count: the cleared rows the delete removes.
+        clearedCount,
+        finishedText,
+        onAnother: onBack,
+        onViewRegister,
     }
 }
 
