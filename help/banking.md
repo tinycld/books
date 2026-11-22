@@ -16,6 +16,8 @@ A sale that a customer pays at once is recorded with a [sales receipt](help://bo
 
 Money that a vendor sends back for a vendor credit is recorded with a [vendor refund](help://books:vendor-refunds), which puts the money in a bank account, a credit card account or Undeposited funds.
 
+Money that waits in Undeposited funds (payments, sales receipts and vendor refunds that you take to the bank together) goes into the bank account with a [bank deposit](help://books:bank-deposits). The deposit posts one line on the bank account for the total, the same as the line on your bank statement.
+
 ![Banking: a strip of connected accounts above the selected account's tabs, with the Files tab and its upload area open.](images/banking-1.png)
 
 ## Connect an account

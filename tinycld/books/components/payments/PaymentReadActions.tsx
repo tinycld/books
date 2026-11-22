@@ -7,6 +7,7 @@ import type { DocumentReadItem } from '../../hooks/useDocumentReadActions'
 import { useOpenFromReadView } from '../../hooks/useOpenFromReadView'
 import type { PaymentRecordHeader } from '../../hooks/usePaymentRecord'
 import { useVoidPayment } from '../../hooks/useVoidPayment'
+import { type DepositRead, depositedOffer } from '../../lib/deposit'
 import type { PaymentFlow } from '../../lib/payment-flow'
 import {
     type PaymentCollectionName,
@@ -130,28 +131,34 @@ export function PaymentReadActions({
 }
 
 // What a flow's read view bar receives: the flow, its header collection, the shown record,
-// the role and the screen's scope.
+// the role, the read of the posted deposit that holds the record's entry (useDepositOf) and
+// the screen's scope.
 export interface PaymentReadBarProps {
     flow: PaymentFlow
     collection: PaymentCollectionName
     payment: PaymentRecordHeader
     canWrite: boolean
+    depositRead: DepositRead
     scopeOwner: ScopeOwner
 }
 
 /**
  * The read view bar from the flow's descriptor alone (the received payment): the actions
- * the read rule allows, Edit on the flow's `?replaces` route, the flow's Void texts, and no
- * Audit history row.
+ * the read rule allows (no Edit or Void while a posted deposit holds the payment, or while
+ * that read is not ready: depositedOffer), Edit on the flow's `?replaces` route, the flow's
+ * Void texts, and no Audit history row.
  */
 export function PaymentFlowReadBar({
     flow,
     collection,
     payment,
     canWrite,
+    depositRead,
     scopeOwner,
 }: PaymentReadBarProps) {
-    const offered = paymentReadActions(payment.status, canWrite, payment.entry !== '')
+    const hasEntry = payment.entry !== ''
+    const isDeposited = depositedOffer({ hasEntry, ...depositRead })
+    const offered = paymentReadActions(payment.status, canWrite, hasEntry, isDeposited)
     const editHref = `${flow.routeBase}/new?replaces=${payment.id}`
     return (
         <PaymentReadActions

@@ -10,10 +10,13 @@ import {
 import {
     canAddLine,
     clearSelection,
+    depositEntryOf,
+    depositedOffer,
     depositFigureText,
     depositLineCents,
     depositReadItems,
     depositTotals,
+    inDepositText,
     isEveryItemTicked,
     itemAmountText,
     itemLabel,
@@ -541,6 +544,88 @@ function sortRow(id: string, date: string, number: string, party: string | null)
         vendorRow: undefined,
     }
 }
+
+// The notice on the read view of a deposited document (spec §3.10): the reason names the
+// document's own noun.
+describe('inDepositText', () => {
+    it.each([
+        ['payment', 'To edit or void this payment, remove it from the deposit first.'],
+        ['sales receipt', 'To edit or void this sales receipt, remove it from the deposit first.'],
+        ['vendor refund', 'To edit or void this vendor refund, remove it from the deposit first.'],
+        [
+            'refund receipt',
+            'To edit or void this refund receipt, remove it from the deposit first.',
+        ],
+    ])('reads the reason for a %s', (noun, text) => {
+        expect(inDepositText(noun)).toBe(text)
+    })
+})
+
+// Whether a read view hides Edit and Void (spec §3.10, checkpoint 5 Do step 3): hidden while
+// a posted deposit holds the document, and while that read is not ready (no flash of buttons
+// that then go away); offered after a failed read (the server guard refuses) and for a
+// document with no entry (no deposit can hold it).
+describe('depositedOffer', () => {
+    const deposit = { id: 'deposit00000001', number: '1002' }
+
+    it('is true when a posted deposit holds the document', () => {
+        expect(depositedOffer({ hasEntry: true, isReady: true, isError: false, deposit })).toBe(
+            true
+        )
+    })
+
+    it('is true while the read is not ready', () => {
+        expect(
+            depositedOffer({ hasEntry: true, isReady: false, isError: false, deposit: null })
+        ).toBe(true)
+    })
+
+    it('is false once the read is ready and no deposit holds the document', () => {
+        expect(
+            depositedOffer({ hasEntry: true, isReady: true, isError: false, deposit: null })
+        ).toBe(false)
+    })
+
+    it('is false after a failed read', () => {
+        expect(
+            depositedOffer({ hasEntry: true, isReady: false, isError: true, deposit: null })
+        ).toBe(false)
+        expect(
+            depositedOffer({ hasEntry: true, isReady: true, isError: true, deposit: null })
+        ).toBe(false)
+    })
+
+    it('is false for a document with no entry', () => {
+        expect(
+            depositedOffer({ hasEntry: false, isReady: false, isError: false, deposit: null })
+        ).toBe(false)
+        expect(
+            depositedOffer({ hasEntry: false, isReady: true, isError: false, deposit: null })
+        ).toBe(false)
+    })
+})
+
+// The entry whose deposit a document read view reads (spec §3.10, checkpoint 5 Do step 2):
+// a sales receipt's and a refund receipt's own entry, which post to a deposit account such as
+// Undeposited funds; '' for every other kind, so its deposit read is off.
+describe('depositEntryOf', () => {
+    const ENTRY = 'entrydeposit001'
+
+    it.each(['sales_receipt', 'refund_receipt'] as const)("gives a %s's own entry", kind => {
+        expect(depositEntryOf({ kindFields: { kind }, entry: ENTRY })).toBe(ENTRY)
+    })
+
+    it.each([
+        'invoice',
+        'estimate',
+        'bill',
+        'expense',
+        'credit_memo',
+        'vendor_credit',
+    ] as const)('gives the kind %s no entry, so its read is off', kind => {
+        expect(depositEntryOf({ kindFields: { kind }, entry: ENTRY })).toBe('')
+    })
+})
 
 describe('sortItems', () => {
     const rows = [

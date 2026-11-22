@@ -381,3 +381,38 @@ export function sortItems<R extends SortableItem>(
     }
     return [...rows].sort(compare)
 }
+
+// The reason under "In Deposit 1002" on the read view of a deposited document (spec §3.10):
+// `noun` is the document's own noun (payment, sales receipt, vendor refund, refund receipt).
+export function inDepositText(noun: string): string {
+    return fillPaymentText(DEPOSIT_MESSAGES.inDepositNotice, noun)
+}
+
+// The posted deposit that holds a document's entry, as hooks/useDepositOf reads it: `deposit`
+// is null when none holds it (and while the read is off, not ready or failed).
+export type DepositRead = {
+    isReady: boolean
+    isError: boolean
+    deposit: { id: string; number: string } | null
+}
+
+// The read of a document that no deposit can hold: ready, with no deposit.
+export const NOT_DEPOSITED: DepositRead = { isReady: true, isError: false, deposit: null }
+
+// The entry whose deposit a document read view reads (spec §3.10): a sales receipt's and a
+// refund receipt's, which post to a deposit account such as Undeposited funds; '' for every
+// other kind, so its read is off.
+export function depositEntryOf(record: { kindFields: { kind: string }; entry: string }): string {
+    const { kind } = record.kindFields
+    return kind === 'sales_receipt' || kind === 'refund_receipt' ? record.entry : ''
+}
+
+// Whether a read view hides Edit and Void (spec §3.10): true while a posted deposit holds the
+// document's entry, and while that read is not ready, so no button shows and then goes away.
+// false after a failed read (the server's deposited-item guard refuses the write) and for a
+// document with no entry, which no deposit can hold.
+export function depositedOffer(read: { hasEntry: boolean } & DepositRead): boolean {
+    if (!read.hasEntry || read.isError) return false
+    if (!read.isReady) return true
+    return read.deposit !== null
+}

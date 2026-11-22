@@ -7,6 +7,7 @@ import { useState } from 'react'
 import type { DocumentMoreItem } from '../components/documents/DocumentActionBar'
 import type { DocumentKind } from '../components/documents/document-kinds'
 import { applyCreditLabel } from '../lib/credit-application-kinds'
+import { type DepositRead, depositedOffer } from '../lib/deposit'
 import {
     applyCreditOffered,
     applyInvoiceCreditOffered,
@@ -109,11 +110,13 @@ function offeredActionsOf(
     doc: Pick<SalesDocumentKind, 'lifecycle' | 'features'>,
     record: ReadRecord,
     canWrite: boolean,
-    hasUnappliedCredit: boolean
+    hasUnappliedCredit: boolean,
+    isDeposited: boolean
 ): DocumentReadAction[] {
     const { kind } = record.kindFields
     const balance = balanceOf(record)
     const extra = {
+        isDeposited,
         canReceivePayment: receivePaymentOffered(kind, record.status, balance),
         canPayBill: payBillOffered(kind, record.status, balance),
         canCreateCreditMemo: creditMemoOffered(kind, record.status),
@@ -162,6 +165,8 @@ function offeredActionsOf(
  * view's place, and keeps the kind's list when the list is below it in the child stack
  * (useOpenInPlaceOfReadView);
  * Download PDF saves the server's PDF through usePdfDownload.
+ * Edit and Void are not offered while a posted deposit holds the record's entry, or while
+ * that read (`depositRead`) is not ready (depositedOffer; bank deposit spec §3.10).
  * Void writes `status: 'void'` through `useVoidDocument`, the write the lists share; the
  * dialog's open state lives here, on the read view, which stays mounted while the optimistic
  * void changes the document under it, so a refusal stays visible in the dialog.
@@ -170,7 +175,10 @@ export function useDocumentReadActions(
     documentKind: DocumentKind,
     record: ReadRecord,
     canWrite: boolean,
-    owner: string
+    owner: string,
+    // The posted deposit that holds the record's entry (useDepositOf; off for a kind that no
+    // deposit holds).
+    depositRead: DepositRead
 ) {
     const { doc } = documentKind
     const orgHref = useOrgHref()
@@ -257,7 +265,8 @@ export function useDocumentReadActions(
         action === 'apply_credit'
             ? applyCreditLabel(record.kindFields.kind)
             : DOCUMENT_READ_LABELS[action]
-    const offered = offeredActionsOf(doc, record, canWrite, hasUnappliedCredit)
+    const isDeposited = depositedOffer({ hasEntry: record.entry !== '', ...depositRead })
+    const offered = offeredActionsOf(doc, record, canWrite, hasUnappliedCredit, isDeposited)
     const actions: DocumentReadItem[] = offered.map(action => ({
         action,
         id: readActionId(action),
