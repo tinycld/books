@@ -1,10 +1,12 @@
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
+import { ShortcutButton } from '@tinycld/core/ui/shortcut-button'
 import { CircleCheck } from 'lucide-react-native'
 import { Text, View } from 'react-native'
 import type { ReconcileScreenModel } from '../../hooks/useReconcileScreen'
 import { formatMoney } from '../../lib/money'
 import { countText, RECONCILE_TEXTS, reconciledCountText } from '../../lib/reconcile'
+import { VIEW_REPORT_KEY } from '../../lib/reconcile-shortcuts'
 
 const BLOCK_STYLE = { maxWidth: 520 }
 
@@ -41,14 +43,37 @@ function DifferenceRow({ value }: { value: string }) {
     )
 }
 
+// View report, key R in the screen's `list` scope; drawn only while the reader has the
+// Reconciliation Report (`reportHref`). On a phone it takes the full width.
+function ViewReportButton({
+    model,
+    isVisible,
+}: {
+    model: ReconcileScreenModel
+    isVisible: boolean
+}) {
+    if (!isVisible) return null
+    const width = model.isWide ? 'min-h-11' : 'min-h-11 w-full'
+    return (
+        <ShortcutButton
+            testID="reconcile-view-report"
+            label={RECONCILE_TEXTS.viewReport}
+            shortcut={VIEW_REPORT_KEY}
+            onPress={model.onViewReport}
+            className={width}
+            scopeOwner={model.scopeOwner}
+        />
+    )
+}
+
 /**
  * The finished summary of `books/reconcile/<id>` (reconcile spec §3 "The finished
  * summary"): the block `reconcile-finished` from the stamped fields (the model's totals are
  * stampedTotals: the beginning balance, each side's sum and count, the cleared balance by
  * reconcileTotals' formula and the difference), "Finished <day> by <name>", the line with
- * the count of reconciled transactions, and Reconcile another account (back to
- * `books/reconcile`) and View register (`books/accounts/<accountId>`). No list, no
- * history, no report control.
+ * the count of reconciled transactions, and the buttons View report (the Reconciliation
+ * Report with this statement, reconciliation report spec §3), Reconcile another account
+ * (back to `books/reconcile`) and View register (`books/accounts/<accountId>`).
  */
 export function ReconcileFinished({ model }: { model: ReconcileScreenModel }) {
     const { reconciliation, totals, words, currency } = model
@@ -93,7 +118,13 @@ export function ReconcileFinished({ model }: { model: ReconcileScreenModel }) {
             </View>
             <Text className="text-sm text-foreground">{countLine}</Text>
             <View className={buttons}>
-                <Button testID="reconcile-another" className="min-h-11" onPress={model.onAnother}>
+                <ViewReportButton model={model} isVisible={model.reportHref !== null} />
+                <Button
+                    testID="reconcile-another"
+                    variant="outline"
+                    className="min-h-11"
+                    onPress={model.onAnother}
+                >
                     <ButtonText>{RECONCILE_TEXTS.another}</ButtonText>
                 </Button>
                 <Button

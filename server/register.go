@@ -90,6 +90,7 @@ func Register(app *pocketbase.PocketBase) {
 	reports.RegisterShipped(auditLogShipped())
 	reports.RegisterShipped(statementBalanceForwardShipped())
 	reports.RegisterShipped(statementOpenItemsShipped())
+	reports.RegisterShipped(reconciliationReportShipped())
 	registerReportShares(app)
 	registerAudit(app)
 	oauth.RegisterPackage(oauthPackage())

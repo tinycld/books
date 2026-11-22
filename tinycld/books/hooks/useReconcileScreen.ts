@@ -27,6 +27,7 @@ import {
 } from '../lib/reconcile'
 import { reconcileHints } from '../lib/reconcile-hints'
 import type { ReconcileHeaderKey } from '../lib/reconcile-shortcuts'
+import { RECONCILIATION_REPORT_SHIPPED_KEY } from '../lib/shipped-reports'
 import {
     heldStatementDate,
     isFinishingFor,
@@ -39,6 +40,7 @@ import { useReconcileClear } from './useReconcileClear'
 import { type ReconcileLineRow, useReconcileLines } from './useReconcileLines'
 import { useReconcileHeaderKeys, useReconcileShortcuts } from './useReconcileShortcuts'
 import type { ReconcileEditTarget } from './useReconcileStart'
+import { useShippedReportHref } from './useShippedReportHref'
 import { usePopToScreenBelow } from './useStackScreens'
 
 const LOG_CONTEXT = 'books.reconcile'
@@ -96,7 +98,9 @@ function totalsOf(
  * info's data from this one record query (with the account's latest finished statement
  * date), null while the dialog is closed. While its save is in flight the lines and the For
  * review count read the stored date (the store's `heldStatement`), so the state stays `work`
- * and the dialog stays open until the server has answered.
+ * and the dialog stays open until the server has answered. The finished summary's View
+ * report (`reportHref`, `onViewReport`) opens the Reconciliation Report with its Statement
+ * filter set to this reconciliation; its key R is in the same `list` scope.
  */
 export function useReconcileScreen(id: string) {
     const [
@@ -386,6 +390,13 @@ export function useReconcileScreen(id: string) {
         ? finishedByText(localDayOf(reconciliation.finished_at), reconciliation.finished_by_name)
         : ''
     const onViewRegister = () => router.push(orgHref(`books/accounts/${statementAccount}`))
+    // The Reconciliation Report with its Statement filter set to this reconciliation; null
+    // while it loads or when the reader has no such report, and then no button is drawn.
+    const reportParams = useMemo(() => ({ statement: id }), [id])
+    const reportHref = useShippedReportHref(RECONCILIATION_REPORT_SHIPPED_KEY, reportParams)
+    const onViewReport = () => {
+        if (reportHref) router.push(reportHref)
+    }
 
     return {
         state,
@@ -431,6 +442,8 @@ export function useReconcileScreen(id: string) {
         finishedText,
         onAnother: onBack,
         onViewRegister,
+        reportHref,
+        onViewReport,
     }
 }
 
