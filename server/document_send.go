@@ -366,8 +366,9 @@ func utf16Length(s string) int {
 
 // newDocumentSendRow is the send row of one email, before its send. Its text
 // fields are checked by their own validators (the to, cc, subject, body and
-// body_text maxes), so a value is refused before its email is sent and never
-// fails the save after it.
+// body_text maxes) for their own refusals, then the whole row by the record
+// validation that App.Save runs, so a row that cannot be stored is refused
+// before its email is sent and never fails the save after it.
 func newDocumentSendRow(
 	ctx context.Context, re *core.RequestEvent, kind string, doc *core.Record, to string, cc []string,
 	texts documentSendTexts,
@@ -401,6 +402,10 @@ func newDocumentSendRow(
 		if err := field.ValidateValue(ctx, re.App, row); err != nil {
 			return nil, refusals[name]
 		}
+	}
+	if err := re.App.ValidateWithContext(ctx, row); err != nil {
+		log.ErrorContext(ctx, "validate a document send", "kind", kind, "document", doc.Id, "err", err)
+		return nil, msgDocumentNotSent
 	}
 	return row, ""
 }

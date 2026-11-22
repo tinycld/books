@@ -63,6 +63,27 @@
         "bodyHtml": "<p>Hello Marisol Alvarez,</p><p>Attached is sales receipt 2003 from Hartwell Supply Co.</p><p>Date: Nov 10, 2026<br>Total: $1,250.00<br>Paid. No payment is due.</p><p>To ask about this sales receipt, reply to this email or call +1 214 555 1234.</p>"
     },
     {
+        "name": "sales receipt 1005 of the fixture: a walk-in sale that names no customer greets with no name",
+        "input": {
+            "kind": "sales_receipt",
+            "number": "1005",
+            "customerName": "",
+            "businessName": "Hartwell Supply Co.",
+            "businessPhone": "+1 214 555 1234",
+            "date": "Nov 10, 2026",
+            "dueDate": "",
+            "expirationDate": "",
+            "total": "$1,250.00",
+            "balance": "",
+            "balanceIsZero": false,
+            "message": "",
+            "link": "",
+            "canRespond": false
+        },
+        "subject": "Sales receipt 1005 from Hartwell Supply Co.",
+        "bodyHtml": "<p>Hello,</p><p>Attached is sales receipt 1005 from Hartwell Supply Co.</p><p>Date: Nov 10, 2026<br>Total: $1,250.00<br>Paid. No payment is due.</p><p>To ask about this sales receipt, reply to this email or call +1 214 555 1234.</p>"
+    },
+    {
         "name": "credit memo 3001 of the fixture: part of the credit applied",
         "input": {
             "kind": "credit_memo",

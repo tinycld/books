@@ -15,13 +15,17 @@ import { type DocumentFeatures, SALES_FEATURES } from './sales-document-kinds'
 // Refund (`refund`) is a posted sales receipt's only, Refund credit (`refund_credit`) a
 // posted credit memo's with unapplied credit only (refund receipt spec §3.11, §3.12).
 // Write off (`write_off`) is a posted invoice's with an open balance only (write-off spec
-// §3.1).
+// §3.1). Send… (`send`) is a sent-able document's (email-share spec §3.3) and Copy customer
+// link (`link`) a posted invoice's with a token (email-share spec §3.5); a quote's Send… is
+// quoteReadActions'.
 
 export type DocumentReadAction =
     | 'apply_credit'
     | 'record_refund'
     | 'pay_bill'
     | 'receive_payment'
+    | 'send'
+    | 'link'
     | 'edit'
     | 'void'
     | 'copy'
@@ -52,6 +56,10 @@ export const DOCUMENT_READ_KEYS = {
     refund: 'r',
     refund_credit: 'r',
     write_off: 'w',
+    send: 's',
+    // Not a single letter: the estimate form's Copy customer link is ⌥L
+    // (QUOTE_FORM_KEYS.copyLink, lib/entry-shortcuts.ts), and the same action keeps its key.
+    link: 'Alt+l',
 } as const
 
 // The read view's words for each action; a sales list's row menu shows the same.
@@ -60,6 +68,8 @@ export const DOCUMENT_READ_LABELS: Record<DocumentReadAction, string> = {
     record_refund: 'Record refund',
     pay_bill: 'Pay bill',
     receive_payment: 'Receive payment',
+    send: 'Send…',
+    link: 'Copy customer link',
     edit: 'Edit',
     void: 'Void',
     copy: 'Copy',
@@ -199,6 +209,8 @@ type ReadActionExtra = {
     canRefundCredit?: boolean
     canWriteOff?: boolean
     isDeposited?: boolean
+    canSend?: boolean
+    canCopyLink?: boolean
 }
 
 // A writer edits or voids a posted document and copies any; a void document (a replaced
@@ -220,6 +232,10 @@ type ReadActionExtra = {
 // `extra.canRefundCredit` is set (only for a posted credit memo with unapplied credit).
 // Edit and Void are left out when `extra.isDeposited` is set (a sales receipt or refund
 // receipt that a posted deposit holds, bank deposit spec §3.10); every other action stays.
+// Send… comes after the first actions and before Edit when `extra.canSend` is set (a
+// sent-able kind and status, sendOffered), and Copy customer link directly before View
+// journal entry when `extra.canCopyLink` is set (a posted invoice with a token); both are a
+// writer's on a posted document only (email-share spec §3.3, §3.7).
 export function documentReadActions(
     status: DocumentStatus,
     canWrite: boolean,
@@ -246,18 +262,22 @@ export function documentReadActions(
         const refundSale: DocumentReadAction[] = extra.canRefund ? ['refund'] : []
         const refundCredit: DocumentReadAction[] = extra.canRefundCredit ? ['refund_credit'] : []
         const change: DocumentReadAction[] = extra.isDeposited ? [] : ['edit', 'void']
+        const send: DocumentReadAction[] = extra.canSend ? ['send'] : []
+        const link: DocumentReadAction[] = extra.canCopyLink ? ['link'] : []
         return [
             ...apply,
             ...refund,
             ...pay,
             ...receive,
             ...applyInvoice,
+            ...send,
             ...change,
             'copy',
             ...credit,
             ...writeOff,
             ...refundSale,
             ...refundCredit,
+            ...link,
             'entry',
             ...pdf,
         ]

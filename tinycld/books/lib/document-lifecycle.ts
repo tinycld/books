@@ -6,6 +6,7 @@
 
 import type { BooksEstimates, BooksInvoices, BooksJournalEntries } from '../types'
 import type { DocumentReadAction } from './document-actions'
+import { sendOffered } from './document-send'
 import { entryStatusText } from './entry-display'
 import { estimateStatusLabel } from './estimate-status'
 import type { DocumentLifecycle } from './sales-document-kinds'
@@ -168,9 +169,10 @@ export function creditMemoBadge(
 }
 
 // The read view's actions of a quote (a closed estimate, or any estimate for a reader):
-// Open invoice first for everyone on a closed estimate that names its invoice, Copy for
-// writers, then Download PDF for everyone. No Edit, no Void and no journal entry: a
-// quote never posts.
+// Open invoice first for everyone on a closed estimate that names its invoice, Send… for
+// writers on an estimate that can be sent (pending, accepted or rejected: sendOffered;
+// email-share plan decision 12), Copy for writers, then Download PDF for everyone. No Edit,
+// no Void and no journal entry: a quote never posts.
 export function quoteReadActions(
     status: DocumentStatus,
     canWrite: boolean,
@@ -178,6 +180,7 @@ export function quoteReadActions(
 ): DocumentReadAction[] {
     const actions: DocumentReadAction[] = []
     if (status === 'closed' && hasInvoice) actions.push('invoice')
+    if (canWrite && sendOffered('estimate', status)) actions.push('send')
     if (canWrite) actions.push('copy')
     actions.push('pdf')
     return actions

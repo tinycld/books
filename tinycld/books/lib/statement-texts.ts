@@ -145,8 +145,9 @@ export function statementPeriodText(
 
 // A PocketBase datetime ('YYYY-MM-DD HH:mm:ss.SSSZ', UTC) as the reader's local day, or ''
 // when it is no datetime. lib/opening-balances.ts has the same rule as `localDayOf`, but
-// that module reaches the core logger, and this one stays plain for the e2e helpers.
-function readerDayOf(moment: string): string {
+// that module reaches the core logger, and this one stays plain for the e2e helpers. The
+// sent line of a document (lib/document-send.ts documentSentLine) reads it too.
+export function readerDayOf(moment: string): string {
     const parsed = new Date(moment.replace(' ', 'T'))
     if (Number.isNaN(parsed.getTime())) return ''
     const pad = (value: number) => String(value).padStart(2, '0')

@@ -2,7 +2,6 @@
 // Client). Paths are without the org prefix; callers pass them through `useOrgHref`. A
 // line, bundle item, estimate response, payment application or bill payment line never
 // reaches here: its history is its parent's.
-import { isSendDocType } from './audit-fields'
 import { recordTypeLabel } from './audit-log'
 import { customerPath } from './customer-route'
 import { documentHref } from './document-routes'
@@ -21,6 +20,7 @@ import {
     type SalesDocumentKind,
     VENDOR_CREDIT_KIND,
 } from './sales-document-kinds'
+import { isSendDocType } from './send-doc-types'
 import { vendorPath } from './vendor-route'
 
 type LiveRecord = Record<string, unknown>

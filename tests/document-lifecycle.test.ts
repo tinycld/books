@@ -350,6 +350,7 @@ describe('quoteReadActions', () => {
     it('puts Open invoice first on a closed estimate that has its invoice, for a writer and a reader', () => {
         expect(quoteReadActions('closed', true, true)).toEqual(['invoice', 'copy', 'pdf'])
         expect(quoteReadActions('closed', false, true)).toEqual(['invoice', 'pdf'])
-        expect(quoteReadActions('pending', true, false)).toEqual(['copy', 'pdf'])
+        // A writer's pending estimate also offers Send… (email-share plan decision 12).
+        expect(quoteReadActions('pending', true, false)).toEqual(['send', 'copy', 'pdf'])
     })
 })

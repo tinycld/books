@@ -163,6 +163,9 @@ export type DocumentRecord = SharedColumns & {
               // The cents of its posted write-offs, which the server keeps (the Written off
               // badge and totals row).
               written_off: BooksInvoices['written_off']
+              // The customer link's token (email-share spec §3.5), which the server sets at
+              // create: Copy customer link of the read view reads it.
+              public_token: BooksInvoices['public_token']
           })
         | (SalesReceiptKindFields & {
               depositRow: Pick<BooksAccounts, 'number' | 'name'> | undefined

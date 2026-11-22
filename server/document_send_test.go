@@ -910,6 +910,76 @@ func TestDocumentSend_SentButNotRecorded(t *testing.T) {
 	}
 }
 
+// Spec §4.2 "Each send is stored": a walk-in sales receipt names no customer
+// (2100000011_create_books_sales_receipts.js), and its send is stored too, with
+// an empty customer, so the read view's sent line and the history have a row.
+func TestDocumentSend_WalkInReceiptIsStored(t *testing.T) {
+	env := newDSEnv(t)
+	const address = "counter@walkin.example"
+	receipt := env.doc(t, "sales_receipt", "posted", map[string]any{"customer": "", "email": address})
+	if got := receipt.GetString("customer"); got != "" {
+		t.Fatalf("the stored receipt names customer %q, want a walk-in receipt", got)
+	}
+	item := dsItem{Kind: "sales_receipt", ID: receipt.Id, To: address}
+	row := requireSentOne(t, env.post(t, item), item)
+	if n := len(env.sender.to(address)); n != 1 {
+		t.Errorf("%d emails to %s, want 1", n, address)
+	}
+	stored, err := env.app.FindRecordsByFilter(documentSendsCollection,
+		"doc_type = 'sales_receipt' && document = {:id}", "", 0, 0, map[string]any{"id": receipt.Id})
+	if err != nil {
+		t.Fatalf("read the send rows: %v", err)
+	}
+	if len(stored) != 1 {
+		t.Fatalf("%d stored send rows for the walk-in receipt, want 1", len(stored))
+	}
+	if got := stored[0].GetString("customer"); got != "" {
+		t.Errorf("stored customer = %q, want \"\"", got)
+	}
+	if got := stored[0].GetString("to"); got != address {
+		t.Errorf("stored to = %q, want %q", got, address)
+	}
+	if row["id"] != stored[0].Id {
+		t.Errorf("answer's sent row id %v, want the stored row %q", row["id"], stored[0].Id)
+	}
+}
+
+// Spec §4.4: a send row that cannot be stored stops the send before its
+// email, so no email goes out that the history cannot show. The test makes the
+// row's customer required again, so a walk-in receipt's row breaks a field
+// rule of the collection.
+func TestDocumentSend_InvalidRowSendsNoEmail(t *testing.T) {
+	env := newDSEnv(t)
+	const address = "counter@walkin.example"
+	receipt := env.doc(t, "sales_receipt", "posted", map[string]any{"customer": "", "email": address})
+	col, err := env.app.FindCollectionByNameOrId(documentSendsCollection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	customer, ok := col.Fields.GetByName("customer").(*core.RelationField)
+	if !ok {
+		t.Fatalf("the send collection's customer field is %T, want a relation", col.Fields.GetByName("customer"))
+	}
+	customer.Required = true
+	if err := env.app.Save(col); err != nil {
+		t.Fatalf("make the customer required: %v", err)
+	}
+	item := dsItem{Kind: "sales_receipt", ID: receipt.Id, To: address}
+	answer := env.post(t, item)
+	if len(answer.Sent) != 0 || len(answer.Failed) != 1 {
+		t.Fatalf("answer %+v, want no row sent and one failure", answer)
+	}
+	if f := answer.Failed[0]; f.ID != receipt.Id || f.Message == "" || f.Message == msgDocumentSentNotSaved {
+		t.Errorf("failed[0] = %+v, want the receipt failed before its email, not %q", f, msgDocumentSentNotSaved)
+	}
+	if n := env.sender.calls(); n != 0 {
+		t.Errorf("SendFull called %d times, want 0: a row that cannot be stored sent its email", n)
+	}
+	if n, _ := env.app.CountRecords(documentSendsCollection); n != 0 {
+		t.Errorf("%d send rows, want 0", n)
+	}
+}
+
 // Spec §4.4: a PDF above the size bound is refused before its email.
 func TestDocumentSend_FileTooLarge(t *testing.T) {
 	env := newDSEnv(t)

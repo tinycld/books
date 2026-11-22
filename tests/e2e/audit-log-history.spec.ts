@@ -299,7 +299,8 @@ test.describe('audit-log: record history', () => {
         await page.getByTestId('history-back').filter({ visible: true }).click()
         await expect(page.getByTestId('invoice-read-only').filter({ visible: true })).toBeVisible()
         // A phone's More holds every action but Edit, then Audit history last. Receive payment
-        // is first: the invoice is posted and has a balance.
+        // is first: the invoice is posted and has a balance. Send… follows it, and Copy
+        // customer link comes before View journal entry (email-share spec §3.3).
         await expectPhoneMoreHistory(
             page,
             {
@@ -307,10 +308,12 @@ test.describe('audit-log: record history', () => {
                 history: 'invoice-read-history',
                 before: [
                     /Receive payment/,
+                    /Send…/,
                     /Void/,
-                    /Copy/,
+                    /Copy(?! customer link)/,
                     /Create credit memo/,
                     /Write off/,
+                    /Copy customer link/,
                     /View journal entry/,
                     /Download PDF/,
                 ],

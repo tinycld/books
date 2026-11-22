@@ -250,6 +250,24 @@ describe('documentRowMenuItems, every list', () => {
         }
     })
 
+    // Email-share plan checkpoint 3: the read view gains Send… and Copy customer link (and a
+    // writer's open estimate gains Send… in quoteReadActions), but the row menu leaves both
+    // out until checkpoint 4 adds its Send… row.
+    it('no list holds Send… or Copy customer link yet, for a writer or a reader', () => {
+        for (const listed of [
+            ...rows,
+            row('estimate', 'accepted'),
+            row('estimate', 'rejected'),
+            row('refund_receipt', 'posted'),
+        ]) {
+            for (const canWrite of [WRITER, READER]) {
+                const items: string[] = documentRowMenuItems(listed, canWrite)
+                expect(items, `${listed.kind} ${listed.recordStatus}`).not.toContain('send')
+                expect(items, `${listed.kind} ${listed.recordStatus}`).not.toContain('link')
+            }
+        }
+    })
+
     it('a row with no entry has no View journal entry', () => {
         const noEntry: DocumentListRow[] = [
             row('invoice', 'posted', { balance: 150, entry: '' }),

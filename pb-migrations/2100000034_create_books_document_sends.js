@@ -4,10 +4,11 @@
 // to file a send under its document, so it stays after this migration.
 //
 // books_document_sends holds one row for each email a writer sends of a sales
-// document: the document's kind and id, its number at the send, the customer,
-// the addresses, and the subject and message that were sent (body is the
-// sanitized message HTML without the email frame, body_text the same message as
-// text, for the Audit history). document is a record id, not a relation: the
+// document: the document's kind and id, its number at the send, the customer
+// (empty for a walk-in sales or refund receipt, which names none), the
+// addresses, and the subject and message that were sent (body is the sanitized
+// message HTML without the email frame, body_text the same message as text,
+// for the Audit history). document is a record id, not a relation: the
 // kind decides the collection. Only the send route writes a row, as the app,
 // so there is no create, update or delete rule; every member with Books read
 // access lists and views the rows. Deleting the customer deletes its sends;
@@ -87,7 +88,6 @@ migrate(
                     {
                         name: 'customer',
                         type: 'relation',
-                        required: true,
                         collectionId: customers.id,
                         cascadeDelete: true,
                         maxSelect: 1,

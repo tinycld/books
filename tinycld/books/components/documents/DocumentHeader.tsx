@@ -1,5 +1,6 @@
 import { HelpIcon } from '@tinycld/core/components/help/HelpIcon'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
+import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { type DocumentStatus, type StatusTone, statusBadgeOf } from '../../lib/document-lifecycle'
 import { StatusBadge } from '../StatusBadge'
@@ -19,6 +20,8 @@ interface DocumentHeaderProps {
     // A screen with no status of its own (Pay Bills: no draft, nothing stored yet) shows
     // no status badge.
     isBadgeHidden?: boolean
+    // A line under the title and its badges (a sent document's sent line).
+    subline?: ReactNode
 }
 
 type HeaderBadgeView = { label: string; tone: StatusTone }
@@ -44,6 +47,19 @@ function HeaderBadge({ status, override, isHidden, testID }: HeaderBadgeProps) {
     return <StatusBadge label={badge.label} tone={badge.tone} testID={testID} />
 }
 
+// The title row with a line under it. With no line the title row is drawn alone, so a
+// screen that gives no subline (the forms, payments, deposits, bill payments, write-offs)
+// keeps its layout.
+function TitleBlock({ titleRow, subline }: { titleRow: ReactNode; subline: ReactNode }) {
+    if (subline === undefined || subline === null) return titleRow
+    return (
+        <View className="min-w-0 shrink gap-1">
+            {titleRow}
+            {subline}
+        </View>
+    )
+}
+
 // Title, badges and help at the left; the kind's big figure at the right (under the title
 // on a phone).
 export function DocumentHeader({
@@ -53,6 +69,7 @@ export function DocumentHeader({
     isExpired,
     badge,
     isBadgeHidden = false,
+    subline,
 }: DocumentHeaderProps) {
     const doc = useDocumentChrome()
     const isPhone = useBreakpoint() === 'mobile'
@@ -62,21 +79,24 @@ export function DocumentHeader({
     const badgeId = `${doc.testId}-badge`
     const expiredId = `${doc.testId}-expired-badge`
     const figureId = `${doc.testId}-${doc.figure.testId}`
+    const titleRow = (
+        <View className="flex-row flex-wrap items-center gap-2">
+            <Text testID={titleId} className="text-xl font-semibold text-foreground">
+                {title}
+            </Text>
+            <HeaderBadge
+                status={status}
+                override={badge}
+                isHidden={isBadgeHidden}
+                testID={badgeId}
+            />
+            <ExpiredBadge isVisible={isExpired} testID={expiredId} />
+            <HelpIcon topic={doc.helpTopic} />
+        </View>
+    )
     return (
         <View className={layout}>
-            <View className="flex-row flex-wrap items-center gap-2">
-                <Text testID={titleId} className="text-xl font-semibold text-foreground">
-                    {title}
-                </Text>
-                <HeaderBadge
-                    status={status}
-                    override={badge}
-                    isHidden={isBadgeHidden}
-                    testID={badgeId}
-                />
-                <ExpiredBadge isVisible={isExpired} testID={expiredId} />
-                <HelpIcon topic={doc.helpTopic} />
-            </View>
+            <TitleBlock titleRow={titleRow} subline={subline} />
             <View className={figureClass}>
                 <Text className="text-xs uppercase tracking-wide text-muted-foreground">
                     {doc.figure.label}

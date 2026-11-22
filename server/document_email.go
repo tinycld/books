@@ -88,6 +88,15 @@ var documentEmailWords = map[string]struct{ title, noun string }{
 // into a <br>.
 var messageLineBreaks = strings.NewReplacer("\r\n", "<br>", "\n", "<br>", "\r", "<br>")
 
+// greeting is "Hello <name>,", or "Hello," for a document that names no
+// customer (a walk-in sale), so no space comes before the comma.
+func greeting(name string) string {
+	if name == "" {
+		return "Hello,"
+	}
+	return "Hello " + name + ","
+}
+
 // documentEmail builds the starting subject and message of in (spec §3.4).
 // Each block is one <p>, a line break inside a block is a <br>, and every
 // filled value is HTML-escaped.
@@ -110,7 +119,7 @@ func documentEmail(in documentEmailInput) documentMessage {
 	if strings.HasSuffix(name, ".") {
 		period = ""
 	}
-	block("Hello " + esc(oneLine(in.CustomerName)) + ",")
+	block(greeting(esc(oneLine(in.CustomerName))))
 	block("Attached is " + words.noun + " " + esc(in.Number) + " from " + esc(name) + period)
 	closing := "To ask about this " + words.noun + ", reply to this email"
 	switch in.Kind {
@@ -166,8 +175,9 @@ var documentLinkPaths = map[string]string{
 
 // documentEmailInputOf fills the input of record's starting email: the money
 // through formatMoney in the document's currency (else the book's, as the PDF
-// prints it), the days through formatDay, the customer's display name, and the
-// customer link from the server address and the row's public_token.
+// prints it), the days through formatDay, the customer's display name (an
+// empty name for a document with no customer), and the customer link from the
+// server address and the row's public_token.
 func documentEmailInputOf(app core.App, kind string, record *core.Record, business documentBusiness) (documentEmailInput, error) {
 	if _, ok := documentEmailWords[kind]; !ok {
 		return documentEmailInput{}, fmt.Errorf("books: no document email for kind %q", kind)
@@ -176,9 +186,15 @@ func documentEmailInputOf(app core.App, kind string, record *core.Record, busine
 	if err != nil {
 		return documentEmailInput{}, fmt.Errorf("books: read settings: %w", err)
 	}
-	customer, err := app.FindRecordById("books_customers", record.GetString("customer"))
-	if err != nil {
-		return documentEmailInput{}, fmt.Errorf("books: read the document's customer: %w", err)
+	// A walk-in sales or refund receipt names no customer (2100000011
+	// "Optional: a walk-in sale names no customer"): its email names nobody.
+	customerName := ""
+	if customerID := record.GetString("customer"); customerID != "" {
+		customer, err := app.FindRecordById("books_customers", customerID)
+		if err != nil {
+			return documentEmailInput{}, fmt.Errorf("books: read the document's customer: %w", err)
+		}
+		customerName = customer.GetString("display_name")
 	}
 	currency := record.GetString("currency")
 	if currency == "" {
@@ -188,7 +204,7 @@ func documentEmailInputOf(app core.App, kind string, record *core.Record, busine
 	in := documentEmailInput{
 		Kind:          kind,
 		Number:        record.GetString("number"),
-		CustomerName:  customer.GetString("display_name"),
+		CustomerName:  customerName,
 		BusinessName:  business.Name,
 		BusinessPhone: business.Phone,
 		Date:          formatDay(record.GetString("date")),
