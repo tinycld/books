@@ -152,6 +152,8 @@
 - gate 3 A notes: 3 to Design notes (NOTEs 2, 4, 5); NOTEs 1, 3, 6 fixed.
 - reviewer-caught deferrals: none (B's DEFERRAL 1 was the ledger figures, already written).
 - gate 1 after fix r1, e2e (driver, cp/cp2-g1-e2e-r3.log; books-report-1099, vendor-1099-boxes, vendor-1099-vendors): Running 11 tests using 3 workers, 11 passed, EXIT 0 · tests unedited since staging: yes (`git diff --name-only` lists only this ledger) · pass. Gate 1 is green after the fix. No capture again: the fixes change no screen (Go refactor with pin tests; fixture metadata).
+- commit: 64889249c9eb8b2e3225727abaeafba780c4df5e (books, branch books/p5-1099-report)
+- human: none (mode C)
 
 ## Final review
 - eval:
