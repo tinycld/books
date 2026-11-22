@@ -52,6 +52,15 @@ describe('history route', () => {
         )
     })
 
+    // Bank deposit spec §3.7: a deposit's history is read from books_deposits.
+    it('maps deposit to books_deposits and opens its history screen', () => {
+        expect(Object.entries(DOCUMENT_COLLECTIONS)).toContainEqual(['deposit', 'books_deposits'])
+        const collection = Object.fromEntries(Object.entries(DOCUMENT_COLLECTIONS)).deposit
+        expect(historyHref(collection ?? '', 'dpst1001frida01')).toBe(
+            'books/history/books_deposits/dpst1001frida01'
+        )
+    })
+
     it('opens the history screen of a vendor refund', () => {
         const collection = Object.fromEntries(Object.entries(DOCUMENT_COLLECTIONS)).vendor_refund
         expect(historyHref(collection ?? '', 'vrfd1001cascf01')).toBe(

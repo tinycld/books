@@ -34,7 +34,7 @@ When the match is done, the panel closes and a line under the toolbar says "Matc
 
 ### Choose several Books transactions
 
-One bank deposit can hold several payments. Check every Books transaction that is part of it. A match holds 1 to 50 Books transactions, and their amounts must add up to the bank amount exactly.
+One bank deposit can hold several payments. Check every Books transaction that is part of it. A match holds 1 to 50 Books transactions, and their amounts must add up to the bank amount exactly. When the payments went to Undeposited funds and you recorded the trip to the bank as a [bank deposit](help://books:bank-deposits), the deposit is the one Books transaction that the bank line matches.
 
 ## Find other matches
 
@@ -64,6 +64,10 @@ To undo the match, choose Undo match. The transaction goes back to For review, a
 When you void a matched Books transaction, or edit it (an edit voids the original and posts a correction), the match is removed and the bank transaction goes back to For review. A corrected transaction is a suggestion again when its amount still fits.
 
 When you disconnect the account, its matches are removed with its bank transactions.
+
+## Matches and reconciling
+
+When you reconcile the account, a matched Books transaction shows a bank icon in the list, and Clear matched clears every matched transaction at once. In the account register its status is Matched until it is cleared. See [Reconcile an account](help://books:reconcile).
 
 ## Who can do what
 

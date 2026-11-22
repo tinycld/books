@@ -1,4 +1,4 @@
-import { Landmark, List, Percent, Receipt } from 'lucide-react-native'
+import { Landmark, List, ListChecks, Percent, Receipt } from 'lucide-react-native'
 import { describe, expect, it } from 'vitest'
 import { accessFromRow } from '../tinycld/books/lib/access'
 import { NEW_ACTIONS, type NewAction } from '../tinycld/books/lib/new-actions'
@@ -74,7 +74,7 @@ describe('registries', () => {
         })
     })
 
-    it('NEW_ACTIONS has an available Product or service action in the other column, after Transfer', () => {
+    it('NEW_ACTIONS has an available Product or service action in the other column, after Bank deposit', () => {
         const product = NEW_ACTIONS.find(a => a.id === 'product')
         expect(product).toEqual({
             id: 'product',
@@ -85,7 +85,8 @@ describe('registries', () => {
         })
         const ids = NEW_ACTIONS.map(a => a.id)
         expect(ids.indexOf('transfer')).toBe(ids.indexOf('journal-entry') + 1)
-        expect(ids.indexOf('product')).toBe(ids.indexOf('transfer') + 1)
+        expect(ids.indexOf('deposit')).toBe(ids.indexOf('transfer') + 1)
+        expect(ids.indexOf('product')).toBe(ids.indexOf('deposit') + 1)
     })
 
     it('NEW_ACTIONS has an available Transfer action in the other column at books/transfers/new', () => {
@@ -98,11 +99,12 @@ describe('registries', () => {
         })
     })
 
-    it('the New menu Other column lists Journal entry, then Transfer, then Product or service', () => {
+    it('the New menu Other column lists Journal entry, then Transfer, then Bank deposit, then Product or service', () => {
         const other = newMenuColumns(NEW_ACTIONS).find(c => c.heading === 'Other')
         expect(other?.actions.map(a => a.label)).toEqual([
             'Journal entry',
             'Transfer',
+            'Bank deposit',
             'Product or service',
         ])
     })
@@ -572,6 +574,33 @@ describe('taxes sidebar entry', () => {
     })
 })
 
+// Reconcile spec §2: Reconcile is in the Accounting group, right after Journal Entries; the
+// work screen's phone Finish bar owns the bottom, so the New button stays off it (plan
+// settled difference 6).
+describe('reconcile sidebar entry', () => {
+    it('is an available Accounting entry at books/reconcile, directly after entries', () => {
+        expect(SIDEBAR_ENTRIES.find(e => e.id === 'reconcile')).toEqual({
+            id: 'reconcile',
+            label: 'Reconcile',
+            icon: ListChecks,
+            href: 'books/reconcile',
+            group: 'accounting',
+            available: true,
+        })
+        const ids = SIDEBAR_ENTRIES.map(e => e.id)
+        expect(ids.indexOf('reconcile')).toBe(ids.indexOf('entries') + 1)
+        const accounting = sidebarSections(availableOnly(SIDEBAR_ENTRIES)).accounting.map(e => e.id)
+        expect(accounting.indexOf('reconcile')).toBe(accounting.indexOf('entries') + 1)
+    })
+
+    it('hides the New button on a reconciliation and keeps it on the accounts screen', () => {
+        expect(hidesNewFab('/a/books/reconcile/abc123def456ghi')).toBe(true)
+        expect(hidesNewFab('/a/acme/books/reconcile/abc123def456ghi/')).toBe(true)
+        expect(hidesNewFab('/a/books/reconcile')).toBe(false)
+        expect(hidesNewFab('/a/books/reconcile/')).toBe(false)
+    })
+})
+
 describe('reports sidebar entry', () => {
     function reportsEntry(): SidebarEntry {
         const reports = SIDEBAR_ENTRIES.find(e => e.id === 'reports')
@@ -788,6 +817,11 @@ describe('hidesNewFab', () => {
         '/a/acme/books/bill-payments/abc123/',
         '/a/acme/books/write-offs/abc',
         '/a/books/write-offs/abc123/',
+        // Bank deposit spec §2: both deposit routes are pushed pages.
+        '/a/books/deposits/new',
+        '/a/acme/books/deposits/new/',
+        '/a/books/deposits/seeddeposit0001',
+        '/a/acme/books/deposits/abc123/',
     ])('hides the New button on %s', path => {
         expect(hidesNewFab(path)).toBe(true)
     })

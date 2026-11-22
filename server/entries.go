@@ -295,6 +295,12 @@ func transitionEntry(tx core.App, stored, next *core.Record, now time.Time) erro
 			return refuse("%s cannot change (%s) when it is voided. A void changes only the status.",
 				entryName(stored), strings.Join(changed, ", "))
 		}
+		// A document void, a document correction and a journal entry edit all
+		// void the entry here, so this one check keeps a deposited line's entry
+		// posted while its deposit is.
+		if err := refuseHeldByDeposit(tx, stored); err != nil {
+			return err
+		}
 		// Every void passes here (an entry void, the original of an edit, a
 		// document void), so a matched line's bank transaction returns to For
 		// review in the void's transaction.
@@ -303,6 +309,11 @@ func transitionEntry(tx core.App, stored, next *core.Record, now time.Time) erro
 		}
 		// An added bank transaction's categorization goes with its entry's void.
 		if err := uncategorizeEntry(tx, next.Id); err != nil {
+			return err
+		}
+		// A reconciled line refuses the void; a cleared mark in progress goes
+		// with it.
+		if err := unreconcileEntry(tx, next.Id); err != nil {
 			return err
 		}
 		return voidEntry(tx, next, now)

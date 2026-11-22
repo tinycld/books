@@ -137,20 +137,50 @@ export async function expectedHeading(page: Page): Promise<string> {
 const MOBILE_MAX_WIDTH = 767
 
 // MobileDrawer opens from a pan that starts in the 20px strip at the left edge;
-// react-native-gesture-handler listens for the mouse on web, so a drag drives it
-// (tests/e2e/mobile-drawer.spec.ts).
+// react-native-gesture-handler listens for the mouse on web, so a drag drives it.
+// The pan's end decides open or closed from react-native-gesture-handler's fling
+// velocity, a quadratic fit of the last moves' event timestamps. Moves sent by
+// page.mouse are stamped when the browser takes them, so a busy machine (a stall
+// of more than 40ms, then two moves 1ms apart) gives the fit a large negative
+// velocity and the drawer closes. The moves go through CDP with their own evenly
+// spaced timestamps (16ms, 5 -> 200 in 16 steps: about 800px/s), so the fling the
+// gesture sees is the same on every run.
+export async function swipeFromLeftEdge(page: Page): Promise<void> {
+    const y = (page.viewportSize()?.height ?? 844) / 2
+    const xs = [
+        ...Array.from({ length: 8 }, (_, i) => 5 + (95 * (i + 1)) / 8),
+        ...Array.from({ length: 8 }, (_, i) => 100 + (100 * (i + 1)) / 8),
+    ]
+    const cdp = await page.context().newCDPSession(page)
+    let seconds = Date.now() / 1000
+    const send = (type: 'mouseMoved' | 'mousePressed' | 'mouseReleased', x: number) =>
+        cdp.send('Input.dispatchMouseEvent', {
+            type,
+            x,
+            y,
+            button: 'left',
+            buttons: type === 'mouseReleased' ? 0 : 1,
+            clickCount: 1,
+            timestamp: seconds,
+        })
+    await send('mouseMoved', 5)
+    await send('mousePressed', 5)
+    for (const x of xs) {
+        seconds += 0.016
+        await send('mouseMoved', x)
+    }
+    seconds += 0.004
+    await send('mouseReleased', 200)
+    await cdp.detach()
+}
+
 export async function openBooksMenu(page: Page): Promise<void> {
     // ActivePkgSync closes the drawer on every route change, so the swipe waits for
     // the Books index redirect to settle and for the drawer's mount.
     await expect(page).toHaveURL(/\/a\/books\/\w/)
     const panel = page.getByTestId('mobile-drawer-panel')
     await panel.waitFor({ state: 'attached' })
-    const y = (page.viewportSize()?.height ?? 844) / 2
-    await page.mouse.move(5, y)
-    await page.mouse.down()
-    await page.mouse.move(100, y, { steps: 8 })
-    await page.mouse.move(200, y, { steps: 8 })
-    await page.mouse.up()
+    await swipeFromLeftEdge(page)
     await expect.poll(async () => (await panel.boundingBox())?.x).toBe(0)
 }
 

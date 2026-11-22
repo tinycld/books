@@ -50,6 +50,8 @@ const RECORDS = [
     { collection: 'books_bill_payments', path: `books/bill-payments/${ID}` },
     // Write-off spec §3.6: a write-off's history opens its page.
     { collection: 'books_write_offs', path: `books/write-offs/${ID}` },
+    // Reconcile spec §2: a reconciliation's history opens its work screen or summary.
+    { collection: 'books_reconciliations', path: `books/reconcile/${ID}` },
 ]
 
 // Records shown on a screen that holds a group of them.
@@ -143,7 +145,7 @@ describe('auditRecordHref', () => {
     })
 
     // Vendor refund spec §3.11: a vendor refund's lines are filed under their refund
-    // (parent_type books_vendor_refunds, parent_id the refund id: migration 2100000034's
+    // (parent_type books_vendor_refunds, parent_id the refund id: migration 2100000038's
     // LINES), so the history of a line is the refund's, and its Open is the refund's read
     // view; a refund's entry opens on its refund, and its void reversal as an entry.
     it('a vendor refund record, the refund id a line’s history is filed under, and its entry open books/vendor-refunds/<id>', () => {
@@ -160,6 +162,36 @@ describe('auditRecordHref', () => {
         } as const
         expect(auditRecordHref('books_journal_entries', ID, posted)).toBe(
             `books/vendor-refunds/${refund}`
+        )
+        const reversal = { ...posted, origin: 'void_reversal', document: '' } as const
+        expect(auditRecordHref('books_journal_entries', ID, reversal)).toBe(`books/entries/${ID}`)
+    })
+
+    // Bank deposit spec §3.7: a deposit's history opens the deposit; an item's or an other
+    // funds line's history opens its deposit, from the row's live deposit; a deposit's
+    // entry opens on its deposit, and its void reversal as an entry.
+    it('a deposit record, an item or line of it, and its entry open books/deposits/<id>', () => {
+        const deposit = 'dpst1001frida01'
+        expect(auditRecordHref('books_deposits', deposit, { id: deposit })).toBe(
+            `books/deposits/${deposit}`
+        )
+        expect(auditOpenLabel('books_deposits')).toBe('Open deposit')
+        for (const collection of ['books_deposit_items', 'books_deposit_lines']) {
+            const live = { id: ID, deposit }
+            expect(auditRecordHref(collection, ID, live), collection).toBe(
+                `books/deposits/${deposit}`
+            )
+            expect(auditRecordOpenLabel(collection, live), collection).toBe('Open deposit')
+            expect(auditRecordHref(collection, ID, undefined), collection).toBeNull()
+        }
+        const posted = {
+            id: ID,
+            doc_type: 'deposit',
+            origin: 'document',
+            document: deposit,
+        } as const
+        expect(auditRecordHref('books_journal_entries', ID, posted)).toBe(
+            `books/deposits/${deposit}`
         )
         const reversal = { ...posted, origin: 'void_reversal', document: '' } as const
         expect(auditRecordHref('books_journal_entries', ID, reversal)).toBe(`books/entries/${ID}`)
@@ -280,6 +312,7 @@ describe('auditOpenLabel', () => {
         expect(auditOpenLabel('books_customers')).toBe('Open customer')
         expect(auditOpenLabel('books_products')).toBe('Open product or service')
         expect(auditOpenLabel('books_bill_payments')).toBe('Open bill payment')
+        expect(auditOpenLabel('books_reconciliations')).toBe('Open reconciliation')
     })
 
     it.each(GROUPS)('$collection: $label', ({ collection, label }) => {

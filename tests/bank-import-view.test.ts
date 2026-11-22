@@ -492,37 +492,46 @@ describe('mapIntroText', () => {
 })
 
 describe('statementBalance', () => {
-    it('shows a bank account’s statement balance as stated', () => {
+    it('shows a bank account’s statement balance as stated, with the file’s name', () => {
         expect(
-            statementBalance({ statement_balance: 1042317, statement_date: '2026-10-31' }, 'bank')
-        ).toEqual({ cents: 1042317, day: '2026-10-31' })
+            statementBalance(
+                { statement_balance: 1042317, statement_date: '2026-10-31', name: 'oct-2026.ofx' },
+                'bank'
+            )
+        ).toEqual({ cents: 1042317, day: '2026-10-31', fileName: 'oct-2026.ofx' })
     })
 
     it('negates a credit card’s statement balance, so what the card owes reads positive', () => {
         expect(
             statementBalance(
-                { statement_balance: -341017, statement_date: '2026-10-28' },
+                { statement_balance: -341017, statement_date: '2026-10-28', name: 'card.ofx' },
                 'credit_card'
             )
-        ).toEqual({ cents: 341017, day: '2026-10-28' })
+        ).toEqual({ cents: 341017, day: '2026-10-28', fileName: 'card.ofx' })
     })
 
     it('negates a card balance the bank wrote positive', () => {
         expect(
             statementBalance(
-                { statement_balance: 5000, statement_date: '2026-10-28' },
+                { statement_balance: 5000, statement_date: '2026-10-28', name: 'jan-2027.ofx' },
                 'credit_card'
             )
-        ).toEqual({ cents: -5000, day: '2026-10-28' })
+        ).toEqual({ cents: -5000, day: '2026-10-28', fileName: 'jan-2027.ofx' })
     })
 
     it('has no balance for a file with no statement date', () => {
-        expect(statementBalance({ statement_balance: 1042317, statement_date: '' }, 'bank')).toBe(
-            null
-        )
-        expect(statementBalance({ statement_balance: 0, statement_date: '' }, 'credit_card')).toBe(
-            null
-        )
+        expect(
+            statementBalance(
+                { statement_balance: 1042317, statement_date: '', name: 'checking.csv' },
+                'bank'
+            )
+        ).toBe(null)
+        expect(
+            statementBalance(
+                { statement_balance: 0, statement_date: '', name: 'card.csv' },
+                'credit_card'
+            )
+        ).toBe(null)
     })
 
     it('has no balance with no file', () => {

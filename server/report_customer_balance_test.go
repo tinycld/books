@@ -1509,7 +1509,10 @@ func TestCustomerBalanceOrder(t *testing.T) {
 // needs a higher Revision (core re-stores a spec only on a higher revision);
 // a move that keeps the JSON (p5-ar-aging's customerFamilyGroups and
 // customerFamilySort, p5-vendor-balance's balance… helpers) keeps the sha.
-const customerBalanceSpecSHA256 = "805b3601bac80f147764b596b02e796f7499c557a789f679cf0bbcad67400a58"
+// The bank-deposit unit added "Deposit" to the entry type labels and the
+// deposit route row the detail label and open path read (same Revision, as the
+// write-off unit's label did).
+const customerBalanceSpecSHA256 = "aff7bd3202130360e0df714fb5bc64af36a70b2bb983124e73d985f80a3c1787"
 
 func TestCustomerBalanceSpecJSONUnchanged(t *testing.T) {
 	sum := sha256.Sum256(mustJSON(customerBalanceSpec()))

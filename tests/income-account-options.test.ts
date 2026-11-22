@@ -34,9 +34,9 @@ const ACCOUNTS: IncomeOptionAccount[] = [
         inactive: false,
     },
     {
-        id: idOf('4900'),
+        id: idOf('4950'),
         name: 'Old Sales',
-        number: '4900',
+        number: '4950',
         type: 'income',
         parent: '',
         inactive: true,
@@ -56,12 +56,14 @@ describe('incomeAccountOptions', () => {
         expect(incomeAccountOptions(ACCOUNTS, '').options).toEqual([
             { value: idOf('4000'), label: '4000 Consulting Income', indent: 0 },
             { value: idOf('4010'), label: '4010 Retainers', indent: 1 },
+            // Seeded for the bank deposit seed's other funds line.
+            { value: idOf('4900'), label: '4900 Interest earned', indent: 0 },
             { value: idOf('7000'), label: '7000 Interest Earned', indent: 0 },
         ])
     })
 
     it('names a stored inactive Income account in the trigger label', () => {
-        expect(incomeAccountOptions(ACCOUNTS, idOf('4900')).triggerLabel).toBe('4900 Old Sales')
+        expect(incomeAccountOptions(ACCOUNTS, idOf('4950')).triggerLabel).toBe('4950 Old Sales')
     })
 
     it('names a stored account that is not an income account in the trigger label', () => {

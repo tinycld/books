@@ -1,10 +1,13 @@
 import { useWindowHeight } from '@tinycld/core/components/workspace/useBreakpoint'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { ArrowDown, ArrowUp } from 'lucide-react-native'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { type LayoutChangeEvent, Pressable, ScrollView, Text, View } from 'react-native'
+import { useListAnchor } from '../../hooks/useListAnchor'
 import { useRowWindow } from '../../hooks/useRowWindow'
+import { useTableMinWidth } from '../../hooks/useTableMinWidth'
 import { balanceText } from '../../lib/money'
 import type { RegisterLine, RegisterOrder } from '../../lib/register'
+import { REGISTER_TABLE_MIN_WIDTH } from '../../lib/register-layout'
 import {
     ACCOUNT_CELL_STYLE,
     AMOUNT_CELL_STYLE,
@@ -15,11 +18,12 @@ import {
     RegisterRow,
     ROW_CLASS,
     ROW_HEIGHT,
+    STATUS_CELL_STYLE,
     TYPE_CELL_STYLE,
 } from './RegisterRow'
 
-// Below this width the table scrolls sideways; no column collapses to blank.
-const TABLE_MIN_WIDTH = 900
+// The table never scrolls sideways: the register draws it only where the list holds
+// REGISTER_TABLE_MIN_WIDTH plus the rows scroller's gutter, and cards below that.
 
 // The `web:` utilities reserve the vertical scrollbar's width in the heading row too, so the
 // headings stay over their columns when the scrollbar takes layout space. Native gets nothing.
@@ -33,6 +37,14 @@ interface RegisterTableProps {
     onToggleOrder: () => void
     onOpenEntry: (entryId: string) => void
     selectedEntryId: string | null
+    // The entry the table keeps in view and in focus when it mounts (the register store's anchor).
+    anchorEntryId: string | null
+    onGutter: (gutter: number) => void
+}
+
+export function anchorIndexOf(items: TableItem[], anchorEntryId: string | null) {
+    if (anchorEntryId === null) return -1
+    return items.findIndex(item => item.kind === 'row' && item.row.entryId === anchorEntryId)
 }
 
 export type TableItem = { kind: 'opening' } | { kind: 'row'; row: RegisterLine }
@@ -57,17 +69,19 @@ function DateHeading({
     const color = useThemeColor('foreground')
     const Icon = order === 'newest' ? ArrowDown : ArrowUp
     return (
-        <Pressable
-            testID="register-sort-date"
-            accessibilityRole="button"
-            accessibilityLabel="Sort by date"
-            onPress={onToggleOrder}
-            className="flex-row items-center gap-1"
-            style={[DATE_CELL_STYLE, { minHeight: ROW_HEIGHT }]}
-        >
-            <HeadingText label="Date" />
-            <Icon size={12} color={color} />
-        </Pressable>
+        <View testID="register-heading-date" style={DATE_CELL_STYLE}>
+            <Pressable
+                testID="register-sort-date"
+                accessibilityRole="button"
+                accessibilityLabel="Sort by date"
+                onPress={onToggleOrder}
+                className="flex-row items-center gap-1"
+                style={{ minHeight: ROW_HEIGHT }}
+            >
+                <HeadingText label="Date" />
+                <Icon size={12} color={color} />
+            </Pressable>
+        </View>
     )
 }
 
@@ -77,25 +91,32 @@ function HeadingRow({ order, onToggleOrder }: Pick<RegisterTableProps, 'order' |
             className={`${ROW_CLASS} bg-background web:overflow-y-hidden web:[scrollbar-gutter:stable]`}
         >
             <DateHeading order={order} onToggleOrder={onToggleOrder} />
-            <View style={REF_CELL_STYLE}>
+            <View testID="register-heading-ref" style={REF_CELL_STYLE}>
                 <HeadingText label="Ref no." />
             </View>
-            <View style={TYPE_CELL_STYLE}>
+            <View testID="register-heading-type" style={TYPE_CELL_STYLE}>
                 <HeadingText label="Type" />
             </View>
-            <View style={MEMO_CELL_STYLE}>
+            <View testID="register-heading-memo" style={MEMO_CELL_STYLE}>
                 <HeadingText label="Memo" />
             </View>
-            <View style={ACCOUNT_CELL_STYLE}>
+            <View testID="register-heading-account" style={ACCOUNT_CELL_STYLE}>
                 <HeadingText label="Account" />
             </View>
-            <View className="items-end" style={AMOUNT_CELL_STYLE}>
+            <View testID="register-heading-status" style={STATUS_CELL_STYLE}>
+                <HeadingText label="Status" />
+            </View>
+            <View testID="register-heading-debit" className="items-end" style={AMOUNT_CELL_STYLE}>
                 <HeadingText label="Debit" />
             </View>
-            <View className="items-end" style={AMOUNT_CELL_STYLE}>
+            <View testID="register-heading-credit" className="items-end" style={AMOUNT_CELL_STYLE}>
                 <HeadingText label="Credit" />
             </View>
-            <View className="items-end" style={BALANCE_CELL_STYLE}>
+            <View
+                testID="register-heading-balance"
+                className="items-end"
+                style={BALANCE_CELL_STYLE}
+            >
                 <HeadingText label="Balance" />
             </View>
         </View>
@@ -121,7 +142,15 @@ function OpeningRow({ balance, currency }: { balance: number | null; currency: s
     )
 }
 
-function ItemRow({ item, props }: { item: TableItem; props: RegisterTableProps }) {
+function ItemRow({
+    item,
+    props,
+    itemRef,
+}: {
+    item: TableItem
+    props: RegisterTableProps
+    itemRef: ReturnType<typeof useListAnchor>['itemRef']
+}) {
     if (item.kind === 'opening') {
         return <OpeningRow balance={props.openingBalance} currency={props.currency} />
     }
@@ -131,6 +160,7 @@ function ItemRow({ item, props }: { item: TableItem; props: RegisterTableProps }
             currency={props.currency}
             onOpenEntry={props.onOpenEntry}
             isSelected={item.row.entryId === props.selectedEntryId}
+            itemRef={itemRef}
         />
     )
 }
@@ -143,18 +173,36 @@ function WindowedRows({ props }: { props: RegisterTableProps }) {
         rowHeight: ROW_HEIGHT,
         viewHeight: windowHeight,
     })
-    const visible = items
-        .slice(rowWindow.first, rowWindow.last)
-        .map(item => (
+    const { rowsScrollRef, onRowsLayout } = useTableMinWidth(
+        REGISTER_TABLE_MIN_WIDTH,
+        props.onGutter
+    )
+    const anchor = useListAnchor({
+        scrollRef: rowsScrollRef,
+        index: anchorIndexOf(items, props.anchorEntryId),
+        rowHeight: ROW_HEIGHT,
+    })
+    const onLayout = (event: LayoutChangeEvent) => {
+        onRowsLayout()
+        anchor.onViewLayout(event)
+    }
+    const visible = items.slice(rowWindow.first, rowWindow.last).map((item, offset) => {
+        const itemRef = rowWindow.first + offset === anchor.mountIndex ? anchor.itemRef : undefined
+        return (
             <ItemRow
                 key={item.kind === 'opening' ? 'opening' : item.row.id}
                 item={item}
                 props={props}
+                itemRef={itemRef}
             />
-        ))
+        )
+    })
     return (
         <ScrollView
+            ref={rowsScrollRef}
+            testID="register-rows"
             className="flex-1 web:[scrollbar-gutter:stable]"
+            onLayout={onLayout}
             onScroll={rowWindow.onScroll}
             scrollEventThrottle={16}
         >
@@ -167,16 +215,9 @@ function WindowedRows({ props }: { props: RegisterTableProps }) {
 
 export function RegisterTable(props: RegisterTableProps) {
     return (
-        <ScrollView
-            horizontal
-            testID="register-table"
-            className="flex-1"
-            contentContainerStyle={{ width: '100%', minWidth: TABLE_MIN_WIDTH }}
-        >
-            <View className="flex-1">
-                <HeadingRow order={props.order} onToggleOrder={props.onToggleOrder} />
-                <WindowedRows props={props} />
-            </View>
-        </ScrollView>
+        <View testID="register-table" className="flex-1">
+            <HeadingRow order={props.order} onToggleOrder={props.onToggleOrder} />
+            <WindowedRows props={props} />
+        </View>
     )
 }

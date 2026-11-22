@@ -94,6 +94,21 @@ export function parseMoney(text: string, currency?: string): number | null {
     return sign === '-' && cents !== 0n ? -Number(cents) : Number(cents)
 }
 
+/**
+ * The sign flip of MoneyTextField's "±" control (bank deposit spec §6: the iOS decimal
+ * keyboard has no minus key). Text that reads as money (in any currency form) gets its
+ * sign flipped, trimmed; zero has no sign ("0" stays "0", never "-0"). Empty text and text
+ * that does not read as money stay as typed, for the field's message.
+ */
+export function flipMoneySign(text: string): string {
+    const trimmed = text.trim()
+    if (!isWellFormedMoney(trimmed)) return text
+    const isNegative = trimmed.startsWith('-')
+    const unsigned = isNegative ? trimmed.slice(1) : trimmed
+    if (isNegative || parseMoney(trimmed) === 0) return unsigned
+    return `-${trimmed}`
+}
+
 export function centsToText(cents: number): string {
     const digits = BigInt(Math.abs(cents)).toString().padStart(3, '0')
     const whole = digits.slice(0, -2).replace(/\B(?=(\d{3})+$)/g, ',')

@@ -133,6 +133,15 @@ describe('searchTarget', () => {
         expect(searchTarget('write_off:')).toBeNull()
     })
 
+    // Bank deposit spec §3.7: a deposit hit (kind deposit) opens the deposit.
+    it('routes a deposit hit to the deposit screen', () => {
+        expect(searchTarget('deposit:abc')).toEqual({
+            path: 'books/deposits/[id]',
+            id: 'abc',
+        })
+        expect(searchTarget('deposit:')).toBeNull()
+    })
+
     // Receive payment spec §3.9: a payment hit (kind payment) opens the payment.
     it('routes a payment hit to the payment screen', () => {
         expect(searchTarget('payment:abc')).toEqual({

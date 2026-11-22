@@ -1,5 +1,7 @@
+import type { ScopeOwner } from '@tinycld/core/lib/shortcuts'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
+import { ShortcutButton } from '@tinycld/core/ui/shortcut-button'
 import { ArrowLeft } from 'lucide-react-native'
 import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
@@ -123,7 +125,42 @@ function BalanceBlock({ model }: { model: RegisterScreenModel }) {
                 </BalanceFigure>
             </View>
             <ParentNote isVisible={model.hasSubAccounts} />
+            <ReconciledThrough text={model.reconciledThrough} />
         </View>
+    )
+}
+
+function ReconciledThrough({ text }: { text: string }) {
+    if (text === '') return null
+    return (
+        <Text testID="register-reconciled-through" className="text-xs text-muted-foreground">
+            {text}
+        </Text>
+    )
+}
+
+const RECONCILE_KEY = { keys: 'r', scope: 'list' } as const
+
+function ReconcileButton({
+    isVisible,
+    onPress,
+    scopeOwner,
+}: {
+    isVisible: boolean
+    onPress: () => void
+    scopeOwner: ScopeOwner
+}) {
+    if (!isVisible) return null
+    return (
+        <ShortcutButton
+            testID="register-reconcile"
+            label="Reconcile"
+            shortcut={RECONCILE_KEY}
+            onPress={onPress}
+            variant="outline"
+            className="min-h-11"
+            scopeOwner={scopeOwner}
+        />
     )
 }
 
@@ -150,7 +187,15 @@ function TransferButton({ isVisible, onPress }: { isVisible: boolean; onPress: (
     )
 }
 
-function Controls({ model, isVisible }: { model: RegisterScreenModel; isVisible: boolean }) {
+function Controls({
+    model,
+    isVisible,
+    scopeOwner,
+}: {
+    model: RegisterScreenModel
+    isVisible: boolean
+    scopeOwner: ScopeOwner
+}) {
     if (!isVisible) return null
     return (
         <View className="flex-row flex-wrap items-center gap-3">
@@ -160,6 +205,12 @@ function Controls({ model, isVisible }: { model: RegisterScreenModel; isVisible:
                 <NewEntryButton isVisible={model.isNewEntryVisible} onPress={model.onNewEntry} />
                 <TransferButton isVisible={model.isTransferVisible} onPress={model.onTransfer} />
             </View>
+            {/* Outside the group: beside the inline entry drawer it wraps to a line of its own. */}
+            <ReconcileButton
+                isVisible={model.isReconcileVisible}
+                onPress={model.onReconcile}
+                scopeOwner={scopeOwner}
+            />
         </View>
     )
 }
@@ -171,7 +222,13 @@ function BalanceSlot({ model, isVisible }: { model: RegisterScreenModel; isVisib
 
 const SHOWS_FIGURES = new Set(['ready', 'empty', 'empty-range'])
 
-export function RegisterHeader({ model }: { model: RegisterScreenModel }) {
+export function RegisterHeader({
+    model,
+    scopeOwner,
+}: {
+    model: RegisterScreenModel
+    scopeOwner: ScopeOwner
+}) {
     const showFigures = SHOWS_FIGURES.has(model.state)
     const layout = model.isWide ? 'flex-row items-end justify-between gap-4' : 'gap-3'
     return (
@@ -181,7 +238,7 @@ export function RegisterHeader({ model }: { model: RegisterScreenModel }) {
                 <TitleBlock model={model} />
                 <BalanceSlot model={model} isVisible={showFigures} />
             </View>
-            <Controls model={model} isVisible={showFigures} />
+            <Controls model={model} isVisible={showFigures} scopeOwner={scopeOwner} />
         </View>
     )
 }

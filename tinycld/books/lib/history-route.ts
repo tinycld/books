@@ -7,9 +7,12 @@ export function historyHref(collection: string, id: string): string {
 
 // The collection each document kind is stored in, which its history is read by. The one
 // map of kind to collection: audit-record-route.ts reads it the other way. A vendor
-// refund and a write-off are not sales document kinds (each has a read page of its own),
-// so their keys are added beside them.
-export const DOCUMENT_COLLECTIONS: Record<SalesDocKey | 'vendor_refund' | 'write_off', string> = {
+// refund, a write-off and a deposit are not sales document kinds (each has a read page of
+// its own), so their keys are added beside them.
+export const DOCUMENT_COLLECTIONS: Record<
+    SalesDocKey | 'vendor_refund' | 'write_off' | 'deposit',
+    string
+> = {
     invoice: 'books_invoices',
     sales_receipt: 'books_sales_receipts',
     credit_memo: 'books_credit_memos',
@@ -20,4 +23,5 @@ export const DOCUMENT_COLLECTIONS: Record<SalesDocKey | 'vendor_refund' | 'write
     refund_receipt: 'books_refund_receipts',
     vendor_refund: 'books_vendor_refunds',
     write_off: 'books_write_offs',
+    deposit: 'books_deposits',
 }

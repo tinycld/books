@@ -28,6 +28,8 @@ interface SelectBoxProps {
     tabIndex?: 0 | -1
     // A visible label beside the box, inside the press target, so a tap on it ticks too.
     text?: string
+    // Why the box is disabled (core useServerActionState's hint while writes are down).
+    accessibilityHint?: string
 }
 
 const BOX_ONLY = { width: 44, minHeight: 44 }
@@ -80,6 +82,7 @@ export function SelectBox({
     ref,
     tabIndex,
     text,
+    accessibilityHint,
 }: SelectBoxProps) {
     const color = useThemeColor('primary-foreground')
     const fill = state === 'empty' ? 'bg-background border-border' : 'bg-primary border-primary'
@@ -107,6 +110,7 @@ export function SelectBox({
             testID={testID}
             accessibilityRole="checkbox"
             accessibilityLabel={label}
+            accessibilityHint={accessibilityHint}
             accessibilityState={{ checked, disabled: isDisabled }}
             aria-checked={checked}
             aria-disabled={isDisabled}

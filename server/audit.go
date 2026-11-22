@@ -28,7 +28,8 @@ import (
 // It takes the app because these labels read another row: an admin grant is
 // labeled by the user it grants, a line by its account or its document, a
 // bundle row by its bundle and product, a bank connection by its account, a
-// bank import by its file, a bank match by its bank transaction, a customer's
+// bank import by its file, a bank match by its bank transaction, a
+// reconciliation by its account, a customer's
 // response by its estimate, a vendor credit application by its credit and its
 // bill, a credit memo application by its memo and its invoice, a vendor refund
 // line by its refund and its credit, and an attachment by its bill, expense or
@@ -103,6 +104,13 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		vendorRefundLinesCollection: {
 			ExtractLabel: func(r *core.Record) string { return vendorRefundLineLabel(app, r) },
 		},
+		depositsCollection: {ExtractLabel: depositName, Redact: []string{"sort_key"}},
+		depositItemsCollection: {
+			ExtractLabel: func(r *core.Record) string { return depositItemLabel(app, r) },
+		},
+		depositLinesCollection: {
+			ExtractLabel: func(r *core.Record) string { return depositLineLabel(app, r) },
+		},
 		"books_settings": {
 			ExtractLabel: func(*core.Record) string { return "Books settings" },
 			Redact:       []string{"tax_id"},
@@ -129,11 +137,15 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 			ExtractLabel: func(r *core.Record) string { return attachmentLabel(app, r) },
 		},
 		statementsCollection: {ExtractLabel: audit.LabelFromField("number")},
+		// A reconciliation's cleared rows are not here: one row for each press.
+		reconciliationsCollection: {
+			ExtractLabel: func(r *core.Record) string { return reconciliationLabel(app, r) },
+		},
 	}
 }
 
 // auditParentFields maps each line collection to the field that names its
-// document. The books_audit_log view (migration 2100000034) reads the same
+// document. The books_audit_log view (migration 2100000038) reads the same
 // collections to give a line's audit row its document, and Register declares them
 // as the view's sources, because a line write can change that document.
 var auditParentFields = map[string]string{
@@ -153,6 +165,8 @@ var auditParentFields = map[string]string{
 	vendorCreditApplicationsCollection: "vendor_credit",
 	creditMemoApplicationsCollection:   "credit_memo",
 	vendorRefundLinesCollection:        "refund",
+	depositItemsCollection:             "deposit",
+	depositLinesCollection:             "deposit",
 }
 
 // auditLineCollections are the keys of auditParentFields in name order.
@@ -181,6 +195,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_payments", Label: "Payment"},
 		{Value: billPaymentsCollection, Label: "Bill payment"},
 		{Value: vendorRefundsCollection, Label: "Vendor refund"},
+		{Value: depositsCollection, Label: "Deposit"},
 		{Value: "books_journal_entries", Label: "Journal entry"},
 		{Value: "books_invoice_lines", Label: "Invoice line"},
 		{Value: "books_sales_receipt_lines", Label: "Sales receipt line"},
@@ -195,6 +210,8 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: vendorCreditApplicationsCollection, Label: "Vendor credit application"},
 		{Value: creditMemoApplicationsCollection, Label: "Credit memo application"},
 		{Value: vendorRefundLinesCollection, Label: "Vendor refund line"},
+		{Value: depositItemsCollection, Label: "Deposit item"},
+		{Value: depositLinesCollection, Label: "Deposit line"},
 		{Value: "books_journal_lines", Label: "Journal line"},
 		{Value: "books_attachments", Label: "Attachment"},
 		{Value: "books_accounts", Label: "Account"},
@@ -211,6 +228,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_bank_transactions", Label: "Bank transaction"},
 		{Value: bankMatchesCollection, Label: "Bank match"},
 		{Value: bankCategorizationsCollection, Label: "Bank categorization"},
+		{Value: reconciliationsCollection, Label: "Reconciliation"},
 		{Value: "books_settings", Label: "Books settings"},
 		{Value: "books_doc_sequences", Label: "Document numbering"},
 		{Value: "books_close_overrides", Label: "Close date override"},
@@ -491,6 +509,28 @@ func vendorRefundLineLabel(app core.App, r *core.Record) string {
 	return refund + ": " + credit
 }
 
+// depositItemLabel names a deposit item by its deposit and the transaction it
+// deposits, from the item's copy of the entry: "Deposit 1004: Payment 1001". A
+// deposit that cannot be read (deleted with a draft deposit) falls back to its
+// id, so the audit row is still written.
+func depositItemLabel(app core.App, r *core.Record) string {
+	return depositParentLabel(app, r) + ": " + entryName(r)
+}
+
+// depositLineLabel names an other funds line by its deposit and its place:
+// "Deposit 1004: line 2".
+func depositLineLabel(app core.App, r *core.Record) string {
+	return fmt.Sprintf("%s: line %d", depositParentLabel(app, r), r.GetInt("position")+1)
+}
+
+func depositParentLabel(app core.App, r *core.Record) string {
+	deposit := r.GetString("deposit")
+	if rec, err := app.FindRecordById(depositsCollection, deposit); err == nil {
+		deposit = depositName(rec)
+	}
+	return deposit
+}
+
 // paymentLabel names a payment by its number: "Payment 1004". A draft has no
 // number: "Draft payment".
 func paymentLabel(r *core.Record) string {
@@ -584,4 +624,15 @@ func bankMatchLabel(app core.App, r *core.Record) string {
 		return ""
 	}
 	return bankTransactionLabel(txn)
+}
+
+// reconciliationLabel names a reconciliation by its account and its statement
+// day: "1010 Business Savings 2026-08-31". An account that cannot be read gives
+// the day alone, so the audit row is still written.
+func reconciliationLabel(app core.App, r *core.Record) string {
+	account, err := app.FindRecordById("books_accounts", r.GetString("account"))
+	if err != nil {
+		return r.GetString("statement_date")
+	}
+	return strings.TrimSpace(accountDisplayName(account) + " " + r.GetString("statement_date"))
 }

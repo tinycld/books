@@ -116,6 +116,27 @@ describe('the Write-offs numbering card', () => {
     })
 })
 
+// Bank deposit spec Q8: the seeded `deposit` row is the "Deposits" card, with no prefix,
+// next 1001.
+describe('the Deposits numbering card', () => {
+    it('is seeded as booksseqdeposit: deposit, no prefix, next 1001', () => {
+        expect(seededSequence('booksseqdeposit')).toEqual({
+            id: 'booksseqdeposit',
+            doc_type: 'deposit',
+            prefix: '',
+            next_number: '1001',
+        })
+    })
+
+    it('reads "Deposits" and previews "Next deposit: 1001"', () => {
+        const row = seededSequence('booksseqdeposit')
+        expect(docTypeLabel(row.doc_type ?? '')).toBe('Deposits')
+        expect(nextNumberPreview(row.doc_type ?? '', row.prefix ?? '', row.next_number ?? '')).toBe(
+            'Next deposit: 1001'
+        )
+    })
+})
+
 // Statements spec §4.7: the seeded `statement` row is the "Statements" card, with the
 // prefix "ST-", next 1001.
 describe('the Statements numbering card', () => {

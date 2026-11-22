@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { readHelpTopic } from './help-topic'
+import { paragraphWith, readHelpTopic } from './help-topic'
 
 const helpDir = path.resolve(__dirname, '../help')
 
@@ -67,6 +67,21 @@ describe('help/bank-match.md', () => {
             expect(image.startsWith('images/'), image).toBe(true)
             expect(shots, image).toContain(path.basename(image, '.png'))
         }
+    })
+})
+
+// Bank deposit spec §3.10 Help: the topic names the deposit as the Books transaction that
+// one bank line matches, and links the Bank deposits topic there.
+describe('help/bank-match.md (bank deposits)', () => {
+    it('links help://books:bank-deposits where it names a deposit as a Books transaction', () => {
+        expect(
+            paragraphWith(
+                body,
+                /\bdeposits?\b/i,
+                /Books transactions?/,
+                /help:\/\/books:bank-deposits\b/
+            )
+        ).toBeDefined()
     })
 })
 

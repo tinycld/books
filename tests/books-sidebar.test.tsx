@@ -28,7 +28,11 @@ describe('useBooksSidebar', () => {
             'lists',
             'reports',
         ])
-        expect(result.current.accounting.map(e => e.id)).toEqual(['accounts', 'entries'])
+        expect(result.current.accounting.map(e => e.id)).toEqual([
+            'accounts',
+            'entries',
+            'reconcile',
+        ])
     })
 
     // The real entries, not allAvailable: Reports must be available on its own.
@@ -72,7 +76,11 @@ describe('useBooksSidebar', () => {
             'lists',
             'reports',
         ])
-        expect(result.current.accounting.map(e => e.id)).toEqual(['accounts', 'entries'])
+        expect(result.current.accounting.map(e => e.id)).toEqual([
+            'accounts',
+            'entries',
+            'reconcile',
+        ])
     })
 
     it('toggleAccounting flips isAccountingOpen', () => {
@@ -102,7 +110,11 @@ describe('useBooksSidebar', () => {
 
     it('shows the accounting entries and reports hasAccounting when unfolded', () => {
         const { result } = renderHook(() => useBooksSidebar(allAvailable))
-        expect(result.current.visibleAccounting.map(e => e.id)).toEqual(['accounts', 'entries'])
+        expect(result.current.visibleAccounting.map(e => e.id)).toEqual([
+            'accounts',
+            'entries',
+            'reconcile',
+        ])
         expect(result.current.hasAccounting).toBe(true)
     })
 

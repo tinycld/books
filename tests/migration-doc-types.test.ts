@@ -83,4 +83,12 @@ describe('doc_type select values against the client lists', () => {
         expect(DOC_TYPE).toContainEqual({ value: 'write_off', label: 'Write-off' })
         expect(ROUTED_DOC_TYPES).toContain('write_off')
     })
+
+    // Bank deposit spec §4.1: migrations 2100000001 and 2100000002 are edited in place.
+    it('holds deposit in both selects, in DOC_TYPE and in ROUTED_DOC_TYPES', () => {
+        expect(valuesOf('books_doc_sequences')).toContain('deposit')
+        expect(valuesOf('books_journal_entries')).toContain('deposit')
+        expect(DOC_TYPE).toContainEqual({ value: 'deposit', label: 'Deposit' })
+        expect(ROUTED_DOC_TYPES).toContain('deposit')
+    })
 })

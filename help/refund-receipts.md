@@ -25,7 +25,7 @@ The second row of the form holds the payment:
 
 - Payment method: how you gave the money back, such as Cash, Check or Credit card. Choose None if you do not want to record it.
 - Reference no.: a check number or a card reference, at most 40 characters.
-- Refund from: the account that the money left. You can pick a bank account or an Undeposited funds account. Books starts with your first active bank account, or your first active Undeposited funds account when you have no bank account. Under the field, Books shows the posted balance of the account, for example "Balance $4,077.38", so you can see that the money is there.
+- Refund from: the account that the money left. You can pick a bank account or an Undeposited funds account. Books starts with your first active bank account, or your first active Undeposited funds account when you have no bank account. Under the field, Books shows the posted balance of the account, for example "Balance $4,077.38", so you can see that the money is there. Money refunded from Undeposited funds shows as money out (a negative amount) in the list of your next [bank deposit](help://books:bank-deposits).
 
 Refund from always shows. The **Sales deposited to** setting in Settings → Sales is for sales receipts only. If your chart of accounts has no bank account and no Undeposited funds account, Refund from says "Add a bank account or an Undeposited funds account to the chart of accounts". Add one in Chart of Accounts first.
 

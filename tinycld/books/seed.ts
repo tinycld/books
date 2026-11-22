@@ -11,6 +11,7 @@ import { AR_AGING_SEED } from './lib/ar-aging-fixture'
 import { ATTACHMENT_SEED_FILES } from './lib/attachment-seed-files'
 import { ATTACHMENTS, SEED_ATTACHMENT_IDS } from './lib/attachments-fixture'
 import { BANK_SEED } from './lib/bank-connection-fixture'
+import { DEPOSIT_SEED } from './lib/bank-deposit-fixture'
 import { BANK_IMPORT_SEED_STATEMENT } from './lib/bank-import-mapping-fixture'
 import { BILL_LINES, BILL_SEED_IDS, BILLS } from './lib/bill-form-fixture'
 import {
@@ -54,6 +55,7 @@ import { BILL_PAYMENT_SEED, PAY_BILLS_SEED_BILLS } from './lib/pay-bills-fixture
 import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
 import { PURCHASE_LIST_SEED } from './lib/purchase-lists-fixture'
 import { PAYMENT_SEED } from './lib/receive-payment-fixture'
+import { RECONCILE_SEED } from './lib/reconcile-fixture'
 import {
     REFUND_FROM_ACCOUNTS,
     REFUND_RECEIPT_IDS,
@@ -329,11 +331,18 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     // The Expenses by Vendor row (plan D5): a journal entry only, so no document number
     // moves, and before the bank match seed.
     await seedExpensesByVendor(pb, ctx, accountIds)
+    // Two sales receipts and a deposit of one of them (bank deposit spec §4.6): after
+    // every other document seed, so the earlier seeded receipts keep their numbers, and
+    // before the bank match seed, which must see every seeded document.
+    await seedDeposits(pb, ctx, accountIds, salesReceiptIds)
     // After every document seed, so its check that each of its two statement lines has
     // exactly one suggestion sees every seeded document (the review statement is imported
     // before any document posts). Its categorization posts one journal entry, last, so no
     // earlier seeded document number moves.
     await seedBankMatch(pb, ctx, accountIds)
+    // Journal entries on 1010 Business Savings against 3000 Owner's Equity only, after the
+    // bank match seed, so no document number and no income figure moves.
+    await seedReconcile(pb, ctx, accountIds)
     // Two unsent statements; a statement posts nothing, so no seeded figure moves.
     await seedStatements(pb, customerIds)
     // Created active and deactivated last, because the app makes an account
@@ -871,6 +880,106 @@ export async function seedSalesReceipts(
     }
     await createSeedSalesReceipt(pb, accountIds, customerIds, SALES_RECEIPT_SEED_DRAFT_ID)
     return salesReceiptIds
+}
+
+// The fixed id of the seeded deposit, so a capture or a spec reaches it.
+export const SEED_DEPOSIT_ID = 'seeddeposit0001'
+
+// Bank deposit spec §4.6: two sales receipts to 1200 Undeposited funds, each with the
+// customer and the first untaxed product line of the first seeded sales receipt (so they
+// enter the sales rows that receipt enters), then one deposit to 1000 Business Checking
+// that holds the first receipt's 1200 line plus an other funds line on 4900. All dated the
+// run day. The draft, its item and its line are written as superuser, then posted, so the
+// server's deposit guards copy the item and post the entry. `salesReceiptIds` maps a
+// sales receipt fixture id to the created receipt (seedSalesReceipts).
+export async function seedDeposits(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>,
+    salesReceiptIds: Map<string, string>
+): Promise<void> {
+    const today = isoDay(new Date())
+    const undeposited = seededAccountId(accountIds, '1200', 'the seeded deposit receipts')
+    const firstFixture = SALES_RECEIPT_SEED_IDS[0]
+    const firstId = salesReceiptIds.get(firstFixture)
+    if (firstId === undefined) {
+        throw new Error(`seed: sales receipt ${firstFixture} was not created`)
+    }
+    const first = await pb
+        .collection('books_sales_receipts')
+        .getOne<{ customer: string }>(firstId, { fields: 'customer' })
+    const productLine = SALES_RECEIPT_LINES.find(
+        line =>
+            line.sales_receipt === firstFixture &&
+            line.kind === 'item' &&
+            line.product !== '' &&
+            !line.taxable
+    )
+    if (productLine === undefined) {
+        throw new Error(`seed: sales receipt ${firstFixture} has no untaxed product line`)
+    }
+    const receiptIds = new Map<string, string>()
+    for (const receipt of DEPOSIT_SEED.receipts) {
+        const created = await pb.collection('books_sales_receipts').create({
+            customer: first.customer,
+            status: 'draft',
+            date: today,
+            tax_rate: '',
+            payment_method: receipt.payment_method,
+            reference_no: '',
+            deposit_to: undeposited,
+            memo: `Seed deposit receipt ${receipt.key}`,
+        })
+        await pb.collection('books_sales_receipt_lines').create({
+            sales_receipt: created.id,
+            position: 0,
+            kind: 'item',
+            product: productLine.product,
+            description: productLine.description,
+            quantity: 1,
+            rate: receipt.amount,
+            percent_ppm: 0,
+            taxable: false,
+        })
+        await postSeedDocument(pb, 'books_sales_receipts', created.id, ctx.user.id)
+        receiptIds.set(receipt.key, created.id)
+    }
+    const heldId = receiptIds.get(DEPOSIT_SEED.deposit.holds)
+    if (heldId === undefined) {
+        throw new Error(`seed: the deposit holds receipt ${DEPOSIT_SEED.deposit.holds}, not seeded`)
+    }
+    const held = await pb
+        .collection('books_sales_receipts')
+        .getOne<{ entry: string }>(heldId, { fields: 'entry' })
+    const heldLine = await pb.collection('books_journal_lines').getFirstListItem(
+        pb.filter('entry = {:entry} && account = {:account}', {
+            entry: held.entry,
+            account: undeposited,
+        })
+    )
+    const { deposit: seed } = DEPOSIT_SEED
+    await pb.collection('books_deposits').create({
+        id: SEED_DEPOSIT_ID,
+        status: 'draft',
+        date: today,
+        deposit_to: seededAccountId(accountIds, seed.depositNumber, 'the seeded deposit'),
+        memo: seed.memo,
+    })
+    await pb
+        .collection('books_deposit_items')
+        .create({ deposit: SEED_DEPOSIT_ID, line: heldLine.id, position: 0 })
+    await pb.collection('books_deposit_lines').create({
+        deposit: SEED_DEPOSIT_ID,
+        account: seededAccountId(accountIds, seed.line.accountNumber, 'the seeded deposit line'),
+        description: seed.line.description,
+        amount: seed.line.amount,
+        position: 0,
+    })
+    // A deposit has no revision (postSeedDocument's), so the post is the status update
+    // alone; the superuser names the seeded user as the poster.
+    await pb
+        .collection('books_deposits')
+        .update(SEED_DEPOSIT_ID, { status: 'posted', posted_by: ctx.user.id })
 }
 
 // The memo of a seeded refund receipt names its role, so a spec finds it.
@@ -2988,6 +3097,119 @@ export async function seedBankMatch(
         lines: [{ account, amount: statement.categorizedAmountCents, memo: '' }],
         created_by: ctx.user.id,
     })
+}
+
+// The ids of the General Ledger long section's lines on `savings` (seedLongSection, which
+// runs before seedReconcile): the 130 debits of each posted "Daily sweep" entry.
+async function longSectionLines(pb: PocketBase, savings: string): Promise<string[]> {
+    const { dates, memo, linesPerEntry } = GENERAL_LEDGER_LONG_SECTION
+    const ids: string[] = []
+    for (const date of dates) {
+        const entries = await pb.collection('books_journal_entries').getFullList<{ id: string }>({
+            filter: pb.filter('memo = {:memo} && date = {:date} && status = "posted"', {
+                memo,
+                date,
+            }),
+        })
+        for (const entry of entries) {
+            const lines = await pb.collection('books_journal_lines').getFullList<{ id: string }>({
+                filter: pb.filter('entry = {:entry} && account = {:account}', {
+                    entry: entry.id,
+                    account: savings,
+                }),
+            })
+            ids.push(...lines.map(line => line.id))
+        }
+    }
+    const expected = dates.length * linesPerEntry
+    if (ids.length !== expected) {
+        throw new Error(
+            `seed: the reconcile seed finds ${ids.length} long section lines on 1010, want ${expected}`
+        )
+    }
+    return ids
+}
+
+// Reconcile spec §4 "Fixture and seed": posts the four RECONCILE_SEED entries on 1010
+// Business Savings (debit 1010, credit 3000 Owner's Equity), finishes one reconciliation
+// that clears the General Ledger long section's 260 sweep lines on 1010 and the first two
+// entries, and leaves one in progress that clears the third. Every write
+// goes through the collection API, so the Go hooks (server/reconcile.go) stamp the
+// beginning balance, the cleared sums, the currency and each cleared row's line fields;
+// the seed sends none of them. It sends the people (created_by on each create,
+// finished_by on the finish): it writes as superuser, and the request hooks keep a
+// superuser's value, so the seed names its user. The finished reconciliation's fixed id is how
+// a second run knows it ran.
+export async function seedReconcile(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>
+): Promise<void> {
+    const seed = RECONCILE_SEED
+    const done = await pb
+        .collection('books_reconciliations')
+        .getList(1, 1, { filter: pb.filter('id = {:id}', { id: seed.finished.id }) })
+    if (done.totalItems > 0) return
+    const savings = seededAccountId(accountIds, seed.accountNumber, 'the reconcile seed')
+    // postEntry reads the accounts by key; here the keys are the account numbers.
+    seededAccountId(accountIds, '3000', 'the reconcile seed')
+    const lineIds: string[] = []
+    for (const entry of seed.entries) {
+        const entryId = await postEntry(pb, ctx, accountIds, {
+            date: entry.date,
+            memo: entry.memo,
+            lines: [
+                [seed.accountNumber, entry.amount, 0],
+                ['3000', 0, entry.amount],
+            ],
+        })
+        const line = await pb.collection('books_journal_lines').getFirstListItem<{ id: string }>(
+            pb.filter('entry = {:entry} && account = {:account}', {
+                entry: entryId,
+                account: savings,
+            })
+        )
+        lineIds.push(line.id)
+    }
+    const sweepLines = await longSectionLines(pb, savings)
+    const reconciliations = pb.collection('books_reconciliations')
+    const cleared = pb.collection('books_reconciliation_lines')
+    const clear = async (reconciliation: string, indexes: readonly number[]) => {
+        for (const index of indexes) {
+            const line = lineIds[index]
+            if (line === undefined) {
+                throw new Error(
+                    `seed: the reconcile seed clears entry ${index}, which it did not post`
+                )
+            }
+            await cleared.create({ reconciliation, line })
+        }
+    }
+    await reconciliations.create({
+        id: seed.finished.id,
+        account: savings,
+        statement_date: seed.finished.statement_date,
+        statement_balance: seed.finished.statement_balance,
+        status: 'in_progress',
+        created_by: ctx.user.id,
+    })
+    for (const line of sweepLines) {
+        await cleared.create({ reconciliation: seed.finished.id, line })
+    }
+    await clear(seed.finished.id, seed.finished.clears)
+    await reconciliations.update(seed.finished.id, {
+        status: 'finished',
+        finished_by: ctx.user.id,
+    })
+    await reconciliations.create({
+        id: seed.inProgress.id,
+        account: savings,
+        statement_date: seed.inProgress.statement_date,
+        statement_balance: seed.inProgress.statement_balance,
+        status: 'in_progress',
+        created_by: ctx.user.id,
+    })
+    await clear(seed.inProgress.id, seed.inProgress.clears)
 }
 
 // Statements spec §4.7: two saved, unsent statements of Harborview Kitchen (one Balance

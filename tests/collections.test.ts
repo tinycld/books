@@ -66,6 +66,13 @@ const NAMES = [
     'books_refund_receipt_sale_lines',
     'books_write_offs',
     'books_statements',
+    'books_deposits',
+    'books_deposit_items',
+    'books_deposit_lines',
+    'books_undeposited_items',
+    'books_reconciliations',
+    'books_reconciliation_lines',
+    'books_reconcile_lines',
 ]
 
 function register() {
@@ -328,6 +335,27 @@ describe('registerCollections', () => {
         expect(categorizations?.alwaysFetchRelations).toBeUndefined()
     })
 
+    // Reconcile spec §4: the two collections are written by the client (a start, a press)
+    // and stamped by the server. The lines view is never written: the server signals its
+    // topic when a line, an entry, an account, a party, a cleared row, a reconciliation or
+    // a bank match line changes (server/register.go), so the work screen follows them.
+    it('registers the reconciliation collections on demand and keeps the lines view live', () => {
+        const { calls } = register()
+        for (const name of [
+            'books_reconciliations',
+            'books_reconciliation_lines',
+            'books_reconcile_lines',
+        ]) {
+            expect(calls.get(name)?.syncMode, name).toBe('on-demand')
+            expect(calls.get(name)?.realtime, name).toBe('query')
+        }
+        expect(calls.get('books_reconcile_lines')?.liveTopics).toEqual([
+            'collection/books_reconcile_lines',
+        ])
+        expect(calls.get('books_reconciliations')?.liveTopics).toBeUndefined()
+        expect(calls.get('books_reconciliation_lines')?.liveTopics).toBeUndefined()
+    })
+
     // The audit log view is never written: the server signals its topic when an
     // audit row is written or a line it reads its parent from changes, so an open
     // report or history stays live.
@@ -449,6 +477,67 @@ describe('registerCollections', () => {
         for (const written of ['refund', 'vendor_credit', 'amount', 'position']) {
             expect(lines?.omitOnInsert, written).not.toContain(written)
         }
+    })
+
+    // Bank deposit spec §4.1: the server writes a deposit's number, totals, entry and
+    // posting and void stamps, and an item's copy of its line; the undeposited items
+    // view is never written, and stays live on its change topic, as the match view.
+    it('registers the deposit collections and keeps the undeposited items view live', () => {
+        const { calls } = register()
+        const deposits = calls.get('books_deposits')?.omitOnInsert
+        expect(deposits).toEqual(
+            expect.arrayContaining([
+                'number',
+                'sequence',
+                'total',
+                'items_total',
+                'lines_total',
+                'currency',
+                'entry',
+                'replaced_by',
+                'posted_by',
+                'posted_at',
+                'voided_by',
+                'voided_at',
+                'sort_key',
+            ])
+        )
+        for (const written of ['status', 'date', 'deposit_to', 'memo', 'replaces']) {
+            expect(deposits, written).not.toContain(written)
+        }
+        const items = calls.get('books_deposit_items')?.omitOnInsert
+        expect(items).toEqual(
+            expect.arrayContaining([
+                'entry',
+                'account',
+                'customer',
+                'vendor',
+                'amount',
+                'date',
+                'doc_type',
+                'number',
+                'document',
+                'payment_method',
+                'reference_no',
+                'posted',
+            ])
+        )
+        for (const written of ['deposit', 'line', 'position']) {
+            expect(items, written).not.toContain(written)
+        }
+        for (const written of [
+            'deposit',
+            'customer',
+            'vendor',
+            'account',
+            'description',
+            'amount',
+        ]) {
+            expect(calls.get('books_deposit_lines')?.omitOnInsert, written).not.toContain(written)
+        }
+        const view = calls.get('books_undeposited_items')
+        expect(view?.syncMode).toBe('on-demand')
+        expect(view?.liveTopics).toEqual(['collection/books_undeposited_items'])
     })
 
     // Statements spec §4.2: the client sends the customer, the type, the dates and the
