@@ -1,0 +1,125 @@
+{
+    "outDir": "expenses-by-vendor-reference",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "report-table",
+            "widths": [1540, 1284, 1028],
+            "height": 1160,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "opened",
+            "url": "/a/books/helix-mockup?state=opened",
+            "ready": "report-table",
+            "widths": [1540, 1284, 1028],
+            "height": 1640,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "with-activity",
+            "url": "/a/books/helix-mockup?state=with-activity",
+            "ready": "report-table",
+            "widths": [1540],
+            "height": 1340,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "by-amount",
+            "url": "/a/books/helix-mockup?state=by-amount",
+            "ready": "report-table",
+            "widths": [1540],
+            "height": 1160,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "filtered",
+            "url": "/a/books/helix-mockup?state=filtered",
+            "ready": "report-table",
+            "widths": [1540],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "cash",
+            "url": "/a/books/helix-mockup?state=cash",
+            "ready": "report-table",
+            "widths": [1540, 1028],
+            "height": 1460,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "zero",
+            "url": "/a/books/helix-mockup?state=zero",
+            "ready": "report-table",
+            "widths": [1540],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/helix-mockup?state=empty",
+            "ready": "report-empty",
+            "widths": [1284],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "report-loading",
+            "widths": [1284],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "report-error",
+            "widths": [1284],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "populated-phone",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "report-table",
+            "widths": [390, 375],
+            "height": 1700,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "opened-phone",
+            "url": "/a/books/helix-mockup?state=opened",
+            "ready": "report-table",
+            "widths": [390, 375],
+            "height": 2700,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "cash-phone",
+            "url": "/a/books/helix-mockup?state=cash",
+            "ready": "report-table",
+            "widths": [390],
+            "height": 2300,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "empty-phone",
+            "url": "/a/books/helix-mockup?state=empty",
+            "ready": "report-empty",
+            "widths": [390],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "loading-phone",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "report-loading",
+            "widths": [390],
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "error-phone",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "report-error",
+            "widths": [390],
+            "hideLabels": ["New"]
+        }
+    ]
+}

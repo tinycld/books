@@ -78,6 +78,14 @@ describe('help/vendors.md', () => {
         expect(links.some(text => /\bVendor Balance report\b/.test(text))).toBe(true)
     })
 
+    // Expenses by Vendor checkpoint 4 (spec §3 "Help"): the menu's third item, linked to
+    // the report's section of the reports topic by a link whose text names the report.
+    it('names the Expenses by Vendor menu item and links the Expenses by Vendor report', () => {
+        expect(body.replace(/\s+/g, ' ')).toContain('choose Expenses by Vendor')
+        const links = [...body.matchAll(/\[([^\]]+)\]\(help:\/\/books:reports\)/g)].map(m => m[1])
+        expect(links.some(text => /\bExpenses by Vendor report\b/.test(text))).toBe(true)
+    })
+
     it('links the 1099 tracking topic', () => {
         expect(body).toContain('help://books:1099-tracking')
     })
