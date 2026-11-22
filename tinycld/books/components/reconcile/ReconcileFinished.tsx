@@ -6,6 +6,7 @@ import { Text, View } from 'react-native'
 import type { ReconcileScreenModel } from '../../hooks/useReconcileScreen'
 import { formatMoney } from '../../lib/money'
 import { countText, RECONCILE_TEXTS, reconciledCountText } from '../../lib/reconcile'
+import { HISTORY_TEXTS } from '../../lib/reconcile-history'
 import { VIEW_REPORT_KEY } from '../../lib/reconcile-shortcuts'
 
 const BLOCK_STYLE = { maxWidth: 520 }
@@ -73,7 +74,9 @@ function ViewReportButton({
  * reconcileTotals' formula and the difference), "Finished <day> by <name>", the line with
  * the count of reconciled transactions, and the buttons View report (the Reconciliation
  * Report with this statement, reconciliation report spec §3), Reconcile another account
- * (back to `books/reconcile`) and View register (`books/accounts/<accountId>`).
+ * (back to `books/reconcile`) and View register (`books/accounts/<accountId>`); under them
+ * the link "All reconciliations of <account>" to the account's history
+ * (`books/reconcile/history?account=<accountId>`).
  */
 export function ReconcileFinished({ model }: { model: ReconcileScreenModel }) {
     const { reconciliation, totals, words, currency } = model
@@ -89,6 +92,7 @@ export function ReconcileFinished({ model }: { model: ReconcileScreenModel }) {
     const differenceText = money(totals.difference)
     const countLine = reconciledCountText(totals.outCount + totals.inCount)
     const buttons = model.isWide ? 'flex-row items-center gap-3' : 'gap-3'
+    const historyLinkText = HISTORY_TEXTS.historyLink(model.accountLabel)
     return (
         <View className="gap-4">
             <View
@@ -136,6 +140,14 @@ export function ReconcileFinished({ model }: { model: ReconcileScreenModel }) {
                     <ButtonText>{RECONCILE_TEXTS.viewRegister}</ButtonText>
                 </Button>
             </View>
+            <Text
+                testID="reconcile-history-link"
+                accessibilityRole="link"
+                onPress={model.onOpenHistory}
+                className="self-start text-sm text-primary"
+            >
+                {historyLinkText}
+            </Text>
         </View>
     )
 }
