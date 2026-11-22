@@ -475,13 +475,13 @@ To change the order, press the Order chip. Name, the default, orders the vendors
 
 To see what you still owe each vendor, read the Vendor Balance instead, as [Read the Vendor Balance report](help://books:reports) above says. The Expenses by Vendor shows what you spent in the period, paid or not.
 
-The report stays current. When someone posts or voids a bill, an expense, a vendor credit, a bill payment or a journal entry, renames a vendor, changes an account's type, or changes the Books settings, the report runs again.
+The report does not update by itself: under the chips it shows the note "This report does not update by itself. Press Refresh to see new changes." and a **Refresh** button. When someone posts or voids a bill, an expense, a vendor credit, a bill payment or a journal entry, renames a vendor, changes an account's type, or changes the Books settings after you opened the report, press **Refresh** to see the change.
 
 On a phone, each row shows the name on the first line, then Total and % of expenses on the second. A long name or line wraps to at most three lines, and a figure is never cut. Customize and Export are under **⋯**.
 
 ## Reports that you refresh
 
-Six Books reports read every journal line, so they do not run again each time the books change: the General Ledger, Transaction Detail by Account, the Trial Balance, the Balance Sheet, the Journal and the Profit and Loss by Month. Under the chips, each of them shows the note "This report does not update by itself. Press Refresh to see new changes." and a **Refresh** button.
+Six Books reports read every journal line, so they do not run again each time the books change: the General Ledger, Transaction Detail by Account, the Trial Balance, the Balance Sheet, the Journal and the Profit and Loss by Month. Under the chips, each of them shows the note "This report does not update by itself. Press Refresh to see new changes." and a **Refresh** button. The Expenses by Vendor reads every posted expense line on the basis you choose, so it shows the same note and **Refresh** button too.
 
 To see the changes made after you opened the report, press **Refresh**, or press the R key. The report runs again and keeps your place. A change that you make to a chip or to a filter runs the report again, and that run reads the newest data. Customize changes only how the figures look.
 
@@ -489,7 +489,7 @@ Transaction Detail by Account opened from a figure, in the panel at the side, ha
 
 The Profit and Loss, the Customer Balance, the Vendor Balance, the A/R Aging, the A/P Aging, the sales reports, the Sales Tax Liability, the Audit Log and the two statement reports stay current: they run again when the books change, and show no **Refresh** button. When someone saves a change to the columns, the filters or the layout of the Profit and Loss, the Customer Balance, the Vendor Balance, the Audit Log or Statement: Balance Forward, that report does not update by itself any more and shows **Refresh**. A change to only the title or the description keeps it current.
 
-A report that you build over journal lines, or that shows columns from journal lines, or over the Audit log, does not update by itself. A copy that you keep with Save as of one of the six reports above, of the Profit and Loss, of the Customer Balance, of the Vendor Balance, of the Audit Log or of Statement: Balance Forward does not update by itself either. Each shows the same note and **Refresh** button. A copy of the A/R Aging, of the A/P Aging, of a sales report, of the Sales Tax Liability or of Statement: Open Items stays current.
+A report that you build over journal lines, or that shows columns from journal lines, or over the Audit log, does not update by itself. A copy that you keep with Save as of one of the six reports above, of the Profit and Loss, of the Customer Balance, of the Vendor Balance, of the Expenses by Vendor, of the Audit Log or of Statement: Balance Forward does not update by itself either. Each shows the same note and **Refresh** button. A copy of the A/R Aging, of the A/P Aging, of a sales report, of the Sales Tax Liability or of Statement: Open Items stays current.
 
 ## Download or email a report
 

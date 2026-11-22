@@ -243,6 +243,10 @@ func documentPayments(tx core.App, d cashDeferral, docID string) ([]cashPayment,
 // document: whether a payment counts is read from its entry, of the deferral's
 // PaymentDocType. Each takes the payer's CashMemo; a payer with none (a bill
 // payment, a received payment) leaves its rows the deferral's PaidMemo.
+//
+// The unary + on pe.status (also in applicationsOf) keeps the planner from
+// starting at idx_books_je_status_date: from there each document reads every
+// posted entry of the book. The read starts at the payer lines of docID.
 func postedPaymentsOf(tx core.App, d cashDeferral, p balancePayer, docID string) ([]cashPayment, error) {
 	var payments []cashPayment
 	err := tx.DB().NewQuery(`
@@ -251,9 +255,9 @@ func postedPaymentsOf(tx core.App, d cashDeferral, p balancePayer, docID string)
 		FROM ` + p.LinesCollection + ` pl
 		JOIN books_journal_entries pe ON pe.document = pl.` + p.PaymentField + `
 		WHERE pl.` + p.LineField + ` = {:doc} AND pe.doc_type = {:type}
-		  AND pe.origin = 'document' AND pe.status = 'posted'
+		  AND pe.origin = 'document' AND +pe.status = {:posted}
 		GROUP BY pe.id`).
-		Bind(dbx.Params{"doc": docID, "type": d.PaymentDocType}).All(&payments)
+		Bind(dbx.Params{"doc": docID, "type": d.PaymentDocType, "posted": statusPosted}).All(&payments)
 	if err != nil {
 		return nil, fmt.Errorf("books: read the payments of %s %s: %w", d.Kind, docID, err)
 	}
@@ -280,8 +284,8 @@ func applicationsOf(tx core.App, d cashDeferral, p balancePayer, docID string) (
 		FROM ` + p.LinesCollection + ` a
 		JOIN books_journal_entries pe ON pe.document = a.` + p.EntryField + `
 		WHERE a.` + p.LineField + ` = {:doc} AND pe.doc_type = {:type}
-		  AND pe.origin = 'document' AND pe.status = 'posted'`).
-		Bind(dbx.Params{"doc": docID, "type": source.DocType}).All(&payments)
+		  AND pe.origin = 'document' AND +pe.status = {:posted}`).
+		Bind(dbx.Params{"doc": docID, "type": source.DocType, "posted": statusPosted}).All(&payments)
 	if err != nil {
 		return nil, fmt.Errorf("books: read the applications of %s %s: %w", d.Kind, docID, err)
 	}

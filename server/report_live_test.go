@@ -45,6 +45,10 @@ var shippedNotLive = map[string]bool{
 	// Like the Customer Balance: its rows are sums per vendor, and an opened
 	// vendor reads only its own lines.
 	"books.vendor_balance": false,
+	// Human, 2026-11-21 (plan D11): it reads books.basis_lines, a source core
+	// marks NotLive, and a run over a large book is too slow to run again on
+	// each change, so it shows Refresh, as the six journal-line reports do.
+	"books.expenses_by_vendor": true,
 }
 
 // requireManual fails unless res is a manual run: marked, and with no topic.
@@ -155,6 +159,7 @@ func TestShippedReportsNotLive(t *testing.T) {
 			"a copy of the Customer Balance":    customerBalanceShipped().Spec,
 			"a copy of the Vendor Balance":      vendorBalanceShipped().Spec,
 			"a copy of the Audit Log":           auditLogShipped().Spec,
+			"a copy of the Expenses by Vendor":  expensesByVendorShipped().Spec,
 			"a report built over journal lines": json.RawMessage(debitToDay),
 		}
 		for name, spec := range drafts {
@@ -182,7 +187,7 @@ func TestShippedLiveDeclarations(t *testing.T) {
 		salesTaxLiabilityShipped(), customerBalanceShipped(), arAgingShipped(),
 		salesByCustomerShipped(), salesByProductShipped(), auditLogShipped(),
 		apAgingShipped(), statementBalanceForwardShipped(), statementOpenItemsShipped(),
-		vendorBalanceShipped(),
+		vendorBalanceShipped(), expensesByVendorShipped(),
 	}
 	var live []string
 	for _, s := range all {
