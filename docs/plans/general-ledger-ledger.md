@@ -235,3 +235,839 @@ Books (checkpoint 3, in the tree, not committed):
 
 ## Final review
 - eval: approved 2026-11-08 by the human; CI full suite green at 3f5e261 (PR books#34, run 42537025783 attempt 2, after core PR #452 report-engine performance fix); CI fixes: Banking dialog ⌘↵ scope owner (cb19429, 3f5e261); retro items pending the human.
+
+## Performance (p5-report-engine-scale)
+
+Measure: `BOOKS_SCALE=1 BOOKS_SCALE_OUT=<dir> go test -run 'TestGLScale$' -timeout 60m -v .` in `books/server` (`report_general_ledger_scale_test.go`). The book is the A/R Aging bulk writer's book with its income spread over 100 income accounts (107 accounts) and its monthly balances stored. Bar, as the human changed it on 2026-11-20 (section "Task 7" below): at 500,000 journal lines, median of 5, a run of one month with an Accounts filter (runs 3, 4) takes 1 s or less, and a run of a year with an Accounts filter (run 5) may be slightly over 1 s; the measure holds it to 2 s. Until 2026-11-20 the bar was 1 s or less for runs 3, 4 and 5.
+
+### Baseline (2026-11-19, core 4690f72e, books 381fe701)
+
+| run | 10,000 lines | 100,000 lines | 500,000 lines |
+|---|---|---|---|
+| 1 all accounts, month | 467 ms | 4,328 ms | refused after 19.3 s (time limit) |
+| 2 all accounts, year | 572 ms | 5,208 ms | refused after 19.6 s |
+| 3 busy account, month (filtered) | 326 ms | 2,527 ms | 13,772 ms |
+| 4 small account, month (filtered) | 142 ms | 1,434 ms | 7,219 ms |
+| 5 three accounts, year (filtered) | 401 ms | 3,472 ms | refused after 17.2 s |
+
+Every run grows in line with the journal lines. Run 3 at 500,000 lines: statement 4 (the section rows) takes 2.4 s, statement 5 (the Total row) 3.9 s and statement 6 (the page of detail rows) 7.2 s. They read `books_journal_lines` by `SCAN` 3, 9 and 12 times (the report's rows, read again by each part of the statement; the earlier-years P&L lookups) and by `SEARCH … idx_books_jlines_account_date (account>? AND account<?)` 3, 4 and 6 times (the beginning balance: three subqueries for one sum, read again for each detail row of the page).
+
+### Decision: the beginning balance reads the stored monthly balances
+
+Direct SQL on the 500,000-line book (7 accounts, best of 3):
+
+| read | time | plan |
+|---|---|---|
+| rows of one account and one month, as the engine writes the filter | 81 ms | no search of `books_journal_lines` |
+| the same rows, bounds on the stored `account` and `date` | 0.6 ms | `SEARCH idx_books_jlines_account_date (account=? AND date>? AND date<?)` |
+| beginning balances, 3 correlated subqueries per account (today) | 1,056 ms | 3 × `SEARCH (account=? AND date<?)` |
+| beginning balances, one grouped aggregate over the lines | 414 ms | `SCAN … USING INDEX idx_books_jlines_account_date` |
+| the same, one account's keys pushed in | 84 ms | `SEARCH (account=? AND date<?)` |
+| beginning balances from `books_account_balances` | 0.08 ms | `SCAN books_account_balances USING INDEX idx_books_balances_account_period` |
+| earlier-years P&L sum from the lines (today) | 131 ms | `SEARCH l (account=?)` per P&L account |
+| earlier-years P&L sum from `books_account_balances` | 0.04 ms | `SEARCH g (account=? AND period<?)` |
+
+A beginning balance read from the lines costs time in line with the account's whole history, whatever the query form. `books_account_balances` (one row per account and month, written by posting, with verify and rebuild) answers it at any size. The beginning balance becomes the stored months before the period's first month plus the lines of that month before the period. The filter bounds and the grouped lookup are still needed for the period's own lines. Plan: `tinycld/docs/plans/2026-11-19-report-engine-scale.md`.
+
+### Changes
+
+(Each later task of the plan adds its change here: the SQL before and after, its plan, its time.)
+
+#### Task 2: the filter bounds the base table (core `server/reports/bounds.go`)
+
+The WHERE of `w` (the report's rows), before: `(posted IS ? AND (substr(NULLIF(substr(t1.date, 1, 10), ''), 1, 10) >= ? AND … <= ?) AND (NULLIF(t2.id, '') IN (SELECT +value FROM json_each(?))))`. After: `t1.date >= ? AND t1.date <= (? || x'ff') AND t1.account IN (SELECT +value FROM json_each(?)) AND <the filter as before>`.
+
+| run, 100,000 lines | before (baseline) | after |
+|---|---|---|
+| 1 all accounts, month | 4,328 ms | 3,734 ms |
+| 2 all accounts, year | 5,208 ms | 4,682 ms |
+| 3 busy account, month (filtered) | 2,527 ms | 2,109 ms |
+| 4 small account, month (filtered) | 1,434 ms | 1,132 ms |
+| 5 three accounts, year (filtered) | 3,472 ms | 2,998 ms |
+
+Plan of `books_journal_lines` in run 3: every read of the report's rows is now `SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date>? AND date<?)` (1 in statement 4, 7 in statement 5, 8 in statement 6); before, each was a `SCAN`. What stays: the beginning-balance lookups, `SEARCH … (account>? AND account<?)` (3 in statement 4), and the earlier-years P&L lookups, `SCAN books_journal_lines` (2 in statements 4 and 5, 4 in statement 6). Statement times of run 3: 384 ms, 552 ms, 1,117 ms.
+
+Every run fell, by 10 % to 21 %. Most of the time is still in the beginning-balance and earlier-years lookups, which tasks 4 and 5 change.
+
+#### Task 4: the beginning balance reads the stored months (2026-11-19)
+
+Before: each section's beginning balance was a sum over every posted line of the account before the period (`lk1`, in each of a run's three long statements), and over every income and expense line of earlier fiscal years on retained earnings. After: the stored months before the period's first month (`books_account_balances`, by `month_start`), plus the posted lines of that month before the period. Core gained `Field.SameCurrencyAs` so that the two sources' amounts add (core money rule R24, extended). The rows are the same: `TestGeneralLedgerBeginningBalanceFromStoredMonthsEqualsTheLines` compares 21 runs row for row.
+
+| run, 100k lines | before | after |
+| --- | --- | --- |
+| 1 all accounts, month | 3,734 ms | 730 ms |
+| 2 all accounts, year | 4,682 ms | 2,157 ms |
+| 3 busy account, month | 2,109 ms | 334 ms |
+| 4 small account, month | 1,132 ms | 194 ms |
+| 5 three accounts, year | 2,998 ms | 1,205 ms |
+
+Run 3, plan lines of `books_journal_lines` and `books_account_balances`, statements 4, 5 and 6 (the harness writes only the lines that name `books_journal_lines`, so no `books_account_balances` line is shown):
+
+Statement 4 (45.7 ms):
+
+```
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date>? AND date<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)
+```
+
+Statement 5 (44.8 ms): 7 × `SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date>? AND date<?)`, then 3 × `SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)`.
+
+Statement 6 (214.5 ms):
+
+```
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date>? AND date<?)   (× 7)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)          (× 3)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date>? AND date<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)          (× 3)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date>? AND date<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (entry>? AND entry<?)               (× 2)
+```
+
+No `SCAN books_journal_lines` is left in a filtered run (the earlier-years P&L sum now reads the stored months). Every run fell, by 54 % to 84 %; no filtered run is slower.
+
+What is left in the time: the detail statement (statement 6) is the longest of each run (run 3 214.5 ms of 334 ms, run 5 947.4 ms of 1,205 ms), and in it the month-to-date lookup is still read as three subqueries by `SEARCH … (account>? AND account<?)`, which reads the account's whole history and not its first month (tasks 5 and 6), next to the period's own rows, read 9 times by `SEARCH … (account=? AND date>? AND date<?)`.
+
+#### Task 5c: a detail statement with sections computes its rows once (core `server/reports/rows.go`, 2026-11-19)
+
+The detail statement read the period's lines once for each CTE that names `w` (the section's fills, its aggregates, the sorted rows). `w` is now `MATERIALIZED` there, as in the group statement, and in the Total row's statement (its level CTEs read `w`). A detail page with no section CTEs keeps `w` inline.
+
+| run, 100k lines | before | after |
+| --- | --- | --- |
+| 1 all accounts, month | 730 ms | 583 ms |
+| 2 all accounts, year | 2,157 ms | 1,601 ms |
+| 3 busy account, month | 334 ms | 240 ms |
+| 4 small account, month | 194 ms | 122 ms |
+| 5 three accounts, year | 1,205 ms | 824 ms |
+
+Plan, the detail statement of run 5, reads of `books_journal_lines` by `(account=? AND date>? AND date<?)`: before 9; after 1. The Total statement of run 5: before 7, 122.4 ms; after 1, 85 ms.
+
+Every run fell, by 20 % to 37 %; runs 1 and 2 (no Accounts filter) are not slower. Run 5 fell by 381 ms, more than the 100 to 270 ms the plan expected. The detail statement is still the longest of each run (run 5 651.9 ms of 824 ms, run 3 138.4 ms of 240 ms).
+
+#### Task 6: a day comparison in a lookup's where bounds the stored day (core `server/reports/lookup.go`, 2026-11-19)
+
+A lookup's where compared a line's day through `substr()`. A comparison of the day with a day of the period now also bounds the stored column (`date >= lo AND date <= (hi || x'ff')`), next to the where. Alone it changes no plan line: the account is still bound by a range, so SQLite does not use `date` after it (task 5).
+
+| run, 100k lines | before | after |
+| --- | --- | --- |
+| 1 all accounts, month | 583 ms | 545 ms |
+| 2 all accounts, year | 1,601 ms | 1,626 ms |
+| 3 busy account, month | 240 ms | 254 ms |
+| 4 small account, month | 122 ms | 130 ms |
+| 5 three accounts, year | 824 ms | 824 ms |
+
+Plan, the detail statement of run 5 (statement 6, 201 rows), reads of `books_journal_lines`: before and after the same, 1 × `SEARCH … idx_books_jlines_account_date (account=? AND date>? AND date<?)`, 6 × `SEARCH … idx_books_jlines_account_date (account>? AND account<?)`, 2 × `SEARCH … idx_books_jlines_entry (entry>? AND entry<?)`. Every plan line of every run is the same as in task 5c; only the statement text grew (run 5 statement 6: 31,868 -> 33,059 chars).
+
+The measure was taken twice. The first run (log `scale-task6.log`) ran on a loaded machine (another lane's e2e run: load average 11.8; the fixture write, which no reports code touches, was 23 % slower) and gave 670 / 2,057 / 291 / 162 / 1,020 ms. The second run, on a quiet machine (`scale-task6-b.log`), is the one recorded above: every run is within 7 % of task 5c, no run is slower by more than the run's variation.
+
+#### Task 5: a lookup on a known link searches the link and the day (core `server/reports/lookup.go`, 2026-11-19)
+
+A lookup's where bounded the account column by a range, so that a blank account (the Total row, a section with no account) reads the lines with no account; under a range SQLite did not use the day. Each part of the lookup is now written in two forms: where the account is known, `account = V` with the day bound of task 6; where it is blank, the range as before. A row runs one form.
+
+| run, 100k lines | before | after |
+| --- | --- | --- |
+| 1 all accounts, month | 545 ms | 357 ms |
+| 2 all accounts, year | 1,626 ms | 1,363 ms |
+| 3 busy account, month | 254 ms | 178 ms |
+| 4 small account, month | 130 ms | 140 ms |
+| 5 three accounts, year | 824 ms | 713 ms |
+
+Plan, the detail statement of run 5 (statement 6, 201 rows), reads of `books_journal_lines`: before 1 × `SEARCH … idx_books_jlines_account_date (account=? AND date>? AND date<?)`, 6 × `SEARCH … idx_books_jlines_account_date (account>? AND account<?)`, 2 × `SEARCH … idx_books_jlines_entry (entry>? AND entry<?)`; after 7 × `(account=? AND date>? AND date<?)`, 6 × `(account>? AND account<?)` (the range form, which a row with a known account does not run), 2 × `idx_books_jlines_entry (entry=?)` and 2 × `(entry>? AND entry<?)` (the Split lookups on the entry link get the two forms too). The detail statement: run 5 622.8 ms to 544 ms, run 3 134.3 ms to 107.2 ms. Its text grew (run 5: 33,059 -> 43,517 chars).
+
+Runs 1, 2, 3 and 5 fell, by 13 % to 34 %; run 3 fell more than the 5 to 20 % the plan expected. Run 4 is 8 % slower (its detail statement 63 ms to 76.6 ms): the cost of the `CASE` test over the two forms on a page with few lines; under the 25 % limit of the task. Measured on a quiet machine (`scale-task5.log`).
+
+#### Task 5d: a detail row's own lookups run for the page's rows (core `server/reports/run.go`, 2026-11-20)
+
+The detail statement computed every cell of every row of the period and cut the page last, so the Split and name lookups ran for each row of the period to show 200. The statement is now two selects: below the page cut, each row with its sort keys, its running balance and the beginning balance the running balance reads; above it, the row's own lookups and the cells, for the page's rows.
+
+| run, 100k lines | before | after |
+| --- | --- | --- |
+| 1 all accounts, month | 357 ms | 310 ms |
+| 2 all accounts, year | 1,363 ms | 706 ms |
+| 3 busy account, month | 178 ms | 167 ms |
+| 4 small account, month | 140 ms | 144 ms |
+| 5 three accounts, year | 713 ms | 377 ms |
+
+The detail statement (statement 6, 201 rows; run 4: 1 row): run 5 544 ms to 248.2 ms, run 3 107.2 ms to 97.9 ms, run 2 1,070.2 ms to 487.9 ms, run 4 76.6 ms to 79.8 ms. Plan, the detail statement of run 5, reads of `books_journal_lines`: before and after the same, 7 × `SEARCH … idx_books_jlines_account_date (account=? AND date>? AND date<?)`, 6 × `(account>? AND account<?)`, 2 × `idx_books_jlines_entry (entry=?)`, 2 × `(entry>? AND entry<?)`. Its text: 43,517 -> 42,435 chars. What stays in the statement (measured before the change, `parts.md`): the rows, their records and the sort, the beginning balance for each account, and the running balance.
+
+The measure was taken twice. The first run (`scale-task5d.log`, quiet machine, core 9dacb519) gave 422 / 754 / 220 / 194 / 431 ms: run 4 39 % above task 5 (detail statement 76.6 -> 130.4 ms), over the 25 % limit. Cause: SQLite flattened the layers above the page cut into the cells select and copied each hoisted value into each read (859 scalar subquery lines in the plan against 563; the earlier-years balance 25 times, about 40 ms on every run). Fix (core 9f515b30, tests 10029574): the page and the cells are each a `MATERIALIZED` select of a nested `WITH`, so each layer is computed once. The second run (`scale-task5d-b.log`, quiet machine, load 2.75, core 10029574) is the one recorded above: runs 3 and 4 within 7 % of task 5, run 5 47 % lower, run 2 48 % lower.
+
+#### Task 7: the result at 500,000 lines, and the changed bar (2026-11-20)
+
+Measured on a quiet machine (1-minute load 2.75), core 10029574, books 9a68a199, `BOOKS_SCALE=1`, the 500k size. Median of 5.
+
+| run, 500k lines | baseline (2026-11-19) | now | bar |
+| --- | --- | --- | --- |
+| 1 all accounts, month | refused (time limit) | 582 ms | none |
+| 2 all accounts, year | refused (time limit) | 2.733 s | none |
+| 3 busy account, month | 13,772 ms | 231 ms | 1 s |
+| 4 small account, month | 7,219 ms | 147 ms | 1 s |
+| 5 three accounts, year | refused (time limit) | 1.418 s | 2 s |
+
+The long statements, one sample each (statement 4 the section rows, 5 the Total row, 6 the detail page): run 3 34.6 / 30.6 / 144.6 ms; run 4 25.1 / 19.5 / 80.5 ms; run 5 192.9 / 203.7 / 986.2 ms; run 1 113 / 108.3 / 342.5 ms; run 2 346.7 / 379.4 ms / 1.9985 s. Plan, the detail statement of run 5 (201 rows, 42,435 chars), reads of `books_journal_lines`: 7 × `SEARCH … idx_books_jlines_account_date (account=? AND date>? AND date<?)`, 6 × `(account>? AND account<?)`, 2 × `idx_books_jlines_entry (entry=?)`, 2 × `(entry>? AND entry<?)`; no `SCAN`. The detail statement of run 2 (no Accounts filter, no bar) has 1 `SCAN books_journal_lines`.
+
+Runs 3 and 4 meet the old bar of 1 s or less. Run 5 is 1.418 s: over it. The human decided on 2026-11-20: the bar is changed, not the engine. A filtered run of one month takes 1 s or less at 500,000 lines; a filtered run of a year may be slightly over, and run 5's 1.418 s is accepted. The human set the year bar to 2 s on 2026-11-20. The four further cuts for run 5 that were written up (options A to D) are not built. The measure (`TestGLScale`) now holds each run to its own bar: `glMonthBar` 1 s for runs 3 and 4, `glYearBar` 2 s for run 5, none for runs 1 and 2; `TestGLScaleBars` pins them. The same bar applies to the Trial Balance, the Balance Sheet and Transaction Detail.
+
+A separate decision of the human on 2026-11-19 (not built yet; a later part of this unit) takes the reports that read all journal lines, the General Ledger among them, off live refresh: once it is built, a year run over 1 s costs the reader one wait, when the reader asks for it.
+
+### Trial Balance, Balance Sheet and Transaction Detail: the measure and its baseline
+
+The measure is `TestStatementsScale` (`server/report_statements_scale_test.go`): the General Ledger's scale book with cash-basis rows for one entry in four, and eleven runs. The bars at 500,000 lines are the human's decision (2026-11-20) and map so: Transaction Detail's runs with an Accounts filter take 1 s or less for a month and 2 s or less for a year (the General Ledger's runs); Transaction Detail's two runs with no Accounts filter take 2 s or less (month and year); a Trial Balance with an Accounts filter takes 1 s or less; the Trial Balance of every account and the Balance Sheet (no Accounts filter, two days) take 2 s or less, on Accrual and on Cash. `TestStatementsScaleBars` pins the runs and the bars.
+
+Baseline at 100,000 lines (median of 5, core ff0d61b4, books 4fe9210c, before any change for these reports):
+
+| lines | run | median of 5 | group rows | rows |
+|---|---|---|---|---|
+| 100000 | TB 1 all accounts, as of | 744ms | 106 | 107 |
+| 100000 | TB 2 busy account, as of | 480ms | 1 | 2 |
+| 100000 | TB 3 three accounts, as of | 565ms | 3 | 4 |
+| 100000 | BS 1 accrual, as of | 1.389s | 10 | 20 |
+| 100000 | BS 2 cash, as of | 1.708s | 10 | 20 |
+| 100000 | TD 1 all accounts, month | refused after 10.056s: reports: the report took too long to run | n/a | n/a |
+| 100000 | TD 2 all accounts, year | refused after 10.128s: reports: the report took too long to run | n/a | n/a |
+| 100000 | TD 3 busy account, month | refused after 10.06s: reports: the report took too long to run | n/a | n/a |
+| 100000 | TD 4 small account, month | 312ms | 1 | 4 |
+| 100000 | TD 5 three accounts, year | refused after 10.087s: reports: the report took too long to run | n/a | n/a |
+| 100000 | TD 6 busy account, month, cash | refused after 10.071s: reports: the report took too long to run | n/a | n/a |
+
+Before this unit (`other-reports-scale.txt`, 2026-11-19): Trial Balance 960 ms and Balance Sheet 1,280 ms at 100k (5,225 ms and 6,496 ms at 500k); Transaction Detail refused at 100k, also with one account.
+
+Reads of the line tables in the longest statement of each report (`scale-task9a/st-plans.md`):
+
+Run TB 1 all accounts, as of:
+
+### statement 5: 488.1ms, 106 rows, 10129 chars
+
+```
+SCAN books_journal_lines
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)
+```
+
+Run BS 1 accrual, as of:
+
+### statement 5: 1.2785s, 14 rows, 68537 chars
+
+```
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+```
+
+Run TD 3 busy account, month (refused; the statement with the most chars):
+
+### statement 6: not timed (the run was refused), 12399 chars
+
+```
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+```
+
+#### Task 9b: a bound on a union source is written inside each part (core `server/reports/stmt.go`, 2026-11-20)
+
+The Balance Sheet and Transaction Detail read the union source `books.basis_lines` (parts `books_journal_lines` and `books_cash_basis_lines`). Before: a scope read the union's rule CTE (`FROM r<n> t<n>`) and the bounds of the filter and of a lookup's where were conditions on the union's rows. SQLite moves no condition into the parts of a `UNION ALL`, so each read was a `SCAN` of both tables, and a lookup read them once for each row of the report. After: the scope writes the union itself, each part from its own collection's rule CTE with the bounds on the part's own columns: `FROM (SELECT … FROM r<a> p WHERE p.account IN (…) AND p.date >= ? AND p.date <= (? || x'ff') UNION ALL SELECT … FROM r<b> p WHERE …) t<n>`. A part that does not store a key of a bound reads its rows without that bound. The switch `legacySQL.noPartBounds` gives the old statement; `partbounds_test.go` holds the plans and the same-result tests.
+
+Not fixed by this task: Transaction Detail with no Accounts filter (TD 1, TD 2). Its lookups search by entry now, but its base rows have a day bound alone, and no index of the two tables starts with the day: the plan still shows `SCAN books_journal_lines` and `SCAN books_cash_basis_lines`, and `SEARCH t1 USING AUTOMATIC PARTIAL COVERING INDEX (currency=?)`. A later task of this unit handles it.
+
+At 100,000 lines (median of 5, core f4296bb0, books d9a695a7):
+
+| run | baseline (task 9a) | after task 9b | group rows | rows |
+|---|---|---|---|---|
+| TB 1 all accounts, as of | 744ms | 738ms | 106 | 107 |
+| TB 2 busy account, as of | 480ms | 432ms | 1 | 2 |
+| TB 3 three accounts, as of | 565ms | 516ms | 3 | 4 |
+| BS 1 accrual, as of | 1.389s | 1.373s | 10 | 20 |
+| BS 2 cash, as of | 1.708s | 1.746s | 10 | 20 |
+| TD 1 all accounts, month | refused | 153ms | 2 | 201 |
+| TD 2 all accounts, year | refused | 1.554s | 1 | 201 |
+| TD 3 busy account, month | refused | 29ms | 1 | 201 |
+| TD 4 small account, month | 312ms | 18ms | 1 | 4 |
+| TD 5 three accounts, year | refused | 125ms | 1 | 201 |
+| TD 6 busy account, month, cash | refused | 31ms | 1 | 201 |
+
+Reads of the line tables in statement 6 (the page of detail rows) of TD 5 three accounts, year, and of TD 2 all accounts, year (scale-task9b/st-plans.md):
+
+TD 5 three accounts, year (statement 6: 70.1ms, 201 rows, 14691 chars):
+
+```
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date>? AND date<?)
+SEARCH books_cash_basis_lines USING INDEX idx_books_cash_basis_lines_account_date (account=? AND date>? AND date<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_entry (entry>? AND entry<?)
+SEARCH books_cash_basis_lines USING INDEX idx_books_cash_basis_lines_entry (entry>? AND entry<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_entry (entry>? AND entry<?)
+SEARCH books_cash_basis_lines USING INDEX idx_books_cash_basis_lines_entry (entry>? AND entry<?)
+```
+
+TD 2 all accounts, year (statement 6: 1.4916s, 201 rows, 17000 chars):
+
+```
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SEARCH books_journal_lines USING INDEX idx_books_jlines_entry (entry>? AND entry<?)
+SEARCH books_cash_basis_lines USING INDEX idx_books_cash_basis_lines_entry (entry>? AND entry<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_entry (entry>? AND entry<?)
+SEARCH books_cash_basis_lines USING INDEX idx_books_cash_basis_lines_entry (entry>? AND entry<?)
+```
+
+The measure prints only the plan lines that name `books_journal_lines`, `books_cash_basis_lines` or `books_account_balances`, so an `AUTOMATIC` index on `t<n>` and a `MATERIALIZE` line do not show in `st-plans.md`; the `AUTOMATIC` line of TD 2 named above is from the small book. The Balance Sheet's one statement still reads both tables with 7 `SCAN`s each (BS 1 1.3141 s, BS 2 1.6385 s), and each Trial Balance statement has one `SCAN books_journal_lines`, also with an Accounts filter.
+
+No run is refused at 100k.
+
+#### Task 9c-1: the Trial Balance reads the stored months (books `server/report_trial_balance.go`, 2026-11-20)
+
+Before: every figure of the Trial Balance was a sum over the posted lines of the account up to the As of day, so each run read the account's whole history (`SCAN books_journal_lines` in each statement, also with an Accounts filter). After: the report's rows are the posted lines of the month of the As of day; Debit and Credit add a lookup over the stored month balances (`books_account_balances`) of the months before it; the Total adds the account rows shown; an account with stored months and no line in the month gets a row through the fill. The figures do not change: `TestTrialBalanceStoredMonthsEqualTheLines` runs the line read beside the new read.
+
+What the reader sees (human decision, 2026-11-20): an opened account shows "Balance before" and the month of the As of day, then the posted lines of that month up to the day. Lines of earlier months do not show there; a press on the Debit or Credit figure still opens every line. The opened Retained earnings row no longer lists the lines of earlier fiscal years: its opening row holds them.
+
+At 100,000 lines (median of 5, core 7433b88b, books a651fe8f):
+
+| run | after task 9b | after task 9c-1 | group rows | rows |
+|---|---|---|---|---|
+| TB 1 all accounts, as of | 738ms | 330ms | 106 | 107 |
+| TB 2 busy account, as of | 432ms | 149ms | 1 | 2 |
+| TB 3 three accounts, as of | 516ms | 178ms | 3 | 4 |
+| BS 1 accrual, as of | 1.373s | 1.424s | 10 | 20 |
+| BS 2 cash, as of | 1.746s | 1.852s | 10 | 20 |
+| TD 1 all accounts, month | 153ms | 163ms | 2 | 201 |
+| TD 2 all accounts, year | 1.554s | 1.646s | 1 | 201 |
+| TD 3 busy account, month | 29ms | 30ms | 1 | 201 |
+| TD 4 small account, month | 18ms | 18ms | 1 | 4 |
+| TD 5 three accounts, year | 125ms | 130ms | 1 | 201 |
+| TD 6 busy account, month, cash | 31ms | 32ms | 1 | 201 |
+
+Reads of the line tables and of the stored months in the longest statement of TB 1 all accounts, as of, and of TB 2 busy account, as of (scale-task9c1/st-plans.md):
+
+TB 1 all accounts, as of (statement 5: 245.5ms, 106 rows, 38673 chars):
+
+```
+SCAN books_journal_lines
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SCAN books_account_balances
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SCAN books_account_balances
+SCAN books_account_balances
+SEARCH books_account_balances
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)
+```
+
+TB 2 busy account, as of (statement 5: 102.2ms, 1 rows, 38921 chars):
+
+```
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SCAN books_account_balances
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SCAN books_account_balances
+SCAN books_account_balances
+SEARCH books_account_balances
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account=? AND date<?)
+SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date (account>? AND account<?)
+```
+
+A `SCAN books_journal_lines` line is still in a Trial Balance statement only in TB 1 all accounts, as of (statements 5 and 6: the base rows of the month have no Accounts filter, and no index of the table starts with the day); TB 2 and TB 3 read the lines by `SEARCH` on `idx_books_jlines_account_date` alone.
+
+No run is refused at 100k.
+
+#### Task 9c-2: the Balance Sheet reads the stored months (books `server/report_balance_sheet.go`, 2026-11-20)
+
+Before: Current and Prior year of every account, Retained earnings and Net income were sums over the posted lines up to the day of the column, so each run read the whole history. After: the report's rows are the posted lines of the month of the As of day, on both methods. Current and Prior year of an account add the balance before the month of their day and the lines of that month. On Accrual the balance before the month is a lookup over the stored month balances (`books_account_balances`); on Cash it is a lookup of the account's lines, because no stored month holds the cash rows. An account with stored months and no line in the month gets a row through the fill, under its own section, class and type. Retained earnings and Net income read the stored months plus the lines of their day's month on Accrual. The figures do not change on either method: `TestBalanceSheetStoredMonthsEqualTheLines` runs the line read beside the new read.
+
+What the reader sees (human decision, 2026-11-20): an opened account shows "Balance before" and the month of the As of day, then the posted lines of that month up to the day, on Accrual and on Cash. Lines of earlier months do not show there; a press on the Current or Prior year figure still opens every line.
+
+At 100,000 lines (median of 5, core 04ce7268, books 454c8775):
+
+| run | after task 9c-1 | after task 9c-2 | group rows | rows |
+|---|---|---|---|---|
+| TB 1 all accounts, as of | 330ms | 334ms | 106 | 107 |
+| TB 2 busy account, as of | 149ms | 151ms | 1 | 2 |
+| TB 3 three accounts, as of | 178ms | 180ms | 3 | 4 |
+| BS 1 accrual, as of | 1.424s | 972ms | 10 | 20 |
+| BS 2 cash, as of | 1.852s | 4.551s | 10 | 20 |
+| TD 1 all accounts, month | 163ms | 166ms | 2 | 201 |
+| TD 2 all accounts, year | 1.646s | 1.62s | 1 | 201 |
+| TD 3 busy account, month | 30ms | 30ms | 1 | 201 |
+| TD 4 small account, month | 18ms | 18ms | 1 | 4 |
+| TD 5 three accounts, year | 130ms | 139ms | 1 | 201 |
+| TD 6 busy account, month, cash | 32ms | 34ms | 1 | 201 |
+
+Reads of the line tables and of the stored months in the longest statement of BS 1 accrual, as of, and of BS 2 cash, as of (scale-task9c2/st-plans.md):
+
+BS 1 accrual, as of (statement 5: 952.1ms, 14 rows, 195681 chars):
+
+```
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_account_balances
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_account_balances
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_account_balances
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_account_balances
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+```
+
+BS 2 cash, as of (statement 5: 4.3398s, 14 rows, 195543 chars):
+
+```
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account=?)
+SEARCH books_account_balances USING INDEX idx_books_balances_account_period (account>? AND account<?)
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_account_balances
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_account_balances
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_account_balances
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+SCAN books_account_balances
+SCAN books_journal_lines
+SCAN books_cash_basis_lines
+```
+
+`SCAN books_journal_lines` and `SCAN books_cash_basis_lines` lines are still in a Balance Sheet statement, in statement 5 of BS 1 accrual, as of and in statement 5 of BS 2 cash, as of (17 of each in both runs).
+
+No run is refused at 100k.
+
+BS 2 cash, as of is a regression: 4.551s after task 9c-2 against 1.852s after task 9c-1. BS 1 accrual, as of is faster (972ms against 1.424s). The group rows (10) and rows (20) of BS 1 and BS 2 are the same as in the run before.
+
+#### Task 9d-1: the Cash Balance Sheet reads the stored months (books `server/report_balance_sheet.go`, 2026-11-20)
+
+The cash basis is the ledger and the cash-basis rows. The stored months are the ledger's, so a Cash run reads them too; of the months before a day's month it reads as lines only the cash-basis rows (layer `cash`). Before this task a Cash run added every journal line of the book for each lookup (4.551 s at 100,000 lines: 0.26 s compile, the rest SCANs of both line tables).
+
+| lines | run | before (task 9c-2) | after |
+|---|---|---|---|
+| 100000 | BS 1 accrual, as of | 972ms | 940ms |
+| 100000 | BS 2 cash, as of | 4.551s | 1.965s |
+
+Median of 5, core 25d6ecac, books 627e24c7; the group rows (10) and rows (20) of BS 1 and BS 2 are the same as before. Statement 5 of BS 2 (1.751s) has 21 `SCAN books_journal_lines` and 21 `SCAN books_cash_basis_lines` (17 of each after task 9c-2; BS 1 has the same 21 of each), and the statement is 259,542 chars (195,543 after task 9c-2). The SCANs are still there, but the Cash history lookups now keep only the rows of layer `cash`, so each reads less. The bar is 2 s at 500,000 lines for both methods; tasks 9d-2, 9e-1 and 9e-2 of the plan outline are what is left for it.
+
+#### Task 9e-1: the Balance Sheet drill reads its first day from the stored months (books `server/report_spec_helpers.go`, 2026-11-20)
+
+A figure's drill opens Transaction Detail by Account from the account's first line up to the column's day. The first day was a `min(date)` over the account's lines, once for Current and once for Prior year (about 0.5 s of the Accrual run at 100,000 lines). It is now the first day of the account's first stored month; on Cash the month of the account's first cash-basis row is read too. The drilled period starts on the 1st of the first line's month (human decision, 2026-11-20) and lists the same lines.
+
+| lines | run | before (task 9d-1) | after |
+|---|---|---|---|
+| 100000 | BS 1 accrual, as of | 940ms | 456ms |
+| 100000 | BS 2 cash, as of | 1.965s | 1.508s |
+
+Median of 5, books 63cdf3cb (the 1-minute load was 5.77 when the run started, so the figures may be slightly high); the group rows (10) and rows (20) of BS 1 and BS 2 are the same as before. Statement 5 of BS 1 (480.2ms, 262,040 chars) and of BS 2 (1.364s, 261,956 chars) each have 21 `SCAN books_journal_lines` and 21 `SCAN books_cash_basis_lines` (21 of each after task 9d-1), 4 `SCAN books_account_balances`, and 18 `SEARCH books_account_balances` by index (14 after task 9d-1: the four new ones are the stored-month lookups of the drills). The count of SCANs did not change: the drills' cash-row lookups SCAN the line tables in place of the old `min(date)` lookups, but on Accrual they hold `method = cash` and read almost nothing. On Cash the cost left is the SCANs of the layer-`cash` rows before the month. The bar is 2 s at 500,000 lines for both methods; tasks 9d-2 and 9e-2 of the plan outline are what is left for it, each decided from a 500k run.
+
+#### Task 9d-2a: the stored cash months (books `server/cash_balances.go`, 2026-11-20)
+
+The table `books_cash_basis_balances` keeps one row for each account and month of the cash-basis rows: `account`, `period` (`YYYY-MM`), `month_start`, `debit_total`, `credit_total` and `currency`, with a unique index on `(account, period)`. Clients can read it and cannot write it. A month with no cash row has no row.
+
+The one writer is `syncCashLineRows`: after it changes the cash rows of a source, it reads again the cash rows of each month it touched and writes that month's totals (`refreshCashBalances`). It does not add a difference, so a month is always the sum of its rows. `verifyCashBalances` compares the stored months with the cash rows added up; `rebuildCashBalances` writes them again from the rows, inside `rebuildBalances`, after `rebuildCashBasis`. `requireNoDrift` and `requireNoCashDrift` now also fail on a drifted cash month.
+
+The collection is an in-place edit of migration `2100000021_create_books_bill_payments.js`, not a new migration: Books has no release (no tag, version 0.1.0), so every database starts empty. The table sits in the file that creates the cash rows it sums, and its `down` drops it with them.
+
+No report reads the table yet; the Cash Balance Sheet reads it in task 9d-2b. So the figures must stay as after task 9e-1, and they do:
+
+| lines | run | before (task 9e-1) | after |
+|---|---|---|---|
+| 100000 | BS 1 accrual, as of | 456ms | 443ms |
+| 100000 | BS 2 cash, as of | 1.508s | 1.465s |
+
+Median of 5, core 8969bdbd, books eb7a2f67, on a quiet machine; no run is refused. The group rows (10) and rows (20) of BS 1 and BS 2 are the same as before, and statement 5 of BS 1 (468.2ms, 262,040 chars) and of BS 2 (1.313s, 261,956 chars) is the same statement as after task 9e-1.
+
+#### Task 9d-2b: the Cash Balance Sheet reads the stored cash months (2026-11-20)
+
+The report source `books.cash_basis_balances` reads the table `books_cash_basis_balances` of task 9d-2a (link `account`; fields `period`, `month_start`, `debit_total`, `credit_total`, `currency`). On Cash, the four reads of the months before a day's month now read the stored cash months in place of the layer-`cash` rows:
+
+- `bsBefore`: the cash part of the beginning balance (`bsCashStoredBefore`).
+- `profitAndLossSum`: the cash part of the P&L sums before the month.
+- `bsActivity`: an account is active when it has a stored cash month before the month (a month with no cash row has no stored row).
+- `firstBasisMonth`: on Cash, the first `month_start` of the account's stored cash months on or before the day.
+
+Each read keeps `onCash()`, so an Accrual run reads no stored cash month. The day's own month is still read from its rows. `onCashLayer` has no caller left and is deleted. `Revision: 7`. The scale book (`writeStatementsScaleBook`) writes its stored cash months by one `INSERT … SELECT … GROUP BY account, substr(date, 1, 7)`, and `TestStatementsScaleBook` checks them against the cash rows.
+
+The tests that hold the figures: `TestBalanceSheetCashMonthsEqualTheLines_Bills` (a bill book with posts, payments, a void, a replaced payment and a corrected bill) and `TestBalanceSheetCashMonthsEqualTheLines_InvoiceCorrection` (an invoice correction that takes over a payment), each with the fiscal year starting in January and in July. They passed before the change and after it. The tests that prove the reads: `TestBalanceSheetReadsTheStoredCashMonths` (a raw change of a stored cash month moves the Cash figure and not the Accrual figure), `TestBalanceSheetCashMonthMakesAnAccountActive`, `TestBalanceSheetCashOpenedAccountRows` and `TestBalanceSheetCashDrillStartsAtTheFirstStoredCashMonth`.
+
+| lines | run | before (task 9d-2a) | after |
+|---|---|---|---|
+| 100000 | BS 1 accrual, as of | 443ms | 476ms |
+| 100000 | BS 2 cash, as of | 1.465s | 519ms |
+
+Median of 5, core 39fb32b8, books aa5831d7 (code commits 502b7c01 and aa5831d7). The machine was NOT quiet: the human said to run it then, with other lanes' Go tests running; the 1-minute load was 6.81 at the start. So the figures may be high; the 7 % rise of BS 1 is not from the code (its plan has fewer SCANs, below). No run is refused, and the group rows (10) and rows (20) of BS 1 and BS 2 are the same as before.
+
+Statement 5 of BS 2 is 558.4ms (1.313s after task 9d-2a), 257,788 chars (261,956). It has 8 `SCAN books_cash_basis_lines` and 8 `SCAN books_journal_lines` (21 of each after task 9d-2a), 4 `SCAN books_account_balances` and 18 `SEARCH books_account_balances` by index (unchanged). Statement 5 of BS 1 has the same counts (497.4ms, 257,878 chars). 13 SCAN pairs of the line tables went with the four reads; which read each of the 8 left belongs to is not checked (the day's own month is still read from its rows). `st-plans.md` lists only the steps that name `books_journal_lines`, `books_cash_basis_lines` or `books_account_balances` (`report_statements_scale_test.go:356`), so the steps over `books_cash_basis_balances` are not in it.
+
+The bar is 2 s at 500,000 lines for both methods. Projected (not measured), whole median × 5.4: BS 1 2.57 s, BS 2 2.80 s (upper figures); with a compile of 0.266 s kept fixed: BS 1 about 1.40 s, BS 2 about 1.63 s. Task 9e-2 of the plan outline (core: the union of a lookup source written once) is decided from the 500k run (task 9e), not from this projection.
+
+#### Task 9b-3: a page's detail rows find their open section through an index (core `server/reports/run.go`, 2026-11-20)
+
+The cause (plan `2026-11-20-report-engine-scale-part27.md`, "The evidence this plan is written from", items 1 and 3): with no Accounts filter the page statement of Transaction Detail read the open sections first and, for each of them, every row of the period (`SCAN gord`, `SEARCH t1 USING AUTOMATIC PARTIAL COVERING INDEX (currency=?)`). A section's key is the id of the joined account, and the index on `t1` held the currency only (one value), so each of the 105 open sections read every row of the period. The scan of the line tables by day (statements 4 and 5, 46 and 37 ms) was not the cost, so no `(date)` index was added.
+
+The change: core `leafFrom` writes `CROSS JOIN gord` with a unary `+` on each key of the row's side. Each of the two is needed. `CROSS JOIN` fixes the join order: SQLite keeps the written order of a CROSS JOIN, so the rows are the outer loop and `gord` is the inner side. The `+` takes the column affinity off the term: a stored column compared with a `json_extract` value of `gord` has an affinity, and an index on `gord` cannot serve such a comparison, so SQLite built none. With no `+`, `CROSS JOIN` alone was slow on a collection: 3.78 s against 0.19 s on 8,000 open groups (`TestAGroupedRunOfManyOpenGroupsReadsItsDetailsOnce`).
+
+General Ledger run 2 did not have the sections x rows join: its plan built one index of all detail rows by the section key (`SEARCH d USING AUTOMATIC PARTIAL COVERING INDEX (k0=? AND ck0=?)`). Its statement changed all the same, so it was measured again.
+
+The tests: the core tests of step 2, `TestAGroupedDetailStatementReadsItsRowsOnce`, `TestAGroupedDetailStatementOfACollectionFindsItsGroupByAnIndex`, `TestTheDetailStatementComputesItsOpenGroupsOnce`, `TestTheOpenGroupJoinOrderKeepsTheResult`, `TestTheOpenGroupJoinMatchesAKeyOfEveryKind`, `TestTheOpenGroupJoinOrderKeepsEveryPage` and `TestAGroupedRunOfAUnionWithManyOpenGroupsReadsItsRowsOnce`; and Books `TestTransactionDetailReadsItsPeriodRowsOnce`.
+
+| lines | run | before | after |
+|---|---|---|---|
+| 100000 | TB 1 all accounts, as of | 359ms | 345ms |
+| 100000 | TB 2 busy account, as of | 162ms | 153ms |
+| 100000 | TB 3 three accounts, as of | 192ms | 181ms |
+| 100000 | BS 1 accrual, as of | 476ms | 455ms |
+| 100000 | BS 2 cash, as of | 519ms | 504ms |
+| 100000 | TD 1 all accounts, month | 165ms | 62ms |
+| 100000 | TD 2 all accounts, year | 1.691s | 232ms |
+| 100000 | TD 3 busy account, month | 33ms | 30ms |
+| 100000 | TD 4 small account, month | 21ms | 19ms |
+| 100000 | TD 5 three accounts, year | 142ms | 135ms |
+| 100000 | TD 6 busy account, month, cash | 35ms | 34ms |
+| 100000 | TD 2, statement 6 (the page) | 1.594s | 140ms |
+| 100000 | GL 1 all accounts, month | 310ms | 322ms |
+| 100000 | GL 2 all accounts, year | 706ms | 694ms |
+| 100000 | GL 3 busy account, month | 167ms | 182ms |
+| 100000 | GL 4 small account, month | 144ms | 164ms |
+| 100000 | GL 5 three accounts, year | 377ms | 396ms |
+
+Median of 5, core ee405c61 (the code commit 9b8ab2ec and the test fix ee405c61), books f89ff706. Before: `scale-task9d2b/st-results.md` for the statements and `scale-task5d-b/gl-results.md` for the General Ledger (other core changes came between that run and this one, so a difference of a General Ledger run is not this task's alone). Both runs PASS and no run is refused. The group rows and rows of every Trial Balance, Balance Sheet and Transaction Detail run, and the sections on the page of every General Ledger run, are the same as before.
+
+The machine was NOT quiet: the human said to run them then. The 1-minute load was 5.86 at the start of the Trial Balance, Balance Sheet and Transaction Detail run and 4.55 at the start of the General Ledger run (`scale-task9b3.quiet`). So the figures may be high; the General Ledger runs 1, 3, 4 and 5 are 4 to 14 % above before, which a noisy machine and the other core changes explain, and this task's change does not reach runs 3 to 5 (they have an Accounts filter).
+
+The plan lines after (`st-plans.md`, `gl-plans.md`), as step 11 expected: TD 2 statement 6 has `SCAN t1`, `BLOOM FILTER ON gord (g0=? AND g1=?)` and `SEARCH gord USING AUTOMATIC PARTIAL COVERING INDEX (g0=? AND g1=?)`, with no `SCAN gord` and no `SEARCH t1`. General Ledger run 2's statement with a `gord` line (statement 6) has `MATERIALIZE gord`, `SCAN d` and `SEARCH gord USING AUTOMATIC PARTIAL COVERING INDEX (g0=? AND g1=?)`, with no `SEARCH d USING AUTOMATIC`. The other Transaction Detail and General Ledger runs have the same lines.
+
+What is left for the 2 s bars at 500,000 lines. By the human's decision of 2026-11-20, General Ledger runs 1 and 2 (no Accounts filter) now also have the 2 s bar at 500k (the bar test and `TestGLScale` of the commit after this record). Projected (not measured), whole median x 5.4, the factor of task 9d-2b: TD 1 about 0.34 s, TD 2 about 1.25 s, GL 1 about 1.74 s, GL 2 about 3.75 s. These are upper figures (a fixed compile cost does not grow, and the load was high); on them TD 1, TD 2 and GL 1 are inside the bar and GL 2 is not, so GL 2 is the run to decide from a 500k run. That earlier 500k measure of GL 2 was 2.733 s (plan, evidence item 2), before this change.
+
+#### Task 28a: a page's detail statement computes the rows of the sections it can reach (core `server/reports/run.go`, 2026-11-20)
+
+The cause (plan `2026-11-20-report-engine-scale-part28.md`, "The evidence this plan is written from", item 1): at 500k, General Ledger run 2 was 2.624 s = section rows 355 ms + Total row 391 ms + detail page 1,861 ms. The detail page computed its select (the sort keys, the running balance, the record joins) over the 94,512 period rows of all 106 open sections, to show 201 rows of the first section (11,833 rows).
+
+The change: core `leafRows` writes two CTEs after `gord`: `gcut` (the place of the first open section at which the row count reaches the page size + 1) and `wl` (the rows of the sections up to it, materialized), and the detail select reads `wl`. A section held by a cursor counts as no rows and is always kept. Not cut: a select with a percent of the whole report, a select with a probed condition, a run with one open section, a layout. The limit of `gcut` is an integer literal in the SQL text (`limitSQL`), approved by the human on 2026-11-21.
+
+Two facts the build found (plan, evidence item 3): `wl` must be `MATERIALIZED`, because inline SQLite flattens it into the page select and reads `gord` with `SCAN gord` for each row; and the cut must be a scalar (`gcut`), because a CTE that selects from `gord` puts `SCAN gord` in the plan, which `TestAGroupedDetailStatementReadsItsRowsOnce` and Books `TestTransactionDetailReadsItsPeriodRowsOnce` refuse.
+
+Two more changes of the build:
+
+- A moved group that the cursor holds and that is off the reachable sections: `wl` keeps its shown row by id. `heldLeaves` returns `held` and `away`; with `away` not empty, `wl` joins `gord` with `LEFT JOIN gord` and adds the rows of those ids (their sort keys are the same as over all rows, so the page is the same). Review fix cfc3d9d6: one rule, `movedShown`, names the moved ids for `readShownNow` and `heldLeaves`.
+- Books `TestTransactionDetailReadsItsPeriodRowsOnce` (books 3d77acc9, the TD plan guard) read for a `SCAN t1` or `SCAN d` line, which the cut statement does not have (it reads `wl`). It now reads the real plan lines: no `SCAN gord` and no `SEARCH t1`; each line table is scanned once (`SCAN books_journal_lines` and `SCAN books_cash_basis_lines`, one each); at least one `SEARCH gord USING AUTOMATIC` step, and its parent also scans its rows (`SCAN t1`, `SCAN d` or `SCAN w`).
+
+The tests (core `leafrows_test.go`; the plan names six, the file has seven, the last one added by the held-group fix): `TestAPageComputesTheRowsOfTheGroupsItCanReach`, `TestThePagesAreTheSameOverTheGroupsAPageCanReach`, `TestPagesOverTheGroupsTheyReachJoinIntoTheWholeRun`, `TestAPercentOfTheWholeReportKeepsEveryGroupsRows`, `TestAProbedConditionKeepsEveryGroupsRows`, `TestAMovedGroupIsReadOverTheGroupsAPageCanReach` and `TestAMovedGroupOffThePageIsReadOverTheGroupsAPageCanReach`. With the switch on and no change, the first, second and sixth went RED and the others passed (guards); the seventh went RED on the first cut build (the held value of the moved group differed in the next cursor).
+
+One measuring round stands for this task's step 10 and for task 29's step 8 (see that record): core ea0fee56 plus its review fix cfc3d9d6 (the cut), books 3d77acc9, 2026-11-21. It was run at 500,000 lines for both the General Ledger and the statements; the plan's 100k statements run was not made, so the 100k comparison with `scale-task9b3` is not made (the second table is at 500k, before = `scale-500k-final-st`).
+
+General Ledger, 500k (`scale-task28-gl/gl-results.md`; before: `scale-500k-final-gl/gl-results.md`):
+
+| lines | run | before | after |
+|---|---|---|---|
+| 500000 | GL 1 all accounts, month | 614ms | 513ms |
+| 500000 | GL 2 all accounts, year | 2.73s | 1.759s |
+| 500000 | GL 3 busy account, month | 246ms | 232ms |
+| 500000 | GL 4 small account, month | 164ms | 168ms |
+| 500000 | GL 5 three accounts, year | 1.422s | 1.151s |
+
+Trial Balance, Balance Sheet and Transaction Detail, 500k (`scale-task28-st500/st-results.md`; before: `scale-500k-final-st/st-results.md`):
+
+| lines | run | before | after |
+|---|---|---|---|
+| 500000 | TB 1 all accounts, as of | 1.337s | 1.255s |
+| 500000 | TB 2 busy account, as of | 544ms | 511ms |
+| 500000 | TB 3 three accounts, as of | 719ms | 660ms |
+| 500000 | BS 1 accrual, as of | 934ms | 916ms |
+| 500000 | BS 2 cash, as of | 1.244s | 1.218s |
+| 500000 | TD 1 all accounts, month | 227ms | 207ms |
+| 500000 | TD 2 all accounts, year | 1.12s | 898ms |
+| 500000 | TD 3 busy account, month | 63ms | 61ms |
+| 500000 | TD 4 small account, month | 19ms | 19ms |
+| 500000 | TD 5 three accounts, year | 689ms | 590ms |
+| 500000 | TD 6 busy account, month, cash | 76ms | 73ms |
+
+Median of 5. Both runs PASS (`scale-task28-gl.log`, `scale-task28-st500.log`) and no run is refused; the sections on the page of every General Ledger run, and the group rows and rows of every statements run, are the same as before. The before figures ran at a load of 7.8 to 9.3 (not quiet), so part of each gain is the machine. The machine for this round (`scale-task28.quiet`): the General Ledger run started at load 3.00 (quiet, under 4); the statements run started at load 6.34 (above 4: not quiet, a little high).
+
+Checks of step 10: General Ledger run 2's statement with a `gord` line in `gl-plans.md` has no `SCAN gord` line (grep count 0). Every General Ledger run is under the 2 s bar at 500k. Run 2's margin is 241 ms under the bar (1.759 s), about 12 %: more than 10 %, so tasks 28b and 28c are not needed.
+
+What is left of run 2 (plan, evidence item 2): the section rows statement (about 355 ms) and the Total row statement (about 391 ms), and in the detail page `w` (about 317 ms) and the sections computed again (about 229 ms). These four figures are the plan's, measured before the cut; they were not measured again after it. Two options not built: the Total row read in the section rows statement (about -345 ms, an estimate) and no `shown` CTEs under `wl` (about -230 ms, an estimate).
+
+For a later task that builds those two options (a "28b"): it must pass `away` from `heldLeaves` to `leafRows`; `TestAMovedGroupOffThePageIsReadOverTheGroupsAPageCanReach` catches its omission.
+
+#### Task 29: every value in a statement is bound (core `server/reports`, Books `server`, 2026-11-20)
+
+The cause: the rule "bind every value in SQL" and the audit (`sql-literal-audit.md`). The human's decision of 2026-11-20 was to bind the audit's places and the seven row limits, with the `x'ff'` sentinel kept. The human changed it on 2026-11-21: the integer `LIMIT` literals are approved and task 2 (bind the row limits) is dropped. The approved constants (the human's list, `docs/plans/auto-helix/p5-report-engine-scale.md`, 2026-11-21): `LIMIT 1` (lookup.go), `'Yes'`/`'No'` (options.go), the place number `%[3]d` (options.go), `' '` (options.go), `'-Q'` (rows.go), `'%+d days'` (formula.go), `'text'` and `'$.k'` (label.go, options.go) and the `x'ff'` sentinel.
+
+The change, one line each:
+
+- `startOfMonth` binds `"01"`.
+- A percent binds its scale (2 places).
+- A blank pivot cell's bounds are bound.
+- `placeholderDay` (the drill) is bound.
+- The four Books statements bind the posted flag, the status and the origin.
+- The row limits stay integer literals (human-approved 2026-11-21; task 2 dropped), so `limitSQL` stays; the `gcut` limit of part 28 is an approved integer literal too.
+
+The tests: core `TestAPercentBindsItsScale`, `TestStartOfMonthBindsItsDay`, `TestABlankPivotBoundIsBound` (`boundvalues_test.go`); Books `TestLedgerStatementsBindTheirValues` (`bound_values_test.go`).
+
+Code: core e5807277 and cf10acf6 (task 1), Books c7a43ff6 (task 3).
+
+The figures are the round of task 28a (above): core cfc3d9d6, books 3d77acc9, 2026-11-21, with these changes in the tree. It ran at 500,000 lines, not 100,000, so the 100k figures of task 9b-3 are not compared. All 16 runs, before = the 500k final files (`scale-500k-final-st`, `scale-500k-final-gl`), after = `scale-task28-st500`, `scale-task28-gl`:
+
+| lines | run | before | after |
+|---|---|---|---|
+| 500000 | TB 1 all accounts, as of | 1.337s | 1.255s |
+| 500000 | TB 2 busy account, as of | 544ms | 511ms |
+| 500000 | TB 3 three accounts, as of | 719ms | 660ms |
+| 500000 | BS 1 accrual, as of | 934ms | 916ms |
+| 500000 | BS 2 cash, as of | 1.244s | 1.218s |
+| 500000 | TD 1 all accounts, month | 227ms | 207ms |
+| 500000 | TD 2 all accounts, year | 1.12s | 898ms |
+| 500000 | TD 3 busy account, month | 63ms | 61ms |
+| 500000 | TD 4 small account, month | 19ms | 19ms |
+| 500000 | TD 5 three accounts, year | 689ms | 590ms |
+| 500000 | TD 6 busy account, month, cash | 76ms | 73ms |
+| 500000 | GL 1 all accounts, month | 614ms | 513ms |
+| 500000 | GL 2 all accounts, year | 2.73s | 1.759s |
+| 500000 | GL 3 busy account, month | 246ms | 232ms |
+| 500000 | GL 4 small account, month | 164ms | 168ms |
+| 500000 | GL 5 three accounts, year | 1.422s | 1.151s |
+
+Both runs PASS and no run is refused; the rows and sections are the same as before. Load: General Ledger start 3.00 (quiet), statements start 6.34 (not quiet, a little high); the before figures ran at 7.8 to 9.3. The tree also holds task 28a, so a gain is not this task's alone.
+
+Not done here: nothing is left. The `gcut` limit of part 28 is an approved integer literal.
+
+#### All bars at 500k (2026-11-21)
+
+The human's bars (the human, 2026-11-20): Transaction Detail with an account filter, month, 1 s; Trial Balance with an account filter (as of), 1 s; every other run 2 s. The General Ledger runs with no account filter got 2 s by Ruling #100. Each bar below is read from the test code (`report_general_ledger_scale_test.go`, `glMonthBar` 1 s and `glLongRunBar` 2 s, the runs at lines 120-125; `report_statements_scale_test.go`, lines 90-100).
+
+| report | run | bar | median at 500k | pass |
+|---|---|---|---|---|
+| General Ledger | 1 all accounts, month | 2s | 513ms | yes |
+| General Ledger | 2 all accounts, year | 2s | 1.759s | yes |
+| General Ledger | 3 busy account, month | 1s | 232ms | yes |
+| General Ledger | 4 small account, month | 1s | 168ms | yes |
+| General Ledger | 5 three accounts, year | 2s | 1.151s | yes |
+| Trial Balance | TB 1 all accounts, as of | 2s | 1.255s | yes |
+| Trial Balance | TB 2 busy account, as of | 1s | 511ms | yes |
+| Trial Balance | TB 3 three accounts, as of | 1s | 660ms | yes |
+| Balance Sheet | BS 1 accrual, as of | 2s | 916ms | yes |
+| Balance Sheet | BS 2 cash, as of | 2s | 1.218s | yes |
+| Transaction Detail | TD 1 all accounts, month | 2s | 207ms | yes |
+| Transaction Detail | TD 2 all accounts, year | 2s | 898ms | yes |
+| Transaction Detail | TD 3 busy account, month | 1s | 61ms | yes |
+| Transaction Detail | TD 4 small account, month | 1s | 19ms | yes |
+| Transaction Detail | TD 5 three accounts, year | 2s | 590ms | yes |
+| Transaction Detail | TD 6 busy account, month, cash | 1s | 73ms | yes |
+
+The round: core cfc3d9d6 (with ea0fee56), books 3d77acc9, 2026-11-21; load at start 3.00 (General Ledger, quiet) and 6.34 (statements, not quiet, a little high); every run passes its bar.
+
+#### Task 9e-2a: a list rule that reads no row is answered once for each run (core `server/reports/rules.go`, 2026-11-21)
+
+The cause (`9e2-investigation.md`): SQLite copies a CTE at every reference, so the prepare cost of a statement follows its expanded text. The Balance Sheet statement expands to 4.03 MB and holds 3,172 copies of a rule CTE; each copy carried the grant rule as `EXISTS (… LEFT JOIN users … LEFT JOIN books_access …)`, about 205 ms of a 310 ms prepare. The rule reads no row of its collection: its answer is the same for every row.
+
+The change (core): `ruleFormOf` returns the rule in full and, for a joined rule that reads no row and does not name its collection's table, the probe `SELECT EXISTS (…)`. A run asks each distinct probe one time through its read transaction (`askRules`; the key is the probe's text and bound values, the answers live in the runner of that one run) and the statement's rule CTE is `SELECT t.* FROM t`, or `SELECT t.* FROM t WHERE 0` for a refused reader. `stmt.ruleReads` keeps the rule in full, so a run's topics are the same. A rule that reads its row, the comparison with every joined row and `:changed` stay in the statement. A probe that fails fails the run.
+
+The tests (core `ruleonce_test.go`): `TestEveryRuleKindReadsTheListAPIsRows`, `TestARuleOneAnswerServesLeavesTheStatement`, `TestARuleThatReadsItsRowStaysInTheStatement`, `TestARuleAnswerBelongsToOneRunAndOneReader`, `TestAProbeKeyHoldsItsValues`, `TestAFailedRuleProbeFailsTheRun`, `TestARuleProbeIsUnderTheRunTimeLimit`, `TestAnAnsweredRuleKeepsTheRunsTopics`, `TestAUnionPartsRuleIsAnswered`, `TestNamesTable`, `TestParamOptionsUnderAnAnsweredRule`, `TestABalanceSheetShapedStatementHoldsNoRule`.
+
+Code: core 8c8d86ec.
+
+Prepare of the long Balance Sheet statement (`EXPLAIN` read to its end, 20 times, the 100k book; `scale-task9e2/prepare.log`):
+
+| run | before (10k book, load 12) | after: median (min to max) | opcodes before | opcodes after |
+|---|---|---|---|---|
+| BS 1 accrual, as of | 324 ms | 109.7 ms (104.7 to 113.9 ms) | 49,666 | 36,570 |
+| BS 2 cash, as of | 315 ms | 106.1 ms (103.1 to 111.8 ms) | 49,665 | 36,569 |
+
+The statement is statement 6 of 8 of each run; after the change it is 257,770 chars (BS 1) and 257,680 chars (BS 2) and holds 0 `__rule` (5 before).
+
+The 100k round (`scale-task9e2/st-results.md`; before = `scale-task9b3/st-results.md`, the last 100k round, which did not hold tasks 28a and 29):
+
+| lines | run | before | after |
+|---|---|---|---|
+| 100000 | TB 1 all accounts, as of | 345ms | 317ms |
+| 100000 | TB 2 busy account, as of | 153ms | 141ms |
+| 100000 | TB 3 three accounts, as of | 181ms | 170ms |
+| 100000 | BS 1 accrual, as of | 455ms | 268ms |
+| 100000 | BS 2 cash, as of | 504ms | 307ms |
+| 100000 | TD 1 all accounts, month | 62ms | 51ms |
+| 100000 | TD 2 all accounts, year | 232ms | 209ms |
+| 100000 | TD 3 busy account, month | 30ms | 30ms |
+| 100000 | TD 4 small account, month | 19ms | 17ms |
+| 100000 | TD 5 three accounts, year | 135ms | 123ms |
+| 100000 | TD 6 busy account, month, cash | 34ms | 30ms |
+
+`TestStatementsScale/100k` passes, no run is refused, the group rows and rows of each run are the same as in `scale-task9b3`, and the 1-minute load at the start was 5.66 (prepare measure) and 4.62 (100k round).
+
+Not done here (each a later, larger step, from the investigation): one select for the currencies of all computed rows of a layout (about 100 ms to 66 ms on the copy); the `__probes` reads (66 ms to 56 ms); a staged run with the shared CTEs in temp tables (the floor, about 20 ms). The prepare cost of the other large statements (General Ledger, Transaction Detail, Trial Balance, Journal, Profit and Loss) is not measured yet: the human asked for that benchmark after this task.
+
+#### Task 31: `in` of a Select with a list of its option values tests the stored column too (core `server/reports/selectin.go`, 2026-11-21)
+
+The cause (found by the Expenses by Vendor unit's plan bars): `in(account.type, [three types])` read the type as `NULLIF(type, '')` and the list from one bound JSON array. No index serves that term and SQLite does not see that a row with no account fails it, so it kept the LEFT JOIN to the accounts and scanned `books_journal_lines` and `books_cash_basis_lines`. `eq` had a stored-column term since `selectEq`; `in` had none.
+
+The change (core): `selectIn` writes `(NULLIF(c, '') IN (<the list>) AND c IN ({:p}, …, NULL))` when the left side is a Select read from a stored column and every value of the list is one of its option values. One placeholder is bound for each distinct value; no value is written into the SQL text. The `NULL` at the end of the list keeps the value of the condition unknown for a blank or missing `c`, as before. A list with another value, an empty list, and a column's formula are written as before.
+
+The tests (core `selectin_test.go`): `TestASelectInAListIsServedByTheColumnIndex`, `TestASelectInAListKeepsItsResult`, `TestASelectInAListOnOtherSourcesKeepsItsResult`, `TestASelectInAListIsBound`, `TestASelectInAListIsPreparedOnceWithoutStatistics`.
+
+Code: core 83ce8c78.
+
+Books reports whose filters carry the term: Profit and Loss, Trial Balance, Balance Sheet, General Ledger (`account.type`) and Statements (`entry.origin`). The Books Go tests pass on it (three shards).
+
+The 100k round (`scale-task31-st/st-results.md`; before = `scale-task9e2/st-results.md`):
+
+| lines | run | before | after |
+|---|---|---|---|
+| 100000 | TB 1 all accounts, as of | 317ms | 329ms |
+| 100000 | TB 2 busy account, as of | 141ms | 137ms |
+| 100000 | TB 3 three accounts, as of | 170ms | 163ms |
+| 100000 | BS 1 accrual, as of | 268ms | 286ms |
+| 100000 | BS 2 cash, as of | 307ms | 328ms |
+| 100000 | TD 1 all accounts, month | 51ms | 53ms |
+| 100000 | TD 2 all accounts, year | 209ms | 205ms |
+| 100000 | TD 3 busy account, month | 30ms | 26ms |
+| 100000 | TD 4 small account, month | 17ms | 15ms |
+| 100000 | TD 5 three accounts, year | 123ms | 120ms |
+| 100000 | TD 6 busy account, month, cash | 30ms | 28ms |
+
+The General Ledger at 500k (`scale-task31-gl/gl-results.md`; before = `scale-500k-final-gl/gl-results.md`):
+
+| lines | run | before | after |
+|---|---|---|---|
+| 500000 | 1 all accounts, month | 614ms | 424ms |
+| 500000 | 2 all accounts, year | 2.73s | 1.647s |
+| 500000 | 3 busy account, month | 246ms | 161ms |
+| 500000 | 4 small account, month | 164ms | 82ms |
+| 500000 | 5 three accounts, year | 1.422s | 1.014s |
+
+Beyond the plan, the statements at 500k (`scale-task31-st500/st-results.md`; before = `scale-task28-st500/st-results.md`):
+
+| lines | run | before | after |
+|---|---|---|---|
+| 500000 | TB 1 all accounts, as of | 1.255s | 1.313s |
+| 500000 | TB 2 busy account, as of | 511ms | 489ms |
+| 500000 | TB 3 three accounts, as of | 660ms | 644ms |
+| 500000 | BS 1 accrual, as of | 916ms | 746ms |
+| 500000 | BS 2 cash, as of | 1.218s | 1.056s |
+| 500000 | TD 1 all accounts, month | 207ms | 185ms |
+| 500000 | TD 2 all accounts, year | 898ms | 1.098s |
+| 500000 | TD 3 busy account, month | 61ms | 61ms |
+| 500000 | TD 4 small account, month | 19ms | 16ms |
+| 500000 | TD 5 three accounts, year | 590ms | 647ms |
+| 500000 | TD 6 busy account, month, cash | 73ms | 74ms |
+
+All three runs PASS (`scale-task31-st.log`, `scale-task31-gl.log`, `scale-task31-st500.log`) and no run is refused; the group rows and rows of every statements run and the sections on the page of every General Ledger run are the same as before. The machine was not quiet (the human said to run): the 1-minute load at the start was 8.04 (100k statements, `scale-task31-st/load.txt`), 9.30 (General Ledger, `scale-task31-gl/load.txt`) and 7.16 (500k statements, `scale-task31-st500/load.txt`), so a small change up or down in a figure is the machine.
+
+For the Expenses by Vendor unit: with this change on core `books/p5-report-engine-scale`, its `TestExpensesByVendorQueryPlans` has no plan-bar failure with no statistics (21 before; planner's overlay run, 2026-11-21).
+
+#### All bars at 500k, final (2026-11-21, task 31)
+
+These are the final figures; they replace the table "All bars at 500k (2026-11-21)" above. The bars are the same (read from the test code, as above).
+
+| report | run | bar | median at 500k | pass |
+|---|---|---|---|---|
+| General Ledger | 1 all accounts, month | 2s | 424ms | yes |
+| General Ledger | 2 all accounts, year | 2s | 1.647s | yes |
+| General Ledger | 3 busy account, month | 1s | 161ms | yes |
+| General Ledger | 4 small account, month | 1s | 82ms | yes |
+| General Ledger | 5 three accounts, year | 2s | 1.014s | yes |
+| Trial Balance | TB 1 all accounts, as of | 2s | 1.313s | yes |
+| Trial Balance | TB 2 busy account, as of | 1s | 489ms | yes |
+| Trial Balance | TB 3 three accounts, as of | 1s | 644ms | yes |
+| Balance Sheet | BS 1 accrual, as of | 2s | 746ms | yes |
+| Balance Sheet | BS 2 cash, as of | 2s | 1.056s | yes |
+| Transaction Detail | TD 1 all accounts, month | 2s | 185ms | yes |
+| Transaction Detail | TD 2 all accounts, year | 2s | 1.098s | yes |
+| Transaction Detail | TD 3 busy account, month | 1s | 61ms | yes |
+| Transaction Detail | TD 4 small account, month | 1s | 16ms | yes |
+| Transaction Detail | TD 5 three accounts, year | 2s | 647ms | yes |
+| Transaction Detail | TD 6 busy account, month, cash | 1s | 74ms | yes |
+
+The round: core 83ce8c78, books 5674f9c6, 2026-11-21; load at start 9.30 (General Ledger) and 7.16 (statements), both not quiet; every run passes its bar.

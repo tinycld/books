@@ -800,6 +800,35 @@ describe('help/reports.md', () => {
         })
     })
 
+    // The live reports over journal lines (Shipped.Live in server/) stay
+    // current, and a saved change or a copy of one does not.
+    describe('the "Reports that you refresh" section', () => {
+        const sentences = section('## Reports that you refresh').split(/(?<=[.!?])\s+/)
+        const sentenceWith = (phrase: string) =>
+            (sentences.find(s => s.includes(phrase)) ?? '').toLowerCase()
+        const reports = [
+            'the Profit and Loss',
+            'the Customer Balance',
+            'the Vendor Balance',
+            'the Audit Log',
+        ]
+        // The stay-current sentence names the statements together ("the two
+        // statement reports").
+        const live = [...reports, 'Statement: Balance Forward']
+
+        it.each(reports)('says %s stays current', name => {
+            expect(sentenceWith('stay current: they run again')).toContain(name.toLowerCase())
+        })
+
+        it.each(live)('says a saved change to %s stops its updates', name => {
+            expect(sentenceWith('When someone saves a change')).toContain(name.toLowerCase())
+        })
+
+        it.each(live)('says a copy of %s does not update', name => {
+            expect(sentenceWith('A copy that you keep with Save as')).toContain(name.toLowerCase())
+        })
+    })
+
     // Vendor Balance checkpoint 4 (spec §3 "Help").
     it('"Who sees Books reports" names the Vendor Balance', () => {
         expect(section('## Who sees Books reports')).toContain('the Vendor Balance')

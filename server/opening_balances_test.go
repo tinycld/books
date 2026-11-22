@@ -302,7 +302,7 @@ func TestOpening_TotalOverTheStoredLimitIsRefused(t *testing.T) {
 func TestOpening_BalanceRowOverTheStoredLimitIsRefused(t *testing.T) {
 	env := newLedgerEnv(t)
 	saveRecord(t, env.app, "books_account_balances", map[string]any{
-		"account": env.checking.Id, "period": "2025-12", "debit_total": maxStoredAmount - 50, "currency": "USD",
+		"account": env.checking.Id, "period": "2025-12", "month_start": "2025-12-01", "debit_total": maxStoredAmount - 50, "currency": "USD",
 	})
 	entry := env.opening(t, "2025-12-31", "", 100)
 	requireRefused(t, setStatus(env.app, entry.Id, statusPosted, ""),

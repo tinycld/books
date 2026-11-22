@@ -456,6 +456,9 @@ test.describe('profit-and-loss: report', () => {
                 'the new account in the open report'
             )
             expect(amountOf(live, 'group', income)).toBe(6000)
+            // The Profit and Loss stays live: it has no note and no Refresh.
+            await expect(page.getByTestId('report-manual-band')).toHaveCount(0)
+            await expect(page.getByTestId('report-refresh')).toHaveCount(0)
             const notReloaded = await page.evaluate(
                 () => (window as unknown as { plNotReloaded?: boolean }).plNotReloaded
             )

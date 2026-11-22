@@ -20,6 +20,10 @@ func customerBalanceShipped() reports.Shipped {
 		// re-stores a shipped spec only on a higher revision.
 		Revision:    2,
 		Unpublished: true,
+		// It reads books.journal_lines, a source that is NotLive. Its rows are
+		// sums per customer, and an opened customer reads only its own lines,
+		// so its run stays fast on a large book: it stays live.
+		Live: true,
 	}
 }
 

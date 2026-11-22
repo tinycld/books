@@ -15,7 +15,8 @@ func generalLedgerShipped() reports.Shipped {
 		Description: "Every posted line, grouped by account, for a period.",
 		Spec:        mustJSON(generalLedgerSpec()),
 		// 2: lines open the transaction that posted them (detail.open).
-		Revision:    2,
+		// 3: the beginning balance reads the stored months.
+		Revision:    3,
 		Unpublished: true,
 	}
 }
@@ -168,48 +169,67 @@ func generalLedgerLayouts() []reports.DisplayLayout {
 
 // generalLedgerOpening is the section's account's net before the period, the
 // Trial Balance's rules as of the day before it: a balance-sheet account
-// counts every earlier posted line, an income or expense account only the
-// lines of the period's fiscal year, and the retained-earnings account adds
-// every income and expense line of earlier fiscal years. With All dates the
-// period has no first day, no line is before it, and the net is 0.
+// carries all history, an income or expense account only the fiscal year, and
+// the retained-earnings account adds the income and expense of earlier fiscal
+// years. The whole months before the period's first month are read from the
+// stored monthly balances (books_account_balances), and only the posted lines
+// of that first month before the period are read from the journal, so the
+// cost does not grow with the account's history. With All dates the period has
+// no first day, no line is before it, and the net is 0.
 func generalLedgerOpening() *reports.Node {
-	net := glNet()
 	from := bound("period", "from")
+	monthStart := op("startOfMonth", from)
 	pl := lit(profitAndLossTypes())
-	own := &reports.Node{
-		Op:     "lookup",
-		Source: "books.journal_lines",
-		Where: op("and",
-			op("eq", link("account"), rec("byAccount", "id")),
-			op("eq", fld("posted"), lit(true)),
-			op("lt", fld("date"), from),
-			op("or",
-				op("not", op("in", fld("account", "type"), pl)),
-				op("gte", op("fiscalYear", fld("date")), op("fiscalYear", from)),
-			),
+	ownAccount := op("eq", link("account"), rec("byAccount", "id"))
+	// The whole months before the period's first month, from the stored rows.
+	// A fiscal year starts on the first day of a month, so every day of a
+	// month is in the fiscal year of the month's first day.
+	months := glSum("books.account_balances", glStoredNet(),
+		ownAccount,
+		op("lt", fld("month_start"), monthStart),
+		op("or",
+			op("not", op("in", fld("account", "type"), pl)),
+			op("gte", op("fiscalYear", fld("month_start")), op("fiscalYear", from)),
 		),
-		Value: mustJSON(net),
-		Pick:  "sum",
-	}
-	earlierPL := &reports.Node{
-		Op:     "lookup",
-		Source: "books.journal_lines",
-		Where: op("and",
-			op("eq", fld("posted"), lit(true)),
-			op("in", fld("account", "type"), pl),
-			op("lt", op("fiscalYear", fld("date")), op("fiscalYear", from)),
-		),
-		Value: mustJSON(net),
-		Pick:  "sum",
-	}
+	)
+	// The lines of the period's first month before the period: at most one
+	// month of one account. They are in the period's fiscal year.
+	monthToDate := glSum("books.journal_lines", glNet(),
+		ownAccount,
+		op("eq", fld("posted"), lit(true)),
+		op("gte", fld("date"), monthStart),
+		op("lt", fld("date"), from),
+	)
+	earlierPL := glSum("books.account_balances", glStoredNet(),
+		op("in", fld("account", "type"), pl),
+		op("lt", op("fiscalYear", fld("month_start")), op("fiscalYear", from)),
+	)
 	return op("add",
-		op("coalesce", own, lit(0)),
+		op("add", months, monthToDate),
 		op("if",
 			op("eq", rec("byAccount", "detail_type"), lit("retained_earnings")),
-			op("coalesce", earlierPL, lit(0)),
+			earlierPL,
 			lit(0),
 		),
 	)
+}
+
+// glSum adds value over the rows of source that pass every term of where, 0
+// when none does.
+func glSum(source string, value *reports.Node, where ...*reports.Node) *reports.Node {
+	return op("coalesce", &reports.Node{
+		Op:     "lookup",
+		Source: source,
+		Where:  op("and", where...),
+		Value:  mustJSON(value),
+		Pick:   "sum",
+	}, lit(0))
+}
+
+// glStoredNet is a stored month's debits less its credits: the sum of glNet
+// over the account's posted lines of that month (books_account_balances).
+func glStoredNet() *reports.Node {
+	return op("sub", fld("debit_total"), fld("credit_total"))
 }
 
 // glNet is a line's debit less its credit. The balance column and the

@@ -329,6 +329,8 @@ migrate(
                         maxSelect: 1,
                     },
                     { name: 'period', type: 'text', required: true, max: 7, pattern: '^\\d{4}-\\d{2}$' },
+                    // The first day of the month, so a report compares the row with a day.
+                    { name: 'month_start', type: 'text', required: true, max: 10, pattern: '^\\d{4}-\\d{2}-01$' },
                     { name: 'debit_total', type: 'number', onlyInt: true, min: 0 },
                     { name: 'credit_total', type: 'number', onlyInt: true, min: 0 },
                     { name: 'currency', type: 'text', required: true, pattern: '^[A-Z]{3}$' },

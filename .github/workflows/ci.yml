@@ -88,17 +88,82 @@ jobs:
       - name: Typecheck + unit
         working-directory: ws/${{ env.PACKAGE }}
         run: pnpm exec tinycld-pkg check
-      # The ledger's guarantees (rules, posting, immutability, numbering) are
-      # proven by the Go tests in server/; tinycld-pkg check runs no Go.
-      # go mod download fills go.work.sum, which workspace-mode go test needs.
+      # go mod download fills go.work.sum, which workspace-mode go builds need.
       - name: Go build
         working-directory: ws/${{ env.PACKAGE }}/server
         run: |
           go mod download
           go build ./...
+
+  # The ledger's guarantees (rules, posting, immutability, numbering) are
+  # proven by the Go tests in server/; tinycld-pkg check runs no Go. One
+  # runner takes too long for the whole package: the Balance Sheet report
+  # compiles to one SQL statement of about 258 KB that SQLite takes about
+  # 0.3 s to prepare, the tests run it hundreds of times, and in one process
+  # those runs do not get faster in parallel. So each shard runs every third
+  # test in name order (.github/scripts/go-test-shard.sh). The install writes server/go.work,
+  # so each shard assembles and installs as the check job does.
+  go-test:
+    name: Go test (shard ${{ matrix.shard }}/3)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: ws/${{ env.PACKAGE }}
+      # Pin a Node that satisfies bootstrap's engines.node (>=24) so the
+      # assemble step below doesn't depend on whatever ubuntu-latest ships.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - name: Resolve sibling refs
+        id: sibling
+        run: |
+          # Work that spans core and this package lives on the SAME branch name
+          # in every repo. Assembling core from its default branch would build
+          # this PR against a core that lacks the branch's own APIs.
+          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          for repo in tinycld; do
+            if [ -n "$BRANCH" ] && \
+               git ls-remote --exit-code --heads "https://github.com/tinycld/$repo" "$BRANCH" >/dev/null 2>&1; then
+              echo "${repo}_ref=@$BRANCH" >> "$GITHUB_OUTPUT"
+              echo "$repo -> $BRANCH"
+            else
+              echo "${repo}_ref=" >> "$GITHUB_OUTPUT"
+              echo "$repo -> (default branch)"
+            fi
+          done
+      - name: Assemble workspace (tinycld + this package)
+        working-directory: ws
+        run: |
+          TINYCLD_REPO_BASE=https://github.com/tinycld \
+            npx @tinycld/bootstrap@latest --assemble-only \
+            --with "tinycld${{ steps.sibling.outputs.tinycld_ref }}"
+      # Switch to the version the assembled workspace pins.
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: ws/.node-version
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: ws/tinycld/core/server/go.mod
+          cache-dependency-path: |
+            ws/books/server/go.mod
+            ws/tinycld/server/go.sum
+            ws/tinycld/core/server/go.sum
+      - name: Enable corepack (pnpm)
+        run: corepack enable
+      - name: Install (workspace root)
+        working-directory: ws
+        run: pnpm install --no-frozen-lockfile
+      # go mod download fills go.work.sum, which workspace-mode go test needs.
       - name: Go test
         working-directory: ws/${{ env.PACKAGE }}/server
-        run: go test -count=1 ./...
+        run: |
+          go mod download
+          ../.github/scripts/go-test-shard.sh ${{ matrix.shard }} 3
 
   e2e:
     name: E2E (shard ${{ matrix.shard }}/4)
