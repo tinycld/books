@@ -178,6 +178,7 @@
 - fix-round causes: record-state 1, weak-test 2, other: key registration differs by mode 1, other: focus target lost on unmount 1, other: shared control changed for another caller 1 (cp4-fix-r1.md)
 - out-of-plan files: `tests/e2e/bank-deposit-read.spec.ts`, `tests/e2e/journal-entries-helpers.ts`, `hooks/useDepositScreen.ts`, `stores/deposit-save-store.ts`, `hooks/useLinePartyOptions.ts`, `lib/line-party-options.ts`, `lib/deposit-refusals.ts`, `lib/deposit-schema.ts`, `lib/deposit-values.ts`
 - for the driver: a core change request for the human — a "not listed" flag on core `Shortcut`, so the correction's ⌘S catch leaves ⇧? (Design notes, cp 4 fix review NOTE 1).
+- commit: 2d2e852739d5208804a57fa4fb399b01770a4317
 - human: none (review mode C)
 
 ## Final review
