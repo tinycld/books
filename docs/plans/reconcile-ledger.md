@@ -278,6 +278,7 @@ and again at the end)
 - reviewer-caught deferrals: none
 - self-declared: 4 differences (accepted), 1 dispute (settled); out-of-plan: none in code
 - native: not executed (the web-only focus of `useListAnchor`)
+- commit: fe055eb7 (with the uncommitted "Core task (cp 4 request)" ledger section)
 
 ## Final review
 - eval: (unattended only) approved | revised → <notes, fix sha> | stopped
