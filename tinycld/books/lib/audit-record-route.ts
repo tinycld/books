@@ -116,7 +116,7 @@ const ROUTED_ORIGINS: readonly string[] = [
     'document',
 ] satisfies readonly RoutedEntry['origin'][]
 
-function isDocType(value: string): value is RoutedEntry['doc_type'] {
+export function isDocType(value: string): value is RoutedEntry['doc_type'] {
     return ROUTED_DOC_TYPES.includes(value)
 }
 

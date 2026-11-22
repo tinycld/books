@@ -9,15 +9,21 @@ import { TOO_LARGE_TEXT } from '../../lib/entry-lines'
 import { formatMoney } from '../../lib/money'
 import { useEntryLeave } from './EntryLeaveContext'
 
-export function EntryBackLink() {
+interface BackLinkProps {
+    label: string
+    testID: string
+    onPress(): void
+}
+
+// A header's back link, "← Journal entries": the caller gives the press (a form passes its
+// leave guard).
+export function BackLink({ label, testID, onPress }: BackLinkProps) {
     const color = useThemeColor('muted-foreground')
-    const { label, onBack } = useBackToEntries()
-    const guardedLeave = useEntryLeave()
     return (
         <Pressable
-            testID="entry-back"
+            testID={testID}
             accessibilityRole="link"
-            onPress={guardedLeave ?? onBack}
+            onPress={onPress}
             className="flex-row items-center gap-1 self-start"
             style={{ minHeight: 44 }}
         >
@@ -25,6 +31,12 @@ export function EntryBackLink() {
             <Text className="text-sm text-muted-foreground">{label}</Text>
         </Pressable>
     )
+}
+
+export function EntryBackLink() {
+    const { label, onBack } = useBackToEntries()
+    const guardedLeave = useEntryLeave()
+    return <BackLink label={label} testID="entry-back" onPress={guardedLeave ?? onBack} />
 }
 
 interface EntryHeaderMenuProps {
