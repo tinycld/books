@@ -15,12 +15,17 @@ import {
 } from '../tinycld/books/lib/bank-connection-fixture'
 import { bankConnectionsQuery } from '../tinycld/books/lib/bank-connections-query'
 import { REVIEW_TRANSACTIONS } from '../tinycld/books/lib/for-review-fixture'
+import {
+    RECONCILIATION_FINISHED,
+    RECONCILIATION_IN_PROGRESS,
+} from '../tinycld/books/lib/reconcile-fixture'
 import type {
     BooksAccountBalances,
     BooksAccounts,
     BooksBankConnections,
     BooksBankFiles,
     BooksBankTransactions,
+    BooksReconciliations,
 } from '../tinycld/books/types'
 
 const STAMP = '2026-01-01 00:00:00.000Z'
@@ -190,8 +195,17 @@ const CHART_ORDER_CONNECTIONS = CHART_ORDER_ACCOUNTS.map(row =>
 async function runQuery(
     connections: BooksBankConnections[],
     accounts = BANK_ACCOUNTS,
-    transactions = TRANSACTIONS
+    transactions = TRANSACTIONS,
+    reconciliations: BooksReconciliations[] = []
 ) {
+    const reconciliationsCollection = createCollection(
+        localOnlyCollectionOptions({
+            id: `bank-reconciliations-${Math.random()}`,
+            getKey: (row: BooksReconciliations) => row.id,
+            initialData: reconciliations,
+            ...indexed,
+        })
+    )
     const connectionsCollection = createCollection(
         localOnlyCollectionOptions({
             id: `bank-connections-${Math.random()}`,
@@ -238,7 +252,8 @@ async function runQuery(
             accountsCollection,
             balancesCollection,
             filesCollection,
-            transactionsCollection
+            transactionsCollection,
+            reconciliationsCollection
         ),
         startSync: true,
     })
@@ -331,5 +346,66 @@ describe('bankConnectionsQuery', () => {
         ])
         expect(rows[0].reviewCount).toBe(20)
         expect(rows[0].waitingCount).toBe(4)
+    })
+
+    // Fix round 1 of checkpoint 6 (one query): the More menu's Reconcile rule reads the
+    // account's inactive flag and its reconciliation in progress from the connection row,
+    // not from a second live query of the same account. Checking has one in progress (and a
+    // finished one, which does not count); the card has only a finished one; savings is
+    // inactive and has none.
+    it("carries the account's inactive flag and its reconciliation in progress", async () => {
+        const accounts = BANK_ACCOUNTS.map(row =>
+            row.id === BANK_ACCOUNT_IDS.savings ? { ...row, inactive: true } : row
+        )
+        const reconciliations: BooksReconciliations[] = [
+            {
+                ...RECONCILIATION_FINISHED,
+                id: 'recnchkfinished',
+                account: BANK_ACCOUNT_IDS.checking,
+            },
+            {
+                ...RECONCILIATION_IN_PROGRESS,
+                id: 'recnchkprogress',
+                account: BANK_ACCOUNT_IDS.checking,
+            },
+            { ...RECONCILIATION_FINISHED, id: 'recncardfinishd', account: BANK_ACCOUNT_IDS.card },
+        ]
+        const rows = await runQuery(
+            [...BANK_CONNECTIONS, SAVINGS_CONNECTION],
+            accounts,
+            TRANSACTIONS,
+            reconciliations
+        )
+        expect(rows.map(row => [row.id, row.accountInactive, row.inProgress?.id])).toEqual([
+            [BANK_CONNECTION_IDS.checking, false, 'recnchkprogress'],
+            [SAVINGS_CONNECTION.id, true, undefined],
+            [BANK_CONNECTION_IDS.card, false, undefined],
+        ])
+    })
+
+    it('keeps one row per connection when its account has several reconciliations', async () => {
+        const reconciliations: BooksReconciliations[] = [
+            {
+                ...RECONCILIATION_FINISHED,
+                id: 'recnchkfinish01',
+                account: BANK_ACCOUNT_IDS.checking,
+            },
+            {
+                ...RECONCILIATION_FINISHED,
+                id: 'recnchkfinish02',
+                account: BANK_ACCOUNT_IDS.checking,
+            },
+            {
+                ...RECONCILIATION_IN_PROGRESS,
+                id: 'recnchkprogress',
+                account: BANK_ACCOUNT_IDS.checking,
+            },
+        ]
+        const rows = await runQuery(BANK_CONNECTIONS, BANK_ACCOUNTS, TRANSACTIONS, reconciliations)
+        expect(rows.map(row => row.id)).toEqual([
+            BANK_CONNECTION_IDS.checking,
+            BANK_CONNECTION_IDS.card,
+        ])
+        expect(rows[0].inProgress?.id).toBe('recnchkprogress')
     })
 })

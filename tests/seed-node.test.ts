@@ -16,6 +16,8 @@ import { DEPOSIT_SEED } from '../tinycld/books/lib/bank-deposit-fixture'
 import { CUSTOMER_BALANCE_SEED } from '../tinycld/books/lib/customer-balance-fixture'
 import { CUSTOMERS } from '../tinycld/books/lib/customer-form-fixture'
 import { REVIEW_SEED_ENTRIES, REVIEW_SEED_STATEMENT } from '../tinycld/books/lib/for-review-fixture'
+import { GENERAL_LEDGER_LONG_SECTION } from '../tinycld/books/lib/general-ledger-fixture'
+import { RECONCILE_SEED } from '../tinycld/books/lib/reconcile-fixture'
 import {
     REFUND_FROM_ACCOUNTS,
     REFUND_RECEIPT_IDS,
@@ -1660,5 +1662,319 @@ describe('seedStatements', () => {
             for (const field of STATEMENT_SERVER_FIELDS)
                 expect(write.data).not.toHaveProperty(field)
         }
+    })
+})
+
+// Reconcile spec §4 "Fixture and seed" (settled difference 10): four entries of its own on
+// 1010 Business Savings (debit 1010, credit 3000 Owner's Equity), a finished reconciliation
+// that clears the first two, and one in progress that clears the third and leaves the
+// fourth. All through the collection API, so the Go hooks stamp the server fields; the
+// reconciliations have fixed ids, which is how a second run knows it ran.
+type SeedReconcile = (
+    pb: PocketBase,
+    ctx: { user: typeof USER },
+    accountIds: Map<string, string>
+) => Promise<void>
+
+// The General Ledger's long section (seedLongSection, which runs before seedReconcile): two
+// posted "Daily sweep" entries of 130 one-dollar debits to 1010 Business Savings and one
+// credit to 3000 Owner's Equity each. The finished seed reconciliation clears its 260 lines
+// on 1010 too (checkpoint 4 driver decision 1), so the reconciliation in progress opens on
+// its own rows.
+const SWEEP = GENERAL_LEDGER_LONG_SECTION
+const SWEEP_CENTS = SWEEP.dates.length * SWEEP.linesPerEntry * SWEEP.cents
+
+// A servedPb that holds the long section's entries and lines as the earlier seed step left
+// them, with their writes taken out of `writes`. Returns the ids of the sweep lines on 1010
+// and of the equity lines.
+async function sweptPb(accounts: Map<string, string>) {
+    const served = servedPb()
+    const { pb, writes } = served
+    const savings = accounts.get('1010')
+    const equity = accounts.get('3000')
+    const sweepLines: string[] = []
+    const equityLines: string[] = []
+    for (const date of SWEEP.dates) {
+        const entry = await pb.collection('books_journal_entries').create({
+            date,
+            memo: SWEEP.memo,
+            status: 'draft',
+            doc_type: 'journal',
+            origin: 'manual',
+            created_by: USER.id,
+        })
+        for (let position = 0; position < SWEEP.linesPerEntry; position++) {
+            const line = await pb.collection('books_journal_lines').create({
+                entry: entry.id,
+                account: savings,
+                debit: SWEEP.cents,
+                credit: 0,
+                position,
+            })
+            sweepLines.push(line.id)
+        }
+        const offset = await pb.collection('books_journal_lines').create({
+            entry: entry.id,
+            account: equity,
+            debit: 0,
+            credit: SWEEP.linesPerEntry * SWEEP.cents,
+            position: SWEEP.linesPerEntry,
+        })
+        equityLines.push(offset.id)
+        await pb.collection('books_journal_entries').update(entry.id, {
+            status: 'posted',
+            posted_by: USER.id,
+            revision: 1,
+        })
+    }
+    writes.splice(0)
+    return { ...served, sweepLines, equityLines }
+}
+
+const RECONCILE_STAMPED = [
+    'beginning_balance',
+    'cleared_out',
+    'cleared_in',
+    'cleared_out_count',
+    'cleared_in_count',
+    'created_by',
+    'finished_by',
+    'finished_at',
+    'currency',
+]
+
+describe('seedReconcile', () => {
+    it('runs after the bank match seed', () => {
+        const source = readFileSync(seedPath, 'utf8')
+        const body = source.slice(source.indexOf('export default async function seed('))
+        const bankMatch = body.indexOf('seedBankMatch(')
+        expect(bankMatch).toBeGreaterThan(-1)
+        expect(body.indexOf('seedReconcile(')).toBeGreaterThan(bankMatch)
+    })
+
+    it('has four seed entries and two fixed 15-character reconciliation ids', () => {
+        const seed = RECONCILE_SEED as unknown as {
+            entries: { date: string; memo: string; amount: number }[]
+            finished: { id: string; clears: number[] }
+            inProgress: { id: string; statement_balance: number; clears: number[] }
+        }
+        expect(seed.entries).toHaveLength(4)
+        expect(seed.entries[3]).toEqual({
+            date: '2026-09-25',
+            memo: 'Reconcile seed: fee refund',
+            amount: 1_500,
+        })
+        expect(seed.finished.id).toMatch(/^[a-z0-9]{15}$/)
+        expect(seed.inProgress.id).toMatch(/^[a-z0-9]{15}$/)
+        expect(seed.inProgress.id).not.toBe(seed.finished.id)
+        expect(seed.finished.clears).toEqual([0, 1])
+        expect(seed.inProgress.clears).toEqual([2])
+        expect(seed.inProgress.statement_balance).toBe(252_343 + SWEEP_CENTS)
+    })
+
+    it('the stamped figures balance with the sweep lines: the finish at $0.00, the one in progress $15.00 off', () => {
+        const seed = RECONCILE_SEED as unknown as {
+            entries: { amount: number }[]
+            finished: { statement_balance: number; clears: number[] }
+            inProgress: { statement_balance: number; clears: number[] }
+        }
+        expect(SWEEP_CENTS).toBe(26_000)
+        const amount = (index: number) => seed.entries[index]?.amount ?? Number.NaN
+        // From a beginning balance of 0, the finish clears the sweep and the first two entries.
+        const finishedCleared =
+            SWEEP_CENTS + seed.finished.clears.reduce((sum, i) => sum + amount(i), 0)
+        expect(seed.finished.statement_balance).toBe(finishedCleared)
+        expect(seed.finished.statement_balance).toBe(250_412 + SWEEP_CENTS)
+        // The one in progress begins at the finished balance and clears the third entry; the
+        // fourth, the fee refund of $15.00, is the difference.
+        const progressCleared =
+            seed.finished.statement_balance +
+            seed.inProgress.clears.reduce((sum, i) => sum + amount(i), 0)
+        expect(seed.inProgress.statement_balance - progressCleared).toBe(amount(3))
+        expect(amount(3)).toBe(1_500)
+    })
+
+    it('the finished reconciliation clears the 260 sweep lines on 1010 too, and only those', async () => {
+        const seedReconcile = (seedModule as Record<string, unknown>).seedReconcile as
+            | SeedReconcile
+            | undefined
+        expect(typeof seedReconcile).toBe('function')
+        if (typeof seedReconcile !== 'function') return
+        const seed = RECONCILE_SEED as unknown as {
+            entries: { amount: number }[]
+            finished: { id: string; statement_balance: number }
+            inProgress: { id: string }
+        }
+        const accounts = seededAccounts()
+        const { pb, writes, sweepLines, equityLines } = await sweptPb(accounts)
+        expect(sweepLines).toHaveLength(260)
+        await seedReconcile(pb, { user: USER }, accounts)
+
+        const cleared = writes.filter(
+            w => w.collection === 'books_reconciliation_lines' && w.op === 'create'
+        )
+        const ofFinished = cleared
+            .filter(w => w.data.reconciliation === seed.finished.id)
+            .map(w => String(w.data.line))
+        for (const line of sweepLines) expect(ofFinished).toContain(line)
+        expect(ofFinished).toHaveLength(sweepLines.length + 2)
+        expect(new Set(ofFinished).size).toBe(ofFinished.length)
+        for (const line of equityLines) expect(ofFinished).not.toContain(line)
+        const ofProgress = cleared
+            .filter(w => w.data.reconciliation === seed.inProgress.id)
+            .map(w => String(w.data.line))
+        expect(ofProgress).toHaveLength(1)
+        for (const line of sweepLines) expect(ofProgress).not.toContain(line)
+
+        // The finished statement balance is the debits it clears (beginning balance 0).
+        const lineDebit = new Map<string, number>()
+        for (const w of writes) {
+            if (w.collection === 'books_journal_lines' && w.op === 'create') {
+                lineDebit.set(w.id, Number(w.data.debit))
+            }
+        }
+        const sweepDebit = new Map(sweepLines.map(line => [line, SWEEP.cents]))
+        const clearedDebits = ofFinished.reduce(
+            (sum, line) => sum + (lineDebit.get(line) ?? sweepDebit.get(line) ?? Number.NaN),
+            0
+        )
+        expect(clearedDebits).toBe(seed.finished.statement_balance)
+
+        // Every clear of the finished reconciliation comes before its finish.
+        const finish = writes.findIndex(
+            w =>
+                w.collection === 'books_reconciliations' &&
+                w.op === 'update' &&
+                w.id === seed.finished.id &&
+                w.data.status === 'finished'
+        )
+        expect(finish).toBeGreaterThan(-1)
+        const lastFinishedClear = Math.max(
+            ...cleared
+                .filter(w => w.data.reconciliation === seed.finished.id)
+                .map(w => writes.indexOf(w))
+        )
+        expect(lastFinishedClear).toBeLessThan(finish)
+    })
+
+    it('posts the four entries, finishes one reconciliation over the first two and leaves one in progress over the third', async () => {
+        const seedReconcile = (seedModule as Record<string, unknown>).seedReconcile as
+            | SeedReconcile
+            | undefined
+        expect(typeof seedReconcile).toBe('function')
+        if (typeof seedReconcile !== 'function') return
+        const seed = RECONCILE_SEED as unknown as {
+            entries: { date: string; memo: string; amount: number }[]
+            finished: { id: string; statement_date: string; statement_balance: number }
+            inProgress: { id: string; statement_date: string; statement_balance: number }
+        }
+        const accounts = seededAccounts()
+        const { pb, writes, sweepLines } = await sweptPb(accounts)
+        const savings = accounts.get('1010')
+        const equity = accounts.get('3000')
+        await seedReconcile(pb, { user: USER }, accounts)
+
+        const entries = writes.filter(
+            w => w.collection === 'books_journal_entries' && w.op === 'create'
+        )
+        expect(entries.map(w => [w.data.date, w.data.memo])).toEqual(
+            seed.entries.map(entry => [entry.date, entry.memo])
+        )
+        const lines = writes.filter(
+            w => w.collection === 'books_journal_lines' && w.op === 'create'
+        )
+        const savingsLines = entries.map((entry, i) => {
+            const amount = seed.entries[i]?.amount
+            const ofEntry = lines.filter(w => w.data.entry === entry.id)
+            expect(ofEntry.map(w => [w.data.account, w.data.debit, w.data.credit])).toEqual([
+                [savings, amount, 0],
+                [equity, 0, amount],
+            ])
+            expect(finalStatus(writes, 'books_journal_entries', entry.id)).toBe('posted')
+            return ofEntry.find(w => w.data.account === savings)?.id
+        })
+
+        const recs = writes.filter(w => w.collection === 'books_reconciliations')
+        expect(recs.map(w => [w.op, w.id])).toEqual([
+            ['create', seed.finished.id],
+            ['update', seed.finished.id],
+            ['create', seed.inProgress.id],
+        ])
+        expect(recs[0]?.data).toMatchObject({
+            id: seed.finished.id,
+            account: savings,
+            statement_date: seed.finished.statement_date,
+            statement_balance: seed.finished.statement_balance,
+            status: 'in_progress',
+        })
+        expect(recs[1]?.data).toMatchObject({ status: 'finished' })
+        expect(recs[2]?.data).toMatchObject({
+            id: seed.inProgress.id,
+            account: savings,
+            statement_date: '2026-09-30',
+            statement_balance: 252_343 + SWEEP_CENTS,
+            status: 'in_progress',
+        })
+        // The seed writes as superuser, and stampActor keeps a superuser's
+        // value, so the seed names its user as the starter and the finisher.
+        expect(recs[0]?.data.created_by).toBe(USER.id)
+        expect(recs[2]?.data.created_by).toBe(USER.id)
+        expect(recs[1]?.data.finished_by).toBe(USER.id)
+        const sentActor: Record<number, string> = {
+            0: 'created_by',
+            1: 'finished_by',
+            2: 'created_by',
+        }
+        recs.forEach((write, i) => {
+            for (const field of RECONCILE_STAMPED) {
+                if (field !== sentActor[i]) expect(write.data).not.toHaveProperty(field)
+            }
+        })
+
+        const cleared = writes.filter(w => w.collection === 'books_reconciliation_lines')
+        const ofEntries = cleared.filter(w => !sweepLines.includes(String(w.data.line)))
+        expect(ofEntries.map(w => [w.op, w.data.reconciliation, w.data.line])).toEqual([
+            ['create', seed.finished.id, savingsLines[0]],
+            ['create', seed.finished.id, savingsLines[1]],
+            ['create', seed.inProgress.id, savingsLines[2]],
+        ])
+        expect(cleared).toHaveLength(sweepLines.length + 3)
+        for (const write of cleared) {
+            for (const field of ['account', 'entry', 'date', 'debit', 'credit', 'finished']) {
+                expect(write.data).not.toHaveProperty(field)
+            }
+        }
+        const at = (w: Write | undefined) => (w ? writes.indexOf(w) : -1)
+        const lastPost = Math.max(
+            ...entries.map(entry =>
+                at(
+                    writes.find(
+                        w =>
+                            w.collection === 'books_journal_entries' &&
+                            w.id === entry.id &&
+                            w.data.status === 'posted'
+                    )
+                )
+            )
+        )
+        expect(at(recs[0])).toBeGreaterThan(lastPost)
+        expect(at(ofEntries[1])).toBeLessThan(at(recs[1]))
+        expect(at(recs[1])).toBeLessThan(at(recs[2]))
+        expect(at(recs[2])).toBeLessThan(at(ofEntries[2]))
+    })
+
+    it('creates nothing on a second run', async () => {
+        const seedReconcile = (seedModule as Record<string, unknown>).seedReconcile as
+            | SeedReconcile
+            | undefined
+        expect(typeof seedReconcile).toBe('function')
+        if (typeof seedReconcile !== 'function') return
+        const accounts = seededAccounts()
+        const { pb, writes } = await sweptPb(accounts)
+        await seedReconcile(pb, { user: USER }, accounts)
+        const before = writes.length
+        expect(before).toBeGreaterThan(0)
+        await seedReconcile(pb, { user: USER }, accounts)
+        expect(writes.slice(before)).toEqual([])
     })
 })

@@ -55,6 +55,7 @@ import { BILL_PAYMENT_SEED, PAY_BILLS_SEED_BILLS } from './lib/pay-bills-fixture
 import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
 import { PURCHASE_LIST_SEED } from './lib/purchase-lists-fixture'
 import { PAYMENT_SEED } from './lib/receive-payment-fixture'
+import { RECONCILE_SEED } from './lib/reconcile-fixture'
 import {
     REFUND_FROM_ACCOUNTS,
     REFUND_RECEIPT_IDS,
@@ -339,6 +340,9 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     // before any document posts). Its categorization posts one journal entry, last, so no
     // earlier seeded document number moves.
     await seedBankMatch(pb, ctx, accountIds)
+    // Journal entries on 1010 Business Savings against 3000 Owner's Equity only, after the
+    // bank match seed, so no document number and no income figure moves.
+    await seedReconcile(pb, ctx, accountIds)
     // Two unsent statements; a statement posts nothing, so no seeded figure moves.
     await seedStatements(pb, customerIds)
     // Created active and deactivated last, because the app makes an account
@@ -3093,6 +3097,119 @@ export async function seedBankMatch(
         lines: [{ account, amount: statement.categorizedAmountCents, memo: '' }],
         created_by: ctx.user.id,
     })
+}
+
+// The ids of the General Ledger long section's lines on `savings` (seedLongSection, which
+// runs before seedReconcile): the 130 debits of each posted "Daily sweep" entry.
+async function longSectionLines(pb: PocketBase, savings: string): Promise<string[]> {
+    const { dates, memo, linesPerEntry } = GENERAL_LEDGER_LONG_SECTION
+    const ids: string[] = []
+    for (const date of dates) {
+        const entries = await pb.collection('books_journal_entries').getFullList<{ id: string }>({
+            filter: pb.filter('memo = {:memo} && date = {:date} && status = "posted"', {
+                memo,
+                date,
+            }),
+        })
+        for (const entry of entries) {
+            const lines = await pb.collection('books_journal_lines').getFullList<{ id: string }>({
+                filter: pb.filter('entry = {:entry} && account = {:account}', {
+                    entry: entry.id,
+                    account: savings,
+                }),
+            })
+            ids.push(...lines.map(line => line.id))
+        }
+    }
+    const expected = dates.length * linesPerEntry
+    if (ids.length !== expected) {
+        throw new Error(
+            `seed: the reconcile seed finds ${ids.length} long section lines on 1010, want ${expected}`
+        )
+    }
+    return ids
+}
+
+// Reconcile spec §4 "Fixture and seed": posts the four RECONCILE_SEED entries on 1010
+// Business Savings (debit 1010, credit 3000 Owner's Equity), finishes one reconciliation
+// that clears the General Ledger long section's 260 sweep lines on 1010 and the first two
+// entries, and leaves one in progress that clears the third. Every write
+// goes through the collection API, so the Go hooks (server/reconcile.go) stamp the
+// beginning balance, the cleared sums, the currency and each cleared row's line fields;
+// the seed sends none of them. It sends the people (created_by on each create,
+// finished_by on the finish): it writes as superuser, and the request hooks keep a
+// superuser's value, so the seed names its user. The finished reconciliation's fixed id is how
+// a second run knows it ran.
+export async function seedReconcile(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>
+): Promise<void> {
+    const seed = RECONCILE_SEED
+    const done = await pb
+        .collection('books_reconciliations')
+        .getList(1, 1, { filter: pb.filter('id = {:id}', { id: seed.finished.id }) })
+    if (done.totalItems > 0) return
+    const savings = seededAccountId(accountIds, seed.accountNumber, 'the reconcile seed')
+    // postEntry reads the accounts by key; here the keys are the account numbers.
+    seededAccountId(accountIds, '3000', 'the reconcile seed')
+    const lineIds: string[] = []
+    for (const entry of seed.entries) {
+        const entryId = await postEntry(pb, ctx, accountIds, {
+            date: entry.date,
+            memo: entry.memo,
+            lines: [
+                [seed.accountNumber, entry.amount, 0],
+                ['3000', 0, entry.amount],
+            ],
+        })
+        const line = await pb.collection('books_journal_lines').getFirstListItem<{ id: string }>(
+            pb.filter('entry = {:entry} && account = {:account}', {
+                entry: entryId,
+                account: savings,
+            })
+        )
+        lineIds.push(line.id)
+    }
+    const sweepLines = await longSectionLines(pb, savings)
+    const reconciliations = pb.collection('books_reconciliations')
+    const cleared = pb.collection('books_reconciliation_lines')
+    const clear = async (reconciliation: string, indexes: readonly number[]) => {
+        for (const index of indexes) {
+            const line = lineIds[index]
+            if (line === undefined) {
+                throw new Error(
+                    `seed: the reconcile seed clears entry ${index}, which it did not post`
+                )
+            }
+            await cleared.create({ reconciliation, line })
+        }
+    }
+    await reconciliations.create({
+        id: seed.finished.id,
+        account: savings,
+        statement_date: seed.finished.statement_date,
+        statement_balance: seed.finished.statement_balance,
+        status: 'in_progress',
+        created_by: ctx.user.id,
+    })
+    for (const line of sweepLines) {
+        await cleared.create({ reconciliation: seed.finished.id, line })
+    }
+    await clear(seed.finished.id, seed.finished.clears)
+    await reconciliations.update(seed.finished.id, {
+        status: 'finished',
+        finished_by: ctx.user.id,
+    })
+    await reconciliations.create({
+        id: seed.inProgress.id,
+        account: savings,
+        statement_date: seed.inProgress.statement_date,
+        statement_balance: seed.inProgress.statement_balance,
+        status: 'in_progress',
+        created_by: ctx.user.id,
+    })
+    await clear(seed.inProgress.id, seed.inProgress.clears)
 }
 
 // Statements spec §4.7: two saved, unsent statements of Harborview Kitchen (one Balance

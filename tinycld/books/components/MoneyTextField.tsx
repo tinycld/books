@@ -8,6 +8,7 @@ import {
     type TextInputInstance,
     View,
 } from 'react-native'
+import { centsToText } from '../lib/money'
 import { moneyInputCents, moneyInputText } from '../lib/money-input'
 import { flipMoneySign } from '../lib/money-text'
 import { amountCents } from '../lib/opening-balances'
@@ -41,6 +42,9 @@ type MoneyTextFieldProps = {
     marksNegative?: boolean
     // Web: the whole value is selected when the field takes the focus (a line cell).
     selectsOnFocus?: boolean
+    // A typed 0 stays "0.00" on blur instead of the empty field (a statement balance or
+    // total of 0 is a value, not "no value"). Empty text stays empty.
+    keepsZero?: boolean
     returnKeyType?: 'next' | 'done'
     onSubmitEditing?: () => void
     inputRef?: (node: TextInputInstance | null) => void
@@ -90,8 +94,9 @@ function SignButton({
 
 // The money text field of Books: right aligned, tabular figures, the decimal keyboard. On
 // blur, text that reads as money is shown formatted (moneyInputText: "1,234.50", and ''
-// for 0); text that does not read is left as typed, for the caller's message. With
-// `signToggle`, the "±" control sits inside the field on the left.
+// for 0 unless `keepsZero`, which shows "0.00"); text that does not read is left as typed,
+// for the caller's message. With `signToggle`, the "±" control sits inside the field on
+// the left.
 export function MoneyTextField({
     value,
     onChangeText,
@@ -105,6 +110,7 @@ export function MoneyTextField({
     signToggle,
     marksNegative = false,
     selectsOnFocus = false,
+    keepsZero = false,
     returnKeyType,
     onSubmitEditing,
     inputRef,
@@ -123,7 +129,8 @@ export function MoneyTextField({
         onBlur()
         const cents = centsOf(value, currency)
         if (cents === null) return
-        onChangeText(moneyInputText(cents))
+        const isTypedZero = keepsZero && cents === 0 && value.trim() !== ''
+        onChangeText(isTypedZero ? centsToText(0) : moneyInputText(cents))
     }
 
     const flipSign = () => {
