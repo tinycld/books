@@ -179,6 +179,8 @@
 - gate 1 after fix r1: changed files only the three test files (`git diff --name-only`) · `go vet ./...` 0 (cp/cp3-fix-vet.log) · `go test -count=1 -run TestForm1099 .` ok (cp/cp3-fix-go.log; only a test function changed) · `tinycld-pkg typecheck` 0 (cp/cp3-fix-tsc.log) · e2e `books/tests/e2e/books-report-1099.spec.ts` with `--skip-export` (no source change since the driver's run): Running 8 tests using 1 worker, 8 passed, EXIT 0 (cp/cp3-fix-g1-e2e.log) · pass. No capture again: no screen changed.
 - fix review: n/a — no fix touched non-test source. Rounds: 0.
 - gate 3 A notes: 3 to Design notes (NOTEs 1, 4, 5); NOTEs 2, 3 fixed.
+- commit: ae02c2993e71e411fc68d132ece147c49dbf3e3b (books, branch books/p5-1099-report)
+- human: none (mode C)
 
 ## Final review
 - eval:
