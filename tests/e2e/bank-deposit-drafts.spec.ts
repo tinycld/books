@@ -17,8 +17,10 @@ import { uniqueMemo } from './invoice-helpers'
 // a draft reopens through search with its ticks, a stored item another deposit took stays
 // listed and ticked with the refusal under its row, and Delete draft removes the draft.
 //
-// The test posts its own sales receipts to Undeposited funds, dated today, with per-run
-// reference nos., and finds drafts by their per-run memo. No seeded item is ticked.
+// Each test posts its own sales receipts to Undeposited funds, dated today, with per-run
+// reference nos., and finds drafts by their per-run memo. No seeded item is ticked. The
+// flows are two tests because each receipt is posted through its form: four receipts and
+// every flow in one test do not fit one test's time on CI.
 //
 // Not covered here: the form's selection, sort, keys and refusals (bank-deposit-form.spec.ts);
 // a draft's Other funds lines (checkpoint 4).
@@ -44,19 +46,24 @@ async function searchFor(page: Page, memo: string) {
     await searched
 }
 
+// Posts one sales receipt to Undeposited funds for each prefix and returns their reference nos.
+async function postReceipts(page: Page, prefixes: string[]) {
+    const refs = prefixes.map(uniqueReference)
+    const base = 20_000 + Math.floor(Math.random() * 9_000)
+    for (const [index, ref] of refs.entries()) {
+        await postUndepositedReceipt(page, {
+            reference: ref,
+            memo: uniqueMemo('Deposit draft receipt'),
+            amount: rate(base + 211 * (index + 1)),
+        })
+    }
+    return refs
+}
+
 test.describe('bank-deposit: drafts', () => {
     test('a writer saves, reopens, posts and deletes deposit drafts', async ({ page }) => {
         await openBooks(page)
-        const refs = ['DA', 'DB', 'DC', 'DD'].map(uniqueReference)
-        const [refA, refB, refC, refD] = refs as [string, string, string, string]
-        const base = 20_000 + Math.floor(Math.random() * 9_000)
-        for (const [index, ref] of refs.entries()) {
-            await postUndepositedReceipt(page, {
-                reference: ref,
-                memo: uniqueMemo('Deposit draft receipt'),
-                amount: rate(base + 211 * (index + 1)),
-            })
-        }
+        const [refA, refB] = (await postReceipts(page, ['DA', 'DB'])) as [string, string]
 
         // A draft with one item, deleted (⌘⌫ and More): the dialog asks, the confirm removes it,
         // search finds no such draft, and the item is still listed.
@@ -119,8 +126,15 @@ test.describe('bank-deposit: drafts', () => {
         await shownDeposit(page, 'deposit-post').click()
         await expect(shownDeposit(page, 'deposit-read-only')).toBeVisible()
         await expect(shownDeposit(page, 'deposit-title')).toHaveText(/^Deposit \d+$/)
+    })
 
-        // A second draft holds C; another deposit then posts C.
+    test('a draft keeps an item another deposit took, with the refusal under its row', async ({
+        page,
+    }) => {
+        await openBooks(page)
+        const [refC, refD] = (await postReceipts(page, ['DC', 'DD'])) as [string, string]
+
+        // A draft holds C; another deposit then posts C.
         const memoTwo = uniqueMemo('Deposit draft two')
         await openNewDeposit(page)
         const lineC = await depositItemLineId(page, refC)

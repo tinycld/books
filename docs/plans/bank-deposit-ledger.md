@@ -209,3 +209,4 @@
 - eval:
 - human comments and what changed
 - native: not executed in this run
+- CI fix r1 (run 44988905857, head cf393c48): (1) Go `TestTrialBalanceSpecLoads` — the Trial Balance golden came from main (a3241b6a) without the deposit route row this branch adds to `entry_routes.json`; golden gains only the deposit `detail.open` case, Revision 3 kept (rebuttal precedent, books unreleased), comment names the exception; `go test -count=1 ./...` pass (346 s). (2) E2E `bank-deposit-drafts.spec.ts:48` — the one test posted four receipts by their forms plus three draft flows and ended at 31.6 s against the 30 s test budget on CI (trace: every assertion passed, no step over 1.2 s, no other spec's data involved); split into two tests (A/B delete, save, reopen, post · C/D item taken by another deposit), each posting its own two receipts; no timeout or wait change; local run 2 passed. Commit: (this commit)
