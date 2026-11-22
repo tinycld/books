@@ -49,6 +49,9 @@ var shippedNotLive = map[string]bool{
 	// marks NotLive, and a run over a large book is too slow to run again on
 	// each change, so it shows Refresh, as the six journal-line reports do.
 	"books.expenses_by_vendor": true,
+	// The 1099 Summary and Detail reads books.basis_lines too (1099 report
+	// spec §4), so it is manual and shows Refresh, as the Expenses by Vendor.
+	"books.form_1099": true,
 }
 
 // requireManual fails unless res is a manual run: marked, and with no topic.
@@ -155,12 +158,13 @@ func TestShippedReportsNotLive(t *testing.T) {
 		// A draft is never the shipped record: the same spec, posted as a
 		// copy or from the builder, is manual and follows nothing.
 		drafts := map[string]json.RawMessage{
-			"a copy of the Profit and Loss":     profitAndLossShipped().Spec,
-			"a copy of the Customer Balance":    customerBalanceShipped().Spec,
-			"a copy of the Vendor Balance":      vendorBalanceShipped().Spec,
-			"a copy of the Audit Log":           auditLogShipped().Spec,
-			"a copy of the Expenses by Vendor":  expensesByVendorShipped().Spec,
-			"a report built over journal lines": json.RawMessage(debitToDay),
+			"a copy of the Profit and Loss":         profitAndLossShipped().Spec,
+			"a copy of the Customer Balance":        customerBalanceShipped().Spec,
+			"a copy of the Vendor Balance":          vendorBalanceShipped().Spec,
+			"a copy of the Audit Log":               auditLogShipped().Spec,
+			"a copy of the Expenses by Vendor":      expensesByVendorShipped().Spec,
+			"a copy of the 1099 Summary and Detail": form1099Shipped().Spec,
+			"a report built over journal lines":     json.RawMessage(debitToDay),
 		}
 		for name, spec := range drafts {
 			got, err := run(map[string]any{"spec": spec})
@@ -187,7 +191,7 @@ func TestShippedLiveDeclarations(t *testing.T) {
 		salesTaxLiabilityShipped(), customerBalanceShipped(), arAgingShipped(),
 		salesByCustomerShipped(), salesByProductShipped(), auditLogShipped(),
 		apAgingShipped(), statementBalanceForwardShipped(), statementOpenItemsShipped(),
-		vendorBalanceShipped(), expensesByVendorShipped(),
+		vendorBalanceShipped(), expensesByVendorShipped(), form1099Shipped(),
 	}
 	var live []string
 	for _, s := range all {
