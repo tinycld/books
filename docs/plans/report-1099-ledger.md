@@ -116,6 +116,8 @@
 - gate 1 after fix r1: changed files only the two Go test files (and this ledger) · `go vet ./...` 0 · Books `server` `go test -count=1 ./...` EXIT 0 (cp/cp1-fix-go.log). No TS, no source, no e2e file changed, so no check or e2e rerun is needed.
 - fix review: n/a — no fix touched non-test source. Rounds: 0.
 - gate 3 A notes: 2 to Design notes (NOTE 1, NOTE 5); NOTEs 2, 3, 4 fixed.
+- commit: 31d727d0873733783176f0538c096b3fec4db2df (books, branch books/p5-1099-report)
+- human: none (mode C)
 
 ## Final review
 - eval:
