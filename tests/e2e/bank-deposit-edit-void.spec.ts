@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from '@playwright/test'
 import {
+    addOtherFundsLine,
     DEPOSIT_URL,
     depositIdFromUrl,
     depositItemLineId,
@@ -221,19 +222,32 @@ test.describe('bank-deposit: edit and void', () => {
     test('a writer opens a correction with E and Esc with no edit leaves at once', async ({
         page,
     }) => {
-        // Setup, by mouse: one own receipt, its deposit, and a correction with a new memo.
+        // Setup, by mouse: two own receipts, a deposit of the first, and a correction that
+        // adds the second, one other funds line and a new memo.
         await openBooks(page)
-        const [cents] = amountsOf(1)
-        const reference = uniqueReference('EC')
-        await postUndepositedReceipt(page, {
-            reference,
-            memo: uniqueMemo('Deposit edit receipt'),
-            amount: ((cents as number) / 100).toFixed(2),
-        })
+        const [a, b] = amountsOf(2)
+        const refA = uniqueReference('EC')
+        const refB = uniqueReference('ED')
+        for (const [reference, cents] of [
+            [refA, a],
+            [refB, b],
+        ] as const) {
+            await postUndepositedReceipt(page, {
+                reference,
+                memo: uniqueMemo('Deposit edit receipt'),
+                amount: ((cents as number) / 100).toFixed(2),
+            })
+        }
         const editedMemo = uniqueMemo('Deposit edited')
-        const original = await postDeposit(page, reference, uniqueMemo('Deposit edit'))
+        const original = await postDeposit(page, refA, uniqueMemo('Deposit edit'))
         await shownDeposit(page, 'deposit-read-edit').click()
         await expect(page).toHaveURL(CORRECTION_URL)
+        await tickDepositItem(page, refB)
+        await addOtherFundsLine(page, {
+            account: '4900 Interest earned',
+            description: uniqueMemo('Interest'),
+            amount: '5.00',
+        })
         await shownDeposit(page, 'deposit-memo').fill(editedMemo)
         await shownDeposit(page, 'deposit-save').click()
         await expect(shownDeposit(page, 'deposit-read-only')).toBeVisible()

@@ -195,10 +195,9 @@ test.describe('bank-deposit: form', () => {
     }) => {
         await openBooks(page)
         const [c] = amountsOf(1)
-        // Only KC is posted; the list keeps the indexes of the keyboard create test's refs.
-        const refs = [uniqueReference('KA'), uniqueReference('KB'), uniqueReference('KC')]
+        const reference = uniqueReference('KC')
         await postUndepositedReceipt(page, {
-            reference: refs[2] as string,
+            reference,
             memo: uniqueMemo('Deposit keyboard receipt'),
             amount: rate(c as number),
         })
@@ -206,7 +205,7 @@ test.describe('bank-deposit: form', () => {
         // One own row ticked from the keyboard, ⌘⇧↵.
         await openNewDeposit(page)
         await expect(shownDeposit(page, 'deposit-to')).toBeFocused()
-        const tickC = await depositItemTick(page, refs[2] as string)
+        const tickC = await depositItemTick(page, reference)
         await tabTo(page, tickC, { max: 300 })
         await page.keyboard.press('Space')
         await expect(tickC).toHaveAttribute('aria-checked', 'true')
@@ -216,7 +215,7 @@ test.describe('bank-deposit: form', () => {
         await page.keyboard.press('ControlOrMeta+Shift+Enter')
         await posted
         await expect(page).toHaveURL(NEW_DEPOSIT_URL)
-        await expect(depositItemRow(page, refs[2] as string)).toHaveCount(0)
+        await expect(depositItemRow(page, reference)).toHaveCount(0)
         await expect(shownDeposit(page, 'deposit-selected')).toContainText(/(^|\D)0 of/)
         await expect(shownDeposit(page, 'deposit-to')).toBeFocused()
     })
