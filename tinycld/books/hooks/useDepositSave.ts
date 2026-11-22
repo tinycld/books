@@ -35,6 +35,7 @@ interface DepositSaveInput {
         account: string
         description: string
         amount: number
+        position: number
     }[]
     // The posted deposit a new form corrects ('' for none).
     replaces?: string
@@ -52,7 +53,9 @@ type SaveVariables = {
     itemPlan: TableWritePlan
     linePlan: TableWritePlan
     // Set once the header row is written: a refusal after it leaves a draft behind.
-    progress: { isHeaderWritten: boolean }
+    // `lineAt` is the form index of the other funds line whose write runs (null while any
+    // other write runs), so a refusal of that write shows under that line.
+    progress: { isHeaderWritten: boolean; lineAt: number | null }
 }
 
 function copyValues(values: DepositFormValues): DepositFormValues {
@@ -93,9 +96,11 @@ function itemPlanOf(
 }
 
 /**
- * The lines' plan: the form's lines carry no id, so the n-th line is the n-th stored line
- * (updated when a cell or its place changed), a line past the stored ones is new, and the
- * stored lines past the form's are removed. Positions run from 0 in list order.
+ * The lines' plan, by row id (lib/deposit-values.ts `DepositLineValues.id`): a form line
+ * whose id a stored line has is updated when a cell or its place changed, a form line with
+ * a new id is inserted, and a stored line the form no longer holds is removed. Positions
+ * run from 0 in list order; the stored `position` is a cell too, so a kept line whose
+ * stored position is not its index (a gap) is rewritten and the order reads back as shown.
  */
 function linePlanOf(
     storedLines: DepositSaveInput['storedLines'],
@@ -103,9 +108,9 @@ function linePlanOf(
     currency: string
 ): TableWritePlan {
     const after = values.lines.map((line, index) => ({
-        id: storedLines[index]?.id ?? newRecordId(),
         ...line,
         amount: moneyInputCents(line.amount, currency) ?? 0,
+        position: index,
     }))
     const before = storedLines.map(line => ({
         id: line.id,
@@ -114,6 +119,7 @@ function linePlanOf(
         account: line.account,
         description: line.description,
         amount: line.amount,
+        position: line.position,
     }))
     return planTableWrites(before, after, [])
 }
@@ -153,6 +159,12 @@ export function useDepositSave(writes: DepositWrites, input: DepositSaveInput) {
             if (holdsHandOff && store.refused?.id === id) store.clearRefused()
         }
     }, [holdsHandOff, id])
+    // A correction's save that worked keeps `correcting` until this form goes, so the form
+    // does not show "cannot be edited" (its original is void now) while it moves on.
+    useEffect(() => {
+        if (!replaces) return
+        return () => useDepositSaveStore.getState().stopCorrecting(replaces)
+    }, [replaces])
 
     const save = useMutation({
         mutationFn: function* (variables: SaveVariables) {
@@ -177,10 +189,11 @@ export function useDepositSave(writes: DepositWrites, input: DepositSaveInput) {
                 },
                 remove: itemId => writes.deleteItem(itemId),
             })
+            const lineIndex = new Map(values.lines.map((line, index) => [line.id, index]))
             const lineOf = (write: { row: { id: string }; position: number }) => {
-                const line = variables.values.lines[write.position]
+                const line = values.lines[lineIndex.get(write.row.id) ?? -1]
                 if (line === undefined)
-                    throw new Error(`no deposit line at ${write.position} in the save`)
+                    throw new Error(`no deposit line ${write.row.id} in the save`)
                 return {
                     customer: line.customer,
                     vendor: line.vendor,
@@ -200,7 +213,18 @@ export function useDepositSave(writes: DepositWrites, input: DepositSaveInput) {
                 update: write => writes.updateLine(write.row.id, lineOf(write)),
                 remove: lineId => writes.deleteLine(lineId),
             })
-            for (const step of [...itemSteps, ...lineSteps]) yield step.run()
+            const steps = [
+                ...itemSteps.map(step => ({ run: step.run, lineAt: null })),
+                ...lineSteps.map(step => ({
+                    run: step.run,
+                    lineAt: step.itemNumber === null ? null : (lineIndex.get(step.rowId) ?? null),
+                })),
+            ]
+            for (const step of steps) {
+                variables.progress.lineAt = step.lineAt
+                yield step.run()
+            }
+            variables.progress.lineAt = null
             if (variables.isPost) yield writes.postHeader(variables.id)
         },
         // Each refusal is shown by the submit that awaited it (on the form, or logged once
@@ -209,11 +233,16 @@ export function useDepositSave(writes: DepositWrites, input: DepositSaveInput) {
     })
 
     // `left`: the user asked to leave while a write runs, so the write neither moves nor
-    // shows its refusal. Each write clears it when it starts.
-    const leave = () => {
+    // shows its refusal. Each write clears it when it starts. Cancel of a correction goes
+    // back to the read view of the deposit it edits (Edit replaced that read view); any
+    // other Cancel, and the back link, go to Journal Entries.
+    const leaveTo = (go: () => void) => () => {
         left.current = true
-        backToEntries()
+        go()
     }
+    const toOriginal = () => router.replace(orgHref(`${ROUTE_BASE}/${replaces}`))
+    const leave = leaveTo(replaces ? toOriginal : backToEntries)
+    const leaveToEntries = leaveTo(backToEntries)
 
     const draftDelete = useDepositDraftDelete(writes, {
         id,
@@ -223,7 +252,7 @@ export function useDepositSave(writes: DepositWrites, input: DepositSaveInput) {
         onStart: () => {
             left.current = false
         },
-        onDeleted: leave,
+        onDeleted: leaveToEntries,
     })
 
     const afterSave = (mode: DepositSaveMode) => {
@@ -244,8 +273,15 @@ export function useDepositSave(writes: DepositWrites, input: DepositSaveInput) {
             await form.handleSubmit(async () => {
                 const items = itemPlanOf(storedItems, submitted.items)
                 const lines = linePlanOf(storedLines, submitted, currency)
-                const progress = { isHeaderWritten: !isNew }
+                const progress: SaveVariables['progress'] = {
+                    isHeaderWritten: !isNew,
+                    lineAt: null,
+                }
                 const store = useDepositSaveStore.getState()
+                // A correction's post voids its original: the screen keeps this form over
+                // "cannot be edited" while the save runs (useDepositScreen).
+                const isCorrection = isNew && replaces !== ''
+                if (isCorrection) store.startCorrecting(replaces)
                 store.hold({ id, purpose: 'save' })
                 try {
                     await save.mutateAsync({
@@ -262,13 +298,21 @@ export function useDepositSave(writes: DepositWrites, input: DepositSaveInput) {
                         afterSave(mode)
                     }
                 } catch (error) {
+                    if (isCorrection) store.stopCorrecting(replaces)
+                    const { lineAt } = progress
                     if (!isLive.current || left.current) {
                         log.warn(LOG_CONTEXT, writeRefusalText(error))
                     } else if (isNew && progress.isHeaderWritten) {
-                        store.handOff({ id, values: submitted, error, stored: items.stored })
+                        store.handOff({
+                            id,
+                            values: submitted,
+                            error,
+                            stored: items.stored,
+                            ...(lineAt === null ? {} : { lineAt }),
+                        })
                         router.replace(orgHref(`${ROUTE_BASE}/${id}`))
                     } else {
-                        depositRefusalHandler(form, items.stored, submitted.items)(error)
+                        depositRefusalHandler(form, items.stored, submitted.items, lineAt)(error)
                     }
                 } finally {
                     useDepositSaveStore.getState().release()
@@ -310,6 +354,7 @@ export function useDepositSave(writes: DepositWrites, input: DepositSaveInput) {
         post: submit('post'),
         postAndNew: submit('post-new'),
         cancel: () => (isDirty ? ask(leave) : leave()),
+        back: () => (isDirty ? ask(leaveToEntries) : leaveToEntries()),
         openLink,
         keepEditing: () => setDiscardOpen(false),
         discard: () => {
@@ -317,6 +362,7 @@ export function useDepositSave(writes: DepositWrites, input: DepositSaveInput) {
             afterDiscard.current()
         },
         leave,
+        leaveToEntries,
     }
 }
 
@@ -325,12 +371,15 @@ export type DepositSave = ReturnType<typeof useDepositSave>
 /**
  * The deposit form's leave guard (useFormLeaveGuard) over its save: Cancel, the header
  * back link and every way out ask before a dirty form is left, with the form's one
- * Discard dialog.
+ * Discard dialog. `back` is the header back link's move (Journal Entries); for a
+ * correction it differs from Cancel's (the original's read view). Like Cancel, while the
+ * guard is on it only leaves, and the guard asks.
  */
 export function useDepositLeaveGuard(save: DepositSave) {
-    return useFormLeaveGuard({
+    const isWriting = save.isPending || save.isLeaving
+    const guard = useFormLeaveGuard({
         isDirty: save.isDirty,
-        isWriting: save.isPending || save.isLeaving,
+        isWriting,
         cancel: save.cancel,
         leave: save.leave,
         question: {
@@ -339,6 +388,8 @@ export function useDepositLeaveGuard(save: DepositSave) {
             keepEditing: save.keepEditing,
         },
     })
+    const isGuarding = save.isDirty && !isWriting
+    return { ...guard, back: isGuarding ? save.leaveToEntries : save.back }
 }
 
 export type DepositLeaveGuard = ReturnType<typeof useDepositLeaveGuard>

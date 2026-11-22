@@ -15,26 +15,20 @@ type DepositScreenData = ReturnType<typeof useDepositScreen>
 interface DepositScreenBodyProps {
     screen: DepositScreenData
     scopeOwner: ScopeOwner
-    // `?replaces`; undefined without one.
-    replaces: string | undefined
     refused: DepositRefusedSave | null
 }
 
-function DepositScreenBody({ screen, scopeOwner, replaces, refused }: DepositScreenBodyProps) {
+function DepositScreenBody({ screen, scopeOwner, refused }: DepositScreenBodyProps) {
     const { state, record } = screen
     if (state === 'loading') return <LoadingPage testID="deposit-loading" />
-    // The correction form arrives in checkpoint 4: until then `?replaces` cannot be edited.
-    // An empty `?replaces` is a correction too, so it never falls back to a blank form that
-    // could post a second deposit beside the original.
-    if (state === 'form' && replaces !== undefined) {
-        return <DepositStateNotice kind="cannot-edit" onRetry={screen.retry} />
-    }
     if (state === 'form') {
         return (
             <DepositForm
                 deposit={record.deposit}
                 items={record.items}
                 lines={record.lines}
+                replaces={screen.replaces}
+                original={screen.original}
                 accounts={screen.accounts}
                 balanceOf={screen.balanceOf}
                 currency={screen.currency}
@@ -72,9 +66,10 @@ interface DepositScreenProps {
  * The deposit screen at `books/deposits/<id>` (bank deposit spec §2, §3.8, §3.9): the
  * shared document chrome reads DEPOSIT_CHROME, and the screen's `compose` scope holds the
  * keys of the form and the read view. Loading, a failed read with Retry, not found, no
- * access and cannot edit are DepositStateNotice; a new deposit and a draft are the form
- * (held through its own post by the save store); a posted or void deposit is the read
- * view.
+ * access and cannot edit (`?replaces` of a deposit that is not posted) are
+ * DepositStateNotice; a new deposit, a draft and a correction (`?replaces` of a posted
+ * deposit) are the form (held through its own post by the save store); a posted or void
+ * deposit is the read view.
  */
 export function DepositScreen({ id, replaces }: DepositScreenProps) {
     const scopeOwner = useShortcutScope('compose')
@@ -85,12 +80,7 @@ export function DepositScreen({ id, replaces }: DepositScreenProps) {
         <DocumentChromeContext.Provider value={DEPOSIT_CHROME}>
             <ScopeProvider owner={scopeOwner}>
                 <View pointerEvents="auto" className="flex-1 bg-background">
-                    <DepositScreenBody
-                        screen={screen}
-                        scopeOwner={scopeOwner}
-                        replaces={replaces}
-                        refused={refused}
-                    />
+                    <DepositScreenBody screen={screen} scopeOwner={scopeOwner} refused={refused} />
                 </View>
             </ScopeProvider>
         </DocumentChromeContext.Provider>

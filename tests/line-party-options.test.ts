@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { linePartyOptions } from '../tinycld/books/lib/line-party-options'
+import {
+    linePartyOptions,
+    parsePartyOptionId,
+    partyOptionId,
+} from '../tinycld/books/lib/line-party-options'
 
 const customers = [
     { id: 'c2', display_name: 'Northwind Traders' },
@@ -41,5 +45,88 @@ describe('linePartyOptions', () => {
 
     it('gives no options when there are no customers and no vendors', () => {
         expect(linePartyOptions({ customers: [], vendors: [], term: '' })).toEqual([])
+    })
+
+    // A stored customer or vendor that became inactive since is not among the active rows
+    // the picker reads; the line that stored it keeps it as an option, once, in its group
+    // (bank deposit Do step 2).
+    it('keeps a stored inactive customer once, in its group by name', () => {
+        const options = linePartyOptions({
+            customers,
+            vendors,
+            term: '',
+            stored: { customer: 'c9', vendor: '', display_name: 'Old Harbor Cafe' },
+        })
+        expect(options.filter(option => option.id === 'customer:c9')).toEqual([
+            { id: 'customer:c9', label: 'Old Harbor Cafe', group: 'Customers' },
+        ])
+        expect(options.map(option => option.id)).toEqual([
+            'customer:c1',
+            'customer:c2',
+            'customer:c9',
+            'customer:c3',
+            'vendor:v1',
+            'vendor:v2',
+        ])
+    })
+
+    it('keeps a stored inactive vendor once, in its group', () => {
+        const options = linePartyOptions({
+            customers,
+            vendors,
+            term: '',
+            stored: { customer: '', vendor: 'v9', display_name: 'Closed Vendor LLC' },
+        })
+        expect(options.filter(option => option.id === 'vendor:v9')).toEqual([
+            { id: 'vendor:v9', label: 'Closed Vendor LLC', group: 'Vendors' },
+        ])
+    })
+
+    it('lists a stored party that is still active once, not twice', () => {
+        const options = linePartyOptions({
+            customers,
+            vendors,
+            term: '',
+            stored: { customer: 'c2', vendor: '', display_name: 'Northwind Traders' },
+        })
+        expect(options.filter(option => option.id === 'customer:c2')).toHaveLength(1)
+        expect(options).toHaveLength(customers.length + vendors.length)
+    })
+
+    it('adds nothing for a line that stored no party', () => {
+        expect(
+            linePartyOptions({
+                customers,
+                vendors,
+                term: '',
+                stored: { customer: '', vendor: '', display_name: '' },
+            })
+        ).toEqual(linePartyOptions({ customers, vendors, term: '' }))
+    })
+})
+
+// The value map PartyPicker uses: a line's { customer, vendor } to an option id and back.
+describe('partyOptionId and parsePartyOptionId', () => {
+    it('round-trips a customer', () => {
+        const id = partyOptionId({ customer: 'c1', vendor: '' })
+        expect(id).toBe('customer:c1')
+        expect(parsePartyOptionId(id)).toEqual({ kind: 'customer', id: 'c1' })
+    })
+
+    it('round-trips a vendor', () => {
+        const id = partyOptionId({ customer: '', vendor: 'v2' })
+        expect(id).toBe('vendor:v2')
+        expect(parsePartyOptionId(id)).toEqual({ kind: 'vendor', id: 'v2' })
+    })
+
+    it('round-trips none: no option id, and no party for it', () => {
+        const id = partyOptionId({ customer: '', vendor: '' })
+        expect(id).toBe('')
+        expect(parsePartyOptionId(id)).toBeNull()
+    })
+
+    it('reads no party from an id of another kind', () => {
+        expect(parsePartyOptionId('account:a1')).toBeNull()
+        expect(parsePartyOptionId('customer:')).toBeNull()
     })
 })

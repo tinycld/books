@@ -20,19 +20,42 @@ function groupOptions(kind: LinePartyKind, parties: readonly Party[], term: stri
         }))
 }
 
+// The party a line stored when its picker mounted, with its display name ('' while its
+// row loads).
+export type StoredLineParty = { customer: string; vendor: string; display_name: string }
+
+// The parties of one group with the stored party of that group added once, when the
+// active rows do not list it (it became inactive since) and its name is known.
+function withStored(
+    kind: LinePartyKind,
+    parties: readonly Party[],
+    stored: StoredLineParty | undefined
+): readonly Party[] {
+    const id = kind === 'customer' ? stored?.customer : stored?.vendor
+    if (!stored || !id || stored.display_name === '') return parties
+    if (parties.some(party => party.id === id)) return parties
+    return [...parties, { id, display_name: stored.display_name }]
+}
+
 /**
  * The Name picker's options: customers under "Customers", then vendors under "Vendors",
  * each by display name, kept when the name contains the search term (any case). An
- * option id is `customer:<id>` or `vendor:<id>`.
+ * option id is `customer:<id>` or `vendor:<id>`. `stored`, the party the line held when
+ * its picker mounted, is listed once in its group even when it is no longer active.
  */
 export function linePartyOptions(input: {
     customers: readonly Party[]
     vendors: readonly Party[]
     term: string
+    stored?: StoredLineParty
 }): SearchPickerOption[] {
     return [
-        ...groupOptions('customer', input.customers, input.term),
-        ...groupOptions('vendor', input.vendors, input.term),
+        ...groupOptions(
+            'customer',
+            withStored('customer', input.customers, input.stored),
+            input.term
+        ),
+        ...groupOptions('vendor', withStored('vendor', input.vendors, input.stored), input.term),
     ]
 }
 

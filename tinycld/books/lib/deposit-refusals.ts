@@ -7,12 +7,14 @@
 import { extractValidationErrors } from '@tinycld/core/lib/errors'
 import { type FieldErrors, set } from 'react-hook-form'
 import type { DepositStoredItem } from '../stores/deposit-save-store'
-import { itemLineOfRefusal } from './deposit'
+import { itemLineOfRefusal, lineRefusalPath } from './deposit'
 import type { DepositFormValues } from './deposit-values'
 import { messageOnlyRefusal, writeRefusalText } from './refusal'
 
 const HEADER_FIELDS = new Set(['deposit_to', 'date', 'memo'])
-const LINE_KEY = /^lines\.(\d+)\.(account|amount|description|customer|vendor)$/
+// The fields of an other funds line row. A refusal of one line's own write may name them
+// bare (PocketBase's checks of the row's fields), not as `lines.<n>.<field>`.
+const LINE_FIELDS = new Set(['account', 'amount', 'description', 'customer', 'vendor'])
 
 // The form's setError, typed by its use here so this module needs no form hook. Method
 // syntax, so react-hook-form's setError (typed by the form's field paths) fits.
@@ -21,27 +23,31 @@ export type DepositRefusalForm = {
 }
 
 // The form path of a refusal key; null for a key the form does not draw. `ticked` is the
-// form's `items` array as submitted: a row's error sits at its index there.
+// form's `items` array as submitted: a row's error sits at its index there. `lineAt` is the
+// index of the other funds line whose own write was refused (null for any other write):
+// a bare line field key shows under that line's field.
 function refusalField(
     key: string,
     stored: readonly DepositStoredItem[],
-    ticked: readonly { line: string }[]
+    ticked: readonly { line: string }[],
+    lineAt: number | null
 ): string | null {
+    if (lineAt !== null && LINE_FIELDS.has(key)) return `lines.${lineAt}.${key}`
     if (HEADER_FIELDS.has(key)) return key
     const line = itemLineOfRefusal(key, stored)
     if (line !== null) {
         const index = ticked.findIndex(item => item.line === line)
         return index === -1 ? null : `items.${index}.root`
     }
-    const match = LINE_KEY.exec(key)
-    return match ? `lines.${match[1]}.${match[2]}` : null
+    return lineRefusalPath(key)
 }
 
 // A refusal's messages by the form path each shows under ('root' for the summary).
 export function depositRefusals(
     error: unknown,
     stored: readonly DepositStoredItem[],
-    ticked: readonly { line: string }[]
+    ticked: readonly { line: string }[],
+    lineAt: number | null = null
 ): { field: string; message: string }[] {
     const message = messageOnlyRefusal(error)
     if (message !== null) return [{ field: 'root', message }]
@@ -52,7 +58,7 @@ export function depositRefusals(
     const placed: { field: string; message: string }[] = []
     const unplaced: string[] = []
     for (const [key, text] of Object.entries(fields)) {
-        const field = refusalField(key, stored, ticked)
+        const field = refusalField(key, stored, ticked, lineAt)
         if (field === null) unplaced.push(text)
         else placed.push({ field, message: text })
     }
@@ -63,10 +69,11 @@ export function depositRefusals(
 export function depositRefusalHandler(
     form: DepositRefusalForm,
     stored: readonly DepositStoredItem[],
-    ticked: readonly { line: string }[]
+    ticked: readonly { line: string }[],
+    lineAt: number | null = null
 ): (error: unknown) => void {
     return error => {
-        for (const { field, message } of depositRefusals(error, stored, ticked)) {
+        for (const { field, message } of depositRefusals(error, stored, ticked, lineAt)) {
             form.setError(field, { type: 'server', message })
         }
     }
@@ -99,10 +106,11 @@ export function itemErrorsAfterTicks(
 export function depositRefusalErrors(
     error: unknown,
     stored: readonly DepositStoredItem[],
-    ticked: readonly { line: string }[]
+    ticked: readonly { line: string }[],
+    lineAt: number | null = null
 ): FieldErrors<DepositFormValues> {
     const errors: FieldErrors<DepositFormValues> = {}
-    for (const { field, message } of depositRefusals(error, stored, ticked)) {
+    for (const { field, message } of depositRefusals(error, stored, ticked, lineAt)) {
         set(errors, field, { type: 'server', message })
     }
     return errors

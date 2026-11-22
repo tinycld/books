@@ -13,6 +13,9 @@ export type DepositRefusedSave = {
     values: DepositFormValues
     error: unknown
     stored: DepositStoredItem[]
+    // The index of the other funds line whose own write was refused; absent for another
+    // write (lib/deposit-refusals.ts places a bare line field key under that line).
+    lineAt?: number
 }
 
 // A deposit held by its running write. A save or post keeps the form up even once the

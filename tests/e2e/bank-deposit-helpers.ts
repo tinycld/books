@@ -198,3 +198,70 @@ export async function tickDepositItem(page: Page, reference: string) {
     await tick.click()
     await expect(tick).toHaveAttribute('aria-checked', 'true')
 }
+
+// The shown form's other funds lines (`deposit-line-<n>`), counted by their own test id:
+// their fields have longer ones (`deposit-line-account-<n>`, …).
+export function depositLineCount(page: Page): Promise<number> {
+    return page
+        .locator('[data-testid^="deposit-line-"]')
+        .filter({ visible: true })
+        .evaluateAll(
+            elements =>
+                elements.filter(el =>
+                    /^deposit-line-\d+$/.test(el.getAttribute('data-testid') ?? '')
+                ).length
+        )
+}
+
+// The shown option of an open Account or Received from picker of line `index`, by its exact
+// label ("4900 Interest earned", a vendor's display name).
+export function depositLineOption(page: Page, picker: 'account' | 'party', label: string): Locator {
+    return page
+        .locator(`[data-testid^="deposit-line-${picker}-option-"]`)
+        .filter({ has: page.getByText(label, { exact: true }), visible: true })
+}
+
+// Opens line `index`'s Account picker by a press, searches it and picks the option.
+export async function pickDepositLineAccount(page: Page, index: number, label: string) {
+    await shownDeposit(page, `deposit-line-account-${index}`).click()
+    const search = shownDeposit(page, `deposit-line-account-search-${index}`)
+    await expect(search).toBeFocused()
+    await search.fill(label)
+    await depositLineOption(page, 'account', label).click()
+    await expect(shownDeposit(page, `deposit-line-account-${index}`)).toContainText(label)
+}
+
+// Opens line `index`'s Received from picker by a press, searches it and picks the party.
+export async function pickDepositLineParty(page: Page, index: number, name: string) {
+    await shownDeposit(page, `deposit-line-party-${index}`).click()
+    const search = shownDeposit(page, `deposit-line-party-search-${index}`)
+    await expect(search).toBeFocused()
+    await search.fill(name)
+    await depositLineOption(page, 'party', name).click()
+    await expect(shownDeposit(page, `deposit-line-party-${index}`)).toContainText(name)
+}
+
+/**
+ * The deposit form must be open. Presses "Add line" and fills the new line: its Account
+ * (searched and picked), its Description, and its Amount ("12.40"), made negative with the
+ * line's "±" control when `negative`. Returns the new line's index.
+ */
+export async function addOtherFundsLine(
+    page: Page,
+    input: { account: string; description?: string; amount: string; negative?: boolean }
+): Promise<number> {
+    const index = await depositLineCount(page)
+    await shownDeposit(page, 'deposit-add-line').click()
+    await expect(shownDeposit(page, `deposit-line-${index}`)).toBeVisible()
+    await pickDepositLineAccount(page, index, input.account)
+    if (input.description !== undefined) {
+        await shownDeposit(page, `deposit-line-description-${index}`).fill(input.description)
+    }
+    const amount = shownDeposit(page, `deposit-line-amount-${index}`)
+    await amount.fill(input.amount)
+    if (input.negative) {
+        await shownDeposit(page, `deposit-line-sign-${index}`).click()
+        await expect(amount).toHaveValue(`-${input.amount}`)
+    }
+    return index
+}

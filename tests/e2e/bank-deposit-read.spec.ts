@@ -102,8 +102,8 @@ test.describe('bank-deposit: read view', () => {
         await expect(shownDeposit(page, 'deposit-memo-text')).toContainText(SEEDED_DEPOSIT.memo)
         await expect(shownDeposit(page, 'deposit-posted-by')).toHaveText(/^Posted by \S/)
 
-        // A writer on a posted deposit: Void, and no Edit in this checkpoint.
-        await expect(shownDeposit(page, 'deposit-read-edit')).toHaveCount(0)
+        // A writer on a posted deposit: Edit, Void and View journal entry.
+        await expect(shownDeposit(page, 'deposit-read-edit')).toBeVisible()
         await expect(shownDeposit(page, 'deposit-read-void')).toBeVisible()
         await expect(shownDeposit(page, 'deposit-read-entry')).toBeVisible()
 
@@ -112,6 +112,7 @@ test.describe('bank-deposit: read view', () => {
         const shortcutList = page.getByRole('dialog').filter({ hasText: 'Keyboard shortcuts' })
         await expect(shortcutList).toBeVisible()
         const group = shortcutList.getByText('Bank deposit', { exact: true }).locator('..')
+        await expect(group.getByText('Edit', { exact: true })).toBeVisible()
         await expect(group.getByText('Void', { exact: true })).toBeVisible()
         await expect(group.getByText('View journal entry', { exact: true })).toBeVisible()
         await page.keyboard.press('Escape')

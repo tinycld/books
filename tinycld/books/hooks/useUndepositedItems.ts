@@ -36,14 +36,16 @@ function storedAsListed(item: DepositItemRow) {
 /**
  * The deposit form's list (bank deposit spec §3.4, Do step 2): every undeposited item
  * (`books_undeposited_items`), by date then entry number, with its party and its
- * Undeposited funds account through `materialize()`; then each item a draft's stored rows
- * name that the view no longer lists (lib/deposit.ts `mergeItems`). For those, a second
- * read, only while one exists, gives the entry's status and the posted deposit that holds
- * the line, and `staleText` is the refusal under the row ("Payment 1004 is void.", "…is
- * already in Deposit 1002."). Loading follows the list's read; a failure of either read is
- * the error, with one recovery over both.
+ * Undeposited funds account through `materialize()`; then each item that a draft's stored
+ * rows or a correction's original name and that the view no longer lists (lib/deposit.ts
+ * `mergeItems`). For those, a second read, only while one exists, gives the entry's status
+ * and the posted deposit that holds the line, and `staleText` is the refusal under the row
+ * ("Payment 1004 is void.", "…is already in Deposit 1002."). The original a correction
+ * edits (`originalId`) holds its own items until the correction posts, so its hold is no
+ * refusal. Loading follows the list's read; a failure of either read is the error, with
+ * one recovery over both.
  */
-export function useUndepositedItems(stored: readonly DepositItemRow[]) {
+export function useUndepositedItems(stored: readonly DepositItemRow[], originalId = '') {
     const [
         undepositedCollection,
         accountsCollection,
@@ -137,6 +139,7 @@ export function useUndepositedItems(stored: readonly DepositItemRow[]) {
                             .from({ di: depositItemsCollection })
                             .where(({ di }) => and(eq(di.line, jl.id), eq(di.posted, true)))
                             .select(({ di }) => ({
+                                depositId: di.deposit,
                                 deposit: materialize(
                                     q
                                         .from({ d: depositsCollection })
@@ -156,12 +159,12 @@ export function useUndepositedItems(stored: readonly DepositItemRow[]) {
         const byLine = new Map((staleRows ?? []).map(row => [row.id, row]))
         return merged.map(row => {
             const stale = row.depositable ? undefined : byLine.get(row.line)
-            const staleText = stale
-                ? staleItemText(row, stale.entryStatus, stale.holder?.deposit ?? null)
-                : null
+            const isOwnOriginal = originalId !== '' && stale?.holder?.depositId === originalId
+            const holder = isOwnOriginal ? null : (stale?.holder?.deposit ?? null)
+            const staleText = stale ? staleItemText(row, stale.entryStatus, holder) : null
             return { ...row, staleText }
         })
-    }, [merged, staleRows])
+    }, [merged, staleRows, originalId])
     const related = [accountsCollection, customersCollection, vendorsCollection]
     const listedRecovery: LiveRecovery = listedQuery.isError
         ? { queries: [listedQuery.collection], sources: [undepositedCollection, ...related] }

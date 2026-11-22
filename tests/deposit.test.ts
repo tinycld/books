@@ -8,8 +8,10 @@ import {
     UNDEPOSITED_LINE_IDS,
 } from '../tinycld/books/lib/bank-deposit-fixture'
 import {
+    canAddLine,
     clearSelection,
     depositFigureText,
+    depositLineCents,
     depositReadItems,
     depositTotals,
     isEveryItemTicked,
@@ -18,6 +20,7 @@ import {
     itemLineOfRefusal,
     itemPaymentText,
     itemsCountText,
+    lineRefusalPath,
     mergeItems,
     partyNameOf,
     selectAll,
@@ -385,6 +388,92 @@ describe('depositFigureText', () => {
     it('reads "Too large" over the stored-amount limit', () => {
         const totals = depositTotals([{ amount: maxStoredAmount }], [{ amount: 100 }])
         expect(depositFigureText(totals, false, 'USD')).toBe('Too large')
+    })
+})
+
+// The other funds amounts as the form reads them from the Amount cells' text: cents, an
+// invalid text as 0, and whether any text is invalid (the figure then reads "—").
+describe('depositLineCents', () => {
+    const lines = (...texts: string[]) => texts.map(amount => ({ amount }))
+
+    it('reads valid amounts as cents', () => {
+        expect(depositLineCents(lines('12.40', '1,250.00'), 'USD')).toEqual({
+            amounts: [1_240, 125_000],
+            hasInvalidAmount: false,
+        })
+    })
+
+    it('reads a negative amount as negative cents', () => {
+        expect(depositLineCents(lines('-20.00'), 'USD')).toEqual({
+            amounts: [-2_000],
+            hasInvalidAmount: false,
+        })
+    })
+
+    it('reads malformed text as 0 and flags it', () => {
+        expect(depositLineCents(lines('12.40', '1.2.3'), 'USD')).toEqual({
+            amounts: [1_240, 0],
+            hasInvalidAmount: true,
+        })
+    })
+
+    it('reads an empty cell as 0 and does not flag it', () => {
+        expect(depositLineCents(lines(''), 'USD')).toEqual({
+            amounts: [0],
+            hasInvalidAmount: false,
+        })
+    })
+
+    it('reads text over the stored-amount limit as 0 and flags it', () => {
+        expect(depositLineCents(lines('90071992547409.92'), 'USD')).toEqual({
+            amounts: [0],
+            hasInvalidAmount: true,
+        })
+    })
+
+    it('gives depositFigureText "—" while one line amount is malformed', () => {
+        const { amounts, hasInvalidAmount } = depositLineCents(lines('12.40', '1.2.3'), 'USD')
+        const totals = depositTotals(
+            [{ amount: 150_000 }],
+            amounts.map(amount => ({ amount }))
+        )
+        expect(depositFigureText(totals, hasInvalidAmount, 'USD')).toBe('—')
+    })
+})
+
+// At most 100 other funds lines (spec §3.5): "Add line" disables at the limit.
+describe('canAddLine', () => {
+    it('allows a line while the deposit holds fewer than 100', () => {
+        expect(canAddLine(0)).toBe(true)
+        expect(canAddLine(99)).toBe(true)
+    })
+
+    it('refuses a line at 100 and above', () => {
+        expect(canAddLine(100)).toBe(false)
+        expect(canAddLine(101)).toBe(false)
+    })
+})
+
+// A line refusal `lines.<n>.<field>` shows under that line's field (Decisions, Refusal
+// keys): `n` is the line's rank, which is its index in the form's `lines` array.
+describe('lineRefusalPath', () => {
+    it('maps lines.1.account to the second line’s Account', () => {
+        expect(lineRefusalPath('lines.1.account')).toBe('lines.1.account')
+    })
+
+    it('maps each line field the server keys', () => {
+        for (const field of ['account', 'amount', 'description', 'customer', 'vendor']) {
+            expect(lineRefusalPath(`lines.0.${field}`)).toBe(`lines.0.${field}`)
+        }
+        expect(lineRefusalPath('lines.12.amount')).toBe('lines.12.amount')
+    })
+
+    it('maps no path for a key that names no line field', () => {
+        expect(lineRefusalPath('lines.1.position')).toBeNull()
+        expect(lineRefusalPath('lines.x.account')).toBeNull()
+        expect(lineRefusalPath('lines.1')).toBeNull()
+        expect(lineRefusalPath('items.0')).toBeNull()
+        expect(lineRefusalPath('deposit_to')).toBeNull()
     })
 })
 
