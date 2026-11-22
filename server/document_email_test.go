@@ -195,6 +195,25 @@ func TestDocumentEmailInputOf_StoredDocuments(t *testing.T) {
 			t.Errorf("input =\n%+v\nwant\n%+v", got, want)
 		}
 	})
+
+	// A walk-in sale names no customer (2100000011_create_books_sales_receipts.js
+	// "Optional: a walk-in sale names no customer"): its email names nobody.
+	t.Run("a posted walk-in sales receipt names no customer", func(t *testing.T) {
+		receipt := env.doc(t, "sales_receipt", "posted", map[string]any{
+			"customer": "", "email": "counter@walkin.example",
+		})
+		requireStored(t, receipt, "number")
+		if got := receipt.GetString("customer"); got != "" {
+			t.Fatalf("the stored receipt names customer %q", got)
+		}
+		in := inputOf(t, "sales_receipt", receipt)
+		if in.CustomerName != "" {
+			t.Errorf("customerName = %q, want \"\"", in.CustomerName)
+		}
+		if in.Number != receipt.GetString("number") {
+			t.Errorf("number = %q, want %q", in.Number, receipt.GetString("number"))
+		}
+	})
 }
 
 // The sanitizer step (spec §3.4 step 1): a script, an event handler, an

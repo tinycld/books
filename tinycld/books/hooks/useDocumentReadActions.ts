@@ -25,6 +25,7 @@ import {
 } from '../lib/document-actions'
 import { quoteReadActions } from '../lib/document-lifecycle'
 import { documentNewHref } from '../lib/document-routes'
+import { sendOffered } from '../lib/document-send'
 import { payoutVoidBodyOf } from '../lib/refund-payout'
 import { writeRefusalText } from '../lib/refusal'
 import {
@@ -33,9 +34,12 @@ import {
     REFUND_RECEIPT_KIND,
     type SalesDocumentKind,
 } from '../lib/sales-document-kinds'
+import { isSendDocType } from '../lib/send-doc-types'
 import { useApplyCreditStore } from '../stores/apply-credit-store'
+import { useDocumentSendStore } from '../stores/document-send-store'
 import { useWriteOffStore } from '../stores/write-off-store'
 import type { DocumentRecord } from './document-data'
+import { useCopyDocumentLink } from './useCopyDocumentLink'
 import { useOpenDocument } from './useOpenDocument'
 import { useOpenFromReadView, useOpenInPlaceOfReadView } from './useOpenFromReadView'
 import { usePdfDownload } from './usePdfDownload'
@@ -44,8 +48,14 @@ import { useVoidDocument } from './useVoidDocument'
 
 type ReadRecord = Pick<
     DocumentRecord,
-    'id' | 'status' | 'number' | 'entry' | 'customer' | 'kindFields'
+    'id' | 'status' | 'number' | 'entry' | 'customer' | 'email' | 'kindFields'
 >
+
+// The customer link's token of an invoice; '' for any other record, which offers no Copy
+// customer link on its read view (an estimate's is on its form).
+function invoiceTokenOf(record: ReadRecord): string {
+    return record.kindFields.kind === 'invoice' ? record.kindFields.public_token : ''
+}
 
 // The invoice made from a closed estimate; '' for any other record.
 function invoiceIdOf(record: ReadRecord): string {
@@ -132,6 +142,9 @@ function offeredActionsOf(
         canRefund: refundReceiptOffered(kind, record.status),
         canRefundCredit: refundCreditOffered(kind, record.status, balance),
         canWriteOff: writeOffOffered(kind, record.status, balance),
+        canSend: sendOffered(kind, record.status),
+        canCopyLink:
+            kind === 'invoice' && record.status === 'posted' && invoiceTokenOf(record) !== '',
     }
     const actions =
         doc.lifecycle === 'quote'
@@ -160,7 +173,10 @@ function offeredActionsOf(
  * the record, so Back returns to it; a payout's Void dialog says the credit memo's credit is
  * unapplied again. Write off (a writer on a posted invoice with an open balance) opens the
  * write-off dialog through `useWriteOffStore` with `owner`, the `useId()` of the read view
- * that mounts the dialog. Edit and Copy (the kind's own `new` form) replace the read view (a
+ * that mounts the dialog. Send… (a writer on a sent-able document, sendOffered) opens the
+ * Send dialog through `useDocumentSendStore` with the same `owner`; Copy customer link (a
+ * writer on a posted invoice with a token) copies its link through useCopyDocumentLink and
+ * is disabled while writes are not available. Edit and Copy (the kind's own `new` form) replace the read view (a
  * pushed screen would stay mounted under the new one); View journal entry takes the read
  * view's place, and keeps the kind's list when the list is below it in the child stack
  * (useOpenInPlaceOfReadView);
@@ -201,6 +217,9 @@ export function useDocumentReadActions(
     const openInvoice = useOpenDocument(INVOICE_KIND, invoiceIdOf(record))
     const openApplyDialog = useApplyCreditStore(state => state.open)
     const openWriteOff = useWriteOffStore(state => state.open)
+    const openSend = useDocumentSendStore(state => state.open)
+    const copyLink = useCopyDocumentLink('invoice', invoiceTokenOf(record))
+    const sendKind = record.kindFields.kind
     // The same query key as the invoice's read frame, so one request serves both.
     const unappliedCredits = useUnappliedCreditMemos(creditCustomerOf(record, canWrite))
     const hasUnappliedCredit = unappliedCredits.credits.length > 0
@@ -222,6 +241,13 @@ export function useDocumentReadActions(
             router.push(
                 orgHref(`books/payments/new?customer=${record.customer}&invoice=${record.id}`)
             ),
+        // The Send dialog over this read view (email-share spec §3.2), which the read view
+        // mounts with the same `owner`. Offered only for a sent-able kind (sendOffered).
+        send: () => {
+            if (isSendDocType(sendKind)) openSend({ kind: sendKind, id: record.id }, owner)
+        },
+        // The invoice's customer link on the clipboard, with a toast (email-share spec §3.5).
+        link: copyLink.copy,
         edit: () => openFromReadView(documentNewHref(doc, { replaces: record.id })),
         void: () => {
             voidDocument.reset()
@@ -252,11 +278,13 @@ export function useDocumentReadActions(
                 fallbackName: doc.pdfStem(record.number),
             }),
     }
-    // Void writes, so it waits for the server; Download PDF waits for its download; the
-    // others only open a screen.
+    // Void writes, so it waits for the server; Download PDF waits for its download; Copy
+    // customer link waits for writes to be available (useCopyDocumentLink); the others only
+    // open a screen or a dialog.
     const disabledOf = (action: DocumentReadAction) => {
         if (action === 'void') return voidState.isDisabled
         if (action === 'pdf') return download.isPending
+        if (action === 'link') return isVoiding || !copyLink.isOffered
         return isVoiding
     }
     // Apply's words follow the record's kind: "Apply to bills", "Apply to invoices", "Apply

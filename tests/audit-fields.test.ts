@@ -116,7 +116,16 @@ describe('the credit memo application fields', () => {
 
     it('keeps the words of every other event and collection', () => {
         expect(eventWords('added')).toBe('Added')
+        expect(eventWords('deleted', 'books_document_sends')).toBe('Deleted')
         expect(eventWords('deleted', 'books_vendor_credit_applications')).toBe('Deleted')
+    })
+})
+
+// Email-share spec §3.6, plan checkpoint 3: a send is a row of the document's history whose
+// added event reads "Sent".
+describe('the document send event', () => {
+    it('reads a send added as "Sent"', () => {
+        expect(eventWords('added', 'books_document_sends')).toBe('Sent')
     })
 })
 

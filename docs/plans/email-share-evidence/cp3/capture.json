@@ -1,0 +1,960 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "hideLabels": ["New"],
+            "name": "send",
+            "height": 900,
+            "actions": [
+                {
+                    "search": "Seed invoice posted",
+                    "pick": "^Invoice \\d+ · "
+                },
+                {
+                    "waitFor": "invoice-read-actions"
+                },
+                {
+                    "press": "s"
+                },
+                {
+                    "waitFor": "document-send-body"
+                },
+                {
+                    "clickText": "Send invoice 1003"
+                }
+            ],
+            "widths": [390]
+        },
+        {
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "hideLabels": ["New"],
+            "name": "send",
+            "height": 900,
+            "actions": [
+                {
+                    "search": "Seed invoice posted",
+                    "pick": "^Invoice \\d+ · "
+                },
+                {
+                    "waitFor": "invoice-read-actions"
+                },
+                {
+                    "press": "s"
+                },
+                {
+                    "waitFor": "document-send-body"
+                },
+                {
+                    "clickText": "Send invoice 1003"
+                }
+            ],
+            "widths": [1280]
+        },
+        {
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "hideLabels": ["New"],
+            "name": "send-full",
+            "height": 1400,
+            "schemes": ["light"],
+            "actions": [
+                {
+                    "search": "Seed invoice posted",
+                    "pick": "^Invoice \\d+ · "
+                },
+                {
+                    "waitFor": "invoice-read-actions"
+                },
+                {
+                    "press": "s"
+                },
+                {
+                    "waitFor": "document-send-body"
+                },
+                {
+                    "clickText": "Send invoice 1003"
+                }
+            ],
+            "widths": [390]
+        },
+        {
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "hideLabels": ["New"],
+            "name": "send-full",
+            "height": 1400,
+            "schemes": ["light"],
+            "actions": [
+                {
+                    "search": "Seed invoice posted",
+                    "pick": "^Invoice \\d+ · "
+                },
+                {
+                    "waitFor": "invoice-read-actions"
+                },
+                {
+                    "press": "s"
+                },
+                {
+                    "waitFor": "document-send-body"
+                },
+                {
+                    "clickText": "Send invoice 1003"
+                }
+            ],
+            "widths": [1280]
+        },
+        {
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "hideLabels": ["New"],
+            "name": "send-receipt",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "actions": [
+                {
+                    "search": "Seed sales receipt posted",
+                    "pick": "^Sales receipt \\d+ · "
+                },
+                {
+                    "waitFor": "sales-receipt-read-actions"
+                },
+                {
+                    "press": "s"
+                },
+                {
+                    "waitFor": "document-send-body"
+                },
+                {
+                    "clickText": "Send sales receipt 1001"
+                }
+            ]
+        },
+        {
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "hideLabels": ["New"],
+            "name": "send-long",
+            "height": 900,
+            "schemes": ["light"],
+            "actions": [
+                {
+                    "search": "Seed invoice posted",
+                    "pick": "^Invoice \\d+ · "
+                },
+                {
+                    "waitFor": "invoice-read-actions"
+                },
+                {
+                    "press": "s"
+                },
+                {
+                    "waitFor": "document-send-body"
+                },
+                {
+                    "fill": "document-send-to",
+                    "value": "theodore.okonkwo-lindqvist@stjudecommunityhospitalfoundation.org"
+                },
+                {
+                    "fill": "document-send-subject",
+                    "value": "Invoice 1003 from Hartwell Regional Industrial Supply and Fastener Distribution Partners of North Texas, Incorporated"
+                },
+                {
+                    "editIn": "document-send-body"
+                },
+                {
+                    "press": "ControlOrMeta+a"
+                },
+                {
+                    "type": "Hello St. Jude Community Hospital Foundation of the Greater Willamette Valley,"
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "Attached is invoice 1003 from Hartwell Regional Industrial Supply and Fastener Distribution Partners of North Texas, Incorporated."
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "Annex network refresh, October visit. Parts are billed at cost plus ten percent; labor & travel are billed at the agreed rate."
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "View this invoice online: https://books.hartwell.example/p/books/invoices/pub_invoice1003_000000000000000000000000000000"
+                },
+                {
+                    "clickText": "Send invoice 1003"
+                }
+            ],
+            "widths": [390]
+        },
+        {
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "hideLabels": ["New"],
+            "name": "send-long",
+            "height": 900,
+            "schemes": ["light"],
+            "actions": [
+                {
+                    "search": "Seed invoice posted",
+                    "pick": "^Invoice \\d+ · "
+                },
+                {
+                    "waitFor": "invoice-read-actions"
+                },
+                {
+                    "press": "s"
+                },
+                {
+                    "waitFor": "document-send-body"
+                },
+                {
+                    "fill": "document-send-to",
+                    "value": "theodore.okonkwo-lindqvist@stjudecommunityhospitalfoundation.org"
+                },
+                {
+                    "fill": "document-send-subject",
+                    "value": "Invoice 1003 from Hartwell Regional Industrial Supply and Fastener Distribution Partners of North Texas, Incorporated"
+                },
+                {
+                    "editIn": "document-send-body"
+                },
+                {
+                    "press": "ControlOrMeta+a"
+                },
+                {
+                    "type": "Hello St. Jude Community Hospital Foundation of the Greater Willamette Valley,"
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "Attached is invoice 1003 from Hartwell Regional Industrial Supply and Fastener Distribution Partners of North Texas, Incorporated."
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "Annex network refresh, October visit. Parts are billed at cost plus ten percent; labor & travel are billed at the agreed rate."
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "View this invoice online: https://books.hartwell.example/p/books/invoices/pub_invoice1003_000000000000000000000000000000"
+                },
+                {
+                    "clickText": "Send invoice 1003"
+                }
+            ],
+            "widths": [1280]
+        },
+        {
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "hideLabels": ["New"],
+            "name": "send-formatted",
+            "height": 900,
+            "schemes": ["light"],
+            "actions": [
+                {
+                    "search": "Seed invoice posted",
+                    "pick": "^Invoice \\d+ · "
+                },
+                {
+                    "waitFor": "invoice-read-actions"
+                },
+                {
+                    "press": "s"
+                },
+                {
+                    "waitFor": "document-send-body"
+                },
+                {
+                    "editIn": "document-send-body"
+                },
+                {
+                    "press": "ControlOrMeta+a"
+                },
+                {
+                    "type": "Hello Harborview Hospitality Group,"
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "Attached is invoice 1003. "
+                },
+                {
+                    "press": "ControlOrMeta+b"
+                },
+                {
+                    "type": "Please note the new bank details"
+                },
+                {
+                    "press": "ControlOrMeta+b"
+                },
+                {
+                    "type": " before you pay; the "
+                },
+                {
+                    "press": "ControlOrMeta+i"
+                },
+                {
+                    "type": "old account closes"
+                },
+                {
+                    "press": "ControlOrMeta+i"
+                },
+                {
+                    "type": " on "
+                },
+                {
+                    "press": "ControlOrMeta+u"
+                },
+                {
+                    "type": "Nov 30, 2026"
+                },
+                {
+                    "press": "ControlOrMeta+u"
+                },
+                {
+                    "type": "."
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "What this invoice covers:"
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "- October catch-up bookkeeping"
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "Wi-Fi refresh for the front office, six access points"
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "One on-site visit"
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "To pay:"
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "1. Open the invoice online."
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "Use the reference number 1003 on your transfer."
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "> We moved our accounts to First Prairie Bank on Nov 1. Payments to the old account are returned."
+                },
+                {
+                    "clickText": "Send invoice 1003"
+                }
+            ],
+            "widths": [390]
+        },
+        {
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "hideLabels": ["New"],
+            "name": "send-formatted",
+            "height": 900,
+            "schemes": ["light"],
+            "actions": [
+                {
+                    "search": "Seed invoice posted",
+                    "pick": "^Invoice \\d+ · "
+                },
+                {
+                    "waitFor": "invoice-read-actions"
+                },
+                {
+                    "press": "s"
+                },
+                {
+                    "waitFor": "document-send-body"
+                },
+                {
+                    "editIn": "document-send-body"
+                },
+                {
+                    "press": "ControlOrMeta+a"
+                },
+                {
+                    "type": "Hello Harborview Hospitality Group,"
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "Attached is invoice 1003. "
+                },
+                {
+                    "press": "ControlOrMeta+b"
+                },
+                {
+                    "type": "Please note the new bank details"
+                },
+                {
+                    "press": "ControlOrMeta+b"
+                },
+                {
+                    "type": " before you pay; the "
+                },
+                {
+                    "press": "ControlOrMeta+i"
+                },
+                {
+                    "type": "old account closes"
+                },
+                {
+                    "press": "ControlOrMeta+i"
+                },
+                {
+                    "type": " on "
+                },
+                {
+                    "press": "ControlOrMeta+u"
+                },
+                {
+                    "type": "Nov 30, 2026"
+                },
+                {
+                    "press": "ControlOrMeta+u"
+                },
+                {
+                    "type": "."
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "What this invoice covers:"
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "- October catch-up bookkeeping"
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "Wi-Fi refresh for the front office, six access points"
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "One on-site visit"
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "To pay:"
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "1. Open the invoice online."
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "Use the reference number 1003 on your transfer."
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "press": "Enter"
+                },
+                {
+                    "type": "> We moved our accounts to First Prairie Bank on Nov 1. Payments to the old account are returned."
+                },
+                {
+                    "clickText": "Send invoice 1003"
+                }
+            ],
+            "widths": [1280]
+        },
+        {
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "hideLabels": ["New"],
+            "name": "send-errors",
+            "height": 900,
+            "schemes": ["light"],
+            "actions": [
+                {
+                    "search": "Seed invoice posted",
+                    "pick": "^Invoice \\d+ · "
+                },
+                {
+                    "waitFor": "invoice-read-actions"
+                },
+                {
+                    "press": "s"
+                },
+                {
+                    "waitFor": "document-send-body"
+                },
+                {
+                    "fill": "document-send-to",
+                    "value": "accounts.payable@harborview"
+                },
+                {
+                    "fill": "document-send-cc",
+                    "value": "a@harborview.example, b@harborview.example, c@harborview.example, d@harborview.example, e@harborview.example, f@harborview.example"
+                },
+                {
+                    "fill": "document-send-subject",
+                    "value": ""
+                },
+                {
+                    "editIn": "document-send-body"
+                },
+                {
+                    "press": "ControlOrMeta+a"
+                },
+                {
+                    "press": "Backspace"
+                },
+                {
+                    "click": "document-send-submit"
+                },
+                {
+                    "waitFor": "document-send-body-error"
+                },
+                {
+                    "clickText": "Send invoice 1003"
+                }
+            ],
+            "widths": [390]
+        },
+        {
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "hideLabels": ["New"],
+            "name": "send-errors",
+            "height": 900,
+            "schemes": ["light"],
+            "actions": [
+                {
+                    "search": "Seed invoice posted",
+                    "pick": "^Invoice \\d+ · "
+                },
+                {
+                    "waitFor": "invoice-read-actions"
+                },
+                {
+                    "press": "s"
+                },
+                {
+                    "waitFor": "document-send-body"
+                },
+                {
+                    "fill": "document-send-to",
+                    "value": "accounts.payable@harborview"
+                },
+                {
+                    "fill": "document-send-cc",
+                    "value": "a@harborview.example, b@harborview.example, c@harborview.example, d@harborview.example, e@harborview.example, f@harborview.example"
+                },
+                {
+                    "fill": "document-send-subject",
+                    "value": ""
+                },
+                {
+                    "editIn": "document-send-body"
+                },
+                {
+                    "press": "ControlOrMeta+a"
+                },
+                {
+                    "press": "Backspace"
+                },
+                {
+                    "click": "document-send-submit"
+                },
+                {
+                    "waitFor": "document-send-body-error"
+                },
+                {
+                    "clickText": "Send invoice 1003"
+                }
+            ],
+            "widths": [1280]
+        },
+        {
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "hideLabels": ["New"],
+            "name": "send-sending",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "actions": [
+                {
+                    "search": "Seed invoice posted",
+                    "pick": "^Invoice \\d+ · "
+                },
+                {
+                    "waitFor": "invoice-read-actions"
+                },
+                {
+                    "route": "/api/books/documents/send",
+                    "hold": true
+                },
+                {
+                    "press": "s"
+                },
+                {
+                    "waitFor": "document-send-body"
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "Sending…"
+                },
+                {
+                    "clickText": "Send invoice 1003"
+                }
+            ]
+        },
+        {
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "hideLabels": ["New"],
+            "name": "send-refused",
+            "height": 1400,
+            "schemes": ["light"],
+            "actions": [
+                {
+                    "search": "Seed invoice posted",
+                    "pick": "^Invoice \\d+ · "
+                },
+                {
+                    "waitFor": "invoice-read-actions"
+                },
+                {
+                    "route": "/api/books/documents/send",
+                    "json": {
+                        "sent": [],
+                        "failed": [
+                            {
+                                "kind": "invoice",
+                                "id": "$urlId",
+                                "message": "The email server refused accounts.payable@harborviewhospitality.com. Correct the address and send again."
+                            }
+                        ]
+                    }
+                },
+                {
+                    "press": "s"
+                },
+                {
+                    "waitFor": "document-send-body"
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "document-send-errors"
+                },
+                {
+                    "clickText": "Send invoice 1003"
+                }
+            ],
+            "widths": [390]
+        },
+        {
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "hideLabels": ["New"],
+            "name": "send-refused",
+            "height": 1400,
+            "schemes": ["light"],
+            "actions": [
+                {
+                    "search": "Seed invoice posted",
+                    "pick": "^Invoice \\d+ · "
+                },
+                {
+                    "waitFor": "invoice-read-actions"
+                },
+                {
+                    "route": "/api/books/documents/send",
+                    "json": {
+                        "sent": [],
+                        "failed": [
+                            {
+                                "kind": "invoice",
+                                "id": "$urlId",
+                                "message": "The email server refused accounts.payable@harborviewhospitality.com. Correct the address and send again."
+                            }
+                        ]
+                    }
+                },
+                {
+                    "press": "s"
+                },
+                {
+                    "waitFor": "document-send-body"
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitFor": "document-send-errors"
+                },
+                {
+                    "clickText": "Send invoice 1003"
+                }
+            ],
+            "widths": [1280]
+        },
+        {
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "hideLabels": ["New"],
+            "name": "send-no-email",
+            "height": 900,
+            "actions": [
+                {
+                    "route": "/api/reports/email-status",
+                    "json": {
+                        "canSend": false
+                    }
+                },
+                {
+                    "search": "Seed invoice posted",
+                    "pick": "^Invoice \\d+ · "
+                },
+                {
+                    "waitFor": "invoice-read-actions"
+                },
+                {
+                    "press": "s"
+                },
+                {
+                    "waitFor": "document-send-not-set-up"
+                },
+                {
+                    "clickText": "Send invoice 1003"
+                }
+            ],
+            "widths": [390]
+        },
+        {
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "hideLabels": ["New"],
+            "name": "send-no-email",
+            "height": 900,
+            "actions": [
+                {
+                    "route": "/api/reports/email-status",
+                    "json": {
+                        "canSend": false
+                    }
+                },
+                {
+                    "search": "Seed invoice posted",
+                    "pick": "^Invoice \\d+ · "
+                },
+                {
+                    "waitFor": "invoice-read-actions"
+                },
+                {
+                    "press": "s"
+                },
+                {
+                    "waitFor": "document-send-not-set-up"
+                },
+                {
+                    "clickText": "Send invoice 1003"
+                }
+            ],
+            "widths": [1280]
+        },
+        {
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "hideLabels": ["New"],
+            "name": "send-no-email-receipt",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "actions": [
+                {
+                    "route": "/api/reports/email-status",
+                    "json": {
+                        "canSend": false
+                    }
+                },
+                {
+                    "search": "Seed sales receipt posted",
+                    "pick": "^Sales receipt \\d+ · "
+                },
+                {
+                    "waitFor": "sales-receipt-read-actions"
+                },
+                {
+                    "press": "s"
+                },
+                {
+                    "waitFor": "document-send-not-set-up"
+                },
+                {
+                    "clickText": "Send sales receipt 1001"
+                }
+            ]
+        },
+        {
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "hideLabels": ["New"],
+            "name": "read-long",
+            "height": 900,
+            "widths": [390],
+            "schemes": ["light"],
+            "actions": [
+                {
+                    "search": "Seed invoice posted",
+                    "pick": "^Invoice \\d+ · "
+                },
+                {
+                    "waitFor": "invoice-read-actions"
+                },
+                {
+                    "press": "s"
+                },
+                {
+                    "waitFor": "document-send-body"
+                },
+                {
+                    "fill": "document-send-to",
+                    "value": "theodore.okonkwo-lindqvist@stjudecommunityhospitalfoundation.org"
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitForHidden": "document-send-dialog"
+                },
+                {
+                    "waitFor": "invoice-sent-line"
+                },
+                {
+                    "waitForHidden": "toast-card"
+                }
+            ]
+        },
+        {
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "hideLabels": ["New"],
+            "name": "read",
+            "height": 900,
+            "widths": [390, 1280],
+            "actions": [
+                {
+                    "search": "Seed invoice posted",
+                    "pick": "^Invoice \\d+ · "
+                },
+                {
+                    "waitFor": "invoice-read-actions"
+                },
+                {
+                    "press": "s"
+                },
+                {
+                    "waitFor": "document-send-body"
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitForHidden": "document-send-dialog"
+                },
+                {
+                    "waitFor": "invoice-sent-line"
+                },
+                {
+                    "waitForHidden": "toast-card"
+                }
+            ]
+        },
+        {
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "hideLabels": ["New"],
+            "name": "read-more",
+            "height": 900,
+            "widths": [390],
+            "schemes": ["light"],
+            "stable": "invoice-read-link",
+            "actions": [
+                {
+                    "search": "Seed invoice posted",
+                    "pick": "^Invoice \\d+ · "
+                },
+                {
+                    "waitFor": "invoice-read-actions"
+                },
+                {
+                    "click": "invoice-read-more"
+                },
+                {
+                    "waitFor": "invoice-read-link"
+                }
+            ]
+        }
+    ]
+}

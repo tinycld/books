@@ -135,6 +135,13 @@ function closingSentence(input: DocumentEmailInput): string {
     return `${lead}, reply to this email${call}.`
 }
 
+// A document that names no customer (a walk-in sale) greets with no name, so no
+// space comes before the comma (Go greeting).
+function greeting(customerName: string): string {
+    const name = escapeHtml(oneLine(customerName))
+    return name === '' ? 'Hello,' : `Hello ${name},`
+}
+
 function messageBlocks(message: string): string[] {
     if (message === '') return []
     return [paragraph(message.split(LINE_BREAK).map(escapeHtml))]
@@ -144,7 +151,7 @@ export function documentEmail(input: DocumentEmailInput): { subject: string; bod
     const words = KIND_WORDS[input.kind]
     const business = oneLine(input.businessName)
     const blocks = [
-        paragraph([`Hello ${escapeHtml(oneLine(input.customerName))},`]),
+        paragraph([greeting(input.customerName)]),
         paragraph([
             `Attached is ${words.noun} ${escapeHtml(input.number)} from ${nameSentence(business)}`,
         ]),

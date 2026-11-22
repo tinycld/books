@@ -14,6 +14,7 @@ import {
     removeApplicationOffered,
     writeOffOffered,
 } from '../tinycld/books/lib/document-actions'
+import { quoteReadActions } from '../tinycld/books/lib/document-lifecycle'
 import {
     BILL_KIND,
     CREDIT_MEMO_KIND,
@@ -63,6 +64,8 @@ describe('DOCUMENT_READ_KEYS', () => {
             refund: 'r',
             refund_credit: 'r',
             write_off: 'w',
+            send: 's',
+            link: 'Alt+l',
         })
     })
 })
@@ -277,6 +280,8 @@ describe('the sales receipt read view', () => {
             refund: 'r',
             refund_credit: 'r',
             write_off: 'w',
+            send: 's',
+            link: 'Alt+l',
             pdf: '$mod+p',
         })
         expect(DOCUMENT_TAB_KEYS).toEqual({ edit: 'Alt+1', pdf: 'Alt+2' })
@@ -892,6 +897,115 @@ describe('a deposited document', () => {
             'entry',
             'pdf',
         ])
+    })
+})
+
+// Send… and Copy customer link (email-share spec §3.3, §3.5, §3.7; plan checkpoint 3): a
+// writer's actions on a posted document. Send… comes after the first actions (Receive
+// payment, Apply credit) and before Edit; Copy customer link directly before View journal
+// entry. A reader and a void document get neither, whatever the flags.
+describe('Send… and Copy customer link', () => {
+    const both = {
+        canReceivePayment: true,
+        canPayBill: false,
+        canCreateCreditMemo: true,
+        canWriteOff: true,
+        canSend: true,
+        canCopyLink: true,
+    }
+
+    it('puts Send… after Receive payment and before Edit, and Copy customer link directly before View journal entry', () => {
+        const actions = documentReadActions('posted', true, SALES_FEATURES, both)
+        expect(actions).toEqual([
+            'receive_payment',
+            'send',
+            'edit',
+            'void',
+            'copy',
+            'credit_memo',
+            'write_off',
+            'link',
+            'entry',
+            'pdf',
+        ])
+        expect(actions.indexOf('entry')).toBe(actions.indexOf('link') + 1)
+    })
+
+    it('puts Send… after Apply credit on an invoice whose customer has credit', () => {
+        expect(
+            documentReadActions('posted', true, SALES_FEATURES, {
+                ...both,
+                canApplyInvoiceCredit: true,
+            }).slice(0, 4)
+        ).toEqual(['receive_payment', 'apply_credit', 'send', 'edit'])
+    })
+
+    it('puts Send… before Edit on a posted sales receipt, which has no link', () => {
+        expect(
+            documentReadActions('posted', true, SALES_RECEIPT_KIND.features, {
+                canReceivePayment: false,
+                canPayBill: false,
+                canCreateCreditMemo: false,
+                canSend: true,
+            })
+        ).toEqual(['send', 'edit', 'void', 'copy', 'entry', 'pdf'])
+    })
+
+    it('offers neither to a reader, even with both flags set', () => {
+        const actions = documentReadActions('posted', false, SALES_FEATURES, both)
+        expect(actions).toEqual(['entry', 'pdf'])
+        expect(actions).not.toContain('send')
+        expect(actions).not.toContain('link')
+    })
+
+    it('offers neither on a void or a draft document, even with both flags set', () => {
+        expect(documentReadActions('void', true, SALES_FEATURES, both)).toEqual([
+            'copy',
+            'entry',
+            'pdf',
+        ])
+        expect(documentReadActions('draft', true, SALES_FEATURES, both)).toEqual([])
+    })
+
+    it('offers neither without the flags (an existing call shape)', () => {
+        const actions = documentReadActions('posted', true)
+        expect(actions).not.toContain('send')
+        expect(actions).not.toContain('link')
+    })
+
+    it('has the key S for Send… and ⌥L for Copy customer link', () => {
+        expect(DOCUMENT_READ_ACTION_KEYS.send).toBe('s')
+        expect(DOCUMENT_READ_ACTION_KEYS.link).toBe('Alt+l')
+        expect(DOCUMENT_READ_KEYS.send).toBe('s')
+        expect(DOCUMENT_READ_KEYS.link).toBe('Alt+l')
+    })
+
+    it('is labelled "Send…" and "Copy customer link"', () => {
+        expect(DOCUMENT_READ_LABELS.send).toBe('Send…')
+        expect(DOCUMENT_READ_LABELS.link).toBe('Copy customer link')
+    })
+})
+
+// A quote's Send… (email-share spec §3.3, plan decision 12): a writer sends a pending,
+// accepted or rejected estimate, Send… after Open invoice and before Copy. A closed
+// estimate and a reader get none, and no quote gets Copy customer link.
+describe("a quote's Send…", () => {
+    it('comes before Copy for a writer on a pending, accepted or rejected estimate', () => {
+        expect(quoteReadActions('pending', true, false)).toEqual(['send', 'copy', 'pdf'])
+        expect(quoteReadActions('accepted', true, false)).toEqual(['send', 'copy', 'pdf'])
+        expect(quoteReadActions('rejected', true, false)).toEqual(['send', 'copy', 'pdf'])
+    })
+
+    it('is not offered on a closed estimate', () => {
+        expect(quoteReadActions('closed', true, true)).not.toContain('send')
+        expect(quoteReadActions('closed', true, true)).toEqual(['invoice', 'copy', 'pdf'])
+    })
+
+    it('is never offered to a reader, and no quote offers Copy customer link', () => {
+        for (const status of ['pending', 'accepted', 'rejected', 'closed'] as const) {
+            expect(quoteReadActions(status, false, false), status).not.toContain('send')
+            expect(quoteReadActions(status, true, false), status).not.toContain('link')
+        }
     })
 })
 

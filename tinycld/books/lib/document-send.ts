@@ -1,6 +1,8 @@
 import { z } from 'zod'
-import { isSendDocType, SEND_DOC_TYPES } from './audit-fields'
 import { isOneBareAddress } from './bare-address'
+import { formatDay } from './register-range'
+import { isSendDocType, SEND_DOC_TYPES } from './send-doc-types'
+import { readerDayOf } from './statement-texts'
 
 // The send of a sales document by email (spec §3.1, §3.2, §4.4). The rules here are the
 // ones the Go route runs (server/document_send.go); one case table pins both
@@ -106,3 +108,31 @@ function checkValues(values: DocumentSendValues, ctx: z.RefinementCtx) {
 
 export const documentSendSchema: z.ZodType<DocumentSendValues, DocumentSendValues> =
     valuesShape.superRefine(checkValues)
+
+// The sent line under a document's status (spec §3.6): the latest send's day in the
+// reader's zone and its address, then the count after more than one send. Cc is not named.
+export function documentSentLine(latest: { created: string; to: string }, count: number): string {
+    const day = readerDayOf(latest.created)
+    // `created` is an autodate, so a row always has one; a bad value drops only the day.
+    const line = day === '' ? `Sent to ${latest.to}` : `Sent ${formatDay(day)} to ${latest.to}`
+    return count > 1 ? `${line} · sent ${count} times` : line
+}
+
+// The toast of a single send (spec §3.2 "On success"): "Invoice 1004 sent to <address>".
+export function sentToast(noun: string, number: string, to: string): string {
+    return `${noun} ${number} sent to ${to}`
+}
+
+export type SendDialogStatus = 'loading' | 'failed' | 'ready' | 'not-set-up'
+
+// The Send dialog's state (spec §3.2 "Load", plan decision 21) from the flags of its live
+// reads and useEmailStatus(): a failed read wins over a pending one; once every read has
+// landed, an email status that is loading or failed (canSend false) is "not set up".
+export function sendDialogStatus(input: {
+    reads: readonly { isLoading: boolean; isError: boolean }[]
+    email: { canSend: boolean; isLoading: boolean }
+}): SendDialogStatus {
+    if (input.reads.some(read => read.isError)) return 'failed'
+    if (input.reads.some(read => read.isLoading)) return 'loading'
+    return input.email.canSend ? 'ready' : 'not-set-up'
+}

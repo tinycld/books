@@ -18,8 +18,8 @@ import { PAYMENT_TERMS } from './payment-terms'
 import { PRODUCT_TYPES } from './product-types'
 import { PURCHASE_LINES_OPTIONS } from './purchase-lines'
 import { isIsoDay } from './register-range'
-import type { SalesDocKey } from './sales-document-kinds'
 import { ratePercentText } from './sales-tax'
+import { isSendDocType } from './send-doc-types'
 import { STATEMENT_TYPE_LABELS } from './statement-texts'
 import { TAX_ID_TYPES } from './tax-id'
 
@@ -137,20 +137,6 @@ export const DOC_TYPE = [
     { value: 'deposit', label: 'Deposit' },
     { value: 'statement', label: 'Statement' },
 ]
-// The five kinds a send's doc_type takes (migration 2100000034; Go `sendDocTypes` in
-// server/document_sends.go holds the same list).
-export const SEND_DOC_TYPES = [
-    'invoice',
-    'estimate',
-    'sales_receipt',
-    'credit_memo',
-    'refund_receipt',
-] as const satisfies readonly SalesDocKey[]
-
-export function isSendDocType(value: string): value is (typeof SEND_DOC_TYPES)[number] {
-    return (SEND_DOC_TYPES as readonly string[]).includes(value)
-}
-
 const SEND_DOC_TYPE = DOC_TYPE.filter(option => isSendDocType(option.value))
 const STATEMENT_TYPE = Object.entries(STATEMENT_TYPE_LABELS).map(([value, label]) => ({
     value,
@@ -1041,6 +1027,8 @@ const EVENT_WORDS: Record<AuditEvent, string> = {
 // A collection whose events read in its own words (apply credit spec §3.8).
 const COLLECTION_EVENT_WORDS: Record<string, Partial<Record<AuditEvent, string>>> = {
     books_credit_memo_applications: { added: 'Credit applied', deleted: 'Credit removed' },
+    // Only the send route writes a send, and nothing edits it (email-share spec §4.2).
+    books_document_sends: { added: 'Sent' },
 }
 
 export function eventWords(event: AuditEvent, collection?: string): string {
