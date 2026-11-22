@@ -2,14 +2,33 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+    DEPOSIT_IDS,
+    depositItemsOf,
+    UNDEPOSITED_ITEMS,
+    UNDEPOSITED_LINE_IDS,
+} from '../tinycld/books/lib/bank-deposit-fixture'
+import {
+    clearSelection,
+    depositFigureText,
     depositReadItems,
     depositTotals,
+    isEveryItemTicked,
     itemAmountText,
     itemLabel,
+    itemLineOfRefusal,
     itemPaymentText,
+    itemsCountText,
+    mergeItems,
     partyNameOf,
+    selectAll,
+    showsItemAccount,
+    sortItems,
+    staleItemText,
+    toggleItem,
+    undepositedListState,
 } from '../tinycld/books/lib/deposit'
 import { DOC_TYPES } from '../tinycld/books/lib/doc-types'
+import { maxStoredAmount } from '../tinycld/books/lib/money-text'
 
 // The deposit's pure read helpers (bank deposit spec §3.4, §3.6, §3.8): the three totals in
 // integer cents, the item's Transaction label and Payment text, an amount with money out as
@@ -215,5 +234,254 @@ describe('partyNameOf', () => {
     it('reads "—" when the party id names a row that is gone', () => {
         expect(partyNameOf({ ...none, customer: 'cust_gone_00001' })).toBe('—')
         expect(partyNameOf({ ...none, vendor: 'vend_gone_00001' })).toBe('—')
+    })
+})
+
+// The form's selection (spec §3.4): the ticked set is the form's `items` array, one
+// `{ line }` per ticked journal line, in the order the rows were ticked.
+const LINE = UNDEPOSITED_LINE_IDS
+const LISTED = UNDEPOSITED_ITEMS
+const ticks = (...lines: string[]) => lines.map(line => ({ line }))
+const linesOf = (items: readonly { line: string }[]) => items.map(item => item.line)
+
+describe('toggleItem', () => {
+    it('ticks a row that is clear, after the rows already ticked', () => {
+        expect(linesOf(toggleItem(ticks(LINE.payment), LINE.journal))).toEqual([
+            LINE.payment,
+            LINE.journal,
+        ])
+    })
+
+    it('clears a ticked row and keeps the others in their order', () => {
+        const ticked = ticks(LINE.payment, LINE.vendorRefund, LINE.journal)
+        expect(linesOf(toggleItem(ticked, LINE.vendorRefund))).toEqual([LINE.payment, LINE.journal])
+    })
+
+    it('does not change the array it is given', () => {
+        const ticked = ticks(LINE.payment)
+        toggleItem(ticked, LINE.journal)
+        expect(linesOf(ticked)).toEqual([LINE.payment])
+    })
+})
+
+describe('selectAll and isEveryItemTicked', () => {
+    it('ticks every listed item, then clears them all once every one is ticked', () => {
+        const some = ticks(LINE.vendorRefund)
+        expect(isEveryItemTicked(some, LISTED)).toBe(false)
+        const all = selectAll(some, LISTED)
+        expect([...linesOf(all)].sort()).toEqual(LISTED.map(row => row.line).sort())
+        expect(isEveryItemTicked(all, LISTED)).toBe(true)
+        expect(selectAll(all, LISTED)).toEqual([])
+    })
+
+    it('ticks every listed item from none ticked', () => {
+        const all = selectAll([], LISTED)
+        expect([...linesOf(all)].sort()).toEqual(LISTED.map(row => row.line).sort())
+    })
+
+    it('reads not every item ticked for an empty list or one row clear', () => {
+        expect(isEveryItemTicked([], [])).toBe(false)
+        const allButOne = ticks(...LISTED.slice(1).map(row => row.line))
+        expect(isEveryItemTicked(allButOne, LISTED)).toBe(false)
+    })
+})
+
+describe('clearSelection', () => {
+    it('clears every tick', () => {
+        expect(clearSelection(ticks(LINE.payment, LINE.journal))).toEqual([])
+    })
+})
+
+// A draft's stored items merged with the listed ones by line id (spec §3.4, Do step 2).
+describe('mergeItems', () => {
+    const stored = depositItemsOf(DEPOSIT_IDS.draft)
+
+    it('keeps a stored item the view no longer lists, flagged as not depositable', () => {
+        const merged = mergeItems(LISTED, stored)
+        const taken = merged.filter(row => row.line === LINE.taken)
+        expect(taken).toHaveLength(1)
+        expect(taken[0]?.depositable).toBe(false)
+    })
+
+    it('flags every listed item as depositable', () => {
+        const merged = mergeItems(LISTED, stored)
+        for (const row of merged.filter(candidate => candidate.line !== LINE.taken)) {
+            expect(row.depositable).toBe(true)
+        }
+    })
+
+    it('lists no line id twice when a stored item is listed too', () => {
+        const lines = linesOf(mergeItems(LISTED, stored))
+        expect(new Set(lines).size).toBe(lines.length)
+        expect(lines.filter(line => line === LINE.payment)).toHaveLength(1)
+        expect(lines.filter(line => line === LINE.vendorRefund)).toHaveLength(1)
+    })
+
+    it('keeps the listed order of the listed items', () => {
+        const listedLines = new Set(LISTED.map(row => row.line))
+        const merged = linesOf(mergeItems(LISTED, stored)).filter(line => listedLines.has(line))
+        expect(merged).toEqual(LISTED.map(row => row.line))
+    })
+
+    it('is the listed items alone for a new form', () => {
+        expect(linesOf(mergeItems(LISTED, []))).toEqual(LISTED.map(row => row.line))
+    })
+})
+
+describe('staleItemText', () => {
+    it('reads "<item> is void." for an entry that is void', () => {
+        expect(staleItemText({ doc_type: 'payment', number: '1004' }, 'void', null)).toBe(
+            'Payment 1004 is void.'
+        )
+    })
+
+    it('reads "<item> is already in Deposit <n>." for a line another posted deposit holds', () => {
+        expect(
+            staleItemText({ doc_type: 'payment', number: '1004' }, 'posted', { number: '1002' })
+        ).toBe('Payment 1004 is already in Deposit 1002.')
+        expect(
+            staleItemText({ doc_type: 'sales_receipt', number: '1012' }, 'posted', {
+                number: '1007',
+            })
+        ).toBe('Sales receipt 1012 is already in Deposit 1007.')
+    })
+})
+
+// `items.<n>` is the row's rank among the deposit's rows in position order: stored items
+// by position, then new ticks (Decisions, Refusal keys).
+describe('itemLineOfRefusal', () => {
+    const rows = [
+        { line: LINE.payment, position: 1 },
+        { line: LINE.vendorRefund, position: 2 },
+        { line: LINE.journal, position: 3 },
+    ]
+
+    it('maps items.1 of stored positions 1 and 2 plus one new tick to the second row', () => {
+        expect(itemLineOfRefusal('items.1', rows)).toBe(LINE.vendorRefund)
+    })
+
+    it('maps items.0 to the first row and items.2 to the new tick', () => {
+        expect(itemLineOfRefusal('items.0', rows)).toBe(LINE.payment)
+        expect(itemLineOfRefusal('items.2', rows)).toBe(LINE.journal)
+    })
+
+    it('maps no line for a key past the rows or a key that names no item', () => {
+        expect(itemLineOfRefusal('items.3', rows)).toBeFalsy()
+        expect(itemLineOfRefusal('deposit_to', rows)).toBeFalsy()
+    })
+})
+
+describe('depositFigureText', () => {
+    it('reads the Deposit total', () => {
+        const totals = depositTotals([{ amount: 150_000 }], [{ amount: 25_000 }])
+        expect(depositFigureText(totals, false, 'USD')).toBe('$1,750.00')
+    })
+
+    it('reads "—" while an other funds amount is invalid', () => {
+        const totals = depositTotals([{ amount: 150_000 }], [])
+        expect(depositFigureText(totals, true, 'USD')).toBe('—')
+    })
+
+    it('reads "Too large" over the stored-amount limit', () => {
+        const totals = depositTotals([{ amount: maxStoredAmount }], [{ amount: 100 }])
+        expect(depositFigureText(totals, false, 'USD')).toBe('Too large')
+    })
+})
+
+describe('itemsCountText', () => {
+    it('counts no item', () => {
+        expect(itemsCountText([], 'USD')).toBe('0 items · $0.00')
+    })
+
+    it('counts one item in the singular', () => {
+        expect(itemsCountText([{ amount: 6_400 }], 'USD')).toBe('1 item · $64.00')
+    })
+
+    it('counts three items and sums them, money out included', () => {
+        expect(
+            itemsCountText([{ amount: 100_000 }, { amount: 77_000 }, { amount: -2_000 }], 'USD')
+        ).toBe('3 items · $1,750.00')
+    })
+})
+
+describe('undepositedListState', () => {
+    it('is loading while the read loads', () => {
+        expect(undepositedListState({ isLoading: true, isError: false, count: 0 })).toBe('loading')
+    })
+
+    it('is error for zero rows after a failed read, never empty', () => {
+        expect(undepositedListState({ isLoading: false, isError: true, count: 0 })).toBe('error')
+    })
+
+    it('is empty for zero rows', () => {
+        expect(undepositedListState({ isLoading: false, isError: false, count: 0 })).toBe('empty')
+    })
+
+    it('is list with rows', () => {
+        expect(undepositedListState({ isLoading: false, isError: false, count: 3 })).toBe('list')
+    })
+})
+
+describe('showsItemAccount', () => {
+    it('is false when every item is on one Undeposited funds account', () => {
+        expect(
+            showsItemAccount([{ account: 'acctundep000001' }, { account: 'acctundep000001' }])
+        ).toBe(false)
+    })
+
+    it('is true when the items are on two accounts', () => {
+        expect(
+            showsItemAccount([{ account: 'acctundep000001' }, { account: 'acctundep000002' }])
+        ).toBe(true)
+    })
+})
+
+// Rows as useUndepositedItems lists them: view rows with their party rows.
+function sortRow(id: string, date: string, number: string, party: string | null) {
+    const base = LISTED[0]
+    if (!base) throw new Error('the fixture lists no item')
+    return {
+        ...base,
+        id,
+        line: id,
+        date,
+        number,
+        customer: party === null ? '' : `cust${id}`,
+        vendor: '',
+        customerRow: party === null ? undefined : { display_name: party },
+        vendorRow: undefined,
+    }
+}
+
+describe('sortItems', () => {
+    const rows = [
+        sortRow('lineb', '2026-11-03', '1012', 'Northwind Traders'),
+        sortRow('linea', '2026-11-03', '1009', 'Aspen Dental'),
+        sortRow('linec', '2026-10-02', '1020', null),
+        sortRow('lined', '2026-11-10', '1001', 'Harborview Cafe'),
+    ]
+    const ids = (sorted: readonly { id: string }[]) => sorted.map(row => row.id)
+
+    it('sorts by date, then by number', () => {
+        expect(ids(sortItems(rows, 'date', 'asc'))).toEqual(['linec', 'linea', 'lineb', 'lined'])
+    })
+
+    it('reverses the date order', () => {
+        expect(ids(sortItems(rows, 'date', 'desc'))).toEqual(['lined', 'lineb', 'linea', 'linec'])
+    })
+
+    it('sorts by the Received from name, a row with no party last', () => {
+        expect(ids(sortItems(rows, 'party', 'asc'))).toEqual(['linea', 'lined', 'lineb', 'linec'])
+    })
+
+    it('reverses the Received from order', () => {
+        const reversed = ids(sortItems(rows, 'party', 'desc'))
+        const named = reversed.filter(id => id !== 'linec')
+        expect(named).toEqual(['lineb', 'lined', 'linea'])
+    })
+
+    it('does not change the array it is given', () => {
+        sortItems(rows, 'party', 'asc')
+        expect(ids(rows)).toEqual(['lineb', 'linea', 'linec', 'lined'])
     })
 })

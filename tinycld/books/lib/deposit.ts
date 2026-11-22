@@ -5,10 +5,12 @@ import type { BooksDepositItems } from '../types'
 import { accountLabel } from './account-options'
 import { isDocType } from './audit-record-route'
 import { paymentText } from './deposit-accounts'
+import { DEPOSIT_MESSAGES } from './deposit-texts'
 import { DOC_TYPES } from './doc-types'
 import { entryHref } from './entry-route'
 import { type LinePartyRow, linePartyName } from './line-party-options'
-import { formatMoney, MINUS } from './money'
+import { formatMoney, MINUS, maxStoredAmount, TOO_LARGE_TEXT } from './money'
+import { fillPaymentText } from './payment-texts'
 import { formatDay } from './register-range'
 
 type Amounted = { amount: number }
@@ -129,3 +131,222 @@ export function depositReadItems(items: readonly DepositReadItemSource[], curren
 }
 
 export type DepositReadItem = ReturnType<typeof depositReadItems>[number]
+
+// A listed item of the form as useDepositForm gives it: its copy fields and related rows,
+// whether it is ticked, and the text under its row ('' for none).
+type DepositFormItemSource = {
+    line: string
+    entry: string
+    account: string
+    date: string
+    doc_type: string
+    number: string
+    document: string
+    customer: string
+    vendor: string
+    amount: number
+    payment_method: string
+    reference_no: string
+    memo: string
+    customerRow?: LinePartyRow
+    vendorRow?: LinePartyRow
+    accountRow?: { number: string; name: string }
+    isTicked: boolean
+    error: string
+}
+
+// The form's display rows of the listed items (spec §3.4): the read view's texts, keyed by
+// the journal line, with the tick and the row's refusal. `account` names the item's
+// Undeposited funds account only when the list holds more than one (showsItemAccount).
+export function depositFormItems(rows: readonly DepositFormItemSource[], currency: string) {
+    const namesAccount = showsItemAccount(rows)
+    return rows.map(row => ({
+        line: row.line,
+        party: partyNameOf(row),
+        label: itemLabel(row),
+        href: itemHref(row),
+        date: formatDay(row.date.slice(0, 10)),
+        payment: itemPaymentText(row),
+        amount: itemAmountText(row.amount, currency),
+        tone: row.amount < 0 ? 'text-danger' : 'text-foreground',
+        account: namesAccount && row.accountRow ? accountLabel(row.accountRow) : '',
+        isTicked: row.isTicked,
+        error: row.error,
+    }))
+}
+
+export type DepositFormItem = ReturnType<typeof depositFormItems>[number]
+
+// The form's selection (spec §3.4): the ticked set is the form's `items` array, one
+// `{ line }` per ticked journal line. Stored items come first by position and a new tick
+// is appended, so a row's rank in the array is its refusal key `items.<n>` (Decisions,
+// Refusal keys). None of these change the array they are given.
+export type TickedItem = { line: string }
+type Lined = { line: string }
+
+// Ticks a clear row after the rows already ticked, or clears a ticked one.
+export function toggleItem(ticked: readonly TickedItem[], line: string): TickedItem[] {
+    if (ticked.some(item => item.line === line)) return ticked.filter(item => item.line !== line)
+    return [...ticked, { line }]
+}
+
+// True when the list has rows and every listed row is ticked.
+export function isEveryItemTicked(ticked: readonly TickedItem[], listed: readonly Lined[]) {
+    const lines = new Set(ticked.map(item => item.line))
+    return listed.length > 0 && listed.every(row => lines.has(row.line))
+}
+
+// The header tick box, "Select all" and ⌥A: tick every listed row (the clear ones are
+// appended in list order), or clear every tick when every listed row is ticked.
+export function selectAll(ticked: readonly TickedItem[], listed: readonly Lined[]): TickedItem[] {
+    if (isEveryItemTicked(ticked, listed)) return []
+    const lines = new Set(ticked.map(item => item.line))
+    const added = listed.filter(row => !lines.has(row.line)).map(row => ({ line: row.line }))
+    return [...ticked, ...added]
+}
+
+// "Clear selection" and ⌥⌫ clear every tick, whatever is ticked.
+export function clearSelection(_ticked: readonly TickedItem[]): TickedItem[] {
+    return []
+}
+
+/**
+ * A draft's list (spec §3.4, Do step 2): the listed items in their order, then each item a
+ * stored row names that the view no longer lists (its entry is void, or another deposit
+ * holds it), flagged `depositable: false` so the form shows its refusal and lets the user
+ * untick it. A line id shows once: a stored item the view still lists is the listed row.
+ */
+export function mergeItems<L extends Lined, S extends Lined>(
+    listed: readonly L[],
+    stored: readonly S[]
+): ((L & { depositable: true }) | (S & { depositable: false }))[] {
+    const listedLines = new Set(listed.map(row => row.line))
+    const seen = new Set<string>()
+    const stale = stored.filter(row => {
+        if (listedLines.has(row.line) || seen.has(row.line)) return false
+        seen.add(row.line)
+        return true
+    })
+    return [
+        ...listed.map(row => ({ ...row, depositable: true as const })),
+        ...stale.map(row => ({ ...row, depositable: false as const })),
+    ]
+}
+
+// The text under a stored item's row that can no longer be deposited, in the order the
+// server's posting checks it (server/deposits.go `msgDepositItemVoid`,
+// `msgDepositItemInDeposit`): its entry is not posted, or a posted deposit holds its line.
+// null while the item can still be deposited, or while its entry's status is not read yet
+// (undefined), so a row never reads "void" before the read says so.
+export function staleItemText(
+    item: { doc_type: string; number: string },
+    entryStatus: string | undefined,
+    holder: { number: string } | null
+): string | null {
+    if (entryStatus !== undefined && entryStatus !== 'posted') {
+        return fillPaymentText(DEPOSIT_MESSAGES.itemVoid, itemLabel(item))
+    }
+    if (holder === null) return null
+    return fillPaymentText(
+        DEPOSIT_MESSAGES.itemInOtherDeposit,
+        itemLabel(item),
+        itemLabel({ doc_type: 'deposit', number: holder.number })
+    )
+}
+
+const ITEM_KEY = /^items\.(\d+)$/
+
+// The line of the row a refusal keyed `items.<n>` names: `n` is the row's rank among the
+// deposit's rows in position order (not the stored position, which has gaps after a
+// delete). null for a key past the rows or one that names no item.
+export function itemLineOfRefusal(
+    key: string,
+    rows: readonly { line: string; position: number }[]
+): string | null {
+    const match = ITEM_KEY.exec(key)
+    if (!match) return null
+    const ordered = [...rows].sort((a, b) => a.position - b.position)
+    return ordered[Number(match[1])]?.line ?? null
+}
+
+const NO_FIGURE = '—'
+
+// The header's big figure, "Deposit total" (spec §3.3): "—" while an other funds amount
+// does not parse, "Too large" above the stored-amount limit, else the total.
+export function depositFigureText(
+    totals: { total: number },
+    hasInvalidAmount: boolean,
+    currency: string
+): string {
+    if (hasInvalidAmount) return NO_FIGURE
+    if (Math.abs(totals.total) > maxStoredAmount) return TOO_LARGE_TEXT
+    return formatMoney(totals.total, currency)
+}
+
+// The list's count line, "3 items · $1,750.00": the count and the sum of the listed items.
+export function itemsCountText(items: readonly Amounted[], currency: string): string {
+    const count = items.length
+    const noun = count === 1 ? 'item' : 'items'
+    const sum = items.reduce((total, item) => total + item.amount, 0)
+    return `${count} ${noun} · ${itemAmountText(sum, currency)}`
+}
+
+export type UndepositedListState = 'loading' | 'error' | 'empty' | 'list'
+
+// The items section's branch (spec §3.4): a failed read shows the error banner whatever it
+// holds, so zero rows after a failure never read as "Nothing waits".
+export function undepositedListState(input: {
+    isLoading: boolean
+    isError: boolean
+    count: number
+}): UndepositedListState {
+    if (input.isError) return 'error'
+    if (input.isLoading) return 'loading'
+    return input.count === 0 ? 'empty' : 'list'
+}
+
+// A row names its Undeposited funds account under the Transaction link only when the
+// listed items are on more than one such account (spec §3.4).
+export function showsItemAccount(items: readonly { account: string }[]): boolean {
+    return new Set(items.map(item => item.account)).size > 1
+}
+
+export type ItemSortColumn = 'date' | 'party'
+export type SortDirection = 'asc' | 'desc'
+
+type SortableItem = {
+    date: string
+    number: string
+    customerRow?: LinePartyRow
+    vendorRow?: LinePartyRow
+}
+
+const byNumber = new Intl.Collator('en-US', { numeric: true })
+const byName = new Intl.Collator('en-US', { sensitivity: 'base', numeric: true })
+
+function byDate(a: SortableItem, b: SortableItem): number {
+    const day = a.date.slice(0, 10).localeCompare(b.date.slice(0, 10))
+    return day !== 0 ? day : byNumber.compare(a.number, b.number)
+}
+
+/**
+ * The list's order (spec §3.4): by date, then entry number (the default); or by the
+ * Received from name, then date. Pressing the sorted header again reverses it. A row that
+ * names no party sorts after every named row in both directions.
+ */
+export function sortItems<R extends SortableItem>(
+    rows: readonly R[],
+    column: ItemSortColumn,
+    direction: SortDirection
+): R[] {
+    const sign = direction === 'asc' ? 1 : -1
+    const compare = (a: R, b: R): number => {
+        if (column === 'date') return sign * byDate(a, b)
+        const nameA = linePartyName(a)
+        const nameB = linePartyName(b)
+        if ((nameA === '') !== (nameB === '')) return nameA === '' ? 1 : -1
+        const name = byName.compare(nameA, nameB)
+        return sign * (name !== 0 ? name : byDate(a, b))
+    }
+    return [...rows].sort(compare)
+}

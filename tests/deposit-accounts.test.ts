@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+    bankAccountOptions,
     type DepositAccountRow,
+    defaultBankAccount,
     defaultDepositAccount,
     depositAccountOptions,
     paymentText,
@@ -87,6 +89,83 @@ describe('defaultDepositAccount', () => {
 
     it('is empty when the chart has no deposit account', () => {
         expect(defaultDepositAccount(NO_DEPOSIT_ACCOUNTS)).toBe('')
+    })
+})
+
+// A bank sub-account under Business Checking: offered indented one step.
+const SUB_BANK: DepositAccountRow = {
+    id: 'acctpettycash01',
+    number: '1005',
+    name: 'Petty cash drawer',
+    type: 'bank',
+    detail_type: 'cash_on_hand',
+    parent: DEPOSIT_ACCOUNT_IDS.checking,
+    inactive: false,
+}
+
+// The Deposit to chart: out of chart order, with an inactive bank, a sub-account, the
+// Undeposited funds account and an income account.
+const BANK_CHART: DepositAccountRow[] = [
+    INCOME,
+    SEEDED[2],
+    INACTIVE_BANK,
+    SEEDED[1],
+    SUB_BANK,
+    SEEDED[0],
+]
+
+describe('bankAccountOptions', () => {
+    it('offers only the active bank accounts, in chart order, as "<number> <name>"', () => {
+        const { options } = bankAccountOptions(BANK_CHART, '')
+        expect(options.map(option => option.label)).toEqual([
+            '1000 Business Checking',
+            '1005 Petty cash drawer',
+            '1010 Business Savings',
+        ])
+        expect(options.map(option => option.value)).toEqual([
+            DEPOSIT_ACCOUNT_IDS.checking,
+            SUB_BANK.id,
+            DEPOSIT_ACCOUNT_IDS.savings,
+        ])
+    })
+
+    it('indents a sub-account by its depth', () => {
+        const { options } = bankAccountOptions(BANK_CHART, '')
+        const indentOf = (value: string) => options.find(option => option.value === value)?.indent
+        expect(indentOf(DEPOSIT_ACCOUNT_IDS.checking)).toBe(0)
+        expect(indentOf(SUB_BANK.id)).toBe(1)
+        expect(indentOf(DEPOSIT_ACCOUNT_IDS.savings)).toBe(0)
+    })
+
+    it('keeps a stored inactive bank account once, by name in the trigger, never as an option', () => {
+        const { options, triggerLabel } = bankAccountOptions(BANK_CHART, INACTIVE_BANK.id)
+        expect(triggerLabel).toBe('1020 Old Checking')
+        expect(options.map(option => option.value)).not.toContain(INACTIVE_BANK.id)
+        expect(options.map(option => option.label).join(' ')).not.toContain('Old Checking')
+    })
+
+    it('offers nothing for a chart with no bank account', () => {
+        const noBank = BANK_CHART.filter(row => row.type !== 'bank')
+        expect(bankAccountOptions(noBank, '').options).toEqual([])
+        expect(bankAccountOptions([], '').options).toEqual([])
+    })
+})
+
+describe('defaultBankAccount', () => {
+    it('is the first active bank account in chart order', () => {
+        expect(defaultBankAccount(BANK_CHART)).toBe(DEPOSIT_ACCOUNT_IDS.checking)
+    })
+
+    it('skips an inactive bank account', () => {
+        const inactiveFirst = [{ ...INACTIVE_BANK, number: '0900' }, SEEDED[1]].filter(
+            row => row !== undefined
+        )
+        expect(defaultBankAccount(inactiveFirst)).toBe(DEPOSIT_ACCOUNT_IDS.savings)
+    })
+
+    it('is empty when the chart has no bank account', () => {
+        expect(defaultBankAccount(BANK_CHART.filter(row => row.type !== 'bank'))).toBe('')
+        expect(defaultBankAccount([])).toBe('')
     })
 })
 

@@ -60,6 +60,30 @@ export function defaultRefundFromAccount(accounts: readonly DepositAccountRow[])
     return (bank ?? offered[0])?.id ?? ''
 }
 
+function isActiveBank(account: DepositAccountRow): boolean {
+    return !account.inactive && account.type === 'bank'
+}
+
+/**
+ * A bank deposit's Deposit to options (bank deposit spec §3.3, Q9): every active account
+ * of type `bank` in chart order, labelled "<number> <name>" and indented by depth. A
+ * stored account the list does not offer (made inactive since) is named in
+ * `triggerLabel` for `storedId` only. The server applies the same rule (server/deposits.go
+ * `msgDepositToRequired`, `msgDepositToInactive`).
+ */
+export function bankAccountOptions(
+    accounts: readonly DepositAccountRow[],
+    storedId: string
+): { options: SelectOption[]; triggerLabel: string } {
+    return filteredAccountOptions(accounts, storedId, isActiveBank)
+}
+
+// A new deposit's Deposit to: the first active bank account in chart order (the vendor
+// refund's Refunded to rule); '' when the chart has none.
+export function defaultBankAccount(accounts: readonly DepositAccountRow[]): string {
+    return bankAccountOptions(accounts, '').options[0]?.value ?? ''
+}
+
 // The word before the account in a payment line: a receipt or a received payment
 // deposits, a bill payment or an expense pays from, a vendor refund is refunded to, a
 // refund receipt is refunded from.
