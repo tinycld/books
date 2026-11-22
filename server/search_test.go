@@ -989,6 +989,72 @@ func TestSearch_FindsCreditMemos(t *testing.T) {
 	requireOnly([]string{"zw77314"}, "credit_memo:"+draft.Id)
 }
 
+func depositRows(rows []search.Row) map[string]search.Row {
+	out := map[string]search.Row{}
+	for _, r := range rows {
+		if strings.HasPrefix(r.ID, "deposit:") {
+			out[r.ID] = r
+		}
+	}
+	return out
+}
+
+// Bank deposit spec §3.7: search finds deposits, drafts included, by number
+// and memo. A row opens the deposit (id deposit:<id>, kind deposit) and is
+// titled "Deposit <n> · <Deposit to>", or "Draft deposit". A reader with no
+// Books access finds none.
+func TestSearch_FindsDeposits(t *testing.T) {
+	app := newBooksApp(t)
+	registerLedger(app)
+	registerSearchIndex(&pocketbase.PocketBase{App: app})
+	registerDepositGuards(app)
+	de := depositEnvOn(t, app)
+
+	postedDraft := de.mkDeposit(t, map[string]any{"memo": "friday kp30417 bank run", "deposit_to": de.savings.Id})
+	mkDepositItem(t, app, postedDraft, de.undepositedItem(t, de.undeposited, depositItemDay, 5000, "Check one"), 0)
+	posted := mustPostDeposit(t, app, postedDraft.Id, de.users.bookkeeper.Id)
+	draft := de.mkDeposit(t, map[string]any{"memo": "pending wq62093 deposit"})
+
+	number := posted.GetString("number")
+	if number != "1001" {
+		t.Fatalf("posted deposit number %q, want 1001", number)
+	}
+	titles := map[string]string{
+		"deposit:" + posted.Id: "Deposit 1001 · 1010 Business Savings",
+		"deposit:" + draft.Id:  "Draft deposit",
+	}
+	requireOnly := func(terms []string, ids ...string) {
+		t.Helper()
+		res, err := searchBooks(app, de.users.readOnly.Id, search.Query{Include: terms, Limit: 20})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows := depositRows(res.Rows)
+		if len(rows) != len(ids) {
+			t.Errorf("%q found deposit rows %v, want %d", terms, rows, len(ids))
+		}
+		for _, id := range ids {
+			r, ok := rows[id]
+			if !ok {
+				t.Errorf("%q did not find %s", terms, id)
+				continue
+			}
+			if r.Title != titles[id] || r.Fields["kind"] != "deposit" {
+				t.Errorf("%q row %s title %q kind %v, want %q, deposit", terms, id, r.Title, r.Fields["kind"], titles[id])
+			}
+		}
+	}
+
+	requireOnly([]string{number}, "deposit:"+posted.Id)
+	requireOnly([]string{"kp30417"}, "deposit:"+posted.Id)
+	requireOnly([]string{"wq62093"}, "deposit:"+draft.Id)
+
+	res, err := searchBooks(app, de.users.none.Id, search.Query{Include: []string{"kp30417"}, Limit: 20})
+	if err != nil || len(depositRows(res.Rows)) != 0 || res.Total != 0 {
+		t.Errorf("a reader with no Books access found %v (total %d), err %v", rowIDs(res.Rows), res.Total, err)
+	}
+}
+
 func refundReceiptRows(rows []search.Row) map[string]search.Row {
 	out := map[string]search.Row{}
 	for _, r := range rows {

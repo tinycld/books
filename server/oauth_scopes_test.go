@@ -99,6 +99,60 @@ func TestOAuth_RefundReceiptsAreScopedAsSalesReceipts(t *testing.T) {
 	}
 }
 
+// Bank deposit spec §4.3: a token reads and writes the deposits, their items
+// and their other funds lines, and only reads the undeposited items view. A
+// token with no Books scope gets none of them.
+func TestOAuth_DepositsAreScoped(t *testing.T) {
+	collections := oauthPackage().Collections
+	rw := oauth.Access{Read: []string{scopeRead}, Write: []string{scopeWrite}}
+	ro := oauth.Access{Read: []string{scopeRead}}
+	want := map[string]oauth.Access{
+		"books_deposits":          rw,
+		"books_deposit_items":     rw,
+		"books_deposit_lines":     rw,
+		"books_undeposited_items": ro,
+	}
+	for c, access := range want {
+		got, ok := collections[c]
+		if !ok {
+			t.Errorf("%s has no OAuth entry", c)
+			continue
+		}
+		if !reflect.DeepEqual(got.Read, access.Read) || len(got.Write) != len(access.Write) ||
+			(len(access.Write) > 0 && !reflect.DeepEqual(got.Write, access.Write)) {
+			t.Errorf("%s OAuth access = %+v, want Read %v and Write %v", c, got, access.Read, access.Write)
+		}
+	}
+
+	t.Cleanup(oauth.ResetRegistry)
+	oauth.RegisterPackage(oauthPackage())
+	for _, c := range []string{"books_deposits", "books_deposit_items", "books_deposit_lines"} {
+		path := "/api/collections/" + c + "/records"
+		if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("GET %s: books:read must read", path)
+		}
+		if !oauth.ScopeForRoute(http.MethodPost, path).SatisfiedBy([]string{scopeWrite}) {
+			t.Errorf("POST %s: books:write must write", path)
+		}
+		if oauth.ScopeForRoute(http.MethodPost, path).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("POST %s: books:read alone must not write", path)
+		}
+		if oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{"profile"}) {
+			t.Errorf("GET %s: a token with no Books scope must not read", path)
+		}
+	}
+	view := "/api/collections/books_undeposited_items/records"
+	if !oauth.ScopeForRoute(http.MethodGet, view).SatisfiedBy([]string{scopeRead}) {
+		t.Errorf("GET %s: books:read must read", view)
+	}
+	if oauth.ScopeForRoute(http.MethodGet, view).SatisfiedBy([]string{"profile"}) {
+		t.Errorf("GET %s: a token with no Books scope must not read", view)
+	}
+	if oauth.ScopeForRoute(http.MethodPost, view).SatisfiedBy([]string{scopeRead, scopeWrite}) {
+		t.Errorf("POST %s: no Books scope may write", view)
+	}
+}
+
 // Credit memo spec §4.3: a token reads and writes the credit memos and their
 // lines, and only reads the tax lines, which posting writes as its snapshot.
 func TestOAuth_CreditMemosAreScopedAsInvoices(t *testing.T) {

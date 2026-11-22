@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest'
 import { AP_AGING_SEED } from '../tinycld/books/lib/ap-aging-fixture'
 import { APPLY_CREDIT_SEED } from '../tinycld/books/lib/apply-credit-fixture'
 import { AR_AGING_SEED } from '../tinycld/books/lib/ar-aging-fixture'
+import { DEPOSIT_SEED } from '../tinycld/books/lib/bank-deposit-fixture'
 import { CUSTOMER_BALANCE_SEED } from '../tinycld/books/lib/customer-balance-fixture'
 import { CUSTOMERS } from '../tinycld/books/lib/customer-form-fixture'
 import { REVIEW_SEED_ENTRIES, REVIEW_SEED_STATEMENT } from '../tinycld/books/lib/for-review-fixture'
@@ -28,7 +29,11 @@ import {
     REFUND_SEED_PAYOUT,
     REFUND_SEED_PAYOUT_LINES,
 } from '../tinycld/books/lib/refund-receipt-form-fixture'
-import { SALES_RECEIPT_IDS } from '../tinycld/books/lib/sales-receipt-form-fixture'
+import {
+    SALES_RECEIPT_IDS,
+    SALES_RECEIPT_LINES,
+    SALES_RECEIPT_SEED_IDS,
+} from '../tinycld/books/lib/sales-receipt-form-fixture'
 import { SEED_ACCOUNTS } from '../tinycld/books/lib/seed-accounts'
 import { STATEMENT_SEED } from '../tinycld/books/lib/statements-fixture'
 import { VENDOR_BALANCE_SEED } from '../tinycld/books/lib/vendor-balance-fixture'
@@ -275,8 +280,14 @@ function filterClauses(filter: string): [string, string][] {
 // text), every write is stored and recorded in order, and a list read keeps only the
 // rows that match EVERY clause of the filter (`status = "posted"` too), as the
 // server's filter does. A batch (pb.createBatch) runs its creates in order and records
-// each with the batch's number. It does not run the server's posting.
-function servedPb() {
+// each with the batch's number. It does not run the server's posting; `afterUpdate`, when
+// given, stands in for the part of it a seed reads back (it stores rows unrecorded).
+type Store = (name: string, row: Record<string, unknown> & { id: string }) => void
+type RowsOf = (name: string) => Record<string, unknown>[]
+
+function servedPb(
+    afterUpdate?: (name: string, row: Record<string, unknown>, store: Store, rowsOf: RowsOf) => void
+) {
     const writes: Write[] = []
     const rows = new Map<string, Record<string, unknown>>()
     let next = 0
@@ -332,7 +343,16 @@ function servedPb() {
             const row = { ...(rows.get(`${name}/${id}`) ?? { id }), ...data }
             rows.set(`${name}/${id}`, row)
             writes.push({ op: 'update', collection: name, id, data })
-            return answer(200, row)
+            afterUpdate?.(
+                name,
+                row,
+                (into, stored) => rows.set(`${into}/${stored.id}`, stored),
+                of =>
+                    [...rows.entries()]
+                        .filter(([key]) => key.startsWith(`${of}/`))
+                        .map(([, stored]) => stored)
+            )
+            return answer(200, rows.get(`${name}/${id}`) ?? row)
         }
         if (method === 'GET' && id !== undefined) {
             const row = rows.get(`${name}/${id}`)
@@ -1406,6 +1426,206 @@ describe('seedRefundReceipts', () => {
             }
         })
         expect(at(refunds[1])).toBeGreaterThan(at(postOf('books_credit_memos', memo.id)))
+    })
+})
+
+// Bank deposit spec §4.6 (seed), checkpoint 1: 4900 Interest earned and 6300 Bank charges
+// and fees join the chart, active. seedDeposits posts two sales receipts to 1200
+// Undeposited funds ($180.00 by check, $64.00 by cash), each with the customer and one
+// product line of the first seeded sales receipt, then one deposit `seeddeposit0001` to
+// 1000 that holds the first receipt's 1200 line plus $12.40 on 4900 "October interest"
+// (a bank line of $192.40), all dated the run day. The second receipt stays undeposited.
+const SEED_DEPOSIT_ID = 'seeddeposit0001'
+
+function runDay(): string {
+    const now = new Date()
+    const pad = (value: number) => String(value).padStart(2, '0')
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+}
+
+// Stands in for the server's posting of a sales receipt, as far as a seed reads it back:
+// the entry, its debit line on the receipt's Deposit to account and the receipt's total.
+function postSalesReceipts(
+    name: string,
+    row: Record<string, unknown>,
+    store: Store,
+    rowsOf: RowsOf
+): void {
+    if (name !== 'books_sales_receipts' || row.status !== 'posted' || row.entry) return
+    const id = String(row.id)
+    const total = rowsOf('books_sales_receipt_lines')
+        .filter(line => line.sales_receipt === id)
+        .reduce((sum, line) => sum + Number(line.quantity) * Number(line.rate), 0)
+    const entry = `je${id.slice(2)}`
+    store('books_journal_entries', {
+        id: entry,
+        status: 'posted',
+        doc_type: 'sales_receipt',
+        origin: 'document',
+        document: id,
+        date: row.date,
+    })
+    store('books_journal_lines', {
+        id: `jl${id.slice(2)}`,
+        entry,
+        account: row.deposit_to,
+        debit: total,
+        credit: 0,
+        position: 0,
+    })
+    store(name, { ...row, id, entry, total })
+}
+
+describe('seedDeposits', () => {
+    it('seeds 4900 Interest earned and 6300 Bank charges and fees, both active', () => {
+        expect(SEED_ACCOUNTS.find(account => account.number === '4900')).toMatchObject({
+            name: 'Interest earned',
+            type: 'other_income',
+            detail_type: 'interest_earned',
+        })
+        expect(SEED_ACCOUNTS.find(account => account.number === '6300')).toMatchObject({
+            name: 'Bank charges and fees',
+            type: 'expense',
+            detail_type: 'bank_charges',
+        })
+        for (const number of ['4900', '6300']) {
+            expect(
+                SEED_ACCOUNTS.find(account => account.number === number)?.inactive ?? false,
+                number
+            ).toBe(false)
+        }
+    })
+
+    it('runs after the sales receipts in the seed', () => {
+        const source = readFileSync(seedPath, 'utf8')
+        const body = source.slice(source.indexOf('export default async function seed('))
+        const receipts = body.indexOf('seedSalesReceipts(')
+        const deposits = body.indexOf('seedDeposits(')
+        expect(receipts).toBeGreaterThan(-1)
+        expect(deposits).toBeGreaterThan(receipts)
+    })
+
+    it('posts two receipts to 1200, then posts seeddeposit0001 holding the first plus $12.40 of interest, all dated today', async () => {
+        const seedDeposits = (seedModule as Record<string, unknown>).seedDeposits
+        expect(typeof seedDeposits).toBe('function')
+        if (typeof seedDeposits !== 'function') return
+        const { pb, writes } = servedPb(postSalesReceipts)
+        const accounts = seededAccounts()
+        // The first seeded sales receipt, as seedSalesReceipts leaves it.
+        const firstFixture = SALES_RECEIPT_SEED_IDS[0]
+        const firstLines = SALES_RECEIPT_LINES.filter(line => line.sales_receipt === firstFixture)
+        const first = await pb.collection('books_sales_receipts').create({
+            customer: 'custharborvw001',
+            status: 'posted',
+            deposit_to: accounts.get('1200'),
+            payment_method: 'check',
+        })
+        for (const line of firstLines) {
+            await pb
+                .collection('books_sales_receipt_lines')
+                .create({ ...line, id: undefined, sales_receipt: first.id })
+        }
+        const salesReceiptIds = new Map([[firstFixture, first.id]])
+        const before = writes.length
+        await seedDeposits(pb, { user: USER }, accounts, salesReceiptIds)
+        const seeded = writes.slice(before)
+        const today = runDay()
+        const day = (value: unknown) => String(value).slice(0, 10)
+
+        const receipts = seeded.filter(
+            w => w.collection === 'books_sales_receipts' && w.op === 'create'
+        )
+        expect(
+            receipts.map(w => ({
+                customer: w.data.customer,
+                status: w.data.status,
+                deposit_to: w.data.deposit_to,
+                payment_method: w.data.payment_method,
+                date: day(w.data.date),
+            }))
+        ).toEqual(
+            DEPOSIT_SEED.receipts.map(receipt => ({
+                customer: 'custharborvw001',
+                status: 'draft',
+                deposit_to: accounts.get('1200'),
+                payment_method: receipt.payment_method,
+                date: today,
+            }))
+        )
+        const products = new Set(firstLines.map(line => line.product).filter(id => id !== ''))
+        const receiptTotals = receipts.map(receipt => {
+            const lines = seeded.filter(
+                w =>
+                    w.collection === 'books_sales_receipt_lines' &&
+                    w.data.sales_receipt === receipt.id
+            )
+            expect(lines, `the lines of receipt ${receipt.id}`).toHaveLength(1)
+            const line = lines[0]?.data ?? {}
+            expect(line.kind).toBe('item')
+            expect(products.has(String(line.product)), String(line.product)).toBe(true)
+            // No sales tax: the total is the line's amount.
+            expect(Boolean(receipt.data.tax_rate) && line.taxable === true).toBe(false)
+            return Number(line.quantity) * Number(line.rate)
+        })
+        expect(receiptTotals).toEqual(DEPOSIT_SEED.receipts.map(receipt => receipt.amount))
+        expect(receipts.map(w => finalStatus(writes, 'books_sales_receipts', w.id))).toEqual([
+            'posted',
+            'posted',
+        ])
+
+        const deposits = seeded.filter(w => w.collection === 'books_deposits' && w.op === 'create')
+        expect(deposits.map(w => w.id)).toEqual([SEED_DEPOSIT_ID])
+        const deposit = deposits[0]
+        if (!deposit) return
+        expect(deposit.data).toMatchObject({
+            status: 'draft',
+            deposit_to: accounts.get('1000'),
+            memo: DEPOSIT_SEED.deposit.memo,
+        })
+        expect(day(deposit.data.date)).toBe(today)
+
+        // The item is the first new receipt's line on 1200, the one the server's posting
+        // wrote; the second receipt's line is held by no item.
+        const heldLine = `jl${String(receipts[0]?.id).slice(2)}`
+        const items = seeded.filter(w => w.collection === 'books_deposit_items')
+        expect(items.map(w => [w.op, w.data.deposit, w.data.line])).toEqual([
+            ['create', SEED_DEPOSIT_ID, heldLine],
+        ])
+        const lines = seeded.filter(w => w.collection === 'books_deposit_lines')
+        expect(lines.map(w => [w.op, w.data])).toEqual([
+            [
+                'create',
+                expect.objectContaining({
+                    deposit: SEED_DEPOSIT_ID,
+                    account: accounts.get(DEPOSIT_SEED.deposit.line.accountNumber),
+                    description: DEPOSIT_SEED.deposit.line.description,
+                    amount: DEPOSIT_SEED.deposit.line.amount,
+                }),
+            ],
+        ])
+        // The bank line the server posts is the held receipt plus the other funds line.
+        expect((receiptTotals[0] ?? 0) + Number(lines[0]?.data.amount)).toBe(19_240)
+
+        // Posted after its item and its line, after both receipts were posted.
+        expect(finalStatus(writes, 'books_deposits', SEED_DEPOSIT_ID)).toBe('posted')
+        const at = (w: Write | undefined) => (w ? writes.indexOf(w) : -1)
+        const post = writes.find(
+            w =>
+                w.collection === 'books_deposits' &&
+                w.id === SEED_DEPOSIT_ID &&
+                w.data.status === 'posted'
+        )
+        expect(at(post)).toBeGreaterThan(at(items[0]))
+        expect(at(post)).toBeGreaterThan(at(lines[0]))
+        const receiptPosts = receipts.map(receipt =>
+            writes.find(
+                w =>
+                    w.collection === 'books_sales_receipts' &&
+                    w.id === receipt.id &&
+                    w.data.status === 'posted'
+            )
+        )
+        expect(at(items[0])).toBeGreaterThan(at(receiptPosts[0]))
     })
 })
 

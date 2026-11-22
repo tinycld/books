@@ -391,7 +391,13 @@ func truncateRunes(s string, max int) string {
 // accountDisplayName names an account as people read it in a message:
 // "1000 Business Checking", or the name alone when it has no number.
 func accountDisplayName(r *core.Record) string {
-	return strings.TrimSpace(r.GetString("number") + " " + r.GetString("name"))
+	return accountNumberName(r.GetString("number"), r.GetString("name"))
+}
+
+// accountNumberName is accountDisplayName from an account's number and name,
+// for a caller that reads them as columns (depositSearch).
+func accountNumberName(number, name string) string {
+	return strings.TrimSpace(number + " " + name)
 }
 
 // bankConnectionLabel names a connection by its account, since the row holds

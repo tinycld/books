@@ -1,0 +1,101 @@
+{
+    "outDir": "bank-deposit-reference",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/helix-mockup?state=populated",
+            "ready": "deposit-form",
+            "height": 3000,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/helix-mockup?state=empty",
+            "ready": "deposit-form",
+            "height": 1300,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "refused",
+            "url": "/a/books/helix-mockup?state=refused",
+            "ready": "deposit-form",
+            "height": 2700,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "correction",
+            "url": "/a/books/helix-mockup?state=correction",
+            "ready": "deposit-form",
+            "height": 3300,
+            "hideLabels": ["New"],
+            "schemes": ["light"]
+        },
+        {
+            "name": "two-accounts",
+            "url": "/a/books/helix-mockup?state=two-accounts",
+            "ready": "deposit-form",
+            "height": 3200,
+            "hideLabels": ["New"],
+            "schemes": ["light"]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/helix-mockup?state=loading",
+            "ready": "deposit-items-loading",
+            "height": 1300,
+            "hideLabels": ["New"],
+            "schemes": ["light"]
+        },
+        {
+            "name": "list-error",
+            "url": "/a/books/helix-mockup?state=list-error",
+            "ready": "deposit-items-error",
+            "height": 1300,
+            "hideLabels": ["New"],
+            "schemes": ["light"]
+        },
+        {
+            "name": "no-bank",
+            "url": "/a/books/helix-mockup?state=no-bank",
+            "ready": "deposit-form",
+            "height": 1900,
+            "hideLabels": ["New"],
+            "schemes": ["light"]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/helix-mockup?state=error",
+            "ready": "deposit-message",
+            "hideLabels": ["New"],
+            "schemes": ["light"]
+        },
+        {
+            "name": "no-access",
+            "url": "/a/books/helix-mockup?state=no-access",
+            "ready": "deposit-message",
+            "hideLabels": ["New"],
+            "schemes": ["light"]
+        },
+        {
+            "name": "read",
+            "url": "/a/books/helix-mockup?state=read",
+            "ready": "deposit-read-only",
+            "height": 1900,
+            "hideLabels": ["New"]
+        },
+        {
+            "name": "read-void",
+            "url": "/a/books/helix-mockup?state=read-void",
+            "ready": "deposit-read-only",
+            "height": 1100,
+            "hideLabels": ["New"],
+            "schemes": ["light"]
+        },
+        {
+            "name": "in-deposit",
+            "url": "/a/books/helix-mockup?state=in-deposit",
+            "ready": "in-deposit-mockup",
+            "hideLabels": ["New"]
+        }
+    ]
+}

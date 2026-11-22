@@ -1,0 +1,13 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/deposits/new",
+            "ready": "deposit-form",
+            "height": 3000,
+            "hideLabels": ["New"],
+            "actions": [{ "waitFor": "deposit-selected" }, { "clickText": "Undeposited funds" }]
+        }
+    ]
+}

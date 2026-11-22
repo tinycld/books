@@ -22,7 +22,7 @@
 // writer creates and deletes one, and cannot send the fields Go stamps.
 //
 // The rule constants repeat 2100000008's: a migration cannot import another.
-// It runs after the audit log view (2100000034), which reads none of its
+// It runs before the audit log view (2100000038), which reads none of its
 // collections.
 const AUTH = '@request.auth.id != "" && @request.auth.disabled != true'
 const ME = '@collection.books_access:me.user ?= @request.auth.id'

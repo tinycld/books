@@ -1,0 +1,12 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "read",
+            "url": "/a/books/deposits/seeddeposit0001",
+            "ready": "deposit-read-only",
+            "height": 1900,
+            "hideLabels": ["New"]
+        }
+    ]
+}

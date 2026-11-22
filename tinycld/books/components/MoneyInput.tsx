@@ -1,6 +1,6 @@
 import { type Control, useController } from '@tinycld/core/ui/form'
-import { Pressable, Text, type TextInputInstance, View } from 'react-native'
-import { amountCents, amountError } from '../lib/opening-balances'
+import { Text, type TextInputInstance } from 'react-native'
+import { amountError } from '../lib/opening-balances'
 import type { OpeningFormValues } from '../lib/opening-balances-schema'
 import { MoneyTextField } from './MoneyTextField'
 
@@ -50,38 +50,24 @@ export function MoneyInput({
     inputRef,
 }: MoneyInputProps) {
     const { field, text, message } = useAmountMessage(control, accountId)
-
-    const flipSign = () => {
-        const trimmed = text.trim()
-        if (trimmed === '' || amountCents(text) === null) return
-        field.onChange(trimmed.startsWith('-') ? trimmed.slice(1) : `-${trimmed}`)
+    const signToggle = {
+        testID: `opening-sign-${accountId}`,
+        accessibilityLabel: `Change sign for ${accountLabel}`,
     }
 
     return (
-        <View className="relative" style={{ minHeight: 44 }}>
-            <MoneyTextField
-                inputRef={inputRef}
-                testID={testID}
-                accessibilityLabel={`Amount for ${accountLabel}`}
-                value={text}
-                onChangeText={field.onChange}
-                onBlur={field.onBlur}
-                error={message}
-                onSubmitEditing={onSubmitEditing}
-                returnKeyType={returnKeyType}
-                hasPrefix
-                marksNegative
-            />
-            <Pressable
-                testID={`opening-sign-${accountId}`}
-                accessibilityRole="button"
-                accessibilityLabel={`Change sign for ${accountLabel}`}
-                onPress={flipSign}
-                className="absolute left-0 top-0 items-center justify-center"
-                style={{ width: 44, height: 44 }}
-            >
-                <Text className="text-base text-muted-foreground">±</Text>
-            </Pressable>
-        </View>
+        <MoneyTextField
+            inputRef={inputRef}
+            testID={testID}
+            accessibilityLabel={`Amount for ${accountLabel}`}
+            value={text}
+            onChangeText={field.onChange}
+            onBlur={field.onBlur}
+            error={message}
+            onSubmitEditing={onSubmitEditing}
+            returnKeyType={returnKeyType}
+            signToggle={signToggle}
+            marksNegative
+        />
     )
 }

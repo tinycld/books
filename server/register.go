@@ -37,6 +37,7 @@ func Register(app *pocketbase.PocketBase) {
 	registerCreditMemoApplications(app)
 	registerVendorRefundGuards(app)
 	registerWriteOffGuards(app)
+	registerDepositGuards(app)
 	registerPartyBalances()
 	registerEstimateResponses(app)
 	// Declare the public view's source tables so CheckViews and the change
@@ -59,6 +60,11 @@ func Register(app *pocketbase.PocketBase) {
 	changesignal.RegisterView(reconcileLinesView, "books_journal_lines", "books_journal_entries", "books_accounts",
 		"books_customers", "books_vendors", reconciliationLinesCollection, reconciliationsCollection,
 		bankMatchLinesCollection)
+	// The undeposited items read the journal lines with their entry and account,
+	// the posted deposit items, and each source document's payment method and
+	// reference no.
+	changesignal.RegisterView("books_undeposited_items", "books_journal_lines", "books_journal_entries", "books_accounts",
+		"books_deposit_items", "books_payments", "books_sales_receipts", "books_vendor_refunds", "books_refund_receipts")
 	for _, s := range reportSources() {
 		reports.RegisterSource(s)
 	}

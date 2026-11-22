@@ -80,7 +80,7 @@ function monthOf(today: string): { from: string; to: string } {
 
 // The Event column shows a row's event_shown, not its event: the view writes
 // event_shown = 'credit_removed' for a delete of a credit memo application and the event
-// itself for every other delete (EVENT_SHOWN, pb-migrations/2100000034_create_books_audit_log.js;
+// itself for every other delete (EVENT_SHOWN, pb-migrations/2100000038_create_books_audit_log.js;
 // shownEvent in lib/audit-log-fixture.ts mirrors it). So the Deleted filter shows these.
 const DELETED_SHOWN = ['deleted', 'credit_removed']
 
