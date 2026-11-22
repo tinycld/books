@@ -11,7 +11,7 @@
 - scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
 - capture manifest: docs/plans/report-1099-capture.json
 - review mode: C — none (unattended)
-- core extension: accepted — E1 calendar-year presets `thisCalendarYear` / `lastCalendarYear`; E2 `Spec.header` value lines (checkpoint 0, core branch books/p5-1099-report, not exclusive; PR opened at checkpoint 0, merges at the next design gate or phase end)
+- core extension: accepted — E1 calendar-year presets `thisCalendarYear` / `lastCalendarYear`; E2 `Spec.header` value lines; E3 a typed NULL for a union key a part does not map (accepted by the human 2026-11-22) (checkpoint 0, core branch books/p5-1099-report, not exclusive; PR opened at checkpoint 0, merges at the next design gate or phase end)
 - sparks:
   - 1. Reportable and what was left out side by side on every row → expressible (three amount columns of one spec; core `ReportRow`; `display.columns.<col>.minWidth: "max-content"`; phone `display.layouts`)
   - 2. The grand total is the heaviest line → expressible (core `ReportRow` total row; no new token)
@@ -50,6 +50,11 @@
   - Scale pass (D11) moves the `account` of rows to make boxed accounts; spec §8 says the pass writes only columns other specs do not read. The plan states the difference.
   - Seed (Q16, D5): one journal entry and one card expense on 2026-09-23; the balance of every account stays as it is.
   - Plan review (one agent; report in staging `p5-1099-report/plan-review.md`): high 2, medium 9, low 26. Fixed in the plan: (high) `card_payment` ripple to `collections.ts` `omitOnInsert`, `audit-fields.ts`, full-row literals and their tests; (high) `filterToVendors` cannot pass on this report, new `filterTo1099Vendors`; (medium) the wrong path `profit-loss.spec.ts` and the full checkpoint 0 Books spec list; the stub template files; an expense posts through `postSalesDoc` (hook on `salesDocKind`); Vendor is under Add filter, not a chip; the button's states; a shared case file for the preset list; D11 stated; the wider seed ripple list. Low findings fixed in the plan, but one in part: the Back navigation of test 7 cites its Books spec precedent, not a core file.
+  - Human answers (2026-11-22), plan and spec amended:
+    - A) E3 approved: the typed NULL for a union key a part does not map (`core/server/reports/rules.go` `unionPartCols`) is part of checkpoint 0, in the same core PR as E1 and E2, not exclusive. Spec §4 and §11 now hold E3; the plan states it as approved.
+    - B) Excluded follows spec §3 as written: blank when zero on payment, box, vendor and Total rows. Plan D7 is replaced: a hidden column `excludedSum` (`total: "rows"`, the excluded formula with no `blankZero`) and the shown column `excluded` = `blankZero(col("excludedSum"))` with the default total and no aggregate. Excluded alone as a recompute sum is refused: its Total adds the vendors `having` hides (core `rowstotal_test.go` 386-399). Core evidence: `levels.go` 1092-1124, 1194-1208, 1001-1022; precedent `server/report_balance_sheet.go` 118-119, 274-276.
+    - Hidden column and exports (read in core, no run): a hidden column is not in the result (`spec.go` 220-224, `assemble.go` 25 and 915), and the exports and Customize read the result's columns (`export.go` 272), so `excludedSum` is in no cell, Customize entry, arrangement, CSV, Excel or PDF. No test of Books or of the plan expected it there. The plan pins this in `TestForm1099SpecLoads`, `TestForm1099Columns` and `TestForm1099CSVOpensEveryBox`. No spec in core or Books has a hidden column with `total: "rows"` today; checkpoint 2's Go tests are its first run, and a refusal there is a core task.
+    - The fixture needs no change for D7: it already blanks a zero Excluded on every row.
 - review mode switches: none
 
 ## Final review
