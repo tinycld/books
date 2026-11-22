@@ -4,16 +4,22 @@ import { describe, expect, it } from 'vitest'
 import { maxStoredAmount } from '../tinycld/books/lib/money-text'
 import {
     accountParamTarget,
+    batchResultText,
     countText,
     offeredAccountKeyActions,
     RECONCILE_ACCOUNT_KEY_LABELS,
     RECONCILE_ACCOUNT_KEYS,
     RECONCILE_ACCOUNT_TYPES,
+    RECONCILE_TEXTS,
+    type ReconcileFilters,
+    type ReconcileSort,
     reconcileStartSchema,
     reconcileTotals,
+    shownRows,
     sideWords,
     stampedTotals,
 } from '../tinycld/books/lib/reconcile'
+import type { BooksReconcileLines } from '../tinycld/books/types'
 
 // The pure parts of the reconcile screens (reconcile spec §3 "Words", "The summary band",
 // "The start dialog"; plan checkpoint 2). `reconcileTotals` and `reconcileStartSchema` run the
@@ -514,5 +520,237 @@ describe('accounts screen keys', () => {
     it('offers ↵ only while a row has the focus', () => {
         expect(offeredAccountKeyActions(false)).toEqual(['next', 'previous'])
         expect(offeredAccountKeyActions(true)).toEqual(['next', 'previous', 'open'])
+    })
+})
+
+// The work screen's shown rows (reconcile spec §3 "Toolbar", "The list (wide)"; §4 "Reads":
+// the side, the search, the Show choice and the column order, computed from the one lines
+// query's rows). A row is the lines query's row: the view's columns, then isCleared and
+// clearedId (hooks/useReconcileLines.ts).
+type LineRow = BooksReconcileLines & { isCleared: boolean; clearedId: string }
+
+function line(seed: Partial<LineRow> & Pick<LineRow, 'id'>): LineRow {
+    return {
+        line: seed.id,
+        account: 'acctreconcile01',
+        entry: `entry-${seed.id}`,
+        date: '2026-10-01',
+        debit: 0,
+        credit: 0,
+        memo: '',
+        number: '10',
+        doc_type: 'journal',
+        origin: 'manual',
+        document: '',
+        payee: '',
+        reconciliation: '',
+        finished: false,
+        bank_matched: false,
+        isCleared: false,
+        clearedId: '',
+        ...seed,
+    }
+}
+
+function clearedLine(seed: Partial<LineRow> & Pick<LineRow, 'id'>): LineRow {
+    return line({
+        reconciliation: 'recnworkscreen1',
+        isCleared: true,
+        clearedId: `c-${seed.id}`,
+        ...seed,
+    })
+}
+
+const ALL_FILTERS: ReconcileFilters = { side: 'all', search: '', show: 'all' }
+const BY_DATE: ReconcileSort = { column: 'date', direction: 'asc' }
+
+function idsOf(rows: readonly { id: string }[]): string[] {
+    return rows.map(row => row.id)
+}
+
+// Two payments and two deposits, each on its own day, one of each cleared. No text of the
+// $250.00 payment holds "250"; the memo of the $175.00 deposit does ("Invoice 2501").
+const PAY_RETAINER = line({
+    id: 'payretainer0001',
+    date: '2026-10-03',
+    number: '12',
+    credit: 25_000,
+    payee: 'Robertson & Associates',
+    memo: 'Retainer for October',
+})
+const PAY_POWER = clearedLine({
+    id: 'paypower0000001',
+    date: '2026-10-05',
+    number: '13',
+    credit: 4_500,
+    payee: 'Pacific Power',
+    memo: 'Account 4471-220',
+})
+const DEP_INVOICE = line({
+    id: 'depinvoice00001',
+    date: '2026-10-04',
+    number: '14',
+    debit: 17_500,
+    payee: 'Harborview Kitchen',
+    memo: 'Invoice 2501 deposit',
+})
+const DEP_INTEREST = clearedLine({
+    id: 'depinterest0001',
+    date: '2026-10-06',
+    number: '15',
+    debit: 2_500,
+    memo: 'Interest',
+})
+
+// Out of order on purpose: shownRows sorts.
+const ROWS = [DEP_INTEREST, PAY_POWER, DEP_INVOICE, PAY_RETAINER]
+
+function shown(filters: Partial<ReconcileFilters>, sort: ReconcileSort = BY_DATE): string[] {
+    return idsOf(shownRows(ROWS, { ...ALL_FILTERS, ...filters }, sort))
+}
+
+describe('shownRows', () => {
+    it('keeps every row, oldest first, with no filter', () => {
+        expect(shown({})).toEqual([PAY_RETAINER.id, DEP_INVOICE.id, PAY_POWER.id, DEP_INTEREST.id])
+    })
+
+    it('keeps only rows with a credit on the out side, only rows with a debit on the in side', () => {
+        expect(shown({ side: 'out' })).toEqual([PAY_RETAINER.id, PAY_POWER.id])
+        expect(shown({ side: 'in' })).toEqual([DEP_INVOICE.id, DEP_INTEREST.id])
+    })
+
+    it('keeps a row only when each piece of the search is in its number, payee or memo', () => {
+        // One piece in the memo, the other in the payee.
+        expect(shown({ search: 'retainer%robertson' })).toEqual([PAY_RETAINER.id])
+        // The second piece is in no text of the retainer row.
+        expect(shown({ search: 'retainer%pacific' })).toEqual([])
+        // The number.
+        expect(shown({ search: '14' })).toEqual([DEP_INVOICE.id])
+        expect(shown({ search: '13%power' })).toEqual([PAY_POWER.id])
+    })
+
+    it('ignores case in the search', () => {
+        expect(shown({ search: 'ROBERTSON' })).toEqual([PAY_RETAINER.id])
+        expect(shown({ search: 'harborVIEW%INVOICE' })).toEqual([DEP_INVOICE.id])
+    })
+
+    it('also keeps a row whose amount is the searched amount', () => {
+        // "250" is in the deposit's memo and is the retainer's amount; $25.00 is not $250.00.
+        expect(shown({ search: '250' })).toEqual([PAY_RETAINER.id, DEP_INVOICE.id])
+        // "250.00" is in no text: only the amount matches.
+        expect(shown({ search: '250.00' })).toEqual([PAY_RETAINER.id])
+        expect(shown({ search: '175' })).toEqual([DEP_INVOICE.id])
+    })
+
+    it('keeps only the rows that are not cleared, or only the cleared rows', () => {
+        expect(shown({ show: 'uncleared' })).toEqual([PAY_RETAINER.id, DEP_INVOICE.id])
+        expect(shown({ show: 'cleared' })).toEqual([PAY_POWER.id, DEP_INTEREST.id])
+    })
+
+    it('applies the side, the search and Show together', () => {
+        expect(shown({ side: 'out', show: 'uncleared', search: 'robertson' })).toEqual([
+            PAY_RETAINER.id,
+        ])
+        expect(shown({ side: 'in', show: 'uncleared', search: 'robertson' })).toEqual([])
+        expect(shown({ side: 'out', show: 'cleared', search: 'pacific' })).toEqual([PAY_POWER.id])
+        expect(shown({ side: 'out', show: 'cleared', search: 'robertson' })).toEqual([])
+        expect(shown({ side: 'in', show: 'cleared', search: '25.00' })).toEqual([DEP_INTEREST.id])
+    })
+
+    it('orders by date, then entry number, then id by default', () => {
+        const late = line({ id: 'zz0000000000001', date: '2026-10-02', number: '20' })
+        const lateSameNumber = line({ id: 'aa0000000000001', date: '2026-10-02', number: '20' })
+        const lateLowNumber = line({ id: 'mm0000000000001', date: '2026-10-02', number: '19' })
+        const early = line({ id: 'yy0000000000001', date: '2026-10-01', number: '30' })
+        const rows = [late, early, lateSameNumber, lateLowNumber]
+        expect(idsOf(shownRows(rows, ALL_FILTERS, BY_DATE))).toEqual([
+            early.id,
+            lateLowNumber.id,
+            lateSameNumber.id,
+            late.id,
+        ])
+    })
+
+    it('sorts by date newest first', () => {
+        expect(shown({}, { column: 'date', direction: 'desc' })).toEqual([
+            DEP_INTEREST.id,
+            PAY_POWER.id,
+            DEP_INVOICE.id,
+            PAY_RETAINER.id,
+        ])
+    })
+
+    it('sorts by the out amount both ways, with the in side last', () => {
+        const up = shown({}, { column: 'out', direction: 'asc' })
+        expect(up.slice(0, 2)).toEqual([PAY_POWER.id, PAY_RETAINER.id])
+        expect([...up.slice(2)].sort()).toEqual([DEP_INTEREST.id, DEP_INVOICE.id].sort())
+
+        const down = shown({}, { column: 'out', direction: 'desc' })
+        expect(down.slice(0, 2)).toEqual([PAY_RETAINER.id, PAY_POWER.id])
+        expect([...down.slice(2)].sort()).toEqual([DEP_INTEREST.id, DEP_INVOICE.id].sort())
+    })
+
+    it('sorts by the in amount both ways, with the out side last', () => {
+        const up = shown({}, { column: 'in', direction: 'asc' })
+        expect(up.slice(0, 2)).toEqual([DEP_INTEREST.id, DEP_INVOICE.id])
+        expect([...up.slice(2)].sort()).toEqual([PAY_POWER.id, PAY_RETAINER.id].sort())
+
+        const down = shown({}, { column: 'in', direction: 'desc' })
+        expect(down.slice(0, 2)).toEqual([DEP_INVOICE.id, DEP_INTEREST.id])
+        expect([...down.slice(2)].sort()).toEqual([PAY_POWER.id, PAY_RETAINER.id].sort())
+    })
+
+    it('sorts only the rows the filters keep', () => {
+        expect(shown({ side: 'out' }, { column: 'out', direction: 'desc' })).toEqual([
+            PAY_RETAINER.id,
+            PAY_POWER.id,
+        ])
+    })
+})
+
+// The result line of the two batches (reconcile spec §3 "Clearing").
+describe('batchResultText', () => {
+    it('counts the cleared and the uncleared transactions', () => {
+        expect(batchResultText({ action: 'clear', done: 42, failed: 0, messages: [] })).toBe(
+            'Cleared 42 transactions.'
+        )
+        expect(batchResultText({ action: 'unclear', done: 42, failed: 0, messages: [] })).toBe(
+            'Uncleared 42 transactions.'
+        )
+        expect(batchResultText({ action: 'unclear', done: 1, failed: 0, messages: [] })).toBe(
+            'Uncleared 1 transaction.'
+        )
+        expect(batchResultText({ action: 'clear', done: 1, failed: 0, messages: [] })).toBe(
+            'Cleared 1 transaction.'
+        )
+    })
+
+    it('reads the server’s message when every failure has the same one', () => {
+        const message = 'This reconciliation is finished.'
+        expect(
+            batchResultText({ action: 'clear', done: 40, failed: 2, messages: [message, message] })
+        ).toBe(message)
+        expect(
+            batchResultText({ action: 'unclear', done: 0, failed: 1, messages: [message] })
+        ).toBe(message)
+    })
+
+    it('counts the failures of the batch when their messages differ', () => {
+        expect(
+            batchResultText({
+                action: 'clear',
+                done: 39,
+                failed: 3,
+                messages: ['Expense 12 is void.', 'Expense 13 is void.', 'Expense 12 is void.'],
+            })
+        ).toBe('3 of 42 transactions could not be cleared. Try again.')
+    })
+})
+
+describe('the transport failure text', () => {
+    it('asks to check the connection', () => {
+        expect(RECONCILE_TEXTS.sendFailed).toBe(
+            'The change could not be sent. Check your connection and try again.'
+        )
     })
 })

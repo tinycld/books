@@ -122,6 +122,57 @@ export function bandFigure(summary: Locator, label: string): Locator {
     return summary.getByText(label, { exact: true }).locator('xpath=..')
 }
 
+// From any Books screen with the sidebar: the accounts screen, then the Resume (writer) or
+// View (reader) button of the account named `accountName`; waits for the work screen.
+export async function openWorkScreen(page: Page, accountName: string): Promise<Locator> {
+    await openReconcile(page)
+    const id = await accountIdOf(page, accountName)
+    await page
+        .getByTestId(`reconcile-resume-${id}`)
+        .or(page.getByTestId(`reconcile-view-${id}`))
+        .filter({ visible: true })
+        .click()
+    await expect(page).toHaveURL(/\/books\/reconcile\/[a-z0-9]{15}\/?$/)
+    return visibleScreen(page, 'reconcile-screen')
+}
+
+// The visible row (wide) or card (phone) of the work screen's list that shows `memo`
+// exactly. An earlier work screen can stay stacked and hidden (lesson 38).
+export function lineRow(page: Page, memo: string): Locator {
+    return page
+        .locator('[data-testid^="reconcile-row-"]')
+        .filter({ has: page.getByText(memo, { exact: true }), visible: true })
+}
+
+// The clear box of the row that shows `memo`.
+export function lineBox(page: Page, memo: string): Locator {
+    return lineRow(page, memo).locator('[data-testid^="reconcile-check-"]')
+}
+
+// The line id of a row, from its test id `reconcile-row-<lineId>`.
+export async function lineIdOf(row: Locator): Promise<string> {
+    await expect(row).toHaveCount(1)
+    const testId = (await row.getAttribute('data-testid')) ?? ''
+    if (!testId.startsWith('reconcile-row-')) throw new Error(`no row test id: ${testId}`)
+    return testId.slice('reconcile-row-'.length)
+}
+
+// The line ids of the visible rows, in screen order, read in one snapshot (lesson 9).
+export function shownLineIds(page: Page): Promise<string[]> {
+    return page.evaluate(() =>
+        Array.from(document.querySelectorAll('[data-testid^="reconcile-row-"]'))
+            .filter(node => (node as HTMLElement).offsetParent !== null)
+            .map(node => (node.getAttribute('data-testid') ?? '').slice('reconcile-row-'.length))
+    )
+}
+
+// The difference of the visible summary band holds `text` ("$600.00").
+export async function expectDifference(page: Page, text: string): Promise<void> {
+    await expect(page.getByTestId('reconcile-difference').filter({ visible: true })).toContainText(
+        text
+    )
+}
+
 // Presses J until the row of `accountId` has the keyboard focus, or K when it is above the
 // focused row, at most once for each row on the screen (the shared database's account count
 // grows). The focused row carries data-focused="true" on the web (rowFocusStyle).

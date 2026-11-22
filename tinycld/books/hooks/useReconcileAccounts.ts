@@ -11,6 +11,7 @@ import { materialize } from 'pbtsdb'
 import { type RefObject, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { compareNumbers, compareText } from '../lib/account-tree'
 import { accountBalanceTotals } from '../lib/accounts-query'
+import { releaseDomFocus } from '../lib/dom-focus'
 import { movedFocus } from '../lib/list-shortcuts'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
 import {
@@ -43,17 +44,6 @@ type KeyAction = ReconcileAccountKeyAction
 function noMenuLayerOpen(): boolean {
     const layer = topLayer()
     return layer === null || layer.isModal
-}
-
-// A mouse press leaves DOM focus on the pressed row or button, and react-native-web presses
-// that element on plain Enter before the list sees the key. A movement key makes the
-// focused row the place ↵ acts on, so it drops that focus (as useReviewShortcuts does).
-function releaseDomFocus() {
-    if (typeof document === 'undefined') return
-    const active = document.activeElement
-    if (!(active instanceof HTMLElement) || active === document.body) return
-    if (active.isContentEditable || active.matches('input, textarea, select')) return
-    active.blur()
 }
 
 function relayTo(ref: RefObject<Record<KeyAction, () => void>>): Record<KeyAction, () => void> {
