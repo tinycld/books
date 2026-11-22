@@ -98,6 +98,7 @@ func oauthPackage() oauth.Package {
 			depositLinesCollection:             rw,
 			"books_undeposited_items":          ro,
 			"books_cash_basis_lines":           ro,
+			"books_cash_basis_balances":        ro,
 			"books_cash_basis_tax_lines":       ro,
 			"books_party_contacts":             rw,
 			"books_party_balances":             ro,

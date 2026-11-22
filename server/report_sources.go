@@ -77,6 +77,10 @@ func reportSources() []reports.Source {
 		},
 		{
 			Key: "books.journal_lines", Collection: "books_journal_lines", Label: "Journal lines",
+			// The largest Books table: a report over it is not re-run on
+			// every change (the reader presses Refresh). A shipped report
+			// that stays fast on a large book sets Shipped.Live.
+			NotLive: true,
 			Fields: []reports.Field{
 				{Key: "debit", Label: "Debit", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
 				{Key: "credit", Label: "Credit", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
@@ -98,9 +102,32 @@ func reportSources() []reports.Source {
 			Key: "books.account_balances", Collection: "books_account_balances", Label: "Monthly account balances",
 			Fields: []reports.Field{
 				{Key: "period", Label: "Month", Type: reports.Text, Aggregates: reports.MinMax},
+				// The first day of the row's month, so a report compares a month
+				// with a day (the General Ledger's beginning balance).
+				{Key: "month_start", Label: "Month start", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
 				{Key: "debit_total", Label: "Debit total", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
 				{Key: "credit_total", Label: "Credit total", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
-				{Key: "currency", Label: "Currency", Type: reports.Text},
+				// A month row's totals are sums of the account's journal lines, in
+				// the lines' currency, so a report adds stored months to lines.
+				{Key: "currency", Label: "Currency", Type: reports.Text, SameCurrencyAs: "books.journal_lines.currency"},
+			},
+			Links: []reports.Link{
+				{Key: "account", Label: "Account", Target: "books.accounts", Cardinality: reports.ToOne, Field: "account"},
+			},
+		},
+		{
+			// The cash-basis rows added up by account and month
+			// (cash_balances.go): what a Cash statement reads for the months
+			// before its day's month, beside the ledger's stored months.
+			Key: "books.cash_basis_balances", Collection: cashBalancesCollection, Label: "Monthly cash-basis balances",
+			Fields: []reports.Field{
+				{Key: "period", Label: "Month", Type: reports.Text, Aggregates: reports.MinMax},
+				{Key: "month_start", Label: "Month start", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
+				{Key: "debit_total", Label: "Debit total", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+				{Key: "credit_total", Label: "Credit total", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+				// A cash row carries its journal line's currency, and so does its
+				// month, so a report adds stored cash months to lines.
+				{Key: "currency", Label: "Currency", Type: reports.Text, SameCurrencyAs: "books.journal_lines.currency"},
 			},
 			Links: []reports.Link{
 				{Key: "account", Label: "Account", Target: "books.accounts", Cardinality: reports.ToOne, Field: "account"},
@@ -230,6 +257,8 @@ var basisLineColumns = []string{
 func basisLinesSource() reports.Source {
 	return reports.Source{
 		Key: "books.basis_lines", Label: "Journal lines by basis",
+		// It reads the journal lines, so it is not live either.
+		NotLive: true,
 		Parts: []reports.SourcePart{
 			{Collection: "books_journal_lines", Columns: sameNames(basisLineColumns...), Values: map[string]any{"layer": "ledger"}},
 			{Collection: "books_cash_basis_lines", Columns: sameNames(basisLineColumns...), Values: map[string]any{"layer": "cash"}},
@@ -240,7 +269,9 @@ func basisLinesSource() reports.Source {
 			{Key: "memo", Label: "Memo", Type: reports.Text},
 			{Key: "date", Label: "Date", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
 			{Key: "posted", Label: "Posted", Type: reports.Bool},
-			{Key: "currency", Label: "Currency", Type: reports.Text},
+			// Both parts carry their journal line's currency, so a statement adds
+			// the stored months (books.account_balances) to these lines.
+			{Key: "currency", Label: "Currency", Type: reports.Text, SameCurrencyAs: "books.journal_lines.currency"},
 			{Key: "position", Label: "Position", Type: reports.Number},
 			{Key: "layer", Label: "Layer", Type: reports.Select, Options: []reports.Option{
 				{Value: "ledger", Label: "Ledger"},

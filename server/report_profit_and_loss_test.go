@@ -40,7 +40,7 @@ func runPL(t *testing.T, app core.App, shipped reports.Shipped, reader *core.Rec
 		given[id] = raw
 	}
 	res, err := reports.Run(context.Background(), app, reports.Request{
-		Spec: spec, Loaded: info, Params: given, Options: opts, Auth: reader,
+		Spec: spec, Loaded: info, Params: given, Options: opts, Auth: reader, Live: shipped.Live,
 	})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -1152,22 +1152,9 @@ func TestProfitAndLossTopics(t *testing.T) {
 		if !plHasRow(t, res, rent) {
 			t.Fatalf("the by-month run has no Rent or lease row; rows %v", plRowTexts(res.Rows))
 		}
-		// The by-month report has no opened lines, so it reads no entry field:
-		// a post or a void reaches it through the lines it stamps (posting sets
-		// a line's posted and date; a void posts reversal lines).
-		for _, topic := range []string{
-			"collection/books_journal_lines", "collection/books_accounts", "collection/books_settings",
-		} {
-			if !slices.Contains(res.Topics, topic) {
-				t.Errorf("topics = %v, want %s", res.Topics, topic)
-			}
-		}
-		// Plan D13: three topics. A books_journal_entries topic would re-run
-		// the report on every entry write (a draft save, a memo edit) that
-		// changes no figure it shows.
-		if slices.Contains(res.Topics, "collection/books_journal_entries") {
-			t.Errorf("topics = %v, want no collection/books_journal_entries (D13)", res.Topics)
-		}
+		// The by-month report reads every journal line of the period, so it
+		// is not live: it follows no topic, and the reader presses Refresh.
+		requireManual(t, res)
 	})
 }
 

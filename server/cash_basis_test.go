@@ -183,6 +183,7 @@ func requireNoCashDrift(t testing.TB, app core.App) {
 	if len(drifts) != 0 {
 		t.Errorf("the cash-basis rows drift from a full rebuild: %+v", drifts)
 	}
+	requireCashMonthsEqualRows(t, app)
 }
 
 // cashBillEnv is a bill payment env with 6100 Office Expenses beside 6200

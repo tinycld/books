@@ -346,6 +346,7 @@ type BalanceSeed = Pick<BooksAccountBalances, 'account' | 'period' | 'debit_tota
 function balance(seed: BalanceSeed): BooksAccountBalances {
     return {
         id: `bal_${seed.account.slice(-8)}_${seed.period.replace('-', '')}`,
+        month_start: `${seed.period}-01`,
         currency: 'USD',
         created: '2026-01-01 00:00:00.000Z',
         updated: '2026-01-01 00:00:00.000Z',

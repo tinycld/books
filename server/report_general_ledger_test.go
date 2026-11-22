@@ -357,8 +357,8 @@ func TestGeneralLedgerSpecLoads(t *testing.T) {
 	if shipped.Description != "Every posted line, grouped by account, for a period." {
 		t.Errorf("description = %q", shipped.Description)
 	}
-	if shipped.Revision != 2 || !shipped.Unpublished {
-		t.Errorf("revision %d, unpublished %v; want revision 2 (detail.open), shipped unpublished", shipped.Revision, shipped.Unpublished)
+	if shipped.Revision != 3 || !shipped.Unpublished {
+		t.Errorf("revision %d, unpublished %v; want revision 3 (the beginning balance reads the stored months), shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	built, err := json.Marshal(generalLedgerSpec())
 	if err != nil {
@@ -1063,8 +1063,8 @@ func TestGeneralLedgerPaging(t *testing.T) {
 	}
 }
 
-// Every collection the run reads is a topic, so a post, a void, an account
-// edit, a customer or vendor rename or a settings change re-runs the report.
+// The report reads every journal line, so it is not live: its run is manual
+// and follows no topic; the reader presses Refresh.
 func TestGeneralLedgerTopics(t *testing.T) {
 	b := newGLBook(t)
 	operating := b.account(t, "Operating", "1000", "bank", "checking")
@@ -1072,14 +1072,7 @@ func TestGeneralLedgerTopics(t *testing.T) {
 	b.post(t, "2026-08-04", ln{rent, 4000, 0}, ln{operating, 0, 4000})
 
 	res := runGL(t, b.app, b.reader, map[string]any{"period": glPeriod("2026-08-01", "2026-08-31")}, reports.Options{Today: glToday})
-	for _, topic := range []string{
-		"collection/books_journal_lines", "collection/books_journal_entries", "collection/books_accounts",
-		"collection/books_customers", "collection/books_vendors", "collection/books_settings",
-	} {
-		if !slices.Contains(res.Topics, topic) {
-			t.Errorf("topics = %v, want %s", res.Topics, topic)
-		}
-	}
+	requireManual(t, res)
 }
 
 func TestGeneralLedgerNoAccess(t *testing.T) {
@@ -1151,7 +1144,7 @@ func TestGeneralLedgerShippedUnpublished(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "General Ledger" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.journal_lines" {
+	if row.GetString("title") != "General Ledger" || row.GetInt("shipped_revision") != 3 || row.GetString("source") != "books.journal_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {
@@ -1301,6 +1294,14 @@ func TestGeneralLedgerSpecUnchanged(t *testing.T) {
 	}
 	golden := strings.Replace(generalLedgerSpecGolden, detail,
 		`"detail":{"label":{"path":[{"field":"date"}]},"open":`+string(mustJSON(entryOpenPath()))+`}`, 1)
+	// The golden holds the beginning balance as the report read it from the
+	// journal lines. The report now reads the stored months: that formula is
+	// pinned by generalLedgerOpeningGolden.
+	fromLines := string(mustJSON(glOpeningFromLines()))
+	if n := strings.Count(golden, fromLines); n != 7 {
+		t.Fatalf("the golden holds the beginning balance from the lines %d times, want 7", n)
+	}
+	golden = strings.ReplaceAll(golden, fromLines, generalLedgerOpeningGolden)
 	got := string(mustJSON(generalLedgerSpec()))
 	if got == golden {
 		return

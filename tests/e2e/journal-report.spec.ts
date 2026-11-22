@@ -14,9 +14,11 @@ import {
     GL_DAY_2,
     type GlSnapshot,
     glSnapshot,
+    holdReportRuns,
     openEntriesFromSidebar,
     openJournal,
     postEntryOn,
+    refreshReport,
     voidPostedEntry,
 } from './books-report-helpers'
 import { createCustomer } from './customer-form-helpers'
@@ -1195,19 +1197,13 @@ test.describe('journal-report: report', () => {
         })
         // The first next page waits until the test has seen the list ask for it. The cursor
         // of that held request names the first page the list follows.
-        let release = () => {}
-        const held = new Promise<void>(resolve => {
-            release = resolve
-        })
         let heldCursor = ''
-        await page.route('**/api/reports/run', async route => {
-            const body = route.request().postDataJSON() as SentRun | null
+        const release = await holdReportRuns(page, request => {
+            const body = request.postDataJSON() as SentRun | null
             const cursor = body?.options?.cursor ?? ''
-            if (cursor) {
-                if (heldCursor === '') heldCursor = cursor
-                await held
-            }
-            await route.continue()
+            if (!cursor) return false
+            if (heldCursor === '') heldCursor = cursor
+            return true
         })
 
         await choosePeriod(page, { from, to })
@@ -1317,7 +1313,7 @@ test.describe('journal-report: report', () => {
         await page.unrouteAll({ behavior: 'wait' })
     })
 
-    test('a post made on another page appears as a new block in the open Journal without a reload', async ({
+    test('a post made on another page appears as a new block in the open Journal after Refresh, without a reload', async ({
         page,
         browser,
     }) => {
@@ -1355,10 +1351,12 @@ test.describe('journal-report: report', () => {
         const heading = `${await openEntryNumber(other)} · Journal entry`
         await otherContext.close()
 
+        // The Journal is not live: the post shows when the reader presses Refresh.
+        await refreshReport(page)
         const live = await journalWhen(
             page,
             s => hasTotal(s) && linesOf(s, heading).length === 2,
-            'the new block in the open report'
+            'the new block in the open report after Refresh'
         )
         expect(linesOf(live, heading).map(row => row.cells.description)).toEqual([memo, memo])
         expect(figure(blockTotal(live, heading)?.cells.debit)).toBe('17.00')
