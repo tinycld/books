@@ -387,15 +387,21 @@ func writeStatementsScaleOut(t *testing.T, results, plans string) {
 // periodRowsRead is true for a step that reads a line table's rows of the
 // period: a scan, or a search by the account and the day, which core's cut of
 // the rows to the open sections (an IN over gord in each part) lets SQLite
-// use. A search by entry is a page row's lookup, not the period's rows.
+// use. A search by entry is a page row's lookup, not the period's rows. The
+// account and day index of each line table has a covering form (migration
+// 2100000036); a search by either is the period's rows.
 func periodRowsRead(detail string) bool {
 	switch {
 	case detail == "SCAN books_journal_lines" || detail == "SCAN books_cash_basis_lines":
 		return true
-	case strings.HasPrefix(detail, "SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date "):
+	case strings.HasPrefix(detail, "SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date "),
+		strings.HasPrefix(detail, "SEARCH books_journal_lines USING INDEX idx_books_jlines_account_date_covering "),
+		strings.HasPrefix(detail, "SEARCH books_journal_lines USING COVERING INDEX idx_books_jlines_account_date_covering "):
 		return true
 	}
-	return strings.HasPrefix(detail, "SEARCH books_cash_basis_lines USING INDEX idx_books_cash_basis_lines_account_date ")
+	return strings.HasPrefix(detail, "SEARCH books_cash_basis_lines USING INDEX idx_books_cash_basis_lines_account_date ") ||
+		strings.HasPrefix(detail, "SEARCH books_cash_basis_lines USING INDEX idx_books_cash_basis_lines_account_date_covering ") ||
+		strings.HasPrefix(detail, "SEARCH books_cash_basis_lines USING COVERING INDEX idx_books_cash_basis_lines_account_date_covering ")
 }
 
 // readsEverySection is true when a step of the statement scans gord or searches

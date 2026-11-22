@@ -30,7 +30,7 @@ import { SALES_RECEIPT_IDS } from '../tinycld/books/lib/sales-receipt-form-fixtu
 import { SEED_ACCOUNTS } from '../tinycld/books/lib/seed-accounts'
 import { STATEMENT_SEED } from '../tinycld/books/lib/statements-fixture'
 import { VENDOR_BALANCE_SEED } from '../tinycld/books/lib/vendor-balance-fixture'
-import { VENDORS } from '../tinycld/books/lib/vendor-form-fixture'
+import { VENDOR_IDS, VENDORS } from '../tinycld/books/lib/vendor-form-fixture'
 import { VENDOR_REFUND_VENDOR_IDS } from '../tinycld/books/lib/vendor-refund-fixture'
 import {
     WRITE_OFF_INVOICES,
@@ -1048,6 +1048,221 @@ describe('seedVendorBalance', () => {
             `seed: vendor balance entry "${VENDOR_BALANCE_SEED.noVendorEntry.memo}" names an account that was not created`
         )
         expect(calls.filter(c => c.collection === 'books_journal_entries')).toEqual([])
+    })
+})
+
+// A PocketBase stand-in for seedExpensesByVendor: as recordingPb it stores and records
+// every write in order, but its books_vendors table holds only the VENDORS rows named in
+// `vendors`, and a read of any other vendor fails as PocketBase does when no row matches
+// (404). With `failPost`, the post of a journal entry (the update to status posted) fails.
+function expensesByVendorPb(vendors: readonly string[], failPost = false) {
+    const writes: Write[] = []
+    const rows = new Map<string, Record<string, unknown>>()
+    const sdk = new PocketBase('http://127.0.0.1')
+    let next = 0
+    const vendorRows = VENDORS.filter(row => vendors.includes(row.id)).map(row => ({ ...row }))
+    const notFound = (name: string) =>
+        new ClientResponseError({
+            url: `http://127.0.0.1/api/collections/${name}/records`,
+            status: 404,
+            response: { code: 404, message: "The requested resource wasn't found.", data: {} },
+        })
+    const vendorCollection = {
+        update: async (id: string, data: Record<string, unknown>) => {
+            const row = vendorRows.find(r => r.id === id)
+            if (row === undefined) throw notFound('books_vendors')
+            writes.push({ op: 'update', collection: 'books_vendors', id, data })
+            return { ...row, ...data }
+        },
+        getOne: async (id: string) => {
+            const row = vendorRows.find(r => r.id === id)
+            if (row === undefined) throw notFound('books_vendors')
+            return row
+        },
+        getFirstListItem: async (filter: string) => {
+            const row = vendorRows.find(r => filter.includes(r.id))
+            if (row === undefined) throw notFound('books_vendors')
+            return row
+        },
+        getFullList: async (options?: { filter?: string }) => {
+            const filter = options?.filter
+            return filter === undefined ? vendorRows : vendorRows.filter(r => filter.includes(r.id))
+        },
+        getList: async (_page = 1, _perPage = 30, options?: { filter?: string }) => {
+            const filter = options?.filter
+            const items =
+                filter === undefined ? vendorRows : vendorRows.filter(r => filter.includes(r.id))
+            return {
+                page: 1,
+                perPage: items.length,
+                totalItems: items.length,
+                totalPages: 1,
+                items,
+            }
+        },
+    }
+    const collection = (name: string) => {
+        if (name === 'books_vendors') return vendorCollection
+        return {
+            create: async (data: Record<string, unknown>) => {
+                next += 1
+                const id =
+                    typeof data.id === 'string' ? data.id : `rec${String(next).padStart(12, '0')}`
+                const row = { revision: 0, ...data, id }
+                rows.set(`${name}/${id}`, row)
+                writes.push({ op: 'create', collection: name, id, data })
+                return row
+            },
+            update: async (id: string, data: Record<string, unknown>) => {
+                if (failPost && name === 'books_journal_entries' && data.status === 'posted') {
+                    throw new ClientResponseError({
+                        url: `http://127.0.0.1/api/collections/${name}/records/${id}`,
+                        status: 400,
+                        response: { code: 400, message: 'the post failed', data: {} },
+                    })
+                }
+                const row = { ...(rows.get(`${name}/${id}`) ?? { id }), ...data }
+                rows.set(`${name}/${id}`, row)
+                writes.push({ op: 'update', collection: name, id, data })
+                return row
+            },
+            getOne: async (id: string) => rows.get(`${name}/${id}`) ?? { id, revision: 0 },
+        }
+    }
+    const pb = {
+        collection,
+        filter: (raw: string, params?: Record<string, unknown>) => sdk.filter(raw, params),
+    }
+    return { pb, writes }
+}
+
+const EBV_VENDORS = [VENDOR_IDS.coastalCoffee, VENDOR_IDS.willamette]
+
+// Expenses by Vendor plan D5: one posted journal entry on 6200 Software Subscriptions with
+// a debit naming the inactive Coastal Coffee Roasters, a debit naming Willamette Valley
+// and a credit naming no vendor. The line guard refuses a new line for an inactive vendor,
+// so Coastal Coffee Roasters is made active for the post and inactive again after it.
+describe('seedExpensesByVendor', () => {
+    it('runs directly after the Vendor Balance seed', () => {
+        const source = readFileSync(seedPath, 'utf8')
+        const start = source.indexOf('export default async function seed(')
+        const body = source.slice(start, source.indexOf('\n}\n', start))
+        const calls = [...body.matchAll(/\bseed[A-Z]\w*\(/g)].map(match => match[0])
+        const vendorBalance = calls.indexOf('seedVendorBalance(')
+        expect(vendorBalance).toBeGreaterThan(-1)
+        expect(calls[vendorBalance + 1]).toBe('seedExpensesByVendor(')
+    })
+
+    it('posts one entry with the three D5 lines, with Coastal Coffee Roasters active only for the post', async () => {
+        const seedExpensesByVendor = (seedModule as Record<string, unknown>).seedExpensesByVendor
+        expect(typeof seedExpensesByVendor).toBe('function')
+        if (typeof seedExpensesByVendor !== 'function') return
+        const { pb, writes } = expensesByVendorPb(EBV_VENDORS)
+        const accounts = seededAccounts()
+        await seedExpensesByVendor(pb, { user: USER }, accounts)
+
+        const software = accounts.get('6200')
+        expect(software).toBeDefined()
+        const coastal = VENDORS.find(row => row.id === VENDOR_IDS.coastalCoffee)
+        expect(coastal?.display_name).toBe('Coastal Coffee Roasters')
+        expect(coastal?.inactive).toBe(true)
+
+        const entries = writes.filter(
+            w => w.collection === 'books_journal_entries' && w.op === 'create'
+        )
+        expect(entries.map(w => ({ date: w.data.date, memo: w.data.memo }))).toEqual([
+            { date: '2026-09-16', memo: 'Seed expenses by vendor: software by vendor' },
+        ])
+        const entry = entries[0]
+        if (!entry) return
+        const lines = writes.filter(
+            w => w.collection === 'books_journal_lines' && w.data.entry === entry.id
+        )
+        expect(
+            lines.map(w => ({
+                account: w.data.account,
+                debit: w.data.debit,
+                credit: w.data.credit,
+                customer: w.data.customer,
+                vendor: w.data.vendor ?? '',
+            }))
+        ).toEqual([
+            {
+                account: software,
+                debit: 9600,
+                credit: 0,
+                customer: '',
+                vendor: VENDOR_IDS.coastalCoffee,
+            },
+            {
+                account: software,
+                debit: 18400,
+                credit: 0,
+                customer: '',
+                vendor: VENDOR_IDS.willamette,
+            },
+            { account: software, debit: 0, credit: 28000, customer: '', vendor: '' },
+        ])
+        expect(finalStatus(writes, 'books_journal_entries', entry.id)).toBe('posted')
+
+        const vendorWrites = writes.filter(w => w.collection === 'books_vendors')
+        expect(vendorWrites.map(w => [w.op, w.id, w.data])).toEqual([
+            ['update', VENDOR_IDS.coastalCoffee, { inactive: false }],
+            ['update', VENDOR_IDS.coastalCoffee, { inactive: true }],
+        ])
+        const at = (w: Write | undefined) => (w ? writes.indexOf(w) : -1)
+        const post = writes.find(
+            w =>
+                w.collection === 'books_journal_entries' &&
+                w.id === entry.id &&
+                w.data.status === 'posted'
+        )
+        expect(at(vendorWrites[0])).toBeLessThan(at(lines[0]))
+        expect(at(vendorWrites[1])).toBeGreaterThan(at(post))
+    })
+
+    it('throws when account 6200 was not created', async () => {
+        const seedExpensesByVendor = (seedModule as Record<string, unknown>).seedExpensesByVendor
+        expect(typeof seedExpensesByVendor).toBe('function')
+        if (typeof seedExpensesByVendor !== 'function') return
+        const { pb, writes } = expensesByVendorPb(EBV_VENDORS)
+        const accounts = seededAccounts()
+        accounts.delete('6200')
+        await expect(seedExpensesByVendor(pb, { user: USER }, accounts)).rejects.toThrow()
+        expect(writes.filter(w => w.collection === 'books_journal_entries')).toEqual([])
+    })
+
+    it.each([
+        ['Coastal Coffee Roasters', VENDOR_IDS.coastalCoffee, VENDOR_IDS.willamette],
+        ['Willamette', VENDOR_IDS.willamette, VENDOR_IDS.coastalCoffee],
+    ])('throws its own error before any write when %s was not created in the database', async (_name, missing, present) => {
+        const seedExpensesByVendor = (seedModule as Record<string, unknown>).seedExpensesByVendor
+        expect(typeof seedExpensesByVendor).toBe('function')
+        if (typeof seedExpensesByVendor !== 'function') return
+        // The vendor is still in the VENDORS fixture; only its database row is missing.
+        expect(VENDORS.some(row => row.id === missing)).toBe(true)
+        const { pb, writes } = expensesByVendorPb([present])
+        const failure = seedExpensesByVendor(pb, { user: USER }, seededAccounts())
+        await expect(failure).rejects.toThrow(/^seed: expenses by vendor/)
+        await expect(failure).rejects.toThrow(missing)
+        await expect(failure).rejects.not.toBeInstanceOf(ClientResponseError)
+        expect(writes).toEqual([])
+    })
+
+    it('makes Coastal Coffee Roasters inactive again when the post fails', async () => {
+        const seedExpensesByVendor = (seedModule as Record<string, unknown>).seedExpensesByVendor
+        expect(typeof seedExpensesByVendor).toBe('function')
+        if (typeof seedExpensesByVendor !== 'function') return
+        const { pb, writes } = expensesByVendorPb(EBV_VENDORS, true)
+        await expect(seedExpensesByVendor(pb, { user: USER }, seededAccounts())).rejects.toThrow(
+            'the post failed'
+        )
+        const vendorWrites = writes.filter(w => w.collection === 'books_vendors')
+        expect(vendorWrites.map(w => [w.op, w.id, w.data])).toEqual([
+            ['update', VENDOR_IDS.coastalCoffee, { inactive: false }],
+            ['update', VENDOR_IDS.coastalCoffee, { inactive: true }],
+        ])
+        expect(writes[writes.length - 1]).toEqual(vendorWrites[1])
     })
 })
 

@@ -22,6 +22,8 @@ import { describe, expect, it } from 'vitest'
 // migration takes 2100000029, the number left free between the receivable items and the
 // bank matches, after the bills, bill payments, vendor credits and vendor refunds it
 // reads; books_payable_items is stored, not audited, and the audit view does not read it.
+// Expenses by Vendor (D11): the covering line indexes take 2100000036, after the audit
+// view, because they add indexes only and create no collection the view reads.
 
 const MIGRATIONS_DIR = join(__dirname, '..', 'pb-migrations')
 
@@ -31,7 +33,10 @@ const MIGRATIONS = readdirSync(MIGRATIONS_DIR)
 
 const AUDIT = '2100000034_create_books_audit_log.js'
 
-const AFTER_AUDIT: string[] = ['2100000035_create_books_bank_categorizations.js']
+const AFTER_AUDIT: string[] = [
+    '2100000035_create_books_bank_categorizations.js',
+    '2100000036_index_books_lines_account_date_covering.js',
+]
 
 function prefixOf(file: string): string {
     return file.split('_')[0] ?? file
