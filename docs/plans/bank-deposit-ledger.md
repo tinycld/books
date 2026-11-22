@@ -102,6 +102,8 @@
 - reviewer-caught deferrals: none genuine; the five listed were plan-text differences the implementers self-declared (rebutted or scheduled for checkpoint 3).
 - fix-round causes: other: new record route missing from a shared route table 1, record-state 1, conformance 1, appearance 1 (cp2-fix-r1.md)
 - out-of-plan files: `components/deposits/DepositBackLink.tsx`, `lib/deposit-kind.ts`, `hooks/useBackToEntries.ts` (fix item 1), `lib/audit-record-route.ts` (`isDocType` export), `tests/back-to-entries.test.ts`
+- commit: 72f56e49
+- human: none (review mode C)
 
 ## Final review
 - eval:
