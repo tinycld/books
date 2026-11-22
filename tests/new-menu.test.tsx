@@ -216,6 +216,35 @@ describe('NewMenu', () => {
         )
     })
 
+    // The real registry: Bank deposit follows Transfer in the Other column (bank deposit
+    // spec §2).
+    it('lists Bank deposit right after Transfer in Other and opens books/deposits/new from it', () => {
+        const registry = newMenuForAccess(access, NEW_ACTIONS)
+        const other = registry.find(column => column.heading === 'Other')
+        const ids = other?.actions.map(action => action.id) ?? []
+        expect(ids).toContain('deposit')
+        expect(ids.indexOf('deposit')).toBe(ids.indexOf('transfer') + 1)
+
+        const { onSelect } = renderOpenMenu(registry)
+        const transfer = byTestId(document.body, 'books-new-transfer')
+        const deposit = byTestId(document.body, 'books-new-deposit')
+        expect(transfer).not.toBeNull()
+        expect(deposit).not.toBeNull()
+        if (!transfer || !deposit) return
+        expect(deposit.textContent).toContain('Bank deposit')
+        expect(
+            transfer.compareDocumentPosition(deposit) & Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy()
+        fireEvent.click(deposit)
+        expect(onSelect).toHaveBeenCalledWith(
+            expect.objectContaining({
+                id: 'deposit',
+                label: 'Bank deposit',
+                href: 'books/deposits/new',
+            })
+        )
+    })
+
     // Refund receipt spec §3.13: the customer page's New transaction menu lists it.
     it('gives the refund_receipt action takesCustomer', () => {
         expect(NEW_ACTIONS.find(action => action.id === 'refund_receipt')).toMatchObject({

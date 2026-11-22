@@ -66,6 +66,18 @@ describe('audit log fixture against the Go golden spec', () => {
         expect(golden.recordTypeOptions).toEqual(AUDIT_RECORD_TYPE_OPTIONS)
     })
 
+    // Bank deposit spec §3.7: the Record type chip grows by the deposit, its item and its line.
+    it('offers the deposit, the deposit item and the deposit line as record types', () => {
+        for (const option of [
+            { value: 'books_deposits', label: 'Deposit' },
+            { value: 'books_deposit_items', label: 'Deposit item' },
+            { value: 'books_deposit_lines', label: 'Deposit line' },
+        ]) {
+            expect(AUDIT_RECORD_TYPE_OPTIONS).toContainEqual(option)
+            expect(golden.recordTypeOptions).toContainEqual(option)
+        }
+    })
+
     it('draws the rows with the display the report ships with', () => {
         expect(AUDIT_LOG_DISPLAY).toEqual(golden.display)
         expect(AUDIT_LOG_DISPLAY).toEqual(golden.spec.display)

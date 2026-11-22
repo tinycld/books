@@ -304,6 +304,26 @@ describe('a write-off entry', () => {
     })
 })
 
+// A deposit's entry (bank deposit spec §3.7): it opens on its deposit, is edited as a
+// correction of it, its void reversal opens as an entry, and it is never reversed by
+// itself.
+describe('a deposit entry', () => {
+    it('opens on its deposit, edits as a correction of it, and offers Open and Edit but no Reverse', () => {
+        expect(entryHref(entry('deposit', 'document', 'd1'))).toBe('books/deposits/d1')
+        expect(entryEditHref(entry('deposit', 'document', 'd1'))).toBe(
+            'books/deposits/new?replaces=d1'
+        )
+        expect(entryHref(entry('deposit', 'void_reversal'))).toBe('books/entries/a')
+        const actions = entryActions(
+            { status: 'posted', origin: 'document', doc_type: 'deposit', isReversed: false },
+            { canWrite: true }
+        )
+        expect(actions).toContain('open')
+        expect(actions).toContain('edit')
+        expect(actions).not.toContain('reverse')
+    })
+})
+
 // A bill payment's entry (pay-bills spec §4.2): it opens on its bill payment.
 describe('a bill payment entry', () => {
     it('opens on its bill payment', () => {

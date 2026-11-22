@@ -1,0 +1,124 @@
+{
+    "validity": [
+        {
+            "name": "one item and one other funds line",
+            "at": "post",
+            "date": "2026-11-16",
+            "items": [{ "amount": 5000, "date": "2026-11-10" }],
+            "lines": [{ "account": "income", "amount": 1240 }],
+            "key": "",
+            "message": ""
+        },
+        {
+            "name": "an other funds amount of 0",
+            "at": "line",
+            "date": "2026-11-16",
+            "items": [{ "amount": 5000, "date": "2026-11-10" }],
+            "lines": [{ "account": "income", "amount": 0 }],
+            "key": "lines.0.amount",
+            "message": "Enter an amount other than 0"
+        },
+        {
+            "name": "an other funds amount over the stored-amount limit",
+            "at": "line",
+            "date": "2026-11-16",
+            "items": [{ "amount": 5000, "date": "2026-11-10" }],
+            "lines": [{ "account": "income", "amount": 9007199254740992 }],
+            "key": "lines.0.amount",
+            "message": "The amount is more than Books can store"
+        },
+        {
+            "name": "the 501st item",
+            "at": "item",
+            "date": "2026-11-16",
+            "items": [{ "amount": 100, "date": "2026-11-10" }],
+            "itemCount": 501,
+            "lines": [],
+            "key": "",
+            "message": "A deposit holds at most 500 items."
+        },
+        {
+            "name": "the 101st other funds line",
+            "at": "line",
+            "date": "2026-11-16",
+            "items": [],
+            "lines": [{ "account": "income", "amount": 100 }],
+            "lineCount": 101,
+            "key": "",
+            "message": "A deposit holds at most 100 other funds lines."
+        },
+        {
+            "name": "a deposit total of zero",
+            "at": "post",
+            "date": "2026-11-16",
+            "items": [{ "amount": 5000, "date": "2026-11-10" }],
+            "lines": [{ "account": "expense", "amount": -5000 }],
+            "key": "",
+            "message": "The deposit total must be above $0.00."
+        },
+        {
+            "name": "a deposit total below zero",
+            "at": "post",
+            "date": "2026-11-16",
+            "items": [{ "amount": 2000, "date": "2026-11-10" }],
+            "lines": [{ "account": "expense", "amount": -5000 }],
+            "key": "",
+            "message": "The deposit total must be above $0.00."
+        },
+        {
+            "name": "an item dated after the deposit date",
+            "at": "post",
+            "date": "2026-10-10",
+            "items": [{ "amount": 5000, "date": "2026-10-12", "docType": "payment", "number": "1004" }],
+            "lines": [],
+            "key": "items.0",
+            "message": "Payment 1004 is dated after the deposit date.",
+            "clientMessage": "Payment 1004 is dated Oct 12, 2026, after the deposit date."
+        },
+        {
+            "name": "an other funds line on Accounts receivable",
+            "at": "line",
+            "date": "2026-11-16",
+            "items": [{ "amount": 5000, "date": "2026-11-10" }],
+            "lines": [{ "account": "accounts_receivable", "amount": 1000 }],
+            "key": "lines.0.account",
+            "message": "Choose an account other than Accounts receivable or Accounts payable"
+        },
+        {
+            "name": "an other funds line on Accounts payable",
+            "at": "line",
+            "date": "2026-11-16",
+            "items": [{ "amount": 5000, "date": "2026-11-10" }],
+            "lines": [{ "account": "accounts_payable", "amount": 1000 }],
+            "key": "lines.0.account",
+            "message": "Choose an account other than Accounts receivable or Accounts payable"
+        },
+        {
+            "name": "an other funds line on an inactive account",
+            "at": "line",
+            "date": "2026-11-16",
+            "items": [{ "amount": 5000, "date": "2026-11-10" }],
+            "lines": [{ "account": "inactive", "amount": 1000 }],
+            "key": "lines.0.account",
+            "message": "6900 Old fees is inactive. Choose an active account"
+        },
+        {
+            "name": "an other funds line on the Deposit to account",
+            "at": "line",
+            "date": "2026-11-16",
+            "items": [{ "amount": 5000, "date": "2026-11-10" }],
+            "lines": [{ "account": "deposit_to", "amount": 1000 }],
+            "key": "lines.0.account",
+            "message": "Choose an account other than the Deposit to account"
+        }
+    ],
+    "nouns": [
+        { "docType": "payment", "number": "1004", "label": "Payment 1004" },
+        { "docType": "sales_receipt", "number": "1001", "label": "Sales receipt 1001" },
+        { "docType": "vendor_refund", "number": "1002", "label": "Vendor refund 1002" },
+        { "docType": "refund_receipt", "number": "1003", "label": "Refund receipt 1003" },
+        { "docType": "journal", "number": "12", "label": "Journal entry 12" },
+        { "docType": "transfer", "number": "3", "label": "Transfer 3" },
+        { "docType": "deposit", "number": "1004", "label": "Deposit 1004" }
+    ]
+}

@@ -65,6 +65,7 @@ describe('purchaseAccountOptions', () => {
             { id: idOf('6100'), label: '6100 Rent', indent: 0 },
             { id: idOf('6200'), label: '6200 Software Subscriptions', indent: 0 },
             { id: idOf('6210'), label: '6210 Design Tools', indent: 1 },
+            { id: idOf('6300'), label: '6300 Bank charges and fees', indent: 0 },
             { id: idOf('7000'), label: '7000 Bank fees', indent: 0 },
         ])
     })

@@ -37,8 +37,8 @@
 // prefix (booksseqbill000), and so do expenses (booksseqexpense), received
 // payments (booksseqpayment), bill payments (booksseqbillpay), credit memos
 // (booksseqcreditm), vendor credits (booksseqvcredit), vendor refunds
-// (booksseqvrefund), refund receipts (booksseqrefundr) and write-offs
-// (booksseqwriteof). Customer statements number on their own from ST-1001
+// (booksseqvrefund), refund receipts (booksseqrefundr), write-offs
+// (booksseqwriteof) and bank deposits (booksseqdeposit). Customer statements number on their own from ST-1001
 // (booksseqstatemt); a statement takes its number when it is saved, and a
 // statement is not a journal entry, so the guard reads its highest number from
 // books_statements.
@@ -156,6 +156,7 @@ migrate(
                         'vendor_refund',
                         'refund_receipt',
                         'write_off',
+                        'deposit',
                         'statement',
                     ],
                 },
@@ -257,6 +258,12 @@ migrate(
         writeOff.set('prefix', '')
         writeOff.set('next_number', 1001)
         app.save(writeOff)
+        const deposit = new Record(sequences)
+        deposit.set('id', 'booksseqdeposit')
+        deposit.set('doc_type', 'deposit')
+        deposit.set('prefix', '')
+        deposit.set('next_number', 1001)
+        app.save(deposit)
         const statement = new Record(sequences)
         statement.set('id', 'booksseqstatemt')
         statement.set('doc_type', 'statement')

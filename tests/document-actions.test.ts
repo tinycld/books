@@ -18,6 +18,7 @@ import {
     BILL_KIND,
     CREDIT_MEMO_KIND,
     EXPENSE_KIND,
+    REFUND_RECEIPT_KIND,
     SALES_FEATURES,
     SALES_RECEIPT_KIND,
     VENDOR_CREDIT_KIND,
@@ -841,6 +842,56 @@ describe('Apply credit on an invoice', () => {
                 canApplyInvoiceCredit: true,
             })
         ).toEqual(['copy', 'entry', 'pdf'])
+    })
+})
+
+// A sales receipt or refund receipt that a posted deposit holds (bank deposit spec §3.10):
+// `extra.isDeposited` takes Edit and Void away and keeps every other action in its place.
+// The field is optional, so every call above (with no `isDeposited`) is unchanged.
+describe('a deposited document', () => {
+    const NONE = { canReceivePayment: false, canPayBill: false, canCreateCreditMemo: false }
+
+    it('a deposited sales receipt loses Edit and Void and keeps Copy, Refund, View journal entry and Download PDF', () => {
+        const extra = { ...NONE, canRefund: true }
+        expect(
+            documentReadActions('posted', true, SALES_RECEIPT_KIND.features, {
+                ...extra,
+                isDeposited: true,
+            })
+        ).toEqual(['copy', 'refund', 'entry', 'pdf'])
+        expect(
+            documentReadActions('posted', true, SALES_RECEIPT_KIND.features, {
+                ...extra,
+                isDeposited: false,
+            })
+        ).toEqual(['edit', 'void', 'copy', 'refund', 'entry', 'pdf'])
+    })
+
+    it('a deposited refund receipt loses Edit and Void and keeps Copy, View journal entry and Download PDF', () => {
+        expect(
+            documentReadActions('posted', true, REFUND_RECEIPT_KIND.features, {
+                ...NONE,
+                isDeposited: true,
+            })
+        ).toEqual(['copy', 'entry', 'pdf'])
+        expect(
+            documentReadActions('posted', true, REFUND_RECEIPT_KIND.features, {
+                ...NONE,
+                isDeposited: false,
+            })
+        ).toEqual(['edit', 'void', 'copy', 'entry', 'pdf'])
+    })
+
+    it('keeps the reader and the void receipt as they are', () => {
+        const deposited = { ...NONE, isDeposited: true }
+        expect(
+            documentReadActions('posted', false, SALES_RECEIPT_KIND.features, deposited)
+        ).toEqual(['entry', 'pdf'])
+        expect(documentReadActions('void', true, SALES_RECEIPT_KIND.features, deposited)).toEqual([
+            'copy',
+            'entry',
+            'pdf',
+        ])
     })
 })
 
