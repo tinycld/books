@@ -89,6 +89,7 @@ and again at the end)
 - fix review: round 1 (staging `cp/cp1-fix-review.md`): 0 BLOCK, 1 NOTE (to Design notes), 0 not fixed
 - gate 3 A notes: 1 (NOTE 5), listed under Design notes
 - reviewer-caught deferrals: none
+- commit: b25180e3
 
 ## Final review
 - eval: (unattended only) approved | revised → <notes, fix sha> | stopped
