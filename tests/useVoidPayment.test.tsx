@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { useVoidPayment } from '../tinycld/books/hooks/useVoidPayment'
+import { useVoidDialogState, useVoidPayment } from '../tinycld/books/hooks/useVoidPayment'
 import {
     type PaymentCollectionName,
     paymentReadActions,
@@ -152,5 +152,75 @@ describe.each(COLLECTIONS)('useVoidPayment on %s', collectionName => {
         expect(result.current.voidPayment.errorMessage).toBeNull()
         expect(result.current.voidPayment.isPending).toBe(false)
         expect(payments.get(PAYMENT_ID)?.status).toBe('void')
+    })
+})
+
+// The value-driven dialog state a read view with no list kind (the bank deposit) voids
+// through: `markVoid(id)` returns the transaction that writes the void. A refused void (the
+// close date) keeps the dialog open with the refusal text; a void that lands closes it.
+const DEPOSIT_ID = 'deps_void_00001'
+
+type DepositRow = { id: string; status: 'draft' | 'posted' | 'void' }
+
+function renderDialogState() {
+    seedBooks({ level: 'bookkeeper' })
+    const deposits = guardedStore<DepositRow>('books_deposits', [
+        { id: DEPOSIT_ID, status: 'posted' },
+    ])
+    const markVoid = (id: string) =>
+        deposits.update(id, draft => {
+            draft.status = 'void'
+        })
+    const rendered = renderHook(() => useVoidDialogState(markVoid), { wrapper })
+    return { ...rendered, deposits }
+}
+
+describe('useVoidDialogState', () => {
+    it('keeps the dialog open with the refusal text when markVoid rejects', async () => {
+        const { result, deposits } = renderDialogState()
+        act(() => result.current.open())
+        expect(result.current.isOpen).toBe(true)
+        refuseAfterNow(0, messageRefusal(CLOSE_DATE_REFUSAL))
+
+        act(() => result.current.confirm(DEPOSIT_ID))
+
+        await waitFor(() => expect(result.current.errorMessage).toBe(CLOSE_DATE_REFUSAL))
+        expect(result.current.isOpen).toBe(true)
+        expect(result.current.isPending).toBe(false)
+        expect(deposits.get(DEPOSIT_ID)?.status).toBe('posted')
+    })
+
+    it('reports the void as pending while it is held, then closes the dialog when it lands', async () => {
+        const { result, deposits } = renderDialogState()
+        act(() => result.current.open())
+        const release = holdWrites()
+
+        act(() => result.current.confirm(DEPOSIT_ID))
+        await settle()
+        expect(result.current.isPending).toBe(true)
+        expect(result.current.isOpen).toBe(true)
+
+        await act(async () => {
+            release()
+            await new Promise(resolve => setTimeout(resolve, 50))
+        })
+
+        await waitFor(() => expect(result.current.isOpen).toBe(false))
+        expect(result.current.errorMessage).toBeNull()
+        expect(deposits.get(DEPOSIT_ID)?.status).toBe('void')
+    })
+
+    it('clears an earlier refusal when the dialog opens again, and close shuts it', async () => {
+        const { result } = renderDialogState()
+        act(() => result.current.open())
+        refuseAfterNow(0, messageRefusal(CLOSE_DATE_REFUSAL))
+        act(() => result.current.confirm(DEPOSIT_ID))
+        await waitFor(() => expect(result.current.errorMessage).toBe(CLOSE_DATE_REFUSAL))
+
+        act(() => result.current.close())
+        expect(result.current.isOpen).toBe(false)
+        act(() => result.current.open())
+        expect(result.current.isOpen).toBe(true)
+        await waitFor(() => expect(result.current.errorMessage).toBeNull())
     })
 })

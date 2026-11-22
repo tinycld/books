@@ -38,7 +38,7 @@ const PURCHASE_LIST_LABELS = listLabels(LIST_AREAS.purchases)
 // The screens Back pops to when one is right below this screen, each with the back link's
 // text: the journal entry list, a Sales or purchase list, a register, and every record
 // route (a document, a bill payment, a payment, a vendor refund, a write-off, an entry, a
-// transfer), so Back
+// transfer, a deposit), so Back
 // leads to the screen the user came from and the label names it. A new vendor refund is
 // one too: its "New vendor credit" pushes the credit form over it, and that form's Back,
 // Cancel and post return to the refund with what was typed in it. Any other screen below
@@ -50,6 +50,7 @@ const LABELS: Record<string, string> = {
     [REGISTER_ROUTE]: 'Register',
     'entries/[id]': 'Journal entry',
     'transfers/[id]': 'Transfer',
+    'deposits/[id]': 'Deposit',
     'payments/[id]': 'Payment',
     'bill-payments/[id]': 'Bill payment',
     'vendor-refunds/[id]': 'Vendor refund',

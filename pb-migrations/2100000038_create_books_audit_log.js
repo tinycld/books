@@ -13,18 +13,20 @@
 // update whose status became posted or void as posted or voided; event_shown
 // is the event the report shows (see EVENT_SHOWN).
 //
-// A line row (the sixteen collections below) names its document in
+// A line row (the eighteen collections below) names its document in
 // parent_type and parent_id, read from the live line, else from its delete
 // snapshot; history_type and history_id are the record whose history the row
 // opens: the document for a line, the record itself otherwise. server/audit.go
-// auditParentFields lists the same sixteen. The view reads the payment
+// auditParentFields lists the same eighteen. The view reads the payment
 // applications, bill payment lines, credit memo lines, credit memo
 // applications, vendor credit lines, vendor credit applications, vendor refund
-// lines and refund receipt lines tables, so it comes after
-// 2100000019_create_books_payments, 2100000021_create_books_bill_payments,
-// 2100000022_create_books_credit_memos, 2100000023_create_books_vendor_credits,
-// 2100000024_create_books_vendor_refunds, 2100000025_create_books_refund_receipts
-// and 2100000031_create_books_credit_memo_applications.
+// lines, refund receipt lines, deposit items and deposit lines tables, so it
+// comes after 2100000019_create_books_payments,
+// 2100000021_create_books_bill_payments, 2100000022_create_books_credit_memos,
+// 2100000023_create_books_vendor_credits, 2100000024_create_books_vendor_refunds,
+// 2100000025_create_books_refund_receipts,
+// 2100000031_create_books_credit_memo_applications and
+// 2100000037_create_books_deposits.
 //
 // The query is one SELECT: PocketBase's view parser refuses UNION ALL. Every
 // computed column is cast to TEXT, because PocketBase types an uncast
@@ -50,6 +52,8 @@ const LINES = [
     ['books_bundle_items', 'books_products', 'bundle'],
     ['books_credit_memo_applications', 'books_credit_memos', 'credit_memo'],
     ['books_credit_memo_lines', 'books_credit_memos', 'credit_memo'],
+    ['books_deposit_items', 'books_deposits', 'deposit'],
+    ['books_deposit_lines', 'books_deposits', 'deposit'],
     ['books_estimate_lines', 'books_estimates', 'estimate'],
     ['books_estimate_responses', 'books_estimates', 'estimate'],
     ['books_expense_lines', 'books_expenses', 'expense'],

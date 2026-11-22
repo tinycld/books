@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readHelpTopic } from './help-topic'
+import { paragraphWith, readHelpTopic } from './help-topic'
 
 // The first version of the sales receipt help topic (checkpoint 4): the header's
 // HelpIcon opens `books:sales-receipts`, so the topic must exist from this checkpoint on.
@@ -60,5 +60,15 @@ describe('help/sales-receipts.md (refunds)', () => {
 
     it('names the Refund receipts section', () => {
         expect(body).toContain('Refund receipts')
+    })
+})
+
+// Bank deposit spec §3.10 Help: where the topic names Undeposited funds, it links the
+// Bank deposits topic.
+describe('help/sales-receipts.md (bank deposits)', () => {
+    it('links help://books:bank-deposits where it names Undeposited funds', () => {
+        expect(
+            paragraphWith(body, /Undeposited funds/, /help:\/\/books:bank-deposits\b/)
+        ).toBeDefined()
     })
 })

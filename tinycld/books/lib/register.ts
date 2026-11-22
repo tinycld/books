@@ -117,6 +117,7 @@ export const DOC_TYPE_LABELS: Record<string, string> = {
     vendor_credit: 'Vendor credit',
     vendor_refund: 'Vendor refund',
     write_off: 'Write-off',
+    deposit: 'Deposit',
 }
 
 export const reversalOrigins = new Set(['reversal', 'void_reversal', 'auto_reversal'])

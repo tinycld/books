@@ -2,6 +2,7 @@ package books
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -124,11 +125,15 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 	if err != nil {
 		return search.Result{}, err
 	}
+	deposits, depositTotal, err := searchSalesDocs(ctx, app, depositSearch, q.Include, q.Exclude, window)
+	if err != nil {
+		return search.Result{}, err
+	}
 	rows := interleave(accounts, entries, customers, vendors, products, invoices, receipts, creditMemos, refundReceipts,
-		estimates, bills, expenses, vendorCredits, payments, billPayments, vendorRefunds, writeOffs)
+		estimates, bills, expenses, vendorCredits, payments, billPayments, vendorRefunds, writeOffs, deposits)
 	total := accountTotal + entryTotal + customerTotal + vendorTotal + productTotal + invoiceTotal + receiptTotal +
 		creditMemoTotal + refundReceiptTotal + estimateTotal + billTotal + expenseTotal + vendorCreditTotal + paymentTotal +
-		billPaymentTotal + vendorRefundTotal + writeOffTotal
+		billPaymentTotal + vendorRefundTotal + writeOffTotal + depositTotal
 	return search.Result{Rows: page(rows, offset, limit), Total: total}, nil
 }
 
@@ -381,6 +386,10 @@ type salesDocHit struct {
 	Date      string `db:"date"`
 	Status    string `db:"status"`
 	PartyName string `db:"party_name"`
+	// The number and name of an account party (partyIsAccount); NULL when the
+	// document names no account.
+	PartyNumber      sql.NullString `db:"party_number"`
+	PartyAccountName sql.NullString `db:"party_account_name"`
 }
 
 // salesDocSearch is one kind of document of the sales document layer (the
@@ -388,11 +397,17 @@ type salesDocHit struct {
 // index, its doc type (for the title's nouns), its row id prefix and kind
 // (what the client adapter opens), its party: the header column that names
 // it, the party's table and the party's FTS5 index, and the column shown as
-// the row's subtitle (memo when unset).
+// the row's subtitle (memo when unset). The party's display_name is its name
+// in the title; a kind with partyIsAccount names an account instead, built in
+// Go by accountNumberName from the account's number and name. A kind with no
+// partyIdx matches its own index alone: its party names it in the title only.
+// A kind with draftNamesNoParty titles a draft with its noun alone.
 type salesDocSearch struct {
 	table, index, docType, kind      string
 	partyField, partyTable, partyIdx string
+	partyIsAccount                   bool
 	subtitle                         string
+	draftNamesNoParty                bool
 }
 
 // subtitleColumn is the document column under the title: the memo, or the
@@ -402,6 +417,31 @@ func (s salesDocSearch) subtitleColumn() string {
 		return "memo"
 	}
 	return s.subtitle
+}
+
+// partyColumns is the SELECT of the party's name parts: an account's number
+// and name, or a customer's or vendor's display name.
+func (s salesDocSearch) partyColumns() string {
+	if s.partyIsAccount {
+		return "pa.number AS party_number, pa.name AS party_account_name"
+	}
+	return "COALESCE(pa.display_name, '') AS party_name"
+}
+
+// partyTitle is the party's name in the title; "" when the hit has none.
+func (s salesDocSearch) partyTitle(h salesDocHit) string {
+	if s.partyIsAccount {
+		return accountNumberName(h.PartyNumber.String, h.PartyAccountName.String)
+	}
+	return h.PartyName
+}
+
+// termMatch is the match of one bound word (%[1]s of salesDocTermMatch).
+func (s salesDocSearch) termMatch(param string) string {
+	if s.partyIdx == "" {
+		return fmt.Sprintf(salesDocOwnTermMatch, param, s.index)
+	}
+	return fmt.Sprintf(salesDocTermMatch, param, s.index, s.partyField, s.partyIdx)
 }
 
 var invoiceSearch = salesDocSearch{
@@ -505,6 +545,17 @@ var writeOffSearch = salesDocSearch{
 	partyField: "customer", partyTable: "books_customers", partyIdx: customersIndex,
 }
 
+// depositSearch names a posted or void deposit's Deposit to account: "Deposit
+// 1004 · 1010 Business Savings", and a draft "Draft deposit" (bank deposit
+// spec §3.10), drafts included; the title's account name is
+// accountNumberName's, as accountDisplayName names an account. A word matches
+// the deposit's number and memo only.
+var depositSearch = salesDocSearch{
+	table: depositsCollection, index: depositsIndex, docType: docTypeDeposit, kind: "deposit",
+	partyField: "deposit_to", partyTable: "books_accounts",
+	partyIsAccount: true, draftNamesNoParty: true,
+}
+
 // salesDocTermMatch is true when one query word matches a document's own
 // index row (number, memo, message; a sales receipt's, a refund receipt's, an
 // expense's, a payment's, a bill payment's and a vendor refund's reference
@@ -517,6 +568,10 @@ var writeOffSearch = salesDocSearch{
 // index, %[3]s the party column and %[4]s the party's index.
 const salesDocTermMatch = `(c.id IN (SELECT record_id FROM %[2]s WHERE %[2]s MATCH {:%[1]s})
 	OR c.%[3]s IN (SELECT record_id FROM %[4]s WHERE %[4]s MATCH {:%[1]s}))`
+
+// salesDocOwnTermMatch is salesDocTermMatch for a kind whose party has no
+// index of its own to match.
+const salesDocOwnTermMatch = `c.id IN (SELECT record_id FROM %[2]s WHERE %[2]s MATCH {:%[1]s})`
 
 // from builds the FROM and WHERE of a sales document search. The words are
 // matched one by one and ANDed, so "Harborview 1003" finds invoice 1003 of
@@ -539,7 +594,7 @@ func (s salesDocSearch) from(include, exclude []string) (string, dbx.Params) {
 			}
 			name := fmt.Sprintf("%s%d", prefix, len(params))
 			params[name] = term
-			cond := fmt.Sprintf(salesDocTermMatch, name, s.index, s.partyField, s.partyIdx)
+			cond := s.termMatch(name)
 			if negate {
 				cond = "NOT " + cond
 			}
@@ -575,15 +630,16 @@ func searchSalesDocs(ctx context.Context, app core.App, s salesDocSearch, includ
 	params["window"] = window
 	var hits []salesDocHit
 	if err := app.DB().NewQuery("SELECT c.id, c.number, c." + s.subtitleColumn() + " AS memo, c.date, c.status, " +
-		"COALESCE(pa.display_name, '') AS party_name" + from + " ORDER BY c.date DESC, c.id LIMIT {:window}").
+		s.partyColumns() + from + " ORDER BY c.date DESC, c.id LIMIT {:window}").
 		WithContext(ctx).Bind(params).All(&hits); err != nil {
 		return nil, 0, fmt.Errorf("books: search %s: %w", s.table, err)
 	}
 	rows := make([]search.Row, 0, len(hits))
 	for _, h := range hits {
 		title := entryHitTitle(entryHit{Number: h.Number, Status: h.Status, DocType: s.docType})
-		if h.PartyName != "" {
-			title += " · " + h.PartyName
+		party := s.partyTitle(h)
+		if party != "" && (h.Number != "" || !s.draftNamesNoParty) {
+			title += " · " + party
 		}
 		rows = append(rows, search.Row{
 			ID:       s.kind + ":" + h.ID,

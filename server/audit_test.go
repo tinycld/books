@@ -450,6 +450,69 @@ func TestAudit_LabelsAVendorRefundAndItsLines(t *testing.T) {
 	}
 }
 
+// Bank deposit spec §3.7: a deposit's audit row is "Deposit 1004", or "Draft
+// deposit" while it has no number; an item's row names the deposit and the
+// transaction it deposits ("Deposit 1004: Payment 1001"), an other funds
+// line's row its deposit and its line number ("Deposit 1004: line 2").
+func TestAudit_LabelsADepositItsItemsAndLines(t *testing.T) {
+	src := depositSourcePosters["payment"](t)
+	audited := auditedCollections(src.app)
+	deposits, ok := audited[depositsCol]
+	if !ok {
+		t.Fatal("books_deposits is not audited")
+	}
+	items, ok := audited[depositItemsCol]
+	if !ok {
+		t.Fatal("books_deposit_items is not audited")
+	}
+	lines, ok := audited[depositLinesCol]
+	if !ok {
+		t.Fatal("books_deposit_lines is not audited")
+	}
+	if err := setFields(t, src.app, "books_doc_sequences", depositSequenceID, map[string]any{"next_number": 1004}); err != nil {
+		t.Fatalf("move the deposit sequence to 1004: %v", err)
+	}
+	d, err := saveNew(src.app, depositsCol, map[string]any{"status": statusDraft, "date": depositDay, "deposit_to": src.bank.Id})
+	if err != nil {
+		t.Fatalf("save a draft deposit: %v", err)
+	}
+	item := mkDepositItem(t, src.app, d, src.line, 0)
+	mkDepositLine(t, src.app, d, 0, map[string]any{"account": src.income.Id, "amount": 1000})
+	line := mkDepositLine(t, src.app, d, 1, map[string]any{"account": src.income.Id, "amount": 240})
+	payment := src.name(t)
+
+	if got, want := deposits.ExtractLabel(reload(t, src.app, depositsCol, d.Id)), "Draft deposit"; got != want {
+		t.Errorf("draft deposit audit label = %q, want %q", got, want)
+	}
+	if got, want := items.ExtractLabel(reload(t, src.app, depositItemsCol, item.Id)), "Draft deposit: "+payment; got != want {
+		t.Errorf("draft deposit item audit label = %q, want %q", got, want)
+	}
+	posted := mustPostDeposit(t, src.app, d.Id, src.users.bookkeeper.Id)
+	if got, want := deposits.ExtractLabel(posted), "Deposit 1004"; got != want {
+		t.Errorf("posted deposit audit label = %q, want %q", got, want)
+	}
+	if got, want := items.ExtractLabel(reload(t, src.app, depositItemsCol, item.Id)), "Deposit 1004: "+payment; got != want {
+		t.Errorf("posted deposit item audit label = %q, want %q", got, want)
+	}
+	if got, want := lines.ExtractLabel(reload(t, src.app, depositLinesCol, line.Id)), "Deposit 1004: line 2"; got != want {
+		t.Errorf("posted deposit line audit label = %q, want %q", got, want)
+	}
+}
+
+// The Audit Log's Record type options name the three deposit collections.
+func TestAudit_RecordTypesNameTheDeposit(t *testing.T) {
+	want := map[string]string{depositsCol: "Deposit", depositItemsCol: "Deposit item", depositLinesCol: "Deposit line"}
+	got := map[string]string{}
+	for _, o := range auditRecordTypeOptions() {
+		if _, ok := want[o.Value]; ok {
+			got[o.Value] = o.Label
+		}
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("deposit Record type options = %v, want %v", got, want)
+	}
+}
+
 // Write-off spec §3.6: a write-off's audit row is "Write-off 1001", and its
 // sort key is not recorded.
 func TestAudit_LabelsAWriteOff(t *testing.T) {
