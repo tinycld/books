@@ -113,6 +113,23 @@ describe('backTarget', () => {
         ).toEqual({ route: 'invoices/[id]', label: 'Invoice', depth: 1 })
     })
 
+    // Bank deposit spec §3.8 (cp2 fix round 1, item 1): the deposit read view's View journal
+    // entry and its item's Transaction link push a read view over the deposit; that view's
+    // Back pops to the deposit and names it.
+    it('pops the deposit\'s journal entry back to the deposit, named "Deposit"', () => {
+        expect(backTarget(stack('entries/index', 'deposits/[id]', 'entries/[id]'), 'k2')).toEqual({
+            route: 'deposits/[id]',
+            label: 'Deposit',
+            depth: 1,
+        })
+    })
+
+    it("pops a sales receipt opened from a deposit's item link back to the deposit", () => {
+        expect(
+            backTarget(stack('entries/index', 'deposits/[id]', 'sales-receipts/[id]'), 'k2')
+        ).toEqual({ route: 'deposits/[id]', label: 'Deposit', depth: 1 })
+    })
+
     it('steps past read-only bill payments to the bill below them', () => {
         expect(
             backTarget(
