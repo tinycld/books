@@ -1,21 +1,34 @@
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useRecord } from '@tinycld/core/lib/use-record'
-import { Pressable, Text, View } from 'react-native'
+import type { Ref } from 'react'
+import { Pressable, Text, View, type ViewInstance } from 'react-native'
 import { amountText, balanceText, balanceTone } from '../../lib/money'
 import type { RegisterLine } from '../../lib/register'
+import {
+    ACCOUNT_CELL_STYLE,
+    AMOUNT_CELL_STYLE,
+    BALANCE_CELL_STYLE,
+    DATE_CELL_STYLE,
+    MEMO_CELL_STYLE,
+    REF_CELL_STYLE,
+    TYPE_CELL_STYLE,
+} from '../../lib/register-layout'
 import { formatDay } from '../../lib/register-range'
 
-// Header and rows share these. Memo then Account take the free space; the amount columns never
-// shrink, so a narrower window scrolls the table sideways instead of clipping a figure.
-export const DATE_CELL_STYLE = { width: 100, flexShrink: 0 }
-export const REF_CELL_STYLE = { width: 80, flexShrink: 0 }
-export const TYPE_CELL_STYLE = { width: 150, flexShrink: 1, minWidth: 90 }
-export const MEMO_CELL_STYLE = { flexGrow: 3, flexShrink: 1, flexBasis: 0, minWidth: 100 }
-export const ACCOUNT_CELL_STYLE = { flexGrow: 2, flexShrink: 1, flexBasis: 0, minWidth: 90 }
-export const AMOUNT_CELL_STYLE = { width: 104, flexShrink: 0 }
-export const BALANCE_CELL_STYLE = { width: 116, flexShrink: 0 }
+// Header and rows share these (lib/register-layout.ts). Memo then Account take the free space;
+// the amount columns never shrink. Below the table's minimum width the register draws cards.
+export {
+    ACCOUNT_CELL_STYLE,
+    AMOUNT_CELL_STYLE,
+    BALANCE_CELL_STYLE,
+    DATE_CELL_STYLE,
+    MEMO_CELL_STYLE,
+    REF_CELL_STYLE,
+    TYPE_CELL_STYLE,
+}
 export const ROW_HEIGHT = 44
 
+// Its `gap-2` and `px-4` are REGISTER_ROW_GAP and REGISTER_ROW_PADDING (lib/register-layout.ts).
 export const ROW_CLASS = 'flex-row items-center gap-2 border-b border-border px-4'
 
 function VoidLabel({ isVisible }: { isVisible: boolean }) {
@@ -60,16 +73,19 @@ interface RegisterRowProps {
     currency: string
     onOpenEntry: (entryId: string) => void
     isSelected: boolean
+    itemRef?: Ref<ViewInstance>
 }
 
-export function RegisterRow({ row, currency, onOpenEntry, isSelected }: RegisterRowProps) {
+export function RegisterRow({ row, currency, onOpenEntry, isSelected, itemRef }: RegisterRowProps) {
     const bg = isSelected ? 'bg-accent' : 'bg-background'
     const cellId = (column: string) => `register-cell-${column}-${row.id}`
+    const onPress = () => onOpenEntry(row.entryId)
     return (
         <Pressable
+            ref={itemRef}
             testID={`register-row-${row.id}`}
             accessibilityRole="button"
-            onPress={() => onOpenEntry(row.entryId)}
+            onPress={onPress}
             className={`${ROW_CLASS} ${bg}`}
             style={{ minHeight: ROW_HEIGHT }}
         >

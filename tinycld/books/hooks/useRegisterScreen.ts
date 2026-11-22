@@ -1,7 +1,7 @@
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
-import { router } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { router, useFocusEffect } from 'expo-router'
+import { useCallback, useState } from 'react'
 import { NEW_ACTIONS } from '../lib/new-actions'
 import {
     buildRegister,
@@ -11,6 +11,7 @@ import {
     type RegisterOrder,
     toggleOrder,
 } from '../lib/register'
+import { REGISTER_TABLE_MIN_WIDTH } from '../lib/register-layout'
 import {
     defaultRangePreset,
     isOtherPresetSelected,
@@ -24,6 +25,7 @@ import { transferButtonVisible } from '../lib/transfer'
 import { useRegisterStore } from '../stores/register-store'
 import { useBackToChart } from './useBackToChart'
 import { useBooksAccess } from './useBooksAccess'
+import { useFitsTable } from './useFitsTable'
 import { useRegisterQuery } from './useRegisterQuery'
 
 const NEW_ENTRY_ACTION = 'journal-entry'
@@ -47,14 +49,22 @@ export function useRegisterScreen(accountId: string) {
     const orgHref = useOrgHref()
     const onBack = useBackToChart()
     const selected = useRegisterStore(s => s.selected)
+    const anchor = useRegisterStore(s => s.anchor)
     const openEntry = useRegisterStore(s => s.openEntry)
-    // Leaving the register (back, history, another account) drops its selection, so a later visit starts closed.
-    useEffect(
-        () => () => {
-            const { selected: current, close } = useRegisterStore.getState()
-            if (current?.accountId === accountId) close()
-        },
-        [accountId]
+    const fit = useFitsTable(REGISTER_TABLE_MIN_WIDTH)
+    // Leaving the register drops its selection and its anchor, so a later visit starts closed and
+    // at the top. A focus cleanup, not an unmount cleanup: a push (the sidebar, "Open entry")
+    // keeps this screen mounted and hidden, and the next register of the account would inherit
+    // the anchor. The guard reads the anchor: `close` has cleared the selection already when the
+    // drawer was closed or closed itself on a navigation.
+    useFocusEffect(
+        useCallback(
+            () => () => {
+                const { anchor: current, reset } = useRegisterStore.getState()
+                if (current?.accountId === accountId) reset()
+            },
+            [accountId]
+        )
     )
 
     const { account } = query
@@ -68,6 +78,7 @@ export function useRegisterScreen(accountId: string) {
           })
         : EMPTY_REGISTER
     const selectedEntryId = selected?.accountId === accountId ? selected.entryId : null
+    const anchorEntryId = anchor?.accountId === accountId ? anchor.entryId : null
     const selectedLine = register.rows.find(row => row.entryId === selectedEntryId)
     const selectedEntry = selectedLine ? entryDetail(selectedLine.source, accountId) : null
     const state = registerViewState({
@@ -91,7 +102,7 @@ export function useRegisterScreen(accountId: string) {
         isOtherPresetSelected: isOtherPresetSelected(preset),
         range,
         onPreset: (next: RangePreset) => {
-            useRegisterStore.getState().close()
+            useRegisterStore.getState().reset()
             setPreset(next)
         },
         order,
@@ -113,9 +124,15 @@ export function useRegisterScreen(accountId: string) {
         onRetry: query.retry,
         onBack,
         selectedEntryId,
+        anchorEntryId,
         selectedEntry,
         onCloseEntry: useRegisterStore.getState().close,
         onOpenEntry: (entryId: string) => openEntry(accountId, entryId),
+        // Table or cards: by the list's own width (`register-main`), less the inline drawer.
+        showCards: fit.showCards,
+        onMainLayout: fit.onLayout,
+        onTableGutter: fit.onGutter,
+        // They place the entry drawer (EntryDrawer); they no longer choose table or cards.
         isWide: breakpoint !== 'mobile',
         isTablet: breakpoint === 'tablet',
     }

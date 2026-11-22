@@ -25,7 +25,7 @@ To change the range, use the date range menu. The choices are This month, Last m
 
 ## Read the rows
 
-Each row shows the Date, Ref no., Type, Memo, Account, Debit, Credit and Balance. On a phone, each row is a card. A card shows the date, the Ref no., the memo, the other account with the entry type (and Void), the amount marked Debit or Credit, and the running balance.
+Each row shows the Date, Ref no., Type, Memo, Account, Debit, Credit and Balance. The rows are cards on a phone, in a window too narrow for the columns, and beside an open entry; the table does not scroll sideways. A card shows the date, the Ref no., the memo, the other account with the entry type (and Void), the amount marked Debit or Credit, and the running balance.
 
 - **Type** is Journal entry, Transfer, Reversal, Void reversal or Auto reversal. A reversal also shows the entry it reverses, for example "Reversal of JE-1046". A voided entry shows Void.
 - **Account** is the other account of the entry. An entry with more than two lines shows -Split-.

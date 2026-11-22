@@ -1,4 +1,5 @@
-import { Pressable, Text, View } from 'react-native'
+import type { Ref } from 'react'
+import { Pressable, Text, View, type ViewInstance } from 'react-native'
 import { balanceText, balanceTone, formatMoney } from '../../lib/money'
 import type { RegisterLine } from '../../lib/register'
 import { formatDay } from '../../lib/register-range'
@@ -11,9 +12,16 @@ interface RegisterCardProps {
     currency: string
     onOpenEntry: (entryId: string) => void
     isSelected: boolean
+    itemRef?: Ref<ViewInstance>
 }
 
-export function RegisterCard({ row, currency, onOpenEntry, isSelected }: RegisterCardProps) {
+export function RegisterCard({
+    row,
+    currency,
+    onOpenEntry,
+    isSelected,
+    itemRef,
+}: RegisterCardProps) {
     const bg = isSelected ? 'bg-accent' : 'bg-background'
     const isDebit = row.debit !== 0
     const accountName = useAccountName(row.otherAccountId)
@@ -24,11 +32,13 @@ export function RegisterCard({ row, currency, onOpenEntry, isSelected }: Registe
     ]
         .filter(Boolean)
         .join(' · ')
+    const onPress = () => onOpenEntry(row.entryId)
     return (
         <Pressable
+            ref={itemRef}
             testID={`register-card-${row.id}`}
             accessibilityRole="button"
-            onPress={() => onOpenEntry(row.entryId)}
+            onPress={onPress}
             className={`flex-row gap-3 overflow-hidden border-b border-border px-4 py-2 ${bg}`}
             style={{ height: CARD_HEIGHT }}
         >
