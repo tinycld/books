@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/expenses-by-vendor-checkpoints.md
 - reference: docs/plans/expenses-by-vendor-reference/
 - evidence: docs/plans/expenses-by-vendor-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (removed by finish.mjs 2026-11-21)
 - capture manifest: docs/plans/expenses-by-vendor-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -233,6 +233,6 @@ Tables each statement reads, and by which index (L; "after ANALYZE" is the stats
 - Earlier runs (1 timeout in the rebuild, 2 fail, 3 fail on run 7's plan, 4 pass before fix round 1) are under Checkpoint 3; their logs are in staging perf/.
 
 ## Final review
-- eval:
-- human comments and what changed
+- eval: approved 2026-11-21 (draft PR #85 CI green at 9f6dbaca, 8/8; core PR #513 green)
+- human comments and what changed: none at the eval gate; retro items 1–5 approved (lesson "probe every branch of a union" added to docs/helix-lessons.md)
 - native: not executed in this run
