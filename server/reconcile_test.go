@@ -78,9 +78,30 @@ func (r *rtEnv) update(t testing.TB, user *core.Record, id string, body map[stri
 	return r.send(t, user, http.MethodPatch, collectionURL(rtRecons)+"/"+id, rtJSON(t, body))
 }
 
+// finish finishes the reconciliation as user. When the finish passes, it checks
+// that the server stamped the user's name in finished_by_name (a superuser's
+// request keeps what it sends, so it is not checked).
 func (r *rtEnv) finish(t testing.TB, user *core.Record, id string) apiAnswer {
 	t.Helper()
-	return r.update(t, user, id, map[string]any{"status": "finished"})
+	a := r.update(t, user, id, map[string]any{"status": "finished"})
+	if a.status != http.StatusOK || user.IsSuperuser() {
+		return a
+	}
+	want := rtStampedName(user.GetString("name"))
+	if got := reload(t, r.app, rtRecons, id).GetString("finished_by_name"); got != want {
+		t.Errorf("finished_by_name = %q after the finish of %s, want the finisher's name %q", got, id, want)
+	}
+	return a
+}
+
+// rtStampedName is the name the finish stamps: the user's name cut to its
+// first 200 runes (finished_by_name is text max 200; users.name allows 255).
+func rtStampedName(name string) string {
+	runes := []rune(name)
+	if len(runes) > 200 {
+		return string(runes[:200])
+	}
+	return name
 }
 
 func (r *rtEnv) mustFinish(t testing.TB, id string) {
@@ -128,7 +149,8 @@ func (r *rtEnv) payment(t testing.TB, date string, account *core.Record, amount 
 
 // finished is a finished reconciliation on account at date that clears line,
 // whose amount is its statement balance (the first reconciliation of the
-// account, so the beginning balance is 0).
+// account, so the beginning balance is 0). The bookkeeper finishes it, and the
+// stored row carries the bookkeeper's id and name.
 func (r *rtEnv) finished(t testing.TB, account *core.Record, date string, balance int64, lines ...*core.Record) string {
 	t.Helper()
 	id := r.mustStart(t, account, date, balance)
@@ -136,6 +158,13 @@ func (r *rtEnv) finished(t testing.TB, account *core.Record, date string, balanc
 		r.mustClear(t, id, l)
 	}
 	r.mustFinish(t, id)
+	stored := reload(t, r.app, rtRecons, id)
+	if stored.GetString("finished_by") != r.users.bookkeeper.Id ||
+		stored.GetString("finished_by_name") != r.users.bookkeeper.GetString("name") {
+		t.Errorf("finished %s: finished_by %q, finished_by_name %q; want the bookkeeper %q, %q", id,
+			stored.GetString("finished_by"), stored.GetString("finished_by_name"),
+			r.users.bookkeeper.Id, r.users.bookkeeper.GetString("name"))
+	}
 	return id
 }
 
@@ -269,7 +298,8 @@ func TestReconcile_RulesOfReconciliations(t *testing.T) {
 		r := newRtEnv(t)
 		id := r.finished(t, r.savings, "2026-08-31", 0)
 		requireRefusedWrite(t, r.update(t, r.users.bookkeeper, id, map[string]any{"statement_balance": 5}))
-		requireRefusedWrite(t, r.update(t, r.users.admin, id, map[string]any{"status": "in_progress"}))
+		// An admin's undo ({status: "in_progress"} alone) passes: TestReconcileUndo_Rule.
+		requireRefusedWrite(t, r.update(t, r.users.admin, id, map[string]any{"statement_balance": 5}))
 		stored := reload(t, r.app, rtRecons, id)
 		if stored.GetString("status") != "finished" || stored.GetInt("statement_balance") != 0 {
 			t.Errorf("finished row = status %q, balance %d after refused updates, want finished, 0",

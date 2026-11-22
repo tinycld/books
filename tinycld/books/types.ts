@@ -54,6 +54,7 @@ export type {
     BooksPaymentApplications,
     BooksPayments,
     BooksProducts,
+    BooksReconciledLines,
     BooksReconcileLines,
     BooksReconciliationLines,
     BooksReconciliations,

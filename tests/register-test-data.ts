@@ -13,6 +13,7 @@ import {
 import type {
     BooksJournalEntries,
     BooksJournalLines,
+    BooksReconciledLines,
     BooksReconcileLines,
     BooksReconciliations,
 } from '../tinycld/books/types'
@@ -140,5 +141,34 @@ export const SEED_RECONCILE_ROWS: BooksReconcileLines[] = [
     reconcileViewRow(CLEARED_LINE, { reconciliation: PROGRESS_RECONCILIATION_ID }),
     reconcileViewRow(MATCHED_LINE, { bank_matched: true }),
 ]
+
+// The `books_reconciled_lines` view row of a cleared row of a finished reconciliation
+// (reconciliation report spec §4 "Schema"): its id is the cleared row's id.
+export function reconciledViewRow(
+    clearedId: string,
+    line: BooksJournalLines,
+    reconciliation: BooksReconciliations
+): BooksReconciledLines {
+    return {
+        id: clearedId,
+        reconciliation: reconciliation.id,
+        account: line.account,
+        entry: line.entry,
+        date: line.date,
+        debit: line.debit,
+        credit: line.credit,
+        position: line.position,
+        currency: reconciliation.currency,
+        memo: line.memo,
+        payee: '',
+    }
+}
+
+export const RECONCILED_CLEARED_ID = 'reccleared00001'
+
+// Only the finished reconciliation has view rows; the one in progress has none.
+export const SEED_RECONCILED_ROWS: BooksReconciledLines[] = SEED_RECONCILIATIONS.filter(
+    r => r.status === 'finished'
+).map(r => reconciledViewRow(RECONCILED_CLEARED_ID, RECONCILED_LINE, r))
 
 export { BALANCES }

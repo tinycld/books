@@ -47,7 +47,15 @@ const RECONCILE_SUFFIX = '_create_books_reconciliations.js'
 
 const RECONCILE = MIGRATIONS.filter(file => file.endsWith(RECONCILE_SUFFIX))
 
-const AFTER_AUDIT: string[] = [...RECONCILE]
+// Reconciliation report spec §4 Schema: the finisher's name, the undo rule and the
+// reconciled lines view take the next free number after the reconciliations. The view
+// reads books_reconciliation_lines, books_reconciliations, the journal lines and entries
+// and the parties; the audit view reads none of what it creates.
+const REPORT_SUFFIX = '_books_reconciliation_report.js'
+
+const REPORT = MIGRATIONS.filter(file => file.endsWith(REPORT_SUFFIX))
+
+const AFTER_AUDIT: string[] = [...RECONCILE, ...REPORT]
 
 function prefixOf(file: string): string {
     return file.split('_')[0] ?? file
@@ -91,6 +99,8 @@ describe('pb-migrations prefixes', () => {
 
     it('runs only the named later migrations after the audit log view', () => {
         expect(RECONCILE).toHaveLength(1)
+        expect(REPORT).toHaveLength(1)
+        expect(numberOf(REPORT[0])).toBeGreaterThan(numberOf(RECONCILE[0]))
         const afterAudit = MIGRATIONS.filter(file => numberOf(file) > numberOf(AUDIT))
         expect(afterAudit).toEqual(AFTER_AUDIT)
     })
