@@ -317,6 +317,7 @@ and again at the end)
 - reviewer-caught deferrals: none (reviewer B's deferral 1 was the runner-1 design note on the reader test; fixed, r1 item 1)
 - self-declared: dispatch 1 4 differences, dispatch 2 4 differences, fix r1 2 differences (all accepted; difference 4 of dispatch 1 replaced by r1 item 4); disputes: 1 (fix r1, settled); out-of-plan: see Out-of-plan changes (cp 6 lines)
 - native: not executed
+- commit: a4288d28
 
 ## Final review
 - eval: (unattended only) approved | revised → <notes, fix sha> | stopped
