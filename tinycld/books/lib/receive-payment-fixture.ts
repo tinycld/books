@@ -13,6 +13,7 @@ import type { BooksInvoices, BooksPaymentApplications, BooksPayments } from '../
 import { CUSTOMER_IDS, CUSTOMERS } from './customer-form-fixture'
 import { INVOICE_IDS } from './invoice-form-fixture'
 import type { PaymentMethodKey } from './payment-methods'
+import { fixtureToken } from './public-token-fixture'
 import {
     DEPOSIT_ACCOUNT_IDS,
     DEPOSIT_ACCOUNTS,
@@ -114,6 +115,7 @@ function invoice(seed: InvoiceSeed): OpenInvoiceRecord {
         form: '',
         fields: null,
         sort_key: '',
+        public_token: fixtureToken(seed.id),
         created: STAMP,
         updated: STAMP,
         ...seed,

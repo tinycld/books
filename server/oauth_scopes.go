@@ -25,12 +25,13 @@ const (
 // decides who may do what (the settings with the close date, numbering,
 // overrides, admin grants) is read-only for tokens, as is a sales document's
 // tax snapshot, which only posting writes: "record transactions" on a consent
-// screen does not read as "reopen a closed year". The estimates' public view
-// is read-only (nobody writes a view); the customers' responses are
-// read-write, and their rules still decide who may read or create one. The
-// balance rebuild route is left out, so core's grant middleware default-denies
-// it to every token: it is session-only. The public estimate PDF route is left
-// out too: its link token is its credential.
+// screen does not read as "reopen a closed year". The estimates' and the
+// invoices' public views are read-only (nobody writes a view); the customers'
+// responses are read-write, and their rules still decide who may read or
+// create one. The document sends are read-only: only the send route writes
+// them. The balance rebuild route is left out, so core's grant middleware
+// default-denies it to every token: it is session-only. The public estimate
+// and invoice PDF routes are left out too: the link token is their credential.
 func oauthPackage() oauth.Package {
 	rw := oauth.Access{Read: []string{scopeRead}, Write: []string{scopeWrite}}
 	ro := oauth.Access{Read: []string{scopeRead}}
@@ -62,6 +63,7 @@ func oauthPackage() oauth.Package {
 			"books_invoices":                   rw,
 			"books_invoice_lines":              rw,
 			"books_invoice_tax_lines":          ro,
+			invoicePublicCollection:            ro,
 			"books_sales_receipts":             rw,
 			"books_sales_receipt_lines":        rw,
 			"books_sales_receipt_tax_lines":    ro,
@@ -112,6 +114,7 @@ func oauthPackage() oauth.Package {
 			"books_admins":                     ro,
 			"books_access":                     ro,
 			statementsCollection:               rw,
+			documentSendsCollection:            ro,
 		},
 	}
 }

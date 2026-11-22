@@ -2,6 +2,7 @@
 // Client). Paths are without the org prefix; callers pass them through `useOrgHref`. A
 // line, bundle item, estimate response, payment application or bill payment line never
 // reaches here: its history is its parent's.
+import { isSendDocType } from './audit-fields'
 import { recordTypeLabel } from './audit-log'
 import { customerPath } from './customer-route'
 import { documentHref } from './document-routes'
@@ -169,6 +170,15 @@ function depositParent(live: LiveRecord): { collection: string; id: string } | n
     return deposit ? { collection: 'books_deposits', id: deposit } : null
 }
 
+// The sales document a sent email belongs to: its doc_type names the kind and `document`
+// the id (email-share plan decision 2: its history is filed under that document).
+function sendParent(live: LiveRecord): { collection: string; id: string } | null {
+    const docType = textOf(live, 'doc_type')
+    const document = textOf(live, 'document')
+    const collection = isSendDocType(docType) ? DOCUMENT_COLLECTIONS[docType] : undefined
+    return collection && document ? { collection, id: document } : null
+}
+
 // Records that open the document they belong to, by their collection.
 const PARENT_DOCUMENTS: Record<
     string,
@@ -178,10 +188,12 @@ const PARENT_DOCUMENTS: Record<
     books_credit_memo_applications: memoApplicationParent,
     books_deposit_items: depositParent,
     books_deposit_lines: depositParent,
+    books_document_sends: sendParent,
 }
 
 // An attachment opens its bill, expense or vendor credit; an application its credit memo;
-// a deposit item or line its deposit (a record path, as the deposit is no sales document).
+// a deposit item or line its deposit (a record path, as the deposit is no sales document);
+// a sent email its sales document.
 function parentDocumentPath(
     parentOf: (live: LiveRecord) => { collection: string; id: string } | null,
     live: LiveRecord
@@ -227,7 +239,8 @@ export function auditOpenLabel(collection: string): string {
  * The Open button's label for a record's live row: it names the screen the button opens,
  * so a party contact reads "Open customer" or "Open vendor" (contactPath), an attachment
  * "Open bill", "Open expense" or "Open vendor credit", a credit memo application
- * "Open credit memo", and a deposit item or line "Open deposit" (PARENT_DOCUMENTS).
+ * "Open credit memo", a deposit item or line "Open deposit", and a sent email the kind of
+ * its document, "Open invoice" (PARENT_DOCUMENTS).
  */
 export function auditRecordOpenLabel(collection: string, live: LiveRecord | undefined): string {
     if (!live) return auditOpenLabel(collection)

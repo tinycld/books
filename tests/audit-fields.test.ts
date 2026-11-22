@@ -30,6 +30,7 @@ const HIDDEN = [
     { collection: 'books_vendors', key: 'tax_id' },
     { collection: 'books_settings', key: 'tax_id' },
     { collection: 'books_estimates', key: 'public_token' },
+    { collection: 'books_invoices', key: 'public_token' },
 ]
 
 describe('AUDIT_FIELDS against the generated schema', () => {

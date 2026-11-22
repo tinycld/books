@@ -20,10 +20,12 @@ import (
 // endpoint: the records it prints reach clients only through their live
 // queries. The /api/books/pdf routes are session only: they are not in the
 // OAuth registration, so core's grant middleware default-denies them to every
-// token. The public estimate route takes no session: the estimate's link
-// token in its path is the credential (servePublicEstimatePDF).
+// token. The public estimate and invoice routes take no session: the
+// document's link token in its path is the credential (servePublicEstimatePDF,
+// servePublicInvoicePDF).
 func bindPDFRoutes(e *core.ServeEvent) {
 	e.Router.GET("/api/books/public/estimates/{token}/pdf", servePublicEstimatePDF)
+	e.Router.GET("/api/books/public/invoices/{token}/pdf", servePublicInvoicePDF)
 	e.Router.GET("/api/books/pdf/{kind}", func(re *core.RequestEvent) error {
 		return servePDF(re, re.Request.PathValue("kind"), "")
 	})
@@ -91,6 +93,32 @@ func servePublicEstimatePDF(re *core.RequestEvent) error {
 		return re.NotFoundError("Document not found.", nil)
 	}
 	return writePDF(re, documentKinds["estimate"], record)
+}
+
+// servePublicInvoicePDF is servePublicEstimatePDF for an invoice's customer
+// link. Only a posted invoice prints: a draft has no customer page, and a void
+// one shows no amounts and no PDF (email-share spec §3.5), so both answer 404
+// as a token no invoice has does.
+func servePublicInvoicePDF(re *core.RequestEvent) error {
+	token := re.Request.PathValue("token")
+	if !publicTokenPattern.MatchString(token) {
+		return re.NotFoundError("Document not found.", nil)
+	}
+	record, err := re.App.FindFirstRecordByFilter("books_invoices", "public_token = {:token}",
+		dbx.Params{"token": token})
+	if errors.Is(err, sql.ErrNoRows) {
+		return re.NotFoundError("Document not found.", nil)
+	}
+	if err != nil {
+		return err
+	}
+	if subtle.ConstantTimeCompare([]byte(record.GetString("public_token")), []byte(token)) != 1 {
+		return re.NotFoundError("Document not found.", nil)
+	}
+	if record.GetString("status") != statusPosted {
+		return re.NotFoundError("Document not found.", nil)
+	}
+	return writePDF(re, documentKinds["invoice"], record)
 }
 
 // statementAmountDueHeader carries a statement's amount due now, in cents: the

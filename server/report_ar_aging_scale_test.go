@@ -538,8 +538,9 @@ var arTableColumns = map[string][]string{
 	arLines: {"account", "created", "credit", "currency", "customer", "date", "debit", "entry", "id", "memo", "position",
 		"posted", "updated", "vendor"},
 	arInvoices: {"balance", "bill_to", "created", "currency", "customer", "date", "due_date", "email", "entry", "estimate",
-		"fields", "form", "id", "memo", "message", "number", "posted_at", "posted_by", "replaced_by", "replaces", "revision",
-		"sequence", "sort_key", "status", "subtotal", "tax_rate", "tax_total", "terms", "total", "updated", "voided_at", "voided_by"},
+		"fields", "form", "id", "memo", "message", "number", "posted_at", "posted_by", "public_token", "replaced_by", "replaces",
+		"revision", "sequence", "sort_key", "status", "subtotal", "tax_rate", "tax_total", "terms", "total", "updated",
+		"voided_at", "voided_by"},
 	arPayments: {"amount", "applied", "created", "credited", "currency", "customer", "date", "deposit_to", "entry", "id",
 		"memo", "number", "payment_method", "posted_at", "posted_by", "reference_no", "replaced_by", "replaces", "sequence",
 		"sort_key", "status", "updated", "voided_at", "voided_by"},
@@ -613,10 +614,16 @@ func (w *arWriter) doc(d arDoc, wr *arWritten, all []arWritten, applied int, b a
 			{account: b.receivable.Id, debit: d.cents, customer: d.customer},
 			{account: b.income.Id, credit: d.cents, customer: d.customer},
 		}
+		// Each invoice has its own customer-link token, as the create guard
+		// gives it (stampInvoiceToken); the unique index refuses a shared one.
+		token, err := newPublicToken()
+		if err != nil {
+			w.t.Fatal(err)
+		}
 		w.row(arInvoices, common(map[string]any{
 			"balance": balance, "bill_to": nil, "due_date": d.due, "email": "", "estimate": "", "fields": nil,
-			"form": "", "message": "", "revision": 3, "subtotal": d.cents, "tax_rate": "", "tax_total": 0,
-			"terms": "", "total": d.cents,
+			"form": "", "message": "", "public_token": token, "revision": 3, "subtotal": d.cents, "tax_rate": "",
+			"tax_total": 0, "terms": "", "total": d.cents,
 		}))
 	case arKindPayment:
 		sum := 0
@@ -849,7 +856,11 @@ func TestARAgingBulkWriterMatchesPosters(t *testing.T) {
 	}
 	match(arApps, data.docs[1].apps, arIDsWhere(t, b.app, arApps, "payment", pay.Id))
 
-	ignored := map[string]bool{"id": true, "number": true, "sequence": true, "created": true, "updated": true, "posted_at": true}
+	// public_token is random on each invoice, so no two rows share it.
+	ignored := map[string]bool{
+		"id": true, "number": true, "sequence": true, "created": true, "updated": true, "posted_at": true,
+		"public_token": true,
+	}
 	for _, p := range pairs {
 		bulkRow, postedRow := arRawRow(t, b.app, p.table, p.bulk), arRawRow(t, b.app, p.table, p.posted)
 		cols := make([]string, 0, len(postedRow))

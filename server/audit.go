@@ -36,9 +36,14 @@ import (
 //
 // A tax ID (an SSN for a sole proprietor) is redacted: it must not stay
 // readable in the audit log after it is corrected or the vendor is deleted.
-// An estimate's public_token is redacted too: it is the credential of the
-// customer link, and a copy in the log would be a second key to it. The labels
-// read no redacted field, because core does not redact the label.
+// An estimate's and an invoice's public_token is redacted too: it is the
+// credential of the customer link, and a copy in the log would be a second key
+// to it. The labels read no redacted field, because core does not redact the
+// label.
+//
+// A document send is written only by the send route, as the app, through the
+// create-request hook chain, so core's request hook logs it under the user who
+// sent it.
 func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 	return map[string]*audit.CollectionConfig{
 		"books_accounts":        {ExtractLabel: auditAccountLabel},
@@ -51,7 +56,7 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		"books_tax_rates":       {ExtractLabel: audit.LabelFromField("name"), Redact: []string{"sort_key"}},
 		"books_journal_entries": {ExtractLabel: entryLabel},
 		"books_journal_lines":   {ExtractLabel: func(r *core.Record) string { return lineLabel(app, r) }},
-		"books_invoices":        {ExtractLabel: invoiceLabel, Redact: []string{"sort_key"}},
+		"books_invoices":        {ExtractLabel: invoiceLabel, Redact: []string{"sort_key", "public_token"}},
 		"books_invoice_lines":   {ExtractLabel: func(r *core.Record) string { return invoiceLineLabel(app, r) }},
 		"books_sales_receipts":  {ExtractLabel: salesReceiptLabel, Redact: []string{"sort_key"}},
 		"books_sales_receipt_lines": {
@@ -135,14 +140,17 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		"books_attachments": {
 			ExtractLabel: func(r *core.Record) string { return attachmentLabel(app, r) },
 		},
-		statementsCollection: {ExtractLabel: audit.LabelFromField("number")},
+		statementsCollection:    {ExtractLabel: audit.LabelFromField("number")},
+		documentSendsCollection: {ExtractLabel: documentSendLabel},
 	}
 }
 
 // auditParentFields maps each line collection to the field that names its
 // document. The books_audit_log view (migration 2100000038) reads the same
 // collections to give a line's audit row its document, and Register declares them
-// as the view's sources, because a line write can change that document.
+// as the view's sources, because a line write can change that document. A
+// document send is filed as a line of the document it sent; the view reads
+// that document's collection from the send's doc_type.
 var auditParentFields = map[string]string{
 	"books_journal_lines":              "entry",
 	"books_invoice_lines":              "invoice",
@@ -162,6 +170,7 @@ var auditParentFields = map[string]string{
 	vendorRefundLinesCollection:        "refund",
 	depositItemsCollection:             "deposit",
 	depositLinesCollection:             "deposit",
+	documentSendsCollection:            "document",
 }
 
 // auditLineCollections are the keys of auditParentFields in name order.
@@ -184,6 +193,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_refund_receipts", Label: "Refund receipt"},
 		{Value: writeOffsCollection, Label: "Write-off"},
 		{Value: statementsCollection, Label: "Customer statement"},
+		{Value: documentSendsCollection, Label: "Sent email"},
 		{Value: "books_bills", Label: "Bill"},
 		{Value: "books_expenses", Label: "Expense"},
 		{Value: vendorCreditsCollection, Label: "Vendor credit"},
