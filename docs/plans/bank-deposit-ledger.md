@@ -136,6 +136,7 @@
 - reviewer-caught deferrals: 3 (no ⌘⌫ press, phone ⌘⇧↵ untested, Clear selection not a `ShortcutButton`); the third was self-declared (part B difference 3), the two test gaps were not — all fixed.
 - fix-round causes: weak-test 4, record-state 2, appearance 1, conformance 1, other: comment and code disagree 1 (cp3-fix-r1.md); recurring over the run: weak-test, conformance, other, record-state.
 - out-of-plan files: `tests/shell-nav.test.ts`, `components/deposits/DepositBackLink.tsx`, `hooks/useBackToJournalEntries.ts`, `lib/deposit-refusals.ts`, `tests/deposit-refusals.test.ts` (fix r1 item 1)
+- commit: f112158fe908babcffca14910de88373d2d55141
 - human: none (review mode C)
 
 ## Final review
