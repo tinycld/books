@@ -160,6 +160,7 @@ and again at the end)
 - fix review: round 1 (staging `cp/cp3-fix-review.md`): 0 BLOCK, 2 NOTE (Design notes), 0 not fixed
 - gate 3 A notes: 3 to Design notes (NOTEs 4, 7; NOTE 5 later fixed)
 - reviewer-caught deferrals: none
+- commit: 403602ed
 
 ## Final review
 - eval: (unattended only) approved | revised → <notes, fix sha> | stopped
