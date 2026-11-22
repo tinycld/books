@@ -77,9 +77,9 @@ function totalsOf(
 /**
  * The screen of `books/reconcile/<id>` (reconcile spec §3 "The work screen", "States", §4
  * "Reads"): the reconciliation by id (key `books.reconcile.record`, its own live query, so a
- * failed load has an error state) with its account and the user who finished it through
- * `materialize()`, its lines (useReconcileLines) and the band's totals: from the cleared
- * lines while in progress, from the stamped sums once finished. `state` is `loading` until
+ * failed load has an error state) with its account through `materialize()` (the finisher's
+ * name is stamped on the row, `finished_by_name`), its lines (useReconcileLines) and the
+ * band's totals: from the cleared lines while in progress, from the stamped sums once finished. `state` is `loading` until
  * the record and, in progress, its lines have answered, `error` when one of them or the
  * access read failed, `not-found` when the record answered with no row (a bad id, or
  * another user discarded it). Retry recovers every failed read with one call. Back pops to
@@ -102,14 +102,12 @@ export function useReconcileScreen(id: string) {
     const [
         reconciliationsCollection,
         accountsCollection,
-        usersCollection,
         accessCollection,
         connectionsCollection,
         transactionsCollection,
     ] = useStore(
         'books_reconciliations',
         'books_accounts',
-        'users',
         'books_access',
         'books_bank_connections',
         'books_bank_transactions'
@@ -141,13 +139,6 @@ export function useReconcileScreen(id: string) {
                                 type: a.type,
                                 currency: a.currency,
                             }))
-                            .findOne()
-                    ),
-                    finishedBy: materialize(
-                        q
-                            .from({ u: usersCollection })
-                            .where(({ u }) => eq(u.id, r.finished_by))
-                            .select(({ u }) => ({ name: u.name }))
                             .findOne()
                     ),
                     // Edit info's date rule: the account's latest finished statement.
@@ -321,7 +312,7 @@ export function useReconcileScreen(id: string) {
         const recordRecovery: LiveRecovery = recordQuery.isError
             ? {
                   queries: [recordQuery.collection],
-                  sources: [reconciliationsCollection, accountsCollection, usersCollection],
+                  sources: [reconciliationsCollection, accountsCollection],
               }
             : NO_RECOVERY
         const accessRecovery: LiveRecovery = access.isError
@@ -390,11 +381,9 @@ export function useReconcileScreen(id: string) {
                   rows: lines.rows,
               }
             : null
+    // The stamped name, so the line stays after the finisher's user record is deleted.
     const finishedText = reconciliation
-        ? finishedByText(
-              localDayOf(reconciliation.finished_at),
-              reconciliation.finishedBy?.name ?? ''
-          )
+        ? finishedByText(localDayOf(reconciliation.finished_at), reconciliation.finished_by_name)
         : ''
     const onViewRegister = () => router.push(orgHref(`books/accounts/${statementAccount}`))
 

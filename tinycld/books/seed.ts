@@ -56,6 +56,7 @@ import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
 import { PURCHASE_LIST_SEED } from './lib/purchase-lists-fixture'
 import { PAYMENT_SEED } from './lib/receive-payment-fixture'
 import { RECONCILE_SEED } from './lib/reconcile-fixture'
+import { RECONCILIATION_REPORT_SEED } from './lib/reconciliation-report-fixture'
 import {
     REFUND_FROM_ACCOUNTS,
     REFUND_RECEIPT_IDS,
@@ -343,6 +344,9 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     // Journal entries on 1010 Business Savings against 3000 Owner's Equity only, after the
     // bank match seed, so no document number and no income figure moves.
     await seedReconcile(pb, ctx, accountIds)
+    // Entries on 2100 Company Card against 3000 Owner's Equity only, on August days no e2e
+    // spec reads, and two finished reconciliations of 2100.
+    await seedReconciliationReport(pb, ctx, accountIds)
     // Two unsent statements; a statement posts nothing, so no seeded figure moves.
     await seedStatements(pb, customerIds)
     // Created active and deactivated last, because the app makes an account
@@ -3137,8 +3141,8 @@ async function longSectionLines(pb: PocketBase, savings: string): Promise<string
 // goes through the collection API, so the Go hooks (server/reconcile.go) stamp the
 // beginning balance, the cleared sums, the currency and each cleared row's line fields;
 // the seed sends none of them. It sends the people (created_by on each create,
-// finished_by on the finish): it writes as superuser, and the request hooks keep a
-// superuser's value, so the seed names its user. The finished reconciliation's fixed id is how
+// finished_by and finished_by_name on the finish): it writes as superuser, and the
+// request hooks keep a superuser's value, so the seed names its user. The finished reconciliation's fixed id is how
 // a second run knows it ran.
 export async function seedReconcile(
     pb: PocketBase,
@@ -3200,6 +3204,7 @@ export async function seedReconcile(
     await reconciliations.update(seed.finished.id, {
         status: 'finished',
         finished_by: ctx.user.id,
+        finished_by_name: ctx.user.name,
     })
     await reconciliations.create({
         id: seed.inProgress.id,
@@ -3210,6 +3215,70 @@ export async function seedReconcile(
         created_by: ctx.user.id,
     })
     await clear(seed.inProgress.id, seed.inProgress.clears)
+}
+
+// Reconciliation report spec §4 "Fixture and seed": posts the three
+// RECONCILIATION_REPORT_SEED entries on 2100 Company Card against 3000 Owner's Equity (a
+// charge credits 2100, the payment debits it), then finishes two reconciliations of 2100:
+// Jul 31, 2026 at $0.00 with no cleared row (its statement balance is its beginning
+// balance), and Aug 31, 2026 over the three entries. Every write goes through the
+// collection API as superuser, so the Go hooks (server/reconcile.go) stamp the beginning
+// balance, the sums, the currency and each cleared row's line fields; the seed sends the
+// people (created_by, finished_by and finished_by_name), which the hooks keep for a
+// superuser. The latest's fixed id is how a second run knows it ran.
+export async function seedReconciliationReport(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>
+): Promise<void> {
+    const seed = RECONCILIATION_REPORT_SEED
+    const done = await pb
+        .collection('books_reconciliations')
+        .getList(1, 1, { filter: pb.filter('id = {:id}', { id: seed.latest.id }) })
+    if (done.totalItems > 0) return
+    const card = seededAccountId(accountIds, seed.account, 'the reconciliation report seed')
+    // postEntry reads the accounts by key; here the keys are the account numbers.
+    seededAccountId(accountIds, '3000', 'the reconciliation report seed')
+    const lineIds: string[] = []
+    for (const entry of seed.entries) {
+        const charge = 'charge' in entry ? entry.charge : 0
+        const payment = 'payment' in entry ? entry.payment : 0
+        const entryId = await postEntry(pb, ctx, accountIds, {
+            date: entry.date,
+            memo: entry.memo,
+            lines: [
+                [seed.account, payment, charge],
+                ['3000', charge, payment],
+            ],
+        })
+        const line = await pb.collection('books_journal_lines').getFirstListItem<{ id: string }>(
+            pb.filter('entry = {:entry} && account = {:account}', {
+                entry: entryId,
+                account: card,
+            })
+        )
+        lineIds.push(line.id)
+    }
+    const reconciliations = pb.collection('books_reconciliations')
+    const finish = { status: 'finished', finished_by: ctx.user.id, finished_by_name: ctx.user.name }
+    for (const statement of [seed.earlier, seed.latest]) {
+        await reconciliations.create({
+            id: statement.id,
+            account: card,
+            statement_date: statement.statement_date,
+            statement_balance: statement.statement_balance,
+            status: 'in_progress',
+            created_by: ctx.user.id,
+        })
+        if (statement.id === seed.latest.id) {
+            for (const line of lineIds) {
+                await pb
+                    .collection('books_reconciliation_lines')
+                    .create({ reconciliation: statement.id, line })
+            }
+        }
+        await reconciliations.update(statement.id, finish)
+    }
 }
 
 // Statements spec §4.7: two saved, unsent statements of Harborview Kitchen (one Balance

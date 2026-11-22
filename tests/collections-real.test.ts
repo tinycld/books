@@ -173,3 +173,44 @@ describe('Reconcile collections with the real pbtsdb', () => {
         expect(pb.filters.some(filter => filter.includes('acctsavings0001'))).toBe(true)
     })
 })
+
+// Reconciliation report spec §4 "Schema": the reconciled lines view, one row for each cleared
+// row of a finished reconciliation, is registered on demand and live on its change topic.
+describe('Reconciliation report collections with the real pbtsdb', () => {
+    it('registers the reconciled lines view on its change topic and loads one statement on demand', async () => {
+        const { books, pb } = realBooksWithUsers()
+        const view = books.books_reconciled_lines
+        expect(view).toBeDefined()
+        const row = { account: 'acctcard0000001', entry: 'entry0000000001', currency: 'USD' }
+        pb.tables.books_reconciled_lines = [
+            {
+                id: 'clear0000000001',
+                reconciliation: 'recn00000000001',
+                date: '2026-08-07',
+                debit: 0,
+                credit: 48250,
+                position: 0,
+                memo: 'Office chairs',
+                payee: '',
+                ...row,
+            },
+            {
+                id: 'clear0000000002',
+                reconciliation: 'recn00000000002',
+                date: '2026-08-09',
+                debit: 0,
+                credit: 9900,
+                position: 0,
+                memo: 'Software',
+                payee: '',
+                ...row,
+            },
+        ]
+        const query = createLiveQueryCollection(q =>
+            q.from({ line: view }).where(({ line }) => eq(line.reconciliation, 'recn00000000001'))
+        )
+        await query.preload()
+        expect((query.toArray as { id: string }[]).map(r => r.id)).toEqual(['clear0000000001'])
+        expect(pb.filters.some(filter => filter.includes('recn00000000001'))).toBe(true)
+    })
+})

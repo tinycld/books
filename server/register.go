@@ -60,6 +60,10 @@ func Register(app *pocketbase.PocketBase) {
 	changesignal.RegisterView(reconcileLinesView, "books_journal_lines", "books_journal_entries", "books_accounts",
 		"books_customers", "books_vendors", reconciliationLinesCollection, reconciliationsCollection,
 		bankMatchLinesCollection)
+	// The reconciled lines read the cleared rows with their finished
+	// reconciliation, journal line and entry, and the line's party.
+	changesignal.RegisterView(reconciledLinesView, reconciliationLinesCollection, reconciliationsCollection,
+		"books_journal_lines", "books_journal_entries", "books_customers", "books_vendors")
 	// The undeposited items read the journal lines with their entry and account,
 	// the posted deposit items, and each source document's payment method and
 	// reference no.

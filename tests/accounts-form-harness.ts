@@ -49,6 +49,7 @@ import type {
     BooksExpenses,
     BooksJournalEntries,
     BooksJournalLines,
+    BooksReconciledLines,
     BooksReconcileLines,
     BooksReconciliationLines,
     BooksReconciliations,
@@ -1119,6 +1120,8 @@ export function seedBooks(
             []
         ),
         books_reconcile_lines: local<BooksReconcileLines>('books_reconcile_lines', []),
+        // Read by the reconciliation report and the history; empty unless a test replaces it.
+        books_reconciled_lines: local<BooksReconciledLines>('books_reconciled_lines', []),
         books_bank_transactions: onDemandCollection<BooksBankTransactions>(
             'books_bank_transactions',
             opts.bankTransactions ?? [],

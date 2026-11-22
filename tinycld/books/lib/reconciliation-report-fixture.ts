@@ -14,7 +14,7 @@ import type {
     ResultRow,
     RunResult,
 } from '@tinycld/core/reports/lib/types'
-import type { BooksAccounts, BooksReconciliations } from '../types'
+import type { BooksAccounts, BooksReconciledLines, BooksReconciliations } from '../types'
 import { BANK_USERS } from './bank-connection-fixture'
 import {
     RECONCILE_ACCOUNT_IDS,
@@ -25,30 +25,6 @@ import {
 
 const CURRENCY = 'USD'
 const ACCOUNTS = RECONCILE_ACCOUNT_IDS
-
-// `finished_by_name` comes with this unit's migration
-// (`pb-migrations/<number>_books_reconciliation_report.js`). The migration checkpoint must
-// replace this interface with the generated `BooksReconciliations`, which then has the field.
-export interface FinishedReconciliation extends BooksReconciliations {
-    finished_by_name: string
-}
-
-// One row of the view `books_reconciled_lines` of the same migration (spec §4 "Schema"):
-// a cleared row of a finished reconciliation. The migration checkpoint must replace this
-// interface with the generated `BooksReconciledLines`.
-export interface ReconciledLine {
-    id: string
-    reconciliation: string
-    account: string
-    entry: string
-    date: string
-    debit: number
-    credit: number
-    position: number
-    currency: string
-    memo: string
-    payee: string
-}
 
 // 62 characters: the Reconciled cell and the card's third line must end in an ellipsis.
 export const RECONCILIATION_LONG_PERSON =
@@ -242,7 +218,10 @@ function accountOf(id: string): BooksAccounts {
 }
 
 // A debit raises a bank account's balance and lowers the amount owed on a card.
-function ownNet(account: BooksAccounts, line: Pick<ReconciledLine, 'debit' | 'credit'>): number {
+function ownNet(
+    account: BooksAccounts,
+    line: Pick<BooksReconciledLines, 'debit' | 'credit'>
+): number {
     const net = line.debit - line.credit
     return account.type === 'credit_card' ? -net : net
 }
@@ -253,7 +232,7 @@ function serialId(prefix: string, n: number): string {
 
 // The report's own values of a cleared row: the Transaction label and the path the row
 // opens come from the row's journal entry (Go `statementActivity()`, `entryOpenPath()`).
-export interface ReconciledLineRow extends ReconciledLine {
+export type ReconciledLineRow = BooksReconciledLines & {
     transaction: string
     open: string
 }
@@ -277,11 +256,11 @@ function linesOf(input: StatementInput): ReconciledLineRow[] {
             payee,
             transaction,
             open: `books/entries/${entry}`,
-        }
+        } satisfies ReconciledLineRow
     })
 }
 
-function finished(input: StatementInput): FinishedReconciliation {
+function finished(input: StatementInput): BooksReconciliations {
     const account = accountOf(input.account)
     const lines = linesOf(input)
     const out = lines.filter(line => line.credit > 0)
@@ -307,14 +286,14 @@ function finished(input: StatementInput): FinishedReconciliation {
         currency: CURRENCY,
         created: input.finished_at,
         updated: input.finished_at,
-    } satisfies FinishedReconciliation
+    } satisfies BooksReconciliations
 }
 
 // Every finished reconciliation: three statements of 1000, two of 1010, two of 2100 and
 // one of the long-named 1020.
-export const FINISHED_RECONCILIATIONS: FinishedReconciliation[] = STATEMENTS.map(finished)
+export const FINISHED_RECONCILIATIONS = STATEMENTS.map(finished) satisfies BooksReconciliations[]
 
-export const RECONCILED_LINES: ReconciledLineRow[] = STATEMENTS.flatMap(linesOf)
+export const RECONCILED_LINES = STATEMENTS.flatMap(linesOf) satisfies BooksReconciledLines[]
 
 // 1010 Business Savings has October in progress, so the undo of its September statement is
 // blocked (spec §3 "Undo").
@@ -339,9 +318,26 @@ export const RECONCILIATION_OPEN = {
     currency: CURRENCY,
     created: '2026-11-20 15:00:00.000Z',
     updated: '2026-11-20 15:00:00.000Z',
-} satisfies FinishedReconciliation
+} satisfies BooksReconciliations
 
-export const OPEN_RECONCILIATIONS: FinishedReconciliation[] = [RECONCILIATION_OPEN]
+export const OPEN_RECONCILIATIONS: BooksReconciliations[] = [RECONCILIATION_OPEN]
+
+// The seed's own rows (seed.ts seedReconciliationReport): three entries on 2100 Company
+// Card against 3000 Owner's Equity, on August days no e2e spec reads, and two finished
+// reconciliations of 2100: Jul 31, 2026 at $0.00 with no cleared row (its statement balance
+// is its beginning balance), then Aug 31, 2026 over the three entries. A charge credits 2100
+// (it raises what is owed), the payment debits it: 48,250 + 9,900 − 20,000 = 38,150 owed.
+// The two ids are fixed, 15 characters each; the latest's is how a second run knows it ran.
+export const RECONCILIATION_REPORT_SEED = {
+    account: '2100',
+    entries: [
+        { date: '2026-08-07', memo: 'Reconciliation report seed: office chairs', charge: 48_250 },
+        { date: '2026-08-09', memo: 'Reconciliation report seed: software', charge: 9_900 },
+        { date: '2026-08-23', memo: 'Reconciliation report seed: card payment', payment: 20_000 },
+    ],
+    earlier: { id: 'rrptseedcrd0731', statement_date: '2026-07-31', statement_balance: 0 },
+    latest: { id: 'rrptseedcrd0831', statement_date: '2026-08-31', statement_balance: 38_150 },
+} as const
 
 // The history query's rows (spec §4 "Reads"): each finished reconciliation with its
 // account, by statement date, newest first, then by account number.
@@ -460,14 +456,15 @@ export const RECONCILIATION_REPORT_DISPLAY: NonNullable<ReportSpec['display']> =
     layouts: [RECONCILIATION_REPORT_PHONE_LAYOUT, RECONCILIATION_REPORT_TABLET_LAYOUT],
 }
 
-// Statement ending and Reconciled on have a cell on section rows only (`detail: "blank"`).
+// Statement ending and Reconciled on have a cell on section rows only (`detail: "blank"`,
+// not figures, so group-only: the engine leaves them off the subtotal row).
 export const RECONCILIATION_REPORT_COLUMNS: ResultColumn[] = [
     { id: 'date', label: 'Date', type: 'date' },
     { id: 'transaction', label: 'Transaction', type: 'text' },
     { id: 'payee', label: 'Payee', type: 'text' },
     { id: 'memo', label: 'Memo', type: 'text' },
-    { id: 'statement', label: 'Statement ending', type: 'date' },
-    { id: 'reconciled', label: 'Reconciled on', type: 'datetime' },
+    { id: 'statement', label: 'Statement ending', type: 'date', groupOnly: true },
+    { id: 'reconciled', label: 'Reconciled on', type: 'datetime', groupOnly: true },
     { id: 'debit', label: 'Debit', type: 'money', currency: CURRENCY, aggregate: 'sum' },
     { id: 'credit', label: 'Credit', type: 'money', currency: CURRENCY, aggregate: 'sum' },
     { id: 'balance', label: 'Balance', type: 'money', currency: CURRENCY },
@@ -477,10 +474,10 @@ const blankZero = (cents: number): number | null => (cents === 0 ? null : cents)
 
 const accountText = (account: BooksAccounts) => `${account.number} ${account.full_name}`
 
-const groupId = (reconciliation: FinishedReconciliation) =>
+const groupId = (reconciliation: BooksReconciliations) =>
     `g:${JSON.stringify([reconciliation.id, CURRENCY])}`
 
-function lineRows(reconciliation: FinishedReconciliation, section: string): ResultRow[] {
+function lineRows(reconciliation: BooksReconciliations, section: string): ResultRow[] {
     const account = accountOf(reconciliation.account)
     let balance = reconciliation.beginning_balance
     return RECONCILED_LINES.filter(line => line.reconciliation === reconciliation.id).map(line => {
@@ -510,19 +507,15 @@ function lineRows(reconciliation: FinishedReconciliation, section: string): Resu
 // with Statement ending and Reconciled on), the opening row, the cleared rows with the
 // running balance, and the total, whose Balance is the statement ending balance.
 //
-// The rows are as the engine sends them today (assemble.go groupWithLabel): the group row
-// and its subtotal row have the same cells. Core's view blanks an open group row that its
-// subtotal row follows (reports/lib/rows.ts rowCells), so Statement ending and Reconciled
-// on would show on the Total row only. The spec puts them on the section row: that needs
-// a core change (the helix ledger, Design notes, names it), which the reference route
-// draws ahead of core.
-function sectionRows(reconciliation: FinishedReconciliation): ResultRow[] {
+// The rows are as the engine sends them (assemble.go groupWithLabel): the subtotal row has
+// the group row's cells but those of the group-only columns (Statement ending, Reconciled
+// on). Core's view keeps only the group-only cells on an open group row that its subtotal
+// row follows (reports/lib/rows.ts rowCells), so they show on the section row.
+function sectionRows(reconciliation: BooksReconciliations): ResultRow[] {
     const account = accountOf(reconciliation.account)
     const id = groupId(reconciliation)
     const label = `${accountText(account)} · reconciled by ${reconciliation.finished_by_name}`
     const figures = {
-        statement: reconciliation.statement_date,
-        reconciled: reconciliation.finished_at,
         debit: blankZero(reconciliation.cleared_in),
         credit: blankZero(reconciliation.cleared_out),
         balance: reconciliation.statement_balance,
@@ -536,7 +529,11 @@ function sectionRows(reconciliation: FinishedReconciliation): ResultRow[] {
         groupKey: [reconciliation.id, CURRENCY],
         expanded: true,
         canExpand: true,
-        cells: { ...figures },
+        cells: {
+            statement: reconciliation.statement_date,
+            reconciled: reconciliation.finished_at,
+            ...figures,
+        },
     }
     const opening: ResultRow = {
         id: `opening:${JSON.stringify([reconciliation.id, CURRENCY])}`,
@@ -560,7 +557,7 @@ function sectionRows(reconciliation: FinishedReconciliation): ResultRow[] {
 }
 
 // Debit and Credit add; a sum of the balances of several statements means nothing.
-function totalRow(shown: readonly FinishedReconciliation[]): ResultRow {
+function totalRow(shown: readonly BooksReconciliations[]): ResultRow {
     return {
         id: `total:${JSON.stringify([CURRENCY])}`,
         kind: 'total',
@@ -582,7 +579,7 @@ export interface ReconciliationReportInput {
 }
 
 // By account number, then statement date, newest first.
-function shownStatements(input: ReconciliationReportInput): FinishedReconciliation[] {
+function shownStatements(input: ReconciliationReportInput): BooksReconciliations[] {
     return FINISHED_RECONCILIATIONS.filter(
         row =>
             (!input.accounts || input.accounts.includes(row.account)) &&

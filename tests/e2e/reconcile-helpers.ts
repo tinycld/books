@@ -108,21 +108,25 @@ function accountListMove(move: AccountListMove['move']): AccountListMove {
 // Runs in the page. Finds the accounts list's vertical scroller (table or cards) from its
 // last mounted row and moves it, in one synchronous pass, so a re-render cannot detach the
 // row it measures. Rows of a hidden, stacked screen are skipped. `offset` is where the first
-// mounted row starts in the scrolled content: 0 when the list renders from its first row. A
-// 'step' brings the last mounted row to the top edge, so a step never passes a row that has
-// not mounted yet. `atEnd` is true when a step could not move the list and the mounted rows
-// already reach its end (the spacer after the last one has no height).
+// mounted row starts in the rows block (the rows' parent, which starts with the top spacer):
+// 0 when the list renders from its first row. It is not measured from the scroller's top,
+// because the table's scroller holds its sticky header above the rows block. A 'step'
+// brings the last mounted row to the scroller's top edge (under the table's sticky header,
+// where it stays mounted), so a step never passes a row that has not mounted yet. `atEnd`
+// is true when a step could not move the list and the mounted rows already reach its end
+// (the spacer after the last one has no height).
 function moveAccountList({ move, items }: AccountListMove) {
     const mountedRows = Array.from(document.querySelectorAll(items)).filter(
         node => (node as HTMLElement).offsetParent !== null
     )
     const first = mountedRows[0]
     const last = mountedRows[mountedRows.length - 1]
+    const rowsBlock = first?.parentElement ?? null
     let list = last?.parentElement ?? null
     while (list && !/auto|scroll/.test(getComputedStyle(list).overflowY)) {
         list = list.parentElement
     }
-    if (!first || !last || !list) return { mounted: false, offset: -1, atEnd: false }
+    if (!first || !last || !rowsBlock || !list) return { mounted: false, offset: -1, atEnd: false }
     const top = list.getBoundingClientRect().top
     const before = list.scrollTop
     if (move === 'top') list.scrollTop = 0
@@ -130,7 +134,9 @@ function moveAccountList({ move, items }: AccountListMove) {
     const spacerAfterLast = last.nextElementSibling?.getBoundingClientRect().height ?? 0
     return {
         mounted: true,
-        offset: Math.round(first.getBoundingClientRect().top - top + list.scrollTop),
+        offset: Math.round(
+            first.getBoundingClientRect().top - rowsBlock.getBoundingClientRect().top
+        ),
         atEnd: move === 'step' && list.scrollTop === before && spacerAfterLast === 0,
     }
 }
