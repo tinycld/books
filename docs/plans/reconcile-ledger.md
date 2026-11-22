@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/reconcile-checkpoints.md
 - reference: docs/plans/reconcile-reference/
 - evidence: docs/plans/reconcile-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ — deleted by finish.mjs 2026-11-22
 - capture manifest: docs/plans/reconcile-capture.json
 - review mode: C — none (unattended)
 - core extension: none
@@ -320,6 +320,6 @@ and again at the end)
 - commit: a4288d28
 
 ## Final review
-- eval: (unattended only) approved | revised → <notes, fix sha> | stopped
+- eval: approved 2026-11-22 (e2e sha ebcaac5b, CI green on books#87 and tinycld#514)
 - human comments and what changed
 - native: not executed in this run
