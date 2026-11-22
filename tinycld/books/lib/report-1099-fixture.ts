@@ -249,8 +249,8 @@ const billPaid = (
 })
 
 // The share of a vendor credit's line that a vendor refund paid back, below zero, on the
-// refund's date. The memo is this fixture's guess: phase 4 reads the refund payer's
-// memo in server/document_balance.go and pins it with a Go run.
+// refund's date. The description is the one a real run gives (TestForm1099PaymentLabels
+// pins "Vendor refund <n> · <account> · Vendor credit <n> refunded (cash basis)").
 const refunded = (
     number: number,
     date: string,

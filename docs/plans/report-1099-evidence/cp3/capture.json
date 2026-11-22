@@ -1,0 +1,28 @@
+{
+    "outDir": ".",
+    "schemes": ["light", "dark"],
+    "shots": [
+        {
+            "name": "opened",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280, 1024, 768],
+            "height": 1700,
+            "actions": [
+                { "clickText": "1099 Summary and Detail" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-show" },
+                { "clickRole": "radio", "name": "All 1099 vendors" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitFor": "Greenline Landscaping" },
+                {
+                    "clickIn": "report-table",
+                    "testId": "report-row-g:[\"vendokaforjam01\",\"nec_1\",\"USD\"]"
+                },
+                { "pause": 2000 },
+                { "click": "report-document-period" },
+                { "pause": 1500 }
+            ]
+        }
+    ]
+}

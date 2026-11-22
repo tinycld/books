@@ -103,6 +103,22 @@ func box1099RankCase(box *reports.Node) *reports.Node {
 	return op("case", append(args, lit(len(boxes1099)))...)
 }
 
+// form1099DetailLabel labels a payment row as an opened line of the Expenses
+// by Vendor (expenseDetailLabel), then " · paid by card" on a card payment
+// (spec §3 Opening a payment, Q17).
+func form1099DetailLabel() *reports.Node {
+	return op("concat", expenseDetailLabel(), op("if", f1099Card(), lit(" · paid by card"), lit("")))
+}
+
+// f1099DebitFirstKey puts a row above zero before a row below it when the
+// date, the posting time and the position tie: an application of a vendor
+// credit writes two share rows from the credit's entry at one position, and
+// the bill's share (a debit) reads above the credit's applied share (a
+// credit), as the probe gave them (plan D2), not in record-id order.
+func f1099DebitFirstKey() reports.SortKey {
+	return reports.SortKey{Formula: op("if", op("gt", fld("debit"), fld("credit")), lit(0), lit(1))}
+}
+
 // form1099VendorGroup is the vendor level: vendorGroup's label and mute, then
 // " (legal name: <legal name>)" when the legal name is set and differs from
 // the name ignoring case (spec §3 Rows, Q10). It is open when the report
@@ -250,8 +266,8 @@ func form1099Spec() *reports.Spec {
 		},
 		Header: []reports.HeaderLine{{Text: "1099 threshold: {value}", Value: thresholdLookup()}},
 		Sort: vendorSortBy("amount", f1099Reportable(),
-			append([]reports.SortKey{{Formula: box1099RankCase(boxOfLevel)}}, balanceLineKeys()...)...),
-		Detail:  &reports.Detail{Label: expenseDetailLabel(), Open: entryOpenPath()},
+			append(append([]reports.SortKey{{Formula: box1099RankCase(boxOfLevel)}}, balanceLineKeys()...), f1099DebitFirstKey())...),
+		Detail:  &reports.Detail{Label: form1099DetailLabel(), Open: entryOpenPath()},
 		Display: form1099Display(),
 	}
 }
