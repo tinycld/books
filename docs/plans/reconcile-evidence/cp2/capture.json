@@ -1,0 +1,203 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "accounts",
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile",
+            "ready": "reconcile-accounts-screen",
+            "actions": [{ "clickText": "Compare an account with its bank statement." }]
+        },
+        {
+            "name": "accounts-empty",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile",
+            "emptyRecords": "books_accounts",
+            "ready": "reconcile-accounts-empty"
+        },
+        {
+            "name": "accounts-reader",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile",
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "ready": "reconcile-accounts-screen",
+            "actions": [{ "clickText": "Compare an account with its bank statement." }]
+        },
+        {
+            "name": "start",
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile",
+            "ready": "reconcile-accounts-screen",
+            "actions": [
+                { "clickText": "2100 Company Card" },
+                { "waitFor": "reconcile-start-dialog" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "opaque": "reconcile-start-dialog"
+        },
+        {
+            "name": "start-first",
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile",
+            "ready": "reconcile-accounts-screen",
+            "actions": [
+                { "clickText": "1000 Business Checking" },
+                { "waitFor": "reconcile-start-dialog" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "opaque": "reconcile-start-dialog"
+        },
+        {
+            "name": "start-errors",
+            "widths": [390],
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile",
+            "ready": "reconcile-accounts-screen",
+            "actions": [
+                { "clickText": "1000 Business Checking" },
+                { "waitFor": "reconcile-start-dialog" },
+                { "fill": "reconcile-ending-date", "value": "2099-01-31" },
+                { "fill": "reconcile-statement-out", "value": "100" },
+                { "click": "reconcile-start-submit" },
+                { "waitFor": "reconcile-ending-balance-error" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "opaque": "reconcile-start-dialog"
+        },
+        {
+            "name": "start-errors",
+            "widths": [1280],
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile",
+            "ready": "reconcile-accounts-screen",
+            "actions": [
+                { "clickText": "1000 Business Checking" },
+                { "waitFor": "reconcile-start-dialog" },
+                { "fill": "reconcile-ending-date", "value": "2099-01-31" },
+                { "fill": "reconcile-statement-out", "value": "100" },
+                { "click": "reconcile-start-submit" },
+                { "waitFor": "reconcile-ending-balance-error" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "opaque": "reconcile-start-dialog"
+        },
+        {
+            "name": "start-sending",
+            "widths": [390],
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile",
+            "writes": { "collection": "books_reconciliations", "answers": ["hold"] },
+            "ready": "reconcile-accounts-screen",
+            "actions": [
+                { "clickText": "1000 Business Checking" },
+                { "waitFor": "reconcile-start-dialog" },
+                { "fill": "reconcile-ending-balance", "value": "500.00" },
+                { "click": "reconcile-start-submit" },
+                { "waitFor": "Starting…" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "opaque": "reconcile-start-dialog"
+        },
+        {
+            "name": "start-sending",
+            "widths": [1280],
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile",
+            "writes": { "collection": "books_reconciliations", "answers": ["hold"] },
+            "ready": "reconcile-accounts-screen",
+            "actions": [
+                { "clickText": "1000 Business Checking" },
+                { "waitFor": "reconcile-start-dialog" },
+                { "fill": "reconcile-ending-balance", "value": "500.00" },
+                { "click": "reconcile-start-submit" },
+                { "waitFor": "Starting…" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "opaque": "reconcile-start-dialog"
+        },
+        {
+            "name": "work",
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile/recnseedprogrs1",
+            "ready": "reconcile-summary"
+        },
+        {
+            "name": "band-open",
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile/recnseedprogrs1",
+            "ready": "reconcile-summary",
+            "widths": [390],
+            "actions": [{ "click": "reconcile-summary-toggle" }, { "pause": 300 }]
+        },
+        {
+            "name": "card",
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile",
+            "ready": "reconcile-accounts-screen",
+            "actions": [
+                { "clickText": "2100 Company Card" },
+                { "waitFor": "reconcile-start-dialog" },
+                { "fill": "reconcile-ending-balance", "value": "864.20" },
+                { "fill": "reconcile-statement-out", "value": "580.00" },
+                { "fill": "reconcile-statement-in", "value": "120.00" },
+                { "click": "reconcile-start-submit" },
+                { "waitFor": "reconcile-summary" },
+                { "click": "reconcile-title" }
+            ]
+        },
+        {
+            "name": "balanced",
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile",
+            "ready": "reconcile-accounts-screen",
+            "actions": [
+                { "clickText": "1000 Business Checking" },
+                { "waitFor": "reconcile-start-dialog" },
+                { "fill": "reconcile-ending-balance", "value": "0.00" },
+                { "click": "reconcile-start-submit" },
+                { "waitFor": "reconcile-summary" },
+                { "click": "reconcile-title" }
+            ]
+        },
+        {
+            "name": "loading",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/recnseedprogrs1",
+            "fakeRecords": { "collection": "books_reconciliations", "hold": true },
+            "ready": "reconcile-loading"
+        },
+        {
+            "name": "error",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/recnseedprogrs1",
+            "fakeRecords": { "collection": "books_reconciliations", "status": 400 },
+            "ready": "reconcile-error"
+        },
+        {
+            "name": "not-found",
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile/notarealrecon00",
+            "ready": "reconcile-not-found"
+        }
+    ]
+}

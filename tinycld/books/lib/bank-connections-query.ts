@@ -1,4 +1,5 @@
 import {
+    and,
     type Collection,
     coalesce,
     count,
@@ -8,12 +9,14 @@ import {
     sum,
     type UtilsRecord,
 } from '@tanstack/db'
+import { materialize } from 'pbtsdb'
 import type {
     BooksAccountBalances,
     BooksAccounts,
     BooksBankConnections,
     BooksBankFiles,
     BooksBankTransactions,
+    BooksReconciliations,
 } from '../types'
 import { compareNumbers, compareText } from './account-tree'
 
@@ -29,6 +32,9 @@ import { compareNumbers, compareText } from './account-tree'
 // to one row per connection too, so a connection with many transactions stays one row and
 // one with none gets a count of 0. It loads every for-review transaction of every
 // connection: each card and the For review tab show the count (for-review decision 4).
+// The account's reconciliation in progress comes through materialize() with findOne, so an
+// account with several reconciliations stays one row; the More menu's Reconcile reads it
+// with the account's inactive flag (reconcileButtonVisible).
 // The key and insert-input type parameters follow accountsWithBalances
 // (lib/accounts-query.ts): a pbtsdb collection omits server-stamped fields on insert, a
 // plain collection does not; the query reads rows only.
@@ -43,12 +49,15 @@ export function bankConnectionsQuery<
     BI extends object,
     FI extends object,
     TI extends object,
+    RK extends string | number,
+    RI extends object,
 >(
     connections: Collection<BooksBankConnections, CK, UtilsRecord, never, CI>,
     accounts: Collection<BooksAccounts, AK, UtilsRecord, never, AI>,
     balances: Collection<BooksAccountBalances, BK, UtilsRecord, never, BI>,
     files: Collection<BooksBankFiles, FK, UtilsRecord, never, FI>,
-    transactions: Collection<BooksBankTransactions, TK, UtilsRecord, never, TI>
+    transactions: Collection<BooksBankTransactions, TK, UtilsRecord, never, TI>,
+    reconciliations: Collection<BooksReconciliations, RK, UtilsRecord, never, RI>
 ) {
     return (query: InitialQueryBuilder) => {
         const totals = query
@@ -96,6 +105,16 @@ export function bankConnectionsQuery<
                 accountName: account.name,
                 accountNumber: account.number,
                 accountType: account.type,
+                accountInactive: account.inactive,
+                inProgress: materialize(
+                    query
+                        .from({ r: reconciliations })
+                        .where(({ r }) =>
+                            and(eq(r.account, account.id), eq(r.status, 'in_progress'))
+                        )
+                        .select(({ r }) => ({ id: r.id }))
+                        .findOne()
+                ),
                 institution: connection.institution,
                 accountMask: connection.account_mask,
                 debitTotal: coalesce(total?.debit_total, 0),

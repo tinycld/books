@@ -199,6 +199,50 @@ async function openStatementsTabForShot(page: Page) {
     await expect(tab.locator('[data-testid^="statement-row-menu-"]')).toHaveCount(2)
 }
 
+// The seed reconciles two entries of 1010 Business Savings (statement of Aug 31, 2026) and
+// leaves a reconciliation in progress on it (RECONCILE_SEED in lib/reconcile-fixture.ts).
+const SAVINGS = '1010 Business Savings'
+
+async function openReconcileForShot(page: Page) {
+    await openSavingsRow(page)
+}
+
+async function openSavingsRow(page: Page) {
+    await navigateToPackage(page, 'books')
+    const item = page.getByTestId('books-nav-reconcile')
+    const toggle = page.getByTestId('books-nav-accounting-toggle')
+    await toggle.waitFor({ state: 'attached' })
+    if (!(await item.isVisible())) await toggle.click()
+    await item.click()
+    await expect(page.getByTestId('reconcile-accounts-table')).toBeVisible()
+    const row = savingsRow(page)
+    await expect(row).toBeVisible()
+    return row
+}
+
+function savingsRow(page: Page) {
+    return page
+        .locator('[data-testid^="reconcile-account-"]')
+        .filter({ has: page.getByText(SAVINGS, { exact: true }), visible: true })
+}
+
+// The work screen of the seeded reconciliation in progress on 1010 Business Savings.
+async function openReconcileWorkForShot(page: Page) {
+    const row = await openSavingsRow(page)
+    await row.locator('[data-testid^="reconcile-resume-"]').click()
+    await expect(page.getByTestId('reconcile-screen')).toBeVisible()
+    await expect(page.getByTestId('reconcile-summary')).toBeVisible()
+    await expect(page.locator('[data-testid^="reconcile-row-"]').first()).toBeVisible()
+}
+
+// The finished summary of the seeded statement of Aug 31, 2026, from its Reconciled through
+// link.
+async function openReconcileFinishedForShot(page: Page) {
+    const row = await openSavingsRow(page)
+    await row.locator('[data-testid^="reconcile-through-"]').click()
+    await expect(page.getByTestId('reconcile-finished')).toBeVisible()
+}
+
 export default {
     'chart-of-accounts': [
         {
@@ -262,6 +306,23 @@ export default {
             name: 'bank-import-1',
             setup: openBankImportForShot,
             target: '[data-testid="bank-import-screen"]',
+        },
+    ],
+    reconcile: [
+        {
+            name: 'reconcile-1',
+            setup: openReconcileForShot,
+            target: '[data-testid="reconcile-accounts-screen"]',
+        },
+        {
+            name: 'reconcile-2',
+            setup: openReconcileWorkForShot,
+            target: '[data-testid="reconcile-screen"]',
+        },
+        {
+            name: 'reconcile-3',
+            setup: openReconcileFinishedForShot,
+            target: '[data-testid="reconcile-screen"]',
         },
     ],
     statements: [

@@ -705,6 +705,56 @@ func TestOAuth_EstimatesAreReadWrite(t *testing.T) {
 	}
 }
 
+// Reconcile spec §4 Server: a token starts, changes, finishes and discards a
+// reconciliation and clears and unclears its lines with books:write; it only
+// reads the lines view.
+func TestOAuth_ReconcileCollections(t *testing.T) {
+	collections := oauthPackage().Collections
+	rw := oauth.Access{Read: []string{scopeRead}, Write: []string{scopeWrite}}
+	ro := oauth.Access{Read: []string{scopeRead}}
+	want := map[string]oauth.Access{
+		"books_reconciliations":      rw,
+		"books_reconciliation_lines": rw,
+		"books_reconcile_lines":      ro,
+	}
+	for c, access := range want {
+		got, ok := collections[c]
+		if !ok {
+			t.Errorf("%s has no OAuth entry", c)
+			continue
+		}
+		if !reflect.DeepEqual(got.Read, access.Read) || len(got.Write) != len(access.Write) ||
+			(len(access.Write) > 0 && !reflect.DeepEqual(got.Write, access.Write)) {
+			t.Errorf("%s OAuth access = %+v, want Read %v and Write %v", c, got, access.Read, access.Write)
+		}
+	}
+
+	t.Cleanup(oauth.ResetRegistry)
+	oauth.RegisterPackage(oauthPackage())
+	for _, written := range []string{"books_reconciliations", "books_reconciliation_lines"} {
+		records := "/api/collections/" + written + "/records"
+		for _, method := range []string{http.MethodPost, http.MethodPatch, http.MethodDelete} {
+			p := records
+			if method != http.MethodPost {
+				p += "/abc123"
+			}
+			if !oauth.ScopeForRoute(method, p).SatisfiedBy([]string{scopeWrite}) {
+				t.Errorf("%s %s: books:write must write", method, p)
+			}
+			if oauth.ScopeForRoute(method, p).SatisfiedBy([]string{scopeRead}) {
+				t.Errorf("%s %s: books:read alone must not write", method, p)
+			}
+		}
+	}
+	path := "/api/collections/books_reconcile_lines/records"
+	if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
+		t.Errorf("GET %s: books:read must read", path)
+	}
+	if oauth.ScopeForRoute(http.MethodPost, path).SatisfiedBy([]string{scopeRead, scopeWrite}) {
+		t.Errorf("POST %s: no Books scope may write", path)
+	}
+}
+
 // Statements spec §4.2: a token reads the statements with books:read and
 // creates or deletes one with books:write.
 func TestOAuth_StatementsAreReadWrite(t *testing.T) {

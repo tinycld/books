@@ -50,6 +50,8 @@ const RECORDS = [
     { collection: 'books_bill_payments', path: `books/bill-payments/${ID}` },
     // Write-off spec §3.6: a write-off's history opens its page.
     { collection: 'books_write_offs', path: `books/write-offs/${ID}` },
+    // Reconcile spec §2: a reconciliation's history opens its work screen or summary.
+    { collection: 'books_reconciliations', path: `books/reconcile/${ID}` },
 ]
 
 // Records shown on a screen that holds a group of them.
@@ -310,6 +312,7 @@ describe('auditOpenLabel', () => {
         expect(auditOpenLabel('books_customers')).toBe('Open customer')
         expect(auditOpenLabel('books_products')).toBe('Open product or service')
         expect(auditOpenLabel('books_bill_payments')).toBe('Open bill payment')
+        expect(auditOpenLabel('books_reconciliations')).toBe('Open reconciliation')
     })
 
     it.each(GROUPS)('$collection: $label', ({ collection, label }) => {

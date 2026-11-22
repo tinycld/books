@@ -311,6 +311,11 @@ func transitionEntry(tx core.App, stored, next *core.Record, now time.Time) erro
 		if err := uncategorizeEntry(tx, next.Id); err != nil {
 			return err
 		}
+		// A reconciled line refuses the void; a cleared mark in progress goes
+		// with it.
+		if err := unreconcileEntry(tx, next.Id); err != nil {
+			return err
+		}
 		return voidEntry(tx, next, now)
 	case from == to:
 		changed, err := changesBeyondUnlinks(tx, stored, next, nil, entryUserLinks)

@@ -13,6 +13,8 @@ To write and review entries, which you open from the sidebar, see [Journal entri
 
 To bring in your bank statements, choose Banking in the sidebar; see [Banking](help://books:banking).
 
+To compare a bank or credit card account with its bank statement, choose Reconcile in the Accounting group of the sidebar; see [Reconcile an account](help://books:reconcile).
+
 To see Books reports, choose Reports in the sidebar: it opens Reports with only Books reports shown; see [Reports](help://books:reports).
 
 To find, filter and act on your invoices, estimates, sales receipts, payments, credit memos and refund receipts, choose Sales in the sidebar; see [Sales lists](help://books:sales-lists).
