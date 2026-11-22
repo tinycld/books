@@ -225,8 +225,15 @@ func requireRefusedOnField(t testing.TB, err error, field string) {
 // rates), with the fields given over a valid draft.
 func mkInvoiceRow(t testing.TB, app core.App, customer *core.Record, fields map[string]any) *core.Record {
 	t.Helper()
+	// The token is a required field that the invoice create guard sets
+	// (stampInvoiceToken); with no guard bound, the row takes one here.
+	token, err := newPublicToken()
+	if err != nil {
+		t.Fatal(err)
+	}
 	all := map[string]any{
 		"customer": customer.Id, "status": "draft", "date": "2026-11-04", "due_date": "2026-12-04", "currency": "USD",
+		"public_token": token,
 	}
 	for k, v := range fields {
 		all[k] = v
@@ -571,9 +578,7 @@ func TestInvoiceLine_RefusesTheLine251st(t *testing.T) {
 	customer := mkCustomer(t, env.app, "Harborview Dental", "")
 	// 249 lines written before the guards are bound, so the test does not
 	// wait on 249 restatements; the guard counts what is stored.
-	inv := saveRecord(t, env.app, "books_invoices", map[string]any{
-		"customer": customer.Id, "status": "draft", "date": "2026-11-04", "due_date": "2026-12-04", "currency": "USD",
-	})
+	inv := mkInvoiceRow(t, env.app, customer, nil)
 	for i := 0; i < 249; i++ {
 		saveRecord(t, env.app, "books_invoice_lines", map[string]any{
 			"invoice": inv.Id, "kind": "description", "description": fmt.Sprintf("Note %d", i+1), "position": i,

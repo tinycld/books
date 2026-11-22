@@ -705,6 +705,45 @@ func TestOAuth_EstimatesAreReadWrite(t *testing.T) {
 	}
 }
 
+// Email-share spec §4.2 and §4.3: a token only reads the document sends (only
+// the send route writes them) and the invoices' public view (nothing writes a
+// view). The public invoice PDF route is not in the registration.
+func TestOAuth_DocumentSendsAndInvoicePublicAreReadOnly(t *testing.T) {
+	collections := oauthPackage().Collections
+	for _, c := range []string{documentSendsCollection, invoicePublicCollection} {
+		got, ok := collections[c]
+		if !ok {
+			t.Errorf("%s has no OAuth entry", c)
+			continue
+		}
+		if !reflect.DeepEqual(got.Read, []string{scopeRead}) || len(got.Write) != 0 {
+			t.Errorf("%s OAuth access = %+v, want Read [%s] and no Write", c, got, scopeRead)
+		}
+	}
+
+	t.Cleanup(oauth.ResetRegistry)
+	oauth.RegisterPackage(oauthPackage())
+	both := []string{scopeRead, scopeWrite}
+	for _, c := range []string{documentSendsCollection, invoicePublicCollection} {
+		path := "/api/collections/" + c + "/records"
+		if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("GET %s: books:read must read", path)
+		}
+		for method, route := range map[string]string{
+			http.MethodPost:   path,
+			http.MethodPatch:  path + "/abc123",
+			http.MethodDelete: path + "/abc123",
+		} {
+			if oauth.ScopeForRoute(method, route).SatisfiedBy(both) {
+				t.Errorf("%s %s: no Books scope may write", method, route)
+			}
+		}
+	}
+	if oauth.ScopeForRoute(http.MethodGet, "/api/books/public/invoices/abc/pdf").SatisfiedBy(both) {
+		t.Error("the public invoice PDF route must not be in the OAuth registration")
+	}
+}
+
 // Statements spec §4.2: a token reads the statements with books:read and
 // creates or deletes one with books:write.
 func TestOAuth_StatementsAreReadWrite(t *testing.T) {

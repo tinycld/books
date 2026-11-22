@@ -13,6 +13,7 @@ import type { BooksInvoiceLines, BooksInvoices, BooksInvoiceTaxLines } from '../
 import { CUSTOMER_IDS, CUSTOMERS } from './customer-form-fixture'
 import type { PaymentTermKey } from './payment-terms'
 import { PRODUCT_IDS, PRODUCTS, type ProductFixtureRecord } from './products-services-fixture'
+import { fixtureToken } from './public-token-fixture'
 import { TAX_IDS, TAX_RATE_ROWS } from './tax-rates-fixture'
 
 export const INVOICE_CURRENCY = 'USD'
@@ -84,11 +85,25 @@ export const INVOICE_IDS = {
 
 const IDS = INVOICE_IDS
 
+// The tokens of the invoices (`books_invoices.public_token`, email-share spec §4.3), by
+// their INVOICE_IDS key, and of the long invoice of the email-share reference. A draft has
+// one too: the server sets it when the invoice is created. email-share-fixture.ts
+// re-exports this list; it lives here because that fixture reads INVOICES.
+export const INVOICE_TOKENS = {
+    draft: fixtureToken('invoicedraft'),
+    posted: fixtureToken('invoice1004'),
+    noTax: fixtureToken('invoice1001'),
+    voided: fixtureToken('invoice1002void'),
+    correction: fixtureToken('invoice1002'),
+    exempt: fixtureToken('invoice1003'),
+    long: fixtureToken('invoice1009long'),
+} as const satisfies Record<keyof typeof INVOICE_IDS | 'long', string>
+
 // Aspen Ridge Dental: a customer-form fixture row with no CUSTOMER_IDS key.
 const ASPEN_RIDGE = 'cust_aspen_0001'
 
 function invoice(
-    seed: Pick<BooksInvoices, 'id' | 'customer' | 'status' | 'date' | 'due_date'> &
+    seed: Pick<BooksInvoices, 'id' | 'customer' | 'status' | 'date' | 'due_date' | 'public_token'> &
         Partial<BooksInvoices>
 ): BooksInvoices {
     const customer = CUSTOMERS.find(row => row.id === seed.customer)
@@ -134,6 +149,7 @@ const THANKS =
 export const INVOICES = [
     invoice({
         id: IDS.draft,
+        public_token: INVOICE_TOKENS.draft,
         customer: CUSTOMER_IDS.stJude,
         status: 'draft',
         date: INVOICE_TODAY,
@@ -148,6 +164,7 @@ export const INVOICES = [
     }),
     invoice({
         id: IDS.posted,
+        public_token: INVOICE_TOKENS.posted,
         customer: CUSTOMER_IDS.harborview,
         status: 'posted',
         number: '1004',
@@ -167,6 +184,7 @@ export const INVOICES = [
     }),
     invoice({
         id: IDS.noTax,
+        public_token: INVOICE_TOKENS.noTax,
         customer: CUSTOMER_IDS.alvarez,
         status: 'posted',
         number: '1001',
@@ -183,6 +201,7 @@ export const INVOICES = [
     }),
     invoice({
         id: IDS.voided,
+        public_token: INVOICE_TOKENS.voided,
         customer: ASPEN_RIDGE,
         status: 'void',
         number: '1002',
@@ -203,6 +222,7 @@ export const INVOICES = [
     }),
     invoice({
         id: IDS.correction,
+        public_token: INVOICE_TOKENS.correction,
         customer: ASPEN_RIDGE,
         status: 'posted',
         number: '1002',
@@ -221,6 +241,7 @@ export const INVOICES = [
     }),
     invoice({
         id: IDS.exempt,
+        public_token: INVOICE_TOKENS.exempt,
         customer: CUSTOMER_IDS.northwind,
         status: 'posted',
         number: '1003',

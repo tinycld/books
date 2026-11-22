@@ -19,10 +19,18 @@
 // SERVER-OWNED FIELDS are pinned with `@request.body.x:isset = false`: the
 // number and sequence (assigned at posting), the three totals, written_off
 // (the sum of the posted write-offs), the currency, the journal entry,
-// replaced_by, who and when, and sort_key on the invoice;
+// replaced_by, who and when, the public token and sort_key on the invoice;
 // amount on a line. Books recomputes every line amount and the invoice's
 // subtotal, tax_total and total with server/document_totals.go at every line
 // or header write of a draft, so the client never sends them.
+//
+// PUBLIC TOKEN. public_token is the credential of the invoice's customer link
+// (/p/books/invoices/<token>, 2100000034): 43 URL-safe characters (256 random
+// bits) that the Go create (stampInvoiceToken, server/invoice_link.go) sets
+// before PocketBase validates the record, so the field is required. No write
+// changes it afterwards (keepInvoiceToken puts the stored token back), and a
+// correction gets a token of its own. The unique index serves the token
+// lookups of the public view and the public PDF route.
 //
 // REVISION. revision counts the transactions that changed a draft or one of
 // its lines. Books sets it to 1 on create (the create rule pins it) and
@@ -63,6 +71,7 @@ const unset = (...fields) => fields.map(f => `@request.body.${f}:isset = false`)
 const DAY = '^\\d{4}-\\d{2}-\\d{2}$'
 const OPTIONAL_DAY = '^(\\d{4}-\\d{2}-\\d{2})?$'
 const OPTIONAL_CURRENCY = '^([A-Z]{3})?$'
+const PUBLIC_TOKEN = '^[A-Za-z0-9_-]{43}$'
 // 2^53-1: the largest whole number of cents a number field stores exactly.
 const MAX_STORED = 9007199254740991
 // The largest line amount, as on journal lines.
@@ -82,6 +91,7 @@ const INVOICE_SERVER_FIELDS = [
     'posted_at',
     'voided_by',
     'voided_at',
+    'public_token',
     'sort_key',
 ]
 const LINE_SERVER_FIELDS = ['amount']
@@ -184,6 +194,14 @@ migrate(
                         maxSelect: 1,
                     },
                     { name: 'fields', type: 'json', maxSize: 1000000 },
+                    {
+                        name: 'public_token',
+                        type: 'text',
+                        required: true,
+                        min: 43,
+                        max: 43,
+                        pattern: PUBLIC_TOKEN,
+                    },
                     { name: 'sort_key', type: 'text', hidden: true, max: 200 },
                     ...AUTODATES,
                 ],
@@ -202,6 +220,7 @@ migrate(
             'CREATE INDEX idx_books_invoices_status_date ON books_invoices (status, date)',
             'CREATE INDEX idx_books_invoices_tax_rate ON books_invoices (tax_rate)',
             'CREATE INDEX idx_books_invoices_form ON books_invoices (form)',
+            'CREATE UNIQUE INDEX idx_books_invoices_public_token ON books_invoices (public_token)',
         ]
         app.save(invoices)
 

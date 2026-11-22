@@ -17,6 +17,7 @@ import type { BooksEstimateLines, BooksEstimates, BooksInvoiceLines, BooksInvoic
 import { CUSTOMER_IDS, CUSTOMERS } from './customer-form-fixture'
 import { DISCOUNT_PRODUCT_ID, INVOICE_PRODUCTS } from './invoice-form-fixture'
 import { PRODUCT_IDS, PRODUCTS } from './products-services-fixture'
+import { fixtureToken } from './public-token-fixture'
 import { TAX_IDS, TAX_RATE_ROWS } from './tax-rates-fixture'
 
 export const ESTIMATE_CURRENCY = 'USD'
@@ -25,12 +26,7 @@ export const ESTIMATE_TODAY = '2026-11-12'
 
 const STAMP = '2026-11-12 09:00:00.000Z'
 
-// A public token is 43 URL-safe characters (estimate public link spec §4.1). The
-// fixture's are readable on purpose; the server makes real ones from a random source,
-// and the seed never sends one.
-export function fixtureToken(tag: string): string {
-    return `pub_${tag}_`.padEnd(43, '0')
-}
+export { fixtureToken }
 
 // Spec §3.3: the writer picks Pending, Accepted or Rejected; only the server sets Closed.
 export type EstimateStatus = BooksEstimates['status']
@@ -392,6 +388,7 @@ export const CONVERTED_INVOICE = {
     form: '',
     fields: null,
     sort_key: '',
+    public_token: fixtureToken('converted1005'),
     created: STAMP,
     updated: STAMP,
     estimate: IDS.closed,

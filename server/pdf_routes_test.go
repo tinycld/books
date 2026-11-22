@@ -274,6 +274,80 @@ func TestPublicEstimatePDF_NoEstimateIsNotFound(t *testing.T) {
 	})
 }
 
+// Email-share spec §4.3: the invoice's customer link downloads its PDF with no
+// sign-in; the token in the path is the credential.
+func TestPublicInvoicePDF_ServesThePostedInvoice(t *testing.T) {
+	ip := newInvoicePublicEnv(t)
+	posted := ip.postedInvoice(t)
+	number := posted.GetString("number")
+	apiReq{
+		method:  http.MethodGet,
+		url:     "/api/books/public/invoices/" + invoiceTokenOf(t, ip.app, posted.Id) + "/pdf",
+		want:    http.StatusOK,
+		content: []string{"%PDF-"},
+		before:  bindPDFRoutes,
+		response: func(t testing.TB, res *http.Response) {
+			for header, want := range map[string]string{
+				"Content-Type":        "application/pdf",
+				"Content-Disposition": `attachment; filename="invoice-` + number + `.pdf"`,
+				"Cache-Control":       "no-store",
+			} {
+				if got := res.Header.Get(header); got != want {
+					t.Errorf("%s = %q, want %q", header, got, want)
+				}
+			}
+			pdf, err := io.ReadAll(res.Body)
+			if err != nil {
+				t.Fatalf("read the PDF: %v", err)
+			}
+			_, text := extractPDFText(t, pdf)
+			for _, want := range []string{"Invoice", number} {
+				if !strings.Contains(text, want) {
+					t.Errorf("the PDF text has no %q:\n%s", want, text)
+				}
+			}
+		},
+	}.run(t, ip.app)
+}
+
+// A token of a wrong shape, a token no invoice has, a draft's and a void
+// invoice's token each answer 404 Document not found.
+func TestPublicInvoicePDF_NoPostedInvoiceIsNotFound(t *testing.T) {
+	ip := newInvoicePublicEnv(t)
+	posted := ip.postedInvoice(t)
+	draft := ip.mkInvoice(t, nil)
+	voided := ip.postedInvoice(t)
+	if err := voidInvoiceAs(ip.app, voided.Id, ip.users.admin.Id); err != nil {
+		t.Fatalf("void the invoice: %v", err)
+	}
+	ip.app.OnServe().BindFunc(func(e *core.ServeEvent) error {
+		bindPDFRoutes(e)
+		return e.Next()
+	})
+	serveCalls(t, ip.app, func(do func(apiReq) callResult) {
+		// The control: the route serves a posted invoice's token, so each 404
+		// below is the token check, not a missing route.
+		if res := do(get("/api/books/public/invoices/"+invoiceTokenOf(t, ip.app, posted.Id)+"/pdf", "", "")); res.status != http.StatusOK {
+			t.Fatalf("the posted invoice's token: status %d, want 200; body: %.200s", res.status, res.body)
+		}
+		for name, token := range map[string]string{
+			"a token of a wrong shape": "abc",
+			"a token no invoice has":   invoicePublicUnknownToken,
+			"a draft's token":          invoiceTokenOf(t, ip.app, draft.Id),
+			"a void invoice's token":   invoiceTokenOf(t, ip.app, voided.Id),
+			"44 characters":            invoiceTokenOf(t, ip.app, posted.Id) + "x",
+		} {
+			res := do(get("/api/books/public/invoices/"+token+"/pdf", "", ""))
+			if res.status != http.StatusNotFound {
+				t.Errorf("%s: status %d, want 404; body: %.200s", name, res.status, res.body)
+			}
+			if !strings.Contains(res.body, "Document not found.") {
+				t.Errorf("%s: body %.200s, want the route's Document not found.", name, res.body)
+			}
+		}
+	})
+}
+
 func TestSampleDocument_UsesTheCompanySettingsAndAddsUp(t *testing.T) {
 	app := newBooksApp(t)
 	settings, err := app.FindRecordById("books_settings", settingsID)

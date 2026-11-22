@@ -40,10 +40,11 @@ func Register(app *pocketbase.PocketBase) {
 	registerDepositGuards(app)
 	registerPartyBalances()
 	registerEstimateResponses(app)
-	// Declare the public view's source tables so CheckViews and the change
+	// Declare the public views' source tables so CheckViews and the change
 	// signals for signed-in clients know them. The signed-out customer page
 	// gets no signal; it re-reads on foreground, network back or reload.
 	changesignal.RegisterView("books_estimate_public", "books_estimates", "books_customers", "books_settings")
+	changesignal.RegisterView(invoicePublicCollection, "books_invoices", "books_customers", "books_settings")
 	// The audit log view reads core's audit rows, the actor's name from users
 	// and a line row's document from the live line, so a write to any of them
 	// can change its rows.

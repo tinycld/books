@@ -294,7 +294,9 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 	// it runs. The kind's CheckDelete and Withdraw run in the same
 	// transaction, before the row goes: Withdraw clears the links that name
 	// it (an estimate's invoice), so PocketBase's unlink of the deleted row
-	// never writes to a closed estimate or a posted invoice.
+	// never writes to a closed estimate or a posted invoice. The document's
+	// sends (document_sends.go) go in the same transaction too: they name the
+	// document by id, so no relation cascade reaches them.
 	app.OnRecordDelete(kind.Collection).BindFunc(func(e *core.RecordEvent) error {
 		done := func() {}
 		defer func() { done() }()
@@ -315,6 +317,9 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 				if err := kind.Withdraw(tx, stored); err != nil {
 					return err
 				}
+			}
+			if err := deleteDocumentSends(tx, kind.DocType, stored.Id); err != nil {
+				return err
 			}
 			done = markDeleting(tx, kind, e.Record.Id)
 			return nil
@@ -402,8 +407,9 @@ func refuseDocumentDay(field string, err error) error {
 // the quote lifecycle (createQuote, transitionQuote in estimates.go). A
 // posting document's create is a draft: it stamps the id and the currency and
 // runs the draft guards; its update follows the posting lifecycle
-// (transitionSalesDoc). stored is the record before an update, nil on a
-// create.
+// (transitionSalesDoc). An invoice's create also stamps its public token, and
+// its update keeps the stored one (invoice_link.go). stored is the record
+// before an update, nil on a create.
 func validateSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record) error {
 	if kind.Lifecycle == lifecycleQuote {
 		if stored != nil {
@@ -412,6 +418,9 @@ func validateSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record) er
 		return createQuote(tx, kind, r)
 	}
 	if stored != nil {
+		if kind.DocType == docTypeInvoice {
+			keepInvoiceToken(stored, r)
+		}
 		return transitionSalesDoc(tx, kind, stored, r, time.Now())
 	}
 	ensureRecordID(r)
@@ -421,6 +430,11 @@ func validateSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record) er
 	}
 	if err := checkNewSalesDoc(kind, r); err != nil {
 		return err
+	}
+	if kind.DocType == docTypeInvoice {
+		if err := stampInvoiceToken(r); err != nil {
+			return err
+		}
 	}
 	if err := stampCurrency(tx, r); err != nil {
 		return err

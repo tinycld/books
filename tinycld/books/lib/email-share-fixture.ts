@@ -4,22 +4,25 @@
 // state of the customer's invoice page. Plain data: it imports other fixtures and types
 // only, because the seed graph runs in plain node (tests/seed-node.test.ts).
 //
-// The collection `books_document_sends` and the view `books_invoice_public` do not exist
-// yet. `DocumentSendRecord` and `InvoicePublicRow` below mirror spec §4.2 and §4.3. The
-// migration checkpoint of this unit (the one that adds `books_document_sends`,
-// `books_invoice_public` and `books_invoices.public_token`) must replace both interfaces
-// with the generated types `BooksDocumentSends` and `BooksInvoicePublic` from '../types',
-// and check the rows with `satisfies`.
+// `DocumentSendRecord` and `InvoicePublicRow` are the generated types of the collection
+// `books_document_sends` and the view `books_invoice_public` (migration 2100000034), and
+// the rows below are checked against them with `satisfies`.
 //
 // The seed takes nothing from this file (spec §4.6: no send rows; every seeded invoice
 // gets its token through the create hook). The rows are for the reference and for tests.
 //
 // Amounts are integer cents, as in invoice-form-fixture.ts.
 
+import type { BooksDocumentSends, BooksInvoicePublic } from '../types'
 import { COMPANY_SETTINGS, LONG_COMPANY_SETTINGS } from './books-settings-fixture'
 import { CUSTOMER_IDS, CUSTOMERS } from './customer-form-fixture'
-import { ESTIMATE_IDS, ESTIMATES, fixtureToken } from './estimate-form-fixture'
-import { INVOICE_IDS, INVOICE_USER_IDS, INVOICES } from './invoice-form-fixture'
+import { ESTIMATE_IDS, ESTIMATES } from './estimate-form-fixture'
+import { INVOICE_IDS, INVOICE_TOKENS, INVOICE_USER_IDS, INVOICES } from './invoice-form-fixture'
+import { fixtureToken } from './public-token-fixture'
+
+// The tokens of the reference's invoices (`books_invoices.public_token`, spec §4.3); the
+// invoice fixture's rows carry them.
+export { INVOICE_TOKENS }
 
 // "Today" for the reference: invoice 1004 (due 2026-11-20) is open and not yet due,
 // invoice 1001 (due 2026-10-06) is overdue.
@@ -32,42 +35,11 @@ export const LINK_BASE = 'https://books.hartwell.example'
 
 export type SendKind = 'invoice' | 'estimate' | 'sales_receipt' | 'credit_memo' | 'refund_receipt'
 
-// Spec §4.2: one row for each sent email. Replace with `BooksDocumentSends` (see the top).
-export interface DocumentSendRecord {
-    id: string
-    doc_type: SendKind
-    document: string
-    number: string
-    customer: string
-    to: string
-    cc: string
-    subject: string
-    body: string
-    body_text: string
-    sent_by: string
-    created: string
-}
+// Spec §4.2: one row for each sent email.
+export type DocumentSendRecord = BooksDocumentSends
 
-// Spec §4.3: the columns of the public view, nothing else. Replace with
-// `BooksInvoicePublic` (see the top).
-export interface InvoicePublicRow {
-    id: string
-    token: string
-    number: string
-    status: 'posted' | 'void'
-    date: string
-    due_date: string
-    total: number
-    balance: number
-    currency: string
-    message: string
-    customer_name: string
-    replaced_by_token: string
-    replaced_by_number: string
-    business_name: string
-    business_email: string
-    business_phone: string
-}
+// Spec §4.3: the columns of the public view, nothing else.
+export type InvoicePublicRow = BooksInvoicePublic
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/
 
@@ -103,16 +75,6 @@ const HARBORVIEW = customerOf(CUSTOMER_IDS.harborview)
 const ST_JUDE = customerOf(CUSTOMER_IDS.stJude)
 const ALVAREZ = customerOf(CUSTOMER_IDS.alvarez)
 const NORTHWIND = customerOf(CUSTOMER_IDS.northwind)
-
-// The tokens of the reference's invoices (`books_invoices.public_token`, spec §4.3).
-export const INVOICE_TOKENS = {
-    posted: fixtureToken('invoice1004'),
-    noTax: fixtureToken('invoice1001'),
-    voided: fixtureToken('invoice1002void'),
-    correction: fixtureToken('invoice1002'),
-    exempt: fixtureToken('invoice1003'),
-    long: fixtureToken('invoice1009long'),
-} as const
 
 function invoiceLink(token: string): string {
     return `${LINK_BASE}/p/books/invoices/${token}`
@@ -339,6 +301,16 @@ const SEND_BODY_TEXT = [
     `To pay, or to ask about this invoice, reply to this email or call ${PHONE}.`,
 ].join('\n\n')
 
+// The text of SEND_TARGETS.estimate.bodyHtml, block for block.
+const ESTIMATE_BODY_TEXT = [
+    `Hello ${HARBORVIEW.display_name},`,
+    `Attached is estimate 1001 from ${BUSINESS}.`,
+    'Estimate date: Nov 2, 2026\nExpires: Jan 15, 2027\nTotal: $2,111.77',
+    'Thank you for the chance to quote this work. Prices hold until the expiration date.',
+    `To accept or decline this estimate, open:\n${ESTIMATE_LINK}`,
+    `To ask about this estimate, reply to this email or call ${PHONE}.`,
+].join('\n\n')
+
 function send(
     seed: Pick<DocumentSendRecord, 'id' | 'doc_type' | 'document' | 'number' | 'customer'> &
         Pick<DocumentSendRecord, 'to' | 'created'> &
@@ -357,7 +329,7 @@ function send(
 // The stored sends, newest first (the sent line reads the first row and the count).
 // Invoice 1004 was sent three times, the last one with Cc and an edited subject; the
 // estimate once; invoice 1003 once, to a long address. Invoice 1001 was never sent.
-export const DOCUMENT_SENDS: DocumentSendRecord[] = [
+export const DOCUMENT_SENDS = [
     send({
         id: 'dsnd1004third01',
         doc_type: 'invoice',
@@ -397,7 +369,7 @@ export const DOCUMENT_SENDS: DocumentSendRecord[] = [
         to: PENDING_ESTIMATE.email,
         subject: SEND_TARGETS.estimate.subject,
         body: SEND_TARGETS.estimate.bodyHtml,
-        body_text: '',
+        body_text: ESTIMATE_BODY_TEXT,
         created: '2026-11-02 18:12:00.000Z',
     }),
     send({
@@ -409,7 +381,7 @@ export const DOCUMENT_SENDS: DocumentSendRecord[] = [
         to: LONG_CUSTOMER_EMAIL,
         created: '2026-10-14 18:40:00.000Z',
     }),
-]
+] satisfies DocumentSendRecord[]
 
 export const NO_SENDS: DocumentSendRecord[] = []
 
