@@ -24,6 +24,9 @@ import { tabTo } from './keyboard-helpers'
 //
 // Each test posts its own sales receipts to Undeposited funds, dated today, with a per-run
 // reference no. and memo, and deposits only those rows. No seeded deposit is edited or voided.
+// The keyboard edit and the reopen of its correction with E and Esc are two tests because
+// each receipt and deposit is posted through its form: both flows in one test come too near
+// one test's time on CI.
 
 const ROWS = '[data-testid^="entries-row-"]:not([data-testid^="entries-row-menu-"])'
 const VOID_TEXT =
@@ -213,6 +216,30 @@ test.describe('bank-deposit: edit and void', () => {
         await expect(shownDeposit(page, 'deposit-replaced-by')).toHaveText(
             `Replaced by ${original.number} (edited)`
         )
+    })
+
+    test('a writer opens a correction with E and Esc with no edit leaves at once', async ({
+        page,
+    }) => {
+        // Setup, by mouse: one own receipt, its deposit, and a correction with a new memo.
+        await openBooks(page)
+        const [cents] = amountsOf(1)
+        const reference = uniqueReference('EC')
+        await postUndepositedReceipt(page, {
+            reference,
+            memo: uniqueMemo('Deposit edit receipt'),
+            amount: ((cents as number) / 100).toFixed(2),
+        })
+        const editedMemo = uniqueMemo('Deposit edited')
+        const original = await postDeposit(page, reference, uniqueMemo('Deposit edit'))
+        await shownDeposit(page, 'deposit-read-edit').click()
+        await expect(page).toHaveURL(CORRECTION_URL)
+        await shownDeposit(page, 'deposit-memo').fill(editedMemo)
+        await shownDeposit(page, 'deposit-save').click()
+        await expect(shownDeposit(page, 'deposit-read-only')).toBeVisible()
+        await expect(page).toHaveURL(DEPOSIT_URL)
+        const correctionId = depositIdFromUrl(page)
+        expect(correctionId).not.toBe(original.id)
 
         // The correction again: E, then Esc with no edit leaves at once.
         await openDepositBySearch(page, editedMemo)
