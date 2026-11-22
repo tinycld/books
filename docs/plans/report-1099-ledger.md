@@ -1,0 +1,56 @@
+# report-1099 — helix run ledger
+
+- mode: unattended
+- unit: p5-1099-report
+- started: 2026-11-21
+- package branch: books/p5-1099-report (from main e3728d5a)   core checkout: books/p5-1099-report (from main 4433ace4)
+- spec: docs/specs/report-1099-design.md
+- checkpoints: docs/plans/report-1099-checkpoints.md
+- reference: docs/plans/report-1099-reference/
+- evidence: docs/plans/report-1099-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
+- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- capture manifest: docs/plans/report-1099-capture.json
+- review mode: C — none (unattended)
+- core extension: accepted — E1 calendar-year presets `thisCalendarYear` / `lastCalendarYear`; E2 `Spec.header` value lines (checkpoint 0, core branch books/p5-1099-report, not exclusive; PR opened at checkpoint 0, merges at the next design gate or phase end)
+- sparks:
+  - 1. Reportable and what was left out side by side on every row → expressible (three amount columns of one spec; core `ReportRow`; `display.columns.<col>.minWidth: "max-content"`; phone `display.layouts`)
+  - 2. The grand total is the heaviest line → expressible (core `ReportRow` total row; no new token)
+
+## Deferrals
+(none yet)
+
+## Rebuttals
+(none yet)
+
+## Design notes
+(none yet)
+
+## Out-of-plan changes
+(none yet)
+
+## Phase notes
+- phase 1: design packet made unattended (look-ahead, 2026-11-21); human made no corrections.
+- phase 3: design gate 2026-11-21 — human picked direction A; Q1–Q21 accepted as recommended; E1 and E2 accepted (spec §11). B and C cut.
+- phase 3 pass 2 (2026-11-21, unattended): direction A captured. No spark dropped. No reference corrections (unattended; the human's approval of the reference is the driver's).
+  - Fixture: `tinycld/books/lib/report-1099-fixture.ts` (static `RunResult`s over the seeded vendors with their 1099 columns, `VENDORS_1099` of `vendor-1099-fixture.ts`, the threshold `SETTINGS_1099`, the boxes of `lib/form-1099.ts`): `report1099Result({ from, to, show, form, order, vendors, closed, openBoxes })`, `emptyReport1099Result()`, `boxOpenKey()`; `REPORT_1099_PARAMS`, `_COLUMNS`, `_GROUPS`, `_DISPLAY`, `_PHONE_LAYOUT`, `_FILTER_PICK`, `_OPENED`, `_BELOW_OPENED`, `_TOTALS`, `_THRESHOLD_LINE`, `_PERIOD_LABELS` and the period constants. The payments are local shapes of payment rows (an expense, a bill payment's share, a vendor refund's share, a journal entry line), each with its account's box and a card mark. It checks at load the Total of each Show and Form choice (At or above: Reportable 129,585.25, Excluded 121,942.75, All payments 251,528.00) and the Willamette row. Edges: three figures of eight digits on one row, a bill paid by card, a card expense with a long description, an account with no box and a long name with no number (Not reported), a vendor label with a long legal name (about 170 characters), a vendor with two boxes and a journal entry line, a vendor below the threshold with a refund below zero and no legal name, an inactive vendor exactly at the threshold, three vendors that are not tracked (one on an account with a box), a payment of last calendar year.
+  - The fixture's accounts and boxes are its own (5100, 6210, 6300 on NEC 1; 6310 on MISC 10; 6100 on MISC 1; 6200 and a Travel account with no box), not the seed's. It has no seed proposal: spec §4 (Q16) gives the seed rows to phase 4.
+  - Scratch route: `/a/books/helix-mockup?state=` populated, opened, below, tracked, untracked, nec, by-amount, filtered, empty, loading, error (`&gate=<px>` replaces the one-line gate for a measure; 0 removes it). Core `ReportView` over a hand-built `ReportViewModel`, from the kept A/P Aging model; the run model now needs `isManual` (set true with a `refresh`, so the Refresh bar of a `Live: false` report shows). No param-options fake. The toolbar has no Export and no Share, and rows are not links.
+  - E1 and E2 are static text in the reference. E1: core has no calendar-year preset, so `valueFromJson` reads the fixture's Period default `{ preset: "thisCalendarYear" }` as no default (the Period would be an optional filter under Add filter); the scratch route draws the chip "Period: This calendar year" with a stand-in param. E2: the fixture's `headerLines` holds the threshold line after the three choice lines (the Vendor line is '' when unset); core `headerLinesOf` maps only the choice params' lines, so the scratch route adds the fourth line. Checkpoint 0 must make the view draw the `Spec.header` lines (`ReportDocumentHeader` gets them from `headerLinesOf` today).
+  - For checkpoint 0 (E1): core `emptyAction` offers "Show this fiscal year" on an empty report whose period is not This fiscal year (`empty` shots show the button). On this report the action leaves the calendar year. Decide in E1 what the empty action is for a calendar-year default.
+  - Reference: `docs/plans/report-1099-reference/` (46 files, light and dark), manifest `docs/plans/report-1099-capture.json` (17 shots). Captures run with the files command `tinycld-pkg test:e2e books/tests/e2e/helix-capture.spec.ts` (about 40 s after the export), never `-g helix`. Phone states are shots of their own (`populated-phone`, `opened-phone` at 390 and 375; `untracked-phone`, `empty-phone`, `loading-phone`, `error-phone` at 390). The capture spec copy has one run-only addition (`tableMarker`): each light capture prints the fit marker, the window, the widest cell of each column, the row count, `SIDEWAYS`, `CUT` and `MORE <px>` (the height of label lines the three-line cap hides). Logs: staging `p3-capture-1.log` (measure), `p3-capture-2.log` (reference).
+  - Shipping route: core `/a/reports/<id>` (no package sidebar). The scratch route draws the Books sidebar: rows width = window − 324 px at 1024 and wider (− 239 px from 768 to 1023). So: scratch 1540 = shipping 1280 (rows 1216 px); scratch 1284 = shipping 1024 (rows 960 px); scratch 1028 = shipping 768 (rows 704 px); below 768 the row is the window on both routes.
+  - Display block measured: **`oneLine.minWidth: "760px"`**; `name` `whiteSpace: "normal"`, `lineClamp: 3`; `reportable`, `excluded`, `all` `minWidth: "max-content"`; `mobile` layout, 3 tracks (`name` line 1 span 3; the three figures on line 2). The spec's proof: three figures of eight digits fit one phone line at 375 and 390 (cells 120 + 118 + 133 px at 375; no figure cut, the table never scrolls sideways), so All payments stays on line 2. Measure with the gate at 0 (rows of 375 to 760 px): on one line the figures take 120, 118 and 137 px at every width and the label has the rest; the three-line cap cuts ordinary payment labels (about 95 characters) at every width up to 680, and from 720 only the two longest labels of the fixture lose lines (the Willamette vendor label, the Expense 83 line); at 760 each loses one line, the same as the `mobile` arrangement at 375 and 390. With the gate at 640 (first try): 600 and 639 drew the `mobile` arrangement with no label cut, 640 one line with nine labels cut. So 760. A shipping window of 768 (rows 704 px) draws the `mobile` arrangement (`populated-1028`, `opened-1028`); a shipping window of 1024 is one line with no label cut. At 320 (below the spec's widths) the three figures do not fit the arrangement and core falls back to its own wrap (`layout=auto`).
+  - For phase 4: the vendor label with a long legal name is cut by the three-line cap on a phone (one line hidden at 375 and 390). The spec's "wrap to at most three lines" allows it; the legal name is the part that is lost.
+  - For phase 4: a payment row's Reportable shows 0.00 on a card payment and on a Not reported row (the spec blanks only Excluded); the Not reported box row shows Reportable 0.00 too. The Go run decides; the reference shows the spec as written.
+  - For phase 4: the memo of a vendor refund's share row ("Vendor credit 3 refunded (cash basis)") and its type label ("Vendor refund 4") are the fixture's guess; read the refund payer's `CashMemo` in `server/document_balance.go` and pin the label with a Go run. The fixture writes an account as "<number> <full name>" with the parent path ("5100 Cost of goods sold:Subcontractors"); the spec's example reads "6210 Design Tools".
+  - Core behavior seen in the captures, not this report's: on a phone the toolbar title ends in "…" ("1099 Summary a…", and "1099 Summary and D…" at a shipping 768) and the chip row (`report-controls`) scrolls sideways; the table never does. The Total row prints its figures with the currency sign.
+- phase 4 (2026-11-22, unattended): plan `docs/plans/report-1099-checkpoints.md`, 6 checkpoints (0 core; 1 card mark, sources, seed; 2 report spec; 3 opened boxes; 4 scale; 5 entry points, phone, help). plan-check exit 0.
+  - Probe (one real run of the spec on the small scale book, `go test -overlay`, no repo file changed; record in staging `p5-1099-report/p4-probe/`): the spec runs on core as it is, but every run fails the plan bars (`SCAN` of both parts of `books.basis_lines`). Cause: core writes an unmapped union key as an untyped `NULL` (`core/server/reports/rules.go` `unionPartCols`), so SQLite does not flatten the UNION ALL. With a typed NULL every statement passes. Planned as core item **E3** in checkpoint 0. E3 is not in spec §11: question to the human.
+  - Excluded reads 0.00 on a vendor row and the Total row with nothing excluded (core `total: "rows"` adds the rows under it); blank only on box and payment rows. Plan decision D7 accepts it; it differs from spec §3: question to the human.
+  - Scale pass (D11) moves the `account` of rows to make boxed accounts; spec §8 says the pass writes only columns other specs do not read. The plan states the difference.
+  - Seed (Q16, D5): one journal entry and one card expense on 2026-09-23; the balance of every account stays as it is.
+  - Plan review (one agent; report in staging `p5-1099-report/plan-review.md`): high 2, medium 9, low 26. Fixed in the plan: (high) `card_payment` ripple to `collections.ts` `omitOnInsert`, `audit-fields.ts`, full-row literals and their tests; (high) `filterToVendors` cannot pass on this report, new `filterTo1099Vendors`; (medium) the wrong path `profit-loss.spec.ts` and the full checkpoint 0 Books spec list; the stub template files; an expense posts through `postSalesDoc` (hook on `salesDocKind`); Vendor is under Add filter, not a chip; the button's states; a shared case file for the preset list; D11 stated; the wider seed ripple list. Low findings fixed in the plan, but one in part: the Back navigation of test 7 cites its Books spec precedent, not a core file.
+- review mode switches: none
+
+## Final review
+- eval:
