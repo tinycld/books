@@ -5,8 +5,6 @@ import (
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
-
-	"tinycld.org/core/branding"
 )
 
 // statementBusiness is the sender of a statement email: the name it signs
@@ -21,17 +19,14 @@ type statementMessage struct {
 }
 
 // loadStatementBusiness reads the business name (books_settings.business_name,
-// else the organization's name) and the business phone.
+// else the organization's name) and the business phone, as a document email
+// reads them (loadDocumentBusiness).
 func loadStatementBusiness(app core.App) (statementBusiness, error) {
-	s, err := app.FindRecordById("books_settings", settingsID)
+	business, err := loadDocumentBusiness(app)
 	if err != nil {
-		return statementBusiness{}, fmt.Errorf("books: read settings: %w", err)
+		return statementBusiness{}, err
 	}
-	name := strings.TrimSpace(s.GetString("business_name"))
-	if name == "" {
-		name = strings.TrimSpace(branding.Load(app).Name)
-	}
-	return statementBusiness{Name: name, Phone: strings.TrimSpace(s.GetString("phone"))}, nil
+	return statementBusiness{Name: business.Name, Phone: business.Phone}, nil
 }
 
 // statementEmail fills a statement email (statements spec §3.5) from the

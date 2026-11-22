@@ -1,0 +1,244 @@
+{
+    "offer": [
+        { "name": "a draft invoice", "kind": "invoice", "status": "draft", "offered": false, "message": "A draft cannot be sent." },
+        { "name": "a posted invoice", "kind": "invoice", "status": "posted", "offered": true, "message": "" },
+        { "name": "a void invoice", "kind": "invoice", "status": "void", "offered": false, "message": "A void document cannot be sent." },
+        { "name": "a draft sales receipt", "kind": "sales_receipt", "status": "draft", "offered": false, "message": "A draft cannot be sent." },
+        { "name": "a posted sales receipt", "kind": "sales_receipt", "status": "posted", "offered": true, "message": "" },
+        { "name": "a void sales receipt", "kind": "sales_receipt", "status": "void", "offered": false, "message": "A void document cannot be sent." },
+        { "name": "a draft credit memo", "kind": "credit_memo", "status": "draft", "offered": false, "message": "A draft cannot be sent." },
+        { "name": "a posted credit memo", "kind": "credit_memo", "status": "posted", "offered": true, "message": "" },
+        { "name": "a void credit memo", "kind": "credit_memo", "status": "void", "offered": false, "message": "A void document cannot be sent." },
+        { "name": "a draft refund receipt", "kind": "refund_receipt", "status": "draft", "offered": false, "message": "A draft cannot be sent." },
+        { "name": "a posted refund receipt", "kind": "refund_receipt", "status": "posted", "offered": true, "message": "" },
+        { "name": "a void refund receipt", "kind": "refund_receipt", "status": "void", "offered": false, "message": "A void document cannot be sent." },
+        { "name": "a pending estimate", "kind": "estimate", "status": "pending", "offered": true, "message": "" },
+        { "name": "an accepted estimate", "kind": "estimate", "status": "accepted", "offered": true, "message": "" },
+        { "name": "a rejected estimate", "kind": "estimate", "status": "rejected", "offered": true, "message": "" },
+        { "name": "a closed estimate", "kind": "estimate", "status": "closed", "offered": false, "message": "A closed estimate cannot be sent." }
+    ],
+    "fields": [
+        {
+            "name": "a valid send",
+            "to": "billing@aspenridge.example",
+            "cc": [],
+            "subject": "Invoice 1001 from Cedar Ledger Co",
+            "bodyText": "Hello,",
+            "bodyHtmlLength": 0,
+            "field": "",
+            "clientMessage": "",
+            "serverMessage": ""
+        },
+        {
+            "name": "an empty To",
+            "to": "",
+            "cc": [],
+            "subject": "Invoice 1001 from Cedar Ledger Co",
+            "bodyText": "Hello,",
+            "bodyHtmlLength": 0,
+            "field": "to",
+            "clientMessage": "Enter an email address.",
+            "serverMessage": "Enter a valid email address."
+        },
+        {
+            "name": "a To with a display name",
+            "to": "Ana Ruiz <billing@aspenridge.example>",
+            "cc": [],
+            "subject": "Invoice 1001 from Cedar Ledger Co",
+            "bodyText": "Hello,",
+            "bodyHtmlLength": 0,
+            "field": "to",
+            "clientMessage": "Enter a valid email address.",
+            "serverMessage": "Enter a valid email address."
+        },
+        {
+            "name": "a To with no dot in its domain",
+            "to": "billing@aspenridge",
+            "cc": [],
+            "subject": "Invoice 1001 from Cedar Ledger Co",
+            "bodyText": "Hello,",
+            "bodyHtmlLength": 0,
+            "field": "to",
+            "clientMessage": "Enter a valid email address.",
+            "serverMessage": "Enter a valid email address."
+        },
+        {
+            "name": "5 Cc addresses",
+            "to": "billing@aspenridge.example",
+            "cc": [
+                "a@aspenridge.example",
+                "b@aspenridge.example",
+                "c@aspenridge.example",
+                "d@aspenridge.example",
+                "e@aspenridge.example"
+            ],
+            "subject": "Invoice 1001 from Cedar Ledger Co",
+            "bodyText": "Hello,",
+            "bodyHtmlLength": 0,
+            "field": "",
+            "clientMessage": "",
+            "serverMessage": ""
+        },
+        {
+            "name": "6 Cc addresses",
+            "to": "billing@aspenridge.example",
+            "cc": [
+                "a@aspenridge.example",
+                "b@aspenridge.example",
+                "c@aspenridge.example",
+                "d@aspenridge.example",
+                "e@aspenridge.example",
+                "f@aspenridge.example"
+            ],
+            "subject": "Invoice 1001 from Cedar Ledger Co",
+            "bodyText": "Hello,",
+            "bodyHtmlLength": 0,
+            "field": "cc",
+            "clientMessage": "Use 5 addresses or fewer.",
+            "serverMessage": "Enter a valid email address."
+        },
+        {
+            "name": "a bad Cc address",
+            "to": "billing@aspenridge.example",
+            "cc": ["office@aspenridge.example", "not-an-address"],
+            "subject": "Invoice 1001 from Cedar Ledger Co",
+            "bodyText": "Hello,",
+            "bodyHtmlLength": 0,
+            "field": "cc",
+            "clientMessage": "Enter valid email addresses, separated by commas.",
+            "serverMessage": "Enter a valid email address."
+        },
+        {
+            "name": "an empty subject",
+            "to": "billing@aspenridge.example",
+            "cc": [],
+            "subject": "",
+            "bodyText": "Hello,",
+            "bodyHtmlLength": 0,
+            "field": "subject",
+            "clientMessage": "Enter a subject.",
+            "serverMessage": "Enter a subject."
+        },
+        {
+            "name": "a subject of 300 characters",
+            "to": "billing@aspenridge.example",
+            "cc": [],
+            "subject": "012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789",
+            "bodyText": "Hello,",
+            "bodyHtmlLength": 0,
+            "field": "",
+            "clientMessage": "",
+            "serverMessage": ""
+        },
+        {
+            "name": "a subject of 301 characters",
+            "to": "billing@aspenridge.example",
+            "cc": [],
+            "subject": "012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789X",
+            "bodyText": "Hello,",
+            "bodyHtmlLength": 0,
+            "field": "subject",
+            "clientMessage": "Use 300 characters or fewer.",
+            "serverMessage": "Use 300 characters or fewer."
+        },
+        {
+            "name": "a subject of 150 astral characters (300 UTF-16 units)",
+            "to": "billing@aspenridge.example",
+            "cc": [],
+            "subject": "\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00",
+            "bodyText": "Hello,",
+            "bodyHtmlLength": 0,
+            "field": "",
+            "clientMessage": "",
+            "serverMessage": ""
+        },
+        {
+            "name": "a subject of 151 astral characters (302 UTF-16 units)",
+            "to": "billing@aspenridge.example",
+            "cc": [],
+            "subject": "\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00\ud83d\ude00",
+            "bodyText": "Hello,",
+            "bodyHtmlLength": 0,
+            "field": "subject",
+            "clientMessage": "Use 300 characters or fewer.",
+            "serverMessage": "Use 300 characters or fewer."
+        },
+        {
+            "name": "a To with an IDN domain",
+            "to": "ana@münchen.example",
+            "cc": [],
+            "subject": "Invoice 1001 from Cedar Ledger Co",
+            "bodyText": "Hello,",
+            "bodyHtmlLength": 0,
+            "field": "",
+            "clientMessage": "",
+            "serverMessage": ""
+        },
+        {
+            "name": "a To with a UTF-8 local part",
+            "to": "zoë@cedar.example",
+            "cc": [],
+            "subject": "Invoice 1001 from Cedar Ledger Co",
+            "bodyText": "Hello,",
+            "bodyHtmlLength": 0,
+            "field": "",
+            "clientMessage": "",
+            "serverMessage": ""
+        },
+        {
+            "name": "a To with a quoted local part (refused, as Go isOneBareAddress answers)",
+            "to": "\"ana b\"@cedar.example",
+            "cc": [],
+            "subject": "Invoice 1001 from Cedar Ledger Co",
+            "bodyText": "Hello,",
+            "bodyHtmlLength": 0,
+            "field": "to",
+            "clientMessage": "Enter a valid email address.",
+            "serverMessage": "Enter a valid email address."
+        },
+        {
+            "name": "a Cc with an IDN domain",
+            "to": "billing@aspenridge.example",
+            "cc": ["office@bücher.example"],
+            "subject": "Invoice 1001 from Cedar Ledger Co",
+            "bodyText": "Hello,",
+            "bodyHtmlLength": 0,
+            "field": "",
+            "clientMessage": "",
+            "serverMessage": ""
+        },
+        {
+            "name": "an empty body text",
+            "to": "billing@aspenridge.example",
+            "cc": [],
+            "subject": "Invoice 1001 from Cedar Ledger Co",
+            "bodyText": "",
+            "bodyHtmlLength": 0,
+            "field": "body",
+            "clientMessage": "Enter a message.",
+            "serverMessage": "Enter a message."
+        },
+        {
+            "name": "a body of 20 000 characters",
+            "to": "billing@aspenridge.example",
+            "cc": [],
+            "subject": "Invoice 1001 from Cedar Ledger Co",
+            "bodyText": "Hello,",
+            "bodyHtmlLength": 20000,
+            "field": "",
+            "clientMessage": "",
+            "serverMessage": ""
+        },
+        {
+            "name": "a body of 20 001 characters",
+            "to": "billing@aspenridge.example",
+            "cc": [],
+            "subject": "Invoice 1001 from Cedar Ledger Co",
+            "bodyText": "Hello,",
+            "bodyHtmlLength": 20001,
+            "field": "body",
+            "clientMessage": "The message is too long. Shorten it and send again.",
+            "serverMessage": "The message is too long. Shorten it and send again."
+        }
+    ]
+}

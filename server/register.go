@@ -95,6 +95,7 @@ func Register(app *pocketbase.PocketBase) {
 		bindBalanceRoutes(e)
 		bindPDFRoutes(e)
 		bindStatementRoutes(e)
+		bindDocumentSendRoutes(e)
 		return e.Next()
 	})
 }

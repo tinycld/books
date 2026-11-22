@@ -1,0 +1,359 @@
+[
+    {
+        "name": "invoice 1004 of the fixture: open, a message, a link, a business name that ends with a period",
+        "input": {
+            "kind": "invoice",
+            "number": "1004",
+            "customerName": "Harborview Hospitality Group",
+            "businessName": "Hartwell Supply Co.",
+            "businessPhone": "+1 214 555 1234",
+            "date": "Oct 21, 2026",
+            "dueDate": "Nov 20, 2026",
+            "expirationDate": "",
+            "total": "$2,111.77",
+            "balance": "$2,111.77",
+            "balanceIsZero": false,
+            "message": "Thank you for your business. Please pay by bank transfer or check to Fern & Ledger Bookkeeping, and put the invoice number on the payment.",
+            "link": "https://books.hartwell.example/p/books/invoices/pub_invoice1004_000000000000000000000000000",
+            "canRespond": false
+        },
+        "subject": "Invoice 1004 from Hartwell Supply Co.",
+        "bodyHtml": "<p>Hello Harborview Hospitality Group,</p><p>Attached is invoice 1004 from Hartwell Supply Co.</p><p>Invoice date: Oct 21, 2026<br>Due date: Nov 20, 2026<br>Total: $2,111.77<br><strong>Balance due: $2,111.77</strong></p><p>Thank you for your business. Please pay by bank transfer or check to Fern &amp; Ledger Bookkeeping, and put the invoice number on the payment.</p><p>View this invoice online:<br><a href=\"https://books.hartwell.example/p/books/invoices/pub_invoice1004_000000000000000000000000000\">https://books.hartwell.example/p/books/invoices/pub_invoice1004_000000000000000000000000000</a></p><p>To pay, or to ask about this invoice, reply to this email or call +1 214 555 1234.</p>"
+    },
+    {
+        "name": "estimate 1001 of the fixture: pending and not expired",
+        "input": {
+            "kind": "estimate",
+            "number": "1001",
+            "customerName": "Harborview Hospitality Group",
+            "businessName": "Hartwell Supply Co.",
+            "businessPhone": "+1 214 555 1234",
+            "date": "Nov 2, 2026",
+            "dueDate": "",
+            "expirationDate": "Jan 15, 2027",
+            "total": "$2,111.77",
+            "balance": "",
+            "balanceIsZero": false,
+            "message": "Thank you for the chance to quote this work. Prices hold until the expiration date.",
+            "link": "https://books.hartwell.example/p/books/estimates/pub_pending1001_000000000000000000000000000",
+            "canRespond": true
+        },
+        "subject": "Estimate 1001 from Hartwell Supply Co.",
+        "bodyHtml": "<p>Hello Harborview Hospitality Group,</p><p>Attached is estimate 1001 from Hartwell Supply Co.</p><p>Estimate date: Nov 2, 2026<br>Expires: Jan 15, 2027<br>Total: $2,111.77</p><p>Thank you for the chance to quote this work. Prices hold until the expiration date.</p><p>To accept or decline this estimate, open:<br><a href=\"https://books.hartwell.example/p/books/estimates/pub_pending1001_000000000000000000000000000\">https://books.hartwell.example/p/books/estimates/pub_pending1001_000000000000000000000000000</a></p><p>To ask about this estimate, reply to this email or call +1 214 555 1234.</p>"
+    },
+    {
+        "name": "sales receipt 2003 of the fixture: no message, no link",
+        "input": {
+            "kind": "sales_receipt",
+            "number": "2003",
+            "customerName": "Marisol Alvarez",
+            "businessName": "Hartwell Supply Co.",
+            "businessPhone": "+1 214 555 1234",
+            "date": "Nov 10, 2026",
+            "dueDate": "",
+            "expirationDate": "",
+            "total": "$1,250.00",
+            "balance": "",
+            "balanceIsZero": false,
+            "message": "",
+            "link": "",
+            "canRespond": false
+        },
+        "subject": "Sales receipt 2003 from Hartwell Supply Co.",
+        "bodyHtml": "<p>Hello Marisol Alvarez,</p><p>Attached is sales receipt 2003 from Hartwell Supply Co.</p><p>Date: Nov 10, 2026<br>Total: $1,250.00<br>Paid. No payment is due.</p><p>To ask about this sales receipt, reply to this email or call +1 214 555 1234.</p>"
+    },
+    {
+        "name": "credit memo 3001 of the fixture: part of the credit applied",
+        "input": {
+            "kind": "credit_memo",
+            "number": "3001",
+            "customerName": "Northwind Traders",
+            "businessName": "Hartwell Supply Co.",
+            "businessPhone": "+1 214 555 1234",
+            "date": "Nov 12, 2026",
+            "dueDate": "",
+            "expirationDate": "",
+            "total": "$344.00",
+            "balance": "$120.00",
+            "balanceIsZero": false,
+            "message": "",
+            "link": "",
+            "canRespond": false
+        },
+        "subject": "Credit memo 3001 from Hartwell Supply Co.",
+        "bodyHtml": "<p>Hello Northwind Traders,</p><p>Attached is credit memo 3001 from Hartwell Supply Co.</p><p>Date: Nov 12, 2026<br>Credit: $344.00<br>Unapplied credit: $120.00</p><p>To ask about this credit memo, reply to this email or call +1 214 555 1234.</p>"
+    },
+    {
+        "name": "refund receipt 4001 of the fixture",
+        "input": {
+            "kind": "refund_receipt",
+            "number": "4001",
+            "customerName": "Marisol Alvarez",
+            "businessName": "Hartwell Supply Co.",
+            "businessPhone": "+1 214 555 1234",
+            "date": "Nov 13, 2026",
+            "dueDate": "",
+            "expirationDate": "",
+            "total": "$180.00",
+            "balance": "",
+            "balanceIsZero": false,
+            "message": "",
+            "link": "",
+            "canRespond": false
+        },
+        "subject": "Refund receipt 4001 from Hartwell Supply Co.",
+        "bodyHtml": "<p>Hello Marisol Alvarez,</p><p>Attached is refund receipt 4001 from Hartwell Supply Co.</p><p>Date: Nov 13, 2026<br>Refund: $180.00</p><p>To ask about this refund receipt, reply to this email or call +1 214 555 1234.</p>"
+    },
+    {
+        "name": "invoice 1009 of the fixture: long values, a zero balance, no business phone, a message with a line break and &",
+        "input": {
+            "kind": "invoice",
+            "number": "1009",
+            "customerName": "St. Jude Community Hospital Foundation of the Greater Willamette Valley",
+            "businessName": "Hartwell Regional Industrial Supply and Fastener Distribution Partners of North Texas, Incorporated",
+            "businessPhone": "",
+            "date": "Nov 4, 2026",
+            "dueDate": "Dec 4, 2026",
+            "expirationDate": "",
+            "total": "$18,460.00",
+            "balance": "$0.00",
+            "balanceIsZero": true,
+            "message": "Annex network refresh, October visit.\nParts are billed at cost plus ten percent; labor & travel are billed at the agreed rate.",
+            "link": "https://books.hartwell.example/p/books/invoices/pub_invoice1009long_00000000000000000000000",
+            "canRespond": false
+        },
+        "subject": "Invoice 1009 from Hartwell Regional Industrial Supply and Fastener Distribution Partners of North Texas, Incorporated",
+        "bodyHtml": "<p>Hello St. Jude Community Hospital Foundation of the Greater Willamette Valley,</p><p>Attached is invoice 1009 from Hartwell Regional Industrial Supply and Fastener Distribution Partners of North Texas, Incorporated.</p><p>Invoice date: Nov 4, 2026<br>Due date: Dec 4, 2026<br>Total: $18,460.00<br><strong>Balance due: $0.00. No payment is due.</strong></p><p>Annex network refresh, October visit.<br>Parts are billed at cost plus ten percent; labor &amp; travel are billed at the agreed rate.</p><p>View this invoice online:<br><a href=\"https://books.hartwell.example/p/books/invoices/pub_invoice1009long_00000000000000000000000\">https://books.hartwell.example/p/books/invoices/pub_invoice1009long_00000000000000000000000</a></p><p>To ask about this invoice, reply to this email.</p>"
+    },
+    {
+        "name": "invoice: a zero balance with a business phone",
+        "input": {
+            "kind": "invoice",
+            "number": "1012",
+            "customerName": "Aspen Ridge Landscaping",
+            "businessName": "Cedar Ledger Co",
+            "businessPhone": "(303) 555-0142",
+            "date": "Nov 2, 2026",
+            "dueDate": "Dec 2, 2026",
+            "expirationDate": "",
+            "total": "$450.00",
+            "balance": "$0.00",
+            "balanceIsZero": true,
+            "message": "",
+            "link": "https://books.example/p/books/invoices/aspen1012_000000000000000000000000000000000",
+            "canRespond": false
+        },
+        "subject": "Invoice 1012 from Cedar Ledger Co",
+        "bodyHtml": "<p>Hello Aspen Ridge Landscaping,</p><p>Attached is invoice 1012 from Cedar Ledger Co.</p><p>Invoice date: Nov 2, 2026<br>Due date: Dec 2, 2026<br>Total: $450.00<br><strong>Balance due: $0.00. No payment is due.</strong></p><p>View this invoice online:<br><a href=\"https://books.example/p/books/invoices/aspen1012_000000000000000000000000000000000\">https://books.example/p/books/invoices/aspen1012_000000000000000000000000000000000</a></p><p>To ask about this invoice, reply to this email or call (303) 555-0142.</p>"
+    },
+    {
+        "name": "invoice: open, no business phone",
+        "input": {
+            "kind": "invoice",
+            "number": "1013",
+            "customerName": "Aspen Ridge Landscaping",
+            "businessName": "Cedar Ledger Co",
+            "businessPhone": "",
+            "date": "Nov 2, 2026",
+            "dueDate": "Dec 2, 2026",
+            "expirationDate": "",
+            "total": "$1,450.25",
+            "balance": "$950.25",
+            "balanceIsZero": false,
+            "message": "Thank you.",
+            "link": "https://books.example/p/books/invoices/aspen1013_000000000000000000000000000000000",
+            "canRespond": false
+        },
+        "subject": "Invoice 1013 from Cedar Ledger Co",
+        "bodyHtml": "<p>Hello Aspen Ridge Landscaping,</p><p>Attached is invoice 1013 from Cedar Ledger Co.</p><p>Invoice date: Nov 2, 2026<br>Due date: Dec 2, 2026<br>Total: $1,450.25<br><strong>Balance due: $950.25</strong></p><p>Thank you.</p><p>View this invoice online:<br><a href=\"https://books.example/p/books/invoices/aspen1013_000000000000000000000000000000000\">https://books.example/p/books/invoices/aspen1013_000000000000000000000000000000000</a></p><p>To pay, or to ask about this invoice, reply to this email.</p>"
+    },
+    {
+        "name": "invoice: no document message",
+        "input": {
+            "kind": "invoice",
+            "number": "1014",
+            "customerName": "Birch Hollow Dental",
+            "businessName": "Cedar Ledger Co",
+            "businessPhone": "(303) 555-0142",
+            "date": "Nov 5, 2026",
+            "dueDate": "Dec 5, 2026",
+            "expirationDate": "",
+            "total": "$300.00",
+            "balance": "$300.00",
+            "balanceIsZero": false,
+            "message": "",
+            "link": "https://books.example/p/books/invoices/birch1014_000000000000000000000000000000000",
+            "canRespond": false
+        },
+        "subject": "Invoice 1014 from Cedar Ledger Co",
+        "bodyHtml": "<p>Hello Birch Hollow Dental,</p><p>Attached is invoice 1014 from Cedar Ledger Co.</p><p>Invoice date: Nov 5, 2026<br>Due date: Dec 5, 2026<br>Total: $300.00<br><strong>Balance due: $300.00</strong></p><p>View this invoice online:<br><a href=\"https://books.example/p/books/invoices/birch1014_000000000000000000000000000000000\">https://books.example/p/books/invoices/birch1014_000000000000000000000000000000000</a></p><p>To pay, or to ask about this invoice, reply to this email or call (303) 555-0142.</p>"
+    },
+    {
+        "name": "invoice: a message with a line break, <, &, ' and \", and a customer name with ' and &",
+        "input": {
+            "kind": "invoice",
+            "number": "1015",
+            "customerName": "O'Brien & Sons",
+            "businessName": "Cedar Ledger Co",
+            "businessPhone": "(303) 555-0142",
+            "date": "Nov 5, 2026",
+            "dueDate": "Dec 5, 2026",
+            "expirationDate": "",
+            "total": "$75.00",
+            "balance": "$75.00",
+            "balanceIsZero": false,
+            "message": "Terms: net 30 <see the contract>\nParts & labor, \"as quoted\" by Dana's crew",
+            "link": "https://books.example/p/books/invoices/obrien1015_00000000000000000000000000000000",
+            "canRespond": false
+        },
+        "subject": "Invoice 1015 from Cedar Ledger Co",
+        "bodyHtml": "<p>Hello O&#39;Brien &amp; Sons,</p><p>Attached is invoice 1015 from Cedar Ledger Co.</p><p>Invoice date: Nov 5, 2026<br>Due date: Dec 5, 2026<br>Total: $75.00<br><strong>Balance due: $75.00</strong></p><p>Terms: net 30 &lt;see the contract&gt;<br>Parts &amp; labor, &#34;as quoted&#34; by Dana&#39;s crew</p><p>View this invoice online:<br><a href=\"https://books.example/p/books/invoices/obrien1015_00000000000000000000000000000000\">https://books.example/p/books/invoices/obrien1015_00000000000000000000000000000000</a></p><p>To pay, or to ask about this invoice, reply to this email or call (303) 555-0142.</p>"
+    },
+    {
+        "name": "estimate: pending but expired",
+        "input": {
+            "kind": "estimate",
+            "number": "1006",
+            "customerName": "Aspen Ridge Landscaping",
+            "businessName": "Cedar Ledger Co",
+            "businessPhone": "(303) 555-0142",
+            "date": "Sep 1, 2026",
+            "dueDate": "",
+            "expirationDate": "Oct 1, 2026",
+            "total": "$2,400.00",
+            "balance": "",
+            "balanceIsZero": false,
+            "message": "",
+            "link": "https://books.example/p/books/estimates/aspen1006_000000000000000000000000000000000",
+            "canRespond": false
+        },
+        "subject": "Estimate 1006 from Cedar Ledger Co",
+        "bodyHtml": "<p>Hello Aspen Ridge Landscaping,</p><p>Attached is estimate 1006 from Cedar Ledger Co.</p><p>Estimate date: Sep 1, 2026<br>Expires: Oct 1, 2026<br>Total: $2,400.00</p><p>View this estimate online:<br><a href=\"https://books.example/p/books/estimates/aspen1006_000000000000000000000000000000000\">https://books.example/p/books/estimates/aspen1006_000000000000000000000000000000000</a></p><p>To ask about this estimate, reply to this email or call (303) 555-0142.</p>"
+    },
+    {
+        "name": "estimate: accepted, with no expiration date",
+        "input": {
+            "kind": "estimate",
+            "number": "1007",
+            "customerName": "Birch Hollow Dental",
+            "businessName": "Cedar Ledger Co",
+            "businessPhone": "",
+            "date": "Nov 3, 2026",
+            "dueDate": "",
+            "expirationDate": "",
+            "total": "$880.00",
+            "balance": "",
+            "balanceIsZero": false,
+            "message": "Accepted by Dr. Ortiz.",
+            "link": "https://books.example/p/books/estimates/birch1007_000000000000000000000000000000000",
+            "canRespond": false
+        },
+        "subject": "Estimate 1007 from Cedar Ledger Co",
+        "bodyHtml": "<p>Hello Birch Hollow Dental,</p><p>Attached is estimate 1007 from Cedar Ledger Co.</p><p>Estimate date: Nov 3, 2026<br>Total: $880.00</p><p>Accepted by Dr. Ortiz.</p><p>View this estimate online:<br><a href=\"https://books.example/p/books/estimates/birch1007_000000000000000000000000000000000\">https://books.example/p/books/estimates/birch1007_000000000000000000000000000000000</a></p><p>To ask about this estimate, reply to this email.</p>"
+    },
+    {
+        "name": "a customer name with a line break",
+        "input": {
+            "kind": "credit_memo",
+            "number": "3002",
+            "customerName": "Birch Hollow\nDental",
+            "businessName": "Cedar Ledger Co",
+            "businessPhone": "(303) 555-0142",
+            "date": "Nov 6, 2026",
+            "dueDate": "",
+            "expirationDate": "",
+            "total": "$90.00",
+            "balance": "$0.00",
+            "balanceIsZero": true,
+            "message": "Credit for the missed visit.",
+            "link": "",
+            "canRespond": false
+        },
+        "subject": "Credit memo 3002 from Cedar Ledger Co",
+        "bodyHtml": "<p>Hello Birch Hollow Dental,</p><p>Attached is credit memo 3002 from Cedar Ledger Co.</p><p>Date: Nov 6, 2026<br>Credit: $90.00<br>Unapplied credit: $0.00</p><p>Credit for the missed visit.</p><p>To ask about this credit memo, reply to this email or call (303) 555-0142.</p>"
+    },
+    {
+        "name": "a business name with a line break and &, that ends with a period",
+        "input": {
+            "kind": "sales_receipt",
+            "number": "2004",
+            "customerName": "Aspen Ridge Landscaping",
+            "businessName": "Juniper\n& Co.",
+            "businessPhone": "",
+            "date": "Nov 7, 2026",
+            "dueDate": "",
+            "expirationDate": "",
+            "total": "$60.00",
+            "balance": "",
+            "balanceIsZero": false,
+            "message": "",
+            "link": "",
+            "canRespond": false
+        },
+        "subject": "Sales receipt 2004 from Juniper & Co.",
+        "bodyHtml": "<p>Hello Aspen Ridge Landscaping,</p><p>Attached is sales receipt 2004 from Juniper &amp; Co.</p><p>Date: Nov 7, 2026<br>Total: $60.00<br>Paid. No payment is due.</p><p>To ask about this sales receipt, reply to this email.</p>"
+    },
+    {
+        "name": "refund receipt: a message, no business phone",
+        "input": {
+            "kind": "refund_receipt",
+            "number": "4002",
+            "customerName": "Aspen Ridge Landscaping",
+            "businessName": "Cedar Ledger Co",
+            "businessPhone": "",
+            "date": "Nov 8, 2026",
+            "dueDate": "",
+            "expirationDate": "",
+            "total": "$1,000.00",
+            "balance": "",
+            "balanceIsZero": false,
+            "message": "Refund of the deposit.",
+            "link": "",
+            "canRespond": false
+        },
+        "subject": "Refund receipt 4002 from Cedar Ledger Co",
+        "bodyHtml": "<p>Hello Aspen Ridge Landscaping,</p><p>Attached is refund receipt 4002 from Cedar Ledger Co.</p><p>Date: Nov 8, 2026<br>Refund: $1,000.00</p><p>Refund of the deposit.</p><p>To ask about this refund receipt, reply to this email.</p>"
+    },
+    {
+        "name": "invoice: a business phone and a number with a line break",
+        "input": {
+            "kind": "invoice",
+            "number": "10\n04",
+            "customerName": "Aspen Ridge Landscaping",
+            "businessName": "Cedar Ledger Co",
+            "businessPhone": "+1 214\n555 1234",
+            "date": "Oct 21, 2026",
+            "dueDate": "Nov 20, 2026",
+            "expirationDate": "",
+            "total": "$500.00",
+            "balance": "$500.00",
+            "balanceIsZero": false,
+            "message": "",
+            "link": "https://books.example/p/books/invoices/tok1004",
+            "canRespond": false
+        },
+        "subject": "Invoice 10 04 from Cedar Ledger Co",
+        "bodyHtml": "<p>Hello Aspen Ridge Landscaping,</p><p>Attached is invoice 10\n04 from Cedar Ledger Co.</p><p>Invoice date: Oct 21, 2026<br>Due date: Nov 20, 2026<br>Total: $500.00<br><strong>Balance due: $500.00</strong></p><p>View this invoice online:<br><a href=\"https://books.example/p/books/invoices/tok1004\">https://books.example/p/books/invoices/tok1004</a></p><p>To pay, or to ask about this invoice, reply to this email or call +1 214 555 1234.</p>"
+    },
+    {
+        "name": "estimate: an empty link still writes the link block",
+        "input": {
+            "kind": "estimate",
+            "number": "1002",
+            "customerName": "Aspen Ridge Landscaping",
+            "businessName": "Cedar Ledger Co",
+            "businessPhone": "",
+            "date": "Nov 2, 2026",
+            "dueDate": "",
+            "expirationDate": "",
+            "total": "$300.00",
+            "balance": "",
+            "balanceIsZero": false,
+            "message": "",
+            "link": "",
+            "canRespond": false
+        },
+        "subject": "Estimate 1002 from Cedar Ledger Co",
+        "bodyHtml": "<p>Hello Aspen Ridge Landscaping,</p><p>Attached is estimate 1002 from Cedar Ledger Co.</p><p>Estimate date: Nov 2, 2026<br>Total: $300.00</p><p>View this estimate online:<br><a href=\"\"></a></p><p>To ask about this estimate, reply to this email.</p>"
+    }
+]

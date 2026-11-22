@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { documentLinkUrl } from '../tinycld/books/lib/document-link'
 import { estimateLinkUrl } from '../tinycld/books/lib/estimate-link'
 import { PUBLIC_ROWS } from '../tinycld/books/lib/estimate-public-link-fixture'
 import { publicEstimatePdfPath } from '../tinycld/books/lib/pdf-download'
@@ -17,6 +18,14 @@ describe('estimateLinkUrl', () => {
         expect(estimateLinkUrl(TOKEN, 'https://books.example/')).toBe(
             `https://books.example/p/books/estimates/${TOKEN}`
         )
+    })
+
+    it('is the estimate link of documentLinkUrl', () => {
+        for (const address of ['https://books.example', 'https://books.example/']) {
+            expect(estimateLinkUrl(TOKEN, address)).toBe(
+                documentLinkUrl('estimate', TOKEN, address)
+            )
+        }
     })
 })
 
