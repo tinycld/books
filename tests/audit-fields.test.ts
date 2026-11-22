@@ -324,6 +324,48 @@ describe('the bank categorization fields', () => {
     })
 })
 
+// Reconcile spec §4 Server: a reconciliation is audited, so a start, a change of the
+// statement information, a finish and a discard show in the audit log; its cleared rows
+// are not (one row for each press).
+describe('the reconciliation fields', () => {
+    it('audits the reconciliation as "Reconciliation", and not its cleared rows', () => {
+        expect(AUDITED).toContain('books_reconciliations')
+        expect(AUDITED).not.toContain('books_reconciliation_lines')
+        expect(AUDITED).not.toContain('books_reconcile_lines')
+        expect(recordTypeLabel('books_reconciliations')).toBe('Reconciliation')
+    })
+
+    it('has an entry for every field of the generated schema, each labelled in words', () => {
+        const fields = AUDIT_FIELDS.books_reconciliations
+        expect(Object.keys(fields ?? {}).sort()).toEqual(schemaFields('books_reconciliations'))
+        for (const [key, field] of Object.entries(fields ?? {})) {
+            expect(field.label, key).not.toBe('')
+            expect(field.label, key).not.toContain('_')
+        }
+    })
+
+    it('links a reconciliation to its account and people, and reads its amounts as money and its dates as days', () => {
+        const fields = AUDIT_FIELDS.books_reconciliations
+        expect(fields?.account).toMatchObject({ kind: 'relation', target: 'books_accounts' })
+        expect(fields?.created_by).toMatchObject({ kind: 'relation', target: 'users' })
+        expect(fields?.finished_by).toMatchObject({ kind: 'relation', target: 'users' })
+        expect(fields?.statement_date?.kind).toBe('day')
+        expect(fields?.finished_at?.kind).toBe('datetime')
+        for (const key of [
+            'statement_balance',
+            'beginning_balance',
+            'statement_out',
+            'statement_in',
+            'cleared_out',
+            'cleared_in',
+        ]) {
+            expect(fields?.[key]?.kind, key).toBe('money')
+        }
+        expect(fields?.status?.kind).toBe('select')
+        expect(fields?.has_statement_totals?.kind).toBe('bool')
+    })
+})
+
 describe('a field with no entry', () => {
     it('reads its key in words', () => {
         const rows = changedFieldRows('books_not_audited', {

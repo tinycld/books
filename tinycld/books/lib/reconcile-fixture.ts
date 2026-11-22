@@ -3,61 +3,19 @@
 // the seed graph runs in plain node (tests/seed-node.test.ts). Amounts are integer minor
 // units (cents). Accounts are the seeded e2e book's (lib/seed-accounts.ts), by number.
 //
-// The three reconcile collections do not exist yet. The record shapes below mirror the
-// Data section of docs/specs/reconcile-design.md. The checkpoint that adds the migration
-// (`<number>_create_books_reconciliations.js`) must replace them with the generated
-// `BooksReconciliations` and `BooksReconcileLines` of '../types', so tsc checks every field.
-import type { BooksAccounts } from '../types'
+// Records are typed with `satisfies` against the generated types of the migration
+// `<number>_create_books_reconciliations.js`, so tsc checks every field.
+// books_reconciliations: `statement_balance` is signed, in the account's own balance sense
+// (money in a bank account, owed on a card); `_out` is the credit side (a bank payment, a
+// card charge) and `_in` the debit side. books_reconcile_lines, the view: one posted line
+// of a bank or credit card account; `reconciliation` is the id of the reconciliation that
+// holds the line (cleared), else ''.
+import type { BooksAccounts, BooksReconcileLines, BooksReconciliations } from '../types'
 import { BANK_ACCOUNT_IDS, BANK_ACCOUNTS, BANK_USERS } from './bank-connection-fixture'
 
 export const RECONCILE_CURRENCY = 'USD'
 
 const STAMP = '2026-10-03 16:20:00.000Z'
-
-// books_reconciliations (spec §4 "Schema").
-export interface ReconciliationRecord {
-    id: string
-    account: string
-    statement_date: string
-    // Signed, in the account's own balance sense (money in a bank account, owed on a card).
-    statement_balance: number
-    has_statement_totals: boolean
-    // `_out` is the credit side (a bank payment, a card charge); `_in` the debit side.
-    statement_out: number
-    statement_in: number
-    status: 'in_progress' | 'finished'
-    beginning_balance: number
-    cleared_out: number
-    cleared_in: number
-    cleared_out_count: number
-    cleared_in_count: number
-    created_by: string
-    finished_by: string
-    finished_at: string
-    currency: string
-    created: string
-    updated: string
-}
-
-// books_reconcile_lines, the view (spec §4 "Schema"): one posted line of a bank or credit
-// card account. `reconciliation` is the id of the reconciliation that holds the line
-// (cleared), else ''.
-export interface ReconcileLineRecord {
-    id: string
-    line: string
-    account: string
-    entry: string
-    date: string
-    debit: number
-    credit: number
-    memo: string
-    number: string
-    doc_type: string
-    payee: string
-    reconciliation: string
-    finished: boolean
-    bank_matched: boolean
-}
 
 export const RECONCILE_USERS = [BANK_USERS.ana, BANK_USERS.ben]
 
@@ -134,11 +92,11 @@ const IDS = RECONCILIATION_IDS
 
 function reconciliation(
     fields: Pick<
-        ReconciliationRecord,
+        BooksReconciliations,
         'id' | 'account' | 'statement_date' | 'statement_balance' | 'beginning_balance' | 'status'
     > &
-        Partial<ReconciliationRecord>
-): ReconciliationRecord {
+        Partial<BooksReconciliations>
+) {
     return {
         has_statement_totals: false,
         statement_out: 0,
@@ -154,7 +112,7 @@ function reconciliation(
         created: STAMP,
         updated: STAMP,
         ...fields,
-    }
+    } satisfies BooksReconciliations
 }
 
 // The finished statement of September on 1000 Business Checking:
@@ -243,7 +201,7 @@ export const RECONCILIATIONS = [
     RECONCILIATION_FINISHED,
     RECONCILIATION_IN_PROGRESS,
     RECONCILIATION_SAVINGS_FINISHED,
-] satisfies ReconciliationRecord[]
+] satisfies BooksReconciliations[]
 
 // The accounts screen: each account with its reconciliation in progress and its latest
 // finished one (the two `materialize()` reads of spec §4 "Reads").
@@ -275,20 +233,34 @@ export const RECONCILE_LONG_MEMO = 'Quarterly lumber order 4471, split delivery,
 type Flag = 'cleared' | 'matched'
 
 // [day of the month, doc type, number, payee, memo, credit side, debit side, flags]
-type Posted = readonly [number, string, string, string, string, number, number, ...Flag[]]
+type Posted = readonly [
+    number,
+    BooksReconcileLines['doc_type'],
+    string,
+    string,
+    string,
+    number,
+    number,
+    ...Flag[],
+]
 
 function serialId(prefix: string, n: number): string {
     return `${prefix}${n.toString().padStart(15 - prefix.length, '0')}`
 }
 
+// A journal entry or a transfer is posted by hand; every other doc type is posted from its
+// document, whose id the entry carries.
+const HAND_POSTED = new Set<BooksReconcileLines['doc_type']>(['journal', 'transfer'])
+
 function linesOf(
     prefix: string,
-    held: Pick<ReconciliationRecord, 'id' | 'account' | 'statement_date'>,
+    held: Pick<BooksReconciliations, 'id' | 'account' | 'statement_date'>,
     posted: readonly Posted[]
-): ReconcileLineRecord[] {
+) {
     const month = held.statement_date.slice(0, 8)
     return posted.map(([day, docType, number, payee, memo, credit, debit, ...flags], index) => {
         const id = serialId(`${prefix}ln`, index + 1)
+        const byHand = HAND_POSTED.has(docType)
         return {
             id,
             line: id,
@@ -300,11 +272,13 @@ function linesOf(
             memo,
             number,
             doc_type: docType,
+            origin: byHand ? 'manual' : 'document',
+            document: byHand ? '' : serialId(`${prefix}dc`, index + 1),
             payee,
             reconciliation: flags.includes('cleared') ? held.id : '',
             finished: false,
             bank_matched: flags.includes('matched'),
-        }
+        } satisfies BooksReconcileLines
     })
 }
 
@@ -361,7 +335,7 @@ const CHECKING_POSTED: readonly Posted[] = [
 
 export const RECONCILE_LINES = linesOf('rcck', RECONCILIATION_IN_PROGRESS, CHECKING_POSTED)
 
-export const EMPTY_RECONCILE_LINES: ReconcileLineRecord[] = []
+export const EMPTY_RECONCILE_LINES: BooksReconcileLines[] = []
 
 // The four lines of the finished September statement of 1000 (3 payments $550.00, 1
 // deposit $175.00), for the register's Status column: "Reconciled".
@@ -396,18 +370,32 @@ export const RECONCILE_CARD_LINES = linesOf('rccd', RECONCILIATION_CARD, CARD_PO
 export const RECONCILE_REVIEW_COUNT = 3
 export const RECONCILE_REVIEW_CONNECTION_ID = 'bankconncheckng'
 
-// What seed.ts posts for Reconcile (spec §4 "Fixture and seed"): three entries of its own
-// on 1010 Business Savings with unique memos and fixed past dates, one finished
-// reconciliation that clears the first two ($0.00 + $2,500.00 + $4.12 = $2,504.12) and one
-// in progress with the third not cleared. Amounts are deposits (debits) on 1010. The
-// reconciliations are written as superuser through the same Go hooks.
+// What seed.ts posts for Reconcile (spec §4 "Fixture and seed", settled difference 10):
+// four entries of its own on 1010 Business Savings with unique memos and fixed past dates
+// (debit 1010, credit 3000 Owner's Equity), one finished reconciliation that clears the
+// first two ($0.00 + $2,500.00 + $4.12 = $2,504.12), and one in progress that clears the
+// third and leaves the fourth: $2,504.12 + $4.31 = $2,508.43 against a statement of
+// $2,523.43, a difference of $15.00 (the fee refund). `clears` are indexes into `entries`.
+// The reconciliations are written as superuser through the same Go hooks; their fixed ids
+// are how a second seed run knows it ran.
 export const RECONCILE_SEED = {
     accountNumber: '1010',
     entries: [
         { date: '2026-08-05', memo: 'Reconcile seed: opening deposit', amount: 250_000 },
         { date: '2026-08-20', memo: 'Reconcile seed: interest earned, August', amount: 412 },
         { date: '2026-09-18', memo: 'Reconcile seed: interest earned, September', amount: 431 },
+        { date: '2026-09-25', memo: 'Reconcile seed: fee refund', amount: 1_500 },
     ],
-    finished: { statement_date: '2026-08-31', statement_balance: 250_412, clears: [0, 1] },
-    inProgress: { statement_date: '2026-09-30', statement_balance: 250_843 },
+    finished: {
+        id: 'recnseedfinish1',
+        statement_date: '2026-08-31',
+        statement_balance: 250_412,
+        clears: [0, 1],
+    },
+    inProgress: {
+        id: 'recnseedprogrs1',
+        statement_date: '2026-09-30',
+        statement_balance: 252_343,
+        clears: [2],
+    },
 } as const

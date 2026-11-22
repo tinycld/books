@@ -218,6 +218,62 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // One comparison of an account with one bank statement. A writer inserts the
+    // account, the statement fields and `status: 'in_progress'`; the server stamps the
+    // beginning balance, who started it and the currency at create, and the cleared sums,
+    // who finished it and when at finish (server/reconcile.go).
+    const books_reconciliations = newCollection('books_reconciliations', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'beginning_balance',
+            'cleared_out',
+            'cleared_in',
+            'cleared_out_count',
+            'cleared_in_count',
+            'created_by',
+            'finished_by',
+            'finished_at',
+            'currency',
+        ] as const,
+        ...onDemand,
+        relations: {
+            account: books_accounts,
+            created_by: coreStores.users,
+            finished_by: coreStores.users,
+        },
+        collectionOptions: indexed,
+    })
+
+    // One row for each cleared transaction: a writer inserts the reconciliation and the
+    // line; the server stamps the rest from the journal line, and sets `finished` when the
+    // reconciliation is finished (server/reconcile.go).
+    const books_reconciliation_lines = newCollection('books_reconciliation_lines', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'account',
+            'entry',
+            'date',
+            'debit',
+            'credit',
+            'finished',
+        ] as const,
+        ...onDemand,
+        relations: { reconciliation: books_reconciliations },
+        collectionOptions: indexed,
+    })
+
+    // A view, never written: the server signals its topic when a journal line, an entry,
+    // an account, a customer, a vendor, a cleared row, a reconciliation or a bank match
+    // line changes (server/register.go), so the work screen follows a post, a void, a
+    // press or a match with no reload.
+    const books_reconcile_lines = newCollection('books_reconcile_lines', {
+        ...onDemand,
+        ...liveViewOptions('books_reconcile_lines'),
+        collectionOptions: indexed,
+    })
+
     // Server-maintained; reports read these instead of summing lines.
     const books_account_balances = newCollection('books_account_balances', {
         omitOnInsert: ['created', 'updated'] as const,
@@ -858,6 +914,9 @@ export function registerCollections(
         books_bank_match_lines,
         books_bank_match_suggestions,
         books_bank_categorizations,
+        books_reconciliations,
+        books_reconciliation_lines,
+        books_reconcile_lines,
         books_journal_lines,
         books_journal_entries,
         books_account_balances,

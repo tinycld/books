@@ -1,0 +1,85 @@
+{
+    "totals": [
+        {
+            "name": "a bank account with payments and deposits",
+            "accountType": "bank",
+            "beginning": 100000,
+            "statement": 115200,
+            "lines": [
+                { "debit": 50000, "credit": 0 },
+                { "debit": 0, "credit": 25000 },
+                { "debit": 0, "credit": 30000 },
+                { "debit": 17500, "credit": 0 }
+            ],
+            "clearedOut": 55000,
+            "clearedIn": 67500,
+            "outCount": 2,
+            "inCount": 2,
+            "clearedBalance": 112500,
+            "difference": 2700
+        },
+        {
+            "name": "a credit card account: charges raise the balance owed",
+            "accountType": "credit_card",
+            "beginning": 20000,
+            "statement": 62500,
+            "lines": [
+                { "debit": 0, "credit": 55000 },
+                { "debit": 0, "credit": 5000 },
+                { "debit": 17500, "credit": 0 }
+            ],
+            "clearedOut": 60000,
+            "clearedIn": 17500,
+            "outCount": 2,
+            "inCount": 1,
+            "clearedBalance": 62500,
+            "difference": 0
+        },
+        {
+            "name": "no line: the cleared balance is the beginning balance",
+            "accountType": "bank",
+            "beginning": 418000,
+            "statement": 418000,
+            "lines": [],
+            "clearedOut": 0,
+            "clearedIn": 0,
+            "outCount": 0,
+            "inCount": 0,
+            "clearedBalance": 418000,
+            "difference": 0
+        },
+        {
+            "name": "an overdrawn bank account",
+            "accountType": "bank",
+            "beginning": 0,
+            "statement": -12000,
+            "lines": [{ "debit": 0, "credit": 12000 }],
+            "clearedOut": 12000,
+            "clearedIn": 0,
+            "outCount": 1,
+            "inCount": 0,
+            "clearedBalance": -12000,
+            "difference": 0
+        },
+        {
+            "name": "a credit card account with a difference",
+            "accountType": "credit_card",
+            "beginning": 0,
+            "statement": 5400,
+            "lines": [{ "debit": 0, "credit": 4500 }],
+            "clearedOut": 4500,
+            "clearedIn": 0,
+            "outCount": 1,
+            "inCount": 0,
+            "clearedBalance": 4500,
+            "difference": 900
+        }
+    ],
+    "dates": [
+        { "name": "a first reconciliation", "lastDate": "", "date": "2026-08-31", "ok": true },
+        { "name": "a date equal to the last one", "lastDate": "2026-08-31", "date": "2026-08-31", "ok": false },
+        { "name": "a date one day after the last one", "lastDate": "2026-08-31", "date": "2026-09-01", "ok": true },
+        { "name": "a date one day before the last one", "lastDate": "2026-08-31", "date": "2026-08-30", "ok": false },
+        { "name": "a date across a year end", "lastDate": "2026-12-31", "date": "2027-01-01", "ok": true }
+    ]
+}

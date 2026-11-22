@@ -55,6 +55,7 @@ const RECORD_PATHS: Record<string, (id: string) => string> = {
     books_vendor_refunds: id => `books/vendor-refunds/${id}`,
     books_write_offs: id => `books/write-offs/${id}`,
     books_statements: id => `books/statements/${id}`,
+    books_reconciliations: id => `books/reconcile/${id}`,
 }
 
 // A record whose Open label names its screen in fewer words than its record type

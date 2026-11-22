@@ -15,6 +15,7 @@ import { AR_AGING_SEED } from '../tinycld/books/lib/ar-aging-fixture'
 import { CUSTOMER_BALANCE_SEED } from '../tinycld/books/lib/customer-balance-fixture'
 import { CUSTOMERS } from '../tinycld/books/lib/customer-form-fixture'
 import { REVIEW_SEED_ENTRIES, REVIEW_SEED_STATEMENT } from '../tinycld/books/lib/for-review-fixture'
+import { RECONCILE_SEED } from '../tinycld/books/lib/reconcile-fixture'
 import {
     REFUND_FROM_ACCOUNTS,
     REFUND_RECEIPT_IDS,
@@ -1225,5 +1226,177 @@ describe('seedStatements', () => {
             for (const field of STATEMENT_SERVER_FIELDS)
                 expect(write.data).not.toHaveProperty(field)
         }
+    })
+})
+
+// Reconcile spec §4 "Fixture and seed" (settled difference 10): four entries of its own on
+// 1010 Business Savings (debit 1010, credit 3000 Owner's Equity), a finished reconciliation
+// that clears the first two, and one in progress that clears the third and leaves the
+// fourth. All through the collection API, so the Go hooks stamp the server fields; the
+// reconciliations have fixed ids, which is how a second run knows it ran.
+type SeedReconcile = (
+    pb: PocketBase,
+    ctx: { user: typeof USER },
+    accountIds: Map<string, string>
+) => Promise<void>
+
+const RECONCILE_STAMPED = [
+    'beginning_balance',
+    'cleared_out',
+    'cleared_in',
+    'cleared_out_count',
+    'cleared_in_count',
+    'created_by',
+    'finished_by',
+    'finished_at',
+    'currency',
+]
+
+describe('seedReconcile', () => {
+    it('runs after the bank match seed', () => {
+        const source = readFileSync(seedPath, 'utf8')
+        const body = source.slice(source.indexOf('export default async function seed('))
+        const bankMatch = body.indexOf('seedBankMatch(')
+        expect(bankMatch).toBeGreaterThan(-1)
+        expect(body.indexOf('seedReconcile(')).toBeGreaterThan(bankMatch)
+    })
+
+    it('has four seed entries and two fixed 15-character reconciliation ids', () => {
+        const seed = RECONCILE_SEED as unknown as {
+            entries: { date: string; memo: string; amount: number }[]
+            finished: { id: string; clears: number[] }
+            inProgress: { id: string; statement_balance: number; clears: number[] }
+        }
+        expect(seed.entries).toHaveLength(4)
+        expect(seed.entries[3]).toEqual({
+            date: '2026-09-25',
+            memo: 'Reconcile seed: fee refund',
+            amount: 1_500,
+        })
+        expect(seed.finished.id).toMatch(/^[a-z0-9]{15}$/)
+        expect(seed.inProgress.id).toMatch(/^[a-z0-9]{15}$/)
+        expect(seed.inProgress.id).not.toBe(seed.finished.id)
+        expect(seed.finished.clears).toEqual([0, 1])
+        expect(seed.inProgress.clears).toEqual([2])
+        expect(seed.inProgress.statement_balance).toBe(252_343)
+    })
+
+    it('posts the four entries, finishes one reconciliation over the first two and leaves one in progress over the third', async () => {
+        const seedReconcile = (seedModule as Record<string, unknown>).seedReconcile as
+            | SeedReconcile
+            | undefined
+        expect(typeof seedReconcile).toBe('function')
+        if (typeof seedReconcile !== 'function') return
+        const seed = RECONCILE_SEED as unknown as {
+            entries: { date: string; memo: string; amount: number }[]
+            finished: { id: string; statement_date: string; statement_balance: number }
+            inProgress: { id: string; statement_date: string; statement_balance: number }
+        }
+        const { pb, writes } = servedPb()
+        const accounts = seededAccounts()
+        const savings = accounts.get('1010')
+        const equity = accounts.get('3000')
+        await seedReconcile(pb, { user: USER }, accounts)
+
+        const entries = writes.filter(
+            w => w.collection === 'books_journal_entries' && w.op === 'create'
+        )
+        expect(entries.map(w => [w.data.date, w.data.memo])).toEqual(
+            seed.entries.map(entry => [entry.date, entry.memo])
+        )
+        const lines = writes.filter(
+            w => w.collection === 'books_journal_lines' && w.op === 'create'
+        )
+        const savingsLines = entries.map((entry, i) => {
+            const amount = seed.entries[i]?.amount
+            const ofEntry = lines.filter(w => w.data.entry === entry.id)
+            expect(ofEntry.map(w => [w.data.account, w.data.debit, w.data.credit])).toEqual([
+                [savings, amount, 0],
+                [equity, 0, amount],
+            ])
+            expect(finalStatus(writes, 'books_journal_entries', entry.id)).toBe('posted')
+            return ofEntry.find(w => w.data.account === savings)?.id
+        })
+
+        const recs = writes.filter(w => w.collection === 'books_reconciliations')
+        expect(recs.map(w => [w.op, w.id])).toEqual([
+            ['create', seed.finished.id],
+            ['update', seed.finished.id],
+            ['create', seed.inProgress.id],
+        ])
+        expect(recs[0]?.data).toMatchObject({
+            id: seed.finished.id,
+            account: savings,
+            statement_date: seed.finished.statement_date,
+            statement_balance: seed.finished.statement_balance,
+            status: 'in_progress',
+        })
+        expect(recs[1]?.data).toMatchObject({ status: 'finished' })
+        expect(recs[2]?.data).toMatchObject({
+            id: seed.inProgress.id,
+            account: savings,
+            statement_date: '2026-09-30',
+            statement_balance: 252_343,
+            status: 'in_progress',
+        })
+        // The seed writes as superuser, and stampActor keeps a superuser's
+        // value, so the seed names its user as the starter and the finisher.
+        expect(recs[0]?.data.created_by).toBe(USER.id)
+        expect(recs[2]?.data.created_by).toBe(USER.id)
+        expect(recs[1]?.data.finished_by).toBe(USER.id)
+        const sentActor: Record<number, string> = {
+            0: 'created_by',
+            1: 'finished_by',
+            2: 'created_by',
+        }
+        recs.forEach((write, i) => {
+            for (const field of RECONCILE_STAMPED) {
+                if (field !== sentActor[i]) expect(write.data).not.toHaveProperty(field)
+            }
+        })
+
+        const cleared = writes.filter(w => w.collection === 'books_reconciliation_lines')
+        expect(cleared.map(w => [w.op, w.data.reconciliation, w.data.line])).toEqual([
+            ['create', seed.finished.id, savingsLines[0]],
+            ['create', seed.finished.id, savingsLines[1]],
+            ['create', seed.inProgress.id, savingsLines[2]],
+        ])
+        for (const write of cleared) {
+            for (const field of ['account', 'entry', 'date', 'debit', 'credit', 'finished']) {
+                expect(write.data).not.toHaveProperty(field)
+            }
+        }
+        const at = (w: Write | undefined) => (w ? writes.indexOf(w) : -1)
+        const lastPost = Math.max(
+            ...entries.map(entry =>
+                at(
+                    writes.find(
+                        w =>
+                            w.collection === 'books_journal_entries' &&
+                            w.id === entry.id &&
+                            w.data.status === 'posted'
+                    )
+                )
+            )
+        )
+        expect(at(recs[0])).toBeGreaterThan(lastPost)
+        expect(at(cleared[1])).toBeLessThan(at(recs[1]))
+        expect(at(recs[1])).toBeLessThan(at(recs[2]))
+        expect(at(recs[2])).toBeLessThan(at(cleared[2]))
+    })
+
+    it('creates nothing on a second run', async () => {
+        const seedReconcile = (seedModule as Record<string, unknown>).seedReconcile as
+            | SeedReconcile
+            | undefined
+        expect(typeof seedReconcile).toBe('function')
+        if (typeof seedReconcile !== 'function') return
+        const { pb, writes } = servedPb()
+        const accounts = seededAccounts()
+        await seedReconcile(pb, { user: USER }, accounts)
+        const before = writes.length
+        expect(before).toBeGreaterThan(0)
+        await seedReconcile(pb, { user: USER }, accounts)
+        expect(writes.slice(before)).toEqual([])
     })
 })
