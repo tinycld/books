@@ -3,15 +3,20 @@ import { navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { rangeWords } from '@tinycld/core/reports/lib/dates'
 import { REPORT_1099_TITLE } from '~/tinycld/books/lib/report-1099-fixture'
 import { DESKTOP } from './account-register-helpers'
+import { payPartOfBill } from './ap-aging-helpers'
 import {
     browserToday,
     choosePeriod,
     expectedHeading,
+    MANUAL_NOTE,
+    manualBand,
+    openEntriesFromSidebar,
     refreshReport,
     reportSnapshot,
     snapshotWhen,
 } from './books-report-helpers'
-import { runLanded } from './expenses-by-vendor-helpers'
+import { EXPENSE_URL } from './expense-helpers'
+import { postBillOnAccounts, runLanded } from './expenses-by-vendor-helpers'
 import { openBooks, uniqueName } from './record-form-helpers'
 import {
     boxAccounts,
@@ -23,8 +28,12 @@ import {
     expenseFor,
     figures,
     filterTo1099Vendors,
+    LEDGER_TOPICS,
+    openBox,
     openForm1099Report,
     ownBoxedAccount,
+    paymentLines,
+    realtimeTopics,
     thresholdOf,
     totalRow,
     vendorRow,
@@ -334,5 +343,208 @@ test.describe('report-1099: report', () => {
         )
         expect(vendorRows(byAmount).map(r => r.label)).toEqual([vendorA, vendorB])
         expect(figures(vendorRow(byAmount, vendorA)).reportable).toBe(50000)
+    })
+})
+
+// report-1099 checkpoint 3: an opened box's payments, a press on a payment, and Refresh.
+test.describe('report-1099: payments', () => {
+    test('an expense by credit card is Excluded and its payment says paid by card', async ({
+        page,
+    }) => {
+        await openBooks(page, DESKTOP)
+        const today = await browserToday(page)
+        const vendor = uniqueName('Form1099 Card Co')
+        await createTrackedVendor(page, { name: vendor })
+        const boxed = await ownBoxedAccount(page, uniqueName('Card Labor'), NEC_1)
+        const checkNo = await expenseFor(page, { vendor, account: boxed.name, amount: '500.00' })
+        const cardNo = await expenseFor(page, {
+            vendor,
+            account: boxed.name,
+            amount: '120.00',
+            method: 'Credit card',
+        })
+
+        await openFor(page, 'tracked', [vendor])
+        const shown = await snapshotWhen(
+            page,
+            reportSnapshot,
+            s => figures(vendorRow(s, vendor)).all === 62000,
+            `${vendor} reads 620.00 in All payments`
+        )
+        expect(figures(vendorRow(shown, vendor))).toEqual({
+            reportable: 50000,
+            excluded: 12000,
+            all: 62000,
+        })
+
+        await openBox(page, vendor, NEC_1)
+        const lines = paymentLines(await reportSnapshot(page), vendor, NEC_1)
+        expect(lines.map(line => line.label)).toEqual([
+            `${today} · Expense ${checkNo} · ${boxed.name}`,
+            `${today} · Expense ${cardNo} · ${boxed.name} · paid by card`,
+        ])
+        expect(lines.map(figures)).toEqual([
+            { reportable: 50000, excluded: null, all: 50000 },
+            { reportable: 0, excluded: 12000, all: 12000 },
+        ])
+    })
+
+    test('a bill shows nothing until it is paid, then the paid share', async ({ page }) => {
+        await openBooks(page, DESKTOP)
+        const vendor = uniqueName('Form1099 Bill Co')
+        const vendorId = await createTrackedVendor(page, { name: vendor })
+        const boxed = await ownBoxedAccount(page, uniqueName('Bill Labor'), NEC_1)
+        // postBillOnAccounts starts from the entries list (openNewBill).
+        await openEntriesFromSidebar(page)
+        const bill = await postBillOnAccounts(page, vendor, [
+            { account: boxed.name, amount: '400.00' },
+        ])
+
+        await openFor(page, 'tracked', [vendor])
+        await expectNoRows(page)
+
+        // The report stays open on `page`; a second window of the same session pays the
+        // bill. It reopens Books at the bill, whose Back leads to the entries list that
+        // payPartOfBill starts from.
+        const poster = await page.context().newPage()
+        let paymentNo = ''
+        try {
+            await openBooks(poster, DESKTOP)
+            paymentNo = await payPartOfBill(poster, {
+                vendor: { id: vendorId, name: vendor },
+                billId: bill.id,
+                amount: '100.00',
+            })
+        } finally {
+            await poster.close()
+        }
+
+        await refreshReport(page)
+        const paid = await snapshotWhen(
+            page,
+            reportSnapshot,
+            s => figures(vendorRow(s, vendor)).all === 10000,
+            `${vendor} reads 100.00 after the payment and Refresh`
+        )
+        expect(figures(vendorRow(paid, vendor))).toEqual({
+            reportable: 10000,
+            excluded: null,
+            all: 10000,
+        })
+        await openBox(page, vendor, NEC_1)
+        const lines = paymentLines(await reportSnapshot(page), vendor, NEC_1)
+        expect(lines).toHaveLength(1)
+        expect(lines[0].label).toContain(`Bill payment ${paymentNo}`)
+        expect(lines[0].label).toContain(`Bill ${bill.number} paid (cash basis)`)
+        expect(figures(lines[0])).toEqual({ reportable: 10000, excluded: null, all: 10000 })
+    })
+
+    test('a press on a payment lands on its document', async ({ page }) => {
+        await openBooks(page, DESKTOP)
+        const vendor = uniqueName('Form1099 Press Co')
+        await createTrackedVendor(page, { name: vendor })
+        const boxed = await ownBoxedAccount(page, uniqueName('Press Labor'), NEC_1)
+        const expenseNo = await expenseFor(page, { vendor, account: boxed.name, amount: '250.00' })
+
+        await openFor(page, 'tracked', [vendor])
+        await openBox(page, vendor, NEC_1)
+        const opened = await reportSnapshot(page)
+        const line = paymentLines(opened, vendor, NEC_1).find(row =>
+            row.label.includes(` · Expense ${expenseNo} · `)
+        )
+        if (!line) throw new Error(`no payment row of Expense ${expenseNo}`)
+
+        // As report-drill-down.spec.ts presses a line: its label is a link named "Open: …".
+        const label = page.getByTestId('report-table').getByTestId(`report-row-${line.id}`)
+        await expect(label).toHaveRole('link')
+        await expect(label).toHaveAccessibleName(`Open: ${line.label}`)
+        await label.click()
+        await expect(page).toHaveURL(EXPENSE_URL)
+        await expect(page.getByTestId('expense-read-only').filter({ visible: true })).toBeVisible()
+        await expect(page.getByTestId('expense-title').filter({ visible: true })).toHaveText(
+            `Expense ${expenseNo}`
+        )
+
+        await page.goBack()
+        await expect(
+            page.getByTestId('report-document-title').filter({ visible: true })
+        ).toHaveText(REPORT_1099_TITLE)
+        const back = await snapshotWhen(
+            page,
+            reportSnapshot,
+            s => figures(vendorRow(s, vendor)).all === 25000,
+            `${vendor} again after Back`
+        )
+        expect(vendorRows(back).map(r => r.label)).toEqual([vendor])
+    })
+
+    test('the report shows Refresh, and a new post shows only after it', async ({ page }) => {
+        // Every report run `page` sends, and the topic set of each realtime subscribe it
+        // sends (each subscribe carries the client's whole set).
+        const runs: (string | null)[] = []
+        let subscribed: string[] = []
+        page.on('request', request => {
+            const path = new URL(request.url()).pathname
+            if (request.method() !== 'POST') return
+            if (path === '/api/reports/run') runs.push(request.postData())
+            if (path === '/api/realtime') subscribed = realtimeTopics(request)
+        })
+
+        await openBooks(page, DESKTOP)
+        const vendor = uniqueName('Form1099 Refresh Co')
+        await createTrackedVendor(page, { name: vendor })
+        const boxed = await ownBoxedAccount(page, uniqueName('Refresh Labor'), NEC_1)
+        await expenseFor(page, { vendor, account: boxed.name, amount: '300.00' })
+
+        await openFor(page, 'tracked', [vendor])
+        await snapshotWhen(
+            page,
+            reportSnapshot,
+            s => figures(vendorRow(s, vendor)).reportable === 30000,
+            `${vendor} reads 300.00 Reportable`
+        )
+        // Core draws this band for a report that is not live
+        // (core/reports/components/ReportManualBand.tsx, test id report-manual-band).
+        const { band, note, refresh } = manualBand(page)
+        await expect(band).toBeVisible()
+        await expect(note).toHaveText(MANUAL_NOTE)
+        await expect(refresh).toBeVisible()
+        const openBody = runs.at(-1)
+        expect(openBody, 'the open report sent its run').toBeTruthy()
+        const runsBeforePost = runs.length
+
+        // A second window of the same session posts the expense.
+        const poster = await page.context().newPage()
+        try {
+            await openBooks(poster, DESKTOP)
+            await expenseFor(poster, { vendor, account: boxed.name, amount: '200.00' })
+        } finally {
+            await poster.close()
+        }
+
+        // The report follows no ledger topic, so no signal of the post can reach it, and it
+        // sent no run of its own body again: its rows are those of the run before the post.
+        expect(subscribed, 'the page sent a realtime subscribe').not.toEqual([])
+        expect(subscribed.filter(topic => LEDGER_TOPICS.includes(topic))).toEqual([])
+        expect(runs.slice(runsBeforePost).filter(body => body === openBody)).toEqual([])
+        const unchanged = await reportSnapshot(page)
+        expect(figures(vendorRow(unchanged, vendor))).toEqual({
+            reportable: 30000,
+            excluded: null,
+            all: 30000,
+        })
+
+        await refreshReport(page)
+        const refreshed = await snapshotWhen(
+            page,
+            reportSnapshot,
+            s => figures(vendorRow(s, vendor)).reportable === 50000,
+            `${vendor} reads 500.00 Reportable after Refresh`
+        )
+        expect(figures(vendorRow(refreshed, vendor))).toEqual({
+            reportable: 50000,
+            excluded: null,
+            all: 50000,
+        })
     })
 })

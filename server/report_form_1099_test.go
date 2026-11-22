@@ -1,16 +1,25 @@
 package books
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/csv"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/nathanstitt/omnidoc/pkg/xlsx"
 	"github.com/pocketbase/dbx"
+	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 
 	"tinycld.org/core/reports"
@@ -1465,4 +1474,687 @@ func TestForm1099ShippedShared(t *testing.T) {
 	requireViewer(t, app, row, reader, "a guest with Books readonly access")
 	requireNoShare(t, app, row, outsider, "a guest without Books access")
 	requireNoDrift(t, app)
+}
+
+// The opened box (report-1099 checkpoint 3): its payment rows, their labels,
+// order, cells and documents, the exports and the spec's sha.
+
+// f1099CardSuffix ends the label of a card payment's row (spec §3, Q17).
+const f1099CardSuffix = " · paid by card"
+
+// f1099PaymentRows runs params with the boxes closed, then with vendor's box
+// box ("" for Not reported) opened by its key, as the view asks when a reader
+// presses the box row, and gives the opened run's box row and the payment rows
+// under it, in result order.
+func f1099PaymentRows(t *testing.T, b f1099Book, params map[string]any, vendor *core.Record, box string) (reports.Row, []reports.Row) {
+	t.Helper()
+	closed := run1099(t, b, params)
+	key := f1099BoxRow(t, closed, vendor, box).GroupKey
+	if lines := ebvLinesUnder(t, closed, f1099BoxRow(t, closed, vendor, box)); len(lines) != 0 {
+		t.Fatalf("the box %q of %s is open before a press; rows %q", box, vendor.GetString("display_name"), bsLabels(closed))
+	}
+	res := run1099Opts(t, b, params, reports.Options{Expand: [][]any{key}, Collapse: [][]any{}})
+	row := f1099BoxRow(t, res, vendor, box)
+	return row, ebvLinesUnder(t, res, row)
+}
+
+// f1099LabelsOf reads payment rows as label and All payments.
+func f1099LabelsOf(t *testing.T, rows []reports.Row) []ebvLine {
+	t.Helper()
+	out := make([]ebvLine, len(rows))
+	for i, r := range rows {
+		out[i] = ebvLine{Label: r.Label, Amount: amt(t, r, "all")}
+	}
+	return out
+}
+
+// f1099ContractLabor is the label of the book's NEC 1 Expense account.
+const f1099ContractLabor = "6410 Contract Labor"
+
+func TestForm1099PaymentLabels(t *testing.T) {
+	b := new1099Book(t)
+	if got := ebvAccountText(t, b.app, b.nec.Id); got != f1099ContractLabor {
+		t.Fatalf("the NEC 1 account reads %q, want %s", got, f1099ContractLabor)
+	}
+	v := f1099Vendor(t, b, "Label Co")
+	day := f1099Day + " · "
+	on := " · " + f1099ContractLabor
+
+	// Expenses: by check (with a memo), by credit card, by debit card, and by
+	// check from the credit card account.
+	draft := b.mkExpense(t, map[string]any{
+		"vendor": v.Id, "date": f1099Day, "payment_method": "check", "paid_from": b.bank.Id, "memo": "Design retainer",
+	})
+	mkExpenseLine(t, b.app, draft, 0, accountLine(b.nec, 10000))
+	check := mustPostExpense(t, b.app, draft.Id, b.users.bookkeeper.Id)
+	if desc := balanceLineDesc(t, b.app, entryLineOn(t, b.app, check.GetString("entry"), b.nec)); desc != "Design retainer" {
+		t.Fatalf("the check expense's line has the description %q, want Design retainer", desc)
+	}
+	credit := f1099Pay(t, b, f1099Expense, v, b.nec, 2000, "credit_card", b.bank)
+	debit := f1099Pay(t, b, f1099Expense, v, b.nec, 3000, "debit_card", b.bank)
+	fromCard := f1099Pay(t, b, f1099Expense, v, b.nec, 4000, "check", b.card)
+
+	// Bill payments by check and by card.
+	checkBill := b.postBill(t, v, f1099Day, billAmount{b.nec, 5000})
+	checkPay := b.pay(t, v, map[string]any{"date": f1099Day, "payment_method": "check", "paid_from": b.bank.Id}, payLine{checkBill, 5000})
+	cardBill := b.postBill(t, v, f1099Day, billAmount{b.nec, 6000})
+	cardPay := b.pay(t, v, map[string]any{"date": f1099Day, "payment_method": "credit_card", "paid_from": b.bank.Id}, payLine{cardBill, 6000})
+
+	// A vendor credit applied to a bill.
+	applied := b.postedCredit(t, v, f1099Day, billAmount{b.nec, 1500})
+	appliedBill := b.postBill(t, v, f1099Day, billAmount{b.nec, 7000})
+	apApply(t, b.apBook, applied, reload(t, b.app, "books_bills", appliedBill.Id), f1099Day, 1500)
+
+	// Vendor refunds: to the bank account by check, and to the credit card account.
+	refunded := b.postedCredit(t, v, f1099Day, billAmount{b.nec, 1200})
+	refund := b.refund(t, map[string]any{
+		"vendor": v.Id, "date": f1099Day, "payment_method": "check", "refunded_to": b.bank.Id,
+	}, refundLine{refunded, 1200})
+	cardRefunded := b.postedCredit(t, v, f1099Day, billAmount{b.nec, 800})
+	cardRefund := b.refund(t, map[string]any{
+		"vendor": v.Id, "date": f1099Day, "payment_method": "check", "refunded_to": b.card.Id,
+	}, refundLine{cardRefunded, 800})
+
+	// A journal entry line: never a card payment.
+	manual := b.postEntry(t, f1099Day, v, b.nec, 900)
+	manualLine := ebvLedgerLine(t, b.app, entryLineOn(t, b.app, manual.Id, b.nec), "Journal entry "+ebvEntryNumber(t, b.app, manual.Id))
+	if prefix := day + "Journal entry " + ebvEntryNumber(t, b.app, manual.Id) + on; !strings.HasPrefix(manualLine.Label, prefix) {
+		t.Fatalf("the wanted journal entry label %q does not start %q", manualLine.Label, prefix)
+	}
+
+	no := func(doc *core.Record) string { return apNo(t, b.apBook, doc) }
+	want := []ebvLine{
+		{day + "Expense " + no(check) + on + " · Design retainer", 10000},
+		{day + "Expense " + no(credit) + on + f1099CardSuffix, 2000},
+		{day + "Expense " + no(debit) + on + f1099CardSuffix, 3000},
+		{day + "Expense " + no(fromCard) + on + f1099CardSuffix, 4000},
+		{day + "Bill payment " + no(checkPay) + on + " · Bill " + no(checkBill) + " paid (cash basis)", 5000},
+		{day + "Bill payment " + no(cardPay) + on + " · Bill " + no(cardBill) + " paid (cash basis)" + f1099CardSuffix, 6000},
+		// Plan D2: the two rows of a vendor credit's application.
+		{day + "Vendor credit " + no(applied) + on + " · Bill " + no(appliedBill) + " paid by vendor credit (cash basis)", 1500},
+		{day + "Vendor credit " + no(applied) + on + " · Vendor credit " + no(applied) + " applied (cash basis)", -1500},
+		{day + "Vendor refund " + no(refund) + on + " · Vendor credit " + no(refunded) + " refunded (cash basis)", -1200},
+		{day + "Vendor refund " + no(cardRefund) + on + " · Vendor credit " + no(cardRefunded) + " refunded (cash basis)" + f1099CardSuffix, -800},
+		manualLine,
+	}
+	if strings.HasSuffix(manualLine.Label, f1099CardSuffix) {
+		t.Fatalf("the wanted journal entry label %q ends with the card suffix", manualLine.Label)
+	}
+
+	_, rows := f1099PaymentRows(t, b, octoberAll, v, "nec_1")
+	got := f1099LabelsOf(t, rows)
+	byLabel := func(x, y ebvLine) int { return strings.Compare(x.Label, y.Label) }
+	slices.SortFunc(got, byLabel)
+	slices.SortFunc(want, byLabel)
+	requireEBVLines(t, "Label Co's opened NEC 1 box", got, want)
+	requireNoDrift(t, b.app)
+}
+
+func TestForm1099PaymentOrder(t *testing.T) {
+	b := new1099Book(t)
+	v := f1099Vendor(t, b, "Order Co")
+	line := func(id string, cents, position int) jnLine {
+		return jnLine{id: id, account: b.nec, debit: cents, position: position, vendor: v.Id}
+	}
+	bank := func(cents, position int) jnLine { return jnLine{account: b.bank, credit: cents, position: position} }
+
+	// The last day, posted earliest: the date decides before the posting time.
+	late := postJournal(t, b.app, "", "2026-10-07", "Late day", line("f99ord000000001", 100, 0), bank(100, 1))
+	setPostedAt(t, b.app, late.Id, "2026-11-12 08:00:00.000Z")
+	// Two entries on one day: posting order decides (the ids sort the other way).
+	madeFirst := postJournal(t, b.app, "", "2026-10-05", "Same day, made first", line("f99same00000001", 200, 0), bank(200, 1))
+	madeSecond := postJournal(t, b.app, "", "2026-10-05", "Same day, made second", line("f99same99999999", 300, 0), bank(300, 1))
+	setPostedAt(t, b.app, madeFirst.Id, "2026-11-12 11:00:00.000Z")
+	setPostedAt(t, b.app, madeSecond.Id, "2026-11-12 10:00:00.000Z")
+	// Two lines of one entry: position decides (the ids sort the other way).
+	split := postJournal(t, b.app, "", "2026-10-03", "Split",
+		line("f99pos000000001", 400, 1), line("f99pos999999999", 500, 0), bank(900, 2))
+	setPostedAt(t, b.app, split.Id, "2026-11-12 12:00:00.000Z")
+
+	// Ledger note cp 2 · gate 3 A NOTE 4: an application of a vendor credit writes
+	// two share rows from the credit's entry on one day (the bill's share, above
+	// zero, and the credit's applied share, below it), both at position 2 of
+	// their document's cash rows, so date, posting time and position tie. The
+	// probe's order (plan D2) is pinned: the bill's share first. Five
+	// applications, each on its own day, so an order left to the record ids
+	// fails here.
+	applyDays := []string{"2026-10-21", "2026-10-22", "2026-10-23", "2026-10-24", "2026-10-25"}
+	for i, applyDay := range applyDays {
+		cents := int64(1000 + 100*i)
+		credit := b.postedCredit(t, v, "2026-10-01", billAmount{b.nec, cents})
+		bill := b.postBill(t, v, "2026-10-01", billAmount{b.nec, 20000})
+		apApply(t, b.apBook, credit, reload(t, b.app, "books_bills", bill.Id), applyDay, int(cents))
+	}
+
+	// keyOf names a journal line by its row id, a share row by its day and kind.
+	keyOf := func(r reports.Row) string {
+		if strings.HasPrefix(r.ID, "d:f99") {
+			return r.ID
+		}
+		d, _, _ := strings.Cut(r.Label, " · ")
+		switch {
+		case strings.HasSuffix(r.Label, " paid by vendor credit (cash basis)"):
+			return d + " bill share"
+		case strings.HasSuffix(r.Label, " applied (cash basis)"):
+			return d + " credit applied"
+		}
+		return "other " + r.Label
+	}
+	keys := func() []string {
+		t.Helper()
+		_, rows := f1099PaymentRows(t, b, octoberAll, v, "nec_1")
+		out := make([]string, len(rows))
+		for i, r := range rows {
+			out[i] = keyOf(r)
+		}
+		return out
+	}
+	shares := []string{}
+	for _, d := range applyDays {
+		shares = append(shares, d+" bill share", d+" credit applied")
+	}
+	want := append([]string{"d:f99pos999999999", "d:f99pos000000001", "d:f99same99999999", "d:f99same00000001", "d:f99ord000000001"}, shares...)
+	if got := keys(); !reflect.DeepEqual(got, want) {
+		t.Errorf("Order Co's NEC 1 payments =\n%q\nwant\n%q\n(date, then posting time, then position; a vendor credit's application: the bill's share, then the credit's applied share)", got, want)
+	}
+
+	setPostedAt(t, b.app, madeFirst.Id, "2026-11-12 09:00:00.000Z")
+	want = append([]string{"d:f99pos999999999", "d:f99pos000000001", "d:f99same00000001", "d:f99same99999999", "d:f99ord000000001"}, shares...)
+	if got := keys(); !reflect.DeepEqual(got, want) {
+		t.Errorf("after the posting order flips, Order Co's NEC 1 payments =\n%q\nwant\n%q", got, want)
+	}
+	requireNoDrift(t, b.app)
+}
+
+func TestForm1099PaymentCells(t *testing.T) {
+	b := new1099Book(t)
+	v := f1099Vendor(t, b, "Cells Co")
+	check := b.postExpense(t, v, f1099Day, billAmount{b.nec, 10000})
+	card := f1099Pay(t, b, f1099Expense, v, b.nec, 4000, "credit_card", b.bank)
+	cardBillPay := f1099Pay(t, b, f1099BillPayment, v, b.nec, 1500, "debit_card", b.bank)
+	noBoxCheck := b.postExpense(t, v, f1099Day, billAmount{b.noBox, 2500})
+
+	rowOf := func(rows []reports.Row, id string) reports.Row {
+		t.Helper()
+		for _, r := range rows {
+			if r.ID == id {
+				return r
+			}
+		}
+		t.Fatalf("no payment row %s; rows %q", id, labelsOf(rows))
+		return reports.Row{}
+	}
+	requireSums := func(what string, box reports.Row, rows []reports.Row) {
+		t.Helper()
+		var sum f1099Figs
+		for _, r := range rows {
+			f := f1099FigsOf(t, r)
+			sum.Reportable += f.Reportable
+			sum.Excluded += f.Excluded
+			sum.All += f.All
+		}
+		if got := f1099FigsOf(t, box); got != sum {
+			t.Errorf("%s: the box row reads %+v, its payments add up to %+v", what, got, sum)
+		}
+	}
+
+	box, rows := f1099PaymentRows(t, b, octoberAll, v, "nec_1")
+	if len(rows) != 3 {
+		t.Fatalf("NEC 1 has the payment rows %q, want the check expense, the card expense and the card bill payment's share", labelsOf(rows))
+	}
+	requireF1099Figs(t, "the check expense", rowOf(rows, "d:"+entryLineOn(t, b.app, check.GetString("entry"), b.nec).Id),
+		f1099Figs{Reportable: 10000, All: 10000})
+	requireF1099Figs(t, "the card expense", rowOf(rows, "d:"+entryLineOn(t, b.app, card.GetString("entry"), b.nec).Id),
+		f1099Figs{Reportable: 0, Excluded: 4000, All: 4000})
+	var share reports.Row
+	for _, r := range rows {
+		if strings.Contains(r.Label, " · Bill payment "+apNo(t, b.apBook, cardBillPay)+" · ") {
+			share = r
+		}
+	}
+	if share.ID == "" {
+		t.Fatalf("no share row of the card bill payment; rows %q", labelsOf(rows))
+	}
+	requireF1099Figs(t, "the card bill payment's share", share, f1099Figs{Reportable: 0, Excluded: 1500, All: 1500})
+	requireF1099Figs(t, "the NEC 1 box", box, f1099Figs{Reportable: 10000, Excluded: 5500, All: 15500})
+	requireSums("NEC 1", box, rows)
+
+	none, noneRows := f1099PaymentRows(t, b, octoberAll, v, "")
+	requireF1099Figs(t, "the check expense on the account with no box",
+		rowOf(noneRows, "d:"+entryLineOn(t, b.app, noBoxCheck.GetString("entry"), b.noBox).Id),
+		f1099Figs{Reportable: 0, Excluded: 2500, All: 2500})
+	requireSums("Not reported", none, noneRows)
+	requireNoDrift(t, b.app)
+}
+
+func TestForm1099PaymentOpens(t *testing.T) {
+	b := new1099Book(t)
+	v := f1099Vendor(t, b, "Opens Co")
+	exp := b.postExpense(t, v, f1099Day, billAmount{b.nec, 10000})
+	bill := b.postBill(t, v, f1099Day, billAmount{b.nec, 4000})
+	pay := b.payOn(t, v, f1099Day, payLine{bill, 4000})
+	credit := b.postedCredit(t, v, f1099Day, billAmount{b.nec, 1000})
+	creditBill := b.postBill(t, v, f1099Day, billAmount{b.nec, 3000})
+	apApply(t, b.apBook, credit, reload(t, b.app, "books_bills", creditBill.Id), f1099Day, 1000)
+	refunded := b.postedCredit(t, v, f1099Day, billAmount{b.nec, 500})
+	refund := apRefund(t, b.apBook, v, f1099Day, map[string]int{refunded.Id: 500})
+	manual := b.postEntry(t, f1099Day, v, b.nec, 700)
+
+	_, rows := f1099PaymentRows(t, b, octoberAll, v, "nec_1")
+	got := map[string]string{}
+	for _, r := range rows {
+		got[r.Label] = r.Open
+	}
+	no := func(doc *core.Record) string { return apNo(t, b.apBook, doc) }
+	day, on := f1099Day+" · ", " · "+f1099ContractLabor
+	manualLabel := ebvLedgerLabel(t, b.app, entryLineOn(t, b.app, manual.Id, b.nec), "Journal entry "+ebvEntryNumber(t, b.app, manual.Id))
+	want := map[string]string{
+		day + "Expense " + no(exp) + on: apRoute(t, "expense", exp.Id),
+		day + "Bill payment " + no(pay) + on + " · Bill " + no(bill) + " paid (cash basis)":                            apRoute(t, "bill_payment", pay.Id),
+		day + "Vendor credit " + no(credit) + on + " · Bill " + no(creditBill) + " paid by vendor credit (cash basis)": apRoute(t, "vendor_credit", credit.Id),
+		day + "Vendor credit " + no(credit) + on + " · Vendor credit " + no(credit) + " applied (cash basis)":          apRoute(t, "vendor_credit", credit.Id),
+		day + "Vendor refund " + no(refund) + on + " · Vendor credit " + no(refunded) + " refunded (cash basis)":       apRoute(t, "vendor_refund", refund.Id),
+		manualLabel: "books/entries/" + manual.Id,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Opens Co's NEC 1 payments open\n%q\nwant\n%q", got, want)
+	}
+	requireNoDrift(t, b.app)
+}
+
+func TestForm1099VoidPayment(t *testing.T) {
+	b := new1099Book(t)
+	v := f1099Vendor(t, b, "Void Payment Co")
+	b.postExpense(t, v, f1099Day, billAmount{b.nec, 1000})
+	voided := b.postExpense(t, v, f1099Day, billAmount{b.nec, 20000})
+	if err := voidExpenseAs(b.app, voided.Id, b.users.admin.Id); err != nil {
+		t.Fatalf("void the expense: %v", err)
+	}
+	bill := b.postBill(t, v, f1099Day, billAmount{b.nec, 30000})
+	pay := b.payOn(t, v, f1099Day, payLine{bill, 30000})
+	payNo, voidNo := apNo(t, b.apBook, pay), apNo(t, b.apBook, voided)
+
+	// sumOf adds the payment rows' figures in each column.
+	sumOf := func(rows []reports.Row) f1099Figs {
+		t.Helper()
+		var sum f1099Figs
+		for _, r := range rows {
+			f := f1099FigsOf(t, r)
+			sum.Reportable += f.Reportable
+			sum.Excluded += f.Excluded
+			sum.All += f.All
+		}
+		return sum
+	}
+	// voidRows are the rows of the void expense and of its reversal.
+	voidRows := func(rows []reports.Row) []reports.Row {
+		var out []reports.Row
+		for _, r := range rows {
+			if strings.Contains(r.Label, " · Expense "+voidNo+" · ") || strings.Contains(r.Label, " · Void reversal of "+voidNo+" · ") {
+				out = append(out, r)
+			}
+		}
+		return out
+	}
+
+	box, rows := f1099PaymentRows(t, b, octoberAll, v, "nec_1")
+	requireF1099Figs(t, "NEC 1 with the bill paid", box, f1099Figs{Reportable: 31000, All: 31000})
+	if s := sumOf(rows); s != (f1099Figs{Reportable: 31000, All: 31000}) {
+		t.Errorf("NEC 1's payments with the bill paid add up to %+v, want 31000; rows %q", s, labelsOf(rows))
+	}
+	if s := sumOf(voidRows(rows)); s != (f1099Figs{}) {
+		t.Errorf("the void expense's rows %q add up to %+v, want 0", labelsOf(voidRows(rows)), s)
+	}
+
+	if err := voidBillPaymentAs(b.app, pay.Id, b.users.admin.Id); err != nil {
+		t.Fatalf("void the bill payment: %v", err)
+	}
+	box, rows = f1099PaymentRows(t, b, octoberAll, v, "nec_1")
+	requireF1099Figs(t, "NEC 1 after the void of the bill payment", box, f1099Figs{Reportable: 1000, All: 1000})
+	if s := sumOf(rows); s != (f1099Figs{Reportable: 1000, All: 1000}) {
+		t.Errorf("NEC 1's payments after the void add up to %+v, want 1000; rows %q", s, labelsOf(rows))
+	}
+	for _, r := range rows {
+		if strings.Contains(r.Label, "Bill payment "+payNo+" ") || strings.Contains(r.Label, " paid (cash basis)") {
+			t.Errorf("a share row of the void bill payment shows: %q", r.Label)
+		}
+	}
+	if s := sumOf(voidRows(rows)); s != (f1099Figs{}) {
+		t.Errorf("the void expense's rows %q add up to %+v, want 0", labelsOf(voidRows(rows)), s)
+	}
+	requireF1099Figs(t, "the vendor after the void", f1099VendorRow(t, run1099(t, b, octoberAll), v), f1099Figs{Reportable: 1000, All: 1000})
+	requireNoDrift(t, b.app)
+}
+
+// f1099Export is the export of the shipped 1099 Summary and Detail in format
+// (csv, xlsx or pdf) as b's reader on f1099Today, through core's export route
+// as exportShippedCSV posts it. exportShippedCSV ships the report and its
+// shares on the first call, so each export makes the CSV first.
+func f1099Export(t *testing.T, b f1099Book, format string, params map[string]any) []byte {
+	t.Helper()
+	text := exportShippedCSV(t, b.app, form1099Shipped(), form1099Key, f1099Today, b.reader, params)
+	if format == "csv" {
+		return []byte(text)
+	}
+	row, err := b.app.FindFirstRecordByFilter("reports", "shipped_key = {:k}", dbx.Params{"k": form1099Key})
+	if err != nil {
+		t.Fatalf("no reports row with shipped_key %s: %v", form1099Key, err)
+	}
+	given := map[string]json.RawMessage{}
+	for id, v := range params {
+		given[id] = mustJSON(v)
+	}
+	body := mustJSON(map[string]any{
+		"reportId": row.Id, "format": format, "params": given,
+		"options": map[string]any{"today": f1099Today},
+	})
+	router, err := apis.NewRouter(b.app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []byte
+	err = b.app.OnServe().Trigger(&core.ServeEvent{App: b.app, Router: router}, func(e *core.ServeEvent) error {
+		mux, err := e.Router.BuildMux()
+		if err != nil {
+			return err
+		}
+		req := httptest.NewRequest(http.MethodPost, "/api/reports/export", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", tokenFor(t, b.reader))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			return fmt.Errorf("export %s: status %d, want 200; body: %s", format, rec.Code, rec.Body.String())
+		}
+		out = rec.Body.Bytes()
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// f1099Record is one row of an export: its label and its three figures in
+// cents; Excluded is nil for an empty cell.
+type f1099Record struct {
+	Label           string
+	Reportable, All int64
+	Excluded        *int64
+}
+
+func (r f1099Record) String() string {
+	exc := "blank"
+	if r.Excluded != nil {
+		exc = fmt.Sprint(*r.Excluded)
+	}
+	return fmt.Sprintf("{%q %d %s %d}", r.Label, r.Reportable, exc, r.All)
+}
+
+func f1099Cents(c int64) *int64 { return &c }
+
+// f1099CSVRecords reads a CSV export: its heading line and its records.
+func f1099CSVRecords(t *testing.T, text string) ([]string, []f1099Record) {
+	t.Helper()
+	records, err := csv.NewReader(strings.NewReader(strings.TrimPrefix(text, "\xef\xbb\xbf"))).ReadAll()
+	if err != nil {
+		t.Fatalf("read the CSV: %v\n%s", err, text)
+	}
+	if len(records) == 0 {
+		t.Fatal("the CSV has no line")
+	}
+	out := []f1099Record{}
+	for _, r := range records[1:] {
+		if len(r) != 4 {
+			t.Fatalf("CSV record %q has %d fields, want 4", r, len(r))
+		}
+		rec := f1099Record{Label: r[0], Reportable: int64(apCSVCents(t, r[1])), All: int64(apCSVCents(t, r[3]))}
+		if r[2] != "" {
+			rec.Excluded = f1099Cents(int64(apCSVCents(t, r[2])))
+		}
+		out = append(out, rec)
+	}
+	return records[0], out
+}
+
+// f1099Sheet reads an Excel export: the lines above the heading row, the
+// heading row's texts and the records under it.
+func f1099Sheet(t *testing.T, file []byte) (above []string, headings []string, records []f1099Record) {
+	t.Helper()
+	wb, err := xlsx.OpenBytes(context.Background(), file)
+	if err != nil {
+		t.Fatalf("read the Excel file: %v", err)
+	}
+	if len(wb.Sheets) != 1 {
+		t.Fatalf("%d sheets, want 1", len(wb.Sheets))
+	}
+	sheet := wb.Sheets[0]
+	text := func(c xlsx.Cell) string {
+		if c.Value.Kind == xlsx.KindString {
+			return strings.TrimSpace(c.Value.S)
+		}
+		return ""
+	}
+	cents := func(c xlsx.Cell, what string) *int64 {
+		t.Helper()
+		switch c.Value.Kind {
+		case xlsx.KindEmpty:
+			return nil
+		case xlsx.KindNumber:
+			return f1099Cents(int64(math.Round(c.Value.F * 100)))
+		}
+		t.Fatalf("%s: cell %q is kind %d, want a number or empty", what, c.Text, c.Value.Kind)
+		return nil
+	}
+	at := -1
+	for i, row := range sheet.Cells {
+		if len(row) > 0 && text(row[0]) == "Vendor" {
+			at = i
+			break
+		}
+		for _, c := range row {
+			if s := text(c); s != "" {
+				above = append(above, s)
+			}
+		}
+	}
+	if at < 0 {
+		t.Fatalf("the sheet has no heading row that starts with Vendor; lines %q", above)
+	}
+	for _, c := range sheet.Cells[at] {
+		if s := text(c); s != "" {
+			headings = append(headings, s)
+		}
+	}
+	for i, row := range sheet.Cells[at+1:] {
+		cell := func(col int) xlsx.Cell {
+			if col < len(row) {
+				return row[col]
+			}
+			return xlsx.Cell{}
+		}
+		if text(cell(0)) == "" {
+			continue
+		}
+		what := fmt.Sprintf("sheet row %d", at+2+i)
+		rep, all := cents(cell(1), what), cents(cell(3), what)
+		if rep == nil || all == nil {
+			t.Fatalf("%s (%q): Reportable or All payments is empty", what, text(cell(0)))
+		}
+		records = append(records, f1099Record{Label: text(cell(0)), Reportable: *rep, Excluded: cents(cell(2), what), All: *all})
+	}
+	return above, headings, records
+}
+
+// f1099RecordOf is a run's row as an export record.
+func f1099RecordOf(t *testing.T, r reports.Row) f1099Record {
+	t.Helper()
+	f := f1099FigsOf(t, r)
+	rec := f1099Record{Label: r.Label, Reportable: f.Reportable, All: f.All}
+	if r.Cells["excluded"] != nil {
+		rec.Excluded = f1099Cents(f.Excluded)
+	}
+	return rec
+}
+
+func requireF1099Records(t *testing.T, what string, got, want []f1099Record) {
+	t.Helper()
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("%s records =\n%v\nwant\n%v", what, got, want)
+	}
+}
+
+var f1099ExportHeadings = []string{"Vendor", "Reportable", "Excluded", "All payments"}
+
+func TestForm1099CSVOpensEveryBox(t *testing.T) {
+	b := new1099Book(t)
+	alpha := f1099Vendor(t, b, "Csv Alpha")
+	if err := setFields(t, b.app, "books_vendors", alpha.Id, map[string]any{"tax_id_type": "ein", "tax_id": "987654321"}); err != nil {
+		t.Fatalf("save the tax ID: %v", err)
+	}
+	check := b.postExpense(t, alpha, f1099Day, billAmount{b.nec, 10000})
+	cardDraft := b.mkExpense(t, map[string]any{
+		"vendor": alpha.Id, "date": "2026-10-16", "payment_method": "credit_card", "paid_from": b.bank.Id,
+	})
+	mkExpenseLine(t, b.app, cardDraft, 0, accountLine(b.nec, 4000))
+	card := mustPostExpense(t, b.app, cardDraft.Id, b.users.bookkeeper.Id)
+	noBox := b.postExpense(t, alpha, f1099Day, billAmount{b.noBox, 2500})
+	beta := f1099Vendor(t, b, "Csv Beta")
+	rent := b.postExpense(t, beta, f1099Day, billAmount{b.misc1, 3000})
+
+	no := func(doc *core.Record) string { return apNo(t, b.apBook, doc) }
+	on := func(account *core.Record) string { return " · " + ebvAccountText(t, b.app, account.Id) }
+	run := run1099(t, b, octoberAll)
+	labels := map[string]string{"nec_1": "NEC 1 · Nonemployee compensation", "misc_1": "MISC 1 · Rents", "": "Not reported"}
+	want := []f1099Record{
+		f1099RecordOf(t, f1099VendorRow(t, run, alpha)),
+		{Label: labels["nec_1"], Reportable: 10000, Excluded: f1099Cents(4000), All: 14000},
+		{Label: f1099Day + " · Expense " + no(check) + on(b.nec), Reportable: 10000, All: 10000},
+		{Label: "2026-10-16 · Expense " + no(card) + on(b.nec) + f1099CardSuffix, Reportable: 0, Excluded: f1099Cents(4000), All: 4000},
+		{Label: labels[""], Reportable: 0, Excluded: f1099Cents(2500), All: 2500},
+		{Label: f1099Day + " · Expense " + no(noBox) + on(b.noBox), Reportable: 0, Excluded: f1099Cents(2500), All: 2500},
+		f1099RecordOf(t, f1099VendorRow(t, run, beta)),
+		{Label: labels["misc_1"], Reportable: 3000, All: 3000},
+		{Label: f1099Day + " · Expense " + no(rent) + on(b.misc1), Reportable: 3000, All: 3000},
+		f1099RecordOf(t, f1099Total(t, run)),
+	}
+	if !reflect.DeepEqual(want[0], f1099Record{Label: "Csv Alpha", Reportable: 10000, Excluded: f1099Cents(6500), All: 16500}) {
+		t.Fatalf("the run's Csv Alpha row %v, want 10000 / 6500 / 16500", want[0])
+	}
+	if want[6].Excluded != nil || want[6].All != 3000 {
+		t.Fatalf("the run's Csv Beta row %v, want 3000 / blank / 3000", want[6])
+	}
+	if want[9].Label != "Total" || want[9].All != 19500 || want[9].Reportable != 13000 {
+		t.Fatalf("the run's Total %v, want Total 13000 / 6500 / 19500", want[9])
+	}
+
+	// The CSV: every vendor, every box and every payment, then the Total.
+	csvText := string(f1099Export(t, b, "csv", octoberAll))
+	heading, records := f1099CSVRecords(t, csvText)
+	if !reflect.DeepEqual(heading, f1099ExportHeadings) {
+		t.Errorf("the CSV heading line = %q, want %q (no hidden column)", heading, f1099ExportHeadings)
+	}
+	requireF1099Records(t, "the CSV", records, want)
+
+	// The Excel export: the same rows under the same headings.
+	sheetAbove, sheetHeadings, sheetRecords := f1099Sheet(t, f1099Export(t, b, "xlsx", octoberAll))
+	if !reflect.DeepEqual(sheetHeadings, f1099ExportHeadings) {
+		t.Errorf("the Excel heading row = %q, want %q (no hidden column)", sheetHeadings, f1099ExportHeadings)
+	}
+	requireF1099Records(t, "the Excel export", sheetRecords, want)
+
+	// The PDF: the four columns only.
+	pdf := f1099Export(t, b, "pdf", octoberAll)
+	_, pdfText := extractPDFText(t, pdf)
+	for _, h := range f1099ExportHeadings {
+		if !strings.Contains(pdfText, h) {
+			t.Errorf("the PDF has no heading %q:\n%s", h, pdfText)
+		}
+	}
+	for _, hidden := range []string{"Excluded amount", "Vendor key", "1099 box"} {
+		if strings.Contains(pdfText, hidden) {
+			t.Errorf("the PDF holds the hidden column's heading %q:\n%s", hidden, pdfText)
+		}
+	}
+
+	// No line of an export holds the tax ID: of the Excel export, the header lines
+	// above the heading row, the heading row and the records are searched.
+	sheetText := fmt.Sprint(sheetAbove, sheetHeadings, sheetRecords)
+	for _, text := range []string{csvText, sheetText, pdfText} {
+		for _, d := range []string{"987654321", "98-7654321", "4321"} {
+			if strings.Contains(text, d) {
+				t.Errorf("an export holds the tax ID part %q", d)
+			}
+		}
+	}
+
+	// Csv Beta alone: Excluded is empty on its vendor row and on the Total row.
+	betaOnly := with(octoberAll, map[string]any{"vendors": []string{beta.Id}})
+	_, betaRecords := f1099CSVRecords(t, string(f1099Export(t, b, "csv", betaOnly)))
+	requireF1099Records(t, "the CSV of Csv Beta alone", betaRecords, []f1099Record{
+		{Label: "Csv Beta", Reportable: 3000, All: 3000},
+		{Label: labels["misc_1"], Reportable: 3000, All: 3000},
+		{Label: f1099Day + " · Expense " + no(rent) + on(b.misc1), Reportable: 3000, All: 3000},
+		{Label: "Total", Reportable: 3000, All: 3000},
+	})
+	requireNoDrift(t, b.app)
+}
+
+// form1099SpecSHA256 is the sha256 of mustJSON(form1099Spec()) with the detail
+// label final (report-1099 checkpoint 3). It is recorded at the end of
+// checkpoint 3: until then it holds no sum. A later change of the filter, the
+// columns, the sort or the labels moves it.
+const form1099SpecSHA256 = "c858de0483feb72e38ee096b3993fb60247dc00ac5ef06a2d1a6d9c26bdf8a9c"
+
+func TestForm1099SpecSHA(t *testing.T) {
+	sum := sha256.Sum256(mustJSON(form1099Spec()))
+	if got := hex.EncodeToString(sum[:]); got != form1099SpecSHA256 {
+		t.Errorf("sha256 of the 1099 Summary and Detail spec JSON = %s, want %s", got, form1099SpecSHA256)
+	}
+	if shipped := sha256.Sum256(form1099Shipped().Spec); shipped != sum {
+		t.Errorf("the shipped spec JSON is not mustJSON(form1099Spec())")
+	}
+}
+
+func TestForm1099ExportsPrintThreshold(t *testing.T) {
+	b := new1099Book(t)
+	v := f1099Vendor(t, b, "Threshold Line Co")
+	b.postExpense(t, v, f1099Day, billAmount{b.nec, 250000})
+	const line = "1099 threshold: $2,000.00"
+
+	above, _, records := f1099Sheet(t, f1099Export(t, b, "xlsx", octoberAll))
+	if len(records) == 0 {
+		t.Fatal("the Excel export has no row")
+	}
+	if !slices.Contains(above, line) {
+		t.Errorf("the Excel header lines %q do not hold %q", above, line)
+	}
+	_, pdfText := extractPDFText(t, f1099Export(t, b, "pdf", octoberAll))
+	if !strings.Contains(pdfText, line) {
+		t.Errorf("the PDF does not hold %q:\n%s", line, pdfText)
+	}
+	requireNoDrift(t, b.app)
+}
+
+func TestForm1099Topics(t *testing.T) {
+	b := new1099Book(t)
+	v := f1099Vendor(t, b, "Topic Co")
+	b.postExpense(t, v, f1099Day, billAmount{b.nec, 10000})
+	bill := b.postBill(t, v, f1099Day, billAmount{b.nec, 4000})
+	b.payOn(t, v, f1099Day, payLine{bill, 4000})
+	// The run reads both layers of books.basis_lines (an expense line and a
+	// bill payment's share).
+	closed := run1099(t, b, octoberAll)
+	box, rows := f1099PaymentRows(t, b, octoberAll, v, "nec_1")
+	if len(rows) != 2 {
+		t.Fatalf("NEC 1 opens into %q, want the expense and the share", labelsOf(rows))
+	}
+	opened := run1099Opts(t, b, octoberAll, reports.Options{Expand: [][]any{box.GroupKey}, Collapse: [][]any{}})
+	// Spec §3 Live (Q14): the report reads books.basis_lines, a source core
+	// marks NotLive, and ships with Live false: each run is manual and follows
+	// no topic; the reader presses Refresh.
+	requireManual(t, closed)
+	requireManual(t, opened)
+	requireManual(t, run1099(t, b, nil))
+	requireNoDrift(t, b.app)
 }

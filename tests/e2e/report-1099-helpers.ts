@@ -1,7 +1,12 @@
-import { expect, type Page } from '@playwright/test'
+import { expect, type Page, type Request } from '@playwright/test'
 import { chooseParamOption, hubRow, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { REPORT_1099_TITLE } from '~/tinycld/books/lib/report-1099-fixture'
-import { openBooksReports, type ReportSnapshot } from './books-report-helpers'
+import {
+    openBooksReports,
+    type ReportSnapshot,
+    reportSnapshot,
+    snapshotWhen,
+} from './books-report-helpers'
 import { centsOf } from './customer-balance-helpers'
 import {
     expenseCellTestId,
@@ -31,6 +36,21 @@ import {
 } from './vendor-form-helpers'
 
 // Shared by the 1099 Summary and Detail specs (report-1099 checkpoints 2, 3 and 5).
+
+// The change-signal topics (core changesignal.Topic) of the ledger tables the report reads,
+// as books-expenses-by-vendor.spec.ts lists them: a live report subscribes to them.
+export const LEDGER_TOPICS = [
+    'collection/books_journal_lines',
+    'collection/books_cash_basis_lines',
+    'collection/books_journal_entries',
+]
+
+// The topics of one realtime subscribe request (`{ clientId, subscriptions }`).
+export function realtimeTopics(request: Request): string[] {
+    const body = request.postDataJSON() as { subscriptions?: unknown } | null
+    const topics = body?.subscriptions
+    return Array.isArray(topics) ? topics.filter(t => typeof t === 'string') : []
+}
 
 // Opens the shipped 1099 Summary and Detail from the Books hub, as openExpensesByVendor
 // opens the Expenses by Vendor, and waits for its table or its empty state.
@@ -220,6 +240,46 @@ export function boxRows(snapshot: ReportSnapshot, name: string): SnapshotRow[] {
 
 export function totalRow(snapshot: ReportSnapshot): SnapshotRow | undefined {
     return snapshot.rows.find(r => r.kind === 'total')
+}
+
+// The payment rows (core `d:` rows) under the box row `boxLabel` of the vendor row `vendor`,
+// top to bottom (report-1099 checkpoint 3). Empty when the box is closed or not mounted.
+export function paymentLines(
+    snapshot: ReportSnapshot,
+    vendor: string,
+    boxLabel: string
+): SnapshotRow[] {
+    const box = boxRows(snapshot, vendor).find(r => r.label === boxLabel)
+    if (!box) return []
+    const out: SnapshotRow[] = []
+    for (const row of snapshot.rows.slice(snapshot.rows.indexOf(box) + 1)) {
+        if (row.kind !== 'detail') break
+        out.push(row)
+    }
+    return out
+}
+
+// Presses the box row `boxLabel` of the vendor row `vendor` in the open report (the vendor
+// level is open, the box level closed) and waits until its payment rows show under it.
+export async function openBox(page: Page, vendor: string, boxLabel: string): Promise<void> {
+    const shown = await snapshotWhen(
+        page,
+        reportSnapshot,
+        s => boxRows(s, vendor).some(r => r.label === boxLabel),
+        `${vendor} shows the box ${boxLabel}`
+    )
+    const box = boxRows(shown, vendor).find(r => r.label === boxLabel)
+    if (!box) throw new Error(`${vendor} has no box ${boxLabel}`)
+    const label = page.getByTestId('report-table').getByTestId(`report-row-${box.id}`)
+    await expect(label).toHaveAttribute('aria-expanded', 'false')
+    await label.click()
+    await expect(label).toHaveAttribute('aria-expanded', 'true')
+    await snapshotWhen(
+        page,
+        reportSnapshot,
+        s => paymentLines(s, vendor, boxLabel).length > 0,
+        `the payment rows of ${vendor}'s ${boxLabel} show`
+    )
 }
 
 // A row's Reportable, Excluded and All payments in cents (null for a blank cell).
