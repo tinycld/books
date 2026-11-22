@@ -6,7 +6,7 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { type Shortcut, useRegisterShortcuts, useShortcutScope } from '@tinycld/core/lib/shortcuts'
 import { topLayer } from '@tinycld/core/ui/overlay/layer-stack'
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router'
+import { router, useFocusEffect, useIsFocused, useLocalSearchParams } from 'expo-router'
 import { materialize } from 'pbtsdb'
 import { type RefObject, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { compareNumbers, compareText } from '../lib/account-tree'
@@ -99,6 +99,7 @@ export function useReconcileAccounts() {
     const canWrite = access.canWrite
     const orgHref = useOrgHref()
     const owner = useShortcutScope('list')
+    const isFocused = useIsFocused()
     const instance = useId()
     const startAccountId = useReconcileStore(s => s.startAccountId)
     const openStart = useReconcileStore(s => s.openStart)
@@ -222,8 +223,9 @@ export function useReconcileAccounts() {
         router.setParams({ account: undefined })
     }, [workTarget, startTarget, orgHref, openStart])
 
-    // The start dialog does not outlive the screen's focus (lesson 3), but stays while its
-    // insert runs: the insert's end closes it.
+    // The start dialog does not outlive the screen's focus (lesson 3). A blur while its insert
+    // runs keeps the store's start target, so the insert's end closes it, but the blurred screen
+    // no longer draws it (startRow needs isFocused).
     useFocusEffect(
         useCallback(
             () => () => {
@@ -315,7 +317,10 @@ export function useReconcileAccounts() {
     }, [isKeyed, hasFocusedRow, instance])
     useRegisterShortcuts(shortcuts, owner)
 
-    const startRow = canWrite ? rows.find(row => row.id === startAccountId) : undefined
+    // The start dialog is in a shared store: only the focused accounts screen draws it, so an
+    // earlier accounts screen kept mounted under a later one (a second Reconcile from the
+    // register) does not draw a second dialog (lesson 38).
+    const startRow = canWrite && isFocused ? rows.find(row => row.id === startAccountId) : undefined
 
     return {
         state,

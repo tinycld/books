@@ -8,6 +8,7 @@ import { useCallback, useRef } from 'react'
 import { connectionLabel, selectedConnectionId } from '../lib/bank-connections'
 import { type ReviewTab, reviewTabFromParam } from '../lib/bank-review'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
+import { reconcileButtonVisible } from '../lib/reconcile'
 import { useBankingUIStore } from '../stores/banking-ui-store'
 import { useBankAdded } from './useBankAdded'
 import { useBankCategorize } from './useBankCategorize'
@@ -62,6 +63,8 @@ export function useBankingScreen() {
         )
     )
 
+    const selected = connections.rows.find(row => row.id === selectedId)
+
     // The page waits for access, settings and the connections only; the files of the
     // selected card load inside the panel, so a card press never blanks the page.
     const state = bankingState({
@@ -69,7 +72,6 @@ export function useBankingScreen() {
         isReady: access.isReady && settings.isReady && connections.isReady,
         rowCount: connections.rows.length,
     })
-    const selected = connections.rows.find(row => row.id === selectedId)
 
     const accessRecovery: LiveRecovery = access.isError
         ? { queries: [access.collection], sources: [accessCollection] }
@@ -157,6 +159,18 @@ export function useBankingScreen() {
         if (!selected) return
         router.push(orgHref(`books/accounts/${selected.account}`))
     }
+    // The More menu's Reconcile follows the register's rule (reconcileButtonVisible), from the
+    // selected connection's own row (bankConnectionsQuery).
+    const isReconcileVisible = reconcileButtonVisible({
+        canWrite: access.canWrite,
+        accountType: selected?.accountType,
+        inactive: selected?.accountInactive ?? false,
+        hasInProgress: selected?.inProgress !== undefined,
+    })
+    const onReconcile = () => {
+        if (!selected) return
+        router.push(orgHref(`books/reconcile?account=${encodeURIComponent(selected.account)}`))
+    }
     const onEditDetails = () => {
         if (selectedId) openDialog({ kind: 'edit', connectionId: selectedId })
     }
@@ -194,6 +208,7 @@ export function useBankingScreen() {
         onEditDetails,
         onDisconnect,
         onViewRegister,
+        onReconcile: isReconcileVisible ? onReconcile : undefined,
         isPanelMenuOpen,
         setPanelMenuOpen,
     }

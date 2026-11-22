@@ -179,6 +179,7 @@ test.describe('bank-connection: page', () => {
         await expect(page.getByRole('menuitem')).toHaveText([
             'Edit bank details',
             'View register',
+            'Reconcile',
             'Disconnect',
         ])
         await page.getByRole('menuitem', { name: 'View register', exact: true }).click()

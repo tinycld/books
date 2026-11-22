@@ -18,6 +18,8 @@ import { entryTypeLabel } from './register'
 import { formatDay, isIsoDay } from './register-range'
 import { parseSearchAmount } from './search-amount'
 
+export { type LineStatusWord, lineStatusText, lineStatusTone } from './reconcile-status'
+
 // The account types the server's create hook takes (server/reconcile.go); the detail type
 // is not read.
 export const RECONCILE_ACCOUNT_TYPES = [
@@ -616,6 +618,54 @@ export function statementFileNoteText(fileName: string): string {
 
 export function reconciledThroughText(statementDate: string): string {
     return `Reconciled through ${formatDay(statementDate)}`
+}
+
+// The entry drawer's line of a reconciled transaction.
+export function statementOfText(statementDate: string): string {
+    return `Statement of ${formatDay(statementDate)}`
+}
+
+// "Statement of <day>" for each reconciled register line of the open entry, by line id, from
+// the statement day the line carries (buildRegister). A line with no day gets none.
+export function lineStatementTexts(
+    rows: readonly { id: string; statementDate: string }[]
+): Record<string, string> {
+    const texts: Record<string, string> = {}
+    for (const row of rows) {
+        if (row.statementDate !== '') texts[row.id] = statementOfText(row.statementDate)
+    }
+    return texts
+}
+
+// What the account register reads from the account's reconciliations: the latest finished
+// statement date ('' with none) and whether one is in progress.
+export function registerReconciliations(
+    rows: readonly Pick<BooksReconciliations, 'status' | 'statement_date'>[]
+) {
+    let reconciledThrough = ''
+    for (const row of rows) {
+        if (row.status === 'finished' && row.statement_date > reconciledThrough) {
+            reconciledThrough = row.statement_date
+        }
+    }
+    return {
+        reconciledThrough,
+        hasInProgress: rows.some(row => row.status === 'in_progress'),
+    }
+}
+
+// The register's Reconcile button (reconcile spec §2, §3 "Which accounts"): a writer, on an
+// active account that can be reconciled, or on any account with a reconciliation in progress
+// (an inactive account keeps its reconciliation in progress).
+export function reconcileButtonVisible(input: {
+    canWrite: boolean
+    accountType: string | undefined
+    inactive: boolean
+    hasInProgress: boolean
+}): boolean {
+    if (!input.canWrite) return false
+    if (input.hasInProgress) return true
+    return isReconcileAccountType(input.accountType ?? '') && !input.inactive
 }
 
 export function inProgressText(statementDate: string): string {

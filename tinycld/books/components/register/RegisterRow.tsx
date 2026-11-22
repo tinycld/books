@@ -3,6 +3,7 @@ import { useRecord } from '@tinycld/core/lib/use-record'
 import type { Ref } from 'react'
 import { Pressable, Text, View, type ViewInstance } from 'react-native'
 import { amountText, balanceText, balanceTone } from '../../lib/money'
+import { lineStatusTone } from '../../lib/reconcile-status'
 import type { RegisterLine } from '../../lib/register'
 import {
     ACCOUNT_CELL_STYLE,
@@ -11,12 +12,14 @@ import {
     DATE_CELL_STYLE,
     MEMO_CELL_STYLE,
     REF_CELL_STYLE,
+    STATUS_CELL_STYLE,
     TYPE_CELL_STYLE,
 } from '../../lib/register-layout'
 import { formatDay } from '../../lib/register-range'
 
 // Header and rows share these (lib/register-layout.ts). Memo then Account take the free space;
-// the amount columns never shrink. Below the table's minimum width the register draws cards.
+// the Status and amount columns never shrink. Below the table's minimum width the register
+// draws cards.
 export {
     ACCOUNT_CELL_STYLE,
     AMOUNT_CELL_STYLE,
@@ -24,6 +27,7 @@ export {
     DATE_CELL_STYLE,
     MEMO_CELL_STYLE,
     REF_CELL_STYLE,
+    STATUS_CELL_STYLE,
     TYPE_CELL_STYLE,
 }
 export const ROW_HEIGHT = 44
@@ -80,6 +84,7 @@ export function RegisterRow({ row, currency, onOpenEntry, isSelected, itemRef }:
     const bg = isSelected ? 'bg-accent' : 'bg-background'
     const cellId = (column: string) => `register-cell-${column}-${row.id}`
     const onPress = () => onOpenEntry(row.entryId)
+    const statusTone = lineStatusTone(row.reconcileWord)
     return (
         <Pressable
             ref={itemRef}
@@ -114,6 +119,16 @@ export function RegisterRow({ row, currency, onOpenEntry, isSelected, itemRef }:
             </View>
             <View testID={cellId('account')} className="min-w-0" style={ACCOUNT_CELL_STYLE}>
                 <AccountCell row={row} />
+            </View>
+            {/* The row's full height, so a line with no word still has a drawn (empty) cell. */}
+            <View
+                testID={cellId('status')}
+                className="self-stretch justify-center"
+                style={STATUS_CELL_STYLE}
+            >
+                <Text numberOfLines={1} className={`text-xs ${statusTone}`}>
+                    {row.reconcileWord}
+                </Text>
             </View>
             <View testID={cellId('debit')} className="items-end" style={AMOUNT_CELL_STYLE}>
                 <Text className="text-right text-sm text-foreground">

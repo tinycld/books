@@ -13,6 +13,7 @@ import {
     focusAccountRow,
     openReconcile,
     postDatedEntry,
+    revealAccountRow,
     startReconciliation,
 } from './reconcile-helpers'
 import { openBooksPage, uniqueName } from './record-form-helpers'
@@ -123,6 +124,7 @@ test.describe('reconcile: accounts screen and start', () => {
         await work.getByTestId('reconcile-back').click()
         await visibleScreen(page, 'reconcile-accounts-screen')
         const resumed = accountRow(page, name)
+        await revealAccountRow(page, resumed)
         await expect(resumed.getByTestId(`reconcile-resume-${id}`)).toBeVisible()
         await expect(resumed.getByTestId(`reconcile-start-${id}`)).toHaveCount(0)
         await expect(resumed).toContainText(`In progress · statement of ${formatDay(today)}`)
@@ -212,6 +214,7 @@ test.describe('reconcile: accounts screen and start', () => {
         await first.unrouteAll({ behavior: 'wait' })
         await cutRealtime(first)
         await accounts.getByText('Retry', { exact: true }).click()
+        await revealAccountRow(first, accountRow(first, name))
         await expect(accountRow(first, name)).toBeVisible()
         await expect(accounts).not.toContainText('Books could not load the accounts.')
         await first.close()
@@ -263,6 +266,8 @@ test.describe('reconcile: accounts screen and start', () => {
             page.getByTestId('reconcile-accounts-table').filter({ visible: true })
         ).toHaveCount(0)
         const card = accountRow(page, name)
+        // The cards mount from their top after the switch from the table.
+        await revealAccountRow(page, card)
         await expect(cards.locator(`[data-testid="reconcile-account-${id}"]`)).toBeVisible()
         await card.getByTestId(`reconcile-start-${id}`).click()
 

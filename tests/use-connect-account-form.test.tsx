@@ -50,6 +50,8 @@ const CONNECTION: BankConnectionRow = publishedRow(
         accountName: 'Business Checking',
         accountNumber: '1000',
         accountType: 'bank',
+        accountInactive: false,
+        inProgress: undefined,
         institution: 'First Community Bank',
         accountMask: '4821',
         debitTotal: 0,
