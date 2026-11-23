@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/report-1099-checkpoints.md
 - reference: docs/plans/report-1099-reference/
 - evidence: docs/plans/report-1099-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~
 - capture manifest: docs/plans/report-1099-capture.json
 - review mode: C — none (unattended)
 - core extension: accepted — E1 calendar-year presets `thisCalendarYear` / `lastCalendarYear`; E2 `Spec.header` value lines; E3 a typed NULL for a union key a part does not map (accepted by the human 2026-11-22) (checkpoint 0, core branch books/p5-1099-report, not exclusive; PR opened at checkpoint 0, merges at the next design gate or phase end)
@@ -350,4 +350,4 @@ Tables read by the large statements (L, before and after ANALYZE; every other st
 - No statement of any run has a SCAN of `books_journal_lines`, `books_cash_basis_lines` or `books_journal_entries`.
 
 ## Final review
-- eval:
+- eval: approved (2026-11-23; e2e sha 8623fc66, CI 8/8 green; retro accepted)
