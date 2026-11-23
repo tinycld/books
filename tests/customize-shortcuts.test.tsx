@@ -60,6 +60,12 @@ function isDimmed(testID: string) {
     return byTestId(document.body, testID)?.getAttribute('style')?.includes('opacity: 0.4') ?? false
 }
 
+// SearchPicker takes a disabled trigger out of the Tab order (tabindex -1); the stub
+// copies that attribute, not `disabled`.
+function isAddDisabled() {
+    return byTestId(document.body, 'books-shortcuts-add')?.getAttribute('tabindex') === '-1'
+}
+
 function pressCancel() {
     const dialog = byTestId(document.body, 'books-shortcuts-dialog')
     const cancel = [...(dialog?.querySelectorAll('rn-text') ?? [])].find(
@@ -278,9 +284,11 @@ describe('Customize shortcuts dialog', () => {
         await openDialog(container)
         expect(byTestId(document.body, 'books-shortcuts-add')).not.toBeNull()
         expect(byTestId(document.body, 'books-shortcuts-full')).toBeNull()
+        expect(isAddDisabled()).toBe(false)
 
         act(() => useShortcutsDialogStore.getState().setDraft(full))
         expect(byTestId(document.body, 'books-shortcuts-full')).not.toBeNull()
+        expect(isAddDisabled()).toBe(true)
     })
 
     it('closes the phone drawer when it opens', async () => {
