@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/dashboard-checkpoints.md
 - reference: docs/plans/dashboard-reference/
 - evidence: docs/plans/dashboard-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish 2026-11-23)
 - capture manifest: docs/plans/dashboard-capture.json
 - review mode: C — none (unattended)
 - core extension: none (line/ring chart extension declined at the design gate)
@@ -176,4 +176,4 @@
 - commit: see git log, `feat(books): dashboard Customize, phone header and help`
 
 ## Final review
-- eval:
+- eval: 2026-11-23 approved by the human (auto-helix eval gate); CI green 8/8 at b86cdb92 (e2e sha); core #518 merges at the next design gate, before #89
