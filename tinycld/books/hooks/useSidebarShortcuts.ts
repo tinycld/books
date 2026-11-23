@@ -30,18 +30,18 @@ function reportSaveError(error: Error) {
 
 /**
  * The signed-in user's sidebar shortcuts. `shortcuts` is empty until the read is ready
- * (the sidebar must not draw the defaults and then swap them), the defaults when the
- * user has no row, and the stored list when there is one, an empty list included.
- * `save` writes the whole list and `reset` deletes the row, which brings the defaults
- * back; both do nothing until the read is ready. A failed read returns `isError` and the
- * `recovery` for recoverLiveQueries.
+ * (the sidebar must not draw the defaults and then swap them) and with no signed-in user,
+ * the defaults when the user has no row, and the stored list when there is one, an empty
+ * list included. `save` writes the whole list and `reset` deletes the row, which brings
+ * the defaults back; both do nothing until the read is ready and has not failed. A failed
+ * read returns `isError` and the `recovery` for recoverLiveQueries.
  */
 export function useSidebarShortcuts() {
     const [shortcutsCollection] = useStore('books_sidebar_shortcuts')
     const userId = useAuth({ throwIfAnon: false }).user?.id ?? ''
     const {
         data: row,
-        isReady,
+        isReady: queryIsReady,
         isError,
         collection: query,
     } = useMyLiveQuery(
@@ -53,6 +53,9 @@ export function useSidebarShortcuts() {
         { queryKey: ['books', 'sidebar-shortcuts'] }
     )
 
+    // With no user, useMyLiveQuery disables the query and a disabled query reports ready;
+    // there is nothing to read, so the hook is not ready either.
+    const isReady = queryIsReady && userId !== ''
     const items = row?.items
     const isCustomized = row !== undefined
     const shortcuts = useMemo(() => {
