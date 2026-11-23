@@ -219,7 +219,8 @@ async function expectWidgetLinks(page: Page) {
         ['sales', 'dashboard-sales-report'],
     ]) {
         const link = widget(page, id).getByTestId(testId)
-        if ((await link.count()) > 0) await expect(link).toHaveAttribute('href', /\/reports\//)
+        if ((await link.count()) > 0)
+            await expect(link).toHaveAttribute('href', /\/books\/reports\//)
     }
 }
 
@@ -268,7 +269,8 @@ test.describe('dashboard: page and invoices', () => {
         await expect(invoicesPart(page, 'unpaid')).toHaveText(MONEY)
         await expect(invoicesPart(page, 'view')).toHaveAttribute('href', /\/books\/invoices$/)
         const aging = invoicesPart(page, 'aging')
-        if ((await aging.count()) > 0) await expect(aging).toHaveAttribute('href', /\/reports\//)
+        if ((await aging.count()) > 0)
+            await expect(aging).toHaveAttribute('href', /\/books\/reports\//)
         const deposit = invoicesPart(page, 'deposit')
         if ((await deposit.count()) > 0) {
             expect(await deposit.evaluate(el => el.tagName)).toBe('A')
@@ -508,7 +510,7 @@ test.describe('dashboard: widgets', () => {
         const lastDay = endOfLastMonth(today)
         const firstDay = `${lastDay.slice(0, 8)}01`
         await widget(page, 'profitAndLoss').getByTestId('dashboard-pnl-report').click()
-        await expect(page).toHaveURL(/\/reports\/[^/?]+\?/)
+        await expect(page).toHaveURL(/\/books\/reports\/[^/?]+\?/)
         expect(new URL(page.url()).searchParams.get('p-period')).toBe(`${firstDay}..${lastDay}`)
         await expect(page.getByTestId('report-title').filter({ visible: true })).toBeVisible()
 

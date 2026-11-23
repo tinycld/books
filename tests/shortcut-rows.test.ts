@@ -65,10 +65,10 @@ describe('shortcutRows', () => {
                 '1000 Business Checking',
                 { pathname: '/a/books/accounts/[id]', params: { id: 'acct1' } },
             ],
-            ['Profit and Loss', { pathname: '/a/reports/[id]', params: { id: 'rpt1' } }],
+            ['Profit and Loss', { pathname: '/a/books/reports/[id]', params: { id: 'rpt1' } }],
             ['New invoice', '/a/books/invoices/new'],
             ['Customers', '/a/books/customers'],
-            ['My sales', { pathname: '/a/reports/[id]', params: { id: 'rpt2' } }],
+            ['My sales', { pathname: '/a/books/reports/[id]', params: { id: 'rpt2' } }],
             ['Petty cash', { pathname: '/a/books/accounts/[id]', params: { id: 'acct2' } }],
         ])
         const icons = [

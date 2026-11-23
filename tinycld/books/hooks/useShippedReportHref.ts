@@ -2,6 +2,7 @@ import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useStore } from '@tinycld/core/lib/pocketbase'
+import { BOOKS_REPORT_ROUTE } from '../lib/books-report-route'
 import { reportParamQuery } from '../lib/shipped-reports'
 
 type OrgHref = ReturnType<typeof useOrgHref>
@@ -26,10 +27,11 @@ export function useShippedReportId(shippedKey: string): string | null {
     return data?.id ?? null
 }
 
-// The report's route with each param written as core's report view reads it
-// (`?p-<param id>=<value>`), so the report opens with those filters set.
+// The report's Books route (the report opens inside Books, with the Books sidebar) with
+// each param written as core's report view reads it (`?p-<param id>=<value>`), so the
+// report opens with those filters set.
 export function shippedReportHref(orgHref: OrgHref, id: string, params: Record<string, string>) {
-    return orgHref('reports/[id]', { id, ...reportParamQuery(params) })
+    return orgHref(BOOKS_REPORT_ROUTE, { id, ...reportParamQuery(params) })
 }
 
 // The href of the shipped report with this key, opened with `params` set. Null while it

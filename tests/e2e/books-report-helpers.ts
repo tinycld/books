@@ -25,8 +25,10 @@ import {
 import { isPhone, swipeFromLeftEdge } from './account-register-helpers'
 import { fillLine, type LineInput, openNewEntry, postOpenEntry } from './journal-entries-helpers'
 
-// Books' reports run in core's report view (/a/reports/<id>). These helpers drive it
-// through core's test ids (core/reports/components) and read it in one snapshot.
+// Books' reports run in core's report view: on the Books route (/a/books/reports/<id>) when
+// a Books link or the Books sidebar opens one, on core's route (/a/reports/<id>) when the
+// Reports hub does. These helpers drive the view through core's test ids
+// (core/reports/components) and read it in one snapshot.
 
 export type AsOfPreset = 'today' | 'endOfLastMonth' | 'endOfLastQuarter' | 'endOfLastFiscalYear'
 
@@ -150,18 +152,26 @@ export async function openBooksMenu(page: Page): Promise<void> {
     await expect.poll(async () => (await panel.boundingBox())?.x).toBe(0)
 }
 
-// Core's Reports hub filtered to Books, reached the way a user does: Reports in the Books
-// sidebar (on a phone, in the Books menu, the drawer). Open Books at the desktop viewport
-// first when the page is a phone: navigateToPackage clicks the desktop rail.
+// Opens the Reports section of the Books sidebar and leaves it open. The sidebar must be on
+// screen (on a phone: the Books menu, the drawer). The fold state is kept across screens
+// and reloads, so this opens a folded section and never presses the fold button of an open one.
+export async function openReportsSection(page: Page): Promise<void> {
+    const toggle = page.getByTestId('books-sidebar-reports-toggle').filter({ visible: true })
+    await toggle.waitFor()
+    if ((await toggle.getAttribute('aria-label')) === 'Expand Reports') await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-label', 'Collapse Reports')
+}
+
+// Core's Reports hub filtered to Books, reached the way a user does: All reports in the
+// Reports section of the Books sidebar (on a phone, in the Books menu, the drawer). Open
+// Books at the desktop viewport first when the page is a phone: navigateToPackage clicks
+// the desktop rail.
 export async function openBooksReports(page: Page): Promise<void> {
     await navigateToPackage(page, 'books')
     const width = page.viewportSize()?.width ?? Number.POSITIVE_INFINITY
-    let reports = page.getByTestId('books-nav-reports')
-    if (width <= MOBILE_MAX_WIDTH) {
-        await openBooksMenu(page)
-        reports = page.getByTestId('mobile-drawer-panel').getByTestId('books-nav-reports')
-    }
-    await reports.click()
+    if (width <= MOBILE_MAX_WIDTH) await openBooksMenu(page)
+    await openReportsSection(page)
+    await page.getByTestId('books-sidebar-reports-all').filter({ visible: true }).click()
     await expect(page).toHaveURL(/\/a\/reports\?package=books/)
     await page.getByTestId('reports-hub').waitFor()
 }

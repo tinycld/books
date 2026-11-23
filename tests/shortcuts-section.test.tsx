@@ -84,7 +84,7 @@ describe('Shortcuts section', () => {
 
         expect(vi.mocked(router.navigate).mock.calls.map(call => call[0])).toEqual([
             '/a/books/vendors',
-            { pathname: '/a/reports/[id]', params: { id: BALANCE_SHEET.id } },
+            { pathname: '/a/books/reports/[id]', params: { id: BALANCE_SHEET.id } },
         ])
     })
 

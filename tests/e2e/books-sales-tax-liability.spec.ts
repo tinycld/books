@@ -253,7 +253,7 @@ async function expectPhoneLinesAt(page: Page, size: { width: number; height: num
     await expectPhoneLines(page, rowOfKind(snapshot, 'subtotal', `Total ${LODGING}`).id)
 }
 
-const REPORT_URL = /\/a\/reports\/[a-z0-9]{15}(\?|$)/
+const REPORT_URL = /\/a\/books\/reports\/[a-z0-9]{15}(\?|$)/
 
 // A press on the Sales tax page's Liability report button, then the report screen.
 async function pressLiabilityReport(page: Page) {

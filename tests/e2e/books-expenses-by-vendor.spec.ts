@@ -673,7 +673,7 @@ test.describe('expenses-by-vendor: entry points and phone rows', () => {
             ])
         await expenses.click()
         await expect(page.getByTestId('report-screen')).toBeVisible()
-        await expect(page).toHaveURL(/\/a\/reports\//)
+        await expect(page).toHaveURL(/\/a\/books\/reports\//)
         await expect(
             page.getByTestId('report-document-title').filter({ visible: true })
         ).toHaveText(EXPENSES_BY_VENDOR_TITLE)
