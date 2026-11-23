@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { isOneBareAddress } from './bare-address'
+import type { DocumentListRow } from './document-list'
 import { formatDay } from './register-range'
-import { isSendDocType, SEND_DOC_TYPES } from './send-doc-types'
+import { isSendDocType, KIND_WORDS, SEND_DOC_TYPES } from './send-doc-types'
 import { readerDayOf } from './statement-texts'
 
 // The send of a sales document by email (spec §3.1, §3.2, §4.4). The rules here are the
@@ -13,6 +14,10 @@ export const SEND_KINDS = SEND_DOC_TYPES
 export type SendKind = (typeof SEND_KINDS)[number]
 
 export const DOCUMENT_SEND_PATH = '/api/books/documents/send'
+
+// How long the toast of a sent document (SendDocumentForm) or a sent batch (useBatchSend)
+// shows.
+export const SENT_TOAST_MS = 4000
 
 // The route's bounds (server/document_send.go maxDocumentsPerRequest, the subject and
 // message rules) and the row's `to` field (migration 2100000034, max 320).
@@ -121,6 +126,130 @@ export function documentSentLine(latest: { created: string; to: string }, count:
 // The toast of a single send (spec §3.2 "On success"): "Invoice 1004 sent to <address>".
 export function sentToast(noun: string, number: string, to: string): string {
     return `${noun} ${number} sent to ${to}`
+}
+
+// A list row as the batch send reads it (lib/document-list.ts DocumentListRow): its kind,
+// its stored status and the document's own address ('' for none, plan decision 7).
+type BatchRow = Pick<DocumentListRow, 'kind' | 'recordStatus' | 'email'>
+
+// The Batch actions menu offers Send for a writer when at least one ticked row is
+// sent-able by kind and status (spec §3.3 "Batch"), also when that row has no address:
+// the dialog then names it as skipped.
+export function batchSendOffered(rows: readonly BatchRow[], canWrite: boolean): boolean {
+    return canWrite && rows.some(row => sendOffered(row.kind, row.recordStatus))
+}
+
+// A ticked row the batch sends: sent-able, with an address.
+export function isBatchSendable(row: BatchRow): boolean {
+    return sendOffered(row.kind, row.recordStatus) && row.email !== ''
+}
+
+export type BatchSendCounts = { sendable: number; noAddress: number; notSendable: number }
+
+// The ticked rows as the batch dialog counts them: sendable (sent-able, with an address),
+// no email address (sent-able, with none) and not sendable (a draft, a void document, a
+// closed estimate, a kind that is never sent), with or without an address.
+export function batchSendCounts(rows: readonly BatchRow[]): BatchSendCounts {
+    const counts = { sendable: 0, noAddress: 0, notSendable: 0 }
+    for (const row of rows) {
+        if (!sendOffered(row.kind, row.recordStatus)) counts.notSendable += 1
+        else if (row.email === '') counts.noAddress += 1
+        else counts.sendable += 1
+    }
+    return counts
+}
+
+export type BatchSendCopy = {
+    title: string
+    body: string
+    // null when no ticked row is skipped.
+    skipped: string | null
+    // null when the dialog has no refusal.
+    refusal: string | null
+    // null when the dialog has only Close (email is not set up).
+    confirmLabel: string | null
+    isConfirmEnabled: boolean
+}
+
+const BATCH_SEND_BODY = 'Each goes to the email address on the document.'
+const BATCH_NOT_SET_UP = 'Email sending is not set up.'
+// The route's text (server/document_send.go msgDocumentTooMany).
+const BATCH_TOO_MANY = `Select at most ${MAX_SEND_DOCUMENTS} documents.`
+
+function documentsWord(count: number): string {
+    return count === 1 ? 'document' : 'documents'
+}
+
+// "3 are skipped: 2 have no email address, 1 is a draft or void."; null for none.
+function skippedLine(counts: BatchSendCounts): string | null {
+    const { noAddress, notSendable } = counts
+    const total = noAddress + notSendable
+    if (total === 0) return null
+    const parts: string[] = []
+    if (noAddress > 0) {
+        parts.push(`${noAddress} ${noAddress === 1 ? 'has' : 'have'} no email address`)
+    }
+    if (notSendable > 0) {
+        parts.push(
+            notSendable === 1
+                ? `${notSendable} is a draft or void`
+                : `${notSendable} are drafts or void`
+        )
+    }
+    return `${total} ${total === 1 ? 'is' : 'are'} skipped: ${parts.join(', ')}.`
+}
+
+// The batch dialog's texts (spec §3.3 "Batch", plan decision 6): the title counts every
+// ticked row; the confirm counts the sendable ones and is disabled with none or with more
+// than MAX_SEND_DOCUMENTS (the refusal then says so). With email not set up the dialog
+// reads only that, and has only Close.
+export function batchSendCopy(counts: BatchSendCounts, canSendEmail: boolean): BatchSendCopy {
+    const ticked = counts.sendable + counts.noAddress + counts.notSendable
+    const title = `Send ${ticked} ${documentsWord(ticked)}?`
+    if (!canSendEmail) {
+        return {
+            title,
+            body: BATCH_NOT_SET_UP,
+            skipped: null,
+            refusal: null,
+            confirmLabel: null,
+            isConfirmEnabled: false,
+        }
+    }
+    const isTooMany = counts.sendable > MAX_SEND_DOCUMENTS
+    return {
+        title,
+        body: BATCH_SEND_BODY,
+        skipped: skippedLine(counts),
+        refusal: isTooMany ? BATCH_TOO_MANY : null,
+        confirmLabel: `Send ${counts.sendable}`,
+        isConfirmEnabled: counts.sendable > 0 && !isTooMany,
+    }
+}
+
+// The toast after a batch whose every document was sent: "9 documents sent".
+export function batchSentToast(count: number): string {
+    return `${count} ${documentsWord(count)} sent`
+}
+
+// The banner after a part failure (spec §3.3 "Result"): "6 of 9 documents were sent.", then
+// "<Kind word> <number>: <the server's message>" for each failed document, its number read
+// from the ticked rows by id (the kind word alone when the row is no longer listed).
+export function batchResultLines(result: {
+    sent: number
+    failed: readonly { kind: SendKind; id: string; message: string }[]
+    rows: readonly Pick<DocumentListRow, 'id' | 'number'>[]
+}): { summary: string; lines: string[] } {
+    const total = result.sent + result.failed.length
+    const verb = total === 1 ? 'was' : 'were'
+    const summary = `${result.sent} of ${total} ${documentsWord(total)} ${verb} sent.`
+    const lines = result.failed.map(item => {
+        const number = result.rows.find(row => row.id === item.id)?.number ?? ''
+        const word = KIND_WORDS[item.kind].title
+        const name = number === '' ? word : `${word} ${number}`
+        return `${name}: ${item.message}`
+    })
+    return { summary, lines }
 }
 
 export type SendDialogStatus = 'loading' | 'failed' | 'ready' | 'not-set-up'

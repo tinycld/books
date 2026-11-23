@@ -11,6 +11,7 @@ import { FormRenderer, NARROW_BELOW } from '@tinycld/core/ui/forms'
 import { useContainerWidth } from '@tinycld/core/ui/forms/use-container-width'
 import { useFocusEffect } from 'expo-router'
 import {
+    type ComponentProps,
     type ComponentType,
     type ReactNode,
     useCallback,
@@ -47,6 +48,7 @@ import { documentFormTitle } from '../../lib/document-form-title'
 import { canDeleteStatus, type DocumentStatus, quoteStatusOf } from '../../lib/document-lifecycle'
 import { bigFigureText } from '../../lib/document-messages'
 import type { DocumentTab } from '../../lib/document-routes'
+import type { SendKind } from '../../lib/document-send'
 import {
     linkSourceLabel,
     payoutUnappliedText,
@@ -56,6 +58,7 @@ import {
 import { documentTaxOf, lineAmountViews, shownDocumentTotals } from '../../lib/document-tax'
 import { lineTableRows } from '../../lib/document-values'
 import { TOO_LARGE_TEXT } from '../../lib/entry-lines'
+import { focusScreenControl } from '../../lib/focus-return'
 import { formatMoney } from '../../lib/money'
 import type { PayoutLimits } from '../../lib/refund-payout'
 import { todayIso } from '../../lib/register-range'
@@ -67,6 +70,7 @@ import {
     type DocumentLineTable,
     type SalesDocumentKind,
 } from '../../lib/sales-document-kinds'
+import { isSendDocType } from '../../lib/send-doc-types'
 import { hasSessionChanges, useAttachmentsStore } from '../../stores/attachments-store'
 import { useDocumentSaveStore } from '../../stores/document-save-store'
 import type { BooksEstimates } from '../../types'
@@ -85,6 +89,7 @@ import { DocumentHeader } from './DocumentHeader'
 import { DocumentLoading } from './DocumentLoading'
 import { DocumentPdfView } from './DocumentPdfView'
 import { DocumentSaveBar, type DocumentSaveBarProps } from './DocumentSaveBar'
+import { DocumentSentLine } from './DocumentSentLine'
 import { DocumentTabs, openDocumentTab, TabPanel } from './DocumentTabs'
 import { DocumentTotalsPanel, type DocumentTotalsView } from './DocumentTotalsPanel'
 import {
@@ -96,6 +101,7 @@ import {
 import { useDocumentKind } from './document-kind-context'
 import type { DocumentKind } from './document-kinds'
 import { EstimateDeclineNote } from './EstimateDeclineNote'
+import { SendDocumentDialog } from './send/SendDocumentDialog'
 
 type EngineForm = UseFormReturn<Record<string, unknown>>
 
@@ -376,18 +382,22 @@ interface BandProps {
     isSecondRuled: boolean
     // The kind's row after the first part (DocumentKind.FormBandRow), or undefined.
     FormRow: ComponentType | undefined
+    sentLine: SentLineTarget | null
     declineNote: DeclineNoteTarget | null
 }
+
+// A stored quote that is sent by email: its sent line (spec §3.6) shows in the band.
+type SentLineTarget = { kind: SendKind; documentId: string; testID: string }
 
 // The header band; a kind that splits it draws the fields from `bandSplitAt` on as a
 // ruled second row inside it (`<test id>-payment`). A kind with a FormBandRow is cut
 // before the date too, and draws its row after the first part with the band's row gap (a
 // field cell's bottom margin) above and below it. With no ruled row, the rest follows the
 // FormBandRow unruled (`<test id>-payment`); with one, the fields up to it follow unruled
-// (`<test id>-band-dates`), then the ruled row. A stored quote's customer decline note
-// sits directly under the last row.
+// (`<test id>-band-dates`), then the ruled row. A stored quote's sent line, then its
+// customer decline note, sit directly under the last row.
 function DocumentBand(props: BandProps) {
-    const { state, first, dates, second, isSecondRuled, FormRow, declineNote } = props
+    const { state, first, dates, second, isSecondRuled, FormRow, sentLine, declineNote } = props
     const { testId } = state.kind
     const ids = {
         band: `${testId}-band`,
@@ -401,7 +411,21 @@ function DocumentBand(props: BandProps) {
             {middleRow}
             <BandDatesRow state={state} definition={dates} testID={ids.dates} />
             <BandSecondRow state={state} definition={second} isRuled={isSecondRuled} />
+            <BandSentLine target={sentLine} />
             <BandDeclineNote target={declineNote} />
+        </View>
+    )
+}
+
+function BandSentLine({ target }: { target: SentLineTarget | null }) {
+    if (target === null) return null
+    return (
+        <View className="mt-4">
+            <DocumentSentLine
+                kind={target.kind}
+                documentId={target.documentId}
+                testID={target.testID}
+            />
         </View>
     )
 }
@@ -668,6 +692,16 @@ function QuoteSaveBar({ isVisible, ...props }: DocumentSaveBarProps & { isVisibl
     return <DocumentSaveBar {...props} />
 }
 
+// A quote's Send dialog: Save and send opens it on the saved quote once no save runs (a
+// new quote's on the saved route's form, which has the record's id).
+function FormSendDialog({
+    isVisible,
+    ...props
+}: ComponentProps<typeof SendDocumentDialog> & { isVisible: boolean }) {
+    if (!isVisible) return null
+    return <SendDocumentDialog {...props} />
+}
+
 const PDF_HINT = formatHint(DOCUMENT_PDF_KEY).text
 
 // The stored document's own row of the source its link names: a credit memo's
@@ -875,6 +909,12 @@ export function DocumentForm({
     }
     const estimateId = state.estimate || estimateIdOf(data.record)
     const { onBack: leave } = useBackToEntries(estimateId)
+    // A kind sent by email offers Post and send or Save and send (email-share spec §3.3
+    // "Form"); a quote's form draws its own Send dialog, which Save and send of an
+    // unchanged stored quote opens at once.
+    const sendKind = isSendDocType(kind.key) && kind.features.email ? kind.key : null
+    const isQuoteKind = kind.lifecycle === 'quote'
+    const sendOwner = useId()
     const save = useDocumentSave(state, {
         tab,
         onFieldErrors: revealErrors,
@@ -882,6 +922,7 @@ export function DocumentForm({
         writer: data.writer,
         onReload,
         attachmentSession,
+        sendOwner: isQuoteKind ? sendOwner : undefined,
     })
     const serverState = useServerActionState()
     const formAttachments = useFormAttachments(data, kind, save.writtenId, state.replaces)
@@ -972,6 +1013,15 @@ export function DocumentForm({
     const onConvert = () => {
         void save.convert()
     }
+    const onPostAndSend = () => {
+        void save.postAndSend()
+    }
+    const onSaveAndSend = () => {
+        void save.saveAndSend()
+    }
+    // Undefined on a kind that is not sent by email: its bar has no send action.
+    const postAndSend = sendKind !== null && !isQuoteKind ? onPostAndSend : undefined
+    const saveAndSend = sendKind !== null && isQuoteKind ? onSaveAndSend : undefined
     const isBusy = save.isSaving || deletion.isPending
     const isEdited = save.isDirty || hasAttachmentChanges
     // Discard drops the pending files and restores the rows marked for removal: the
@@ -1006,6 +1056,7 @@ export function DocumentForm({
         deleteRecord: deletion.open,
         isPhone,
         postAndNew: onPostAndNew,
+        send: postAndSend ?? saveAndSend,
         save: onSave,
         saveAndNew: onSaveAndNew,
         canConvert,
@@ -1055,6 +1106,8 @@ export function DocumentForm({
     const isEditTab = tab === 'edit'
     const isPdfTab = tab === 'pdf'
     const isFooterStacked = isPhone || linesLayout.isCards
+    // A queued Save and send opens its dialog once no save runs.
+    const isSendable = !save.isSaving
     const convertAction = isQuote ? { isOffered: canConvert, onPress: onConvert } : null
     const removeAction = isQuote ? { isOffered: canDelete, onPress: deletion.open } : null
     // Only a stored quote has a customer link: a new form never shows the action.
@@ -1067,6 +1120,15 @@ export function DocumentForm({
         isQuote && data.record !== undefined
             ? { estimateId: data.record.id, status: quoteStatusOf(data.record.status) }
             : null
+    const sentLine =
+        isQuote && sendKind !== null && data.record !== undefined
+            ? { kind: sendKind, documentId: data.record.id, testID: `${kind.testId}-sent-line` }
+            : null
+    const hasSendDialog = isQuote && sendKind !== null
+    // A queued Save and send's dialog gives the focus back to the bar's Save and send, or to
+    // the band's first field where it is a More row (phone).
+    const sendReturnIds = [`${kind.testId}-save-send`, `${kind.testId}-band-form`]
+    const returnSendFocus = () => focusScreenControl(save.surfaceRef.current, sendReturnIds)
     const deleteTexts = deleteDialogTexts(kind, data.record?.number ?? '')
     const ids = {
         form: `${kind.testId}-form`,
@@ -1142,6 +1204,7 @@ export function DocumentForm({
                                         second={parts.bandSecond}
                                         isSecondRuled={parts.isSecondRuled}
                                         FormRow={documentKind.FormBandRow}
+                                        sentLine={sentLine}
                                         declineNote={declineNote}
                                     />
                                     <View testID={ids.lines} onLayout={linesLayout.onLayout}>
@@ -1176,6 +1239,7 @@ export function DocumentForm({
                                 onSaveDraft={onSaveDraft}
                                 onPost={onPost}
                                 onPostAndNew={onPostAndNew}
+                                onPostAndSend={postAndSend}
                                 onDeleteDraft={deletion.open}
                                 moreItems={moreItems}
                                 scopeOwner={shortcuts.scopeOwner}
@@ -1188,11 +1252,19 @@ export function DocumentForm({
                                 onSave={onSave}
                                 onSaveAndClose={onSaveAndClose}
                                 onSaveAndNew={onSaveAndNew}
+                                onSaveAndSend={saveAndSend}
                                 convert={convertAction}
                                 copyLink={copyLinkAction}
                                 remove={removeAction}
                                 moreItems={moreItems}
                                 scopeOwner={shortcuts.scopeOwner}
+                            />
+                            <FormSendDialog
+                                isVisible={hasSendDialog}
+                                owner={sendOwner}
+                                recordId={state.recordId}
+                                isSendable={isSendable}
+                                returnFocus={returnSendFocus}
                             />
                             <DiscardDialog title="Discard changes?" {...leaveGuard.dialog} />
                             <DeleteDraftDialog

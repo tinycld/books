@@ -8,6 +8,7 @@ import {
     rowActionTestId,
     rowWriteOffOffered,
 } from '../tinycld/books/lib/document-row-menu'
+import { SEND_KINDS } from '../tinycld/books/lib/document-send'
 import type { TransactionKind } from '../tinycld/books/lib/party-transactions'
 
 // The row menu of a sales list (spec §3 "Row menu"): Open, then the read view's actions for
@@ -18,6 +19,13 @@ const ID = 'inv000000000001'
 const CUSTOMER = 'cus000000000001'
 const ENTRY = 'ent000000000001'
 const CONVERTED = 'inv000000000099'
+
+// A send kind's row carries its document's address, so a sent-able row is also sendable;
+// a kind with no email field (a payment, a write-off) has ''.
+function emailOf(kind: TransactionKind): string {
+    const sendKinds: readonly string[] = SEND_KINDS
+    return sendKinds.includes(kind) ? 'billing@acme.test' : ''
+}
 
 function row(
     kind: TransactionKind,
@@ -45,6 +53,7 @@ function row(
         convertedInvoice: '',
         recordStatus,
         category: { kind: 'none' },
+        email: emailOf(kind),
         ...fields,
     }
 }
@@ -53,9 +62,10 @@ const WRITER = true
 const READER = false
 
 describe('documentRowMenuItems, writer', () => {
-    it('a posted invoice with a balance: Open, Receive payment, Write off, Void, Copy, Create credit memo, View journal entry, Download PDF', () => {
+    it('a posted invoice with a balance: Open, Send…, Receive payment, Write off, Void, Copy, Create credit memo, View journal entry, Download PDF', () => {
         expect(documentRowMenuItems(row('invoice', 'posted', { balance: 150 }), WRITER)).toEqual([
             'open',
+            'send',
             'receive_payment',
             'write_off',
             'void',
@@ -69,6 +79,7 @@ describe('documentRowMenuItems, writer', () => {
     it('a paid posted invoice has no Receive payment', () => {
         expect(documentRowMenuItems(row('invoice', 'posted', { balance: 0 }), WRITER)).toEqual([
             'open',
+            'send',
             'void',
             'copy',
             'credit_memo',
@@ -110,9 +121,10 @@ describe('documentRowMenuItems, writer', () => {
         expect(documentRowMenuItems(row('payment', 'void'), WRITER)).toEqual(['open', 'entry'])
     })
 
-    it('an estimate: Open, Copy, Download PDF', () => {
+    it('a pending estimate: Open, Send…, Copy, Download PDF', () => {
         expect(documentRowMenuItems(row('estimate', 'pending'), WRITER)).toEqual([
             'open',
+            'send',
             'copy',
             'pdf',
         ])
@@ -131,23 +143,24 @@ describe('documentRowMenuItems, writer', () => {
         ])
     })
 
-    it('a posted sales_receipt: Open, Void, Copy, View journal entry, Download PDF', () => {
+    it('a posted sales_receipt: Open, Send…, Void, Copy, View journal entry, Download PDF', () => {
         expect(
             documentRowMenuItems(row('sales_receipt', 'posted', { balance: 150 }), WRITER)
-        ).toEqual(['open', 'void', 'copy', 'entry', 'pdf'])
+        ).toEqual(['open', 'send', 'void', 'copy', 'entry', 'pdf'])
     })
 
     // Apply credit spec §3.1: "Apply to invoices" first, before Open, on a posted credit memo
     // with unapplied credit, for a writer.
-    it('a posted credit_memo with a balance: Apply to invoices, Open, Void, Copy, View journal entry, Download PDF', () => {
+    it('a posted credit_memo with a balance: Apply to invoices, Open, Send…, Void, Copy, View journal entry, Download PDF', () => {
         expect(
             documentRowMenuItems(row('credit_memo', 'posted', { balance: 150 }), WRITER)
-        ).toEqual(['apply_credit', 'open', 'void', 'copy', 'entry', 'pdf'])
+        ).toEqual(['apply_credit', 'open', 'send', 'void', 'copy', 'entry', 'pdf'])
     })
 
-    it('a posted credit_memo with balance 0: Open, Void, Copy, View journal entry, Download PDF', () => {
+    it('a posted credit_memo with balance 0: Open, Send…, Void, Copy, View journal entry, Download PDF', () => {
         expect(documentRowMenuItems(row('credit_memo', 'posted', { balance: 0 }), WRITER)).toEqual([
             'open',
+            'send',
             'void',
             'copy',
             'entry',
@@ -250,22 +263,63 @@ describe('documentRowMenuItems, every list', () => {
         }
     })
 
-    // Email-share plan checkpoint 3: the read view gains Send… and Copy customer link (and a
-    // writer's open estimate gains Send… in quoteReadActions), but the row menu leaves both
-    // out until checkpoint 4 adds its Send… row.
-    it('no list holds Send… or Copy customer link yet, for a writer or a reader', () => {
+    // Email-share spec §3.3 "Sales list row menu": Send… for a writer on a sent-able row,
+    // directly after Open; Copy customer link is never a row (plan checkpoint 4).
+    it('a writer’s sent-able row has Send… directly after Open', () => {
+        for (const listed of [
+            row('invoice', 'posted', { balance: 150 }),
+            row('invoice', 'posted', { balance: 0 }),
+            row('estimate', 'pending'),
+            row('estimate', 'accepted'),
+            row('estimate', 'rejected'),
+            row('sales_receipt', 'posted'),
+            row('credit_memo', 'posted', { balance: 40 }),
+            row('credit_memo', 'posted', { balance: 0 }),
+            row('refund_receipt', 'posted'),
+        ]) {
+            const items: string[] = documentRowMenuItems(listed, WRITER)
+            const label = `${listed.kind} ${listed.recordStatus}`
+            expect(items.indexOf('send'), label).toBe(items.indexOf('open') + 1)
+            expect(items, label).not.toContain('link')
+        }
+    })
+
+    it('a draft, a void row, a closed estimate, a payment and every reader’s row have no Send…', () => {
+        const notSentable: DocumentListRow[] = [
+            row('invoice', 'draft'),
+            row('invoice', 'void'),
+            row('estimate', 'closed'),
+            row('estimate', 'closed', { convertedInvoice: CONVERTED }),
+            row('sales_receipt', 'draft'),
+            row('sales_receipt', 'void'),
+            row('credit_memo', 'draft'),
+            row('credit_memo', 'void'),
+            row('refund_receipt', 'draft'),
+            row('refund_receipt', 'void'),
+            row('payment', 'posted'),
+            row('payment', 'void'),
+            row('payment', 'draft'),
+            row('write_off', 'posted'),
+        ]
+        for (const listed of notSentable) {
+            const items: string[] = documentRowMenuItems(listed, WRITER)
+            expect(items, `${listed.kind} ${listed.recordStatus}`).not.toContain('send')
+        }
         for (const listed of [
             ...rows,
             row('estimate', 'accepted'),
             row('estimate', 'rejected'),
             row('refund_receipt', 'posted'),
         ]) {
-            for (const canWrite of [WRITER, READER]) {
-                const items: string[] = documentRowMenuItems(listed, canWrite)
-                expect(items, `${listed.kind} ${listed.recordStatus}`).not.toContain('send')
-                expect(items, `${listed.kind} ${listed.recordStatus}`).not.toContain('link')
-            }
+            const items: string[] = documentRowMenuItems(listed, READER)
+            expect(items, `reader ${listed.kind} ${listed.recordStatus}`).not.toContain('send')
+            expect(items, `reader ${listed.kind} ${listed.recordStatus}`).not.toContain('link')
         }
+    })
+
+    it('send gives no route: the Send dialog opens over the list', () => {
+        expect(rowActionHref(row('invoice', 'posted', { balance: 150 }), 'send')).toBeNull()
+        expect(rowActionHref(row('estimate', 'pending'), 'send')).toBeNull()
     })
 
     it('a row with no entry has no View journal entry', () => {
@@ -283,7 +337,16 @@ describe('documentRowMenuItems, every list', () => {
         }
         expect(
             documentRowMenuItems(row('invoice', 'posted', { balance: 150, entry: '' }), WRITER)
-        ).toEqual(['open', 'receive_payment', 'write_off', 'void', 'copy', 'credit_memo', 'pdf'])
+        ).toEqual([
+            'open',
+            'send',
+            'receive_payment',
+            'write_off',
+            'void',
+            'copy',
+            'credit_memo',
+            'pdf',
+        ])
     })
 })
 
@@ -301,9 +364,10 @@ describe('documentRowMenuItems, refund receipt', () => {
         }
     })
 
-    it('a posted refund for a writer: Open, Void, Copy, View journal entry, Download PDF', () => {
+    it('a posted refund for a writer: Open, Send…, Void, Copy, View journal entry, Download PDF', () => {
         expect(documentRowMenuItems(row('refund_receipt', 'posted'), WRITER)).toEqual([
             'open',
+            'send',
             'void',
             'copy',
             'entry',
@@ -333,6 +397,7 @@ describe('ROW_MENU_LABELS', () => {
     it("equal the read view's labels", () => {
         expect(ROW_MENU_LABELS).toEqual({
             open: 'Open',
+            send: 'Send…',
             receive_payment: 'Receive payment',
             void: 'Void',
             copy: 'Copy',
@@ -368,6 +433,7 @@ describe('rowActionTestId', () => {
                 'pdf',
                 'delete_draft',
                 'write_off',
+                'send',
             ] as RowMenuAction[]
         ).map(action => rowActionTestId('sales', action))
         expect(ids).toEqual([
@@ -381,6 +447,7 @@ describe('rowActionTestId', () => {
             'sales-row-action-pdf',
             'sales-row-action-delete-draft',
             'sales-row-action-write-off',
+            'sales-row-action-send',
         ])
     })
 })

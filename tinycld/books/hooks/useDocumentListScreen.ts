@@ -28,6 +28,7 @@ import { SEARCH_DELAY_MS } from '../lib/list-search'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
 import { navigationModeFor, openRecordFromPath, targetModeFor } from '../lib/record-route'
 import { selectionScope, useDocumentListStore } from '../stores/document-list-store'
+import { useBatchSend } from './useBatchSend'
 import { useBooksAccess } from './useBooksAccess'
 import { useDocumentBatch } from './useDocumentBatch'
 import { useDocumentList } from './useDocumentList'
@@ -234,6 +235,9 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
         openRow,
     })
     const batch = useDocumentBatch({ listKey, rows: list.rows, selection })
+    // The Batch actions menu's Send, its dialog and its result banner (email-share spec
+    // §3.3 "Batch"); only a sent-able ticked row offers it, so a purchase list never does.
+    const batchSend = useBatchSend({ listKey, rows: list.rows, selection })
     // A row action's refusal or a batch's result; the list's load error shows before it.
     const actionBanner = useDocumentListStore(state => state.banner)
 
@@ -251,6 +255,7 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
         rowFocus,
         rowActions,
         batch,
+        batchSend,
         actionBanner,
         dismissBanner: () => store.setBanner(null),
         newMenu,

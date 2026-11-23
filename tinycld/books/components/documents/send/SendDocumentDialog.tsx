@@ -1,12 +1,13 @@
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { DIALOG_SUBMIT_SHORTCUT, Dialog } from '@tinycld/core/ui/dialog'
-import { useFocusEffect } from 'expo-router'
-import { type RefObject, useCallback, useState } from 'react'
+import { useFocusEffect, useIsFocused } from 'expo-router'
+import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, Platform, Text, type TextInputInstance, View } from 'react-native'
 import { useDocumentSend } from '../../../hooks/useDocumentSend'
 import { useEmailStatus } from '../../../hooks/useEmailStatus'
 import { useFocusOnOpen } from '../../../hooks/useFocusOnOpen'
 import { useSendDialogData } from '../../../hooks/useSendDialogData'
+import { isFocusUnclaimed } from '../../../lib/focus-return'
 import { type DocumentSendTarget, useDocumentSendStore } from '../../../stores/document-send-store'
 import { DialogLoadError } from '../../taxes/DialogLoadError'
 import { DocumentInlineNotice } from '../DocumentInlineNotice'
@@ -114,9 +115,34 @@ function tokenOf(data: SendDialogData): string {
     return ''
 }
 
+// After the dialog unmounts, `returnFocus` takes the focus if nothing has claimed it (it
+// fell to the body), one frame later: core's layer focus waits the same frame for the
+// inert marks of the closing dialog to clear (core/ui/overlay/focus.ts). Web only.
+function useReturnFocusOnClose(returnFocus: (() => void) | undefined) {
+    const ref = useRef(returnFocus)
+    ref.current = returnFocus
+    useEffect(
+        () => () => {
+            const focusBack = ref.current
+            if (!IS_WEB || !focusBack || typeof requestAnimationFrame !== 'function') return
+            requestAnimationFrame(() => {
+                if (isFocusUnclaimed()) focusBack()
+            })
+        },
+        []
+    )
+}
+
 // The dialog of one open: mounted while the store names a document for this screen, so the
 // form and the editor start from the starting texts each time.
-function OpenSendDialog({ target }: { target: DocumentSendTarget }) {
+function OpenSendDialog({
+    target,
+    returnFocus,
+}: {
+    target: DocumentSendTarget
+    returnFocus: (() => void) | undefined
+}) {
+    useReturnFocusOnClose(returnFocus)
     const data = useSendDialogData(target)
     const close = useDocumentSendStore(state => state.close)
     const send = useDocumentSend()
@@ -202,22 +228,27 @@ function SendReadySlot({
 }
 
 // The store outlives the screen: close this screen's dialog when the screen loses focus or
-// unmounts (lesson 3).
-function useCloseOnBlur(owner: string) {
+// unmounts (lesson 3), and drop a queued send of this screen's document, so a later visit
+// does not open a stale dialog. A new form's screen has no `recordId`: its save's queued
+// send is for the saved route's screen, which mounts before the new one unmounts.
+function useCloseOnBlur(owner: string, recordId: string | undefined) {
     useFocusEffect(
         useCallback(
             () => () => {
                 const store = useDocumentSendStore.getState()
+                if (recordId !== undefined) store.cancelQueued(recordId)
                 if (store.target === null || store.owner !== owner) return
                 store.close()
             },
-            [owner]
+            [owner, recordId]
         )
     )
 }
 
 // The document this screen's dialog is open on: the store's target when this screen opened
-// it, else a queued send of this screen's document once it can be sent.
+// it, else a queued send of this screen's document once it can be sent, on the focused
+// screen only (a second visit of the same document leaves the first screen mounted under
+// it, lesson 38).
 function openTargetOf(input: {
     target: DocumentSendTarget | null
     storeOwner: string
@@ -225,10 +256,12 @@ function openTargetOf(input: {
     owner: string
     recordId: string | undefined
     isSendable: boolean
+    isFocused: boolean
 }): DocumentSendTarget | null {
     const { target, storeOwner, queued, owner, recordId, isSendable } = input
     if (target !== null && storeOwner === owner) return target
-    if (queued !== null && queued.id === recordId && isSendable) return queued
+    const isQueuedHere = queued !== null && queued.id === recordId
+    if (isQueuedHere && isSendable && input.isFocused) return queued
     return null
 }
 
@@ -239,6 +272,10 @@ interface SendDocumentDialogProps {
     // send queued before the document's post or save (checkpoint 4) opens on it.
     recordId?: string
     isSendable?: boolean
+    // Focuses the screen's return target (its own send control, else a control that is
+    // drawn) after a queued dialog closes: the queued send's opener was on the screen the
+    // route replace unmounted.
+    returnFocus?: () => void
 }
 
 /**
@@ -249,20 +286,33 @@ interface SendDocumentDialogProps {
  * "Loading…", the load error with Retry (one recovery of the failed reads), the notice of
  * a document that is gone with Close only (SendNotFound), the not-set-up notice with the
  * link buttons (SendNotSetUp), or the form (SendDocumentForm), which mounts only once
- * every read has landed. It warms the email status read on the
- * screen, so an open dialog finds it answered.
+ * every read has landed. It warms the email status read on the screen, so an open dialog
+ * finds it answered. When a queued dialog closes, `returnFocus` gives the focus back to
+ * the screen (useReturnFocusOnClose).
  */
 export function SendDocumentDialog({
     owner,
     recordId,
     isSendable = false,
+    returnFocus,
 }: SendDocumentDialogProps) {
     useEmailStatus()
-    useCloseOnBlur(owner)
+    useCloseOnBlur(owner, recordId)
+    const isFocused = useIsFocused()
     const target = useDocumentSendStore(state => state.target)
     const storeOwner = useDocumentSendStore(state => state.owner)
     const queued = useDocumentSendStore(state => state.queued)
-    const openTarget = openTargetOf({ target, storeOwner, queued, owner, recordId, isSendable })
+    const openTarget = openTargetOf({
+        target,
+        storeOwner,
+        queued,
+        owner,
+        recordId,
+        isSendable,
+        isFocused,
+    })
     if (!openTarget) return null
-    return <OpenSendDialog key={openTarget.id} target={openTarget} />
+    // Only a queued open lost its opener; one this screen opened gets core's restore.
+    const onClosedFocus = openTarget === queued ? returnFocus : undefined
+    return <OpenSendDialog key={openTarget.id} target={openTarget} returnFocus={onClosedFocus} />
 }

@@ -42,6 +42,24 @@ export const QUOTE_FORM_KEYS: Record<QuoteKeyAction, string> = {
     copyLink: 'Alt+l',
 }
 
+// The send keys of a document form (email-share spec §3.3 "Form"): Post and send on a
+// posting kind's DocumentActionBar, Save and send on the estimate's DocumentSaveBar. Their
+// own map, not FORM_KEYS and QUOTE_FORM_KEYS: the transfer and journal entry forms register
+// every FORM_KEYS key (formShortcuts), and they have no send. ⌘⌥↵ is typed in a text field
+// (allowInInputs), as the other form keys; ⌥↵ stays the sales forms' Add line key
+// (lib/document-line-columns.ts), human 2026-11-22.
+export type SendFormKeyAction = 'postAndSend' | 'saveAndSend'
+
+export const SEND_FORM_KEYS: Record<SendFormKeyAction, string> = {
+    postAndSend: '$mod+Alt+Enter',
+    saveAndSend: '$mod+Alt+Enter',
+}
+
+export const SEND_FORM_DESCRIPTIONS: Record<SendFormKeyAction, string> = {
+    postAndSend: 'Post and send',
+    saveAndSend: 'Save and send',
+}
+
 const FORM_DESCRIPTIONS: Record<FormKeyAction, string> = {
     post: 'Post',
     postAndNew: 'Post & new',
