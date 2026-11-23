@@ -54,6 +54,9 @@ var shippedNotLive = map[string]bool{
 	// The 1099 Summary and Detail reads books.basis_lines too (1099 report
 	// spec §4), so it is manual and shows Refresh, as the Expenses by Vendor.
 	"books.form_1099": true,
+	// It reads the reconciled lines of finished reconciliations, rows that
+	// change only on a finish or an undo: it stays live.
+	"books.reconciliation_report": false,
 }
 
 // requireManual fails unless res is a manual run: marked, and with no topic.

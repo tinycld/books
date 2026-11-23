@@ -1,8 +1,7 @@
-import { rowFocusStyle } from '@tinycld/core/components/focusable-row'
-import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { Pressable, Text, View } from 'react-native'
 import type { ReconcileAccountRowData, ReconcileRowAction } from '../../hooks/useReconcileAccounts'
+import { useRowFocus } from '../../hooks/useRowFocus'
 import { accountLabel } from '../../lib/account-options'
 import { ownBalance } from '../../lib/account-tree'
 import { balanceText } from '../../lib/money'
@@ -34,17 +33,6 @@ export type AccountRowProps = {
     isFocused: boolean
     onPress: (row: ReconcileAccountRowData) => void
     onThroughPress: (row: ReconcileAccountRowData) => void
-}
-
-// The focus stripe, and `data-focused` on the web for the e2e (react-native-web renders
-// `dataSet`; a bare data- prop is dropped).
-function useRowFocus(isFocused: boolean) {
-    const borderColor = useThemeColor('border')
-    const activeIndicator = useThemeColor('primary')
-    return {
-        style: rowFocusStyle({ isFocused, borderColor, activeIndicator }),
-        dataSet: { focused: isFocused ? 'true' : undefined },
-    }
 }
 
 function currencyOf(row: ReconcileAccountRowData): string {

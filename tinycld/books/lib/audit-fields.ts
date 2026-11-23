@@ -833,6 +833,7 @@ const AUDIT_FIELD_MAPS = {
         cleared_in_count: text('Cleared money in count'),
         created_by: relation('Started by', 'users'),
         finished_by: relation('Finished by', 'users'),
+        finished_by_name: text('Finished by (name)'),
         finished_at: datetime('Finished at'),
         currency: text('Currency'),
         ...STAMPS,

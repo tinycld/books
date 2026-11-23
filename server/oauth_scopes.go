@@ -61,6 +61,7 @@ func oauthPackage() oauth.Package {
 			reconciliationsCollection:          rw,
 			reconciliationLinesCollection:      rw,
 			reconcileLinesView:                 ro,
+			reconciledLinesView:                ro,
 			"books_tax_agencies":               rw,
 			"books_tax_rates":                  rw,
 			"books_invoices":                   rw,

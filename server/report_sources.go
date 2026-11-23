@@ -213,6 +213,8 @@ func reportSources() []reports.Source {
 		productsSource(),
 		auditLogSource(),
 		settingsSource(),
+		reconciliationsSource(),
+		reconciledLinesSource(),
 	}
 	for i := range sources {
 		sources[i].FiscalStartMonth = booksFiscalStart
@@ -248,6 +250,62 @@ func auditLogSource() reports.Source {
 			{Key: "parent_id", Label: "Document ID", Type: reports.Text},
 			{Key: "history_type", Label: "History type", Type: reports.Text},
 			{Key: "history_id", Label: "History ID", Type: reports.Text},
+		},
+	}
+}
+
+// reconciliationsSource is books_reconciliations, the finished and in-progress
+// reconciliations (reconciliation report spec §4 "Server"). The stamped user
+// relations (created_by, finished_by) are left out: a report reads the
+// stamped name.
+func reconciliationsSource() reports.Source {
+	return reports.Source{
+		Key: "books.reconciliations", Collection: reconciliationsCollection, Label: "Reconciliations",
+		Fields: []reports.Field{
+			{Key: "statement_date", Label: "Statement ending", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
+			{Key: "statement_balance", Label: "Statement ending balance", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "beginning_balance", Label: "Beginning balance", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "cleared_out", Label: "Cleared out", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "cleared_in", Label: "Cleared in", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "cleared_out_count", Label: "Cleared out count", Type: reports.Number},
+			{Key: "cleared_in_count", Label: "Cleared in count", Type: reports.Number},
+			{Key: "status", Label: "Status", Type: reports.Select, Options: []reports.Option{
+				{Value: "in_progress", Label: "In progress"},
+				{Value: "finished", Label: "Finished"},
+			}},
+			{Key: "finished_at", Label: "Reconciled on", Type: reports.DateTime, Aggregates: reports.MinMax},
+			{Key: "finished_by_name", Label: "Reconciled by", Type: reports.Text, Aggregates: reports.MinMax},
+			// The view's currency is the reconciliation's own (the view casts it
+			// from this column), so the Reconciliation Report adds a section's
+			// beginning balance to its cleared lines.
+			{Key: "currency", Label: "Currency", Type: reports.Text, SameCurrencyAs: "books.reconciled_lines.currency"},
+		},
+		Links: []reports.Link{
+			{Key: "account", Label: "Account", Target: "books.accounts", Cardinality: reports.ToOne, Field: "account"},
+		},
+	}
+}
+
+// reconciledLinesSource is the books_reconciled_lines view (migration
+// books_reconciliation_report): one row for each cleared row of a finished
+// reconciliation, with its journal line's date, sides and position, the memo
+// (the line's, else the entry's) and the payee.
+func reconciledLinesSource() reports.Source {
+	return reports.Source{
+		Key: "books.reconciled_lines", Collection: reconciledLinesView, Label: "Reconciled lines",
+		Fields: []reports.Field{
+			{Key: "date", Label: "Date", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
+			{Key: "debit", Label: "Debit", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "credit", Label: "Credit", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
+			{Key: "memo", Label: "Memo", Type: reports.Text},
+			{Key: "payee", Label: "Payee", Type: reports.Text},
+			{Key: "position", Label: "Position", Type: reports.Number},
+			{Key: "currency", Label: "Currency", Type: reports.Text},
+		},
+		Links: []reports.Link{
+			{Key: "reconciliation", Label: "Reconciliation", Target: "books.reconciliations", Cardinality: reports.ToOne, Field: "reconciliation"},
+			{Key: "account", Label: "Account", Target: "books.accounts", Cardinality: reports.ToOne, Field: "account"},
+			{Key: "entry", Label: "Entry", Target: "books.journal_entries", Cardinality: reports.ToOne, Field: "entry"},
 		},
 	}
 }

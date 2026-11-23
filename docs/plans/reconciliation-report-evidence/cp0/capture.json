@@ -1,0 +1,28 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "report",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=report",
+            "ready": "report-screen",
+            "widths": [1700, 1540, 1284, 1028, 390, 375]
+        },
+        {
+            "name": "report-all",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=report-all",
+            "ready": "report-screen",
+            "height": 2400,
+            "widths": [1700, 1540, 1028, 390, 375]
+        },
+        {
+            "name": "report-account",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=report-account",
+            "ready": "report-screen",
+            "height": 1400,
+            "widths": [1700]
+        }
+    ]
+}

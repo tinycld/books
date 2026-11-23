@@ -24,6 +24,7 @@ const (
 	reconciliationsCollection     = "books_reconciliations"
 	reconciliationLinesCollection = "books_reconciliation_lines"
 	reconcileLinesView            = "books_reconcile_lines"
+	reconciledLinesView           = "books_reconciled_lines"
 	reconcileInProgress           = "in_progress"
 	reconcileFinished             = "finished"
 
@@ -44,35 +45,55 @@ const (
 	msgReconciledEntry       = "%s is reconciled on %s (statement of %s). It cannot be voided or changed."
 	msgAccountReconciling    = "%s has a reconciliation. Discard it first."
 	msgAccountReconciled     = "%s has reconciled statements."
+	// refuse adds the final period of these three.
+	msgUndoNotAdmin   = "Only a Books admin can undo a reconciliation"
+	msgUndoNotLatest  = "Only the latest reconciliation of %s can be undone. Undo the statement of %s first"
+	msgUndoChangesRow = "An undo cannot change the reconciliation"
+	// refuse adds the final period.
+	msgReconcileUndone = "This reconciliation was undone after it was loaded. Load it again"
 )
 
 // reconcileAccountTypes are the account types a reconciliation can name. The
 // detail type is not read.
 var reconcileAccountTypes = map[string]bool{"bank": true, "credit_card": true}
 
-// The fields of a finished reconciliation that never change. A user field may:
-// PocketBase clears created_by or finished_by when that user is deleted.
+// The fields of a finished reconciliation that never change, but by an undo. A
+// user field may: PocketBase clears created_by or finished_by when that user is
+// deleted. finished_by_name is a copy of the name, so it stays.
 var reconcileFinishedFields = []string{
 	"account", "statement_date", "statement_balance", "has_statement_totals", "statement_out",
 	"statement_in", "status", "beginning_balance", "cleared_out", "cleared_in",
-	"cleared_out_count", "cleared_in_count", "finished_at", "currency",
+	"cleared_out_count", "cleared_in_count", "finished_at", "finished_by_name", "currency",
+}
+
+// reconcileUndoClears are the fields an undo sets back to empty: the sums and
+// the finisher the finish stamped.
+var reconcileUndoClears = map[string]any{
+	"cleared_out": 0, "cleared_in": 0, "cleared_out_count": 0, "cleared_in_count": 0,
+	"finished_at": "", "finished_by": "", "finished_by_name": "",
 }
 
 // registerReconcile binds the reconciliation hooks, each once. The request
-// hooks only stamp who started and who finished (a superuser's value is kept,
-// so the seed can name its user). The model hooks read other rows, so they run
-// on every save, a Go caller's too, inside serialized: two starts on one
-// account, a clear beside a finish, or a finish beside a void would each pass
-// a check made outside one.
+// hooks stamp who started and who finished (a superuser's value is kept, so the
+// seed can name its user) and refuse an undo by a user who is not a Books
+// admin. The model hooks read other rows, so they run on every save, a Go
+// caller's too, inside serialized: two starts on one account, a clear beside a
+// finish, or a finish beside a void would each pass a check made outside one.
 func registerReconcile(app core.App) {
 	app.OnRecordCreateRequest(reconciliationsCollection).BindFunc(func(e *core.RecordRequestEvent) error {
 		stampActor(e.Record, "created_by", e.Auth)
 		return e.Next()
 	})
 	app.OnRecordUpdateRequest(reconciliationsCollection).BindFunc(func(e *core.RecordRequestEvent) error {
-		if e.Record.Original().GetString("status") == reconcileInProgress &&
-			e.Record.GetString("status") == reconcileFinished {
+		from, to := e.Record.Original().GetString("status"), e.Record.GetString("status")
+		if from == reconcileInProgress && to == reconcileFinished {
 			stampActor(e.Record, "finished_by", e.Auth)
+			stampActorName(e.Record, "finished_by_name", e.Auth)
+		}
+		if from == reconcileFinished && to == reconcileInProgress {
+			if err := checkUndoLevel(e.App, e.Auth); err != nil {
+				return err
+			}
 		}
 		return e.Next()
 	})
@@ -246,10 +267,30 @@ func storedReconciliation(tx core.App, id string) (*core.Record, error) {
 	return stored, nil
 }
 
+// checkUndoLevel refuses an undo request by a user whose Books level is not
+// admin. The update rule lets a writer's undo reach the request hook, so a
+// bookkeeper reads this text and not the rule's 404. A save from Go (no
+// request) and a superuser's request pass.
+func checkUndoLevel(app core.App, auth *core.Record) error {
+	if auth == nil || auth.IsSuperuser() {
+		return nil
+	}
+	level, err := levelFor(app, auth)
+	if err != nil {
+		return err
+	}
+	if level != LevelAdmin {
+		return refuse(msgUndoNotAdmin)
+	}
+	return nil
+}
+
 // reconcileUpdatePlan is what the update check found, for the writes after
-// the save: the cleared rows a finish marks finished.
+// the save: the cleared rows a finish marks finished, and those an undo marks
+// not finished.
 type reconcileUpdatePlan struct {
 	finish []*core.Record
+	undo   []*core.Record
 }
 
 // checkReconcileUpdate keeps a finished reconciliation and the account of any
@@ -259,6 +300,16 @@ type reconcileUpdatePlan struct {
 // The unclear runs here, before the save, so the rows' delete hook still reads
 // the reconciliation in progress when the same update also finishes it.
 func checkReconcileUpdate(tx core.App, stored, next *core.Record) (reconcileUpdatePlan, error) {
+	if isReconcileUndo(stored, next) {
+		if err := checkReconcileUndo(tx, stored, next); err != nil {
+			return reconcileUpdatePlan{}, err
+		}
+		rows, err := tx.FindAllRecords(reconciliationLinesCollection, dbx.HashExp{"reconciliation": next.Id})
+		if err != nil {
+			return reconcileUpdatePlan{}, fmt.Errorf("books: read the cleared rows to undo: %w", err)
+		}
+		return reconcileUpdatePlan{undo: rows}, nil
+	}
 	if stored.GetString("status") == reconcileFinished {
 		for _, f := range reconcileFinishedFields {
 			if fmt.Sprint(stored.Get(f)) != fmt.Sprint(next.Get(f)) {
@@ -266,6 +317,12 @@ func checkReconcileUpdate(tx core.App, stored, next *core.Record) (reconcileUpda
 			}
 		}
 		return reconcileUpdatePlan{}, nil
+	}
+	// A record loaded finished and stored in progress was undone by another
+	// request after the load: saving it would put the finish's sums and
+	// finisher back on a row in progress.
+	if next.Original().GetString("status") == reconcileFinished {
+		return reconcileUpdatePlan{}, refuse(msgReconcileUndone)
 	}
 	if stored.GetString("account") != next.GetString("account") {
 		return reconcileUpdatePlan{}, refuse(msgReconcileAccountFixed)
@@ -293,6 +350,57 @@ func checkReconcileUpdate(tx core.App, stored, next *core.Record) (reconcileUpda
 		return reconcileUpdatePlan{}, err
 	}
 	return reconcileUpdatePlan{finish: finish}, nil
+}
+
+// isReconcileUndo reports whether the update returns a finished reconciliation
+// to In progress. The record must have been loaded finished: a stale record
+// loaded while it was in progress, saved after another request finished it,
+// still says in progress, and is an update of a finished row, not an undo.
+func isReconcileUndo(stored, next *core.Record) bool {
+	return stored.GetString("status") == reconcileFinished &&
+		next.Original().GetString("status") == reconcileFinished &&
+		next.GetString("status") == reconcileInProgress
+}
+
+// checkReconcileUndo returns a finished reconciliation to In progress. It
+// refuses an undo that changes any other field, one of a reconciliation that is
+// not the latest finished one of its account, and one while the account has a
+// reconciliation in progress (the unique index on the account's open one is
+// the last guard of two undos). It then clears the sums and the finisher; a Go
+// caller that sent one of those has it overwritten, and the update rule pins
+// them for an API caller.
+func checkReconcileUndo(tx core.App, stored, next *core.Record) error {
+	allowed := map[string]bool{"status": true}
+	for f := range reconcileUndoClears {
+		allowed[f] = true
+	}
+	if len(changedFields(stored, next, allowed)) > 0 {
+		return refuse(msgUndoChangesRow)
+	}
+	accountID := stored.GetString("account")
+	account, err := tx.FindRecordById("books_accounts", accountID)
+	if err != nil {
+		return fmt.Errorf("books: read the account of the reconciliation to undo: %w", err)
+	}
+	last, err := lastFinishedReconciliation(tx, accountID)
+	if err != nil {
+		return err
+	}
+	if last != nil && last.Id != stored.Id {
+		return refuse(msgUndoNotLatest, accountDisplayName(account), formatDay(last.GetString("statement_date")))
+	}
+	open, err := tx.CountRecords(reconciliationsCollection,
+		dbx.HashExp{"account": accountID, "status": reconcileInProgress})
+	if err != nil {
+		return fmt.Errorf("books: count the account's reconciliations in progress: %w", err)
+	}
+	if open > 0 {
+		return refuseNamed(msgReconcileInProgress, accountDisplayName(account))
+	}
+	for f, v := range reconcileUndoClears {
+		next.Set(f, v)
+	}
+	return nil
 }
 
 // unclearAfter deletes the reconciliation's cleared rows dated after day.
@@ -341,14 +449,20 @@ func checkReconcileFinish(tx core.App, r *core.Record) ([]*core.Record, error) {
 	return rows, nil
 }
 
-// applyReconcileUpdate marks a finished reconciliation's rows finished, in the
-// update's transaction after it is saved. It is a model write: the rows' rules
-// do not apply to the server.
+// applyReconcileUpdate marks a finished reconciliation's rows finished, and an
+// undone one's rows not finished, in the update's transaction after it is
+// saved. It is a model write: the rows' rules do not apply to the server.
 func applyReconcileUpdate(tx core.App, r *core.Record, plan reconcileUpdatePlan) error {
 	for _, row := range plan.finish {
 		row.Set("finished", true)
 		if err := tx.Save(row); err != nil {
 			return fmt.Errorf("books: finish a cleared row of %s: %w", r.Id, err)
+		}
+	}
+	for _, row := range plan.undo {
+		row.Set("finished", false)
+		if err := tx.Save(row); err != nil {
+			return fmt.Errorf("books: undo a cleared row of %s: %w", r.Id, err)
 		}
 	}
 	return nil

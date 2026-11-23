@@ -18,6 +18,7 @@ import { CUSTOMERS } from '../tinycld/books/lib/customer-form-fixture'
 import { REVIEW_SEED_ENTRIES, REVIEW_SEED_STATEMENT } from '../tinycld/books/lib/for-review-fixture'
 import { GENERAL_LEDGER_LONG_SECTION } from '../tinycld/books/lib/general-ledger-fixture'
 import { RECONCILE_SEED } from '../tinycld/books/lib/reconcile-fixture'
+import { RECONCILIATION_REPORT_SEED } from '../tinycld/books/lib/reconciliation-report-fixture'
 import {
     REFUND_FROM_ACCOUNTS,
     REFUND_RECEIPT_IDS,
@@ -47,7 +48,7 @@ import {
     WRITE_OFFS,
 } from '../tinycld/books/lib/write-off-fixture'
 import * as seedModule from '../tinycld/books/seed'
-import { seedArAging } from '../tinycld/books/seed'
+import { seedArAging, seedReconciliationReport } from '../tinycld/books/seed'
 
 const packageRoot = path.resolve(__dirname, '..')
 const seedPath = path.resolve(__dirname, '../tinycld/books/seed.ts')
@@ -2160,6 +2161,9 @@ describe('seedReconcile', () => {
         expect(recs[0]?.data.created_by).toBe(USER.id)
         expect(recs[2]?.data.created_by).toBe(USER.id)
         expect(recs[1]?.data.finished_by).toBe(USER.id)
+        // Reconciliation report spec §3: "Finished … by Ana Ruiz" reads the stamped name, and
+        // the hook keeps a superuser's value, so the seed names its user at the finish.
+        expect(recs[1]?.data.finished_by_name).toBe(USER.name)
         const sentActor: Record<number, string> = {
             0: 'created_by',
             1: 'finished_by',
@@ -2215,6 +2219,174 @@ describe('seedReconcile', () => {
         const before = writes.length
         expect(before).toBeGreaterThan(0)
         await seedReconcile(pb, { user: USER }, accounts)
+        expect(writes.slice(before)).toEqual([])
+    })
+})
+
+// Reconciliation report spec §4 "Fixture and seed" (settled differences 8 and 9): after
+// seedReconcile, three entries of its own on 2100 Company Card against 3000 Owner's Equity
+// (fixed August days), and two finished reconciliations there: Jul 31, 2026 at $0.00 with no
+// cleared row, and Aug 31, 2026 over the three entries. All through the collection API as
+// superuser, so the Go hooks stamp the sums; the latest's fixed id is how a second run knows
+// it ran.
+const REPORT_SEED = RECONCILIATION_REPORT_SEED
+
+type ReportSeedEntry = (typeof REPORT_SEED.entries)[number]
+
+const chargeOf = (entry: ReportSeedEntry | undefined) =>
+    entry && 'charge' in entry ? entry.charge : 0
+
+const paymentOf = (entry: ReportSeedEntry | undefined) =>
+    entry && 'payment' in entry ? entry.payment : 0
+
+describe('seedReconciliationReport', () => {
+    it('runs directly after seedReconcile in the seed', () => {
+        const source = readFileSync(seedPath, 'utf8')
+        const body = source.slice(source.indexOf('export default async function seed('))
+        const reconcile = body.indexOf('seedReconcile(')
+        expect(reconcile).toBeGreaterThan(-1)
+        const report = body.indexOf('seedReconciliationReport(')
+        expect(report).toBeGreaterThan(reconcile)
+        const between = body.slice(reconcile, report)
+        expect(between).not.toMatch(/await \w+\(/)
+    })
+
+    it('names 2100, three entries that owe the latest statement balance, and two fixed 15-character ids', () => {
+        expect(REPORT_SEED.account).toBe('2100')
+        expect(REPORT_SEED.entries.map(entry => entry.date)).toEqual([
+            '2026-08-07',
+            '2026-08-09',
+            '2026-08-23',
+        ])
+        expect(REPORT_SEED.earlier).toEqual({
+            id: REPORT_SEED.earlier.id,
+            statement_date: '2026-07-31',
+            statement_balance: 0,
+        })
+        expect(REPORT_SEED.latest.statement_date).toBe('2026-08-31')
+        for (const id of [REPORT_SEED.earlier.id, REPORT_SEED.latest.id]) {
+            expect(id).toMatch(/^[a-z0-9]{15}$/)
+        }
+        expect(REPORT_SEED.latest.id).not.toBe(REPORT_SEED.earlier.id)
+        // In the credit card sense: a charge raises what is owed, a payment lowers it.
+        const owed = REPORT_SEED.entries.reduce(
+            (sum: number, entry) => sum + chargeOf(entry) - paymentOf(entry),
+            0
+        )
+        expect(REPORT_SEED.latest.statement_balance).toBe(owed)
+        expect(owed).toBe(38_150)
+    })
+
+    it('posts the three entries on 2100 against 3000, finishes Jul 31 with no cleared row, then Aug 31 over the three', async () => {
+        const accounts = seededAccounts()
+        const card = accounts.get('2100')
+        const equity = accounts.get('3000')
+        const { pb, writes } = servedPb()
+        await seedReconciliationReport(pb, { user: USER }, accounts)
+
+        const entries = writes.filter(
+            w => w.collection === 'books_journal_entries' && w.op === 'create'
+        )
+        expect(entries.map(w => [w.data.date, w.data.memo])).toEqual(
+            REPORT_SEED.entries.map(entry => [entry.date, entry.memo])
+        )
+        const lines = writes.filter(
+            w => w.collection === 'books_journal_lines' && w.op === 'create'
+        )
+        const cardLines = entries.map((entry, i) => {
+            const seed = REPORT_SEED.entries[i]
+            const charge = chargeOf(seed)
+            const payment = paymentOf(seed)
+            const ofEntry = lines.filter(w => w.data.entry === entry.id)
+            const sides = ofEntry.map(w => [w.data.account, w.data.debit, w.data.credit])
+            const expected = charge
+                ? [
+                      [card, 0, charge],
+                      [equity, charge, 0],
+                  ]
+                : [
+                      [card, payment, 0],
+                      [equity, 0, payment],
+                  ]
+            expect(sides).toHaveLength(2)
+            expect(sides).toEqual(expect.arrayContaining(expected))
+            expect(finalStatus(writes, 'books_journal_entries', entry.id)).toBe('posted')
+            return ofEntry.find(w => w.data.account === card)
+        })
+
+        const { earlier, latest } = REPORT_SEED
+        const recs = writes.filter(w => w.collection === 'books_reconciliations')
+        expect(recs.map(w => [w.op, w.id, w.data.status])).toEqual([
+            ['create', earlier.id, 'in_progress'],
+            ['update', earlier.id, 'finished'],
+            ['create', latest.id, 'in_progress'],
+            ['update', latest.id, 'finished'],
+        ])
+        expect(recs[0]?.data).toMatchObject({
+            id: earlier.id,
+            account: card,
+            statement_date: '2026-07-31',
+            statement_balance: 0,
+        })
+        expect(recs[2]?.data).toMatchObject({
+            id: latest.id,
+            account: card,
+            statement_date: '2026-08-31',
+            statement_balance: latest.statement_balance,
+        })
+        // The seed writes as superuser, and the hooks keep a superuser's finisher and name.
+        for (const finish of [recs[1], recs[3]]) {
+            expect(finish?.data).toMatchObject({
+                finished_by: USER.id,
+                finished_by_name: USER.name,
+            })
+        }
+        const serverStamped = [
+            'beginning_balance',
+            'cleared_out',
+            'cleared_in',
+            'cleared_out_count',
+            'cleared_in_count',
+            'finished_at',
+            'currency',
+        ]
+        for (const write of recs) {
+            for (const field of serverStamped) expect(write.data).not.toHaveProperty(field)
+        }
+
+        const cleared = writes.filter(w => w.collection === 'books_reconciliation_lines')
+        expect(cleared.filter(w => w.data.reconciliation === earlier.id)).toEqual([])
+        expect(cleared.map(w => [w.op, w.data.reconciliation, w.data.line])).toEqual(
+            cardLines.map(line => ['create', latest.id, line?.id])
+        )
+        for (const write of cleared) {
+            for (const field of ['account', 'entry', 'date', 'debit', 'credit', 'finished']) {
+                expect(write.data).not.toHaveProperty(field)
+            }
+        }
+        const at = (w: Write | undefined) => (w ? writes.indexOf(w) : -1)
+        expect(at(recs[1])).toBeLessThan(at(recs[2]))
+        for (const write of cleared) {
+            expect(at(write)).toBeGreaterThan(at(recs[2]))
+            expect(at(write)).toBeLessThan(at(recs[3]))
+        }
+
+        // From the earlier statement's $0.00, the latest's balance is what its cleared card
+        // lines leave owed: credits (charges) less debits (payments).
+        const owed = cardLines.reduce(
+            (sum, line) => sum + Number(line?.data.credit) - Number(line?.data.debit),
+            0
+        )
+        expect(owed).toBe(latest.statement_balance)
+    })
+
+    it('creates nothing on a second run', async () => {
+        const accounts = seededAccounts()
+        const { pb, writes } = servedPb()
+        await seedReconciliationReport(pb, { user: USER }, accounts)
+        const before = writes.length
+        expect(before).toBeGreaterThan(0)
+        await seedReconciliationReport(pb, { user: USER }, accounts)
         expect(writes.slice(before)).toEqual([])
     })
 })

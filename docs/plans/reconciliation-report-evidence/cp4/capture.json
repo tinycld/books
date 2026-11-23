@@ -1,0 +1,200 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "history",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/history",
+            "ready": "reconcile-history-screen",
+            "widths": [1280, 1024, 390, 375]
+        },
+        {
+            "name": "history-row-menu",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/history",
+            "ready": "reconcile-history-screen",
+            "actions": [
+                { "click": "reconcile-history-more-rrptseedcrd0831" },
+                { "waitFor": "reconcile-history-undo-rrptseedcrd0831" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "widths": [1280, 390]
+        },
+        {
+            "name": "history-reader",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/history",
+            "ready": "reconcile-history-screen",
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "widths": [1280]
+        },
+        {
+            "name": "history-reader-card-menu",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/history",
+            "ready": "reconcile-history-screen",
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [{ "click": "reconcile-history-more-rrptseedcrd0831" }, { "pause": 500 }],
+            "settleMs": 500,
+            "widths": [390]
+        },
+        {
+            "name": "finished",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/rrptseedcrd0831",
+            "ready": "reconcile-finished",
+            "widths": [1280, 390]
+        },
+        {
+            "name": "finished-menu",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/rrptseedcrd0831",
+            "ready": "reconcile-finished",
+            "actions": [
+                { "click": "reconcile-finished-more" },
+                { "waitFor": "reconcile-menu-undo" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "widths": [1280, 390]
+        },
+        {
+            "name": "finished-reader",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/rrptseedcrd0831",
+            "ready": "reconcile-finished",
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "widths": [1280]
+        },
+        {
+            "name": "undo",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/rrptseedcrd0831",
+            "ready": "reconcile-finished",
+            "actions": [
+                { "click": "reconcile-finished-more" },
+                { "click": "reconcile-menu-undo" },
+                { "waitFor": "reconcile-undo-submit" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "opaque": "reconcile-undo-dialog",
+            "widths": [1280, 390]
+        },
+        {
+            "name": "undo-blocked",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/recnseedfinish1",
+            "ready": "reconcile-finished",
+            "actions": [
+                { "click": "reconcile-finished-more" },
+                { "click": "reconcile-menu-undo" },
+                { "waitFor": "reconcile-undo-blocked" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "opaque": "reconcile-undo-dialog",
+            "widths": [1280, 390]
+        },
+        {
+            "name": "undo-sending",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/rrptseedcrd0831",
+            "ready": "reconcile-finished",
+            "writes": { "collection": "books_reconciliations", "answers": ["hold"] },
+            "actions": [
+                { "click": "reconcile-finished-more" },
+                { "click": "reconcile-menu-undo" },
+                { "click": "reconcile-undo-submit" },
+                { "waitFor": "Undoing…" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "opaque": "reconcile-undo-dialog",
+            "widths": [1280]
+        },
+        {
+            "name": "undo-refused",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/rrptseedcrd0831",
+            "ready": "reconcile-finished",
+            "writes": {
+                "collection": "books_reconciliations",
+                "answers": [400],
+                "message": "Only the latest reconciliation of 2100 Company Card can be undone. Undo the statement of Sep 30, 2026 first."
+            },
+            "actions": [
+                { "click": "reconcile-finished-more" },
+                { "click": "reconcile-menu-undo" },
+                { "click": "reconcile-undo-submit" },
+                { "waitFor": "entry-error-summary" },
+                { "click": "reconcile-undo-text" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "opaque": "reconcile-undo-dialog",
+            "widths": [1280, 390]
+        },
+        {
+            "name": "undo-failed",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/rrptseedcrd0831",
+            "ready": "reconcile-finished",
+            "writes": { "collection": "books_reconciliations", "answers": ["abort"] },
+            "actions": [
+                { "click": "reconcile-finished-more" },
+                { "click": "reconcile-menu-undo" },
+                { "click": "reconcile-undo-submit" },
+                { "waitFor": "entry-error-summary" },
+                { "click": "reconcile-undo-text" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "opaque": "reconcile-undo-dialog",
+            "widths": [1280]
+        }
+    ]
+}

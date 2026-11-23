@@ -328,6 +328,7 @@ export const RECONCILE_TEXTS = {
     lessHints: 'Show less',
     another: 'Reconcile another account',
     viewRegister: 'View register',
+    viewReport: 'View report',
     statementBalance: 'Statement ending balance',
     beginningBalance: 'Beginning balance',
     clearedBalance: 'Cleared balance',

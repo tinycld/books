@@ -10,6 +10,7 @@ import {
     type ReconcileSort,
     type ReconcileSortColumn,
 } from '../lib/reconcile'
+import type { HistorySort } from '../lib/reconcile-history'
 
 // The result is kept as its own object so resultFor hands a selector the same reference on
 // every read (a new object each time would re-render without end).
@@ -61,6 +62,22 @@ interface ReconcileState {
     // The result line: the last batch result or refusal, until the next action, stamped
     // with the reconciliation that made it; another reconciliation reads none (resultFor).
     result: StampedResult | null
+    // The history's Account filter: an account id, or '' for All accounts (reconciliation
+    // report spec §3 "The history"). It resets when the history loses focus.
+    historyAccount: string
+    // The history's statement date order; a press on its header reverses it.
+    historySort: HistorySort
+    // The finished reconciliation whose undo dialog is open; null while none is open.
+    undoTarget: string | null
+    // Set before the undo's update and cleared when it settles: the optimistic row reads In
+    // progress at once, and the dialog, the history row and the finished summary must stay
+    // until the server has answered, so a refusal shows in the dialog.
+    undoingId: string | null
+    // The undo's refusal or transport failure, shown in the dialog.
+    undoError: string | null
+    // The finished summary's More menu is open: View report's key R is off under it (a core
+    // Menu pushes no shortcut scope).
+    isFinishedMenuOpen: boolean
     openStart: (accountId: string) => void
     closeStart: () => void
     setStarting: (isStarting: boolean) => void
@@ -87,6 +104,17 @@ interface ReconcileState {
     // row, the result line, the open hints, Edit info, the Discard confirm and the discard
     // flag start over.
     resetWork: () => void
+    setHistoryAccount: (accountId: string) => void
+    toggleHistorySort: () => void
+    // The history lost focus: All accounts, newest first.
+    resetHistory: () => void
+    openUndo: (reconciliationId: string) => void
+    // Does nothing while the undo is sent.
+    closeUndo: () => void
+    startUndo: (reconciliationId: string) => void
+    endUndo: () => void
+    setUndoError: (message: string | null) => void
+    setFinishedMenuOpen: (isOpen: boolean) => void
 }
 
 // Not persisted: an open dialog, an open band or the work screen's filters do not outlive
@@ -106,6 +134,8 @@ export const useReconcileStore = create<ReconcileState>()(set => ({
     focusedLineId: null,
     runningBatchIds: [],
     result: null,
+    historyAccount: '',
+    historySort: 'descending',
     openStart: accountId => set({ startAccountId: accountId }),
     closeStart: () => set({ startAccountId: null }),
     setStarting: isStarting => set({ isStarting }),
@@ -144,7 +174,25 @@ export const useReconcileStore = create<ReconcileState>()(set => ({
             isEditOpen: false,
             isDiscardOpen: false,
             isDiscarding: false,
+            isFinishedMenuOpen: false,
         }),
+    setHistoryAccount: accountId => set({ historyAccount: accountId }),
+    toggleHistorySort: () =>
+        set(state => ({
+            historySort: state.historySort === 'descending' ? 'ascending' : 'descending',
+        })),
+    resetHistory: () => set({ historyAccount: '', historySort: 'descending' }),
+    undoTarget: null,
+    undoingId: null,
+    undoError: null,
+    isFinishedMenuOpen: false,
+    openUndo: reconciliationId => set({ undoTarget: reconciliationId, undoError: null }),
+    closeUndo: () =>
+        set(state => (state.undoingId !== null ? {} : { undoTarget: null, undoError: null })),
+    startUndo: reconciliationId => set({ undoingId: reconciliationId, undoError: null }),
+    endUndo: () => set({ undoingId: null }),
+    setUndoError: message => set({ undoError: message }),
+    setFinishedMenuOpen: isOpen => set({ isFinishedMenuOpen: isOpen }),
 }))
 
 type BatchSlice = Pick<ReconcileState, 'runningBatchIds'>

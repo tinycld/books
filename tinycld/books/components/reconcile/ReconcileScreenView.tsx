@@ -13,6 +13,7 @@ import { linesStateOf, ReconcileLinesStates, ReconcileStates } from './Reconcile
 import { ReconcileSummary } from './ReconcileSummary'
 import { ReconcileTable } from './ReconcileTable'
 import { ReconcileToolbar } from './ReconcileToolbar'
+import { ReconcileUndoDialog } from './ReconcileUndoDialog'
 
 type Fits = ReturnType<typeof useFitsTable>
 
@@ -103,8 +104,8 @@ function WorkDialogs({ model }: { model: ReconcileScreenModel }) {
  * The screen of `books/reconcile/<id>` (reconcile spec §3 "The work screen", "The finished
  * summary"): a fixed column of the header, then in progress the summary band, the hint line,
  * the toolbar and the list (table or cards) of the transactions to clear, with the phone's
- * Finish bar at the bottom; finished, the summary block; or the loading, error or not-found
- * state under the back link.
+ * Finish bar at the bottom; finished, the summary block and the undo dialog of its More
+ * menu; or the loading, error or not-found state under the back link.
  */
 export function ReconcileScreenView(model: ReconcileScreenModel) {
     const padding = model.isWide ? 'px-6 pt-4' : 'px-4 pt-2'
@@ -120,6 +121,7 @@ export function ReconcileScreenView(model: ReconcileScreenModel) {
             </View>
             <PhoneFinishBar model={model} />
             <WorkDialogs model={model} />
+            <ReconcileUndoDialog />
         </View>
     )
 }

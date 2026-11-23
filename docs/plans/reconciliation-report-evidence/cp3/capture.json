@@ -1,0 +1,151 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "history",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/history",
+            "ready": "reconcile-history-screen",
+            "widths": [1280, 1024, 390, 375]
+        },
+        {
+            "name": "history-filtered",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/rrptseedcrd0831",
+            "ready": "reconcile-history-link",
+            "actions": [
+                { "click": "reconcile-history-link" },
+                { "waitFor": "reconcile-history-clear" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "widths": [1280, 390]
+        },
+        {
+            "name": "history-filter-menu",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/history",
+            "ready": "reconcile-history-screen",
+            "actions": [{ "click": "reconcile-history-account" }, { "pause": 500 }],
+            "settleMs": 500,
+            "widths": [1280, 390]
+        },
+        {
+            "name": "history-reader",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/history",
+            "ready": "reconcile-history-screen",
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "widths": [1280]
+        },
+        {
+            "name": "history-reader-card-menu",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/history",
+            "ready": "reconcile-history-screen",
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "actions": [{ "click": "reconcile-history-more-rrptseedcrd0831" }, { "pause": 500 }],
+            "settleMs": 500,
+            "widths": [390]
+        },
+        {
+            "name": "history-empty",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/history",
+            "ready": "reconcile-history-empty",
+            "emptyRecords": "books_reconciliations",
+            "widths": [1280, 390]
+        },
+        {
+            "name": "history-empty-filtered",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/accounts",
+            "actions": [
+                { "waitFor": "Business Checking" },
+                { "clickText": "Business Checking" },
+                { "waitFor": "View register" },
+                {
+                    "idFromText": "View register",
+                    "goto": "/a/books/reconcile/history?account=$urlId"
+                },
+                { "waitFor": "reconcile-history-empty" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "widths": [1280, 390]
+        },
+        {
+            "name": "history-loading",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/history",
+            "ready": "reconcile-history-screen",
+            "fakeRecords": { "collection": "books_reconciliations", "hold": true },
+            "widths": [1280]
+        },
+        {
+            "name": "history-error",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/history",
+            "ready": "reconcile-history-error",
+            "fakeRecords": { "collection": "books_reconciliations", "status": 400 },
+            "widths": [1280, 390]
+        },
+        {
+            "name": "accounts",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile",
+            "ready": "reconcile-accounts-screen",
+            "widths": [1280, 390]
+        },
+        {
+            "name": "finished-reader",
+            "hideLabels": ["New", "Reconnecting…"],
+            "url": "/a/books/reconcile/rrptseedcrd0831",
+            "ready": "reconcile-finished",
+            "fakeRecords": {
+                "collection": "books_access",
+                "items": [
+                    {
+                        "collectionId": "pbc_books_access",
+                        "collectionName": "books_access",
+                        "id": "$authId",
+                        "user": "$authId",
+                        "level": "read_only",
+                        "can_read": true,
+                        "can_write": false,
+                        "is_admin": false
+                    }
+                ]
+            },
+            "widths": [1280]
+        }
+    ]
+}

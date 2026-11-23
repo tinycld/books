@@ -1394,6 +1394,18 @@ describe('help/reports.md (statements)', () => {
     })
 })
 
+// Reconciliation report spec §4 "Help": the reports topic lists the Reconciliation Report
+// and links the reconcile topic.
+describe('help/reports.md (reconciliation report)', () => {
+    it('names the Reconciliation Report', () => {
+        expect(body).toContain('Reconciliation Report')
+    })
+
+    it('links the reconcile topic', () => {
+        expect(body).toContain('(help://books:reconcile)')
+    })
+})
+
 describe('help/navigating-books.md', () => {
     it('links the Books reports topic', () => {
         expect(navigatingSource).toContain('help://books:reports')

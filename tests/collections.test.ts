@@ -73,6 +73,7 @@ const NAMES = [
     'books_reconciliations',
     'books_reconciliation_lines',
     'books_reconcile_lines',
+    'books_reconciled_lines',
 ]
 
 function register() {
@@ -356,6 +357,19 @@ describe('registerCollections', () => {
         ])
         expect(calls.get('books_reconciliations')?.liveTopics).toBeUndefined()
         expect(calls.get('books_reconciliation_lines')?.liveTopics).toBeUndefined()
+    })
+
+    // Reconciliation report spec §4 "Schema": the reconciled lines view is never written.
+    // The server signals its topic when a cleared row, a reconciliation, a journal line, an
+    // entry or a party changes (server/register.go), so a finish or an undo reaches the
+    // report and the history.
+    it('registers the reconciled lines view on demand and keeps it live on its change topic', () => {
+        const { calls, result } = register()
+        expect(Object.keys(result)).toContain('books_reconciled_lines')
+        const view = calls.get('books_reconciled_lines')
+        expect(view?.syncMode).toBe('on-demand')
+        expect(view?.realtime).toBe('query')
+        expect(view?.liveTopics).toEqual(['collection/books_reconciled_lines'])
     })
 
     // The audit log view is never written: the server signals its topic when an
