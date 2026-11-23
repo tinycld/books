@@ -18,7 +18,7 @@ import {
 } from './bank-deposit-helpers'
 import { collaboratorLevel, type Level, setCollaboratorLevel } from './books-access-helpers'
 import { uniqueMemo } from './invoice-helpers'
-import { settleFrames } from './journal-entries-helpers'
+import { openEntriesList, settleFrames } from './journal-entries-helpers'
 import { PAYMENT_URL } from './receive-payment-helpers'
 import { openSalesReceiptBySearch, SALES_RECEIPT_URL } from './sales-receipt-helpers'
 
@@ -29,9 +29,10 @@ import { openSalesReceiptBySearch, SALES_RECEIPT_URL } from './sales-receipt-hel
 // void, the document offers Edit and Void again. The help topic opens from a new deposit.
 // A read-only collaborator on the seeded deposit gets View journal entry only.
 //
-// Each writer test posts its own sales receipt, payment and journal entry to Undeposited
-// funds, dated today, with a per-run reference no. and memo, and deposits only those rows.
-// No seeded item is posted and the seeded deposit is only read.
+// Each writer test posts its own record (a sales receipt, a payment or a journal entry) to
+// Undeposited funds, dated today, with a per-run reference no. and memo, and deposits only
+// that row. The tests are independent, so each one names the behaviour that broke. No seeded
+// item is posted and the seeded deposit is only read.
 //
 // Not driven here: a vendor refund's and a refund receipt's notice (the same InDepositNotice
 // and read-action rule as the payment and the sales receipt, covered by
@@ -61,20 +62,27 @@ function pageOverflow(page: Page) {
     })
 }
 
+// Books must be open. Deposits the one own item whose Payment text is `itemText` and
+// returns the deposit and the item's journal line id. Leaves the page on the deposit's read
+// view. It first goes back to the Journal Entries list with the posted record's own Back, so
+// the record's read view leaves the stack: a hidden copy under the deposit would make a
+// later search for the record match two screens.
+async function depositOnly(page: Page, itemText: string) {
+    await openEntriesList(page)
+    await openNewDeposit(page)
+    const line = await tickDepositItemWithText(page, itemText)
+    const memo = uniqueMemo('Deposit elsewhere')
+    const deposit = await postOpenDeposit(page, memo)
+    return { line, deposit: { ...deposit, memo } }
+}
+
 test.describe('bank-deposit: elsewhere', () => {
-    test('a deposited sales receipt and payment offer no Edit or Void and link to the deposit; the deposit void frees them', async ({
+    test('a deposited sales receipt offers no Edit or Void and links to the deposit; the deposit void frees it', async ({
         page,
     }) => {
         await openBooks(page)
 
-        // Setup: an own payment, sales receipt and journal entry line on 1200, deposited
-        // together.
-        const paymentRef = uniqueReference('DP')
-        await postUndepositedPayment(page, {
-            reference: paymentRef,
-            memo: uniqueMemo('Deposited payment'),
-            amount: '250.00',
-        })
+        // Setup: an own sales receipt on 1200, deposited alone.
         const receiptRef = uniqueReference('DR')
         const receiptMemo = uniqueMemo('Deposited receipt')
         await postUndepositedReceipt(page, {
@@ -86,19 +94,7 @@ test.describe('bank-deposit: elsewhere', () => {
             new URL(page.url()).pathname
         )?.[1]
         if (!receiptId) throw new Error(`not on the sales receipt: ${page.url()}`)
-        const entryLineMemo = uniqueReference('DJ')
-        const entry = await postUndepositedEntry(page, {
-            memo: uniqueMemo('Deposited entry'),
-            lineMemo: entryLineMemo,
-            amount: '75.00',
-        })
-
-        await openNewDeposit(page)
-        const receiptLine = await tickDepositItemWithText(page, `Check · ${receiptRef}`)
-        const paymentLine = await tickDepositItemWithText(page, `Check · ${paymentRef}`)
-        const entryLine = await tickDepositItemWithText(page, entryLineMemo)
-        const depositMemo = uniqueMemo('Deposit elsewhere')
-        const deposit = await postOpenDeposit(page, depositMemo)
+        const { line: receiptLine, deposit } = await depositOnly(page, `Check · ${receiptRef}`)
 
         // The sales receipt: the notice, no Edit or Void, View journal entry stays.
         await shownDeposit(page, `deposit-item-link-${receiptLine}`).click()
@@ -144,41 +140,11 @@ test.describe('bank-deposit: elsewhere', () => {
         await expect(page).toHaveURL(depositUrlOf(deposit.id))
         await expect(shownDeposit(page, 'deposit-read-only')).toBeVisible()
 
-        // The payment: the notice with "this payment", no Edit or Void.
-        await shownDeposit(page, `deposit-item-link-${paymentLine}`).click()
-        await expect(page).toHaveURL(PAYMENT_URL)
-        await expect(shownDeposit(page, 'payment-read-only')).toBeVisible()
-        const paymentNotice = shownDeposit(page, 'in-deposit-notice')
-        await expect(paymentNotice).toContainText(`In Deposit ${deposit.number}`)
-        await expect(paymentNotice).toContainText(IN_DEPOSIT_REASON('payment'))
-        await expect(shownDeposit(page, 'payment-read-entry')).toBeVisible()
-        await expect(shownDeposit(page, 'payment-read-edit')).toHaveCount(0)
-        await expect(shownDeposit(page, 'payment-read-void')).toHaveCount(0)
-
-        // The journal entry: Void is offered, and the server refuses it in the dialog.
-        await openDepositBySearch(page, depositMemo)
-        await shownDeposit(page, `deposit-item-link-${entryLine}`).click()
-        await expect(page).toHaveURL(new RegExp(`/books/entries/${entry.id}$`))
-        await expect(shownDeposit(page, 'entry-read-only')).toBeVisible()
-        await shownDeposit(page, 'entry-actions')
-            .getByRole('button', { name: 'Void', exact: true })
-            .click()
-        const voidDialog = page.getByTestId('void-dialog')
-        await expect(voidDialog).toBeVisible()
-        await page.getByTestId('void-confirm').click()
-        await expect(voidDialog.getByTestId('entry-error-summary')).toContainText(
-            new RegExp(
-                `is in Deposit ${escapeRegExp(deposit.number)}\\. Remove it from the deposit first`
-            )
-        )
-        await voidDialog.getByRole('button', { name: 'Cancel', exact: true }).click()
-        await expect(voidDialog).toHaveCount(0)
-        await expect(shownDeposit(page, 'entry-badge')).toHaveText('Posted')
-
         // The deposit is voided: the sales receipt offers Edit and Void again, with no notice.
-        await openDepositBySearch(page, depositMemo)
+        await openDepositBySearch(page, deposit.memo)
         await expect(page).toHaveURL(depositUrlOf(deposit.id))
         // V registers only once the read bar offers Void.
+        const voidDialog = page.getByTestId('void-dialog')
         await expect(shownDeposit(page, 'deposit-read-void')).toBeVisible()
         await page.keyboard.press('v')
         await expect(voidDialog).toBeVisible()
@@ -198,8 +164,68 @@ test.describe('bank-deposit: elsewhere', () => {
         await voidDialog.getByRole('button', { name: 'Cancel', exact: true }).click()
         await expect(voidDialog).toHaveCount(0)
         await expect(shownDeposit(page, 'sales-receipt-badge')).toHaveText('Posted')
+    })
 
-        // Last: the help icon of a new deposit opens the topic "Bank deposits".
+    test('a deposited payment offers no Edit or Void and names this payment', async ({ page }) => {
+        await openBooks(page)
+
+        // Setup: an own payment on 1200, deposited alone.
+        const paymentRef = uniqueReference('DP')
+        await postUndepositedPayment(page, {
+            reference: paymentRef,
+            memo: uniqueMemo('Deposited payment'),
+            amount: '250.00',
+        })
+        const { line: paymentLine, deposit } = await depositOnly(page, `Check · ${paymentRef}`)
+
+        // The payment: the notice with "this payment", no Edit or Void.
+        await shownDeposit(page, `deposit-item-link-${paymentLine}`).click()
+        await expect(page).toHaveURL(PAYMENT_URL)
+        await expect(shownDeposit(page, 'payment-read-only')).toBeVisible()
+        const paymentNotice = shownDeposit(page, 'in-deposit-notice')
+        await expect(paymentNotice).toContainText(`In Deposit ${deposit.number}`)
+        await expect(paymentNotice).toContainText(IN_DEPOSIT_REASON('payment'))
+        await expect(shownDeposit(page, 'payment-read-entry')).toBeVisible()
+        await expect(shownDeposit(page, 'payment-read-edit')).toHaveCount(0)
+        await expect(shownDeposit(page, 'payment-read-void')).toHaveCount(0)
+    })
+
+    test('a journal entry with a deposited line shows the server refusal of its Void', async ({
+        page,
+    }) => {
+        await openBooks(page)
+
+        // Setup: an own journal entry line on 1200, deposited alone.
+        const entryLineMemo = uniqueReference('DJ')
+        const entry = await postUndepositedEntry(page, {
+            memo: uniqueMemo('Deposited entry'),
+            lineMemo: entryLineMemo,
+            amount: '75.00',
+        })
+        const { line: entryLine, deposit } = await depositOnly(page, entryLineMemo)
+
+        // The journal entry: Void is offered, and the server refuses it in the dialog.
+        await shownDeposit(page, `deposit-item-link-${entryLine}`).click()
+        await expect(page).toHaveURL(new RegExp(`/books/entries/${entry.id}$`))
+        await expect(shownDeposit(page, 'entry-read-only')).toBeVisible()
+        await shownDeposit(page, 'entry-actions')
+            .getByRole('button', { name: 'Void', exact: true })
+            .click()
+        const voidDialog = page.getByTestId('void-dialog')
+        await expect(voidDialog).toBeVisible()
+        await page.getByTestId('void-confirm').click()
+        await expect(voidDialog.getByTestId('entry-error-summary')).toContainText(
+            new RegExp(
+                `is in Deposit ${escapeRegExp(deposit.number)}\\. Remove it from the deposit first`
+            )
+        )
+        await voidDialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+        await expect(voidDialog).toHaveCount(0)
+        await expect(shownDeposit(page, 'entry-badge')).toHaveText('Posted')
+    })
+
+    test('the help icon of a new deposit opens the Bank deposits topic', async ({ page }) => {
+        await openBooks(page)
         await openNewDeposit(page)
         await shownDeposit(page, 'deposit-form').getByLabel('Open help').click()
         await expect(
