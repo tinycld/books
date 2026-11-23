@@ -39,11 +39,17 @@ import {
     uniqueName,
 } from './customer-form-helpers'
 import { INVOICE_URL, lineCellTestId, pickLineProduct } from './invoice-helpers'
-import { openProductsList, productEntries } from './products-services-helpers'
-import { SALES_RECEIPT_URL } from './sales-receipt-helpers'
+import { createProduct, openProductsList, productEntries } from './products-services-helpers'
+import {
+    chooseReceiptSelect,
+    pickReceiptLineProduct,
+    SALES_RECEIPT_URL,
+    salesReceiptIdFromUrl,
+} from './sales-receipt-helpers'
 import {
     amountCents,
     chooseSalesOrder,
+    createSaleCustomer,
     DISCOUNT_PRODUCT,
     expectSalesPhoneLines,
     expectSalesRowsFit,
@@ -235,12 +241,17 @@ test.describe('sales-reports: Sales by Customer', () => {
     test('a posted credit memo lowers the customer and opens as a credit memo', async ({
         page,
     }) => {
+        // One service and one invoice of 10 × $50.00: the test reads only the customer's
+        // total and the memo's own line, so postSaleBook's second product, three-line
+        // invoice and receipt are work it does not need.
         await openBooks(page, DESKTOP)
-        const book = await postSaleBook(page)
-        const name = book.customer.name
+        const service = uniqueName('Sale service')
+        await createProduct(page, { type: 'service', name: service, price: '100.00' })
+        const { name } = await createSaleCustomer(page)
+        await postSubInvoice(page, service, '50.00', '$500.00')
         const memo = await postCreditMemo(page, {
             customer: name,
-            product: book.service,
+            product: service,
             qty: '1',
             rate: '60.00',
             memo: uniqueName('Sales memo'),
@@ -252,9 +263,7 @@ test.describe('sales-reports: Sales by Customer', () => {
 
         await openSalesByCustomer(page)
         const rows = await filterToOwnCustomer(page, name)
-        expect(salesOf(customerRow(rows, name))).toBe(
-            book.invoice.subtotalCents + book.receipt.subtotalCents - memoCents
-        )
+        expect(salesOf(customerRow(rows, name))).toBe(50_000 - memoCents)
 
         const opened = await openSalesRow(page, name)
         const memoLines = linesUnder(opened, name).filter(line =>
@@ -269,10 +278,18 @@ test.describe('sales-reports: Sales by Customer', () => {
     })
 
     test('a sub-customer sale turns the row into a family with a total', async ({ page }) => {
+        // One product and one invoice each: postSaleBook's second product, three-line
+        // invoice and receipt are not read here, and with them the test ran past the test
+        // timeout on CI.
         await openBooks(page, DESKTOP)
-        const book = await postSaleBook(page)
-        const parent = book.customer.name
-        await expect(page).toHaveURL(customerPath(book.customer.id))
+        const service = uniqueName('Sale service')
+        await createProduct(page, { type: 'service', name: service, price: '100.00' })
+        const customer = await createSaleCustomer(page)
+        const parent = customer.name
+        await postSubInvoice(page, service, '50.00', '$500.00')
+        await page.goBack()
+        await expect(page).toHaveURL(customerPath(customer.id))
+        await expect(page.getByTestId('customer-title')).toHaveText(parent)
 
         // Two sub-customers whose name order (A, B) is the reverse of their sales order: B
         // sells more than the parent's own row, A less. The fold and the Largest sales order
@@ -280,14 +297,14 @@ test.describe('sales-reports: Sales by Customer', () => {
         const small = uniqueName('Sale branch A')
         const big = uniqueName('Sale branch B')
         await addSubCustomer(page, small)
-        await postSubInvoice(page, book.service, '10.00', '$100.00')
+        await postSubInvoice(page, service, '10.00', '$100.00')
         // Back to the sub-customer's page, then through its parent link to the parent's.
         await page.goBack()
         await expect(page.getByTestId('customer-title')).toHaveText(small)
         await page.getByTestId('customer-parent-link').click()
-        await expect(page).toHaveURL(customerPath(book.customer.id))
+        await expect(page).toHaveURL(customerPath(customer.id))
         await addSubCustomer(page, big)
-        await postSubInvoice(page, book.service, '100.00', '$1,000.00')
+        await postSubInvoice(page, service, '100.00', '$1,000.00')
 
         await openSalesByCustomer(page)
         const rows = await filterToFamily(page, { parent, small, big })
@@ -302,7 +319,7 @@ test.describe('sales-reports: Sales by Customer', () => {
         // The family's five rows, then only the report's Total.
         expect(rows.slice(5).map(row => row.kind)).toEqual(['total'])
         const [, own, smallRow, bigRow, familyTotal] = family
-        expect(salesOf(own)).toBe(book.invoice.subtotalCents + book.receipt.subtotalCents)
+        expect(salesOf(own)).toBe(50_000)
         expect(salesOf(bigRow)).toBeGreaterThan(salesOf(own))
         expect(salesOf(smallRow)).toBeLessThan(salesOf(own))
         expect(salesOf(familyTotal)).toBe(salesOf(own) + salesOf(smallRow) + salesOf(bigRow))
@@ -480,6 +497,36 @@ async function postSubInvoice(page: Page, product: string, rate: string, amount:
     await expect(page.getByTestId('invoice-read-only')).toBeVisible()
 }
 
+// From a document opened over the customer's page: back to that page, then posts a cash
+// sales receipt, dated today, of `product` at quantity 1 and $100.00. Returns its id, its
+// number and its Subtotal as the read view prints it.
+async function postServiceReceipt(page: Page, customerId: string, product: string) {
+    await page.goBack()
+    await expect(page).toHaveURL(customerPath(customerId))
+    await page.getByTestId('customer-new-transaction').click()
+    await page.getByTestId('customer-new-sales-receipt').click()
+    await expect(page).toHaveURL(new RegExp(`/books/sales-receipts/new\\?customer=${customerId}$`))
+    const line = await pickReceiptLineProduct(page, 0, product)
+    await page.getByTestId(lineCellTestId(line, 'quantity')).fill('1')
+    await page.getByTestId(lineCellTestId(line, 'rate')).fill('100.00')
+    await expect(page.getByTestId(lineCellTestId(line, 'amount'))).toContainText('$100.00')
+    await chooseReceiptSelect(page, 'payment_method', 'Cash')
+    await page.getByTestId('sales-receipt-post').click()
+    await expect(page).toHaveURL(SALES_RECEIPT_URL)
+    await expect(page.getByTestId('sales-receipt-read-only')).toBeVisible()
+    const title = page.getByTestId('sales-receipt-title')
+    await expect(title).toHaveText(/^Sales receipt \d+$/)
+    const number = /^Sales receipt (\d+)$/.exec(await title.innerText())?.[1]
+    if (!number) throw new Error('the sales receipt title has no number')
+    const subtotal = page.getByTestId('sales-receipt-total-subtotal')
+    await expect(subtotal).toContainText('$100.00')
+    return {
+        id: salesReceiptIdFromUrl(page),
+        number,
+        subtotalCents: amountCents(await subtotal.innerText()),
+    }
+}
+
 // Sales by Product/Service (sales-reports checkpoint 2), read under the Customer filter set to
 // the test's own customer, so every product row and the Total are the test's own.
 
@@ -636,28 +683,33 @@ test.describe('sales-reports: Sales by Product/Service', () => {
     })
 
     test('a void of the sales receipt lowers both reports', async ({ page }) => {
+        // One service on an invoice of 10 × $50.00 and a receipt of 1 × $100.00: the test
+        // reads the service row and the Totals, so postSaleBook's second product and
+        // three-line invoice are work it does not need.
         await openBooks(page, DESKTOP)
-        const book = await postSaleBook(page)
-        const name = book.customer.name
-        const products = [book.service, book.goods, DISCOUNT_PRODUCT]
+        const service = uniqueName('Sale service')
+        await createProduct(page, { type: 'service', name: service, price: '100.00' })
+        const customer = await createSaleCustomer(page)
+        const name = customer.name
+        await postSubInvoice(page, service, '50.00', '$500.00')
+        const receipt = await postServiceReceipt(page, customer.id, service)
+        const products = [service]
 
         await openSalesByProduct(page)
         const before = await filterProductsToCustomer(page, name, products)
-        const serviceBefore = productRow(before, book.service)
-        expect(textIn(serviceBefore, QUANTITY)).toBe('2.5')
-        expect(centsIn(serviceBefore, AMOUNT)).toBe(
-            lineCents(book.invoice, 0) + lineCents(book.receipt, 0)
-        )
+        const serviceBefore = productRow(before, service)
+        expect(textIn(serviceBefore, QUANTITY)).toBe('11')
+        expect(centsIn(serviceBefore, AMOUNT)).toBe(60_000)
         const totalBefore = centsIn(before.at(-1), AMOUNT)
 
         // To the receipt's read view through its sale line, and void it there.
-        const opened = await openSalesRow(page, book.service)
-        const receiptLine = linesUnder(opened, book.service).find(line =>
-            line.label.includes(` · Sales receipt ${book.receipt.number}`)
+        const opened = await openSalesRow(page, service)
+        const receiptLine = linesUnder(opened, service).find(line =>
+            line.label.includes(` · Sales receipt ${receipt.number}`)
         )
         if (!receiptLine) throw new Error('no sale line of the sales receipt')
         await pressReportRow(page, receiptLine.id)
-        await expect(page).toHaveURL(new RegExp(`/books/sales-receipts/${book.receipt.id}$`))
+        await expect(page).toHaveURL(new RegExp(`/books/sales-receipts/${receipt.id}$`))
         await page.getByTestId('sales-receipt-read-void').click()
         await page.getByTestId('void-confirm').click()
         await expect(page.getByTestId('sales-receipt-badge')).toHaveText('Void')
@@ -667,11 +719,11 @@ test.describe('sales-reports: Sales by Product/Service', () => {
             page,
             name,
             products,
-            rows => textIn(productRow(rows, book.service), QUANTITY) === '1.5'
+            rows => textIn(productRow(rows, service), QUANTITY) === '10'
         )
-        expect(centsIn(productRow(after, book.service), AMOUNT)).toBe(lineCents(book.invoice, 0))
+        expect(centsIn(productRow(after, service), AMOUNT)).toBe(50_000)
         const totalAfter = centsIn(after.at(-1), AMOUNT)
-        expect(totalAfter).toBe(totalBefore - book.receipt.subtotalCents)
+        expect(totalAfter).toBe(totalBefore - receipt.subtotalCents)
 
         await openSalesByCustomer(page)
         const customerRows = await filterToOwnCustomer(page, name)
@@ -735,10 +787,15 @@ test.describe('sales-reports: Sales by Product/Service', () => {
             rows => JSON.stringify(topLabels(rows)) === JSON.stringify(byName),
             'the products in name order'
         )
+    })
+
+    // Reads only seeded rows, so it makes no data of its own.
+    test("the seeded inactive product's sale, and a period with no sale line", async ({ page }) => {
+        await openBooks(page, DESKTOP)
+        await openSalesByProduct(page)
+        await expect(page.getByTestId('report-param-customers')).toHaveCount(0)
 
         // The seeded sale of an inactive product (plan D4), in a period that holds it.
-        await page.getByTestId('report-filter-remove-customers').click()
-        await expect(page.getByTestId('report-param-customers')).toHaveCount(0)
         await choosePeriod(page, { from: SEEDED_PERIOD.from, to: SEEDED_PERIOD.to })
         await expect(page.getByTestId('report-document-period')).toHaveText(SEEDED_PERIOD.words)
         expect(FAX_SETUP, 'Fax line setup in the product fixture').not.toBe('')

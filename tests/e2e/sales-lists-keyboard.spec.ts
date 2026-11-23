@@ -11,7 +11,9 @@ import { openSales, postedInvoiceFor, salesRow, salesTabUrl } from './sales-list
 // runs its own action, and that no list key runs while a document is pushed over the list.
 // At 1440 px, beside an open invoice, the 320 px column moves with ArrowDown and ArrowUp
 // and opens with Enter, while J stays the read view's View journal entry (checkpoint 5
-// decision, 2026-11-17). The test makes its own customer and two posted invoices with one
+// decision, 2026-11-17). The keys are split over three tests so that no one test holds every
+// phase: the list keys at 1280 px, the names column at 1440 px, and N (which needs no
+// rows). Each test that reads rows makes its own customer and two posted invoices with one
 // unique memo word, and finds them through the search field.
 //
 // Not covered by e2e (accepted, plan checkpoint 5):
@@ -73,16 +75,37 @@ async function expectTicked(page: Page, id: string, ticked: boolean) {
     )
 }
 
+// A new customer with two posted invoices that share one unique memo word.
+async function twoInvoices(page: Page) {
+    const name = uniqueName('Sales keys')
+    await createCustomer(page, { name })
+    const word = `Keys${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`
+    await postedInvoiceFor(page, name, word)
+    await postedInvoiceFor(page, name, word)
+    return word
+}
+
+// From the open Sales screen, by keys only: Invoices, the word in the search field, and
+// the ids of the two rows it leaves, in list order.
+async function searchInvoicesByKeys(page: Page, word: string) {
+    await pressTab(page, '2', 'invoices')
+    const search = visible(page, 'sales-search')
+    await page.keyboard.press('/')
+    await expect(search).toBeFocused()
+    await page.keyboard.type(word)
+    await expect(search).toHaveValue(word)
+    await expect(listRows(page)).toHaveCount(2)
+    const [first, second] = await rowIdsInOrder(page)
+    if (first === undefined || second === undefined) throw new Error('two rows not listed')
+    return { search, first, second }
+}
+
 test.describe('sales-lists: keyboard', () => {
     test('every list key runs its action, and none runs under a pushed invoice', async ({
         page,
     }) => {
         await openBooks(page, DESKTOP)
-        const name = uniqueName('Sales keys')
-        await createCustomer(page, { name })
-        const word = `Keys${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`
-        await postedInvoiceFor(page, name, word)
-        await postedInvoiceFor(page, name, word)
+        const word = await twoInvoices(page)
 
         await openSales(page)
 
@@ -93,17 +116,10 @@ test.describe('sales-lists: keyboard', () => {
         await pressTab(page, '6', 'credit-memos')
         await pressTab(page, '7', 'refund-receipts')
         await pressTab(page, '1', 'all')
-        await pressTab(page, '2', 'invoices')
 
-        // / focuses the search field; the typed word leaves the two invoices.
-        const search = visible(page, 'sales-search')
-        await page.keyboard.press('/')
-        await expect(search).toBeFocused()
-        await page.keyboard.type(word)
-        await expect(search).toHaveValue(word)
-        await expect(listRows(page)).toHaveCount(2)
-        const [first, second] = await rowIdsInOrder(page)
-        if (first === undefined || second === undefined) throw new Error('two rows not listed')
+        // 2 goes to Invoices; / focuses the search field; the typed word leaves the two
+        // invoices.
+        const { search, first, second } = await searchInvoicesByKeys(page, word)
 
         // Escape leaves the field and keeps its text.
         await page.keyboard.press('Escape')
@@ -158,6 +174,46 @@ test.describe('sales-lists: keyboard', () => {
         await expectFocusedRow(page, first, second)
         await page.keyboard.press('o')
         await expect(page).toHaveURL(firstUrl)
+        await page.goBack()
+        await expect(page).toHaveURL(salesTabUrl('invoices'))
+        await expect(visible(page, 'sales-list')).toBeVisible()
+
+        // At 1280 px a mouse press on a row opens it; back on the list, J moves the row
+        // focus from the pressed row and Space ticks the newly focused row (it does not
+        // open the pressed row's invoice). Space again clears it. The focus is moved to the
+        // second row first, so the press is what puts it on the first.
+        await page.keyboard.press('j')
+        await expectFocusedRow(page, second, first)
+        await salesRow(page, first).click()
+        await expect(page).toHaveURL(firstUrl)
+        await page.goBack()
+        await expect(page).toHaveURL(salesTabUrl('invoices'))
+        await expectFocusedRow(page, first, second)
+        await page.keyboard.press('j')
+        await expectFocusedRow(page, second, first)
+        await page.keyboard.press('Space')
+        await expectTicked(page, second, true)
+        await expectTicked(page, first, false)
+        await expect(page).toHaveURL(salesTabUrl('invoices'))
+        await page.keyboard.press('Space')
+        await expectTicked(page, second, false)
+        await expect(page).toHaveURL(salesTabUrl('invoices'))
+    })
+
+    test('at 1440 px the names column beside an open invoice keeps the list keys', async ({
+        page,
+    }) => {
+        await openBooks(page, DESKTOP)
+        const word = await twoInvoices(page)
+        await openSales(page)
+        const { search, first, second } = await searchInvoicesByKeys(page, word)
+        await page.keyboard.press('Escape')
+        await expect(search).not.toBeFocused()
+        await page.keyboard.press('j')
+        await expectFocusedRow(page, first, second)
+        const firstUrl = new RegExp(`/books/invoices/${first}$`)
+        await page.keyboard.press('o')
+        await expect(page).toHaveURL(firstUrl)
 
         // At 1440 px the invoice opens beside the 320 px column, whose list keys stay active
         // under the read view: ArrowDown and ArrowUp move the row focus there.
@@ -206,24 +262,11 @@ test.describe('sales-lists: keyboard', () => {
         await expect(page).toHaveURL(salesTabUrl('invoices'))
         await page.setViewportSize(DESKTOP)
         await expect(visible(page, 'sales-list')).toBeVisible()
+    })
 
-        // At 1280 px a mouse press on a row opens it; back on the list, J moves the row
-        // focus from the pressed row and Space ticks the newly focused row (it does not
-        // open the pressed row's invoice). Space again clears it.
-        await salesRow(page, first).click()
-        await expect(page).toHaveURL(firstUrl)
-        await page.goBack()
-        await expect(page).toHaveURL(salesTabUrl('invoices'))
-        await expectFocusedRow(page, first, second)
-        await page.keyboard.press('j')
-        await expectFocusedRow(page, second, first)
-        await page.keyboard.press('Space')
-        await expectTicked(page, second, true)
-        await expectTicked(page, first, false)
-        await expect(page).toHaveURL(salesTabUrl('invoices'))
-        await page.keyboard.press('Space')
-        await expectTicked(page, second, false)
-        await expect(page).toHaveURL(salesTabUrl('invoices'))
+    test('N opens the New menu on All sales and a new invoice on Invoices', async ({ page }) => {
+        await openBooks(page, DESKTOP)
+        await openSales(page)
 
         // On All sales N opens the New menu; Escape closes it.
         await pressTab(page, '1', 'all')

@@ -149,7 +149,7 @@ async function customerWithSortableInvoices(page: Page) {
 }
 
 test.describe('sales-lists: filters and sort', () => {
-    test('desktop: chips, the date range and the customer picker narrow the list, per tab', async ({
+    test('desktop: the customer picker narrows the list to a sub-customer alone, never its parent', async ({
         page,
     }) => {
         await openBooks(page, DESKTOP)
@@ -189,22 +189,41 @@ test.describe('sales-lists: filters and sort', () => {
         await expect(salesRow(page, subPosted)).toHaveCount(0)
         await pickSalesCustomer(page, sub)
         await expect(listRows(page)).toHaveCount(2)
+    })
+
+    test('desktop: chips and the date range narrow the list, per tab, and Clear filters resets them', async ({
+        page,
+    }) => {
+        await openBooks(page, DESKTOP)
+        const made = await customerWithInvoices(page, [
+            { rate: '150.00', dueDate: await localToday(page) },
+        ])
+        const posted = made.invoices[0]?.id
+        if (posted === undefined) throw new Error('the invoice was not posted')
+        const customer = { name: made.name, id: made.customerId }
+        const draft = await draftInvoiceFor(page, customer.name, uniqueMemo('Chips draft'))
+
+        await openSales(page)
+        await openSalesTab(page, 'invoices')
+        await pickSalesCustomer(page, customer)
+        await expect(salesRow(page, posted)).toBeVisible()
+        await expect(listRows(page)).toHaveCount(2)
 
         // Draft leaves the draft.
         await visible(page, 'sales-chip-draft').click()
         await expect(visible(page, 'sales-chip-draft')).toHaveAttribute('aria-pressed', 'true')
-        await expect(salesRow(page, subDraft)).toBeVisible()
+        await expect(salesRow(page, draft)).toBeVisible()
         await expect(listRows(page)).toHaveCount(1)
 
         // Open, with the next invoices read held: the last rows stay, the list is busy.
         const invoices = await holdLoads(page, INVOICES_URL)
         await visible(page, 'sales-chip-open').click()
         await expect.poll(() => invoices.held.length).toBeGreaterThan(0)
-        await expect(salesRow(page, subDraft)).toBeVisible()
+        await expect(salesRow(page, draft)).toBeVisible()
         await expect(visible(page, 'sales-list')).toHaveAttribute('aria-busy', 'true')
         await invoices.release()
-        await expect(salesRow(page, subPosted)).toBeVisible()
-        await expect(salesRow(page, subDraft)).toHaveCount(0)
+        await expect(salesRow(page, posted)).toBeVisible()
+        await expect(salesRow(page, draft)).toHaveCount(0)
         await expect(visible(page, 'sales-list')).not.toHaveAttribute('aria-busy', 'true')
 
         // Last month holds none of today's documents.
@@ -222,7 +241,7 @@ test.describe('sales-lists: filters and sort', () => {
 
         // Back on Invoices its filters are kept.
         await openSalesTab(page, 'invoices')
-        await expect(visible(page, 'sales-customer')).toContainText(sub.name)
+        await expect(visible(page, 'sales-customer')).toContainText(customer.name)
         await expect(visible(page, 'sales-range')).toContainText('Last month')
         await expect(visible(page, 'sales-chip-open')).toHaveAttribute('aria-pressed', 'true')
         await expect(visible(page, 'sales-no-match')).toBeVisible()

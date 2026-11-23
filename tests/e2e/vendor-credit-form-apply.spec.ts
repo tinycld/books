@@ -220,8 +220,15 @@ test.describe('vendor-credit-form: apply from the keyboard', () => {
         await expect(block).toContainText(`Bill ${second.number} · ${today} · $40.00`)
         await expect(page.getByTestId('vendor-credit-total-unapplied')).toContainText('$10.00')
         await expect(page.getByTestId('vendor-credit-badge')).toHaveText('Partly applied')
+    })
 
-        // Escape closes the dialog of a second credit with no application.
+    // Its own vendor and credit: the spread test above ran close to the test timeout on CI.
+    test('Escape closes the dialog and applies nothing', async ({ page }) => {
+        await openBooks(page)
+        const { vendor, bills } = await vendorWithBills(page, {
+            bills: [{ amount: '30.00', due: await localDay(page, 5) }],
+        })
+        const [bill] = bills
         await postVendorCredit(page, {
             vendor: vendor.name,
             account: RENT,
@@ -229,9 +236,9 @@ test.describe('vendor-credit-form: apply from the keyboard', () => {
             memo: uniqueMemo('Vendor credit apply escape'),
         })
         await page.keyboard.press('a')
+        const dialog = applyDialog(page)
         await expect(dialog).toBeVisible()
-        // The first credit's removal opened bill 1 again: it is listed first.
-        await expect(applyAmountCell(page, first.id)).toBeFocused()
+        await expect(applyAmountCell(page, bill.id)).toBeFocused()
         await page.keyboard.press('Escape')
         await expect(dialog).toHaveCount(0)
         await expect(shown(page, 'vendor-credit-badge')).toHaveText('Posted')
@@ -376,24 +383,41 @@ test.describe('vendor-credit-form: apply refusals', () => {
     })
 })
 
-test.describe('vendor-credit-form: remove and empty states', () => {
-    test('no open bill, Remove, and the failed and held reads', async ({ page }) => {
-        const memo = uniqueMemo('Vendor credit apply remove')
-        await openBooks(page)
-        const { vendor, bills } = await vendorWithBills(page, {
-            bills: [{ amount: '30.00', due: await localDay(page, 5) }],
-        })
-        const [bill] = bills
-        const credit = await postVendorCredit(page, {
-            vendor: vendor.name,
-            account: RENT,
-            amount: '50.00',
-            memo,
-        })
-        const title = `Vendor credit ${credit.number} · ${vendor.name}`
-        const today = formatDay(await localToday(page))
+// Books open on a vendor with one open bill of $30.00 and a posted $50.00 credit, whose
+// read view is on screen. With `applied`, the credit pays the bill in full.
+async function creditWithOneBill(page: Page, label: string, applied: boolean) {
+    const memo = uniqueMemo(label)
+    await openBooks(page)
+    const { vendor, bills } = await vendorWithBills(page, {
+        bills: [{ amount: '30.00', due: await localDay(page, 5) }],
+    })
+    const [bill] = bills
+    const credit = await postVendorCredit(page, {
+        vendor: vendor.name,
+        account: RENT,
+        amount: '50.00',
+        memo,
+    })
+    const title = `Vendor credit ${credit.number} · ${vendor.name}`
+    if (applied) {
         await applyCreditToBill(page, { memo, billId: bill.id, amount: '30.00' })
         await expect(shown(page, 'vendor-credit-badge')).toHaveText('Partly applied')
+    }
+    return { memo, vendor, bill, title }
+}
+
+// Each test makes its own vendor, bill and credit: the four states are independent, and
+// one test for all of them ran past the test timeout on CI.
+test.describe('vendor-credit-form: remove and empty states', () => {
+    test('a refused applications read shows the load notice, and Retry loads the row', async ({
+        page,
+    }) => {
+        const { memo, bill, title } = await creditWithOneBill(
+            page,
+            'Vendor credit apply failed read',
+            true
+        )
+        const today = formatDay(await localToday(page))
 
         // A refused applications read: the block shows its load notice with Retry, no
         // rows, and Retry loads the row.
@@ -413,6 +437,16 @@ test.describe('vendor-credit-form: remove and empty states', () => {
         await expect(blockBanner).toHaveCount(0)
         await expect(failedBlock).toContainText(`Bill ${bill.number} · ${today} · $30.00`)
         await failed.close()
+    })
+
+    test('no open bill: A opens the empty dialog and New bill; Remove asks first and gives the credit back', async ({
+        page,
+    }) => {
+        const { memo, vendor, bill, title } = await creditWithOneBill(
+            page,
+            'Vendor credit apply remove',
+            true
+        )
 
         // The vendor's only bill is paid: no notice, but A still opens the dialog, with
         // the empty text, a New bill button and no Apply credit to press.
@@ -469,6 +503,14 @@ test.describe('vendor-credit-form: remove and empty states', () => {
         await expect(shown(page, 'vendor-credit-apply-notice')).toContainText(
             noticeText(vendor.name, 1)
         )
+    })
+
+    test('a held open-bills read shows no notice until it lands', async ({ page }) => {
+        const { memo, vendor, title } = await creditWithOneBill(
+            page,
+            'Vendor credit apply held read',
+            false
+        )
 
         // A held open-bills read on a fresh page (realtime cut, lesson 22): no notice
         // while it is pending, the notice once it lands.
@@ -495,6 +537,16 @@ test.describe('vendor-credit-form: remove and empty states', () => {
         )
         await pending.unrouteAll({ behavior: 'wait' })
         await pending.close()
+    })
+
+    test('a refused open-bills read: the dialog shows the load error, and Retry loads the bill', async ({
+        page,
+    }) => {
+        const { memo, vendor, bill, title } = await creditWithOneBill(
+            page,
+            'Vendor credit apply refused read',
+            false
+        )
 
         // A refused open-bills read: no notice, and the dialog shows the load error with
         // Apply credit disabled.
