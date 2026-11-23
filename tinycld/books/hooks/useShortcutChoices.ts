@@ -24,9 +24,9 @@ export function useShortcutChoices(list: readonly Shortcut[], term: string) {
         reports: reports.reports,
         accounts: accounts.options,
     })
-    const recovery = mergeRecoveries([reports.recovery, accounts.recovery])
+    // One call over every failed read, so a source shared by two of them is cleaned once.
+    const recovery = mergeRecoveries([reports.recovery, accounts.recovery, access.recovery])
     const retry = () => {
-        if (access.isError) access.retry()
         void recoverLiveQueries({
             ...recovery,
             onError: err => log.error('books.sidebar.shortcuts', err),
