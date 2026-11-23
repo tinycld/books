@@ -1693,6 +1693,8 @@ func TestSettingsSource(t *testing.T) {
 // shippedSpecSHA256 is the sha256 of each shipped report's spec JSON before
 // the 1099 report's source additions (recorded 2026-11-22 on
 // books/p5-1099-report@d5355c4c). Adding a field or a link changes none.
+// books.audit_log was recorded again when email-share added its "Sent email"
+// record type to the record filter.
 var shippedSpecSHA256 = map[string]string{
 	"books.trial_balance":             "19e7ecb3e997db35fa0b40b37aa92a43d5b1113e3dc08096c9b2de1219781be4",
 	"books.general_ledger":            "67039989cb7520f2dfd073de18c6f7e9b08fe33cdc2bfd2cade21e9f8e8a784c",
@@ -1709,7 +1711,7 @@ var shippedSpecSHA256 = map[string]string{
 	"books.expenses_by_vendor":        "bab952a0eddc89363fbde7ef8fce48c5f2496c56b4b815672d2cd66094a4629d",
 	"books.sales_by_customer":         "f4cddc28675db506d709a0ad07f936d599dd91e849d14b5546d0b8b042bc7ebc",
 	"books.sales_by_product":          "ac3251b812b61071e29689a41c25a6fb471998def42e1cb4bfc3abf074cfc3e0",
-	"books.audit_log":                 "34ad17fa387887d353cb91dd1e37bb3bdc682ccaceb86644bb0df6d8d99548f7",
+	"books.audit_log":                 "b3e2031cfbfb63266e7b77ad4412b924bb896bde6c7fd20c64cd7a30895b1dbc",
 	"books.statement_balance_forward": "f58b854ec692b8498c49c1fb487eb3192bebf6b774233b1d9fd765d4df2ccdeb",
 	"books.statement_open_items":      "eee17337b00fc4b9b9fc010fdeaaa64127fffaabf9a67976331bf579040300e7",
 }
