@@ -1,4 +1,4 @@
-import { Landmark, List, ListChecks, Percent, Receipt } from 'lucide-react-native'
+import { Landmark, LayoutDashboard, List, ListChecks, Percent, Receipt } from 'lucide-react-native'
 import { describe, expect, it } from 'vitest'
 import { accessFromRow } from '../tinycld/books/lib/access'
 import { NEW_ACTIONS, type NewAction } from '../tinycld/books/lib/new-actions'
@@ -410,17 +410,60 @@ describe('settings sidebar entry', () => {
     })
 })
 
-describe('banking sidebar entry', () => {
-    it('is the first entry, in the top group above Lists, with no New action, Lists card or hidden FAB', () => {
+// Dashboard spec §2: a new first entry in the top group, above Banking, shown to every
+// Books reader; no + New item, no Lists hub card, and the phone New button shows.
+describe('dashboard sidebar entry', () => {
+    function dashboardEntry(): SidebarEntry {
+        const dashboard = SIDEBAR_ENTRIES.find(e => e.id === 'dashboard')
+        if (!dashboard) throw new Error('SIDEBAR_ENTRIES has no dashboard entry')
+        return dashboard
+    }
+
+    it('is the first entry, in the top group above Banking', () => {
         expect(SIDEBAR_ENTRIES[0]).toEqual({
+            id: 'dashboard',
+            label: 'Dashboard',
+            icon: LayoutDashboard,
+            href: 'books/dashboard',
+            available: true,
+        })
+        expect(SIDEBAR_ENTRIES[0]?.group).toBeUndefined()
+        expect(sidebarSections(availableOnly(SIDEBAR_ENTRIES)).top.map(e => e.id)).toEqual([
+            'dashboard',
+            'banking',
+            'sales',
+            'expenses',
+            'lists',
+            'reports',
+        ])
+    })
+
+    it('has no New action and no Lists card, and keeps the New button', () => {
+        for (const item of [...NEW_ACTIONS, ...LIST_ENTRIES]) {
+            expect(item.id).not.toBe('dashboard')
+            expect(item.href).not.toBe('books/dashboard')
+        }
+        expect(hidesNewFab('/a/books/dashboard')).toBe(false)
+    })
+
+    it('is active on the dashboard and not on the Lists hub', () => {
+        expect(isActivePath('/a/org/books/dashboard', dashboardEntry())).toBe(true)
+        expect(isActivePath('/a/org/books/lists', dashboardEntry())).toBe(false)
+    })
+})
+
+describe('banking sidebar entry', () => {
+    it('is the second entry, in the top group above Lists, with no New action, Lists card or hidden FAB', () => {
+        expect(SIDEBAR_ENTRIES[1]).toEqual({
             id: 'banking',
             label: 'Banking',
             icon: Landmark,
             href: 'books/banking',
             available: true,
         })
-        expect(SIDEBAR_ENTRIES[0]?.group).toBeUndefined()
+        expect(SIDEBAR_ENTRIES[1]?.group).toBeUndefined()
         expect(sidebarSections(availableOnly(SIDEBAR_ENTRIES)).top.map(e => e.id)).toEqual([
+            'dashboard',
             'banking',
             'sales',
             'expenses',
@@ -444,8 +487,8 @@ describe('sales sidebar entry', () => {
         return sales
     }
 
-    it('is the second top entry, between Banking and Expenses, at books/sales', () => {
-        expect(SIDEBAR_ENTRIES[1]).toEqual({
+    it('is the third top entry, between Banking and Expenses, at books/sales', () => {
+        expect(SIDEBAR_ENTRIES[2]).toEqual({
             id: 'sales',
             label: 'Sales',
             icon: Receipt,
@@ -461,7 +504,7 @@ describe('sales sidebar entry', () => {
             available: true,
         })
         const top = sidebarSections(availableOnly(SIDEBAR_ENTRIES)).top.map(e => e.id)
-        expect(top.slice(0, 3)).toEqual(['banking', 'sales', 'expenses'])
+        expect(top.slice(1, 4)).toEqual(['banking', 'sales', 'expenses'])
     })
 
     it.each([

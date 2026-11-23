@@ -1,19 +1,17 @@
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router } from 'expo-router'
 import { availableOnly, LIST_ENTRIES, type ListEntry } from '../lib/shell-nav'
-import { useBooksAccess } from './useBooksAccess'
-import { useSetupCompleted } from './useSetupCompleted'
+import { useShowSetupCard } from './useShowSetupCard'
 
 export function useListsHub(entries: readonly ListEntry[] = LIST_ENTRIES) {
     const orgHref = useOrgHref()
-    const access = useBooksAccess()
-    const setupCompleted = useSetupCompleted()
+    const showSetupCard = useShowSetupCard()
     const cards = availableOnly(entries)
 
     return {
         cards,
         isEmpty: cards.length === 0,
-        showSetupCard: access.isAdmin && setupCompleted === false,
+        showSetupCard,
         open: (entry: ListEntry) => router.push(orgHref(entry.href)),
     }
 }

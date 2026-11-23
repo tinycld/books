@@ -8,71 +8,25 @@
 // The two view-row lists hold the fields of the generated view types
 // (`BooksInvoiceDueTotals`, `BooksPaymentDayTotals`, ../types), which migration
 // `2100000041_create_books_dashboard_views.js` defines; `satisfies` checks them
-// against those types. The widget model types below are the shapes
-// `lib/dashboard-figures.ts` and `lib/dashboard-prefs.ts` return; the checkpoint
-// that adds those modules moves the types there and this file imports them.
+// against those types. The widget ids, the periods and the preference come from
+// `lib/dashboard-prefs.ts`, and the Invoices model from `lib/dashboard-figures.ts`;
+// the other widget model types below move to `lib/dashboard-figures.ts` with the
+// widgets that compute them.
 
 import type { BooksInvoiceDueTotals, BooksPaymentDayTotals } from '../types'
+import type { InvoicesModel, Loadable } from './dashboard-figures'
+import {
+    type DashboardPrefs,
+    DEFAULT_DASHBOARD_PREFS,
+    type PeriodId,
+    type SalesPeriodId,
+    WIDGET_IDS,
+} from './dashboard-prefs'
 
 // The day the reference is drawn on: Overdue and the 30-day window are computed against it.
 export const DASHBOARD_TODAY = '2026-11-22'
 
 export const DASHBOARD_CURRENCY = 'USD'
-
-export const WIDGET_IDS = [
-    'invoices',
-    'expenses',
-    'bankAccounts',
-    'profitAndLoss',
-    'sales',
-] as const
-
-export type WidgetId = (typeof WIDGET_IDS)[number]
-
-export const WIDGET_NAMES: Record<WidgetId, string> = {
-    invoices: 'Invoices',
-    expenses: 'Expenses',
-    bankAccounts: 'Bank accounts',
-    profitAndLoss: 'Profit and loss',
-    sales: 'Sales',
-}
-
-export const PERIOD_LABELS = {
-    this_month: 'This month',
-    last_month: 'Last month',
-    this_quarter: 'This quarter',
-    this_fiscal_year: 'This fiscal year',
-    last_fiscal_year: 'Last fiscal year',
-} as const
-
-export type PeriodId = keyof typeof PERIOD_LABELS
-
-export const SALES_PERIOD_LABELS = {
-    last_6_months: 'Last 6 months',
-    last_12_months: 'Last 12 months',
-    this_fiscal_year: 'This fiscal year',
-} as const
-
-export type SalesPeriodId = keyof typeof SALES_PERIOD_LABELS
-
-// Spec §4 "Preference shape".
-export interface DashboardPrefs {
-    order: WidgetId[]
-    hidden: WidgetId[]
-    hideAmounts: boolean
-    periods: { profitAndLoss: PeriodId; expenses: PeriodId; sales: SalesPeriodId }
-}
-
-export const DEFAULT_DASHBOARD_PREFS: DashboardPrefs = {
-    order: [...WIDGET_IDS],
-    hidden: [],
-    hideAmounts: false,
-    periods: {
-        profitAndLoss: 'this_fiscal_year',
-        expenses: 'this_fiscal_year',
-        sales: 'last_6_months',
-    },
-}
 
 // Three due dates before DASHBOARD_TODAY (overdue: 2,760.00 over 3 invoices) and two
 // after it (not due yet: 6,180.00).
@@ -94,17 +48,6 @@ export const PAYMENT_DAY_TOTALS = [
 ] satisfies Pick<BooksPaymentDayTotals, 'id' | 'date' | 'amount' | 'count'>[]
 
 // Every amount of a model is in integer cents.
-export interface InvoicesModel {
-    isEmpty: boolean
-    unpaid: number
-    overdue: number
-    notDue: number
-    overdueCount: number
-    paidLast30Days: number
-    // The balance of the Undeposited funds accounts; the line shows only when not zero.
-    waitingToDeposit: number
-}
-
 export interface ExpenseRow {
     key: string
     label: string
@@ -161,11 +104,6 @@ export interface SalesModel {
     total: number
     months: SalesMonth[]
 }
-
-export type Loadable<T> =
-    | { status: 'ready'; model: T }
-    | { status: 'loading' }
-    | { status: 'error' }
 
 export interface DashboardWidgets {
     invoices: Loadable<InvoicesModel>
