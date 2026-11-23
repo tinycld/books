@@ -182,6 +182,13 @@ describe('the vendor credit fields', () => {
         expect(AUDIT_FIELDS.books_vendor_credit_applications?.amount?.kind).toBe('money')
     })
 
+    it('names an entry\'s card mark as the yes/no field "Card payment"', () => {
+        expect(AUDIT_FIELDS.books_journal_entries?.card_payment).toEqual({
+            label: 'Card payment',
+            kind: 'bool',
+        })
+    })
+
     it('reads an entry of type vendor_credit as "Vendor credit"', () => {
         const options = AUDIT_FIELDS.books_journal_entries?.doc_type?.options ?? []
         expect(options).toContainEqual({ value: 'vendor_credit', label: 'Vendor credit' })

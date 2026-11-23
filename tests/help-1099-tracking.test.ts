@@ -90,6 +90,14 @@ describe('help/1099-tracking.md', () => {
         expect(stripped).not.toMatch(/\b[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|org|net|io|dev|app|co)\b/i)
     })
 
+    // report-1099 checkpoint 5 (spec §3 "Help"): the topic names the report and links its
+    // section of the reports topic by a link whose text names the report.
+    it('names the 1099 Summary and Detail report and links it in the reports topic', () => {
+        expect(body).toContain('1099 Summary and Detail')
+        const links = [...body.matchAll(/\[([^\]]+)\]\(help:\/\/books:reports\)/g)].map(m => m[1])
+        expect(links.some(text => /\b1099 Summary and Detail\b/.test(text))).toBe(true)
+    })
+
     it('is linked from vendors.md and settings.md', () => {
         expect(read('vendors.md')).toContain('help://books:1099-tracking')
         expect(read('settings.md')).toContain('help://books:1099-tracking')

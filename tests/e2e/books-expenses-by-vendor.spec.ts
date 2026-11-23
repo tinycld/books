@@ -662,12 +662,14 @@ test.describe('expenses-by-vendor: entry points and phone rows', () => {
         await expect(expenses).toHaveText('Expenses by Vendor')
         await expect
             .poll(() => reportsMenuItems(page), {
-                message: 'the menu holds Vendor Balance, A/P Aging, Expenses by Vendor in order',
+                message:
+                    'the menu holds Vendor Balance, A/P Aging, Expenses by Vendor, 1099 Summary and Detail in order',
             })
             .toEqual([
                 'vendors-reports-balance',
                 'vendors-reports-aging',
                 'vendors-reports-expenses',
+                'vendors-reports-1099',
             ])
         await expenses.click()
         await expect(page.getByTestId('report-screen')).toBeVisible()

@@ -24,10 +24,12 @@ import (
 // posted document this one corrects ("" for none): the new entry replaces it
 // and takes its number. Customer (a sales document's) or Vendor (a purchase
 // document's) is named on every line that names no party of its own; the
-// other is empty.
+// other is empty. CardPayment is the entry's card mark (isCardPayment): only an
+// expense, a bill payment and a vendor refund set it.
 type documentPost struct {
 	DocType, DocumentID, Date, Memo, Actor, Customer, Vendor, Replaces string
 	Lines                                                              []postingLine
+	CardPayment                                                        bool
 }
 
 // postingLine is one line of a document's entry: one side is 0. Memo is the
@@ -67,6 +69,7 @@ func postDocument(tx core.App, p documentPost) (*core.Record, error) {
 		entry.Set("document", p.DocumentID)
 		entry.Set("memo", p.Memo)
 		entry.Set("replaces", p.Replaces)
+		entry.Set("card_payment", p.CardPayment)
 		entry.Set("created_by", p.Actor)
 		if err := tx.Save(entry); err != nil {
 			return err

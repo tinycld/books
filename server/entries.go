@@ -93,15 +93,24 @@ func registerEntryHooks(app core.App) {
 	// the balance rows and the number counter; a void also writes and posts
 	// a reversal. Any refusal rolls all of it back, and PocketBase's own
 	// write of the entry joins the transaction.
+	// An update that changes the card mark or the doc type moves the copies on
+	// the entry's lines and cash-basis rows with it, after the entry's write.
 	app.OnRecordUpdate("books_journal_entries").BindFunc(func(e *core.RecordEvent) error {
-		return serialized(e, func(tx core.App) error {
+		var stored *core.Record
+		return serializedThen(e, func(tx core.App) error {
 			// The stored row, not Original(): a caller that saved a record and
 			// changed it again without reloading carries a stale Original().
-			stored, err := tx.FindRecordById("books_journal_entries", e.Record.Id)
+			var err error
+			stored, err = tx.FindRecordById("books_journal_entries", e.Record.Id)
 			if err != nil {
 				return err
 			}
 			return transitionEntry(tx, stored, e.Record, time.Now())
+		}, func(tx core.App) error {
+			if !entryCopiesChanged(stored, e.Record) {
+				return nil
+			}
+			return copyEntryToRows(tx, e.Record)
 		})
 	})
 }
