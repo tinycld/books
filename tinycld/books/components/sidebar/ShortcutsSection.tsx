@@ -1,6 +1,10 @@
 import { SidebarHeading, SidebarItem } from '@tinycld/core/components/sidebar-primitives'
+import { useWorkspaceStore } from '@tinycld/core/lib/stores/workspace-store'
+import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { router } from 'expo-router'
+import { Pencil } from 'lucide-react-native'
 import { Pressable, Text, View } from 'react-native'
+import { useCustomizeShortcuts } from '../../hooks/useCustomizeShortcuts'
 import { useShortcutRows } from '../../hooks/useShortcutRows'
 import type { ShortcutRow } from '../../lib/shortcut-rows'
 
@@ -33,6 +37,33 @@ function ShortcutsError({ isVisible, onRetry }: { isVisible: boolean; onRetry: (
     )
 }
 
+// Opens the Customize shortcuts dialog. Hidden until the list is read: the dialog edits
+// a copy of the list, and there is none to copy before that.
+function CustomizeButton() {
+    const { canOpen, open } = useCustomizeShortcuts()
+    const setDrawerOpen = useWorkspaceStore(state => state.setDrawerOpen)
+    const color = useThemeColor('muted-foreground')
+    if (!canOpen) return null
+    // On a phone the sidebar is in the drawer, which would stay over the page behind the
+    // sheet; the dialog itself is drawn by the Books layout, so it stays.
+    const onPress = () => {
+        setDrawerOpen(false)
+        open()
+    }
+    return (
+        <Pressable
+            testID="books-shortcuts-customize"
+            accessibilityRole="button"
+            accessibilityLabel="Customize shortcuts"
+            onPress={onPress}
+            hitSlop={12}
+            className="items-center justify-center pt-3"
+        >
+            <Pencil size={14} color={color} />
+        </Pressable>
+    )
+}
+
 // A shortcut never shows the active highlight: the fixed navigation under it marks where
 // the user is, and a second mark for the same screen would be noise.
 function renderRow(row: ShortcutRow) {
@@ -54,7 +85,7 @@ export function ShortcutsSection() {
     const items = rows.map(renderRow)
     return (
         <>
-            <SidebarHeading>Shortcuts</SidebarHeading>
+            <SidebarHeading action={<CustomizeButton />}>Shortcuts</SidebarHeading>
             {items}
             <ShortcutsNote isVisible={isEmpty} text="No shortcuts" />
             <ShortcutsError isVisible={isError} onRetry={retry} />

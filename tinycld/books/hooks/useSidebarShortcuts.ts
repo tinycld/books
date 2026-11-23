@@ -91,11 +91,13 @@ export function useSidebarShortcuts() {
     })
 
     const canWrite = isReady && !isError
-    const save = (next: Shortcut[]) => {
-        if (canWrite) saveMutation.mutate(next)
+    // `onSuccess` runs after the write is saved; a refused write shows the toast and does
+    // not call it, so a caller that holds unsaved input (the Customize dialog) keeps it.
+    const save = (next: Shortcut[], onSuccess?: () => void) => {
+        if (canWrite) saveMutation.mutate(next, { onSuccess })
     }
-    const reset = () => {
-        if (canWrite) resetMutation.mutate()
+    const reset = (onSuccess?: () => void) => {
+        if (canWrite) resetMutation.mutate(undefined, { onSuccess })
     }
     const recovery: LiveRecovery =
         isError && query ? { queries: [query], sources: [shortcutsCollection] } : NO_RECOVERY
