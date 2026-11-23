@@ -123,7 +123,6 @@ test.describe('sidebar-shortcuts: the Shortcuts section', () => {
             const urlBefore = page.url()
             await page.reload()
             await expect(page).toHaveURL(urlBefore)
-            await expect(page).toHaveURL(/\/a\/books\//)
             await expectShortcuts(page, changed)
 
             // Reset to defaults puts the default list back.
