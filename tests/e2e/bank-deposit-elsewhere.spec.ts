@@ -62,6 +62,17 @@ function pageOverflow(page: Page) {
     })
 }
 
+// Books must be open. Posts a sales receipt by check to Undeposited funds and returns its
+// reference no., memo and id. Leaves the page on the receipt's read view.
+async function postOwnReceipt(page: Page) {
+    const reference = uniqueReference('DR')
+    const memo = uniqueMemo('Deposited receipt')
+    await postUndepositedReceipt(page, { reference, memo, amount: '140.00' })
+    const id = /\/books\/sales-receipts\/([^/?#]+)$/.exec(new URL(page.url()).pathname)?.[1]
+    if (!id) throw new Error(`not on the sales receipt: ${page.url()}`)
+    return { reference, memo, id }
+}
+
 // Books must be open. Deposits the one own item whose Payment text is `itemText` and
 // returns the deposit and the item's journal line id. Leaves the page on the deposit's read
 // view. It first goes back to the Journal Entries list with the posted record's own Back, so
@@ -71,30 +82,22 @@ async function depositOnly(page: Page, itemText: string) {
     await openEntriesList(page)
     await openNewDeposit(page)
     const line = await tickDepositItemWithText(page, itemText)
-    const memo = uniqueMemo('Deposit elsewhere')
-    const deposit = await postOpenDeposit(page, memo)
-    return { line, deposit: { ...deposit, memo } }
+    const deposit = await postOpenDeposit(page, uniqueMemo('Deposit elsewhere'))
+    return { line, deposit }
 }
 
 test.describe('bank-deposit: elsewhere', () => {
-    test('a deposited sales receipt offers no Edit or Void and links to the deposit; the deposit void frees it', async ({
+    test('a deposited sales receipt offers no Edit or Void and links to the deposit', async ({
         page,
     }) => {
         await openBooks(page)
 
         // Setup: an own sales receipt on 1200, deposited alone.
-        const receiptRef = uniqueReference('DR')
-        const receiptMemo = uniqueMemo('Deposited receipt')
-        await postUndepositedReceipt(page, {
-            reference: receiptRef,
-            memo: receiptMemo,
-            amount: '140.00',
-        })
-        const receiptId = /\/books\/sales-receipts\/([^/?#]+)$/.exec(
-            new URL(page.url()).pathname
-        )?.[1]
-        if (!receiptId) throw new Error(`not on the sales receipt: ${page.url()}`)
-        const { line: receiptLine, deposit } = await depositOnly(page, `Check · ${receiptRef}`)
+        const receipt = await postOwnReceipt(page)
+        const { line: receiptLine, deposit } = await depositOnly(
+            page,
+            `Check · ${receipt.reference}`
+        )
 
         // The sales receipt: the notice, no Edit or Void, View journal entry stays.
         await shownDeposit(page, `deposit-item-link-${receiptLine}`).click()
@@ -139,31 +142,6 @@ test.describe('bank-deposit: elsewhere', () => {
         await shownDeposit(page, 'in-deposit-link').click()
         await expect(page).toHaveURL(depositUrlOf(deposit.id))
         await expect(shownDeposit(page, 'deposit-read-only')).toBeVisible()
-
-        // The deposit is voided: the sales receipt offers Edit and Void again, with no notice.
-        await openDepositBySearch(page, deposit.memo)
-        await expect(page).toHaveURL(depositUrlOf(deposit.id))
-        // V registers only once the read bar offers Void.
-        const voidDialog = page.getByTestId('void-dialog')
-        await expect(shownDeposit(page, 'deposit-read-void')).toBeVisible()
-        await page.keyboard.press('v')
-        await expect(voidDialog).toBeVisible()
-        await page.getByTestId('void-confirm').click()
-        await expect(voidDialog).toHaveCount(0)
-        await expect(shownDeposit(page, 'deposit-badge')).toHaveText('Void')
-        await openSalesReceiptBySearch(page, receiptMemo)
-        await expect(page).toHaveURL(new RegExp(`/books/sales-receipts/${receiptId}$`))
-        await expect(shownDeposit(page, 'sales-receipt-read-edit')).toBeVisible()
-        await expect(shownDeposit(page, 'sales-receipt-read-void')).toBeVisible()
-        await expect(shownDeposit(page, 'in-deposit-notice')).toHaveCount(0)
-
-        // The control for the E and V check above: on this same read view the key V now
-        // reaches the receipt and opens its Void dialog. Cancel keeps the receipt posted.
-        await page.keyboard.press('v')
-        await expect(voidDialog).toBeVisible()
-        await voidDialog.getByRole('button', { name: 'Cancel', exact: true }).click()
-        await expect(voidDialog).toHaveCount(0)
-        await expect(shownDeposit(page, 'sales-receipt-badge')).toHaveText('Posted')
     })
 
     test('a deposited payment offers no Edit or Void and names this payment', async ({ page }) => {
@@ -224,7 +202,48 @@ test.describe('bank-deposit: elsewhere', () => {
         await expect(shownDeposit(page, 'entry-badge')).toHaveText('Posted')
     })
 
-    test('the help icon of a new deposit opens the Bank deposits topic', async ({ page }) => {
+    test('a void of the deposit gives its sales receipt Edit and Void again', async ({ page }) => {
+        await openBooks(page)
+        const receipt = await postOwnReceipt(page)
+        const { line: receiptLine, deposit } = await depositOnly(
+            page,
+            `Check · ${receipt.reference}`
+        )
+
+        // While deposited, the receipt offers no Edit or Void.
+        await shownDeposit(page, `deposit-item-link-${receiptLine}`).click()
+        await expect(page).toHaveURL(new RegExp(`/books/sales-receipts/${receipt.id}$`))
+        await expect(shownDeposit(page, 'in-deposit-notice')).toBeVisible()
+        await expect(shownDeposit(page, 'sales-receipt-read-edit')).toHaveCount(0)
+        await expect(shownDeposit(page, 'sales-receipt-read-void')).toHaveCount(0)
+
+        // The deposit is voided: the sales receipt offers Edit and Void again, with no notice.
+        await shownDeposit(page, 'in-deposit-link').click()
+        await expect(page).toHaveURL(depositUrlOf(deposit.id))
+        // V registers only once the read bar offers Void.
+        const voidDialog = page.getByTestId('void-dialog')
+        await expect(shownDeposit(page, 'deposit-read-void')).toBeVisible()
+        await page.keyboard.press('v')
+        await expect(voidDialog).toBeVisible()
+        await page.getByTestId('void-confirm').click()
+        await expect(voidDialog).toHaveCount(0)
+        await expect(shownDeposit(page, 'deposit-badge')).toHaveText('Void')
+        await openSalesReceiptBySearch(page, receipt.memo)
+        await expect(page).toHaveURL(new RegExp(`/books/sales-receipts/${receipt.id}$`))
+        await expect(shownDeposit(page, 'sales-receipt-read-edit')).toBeVisible()
+        await expect(shownDeposit(page, 'sales-receipt-read-void')).toBeVisible()
+        await expect(shownDeposit(page, 'in-deposit-notice')).toHaveCount(0)
+
+        // The control for the E and V check of the first test: on a freed receipt the key V now
+        // reaches the receipt and opens its Void dialog. Cancel keeps the receipt posted.
+        await page.keyboard.press('v')
+        await expect(voidDialog).toBeVisible()
+        await voidDialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+        await expect(voidDialog).toHaveCount(0)
+        await expect(shownDeposit(page, 'sales-receipt-badge')).toHaveText('Posted')
+    })
+
+    test('the help icon of a new deposit opens the topic Bank deposits', async ({ page }) => {
         await openBooks(page)
         await openNewDeposit(page)
         await shownDeposit(page, 'deposit-form').getByLabel('Open help').click()

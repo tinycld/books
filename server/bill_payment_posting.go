@@ -72,6 +72,10 @@ func postBillPayment(tx core.App, p *core.Record, now time.Time) error {
 		Vendor:     p.GetString("vendor"),
 		Lines:      append(debits, postingLine{Account: account.Id, Credit: total}),
 	}
+	post.CardPayment, err = isCardPayment(tx, p.GetString("payment_method"), account.Id)
+	if err != nil {
+		return err
+	}
 	if original != nil {
 		post.Replaces = original.GetString("entry")
 	}

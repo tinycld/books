@@ -132,6 +132,8 @@ describe('registerCollections', () => {
                 'posted_at',
                 'posted_by',
                 'currency',
+                // The server marks a card payment's entry (1099 report spec §4).
+                'card_payment',
             ])
         )
         expect(calls.get('books_journal_lines')?.omitOnInsert).toEqual(

@@ -100,6 +100,9 @@ func registerImmutabilityGuards(app core.App) {
 			if err := checkLineStamp(tx, stored, e.Record); err != nil {
 				return nil, err
 			}
+			if err := checkLineCopies(stored, e.Record, entry); err != nil {
+				return nil, err
+			}
 			return entry, checkLineParty(tx, stored, e.Record)
 		})
 	})
@@ -107,13 +110,15 @@ func registerImmutabilityGuards(app core.App) {
 }
 
 // lineGuard guards a line create and delete. A new line's customer or vendor
-// is checked too; a delete names no party to check.
+// is checked too, and it takes its entry's card mark and doc type
+// (stampEntryCopies); a delete names no party to check.
 func lineGuard(e *core.RecordEvent) error {
 	return serializedLine(e, func(tx core.App) (*core.Record, error) {
 		entry, err := requireDraftEntry(tx, e.Record)
 		if err != nil || !e.Record.IsNew() {
 			return entry, err
 		}
+		stampEntryCopies(e.Record, entry)
 		if err := checkLineStamp(tx, nil, e.Record); err != nil {
 			return nil, err
 		}

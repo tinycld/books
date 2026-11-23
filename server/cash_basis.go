@@ -30,9 +30,14 @@ import (
 // Every write that changes a document's entries or payments rebuilds that
 // document's rows in its own transaction (rebuildCashBasisFor); the ledger
 // rebuild recomputes every document (rebuildCashBasis). Nothing else writes the
-// rows. Each write of a row refreshes the stored cash month of its account
-// (cash_balances.go). An invoice's and a credit memo's sales tax has its own rows, rebuilt with these
-// (cash_basis_tax.go). Whether a payment counts is read from its entry (posted, origin
+// rows, but for the copies of their entry's card mark and doc type, which
+// follow a change of the entry (copyEntryToRows, lines.go). The rows exist
+// only for a posted entry, which refuses every change (transitionEntry), so
+// that copy writes no row today; it is a guard for a later own write that
+// changes a posted entry. Each write of a row refreshes the stored cash month
+// of its account (cash_balances.go). An invoice's and a credit memo's sales
+// tax has its own rows, rebuilt with these (cash_basis_tax.go). Whether a
+// payment counts is read from its entry (posted, origin
 // document, naming the payment), not from the payment row: a payment's post
 // and void change its entry before its own row is saved.
 
@@ -132,11 +137,15 @@ func cashDeferralOf(collection string) (cashDeferral, bool) {
 }
 
 // cashLine is one cash-basis row as Books derives it, and the key a stored row
-// is matched by.
+// is matched by. CardPayment and DocType are the copies of Entry's card mark
+// and doc type (entryCopyFields), so a stored row with a stale copy does not
+// match and the rebuild writes it again.
 type cashLine struct {
 	Entry, PaymentEntry, Account, Vendor, Customer, Date, Memo, Currency string
 	Debit, Credit                                                        int64
 	Position                                                             int
+	CardPayment                                                          bool
+	DocType                                                              string
 }
 
 // cashSourceLine is one posted journal line of a document's entries.
@@ -153,6 +162,9 @@ type cashSourceLine struct {
 	Vendor   string `db:"vendor"`
 	Customer string `db:"customer"`
 	Currency string `db:"currency"`
+	// The entry's card mark and doc type, which its take-out rows copy.
+	CardPayment bool   `db:"card_payment"`
+	DocType     string `db:"doc_type"`
 }
 
 // cashPayment is one posted payment or one application of a document: the
@@ -160,14 +172,17 @@ type cashSourceLine struct {
 // document an application applies), its date (the payment entry's, or the
 // apply date) and that entry's sequence, what it pays on the document, the id
 // it sorts by last (the entry's, or the application's), and the memo of its
-// rows ("" = the deferral's PaidMemo).
+// rows ("" = the deferral's PaidMemo). CardPayment and DocType are the entry's,
+// which its rows copy.
 type cashPayment struct {
-	ID       string `db:"id"`
-	Entry    string `db:"entry"`
-	Date     string `db:"date"`
-	Sequence int    `db:"sequence"`
-	Amount   int64  `db:"amount"`
-	Memo     string `db:"-"`
+	ID          string `db:"id"`
+	Entry       string `db:"entry"`
+	Date        string `db:"date"`
+	Sequence    int    `db:"sequence"`
+	Amount      int64  `db:"amount"`
+	Memo        string `db:"-"`
+	CardPayment bool   `db:"card_payment"`
+	DocType     string `db:"doc_type"`
 }
 
 // documentEntryLinesSQL selects the posted lines of one document's entries
@@ -176,7 +191,8 @@ const documentEntryLinesSQL = `
 	SELECT l.entry AS entry, e.status AS status, e.origin AS origin, e.number AS number,
 	       l.account AS account, CAST(l.debit AS INTEGER) AS debit, CAST(l.credit AS INTEGER) AS credit,
 	       l.date AS date, CAST(l.position AS INTEGER) AS position,
-	       l.vendor AS vendor, l.customer AS customer, l.currency AS currency
+	       l.vendor AS vendor, l.customer AS customer, l.currency AS currency,
+	       e.card_payment AS card_payment, e.doc_type AS doc_type
 	FROM books_journal_lines l
 	JOIN books_journal_entries e ON e.id = l.entry
 	WHERE l.posted = {:posted} AND e.doc_type = {:type} AND (
@@ -251,7 +267,7 @@ func postedPaymentsOf(tx core.App, d cashDeferral, p balancePayer, docID string)
 	var payments []cashPayment
 	err := tx.DB().NewQuery(`
 		SELECT pe.id AS id, pe.id AS entry, pe.date AS date, CAST(pe.sequence AS INTEGER) AS sequence,
-		       CAST(SUM(pl.amount) AS INTEGER) AS amount
+		       CAST(SUM(pl.amount) AS INTEGER) AS amount, pe.card_payment AS card_payment, pe.doc_type AS doc_type
 		FROM ` + p.LinesCollection + ` pl
 		JOIN books_journal_entries pe ON pe.document = pl.` + p.PaymentField + `
 		WHERE pl.` + p.LineField + ` = {:doc} AND pe.doc_type = {:type}
@@ -280,7 +296,7 @@ func applicationsOf(tx core.App, d cashDeferral, p balancePayer, docID string) (
 	var payments []cashPayment
 	err := tx.DB().NewQuery(`
 		SELECT a.id AS id, pe.id AS entry, a.date AS date, CAST(pe.sequence AS INTEGER) AS sequence,
-		       CAST(a.amount AS INTEGER) AS amount
+		       CAST(a.amount AS INTEGER) AS amount, pe.card_payment AS card_payment, pe.doc_type AS doc_type
 		FROM ` + p.LinesCollection + ` a
 		JOIN books_journal_entries pe ON pe.document = a.` + p.EntryField + `
 		WHERE a.` + p.LineField + ` = {:doc} AND pe.doc_type = {:type}
@@ -308,7 +324,7 @@ func wantCashRows(tx core.App, d cashDeferral, docID string) ([]cashLine, error)
 		rows = append(rows, cashLine{
 			Entry: l.Entry, Account: l.Account, Vendor: l.Vendor, Customer: l.Customer,
 			Date: l.Date, Memo: d.UnpaidMemo, Currency: l.Currency,
-			Debit: l.Credit, Credit: l.Debit,
+			Debit: l.Credit, Credit: l.Debit, CardPayment: l.CardPayment, DocType: l.DocType,
 		})
 		if l.Status == statusPosted && l.Origin == originDocument {
 			current = append(current, l)
@@ -361,7 +377,7 @@ func paymentShareRows(tx core.App, d cashDeferral, docID string, current []cashS
 	row := func(l cashSourceLine, p cashPayment, signed int64) cashLine {
 		r := cashLine{
 			Entry: p.Entry, PaymentEntry: p.Entry, Account: l.Account, Vendor: l.Vendor, Customer: l.Customer,
-			Date: p.Date, Memo: memoOf(p), Currency: l.Currency,
+			Date: p.Date, Memo: memoOf(p), Currency: l.Currency, CardPayment: p.CardPayment, DocType: p.DocType,
 		}
 		if signed > 0 {
 			r.Debit = signed
@@ -477,6 +493,7 @@ func storedCashLine(d cashDeferral, r *core.Record) cashLine {
 		Vendor: r.GetString("vendor"), Customer: r.GetString("customer"), Date: r.GetString("date"),
 		Memo: r.GetString("memo"), Currency: r.GetString("currency"),
 		Debit: int64(r.GetInt("debit")), Credit: int64(r.GetInt("credit")), Position: r.GetInt("position"),
+		CardPayment: r.GetBool("card_payment"), DocType: r.GetString("doc_type"),
 	}
 }
 
@@ -531,6 +548,8 @@ func syncCashLineRows(tx core.App, d cashDeferral, docID string) (int, error) {
 		r.Set("memo", w.Memo)
 		r.Set("currency", w.Currency)
 		r.Set("position", w.Position)
+		r.Set("card_payment", w.CardPayment)
+		r.Set("doc_type", w.DocType)
 		if err := tx.Save(r); err != nil {
 			return 0, fmt.Errorf("books: write a cash-basis row of %s %s: %w", d.Kind, docID, err)
 		}
