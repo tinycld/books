@@ -1,6 +1,12 @@
-import type { BooksJournalEntries, BooksJournalLines } from '../types'
+import type {
+    BooksJournalEntries,
+    BooksJournalLines,
+    BooksReconcileLines,
+    BooksReconciliations,
+} from '../types'
 import { addExact, ownBalance } from './account-tree'
 import { type LinePartyRow, linePartyName } from './line-party-options'
+import { type LineStatusWord, lineStatusText } from './reconcile-status'
 import type { RegisterRange } from './register-range'
 
 // `document` lets the drawer's Open of a document's entry open the document
@@ -29,6 +35,16 @@ export type RegisterEntryLine = Pick<
     vendorRow?: LinePartyRow
 }
 
+// The line's `books_reconcile_lines` row, the columns registerLinesQuery selects: absent for a
+// line on an account that cannot be reconciled, or while the row is not loaded. `statement` is
+// the reconciliation the row names, materialized: absent with none or while it is not loaded.
+export type RegisterReconcileRow = Pick<
+    BooksReconcileLines,
+    'id' | 'reconciliation' | 'finished' | 'bank_matched'
+> & {
+    statement?: Pick<BooksReconciliations, 'statement_date'>
+}
+
 export type RegisterSourceLine = Pick<
     BooksJournalLines,
     'id' | 'entry' | 'account' | 'debit' | 'credit' | 'memo' | 'position' | 'date' | 'posted'
@@ -36,6 +52,7 @@ export type RegisterSourceLine = Pick<
     entryRecord: RegisterEntry | undefined
     entryLines: readonly RegisterEntryLine[]
     reversesNumber: string
+    reconcileRow: RegisterReconcileRow | undefined
 }
 
 export type RegisterOrder = 'newest' | 'oldest'
@@ -59,6 +76,11 @@ export type RegisterLine<L extends RegisterSourceLine = RegisterSourceLine> = {
     debit: number
     credit: number
     balance: number | null
+    // The Status word of the line (lineStatusText), and the statement day of the finished
+    // reconciliation that holds it ('' unless the word is "Reconciled", or while that
+    // reconciliation is not loaded).
+    reconcileWord: LineStatusWord
+    statementDate: string
     source: L
 }
 
@@ -89,6 +111,8 @@ export type EntryDetail = {
         // The customer's or vendor's display name, '' when the line names none.
         partyName: string
         isThisAccount: boolean
+        // The Status word of the register's own line; '' on every other line of the entry.
+        reconcileWord: LineStatusWord
     }[]
 }
 
@@ -163,6 +187,12 @@ function otherAccountOf(line: RegisterSourceLine): string | null {
     return line.entryLines.find(l => l.id !== line.id)?.account ?? null
 }
 
+// A cleared line's reconciliation in progress has a statement day too; only a finished one shows.
+function statementDateOf(row: RegisterReconcileRow | undefined): string {
+    if (!row?.finished) return ''
+    return row.statement?.statement_date ?? ''
+}
+
 function toRegisterLine<L extends RegisterSourceLine>(
     line: L,
     balance: number | null
@@ -181,6 +211,8 @@ function toRegisterLine<L extends RegisterSourceLine>(
         debit: line.debit,
         credit: line.credit,
         balance,
+        reconcileWord: lineStatusText(line.reconcileRow),
+        statementDate: statementDateOf(line.reconcileRow),
         source: line,
     }
 }
@@ -227,6 +259,7 @@ export function entryNumberLabel(number: string): string {
 export function entryDetail(line: RegisterSourceLine, accountId: string): EntryDetail | null {
     const entry = line.entryRecord
     if (!entry) return null
+    const word = lineStatusText(line.reconcileRow)
     return {
         date: entry.date,
         number: entry.number,
@@ -246,6 +279,22 @@ export function entryDetail(line: RegisterSourceLine, accountId: string): EntryD
                 memo: l.memo,
                 partyName: linePartyName(l),
                 isThisAccount: l.account === accountId,
+                reconcileWord: l.id === line.id ? word : '',
             })),
+    }
+}
+
+// An entry can put two lines on the register's account (two deposits): the register holds the
+// Status word of each, so the drawer shows the word on every one of them, not only on the line
+// whose source built the detail.
+export function withRegisterWords(
+    detail: EntryDetail | null,
+    rows: readonly Pick<RegisterLine, 'id' | 'reconcileWord'>[]
+): EntryDetail | null {
+    if (!detail) return null
+    const words = new Map(rows.map(row => [row.id, row.reconcileWord]))
+    return {
+        ...detail,
+        lines: detail.lines.map(l => ({ ...l, reconcileWord: words.get(l.id) ?? l.reconcileWord })),
     }
 }

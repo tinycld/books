@@ -1,3 +1,22 @@
+export type CellWidth = { width: number; minWidth?: number } | { minWidth: number }
+
+/**
+ * A table's own minimum width: each cell at its `minWidth` (a fixed cell at its `width`),
+ * the `gap` between each two cells, and the row's `padding` (both sides together).
+ */
+export function tableMinWidth(input: {
+    cells: readonly CellWidth[]
+    gap: number
+    padding: number
+}): number {
+    const { cells, gap, padding } = input
+    const cellsWidth = cells.reduce(
+        (sum, cell) => sum + (cell.minWidth ?? ('width' in cell ? cell.width : 0)),
+        0
+    )
+    return cellsWidth + gap * Math.max(0, cells.length - 1) + padding
+}
+
 /**
  * Whether a list draws cards in place of its table: on a phone, and when the list's own
  * width cannot hold what `ListTable` draws, the table's minimum plus the scrollbar gutter

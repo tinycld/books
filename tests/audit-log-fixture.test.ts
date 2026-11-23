@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ReportSpec } from '@tinycld/core/reports/lib/spec'
 import { describe, expect, it } from 'vitest'
+import { changedFieldRows, fieldValueText } from '../tinycld/books/lib/audit-fields'
 import {
     AUDIT_EVENT_OPTIONS,
     AUDIT_LOG_DESCRIPTION,
@@ -64,6 +65,32 @@ describe('audit log fixture against the Go golden spec', () => {
             label: 'Vendor refund line',
         })
         expect(golden.recordTypeOptions).toEqual(AUDIT_RECORD_TYPE_OPTIONS)
+    })
+
+    // Reconcile spec §4 Server: a reconciliation is audited; its cleared rows are not.
+    it('offers the reconciliation as a record type, and not its cleared rows', () => {
+        const reconciliation = { value: 'books_reconciliations', label: 'Reconciliation' }
+        expect(AUDIT_RECORD_TYPE_OPTIONS).toContainEqual(reconciliation)
+        expect(golden.recordTypeOptions).toContainEqual(reconciliation)
+        const values = AUDIT_RECORD_TYPE_OPTIONS.map(option => option.value)
+        expect(values).not.toContain('books_reconciliation_lines')
+        expect(values).not.toContain('books_reconcile_lines')
+    })
+
+    // Reconciliation report spec §3 Undo: an undo is a Changed row of the Audit Log with
+    // Status "Finished → In progress"; it also clears the stamped finisher name, which the
+    // row names in words.
+    it('reads the changes of an undo with a label for the finisher name', () => {
+        const rows = changedFieldRows('books_reconciliations', {
+            status: { before: 'finished', after: 'in_progress' },
+            finished_by_name: { before: 'Ana Ruiz', after: '' },
+        })
+        const labels = Object.fromEntries(rows.map(row => [row.key, row.label]))
+        expect(labels).toEqual({ status: 'Status', finished_by_name: 'Finished by (name)' })
+        const status = rows.find(row => row.key === 'status')
+        const ctx = { currency: 'USD' }
+        expect(status && fieldValueText(status.field, status.before, ctx)).toBe('Finished')
+        expect(status && fieldValueText(status.field, status.after, ctx)).toBe('In progress')
     })
 
     // Bank deposit spec §3.7: the Record type chip grows by the deposit, its item and its line.

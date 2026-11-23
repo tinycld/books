@@ -1,7 +1,7 @@
 ---
 title: Run and customize a report
 summary: Pick a report, set its period and filters, and change how its numbers look.
-tags: [reports, trial balance, general ledger, balance sheet, journal, profit and loss, transaction detail, sales tax liability, customer balance, a/r aging, vendor balance, expenses by vendor, Audit Log]
+tags: [reports, trial balance, general ledger, balance sheet, journal, profit and loss, transaction detail, sales tax liability, customer balance, a/r aging, vendor balance, expenses by vendor, Audit Log, reconciliation report]
 order: 60
 ---
 
@@ -487,7 +487,7 @@ To see the changes made after you opened the report, press **Refresh**, or press
 
 Transaction Detail by Account opened from a figure, in the panel at the side, has its own **Refresh** button.
 
-The Profit and Loss, the Customer Balance, the Vendor Balance, the A/R Aging, the A/P Aging, the sales reports, the Sales Tax Liability, the Audit Log and the two statement reports stay current: they run again when the books change, and show no **Refresh** button. When someone saves a change to the columns, the filters or the layout of the Profit and Loss, the Customer Balance, the Vendor Balance, the Audit Log or Statement: Balance Forward, that report does not update by itself any more and shows **Refresh**. A change to only the title or the description keeps it current.
+The Profit and Loss, the Customer Balance, the Vendor Balance, the A/R Aging, the A/P Aging, the sales reports, the Sales Tax Liability, the Audit Log, the Reconciliation Report and the two statement reports stay current: they run again when the books change, and show no **Refresh** button. When someone saves a change to the columns, the filters or the layout of the Profit and Loss, the Customer Balance, the Vendor Balance, the Audit Log or Statement: Balance Forward, that report does not update by itself any more and shows **Refresh**. A change to only the title or the description keeps it current.
 
 A report that you build over journal lines, or that shows columns from journal lines, or over the Audit log, does not update by itself. A copy that you keep with Save as of one of the six reports above, of the Profit and Loss, of the Customer Balance, of the Vendor Balance, of the Expenses by Vendor, of the Audit Log or of Statement: Balance Forward does not update by itself either. Each shows the same note and **Refresh** button. A copy of the A/R Aging, of the A/P Aging, of a sales report, of the Sales Tax Liability or of Statement: Open Items stays current.
 
@@ -501,7 +501,7 @@ The Audit Log lists every change that people made to Books records: when, who, w
 
 ## Who sees Books reports
 
-Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month, Transaction Detail by Account, the Sales Tax Liability, the Customer Balance, the A/R Aging, the A/P Aging, the Vendor Balance, the Expenses by Vendor, Sales by Customer, Sales by Product/Service and the Audit Log, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
+Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month, Transaction Detail by Account, the Sales Tax Liability, the Customer Balance, the A/R Aging, the A/P Aging, the Vendor Balance, the Expenses by Vendor, Sales by Customer, Sales by Product/Service, the Reconciliation Report and the Audit Log, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
 
 A reader can change the chips and Customize for the run, copy a link with Copy link, and keep a copy with Save as. Each reader sees only the data that the reader can access.
 
@@ -516,3 +516,7 @@ The sales tax data is in four sources: Sales tax lines, Tax agencies, Tax rates 
 ## Statement reports
 
 Two Books reports hold the lines of customer statements: **Statement: Balance Forward** (a customer's balance before a period, then each Accounts receivable line of the period with the running balance) and **Statement: Open Items** (each item open on a day, with its due date and aging). Every Books reader sees them in the Reports hub. Each statement's PDF is built from one run of its type's report for that customer, as the user who opens it. To make and send statements, see [Customer statements](help://books:statements).
+
+## Reconciliation Report
+
+The **Reconciliation Report** shows each finished reconciliation of a bank or credit card account: the beginning balance, each cleared transaction with the running balance, and the total, which is the statement's ending balance. Filter it by Account and by Statement. To open it for one statement, press View report on the reconciliation's summary or on its row in the History tab of Reconcile. To read it, see [Reconcile an account](help://books:reconcile).

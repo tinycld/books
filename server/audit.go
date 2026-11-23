@@ -28,7 +28,8 @@ import (
 // It takes the app because these labels read another row: an admin grant is
 // labeled by the user it grants, a line by its account or its document, a
 // bundle row by its bundle and product, a bank connection by its account, a
-// bank import by its file, a bank match by its bank transaction, a customer's
+// bank import by its file, a bank match by its bank transaction, a
+// reconciliation by its account, a customer's
 // response by its estimate, a vendor credit application by its credit and its
 // bill, a credit memo application by its memo and its invoice, a vendor refund
 // line by its refund and its credit, and an attachment by its bill, expense or
@@ -142,6 +143,10 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		},
 		statementsCollection:    {ExtractLabel: audit.LabelFromField("number")},
 		documentSendsCollection: {ExtractLabel: documentSendLabel},
+		// A reconciliation's cleared rows are not here: one row for each press.
+		reconciliationsCollection: {
+			ExtractLabel: func(r *core.Record) string { return reconciliationLabel(app, r) },
+		},
 	}
 }
 
@@ -233,6 +238,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_bank_transactions", Label: "Bank transaction"},
 		{Value: bankMatchesCollection, Label: "Bank match"},
 		{Value: bankCategorizationsCollection, Label: "Bank categorization"},
+		{Value: reconciliationsCollection, Label: "Reconciliation"},
 		{Value: "books_settings", Label: "Books settings"},
 		{Value: "books_doc_sequences", Label: "Document numbering"},
 		{Value: "books_close_overrides", Label: "Close date override"},
@@ -628,4 +634,15 @@ func bankMatchLabel(app core.App, r *core.Record) string {
 		return ""
 	}
 	return bankTransactionLabel(txn)
+}
+
+// reconciliationLabel names a reconciliation by its account and its statement
+// day: "1010 Business Savings 2026-08-31". An account that cannot be read gives
+// the day alone, so the audit row is still written.
+func reconciliationLabel(app core.App, r *core.Record) string {
+	account, err := app.FindRecordById("books_accounts", r.GetString("account"))
+	if err != nil {
+		return r.GetString("statement_date")
+	}
+	return strings.TrimSpace(accountDisplayName(account) + " " + r.GetString("statement_date"))
 }

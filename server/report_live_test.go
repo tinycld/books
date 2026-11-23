@@ -49,6 +49,9 @@ var shippedNotLive = map[string]bool{
 	// marks NotLive, and a run over a large book is too slow to run again on
 	// each change, so it shows Refresh, as the six journal-line reports do.
 	"books.expenses_by_vendor": true,
+	// It reads the reconciled lines of finished reconciliations, rows that
+	// change only on a finish or an undo: it stays live.
+	"books.reconciliation_report": false,
 }
 
 // requireManual fails unless res is a manual run: marked, and with no topic.

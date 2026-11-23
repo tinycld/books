@@ -15,6 +15,7 @@ import { X } from 'lucide-react-native'
 import { Pressable, Text, View } from 'react-native'
 import { entryHref } from '../../lib/entry-route'
 import { amountText } from '../../lib/money'
+import { lineStatusTone } from '../../lib/reconcile-status'
 import { type EntryDetail, entryNumberLabel } from '../../lib/register'
 import { formatDay } from '../../lib/register-range'
 import { useRegisterStore } from '../../stores/register-store'
@@ -88,14 +89,38 @@ function LineParty({ name, index }: { name: string; index: number }) {
     )
 }
 
+// The register line's Status word, and the statement of a reconciled line
+// (reconcile spec §3 "The account register").
+function LineStatus({ line, statementText }: { line: DetailLine; statementText: string }) {
+    const word = line.reconcileWord
+    if (word === '') return null
+    const tone = lineStatusTone(word)
+    return (
+        <View
+            testID={`register-drawer-status-${line.id}`}
+            className="flex-row flex-wrap items-center gap-x-2"
+        >
+            <Text className={`text-xs ${tone}`}>{word}</Text>
+            <StatementNote text={statementText} />
+        </View>
+    )
+}
+
+function StatementNote({ text }: { text: string }) {
+    if (text === '') return null
+    return <Text className="text-xs text-muted-foreground">{text}</Text>
+}
+
 function DrawerLine({
     line,
     index,
     currency,
+    statementText,
 }: {
     line: DetailLine
     index: number
     currency: string
+    statementText: string
 }) {
     const bg = line.isThisAccount ? 'bg-accent' : ''
     return (
@@ -114,6 +139,7 @@ function DrawerLine({
             </View>
             <LineParty name={line.partyName} index={index} />
             <LineMemo memo={line.memo} />
+            <LineStatus line={line} statementText={statementText} />
         </View>
     )
 }
@@ -129,10 +155,24 @@ function LinesHeading() {
     )
 }
 
-function EntryFields({ detail, currency }: { detail: EntryDetail | null; currency: string }) {
+function EntryFields({
+    detail,
+    currency,
+    statementTexts,
+}: {
+    detail: EntryDetail | null
+    currency: string
+    statementTexts: Readonly<Record<string, string>>
+}) {
     if (!detail) return null
     const lines = detail.lines.map((line, index) => (
-        <DrawerLine key={line.id} line={line} index={index} currency={currency} />
+        <DrawerLine
+            key={line.id}
+            line={line}
+            index={index}
+            currency={currency}
+            statementText={statementTexts[line.id] ?? ''}
+        />
     ))
     return (
         <View className="gap-3">
@@ -178,11 +218,19 @@ function OpenEntryLink({ detail, onClose }: { detail: EntryDetail | null; onClos
 
 interface EntryDrawerProps extends Placement {
     detail: EntryDetail | null
+    // "Statement of Oct 31, 2026" for each reconciled line of the register's account, by line id.
+    statementTexts: Readonly<Record<string, string>>
     currency: string
     onClose: () => void
 }
 
-export function EntryDrawer({ detail, currency, onClose, ...placement }: EntryDrawerProps) {
+export function EntryDrawer({
+    detail,
+    statementTexts,
+    currency,
+    onClose,
+    ...placement
+}: EntryDrawerProps) {
     const closeColor = useThemeColor('foreground')
     const number = entryNumberLabel(detail?.number ?? '')
     return (
@@ -206,7 +254,11 @@ export function EntryDrawer({ detail, currency, onClose, ...placement }: EntryDr
                 </DrawerHeader>
                 <DrawerBody style={{ flexShrink: 1 }}>
                     <OpenEntryLink detail={detail} onClose={onClose} />
-                    <EntryFields detail={detail} currency={currency} />
+                    <EntryFields
+                        detail={detail}
+                        currency={currency}
+                        statementTexts={statementTexts}
+                    />
                 </DrawerBody>
             </DrawerContent>
         </Drawer>

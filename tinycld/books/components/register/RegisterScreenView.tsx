@@ -1,7 +1,10 @@
 import { LoadingState } from '@tinycld/core/components/LoadingState'
 import { useWindowHeight } from '@tinycld/core/components/workspace/useBreakpoint'
+import { useShortcutScope } from '@tinycld/core/lib/shortcuts'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
-import { ScrollView, Text, View } from 'react-native'
+import { useRef } from 'react'
+import { ScrollView, type ScrollViewInstance, Text, View } from 'react-native'
+import { useListAnchor } from '../../hooks/useListAnchor'
 import type { RegisterScreenModel } from '../../hooks/useRegisterScreen'
 import { useRowWindow } from '../../hooks/useRowWindow'
 import { useFabClearanceStyle } from '../../lib/fab-clearance'
@@ -10,7 +13,7 @@ import { EntryDrawer } from './EntryDrawer'
 import { CARD_HEIGHT, RegisterCard } from './RegisterCard'
 import { RegisterEmptyState } from './RegisterEmptyState'
 import { BackOnlyHeader, RegisterHeader } from './RegisterHeader'
-import { RegisterTable, type TableItem, tableItems } from './RegisterTable'
+import { anchorIndexOf, RegisterTable, type TableItem, tableItems } from './RegisterTable'
 
 function LoadingBody({ isVisible }: { isVisible: boolean }) {
     if (!isVisible) return null
@@ -68,7 +71,15 @@ function OpeningCard({ balance, currency }: { balance: number | null; currency: 
     )
 }
 
-function CardItem({ item, model }: { item: TableItem; model: RegisterScreenModel }) {
+function CardItem({
+    item,
+    model,
+    itemRef,
+}: {
+    item: TableItem
+    model: RegisterScreenModel
+    itemRef: ReturnType<typeof useListAnchor>['itemRef']
+}) {
     if (item.kind === 'opening') {
         return <OpeningCard balance={model.register.openingBalance} currency={model.currency} />
     }
@@ -78,6 +89,7 @@ function CardItem({ item, model }: { item: TableItem; model: RegisterScreenModel
             currency={model.currency}
             onOpenEntry={model.onOpenEntry}
             isSelected={item.row.entryId === model.selectedEntryId}
+            itemRef={itemRef}
         />
     )
 }
@@ -88,20 +100,30 @@ function CardList({ model }: { model: RegisterScreenModel }) {
     const items = tableItems(register.rows, register.showOpeningRow, order)
     const viewHeight = useWindowHeight()
     const rowWindow = useRowWindow({ total: items.length, rowHeight: CARD_HEIGHT, viewHeight })
-    const visible = items
-        .slice(rowWindow.first, rowWindow.last)
-        .map(item => (
+    const scrollRef = useRef<ScrollViewInstance>(null)
+    const anchor = useListAnchor({
+        scrollRef,
+        index: anchorIndexOf(items, model.anchorEntryId),
+        rowHeight: CARD_HEIGHT,
+    })
+    const visible = items.slice(rowWindow.first, rowWindow.last).map((item, offset) => {
+        const itemRef = rowWindow.first + offset === anchor.mountIndex ? anchor.itemRef : undefined
+        return (
             <CardItem
                 key={item.kind === 'opening' ? 'opening' : item.row.id}
                 item={item}
                 model={model}
+                itemRef={itemRef}
             />
-        ))
+        )
+    })
     return (
         <ScrollView
+            ref={scrollRef}
             testID="register-cards"
             className="flex-1"
             contentContainerStyle={fabClearanceStyle}
+            onLayout={anchor.onViewLayout}
             onScroll={rowWindow.onScroll}
             scrollEventThrottle={16}
         >
@@ -114,7 +136,7 @@ function CardList({ model }: { model: RegisterScreenModel }) {
 
 function ListBody({ model }: { model: RegisterScreenModel }) {
     if (model.state !== 'ready') return null
-    if (!model.isWide) return <CardList model={model} />
+    if (model.showCards) return <CardList model={model} />
     return (
         <View className="min-w-0 flex-1">
             <RegisterTable
@@ -126,6 +148,8 @@ function ListBody({ model }: { model: RegisterScreenModel }) {
                 onToggleOrder={model.onToggleOrder}
                 onOpenEntry={model.onOpenEntry}
                 selectedEntryId={model.selectedEntryId}
+                anchorEntryId={model.anchorEntryId}
+                onGutter={model.onTableGutter}
             />
         </View>
     )
@@ -145,11 +169,14 @@ function NotFound({ model }: { model: RegisterScreenModel }) {
 }
 
 export function RegisterScreenView(model: RegisterScreenModel) {
+    // The register's keys (R: Reconcile) belong to this screen's scope; the core Drawer
+    // pushes none, so they also work while the entry drawer is open.
+    const scopeOwner = useShortcutScope('list')
     if (model.state === 'not-found') return <NotFound model={model} />
     return (
         <View className="flex-1 flex-row bg-background">
-            <View className="min-w-0 flex-1">
-                <RegisterHeader model={model} />
+            <View testID="register-main" className="min-w-0 flex-1" onLayout={model.onMainLayout}>
+                <RegisterHeader model={model} scopeOwner={scopeOwner} />
                 <LoadingBody isVisible={model.state === 'loading'} />
                 <ErrorBody isVisible={model.state === 'error'} onRetry={model.onRetry} />
                 <EmptyBody model={model} />
@@ -157,6 +184,7 @@ export function RegisterScreenView(model: RegisterScreenModel) {
             </View>
             <EntryDrawer
                 detail={model.selectedEntry}
+                statementTexts={model.selectedStatementTexts}
                 currency={model.currency}
                 isWide={model.isWide}
                 isTablet={model.isTablet}

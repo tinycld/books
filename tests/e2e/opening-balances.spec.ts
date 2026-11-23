@@ -145,6 +145,9 @@ test.describe('opening-balances: states and date', () => {
     test('an empty chart shows the empty state and a link to the chart', async ({ page }) => {
         await start(page, DESKTOP)
         await openOpeningBalances(page)
+        // Specs running in parallel create accounts in this database, and the realtime stream
+        // would file those rows into the store under the faked empty response.
+        await page.route('**/api/realtime*', route => route.abort())
         await page.route(ACCOUNTS, route =>
             route.fulfill({
                 status: 200,
@@ -163,12 +166,9 @@ test.describe('opening-balances: states and date', () => {
         const empty = page.getByTestId('opening-empty')
         await expect(empty).toContainText('No accounts to enter balances for')
         await empty.getByText('Go to Chart of Accounts').click()
-        // The empty-accounts route is still active, so the Chart of Accounts screen shows
-        // its own empty state. The route answers reads only: an account that another
-        // worker creates meanwhile still arrives through realtime, and the chart then
-        // shows its toolbar and that account. Either one is the chart.
-        const chart = page.getByTestId('accounts-empty').or(page.getByTestId('account-search'))
-        await expect(chart.first()).toBeVisible()
+        // The empty-accounts route is still active and realtime is stopped, so no account
+        // reaches the store and the Chart of Accounts screen shows its own empty state.
+        await expect(page.getByTestId('accounts-empty')).toBeVisible()
         await expect(page.getByTestId('opening-empty')).toBeHidden()
         await page.unrouteAll({ behavior: 'ignoreErrors' })
     })

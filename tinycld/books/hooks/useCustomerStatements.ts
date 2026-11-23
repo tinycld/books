@@ -22,7 +22,10 @@ export function useCustomerStatements(customerId: string) {
                       .from({ statement: statementsCollection })
                       .where(({ statement }) => eq(statement.customer, customerId))
                       .orderBy(({ statement }) => statement.statement_date, 'desc')
-                      .orderBy(({ statement }) => statement.created, 'desc'),
+                      .orderBy(({ statement }) => statement.created, 'desc')
+                      // `created` ties to the millisecond when two statements are stored in one batch;
+                      // the server-given `sequence` is unique and follows store order.
+                      .orderBy(({ statement }) => statement.sequence, 'desc'),
         queryKey: ['books.customer.statements', customerId],
     })
     const rows = query.data ?? []

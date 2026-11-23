@@ -471,6 +471,11 @@ func checkAccountChange(app core.App, stored, next *core.Record) error {
 		if connected != nil {
 			return refuseNamed(msgConnectedTypeChange, accountDisplayName(next))
 		}
+		// A finished reconciliation's sums are in the old type's sense, so any
+		// type change is refused, bank to credit card included.
+		if err := refuseAccountReconciliations(app, next); err != nil {
+			return err
+		}
 		lines, err := app.CountRecords("books_journal_lines", dbx.HashExp{"account": next.Id})
 		if err != nil {
 			return err
@@ -563,6 +568,11 @@ func checkAccountDelete(app core.App, r *core.Record) error {
 	}
 	if connected != nil {
 		return refuseNamed(msgConnectedDelete, accountDisplayName(r))
+	}
+	// A reconciliation's account relation does not cascade, so PocketBase would
+	// refuse this delete with a reference error that does not say why.
+	if err := refuseAccountReconciliations(app, r); err != nil {
+		return err
 	}
 	// Before the journal lines check: the set account usually has postings,
 	// and that text says to make it inactive, which is also refused while set.

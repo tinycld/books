@@ -56,6 +56,15 @@ func Register(app *pocketbase.PocketBase) {
 	// the journal lines with their entry, and the matched lines.
 	changesignal.RegisterView("books_bank_match_suggestions", "books_bank_transactions", "books_journal_lines",
 		"books_journal_entries", "books_bank_match_lines", "books_bank_connections")
+	// The reconcile lines read the journal lines with their account, entry and
+	// party, the cleared rows, and the matched lines.
+	changesignal.RegisterView(reconcileLinesView, "books_journal_lines", "books_journal_entries", "books_accounts",
+		"books_customers", "books_vendors", reconciliationLinesCollection, reconciliationsCollection,
+		bankMatchLinesCollection)
+	// The reconciled lines read the cleared rows with their finished
+	// reconciliation, journal line and entry, and the line's party.
+	changesignal.RegisterView(reconciledLinesView, reconciliationLinesCollection, reconciliationsCollection,
+		"books_journal_lines", "books_journal_entries", "books_customers", "books_vendors")
 	// The undeposited items read the journal lines with their entry and account,
 	// the posted deposit items, and each source document's payment method and
 	// reference no.
@@ -82,6 +91,7 @@ func Register(app *pocketbase.PocketBase) {
 	reports.RegisterShipped(auditLogShipped())
 	reports.RegisterShipped(statementBalanceForwardShipped())
 	reports.RegisterShipped(statementOpenItemsShipped())
+	reports.RegisterShipped(reconciliationReportShipped())
 	registerReportShares(app)
 	registerAudit(app)
 	oauth.RegisterPackage(oauthPackage())
@@ -91,6 +101,7 @@ func Register(app *pocketbase.PocketBase) {
 	registerOffboard()
 	registerAutoReverseSweep(app)
 	registerStatementGuards(app)
+	registerReconcile(app)
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		bindBalanceRoutes(e)
 		bindPDFRoutes(e)
