@@ -11,6 +11,7 @@ import { router } from 'expo-router'
 import { ChevronDown, ChevronRight, Plus } from 'lucide-react-native'
 import { Pressable } from 'react-native'
 import { NewMenu } from './components/NewMenu'
+import { ShortcutsSection } from './components/sidebar/ShortcutsSection'
 import { useBooksSidebar } from './hooks/useBooksSidebar'
 import { useNewMenu } from './hooks/useNewMenu'
 import type { SidebarEntry } from './lib/shell-nav'
@@ -106,6 +107,8 @@ export default function BooksSidebar() {
                 columns={columns}
                 onSelect={open}
             />
+            <ShortcutsSection />
+            <SidebarHeading>Go to</SidebarHeading>
             {top.map(renderItem)}
             <AccountingHeading
                 isVisible={hasAccounting}
