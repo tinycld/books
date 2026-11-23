@@ -4,6 +4,7 @@ import { Dialog } from '@tinycld/core/ui/dialog'
 import { Pressable, Text, View } from 'react-native'
 import type { OverrideRow as OverrideRowData } from '../../hooks/useCloseOverrides'
 import { useOverridesPanel } from '../../hooks/useOverridesPanel'
+import type { BooksSettings } from '../../types'
 import { GrantOverrideDialog } from './GrantOverrideDialog'
 import { OverrideRow } from './OverrideRow'
 import { SectionCard } from './SectionCard'
@@ -134,8 +135,8 @@ function OverridesError({ isVisible, onRetry }: { isVisible: boolean; onRetry: (
     )
 }
 
-export function OverridesPanel() {
-    const panel = useOverridesPanel()
+export function OverridesPanel({ settings }: { settings: BooksSettings }) {
+    const panel = useOverridesPanel(settings)
     const { part } = panel
     return (
         <SectionCard title="Overrides">

@@ -7,18 +7,18 @@ import {
     closeDateValues,
     isReopening,
 } from '../lib/settings-schema'
-import { useBooksSettings } from './useBooksSettings'
+import type { BooksSettings } from '../types'
 import { useSettingsForm } from './useSettingsForm'
 
-const NOT_CLOSED: CloseDateValues = { closed: false, close_date: '' }
-
-export function useCloseBooks() {
-    const { settings } = useBooksSettings()
+// The row comes from the settings panel, which keeps it through a later failed or reloading
+// read: a read of its own here would fall back to "not closed" then, and a reopen would
+// save with no question.
+export function useCloseBooks(settings: BooksSettings) {
     // The one-dialog question that nothing else reads, so it stays local
     const [reopen, setReopen] = useState<{ oldDate: string } | null>(null)
-    const save = useSettingsForm({
+    const save = useSettingsForm<CloseDateValues>({
         schema: closeDateSchema,
-        values: settings ? closeDateValues(settings) : NOT_CLOSED,
+        values: closeDateValues(settings),
         toPatch: values => ({ close_date: closeDateValue(values) }),
     })
     const { form } = save
@@ -26,7 +26,7 @@ export function useCloseBooks() {
 
     // Validation runs first, so an invalid date never asks the question
     const submit = form.handleSubmit(parsed => {
-        const oldDate = settings?.close_date ?? ''
+        const oldDate = settings.close_date
         if (isReopening(oldDate, parsed)) setReopen({ oldDate })
         else save.submit()
     })
