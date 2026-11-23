@@ -1,13 +1,25 @@
 import { expect, type Page, test } from '@playwright/test'
 import { navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { rangeWords } from '@tinycld/core/reports/lib/dates'
+import { AP_AGING_TITLE } from '~/tinycld/books/lib/ap-aging-fixture'
+import { EXPENSES_BY_VENDOR_TITLE } from '~/tinycld/books/lib/expenses-by-vendor-fixture'
 import { REPORT_1099_TITLE } from '~/tinycld/books/lib/report-1099-fixture'
-import { DESKTOP } from './account-register-helpers'
+import {
+    AP_AGING_SHIPPED_KEY,
+    EXPENSES_BY_VENDOR_SHIPPED_KEY,
+    FORM_1099_SHIPPED_KEY,
+    VENDOR_BALANCE_SHIPPED_KEY,
+} from '~/tinycld/books/lib/shipped-reports'
+import { VENDOR_BALANCE_TITLE } from '~/tinycld/books/lib/vendor-balance-fixture'
+import { DESKTOP, PHONE } from './account-register-helpers'
 import { payPartOfBill } from './ap-aging-helpers'
+import { freshPageWithReports } from './ar-aging-helpers'
+import { fakeReadOnlyAccess } from './banking-helpers'
 import {
     browserToday,
     choosePeriod,
     expectedHeading,
+    expectTableFits,
     MANUAL_NOTE,
     manualBand,
     openEntriesFromSidebar,
@@ -16,7 +28,7 @@ import {
     snapshotWhen,
 } from './books-report-helpers'
 import { EXPENSE_URL } from './expense-helpers'
-import { postBillOnAccounts, runLanded } from './expenses-by-vendor-helpers'
+import { expectLabelsWrapWhole, postBillOnAccounts, runLanded } from './expenses-by-vendor-helpers'
 import { openBooks, uniqueName } from './record-form-helpers'
 import {
     boxAccounts,
@@ -25,7 +37,9 @@ import {
     chooseForm1099Order,
     chooseShow,
     createUntrackedVendor,
+    expectForm1099RowsFit,
     expenseFor,
+    FORM_1099_PHONE_LINES,
     figures,
     filterTo1099Vendors,
     LEDGER_TOPICS,
@@ -39,7 +53,14 @@ import {
     vendorRow,
     vendorRows,
 } from './report-1099-helpers'
-import { createExpenseAccount, createTrackedVendor } from './vendor-1099-helpers'
+import { expectSalesPhoneLines } from './sales-reports-helpers'
+import {
+    createExpenseAccount,
+    createTrackedVendor,
+    openForm1099,
+    visible,
+} from './vendor-1099-helpers'
+import { openVendorsList, vendorEntries } from './vendor-form-helpers'
 
 // The 1099 Summary and Detail (report-1099 checkpoint 2): the shipped report from the
 // Books hub. Each test creates its own vendors and accounts through the UI, posts expenses
@@ -546,5 +567,227 @@ test.describe('report-1099: payments', () => {
             excluded: null,
             all: 50000,
         })
+    })
+})
+
+// The Vendors list's Reports menu items in the order they are drawn: the visible
+// `vendors-reports-…` test ids (as books-expenses-by-vendor.spec.ts reads them).
+function reportsMenuItems(page: Page): Promise<(string | null)[]> {
+    return page
+        .locator('[data-testid^="vendors-reports-"]')
+        .filter({ visible: true })
+        .evaluateAll(elements => elements.map(element => element.getAttribute('data-testid')))
+}
+
+// The three reports of the menu other than this one, as the reports list read answers them.
+const OTHER_VENDOR_REPORTS = [
+    { id: 'f1099balancerp1', shipped_key: VENDOR_BALANCE_SHIPPED_KEY, title: VENDOR_BALANCE_TITLE },
+    { id: 'f1099agingrept1', shipped_key: AP_AGING_SHIPPED_KEY, title: AP_AGING_TITLE },
+    {
+        id: 'f1099expensesr1',
+        shipped_key: EXPENSES_BY_VENDOR_SHIPPED_KEY,
+        title: EXPENSES_BY_VENDOR_TITLE,
+    },
+]
+
+// Long line descriptions (spec §3 "Phone"): with the date, number and account, each payment
+// label wraps at 375 and 390 and stays within three lines.
+const CHECK_DESCRIPTION = 'Studio design suite renewal'
+const CARD_DESCRIPTION = 'Conference booth artwork'
+
+// Spec §3 "Phone" at the current viewport: the table takes its `mobile` arrangement, the
+// vendor row and each payment row of the opened box have the label on line 1 and the three
+// figures on line 2, the payment labels wrap whole, and nothing is cut or scrolls sideways.
+async function expectOpenedBoxFitsPhone(
+    page: Page,
+    vendor: string,
+    paymentCount: number
+): Promise<void> {
+    await expect(page.getByTestId('toolbar-more-button')).toBeVisible()
+    await expect(page.getByTestId('report-table')).toHaveAttribute('data-layout', 'mobile')
+    const shown = await snapshotWhen(
+        page,
+        reportSnapshot,
+        s => vendorRow(s, vendor) !== undefined && paymentLines(s, vendor, NEC_1).length > 0,
+        `the ${vendor} row and its opened box are mounted`
+    )
+    const row = vendorRow(shown, vendor)
+    if (!row) throw new Error(`no mounted row "${vendor}"`)
+    await expectSalesPhoneLines(page, row.id, FORM_1099_PHONE_LINES)
+    const lines = paymentLines(shown, vendor, NEC_1)
+    expect(lines, `the ${paymentCount} payment rows of ${NEC_1}`).toHaveLength(paymentCount)
+    for (const line of lines) await expectSalesPhoneLines(page, line.id, FORM_1099_PHONE_LINES)
+    await expectLabelsWrapWhole(
+        page,
+        lines.map(line => line.id)
+    )
+    await expectForm1099RowsFit(page)
+    await expectTableFits(page)
+}
+
+// report-1099 checkpoint 5: the entry points and the phone rows.
+test.describe('report-1099: entry points and phone rows', () => {
+    // No phone run of the menu: it is the same component and logic at both widths.
+    test("the Vendors list's Reports menu lists 1099 Summary and Detail fourth, for a reader too, and draws only the reports that are found", async ({
+        page,
+    }) => {
+        await fakeReadOnlyAccess(page)
+        await openBooks(page, DESKTOP)
+        await openVendorsList(page)
+        // A reader page: the header shows the Reports menu and no New vendor button.
+        const reports = page.getByTestId('vendors-reports')
+        await expect(reports).toBeVisible()
+        await expect(page.getByTestId('vendor-new-header')).toHaveCount(0)
+        await reports.click()
+        await expect(
+            page.getByTestId('vendors-reports-expenses').filter({ visible: true })
+        ).toHaveText('Expenses by Vendor')
+        await expect
+            .poll(() => reportsMenuItems(page), {
+                message:
+                    'the menu holds Vendor Balance, A/P Aging, Expenses by Vendor, 1099 Summary and Detail in order',
+            })
+            .toEqual([
+                'vendors-reports-balance',
+                'vendors-reports-aging',
+                'vendors-reports-expenses',
+                'vendors-reports-1099',
+            ])
+        const form1099 = page.getByTestId('vendors-reports-1099').filter({ visible: true })
+        await expect(form1099).toHaveText(REPORT_1099_TITLE)
+        await form1099.click()
+        await expect(page.getByTestId('report-screen')).toBeVisible()
+        await expect(page).toHaveURL(/\/a\/reports\//)
+        await expect(
+            page.getByTestId('report-document-title').filter({ visible: true })
+        ).toHaveText(REPORT_1099_TITLE)
+
+        // The 1099 report is not found: after its read answered with no row, the menu holds
+        // the other three only.
+        const threeOnly = await freshPageWithReports(page, OTHER_VENDOR_REPORTS)
+        await openBooks(threeOnly.fresh, DESKTOP)
+        await openVendorsList(threeOnly.fresh)
+        await expect
+            .poll(() => threeOnly.answered.some(filter => filter.includes(FORM_1099_SHIPPED_KEY)), {
+                message: 'the Vendors list got its answer for the 1099 report',
+            })
+            .toBe(true)
+        await expect(vendorEntries(threeOnly.fresh).first()).toBeVisible()
+        await threeOnly.fresh.getByTestId('vendors-reports').click()
+        await expect(
+            threeOnly.fresh.getByTestId('vendors-reports-expenses').filter({ visible: true })
+        ).toHaveText('Expenses by Vendor')
+        await expect
+            .poll(() => reportsMenuItems(threeOnly.fresh))
+            .toEqual([
+                'vendors-reports-balance',
+                'vendors-reports-aging',
+                'vendors-reports-expenses',
+            ])
+        await expect(threeOnly.fresh.getByTestId('vendors-reports-1099')).toHaveCount(0)
+        await threeOnly.fresh.close()
+    })
+
+    // No phone run: the section and its button are the same code at every width.
+    test('Settings → 1099s opens the 1099 report, for a reader too, and has no button when the report is not found', async ({
+        page,
+    }) => {
+        await fakeReadOnlyAccess(page)
+        await openBooks(page, DESKTOP)
+        await openForm1099(page)
+        await expect(visible(page, 'books-1099-section')).toBeVisible()
+        // A reader page: the threshold shows as a value, with no input.
+        await expect(visible(page, 'books-1099-threshold-value')).toBeVisible()
+        await expect(page.getByTestId('books-1099-threshold')).toHaveCount(0)
+        const open = visible(page, 'books-1099-open-report')
+        await expect(open).toContainText('Open the 1099 report')
+        await open.click()
+        await expect(page.getByTestId('report-screen')).toBeVisible()
+        await expect(page).toHaveURL(/\/a\/reports\//)
+        await expect(
+            page.getByTestId('report-document-title').filter({ visible: true })
+        ).toHaveText(REPORT_1099_TITLE)
+
+        // The 1099 report is not found: after its read answered with no row, the section
+        // draws its three cards and no button.
+        const none = await freshPageWithReports(page, OTHER_VENDOR_REPORTS)
+        await openBooks(none.fresh, DESKTOP)
+        await openForm1099(none.fresh)
+        await expect
+            .poll(() => none.answered.some(filter => filter.includes(FORM_1099_SHIPPED_KEY)), {
+                message: 'Settings → 1099s got its answer for the 1099 report',
+            })
+            .toBe(true)
+        await expect(visible(none.fresh, 'books-1099-section')).toBeVisible()
+        await expect(visible(none.fresh, 'books-1099-threshold-value')).toBeVisible()
+        await expect(
+            visible(none.fresh, 'books-1099-accounts').or(
+                visible(none.fresh, 'books-1099-accounts-empty')
+            )
+        ).toBeVisible()
+        await expect(
+            visible(none.fresh, 'books-1099-vendors').or(
+                visible(none.fresh, 'books-1099-vendors-empty')
+            )
+        ).toBeVisible()
+        await expect(none.fresh.getByTestId('books-1099-open-report')).toHaveCount(0)
+        await none.fresh.close()
+    })
+
+    // The phone run: the phone path is other code (the report's `display.layouts` `mobile`
+    // arrangement, core's phone row layout). 375 and 390 are both measured widths of D1
+    // (lesson 21).
+    test('an opened box reads on a 390 px and a 375 px phone with no sideways scroll', async ({
+        page,
+    }) => {
+        await openBooks(page, DESKTOP)
+        const vendor = uniqueName('Form1099 Phone Co')
+        await createTrackedVendor(page, { name: vendor })
+        const boxed = await ownBoxedAccount(page, uniqueName('Phone Labor'), NEC_1)
+        // Figures of eight digits: the three must fit one phone line.
+        await expenseFor(page, {
+            vendor,
+            account: boxed.name,
+            amount: '640152.50',
+            description: CHECK_DESCRIPTION,
+        })
+        await expenseFor(page, {
+            vendor,
+            account: boxed.name,
+            amount: '66100.00',
+            method: 'Credit card',
+            description: CARD_DESCRIPTION,
+        })
+
+        await openFor(page, 'tracked', [vendor])
+        const shown = await snapshotWhen(
+            page,
+            reportSnapshot,
+            s => figures(vendorRow(s, vendor)).all === 70625250,
+            `${vendor} reads 706,252.50 in All payments`
+        )
+        expect(figures(vendorRow(shown, vendor))).toEqual({
+            reportable: 64015250,
+            excluded: 6610000,
+            all: 70625250,
+        })
+
+        await page.setViewportSize(PHONE)
+        await expect(page.getByTestId('toolbar-more-button')).toBeVisible()
+        await expect(page.getByTestId('report-table')).toHaveAttribute('data-layout', 'mobile')
+        const closed = await snapshotWhen(
+            page,
+            reportSnapshot,
+            s => vendorRow(s, vendor) !== undefined,
+            `the ${vendor} row is mounted at 390`
+        )
+        const row = vendorRow(closed, vendor)
+        if (!row) throw new Error(`no mounted row "${vendor}"`)
+        await expectSalesPhoneLines(page, row.id, FORM_1099_PHONE_LINES)
+        await openBox(page, vendor, NEC_1)
+        await expectOpenedBoxFitsPhone(page, vendor, 2)
+
+        await page.setViewportSize({ width: 375, height: 844 })
+        await expectOpenedBoxFitsPhone(page, vendor, 2)
     })
 })

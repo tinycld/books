@@ -1073,6 +1073,163 @@ describe('help/reports.md', () => {
         expect(section('## Who sees Books reports')).toContain('the Expenses by Vendor')
     })
 
+    // Sentences that do not break inside a quoted note ("This report does not update by
+    // itself. Press Refresh …").
+    const sentencesOutsideQuotes = (text: string) =>
+        text.split(/(?<=[.!?]"?)\s+(?=(?:[^"]*"[^"]*")*[^"]*$)/)
+
+    // report-1099 checkpoint 5 (spec §3 "Help").
+    describe('the "Read the 1099 Summary and Detail report" section', () => {
+        const form1099 = section('## Read the 1099 Summary and Detail report')
+        const sentences = form1099.split(/(?<=[.!?])\s+/)
+        const oneSentence = (...phrases: RegExp[]) =>
+            sentences.some(sentence => phrases.every(phrase => phrase.test(sentence)))
+
+        it('comes directly after "Read the Expenses by Vendor report"', () => {
+            const headings = [...body.matchAll(/^## .*$/gm)].map(m => m[0])
+            const expenses = headings.indexOf('## Read the Expenses by Vendor report')
+            expect(expenses).toBeGreaterThanOrEqual(0)
+            expect(headings[expenses + 1]).toBe('## Read the 1099 Summary and Detail report')
+        })
+
+        it('starts with the task: what you paid each 1099 vendor in a calendar year', () => {
+            const first = sentences.find(sentence => sentence.trim() !== '') ?? ''
+            expect(first).toMatch(/\b1099 vendors?\b/)
+            expect(first).toMatch(/\bcalendar year\b/i)
+        })
+
+        it('says payments count by their payment date', () => {
+            expect(oneSentence(/\bpayments?\b/i, /\bpayment date\b/i)).toBe(true)
+        })
+
+        it('says a bill counts only when it is paid, in one sentence', () => {
+            expect(oneSentence(/\bbills?\b/i, /\b(when|as far as|once)\b/i, /\bpaid\b/i)).toBe(true)
+        })
+
+        it('says a card payment is excluded because the card processor reports it on a 1099-K', () => {
+            expect(oneSentence(/\bcard payments?\b/i, /\b1099-K\b/)).toBe(true)
+            expect(oneSentence(/\bcard payments?\b/i, /\bExcluded\b/)).toBe(true)
+        })
+
+        it.each([
+            ['Reportable', /\bReportable\b/],
+            ['Excluded', /\bExcluded\b/],
+            ['All payments', /\bAll payments\b/],
+            ['At or above the threshold', /\bAt or above the threshold\b/],
+            ['Not tracked for 1099', /\bNot tracked for 1099\b/],
+            ['1099-NEC', /\b1099-NEC\b/],
+            ['Largest reportable', /\bLargest reportable\b/],
+        ])('names %s', (_name, phrase) => {
+            expect(form1099).toMatch(phrase)
+        })
+
+        it('says All payments is Reportable plus Excluded, in one sentence', () => {
+            expect(oneSentence(/\bAll payments\b/, /\bReportable\b/, /\bExcluded\b/)).toBe(true)
+        })
+
+        it('says Excluded is blank on a row with nothing excluded', () => {
+            expect(oneSentence(/\bExcluded\b/, /\bblank\b/i)).toBe(true)
+        })
+
+        it('says what to do about a Not reported row: give the account a box in Settings → 1099s', () => {
+            expect(oneSentence(/\bNot reported\b/, /\bbox\b/i, /Settings → 1099s/)).toBe(true)
+        })
+
+        it('says how the threshold applies and where to change it', () => {
+            expect(oneSentence(/\bthreshold\b/i, /\bReportable\b/)).toBe(true)
+            expect(oneSentence(/\bthreshold\b/i, /Settings → 1099s/)).toBe(true)
+        })
+
+        it('names the Show, Form and Order choices', () => {
+            expect(oneSentence(/\bShow\b/, /\bAt or above the threshold\b/)).toBe(true)
+            expect(oneSentence(/\bForm\b/, /\b1099-NEC\b/)).toBe(true)
+            expect(oneSentence(/\bOrder\b/, /\bLargest reportable\b/)).toBe(true)
+        })
+
+        it('says the period is a calendar year, whatever the fiscal year', () => {
+            expect(oneSentence(/\bperiod\b/i, /\bcalendar year\b/i)).toBe(true)
+        })
+
+        it('says a press on a box opens its payments, and a press on a payment opens its document', () => {
+            expect(oneSentence(/\bpress\b/i, /\bbox\b/i, /\bpayments\b/i)).toBe(true)
+            expect(oneSentence(/\bpress\b/i, /\bpayment\b/i, /\bopens?\b/i, /\bdocument\b/i)).toBe(
+                true
+            )
+        })
+
+        it('says the report shows no tax ID', () => {
+            expect(oneSentence(/\btax IDs?\b/i, /\b(no|not|never)\b/i)).toBe(true)
+        })
+
+        it('says the report needs Refresh and does not say it stays current', () => {
+            // One sentence with both, so the Not reported sentence ("… then press **Refresh**")
+            // alone does not pass.
+            expect(
+                sentencesOutsideQuotes(form1099).some(
+                    sentence =>
+                        /\bdoes not update by itself\b/.test(sentence) &&
+                        /\bRefresh\b/.test(sentence)
+                )
+            ).toBe(true)
+            expect(form1099).not.toMatch(/\bstays? current\b/i)
+        })
+
+        it('says a card charge categorized from a bank transaction counts under Reportable', () => {
+            expect(
+                oneSentence(/\bcard\b/i, /\bcategori[sz]/i, /\bbank(ing)?\b/i, /\bReportable\b/)
+            ).toBe(true)
+        })
+
+        it('says an opened box shows a void and its reversal as two rows that net to zero', () => {
+            expect(
+                oneSentence(
+                    /\bvoid/i,
+                    /\breversal\b/i,
+                    /\btwo rows\b/i,
+                    /\bbox\b/i,
+                    /\b(zero|0|0\.00)\b/i
+                )
+            ).toBe(true)
+        })
+
+        it('links the 1099 tracking topic', () => {
+            expect(form1099).toContain('(help://books:1099-tracking)')
+        })
+    })
+
+    it('"Who sees Books reports" names the 1099 Summary and Detail', () => {
+        expect(section('## Who sees Books reports')).toContain('1099 Summary and Detail')
+    })
+
+    it('"Reports that you refresh" names the 1099 Summary and Detail, not among the reports that stay current', () => {
+        const refresh = section('## Reports that you refresh')
+        expect(refresh).toContain('1099 Summary and Detail')
+        const stayCurrent =
+            refresh.split(/(?<=[.!?])\s+/).find(s => s.includes('stay current: they run again')) ??
+            ''
+        expect(stayCurrent).not.toContain('1099 Summary and Detail')
+    })
+
+    it('"Reports that you refresh" says, in one sentence, that the 1099 Summary and Detail shows the Refresh button', () => {
+        // The Save as sentence names the report too, but not the button.
+        const named = sentencesOutsideQuotes(section('## Reports that you refresh')).filter(s =>
+            s.includes('1099 Summary and Detail')
+        )
+        expect(named.some(s => /(\*\*Refresh\*\*|\bRefresh) button\b/.test(s))).toBe(true)
+    })
+
+    it('"Reports that you refresh" says the 1099 Summary and Detail reads posted payment lines, with no basis choice', () => {
+        const named = sentencesOutsideQuotes(section('## Reports that you refresh')).filter(s =>
+            s.includes('1099 Summary and Detail')
+        )
+        expect(named.some(s => /\bpayment lines\b/i.test(s))).toBe(true)
+        expect(named.some(s => /\b(no basis|not? choose a basis|without a basis)\b/i.test(s))).toBe(
+            true
+        )
+        // "the same lines" after the Expenses by Vendor sentence reads as a basis choice.
+        expect(named.some(s => /\bthe same lines\b/.test(s))).toBe(false)
+    })
+
     it.each([
         'Sales tax lines',
         'Tax agencies',
