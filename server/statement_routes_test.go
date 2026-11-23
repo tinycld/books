@@ -655,7 +655,7 @@ func TestStatementSend_RefusesTheRequest(t *testing.T) {
 	})
 	t.Run("a sender that cannot attach a file", func(t *testing.T) {
 		env := newSREnv(t)
-		srSwap(t, &statementSender, func(core.App) mailer.Sender { return srSendOnly{} })
+		srSwap(t, &emailSender, func(core.App) mailer.Sender { return srSendOnly{} })
 		stored := env.statement(t, env.aspen)
 		client := newSRClient(t, env.app)
 		srRequireRefusal(t, "a sender that is not a FullSender", client.do(tokenFor(t, env.users.bookkeeper), http.MethodPost, srSendURL,
@@ -702,8 +702,8 @@ func TestStatementSend_PartFailure(t *testing.T) {
 	})
 	t.Run("the sender fails for one address", func(t *testing.T) {
 		env := newSREnv(t)
-		srSwap(t, &statementSendRetryPause, 0)
-		srSwap(t, &statementSender, func(core.App) mailer.Sender {
+		srSwap(t, &emailSendRetryPause, 0)
+		srSwap(t, &emailSender, func(core.App) mailer.Sender {
 			return srFailingSender{errorFor: "down@aspenridge.example", rejectFor: "bounce@aspenridge.example"}
 		})
 		down := env.statement(t, env.aspen)
@@ -779,13 +779,13 @@ func (f srFlakySender) SendFull(ctx context.Context, req *mailer.SendRequest) (*
 	return (&mailer.LogSender{}).SendFull(ctx, req)
 }
 
-// srUseFlaky makes statementSender a srFlakySender, with no pause between
+// srUseFlaky makes emailSender a srFlakySender, with no pause between
 // tries, and gives back its call count.
 func srUseFlaky(t *testing.T, errorTries int, reject string) *int {
 	t.Helper()
 	calls := 0
-	srSwap(t, &statementSendRetryPause, 0)
-	srSwap(t, &statementSender, func(core.App) mailer.Sender {
+	srSwap(t, &emailSendRetryPause, 0)
+	srSwap(t, &emailSender, func(core.App) mailer.Sender {
 		return srFlakySender{calls: &calls, errorTries: errorTries, reject: reject}
 	})
 	return &calls
@@ -795,8 +795,8 @@ func srUseFlaky(t *testing.T, errorTries int, reject string) *int {
 // sender returns an error, never retries a refusal that cannot pass, and takes
 // one token of the hour's limit for one statement.
 func TestStatementSend_Retries(t *testing.T) {
-	if statementSendTries != 3 {
-		t.Errorf("statementSendTries = %d, want 3", statementSendTries)
+	if emailSendTries != 3 {
+		t.Errorf("emailSendTries = %d, want 3", emailSendTries)
 	}
 	t.Run("an error that passes is retried to success", func(t *testing.T) {
 		env := newSREnv(t)
@@ -905,8 +905,8 @@ func TestStatementSend_RetriesStopAfterAFailedStatement(t *testing.T) {
 		}
 		client := newSRClient(t, env.app)
 		answer := srAnswerOf(t, client.do(tokenFor(t, env.users.bookkeeper), http.MethodPost, srSendURL, srSendBody(items...)))
-		if want := statementSendTries + (len(items) - 1); *calls != want {
-			t.Errorf("SendFull called %d times, want %d (%d tries, then one try for each later statement)", *calls, want, statementSendTries)
+		if want := emailSendTries + (len(items) - 1); *calls != want {
+			t.Errorf("SendFull called %d times, want %d (%d tries, then one try for each later statement)", *calls, want, emailSendTries)
 		}
 		if len(answer.Sent) != 0 || len(answer.Failed) != len(items) {
 			t.Errorf("answer %+v, want all %d statements failed", answer, len(items))
@@ -919,7 +919,7 @@ func TestStatementSend_RetriesStopAfterAFailedStatement(t *testing.T) {
 	})
 	t.Run("the first statement fails all its tries and the second is sent on its one try", func(t *testing.T) {
 		env := newSREnv(t)
-		calls := srUseFlaky(t, statementSendTries, "")
+		calls := srUseFlaky(t, emailSendTries, "")
 		first := env.statement(t, env.aspen)
 		second := env.statement(t, env.birch)
 		client := newSRClient(t, env.app)
@@ -933,7 +933,7 @@ func TestStatementSend_RetriesStopAfterAFailedStatement(t *testing.T) {
 		if answer.sentRow(second.Id) == nil || len(answer.Sent) != 1 {
 			t.Errorf("sent %v, want only the second statement", answer.Sent)
 		}
-		if want := statementSendTries + 1; *calls != want {
+		if want := emailSendTries + 1; *calls != want {
 			t.Errorf("SendFull called %d times, want %d", *calls, want)
 		}
 	})

@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/mail"
@@ -53,16 +52,11 @@ const maxStatementsPerRequest = 200
 // so a test can lower it.
 var maxStatementFileBytes = 10 << 20
 
-// statementSendTries is how many times one statement's delivery is tried when
-// the sender returns an error: the first try and 2 retries (spec §3.5).
-const statementSendTries = 3
-
-// statementSendRetryPause is the pause between two tries of one delivery. A
-// var so a test can set it to 0.
-var statementSendRetryPause = 2 * time.Second
-
-// statementSender is the sender of statement emails; a test replaces it.
-var statementSender = mailer.DefaultSender
+// statementDeliveryTexts are the statement texts of one delivery
+// (email_delivery.go).
+var statementDeliveryTexts = emailDeliveryTexts{
+	NotSent: msgStatementNotSent, RecipientRefused: msgStatementRecipientRefused,
+}
 
 // statementEmailLimiter allows each user 500 statement emails an hour.
 var statementEmailLimiter = ratelimit.NewPerApp("books.statements.send", 500, time.Hour)
@@ -73,10 +67,16 @@ func bindStatementRoutes(e *core.ServeEvent) {
 }
 
 // requireStatementWriter refuses a caller with no session, a disabled account
-// or no Books write access.
+// or no Books write access, with the statement texts.
 func requireStatementWriter(re *core.RequestEvent) error {
+	return requireBooksWriter(re, "Sign in to use statements.", msgStatementNoAccess)
+}
+
+// requireBooksWriter refuses a caller with no session (signIn), a disabled
+// account or no Books write access (noAccess).
+func requireBooksWriter(re *core.RequestEvent, signIn, noAccess string) error {
 	if re.Auth == nil {
-		return re.UnauthorizedError("Sign in to use statements.", nil)
+		return re.UnauthorizedError(signIn, nil)
 	}
 	// A token minted before the account was disabled still authenticates, and a
 	// raw route has no collection rule to refuse it (servePDF).
@@ -88,23 +88,29 @@ func requireStatementWriter(re *core.RequestEvent) error {
 		return err
 	}
 	if !level.CanWrite() {
-		return re.ForbiddenError(msgStatementNoAccess, nil)
+		return re.ForbiddenError(noAccess, nil)
 	}
 	return nil
 }
 
-// decodeStatementBody reads one JSON object with no unknown field and nothing
-// after it.
+// decodeStatementBody reads a statement request's body (decodeBooksBody).
 func decodeStatementBody(re *core.RequestEvent, into any) error {
+	return decodeBooksBody(re, into, msgStatementBadRequest)
+}
+
+// decodeBooksBody reads one JSON object with no unknown field and nothing
+// after it; any other body is refused with badRequest.
+func decodeBooksBody(re *core.RequestEvent, into any, badRequest string) error {
 	dec := json.NewDecoder(re.Request.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(into); err != nil {
-		log.WarnContext(re.Request.Context(), "decode a statement request", "err", err)
-		return re.BadRequestError(msgStatementBadRequest, nil)
+		log.WarnContext(re.Request.Context(), "decode a request", "path", re.Request.URL.Path, "err", err)
+		return re.BadRequestError(badRequest, nil)
 	}
 	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
-		log.WarnContext(re.Request.Context(), "decode a statement request: data after the first object", "err", err)
-		return re.BadRequestError(msgStatementBadRequest, nil)
+		log.WarnContext(re.Request.Context(), "decode a request: data after the first object",
+			"path", re.Request.URL.Path, "err", err)
+		return re.BadRequestError(badRequest, nil)
 	}
 	return nil
 }
@@ -205,11 +211,7 @@ func serveStatementSend(re *core.RequestEvent) error {
 	case len(body.Statements) > maxStatementsPerRequest:
 		return re.BadRequestError(msgStatementTooMany, nil)
 	}
-	// CaptureLogOn first: CanDeliver asks the provider for its token.
-	if !mailer.CaptureLogOn() && !mailer.CanDeliver(re.App) {
-		return re.BadRequestError(msgStatementEmailNotSetUp, nil)
-	}
-	sender, ok := statementSender(re.App).(mailer.FullSender)
+	sender, ok := emailSetUp(re.App)
 	if !ok {
 		return re.BadRequestError(msgStatementEmailNotSetUp, nil)
 	}
@@ -222,7 +224,7 @@ func serveStatementSend(re *core.RequestEvent) error {
 	// Once one statement has failed all its tries, the outage is known: each later
 	// statement gets one try, so a request of 200 answers inside the server's
 	// write timeout (spec §3.5 "Retries").
-	tries := statementSendTries
+	tries := emailSendTries
 	for _, item := range body.Statements {
 		record, msg, outage := sendStatement(re, info, sender, business, item, tries)
 		if outage {
@@ -292,7 +294,7 @@ func sendStatement(
 			Content:     base64.StdEncoding.EncodeToString(pdf),
 		}},
 	}
-	msg, outage = deliverStatement(ctx, sender, request, item.ID, to, tries)
+	msg, outage = deliverEmail(ctx, sender, request, statementDeliveryTexts, item.ID, to, tries)
 	if msg != "" {
 		return nil, msg, outage
 	}
@@ -305,63 +307,6 @@ func sendStatement(
 		return nil, msgStatementSentNotSaved, false
 	}
 	return record, "", false
-}
-
-// deliverStatement hands one statement email to the sender, and tries again
-// after a pause when the sender returns an error (a transport or provider
-// error, which can pass), at most tries times in all. An error that comes after
-// the provider accepted the message is retried too, so in that rare case the
-// customer can get the email twice (spec §3.5). A recipient the email server
-// refused is a permanent refusal: it fails at once. A message is the failure;
-// "" is a delivery. outage is true when every try failed with a sender error.
-func deliverStatement(
-	ctx context.Context, sender mailer.FullSender, request *mailer.SendRequest, id, to string, tries int,
-) (msg string, outage bool) {
-	for try := 1; ; try++ {
-		result, err := sender.SendFull(ctx, request)
-		if err == nil {
-			if result != nil && len(result.FailedRecipients) > 0 {
-				log.WarnContext(ctx, "the email server refused a statement's recipient",
-					"statement", id, "reason", result.FailedRecipients[0].Reason)
-				return fmt.Sprintf(msgStatementRecipientRefused, to), false
-			}
-			return "", false
-		}
-		if try >= tries {
-			log.ErrorContext(ctx, "send a statement", "statement", id, "try", try, "err", err)
-			return msgStatementNotSent, true
-		}
-		log.WarnContext(ctx, "send a statement, will try again", "statement", id, "try", try, "err", err)
-		if !pauseBeforeRetry(ctx) {
-			log.ErrorContext(ctx, "send a statement: the request ended before a retry",
-				"statement", id, "try", try, "err", ctx.Err())
-			return msgStatementNotSent, false
-		}
-	}
-}
-
-// pauseBeforeRetry waits statementSendRetryPause, and is false when the
-// request's context ends first.
-func pauseBeforeRetry(ctx context.Context) bool {
-	timer := time.NewTimer(statementSendRetryPause)
-	defer timer.Stop()
-	select {
-	case <-ctx.Done():
-		return false
-	case <-timer.C:
-		return true
-	}
-}
-
-// isOneBareAddress is true for one email address with no display name and a
-// dot in its domain (testdata/statement_email_cases.json).
-func isOneBareAddress(to string) bool {
-	addr, err := mail.ParseAddress(to)
-	if err != nil || addr.Name != "" || addr.Address != to {
-		return false
-	}
-	at := strings.LastIndexByte(to, '@')
-	return at > 0 && strings.Contains(to[at+1:], ".")
 }
 
 // statementFieldsTake is true when the statement's email and sent_to fields

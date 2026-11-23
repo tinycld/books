@@ -4,8 +4,8 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { ScopeProvider, useShortcutScope } from '@tinycld/core/lib/shortcuts'
 import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { router } from 'expo-router'
-import { type ReactNode, useId } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { type ReactNode, useId, useRef } from 'react'
+import { Pressable, ScrollView, Text, View, type ViewInstance } from 'react-native'
 import {
     type DocumentRecord,
     documentPartyIdOf,
@@ -35,15 +35,18 @@ import { depositEntryOf } from '../../lib/deposit'
 import { removeApplicationOffered } from '../../lib/document-actions'
 import { DOCUMENT_NOTE_LABELS, memoLabelFor } from '../../lib/document-notes'
 import { type DocumentTab, documentHref } from '../../lib/document-routes'
+import { sendOffered } from '../../lib/document-send'
 import { documentTaxOf } from '../../lib/document-tax'
 import { NO_PARTY_TEXT } from '../../lib/document-texts'
 import { lineTableSubtotals } from '../../lib/document-values'
 import { stampText } from '../../lib/entry-display'
+import { focusScreenControl } from '../../lib/focus-return'
 import { DOCUMENT_COLLECTIONS } from '../../lib/history-route'
 import { formatMoney, MINUS } from '../../lib/money'
 import { formatDay, todayIso } from '../../lib/register-range'
 import { DOCUMENT_PARTIES, type SalesDocumentKind } from '../../lib/sales-document-kinds'
 import { groupPpm, ratePercentText } from '../../lib/sales-tax'
+import { isSendDocType } from '../../lib/send-doc-types'
 import { InDepositNotice } from '../deposits/InDepositNotice'
 import { EntryBackLink } from '../entries/EntryHeader'
 import { VoidDialog } from '../entries/VoidDialog'
@@ -61,6 +64,7 @@ import {
 import { DocumentPdfView } from './DocumentPdfView'
 import { DocumentReadActions } from './DocumentReadActions'
 import { DOCUMENT_READ_TRAILING_WIDTH, DocumentReadLines } from './DocumentReadLines'
+import { DocumentSentLine } from './DocumentSentLine'
 import { DocumentTabs, TabPanel } from './DocumentTabs'
 import { DocumentTotalsPanel, type DocumentTotalsView } from './DocumentTotalsPanel'
 import { useDocumentKind } from './document-kind-context'
@@ -72,6 +76,7 @@ import {
     type ReadRefunded,
     storedLineTableRows,
 } from './document-kinds'
+import { SendDocumentDialog } from './send/SendDocumentDialog'
 
 const LINK_STYLE = { minHeight: 44 }
 
@@ -473,6 +478,41 @@ function ReadWriteOffDialog({ owner, isVisible }: { owner: string; isVisible: bo
     return <WriteOffDialog owner={owner} />
 }
 
+// The Send dialog of this read view (email-share spec §3.2): a writer on a sent-able kind
+// (Send… opens it with this screen's owner). A Post and send of this document queues its
+// send, which opens here once the document can be sent (`sendOffered`: posted, or an open
+// estimate).
+function ReadSendDialog({
+    owner,
+    record,
+    canWrite,
+    returnFocus,
+}: {
+    owner: string
+    record: DocumentRecord
+    canWrite: boolean
+    returnFocus: () => void
+}) {
+    const kind = record.kindFields.kind
+    if (!canWrite || !isSendDocType(kind)) return null
+    const isSendable = sendOffered(kind, record.status)
+    return (
+        <SendDocumentDialog
+            owner={owner}
+            recordId={record.id}
+            isSendable={isSendable}
+            returnFocus={returnFocus}
+        />
+    )
+}
+
+// The sent line under the status (email-share spec §3.6) of a sent-able kind.
+function ReadSentLine({ record, testId }: { record: DocumentRecord; testId: string }) {
+    const kind = record.kindFields.kind
+    if (!isSendDocType(kind)) return null
+    return <DocumentSentLine kind={kind} documentId={record.id} testID={`${testId}-sent-line`} />
+}
+
 function Stamp({ testID, text }: { testID: string; text: string }) {
     if (text === '') return null
     return (
@@ -591,6 +631,11 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     // Write off opens useWriteOffStore with this screen as the owner, so only the dialog this
     // screen mounts (ReadWriteOffDialog) draws, not one of a list under it in the stack.
     const owner = useId()
+    // A queued send's dialog (Post and send) gives the focus back to the bar's Send, or to
+    // the bar's first button where Send is a More row (phone).
+    const rootRef = useRef<ViewInstance>(null)
+    const sendReturnIds = [`${doc.testId}-read-send`, `${doc.testId}-read-actions`]
+    const returnSendFocus = () => focusScreenControl(rootRef.current, sendReturnIds)
     const depositRead = useDepositOf(depositEntryOf(record))
     const read = useDocumentReadActions(documentKind, record, data.canWrite, owner, depositRead)
     const isInDeposit = depositRead.deposit !== null
@@ -646,6 +691,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
         />
     ) : null
     const badge = readBadgeOf(record, documentKind.balanceBadge, refunded)
+    const sentLine = <ReadSentLine record={record} testId={doc.testId} />
     const body = (
         <>
             <ReadBand
@@ -697,7 +743,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     if (!refunds.isReady && !refunds.isError) return <DocumentLoading />
     return (
         <ScopeProvider owner={scopeOwner}>
-            <View testID={readOnlyId} className="flex-1 bg-background">
+            <View ref={rootRef} testID={readOnlyId} className="flex-1 bg-background">
                 <ScrollView className="flex-1" contentContainerClassName="gap-4 px-4 pt-2 pb-6">
                     <EntryBackLink />
                     <DocumentHeader
@@ -706,6 +752,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                         figure={totals.last}
                         isExpired={isExpired}
                         badge={badge}
+                        subline={sentLine}
                     />
                     <InDepositNotice
                         deposit={depositRead.deposit}
@@ -736,6 +783,12 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                 />
                 <VoidDialog {...read.voidDialog} />
                 <ReadWriteOffDialog owner={owner} isVisible={isInvoice} />
+                <ReadSendDialog
+                    owner={owner}
+                    record={record}
+                    canWrite={data.canWrite}
+                    returnFocus={returnSendFocus}
+                />
                 <RemoveApplicationDialog
                     application={removal.target}
                     removeBody={applicationKind.texts.removeBody}

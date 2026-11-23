@@ -24,7 +24,9 @@ import { describe, expect, it } from 'vitest'
 // reads; books_payable_items is stored, not audited, and the audit view does not read it.
 // Expenses by Vendor (D11): the covering line indexes take 2100000036, after the audit
 // view then at 2100000034, because they add indexes only and create no collection the
-// view reads; the bank deposits then moved the view above them.
+// view reads; the bank deposits then moved the view above them. Email and share (plan
+// decisions 1 and 2): the document sends take 2100000034, the number the view left free,
+// and the view at 2100000038 reads them as a line collection, so they run before it.
 // Reconcile spec §4 Schema: the reconciliations take the next free number at build time,
 // after the audit view, which reads none of their collections (books_reconciliations is
 // audited through the audit_logs rows the core audit writes, not through the view's LINES).
@@ -229,5 +231,19 @@ describe('pb-migrations prefixes', () => {
         expect(auditLineCollections()).toEqual(
             expect.arrayContaining(['books_deposit_items', 'books_deposit_lines'])
         )
+    })
+
+    // Email-share plan decision 1: the document sends take 2100000034, the number the
+    // audit view left free, and the view at 2100000038 reads them (plan decision 2), so
+    // the sends run before it.
+    it('holds the document sends at 2100000034, before the audit log at 2100000038, which reads them', () => {
+        expect(MIGRATIONS.filter(file => prefixOf(file) === '2100000034')).toEqual([
+            '2100000034_create_books_document_sends.js',
+        ])
+        expect(creatorsOf('books_document_sends')).toEqual([
+            '2100000034_create_books_document_sends.js',
+        ])
+        expect(numberOf('2100000034_create_books_document_sends.js')).toBeLessThan(numberOf(AUDIT))
+        expect(auditLineCollections()).toContain('books_document_sends')
     })
 })

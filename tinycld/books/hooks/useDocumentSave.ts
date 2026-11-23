@@ -27,8 +27,10 @@ import { columnsOrThrow, type RefusalForm, runLocked, startFailed } from '../lib
 import { messageOnlyRefusal } from '../lib/refusal'
 import { assertRevisionSeen, documentConflictText, isRevisionConflict } from '../lib/revision'
 import { DOCUMENT_PARTIES, INVOICE_KIND, type SalesDocumentKind } from '../lib/sales-document-kinds'
+import { isSendDocType } from '../lib/send-doc-types'
 import { createTablePlans, tablesWriteSteps } from '../lib/table-writes'
 import { useDocumentSaveStore } from '../stores/document-save-store'
+import { useDocumentSendStore } from '../stores/document-send-store'
 import type { DocumentTransaction, DocumentWrites } from './document-data'
 import {
     AttachmentsNotSaved,
@@ -274,18 +276,38 @@ type Progress = { drafted: boolean; revision: number }
 // What a save does after the document is written: Save draft (and a quote's Save) stops
 // there; Post sets the status; `andNew` then opens a fresh form (Post & new, Save & new);
 // `close` leaves the form (a quote's Save & close); `convert` opens the invoice form made
-// from the saved quote (Convert to invoice).
-type SaveMode = { post: boolean; andNew: boolean; close: boolean; convert: boolean }
+// from the saved quote (Convert to invoice); `send` then opens the Send dialog on the
+// written document (Post and send, Save and send).
+type SaveMode = {
+    post: boolean
+    andNew: boolean
+    close: boolean
+    convert: boolean
+    send: boolean
+}
 
-const SAVE_DRAFT: SaveMode = { post: false, andNew: false, close: false, convert: false }
+const SAVE_DRAFT: SaveMode = {
+    post: false,
+    andNew: false,
+    close: false,
+    convert: false,
+    send: false,
+}
 
 // A quote's saves: no draft and no post, so each writes the document and then stays,
-// leaves, opens a fresh form, or opens the invoice form made from it.
-export type QuoteSaveMode = { close: boolean; andNew: boolean; convert: boolean }
+// leaves, opens a fresh form, opens the invoice form made from it, or opens the Send dialog.
+export type QuoteSaveMode = { close: boolean; andNew: boolean; convert: boolean; send: boolean }
 
-function quoteMode({ close, andNew, convert }: QuoteSaveMode): SaveMode {
-    return { post: false, close, andNew, convert }
+function quoteMode({ close, andNew, convert, send }: QuoteSaveMode): SaveMode {
+    return { post: false, close, andNew, convert, send }
 }
+
+// The posts of a posting kind's form: Post, Post & new, Post and send.
+function postMode({ andNew, send }: { andNew: boolean; send: boolean }): SaveMode {
+    return { post: true, andNew, close: false, convert: false, send }
+}
+
+const QUOTE_SAVE: QuoteSaveMode = { close: false, andNew: false, convert: false, send: false }
 
 function newProgress(): Progress {
     return { drafted: false, revision: 0 }
@@ -319,6 +341,9 @@ type DocumentSaveOptions = {
     // bill's or an expense's): its pending files and removals are saved in the
     // attachments step. None for a kind without attachments.
     attachmentSession?: string
+    // The `useId()` of the screen that mounts this form's SendDocumentDialog (the estimate
+    // form): Save and send of an unchanged stored document opens the dialog with it.
+    sendOwner?: string
 }
 
 const ACCEPTANCE_KEYS = ['accepted_by', 'accepted_date'] as const
@@ -337,8 +362,8 @@ function hasFieldErrors(state: DocumentFormState): boolean {
 }
 
 /**
- * Save draft, Post and Post & new on a posting kind's form; Save, Save & close, Save &
- * new and Convert to invoice on a quote's.
+ * Save draft, Post, Post & new and Post and send on a posting kind's form; Save, Save &
+ * close, Save & new, Convert to invoice and Save and send on a quote's.
  *
  * Every save is all or none, and states the revision the form saw (lib/revision.ts):
  *
@@ -383,6 +408,11 @@ function hasFieldErrors(state: DocumentFormState): boolean {
  *   draft, the form open with the save notice, and the failed files in the session; a
  *   refusal before the step (a stale revision, a field) leaves the session as it was.
  *   Attachments are not part of the revision.
+ * - Post and send and Save and send (email-share spec §3.3 "Form", §4.5) save as Post and
+ *   Save do, and queue the document's send in the send store before the first write; a
+ *   refused write cancels it, so only a write that landed opens the Send dialog (on the
+ *   posted document's read view, or on the estimate form). Save and send of an unchanged
+ *   stored estimate writes nothing and opens the dialog at once (`sendOwner`).
  *
  * The empty trailing line of each line table is dropped before the form validates (spec:
  * dropped at save); a kind that keeps them on a refusal (a bill) gets them back when the
@@ -393,6 +423,8 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     const { kind, document: documentKind } = state
     const writes = documentKind.data.useWrites()
     const texts = saveTexts(kind)
+    // The kind as the send route names it; null for a kind that is never sent (a bill).
+    const sendKind = isSendDocType(kind.key) ? kind.key : null
     const lineColumns = lineColumnsOf(documentKind)
     const orgHref = useOrgHref()
     const surfaceRef = useRef<ViewInstance>(null)
@@ -476,6 +508,17 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         orgHref(documentHref(kind, id, mode.post ? 'edit' : options.tab))
 
     const release = (id: string) => useDocumentSaveStore.getState().release(id)
+    // Drops the send that Post and send or Save and send queued for this document.
+    const cancelQueued = (id: string) => useDocumentSendStore.getState().cancelQueued(id)
+    // Save and send of a stored document with no change: its form's Send dialog
+    // (`options.sendOwner`) opens now. A form with no owner given queues the send, which
+    // its dialog opens for the record's id while no save runs.
+    const openSendNow = (id: string) => {
+        if (sendKind === null) return
+        const send = useDocumentSendStore.getState()
+        if (options.sendOwner === undefined) send.queue({ kind: sendKind, id })
+        else send.open({ kind: sendKind, id }, options.sendOwner)
+    }
 
     // A new form's save replaces the route with the saved document's, which mounts its
     // form again. A draft lands on that form: it starts from the tables this form session
@@ -491,7 +534,12 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     // Convert on `new` first replaces the route with the saved quote's, then pushes the
     // invoice form, so Back and the invoice's Cancel return to the saved quote.
     const navigateAfter = (id: string, mode: SaveMode) => {
-        if (!isPresent()) return
+        // A form the user left opens no Send dialog later, on whatever screen shows the
+        // document next.
+        if (!isPresent()) {
+            if (mode.send) cancelQueued(id)
+            return
+        }
         if (mode.convert) {
             if (state.isNew) replaceWithSaved(id, mode)
             router.push(orgHref(documentNewHref(INVOICE_KIND, { estimate: id })))
@@ -553,6 +601,9 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             navigateAfter(id, mode)
         },
         onError: (error, { id, rows, link, lines, progress, restoreLines }) => {
+            // A refused write sends nothing: its queued send goes (onSettled also runs
+            // after a success, so it is cancelled here).
+            cancelQueued(id)
             // The draft is written and its attachments step failed or its post was
             // refused: it stays, and the notice or the refusal shows on this form, whose
             // next save updates it. The post is no line's write, so its refusal gets no
@@ -636,7 +687,8 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             onDrafted(progress.revision)
             navigateAfter(id, mode)
         },
-        onError: (error, { lines, restoreLines, onDrafted, progress }) => {
+        onError: (error, { id, lines, restoreLines, onDrafted, progress }) => {
+            cancelQueued(id)
             // The batch saved the draft, and then the attachments step failed or the
             // post was refused: the written values are the form's baseline, and the
             // notice or the refusal shows. The post is no line's write.
@@ -717,9 +769,16 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     // optimistic write triggers sees it); the mutation releases it. The last: that save
     // closes the estimate, and the closed estimate's update would swap the form for the
     // cannot-convert notice before the save could leave it.
+    // A send (Post and send, Save and send) is queued here too, before the write, for the
+    // same reason: the screen the write lands on opens the Send dialog for the queued id
+    // (SendDocumentDialog's `recordId`). A refused write cancels it (the mutations'
+    // `onError`); a client refusal returns before this, so it queues nothing.
     const holdFor = (id: string, mode: SaveMode) => {
         const isHeld = mode.post || kind.lifecycle === 'quote' || state.estimate !== ''
         if (isHeld) useDocumentSaveStore.getState().hold(id)
+        if (mode.send && sendKind !== null) {
+            useDocumentSendStore.getState().queue({ kind: sendKind, id })
+        }
     }
 
     // The estimate a new invoice names, and the source link (a credit memo's invoice, a
@@ -820,8 +879,13 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         const withAttachments = hasAttachmentWork(attachmentSession)
         // Nothing changed: a draft save has nothing to write; a post sets only the status;
         // a quote's Save & close, Save & new or Convert still goes on, as a save that wrote
-        // nothing did not fail. Files to upload or delete are a change.
+        // nothing did not fail; Save and send opens the Send dialog at once and writes
+        // nothing, as a plain Save. Files to upload or delete are a change.
         if (!mode.post && isUnchanged && !withAttachments) {
+            if (mode.send) {
+                openSendNow(id)
+                return false
+            }
             if (!mode.close && !mode.andNew && !mode.convert) return false
             navigateAfter(id, mode)
             return true
@@ -917,21 +981,20 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
 
     return {
         saveDraft: () => runLocked(lock, () => start(SAVE_DRAFT)),
-        post: (andNew: boolean) =>
-            runLocked(lock, () => start({ post: true, andNew, close: false, convert: false })),
+        post: (andNew: boolean) => runLocked(lock, () => start(postMode({ andNew, send: false }))),
+        // Post and send: posts as Post does; once the post lands, the posted document's read
+        // view opens its Send dialog (the queued send).
+        postAndSend: () => runLocked(lock, () => start(postMode({ andNew: false, send: true }))),
         // A quote's saves (DocumentSaveBar).
-        save: () =>
-            runLocked(lock, () =>
-                start(quoteMode({ close: false, andNew: false, convert: false }))
-            ),
-        saveAndClose: () =>
-            runLocked(lock, () => start(quoteMode({ close: true, andNew: false, convert: false }))),
-        saveAndNew: () =>
-            runLocked(lock, () => start(quoteMode({ close: false, andNew: true, convert: false }))),
+        save: () => runLocked(lock, () => start(quoteMode(QUOTE_SAVE))),
+        saveAndClose: () => runLocked(lock, () => start(quoteMode({ ...QUOTE_SAVE, close: true }))),
+        saveAndNew: () => runLocked(lock, () => start(quoteMode({ ...QUOTE_SAVE, andNew: true }))),
         // Convert to invoice: writes the quote when the form has changes (a new one
         // always), then opens the invoice form made from it; a refused save stays here.
-        convert: () =>
-            runLocked(lock, () => start(quoteMode({ close: false, andNew: false, convert: true }))),
+        convert: () => runLocked(lock, () => start(quoteMode({ ...QUOTE_SAVE, convert: true }))),
+        // Save and send: saves as Save does, then the estimate form opens its Send dialog
+        // (the queued send; with no change, the dialog opens at once and nothing is written).
+        saveAndSend: () => runLocked(lock, () => start(quoteMode({ ...QUOTE_SAVE, send: true }))),
         isSaving: insert.isPending || update.isPending,
         isConflict,
         // A field, a line or the invoice link is not saved yet.

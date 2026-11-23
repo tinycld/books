@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { paragraphWith, readHelpTopic } from './help-topic'
+import { letterKey, lineWith, paragraphWith, readHelpTopic, sectionOf } from './help-topic'
 
 // The first version of the sales receipt help topic (checkpoint 4): the header's
 // HelpIcon opens `books:sales-receipts`, so the topic must exist from this checkpoint on.
@@ -60,6 +60,25 @@ describe('help/sales-receipts.md (refunds)', () => {
 
     it('names the Refund receipts section', () => {
         expect(body).toContain('Refund receipts')
+    })
+})
+
+// Email and share spec §3.7 Help (checkpoint 5): a short Send section.
+describe('help/sales-receipts.md (send)', () => {
+    it('has a Send section that names Send… with its key S', () => {
+        expect(body).toMatch(/^## Send\b.*$/m)
+        const title = /^## (Send\b.*)$/m.exec(body)?.[1] ?? ''
+        const send = sectionOf(body, title)
+        expect(send).toContain('Send…')
+        expect(lineWith(send, letterKey('S'), /Send…/), 'a line with S and Send…').toBeDefined()
+    })
+
+    it('has no hand-written hostname', () => {
+        expect(exists).toBe(true)
+        const withoutTokens = body.replace(/\{\{server-host\}\}/g, '')
+        expect(withoutTokens).not.toMatch(
+            /\b[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|org|net|io|dev|app)\b/i
+        )
     })
 })
 

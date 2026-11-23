@@ -18,6 +18,7 @@
 import type { BooksAccounts, BooksInvoices, BooksWriteOffs } from '../types'
 import { CUSTOMER_IDS, CUSTOMERS } from './customer-form-fixture'
 import { INVOICE_USER_IDS, INVOICE_USER_NAMES } from './invoice-form-fixture'
+import { fixtureToken } from './public-token-fixture'
 
 export const WRITE_OFF_CURRENCY = 'USD'
 // "Today" for the reference captures, so the default date and the overdue badges are stable.
@@ -174,6 +175,7 @@ function invoice(seed: InvoiceSeed): WriteOffInvoiceRecord {
         form: '',
         fields: null,
         sort_key: '',
+        public_token: fixtureToken(seed.id),
         created: STAMP,
         updated: STAMP,
         ...seed,

@@ -50,11 +50,17 @@ async function localDayOf(page: Page, created: string): Promise<string> {
     return formatDay(day)
 }
 
-// ⌘S from the memo field, then the badge (it follows the saved row) shows `label`.
+// ⌘S from the memo field, then the badge shows `label`. The badge follows the store row,
+// which holds the optimistic write, so it does not prove the save ended; the bar's Save is
+// disabled while a save runs (and ⌘S then does nothing), so it is enabled before the press
+// and again before the helper returns.
 async function saveWithKeys(page: Page, label: string) {
+    const save = page.getByTestId('estimate-save')
+    await expect(save).toBeEnabled()
     await page.getByTestId('form-input-memo').focus()
     await page.keyboard.press('ControlOrMeta+s')
     await expect(page.getByTestId('estimate-badge')).toHaveText(label)
+    await expect(save).toBeEnabled()
 }
 
 test.describe('estimate-public-link: decline note in Books', () => {

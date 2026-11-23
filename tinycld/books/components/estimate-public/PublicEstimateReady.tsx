@@ -1,8 +1,8 @@
 import { useEstimateResponse } from '../../hooks/useEstimateResponse'
 import type { PublicEstimateView } from '../../hooks/usePublicEstimate'
+import { PublicContact } from '../public/PublicContact'
 import { PublicDecision } from './PublicDecision'
 import { PublicEstimateCard } from './PublicEstimateCard'
-import { PublicEstimateContact } from './PublicEstimateContact'
 
 // The loaded state of the customer's page: the card with the decision, and the contact line
 // under it. It stays mounted through the re-read after an answer, so a refusal stays on
@@ -20,10 +20,15 @@ export function PublicEstimateReady({
     // While the decision is still offered the open step's summary already shows the
     // refusal; the card shows it only above another state's text.
     const refusal = isDeciding ? '' : response.refusal
+    const business = {
+        name: view.business,
+        email: view.row.business_email,
+        phone: view.row.business_phone,
+    }
     return (
         <>
             <PublicEstimateCard view={view} decision={decision} refusal={refusal} />
-            <PublicEstimateContact row={view.row} business={view.business} />
+            <PublicContact business={business} testIdPrefix="estimate-public" />
         </>
     )
 }

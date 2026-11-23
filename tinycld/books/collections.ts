@@ -370,8 +370,9 @@ export function registerCollections(
 
     // Every field below the omit line is Books' own: the number at posting, the
     // totals at every draft write, who and when by the request, sort_key by the
-    // guard, the open balance at posting and at every payment post or void, and
-    // written_off at every write-off post or void. No relations: the invoice
+    // guard, the open balance at posting and at every payment post or void,
+    // written_off at every write-off post or void, and the public token when the
+    // invoice is created (server/invoice_link.go). No relations: the invoice
     // screen reads its customer, tax rate and users through their own queries.
     const books_invoices = newCollection('books_invoices', {
         omitOnInsert: [
@@ -392,8 +393,17 @@ export function registerCollections(
             'posted_at',
             'voided_by',
             'voided_at',
+            'public_token',
             'sort_key',
         ] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // A view the signed-out customer page reads by its token (the X-Share-Token
+    // header), as books_estimate_public. Nothing inserts into it, and it has no
+    // autodates to omit.
+    const books_invoice_public = newCollection('books_invoice_public', {
         ...onDemand,
         collectionOptions: indexed,
     })
@@ -884,6 +894,16 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // One row for each sent email of a sales document. Only the send route writes it
+    // (its create, update and delete rules are null), so no client inserts; created is
+    // its one autodate. The customer files into its collection, as the statement's.
+    const books_document_sends = newCollection('books_document_sends', {
+        omitOnInsert: ['created'] as const,
+        ...onDemand,
+        relations: { customer: books_customers },
+        collectionOptions: indexed,
+    })
+
     // As the vendor refund's: server-owned fields below the omit line (the number and the
     // totals at posting, who and when by the request). The form and the read view
     // materialize Deposit to, the poster and the voider, and a correction reads the
@@ -1060,6 +1080,7 @@ export function registerCollections(
         books_tax_agencies,
         books_tax_rates,
         books_invoices,
+        books_invoice_public,
         books_invoice_lines,
         books_invoice_tax_lines,
         books_sales_receipts,
@@ -1093,6 +1114,7 @@ export function registerCollections(
         books_vendor_refund_lines,
         books_write_offs,
         books_statements,
+        books_document_sends,
         books_deposits,
         books_deposit_items,
         books_deposit_lines,

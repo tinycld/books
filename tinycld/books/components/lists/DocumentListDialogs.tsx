@@ -1,10 +1,13 @@
 import { Dialog } from '@tinycld/core/ui/dialog'
 import { Text } from 'react-native'
+import type { BatchSend } from '../../hooks/useBatchSend'
 import type { DocumentBatch } from '../../hooks/useDocumentBatch'
 import type { DocumentRowActions } from '../../hooks/useDocumentRowActions'
+import { SendDocumentDialog } from '../documents/send/SendDocumentDialog'
 import { DeleteDraftDialog } from '../entries/DeleteDraftDialog'
 import { VoidDialog } from '../entries/VoidDialog'
 import { WriteOffDialog } from '../write-offs/WriteOffDialog'
+import { BatchSendDialog } from './BatchSendDialog'
 
 function ignore() {}
 
@@ -62,27 +65,40 @@ function BatchDialog({ batch, testIdPrefix }: BatchProps) {
     )
 }
 
+// The row menu's Send… dialog: a writer's sales list only (no purchase row is sent-able).
+function ListSendDialog({ isVisible, owner }: { isVisible: boolean; owner: string }) {
+    if (!isVisible) return null
+    return <SendDocumentDialog owner={owner} />
+}
+
 interface DocumentListDialogsProps {
     // The list area's test-id prefix (`<prefix>-batch-dialog`, `<prefix>-delete-dialog`, …).
     testIdPrefix: string
     rowActions: Pick<DocumentRowActions, 'voidDialog' | 'deleteDialog'>
     batch: DocumentBatch
-    // The list screen's `useId()`: the row menu's Write off opens the dialog for it.
+    batchSend: BatchSend
+    // The list screen's `useId()`: the row menu's Write off and Send… open their dialogs
+    // for it.
     owner: string
+    // A writer's sales list: the row menu offers Send….
+    hasSend: boolean
 }
 
 /**
  * The list's dialogs, drawn once at the screen's root: a row menu's Void and Delete draft,
- * the Batch actions dialog, and the row menu's Write off dialog. A Void or Delete draft
- * refusal shows in the list's banner, not in the dialog, which closes; the Write off dialog
- * shows its own refusals and stays open (write-off spec §3.3). The Void dialog keeps
+ * the Batch actions dialog, the batch Send dialog, and the row menu's Write off and Send…
+ * dialogs. A Void or Delete draft refusal shows in the list's banner, not in the dialog,
+ * which closes; the Write off, Send… and batch Send dialogs show their own refusals and
+ * stay open (write-off spec §3.3, email-share spec §3.2, §3.3). The Void dialog keeps
  * `VoidDialog`'s own test ids.
  */
 export function DocumentListDialogs({
     testIdPrefix,
     rowActions,
     batch,
+    batchSend,
     owner,
+    hasSend,
 }: DocumentListDialogsProps) {
     return (
         <>
@@ -92,7 +108,9 @@ export function DocumentListDialogs({
                 testIdPrefix={`${testIdPrefix}-delete`}
             />
             <BatchDialog batch={batch} testIdPrefix={testIdPrefix} />
+            <BatchSendDialog batch={batchSend} />
             <WriteOffDialog owner={owner} />
+            <ListSendDialog isVisible={hasSend} owner={owner} />
         </>
     )
 }

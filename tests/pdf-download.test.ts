@@ -7,6 +7,7 @@ import {
     pdfPath,
     pdfRefusalMessage,
     publicEstimatePdfPath,
+    publicInvoicePdfPath,
 } from '../tinycld/books/lib/pdf-download'
 
 describe('pdfPath', () => {
@@ -28,6 +29,12 @@ describe('pdfPath', () => {
 describe('publicEstimatePdfPath', () => {
     it('encodes the token', () => {
         expect(publicEstimatePdfPath('a/b c')).toBe('/api/books/public/estimates/a%2Fb%20c/pdf')
+    })
+})
+
+describe('publicInvoicePdfPath', () => {
+    it('encodes the token', () => {
+        expect(publicInvoicePdfPath('a/b c')).toBe('/api/books/public/invoices/a%2Fb%20c/pdf')
     })
 })
 

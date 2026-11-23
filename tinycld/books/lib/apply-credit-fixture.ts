@@ -20,6 +20,7 @@ import type {
 } from '../types'
 import { CUSTOMER_IDS, CUSTOMERS } from './customer-form-fixture'
 import { INVOICE_USER_IDS, INVOICE_USER_NAMES } from './invoice-form-fixture'
+import { fixtureToken } from './public-token-fixture'
 
 export const APPLY_CREDIT_CURRENCY = 'USD'
 // "Today" for the reference captures, so the default apply date and the overdue marks are
@@ -118,6 +119,7 @@ function invoice(seed: InvoiceSeed): ApplyCreditInvoiceRecord {
         form: '',
         fields: null,
         sort_key: '',
+        public_token: fixtureToken(seed.id),
         created: STAMP,
         updated: STAMP,
         ...seed,

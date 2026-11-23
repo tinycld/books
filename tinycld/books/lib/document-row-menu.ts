@@ -1,12 +1,12 @@
 // The "More actions" menu of a sales list's row (spec §3 "Row menu"): Open, then the
 // actions the document's read view offers for its status and the user's access, in the
 // read view's order and with its labels, never Edit; Write off comes directly after
-// Receive payment (write-off spec §3.1), which differs from the read view on purpose. A
-// posted credit memo with unapplied credit starts its writer's menu with Apply to invoices,
-// before Open (apply credit spec §3.1); an invoice row never offers an Apply (Q4). A
-// draft opens in its form, so its menu holds Open and, for a writer, Delete draft; a
-// write-off's menu holds Open alone (its page has the Void). Pure, so each rule is
-// unit-tested.
+// Receive payment (write-off spec §3.1) and Send… directly after Open (email-share spec
+// §3.3), which differ from the read view on purpose. A posted credit memo with unapplied
+// credit starts its writer's menu with Apply to invoices, before Open (apply credit spec
+// §3.1); an invoice row never offers an Apply (Q4). A draft opens in its form, so its menu
+// holds Open and, for a writer, Delete draft; a write-off's menu holds Open alone (its page
+// has the Void). Pure, so each rule is unit-tested.
 
 import { applyCreditLabel } from './credit-application-kinds'
 import {
@@ -21,6 +21,7 @@ import {
 import { type DocumentStatus, quoteReadActions } from './document-lifecycle'
 import { type DocumentListRow, isSalesKind, listDocumentHref } from './document-list'
 import { documentHref, documentNewHref } from './document-routes'
+import { sendOffered } from './document-send'
 import { TRANSACTION_DOC_KINDS } from './party-transactions'
 import { paymentReadActions } from './payment-read-actions'
 import type { PurchaseRowMenuAction } from './purchase-row-menu'
@@ -29,6 +30,7 @@ import { CREDIT_MEMO_KIND, INVOICE_KIND, SALES_FEATURES } from './sales-document
 export type RowMenuAction =
     | 'apply_credit'
     | 'open'
+    | 'send'
     | 'receive_payment'
     | 'write_off'
     | 'void'
@@ -43,6 +45,7 @@ export type RowMenuAction =
 export const ROW_MENU_LABELS: Record<RowMenuAction, string> = {
     apply_credit: applyCreditLabel('credit_memo'),
     open: 'Open',
+    send: DOCUMENT_READ_LABELS.send,
     receive_payment: DOCUMENT_READ_LABELS.receive_payment,
     write_off: DOCUMENT_READ_LABELS.write_off,
     void: DOCUMENT_READ_LABELS.void,
@@ -82,12 +85,14 @@ type NotRowMenuAction =
     | 'record_refund'
     | 'refund'
     | 'refund_credit'
+    | 'link'
 
 // A read-view action as a row-menu action: every one but Edit, Pay bill (a bill's) and
 // Record refund (a vendor credit's), which are never on a sales list, Refund and Refund
-// credit, which the row menu does not offer (readActionsOf sets neither), and Apply, which
+// credit, which the row menu does not offer (readActionsOf sets neither), Apply, which
 // the menu puts first for a credit memo by its own rule (`rowApplyCreditOffered`), so an
-// invoice row never takes the invoice's Apply credit from the read view's actions.
+// invoice row never takes the invoice's Apply credit from the read view's actions, and
+// Copy customer link, which the row menu does not offer (email-share plan checkpoint 4).
 function isRowMenuAction(
     action: DocumentReadAction
 ): action is Exclude<DocumentReadAction, NotRowMenuAction> {
@@ -97,7 +102,8 @@ function isRowMenuAction(
         action !== 'apply_credit' &&
         action !== 'record_refund' &&
         action !== 'refund' &&
-        action !== 'refund_credit'
+        action !== 'refund_credit' &&
+        action !== 'link'
     )
 }
 
@@ -133,6 +139,15 @@ function writeOffAfterReceive(actions: readonly RowMenuAction[]): RowMenuAction[
     return [...rest.slice(0, at), 'write_off', ...rest.slice(at)]
 }
 
+// Send… directly after Open (email-share spec §3.3 "Sales list row menu"), where the read
+// view puts it after its first actions.
+function sendAfterOpen(actions: readonly RowMenuAction[]): RowMenuAction[] {
+    if (!actions.includes('send')) return [...actions]
+    const rest = actions.filter(action => action !== 'send')
+    const at = rest.indexOf('open') + 1
+    return [...rest.slice(0, at), 'send', ...rest.slice(at)]
+}
+
 // The read view's actions of the row, without Edit; View journal entry only with an entry.
 function readActionsOf(row: DocumentListRow, status: DocumentStatus, canWrite: boolean) {
     if (row.kind === 'estimate')
@@ -147,6 +162,8 @@ function readActionsOf(row: DocumentListRow, status: DocumentStatus, canWrite: b
         canPayBill: false,
         canCreateCreditMemo: creditMemoOffered(row.kind, status),
         canWriteOff: rowWriteOffOffered(row, canWrite),
+        // documentReadActions offers it to a writer only.
+        canSend: sendOffered(row.kind, row.recordStatus),
     }
     return documentReadActions(status, canWrite, SALES_FEATURES, extra).filter(
         action => action !== 'entry' || row.entry !== ''
@@ -162,7 +179,8 @@ export function documentRowMenuItems(row: DocumentListRow, canWrite: boolean): R
     if (status === null) return ['open']
     const offered: DocumentReadAction[] = readActionsOf(row, status, canWrite)
     const apply: RowMenuAction[] = rowApplyCreditOffered(row, canWrite) ? ['apply_credit'] : []
-    return [...apply, ...writeOffAfterReceive(['open', ...offered.filter(isRowMenuAction)])]
+    const menu = writeOffAfterReceive(['open', ...offered.filter(isRowMenuAction)])
+    return [...apply, ...sendAfterOpen(menu)]
 }
 
 // The menu row's test id: `<area prefix>-row-action-<action>`, with dashes.
@@ -174,8 +192,8 @@ export function rowActionTestId(
 }
 
 // The route a navigating action pushes (without the org prefix); null for the actions that
-// stay on the list (Download PDF, Void, Delete draft, and Write off, whose dialog opens
-// over the list) and for Apply to invoices, which opens the credit memo with its dialog
+// stay on the list (Download PDF, Void, Delete draft, and Write off and Send…, whose
+// dialogs open over the list) and for Apply to invoices, which opens the credit memo with its dialog
 // (`useDocumentRowActions`). A purchase row's routes come from `purchaseRowActionHref`
 // (`listRowActionHref` picks by the row's kind); here it has Open only.
 export function rowActionHref(row: DocumentListRow, action: RowMenuAction): string | null {
@@ -198,6 +216,7 @@ export function rowActionHref(row: DocumentListRow, action: RowMenuAction): stri
         case 'delete_draft':
         case 'write_off':
         case 'apply_credit':
+        case 'send':
             return null
     }
 }

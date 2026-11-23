@@ -2,9 +2,11 @@ import { DocumentTitle } from '@tinycld/core/components/DocumentTitle'
 import { ScrollView } from 'react-native'
 import { type PublicEstimateView, usePublicEstimate } from '../../hooks/usePublicEstimate'
 import { PUBLIC_TEXTS, publicTitleOf } from '../../lib/estimate-public'
-import { PublicEstimateFrame } from './PublicEstimateFrame'
+import { PublicFrame } from '../public/PublicFrame'
+import { PublicLoadError, PublicLoading, PublicNotFound } from '../public/PublicStates'
 import { PublicEstimateReady } from './PublicEstimateReady'
-import { PublicLoadError, PublicLoading, PublicNotFound } from './PublicEstimateStates'
+
+const TEST_ID_PREFIX = 'estimate-public'
 
 type ReadyView = Extract<PublicEstimateView, { status: 'ready' }>
 
@@ -21,7 +23,8 @@ export function EstimatePublicScreen({ token }: { token: string }) {
     const view = usePublicEstimate(token)
     const ready = view.status === 'ready' ? view : null
     const retry = view.status === 'error' ? view.retry : noRetry
-    // Core cuts a long title at 40 characters and puts the org first otherwise.
+    // Without the brand, core sets the title exactly: no app name, no org, no cut (spec §7
+    // spark 2: the customer's page shows the business, not the app).
     const title = ready
         ? publicTitleOf(ready.row.number, ready.business)
         : PUBLIC_TEXTS.loadingTitle
@@ -30,13 +33,28 @@ export function EstimatePublicScreen({ token }: { token: string }) {
             className="flex-1 bg-background"
             contentContainerClassName="items-center px-4 py-8"
         >
-            <DocumentTitle title={title} includeOrg={false} maxDetailChars={Infinity} />
-            <PublicEstimateFrame>
-                <PublicLoading isVisible={view.status === 'loading'} />
-                <PublicNotFound isVisible={view.status === 'not-found'} />
-                <PublicLoadError isVisible={view.status === 'error'} onRetry={retry} />
+            <DocumentTitle title={title} includeBrand={false} />
+            <PublicFrame>
+                <PublicLoading
+                    isVisible={view.status === 'loading'}
+                    testIdPrefix={TEST_ID_PREFIX}
+                    text={PUBLIC_TEXTS.loading}
+                />
+                <PublicNotFound
+                    isVisible={view.status === 'not-found'}
+                    testIdPrefix={TEST_ID_PREFIX}
+                    title={PUBLIC_TEXTS.notFound}
+                    hint={PUBLIC_TEXTS.notFoundHint}
+                />
+                <PublicLoadError
+                    isVisible={view.status === 'error'}
+                    testIdPrefix={TEST_ID_PREFIX}
+                    message={PUBLIC_TEXTS.loadError}
+                    retryLabel={PUBLIC_TEXTS.retry}
+                    onRetry={retry}
+                />
                 <ReadyState view={ready} />
-            </PublicEstimateFrame>
+            </PublicFrame>
         </ScrollView>
     )
 }

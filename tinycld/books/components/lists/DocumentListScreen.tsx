@@ -160,8 +160,10 @@ function FullList({ tab, area, screen, searchRef }: ListBodyProps & SearchRefPro
             testIdPrefix={area.testIdPrefix}
             selection={screen.selection}
             batch={screen.batch}
+            batchSend={screen.batchSend}
         />
     )
+    const sendBanner = screen.batchSend.banner
     return (
         <View
             testID={`${area.testIdPrefix}-list`}
@@ -178,6 +180,11 @@ function FullList({ tab, area, screen, searchRef }: ListBodyProps & SearchRefPro
                 inputRef={searchRef}
             />
             <Banner screen={screen} area={area} />
+            <ListBanner
+                testIdPrefix="batch-send"
+                message={sendBanner.message}
+                onDismiss={sendBanner.onDismiss}
+            />
             <DocumentListStates
                 tab={tab}
                 list={list}
@@ -233,6 +240,7 @@ export function DocumentListScreen({ tab, openId, layout, isCovered }: DocumentL
     const selection = isBeside ? null : screen.selection
     const area = areaOf(tab)
     useListShortcuts({ screen, selection, area, isCovered, isBeside, searchRef })
+    const hasSend = screen.canWrite && area.key === 'sales'
     return (
         <>
             <ListOfLayout
@@ -247,7 +255,9 @@ export function DocumentListScreen({ tab, openId, layout, isCovered }: DocumentL
                 testIdPrefix={area.testIdPrefix}
                 rowActions={screen.rowActions}
                 batch={screen.batch}
+                batchSend={screen.batchSend}
                 owner={screen.owner}
+                hasSend={hasSend}
             />
         </>
     )

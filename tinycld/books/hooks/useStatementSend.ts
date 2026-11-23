@@ -3,7 +3,7 @@ import { useMutation } from '@tinycld/core/lib/mutations'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { z } from 'zod'
 import { errorStatus } from '../lib/refusal'
-import { postStatementRoute, STATEMENT_SEND_PATH } from '../lib/statement-requests'
+import { postBooksRoute, STATEMENT_SEND_PATH } from '../lib/statement-requests'
 import type { BooksStatements } from '../types'
 
 export type StatementSendItem = { id: string; to: string }
@@ -51,7 +51,7 @@ export const SEND_ANSWER_UNREADABLE =
 export async function requestStatementSend(
     items: StatementSendItem[]
 ): Promise<StatementSendAnswer> {
-    const response = await postStatementRoute(STATEMENT_SEND_PATH, { statements: items })
+    const response = await postBooksRoute(STATEMENT_SEND_PATH, { statements: items })
     const body: unknown = await response.json().catch(() => null)
     const answer = sendAnswerSchema.safeParse(body)
     if (!answer.success) throw new Error(SEND_ANSWER_UNREADABLE)

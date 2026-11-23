@@ -7,7 +7,7 @@ import { useEffect } from 'react'
 import { Platform } from 'react-native'
 import { pdfDownloadName } from '../lib/pdf-download'
 import { errorStatus, messageOnlyRefusal } from '../lib/refusal'
-import { postStatementRoute, STATEMENT_PREVIEW_PATH } from '../lib/statement-requests'
+import { postBooksRoute, STATEMENT_PREVIEW_PATH } from '../lib/statement-requests'
 import type { CreateStatementsValues } from '../lib/statement-schema'
 import { pdfUriOf } from './useDocumentPdf'
 
@@ -34,7 +34,7 @@ export function previewBodyOf(values: CreateStatementsValues) {
 }
 
 async function fetchPreview(values: CreateStatementsValues): Promise<PreviewFile> {
-    const response = await postStatementRoute(STATEMENT_PREVIEW_PATH, previewBodyOf(values))
+    const response = await postBooksRoute(STATEMENT_PREVIEW_PATH, previewBodyOf(values))
     const bytes = new Uint8Array(await response.arrayBuffer())
     const fileName = pdfDownloadName(
         response.headers.get('Content-Disposition'),

@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-    businessNameOf,
-    contactOf,
     decideTextOf,
     declineQuestionOf,
     outcomeTextOf,
@@ -46,19 +44,6 @@ describe('publicOutcomeOf', () => {
     })
 })
 
-describe('businessNameOf', () => {
-    it('takes the trimmed Books business name', () => {
-        expect(businessNameOf({ business_name: '  Hartwell Supply Co.  ' }, 'Acme Org')).toBe(
-            BUSINESS
-        )
-    })
-
-    it('falls back to the deployment name when the business name is empty or spaces', () => {
-        expect(businessNameOf({ business_name: '' }, 'Acme Org')).toBe('Acme Org')
-        expect(businessNameOf({ business_name: '   ' }, 'Acme Org')).toBe('Acme Org')
-    })
-})
-
 describe('publicTitleOf', () => {
     it('names the estimate and the business', () => {
         expect(publicTitleOf('1001', BUSINESS)).toBe('Estimate 1001 · Hartwell Supply Co.')
@@ -84,32 +69,6 @@ describe('publicDatesOf', () => {
         const dates = publicDatesOf(PUBLIC_ROWS.pendingBare)
         expect(dates).toMatch(/^Estimate date [A-Z][a-z]{2} \d{1,2}, \d{4}$/)
         expect(dates).not.toContain('Expires')
-    })
-})
-
-describe('contactOf', () => {
-    const withContact = (business_email: string, business_phone: string) => ({
-        ...PUBLIC_ROWS.pending,
-        business_email,
-        business_phone,
-    })
-
-    it('is null when neither email nor phone is set', () => {
-        expect(contactOf(withContact('', ''))).toBeNull()
-    })
-
-    it('keeps only the email when only the email is set', () => {
-        expect(contactOf(withContact('books@hartwell.example', ''))).toEqual({
-            email: 'books@hartwell.example',
-            phone: '',
-        })
-    })
-
-    it('keeps both when both are set', () => {
-        expect(contactOf(withContact('books@hartwell.example', '+1 214 555 1234'))).toEqual({
-            email: 'books@hartwell.example',
-            phone: '+1 214 555 1234',
-        })
     })
 })
 

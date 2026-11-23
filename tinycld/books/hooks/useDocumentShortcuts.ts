@@ -2,7 +2,12 @@ import { type Shortcut, useRegisterShortcuts, useShortcutScope } from '@tinycld/
 import { useWritesAvailable } from '@tinycld/core/lib/use-writes-available'
 import { useId, useMemo, useRef } from 'react'
 import { DOCUMENT_PDF_KEY } from '../lib/document-actions'
-import { FORM_KEYS, QUOTE_FORM_KEYS } from '../lib/entry-shortcuts'
+import {
+    FORM_KEYS,
+    QUOTE_FORM_KEYS,
+    SEND_FORM_DESCRIPTIONS,
+    SEND_FORM_KEYS,
+} from '../lib/entry-shortcuts'
 import type { SalesDocumentKind } from '../lib/sales-document-kinds'
 
 interface DocumentShortcutsInput {
@@ -18,6 +23,9 @@ interface DocumentShortcutsInput {
     // More, not a bar button.
     isPhone: boolean
     postAndNew: () => void
+    // Post and send (a posting kind) or Save and send (a quote), on a kind sent by email
+    // (email-share spec §3.3 "Form"); undefined for a kind that is not.
+    send?: () => void
     // A quote's Save and Save & new.
     save: () => void
     saveAndNew: () => void
@@ -32,6 +40,8 @@ interface DocumentShortcutsInput {
     downloadPdf: () => void
 }
 
+const NOOP = () => {}
+
 type KeyState = {
     isSaving: boolean
     canDelete: boolean
@@ -44,7 +54,7 @@ type KeyState = {
 type KeyRuns = Pick<
     DocumentShortcutsInput,
     'deleteRecord' | 'postAndNew' | 'save' | 'saveAndNew' | 'convert' | 'copyLink' | 'downloadPdf'
->
+> & { send: () => void }
 
 interface KeyListInput {
     idOf: (name: string) => string
@@ -54,6 +64,8 @@ interface KeyListInput {
     isPhone: boolean
     // The kind has a PDF: only then is ⌘P registered.
     hasPdf: boolean
+    // The form passes a send: only then is ⌘⌥↵ registered (on a phone).
+    hasSend: boolean
     // Whether a quote's Convert, Copy customer link and Delete are offered now: their keys
     // are registered only then, as the ⇧? list ignores `when`.
     canConvert: boolean
@@ -123,6 +135,13 @@ function downloadPdfKeys({ idOf, group, state, run, hasPdf }: KeyListInput): Sho
     return [key]
 }
 
+// ⌘⌥↵ on a phone, where the send's row sits in More, as a list of none or one: a kind
+// that is not sent by email registers none.
+function sendKeys(input: KeyListInput, name: string, keys: string, description: string) {
+    if (!input.hasSend) return []
+    return [writeKey(input, name, keys, description, () => input.run.current.send())]
+}
+
 function postingKeys(input: KeyListInput): Shortcut[] {
     const { run, isPhone } = input
     const deleteDraft = writeKey(
@@ -142,7 +161,13 @@ function postingKeys(input: KeyListInput): Shortcut[] {
     const postAndNew = writeKey(input, 'postAndNew', FORM_KEYS.postAndNew, 'Post & new', () =>
         run.current.postAndNew()
     )
-    return [...keys, postAndNew]
+    const postAndSend = sendKeys(
+        input,
+        'postAndSend',
+        SEND_FORM_KEYS.postAndSend,
+        SEND_FORM_DESCRIPTIONS.postAndSend
+    )
+    return [...keys, ...postAndSend, postAndNew]
 }
 
 function quoteKeys(input: KeyListInput): Shortcut[] {
@@ -178,7 +203,14 @@ function quoteKeys(input: KeyListInput): Shortcut[] {
         () => run.current.deleteRecord(),
         current => current.canDelete
     )
+    const saveAndSend = sendKeys(
+        input,
+        'saveAndSend',
+        SEND_FORM_KEYS.saveAndSend,
+        SEND_FORM_DESCRIPTIONS.saveAndSend
+    )
     if (canConvert) phoneKeys.push(convert)
+    phoneKeys.push(...saveAndSend)
     if (canCopyLink) phoneKeys.push(copyLink)
     if (canDelete) phoneKeys.push(remove)
     return phoneKeys
@@ -195,6 +227,8 @@ function quoteKeys(input: KeyListInput): Shortcut[] {
  * - ⌘⌫ Delete draft: the row sits in More on every width, so the key is registered here
  *   and does what the row does.
  * - ⌘⇧↵ Post & new on a phone, where its row sits in More: registered only there.
+ * - ⌘⌥↵ Post and send on a phone, on a kind sent by email (`send`): registered only there;
+ *   on a wide screen the bar's Post and send button holds it.
  *
  * A quote (Cancel Esc and Save & close ⌘↵ are bar buttons on every width; Save ⌘S and
  * Save & new ⌘⇧↵ on a wide screen):
@@ -203,6 +237,8 @@ function quoteKeys(input: KeyListInput): Shortcut[] {
  *   ⌘⌫ only while their rows are offered (`canConvert`, `canCopyLink`, `canDelete`). On
  *   a wide screen the Convert, Copy customer link and Delete buttons hold ⌥I, ⌥L and
  *   ⌘⌫, while they are offered.
+ * - ⌘⌥↵ Save and send on a phone, on a kind sent by email (`send`): registered only
+ *   there; on a wide screen the bar's Save and send button holds it.
  *
  * Both:
  * - ⌘S while the save that holds it cannot take it (offline, or a save runs): that key is
@@ -223,6 +259,7 @@ export function useDocumentShortcuts({
     deleteRecord,
     isPhone,
     postAndNew,
+    send,
     save,
     saveAndNew,
     canConvert,
@@ -248,12 +285,14 @@ export function useDocumentShortcuts({
     const runs: KeyRuns = {
         deleteRecord,
         postAndNew,
+        send: send ?? NOOP,
         save,
         saveAndNew,
         convert,
         copyLink,
         downloadPdf,
     }
+    const hasSend = send !== undefined
     const runRef = useRef<KeyRuns>(runs)
     runRef.current = runs
     const { key: kindKey, shortcutGroup: group, lifecycle, noun } = kind
@@ -265,6 +304,7 @@ export function useDocumentShortcuts({
             noun,
             isPhone,
             hasPdf,
+            hasSend,
             canConvert,
             canCopyLink,
             canDelete,
@@ -276,6 +316,7 @@ export function useDocumentShortcuts({
         instance,
         isPhone,
         hasPdf,
+        hasSend,
         kindKey,
         group,
         noun,
