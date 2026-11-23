@@ -107,3 +107,30 @@ export function parseDashboardPrefs(value: unknown): DashboardPrefs {
 export function shownWidgets(prefs: DashboardPrefs): WidgetId[] {
     return prefs.order.filter(id => !prefs.hidden.includes(id))
 }
+
+// Moves a widget one place in the order, shown or hidden; at an end the value stays the same.
+export function moveWidget(prefs: DashboardPrefs, id: WidgetId, by: -1 | 1): DashboardPrefs {
+    const from = prefs.order.indexOf(id)
+    const to = from + by
+    if (from < 0 || to < 0 || to >= prefs.order.length) return prefs
+    const order = [...prefs.order]
+    order[from] = order[to]
+    order[to] = id
+    return { ...prefs, order }
+}
+
+// Adds the widget to `hidden` once, or takes it out; the order does not change.
+export function setWidgetShown(
+    prefs: DashboardPrefs,
+    id: WidgetId,
+    isShown: boolean
+): DashboardPrefs {
+    const others = prefs.hidden.filter(hiddenId => hiddenId !== id)
+    const hidden = isShown ? others : [...others, id]
+    return { ...prefs, hidden }
+}
+
+// The default order with every widget shown; Hide amounts and the periods are kept.
+export function resetArrangement(prefs: DashboardPrefs): DashboardPrefs {
+    return { ...prefs, order: [...WIDGET_IDS], hidden: [] }
+}

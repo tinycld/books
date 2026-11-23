@@ -113,13 +113,138 @@ export async function pickPeriod(
     expect((await saved).ok()).toBe(true)
 }
 
-// Restores the default arrangement through the UI: Hide amounts off and each widget's
-// default period. The preference is one row of the one shared test user, so every test of
-// dashboard.spec.ts ends here.
+// The widget ids in the order lib/dashboard-prefs.ts DEFAULT_DASHBOARD_PREFS holds them,
+// written out (an e2e helper must not load that module).
+export const DEFAULT_ORDER = [
+    'invoices',
+    'expenses',
+    'bankAccounts',
+    'profitAndLoss',
+    'sales',
+] as const
+
+export type DashboardWidgetId = (typeof DEFAULT_ORDER)[number]
+
+export function customizeButton(page: Page): Locator {
+    return dashboardScreen(page).getByTestId('dashboard-customize')
+}
+
+export function editList(page: Page): Locator {
+    return dashboardScreen(page).getByTestId('dashboard-edit-list')
+}
+
+export function editRow(page: Page, id: DashboardWidgetId): Locator {
+    return dashboardScreen(page).getByTestId(`dashboard-edit-row-${id}`)
+}
+
+export function showSwitch(page: Page, id: DashboardWidgetId): Locator {
+    return dashboardScreen(page).getByTestId(`dashboard-edit-show-${id}`)
+}
+
+const CARD_ID = /^dashboard-widget-([A-Za-z]+)$/
+const ROW_ID = /^dashboard-edit-row-([A-Za-z]+)$/
+
+// The widget ids of the cards in the grid, in DOM order (a card's own parts, such as
+// `dashboard-widget-sales-empty`, are not cards).
+export async function gridOrder(page: Page): Promise<string[]> {
+    const ids = await dashboardScreen(page)
+        .locator('[data-testid^="dashboard-widget-"]')
+        .evaluateAll(nodes => nodes.map(node => node.getAttribute('data-testid') ?? ''))
+    return ids.flatMap(id => CARD_ID.exec(id)?.[1] ?? [])
+}
+
+// The widget ids of the edit-mode rows, in DOM order.
+export async function editOrder(page: Page): Promise<string[]> {
+    const ids = await editList(page)
+        .locator('[data-testid^="dashboard-edit-row-"]')
+        .evaluateAll(nodes => nodes.map(node => node.getAttribute('data-testid') ?? ''))
+    return ids.flatMap(id => ROW_ID.exec(id)?.[1] ?? [])
+}
+
+// Opens edit mode from the header's Customize button, or from the all-hidden page's own
+// Customize button, and waits for the edit list.
+export async function openCustomize(
+    page: Page,
+    from: 'header' | 'all-hidden' = 'header'
+): Promise<void> {
+    const button =
+        from === 'header'
+            ? customizeButton(page)
+            : dashboardScreen(page).getByTestId('dashboard-all-hidden-customize')
+    await expect(button).toBeEnabled()
+    await button.click()
+    await expect(editList(page)).toBeVisible()
+}
+
+// Leaves edit mode with the header's Done button and waits for the edit list to go.
+export async function closeCustomize(page: Page): Promise<void> {
+    const button = customizeButton(page)
+    await expect(button).toHaveAccessibleName('Done')
+    await button.click()
+    await expect(editList(page)).toHaveCount(0)
+}
+
+// Turns a row's Show switch to `isShown` and waits for the saved write.
+export async function setShown(page: Page, id: DashboardWidgetId, isShown: boolean): Promise<void> {
+    const toggle = showSwitch(page, id)
+    await expect(toggle).toBeEnabled()
+    if ((await toggle.getAttribute('aria-checked')) === String(isShown)) return
+    const saved = prefsWrite(page)
+    await toggle.click()
+    expect((await saved).ok()).toBe(true)
+    if (isShown) await expect(toggle).toBeChecked()
+    else await expect(toggle).not.toBeChecked()
+}
+
+// Drags a row by its handle above the row of `beforeId` (a real pointer drag in 12 steps,
+// as core tests/e2e/forms-builder.spec.ts drags) and waits for the saved write.
+export async function dragRow(
+    page: Page,
+    id: DashboardWidgetId,
+    beforeId: DashboardWidgetId
+): Promise<void> {
+    const handle = dashboardScreen(page).getByTestId(`dashboard-edit-handle-${id}`)
+    const target = editRow(page, beforeId)
+    await expect(handle).toBeVisible()
+    const from = await handle.boundingBox()
+    const to = await target.boundingBox()
+    if (!from || !to) throw new Error('drag handle or target row is not laid out')
+    const saved = prefsWrite(page)
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(from.x + from.width / 2, to.y + 2, { steps: 12 })
+    await page.mouse.up()
+    expect((await saved).ok()).toBe(true)
+}
+
+// Puts the default order back with every widget shown, through edit mode's Reset to
+// default. The grid is read first, so a default arrangement costs no write.
+async function resetArrangementThroughUi(page: Page): Promise<void> {
+    if (await editList(page).isVisible()) await closeCustomize(page)
+    await expect(
+        dashboardScreen(page)
+            .getByTestId('dashboard-grid')
+            .or(dashboardScreen(page).getByTestId('dashboard-all-hidden'))
+            .first()
+    ).toBeVisible()
+    if ((await gridOrder(page)).join() === DEFAULT_ORDER.join()) return
+    await openCustomize(page)
+    const saved = prefsWrite(page)
+    await dashboardScreen(page).getByTestId('dashboard-reset').click()
+    expect((await saved).ok()).toBe(true)
+    await expect.poll(() => editOrder(page)).toEqual([...DEFAULT_ORDER])
+    await closeCustomize(page)
+    await expect.poll(() => gridOrder(page)).toEqual([...DEFAULT_ORDER])
+}
+
+// Restores the default arrangement through the UI: the default order with every widget
+// shown, Hide amounts off and each widget's default period. The preference is one row of
+// the one shared test user, so every test of dashboard.spec.ts ends here.
 export async function resetDashboardPrefs(page: Page): Promise<void> {
     await openDashboard(page)
     const toggle = hideAmountsSwitch(page)
     await expect(toggle).toBeEnabled()
+    await resetArrangementThroughUi(page)
     if ((await toggle.getAttribute('aria-checked')) === 'true') {
         const saved = prefsWrite(page)
         await toggle.click()
