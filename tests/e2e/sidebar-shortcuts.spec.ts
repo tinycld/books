@@ -120,7 +120,9 @@ test.describe('sidebar-shortcuts: the Shortcuts section', () => {
             await expectShortcuts(page, changed)
 
             // The list is stored for the user: a reload shows the same list.
+            const urlBefore = page.url()
             await page.reload()
+            await expect(page).toHaveURL(urlBefore)
             await expect(page).toHaveURL(/\/a\/books\//)
             await expectShortcuts(page, changed)
 
@@ -155,7 +157,9 @@ test.describe('sidebar-shortcuts: the New section', () => {
 
     // A sidebar row closes the drawer at once and leaves no timer (core SidebarItem, core
     // task 12c). So the round New button opens the section again directly after an action,
-    // and the next action opens its form.
+    // and the next action opens its form. This is the end-to-end flow only: goBack and the
+    // URL wait lie between the press and the next press, so it cannot catch a timer that is
+    // shorter than they are. Core's sidebar-item-drawer unit test holds that timer check.
     test('phone: the round New button opens the section again right after an action', async ({
         page,
     }) => {
@@ -171,41 +175,60 @@ test.describe('sidebar-shortcuts: the New section', () => {
     })
 })
 
+// The owner makes this test's own member a reader, before the member opens Books.
+async function readerView(
+    page: Page,
+    freshMember: { user: { email: string }; page: Page },
+    size: { width: number; height: number }
+) {
+    await login(page)
+    await navigateToPackage(page, 'books')
+    await setLevelOf(page, freshMember.user.email, 'read_only')
+    await openBooksAt(freshMember.page, size)
+    return freshMember.page
+}
+
+// Add shortcut offers a reader screens, and no form. The picker shows "Loading…" until the
+// person's Books level has loaded (until then the level reads as none, whatever it is), so
+// the screen option and the empty row below prove the level is loaded and is not a writer's.
+// The checks after this call (no New section, no round New button) rest on that proof: the
+// level is one read that every Books part shares.
+async function expectReaderPicker(view: Page) {
+    await openCustomize(view)
+    await view.getByTestId('books-shortcuts-add').filter({ visible: true }).click()
+    const search = view.getByTestId('books-shortcuts-add-search')
+    await search.fill('Banking')
+    await expect(view.getByTestId('books-shortcuts-add-option-screen:banking')).toBeVisible()
+    await search.fill('New invoice')
+    await expect(view.getByTestId('books-shortcuts-add-option-empty')).toBeVisible()
+    await expect(view.locator('[data-testid^="books-shortcuts-add-option-new:"]')).toHaveCount(0)
+    await view.keyboard.press('Escape')
+    await expect(search).toHaveCount(0)
+    await cancelCustomize(view)
+}
+
 test.describe('sidebar-shortcuts: reader', () => {
     test.use({ viewport: DESKTOP })
 
-    test('a reader has no New section, no round New button and no form to add', async ({
+    test('desktop: a reader has no New section and no form to add', async ({
         page,
         freshMember,
     }) => {
-        // The owner makes this test's own member a reader, before the member opens Books.
-        await login(page)
-        await navigateToPackage(page, 'books')
-        await setLevelOf(page, freshMember.user.email, 'read_only')
-        const view = freshMember.page
-
-        await openBooksAt(view, DESKTOP)
+        const view = await readerView(page, freshMember, DESKTOP)
         await expect(view.getByTestId('books-shortcuts-customize')).toBeVisible()
+        await expectReaderPicker(view)
         await expect(view.getByTestId('books-sidebar-new-toggle')).toHaveCount(0)
-        await expect(view.getByTestId(newActionTestId('invoice'))).toHaveCount(0)
+    })
 
-        // Add shortcut offers a reader screens, and no form.
-        await openCustomize(view)
-        await view.getByTestId('books-shortcuts-add').filter({ visible: true }).click()
-        const search = view.getByTestId('books-shortcuts-add-search')
-        await search.fill('Banking')
-        await expect(view.getByTestId('books-shortcuts-add-option-screen:banking')).toBeVisible()
-        await search.fill('New invoice')
-        await expect(view.getByTestId('books-shortcuts-add-option-empty')).toBeVisible()
-        await expect(view.locator('[data-testid^="books-shortcuts-add-option-new:"]')).toHaveCount(
-            0
-        )
-        await view.keyboard.press('Escape')
-        await expect(search).toHaveCount(0)
-        await cancelCustomize(view)
-
-        // The phone layout: no round New button, and the drawer holds no New section.
-        await view.setViewportSize(PHONE)
+    // The phone layout is proven by the drawer (showSidebar waits for its panel), then the
+    // level by the picker; only then is the missing round New button a statement about the level.
+    test('phone: a reader has no round New button and the drawer holds no New section', async ({
+        page,
+        freshMember,
+    }) => {
+        const view = await readerView(page, freshMember, PHONE)
+        await showSidebar(view)
+        await expectReaderPicker(view)
         await expect(view.getByLabel('New', { exact: true })).toHaveCount(0)
         await showSidebar(view)
         const panel = view.getByTestId('mobile-drawer-panel')
