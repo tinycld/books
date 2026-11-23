@@ -217,6 +217,32 @@ migrate(
                     { name: 'memo', type: 'text', max: 4000 },
                     { name: 'currency', type: 'text', max: 3, pattern: OPTIONAL_CURRENCY },
                     { name: 'position', type: 'number', onlyInt: true, min: 0 },
+                    // Copies of the row's entry's (not its payment_entry's)
+                    // card_payment and doc_type, as on a journal line (1099 report
+                    // spec §11 Q21; server/cash_basis.go writes them).
+                    { name: 'card_payment', type: 'bool' },
+                    // The values of books_journal_entries.doc_type, in its order.
+                    {
+                        name: 'doc_type',
+                        type: 'select',
+                        maxSelect: 1,
+                        values: [
+                            'journal',
+                            'transfer',
+                            'invoice',
+                            'sales_receipt',
+                            'bill',
+                            'expense',
+                            'payment',
+                            'bill_payment',
+                            'credit_memo',
+                            'vendor_credit',
+                            'vendor_refund',
+                            'refund_receipt',
+                            'write_off',
+                            'deposit',
+                        ],
+                    },
                     ...AUTODATES,
                 ],
                 indexes: [

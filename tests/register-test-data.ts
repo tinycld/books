@@ -45,6 +45,8 @@ export function registerLine(
         posted: true,
         date: '2026-10-12',
         currency: 'USD',
+        card_payment: false,
+        doc_type: 'journal',
         created: '2026-10-12 08:00:00.000Z',
         updated: '2026-10-12 08:00:00.000Z',
         ...seed,

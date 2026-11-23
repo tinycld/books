@@ -25,6 +25,8 @@ function row(id: string, position: number, over: Partial<BooksJournalLines>): Bo
         posted: false,
         date: entry.date,
         currency: 'USD',
+        card_payment: false,
+        doc_type: 'journal',
         created: NOW,
         updated: NOW,
         ...over,

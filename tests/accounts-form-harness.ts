@@ -741,6 +741,8 @@ function journalLine(account: string, position: number): BooksJournalLines {
         posted: true,
         date: '2026-09-01',
         currency: 'USD',
+        card_payment: false,
+        doc_type: 'journal',
         created: '2026-01-01 00:00:00.000Z',
         updated: '2026-01-01 00:00:00.000Z',
     }

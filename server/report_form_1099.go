@@ -31,7 +31,9 @@ func f1099Net() *reports.Node { return op("sub", fld("debit"), fld("credit")) }
 
 // f1099Card is true on a row of a card payment's entry (posting sets
 // card_payment on the entry of an expense, a bill payment and a vendor refund).
-func f1099Card() *reports.Node { return op("eq", fld("entry", "card_payment"), lit(true)) }
+// It reads the row's copy of the mark, so the rows are built with no read of
+// the entry (spec §11 Q21).
+func f1099Card() *reports.Node { return op("eq", fld("card_payment"), lit(true)) }
 
 // f1099Box is the 1099 box of a row's account as it is now, blank for none.
 func f1099Box() *reports.Node { return fld("account", "form_1099_box") }
@@ -56,10 +58,11 @@ func deferredDocTypes() []string {
 // paymentRowFilter keeps the payment rows of books.basis_lines (spec §3 What
 // counts): a ledger line of an entry that is not a deferred document, or a
 // cash-basis share row that a payment wrote (payment_entry set). The ledger
-// part does not map payment_entry, so it reads blank there.
+// part does not map payment_entry, so it reads blank there. A line's doc type
+// is its copy of its entry's (spec §11 Q21).
 func paymentRowFilter() *reports.Node {
 	return op("or",
-		op("and", op("eq", fld("layer"), lit("ledger")), op("not", op("in", fld("entry", "doc_type"), lit(deferredDocTypes())))),
+		op("and", op("eq", fld("layer"), lit("ledger")), op("not", op("in", fld("doc_type"), lit(deferredDocTypes())))),
 		op("and", op("eq", fld("layer"), lit("cash")), op("not", op("isEmpty", fld("payment_entry", "id")))),
 	)
 }

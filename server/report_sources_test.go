@@ -289,6 +289,13 @@ func expectedCatalog(t *testing.T) []wantSource {
 				boolField("posted"), text("currency"),
 				{key: "position", typ: reports.Number},
 				{key: "layer", typ: reports.Select, optionValues: []string{"ledger", "cash"}},
+				// Each row's copies of its entry's card mark and doc type (1099
+				// report spec §11 Q21), with the entry field's values.
+				{key: "card_payment", typ: reports.Bool, label: "Card payment"},
+				{key: "doc_type", typ: reports.Select, label: "Document type", optionValues: []string{
+					"journal", "transfer", "invoice", "sales_receipt", "bill", "expense", "payment", "bill_payment",
+					"credit_memo", "vendor_credit", "vendor_refund", "refund_receipt", "write_off", "deposit",
+				}},
 			},
 			links: []wantLink{
 				toOne("entry", "books.journal_entries", "entry"),
@@ -302,12 +309,12 @@ func expectedCatalog(t *testing.T) []wantSource {
 			parts: []wantPart{
 				{
 					collection: "books_journal_lines",
-					columns:    identity("debit", "credit", "memo", "date", "posted", "currency", "position", "entry", "account", "customer", "vendor"),
+					columns:    identity("debit", "credit", "memo", "date", "posted", "currency", "position", "entry", "account", "customer", "vendor", "card_payment", "doc_type"),
 					values:     map[string]any{"layer": "ledger"},
 				},
 				{
 					collection: "books_cash_basis_lines",
-					columns:    identity("debit", "credit", "memo", "date", "posted", "currency", "position", "entry", "account", "customer", "vendor", "payment_entry"),
+					columns:    identity("debit", "credit", "memo", "date", "posted", "currency", "position", "entry", "account", "customer", "vendor", "card_payment", "doc_type", "payment_entry"),
 					values:     map[string]any{"layer": "cash"},
 				},
 			},

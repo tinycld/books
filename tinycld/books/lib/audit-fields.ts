@@ -628,6 +628,9 @@ const AUDIT_FIELD_MAPS = {
         currency: text('Currency'),
         customer: relation('Customer', 'books_customers'),
         vendor: relation('Vendor', 'books_vendors'),
+        // Copies of the entry's card mark and type (server/lines.go).
+        card_payment: bool('Card payment'),
+        doc_type: select('Type', DOC_TYPE),
         ...STAMPS,
     },
     books_accounts: {

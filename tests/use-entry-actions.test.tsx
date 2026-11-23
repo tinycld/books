@@ -80,6 +80,8 @@ function lineRow(id: string, entry: string, position: number): BooksJournalLines
         posted: false,
         date: '2026-10-12',
         currency: 'USD',
+        card_payment: false,
+        doc_type: 'journal',
         created: NOW,
         updated: NOW,
     }

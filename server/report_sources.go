@@ -256,6 +256,7 @@ func auditLogSource() reports.Source {
 // by the same name in both collections.
 var basisLineColumns = []string{
 	"debit", "credit", "memo", "date", "posted", "currency", "position", "entry", "account", "customer", "vendor",
+	"card_payment", "doc_type",
 }
 
 // basisLinesSource is the journal lines by basis (pay-bills spec §3.10), one
@@ -293,6 +294,11 @@ func basisLinesSource() reports.Source {
 				{Value: "ledger", Label: "Ledger"},
 				{Value: "cash", Label: "Cash basis"},
 			}},
+			// Each row's copies of its entry's card mark and doc type (lines.go
+			// stampEntryCopies, cash_basis.go), so a report reads them with no
+			// read of the entry (1099 report spec §11 Q21).
+			{Key: "card_payment", Label: "Card payment", Type: reports.Bool},
+			{Key: "doc_type", Label: "Document type", Type: reports.Select, Options: entryDocTypeOptions()},
 		},
 		Links: []reports.Link{
 			{Key: "entry", Label: "Entry", Target: "books.journal_entries", Cardinality: reports.ToOne, Field: "entry"},
