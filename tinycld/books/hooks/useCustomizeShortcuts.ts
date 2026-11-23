@@ -8,6 +8,7 @@ import {
     shortcutKey,
 } from '../lib/sidebar-shortcuts'
 import { useShortcutsDialogStore } from '../stores/shortcuts-dialog-store'
+import { useOpenRule } from './useOpenCustomizeShortcuts'
 import { useShortcutLookup } from './useShortcutLookup'
 import { useSidebarShortcuts } from './useSidebarShortcuts'
 
@@ -38,7 +39,7 @@ function sameList(a: readonly Shortcut[], b: readonly Shortcut[]) {
 export function useCustomizeShortcuts() {
     const list = useSidebarShortcuts()
     const draft = useShortcutsDialogStore(state => state.draft)
-    const openDraft = useShortcutsDialogStore(state => state.open)
+    const { canOpen, open } = useOpenRule(list)
     const setDraft = useShortcutsDialogStore(state => state.setDraft)
     const close = useShortcutsDialogStore(state => state.close)
     const items = draft ?? NO_DRAFT
@@ -51,10 +52,6 @@ export function useCustomizeShortcuts() {
         return { key, shortcut, label: row?.label ?? MISSING_LABEL, icon: row?.icon ?? null }
     })
 
-    const canOpen = list.isReady && !list.isError
-    const open = () => {
-        if (canOpen) openDraft(list.shortcuts)
-    }
     // The dialog closes only after the write is saved: a refused write (the hook shows the
     // toast) leaves the dialog open with the draft, so the user's changes are not lost.
     const canSave = canOpen && !list.isSaving
