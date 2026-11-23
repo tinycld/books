@@ -687,6 +687,12 @@ test.describe('report-1099: entry points and phone rows', () => {
             page.getByTestId('report-document-title').filter({ visible: true })
         ).toHaveText(REPORT_1099_TITLE)
 
+        // Core reopens Books at its last route, and the report is now on the Books route: a
+        // new page would reopen on it and show "no access" for its empty answer, not the
+        // list. Going back leaves the list as the last route.
+        await page.goBack()
+        await openVendorsList(page)
+
         // The 1099 report is not found: after its read answered with no row, the menu holds
         // the other three only.
         const threeOnly = await freshPageWithReports(page, OTHER_VENDOR_REPORTS)
@@ -732,6 +738,12 @@ test.describe('report-1099: entry points and phone rows', () => {
         await expect(
             page.getByTestId('report-document-title').filter({ visible: true })
         ).toHaveText(REPORT_1099_TITLE)
+
+        // Core reopens Books at its last route, and the report is now on the Books route: a
+        // new page would reopen on it, not on the settings. Going back leaves Settings → 1099s
+        // as the last route.
+        await page.goBack()
+        await expect(visible(page, 'books-1099-section')).toBeVisible()
 
         // The 1099 report is not found: after its read answered with no row, the section
         // draws its three cards and no button.

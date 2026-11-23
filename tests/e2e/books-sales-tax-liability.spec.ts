@@ -33,11 +33,12 @@ import {
     uniqueName,
 } from './tax-rates-helpers'
 
-// The shipped Sales Tax Liability in core's report view (the Sales tax page's Liability button opens it on the Books route,
-// /a/books/reports/<id>; the Reports hub opens it on core's, /a/reports/<id>), read by the e2e
-// user through the viewer share Books keeps. The seed posts the fixture's taxed invoices and
-// sales receipts in October 2026 (SALES_TAX_DOCUMENTS) and numbers them itself, so no test
-// reads a document label or number from the fixture.
+// The shipped Sales Tax Liability in core's report view (the Sales tax page's Liability
+// button opens it on the Books route, /a/books/reports/<id>; the Reports hub opens it on
+// core's, /a/reports/<id>), read by the e2e user through the viewer share Books keeps. The
+// seed posts the fixture's taxed invoices and sales receipts in October 2026
+// (SALES_TAX_DOCUMENTS) and numbers them itself, so no test reads a document label or
+// number from the fixture.
 //
 // D1: the seed also posts other October invoices and sales receipts under Denver combined
 // (Colorado state, RTD transit, Denver city), which other specs may edit or void on the
