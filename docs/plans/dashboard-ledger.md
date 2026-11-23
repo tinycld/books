@@ -24,7 +24,9 @@
 (none yet)
 
 ## Design notes
-(none yet)
+- cp 1 · reviewer A NOTE: server/dashboard_test.go:162-165 — the test declares its own view-name constants beside `invoiceDueTotalsView` / `paymentDayTotalsView` of server/dashboard.go; the literal names also catch a renamed constant. No change.
+- cp 1 · reviewer A NOTE: server/dashboard_test.go `TestDashboardViews_AreLive` — proves the registry entries and `CheckViews`, not that a `books_invoices` write signals `collection/books_invoice_due_totals`; that proof is core's changesignal tests and the client e2e of checkpoints 2 and 3. No change.
+- cp 1 · reviewer A NOTE: tests/dashboard-fixture.test.ts — the typed `DUE` / `PAID` assignments repeat the fixture's `satisfies` check. No change.
 
 ## Out-of-plan changes
 (none yet)
@@ -51,6 +53,20 @@
     - new decisions from the review: D13 (the first-run `SetupCard` also shows on the dashboard: the spec did not name it, and the landing change would hide it from a new book's admin), D14 (the accounts read is the chart's `useAccountsQuery`), D15 (the balances read starts at the earliest month any period can need, so a period change starts no read), D16 (links are expo-router `Link`s), D17 (locators name the visible screen).
     - also fixed: the help topic's picture (embed, two image files, the `help:screenshots` step); the e2e files that return to the hub or reach it through `openOtherBooksPage` are named and in checkpoint 2's gate run.
 - review mode switches: none
+
+## Checkpoint 1 — Dashboard views and collections
+- test writer: server/dashboard_test.go (7 tests), server/registrations_test.go, server/oauth_scopes_test.go (`TestOAuth_DashboardViewsAreReadOnly`), tests/migration-prefixes.test.ts, tests/collections.test.ts, tests/dashboard-fixture.test.ts; red for the right reason: yes (Go: the views do not exist, proven with `go test -overlay` because registrations_test.go does not compile without `registerDashboardViews`; TS: the missing names, `DASHBOARD` length 0, and TS2305 on the typed fixture import); untestable: none
+- implementer: the views migration 2100000041, `server/dashboard.go` `registerDashboardViews`, Register call, OAuth `ro` entries, audit comment, client collections with `liveViewOptions`, type re-exports, fixture typed with the generated types; generated `BooksInvoiceDueTotals` / `BooksPaymentDayTotals` have number and string fields as asked; DONE
+- test disputes: none
+- self-declared differences: Do step 4 says `pnpm install` at the workspace root; the implementer ran `pnpm run packages:generate` (tinycld), which regenerates the same pbSchema.ts / pbZodSchema.ts from the migrations
+- gate 1: tests unedited: yes · pass (`go test ./...` in server: ok 496s, no file changed after that run; `packages:generate` then `tinycld-pkg check`: biome 2137 files clean, tsc clean, vitest 436 files / 9411 tests; no e2e in this checkpoint)
+- gate 2: n/a (logic checkpoint)
+- gate 3 A (correctness): 0 BLOCK, 0 DEFERRAL; targeted Go run of the 10 named tests passed
+- gate 3 B (conformance): script lines: 0 · findings: none · out-of-plan files: none
+- fix review: n/a (no accepted finding, no fix round)
+- gate 3 A notes: 3, listed under Design notes
+- reviewer-caught deferrals: none
+- commit: see git log, `feat(books): dashboard views and collections`
 
 ## Final review
 - eval:

@@ -55,7 +55,14 @@ const REPORT_SUFFIX = '_books_reconciliation_report.js'
 
 const REPORT = MIGRATIONS.filter(file => file.endsWith(REPORT_SUFFIX))
 
-const AFTER_AUDIT: string[] = [...RECONCILE, ...REPORT]
+// Dashboard spec §4 "New views": the two dashboard views take the next free number after
+// the reconciliation report. They read books_invoices and books_payments; the audit view
+// reads neither dashboard view, so they may run after it.
+const DASHBOARD_SUFFIX = '_create_books_dashboard_views.js'
+
+const DASHBOARD = MIGRATIONS.filter(file => file.endsWith(DASHBOARD_SUFFIX))
+
+const AFTER_AUDIT: string[] = [...RECONCILE, ...REPORT, ...DASHBOARD]
 
 function prefixOf(file: string): string {
     return file.split('_')[0] ?? file
@@ -101,6 +108,8 @@ describe('pb-migrations prefixes', () => {
         expect(RECONCILE).toHaveLength(1)
         expect(REPORT).toHaveLength(1)
         expect(numberOf(REPORT[0])).toBeGreaterThan(numberOf(RECONCILE[0]))
+        expect(DASHBOARD).toHaveLength(1)
+        expect(numberOf(DASHBOARD[0])).toBeGreaterThan(numberOf(REPORT[0]))
         const afterAudit = MIGRATIONS.filter(file => numberOf(file) > numberOf(AUDIT))
         expect(afterAudit).toEqual(AFTER_AUDIT)
     })

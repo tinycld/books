@@ -1000,6 +1000,9 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 	registerReconcile(parts)
 	registerReportShares(parts)
 	registerPartyBalances()
+	// A view registration binds no hook; it keeps this list equal to Register.
+	// TestDashboardViews_AreLive is the guard that Register registers the views.
+	registerDashboardViews()
 	parts.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		bindBalanceRoutes(e)
 		bindPDFRoutes(e)
