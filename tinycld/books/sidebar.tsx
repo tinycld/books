@@ -3,6 +3,7 @@ import {
     SidebarItem,
     SidebarNav,
 } from '@tinycld/core/components/sidebar-primitives'
+import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router } from 'expo-router'
 import { FoldHeading } from './components/sidebar/FoldHeading'
@@ -50,7 +51,10 @@ export default function BooksSidebar() {
         toggleAccounting,
         isActive,
     } = useBooksSidebar()
-    const isNewFirst = useBooksUIStore(s => s.isNewFirst)
+    // Only the phone drawer draws New first: a resize to a desktop width can leave the flag
+    // set while the drawer is open.
+    const isMobile = useBreakpoint() === 'mobile'
+    const isNewFirst = useBooksUIStore(s => s.isNewFirst) && isMobile
     const leadSections = isNewFirst ? NEW_FIRST : SHORTCUTS_FIRST
     const navKey = isNewFirst ? 'new-first' : 'shortcuts-first'
     const orgHref = useOrgHref()
