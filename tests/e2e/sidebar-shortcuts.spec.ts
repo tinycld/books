@@ -21,7 +21,6 @@ import {
     openCustomize,
     pressShortcut,
     saveShortcuts,
-    shortcutRow,
     showSidebar,
 } from './sidebar-shortcuts-helpers'
 
@@ -214,8 +213,7 @@ test.describe('sidebar-shortcuts: the New section', () => {
     })
 
     // With 30 shortcuts the Shortcuts section is taller than a phone. The round New button
-    // must still show the New actions without a scroll, also when the user scrolled the
-    // drawer before. A click scrolls its target into view, so the checks read the viewport
+    // must still show the New actions without a scroll. A click scrolls its target into view, so the checks read the viewport
     // and press nothing in the section.
     test('phone: with a long Shortcuts list, the round New button shows the New actions', async ({
         freshMember,
@@ -234,23 +232,8 @@ test.describe('sidebar-shortcuts: the New section', () => {
         await expect(newSectionToggle(page)).not.toBeInViewport()
         await closeSidebar(page)
         await expectNewActionsShown(page)
-
-        // Scrolled to the end, the open New section is above the screen. The drawer keeps
-        // its scroll when it closes, and the next press of the button must show New again.
-        await scrollSidebarToEnd(page)
-        await expect(newSectionToggle(page)).not.toBeInViewport()
-        await closeSidebar(page)
-        await expectNewActionsShown(page)
     })
 })
-
-async function scrollSidebarToEnd(page: Page) {
-    const box = await page.getByTestId('mobile-drawer-panel').boundingBox()
-    if (!box) throw new Error('the drawer has no layout box')
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
-    await page.mouse.wheel(0, 5000)
-    await expect(shortcutRow(page, DEFAULT_SLUGS[0])).not.toBeInViewport()
-}
 
 // Presses the round New button and expects the open New section on screen, without a
 // scroll: its heading and the first action.

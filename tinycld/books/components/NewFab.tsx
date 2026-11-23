@@ -18,8 +18,9 @@ export function NewFab() {
     const setDrawerOpen = useWorkspaceStore(s => s.setDrawerOpen)
     const openNew = useBooksUIStore(s => s.openNew)
     const showNewActions = () => {
-        openNew()
+        // The open clears the New-first flag, so openNew goes second.
         setDrawerOpen(true)
+        openNew()
     }
 
     return (

@@ -9,8 +9,9 @@ interface BooksUIState {
     toggleNew: () => void
     // Opens the New section and never closes it: the phone's New button calls this.
     openNew: () => void
-    // Set by openNew, cleared when the phone drawer closes: the drawer the New button opens
-    // draws New above the Shortcuts, which can be taller than the screen.
+    // Set by openNew, cleared when the drawer is next opened: the drawer the New button opens
+    // draws New above the Shortcuts, which can be taller than the screen. Call openNew after
+    // the drawer opens.
     isNewFirst: boolean
     // The Reports section of the sidebar. Closed until the user opens it.
     isReportsOpen: boolean
@@ -49,10 +50,11 @@ export const useBooksUIStore = create<BooksUIState>()(
     )
 )
 
-// Every way the drawer closes (an item, the backdrop, a swipe, a route change) goes through
-// core's workspace store, so this is the one place that sees them all.
+// Every way the drawer opens (the edge swipe, the New button) goes through core's workspace
+// store. An open clears the flag, so the New button opens the drawer first and then calls
+// openNew. The flag stays through a close, so the order does not jump during the animation.
 useWorkspaceStore.subscribe((state, previous) => {
-    if (previous.isDrawerOpen && !state.isDrawerOpen) {
+    if (!previous.isDrawerOpen && state.isDrawerOpen) {
         useBooksUIStore.setState({ isNewFirst: false })
     }
 })

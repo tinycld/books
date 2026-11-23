@@ -36,16 +36,24 @@ describe('useBooksUIStore', () => {
         expect(useBooksUIStore.getState().isNewOpen).toBe(true)
     })
 
-    it('openNew draws New first until the drawer closes; toggleNew does not', () => {
+    it('the drawer opened, then openNew, draws New first through the close; toggleNew does not', () => {
         expect(useBooksUIStore.getState().isNewFirst).toBe(false)
         useBooksUIStore.getState().toggleNew()
         expect(useBooksUIStore.getState().isNewFirst).toBe(false)
-        useBooksUIStore.getState().openNew()
         useWorkspaceStore.getState().setDrawerOpen(true)
+        useBooksUIStore.getState().openNew()
         expect(useBooksUIStore.getState().isNewFirst).toBe(true)
         useWorkspaceStore.getState().setDrawerOpen(false)
-        expect(useBooksUIStore.getState().isNewFirst).toBe(false)
+        expect(useBooksUIStore.getState().isNewFirst).toBe(true)
         expect(useBooksUIStore.getState().isNewOpen).toBe(true)
+    })
+
+    it('the next open by anything but the New button draws Shortcuts first again', () => {
+        useWorkspaceStore.getState().setDrawerOpen(true)
+        useBooksUIStore.getState().openNew()
+        useWorkspaceStore.getState().setDrawerOpen(false)
+        useWorkspaceStore.getState().setDrawerOpen(true)
+        expect(useBooksUIStore.getState().isNewFirst).toBe(false)
     })
 
     it('starts with the Reports section closed; toggleReports flips it', () => {
