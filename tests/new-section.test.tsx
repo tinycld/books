@@ -30,7 +30,7 @@ function toggle(container: HTMLElement) {
 }
 
 beforeEach(() => {
-    useBooksUIStore.setState({ isNewOpen: false })
+    useBooksUIStore.setState({ isNewOpen: false, isNewFirst: false })
     useWorkspaceStore.setState({ isDrawerOpen: false })
     useWindowSizeStore.setState(DESKTOP)
     url.pathname = '/a/books/entries'
@@ -168,6 +168,8 @@ describe('NewFab', () => {
 
         expect(useWorkspaceStore.getState().isDrawerOpen).toBe(true)
         expect(useBooksUIStore.getState().isNewOpen).toBe(true)
+        // The drawer open clears the flag, so openNew must run after it.
+        expect(useBooksUIStore.getState().isNewFirst).toBe(true)
     })
 
     it('opens the section and never closes one that is open', async () => {
