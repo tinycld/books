@@ -17,6 +17,7 @@ import {
 } from './vendor-credit-helpers'
 import {
     openBooks,
+    postRefundOn,
     REFUND_CREDIT_ACCOUNT,
     refundCell,
     refundNumberOf,
@@ -34,7 +35,10 @@ import {
 // Refunded badge, the credit's void refusal, the Pay Bills notice after a full refund, and
 // the apply dialog's no-open-bills state with its Record refund button. Every test makes
 // its own vendor and posts its own vendor credit with a unique memo; no seeded credit or
-// refund is read. The phone bar is vendor-refund-credit-phone.spec.ts.
+// refund is read. The part refund and the refund of the rest are two tests: the second
+// posts its first refund from the refund form (postRefundOn), and only it makes an open
+// bill, which Pay Bills needs to list the vendor. The phone bar is
+// vendor-refund-credit-phone.spec.ts.
 
 const MINUS = '−'
 const VOID_REFUSED = 'A vendor refund is recorded on this credit. Void the refund first.'
@@ -101,31 +105,14 @@ test.describe('vendor-refund: vendor credit', () => {
         await page.unrouteAll({ behavior: 'wait' })
     })
 
-    test('Record refund refunds part and then the rest of a posted credit', async ({ page }) => {
+    test('Record refund refunds part of a posted credit, and the refund blocks its void', async ({
+        page,
+    }) => {
         await openBooks(page)
-        const creditMemo = uniqueMemo('Vendor refund credit record')
-        // The vendor has an open bill, so Pay Bills lists the vendor and would show its
-        // unapplied credits in the notice.
-        const { vendor, bills } = await vendorWithBills(page, {
-            bills: [{ amount: '40.00', due: await localDay(page, 10) }],
-        })
-        const [bill] = bills
-        const credit = await postVendorCredit(page, {
-            vendor: vendor.name,
-            account: REFUND_CREDIT_ACCOUNT,
-            amount: '300.00',
-            memo: creditMemo,
-        })
+        const { vendor, credits } = await vendorWithCredits(page, [{ amount: '300.00' }])
+        const [credit] = credits
+        const creditMemo = credit.memo
         const today = formatDay(await localToday(page))
-
-        // Before any refund, Pay Bills filtered to the vendor lists the credit in its notice
-        // of unapplied credits (so the notice's absence after the full refund is the refund's
-        // doing, not a wrong id).
-        await openPayBills(page)
-        await filterToVendor(page, vendor)
-        await expect(payBillsRow(page, bill.id)).toBeVisible()
-        await expect(page.getByTestId(`pay-bills-credit-${credit.id}`)).toBeVisible()
-        await page.goBack()
         await openVendorCreditBySearch(page, creditMemo)
         await expect(page).toHaveURL(creditUrl(credit.id))
 
@@ -204,8 +191,7 @@ test.describe('vendor-refund: vendor credit', () => {
         await expect(page).not.toHaveURL(firstRefundUrl)
         await expect(page).not.toHaveURL(creditUrl(credit.id))
 
-        // Back on the credit, opened by search over the list, so Pay Bills' Back at the end
-        // lands on the list.
+        // Back on the credit, opened by search.
         await openVendorCreditBySearch(page, creditMemo)
         await expect(page).toHaveURL(creditUrl(credit.id))
 
@@ -221,8 +207,51 @@ test.describe('vendor-refund: vendor credit', () => {
         await expect(shown(page, 'vendor-credit-title')).toHaveText(
             `Vendor credit ${credit.number}`
         )
+    })
 
-        // R again: the rest, $180.00, is ticked; ⌘↵ posts it.
+    test('Record refund refunds the rest of a partly refunded credit, and Pay Bills drops it', async ({
+        page,
+    }) => {
+        await openBooks(page)
+        const creditMemo = uniqueMemo('Vendor refund credit rest')
+        // The vendor has an open bill, so Pay Bills lists the vendor and would show its
+        // unapplied credits in the notice.
+        const { vendor, bills } = await vendorWithBills(page, {
+            bills: [{ amount: '40.00', due: await localDay(page, 10) }],
+        })
+        const [bill] = bills
+        const credit = await postVendorCredit(page, {
+            vendor: vendor.name,
+            account: REFUND_CREDIT_ACCOUNT,
+            amount: '300.00',
+            memo: creditMemo,
+        })
+
+        // Before any refund, Pay Bills filtered to the vendor lists the credit in its notice
+        // of unapplied credits (so the notice's absence after the full refund is the refund's
+        // doing, not a wrong id).
+        await openPayBills(page)
+        await filterToVendor(page, vendor)
+        await expect(payBillsRow(page, bill.id)).toBeVisible()
+        await expect(page.getByTestId(`pay-bills-credit-${credit.id}`)).toBeVisible()
+        await page.goBack()
+
+        // A first refund of $120.00 from the refund form, then the credit by search over the
+        // list, so Pay Bills' Back at the end lands on the list.
+        const first = await postRefundOn(page, {
+            vendor: vendor.name,
+            creditId: credit.id,
+            amount: '120.00',
+            memo: uniqueMemo('Vendor refund credit part'),
+        })
+        const firstRefundId = first.id
+        await page.goBack()
+        await expect(page).not.toHaveURL(new RegExp(`/books/vendor-refunds/${firstRefundId}$`))
+        await openVendorCreditBySearch(page, creditMemo)
+        await expect(page).toHaveURL(creditUrl(credit.id))
+        await expect(shown(page, 'vendor-credit-badge')).toHaveText('Partly applied')
+
+        // R: the rest, $180.00, is ticked; ⌘↵ posts it.
         await page.keyboard.press('r')
         await expect(page).toHaveURL(refundFormUrl(vendor.id, credit.id))
         await expectFormForCredit(page, {
