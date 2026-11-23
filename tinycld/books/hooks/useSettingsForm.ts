@@ -33,7 +33,6 @@ export function useSettingsForm<V extends FieldValues>({ schema, values, toPatch
         resetOptions: { keepDirtyValues: true, keepErrors: true, keepIsSubmitted: true },
     })
     const { setError, getValues, reset, setValue } = form
-    const { dirtyFields } = form.formState
     // The live row as of the last render. The mutation callbacks read it when they run, so
     // a save that settles after another writer's update sees that update.
     const row = useRef(values)
@@ -58,7 +57,9 @@ export function useSettingsForm<V extends FieldValues>({ schema, values, toPatch
         onSuccess: (_result, attempt) => {
             inFlight.current = false
             addToast({ title: 'Saved.', variant: 'success', duration: 3000 })
+            // The inputs stay editable during a save: keep what was typed after Save was pressed.
             reset(withOwnChanges(row.current, attempt), {
+                keepDirtyValues: true,
                 keepIsSubmitted: false,
                 keepErrors: false,
             })
@@ -78,7 +79,8 @@ export function useSettingsForm<V extends FieldValues>({ schema, values, toPatch
     const submit = form.handleSubmit(parsed => {
         if (inFlight.current) return
         inFlight.current = true
-        mutation.mutate({ parsed, changed: Object.keys(dirtyFields) })
+        // Read at submit, not from a render: a field set in the same tick is in it.
+        mutation.mutate({ parsed, changed: Object.keys(form.formState.dirtyFields) })
     })
 
     return {
