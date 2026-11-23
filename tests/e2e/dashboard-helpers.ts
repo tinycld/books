@@ -196,8 +196,19 @@ export async function setShown(page: Page, id: DashboardWidgetId, isShown: boole
     else await expect(toggle).not.toBeChecked()
 }
 
+const DRAG_STEPS = 12
+
+async function liveBox(locator: Locator) {
+    const box = await locator.boundingBox()
+    if (!box) throw new Error('drag handle or target row is not laid out')
+    return box
+}
+
 // Drags a row by its handle above the row of `beforeId` (a real pointer drag in 12 steps,
-// as core tests/e2e/forms-builder.spec.ts drags) and waits for the saved write.
+// as core tests/e2e/forms-builder.spec.ts drags) and waits for the saved write. Content
+// above the list (the setup card, which another test's setup change shows or hides through
+// realtime) can move the rows during the drag, so every step aims at the target row's box
+// as it is laid out at that step, not where it was at the start.
 export async function dragRow(
     page: Page,
     id: DashboardWidgetId,
@@ -206,13 +217,17 @@ export async function dragRow(
     const handle = dashboardScreen(page).getByTestId(`dashboard-edit-handle-${id}`)
     const target = editRow(page, beforeId)
     await expect(handle).toBeVisible()
-    const from = await handle.boundingBox()
-    const to = await target.boundingBox()
-    if (!from || !to) throw new Error('drag handle or target row is not laid out')
+    await expect(target).toBeVisible()
     const saved = prefsWrite(page)
-    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
+    const from = await liveBox(handle)
+    const x = from.x + from.width / 2
+    const startY = from.y + from.height / 2
+    await page.mouse.move(x, startY)
     await page.mouse.down()
-    await page.mouse.move(from.x + from.width / 2, to.y + 2, { steps: 12 })
+    for (let step = 1; step <= DRAG_STEPS; step++) {
+        const to = await liveBox(target)
+        await page.mouse.move(x, startY + ((to.y + 2 - startY) * step) / DRAG_STEPS)
+    }
     await page.mouse.up()
     expect((await saved).ok()).toBe(true)
 }

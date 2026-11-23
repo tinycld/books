@@ -531,6 +531,7 @@ describe('useSettingsForm with another writer on the same row', () => {
         expect(savedRow().phone).toBe('+1 555 000 9999')
     })
 
+    // A guard: this passed before the fix too (the refusal path had no defect).
     it('a retry after a refusal does not write back a field another writer changed meanwhile', async () => {
         seedBooks({ level: 'admin', ledger: LEDGER, refuseSettings: messageRefusal(REFUSAL) })
         const rendered = renderLiveCompany()
@@ -558,6 +559,53 @@ describe('useSettingsForm with another writer on the same row', () => {
 
         await waitFor(() => expect(savedRow().phone).toBe('+1 555 000 9999'))
         expect(savedRow().email).toBe(OTHER_EMAIL)
+    })
+})
+
+// The inputs stay editable while a save is in flight; only Save is disabled. The first test
+// is a guard: react-hook-form merges useForm's resetOptions (keepDirtyValues) into reset, so
+// it passed before the success reset named keepDirtyValues itself.
+describe('useSettingsForm typing during a save', () => {
+    it('keeps a field typed while the save is held, still dirty, after the save settles', async () => {
+        const release = holdWrites()
+        const rendered = renderLiveCompany()
+        await waitFor(() => expect(settingsStore().get(ROW.id)).toBeDefined())
+        act(() => {
+            rendered.result.current.form.setValue('phone', '+1 555 000 9999', {
+                shouldDirty: true,
+            })
+        })
+        act(() => rendered.result.current.submit())
+        await waitFor(() => expect(rendered.result.current.isPending).toBe(true))
+
+        act(() => {
+            rendered.result.current.form.setValue('tax_id', '98-7654321', { shouldDirty: true })
+        })
+        release()
+        await waitFor(() => expect(rendered.result.current.isPending).toBe(false))
+        await waitFor(() => expect(savedRow().phone).toBe('+1 555 000 9999'))
+
+        expect(rendered.result.current.form.getValues().tax_id).toBe('98-7654321')
+        expect(rendered.result.current.form.getValues().phone).toBe('+1 555 000 9999')
+        expect(rendered.result.current.form.formState.dirtyFields).toEqual({ tax_id: true })
+        expect(savedRow().tax_id).toBe(ROW.tax_id)
+    })
+
+    it('writes a field set in the same tick as the submit', async () => {
+        const rendered = renderLiveCompany()
+        await waitFor(() => expect(settingsStore().get(ROW.id)).toBeDefined())
+
+        act(() => {
+            const { form, submit } = rendered.result.current
+            // A reset gives the form a new dirty-field map; the submit of the render before
+            // it must still see the field set after it.
+            form.reset(form.getValues(), { keepDirtyValues: false })
+            form.setValue('tax_id', '98-7654321', { shouldDirty: true })
+            submit()
+        })
+
+        await waitFor(() => expect(rendered.result.current.isPending).toBe(false))
+        await waitFor(() => expect(savedRow().tax_id).toBe('98-7654321'))
     })
 })
 
