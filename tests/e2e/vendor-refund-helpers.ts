@@ -129,8 +129,8 @@ export async function vendorWithCredits(
 }
 
 // Books must already be open. From the Journal Entries list through the New menu
-// (tests/e2e/new-menu-helpers.ts) to Vendor refund. A new refund's Vendor
-// picker has focus (web, every width).
+// (tests/e2e/new-menu-helpers.ts) to Vendor refund. A new refund's Vendor picker has focus
+// (web, every width).
 export async function openNewVendorRefund(page: Page) {
     await openEntriesList(page)
     await openNewAction(page, 'vendor_refund')
