@@ -2,9 +2,11 @@ import { DocumentTitle } from '@tinycld/core/components/DocumentTitle'
 import { ScrollView } from 'react-native'
 import { type PublicEstimateView, usePublicEstimate } from '../../hooks/usePublicEstimate'
 import { PUBLIC_TEXTS, publicTitleOf } from '../../lib/estimate-public'
-import { PublicEstimateFrame } from './PublicEstimateFrame'
+import { PublicFrame } from '../public/PublicFrame'
+import { PublicLoadError, PublicLoading, PublicNotFound } from '../public/PublicStates'
 import { PublicEstimateReady } from './PublicEstimateReady'
-import { PublicLoadError, PublicLoading, PublicNotFound } from './PublicEstimateStates'
+
+const TEST_ID_PREFIX = 'estimate-public'
 
 type ReadyView = Extract<PublicEstimateView, { status: 'ready' }>
 
@@ -31,12 +33,27 @@ export function EstimatePublicScreen({ token }: { token: string }) {
             contentContainerClassName="items-center px-4 py-8"
         >
             <DocumentTitle title={title} includeOrg={false} maxDetailChars={Infinity} />
-            <PublicEstimateFrame>
-                <PublicLoading isVisible={view.status === 'loading'} />
-                <PublicNotFound isVisible={view.status === 'not-found'} />
-                <PublicLoadError isVisible={view.status === 'error'} onRetry={retry} />
+            <PublicFrame>
+                <PublicLoading
+                    isVisible={view.status === 'loading'}
+                    testIdPrefix={TEST_ID_PREFIX}
+                    text={PUBLIC_TEXTS.loading}
+                />
+                <PublicNotFound
+                    isVisible={view.status === 'not-found'}
+                    testIdPrefix={TEST_ID_PREFIX}
+                    title={PUBLIC_TEXTS.notFound}
+                    hint={PUBLIC_TEXTS.notFoundHint}
+                />
+                <PublicLoadError
+                    isVisible={view.status === 'error'}
+                    testIdPrefix={TEST_ID_PREFIX}
+                    message={PUBLIC_TEXTS.loadError}
+                    retryLabel={PUBLIC_TEXTS.retry}
+                    onRetry={retry}
+                />
                 <ReadyState view={ready} />
-            </PublicEstimateFrame>
+            </PublicFrame>
         </ScrollView>
     )
 }

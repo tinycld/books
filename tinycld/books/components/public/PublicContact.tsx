@@ -1,13 +1,13 @@
 import { log } from '@tinycld/core/lib/logger'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { Linking, Text, View } from 'react-native'
-import { contactLeadOf, contactOf, type PublicEstimateRow } from '../../lib/estimate-public'
+import { contactLeadOf, contactOf, contactUrlsOf } from '../../lib/public-page'
 
 const TAP = { minHeight: 44 }
 
 function openContact(url: string) {
     Linking.openURL(url).catch(err =>
-        log.warn('books.estimate-public', 'could not open the contact link', {
+        log.warn('books.public-page', 'could not open the contact link', {
             scheme: url.split(':')[0],
             error: String(err),
         })
@@ -24,31 +24,32 @@ function ContactLink({ value, url, testID }: { value: string; url: string; testI
     )
 }
 
-interface PublicEstimateContactProps {
-    row: Pick<PublicEstimateRow, 'business_email' | 'business_phone'>
-    business: string
+interface PublicContactProps {
+    business: { name: string; email: string; phone: string }
+    // The page's test id stem: "estimate-public" gives estimate-public-contact and its links.
+    testIdPrefix: string
 }
 
-// Under the card, when Books has an email or a phone: whom to ask. Neither set: nothing.
-export function PublicEstimateContact({ row, business }: PublicEstimateContactProps) {
-    const contact = contactOf(row)
+// Under the card of a customer's page, when Books has an email or a phone: whom to ask.
+// Neither set: nothing.
+export function PublicContact({ business, testIdPrefix }: PublicContactProps) {
+    const contact = contactOf({ business_email: business.email, business_phone: business.phone })
     if (contact === null) return null
-    const lead = contactLeadOf(business)
-    const mailto = `mailto:${contact.email}`
-    const tel = `tel:${contact.phone.replace(/\s+/g, '')}`
+    const lead = contactLeadOf(business.name)
+    const { mailto, tel } = contactUrlsOf(contact)
     return (
-        <View testID="estimate-public-contact" className="items-center gap-1">
+        <View testID={`${testIdPrefix}-contact`} className="items-center gap-1">
             <Text className="text-center text-sm text-muted-foreground">{lead}</Text>
             <View className="flex-row flex-wrap justify-center">
                 <ContactLink
                     value={contact.email}
                     url={mailto}
-                    testID="estimate-public-contact-email"
+                    testID={`${testIdPrefix}-contact-email`}
                 />
                 <ContactLink
                     value={contact.phone}
                     url={tel}
-                    testID="estimate-public-contact-phone"
+                    testID={`${testIdPrefix}-contact-phone`}
                 />
             </View>
         </View>

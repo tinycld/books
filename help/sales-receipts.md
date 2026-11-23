@@ -72,6 +72,12 @@ To give a customer money back for a sale, open the posted sales receipt and choo
 
 Under the totals, the **Refund receipts** section lists each refund receipt that is made from the sales receipt, with its number, date, amount and status. Choose a number to open the refund receipt. A sales receipt with no refund receipt has no section.
 
+## Send to your customer
+
+To email a posted sales receipt to your customer with its PDF attached, open it and choose **Send…**, or press S. On a phone, Send… is in the More menu. On the form, **Post and send** (⌘⌥↵) posts the sales receipt and then opens the Send dialog. You can also choose Send… in the row menu of the [Sales lists](help://books:sales-lists). A draft or a void sales receipt has no Send….
+
+The Send dialog works as for an invoice: To, Cc, Subject, Message, Reset message (⌥R) and Send (⌘↵). See "Send to your customer" in [Invoices](help://books:invoices). The message starts with "Attached is sales receipt 1004 from" and your business name, the Date, the Total and "Paid. No payment is due." A sales receipt has no customer link. To starts with the sales receipt's Email, else the customer's email; for a walk-in sale with no email, type the address. After a send, the read view shows a line such as "Sent Nov 20, 2026 to" with the address. When email sending is not set up, the dialog says "Email sending is not set up. Download the PDF and send it to your customer."
+
 ## Keyboard shortcuts
 
 The form uses the same keys as an invoice:
@@ -79,6 +85,7 @@ The form uses the same keys as an invoice:
 | Action | Key |
 | --- | --- |
 | Post | ⌘↵ |
+| Post and send | ⌘⌥↵ |
 | Post & new | ⌘⇧↵ |
 | Save draft | ⌘S |
 | Cancel | Esc |
@@ -88,6 +95,7 @@ The form uses the same keys as an invoice:
 
 On a posted or void sales receipt:
 
+- S: Send… (a posted sales receipt)
 - E: Edit
 - V: Void
 - C: Copy to a new sales receipt

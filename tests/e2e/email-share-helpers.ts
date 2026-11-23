@@ -1,5 +1,7 @@
-import { expect, type Locator, type Page } from '@playwright/test'
+import { type Browser, expect, type Locator, type Page } from '@playwright/test'
+import { trackRealtimeClients } from '@tinycld/core/e2e-helpers'
 import { DOCUMENT_SEND_PATH } from '../../tinycld/books/lib/document-send'
+import { DESKTOP } from './account-register-helpers'
 import { expectedHeading } from './books-report-helpers'
 import { createCustomer, customerPath, uniqueName } from './customer-form-helpers'
 import { uniqueMemo } from './invoice-helpers'
@@ -86,6 +88,68 @@ export function todayWords(page: Page): Promise<string> {
 
 export function toast(page: Page, text: string): Locator {
     return page.getByTestId('toast-card').filter({ hasText: text })
+}
+
+// The customer link of an invoice (email-share spec §3.5): the server address,
+// /p/books/invoices/ and a 43-character URL-safe token.
+export const INVOICE_LINK_PATTERN = /\/p\/books\/invoices\/[A-Za-z0-9_-]{43}$/
+
+export const LINK_COPIED = 'Customer link copied.'
+
+// The token at the end of an invoice's customer link.
+export function invoiceTokenOfLink(link: string): string {
+    const token = /\/p\/books\/invoices\/([A-Za-z0-9_-]{43})$/.exec(link)?.[1]
+    if (!token) throw new Error(`not an invoice customer link: ${link}`)
+    return token
+}
+
+// The invoice customer link of a token on the same server as the Books page.
+export function invoiceLinkOf(page: Page, token: string): string {
+    return `${new URL(page.url()).origin}/p/books/invoices/${token}`
+}
+
+/**
+ * A posted invoice's read view is open at desktop width. Presses its Copy customer link
+ * button (`invoice-read-link`), waits for the toast and returns the link the clipboard
+ * then holds.
+ */
+export async function copyInvoiceLink(page: Page): Promise<string> {
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+    await page.evaluate(() => navigator.clipboard.writeText(''))
+    const button = page.getByTestId('invoice-read-link').filter({ visible: true })
+    await expect(button, 'the read bar’s Copy customer link button').toBeVisible()
+    await button.click()
+    await expect(page.getByText(LINK_COPIED, { exact: true }).first()).toBeVisible()
+    await expect
+        .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+        .toMatch(INVOICE_LINK_PATTERN)
+    return page.evaluate(() => navigator.clipboard.readText())
+}
+
+/**
+ * Opens a customer link in a new browser context that never signed in, as a customer
+ * pasting the link (the pattern of `openPublicPage`, estimate-public-link-helpers.ts),
+ * with its realtime clients tracked. `beforeLoad` runs on the new page before its first
+ * and only `goto` (to fake a read before the screen mounts).
+ */
+export async function openInvoicePublicPage(
+    browser: Browser,
+    link: string,
+    options: {
+        viewport?: { width: number; height: number }
+        beforeLoad?: (page: Page) => Promise<void>
+    } = {}
+): Promise<{ page: Page; close: () => Promise<void> }> {
+    const context = await browser.newContext({
+        baseURL: new URL(link).origin,
+        viewport: options.viewport ?? DESKTOP,
+        reducedMotion: 'reduce',
+    })
+    trackRealtimeClients(context)
+    const page = await context.newPage()
+    if (options.beforeLoad) await options.beforeLoad(page)
+    await page.goto(link)
+    return { page, close: () => context.close() }
 }
 
 // Counts the page's POSTs to the send route from now on.

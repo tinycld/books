@@ -88,6 +88,12 @@ When the credit memo is applied to invoices, these rules apply:
 - The edit cannot change the customer: "This credit is applied to invoices, so its customer cannot change."
 - The edit's date cannot be after the earliest apply date, for example "This credit is applied to invoice 1009 on Nov 16, 2026. Date the credit memo on or before that day."
 
+## Send to your customer
+
+To email a posted credit memo to your customer with its PDF attached, open it and choose **Send…**, or press S. On a phone, Send… is in the More menu. On the form, **Post and send** (⌘⌥↵) posts the credit memo and then opens the Send dialog. You can also choose Send… in the row menu of the [Sales lists](help://books:sales-lists). A draft or a void credit memo has no Send….
+
+The Send dialog works as for an invoice: To, Cc, Subject, Message, Reset message (⌥R) and Send (⌘↵). See "Send to your customer" in [Invoices](help://books:invoices). The message starts with "Attached is credit memo 1001 from" and your business name, the Date, the Credit (the total) and the Unapplied credit. A credit memo has no customer link. After a send, the read view shows a line such as "Sent Nov 20, 2026 to" with the address. When email sending is not set up, the dialog says "Email sending is not set up. Download the PDF and send it to your customer."
+
 ## Keyboard shortcuts
 
 The form uses the same keys as an invoice:
@@ -95,6 +101,7 @@ The form uses the same keys as an invoice:
 | Action | Key |
 | --- | --- |
 | Post | ⌘↵ |
+| Post and send | ⌘⌥↵ |
 | Post & new | ⌘⇧↵ |
 | Save draft | ⌘S |
 | Cancel | Esc |
@@ -105,6 +112,7 @@ The form uses the same keys as an invoice:
 On a posted or void credit memo:
 
 - A: Apply to invoices (a posted credit memo with unapplied credit only)
+- S: Send… (a posted credit memo)
 - E: Edit
 - V: Void
 - C: Copy to a new credit memo

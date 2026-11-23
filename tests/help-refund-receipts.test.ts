@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import manifest from '../manifest'
-import { paragraphWith, readHelpTopic } from './help-topic'
+import { letterKey, lineWith, paragraphWith, readHelpTopic, sectionOf } from './help-topic'
 
 // The refund receipt help topic (refund receipt spec §3.13 Help, checkpoint 5): task-led,
 // the key map in Mac glyphs, links to the sales receipt and credit memo topics. The form's
@@ -114,6 +114,17 @@ describe('help/refund-receipts.md', () => {
         expect(
             existsSync(path.resolve(__dirname, '..', directory ?? '', 'refund-receipts.md'))
         ).toBe(true)
+    })
+})
+
+// Email and share spec §3.7 Help (checkpoint 5): a short Send section.
+describe('help/refund-receipts.md (send)', () => {
+    it('has a Send section that names Send… with its key S', () => {
+        expect(body).toMatch(/^## Send\b.*$/m)
+        const title = /^## (Send\b.*)$/m.exec(body)?.[1] ?? ''
+        const send = sectionOf(body, title)
+        expect(send).toContain('Send…')
+        expect(lineWith(send, letterKey('S'), /Send…/), 'a line with S and Send…').toBeDefined()
     })
 })
 

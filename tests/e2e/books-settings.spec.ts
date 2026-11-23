@@ -32,7 +32,10 @@ import { superuserClient } from './superuser-seed'
 // setup completion), including the setup wizard tests at the end. Playwright runs spec files
 // in parallel workers, so tests that write the same row must live in one file. They run in
 // declaration order in one worker: the Settings screen tests first, the wizard tests last,
-// because the wizard flow completes setup.
+// because the wizard flow completes setup. The tests that save the Company fields, the wizard
+// tests among them, end their titles in "(company settings)": they run in the one-worker
+// `purchase-lines-setting` project (playwright.config.ts) before the rest, because the public
+// customer pages of other spec files show those fields.
 // The 'vendor-1099:' describe writes the shared settings row too (the 1099 reporting
 // threshold), so it lives here, and it puts back the threshold it changed.
 // Known consequence: the seeded business name is blank and the schema requires a name, so the
@@ -77,6 +80,34 @@ async function ensureBusinessName(page: Page) {
     if ((await name.inputValue()) !== '') return
     await name.fill('E2E Company Co')
     await id(page, 'books-settings-save').click()
+    await expectSaved(page)
+}
+
+type CompanyFields = Partial<Record<'name' | 'taxId' | 'phone' | 'email', string>>
+
+const COMPANY_FIELD_IDS = {
+    name: 'books-settings-company-business-name',
+    taxId: 'books-settings-company-tax-id',
+    phone: 'books-settings-company-phone',
+    email: 'books-settings-company-email',
+} as const
+
+// Puts the given Company fields back through Settings. Save stays disabled when the stored
+// values are already these: nothing was saved, so there is nothing to put back.
+async function restoreCompanyFields(page: Page, values: CompanyFields) {
+    await page.setViewportSize(DESKTOP)
+    await id(page, 'books-nav-settings').click()
+    await expect(id(page, 'books-settings')).toBeVisible()
+    await openRailSection(page, 'numbering')
+    await openRailSection(page, 'company')
+    for (const [field, value] of Object.entries(values) as [keyof CompanyFields, string][]) {
+        const input = id(page, COMPANY_FIELD_IDS[field])
+        await input.fill(value)
+        await expect(input).toHaveValue(value)
+    }
+    const save = id(page, 'books-settings-save')
+    if (!(await save.isEnabled())) return
+    await save.click()
     await expectSaved(page)
 }
 
@@ -161,7 +192,16 @@ async function openOpeningForm(page: Page) {
 }
 
 test.describe('books-settings: Settings screens', () => {
-    test('Company: validates email and legal name, saves, keeps values, and restores', async ({
+    // The Company test saves the shared settings row. An afterEach hook puts it back also when
+    // the test fails or times out; it does nothing after the other tests.
+    let companyRestore: CompanyFields | undefined
+    test.afterEach(async ({ page }) => {
+        const values = companyRestore
+        companyRestore = undefined
+        if (values) await restoreCompanyFields(page, values)
+    })
+
+    test('Company: validates email and legal name, saves, keeps values, and restores (company settings)', async ({
         page,
     }) => {
         await openSettings(page)
@@ -175,7 +215,9 @@ test.describe('books-settings: Settings screens', () => {
             name: await name.inputValue(),
             taxId: await taxId.inputValue(),
             phone: await phone.inputValue(),
+            email: await email.inputValue(),
         }
+        companyRestore = original
         await expect(save).toBeDisabled()
 
         await name.fill('')
@@ -204,15 +246,11 @@ test.describe('books-settings: Settings screens', () => {
         await expect(name).toHaveValue('E2E Company Co')
         await expect(taxId).toHaveValue('12-3456789')
         await expect(phone).toHaveValue('+1 214 555 0100')
-
-        await name.fill(original.name)
-        await taxId.fill(original.taxId)
-        await phone.fill(original.phone)
-        await save.click()
-        await expectSaved(page)
     })
 
-    test('Company: the phone list shows the saved name and opens the form', async ({ page }) => {
+    test('Company: the phone list shows the saved name and opens the form (company settings)', async ({
+        page,
+    }) => {
         await openSettings(page)
         await openRailSection(page, 'numbering')
         await openRailSection(page, 'company')
@@ -628,7 +666,7 @@ test.describe('books-settings: Settings screens', () => {
         }
     })
 
-    test('a dirty Company form keeps its edits across the breakpoint and a rail click', async ({
+    test('a dirty Company form keeps its edits across the breakpoint and a rail click (company settings)', async ({
         page,
     }) => {
         await openSettings(page)
@@ -944,7 +982,15 @@ async function resetSetupToUnfinished() {
 test.describe('books-settings: setup wizard resume after a Settings save', () => {
     test.beforeEach(resetSetupToUnfinished)
 
-    test('a business name saved from Settings does not make the setup wizard resume at Part 3', async ({
+    // An afterEach hook puts the business name back also when the test fails or times out.
+    let companyRestore: CompanyFields | undefined
+    test.afterEach(async ({ page }) => {
+        const values = companyRestore
+        companyRestore = undefined
+        if (values) await restoreCompanyFields(page, values)
+    })
+
+    test('a business name saved from Settings does not make the setup wizard resume at Part 3 (company settings)', async ({
         page,
     }) => {
         await openCompanySettings(page)
@@ -952,26 +998,16 @@ test.describe('books-settings: setup wizard resume after a Settings save', () =>
         await expect(name).toBeVisible()
         if ((await name.inputValue()) === '') await saveBusinessName(page, 'E2E Company Co')
         const original = await name.inputValue()
+        companyRestore = { name: original }
         const saved = 'E2E Wizard Resume Co'
         await saveBusinessName(page, saved)
 
-        try {
-            await id(page, 'books-nav-lists').click()
-            await id(page, 'books-setup-card').click()
-            await page.setViewportSize(DESKTOP)
-            await expect(page.getByTestId('books-setup-part-label')).toHaveText('Part 1 of 3')
-            await expect(page.getByTestId('books-setup-business-name')).toHaveValue(saved)
-            await expect(page.getByTestId('books-setup-populated')).toHaveCount(0)
-        } finally {
-            await runRestores([
-                async () => {
-                    await id(page, 'books-nav-settings').click()
-                    await openRailSection(page, 'numbering')
-                    await openRailSection(page, 'company')
-                    await saveBusinessName(page, original)
-                },
-            ])
-        }
+        await id(page, 'books-nav-lists').click()
+        await id(page, 'books-setup-card').click()
+        await page.setViewportSize(DESKTOP)
+        await expect(page.getByTestId('books-setup-part-label')).toHaveText('Part 1 of 3')
+        await expect(page.getByTestId('books-setup-business-name')).toHaveValue(saved)
+        await expect(page.getByTestId('books-setup-populated')).toHaveCount(0)
     })
 })
 
@@ -983,7 +1019,7 @@ test.describe('books-settings: setup wizard resume after a Settings save', () =>
 test.describe('books-settings: setup wizard flow', () => {
     test.beforeEach(resetSetupToUnfinished)
 
-    test('walks Business, Ownership and the populated-book notice, then finishes', async ({
+    test('walks Business, Ownership and the populated-book notice, then finishes (company settings)', async ({
         page,
     }) => {
         await login(page)

@@ -1,0 +1,199 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "public-paid",
+            "url": "/p/books/invoices/$token",
+            "token": "memo=\"Seed invoice exempt\" && status=\"posted\"",
+            "ready": "invoice-public-paid",
+            "height": 900,
+            "widths": [390]
+        },
+        {
+            "name": "public-paid",
+            "url": "/p/books/invoices/$token",
+            "token": "memo=\"Seed invoice exempt\" && status=\"posted\"",
+            "ready": "invoice-public-paid",
+            "height": 900,
+            "widths": [1280]
+        },
+        {
+            "name": "public-overdue",
+            "url": "/p/books/invoices/$token",
+            "token": "memo=\"Seed invoice posted\" && status=\"posted\"",
+            "ready": "invoice-public",
+            "height": 900,
+            "widths": [390],
+            "schemes": ["light"]
+        },
+        {
+            "name": "public-overdue",
+            "url": "/p/books/invoices/$token",
+            "token": "memo=\"Seed invoice posted\" && status=\"posted\"",
+            "ready": "invoice-public",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"]
+        },
+        {
+            "name": "public-loading",
+            "url": "/p/books/invoices/$token",
+            "token": "memo=\"Seed invoice exempt\" && status=\"posted\"",
+            "ready": "invoice-public-loading",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "fakeRecords": { "collection": "books_invoice_public", "hold": true }
+        },
+        {
+            "name": "public-error",
+            "url": "/p/books/invoices/$token",
+            "token": "memo=\"Seed invoice exempt\" && status=\"posted\"",
+            "ready": "invoice-public-error",
+            "height": 900,
+            "widths": [390],
+            "schemes": ["light"],
+            "fakeRecords": { "collection": "books_invoice_public", "status": 400 }
+        },
+        {
+            "name": "public-error",
+            "url": "/p/books/invoices/$token",
+            "token": "memo=\"Seed invoice exempt\" && status=\"posted\"",
+            "ready": "invoice-public-error",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "fakeRecords": { "collection": "books_invoice_public", "status": 400 }
+        },
+        {
+            "name": "public-not-found",
+            "url": "/p/books/invoices/pub_nosuchinvoice_0000000000000000000000000",
+            "ready": "invoice-public-not-found",
+            "height": 900,
+            "widths": [390],
+            "schemes": ["light"]
+        },
+        {
+            "name": "public-not-found",
+            "url": "/p/books/invoices/pub_nosuchinvoice_0000000000000000000000000",
+            "ready": "invoice-public-not-found",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"]
+        },
+        {
+            "name": "public-long",
+            "url": "/p/books/invoices/pub_invoice1009long_00000000000000000000000",
+            "ready": "invoice-public",
+            "height": 1200,
+            "widths": [390, 1280],
+            "schemes": ["light"],
+            "fakeRecords": {
+                "collection": "books_invoice_public",
+                "items": [
+                    {
+                        "id": "invc1004every01",
+                        "token": "pub_invoice1009long_00000000000000000000000",
+                        "number": "1009",
+                        "status": "posted",
+                        "date": "2026-10-21",
+                        "due_date": "2026-11-20",
+                        "total": 184600000,
+                        "balance": 123050050,
+                        "currency": "USD",
+                        "message": "Thank you for your business. This invoice covers the annex network refresh: the October walk-through, six ceiling-mount access points installed and tested, and the cabling for the second floor. Parts are billed at cost plus ten percent. Please pay by bank transfer or check, and put the invoice number on the payment.",
+                        "customer_name": "St. Jude Community Hospital Foundation of the Greater Willamette Valley",
+                        "replaced_by_token": "",
+                        "replaced_by_number": "",
+                        "business_name": "Hartwell Regional Industrial Supply and Fastener Distribution Partners of North Texas, Incorporated",
+                        "business_email": "",
+                        "business_phone": ""
+                    }
+                ]
+            }
+        },
+        {
+            "name": "public-void",
+            "url": "/p/books/invoices/$token",
+            "before": [
+                {
+                    "openInvoice": "memo=\"Seed A/R aging: waiting room signage\" && status=\"posted\""
+                },
+                { "clickVisible": "invoice-read-void" },
+                { "waitFor": "void-dialog" },
+                { "click": "void-confirm" },
+                { "waitForHidden": "void-dialog" }
+            ],
+            "token": "memo=\"Seed A/R aging: waiting room signage\" && status=\"void\"",
+            "ready": "invoice-public-void",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"]
+        },
+        {
+            "name": "public-void",
+            "url": "/p/books/invoices/$token",
+            "token": "memo=\"Seed A/R aging: waiting room signage\" && status=\"void\"",
+            "ready": "invoice-public-void",
+            "height": 900,
+            "widths": [390],
+            "schemes": ["light"]
+        },
+        {
+            "name": "public-open",
+            "url": "/p/books/invoices/$token",
+            "before": [
+                { "openInvoice": "memo=\"Seed invoice posted\" && status=\"posted\"" },
+                { "clickVisible": "invoice-read-edit" },
+                { "waitForUrl": "/books/invoices/new\\?replaces=" },
+                { "fill": "form-input-due_date", "value": "2026-12-20" },
+                { "click": "invoice-post" },
+                { "waitForUrl": "/books/invoices/[A-Za-z0-9]{15}$" },
+                { "waitFor": "invoice-read-only" }
+            ],
+            "token": "memo=\"Seed invoice posted\" && status=\"posted\"",
+            "ready": "invoice-public",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"]
+        },
+        {
+            "name": "public-replaced",
+            "url": "/p/books/invoices/$token",
+            "token": "memo=\"Seed invoice posted\" && status=\"void\"",
+            "ready": "invoice-public-replaced",
+            "height": 900,
+            "widths": [390],
+            "schemes": ["light"]
+        },
+        {
+            "name": "public-replaced",
+            "url": "/p/books/invoices/$token",
+            "token": "memo=\"Seed invoice posted\" && status=\"void\"",
+            "ready": "invoice-public-replaced",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"]
+        },
+        {
+            "name": "public",
+            "url": "/p/books/invoices/$token",
+            "before": [
+                { "openInvoice": "memo=\"Seed invoice posted\" && status=\"posted\"" },
+                { "partPayment": { "amount": "800.00", "memo": "Capture part payment" } }
+            ],
+            "token": "memo=\"Seed invoice posted\" && status=\"posted\"",
+            "ready": "invoice-public-total",
+            "height": 900,
+            "widths": [1280]
+        },
+        {
+            "name": "public",
+            "url": "/p/books/invoices/$token",
+            "token": "memo=\"Seed invoice posted\" && status=\"posted\"",
+            "ready": "invoice-public-total",
+            "height": 900,
+            "widths": [390]
+        }
+    ]
+}

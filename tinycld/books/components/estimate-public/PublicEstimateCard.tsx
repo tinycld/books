@@ -13,7 +13,7 @@ import {
     publicHeadingOf,
 } from '../../lib/estimate-public'
 import { formatMoney } from '../../lib/money'
-import { PublicCardSurface } from './PublicEstimateFrame'
+import { PublicCardSurface } from '../public/PublicFrame'
 import { PublicEstimateOutcome } from './PublicEstimateOutcome'
 
 const TAP = { minHeight: 44 }
@@ -82,7 +82,7 @@ function CardMessage({ text }: { text: string }) {
 }
 
 function DownloadPdf({ token, number }: { token: string; number: string }) {
-    const download = usePublicPdfDownload(token, number)
+    const download = usePublicPdfDownload('estimate', token, number)
     return (
         <Button testID="estimate-public-pdf" variant="link" style={TAP} onPress={download}>
             <ButtonText>{PUBLIC_TEXTS.downloadPdf}</ButtonText>
