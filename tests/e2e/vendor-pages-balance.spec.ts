@@ -114,28 +114,13 @@ async function moreBesideTitle(page: Page) {
 }
 
 test.describe('vendor-pages: vendor balance', () => {
-    test('Open and Overdue follow the ledger with no reload', async ({ page }) => {
+    test('Open and Overdue follow posted bills and a void with no reload', async ({ page }) => {
         await openBooks(page, DESKTOP)
         const { open, openLabel, overdue } = figures(page)
-        const prefix = uniqueName('Vendor balance')
 
-        // A new vendor opens on Transactions, with no tab param, at $0.00.
-        await createVendor(page, { name: `${prefix} new` })
-        const newId = openVendorId(page)
-        await expect(page).toHaveURL(new RegExp(`/books/vendors/${newId}$`))
-        await expect(page.getByTestId('vendor-tab-transactions')).toHaveAttribute(
-            'aria-selected',
-            'true'
-        )
-        await expect(open).toHaveText('$0.00')
-        await expect(openLabel).toHaveText('Open')
-        await expect(overdue).toHaveText('$0.00')
-
-        // Past due, due today, due later. vendorWithBills starts from the list: it leaves
-        // a vendor page by Back, which changes the history it returns to.
-        await openVendorsList(page)
+        // Past due, due today, due later.
         const { vendor, bills } = await vendorWithBills(page, {
-            name: `${prefix} bills`,
+            name: uniqueName('Vendor balance bills'),
             bills: [
                 { amount: '100.00', due: await localDay(page, -5) },
                 { amount: '200.00', due: await localDay(page, 0) },
@@ -146,21 +131,6 @@ test.describe('vendor-pages: vendor balance', () => {
         await openFromRow(page, vendor.name)
         await expect(open).toHaveText('$700.00')
         await expect(openLabel).toHaveText('Open')
-        await expect(overdue).toHaveText('$100.00')
-
-        // A vendor credit above the three bills, from the page's own menu: Credit.
-        await chooseNew(page, 'vendor-new-vendor-credit')
-        await expect(page).toHaveURL(new RegExp(`/books/vendor-credits/new\\?vendor=${vendor.id}$`))
-        await expect(page.getByTestId('form-input-vendor')).toContainText(vendor.name)
-        const line = await pickCreditLineAccount(page, 0, REFUND_CREDIT_ACCOUNT)
-        await page.getByTestId(creditCellTestId('account_lines', line, 'amount')).fill('1000.00')
-        await page.getByTestId('form-input-memo').fill(uniqueMemo('Vendor balance credit'))
-        await page.getByTestId('vendor-credit-post').click()
-        await expect(page).toHaveURL(VENDOR_CREDIT_URL)
-        await expect(page.getByTestId('vendor-credit-read-only')).toBeVisible()
-        await backToVendor(page, vendor.id)
-        await expect(open).toHaveText('−$300.00')
-        await expect(openLabel).toHaveText('Credit')
         await expect(overdue).toHaveText('$100.00')
 
         // The past-due bill voided on its own screen: Overdue $0.00, Open moves by $100.00.
@@ -174,8 +144,41 @@ test.describe('vendor-pages: vendor balance', () => {
         await expect(page.getByTestId('bill-badge')).toHaveText('Void')
         await backToVendor(page, vendor.id)
         await expect(overdue).toHaveText('$0.00')
-        await expect(open).toHaveText('−$400.00')
+        await expect(open).toHaveText('$600.00')
+        await expect(openLabel).toHaveText('Open')
+    })
+
+    test('a vendor credit above the open bills turns Open into Credit with no reload', async ({
+        page,
+    }) => {
+        await openBooks(page, DESKTOP)
+        const { open, openLabel, overdue } = figures(page)
+        const { vendor } = await vendorWithBills(page, {
+            name: uniqueName('Vendor balance credit'),
+            bills: [
+                { amount: '100.00', due: await localDay(page, -5) },
+                { amount: '200.00', due: await localDay(page, 10) },
+            ],
+        })
+        await openFromRow(page, vendor.name)
+        await expect(open).toHaveText('$300.00')
+        await expect(overdue).toHaveText('$100.00')
+
+        // A vendor credit above the bills, from the page's own menu: Credit. Overdue keeps
+        // the past-due bill, as the credit is not applied to it.
+        await chooseNew(page, 'vendor-new-vendor-credit')
+        await expect(page).toHaveURL(new RegExp(`/books/vendor-credits/new\\?vendor=${vendor.id}$`))
+        await expect(page.getByTestId('form-input-vendor')).toContainText(vendor.name)
+        const line = await pickCreditLineAccount(page, 0, REFUND_CREDIT_ACCOUNT)
+        await page.getByTestId(creditCellTestId('account_lines', line, 'amount')).fill('1000.00')
+        await page.getByTestId('form-input-memo').fill(uniqueMemo('Vendor balance credit'))
+        await page.getByTestId('vendor-credit-post').click()
+        await expect(page).toHaveURL(VENDOR_CREDIT_URL)
+        await expect(page.getByTestId('vendor-credit-read-only')).toBeVisible()
+        await backToVendor(page, vendor.id)
+        await expect(open).toHaveText('−$700.00')
         await expect(openLabel).toHaveText('Credit')
+        await expect(overdue).toHaveText('$100.00')
     })
 
     test('the balance shows loading, an error with Retry, and the hint for an inactive vendor', async ({
@@ -260,6 +263,17 @@ test.describe('vendor-pages: vendor balance', () => {
         const saveBar = page.getByTestId('vendor-save-bar')
         await createVendor(page, { name })
         const id = openVendorId(page)
+
+        // A new vendor opens on Transactions, with no tab param, at $0.00.
+        const { open, openLabel, overdue } = figures(page)
+        await expect(page).toHaveURL(new RegExp(`/books/vendors/${id}$`))
+        await expect(page.getByTestId('vendor-tab-transactions')).toHaveAttribute(
+            'aria-selected',
+            'true'
+        )
+        await expect(open).toHaveText('$0.00')
+        await expect(openLabel).toHaveText('Open')
+        await expect(overdue).toHaveText('$0.00')
 
         // Notes typed, the focus in the field: ⌥N opens the menu in NEW_ACTIONS order.
         await page.keyboard.press('Alt+4')

@@ -170,7 +170,12 @@ jobs:
     runs-on: ubuntu-latest
     # The suite grows by a screen at a time; one runner takes too long. Each
     # shard builds its own bundle, so the shards share nothing. fail-fast off
-    # so one red shard does not hide the result of the others.
+    # so one red shard does not hide the result of the others. The spec files
+    # are split by their CI time (.github/scripts/e2e-shard.mjs), not by
+    # Playwright's --shard, which gives each shard the same number of tests in
+    # name order and so put all the slow vendor-* specs on the last shard.
+    # Only shard 1 runs the setup projects of playwright.config.ts; the script
+    # gives the other shards --project=books --no-deps (see its header).
     strategy:
       fail-fast: false
       matrix:
@@ -233,7 +238,7 @@ jobs:
           # The bundle was built by the action above; reuse it (the webServer
           # still seeds + promotes + serves, just doesn't export a second time).
           TINYCLD_E2E_SKIP_EXPORT: '1'
-        run: pnpm exec tinycld-pkg test:e2e -- --shard=${{ matrix.shard }}/4
+        run: pnpm exec tinycld-pkg test:e2e -- $(node .github/scripts/e2e-shard.mjs ${{ matrix.shard }} 4)
       # Capture Playwright's per-failure artifacts (trace, screenshot,
       # video, error-context.md) so a CI failure can be diagnosed
       # without a re-run. `if: failure()` skips the upload on green

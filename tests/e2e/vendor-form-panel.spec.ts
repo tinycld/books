@@ -38,9 +38,9 @@ import {
 // without losing anything; the open vendor can be deleted from its page's More menu.
 // Every vendor this spec opens for editing or deletes it creates with a unique
 // name; it reads the seeded Coastal Coffee Roasters and Willamette Valley Commercial
-// Cleaning and Janitorial Services Cooperative and saves neither: step (12) types into
-// Willamette's website field to show the save bar and then discards it, so the seeded row
-// is never written. The delete refusal is
+// Cleaning and Janitorial Services Cooperative and saves neither: the scroll test types
+// into Willamette's website field to show the save bar and then discards it, so the seeded
+// row is never written. Each test makes the vendors its own steps use. The delete refusal is
 // the server's own: another tab puts the vendor on a line of a draft journal entry, and
 // deletes that draft before the delete that goes through.
 //
@@ -56,6 +56,7 @@ const RECORD_LIST_WIDTH = 320
 const COASTAL = 'Coastal Coffee Roasters'
 const WILLAMETTE = 'Willamette Valley Commercial Cleaning and Janitorial Services Cooperative'
 const UNSAVED_DELETE_WARNING = 'Unsaved changes to this vendor will be lost.'
+const RECORD_PLACED = { listIs320: true, atContentRight: true, listToItsLeft: true }
 
 // The four half-width pairs of the default layout.
 const PAIRS = [
@@ -136,27 +137,54 @@ async function footerGap(page: Page, surfaceId: string) {
     return Math.abs(footer.top + footer.height - (surface.top + surface.height))
 }
 
+// Books at the 1600 px window, where the panel surface shows.
+async function openWide(page: Page) {
+    await login(page)
+    await navigateToPackage(page, 'books')
+    await page.setViewportSize(WIDE)
+}
+
+// Two vendors created through the panel (`afterSave` runs on each new vendor's page), then
+// the list searched to the pair: their names, rows and URLs.
+async function createPair(page: Page, label: string, afterSave = async () => {}) {
+    const prefix = uniqueName(`${label} ${viewportName(page)}`)
+    const nameA = `${prefix} A`
+    const nameB = `${prefix} B`
+    for (const name of [nameA, nameB]) {
+        await createVendor(page, { name })
+        await afterSave()
+    }
+    await openVendorsList(page)
+    await searchVendors(page, prefix)
+    const idA = await vendorIdOf(page, nameA)
+    const idB = await vendorIdOf(page, nameB)
+    return {
+        prefix,
+        idA,
+        nameA,
+        nameB,
+        rowA: page.getByTestId(`vendor-row-${idA}`),
+        rowB: page.getByTestId(`vendor-row-${idB}`),
+        urlA: vendorPath(idA),
+        urlB: vendorPath(idB),
+    }
+}
+
 test.describe('vendor-form: side panel', () => {
-    test('opens vendors beside the list and survives a resize', async ({ page }) => {
-        await login(page)
-        await navigateToPackage(page, 'books')
-        await page.setViewportSize(WIDE)
+    test('a new vendor opens in the 480 px panel beside the list, also with the sidebar collapsed', async ({
+        page,
+    }) => {
+        await openWide(page)
         const panel = page.getByTestId('vendor-panel')
-        const vendorPage = page.getByTestId('vendor-page')
-        const title = page.getByTestId('vendor-title')
-        const cancel = page.getByTestId('vendor-cancel')
         const list = page.getByTestId('vendors-list')
-        const dialog = discardDialog(page)
-        const errorText = 'Display name is required'
-        const nameCell = page.getByTestId('form-field-display_name')
         const placed = { widthIs480: true, atContentRight: true, listToItsLeft: true }
 
-        // (1) No vendor open: no panel, and the list spans the content area.
+        // No vendor open: no panel, and the list spans the content area.
         await openVendorsList(page)
         await expect(panel).toBeHidden()
         await expect.poll(() => listSpansContent(page)).toBe(true)
 
-        // (2) New vendor opens in the 480 px panel at the right, beside the list.
+        // New vendor opens in the 480 px panel at the right, beside the list.
         await page.getByTestId('vendor-new-header').click()
         await expect(panel).toBeVisible()
         const header = page.getByTestId('vendor-panel-header')
@@ -193,42 +221,40 @@ test.describe('vendor-form: side panel', () => {
                 postalInsideBlock: true,
             })
 
-        // (3) The surface reads the window width only: collapsing the sidebar keeps the panel.
+        // The surface reads the window width only: collapsing the sidebar keeps the panel.
         const sidebarToggle = page.getByTestId('nav-sidebar-toggle')
         const listLeftOpen = await leftEdgeOf(list)
         await sidebarToggle.click()
         await expect(sidebarToggle).toHaveAccessibleName('Show sidebar')
         await expect.poll(() => leftEdgeOf(list)).toBeLessThan(listLeftOpen - 100)
         await expect(panel).toBeVisible()
-        await expect(vendorPage).toBeHidden()
+        await expect(page.getByTestId('vendor-page')).toBeHidden()
         await expect.poll(() => panelPlacement(page)).toEqual(placed)
         await sidebarToggle.click()
         await expect(sidebarToggle).toHaveAccessibleName('Hide sidebar')
         await expect.poll(() => leftEdgeOf(list)).toBe(listLeftOpen)
+    })
 
-        // (4) Two vendors created through the panel; each Save opens the new vendor's page
-        // beside a 320 px column of names, with no back button.
-        const prefix = uniqueName(`Panel ${viewportName(page)}`)
-        const nameA = `${prefix} A`
-        const nameB = `${prefix} B`
-        for (const name of [nameA, nameB]) {
-            await createVendor(page, { name })
-            await expect(panel).toBeVisible()
-            await expect(page.getByTestId('vendor-back')).toBeHidden()
-            await expect
-                .poll(() => recordPlacement(page))
-                .toEqual({ listIs320: true, atContentRight: true, listToItsLeft: true })
-        }
+    test('a vendor opens beside a 320 px list of names; a row, New vendor, Back, Escape and a reload move between them', async ({
+        page,
+    }) => {
+        await openWide(page)
+        const panel = page.getByTestId('vendor-panel')
+        const list = page.getByTestId('vendors-list')
 
-        // (5) A row opens its vendor beside the list and is marked; the list stays usable.
-        await openVendorsList(page)
-        await searchVendors(page, prefix)
-        const idA = await vendorIdOf(page, nameA)
-        const idB = await vendorIdOf(page, nameB)
-        const rowA = page.getByTestId(`vendor-row-${idA}`)
-        const rowB = page.getByTestId(`vendor-row-${idB}`)
-        const urlA = vendorPath(idA)
-        const urlB = vendorPath(idB)
+        // Each Save opens the new vendor's page beside a 320 px column of names, with no
+        // back button.
+        const { prefix, idA, nameA, nameB, rowA, rowB, urlA, urlB } = await createPair(
+            page,
+            'Panel',
+            async () => {
+                await expect(panel).toBeVisible()
+                await expect(page.getByTestId('vendor-back')).toBeHidden()
+                await expect.poll(() => recordPlacement(page)).toEqual(RECORD_PLACED)
+            }
+        )
+
+        // A row opens its vendor beside the list and is marked; the list stays usable.
         await openRowDetails(page, rowA)
         await expect(panel).toBeVisible()
         await expect(page).toHaveURL(urlA)
@@ -244,24 +270,60 @@ test.describe('vendor-form: side panel', () => {
         await searchVendors(page, prefix)
         await expect(rowB).toBeVisible()
 
-        // (6) Another row, then New vendor, replace the open vendor; Back returns to the list.
+        // Another row, then New vendor, replace the open vendor; Back returns to the list.
         await openRowDetails(page, rowB)
         await expect(page).toHaveURL(urlB)
         await page.getByTestId('vendor-new-header').click()
-        await expect(title).toHaveText('New vendor')
+        await expect(page.getByTestId('vendor-title')).toHaveText('New vendor')
         await expect(panel).toBeVisible()
         await page.goBack()
         await expect(page).toHaveURL(/\/books\/vendors$/)
         await expect(panel).toBeHidden()
 
-        // (7) Escape on a clean page leaves it.
+        // Escape on a clean page leaves it.
         await openRowDetails(page, rowA)
         await expect(field(page, 'display_name')).toHaveValue(nameA)
         await pressEscapeOutsideInputs(page)
         await expect(panel).toBeHidden()
         await expect(page).toHaveURL(/\/books\/vendors$/)
 
-        // (8) A dirty vendor is not replaced without asking.
+        // A reload of a vendor's URL shows its page beside the list of names.
+        await rowB.click()
+        await expect(page).toHaveURL(urlB)
+        await page.reload()
+        await expect(panel).toBeVisible()
+        await page.getByTestId('vendor-tab-details').click()
+        await expect(field(page, 'display_name')).toHaveValue(nameB)
+        await expect(list).toBeVisible()
+        await expect.poll(() => recordPlacement(page)).toEqual(RECORD_PLACED)
+
+        // The list of names beside the page still filters by Show inactive.
+        const showInactive = page.getByTestId('vendors-show-inactive')
+        await expect(showInactive).toHaveAttribute('aria-checked', 'false')
+        await showInactive.click()
+        await expect(showInactive).toHaveAttribute('aria-checked', 'true')
+        await searchVendors(page, 'Coastal Coffee')
+        await expect(vendorEntry(page, COASTAL)).toBeVisible()
+        await expect(field(page, 'display_name')).toHaveValue(nameB)
+        await showInactive.click()
+        await expect(showInactive).toHaveAttribute('aria-checked', 'false')
+        await expect(vendorEntry(page, COASTAL)).toHaveCount(0)
+        await expect(panel).toBeVisible()
+    })
+
+    test('a dirty vendor is not replaced without asking, and a resize keeps its values, error and question', async ({
+        page,
+    }) => {
+        await openWide(page)
+        const panel = page.getByTestId('vendor-panel')
+        const vendorPage = page.getByTestId('vendor-page')
+        const cancel = page.getByTestId('vendor-cancel')
+        const dialog = discardDialog(page)
+        const errorText = 'Display name is required'
+        const nameCell = page.getByTestId('form-field-display_name')
+        const { prefix, nameA, nameB, rowA, rowB, urlA, urlB } = await createPair(page, 'Dirty')
+
+        // A dirty vendor is not replaced without asking.
         const typedCompany = `${prefix} Co`
         await openRowDetails(page, rowA)
         await expect(field(page, 'display_name')).toHaveValue(nameA)
@@ -281,9 +343,9 @@ test.describe('vendor-form: side panel', () => {
         await page.getByTestId('vendor-tab-details').click()
         await expect(field(page, 'display_name')).toHaveValue(nameB)
 
-        // (9) The open vendor's own row keeps its dirty form (no remount), and a resize
-        // moves it between the record width and the page with its typed values, its field
-        // error and an open Discard changes? question.
+        // The open vendor's own row keeps its dirty form (no remount), and a resize moves it
+        // between the record width and the page with its typed values, its field error and
+        // an open Discard changes? question.
         await openRowDetails(page, rowA)
         await expect(page).toHaveURL(urlA)
         await expect(field(page, 'display_name')).toHaveValue(nameA)
@@ -348,47 +410,31 @@ test.describe('vendor-form: side panel', () => {
         await expect
             .poll(async () => (await backgroundOf(rowA)) === (await backgroundOf(rowB)))
             .toBe(true)
+    })
 
-        // (10) A reload of a vendor's URL shows its page beside the list of names.
-        await rowB.click()
-        await expect(page).toHaveURL(urlB)
-        await page.reload()
-        await expect(panel).toBeVisible()
-        await page.getByTestId('vendor-tab-details').click()
-        await expect(field(page, 'display_name')).toHaveValue(nameB)
-        await expect(list).toBeVisible()
-        await expect
-            .poll(() => recordPlacement(page))
-            .toEqual({ listIs320: true, atContentRight: true, listToItsLeft: true })
+    test('the list scrolls beside the page, and the save bar stays at the bottom while the form scrolls', async ({
+        page,
+    }) => {
+        await openWide(page)
+        const panel = page.getByTestId('vendor-panel')
+        const dialog = discardDialog(page)
+        await openVendorsList(page)
+        await searchVendors(page, 'Willamette Valley')
+        await openRowDetails(page, vendorEntry(page, WILLAMETTE))
+        await expect(field(page, 'display_name')).toHaveValue(WILLAMETTE)
 
-        // (11) The list of names beside the page still filters by Show inactive.
-        const showInactive = page.getByTestId('vendors-show-inactive')
-        await expect(showInactive).toHaveAttribute('aria-checked', 'false')
-        await showInactive.click()
-        await expect(showInactive).toHaveAttribute('aria-checked', 'true')
-        await searchVendors(page, 'Coastal Coffee')
-        await expect(vendorEntry(page, COASTAL)).toBeVisible()
-        await expect(field(page, 'display_name')).toHaveValue(nameB)
-        await showInactive.click()
-        await expect(showInactive).toHaveAttribute('aria-checked', 'false')
-        await expect(vendorEntry(page, COASTAL)).toHaveCount(0)
-        await expect(panel).toBeVisible()
-
-        // (12) The list scrolls beside the page, and the save bar (the page's footer while
-        // the form is dirty) stays at the bottom while the form scrolls, on the record
-        // width and on the page.
+        // The full list scrolls beside the open page, which stays open.
         await page.setViewportSize({ width: 1600, height: 700 })
         await searchVendors(page, '')
         const table = scrollerIn(page, 'vendors-table')
         await table.scrollTo(200)
         await expect.poll(async () => (await table.scrollTo())?.scrollTop ?? 0).toBeGreaterThan(0)
-        await expect(field(page, 'display_name')).toHaveValue(nameB)
-        await searchVendors(page, 'Willamette Valley')
-        await openRowDetails(page, vendorEntry(page, WILLAMETTE))
         await expect(field(page, 'display_name')).toHaveValue(WILLAMETTE)
-        // The seeded vendor is edited but never saved: Cancel discards below.
-        await field(page, 'website').fill('https://example.com/helix')
 
+        // The seeded vendor is edited but never saved: Cancel discards below. The save bar
+        // (the page's footer while the form is dirty) stays at the bottom while the form
+        // scrolls, on the record width and on the page.
+        await field(page, 'website').fill('https://example.com/helix')
         for (const [size, surfaceId] of [
             [{ width: 1600, height: 700 }, 'vendor-panel'],
             [{ width: 1280, height: 700 }, 'vendor-page'],
@@ -411,16 +457,20 @@ test.describe('vendor-form: side panel', () => {
             await expect(page.getByTestId('vendor-save-bar')).toBeVisible()
         }
         await page.setViewportSize(WIDE)
-        await cancel.click()
+        await page.getByTestId('vendor-cancel').click()
         await expect(dialog.title).toBeVisible()
         await dialog.discard.click()
         await expect(page.getByTestId('vendor-save-bar')).toBeHidden()
         await pressEscapeOutsideInputs(page)
         await expect(panel).toBeHidden()
+    })
 
-        // (13) The open, dirty vendor deleted from its page's More menu: the dialog warns
-        // of the unsaved changes, a refusal keeps the page and its typed notes, and the
-        // delete leaves the page with no second question and no not-found.
+    test('the open, dirty vendor deleted from its More menu: a refusal keeps the page, then the delete leaves it', async ({
+        page,
+    }) => {
+        await openWide(page)
+        const panel = page.getByTestId('vendor-panel')
+        const prefix = uniqueName(`Panel delete ${viewportName(page)}`)
         const nameD = `${prefix} D`
         const typedNotes = `${prefix} notes`
         const notesInput = page.getByTestId('vendor-notes-input')
@@ -432,6 +482,7 @@ test.describe('vendor-form: side panel', () => {
         await notesInput.fill(typedNotes)
         await watchForNotFoundAndDiscard(page)
 
+        // The dialog warns of the unsaved changes.
         const deleteDialog = page.getByTestId('delete-vendor-dialog')
         const deleteBody = page.getByTestId('delete-vendor-dialog-body')
         const deleteConfirm = page.getByTestId('delete-vendor-confirm')
@@ -464,29 +515,34 @@ test.describe('vendor-form: side panel', () => {
         // The other tab deletes the draft entry; no line names D now.
         await namedOnDraft.release()
 
+        // The delete leaves the page with no second question and no not-found.
         await openDeleteFromRow()
         await deleteConfirm.click()
         await expect(deleteDialog).toBeHidden()
         await expect(panel).toBeHidden()
         await expect(page).toHaveURL(/\/books\/vendors$/)
-        await expect(dialog.title).toBeHidden()
+        await expect(discardDialog(page).title).toBeHidden()
         await searchVendors(page, nameD)
         await expect(vendorEntry(page, nameD)).toHaveCount(0)
         expect(await seenNotFoundOrDiscard(page)).toEqual({ notFound: false, discard: false })
+    })
 
-        // (14) A delete of the open vendor that lands after the user went on to the Books
-        // home (the dashboard) leaves them there.
-        const nameE = `${prefix} E`
+    test('a delete of the open vendor that lands after the user went to the Books home leaves them there', async ({
+        page,
+    }) => {
+        await openWide(page)
+        const panel = page.getByTestId('vendor-panel')
+        const nameE = `${uniqueName(`Panel home ${viewportName(page)}`)} E`
         await createVendor(page, { name: nameE })
         await expect(panel).toBeVisible()
         await page.getByTestId('vendor-tab-details').click()
         await expect(field(page, 'display_name')).toHaveValue(nameE)
         const idE = openVendorId(page)
         const held = await holdVendorWrite(page, idE, 'DELETE')
-        await more.click()
+        await page.getByTestId('vendor-more').click()
         await page.getByTestId('vendor-more-delete').click()
-        await expect(deleteDialog).toBeVisible()
-        await deleteConfirm.click()
+        await expect(page.getByTestId('delete-vendor-dialog')).toBeVisible()
+        await page.getByTestId('delete-vendor-confirm').click()
         await held.arrived
         await jumpToBooksHome(page)
         const deleted = page.waitForResponse(
