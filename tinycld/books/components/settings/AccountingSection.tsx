@@ -42,10 +42,10 @@ function AccountingForms({ settings }: { settings: BooksSettings }) {
             <SectionCard>
                 <View className="gap-4">
                     <FiscalYearForm settings={settings} />
-                    <CloseBooksBlock />
+                    <CloseBooksBlock settings={settings} />
                 </View>
             </SectionCard>
-            <OverridesPanel />
+            <OverridesPanel settings={settings} />
         </View>
     )
 }

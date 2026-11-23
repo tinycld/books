@@ -54,7 +54,7 @@ interface SectionReadyProps {
     // Null while the report loads, when its read fails and when the reader has none:
     // then the section draws no button.
     reportHref: Href | null
-    settings: BooksSettings | undefined
+    settings: BooksSettings
     accounts: ComponentProps<typeof AccountBoxesCard>['accounts']
     controls: ComponentProps<typeof AccountBoxesCard>['controls']
     vendors: ComponentProps<typeof Tracked1099VendorsCard>['vendors']
@@ -72,7 +72,7 @@ function SectionReady({
     onOpenVendor,
     onOpenVendors,
 }: SectionReadyProps) {
-    if (!isVisible || !settings) return null
+    if (!isVisible) return null
     return (
         <View className="gap-4" testID="books-1099-section">
             <OpenReportButton isVisible={reportHref !== null} href={reportHref} />
@@ -87,9 +87,10 @@ function SectionReady({
     )
 }
 
-// It takes no isAdmin from SectionBody: the threshold is admin-only but the boxes are for
-// every writer, so the section reads the full access level through useForm1099Section.
-export function Form1099Section() {
+// It takes the settings row from the panel but not isAdmin: the threshold is admin-only but
+// the boxes are for every writer, so the section reads the full access level through
+// useForm1099Section.
+export function Form1099Section({ settings }: { settings: BooksSettings }) {
     const section = useForm1099Section()
     const reportHref = useShippedReportHref(FORM_1099_SHIPPED_KEY)
     return (
@@ -99,7 +100,7 @@ export function Form1099Section() {
             <SectionReady
                 isVisible={section.part === 'ready'}
                 reportHref={reportHref}
-                settings={section.settings}
+                settings={settings}
                 accounts={section.accounts}
                 controls={section.controls}
                 vendors={section.vendors}
