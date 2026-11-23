@@ -21,6 +21,7 @@ import {
     stacked,
     takesClickAtCenter,
 } from './customer-form-helpers'
+import { newActionItem, openNewMenu } from './new-menu-helpers'
 
 // The customer page (the surface below 1360 px) and the layout of the form on it. It
 // reads the customers `seed.ts` writes (lib/customer-form-fixture.ts) and edits none of
@@ -224,12 +225,8 @@ test.describe('customer-form: customer page and form', () => {
 
             // (1) The New menu's Customers column opens a new customer on the page surface.
             await openCustomersList(page)
-            if (phone) {
-                await fab.click()
-            } else {
-                await page.getByText('New', { exact: true }).filter({ visible: true }).click()
-            }
-            const newCustomer = page.getByTestId('books-new-customer')
+            await openNewMenu(page)
+            const newCustomer = newActionItem(page, 'customer')
             await expect(newCustomer).toHaveText('Customer')
             await expect(newCustomer.locator('xpath=..')).toContainText('Customers')
             await newCustomer.click()

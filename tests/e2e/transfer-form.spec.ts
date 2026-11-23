@@ -1,5 +1,6 @@
 import { expect, type Page, test } from '@playwright/test'
 import { openEntriesList } from './journal-entries-helpers'
+import { newActionItem, newActionTestId, openNewMenu } from './new-menu-helpers'
 import {
     chooseTransferAccount,
     DESKTOP,
@@ -62,13 +63,13 @@ test.describe('transfer: form', () => {
     test('posts a new transfer from the New menu', async ({ page }) => {
         await startTransfers(page, DESKTOP)
         await openEntriesList(page)
-        await page.getByText('New', { exact: true }).filter({ visible: true }).click()
+        await openNewMenu(page)
 
-        const item = page.getByTestId('books-new-transfer')
+        const item = newActionItem(page, 'transfer')
         await expect(item).toHaveText('Transfer')
         await expect(
-            page.getByTestId('books-new-journal-entry').locator('xpath=following-sibling::*[1]')
-        ).toHaveAttribute('data-testid', 'books-new-transfer')
+            newActionItem(page, 'journal-entry').locator('xpath=following-sibling::*[1]')
+        ).toHaveAttribute('data-testid', newActionTestId('transfer'))
         await item.click()
 
         await expect(page).toHaveURL(/\/books\/transfers\/new$/)
