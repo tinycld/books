@@ -90,7 +90,7 @@ export function useSidebarShortcuts() {
         onError: reportSaveError,
     })
 
-    const canWrite = isReady && !isError && userId !== ''
+    const canWrite = isReady && !isError
     const save = (next: Shortcut[]) => {
         if (canWrite) saveMutation.mutate(next)
     }
