@@ -92,11 +92,20 @@ const COMPANY_FIELD_IDS = {
     email: 'books-settings-company-email',
 } as const
 
+const SETTINGS_PATH = /\/books\/settings(\/|$)/
+
 // Puts the given Company fields back through Settings. Save stays disabled when the stored
 // values are already these: nothing was saved, so there is nothing to put back.
+// The route decides whether to press the Settings nav item, not what is painted. On a section
+// route the press opens the Settings index as a new screen and the section screen stays mounted,
+// hidden, under it; the old screen still passes the visible check for a moment, so the next rail
+// press can resolve to the old screen's rail and wait on it until the test times out.
 async function restoreCompanyFields(page: Page, values: CompanyFields) {
     await page.setViewportSize(DESKTOP)
-    await id(page, 'books-nav-settings').click()
+    if (!SETTINGS_PATH.test(new URL(page.url()).pathname)) {
+        await id(page, 'books-nav-settings').click()
+        await expect(page).toHaveURL(/\/books\/settings$/)
+    }
     await expect(id(page, 'books-settings')).toBeVisible()
     await openRailSection(page, 'numbering')
     await openRailSection(page, 'company')

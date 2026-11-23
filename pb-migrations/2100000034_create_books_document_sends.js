@@ -21,7 +21,10 @@
 // customer who holds its public_token (2100000010), as books_estimate_public
 // (2100000014) is of an estimate. It carries only what the customer page
 // shows: the invoice's number, status, days, total, balance, currency (the
-// invoice's, else Books') and message, the customer's display name, the token
+// invoice's, else Books') and message, what else than payments lowered the
+// balance (written_off, the posted write-offs, and credited, the sum of the
+// invoice's credit memo applications: the page reads "Paid in full" only when
+// both are zero), the customer's display name, the token
 // and number of the invoice that replaced a void one, and the business name,
 // email and phone of the one books_settings row. Never the memo, the custom
 // fields, the form, bill_to, the email, the lines, the tax, the terms, the
@@ -47,6 +50,10 @@ const PUBLIC_QUERY = `SELECT
     i.due_date,
     i.total,
     i.balance,
+    i.written_off AS written_off,
+    CAST((
+        SELECT TOTAL(a.amount) FROM books_credit_memo_applications a WHERE a.invoice = i.id
+    ) AS INTEGER) AS credited,
     CAST(COALESCE(NULLIF(i.currency, ''), s.currency) AS TEXT) AS currency,
     i.message,
     c.display_name AS customer_name,

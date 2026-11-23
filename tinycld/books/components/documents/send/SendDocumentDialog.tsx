@@ -1,13 +1,12 @@
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { DIALOG_SUBMIT_SHORTCUT, Dialog } from '@tinycld/core/ui/dialog'
 import { useFocusEffect, useIsFocused } from 'expo-router'
-import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
+import { type RefObject, useCallback, useState } from 'react'
 import { ActivityIndicator, Platform, Text, type TextInputInstance, View } from 'react-native'
 import { useDocumentSend } from '../../../hooks/useDocumentSend'
 import { useEmailStatus } from '../../../hooks/useEmailStatus'
 import { useFocusOnOpen } from '../../../hooks/useFocusOnOpen'
 import { useSendDialogData } from '../../../hooks/useSendDialogData'
-import { isFocusUnclaimed } from '../../../lib/focus-return'
 import { type DocumentSendTarget, useDocumentSendStore } from '../../../stores/document-send-store'
 import { DialogLoadError } from '../../taxes/DialogLoadError'
 import { DocumentInlineNotice } from '../DocumentInlineNotice'
@@ -115,26 +114,10 @@ function tokenOf(data: SendDialogData): string {
     return ''
 }
 
-// After the dialog unmounts, `returnFocus` takes the focus if nothing has claimed it (it
-// fell to the body), one frame later: core's layer focus waits the same frame for the
-// inert marks of the closing dialog to clear (core/ui/overlay/focus.ts). Web only.
-function useReturnFocusOnClose(returnFocus: (() => void) | undefined) {
-    const ref = useRef(returnFocus)
-    ref.current = returnFocus
-    useEffect(
-        () => () => {
-            const focusBack = ref.current
-            if (!IS_WEB || !focusBack || typeof requestAnimationFrame !== 'function') return
-            requestAnimationFrame(() => {
-                if (isFocusUnclaimed()) focusBack()
-            })
-        },
-        []
-    )
-}
-
 // The dialog of one open: mounted while the store names a document for this screen, so the
-// form and the editor start from the starting texts each time.
+// form and the editor start from the starting texts each time. `returnFocus` (a queued open
+// only) is core Dialog's `onRestoreFocus`: core calls it one frame after the close when
+// nothing claimed the focus, in place of its own restore to the opener, which is gone.
 function OpenSendDialog({
     target,
     returnFocus,
@@ -142,7 +125,6 @@ function OpenSendDialog({
     target: DocumentSendTarget
     returnFocus: (() => void) | undefined
 }) {
-    useReturnFocusOnClose(returnFocus)
     const data = useSendDialogData(target)
     const close = useDocumentSendStore(state => state.close)
     const send = useDocumentSend()
@@ -171,6 +153,7 @@ function OpenSendDialog({
             size="md"
             testID="document-send-dialog"
             initialFocusRef={focus.ref}
+            onRestoreFocus={returnFocus}
         >
             <SendLoading isVisible={isLoading} onClose={close} />
             <SendLoadFailed isVisible={isFailed} onRetry={data.retry} onClose={close} />
@@ -274,7 +257,8 @@ interface SendDocumentDialogProps {
     isSendable?: boolean
     // Focuses the screen's return target (its own send control, else a control that is
     // drawn) after a queued dialog closes: the queued send's opener was on the screen the
-    // route replace unmounted.
+    // route replace unmounted. Core can call it after this screen is gone too, so it
+    // focuses only controls under the screen's own root (a null root does nothing).
     returnFocus?: () => void
 }
 
@@ -288,7 +272,7 @@ interface SendDocumentDialogProps {
  * link buttons (SendNotSetUp), or the form (SendDocumentForm), which mounts only once
  * every read has landed. It warms the email status read on the screen, so an open dialog
  * finds it answered. When a queued dialog closes, `returnFocus` gives the focus back to
- * the screen (useReturnFocusOnClose).
+ * the screen (core Dialog's `onRestoreFocus`).
  */
 export function SendDocumentDialog({
     owner,

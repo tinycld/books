@@ -4,7 +4,14 @@
 import type { BooksInvoicePublic } from '../types'
 import { formatDay } from './register-range'
 
-export type InvoicePublicState = 'open' | 'overdue' | 'paid' | 'void' | 'replaced' | 'not-found'
+export type InvoicePublicState =
+    | 'open'
+    | 'overdue'
+    | 'paid'
+    | 'settled'
+    | 'void'
+    | 'replaced'
+    | 'not-found'
 
 export const INVOICE_PUBLIC_TEXTS = {
     loading: 'Loading invoice…',
@@ -14,6 +21,7 @@ export const INVOICE_PUBLIC_TEXTS = {
     retry: 'Try again',
     balanceLabel: 'Balance due',
     paid: 'Paid in full',
+    settled: 'No payment is due.',
     downloadPdf: 'Download PDF',
     loadingTitle: 'Invoice',
 } as const
@@ -24,14 +32,16 @@ function isPastDue(row: Pick<BooksInvoicePublic, 'balance' | 'due_date'>, today:
     return row.balance > 0 && row.due_date !== '' && row.due_date < today
 }
 
-// A draft has no row in the view, so no row is a wrong link, a draft or a deleted draft.
+// A draft has no row in the view, so no row is a wrong link, a draft or a deleted draft. A
+// zero balance is paid only when payments alone cover the total; a write-off or a credit
+// memo (in whole or in part) makes it settled.
 export function invoicePublicState(
     row: BooksInvoicePublic | undefined,
     today: string
 ): InvoicePublicState {
     if (row === undefined) return 'not-found'
     if (row.status === 'void') return row.replaced_by_token === '' ? 'void' : 'replaced'
-    if (row.balance <= 0) return 'paid'
+    if (row.balance <= 0) return row.written_off > 0 || row.credited > 0 ? 'settled' : 'paid'
     if (isPastDue(row, today)) return 'overdue'
     return 'open'
 }

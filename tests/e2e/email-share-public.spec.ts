@@ -24,6 +24,7 @@ import {
     uniqueMemo,
 } from './invoice-helpers'
 import { PAYMENT_URL, rowAmount } from './receive-payment-helpers'
+import { writeOffOpenInvoice } from './write-off-helpers'
 
 // The customer's invoice page at /p/books/invoices/<token> (email-share spec §3.5; plan
 // checkpoint 5). Every invoice a test acts on is posted through the UI with a unique memo
@@ -162,6 +163,17 @@ test.describe('email-share: public invoice page', () => {
             await q.reload()
             await expect(q.getByTestId('invoice-public-balance')).toHaveText('$106.25')
             await expect(q.getByTestId('invoice-public-total')).toHaveText(`Total ${total}`)
+
+            // Revise 1, item 3: the rest written off brings the balance to zero, but
+            // payments did not cover the total: "No payment is due.", not "Paid in full".
+            await openInvoiceBySearch(page, invoice.memo)
+            await writeOffOpenInvoice(page)
+            await q.reload()
+            await expect(q.getByTestId('invoice-public-settled')).toHaveText('No payment is due.')
+            await expect(q.getByTestId('invoice-public-total')).toHaveText(`Total ${total}`)
+            await expect(q.getByTestId('invoice-public-paid')).toHaveCount(0)
+            await expect(q.getByText('Paid in full')).toHaveCount(0)
+            await expect(q.getByTestId('invoice-public-balance')).toHaveCount(0)
         } finally {
             await broken.close()
         }

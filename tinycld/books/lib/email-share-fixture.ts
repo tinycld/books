@@ -477,6 +477,8 @@ function publicRow(
         due_date: row.due_date,
         total: row.total,
         balance: row.balance,
+        written_off: 0,
+        credited: 0,
         currency: row.currency || EMAIL_SHARE_CURRENCY,
         message: row.message,
         customer_name: customerOf(row.customer).display_name,
@@ -491,7 +493,8 @@ const LONG_PUBLIC_MESSAGE =
     'Thank you for your business. This invoice covers the annex network refresh: the October walk-through, six ceiling-mount access points installed and tested, and the cabling for the second floor. Parts are billed at cost plus ten percent. Please pay by bank transfer or check, and put the invoice number on the payment.'
 
 // One row for each state of the customer's invoice page (spec §3.5). The page decides
-// from `status`, `balance`, `due_date` against today and `replaced_by_token`.
+// from `status`, `balance`, `written_off`, `credited`, `due_date` against today and
+// `replaced_by_token`.
 export const INVOICE_PUBLIC_ROWS = {
     // Posted, the whole total still due, not yet due: no "Total" line under the balance.
     open: publicRow(POSTED, INVOICE_TOKENS.posted),
@@ -501,6 +504,9 @@ export const INVOICE_PUBLIC_ROWS = {
     overdue: publicRow(NO_TAX, INVOICE_TOKENS.noTax),
     // Posted, balance zero: "Paid in full" with the total under it.
     paid: publicRow(EXEMPT, INVOICE_TOKENS.exempt, { balance: 0 }),
+    // Posted, balance zero through a write-off of the whole total: "No payment is due."
+    // with the total under it, not "Paid in full".
+    settled: publicRow(EXEMPT, INVOICE_TOKENS.exempt, { balance: 0, written_off: EXEMPT.total }),
     // Void, not replaced: no amounts, no PDF.
     voided: publicRow(VOIDED, INVOICE_TOKENS.voided, { balance: 0 }),
     // Void with `replaced_by`: the forward to its correction (the same number here; an

@@ -246,6 +246,24 @@ describe('help/invoices.md (email and share)', () => {
         expect(share).toMatch(/\bedit/i)
         expect(share).toMatch(/\breplac/i)
     })
+
+    // Revise 1, item 3: "Paid in full" only when payments cover the total; an invoice
+    // closed by a write-off or a credit memo reads "No payment is due.".
+    it('the share section says a write-off or a credit memo reads "No payment is due."', () => {
+        const settled = lineWith(
+            share,
+            /No payment is due\./,
+            /\bwrit(?:e|ten)[- ]off/i,
+            /\bcredit memo/i
+        )
+        expect(
+            settled,
+            'a line with "No payment is due.", a write-off and a credit memo'
+        ).toBeDefined()
+        expect(settled).not.toMatch(/\bvoid/i)
+        const paid = lineWith(share, /Paid in full/)
+        expect(paid, 'a line with "Paid in full"').toMatch(/\bpayments?\b/i)
+    })
 })
 
 // Apply credit spec §3.8 Help: the invoice topic gains Apply credit and Credits applied.

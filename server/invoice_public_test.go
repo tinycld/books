@@ -31,9 +31,9 @@ const (
 
 // The columns of books_invoice_public (spec §4.3).
 var invoicePublicColumns = []string{
-	"balance", "business_email", "business_name", "business_phone", "currency", "customer_name",
-	"date", "due_date", "id", "message", "number", "replaced_by_number", "replaced_by_token",
-	"status", "token", "total",
+	"balance", "business_email", "business_name", "business_phone", "credited", "currency",
+	"customer_name", "date", "due_date", "id", "message", "number", "replaced_by_number",
+	"replaced_by_token", "status", "token", "total", "written_off",
 }
 
 // invoicePublicEnv is the posting env with the settings row filled with the
@@ -312,6 +312,50 @@ func TestInvoicePublic_ViewRows(t *testing.T) {
 	}
 }
 
+// Revise 1, item 3: the page says "Paid in full" only when payments cover the
+// total, so the view carries what else lowered the balance: written_off (the
+// invoice's posted write-offs) and credited (the sum of its credit memo
+// applications, 0 with none).
+func TestInvoicePublic_ViewRowsCarryWriteOffsAndCredits(t *testing.T) {
+	me := newMemoApplyEnv(t)
+	requireRow := func(t *testing.T, what string, inv *core.Record, want [3]int) {
+		t.Helper()
+		row, err := me.app.FindRecordById(invoicePublicCollection, inv.Id)
+		if err != nil {
+			t.Fatalf("the %s invoice's row: %v", what, err)
+		}
+		got := [3]int{row.GetInt("balance"), row.GetInt("written_off"), row.GetInt("credited")}
+		if got != want {
+			t.Errorf("%s row balance, written_off, credited = %v, want %v", what, got, want)
+		}
+		if raw := row.Get("credited"); raw == nil {
+			t.Errorf("%s row has no credited column", what)
+		}
+	}
+
+	open := me.invoice(t, me.customer, 40000)
+	requireRow(t, "an open", open, [3]int{40000, 0, 0})
+
+	paid := me.invoice(t, me.customer, 40000)
+	me.wo.pay(t, paid, memoApplyDay, 40000)
+	requireRow(t, "a paid", paid, [3]int{0, 0, 0})
+
+	writtenOff := me.invoice(t, me.customer, 40000)
+	me.wo.mkWriteOff(t, writtenOff, nil)
+	requireRow(t, "a written-off", writtenOff, [3]int{0, 40000, 0})
+
+	partCredited := me.invoice(t, me.customer, 40000)
+	me.apply(t, me.postedMemo(t, me.customer, memoApplyCreditDay, 25000), partCredited, 25000, memoApplyDay)
+	requireRow(t, "a part-credited", partCredited, [3]int{15000, 0, 25000})
+
+	// Two applications add up; the rest is written off.
+	creditedAndWrittenOff := me.invoice(t, me.customer, 40000)
+	me.apply(t, me.postedMemo(t, me.customer, memoApplyCreditDay, 10000), creditedAndWrittenOff, 10000, memoApplyDay)
+	me.apply(t, me.postedMemo(t, me.customer, memoApplyCreditDay, 12000), creditedAndWrittenOff, 12000, memoApplyDay)
+	me.wo.mkWriteOff(t, creditedAndWrittenOff, map[string]any{"date": memoApplyDay})
+	requireRow(t, "a credited and written-off", creditedAndWrittenOff, [3]int{0, 18000, 22000})
+}
+
 // Spec §4.3: the view lists a row only to the holder of its token, with only
 // the view's columns; a filter on a private field finds nothing.
 func TestInvoicePublic_ViewListsOnlyTheTokensRow(t *testing.T) {
@@ -368,7 +412,7 @@ func TestInvoicePublic_ViewListsOnlyTheTokensRow(t *testing.T) {
 func TestInvoicePublic_ViewIsRegisteredForChangeSignals(t *testing.T) {
 	t.Cleanup(changesignal.ResetForTesting)
 	app, _ := newRegisteredApp(t)
-	want := []string{"books_customers", "books_invoices", "books_settings"}
+	want := []string{"books_credit_memo_applications", "books_customers", "books_invoices", "books_settings"}
 	if got := changesignal.RegisteredViews()[invoicePublicCollection]; !reflect.DeepEqual(got, want) {
 		t.Errorf("%s sources = %v, want %v", invoicePublicCollection, got, want)
 	}
