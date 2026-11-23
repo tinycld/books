@@ -4,6 +4,7 @@ import { Menu } from '@tinycld/core/ui/menu'
 import { useIsFocused } from 'expo-router'
 import { CheckSquare } from 'lucide-react-native'
 import { Pressable } from 'react-native'
+import type { BatchSend } from '../../hooks/useBatchSend'
 import type { DocumentBatch } from '../../hooks/useDocumentBatch'
 import type { useListSelection } from '../../hooks/useListSelection'
 import { useDocumentListStore } from '../../stores/document-list-store'
@@ -31,12 +32,28 @@ interface ItemsProps {
     testIdPrefix: string
     selection: Selection
     batch: DocumentBatch
+    batchSend: BatchSend
+}
+
+// The row "Send" (email-share spec §3.3 "Batch"): offered for a writer while a ticked row is
+// sent-able (useBatchSend `isOffered`); it waits for writes and for a running send.
+function SendItem({ batchSend, testIdPrefix }: { batchSend: BatchSend; testIdPrefix: string }) {
+    if (!batchSend.isOffered) return null
+    return (
+        <Menu.Item
+            testID={`${testIdPrefix}-batch-send`}
+            label="Send"
+            isDisabled={!batchSend.canStart}
+            onSelect={batchSend.open}
+        />
+    )
 }
 
 // Built only while the menu is open, because core Sheet keeps its content in the page while
 // it slides out. With cards the menu also selects all and clears; the actions wait for a
 // tick, for writes and for a running batch.
-function BatchItems({ isOpen, isCards, hasTicks, testIdPrefix, selection, batch }: ItemsProps) {
+function BatchItems(props: ItemsProps) {
+    const { isOpen, isCards, hasTicks, testIdPrefix, selection, batch, batchSend } = props
     if (!isOpen) return null
     const canAct = hasTicks && batch.canStart
     const deleteDrafts = () => batch.open('delete_drafts')
@@ -73,6 +90,7 @@ function BatchItems({ isOpen, isCards, hasTicks, testIdPrefix, selection, batch 
                 isDisabled={!canAct}
                 onSelect={voidAll}
             />
+            <SendItem batchSend={batchSend} testIdPrefix={testIdPrefix} />
         </>
     )
 }
@@ -117,12 +135,14 @@ interface DocumentBatchActionsProps {
     testIdPrefix: string
     selection: Selection
     batch: DocumentBatch
+    batchSend: BatchSend
 }
 
 /**
  * The toolbar's Batch actions (spec §3 "Batch actions"): a core Menu with Delete drafts and
- * Void, which open the batch's confirm dialog. Not drawn for a reader, in the names column
- * or in an area without row actions (`controls.showBatch`).
+ * Void, which open the batch's confirm dialog, and Send while a ticked row is sent-able,
+ * which opens the batch Send dialog (BatchSendDialog). Not drawn for a reader, in the names
+ * column or in an area without row actions (`controls.showBatch`).
  */
 export function DocumentBatchActions({
     isVisible,
@@ -130,6 +150,7 @@ export function DocumentBatchActions({
     testIdPrefix,
     selection,
     batch,
+    batchSend,
 }: DocumentBatchActionsProps) {
     const { isOpen, setOpen } = useBatchMenuOpen()
     // A tick on a loaded row; the header box's state counts only those.
@@ -153,6 +174,7 @@ export function DocumentBatchActions({
                 testIdPrefix={testIdPrefix}
                 selection={selection}
                 batch={batch}
+                batchSend={batchSend}
             />
         </Menu>
     )

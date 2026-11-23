@@ -21,7 +21,7 @@ const auditLogView = "books_audit_log"
 // signed-in, enabled user whose Books access row grants read.
 const booksReadRule = `@request.auth.id != "" && @request.auth.disabled != true && @collection.books_access:me.user ?= @request.auth.id && @collection.books_access:me.can_read ?= true`
 
-// wantAuditParentFields are the ten line collections and the field that
+// wantAuditParentFields are the nineteen line collections and the field that
 // names each one's document (spec §5: the view reads a live line's parent
 // from it). A bill payment line names its bill payment (pay-bills cp 4 D2).
 var wantAuditParentFields = map[string]string{
@@ -50,6 +50,9 @@ var wantAuditParentFields = map[string]string{
 	// deposit spec §4.1).
 	"books_deposit_items": "deposit",
 	"books_deposit_lines": "deposit",
+	// A document send names the document it sent; its doc_type gives the
+	// document's collection (email-share plan decision 2).
+	"books_document_sends": "document",
 }
 
 // auditGolden is server/testdata/audit_log_spec.json, which the vitest

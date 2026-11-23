@@ -14,6 +14,12 @@ export function publicEstimatePdfPath(token: string): string {
     return `/api/books/public/estimates/${encodeURIComponent(token)}/pdf`
 }
 
+// The signed-out route of an invoice's PDF, found by its public token (server/pdf_routes.go
+// servePublicInvoicePDF).
+export function publicInvoicePdfPath(token: string): string {
+    return `/api/books/public/invoices/${encodeURIComponent(token)}/pdf`
+}
+
 // The saved file's name when the server's Content-Disposition gives none (see
 // pdfDownloadName). A stem can come from a person (a customer, a number),
 // so anything that could escape a directory is replaced. Letters and digits of

@@ -554,6 +554,9 @@ var auditParentOf = map[string]string{
 	// spec §4.1).
 	"books_deposit_items": "books_deposits",
 	"books_deposit_lines": "books_deposits",
+	// A send opens the document it sent, by its doc_type (email-share plan
+	// decision 2); the fixture's send is of an invoice.
+	documentSendsCollection: "books_invoices",
 }
 
 // lineFixture makes a new document of a line collection and one row under it,
@@ -571,8 +574,13 @@ func lineFixture(t *testing.T, app core.App, lines string) (parent, line *core.R
 		parent = mkDraft(t, app, "2026-11-10")
 		line = saveRecord(t, app, lines, map[string]any{"entry": parent.Id, "account": account.Id, "debit": 100, "position": 0, "currency": "USD"})
 	case "books_invoice_lines":
-		parent = saveRecord(t, app, "books_invoices", map[string]any{"customer": customer.Id, "status": "draft", "date": "2026-11-10", "due_date": "2026-12-10"})
+		parent = mkInvoiceRow(t, app, customer, map[string]any{"date": "2026-11-10", "due_date": "2026-12-10"})
 		line = saveRecord(t, app, lines, map[string]any{"invoice": parent.Id, "kind": "description", "position": 0})
+	case documentSendsCollection:
+		parent = mkInvoiceRow(t, app, customer, map[string]any{"status": "posted", "date": "2026-11-10", "due_date": "2026-12-10"})
+		line = saveRecord(t, app, lines, map[string]any{
+			"doc_type": "invoice", "document": parent.Id, "customer": customer.Id, "to": "billing@harborview-dental.test",
+		})
 	case "books_credit_memo_lines":
 		parent = saveRecord(t, app, "books_credit_memos", map[string]any{"customer": customer.Id, "status": "draft", "date": "2026-11-10"})
 		line = saveRecord(t, app, lines, map[string]any{"credit_memo": parent.Id, "kind": "description", "position": 0})
@@ -639,7 +647,7 @@ func lineFixture(t *testing.T, app core.App, lines string) (parent, line *core.R
 		})
 		line = saveRecord(t, app, lines, map[string]any{"refund_receipt": parent.Id, "kind": "description", "position": 0})
 	case "books_credit_memo_applications":
-		invoice := saveRecord(t, app, "books_invoices", map[string]any{"customer": customer.Id, "status": "posted", "date": "2026-11-10", "due_date": "2026-12-10"})
+		invoice := mkInvoiceRow(t, app, customer, map[string]any{"status": "posted", "date": "2026-11-10", "due_date": "2026-12-10"})
 		parent = saveRecord(t, app, "books_credit_memos", map[string]any{"customer": customer.Id, "status": "posted", "date": "2026-11-12"})
 		line = saveRecord(t, app, lines, map[string]any{"credit_memo": parent.Id, "invoice": invoice.Id, "amount": 100, "date": "2026-11-16"})
 	case "books_deposit_items":
@@ -698,6 +706,11 @@ func TestAuditLogParents(t *testing.T) {
 
 			goneParent, goneLine := lineFixture(t, app, lines)
 			snapshot := map[string]any{field: goneParent.Id}
+			// A send's parent collection comes from its doc_type, which a
+			// delete snapshot holds with the other fields.
+			if lines == documentSendsCollection {
+				snapshot["doc_type"] = goneLine.GetString("doc_type")
+			}
 			if err := app.Delete(goneLine); err != nil {
 				t.Fatalf("delete the line: %v", err)
 			}
@@ -719,7 +732,7 @@ func TestAuditLogOrderAndParams(t *testing.T) {
 	lamp := mkService(t, app, "Desk lamp", b.revenue)
 	entry := b.sale(t, "2026-11-10", 5000)
 	customer := saveRecord(t, app, "books_customers", map[string]any{"display_name": "Harborview Dental"})
-	invoice := saveRecord(t, app, "books_invoices", map[string]any{"customer": customer.Id, "status": "draft", "date": "2026-11-10", "due_date": "2026-12-10"})
+	invoice := mkInvoiceRow(t, app, customer, map[string]any{"date": "2026-11-10", "due_date": "2026-12-10"})
 	line := saveRecord(t, app, "books_invoice_lines", map[string]any{"invoice": invoice.Id, "kind": "description", "position": 0})
 
 	row := func(m int, action, collection, id, label, by string, changes map[string]any) *core.Record {

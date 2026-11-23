@@ -197,6 +197,39 @@ describe('auditRecordHref', () => {
         expect(auditRecordHref('books_journal_entries', ID, reversal)).toBe(`books/entries/${ID}`)
     })
 
+    // Email-share plan decision 2: a sent email's history is filed under its document, so
+    // its Open is that document's read view, from the send's doc_type and document.
+    it('a sent email opens the invoice or estimate it sent, and nothing without one', () => {
+        const invoice = 'invc1001harbr01'
+        const estimate = 'estm1001harbr01'
+        const invoiceSend = { id: ID, doc_type: 'invoice', document: invoice }
+        expect(auditRecordHref('books_document_sends', ID, invoiceSend)).toBe(
+            `books/invoices/${invoice}`
+        )
+        expect(
+            auditRecordHref('books_document_sends', ID, {
+                id: ID,
+                doc_type: 'estimate',
+                document: estimate,
+            })
+        ).toBe(`books/estimates/${estimate}`)
+        expect(
+            auditRecordHref('books_document_sends', ID, {
+                id: ID,
+                doc_type: 'invoice',
+                document: '',
+            })
+        ).toBeNull()
+        expect(
+            auditRecordHref('books_document_sends', ID, {
+                id: ID,
+                doc_type: 'bill',
+                document: invoice,
+            })
+        ).toBeNull()
+        expect(auditRecordOpenLabel('books_document_sends', invoiceSend)).toBe('Open invoice')
+    })
+
     it('opens a journal entry where its live row says (entryHref)', () => {
         const manual = { id: ID, doc_type: 'journal', origin: 'manual', document: '' } as const
         expect(auditRecordHref('books_journal_entries', ID, manual)).toBe(entryHref(manual))

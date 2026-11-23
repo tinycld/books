@@ -155,6 +155,7 @@ test.describe('write-off: lists', () => {
             .poll(() => rowMenuActions(page))
             .toEqual([
                 'open',
+                'send',
                 'receive-payment',
                 'write-off',
                 'void',

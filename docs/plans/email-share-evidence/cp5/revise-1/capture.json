@@ -1,0 +1,21 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "public-settled",
+            "url": "/p/books/invoices/$token",
+            "token": "memo=\"Pallet storage, September\" && status=\"posted\"",
+            "ready": "invoice-public-settled",
+            "height": 900,
+            "widths": [390]
+        },
+        {
+            "name": "public-settled",
+            "url": "/p/books/invoices/$token",
+            "token": "memo=\"Pallet storage, September\" && status=\"posted\"",
+            "ready": "invoice-public-settled",
+            "height": 900,
+            "widths": [1280]
+        }
+    ]
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readHelpTopic } from './help-topic'
+import { paragraphWith, readHelpTopic } from './help-topic'
 
 const { exists, frontmatter, body } = readHelpTopic('documents')
 
@@ -42,6 +42,20 @@ describe('help/documents.md', () => {
     // Refund receipt checkpoint 5: cross-linked from the refund receipt topic's neighbours.
     it('links the refund receipts topic', () => {
         expect(body).toContain('(help://books:refund-receipts)')
+    })
+
+    // Email and share spec §3.7 Help (checkpoint 5): a paragraph on sending a document
+    // by email links the two topics that tell how.
+    it('links the invoices and estimates topics where it says how to send a document', () => {
+        expect(
+            paragraphWith(
+                body,
+                /\b(send|email)\b/i,
+                /\(help:\/\/books:invoices\b/,
+                /\(help:\/\/books:estimates\b/
+            ),
+            'a paragraph on sending that links invoices and estimates'
+        ).toBeDefined()
     })
 
     it('hand-writes no hostname other than {{server-host}}', () => {

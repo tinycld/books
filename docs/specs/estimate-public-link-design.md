@@ -26,7 +26,7 @@ A customer opens a link to one estimate without signing in, sees who sent it and
 - The estimate's message to the customer when it is not empty (it is printed on the estimate anyway).
 - "Download PDF" (link button): downloads the printed estimate (p2-pdf's estimate PDF) through the token route of §4.3, with core `downloadFromUrl` (web and native).
 - Below the card, when Books `email` or `phone` is set: "Questions? Contact <business>" with the email (mailto) and phone (tel) as link buttons. Neither set: nothing.
-- Page title (core `DocumentTitle`, `includeOrg={false}`): "Estimate 1001 · <business>".
+- Page title (core `DocumentTitle`, `includeBrand={false}`): exactly "Estimate 1001 · <business>", with no app name.
 - Light and dark follow the system scheme.
 
 ### 3.3 The public page — deciding

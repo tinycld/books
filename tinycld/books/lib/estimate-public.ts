@@ -49,14 +49,6 @@ export function publicOutcomeOf(
     return 'decide'
 }
 
-export function businessNameOf(
-    row: Pick<PublicEstimateRow, 'business_name'>,
-    deploymentName: string
-): string {
-    const name = row.business_name.trim()
-    return name === '' ? deploymentName : name
-}
-
 export function publicTitleOf(number: string, business: string): string {
     return `Estimate ${number} · ${business}`
 }
@@ -69,19 +61,6 @@ export function publicDatesOf(row: Pick<PublicEstimateRow, 'date' | 'expiration_
     const date = `Estimate date ${formatDay(row.date)}`
     if (row.expiration_date === '') return date
     return `${date} · Expires ${formatDay(row.expiration_date)}`
-}
-
-export function contactOf(
-    row: Pick<PublicEstimateRow, 'business_email' | 'business_phone'>
-): { email: string; phone: string } | null {
-    const email = row.business_email.trim()
-    const phone = row.business_phone.trim()
-    if (email === '' && phone === '') return null
-    return { email, phone }
-}
-
-export function contactLeadOf(business: string): string {
-    return `Questions? Contact ${business}`
 }
 
 // The lines of an outcome with no decision left (spec §3.4); 'decide' has none.

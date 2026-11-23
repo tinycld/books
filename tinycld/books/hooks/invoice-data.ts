@@ -143,6 +143,7 @@ function useInvoiceScreenReads(
                 estimateRow,
                 balance: row.balance,
                 written_off: row.written_off,
+                public_token: row.public_token,
             },
         }
     }, [read])

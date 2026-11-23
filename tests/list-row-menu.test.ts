@@ -41,6 +41,7 @@ function row(kind: ListKind, fields: Partial<DocumentListRow> = {}): DocumentLis
         convertedInvoice: '',
         recordStatus: 'posted',
         category: { kind: 'none' },
+        email: '',
         ...fields,
     }
 }

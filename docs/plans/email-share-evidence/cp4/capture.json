@@ -1,0 +1,760 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "form",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-actions",
+            "height": 900,
+            "widths": [390],
+            "schemes": ["light"],
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "waitForFocus": true
+                },
+                {
+                    "type": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1"
+                },
+                {
+                    "waitForFocus": true
+                },
+                {
+                    "type": "Year-end tax preparation"
+                },
+                {
+                    "clickMenuItem": "Year-end tax preparation"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "blur": true
+                }
+            ]
+        },
+        {
+            "name": "form",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-actions",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "waitForFocus": true
+                },
+                {
+                    "type": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1"
+                },
+                {
+                    "waitForFocus": true
+                },
+                {
+                    "type": "Year-end tax preparation"
+                },
+                {
+                    "clickMenuItem": "Year-end tax preparation"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "blur": true
+                }
+            ]
+        },
+        {
+            "name": "form-more",
+            "url": "/a/books/invoices/new",
+            "ready": "invoice-actions",
+            "height": 900,
+            "widths": [390],
+            "schemes": ["light"],
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "click": "form-input-customer"
+                },
+                {
+                    "waitForFocus": true
+                },
+                {
+                    "type": "Harborview Hospitality Group"
+                },
+                {
+                    "clickMenuItem": "Harborview Hospitality Group"
+                },
+                {
+                    "waitForHidden": "form-input-customer-search"
+                },
+                {
+                    "clickLabel": "Product or service, row 1"
+                },
+                {
+                    "waitForFocus": true
+                },
+                {
+                    "type": "Year-end tax preparation"
+                },
+                {
+                    "clickMenuItem": "Year-end tax preparation"
+                },
+                {
+                    "pause": 300
+                },
+                {
+                    "blur": true
+                },
+                {
+                    "click": "invoice-more"
+                },
+                {
+                    "waitFor": "invoice-post-send"
+                }
+            ],
+            "stable": "invoice-post-send"
+        },
+        {
+            "name": "batch",
+            "url": "/a/books/sales",
+            "ready": "sales-list",
+            "height": 900,
+            "widths": [390],
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "fill": "sales-search",
+                    "value": "Seed sales receipt"
+                },
+                {
+                    "waitForRows": "^sales-row-[a-z0-9]{15}$",
+                    "count": 3
+                },
+                {
+                    "click": "sales-batch-actions"
+                },
+                {
+                    "click": "sales-batch-select-all"
+                },
+                {
+                    "click": "sales-batch-actions"
+                },
+                {
+                    "click": "sales-batch-send"
+                },
+                {
+                    "waitFor": "batch-send-skipped"
+                },
+                {
+                    "clickText": "Send 3 documents?"
+                }
+            ]
+        },
+        {
+            "name": "batch",
+            "url": "/a/books/sales",
+            "ready": "sales-list",
+            "height": 900,
+            "widths": [1280],
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "fill": "sales-search",
+                    "value": "Seed sales receipt"
+                },
+                {
+                    "waitForRows": "^sales-row-[a-z0-9]{15}$",
+                    "count": 3
+                },
+                {
+                    "click": "sales-tick-all"
+                },
+                {
+                    "click": "sales-batch-actions"
+                },
+                {
+                    "click": "sales-batch-send"
+                },
+                {
+                    "waitFor": "batch-send-skipped"
+                },
+                {
+                    "clickText": "Send 3 documents?"
+                }
+            ]
+        },
+        {
+            "name": "batch-clean",
+            "url": "/a/books/invoices",
+            "ready": "sales-list",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "fill": "sales-search",
+                    "value": "Seed invoice"
+                },
+                {
+                    "waitForRows": "^sales-row-[a-z0-9]{15}$",
+                    "count": 3
+                },
+                {
+                    "click": "sales-tick-all"
+                },
+                {
+                    "click": "sales-batch-actions"
+                },
+                {
+                    "click": "sales-batch-send"
+                },
+                {
+                    "waitFor": "batch-send-confirm"
+                },
+                {
+                    "clickText": "Send 3 documents?"
+                }
+            ]
+        },
+        {
+            "name": "batch-none",
+            "url": "/a/books/sales",
+            "ready": "sales-list",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "fill": "sales-search",
+                    "value": "Seed sales receipt"
+                },
+                {
+                    "waitForRows": "^sales-row-[a-z0-9]{15}$",
+                    "count": 3
+                },
+                {
+                    "click": "sales-tick-all"
+                },
+                {
+                    "clickLabel": "Select Sales receipt 1001"
+                },
+                {
+                    "click": "sales-batch-actions"
+                },
+                {
+                    "click": "sales-batch-send"
+                },
+                {
+                    "waitFor": "batch-send-skipped"
+                },
+                {
+                    "clickText": "Send 2 documents?"
+                }
+            ]
+        },
+        {
+            "name": "batch-too-many",
+            "url": "/a/books/invoices",
+            "ready": "sales-list",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "waitFor": "sales-tick-all"
+                },
+                {
+                    "scrollToEnd": "sales-list",
+                    "times": 4
+                },
+                {
+                    "click": "sales-tick-all"
+                },
+                {
+                    "click": "sales-batch-actions"
+                },
+                {
+                    "click": "sales-batch-send"
+                },
+                {
+                    "waitFor": "batch-send-refusal"
+                },
+                {
+                    "clickText": "Send 201 documents?"
+                }
+            ],
+            "fakeRecords": {
+                "collection": "books_invoices",
+                "repeat": 201,
+                "items": [
+                    {
+                        "id": "fakeinv$n",
+                        "customer": "",
+                        "status": "posted",
+                        "number": "$n",
+                        "sequence": "$n#",
+                        "date": "2026-11-20",
+                        "due_date": "2026-12-20",
+                        "terms": "net_30",
+                        "bill_to": null,
+                        "email": "billing$n@harborviewhospitality.com",
+                        "tax_rate": "",
+                        "message": "",
+                        "memo": "Monthly service retainer $n",
+                        "subtotal": 500,
+                        "tax_total": 0,
+                        "total": 500,
+                        "written_off": 0,
+                        "revision": 1,
+                        "currency": "USD",
+                        "entry": "",
+                        "posted_at": "2026-11-20 10:00:00.000Z",
+                        "posted_by": "",
+                        "voided_at": "",
+                        "voided_by": "",
+                        "form": "",
+                        "fields": null,
+                        "public_token": "",
+                        "sort_key": "",
+                        "created": "2026-11-20 10:00:00.000Z",
+                        "updated": "2026-11-20 10:00:00.000Z",
+                        "replaces": "",
+                        "replaced_by": "",
+                        "estimate": "",
+                        "balance": 500
+                    }
+                ]
+            }
+        },
+        {
+            "name": "batch-no-email",
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "height": 900,
+            "widths": [390],
+            "schemes": ["light"],
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "route": "/api/reports/email-status",
+                    "json": {
+                        "canSend": false
+                    }
+                },
+                {
+                    "pushPath": "/a/books/sales"
+                },
+                {
+                    "waitFor": "sales-list"
+                },
+                {
+                    "fill": "sales-search",
+                    "value": "Seed sales receipt"
+                },
+                {
+                    "waitForRows": "^sales-row-[a-z0-9]{15}$",
+                    "count": 3
+                },
+                {
+                    "click": "sales-batch-actions"
+                },
+                {
+                    "click": "sales-batch-select-all"
+                },
+                {
+                    "click": "sales-batch-actions"
+                },
+                {
+                    "click": "sales-batch-send"
+                },
+                {
+                    "waitFor": "batch-send-close"
+                },
+                {
+                    "clickText": "Send 3 documents?"
+                }
+            ]
+        },
+        {
+            "name": "batch-no-email",
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "route": "/api/reports/email-status",
+                    "json": {
+                        "canSend": false
+                    }
+                },
+                {
+                    "click": "books-nav-sales"
+                },
+                {
+                    "waitFor": "sales-list"
+                },
+                {
+                    "fill": "sales-search",
+                    "value": "Seed sales receipt"
+                },
+                {
+                    "waitForRows": "^sales-row-[a-z0-9]{15}$",
+                    "count": 3
+                },
+                {
+                    "click": "sales-tick-all"
+                },
+                {
+                    "click": "sales-batch-actions"
+                },
+                {
+                    "click": "sales-batch-send"
+                },
+                {
+                    "waitFor": "batch-send-close"
+                },
+                {
+                    "clickText": "Send 3 documents?"
+                }
+            ]
+        },
+        {
+            "name": "send-loading",
+            "url": "/a/books/invoices",
+            "ready": "sales-list",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "fill": "sales-search",
+                    "value": "Seed invoice posted"
+                },
+                {
+                    "waitForRows": "^sales-row-[a-z0-9]{15}$",
+                    "count": 1
+                },
+                {
+                    "fake": {
+                        "collection": "books_settings",
+                        "hold": true
+                    }
+                },
+                {
+                    "clickLabel": "More actions"
+                },
+                {
+                    "click": "sales-row-action-send"
+                },
+                {
+                    "waitFor": "document-send-loading"
+                },
+                {
+                    "clickText": "Send invoice 1003"
+                }
+            ]
+        },
+        {
+            "name": "send-load-error",
+            "url": "/a/books/invoices",
+            "ready": "sales-list",
+            "height": 900,
+            "widths": [390],
+            "schemes": ["light"],
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "fill": "sales-search",
+                    "value": "Seed invoice posted"
+                },
+                {
+                    "waitForRows": "^sales-row-[a-z0-9]{15}$",
+                    "count": 1
+                },
+                {
+                    "fake": {
+                        "collection": "books_settings",
+                        "status": 400
+                    }
+                },
+                {
+                    "clickLabel": "More actions"
+                },
+                {
+                    "click": "sales-row-action-send"
+                },
+                {
+                    "waitFor": "document-send-load-error"
+                },
+                {
+                    "clickText": "Send invoice 1003"
+                }
+            ]
+        },
+        {
+            "name": "send-load-error",
+            "url": "/a/books/invoices",
+            "ready": "sales-list",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "fill": "sales-search",
+                    "value": "Seed invoice posted"
+                },
+                {
+                    "waitForRows": "^sales-row-[a-z0-9]{15}$",
+                    "count": 1
+                },
+                {
+                    "fake": {
+                        "collection": "books_settings",
+                        "status": 400
+                    }
+                },
+                {
+                    "clickLabel": "More actions"
+                },
+                {
+                    "click": "sales-row-action-send"
+                },
+                {
+                    "waitFor": "document-send-load-error"
+                },
+                {
+                    "clickText": "Send invoice 1003"
+                }
+            ]
+        },
+        {
+            "name": "row-menu",
+            "url": "/a/books/invoices",
+            "ready": "sales-list",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "fill": "sales-search",
+                    "value": "Seed invoice posted"
+                },
+                {
+                    "waitForRows": "^sales-row-[a-z0-9]{15}$",
+                    "count": 1
+                },
+                {
+                    "clickLabel": "More actions"
+                },
+                {
+                    "waitFor": "sales-row-action-send"
+                }
+            ],
+            "stable": "sales-row-action-send"
+        },
+        {
+            "name": "send-estimate",
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "search": "Annex network refresh",
+                    "pick": "^Estimate \\d+ \u00b7 "
+                },
+                {
+                    "waitFor": "estimate-save-send"
+                },
+                {
+                    "press": "ControlOrMeta+Alt+Enter"
+                },
+                {
+                    "waitFor": "document-send-body"
+                },
+                {
+                    "clickText": "Send estimate 1001"
+                }
+            ]
+        },
+        {
+            "name": "estimate-sent",
+            "url": "/a/books/customers",
+            "ready": "pkg-active-books",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "search": "Annex network refresh",
+                    "pick": "^Estimate \\d+ \u00b7 "
+                },
+                {
+                    "waitFor": "estimate-save-send"
+                },
+                {
+                    "press": "ControlOrMeta+Alt+Enter"
+                },
+                {
+                    "waitFor": "document-send-body"
+                },
+                {
+                    "press": "ControlOrMeta+Enter"
+                },
+                {
+                    "waitForHidden": "document-send-dialog"
+                },
+                {
+                    "waitFor": "estimate-sent-line"
+                },
+                {
+                    "waitForHidden": "toast-card"
+                },
+                {
+                    "blur": true
+                }
+            ]
+        },
+        {
+            "name": "batch-result",
+            "url": "/a/books/invoices",
+            "ready": "sales-list",
+            "height": 900,
+            "widths": [390],
+            "schemes": ["light"],
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "fill": "sales-search",
+                    "value": "Seed invoice"
+                },
+                {
+                    "waitForRows": "^sales-row-[a-z0-9]{15}$",
+                    "count": 3
+                },
+                {
+                    "click": "sales-batch-actions"
+                },
+                {
+                    "click": "sales-batch-select-all"
+                },
+                {
+                    "route": "/api/books/documents/send",
+                    "splitSend": {
+                        "keep": 1,
+                        "message": "The email server refused $to. Correct the address and send again."
+                    }
+                },
+                {
+                    "click": "sales-batch-actions"
+                },
+                {
+                    "click": "sales-batch-send"
+                },
+                {
+                    "waitFor": "batch-send-confirm"
+                },
+                {
+                    "click": "batch-send-confirm"
+                },
+                {
+                    "waitFor": "batch-send-banner"
+                },
+                {
+                    "waitForHidden": "batch-send-dialog"
+                },
+                {
+                    "blur": true
+                }
+            ]
+        },
+        {
+            "name": "batch-result",
+            "url": "/a/books/invoices",
+            "ready": "sales-list",
+            "height": 900,
+            "widths": [1280],
+            "schemes": ["light"],
+            "hideLabels": ["New"],
+            "actions": [
+                {
+                    "fill": "sales-search",
+                    "value": "Seed invoice"
+                },
+                {
+                    "waitForRows": "^sales-row-[a-z0-9]{15}$",
+                    "count": 3
+                },
+                {
+                    "click": "sales-tick-all"
+                },
+                {
+                    "route": "/api/books/documents/send",
+                    "splitSend": {
+                        "keep": 1,
+                        "message": "The email server refused $to. Correct the address and send again."
+                    }
+                },
+                {
+                    "click": "sales-batch-actions"
+                },
+                {
+                    "click": "sales-batch-send"
+                },
+                {
+                    "waitFor": "batch-send-confirm"
+                },
+                {
+                    "click": "batch-send-confirm"
+                },
+                {
+                    "waitFor": "batch-send-banner"
+                },
+                {
+                    "waitForHidden": "batch-send-dialog"
+                },
+                {
+                    "blur": true
+                }
+            ]
+        }
+    ]
+}

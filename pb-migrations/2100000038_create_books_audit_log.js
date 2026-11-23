@@ -13,19 +13,23 @@
 // update whose status became posted or void as posted or voided; event_shown
 // is the event the report shows (see EVENT_SHOWN).
 //
-// A line row (the eighteen collections below) names its document in
+// A line row (the nineteen collections below) names its document in
 // parent_type and parent_id, read from the live line, else from its delete
 // snapshot; history_type and history_id are the record whose history the row
 // opens: the document for a line, the record itself otherwise. server/audit.go
-// auditParentFields lists the same eighteen. The view reads the payment
-// applications, bill payment lines, credit memo lines, credit memo
+// auditParentFields lists the same nineteen. A document send
+// (books_document_sends) is filed as a line of the document it sent: its
+// parent collection is not fixed, so its row of LINES has no parent and
+// parent_type reads the send's doc_type (SEND_PARENTS). The view reads the
+// payment applications, bill payment lines, credit memo lines, credit memo
 // applications, vendor credit lines, vendor credit applications, vendor refund
-// lines, refund receipt lines, deposit items and deposit lines tables, so it
-// comes after 2100000019_create_books_payments,
+// lines, refund receipt lines, document sends, deposit items and deposit lines
+// tables, so it comes after 2100000019_create_books_payments,
 // 2100000021_create_books_bill_payments, 2100000022_create_books_credit_memos,
 // 2100000023_create_books_vendor_credits, 2100000024_create_books_vendor_refunds,
 // 2100000025_create_books_refund_receipts,
-// 2100000031_create_books_credit_memo_applications and
+// 2100000031_create_books_credit_memo_applications,
+// 2100000034_create_books_document_sends and
 // 2100000037_create_books_deposits.
 //
 // The query is one SELECT: PocketBase's view parser refuses UNION ALL. Every
@@ -45,7 +49,8 @@ const ME = '@collection.books_access:me.user ?= @request.auth.id'
 const READ = `${AUTH} && ${ME} && @collection.books_access:me.can_read ?= true`
 
 // Each line collection, its document's collection and the line field that
-// names the document.
+// names the document. An empty document collection is a send's: SEND_PARENTS
+// gives it by the row's doc_type.
 const LINES = [
     ['books_bill_lines', 'books_bills', 'bill'],
     ['books_bill_payment_lines', 'books_bill_payments', 'payment'],
@@ -54,6 +59,7 @@ const LINES = [
     ['books_credit_memo_lines', 'books_credit_memos', 'credit_memo'],
     ['books_deposit_items', 'books_deposits', 'deposit'],
     ['books_deposit_lines', 'books_deposits', 'deposit'],
+    ['books_document_sends', '', 'document'],
     ['books_estimate_lines', 'books_estimates', 'estimate'],
     ['books_estimate_responses', 'books_estimates', 'estimate'],
     ['books_expense_lines', 'books_expenses', 'expense'],
@@ -71,7 +77,23 @@ const CHANGES = 'CASE WHEN json_valid(a.changes) THEN a.changes END'
 const SNAPSHOT = 'CASE WHEN json_valid(a.snapshot) THEN a.snapshot END'
 const STATUS_AFTER = `json_extract(${CHANGES}, '$.status.after')`
 
-const PARENT_TYPE = `CASE a.resource_type ${LINES.map(([lines, parent]) => `WHEN '${lines}' THEN '${parent}'`).join(' ')} ELSE '' END`
+// A send's doc_type and the collection of the document it names.
+const SEND_PARENTS = [
+    ['invoice', 'books_invoices'],
+    ['estimate', 'books_estimates'],
+    ['sales_receipt', 'books_sales_receipts'],
+    ['credit_memo', 'books_credit_memos'],
+    ['refund_receipt', 'books_refund_receipts'],
+]
+
+// The document collection of a send row: its doc_type, read from the live
+// row, else from its delete snapshot.
+const sendParentType = lines =>
+    `CASE COALESCE((SELECT doc_type FROM ${lines} WHERE id = a.resource_id), json_extract(${SNAPSHOT}, '$.doc_type'), '') ${SEND_PARENTS.map(([docType, parent]) => `WHEN '${docType}' THEN '${parent}'`).join(' ')} ELSE '' END`
+
+const parentTypeOf = (lines, parent) => (parent === '' ? sendParentType(lines) : `'${parent}'`)
+
+const PARENT_TYPE = `CASE a.resource_type ${LINES.map(([lines, parent]) => `WHEN '${lines}' THEN ${parentTypeOf(lines, parent)}`).join(' ')} ELSE '' END`
 
 const PARENT_ID = `CASE a.resource_type ${LINES.map(
     ([lines, , field]) =>

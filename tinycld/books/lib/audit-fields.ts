@@ -19,6 +19,7 @@ import { PRODUCT_TYPES } from './product-types'
 import { PURCHASE_LINES_OPTIONS } from './purchase-lines'
 import { isIsoDay } from './register-range'
 import { ratePercentText } from './sales-tax'
+import { isSendDocType } from './send-doc-types'
 import { STATEMENT_TYPE_LABELS } from './statement-texts'
 import { TAX_ID_TYPES } from './tax-id'
 
@@ -136,6 +137,7 @@ export const DOC_TYPE = [
     { value: 'deposit', label: 'Deposit' },
     { value: 'statement', label: 'Statement' },
 ]
+const SEND_DOC_TYPE = DOC_TYPE.filter(option => isSendDocType(option.value))
 const STATEMENT_TYPE = Object.entries(STATEMENT_TYPE_LABELS).map(([value, label]) => ({
     value,
     label,
@@ -276,6 +278,7 @@ const AUDIT_FIELD_MAPS = {
         balance: money('Open balance'),
         written_off: money('Written off'),
         estimate: relation('Estimate', 'books_estimates'),
+        public_token: hidden('Customer link'),
     },
     books_sales_receipts: {
         customer: relation('Customer', 'books_customers'),
@@ -513,6 +516,21 @@ const AUDIT_FIELD_MAPS = {
         sent_at: datetime('Sent'),
         sent_to: text('Sent to'),
         ...STAMPS,
+    },
+    // A sent email has no updated stamp: only the send route writes it, once.
+    books_document_sends: {
+        doc_type: select('Document type', SEND_DOC_TYPE),
+        document: internal('Document'),
+        number: text('No.'),
+        customer: relation('Customer', 'books_customers'),
+        to: text('To'),
+        cc: text('Cc'),
+        subject: text('Subject'),
+        body: internal('Message HTML'),
+        body_text: text('Message'),
+        sent_by: relation('Sent by', 'users'),
+        id: STAMPS.id,
+        created: STAMPS.created,
     },
     books_vendor_refund_lines: {
         refund: relation('Vendor refund', 'books_vendor_refunds'),
@@ -1038,6 +1056,8 @@ const EVENT_WORDS: Record<AuditEvent, string> = {
 // A collection whose events read in its own words (apply credit spec §3.8).
 const COLLECTION_EVENT_WORDS: Record<string, Partial<Record<AuditEvent, string>>> = {
     books_credit_memo_applications: { added: 'Credit applied', deleted: 'Credit removed' },
+    // Only the send route writes a send, and nothing edits it (email-share spec §4.2).
+    books_document_sends: { added: 'Sent' },
 }
 
 export function eventWords(event: AuditEvent, collection?: string): string {

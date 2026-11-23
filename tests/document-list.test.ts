@@ -638,6 +638,7 @@ function listRow(over: Partial<DocumentListRow>): DocumentListRow {
         convertedInvoice: '',
         recordStatus: 'posted',
         category: { kind: 'none' },
+        email: '',
         ...over,
     }
 }

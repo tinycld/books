@@ -28,7 +28,7 @@ An estimate has no draft. The first save gives it the next estimate number. An a
 
 Any other way out of a form with unsaved changes asks the same question first: the Back link, the browser's Back or Forward button, and a key or a row of the Sales list beside the form. Choose Keep editing to stay with your changes, or Discard to go on. If you reload or close the browser tab, the browser asks.
 
-On a phone, the bar shows Cancel and Save & close. Save, Save & new, Convert to invoice, Copy customer link, Delete estimate and Download PDF are under More.
+On a phone, the bar shows Cancel and Save & close. Save, Save & new, Convert to invoice, Save and send, Copy customer link, Delete estimate and Download PDF are under More.
 
 A saved estimate stays open to changes: you can change any field and any line while it is Pending, Accepted or Rejected.
 
@@ -77,6 +77,41 @@ If you have the estimate open with changes while the customer answers, your next
 
 The link works until the estimate is deleted. You cannot turn it off or make a new one: to stop it, delete the estimate.
 
+## Send to your customer
+
+To send an estimate to your customer, open it and choose **Save and send** (⌘⌥↵), after Save in the bar. On a phone, it is in the More menu, after Convert to invoice. Books saves the estimate as Save does, then opens the Send dialog ("Send estimate 1004"), and the email goes out with the estimate's PDF attached. If Books refuses the save, no dialog opens. If you cancel the dialog, the estimate stays saved and is not sent. You can send an estimate that is Pending, Accepted or Rejected; a closed estimate has no send.
+
+You can also send an estimate from the [Sales lists](help://books:sales-lists): choose **Send…** in its row menu. The Send… key S is the read view's on a posted invoice, sales receipt, credit memo or refund receipt; an estimate that you can send opens in its form, so there you use Save and send.
+
+The Send dialog holds:
+
+- **To**: one email address. It starts with the estimate's Email, else the customer's email. In a web browser, To has the focus when the dialog opens.
+- **Cc**: up to 5 more addresses, separated by commas. It starts empty.
+- **Subject**: it starts as "Estimate 1004 from" and your business name. It can have up to 300 characters.
+- **Message**: the text of the email, with a row of format buttons above it: Bold, Italic, Underline, Bullet list, Numbered list, Blockquote and Link. On a narrow screen, the buttons that do not fit are in the row's More menu. To add a link, select the text and choose Link (or press ⌘K in the message), type the address and choose Apply.
+- The attachment line, such as "Attachment: estimate-1004.pdf", and two buttons: **Copy customer link** copies the estimate's link (see "Share an estimate with your customer" above), and **Download PDF** downloads the PDF.
+
+The message starts with a greeting to the customer, "Attached is estimate 1004 from" and your business name, the Estimate date, the expiration date when set, the Total, and your Message to customer when the estimate has one. While the estimate is Pending and not expired, it then says "To accept or decline this estimate, open:" with the customer link; otherwise "View this estimate online:" with the link. It ends with "To ask about this estimate, reply to this email", with your business phone when it is set in Settings.
+
+You can change the subject and the message before you send. To put the starting subject and message back, choose **Reset message** (⌥R) beside the Message label. It replaces your changes at once, with no question. The changes are not kept: the next time you open the dialog, it starts again from the starting texts.
+
+To send, choose **Send**, or press ⌘↵ in any field of the dialog, the message too. When it is sent, the dialog closes and Books shows "Estimate 1004 sent to" with the address. If Books refuses the send, the reason shows in the dialog and the dialog stays open. The email comes from the server's address with your business name as the sender's name, and replies go to your own email address. For more on the email, see [Invoices](help://books:invoices).
+
+After a send, the form (under its header, above a decline note) and the read view (under the status) show a line such as "Sent Nov 20, 2026 to" with the address, and "· sent 3 times" after more than one send. Each send is also an entry of the estimate's Audit history.
+
+A batch send from the Sales lists (Batch actions → Send) sends each estimate to the Email on the estimate, with the standard subject and message that Books fills in for each one. You cannot change the text of a batch send.
+
+When email sending is not set up on your server, the dialog says "Email sending is not set up. Share the customer link or the PDF with your customer." and shows only Copy customer link, Download PDF and Close. Copy the link or download the PDF and send it yourself, or ask the person who runs your server to set up email sending.
+
+Keys of sending:
+
+- ⌘⌥↵: Save and send on the estimate form
+- ⌘↵: Send, in the Send dialog
+- Esc: Cancel, in the Send dialog
+- ⌥R: Reset message, in the Send dialog
+- ⌘K: Link, while the cursor is in the message
+- ⌥L: Copy customer link on the estimate form
+
 ## Convert to invoice
 
 To bill the work, open a Pending or Accepted estimate and choose **Convert to invoice**. If the estimate has changes, Books saves it first; if the save is refused, the estimate stays open and nothing is converted. A Rejected estimate cannot be converted: set it to Pending or Accepted first.
@@ -108,6 +143,7 @@ On the estimate form:
 - ⌘↵: Save & close
 - ⌘⇧↵: Save & new
 - ⌘S: Save
+- ⌘⌥↵: Save and send
 - Esc: Cancel
 - ⌥I: Convert to invoice
 - ⌥L: Copy customer link (a saved estimate that is not closed)

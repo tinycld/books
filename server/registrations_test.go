@@ -1007,6 +1007,7 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 		bindBalanceRoutes(e)
 		bindPDFRoutes(e)
 		bindStatementRoutes(e)
+		bindDocumentSendRoutes(e)
 		return e.Next()
 	})
 

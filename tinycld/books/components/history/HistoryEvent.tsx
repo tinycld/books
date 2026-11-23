@@ -16,8 +16,10 @@ import {
 import type { AuditLogRow } from '../../lib/audit-log'
 import { useReportHistoryRead } from '../../stores/history-reads-store'
 import { FieldChanges } from './FieldChanges'
+import { SendEvent } from './SendEvent'
 
 const TITLE_CLASS = 'text-sm font-semibold text-foreground'
+const SENDS_COLLECTION = 'books_document_sends'
 
 // A store must be named on every render; a line of a collection that is not audited
 // keeps its query disabled.
@@ -81,6 +83,31 @@ interface HistoryEventProps extends RowProps {
     booksCurrency: string
 }
 
+function RecordEvent({
+    row,
+    collection,
+    meta,
+    currency,
+    history,
+}: RowProps & { collection: string; meta: string; currency: string }) {
+    return (
+        <>
+            <View className="flex-row flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <EventTitle row={row} collection={collection} history={history} />
+                <Text className="text-xs text-muted-foreground">{meta}</Text>
+            </View>
+            <EventBody row={row} currency={currency} history={history} />
+        </>
+    )
+}
+
+// A send of the document (email-share plan decision 2) reads its own row (SendEvent); any
+// other event draws from the audit row.
+function EventContent(props: RowProps & { collection: string; meta: string; currency: string }) {
+    if (props.row.record_type === SENDS_COLLECTION) return <SendEvent {...props} />
+    return <RecordEvent {...props} />
+}
+
 /** One event of a record's history: date, user, event, then its fields or "Added …". */
 export function HistoryEvent({ row, collection, booksCurrency, history }: HistoryEventProps) {
     const meta = `${dateTimeText(row.created)} · ${row.actor_name}`
@@ -90,11 +117,13 @@ export function HistoryEvent({ row, collection, booksCurrency, history }: Histor
             testID={`history-event-${row.id}`}
             className="gap-2 rounded-lg border border-border bg-card p-3"
         >
-            <View className="flex-row flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                <EventTitle row={row} collection={collection} history={history} />
-                <Text className="text-xs text-muted-foreground">{meta}</Text>
-            </View>
-            <EventBody row={row} currency={currency} history={history} />
+            <EventContent
+                row={row}
+                collection={collection}
+                meta={meta}
+                currency={currency}
+                history={history}
+            />
         </View>
     )
 }

@@ -37,12 +37,15 @@ func seedLedgerRows(t testing.TB, app core.App) ledgerRows {
 	return ledgerRows{account, posted, draft, postedLine, draftLine, balance}
 }
 
-// booksPublicPaths are Books' deliberate no-login paths: an estimate's
-// customer link (spec §4.2, §4.3). Each needs the estimate's share token in
-// the X-Share-Token header, and opens that one estimate only.
+// booksPublicPaths are Books' deliberate no-login paths: an estimate's and an
+// invoice's customer link (estimate link spec §4.2, §4.3; email-share spec
+// §4.3). Each needs the document's share token in the X-Share-Token header,
+// and opens that one document only.
 var booksPublicPaths = []rlstest.PublicPath{
 	{Collection: "books_estimate_public", Kind: "list", Reason: "the customer link reads its own estimate by its share token"},
 	{Collection: "books_estimate_public", Kind: "view", Reason: "the customer link reads its own estimate by its share token"},
+	{Collection: invoicePublicCollection, Kind: "list", Reason: "the customer link reads its own invoice by its share token"},
+	{Collection: invoicePublicCollection, Kind: "view", Reason: "the customer link reads its own invoice by its share token"},
 	{Collection: "books_estimate_responses", Kind: "create", Reason: "the customer link answers its own estimate by its share token"},
 }
 

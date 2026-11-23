@@ -610,6 +610,10 @@ export type DocumentListRow = PartyTransactionRow<ListKind> & {
     // A bill's, expense's or vendor credit's Category (lib/purchase-category.ts); none for
     // every other kind.
     category: PurchaseCategory
+    // The document's own email address, where a batch send goes (email-share plan decision
+    // 7): an invoice's, estimate's, sales receipt's, credit memo's or refund receipt's
+    // `email`; '' when it is empty and for a kind with no email field.
+    email: string
 }
 
 function sortValue(row: DocumentListRow, key: ListSortKey): string | number {

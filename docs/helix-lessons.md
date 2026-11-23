@@ -42,5 +42,10 @@
 - The core overlay Drawer is a gluestack modal: read its creator (an Escape listener on document.body, an Android BackHandler, a portal drawn above the `sheet` host) before you judge focus, Escape or stacking in it. — bank-categorize, retro, p4-categorize-split
 - Capture: size the shot height from the tallest state, start each shot where its helpers expect, fake a store read before mount, move the pointer off the last click, and choose list rows bottom-up. — bank-categorize, retro, p4-categorize-split
 - A plan probe of a union source EXPLAINs every branch, not one. — expenses-by-vendor, retro, p5-expenses-by-vendor
+- When a core component lacks an option (a close-focus target, a title without the brand), ask for it in core and delete the Books workaround once it lands; never keep a Books copy of a core part. — email-share, human, revise 1
+- A balance of zero is not "Paid in full": only payments that cover the total are paid; a write-off or a credit memo that closes an invoice reads "No payment is due." — email-share, human, revise 1
+- A Go helper that writes inside a transaction takes the tx as a parameter; a closure over the outer app deadlocks on the SQLite write lock. — bank-deposit, retro, p2-bank-deposit
+- A link from one document to another opens it with `useOpenDocument`, never `router.push`: a push leaves two read screens mounted. — bank-deposit, retro, p2-bank-deposit
+- A capture manifest submits by key (⌘↵), not a pointer click (a tooltip stays open); runs UI setup in its 1280 entry first (the phone bar hides actions in More); never `clickText` a label the route behind also draws; and fakes the read with the fixture's row for a long-content state no seed row has. — email-share, retro, p2-email-share
 - Read a token's value in `tinycld/global.css` before you name it for a fill or a track (`bg-muted` is a mid slate, not a light track). — dashboard, retro, p5-dashboard
 - When a change moves a stack root, find every e2e helper that waits on the old root's ids, and keep what an attached-but-hidden match did for callers on pushed screens. — dashboard, retro, p5-dashboard

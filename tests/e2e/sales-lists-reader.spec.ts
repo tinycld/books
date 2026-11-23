@@ -2,6 +2,7 @@ import { expect, type Page, test } from '@playwright/test'
 import { login, navigateToPackage, signInAsCollaborator } from '@tinycld/core/e2e-helpers'
 import { collaboratorLevel, type Level, setCollaboratorLevel } from './books-access-helpers'
 import { createCustomer, uniqueName } from './customer-form-helpers'
+import { sendDialog, toast } from './email-share-helpers'
 import { uniqueMemo } from './invoice-helpers'
 import {
     draftInvoiceFor,
@@ -12,6 +13,7 @@ import {
     rowMenuActions,
     salesRow,
 } from './sales-lists-helpers'
+import { uniqueEmail } from './statements-helpers'
 
 // The Sales list for a reader (sales-lists checkpoint 4, spec §3 "Tabs and header", "Row
 // menu" and "Batch actions"): a read-only collaborator sees no New button, no tick boxes
@@ -55,14 +57,26 @@ test.describe('sales-lists: reader (collaborator level)', () => {
     test('a read-only collaborator gets no write control and read-only row menus', async ({
         page,
     }) => {
-        // As the owner: a customer with a draft and a posted invoice.
+        // As the owner: a customer with a unique email, a draft and a posted invoice, and the
+        // posted invoice sent from its row menu (email-share plan checkpoint 4).
         await login(page)
         await navigateToPackage(page, 'books')
         const name = uniqueName('Sales reader')
-        await createCustomer(page, { name })
+        const email = uniqueEmail('reader-send')
+        await createCustomer(page, { name, email })
         const customerId = new URL(page.url()).pathname.split('/').pop() ?? ''
         const draft = await draftInvoiceFor(page, name, uniqueMemo('Reader draft'))
         const posted = await postedInvoiceFor(page, name, uniqueMemo('Reader posted'))
+        await openSales(page)
+        await pickSalesCustomer(page, { name, id: customerId })
+        await openRowMenu(page, posted)
+        await visible(page, 'sales-row-action-send').click()
+        const dialog = sendDialog(page)
+        await expect(dialog).toBeVisible()
+        await expect(dialog.getByTestId('document-send-to')).toHaveValue(email)
+        await dialog.getByTestId('document-send-submit').click()
+        await expect(toast(page, `sent to ${email}`)).toBeVisible()
+        await expect(sendDialog(page)).toHaveCount(0)
 
         restore.level = await collaboratorLevel(page)
         await setCollaboratorLevel(page, 'read_only')
@@ -83,6 +97,7 @@ test.describe('sales-lists: reader (collaborator level)', () => {
         await expect(view.getByTestId(`sales-tick-${draft}`)).toHaveCount(0)
         await expect(view.getByTestId(`sales-tick-${posted}`)).toHaveCount(0)
         await expect(view.getByTestId('sales-batch-actions')).toHaveCount(0)
+        await expect(view.getByTestId('sales-batch-send')).toHaveCount(0)
 
         // The draft's menu holds Open only.
         await openRowMenu(view, draft)
@@ -93,6 +108,7 @@ test.describe('sales-lists: reader (collaborator level)', () => {
         // The posted invoice's holds Open, View journal entry and Download PDF.
         await openRowMenu(view, posted)
         await expect.poll(() => rowMenuActions(view)).toEqual(['open', 'entry', 'pdf'])
+        await expect(view.getByTestId('sales-row-action-send')).toHaveCount(0)
         await view.keyboard.press('Escape')
         await expect(view.getByTestId('sales-row-action-open')).toHaveCount(0)
 
@@ -100,5 +116,11 @@ test.describe('sales-lists: reader (collaborator level)', () => {
         await salesRow(view, posted).click()
         await expect(view).toHaveURL(new RegExp(`/books/invoices/${posted}$`))
         await expect(visible(view, 'invoice-read-only')).toBeVisible()
+
+        // The reader sees the sent line and no Send… or Copy customer link (email-share
+        // spec §3.1, §3.6, §3.7).
+        await expect(visible(view, 'invoice-sent-line')).toContainText(`to ${email}`)
+        await expect(view.getByTestId('invoice-read-send')).toHaveCount(0)
+        await expect(view.getByTestId('invoice-read-link')).toHaveCount(0)
     })
 })

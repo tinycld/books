@@ -180,13 +180,8 @@ test.describe('estimate-public-link: customer page', () => {
             await expect(q.getByTestId('estimate-public-total')).toHaveText(total)
             await expect(q.getByTestId('estimate-public-dates')).toHaveText(/^Estimate date /)
             await expect(q.getByTestId('estimate-public-message')).toHaveText(message)
-            await expect
-                .poll(() => q.title())
-                .toMatch(
-                    new RegExp(
-                        `Estimate ${number} · ${business.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`
-                    )
-                )
+            // The whole title, with no brand before it (revise 1, item 2).
+            await expect.poll(() => q.title()).toBe(`Estimate ${number} · ${business}`)
 
             // No logo is set on the e2e deployment: nothing is drawn above the business name.
             expect(await aboveBusiness(card)).toEqual({ text: '', images: 0 })

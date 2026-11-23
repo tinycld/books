@@ -808,6 +808,7 @@ function categoryRow(category: DocumentListRow['category']): DocumentListRow {
         convertedInvoice: '',
         recordStatus: 'posted',
         category,
+        email: '',
     }
 }
 

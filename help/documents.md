@@ -11,6 +11,8 @@ The preview uses the saved company details. If you change a detail, press Save b
 
 To see or download the PDF of an invoice, a sales receipt, an estimate, a credit memo or a refund receipt, open it and choose the PDF view tab, or Download PDF. See [Invoices](help://books:invoices), [Sales receipts](help://books:sales-receipts), [Estimates](help://books:estimates), [Credit memos](help://books:credit-memos) and [Refund receipts](help://books:refund-receipts). A payment has no PDF. See [Receive payment](help://books:receive-payment).
 
+To send a document to your customer by email with its PDF attached, open it and choose Send… (on an estimate, Save and send on its form). For how the Send dialog works, what the email says and how the customer link works, see "Send to your customer" in [Invoices](help://books:invoices) and in [Estimates](help://books:estimates). Sales receipts, credit memos and refund receipts are sent the same way. The email shows your business name in text; it does not show your logo.
+
 ## What a document shows
 
 - Your logo and brand color. An organization owner or admin sets them in the app settings, under Branding. See [Organization branding](help://core:organization-branding).
