@@ -1,4 +1,5 @@
 import { expect, type Page, type Route, test } from '@playwright/test'
+import { isPhone, showListsHub } from './account-register-helpers'
 import {
     BILL_URL,
     billCellTestId,
@@ -160,7 +161,9 @@ async function openFromRow(page: Page, name: string) {
         .or(page.getByTestId('vendor-back'))
         .filter({ visible: true })
     if ((await listsTab.count()) === 0) {
-        await page.getByTestId('books-nav-lists').click()
+        // A phone has the Lists entry only in the Books menu (the drawer).
+        if (isPhone(page)) await showListsHub(page)
+        else await page.getByTestId('books-nav-lists').click()
         await expect(listsTab.first()).toBeVisible()
     }
     await openVendorsList(page)

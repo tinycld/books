@@ -8,6 +8,7 @@ import {
     PHONE,
     REGISTER_SEED,
     revealRegisterItem,
+    showListsHub,
 } from './account-register-helpers'
 import { searchEntries } from './journal-entries-helpers'
 
@@ -40,9 +41,14 @@ async function start(page: Page, size: { width: number; height: number }) {
     await page.setViewportSize(size)
 }
 
+// Phone: Books lands on the dashboard, so through the Lists hub (showListsHub) to its card.
 async function openEntries(page: Page) {
     if (isPhone(page)) {
-        await page.getByTestId('books-list-card-entries').click()
+        const card = page.getByTestId('books-list-card-entries').filter({ visible: true })
+        const dashboard = page.getByTestId('dashboard-screen').filter({ visible: true })
+        await expect(dashboard.or(card).first()).toBeVisible()
+        await showListsHub(page)
+        await card.click()
     } else {
         const item = page.getByTestId('books-nav-entries')
         const toggle = page.getByTestId('books-nav-accounting-toggle')

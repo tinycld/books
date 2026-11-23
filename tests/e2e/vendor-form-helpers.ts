@@ -93,7 +93,7 @@ export const listSpansContent = vendorHelpers.listSpansContent
 export const cityLineFits = (page: Page) => vendorHelpers.cityLineFits(page, 'address')
 export const watchForNotFoundAndDiscard = vendorHelpers.watchForNotFoundAndDiscard
 export const seenNotFoundOrDiscard = vendorHelpers.seenNotFoundOrDiscard
-export const jumpToLists = vendorHelpers.jumpToLists
+export const jumpToBooksHome = vendorHelpers.jumpToBooksHome
 export const openButton = vendorHelpers.openButton
 export const menuItem = vendorHelpers.menuItem
 export const openMenu = vendorHelpers.openMenu
