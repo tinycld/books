@@ -91,7 +91,7 @@ export async function vendorWithBills(
 
 // The current entry's index in the session history (the browser's Navigation API,
 // Chromium). Only the index, not the URL: the Books landing `/a/books` replaces its own
-// entry with `/a/books/lists` (`screens/index.tsx`, `StackActions.replace`), which keeps
+// entry with `/a/books/dashboard` (`screens/index.tsx`, `StackActions.replace`), which keeps
 // the index but changes the URL, so a URL read at the start races that replace.
 export function historyIndex(page: Page): Promise<number> {
     return page.evaluate(

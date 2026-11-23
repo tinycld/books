@@ -1,0 +1,133 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-invoices-unpaid",
+            "widths": [900],
+            "height": 1100
+        },
+        {
+            "name": "populated",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-invoices-unpaid",
+            "widths": [1280],
+            "height": 1100
+        },
+        {
+            "name": "populated",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-invoices-unpaid",
+            "widths": [1600],
+            "height": 1100
+        },
+        {
+            "name": "populated-phone",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-invoices-unpaid",
+            "widths": [390],
+            "height": 1900
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-widget-invoices-skeleton",
+            "widths": [1280],
+            "height": 1100,
+            "fakeRecords": { "collection": "books_invoice_due_totals", "hold": true },
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "loading-phone",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-widget-invoices-skeleton",
+            "widths": [390],
+            "height": 1700,
+            "fakeRecords": { "collection": "books_invoice_due_totals", "hold": true },
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-widget-invoices-error",
+            "widths": [1280],
+            "height": 1100,
+            "fakeRecords": { "collection": "books_invoice_due_totals", "status": 400 },
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "error-phone",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-widget-invoices-error",
+            "widths": [390],
+            "height": 1700,
+            "fakeRecords": { "collection": "books_invoice_due_totals", "status": 400 },
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "prefs-error",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-prefs-banner",
+            "widths": [390],
+            "height": 1100,
+            "fakeRecords": { "collection": "user_preferences", "status": 400 },
+            "actions": [{ "waitFor": "dashboard-invoices-unpaid" }],
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "prefs-error",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-prefs-banner",
+            "widths": [1280],
+            "height": 1100,
+            "fakeRecords": { "collection": "user_preferences", "status": 400 },
+            "actions": [{ "waitFor": "dashboard-invoices-unpaid" }],
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/lists",
+            "ready": "books-list-card-accounts",
+            "widths": [390],
+            "height": 1000,
+            "emptyRecords": "books_invoice_due_totals",
+            "actions": [
+                { "fake": { "collection": "books_payment_day_totals" } },
+                { "pushPath": "/a/books/dashboard" },
+                { "waitFor": "dashboard-widget-invoices-empty" }
+            ],
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/lists",
+            "ready": "books-list-card-accounts",
+            "widths": [1280],
+            "height": 1000,
+            "emptyRecords": "books_invoice_due_totals",
+            "actions": [
+                { "fake": { "collection": "books_payment_day_totals" } },
+                { "pushPath": "/a/books/dashboard" },
+                { "waitFor": "dashboard-widget-invoices-empty" }
+            ],
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "hidden-amounts",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-invoices-unpaid",
+            "widths": [1280],
+            "height": 1100,
+            "actions": [{ "click": "dashboard-hide-amounts" }, { "waitFor": "•••••" }]
+        },
+        {
+            "name": "hidden-amounts-phone",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-invoices-unpaid",
+            "widths": [390],
+            "height": 1900,
+            "actions": [{ "waitFor": "•••••" }]
+        }
+    ]
+}

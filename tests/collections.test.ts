@@ -76,6 +76,8 @@ const NAMES = [
     'books_reconciliation_lines',
     'books_reconcile_lines',
     'books_reconciled_lines',
+    'books_invoice_due_totals',
+    'books_payment_day_totals',
 ]
 
 function register() {
@@ -291,6 +293,16 @@ describe('registerCollections', () => {
         const balances = calls.get('books_party_balances')
         expect(balances?.liveTopics).toEqual(['collection/books_party_balances'])
         expect(balances?.relations).toBeUndefined()
+    })
+
+    // Dashboard spec §4: nobody writes the two dashboard views; the server signals each
+    // view's topic when an invoice or a payment changes, so an open dashboard stays live.
+    it('keeps the dashboard views live on their change topics', () => {
+        const { calls } = register()
+        for (const name of ['books_invoice_due_totals', 'books_payment_day_totals']) {
+            expect(calls.has(name), name).toBe(true)
+            expect(calls.get(name)?.liveTopics, name).toEqual([`collection/${name}`])
+        }
     })
 
     // Bank-match spec §4: the client inserts a match with its bank transaction and

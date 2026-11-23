@@ -283,7 +283,7 @@ test.describe('apply-credit: from a credit memo', () => {
 
         // A second customer with no open invoice and its posted credit memo, on a fresh page
         // of the same context: this page's stack holds the first customer's whole journey,
-        // and the Books helpers start from a shallow stack (Lists hub, then Customers, then
+        // and the Books helpers start from a shallow stack (the dashboard, the Lists hub, then Customers, then
         // Journal Entries). Nothing is refused there; realtime stays on. A opens the dialog
         // with the empty text and no Apply credit to press.
         const fresh = await page.context().newPage()

@@ -50,10 +50,11 @@ describe('BooksSidebar rendering', () => {
         expect(ids[ids.length - 1]).toBe('books-nav-settings')
     })
 
-    it('draws Banking, Sales, Expenses, then Lists', () => {
+    it('draws Dashboard, Banking, Sales, Expenses, then Lists', () => {
         const { container } = render(<BooksSidebar />)
         const ids = items(container).map(i => i.id)
-        expect(ids.slice(0, 4)).toEqual([
+        expect(ids.slice(0, 5)).toEqual([
+            'books-nav-dashboard',
             'books-nav-banking',
             'books-nav-sales',
             'books-nav-expenses',

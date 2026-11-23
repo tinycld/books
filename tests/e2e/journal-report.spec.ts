@@ -717,7 +717,7 @@ test.describe('journal-report: report', () => {
         const customer = uniqueName('JR customer')
         const entryMemo = uniqueName('JR entry memo')
         const lineMemo = uniqueName('JR line memo')
-        // The customer first, from the Books landing (general-ledger.spec.ts): from the chart,
+        // The customer first, from the Books landing, the dashboard (general-ledger.spec.ts): from the chart,
         // the Lists hub that createCustomer passes through stays mounted hidden.
         await createCustomer(page, { name: customer })
         await openChart(page)

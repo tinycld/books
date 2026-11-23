@@ -117,10 +117,10 @@ function navLabel(page: Page) {
 test.describe('purchase-lists: tabs and rows', () => {
     test('opens the Expenses area, reads its rows and moves between tabs', async ({ page }) => {
         await openBooks(page, DESKTOP)
-        // Books lands on the Lists hub (it replaces `/a/books`); that hub is the screen
-        // before the area.
-        await expect(page).toHaveURL(/\/books\/lists$/)
-        await expect(visible(page, 'books-list-card-vendors')).toBeVisible()
+        // Books lands on the dashboard (it replaces `/a/books`); that is the screen before
+        // the area.
+        await expect(page).toHaveURL(/\/books\/dashboard$/)
+        await expect(visible(page, 'dashboard-screen')).toBeVisible()
         const before = page.url()
 
         // The sidebar entry opens All purchases and is marked active.

@@ -5,7 +5,7 @@ tags: [products, services, bundles, prices, inactive, delete, custom fields]
 order: 32
 ---
 
-Products and services are the things you sell and buy. To see them, choose Lists in the sidebar and pick the Products and services card. On a phone, Books opens where you left it. To get back to Lists on a phone, choose All lists at the top of the Products and services list. A read-only user can open products and services but cannot change them. To see what you sold of each product and service in a period, press Sales report at the top of the Products and services list: it opens Sales by Product/Service. To read it, see the [sales reports](help://books:reports).
+Products and services are the things you sell and buy. To see them, choose Lists in the sidebar and pick the Products and services card. Books opens on the Dashboard the first time. On a phone, Books opens where you left it. To get back to Lists on a phone, choose All lists at the top of the Products and services list, or swipe in from the left edge of the screen to open the Books menu and choose Lists. A read-only user can open products and services but cannot change them. To see what you sold of each product and service in a period, press Sales report at the top of the Products and services list: it opens Sales by Product/Service. To read it, see the [sales reports](help://books:reports).
 
 ## The three types
 
