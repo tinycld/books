@@ -1,0 +1,205 @@
+{
+    "outDir": "reconciliation-report-reference",
+    "shots": [
+        {
+            "name": "history",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=history",
+            "ready": "reconcile-history-screen",
+            "widths": [1280, 1024, 390, 375]
+        },
+        {
+            "name": "history-filtered",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=history-filtered",
+            "ready": "reconcile-history-screen",
+            "widths": [1280, 390]
+        },
+        {
+            "name": "history-filter-menu",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=history",
+            "ready": "reconcile-history-screen",
+            "actions": [{ "click": "reconcile-history-account" }, { "pause": 500 }],
+            "settleMs": 500,
+            "widths": [1280, 390]
+        },
+        {
+            "name": "history-row-menu",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=history",
+            "ready": "reconcile-history-screen",
+            "actions": [{ "click": "reconcile-history-more-rrptchk20261031" }, { "pause": 500 }],
+            "settleMs": 500,
+            "widths": [1280, 390]
+        },
+        {
+            "name": "history-reader",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=history-reader",
+            "ready": "reconcile-history-screen",
+            "widths": [1280]
+        },
+        {
+            "name": "history-reader-card-menu",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=history-reader",
+            "ready": "reconcile-history-screen",
+            "actions": [{ "click": "reconcile-history-more-rrptchk20261031" }, { "pause": 500 }],
+            "settleMs": 500,
+            "widths": [390]
+        },
+        {
+            "name": "history-empty",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=history-empty",
+            "ready": "reconcile-history-empty",
+            "widths": [1280, 390]
+        },
+        {
+            "name": "history-empty-filtered",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=history-empty-filtered",
+            "ready": "reconcile-history-empty",
+            "widths": [1280, 390]
+        },
+        {
+            "name": "history-loading",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=history-loading",
+            "ready": "reconcile-history-screen",
+            "widths": [1280]
+        },
+        {
+            "name": "history-error",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=history-error",
+            "ready": "reconcile-history-error",
+            "widths": [1280, 390]
+        },
+        {
+            "name": "accounts",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=accounts",
+            "ready": "reconcile-accounts-screen",
+            "widths": [1280, 390]
+        },
+        {
+            "name": "finished",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=finished",
+            "ready": "reconcile-finished",
+            "widths": [1280, 390]
+        },
+        {
+            "name": "finished-menu",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=finished",
+            "ready": "reconcile-finished",
+            "actions": [{ "click": "reconcile-finished-more" }, { "pause": 500 }],
+            "settleMs": 500,
+            "widths": [1280, 390]
+        },
+        {
+            "name": "finished-reader",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=finished-reader",
+            "ready": "reconcile-finished",
+            "widths": [1280]
+        },
+        {
+            "name": "undo",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=undo",
+            "ready": "reconcile-undo-dialog",
+            "actions": [{ "pause": 500 }],
+            "settleMs": 500,
+            "opaque": "reconcile-undo-dialog",
+            "widths": [1280, 390]
+        },
+        {
+            "name": "undo-blocked",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=undo-blocked",
+            "ready": "reconcile-undo-dialog",
+            "actions": [{ "pause": 500 }],
+            "settleMs": 500,
+            "opaque": "reconcile-undo-dialog",
+            "widths": [1280, 390]
+        },
+        {
+            "name": "undo-sending",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=undo-sending",
+            "ready": "reconcile-undo-dialog",
+            "actions": [{ "pause": 500 }],
+            "settleMs": 500,
+            "opaque": "reconcile-undo-dialog",
+            "widths": [1280]
+        },
+        {
+            "name": "undo-refused",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=undo-refused",
+            "ready": "reconcile-undo-dialog",
+            "actions": [{ "pause": 500 }],
+            "settleMs": 500,
+            "opaque": "reconcile-undo-dialog",
+            "widths": [1280, 390]
+        },
+        {
+            "name": "undo-failed",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=undo-failed",
+            "ready": "reconcile-undo-dialog",
+            "actions": [{ "pause": 500 }],
+            "settleMs": 500,
+            "opaque": "reconcile-undo-dialog",
+            "widths": [1280]
+        },
+        {
+            "name": "report",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=report",
+            "ready": "report-screen",
+            "widths": [1700, 1540, 1284, 1028, 390, 375]
+        },
+        {
+            "name": "report-all",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=report-all",
+            "ready": "report-screen",
+            "height": 2400,
+            "widths": [1700, 1540, 1028, 390, 375]
+        },
+        {
+            "name": "report-account",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=report-account",
+            "ready": "report-screen",
+            "height": 1400,
+            "widths": [1700]
+        },
+        {
+            "name": "report-empty",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=report-empty",
+            "ready": "report-screen",
+            "widths": [1700, 390]
+        },
+        {
+            "name": "report-loading",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=report-loading",
+            "ready": "report-screen",
+            "widths": [1700]
+        },
+        {
+            "name": "report-error",
+            "hideLabels": ["New"],
+            "url": "/a/books/helix-mockup?state=report-error",
+            "ready": "report-screen",
+            "widths": [1700]
+        }
+    ]
+}

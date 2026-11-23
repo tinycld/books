@@ -1,0 +1,95 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "report",
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile/rrptseedcrd0831",
+            "ready": "reconcile-view-report",
+            "actions": [
+                { "click": "reconcile-view-report" },
+                { "waitFor": "report-screen" },
+                { "waitFor": "report-document-title" },
+                { "click": "report-document-title" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "widths": [1440, 1280, 1024, 768, 390, 375]
+        },
+        {
+            "name": "report-tall",
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile/rrptseedcrd0831",
+            "ready": "reconcile-view-report",
+            "actions": [
+                { "click": "reconcile-view-report" },
+                { "waitFor": "report-screen" },
+                { "waitFor": "report-document-title" },
+                { "click": "report-document-title" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "height": 2000,
+            "widths": [390]
+        },
+        {
+            "name": "report-all",
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile/rrptseedcrd0831",
+            "ready": "reconcile-view-report",
+            "actions": [
+                { "click": "reconcile-view-report" },
+                { "waitFor": "report-screen" },
+                { "waitFor": "report-filter-remove-statement" },
+                { "click": "report-filter-remove-statement" },
+                { "waitForHidden": "report-filter-remove-statement" },
+                { "click": "report-document-title" },
+                { "pause": 800 }
+            ],
+            "settleMs": 500,
+            "height": 2400,
+            "widths": [1440, 1280, 768, 390, 375]
+        },
+        {
+            "name": "report-account",
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile/rrptseedcrd0831",
+            "ready": "reconcile-view-report",
+            "actions": [
+                { "click": "reconcile-view-report" },
+                { "waitFor": "report-screen" },
+                { "waitFor": "report-filter-remove-statement" },
+                { "click": "report-filter-remove-statement" },
+                { "waitForHidden": "report-filter-remove-statement" },
+                { "click": "report-add-filter" },
+                { "click": "report-add-filter-accounts" },
+                { "fill": "report-filter-search", "value": "Company Card" },
+                { "clickRole": "checkbox", "name": "2100 Company Card" },
+                { "click": "report-filter-apply" },
+                { "waitFor": "report-filter-remove-accounts" },
+                { "click": "report-document-title" },
+                { "pause": 800 }
+            ],
+            "settleMs": 500,
+            "height": 1400,
+            "widths": [1440]
+        },
+        {
+            "name": "report-empty",
+            "hideLabels": ["New"],
+            "url": "/a/books/reconcile/rrptseedcrd0831",
+            "ready": "reconcile-view-report",
+            "actions": [
+                { "click": "reconcile-view-report" },
+                { "waitFor": "report-screen" },
+                { "pushPath": "/a/reports/$urlId?p-statement=recnseedprogrs1" },
+                { "waitFor": "report-document-title" },
+                { "pause": 1500 },
+                { "click": "report-document-title" },
+                { "pause": 500 }
+            ],
+            "settleMs": 500,
+            "widths": [1440, 390]
+        }
+    ]
+}

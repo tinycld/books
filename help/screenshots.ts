@@ -2,6 +2,7 @@ import type { Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 import { navigateToPackage } from '@tinycld/core/e2e-helpers'
 import type { ScreenshotPlan } from '@tinycld/package-scripts/help-screenshots'
+import { RECONCILIATION_REPORT_SEED } from '../tinycld/books/lib/reconciliation-report-fixture'
 
 // Only screens that are not obvious get a picture. The navigation overview,
 // settings and the setup wizard are self-explanatory or run once.
@@ -243,6 +244,43 @@ async function openReconcileFinishedForShot(page: Page) {
     await expect(page.getByTestId('reconcile-finished')).toBeVisible()
 }
 
+// The History tab of Reconcile at 1280, as the seeded admin.
+async function openReconcileHistoryForShot(page: Page) {
+    const viewport = page.viewportSize()
+    await page.setViewportSize({ width: 1280, height: viewport?.height ?? 800 })
+    await openSavingsRow(page)
+    await page.getByTestId('reconcile-tab-history').filter({ visible: true }).click()
+    await expect(page.getByTestId('reconcile-history-table')).toBeVisible()
+    await expect(seededHistoryRow(page)).toBeVisible()
+}
+
+// The seeded statement of Aug 31, 2026 of 2100 Company Card, the latest of its account.
+function seededHistoryRow(page: Page) {
+    return page
+        .getByTestId(`reconcile-history-row-${RECONCILIATION_REPORT_SEED.latest.id}`)
+        .filter({ visible: true })
+}
+
+// The Reconciliation Report of that statement, from its View report link.
+async function openReconciliationReportForShot(page: Page) {
+    await openReconcileHistoryForShot(page)
+    await page
+        .getByTestId(`reconcile-history-report-${RECONCILIATION_REPORT_SEED.latest.id}`)
+        .filter({ visible: true })
+        .click()
+    await expect(page.getByTestId('report-screen')).toBeVisible()
+}
+
+// The undo dialog of that statement, from its finished summary's More menu.
+async function openReconcileUndoForShot(page: Page) {
+    await openReconcileHistoryForShot(page)
+    await seededHistoryRow(page).click()
+    await expect(page.getByTestId('reconcile-finished').filter({ visible: true })).toBeVisible()
+    await page.getByTestId('reconcile-finished-more').filter({ visible: true }).click()
+    await page.getByTestId('reconcile-menu-undo').filter({ visible: true }).click()
+    await expect(page.getByTestId('reconcile-undo-text').filter({ visible: true })).toBeVisible()
+}
+
 export default {
     'chart-of-accounts': [
         {
@@ -323,6 +361,21 @@ export default {
             name: 'reconcile-3',
             setup: openReconcileFinishedForShot,
             target: '[data-testid="reconcile-screen"]',
+        },
+        {
+            name: 'reconcile-4',
+            setup: openReconcileHistoryForShot,
+            target: '[data-testid="reconcile-history-screen"]',
+        },
+        {
+            name: 'reconcile-5',
+            setup: openReconciliationReportForShot,
+            target: '[data-testid="report-screen"]',
+        },
+        {
+            name: 'reconcile-6',
+            setup: openReconcileUndoForShot,
+            target: '[data-testid="reconcile-undo-dialog"]',
         },
     ],
     statements: [
