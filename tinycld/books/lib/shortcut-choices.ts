@@ -28,7 +28,12 @@ export interface ShortcutChoicesInput {
     accounts: readonly ChoiceAccount[]
 }
 
-const GROUP_OF_KIND = { screen: 'Screens', new: 'New', report: 'Reports', register: 'Registers' }
+const GROUP_OF_KIND = {
+    screen: 'Screens',
+    new: 'New',
+    report: 'Reports',
+    register: 'Registers',
+} satisfies Record<Shortcut['kind'], string>
 
 function choice(shortcut: Shortcut, label: string, indent?: number): ShortcutChoice {
     return {
