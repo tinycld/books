@@ -21,12 +21,6 @@ const TEST_DIR = path.join(WS_ROOT, 'node_modules', '@tinycld', 'books', 'tests'
 // workers would run them side by side, each changing the setting under the other's form.
 const PURCHASE_LINES_SETTING = /: (bill|purchase) lines setting/
 
-// The Company fields (business name, phone, email, tax id) are on the same shared
-// books_settings row, and the public customer pages show them. A test that saves them ends
-// its title in "(company settings)" and runs in the one-worker project above, before the
-// rest, so no public-page test reads the row while it holds a test's values.
-const COMPANY_SETTINGS = /\(company settings\)/
-
 // The collaborator's Books level is one row of the shared e2e database too. A test that
 // changes it, or signs in as the collaborator and expects a level, ends its title in
 // "(collaborator level)" and runs here, on one worker, before the rest: a test signed in as
@@ -40,7 +34,7 @@ export default defineConfig({
     projects: [
         {
             name: 'purchase-lines-setting',
-            grep: [PURCHASE_LINES_SETTING, COMPANY_SETTINGS],
+            grep: PURCHASE_LINES_SETTING,
             workers: 1,
         },
         {
@@ -51,7 +45,7 @@ export default defineConfig({
         },
         {
             name: 'books',
-            grepInvert: [PURCHASE_LINES_SETTING, COMPANY_SETTINGS, COLLABORATOR_LEVEL],
+            grepInvert: [PURCHASE_LINES_SETTING, COLLABORATOR_LEVEL],
             dependencies: ['purchase-lines-setting', 'books-access-level'],
         },
     ],

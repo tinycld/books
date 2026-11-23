@@ -107,8 +107,8 @@ export async function snapshotWhen<T>(
 }
 
 // The heading core's document header prints (useReportView headingOf): the Books business
-// name, else the organization's name. Read-only: books-settings.spec.ts types over the
-// business name and restores it on the shared DB, so it is read when compared. Both reads
+// name, else the organization's name. Read-only, and read when compared, so a caller does
+// not depend on what the shared row holds (seed.ts seeds the name; no spec changes it). Both reads
 // go through the page's own fetch (same origin, the browser's warm connection): a fresh
 // Node-side request context can spend seconds on its first name lookup of localhost,
 // which would eat the budget of a poll that calls this.

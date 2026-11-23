@@ -7,12 +7,10 @@ import { uniqueName } from './record-form-helpers'
 // (b)): Settings lists them under Books, a section opened there saves, and the Books
 // settings screen shows what it saved (one implementation behind two entry points).
 //
-// The test saves the Company section, which is on the one shared books_settings row, so
-// its title ends in "(company settings)" and it runs in the one-worker
-// `purchase-lines-setting` project (playwright.config.ts). It changes only the website,
-// which no other test reads, and puts the old value back. The seeded business name is
-// blank and the schema requires one, so like books-settings.spec.ts it leaves
-// 'E2E Company Co' when the name was blank.
+// The test saves the Company section, which is on the one shared books_settings row that
+// books-settings.spec.ts saves on another worker. It owns the website: it writes values
+// unique to its run, which no other test writes or reads, and asserts only those. A Company
+// save writes only the fields typed in the form, so it leaves the other tests' fields.
 //
 // Not covered by e2e: a user who is not a core admin (core shows package panels to core
 // admins only; core's own specs hold that), and the panel's no-access and admin-only notes
@@ -58,9 +56,11 @@ function inPanel(page: Page, testId: string) {
     return shown(page, 'books-settings-panel').getByTestId(testId)
 }
 
+function uniqueWebsite(): string {
+    return `https://${uniqueName('core-settings').replace(/[^a-z0-9]/gi, '-')}.example`
+}
+
 async function saveWebsite(page: Page, value: string) {
-    const name = inPanel(page, 'books-settings-company-business-name')
-    if ((await name.inputValue()) === '') await name.fill('E2E Company Co')
     await inPanel(page, 'books-settings-company-website').fill(value)
     const save = inPanel(page, 'books-settings-save')
     await save.scrollIntoViewIfNeeded()
@@ -71,7 +71,7 @@ async function saveWebsite(page: Page, value: string) {
 test.describe('settings-in-core: Books sections in core Settings', () => {
     test.use({ viewport: DESKTOP })
 
-    test('Settings lists the Books sections, one saves, and Books settings shows the value (company settings)', async ({
+    test('Settings lists the Books sections, one saves, and Books settings shows the value', async ({
         page,
     }) => {
         await login(page)
@@ -94,8 +94,7 @@ test.describe('settings-in-core: Books sections in core Settings', () => {
 
         const website = inPanel(page, 'books-settings-company-website')
         await expect(website).toBeVisible()
-        const original = await website.inputValue()
-        const typed = `https://${uniqueName('core-settings').replace(/[^a-z0-9]/gi, '-')}.example`
+        const typed = uniqueWebsite()
         await saveWebsite(page, typed)
 
         // The Books settings screen reads the same row.
@@ -113,7 +112,8 @@ test.describe('settings-in-core: Books sections in core Settings', () => {
         await page.reload()
         await expect(shown(page, 'books-settings-panel')).toBeVisible()
         await expect(inPanel(page, 'books-settings-company-website')).toHaveValue(typed)
-        await saveWebsite(page, original)
-        await expect(inPanel(page, 'books-settings-company-website')).toHaveValue(original)
+        const typedOnPhone = uniqueWebsite()
+        await saveWebsite(page, typedOnPhone)
+        await expect(inPanel(page, 'books-settings-company-website')).toHaveValue(typedOnPhone)
     })
 })
