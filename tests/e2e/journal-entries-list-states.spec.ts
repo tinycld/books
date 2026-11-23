@@ -3,6 +3,7 @@ import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { ENTRIES_SEED } from '../../tinycld/books/lib/journal-entries-fixture'
 import { DESKTOP, isPhone, PHONE, showListsHub } from './account-register-helpers'
 import { searchEntries } from './journal-entries-helpers'
+import { newActionItem, openNewMenu } from './new-menu-helpers'
 
 // Journal entries are created by the form in a later checkpoint, so this spec
 // reads the one entry per lifecycle state that `seed.ts` posts through the
@@ -81,8 +82,8 @@ test.describe('journal-entries: list header and states (phone)', () => {
         await start(page, PHONE)
         await openEntries(page)
 
-        await page.getByLabel('New', { exact: true }).click()
-        await expect(page.getByTestId('books-new-journal-entry')).toHaveText('Journal entry')
+        await openNewMenu(page)
+        await expect(newActionItem(page, 'journal-entry')).toHaveText('Journal entry')
     })
 })
 
