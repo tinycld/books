@@ -1,6 +1,7 @@
 import { log } from '@tinycld/core/lib/logger'
 import { useToastStore } from '@tinycld/core/lib/stores/toast-store'
 import { useUserPreference } from '@tinycld/core/lib/use-user-preference'
+import { useMemo } from 'react'
 import {
     type DashboardPrefs,
     DEFAULT_DASHBOARD_PREFS,
@@ -31,7 +32,9 @@ export function useDashboardPrefs() {
         DEFAULT_DASHBOARD_PREFS,
         { onSaveError: reportSaveError }
     )
-    const prefs = parseDashboardPrefs(value)
+    // One value per stored value: the edit list's sortable rows reset when their data
+    // changes identity, so a re-render must not hand them a new order array.
+    const prefs = useMemo(() => parseDashboardPrefs(value), [value])
     const save = (next: DashboardPrefs) => {
         if (!status.isReady) return
         setValue(next)

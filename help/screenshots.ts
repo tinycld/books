@@ -33,6 +33,26 @@ async function openChartOfAccounts(page: Page) {
     await expect(page.locator('[data-testid^="account-row-"]').first()).toBeVisible()
 }
 
+async function openDashboardForHelp(page: Page) {
+    await navigateToPackage(page, 'books')
+    await page.getByTestId('books-nav-dashboard').click()
+    // Amounts draw masked until the preference loads, so wait for a real figure.
+    await expect(
+        page.getByTestId('dashboard-invoices-unpaid').filter({ visible: true })
+    ).toHaveText(/\d\.\d{2}/)
+    // The page scrolls, so the grid runs past the viewport: grow the viewport to the grid's
+    // bottom edge so the shot holds every card whole.
+    const grid = page.getByTestId('dashboard-grid').filter({ visible: true })
+    await expect(grid.getByTestId('dashboard-sales-report')).toBeVisible()
+    const box = await grid.boundingBox()
+    const viewport = page.viewportSize()
+    if (!box || !viewport) throw new Error('cannot measure the dashboard grid')
+    const bottom = Math.ceil(box.y + box.height) + 24
+    if (bottom > viewport.height) {
+        await page.setViewportSize({ width: viewport.width, height: bottom })
+    }
+}
+
 async function openFittedChart(page: Page) {
     await openChartOfAccounts(page)
     await fitToContent(
@@ -282,6 +302,13 @@ async function openReconcileUndoForShot(page: Page) {
 }
 
 export default {
+    dashboard: [
+        {
+            name: 'dashboard-1',
+            setup: openDashboardForHelp,
+            target: '[data-testid="dashboard-grid"]',
+        },
+    ],
     'chart-of-accounts': [
         {
             name: 'chart-of-accounts-1',

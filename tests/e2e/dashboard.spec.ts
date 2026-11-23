@@ -1,17 +1,27 @@
 import { expect, type Locator, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
-import { DESKTOP } from './account-register-helpers'
+import { DESKTOP, PHONE } from './account-register-helpers'
+import { openBanking } from './banking-helpers'
 import { browserToday, endOfLastMonth } from './books-report-helpers'
 import {
     centsOf,
+    closeCustomize,
+    customizeButton,
+    type DashboardWidgetId,
+    DEFAULT_ORDER,
     dashboardScreen,
+    dragRow,
+    editOrder,
+    editRow,
     failPrefsRead,
     failPrefsWrite,
     fakeEmptyBook,
     fakeReadOnlyEmptyBook,
+    gridOrder,
     hideAmountsSwitch,
     MASK,
     MONEY,
+    openCustomize,
     openDashboard,
     PERIOD_TEXT,
     type PeriodWidget,
@@ -21,6 +31,8 @@ import {
     pressPeriod,
     readDueTotals,
     resetDashboardPrefs,
+    setShown,
+    showSwitch,
     sumOfBalances,
     widget,
 } from './dashboard-helpers'
@@ -118,6 +130,11 @@ function monthStart(day: string, back = 0): string {
 // "Sep 2026" for a month's first day.
 function longMonth(month: string): string {
     return `${SHORT_MONTHS[Number(month.slice(5, 7)) - 1]} ${month.slice(0, 4)}`
+}
+
+async function dismissToast(toast: Locator) {
+    await toast.getByRole('button', { name: 'Dismiss notification' }).click()
+    await expect(toast).toHaveCount(0)
 }
 
 function escapeRegExp(text: string): string {
@@ -382,6 +399,7 @@ test.describe('dashboard: page and invoices', () => {
         const banner = dashboardScreen(page).getByTestId('dashboard-prefs-banner')
         await expect.poll(() => prefs.held.length).toBeGreaterThan(0)
         await expect(hideAmountsSwitch(page)).toBeDisabled()
+        await expect(customizeButton(page)).toBeDisabled()
         await expect(banner).toHaveCount(0)
         await expect(widget(page, 'invoices')).toBeVisible()
         // The saved Hide amounts is not known yet, so no real amount may show.
@@ -394,12 +412,14 @@ test.describe('dashboard: page and invoices', () => {
         await prefs.fail()
         await expect(banner).toContainText('Your dashboard settings could not load.')
         await expect(hideAmountsSwitch(page)).toBeDisabled()
+        await expect(customizeButton(page)).toBeDisabled()
         await expect(widget(page, 'invoices')).toBeVisible()
         await expect(invoicesPart(page, 'unpaid')).toHaveText(MASK)
 
         await dashboardScreen(page).getByTestId('dashboard-prefs-retry').click()
         await expect(banner).toHaveCount(0)
         await expect(hideAmountsSwitch(page)).toBeEnabled()
+        await expect(customizeButton(page)).toBeEnabled()
         await expect(invoicesPart(page, 'unpaid')).toHaveText(MONEY)
         for (const [widgetId] of DEFAULT_PERIOD_TEXT) {
             await expect(periodTrigger(page, widgetId)).toBeEnabled()
@@ -415,6 +435,9 @@ test.describe('dashboard: page and invoices', () => {
         await expect(toggle).not.toBeChecked()
         await expect(invoicesPart(page, 'unpaid')).toHaveText(MONEY)
 
+        // Edit mode opens before the fake: opening it writes nothing.
+        await openCustomize(page)
+        await expect.poll(() => editOrder(page)).toEqual([...DEFAULT_ORDER])
         await failPrefsWrite(page)
         const refused = prefsWrite(page)
         await toggle.click()
@@ -422,11 +445,28 @@ test.describe('dashboard: page and invoices', () => {
         const toast = refusalToast(page, 'The dashboard change was not saved.')
         await expect(toast).toBeVisible()
         await expect(toggle).not.toBeChecked()
-        await expect(invoicesPart(page, 'unpaid')).toHaveText(MONEY)
 
-        // The user dismisses the first toast, so the next one is the period's own.
-        await toast.getByRole('button', { name: 'Dismiss notification' }).click()
-        await expect(toast).toHaveCount(0)
+        // The user dismisses each toast, so the next one is the next control's own.
+        await dismissToast(toast)
+        const showSales = showSwitch(page, 'sales')
+        await expect(showSales).toBeChecked()
+        const refusedShow = prefsWrite(page)
+        await showSales.click()
+        expect((await refusedShow).status()).toBe(400)
+        await expect(toast).toBeVisible()
+        await expect(showSales).toBeChecked()
+
+        await dismissToast(toast)
+        const refusedMove = prefsWrite(page)
+        await dashboardScreen(page).getByTestId('dashboard-edit-down-invoices').click()
+        expect((await refusedMove).status()).toBe(400)
+        await expect(toast).toBeVisible()
+        await expect.poll(async () => (await editOrder(page))[0]).toBe('invoices')
+        await expect.poll(() => editOrder(page)).toEqual([...DEFAULT_ORDER])
+
+        await dismissToast(toast)
+        await closeCustomize(page)
+        await expect(invoicesPart(page, 'unpaid')).toHaveText(MONEY)
         const sales = periodTrigger(page, 'sales')
         await expect(sales).toBeEnabled()
         await expect(sales).toContainText(PERIOD_TEXT.last_6_months)
@@ -638,5 +678,214 @@ test.describe('dashboard: widgets', () => {
         await widget(writer, 'expenses').getByTestId('dashboard-widget-expenses-action').click()
         await expect(writer).toHaveURL(/\/books\/expenses\/new$/)
         await writer.close()
+    })
+})
+
+function editButton(page: Page, direction: 'up' | 'down', id: DashboardWidgetId): Locator {
+    return dashboardScreen(page).getByTestId(`dashboard-edit-${direction}-${id}`)
+}
+
+// Presses a row's Move up or Move down and waits for the saved write.
+async function moveRow(page: Page, direction: 'up' | 'down', id: DashboardWidgetId) {
+    const button = editButton(page, direction, id)
+    await expect(button).toBeEnabled()
+    const saved = prefsWrite(page)
+    await button.click()
+    expect((await saved).ok()).toBe(true)
+}
+
+// Focuses a row's Move up or Move down, presses Enter and waits for the saved write.
+async function pressMoveKey(page: Page, direction: 'up' | 'down', id: DashboardWidgetId) {
+    const button = editButton(page, direction, id)
+    await expect(button).toBeEnabled()
+    await button.focus()
+    const saved = prefsWrite(page)
+    await page.keyboard.press('Enter')
+    expect((await saved).ok()).toBe(true)
+}
+
+function dashboardGrid(page: Page): Locator {
+    return dashboardScreen(page).getByTestId('dashboard-grid')
+}
+
+// The page and its grid scroll down only.
+async function expectNoSidewaysScrollAnywhere(page: Page) {
+    await expectNoSidewaysScroll(page)
+    const screenScroll = await dashboardScreen(page).evaluate(el => [
+        el.scrollWidth,
+        el.clientWidth,
+    ])
+    expect(screenScroll[0]).toBe(screenScroll[1])
+}
+
+// Each card of `ids` has the first card's left edge, and each starts below the one before.
+async function expectOneColumn(page: Page, ids: readonly DashboardWidgetId[]) {
+    await expect
+        .poll(async () => {
+            const boxes = await Promise.all(ids.map(id => widget(page, id).boundingBox()))
+            if (boxes.some(box => !box)) return 'a card is not laid out'
+            const placed = boxes.flatMap(box => (box ? [box] : []))
+            const left = placed[0].x
+            for (let index = 1; index < placed.length; index++) {
+                const before = placed[index - 1]
+                const card = placed[index]
+                if (Math.abs(card.x - left) > 1) return `${ids[index]} is not under ${ids[0]}`
+                if (card.y < before.y + before.height - 1) {
+                    return `${ids[index]} does not start below ${ids[index - 1]}`
+                }
+            }
+            return 'one column'
+        })
+        .toBe('one column')
+}
+
+test.describe('dashboard: customize', () => {
+    test.afterEach(async ({ page }) => {
+        await page.unrouteAll({ behavior: 'ignoreErrors' })
+        await resetDashboardPrefs(page)
+    })
+
+    test('a user arranges the widgets, and edit mode ends on a reload and on leaving', async ({
+        page,
+    }) => {
+        await openBooksDashboard(page)
+        await openCustomize(page)
+        await expect(dashboardGrid(page)).toHaveCount(0)
+        await expect.poll(() => editOrder(page)).toEqual([...DEFAULT_ORDER])
+        await expect(customizeButton(page)).toHaveText('Done')
+        await expect(editButton(page, 'up', 'invoices')).toBeDisabled()
+        await expect(editButton(page, 'down', 'sales')).toBeDisabled()
+
+        // The keyboard path (spec §6): a moved row keeps the focus on its Move button, or on
+        // its other Move button when the pressed one is disabled at the top.
+        await pressMoveKey(page, 'down', 'invoices')
+        await expect
+            .poll(() => editOrder(page))
+            .toEqual(['expenses', 'invoices', 'bankAccounts', 'profitAndLoss', 'sales'])
+        await expect(editButton(page, 'down', 'invoices')).toBeFocused()
+        await pressMoveKey(page, 'up', 'invoices')
+        await expect.poll(() => editOrder(page)).toEqual([...DEFAULT_ORDER])
+        await expect(editButton(page, 'up', 'invoices')).toBeDisabled()
+        await expect(editButton(page, 'down', 'invoices')).toBeFocused()
+
+        await setShown(page, 'sales', false)
+        await moveRow(page, 'up', 'bankAccounts')
+        await expect
+            .poll(() => editOrder(page))
+            .toEqual(['invoices', 'bankAccounts', 'expenses', 'profitAndLoss', 'sales'])
+
+        await dragRow(page, 'profitAndLoss', 'invoices')
+        await expect.poll(async () => (await editOrder(page))[0]).toBe('profitAndLoss')
+
+        await page.reload()
+        await openDashboard(page)
+        await expect(dashboardGrid(page)).toBeVisible()
+        await expect(customizeButton(page)).toHaveText('Customize')
+        await expect
+            .poll(() => gridOrder(page))
+            .toEqual(['profitAndLoss', 'invoices', 'bankAccounts', 'expenses'])
+        await expect(widget(page, 'sales')).toHaveCount(0)
+
+        await openCustomize(page)
+        await expect(editRow(page, 'sales')).toBeVisible()
+        await expect(showSwitch(page, 'sales')).not.toBeChecked()
+
+        // Leaving the screen ends edit mode. The sidebar's Dashboard entry would push a new
+        // dashboard (StackRouter NAVIGATE), so go back to the same, still mounted, instance.
+        await openBanking(page)
+        await page.goBack()
+        await expect(page).toHaveURL(/\/books\/dashboard\/?$/)
+        await expect(dashboardScreen(page)).toBeVisible()
+        await expect(dashboardGrid(page)).toBeVisible()
+        await expect(customizeButton(page)).toHaveText('Customize')
+        await expect(dashboardScreen(page).getByTestId('dashboard-edit-list')).toHaveCount(0)
+    })
+
+    test('hiding every widget shows the all-hidden page, and Reset keeps the period and Hide amounts', async ({
+        page,
+    }) => {
+        await openBooksDashboard(page)
+        await pickPeriod(page, 'expenses', 'last_month')
+        const toggle = hideAmountsSwitch(page)
+        await expect(toggle).toBeEnabled()
+        const hid = prefsWrite(page)
+        await toggle.click()
+        expect((await hid).ok()).toBe(true)
+        await expect(toggle).toBeChecked()
+
+        await openCustomize(page)
+        for (const id of DEFAULT_ORDER) await setShown(page, id, false)
+        await closeCustomize(page)
+        await expect(dashboardScreen(page).getByTestId('dashboard-all-hidden')).toContainText(
+            'All widgets are hidden.'
+        )
+        await expect(
+            dashboardScreen(page).locator('[data-testid^="dashboard-widget-"]')
+        ).toHaveCount(0)
+
+        await openCustomize(page, 'all-hidden')
+        const reset = prefsWrite(page)
+        await dashboardScreen(page).getByTestId('dashboard-reset').click()
+        expect((await reset).ok()).toBe(true)
+        await expect.poll(() => editOrder(page)).toEqual([...DEFAULT_ORDER])
+        for (const id of DEFAULT_ORDER) await expect(showSwitch(page, id)).toBeChecked()
+
+        await closeCustomize(page)
+        await expect.poll(() => gridOrder(page)).toEqual([...DEFAULT_ORDER])
+        await expect(periodTrigger(page, 'expenses')).toContainText(PERIOD_TEXT.last_month)
+        await expect(hideAmountsSwitch(page)).toBeChecked()
+    })
+
+    test('on a phone the page is one column and Customize is an icon button', async ({ page }) => {
+        await login(page)
+        await navigateToPackage(page, 'books')
+        await page.setViewportSize(PHONE)
+        await openDashboard(page)
+        const button = customizeButton(page)
+        await expect(button).toHaveAccessibleName('Customize')
+        await expect(button).toHaveRole('button')
+        await expect.poll(async () => (await button.innerText()).trim()).toBe('')
+
+        await expectOneColumn(page, DEFAULT_ORDER)
+        await expectNoSidewaysScrollAnywhere(page)
+        await expect(hideAmountsSwitch(page)).toBeVisible()
+
+        await openCustomize(page)
+        for (const id of DEFAULT_ORDER) {
+            const row = editRow(page, id)
+            await expect(row.getByTestId(`dashboard-edit-handle-${id}`)).toBeVisible()
+            await expect(showSwitch(page, id)).toBeVisible()
+            // The phone row has no room for the word: the switch keeps its accessible name.
+            await expect(row.getByText('Show', { exact: true })).toHaveCount(0)
+            for (const direction of ['up', 'down'] as const) {
+                const move = editButton(page, direction, id)
+                await expect(move).toBeVisible()
+                await expect
+                    .poll(async () => {
+                        const box = await move.boundingBox()
+                        return Math.min(box?.width ?? 0, box?.height ?? 0)
+                    })
+                    .toBeGreaterThanOrEqual(44)
+            }
+        }
+        for (const [id, name] of [
+            ['bankAccounts', 'Bank accounts'],
+            ['profitAndLoss', 'Profit and loss'],
+        ] as const) {
+            const label = editRow(page, id).getByText(name, { exact: true })
+            await expect(label).toBeVisible()
+            const [scrollWidth, clientWidth] = await label.evaluate(el => [
+                el.scrollWidth,
+                el.clientWidth,
+            ])
+            expect(scrollWidth, `${name} is not cut`).toBe(clientWidth)
+        }
+
+        await moveRow(page, 'down', 'invoices')
+        await dashboardScreen(page).getByRole('button', { name: 'Done', exact: true }).click()
+        await expect(dashboardScreen(page).getByTestId('dashboard-edit-list')).toHaveCount(0)
+        await expect
+            .poll(async () => (await gridOrder(page)).slice(0, 2))
+            .toEqual(['expenses', 'invoices'])
     })
 })

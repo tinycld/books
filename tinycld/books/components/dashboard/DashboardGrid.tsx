@@ -29,9 +29,11 @@ function GridRow({ row, props }: { row: (WidgetId | null)[]; props: WidgetProps 
 // measured by the screen. Nothing draws before the first layout, so the grid never
 // starts with the wrong column count.
 export function DashboardGrid({
+    isVisible,
     pageWidth,
     ...gridProps
-}: Omit<WidgetProps, 'isOneColumn'> & { pageWidth: number }) {
+}: Omit<WidgetProps, 'isOneColumn'> & { isVisible: boolean; pageWidth: number }) {
+    if (!isVisible) return null
     const columns = columnsFor(pageWidth)
     const props: WidgetProps = { ...gridProps, isOneColumn: columns === 1 }
     const rows = pageWidth > 0 ? gridRows(shownWidgets(props.prefs), columns) : []
