@@ -205,10 +205,11 @@ async function liveBox(locator: Locator) {
 }
 
 // Drags a row by its handle above the row of `beforeId` (a real pointer drag in 12 steps,
-// as core tests/e2e/forms-builder.spec.ts drags) and waits for the saved write. Content
-// above the list (the setup card, which another test's setup change shows or hides through
-// realtime) can move the rows during the drag, so every step aims at the target row's box
-// as it is laid out at that step, not where it was at the start.
+// as core tests/e2e/forms-builder.spec.ts drags) and waits for the saved write. Drax
+// measures its containers when a drag starts (and on resize) and hit-tests against that
+// measurement for the whole drag, so both boxes are read together right before the press
+// and the steps use fixed coordinates: aiming at a live box would follow a row that moved
+// on screen while Drax still compares against the drag-start position.
 export async function dragRow(
     page: Page,
     id: DashboardWidgetId,
@@ -219,14 +220,14 @@ export async function dragRow(
     await expect(handle).toBeVisible()
     await expect(target).toBeVisible()
     const saved = prefsWrite(page)
-    const from = await liveBox(handle)
+    const [from, to] = await Promise.all([liveBox(handle), liveBox(target)])
     const x = from.x + from.width / 2
     const startY = from.y + from.height / 2
+    const endY = to.y + 2
     await page.mouse.move(x, startY)
     await page.mouse.down()
     for (let step = 1; step <= DRAG_STEPS; step++) {
-        const to = await liveBox(target)
-        await page.mouse.move(x, startY + ((to.y + 2 - startY) * step) / DRAG_STEPS)
+        await page.mouse.move(x, startY + ((endY - startY) * step) / DRAG_STEPS)
     }
     await page.mouse.up()
     expect((await saved).ok()).toBe(true)
