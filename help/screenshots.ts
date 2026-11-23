@@ -2,6 +2,7 @@ import type { Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 import { navigateToPackage } from '@tinycld/core/e2e-helpers'
 import type { ScreenshotPlan } from '@tinycld/package-scripts/help-screenshots'
+import { RECONCILIATION_REPORT_SEED } from '../tinycld/books/lib/reconciliation-report-fixture'
 
 // Only screens that are not obvious get a picture. The navigation overview,
 // settings and the setup wizard are self-explanatory or run once.
@@ -199,6 +200,87 @@ async function openStatementsTabForShot(page: Page) {
     await expect(tab.locator('[data-testid^="statement-row-menu-"]')).toHaveCount(2)
 }
 
+// The seed reconciles two entries of 1010 Business Savings (statement of Aug 31, 2026) and
+// leaves a reconciliation in progress on it (RECONCILE_SEED in lib/reconcile-fixture.ts).
+const SAVINGS = '1010 Business Savings'
+
+async function openReconcileForShot(page: Page) {
+    await openSavingsRow(page)
+}
+
+async function openSavingsRow(page: Page) {
+    await navigateToPackage(page, 'books')
+    const item = page.getByTestId('books-nav-reconcile')
+    const toggle = page.getByTestId('books-nav-accounting-toggle')
+    await toggle.waitFor({ state: 'attached' })
+    if (!(await item.isVisible())) await toggle.click()
+    await item.click()
+    await expect(page.getByTestId('reconcile-accounts-table')).toBeVisible()
+    const row = savingsRow(page)
+    await expect(row).toBeVisible()
+    return row
+}
+
+function savingsRow(page: Page) {
+    return page
+        .locator('[data-testid^="reconcile-account-"]')
+        .filter({ has: page.getByText(SAVINGS, { exact: true }), visible: true })
+}
+
+// The work screen of the seeded reconciliation in progress on 1010 Business Savings.
+async function openReconcileWorkForShot(page: Page) {
+    const row = await openSavingsRow(page)
+    await row.locator('[data-testid^="reconcile-resume-"]').click()
+    await expect(page.getByTestId('reconcile-screen')).toBeVisible()
+    await expect(page.getByTestId('reconcile-summary')).toBeVisible()
+    await expect(page.locator('[data-testid^="reconcile-row-"]').first()).toBeVisible()
+}
+
+// The finished summary of the seeded statement of Aug 31, 2026, from its Reconciled through
+// link.
+async function openReconcileFinishedForShot(page: Page) {
+    const row = await openSavingsRow(page)
+    await row.locator('[data-testid^="reconcile-through-"]').click()
+    await expect(page.getByTestId('reconcile-finished')).toBeVisible()
+}
+
+// The History tab of Reconcile at 1280, as the seeded admin.
+async function openReconcileHistoryForShot(page: Page) {
+    const viewport = page.viewportSize()
+    await page.setViewportSize({ width: 1280, height: viewport?.height ?? 800 })
+    await openSavingsRow(page)
+    await page.getByTestId('reconcile-tab-history').filter({ visible: true }).click()
+    await expect(page.getByTestId('reconcile-history-table')).toBeVisible()
+    await expect(seededHistoryRow(page)).toBeVisible()
+}
+
+// The seeded statement of Aug 31, 2026 of 2100 Company Card, the latest of its account.
+function seededHistoryRow(page: Page) {
+    return page
+        .getByTestId(`reconcile-history-row-${RECONCILIATION_REPORT_SEED.latest.id}`)
+        .filter({ visible: true })
+}
+
+// The Reconciliation Report of that statement, from its View report link.
+async function openReconciliationReportForShot(page: Page) {
+    await openReconcileHistoryForShot(page)
+    await page
+        .getByTestId(`reconcile-history-report-${RECONCILIATION_REPORT_SEED.latest.id}`)
+        .filter({ visible: true })
+        .click()
+    await expect(page.getByTestId('report-screen')).toBeVisible()
+}
+
+// The undo dialog of that statement, from its finished summary's More menu.
+async function openReconcileUndoForShot(page: Page) {
+    await openReconcileHistoryForShot(page)
+    await seededHistoryRow(page).click()
+    await expect(page.getByTestId('reconcile-finished').filter({ visible: true })).toBeVisible()
+    await page.getByTestId('reconcile-finished-more').filter({ visible: true }).click()
+    await page.getByTestId('reconcile-menu-undo').filter({ visible: true }).click()
+    await expect(page.getByTestId('reconcile-undo-text').filter({ visible: true })).toBeVisible()
+}
+
 export default {
     'chart-of-accounts': [
         {
@@ -262,6 +344,38 @@ export default {
             name: 'bank-import-1',
             setup: openBankImportForShot,
             target: '[data-testid="bank-import-screen"]',
+        },
+    ],
+    reconcile: [
+        {
+            name: 'reconcile-1',
+            setup: openReconcileForShot,
+            target: '[data-testid="reconcile-accounts-screen"]',
+        },
+        {
+            name: 'reconcile-2',
+            setup: openReconcileWorkForShot,
+            target: '[data-testid="reconcile-screen"]',
+        },
+        {
+            name: 'reconcile-3',
+            setup: openReconcileFinishedForShot,
+            target: '[data-testid="reconcile-screen"]',
+        },
+        {
+            name: 'reconcile-4',
+            setup: openReconcileHistoryForShot,
+            target: '[data-testid="reconcile-history-screen"]',
+        },
+        {
+            name: 'reconcile-5',
+            setup: openReconciliationReportForShot,
+            target: '[data-testid="report-screen"]',
+        },
+        {
+            name: 'reconcile-6',
+            setup: openReconcileUndoForShot,
+            target: '[data-testid="reconcile-undo-dialog"]',
         },
     ],
     statements: [

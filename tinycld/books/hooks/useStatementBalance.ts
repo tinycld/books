@@ -5,10 +5,11 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useRef } from 'react'
 import { statementBalance } from '../lib/bank-import-view'
 
-// The balance of a connection's latest bank statement: its file with the latest statement
-// date, then the newest upload. A CSV file has no statement date, so it never counts. The
-// line is extra to the card's own balance, so while it loads or after a load error the card
-// shows no line; the error is logged once per failure, so it is not silent.
+// The balance of a connection's latest bank statement (`{ cents, day, fileName }`): its file
+// with the latest statement date, then the newest upload. A CSV file has no statement date,
+// so it never counts. The statement is extra to what its readers show (the Banking card's
+// line, the reconcile start dialog's prefill), so while it loads or after a load error they
+// show none; the error is logged once per failure, so it is not silent.
 export function useStatementBalance(connectionId: string, accountType: string) {
     const [filesCollection] = useStore('books_bank_files')
     const query = useLiveQuery({
@@ -30,5 +31,6 @@ export function useStatementBalance(connectionId: string, accountType: string) {
     }
     if (!query.isError) logged.current = false
     const statement = query.isError ? null : statementBalance(query.data, accountType)
-    return { statement, isError: query.isError }
+    // isReady: the start dialog waits for it before it mounts its form with the prefill.
+    return { statement, isReady: query.isReady, isError: query.isError }
 }

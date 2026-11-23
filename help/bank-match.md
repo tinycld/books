@@ -65,6 +65,10 @@ When you void a matched Books transaction, or edit it (an edit voids the origina
 
 When you disconnect the account, its matches are removed with its bank transactions.
 
+## Matches and reconciling
+
+When you reconcile the account, a matched Books transaction shows a bank icon in the list, and Clear matched clears every matched transaction at once. In the account register its status is Matched until it is cleared. See [Reconcile an account](help://books:reconcile).
+
 ## Who can do what
 
 Everyone with access to Books can see the marks on For review, the suggestions and the Matched to list with their links. With bookkeeper or admin access you can also match, find other matches and undo a match. With read-only access there are no check boxes and no Match, Find other matches or Undo match buttons.

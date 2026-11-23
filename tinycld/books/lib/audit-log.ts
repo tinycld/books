@@ -92,6 +92,7 @@ export const AUDIT_RECORD_TYPE_OPTIONS: SelectOption[] = [
     { value: 'books_bank_transactions', label: 'Bank transaction' },
     { value: 'books_bank_matches', label: 'Bank match' },
     { value: 'books_bank_categorizations', label: 'Bank categorization' },
+    { value: 'books_reconciliations', label: 'Reconciliation' },
     { value: 'books_settings', label: 'Books settings' },
     { value: 'books_doc_sequences', label: 'Document numbering' },
     { value: 'books_close_overrides', label: 'Close date override' },

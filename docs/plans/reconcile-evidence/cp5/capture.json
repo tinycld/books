@@ -1,0 +1,56 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "register",
+            "hideLabels": ["New"],
+            "url": "/a/books/accounts",
+            "ready": "account-search",
+            "actions": [
+                { "clickLabel": "Actions for Business Checking" },
+                { "clickMenuItem": "View register" },
+                { "waitFor": "register-title" },
+                { "click": "register-range" },
+                { "clickMenuItem": "This month" },
+                { "waitFor": "Register sale" },
+                { "click": "register-title" }
+            ]
+        },
+        {
+            "name": "register-drawer",
+            "hideLabels": ["New"],
+            "url": "/a/books/accounts",
+            "widths": [1280],
+            "height": 900,
+            "ready": "account-search",
+            "actions": [
+                { "clickLabel": "Actions for Business Checking" },
+                { "clickMenuItem": "View register" },
+                { "waitFor": "register-table" },
+                { "click": "register-range" },
+                { "clickMenuItem": "This month" },
+                { "waitFor": "Register sale" },
+                { "clickText": "Register sale" },
+                { "waitFor": "register-entry-drawer" },
+                { "waitFor": "register-cards" },
+                { "click": "register-title" }
+            ]
+        },
+        {
+            "name": "register-cards",
+            "hideLabels": ["New"],
+            "url": "/a/books/accounts",
+            "widths": [900],
+            "ready": "account-search",
+            "actions": [
+                { "clickLabel": "Actions for Business Checking" },
+                { "clickMenuItem": "View register" },
+                { "waitFor": "register-cards" },
+                { "click": "register-range" },
+                { "clickMenuItem": "This month" },
+                { "waitFor": "Register sale" },
+                { "click": "register-title" }
+            ]
+        }
+    ]
+}

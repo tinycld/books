@@ -23,9 +23,26 @@ import type {
     BooksCustomers,
     BooksJournalEntries,
     BooksJournalLines,
+    BooksReconcileLines,
+    BooksReconciliations,
     BooksVendors,
 } from '../tinycld/books/types'
-import { BALANCES, RANGE, SEED_ENTRIES, SEED_LINES } from './register-test-data'
+import {
+    BALANCES,
+    CLEARED_LINE,
+    FINISHED_RECONCILIATION_ID,
+    FINISHED_STATEMENT_DATE,
+    MATCHED_LINE,
+    PLAIN_LINE,
+    PROGRESS_RECONCILIATION_ID,
+    PROGRESS_STATEMENT_DATE,
+    RANGE,
+    RECONCILED_LINE,
+    SEED_ENTRIES,
+    SEED_LINES,
+    SEED_RECONCILE_ROWS,
+    SEED_RECONCILIATIONS,
+} from './register-test-data'
 
 const indexed = { autoIndex: 'eager' as const, defaultIndexType: BasicIndex }
 
@@ -44,8 +61,18 @@ function stores(seed: {
     lines?: BooksJournalLines[]
     entries?: BooksJournalEntries[]
     balances?: BooksAccountBalances[]
+    reconcileRows?: BooksReconcileLines[]
+    reconciliations?: BooksReconciliations[]
 }) {
     return {
+        reconciliations: local<BooksReconciliations>(
+            'reconciliations',
+            seed.reconciliations ?? SEED_RECONCILIATIONS
+        ),
+        reconcileRows: local<BooksReconcileLines>(
+            'reconcile_lines',
+            seed.reconcileRows ?? SEED_RECONCILE_ROWS
+        ),
         lines: local<BooksJournalLines>('lines', seed.lines ?? SEED_LINES),
         entries: local<BooksJournalEntries>('entries', seed.entries ?? SEED_ENTRIES),
         balances: local<BooksAccountBalances>('balances', seed.balances ?? BALANCES),
@@ -67,9 +94,17 @@ async function registerRows(
     seed: Parameters<typeof stores>[0],
     range: { start: string; end: string } = RANGE
 ) {
-    const { lines, entries, customers, vendors } = stores(seed)
+    const { lines, entries, customers, vendors, reconcileRows, reconciliations } = stores(seed)
     return run(
-        registerLinesQuery(lines, entries, REGISTER_ACCOUNT_ID, range, { customers, vendors })
+        registerLinesQuery(
+            lines,
+            entries,
+            REGISTER_ACCOUNT_ID,
+            range,
+            { customers, vendors },
+            reconcileRows,
+            reconciliations
+        )
     )
 }
 
@@ -140,6 +175,62 @@ describe('registerLinesQuery', () => {
         const rows = await registerRows({ entries })
         expect(rows.map(r => r.id).sort()).toEqual([...expectedIds].sort())
         expect(rows.every(r => r.entryRecord?.id === r.entry)).toBe(true)
+    })
+
+    // Reconcile spec §4 "Reads" (register), plan settled difference 3: one materialize of the
+    // line's `books_reconcile_lines` row, whose id is the line id.
+    it("attaches each line's books_reconcile_lines row, and none for a line without one", async () => {
+        const rows = await registerRows({})
+        const byId = (id: string) => rows.find(r => r.id === id)
+        expect(byId(RECONCILED_LINE.id)?.reconcileRow).toMatchObject({
+            id: RECONCILED_LINE.id,
+            reconciliation: FINISHED_RECONCILIATION_ID,
+            finished: true,
+            bank_matched: false,
+        })
+        expect(byId(CLEARED_LINE.id)?.reconcileRow).toMatchObject({
+            reconciliation: PROGRESS_RECONCILIATION_ID,
+            finished: false,
+        })
+        expect(byId(MATCHED_LINE.id)?.reconcileRow).toMatchObject({
+            reconciliation: '',
+            bank_matched: true,
+        })
+        expect(byId(PLAIN_LINE.id)).toBeDefined()
+        expect(byId(PLAIN_LINE.id)?.reconcileRow).toBeUndefined()
+    })
+
+    // Fix round 1 of checkpoint 6 (one query): the drawer's "Statement of <day>" comes from the
+    // reconciliation row that the line's own view row names, materialized inside the lines
+    // query, not from a second query's id → date map.
+    it("attaches the statement day of the reconciliation the line's view row names", async () => {
+        const rows = await registerRows({})
+        const byId = (id: string) => rows.find(r => r.id === id)
+        expect(byId(RECONCILED_LINE.id)?.reconcileRow?.statement?.statement_date).toBe(
+            FINISHED_STATEMENT_DATE
+        )
+        expect(byId(CLEARED_LINE.id)?.reconcileRow?.statement?.statement_date).toBe(
+            PROGRESS_STATEMENT_DATE
+        )
+        expect(byId(MATCHED_LINE.id)?.reconcileRow).toBeDefined()
+        expect(byId(MATCHED_LINE.id)?.reconcileRow?.statement).toBeUndefined()
+    })
+
+    it('keeps the line and its view row when its reconciliation row is not loaded', async () => {
+        const rows = await registerRows({ reconciliations: [] })
+        expect(rows.map(r => r.id).sort()).toEqual([...expectedIds].sort())
+        const reconciled = rows.find(r => r.id === RECONCILED_LINE.id)
+        expect(reconciled?.reconcileRow).toMatchObject({
+            reconciliation: FINISHED_RECONCILIATION_ID,
+            finished: true,
+        })
+        expect(reconciled?.reconcileRow?.statement).toBeUndefined()
+    })
+
+    it('keeps every line when the view holds no row at all', async () => {
+        const rows = await registerRows({ reconcileRows: [] })
+        expect(rows.map(r => r.id).sort()).toEqual([...expectedIds].sort())
+        expect(rows.every(r => r.reconcileRow === undefined)).toBe(true)
     })
 })
 

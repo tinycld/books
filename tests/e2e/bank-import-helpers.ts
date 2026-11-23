@@ -39,8 +39,18 @@ function ofxTransaction(stamp: string, entry: OfxEntry, index: number): string[]
     ]
 }
 
-// A bank OFX statement of `entries`, named `<stamp>.ofx`.
-export function ofxStatement(stamp: string, entries: OfxEntry[]): BankTestFile {
+// The statement's ledger balance: `amount` as the bank writes it ('-161.10'), `day` as
+// 'YYYYMMDD'. The server reads it as the file's statement balance and date.
+export type OfxLedger = { amount: string; day: string }
+
+function ofxLedger(ledger: OfxLedger | undefined): string[] {
+    if (ledger === undefined) return []
+    return ['<LEDGERBAL>', `<BALAMT>${ledger.amount}`, `<DTASOF>${ledger.day}`, '</LEDGERBAL>']
+}
+
+// A bank OFX statement of `entries`, named `<stamp>.ofx`, with a `<LEDGERBAL>` when
+// `ledger` is given.
+export function ofxStatement(stamp: string, entries: OfxEntry[], ledger?: OfxLedger): BankTestFile {
     const text = [
         'OFXHEADER:100',
         'DATA:OFXSGML',
@@ -52,6 +62,7 @@ export function ofxStatement(stamp: string, entries: OfxEntry[]): BankTestFile {
         '<BANKTRANLIST>',
         ...entries.flatMap((entry, i) => ofxTransaction(stamp, entry, i)),
         '</BANKTRANLIST>',
+        ...ofxLedger(ledger),
         '</STMTRS></STMTTRNRS></BANKMSGSRSV1>',
         '</OFX>',
         '',

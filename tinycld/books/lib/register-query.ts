@@ -17,6 +17,8 @@ import type {
     BooksCustomers,
     BooksJournalEntries,
     BooksJournalLines,
+    BooksReconcileLines,
+    BooksReconciliations,
     BooksVendors,
 } from '../types'
 import { monthStartOf, periodOf, type RegisterRange } from './register-range'
@@ -38,18 +40,26 @@ export type RegisterParties<CI extends object, VI extends object> = {
 
 // The entry comes through materialize, so the lines side always drives the query
 // and a missing entry cannot drop a line. Each entry line materializes its customer's
-// and vendor's display name (the entry drawer's Name).
+// and vendor's display name (the entry drawer's Name). The line's `books_reconcile_lines` row
+// (its id is the line id) gives the Status word: a line on an account that cannot be
+// reconciled has none. That row materializes the statement day of the reconciliation it
+// names (the entry drawer's "Statement of"); absent for a row with no reconciliation or
+// while the reconciliation is not loaded.
 export function registerLinesQuery<
     LI extends object,
     EI extends object,
     CI extends object,
     VI extends object,
+    RI extends object,
+    SI extends object,
 >(
     lines: Rows<BooksJournalLines, LI>,
     entries: Rows<BooksJournalEntries, EI>,
     accountId: string,
     range: RegisterRange,
-    parties: RegisterParties<CI, VI>
+    parties: RegisterParties<CI, VI>,
+    reconcileLines: Rows<BooksReconcileLines, RI>,
+    reconciliations: Rows<BooksReconciliations, SI>
 ) {
     return (query: InitialQueryBuilder) =>
         query
@@ -91,6 +101,25 @@ export function registerLinesQuery<
                                     .findOne()
                             ),
                         }))
+                ),
+                reconcileRow: materialize(
+                    query
+                        .from({ r: reconcileLines })
+                        .where(({ r }) => eq(r.id, line.id))
+                        .select(({ r }) => ({
+                            id: r.id,
+                            reconciliation: r.reconciliation,
+                            finished: r.finished,
+                            bank_matched: r.bank_matched,
+                            statement: materialize(
+                                query
+                                    .from({ s: reconciliations })
+                                    .where(({ s }) => eq(s.id, r.reconciliation))
+                                    .select(({ s }) => ({ statement_date: s.statement_date }))
+                                    .findOne()
+                            ),
+                        }))
+                        .findOne()
                 ),
             }))
 }

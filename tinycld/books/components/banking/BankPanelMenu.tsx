@@ -20,7 +20,14 @@ interface BankPanelMenuProps {
     onOpenChange: (open: boolean) => void
     onEditDetails: () => void
     onViewRegister: () => void
+    // Given only when the account can be reconciled by this user (reconcileButtonVisible).
+    onReconcile?: () => void
     onDisconnect: () => void
+}
+
+function ReconcileItem({ onReconcile }: { onReconcile?: () => void }) {
+    if (!onReconcile) return null
+    return <Menu.Item testID="bank-menu-reconcile" label="Reconcile" onSelect={onReconcile} />
 }
 
 // The open state is in the banking store, so the page's keys can tell the menu is open.
@@ -30,6 +37,7 @@ export function BankPanelMenu({
     onOpenChange,
     onEditDetails,
     onViewRegister,
+    onReconcile,
     onDisconnect,
 }: BankPanelMenuProps) {
     const color = useThemeColor('muted-foreground')
@@ -65,6 +73,7 @@ export function BankPanelMenu({
                     label="View register"
                     onSelect={onViewRegister}
                 />
+                <ReconcileItem onReconcile={onReconcile} />
                 <Menu.Item
                     testID="bank-menu-disconnect"
                     label="Disconnect"

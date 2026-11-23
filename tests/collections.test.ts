@@ -72,6 +72,10 @@ const NAMES = [
     'books_deposit_items',
     'books_deposit_lines',
     'books_undeposited_items',
+    'books_reconciliations',
+    'books_reconciliation_lines',
+    'books_reconcile_lines',
+    'books_reconciled_lines',
 ]
 
 function register() {
@@ -332,6 +336,40 @@ describe('registerCollections', () => {
             connection: { name: 'books_bank_connections' },
         })
         expect(categorizations?.alwaysFetchRelations).toBeUndefined()
+    })
+
+    // Reconcile spec §4: the two collections are written by the client (a start, a press)
+    // and stamped by the server. The lines view is never written: the server signals its
+    // topic when a line, an entry, an account, a party, a cleared row, a reconciliation or
+    // a bank match line changes (server/register.go), so the work screen follows them.
+    it('registers the reconciliation collections on demand and keeps the lines view live', () => {
+        const { calls } = register()
+        for (const name of [
+            'books_reconciliations',
+            'books_reconciliation_lines',
+            'books_reconcile_lines',
+        ]) {
+            expect(calls.get(name)?.syncMode, name).toBe('on-demand')
+            expect(calls.get(name)?.realtime, name).toBe('query')
+        }
+        expect(calls.get('books_reconcile_lines')?.liveTopics).toEqual([
+            'collection/books_reconcile_lines',
+        ])
+        expect(calls.get('books_reconciliations')?.liveTopics).toBeUndefined()
+        expect(calls.get('books_reconciliation_lines')?.liveTopics).toBeUndefined()
+    })
+
+    // Reconciliation report spec §4 "Schema": the reconciled lines view is never written.
+    // The server signals its topic when a cleared row, a reconciliation, a journal line, an
+    // entry or a party changes (server/register.go), so a finish or an undo reaches the
+    // report and the history.
+    it('registers the reconciled lines view on demand and keeps it live on its change topic', () => {
+        const { calls, result } = register()
+        expect(Object.keys(result)).toContain('books_reconciled_lines')
+        const view = calls.get('books_reconciled_lines')
+        expect(view?.syncMode).toBe('on-demand')
+        expect(view?.realtime).toBe('query')
+        expect(view?.liveTopics).toEqual(['collection/books_reconciled_lines'])
     })
 
     // The audit log view is never written: the server signals its topic when an

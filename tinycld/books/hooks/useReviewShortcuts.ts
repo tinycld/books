@@ -4,6 +4,7 @@ import { topLayer } from '@tinycld/core/ui/overlay/layer-stack'
 import { type RefObject, useId, useMemo, useRef } from 'react'
 import type { TextInputInstance } from 'react-native'
 import type { ReviewTab, TxnTab } from '../lib/bank-review'
+import { releaseDomFocus } from '../lib/dom-focus'
 import {
     offeredReviewKeys,
     REVIEW_KEYS,
@@ -25,20 +26,6 @@ function isReviewKeyAction(name: string): name is ReviewKeyAction {
 function isMenuOpenNow(): boolean {
     const layer = topLayer()
     return layer !== null && !layer.isModal
-}
-
-// On the web, a mouse press leaves DOM focus on the pressed row, check box, tab, button or
-// menu trigger, and react-native-web presses that element on plain Enter (and Space on a
-// button) before the list sees the key. A movement key makes the stripe the place the
-// keys act on, so it drops that focus: ↵ and Space then reach the list and act on the
-// striped row. A text field keeps its focus (no list key fires inside one anyway). Native
-// has no `document` and no such focus.
-function releaseDomFocus() {
-    if (typeof document === 'undefined') return
-    const active = document.activeElement
-    if (!(active instanceof HTMLElement) || active === document.body) return
-    if (active.isContentEditable || active.matches('input, textarea, select')) return
-    active.blur()
 }
 
 // The next or previous row after the focused one; the first press focuses the first row,
