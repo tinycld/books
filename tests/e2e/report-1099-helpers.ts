@@ -19,6 +19,7 @@ import {
 } from './expense-helpers'
 import { runLanded } from './expenses-by-vendor-helpers'
 import { CHECKING } from './pay-bills-helpers'
+import { expectSalesRowsFit } from './sales-reports-helpers'
 import {
     accountRecordPath,
     chooseBox,
@@ -148,7 +149,14 @@ export async function ownBoxedAccount(
 // the payment method `method` when given.
 export async function expenseFor(
     page: Page,
-    values: { vendor: string; account: string; amount: string; method?: string; paidFrom?: string }
+    values: {
+        vendor: string
+        account: string
+        amount: string
+        method?: string
+        paidFrom?: string
+        description?: string
+    }
 ): Promise<string> {
     await navigateToPackage(page, 'books')
     await openNewExpense(page)
@@ -158,8 +166,31 @@ export async function expenseFor(
         await pickSelectOption(page, 'form-input-payment_method', values.method)
     }
     const line = await pickExpenseLineAccount(page, 0, values.account)
+    if (values.description !== undefined) {
+        await page
+            .getByTestId(expenseCellTestId('account_lines', line, 'description'))
+            .fill(values.description)
+    }
     await page.getByTestId(expenseCellTestId('account_lines', line, 'amount')).fill(values.amount)
     return postExpense(page)
+}
+
+// The report's figure columns, in the order its rows draw them.
+export const FORM_1099_FIGURES = ['reportable', 'excluded', 'all'] as const
+
+// The phone arrangement of D1: the label (`name`) on line 1, the three figures on line 2.
+// expectSalesPhoneLines places the label on line 1 itself; these are the lines below it.
+export const FORM_1099_PHONE_LINES = [FORM_1099_FIGURES] as const
+
+/**
+ * Spec §3 "Phone": on every mounted row of the open 1099 report the label (the `name`
+ * column) takes at most three lines, and each of Reportable, Excluded and All payments that
+ * shows a figure shows it whole on one line inside the table; nothing scrolls sideways.
+ * expectBalanceRowsFit reads the Customer Balance's Balance column, so this report reads
+ * its own columns through the column-generic sales check. Polled.
+ */
+export async function expectForm1099RowsFit(page: Page): Promise<void> {
+    await expectSalesRowsFit(page, FORM_1099_FIGURES)
 }
 
 const THRESHOLD_LINE = /^1099 threshold: (.+)$/

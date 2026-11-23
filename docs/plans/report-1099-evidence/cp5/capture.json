@@ -1,0 +1,130 @@
+{
+    "outDir": ".",
+    "schemes": ["light", "dark"],
+    "shots": [
+        {
+            "name": "populated-phone",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390, 375],
+            "height": 1700,
+            "actions": [
+                { "clickText": "1099 Summary and Detail" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-show" },
+                { "clickRole": "radio", "name": "All 1099 vendors" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitFor": "Greenline Landscaping" },
+                { "click": "report-document-period" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "opened-phone",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390, 375],
+            "height": 2900,
+            "actions": [
+                { "clickText": "1099 Summary and Detail" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-show" },
+                { "clickRole": "radio", "name": "All 1099 vendors" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitFor": "Greenline Landscaping" },
+                {
+                    "clickIn": "report-table",
+                    "testId": "report-row-g:[\"vendokaforjam01\",\"nec_1\",\"USD\"]"
+                },
+                { "pause": 2000 },
+                { "click": "report-document-period" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "untracked-phone",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390],
+            "height": 1300,
+            "actions": [
+                { "clickText": "1099 Summary and Detail" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-show" },
+                { "clickRole": "radio", "name": "Not tracked for 1099" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitFor": "Metro Commercial Properties" },
+                { "click": "report-document-period" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "empty-phone",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390],
+            "actions": [
+                { "clickText": "1099 Summary and Detail" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-period" },
+                { "click": "report-period-preset-custom" },
+                { "fill": "report-period-from", "value": "2020-01-01" },
+                { "fill": "report-period-to", "value": "2020-01-31" },
+                { "press": "Escape" },
+                { "waitForHidden": "report-period-popover" },
+                { "waitFor": "report-empty-action" },
+                { "click": "report-document-period" }
+            ]
+        },
+        {
+            "name": "loading-phone",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390],
+            "actions": [
+                { "clickText": "1099 Summary and Detail" },
+                { "waitFor": "report-table" },
+                { "runFake": "hold" },
+                { "reload": true, "ready": "report-loading" }
+            ]
+        },
+        {
+            "name": "error-phone",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [390],
+            "actions": [
+                { "clickText": "1099 Summary and Detail" },
+                { "waitFor": "report-table" },
+                { "runFake": 500 },
+                { "reload": true, "ready": "report-error" }
+            ]
+        },
+        {
+            "name": "vendors-reports-menu",
+            "url": "/a/books/vendors",
+            "ready": "vendors-reports",
+            "widths": [1280, 390],
+            "actions": [
+                { "click": "vendors-reports" },
+                { "waitFor": "vendors-reports-balance" },
+                { "waitFor": "vendors-reports-aging" },
+                { "waitFor": "vendors-reports-expenses" },
+                { "waitFor": "vendors-reports-1099" },
+                { "pause": 500 }
+            ]
+        },
+        {
+            "name": "settings-1099",
+            "url": "/a/books/settings",
+            "ready": "books-settings-section-form-1099",
+            "widths": [1280, 1024, 768, 390],
+            "height": 2300,
+            "actions": [
+                { "click": "books-settings-section-form-1099" },
+                { "waitFor": "books-1099-open-report" },
+                { "pause": 500 }
+            ]
+        }
+    ]
+}

@@ -24,7 +24,7 @@ function BoxSelect({ row, isStacked, shownBox, isPending, onChoose }: BoxControl
         resolver: zodResolver(box1099ValueSchema),
         values: { box: shownBox },
     })
-    const width = isStacked ? 'w-full' : 'w-80'
+    const width = isStacked ? 'w-full' : 'w-80 max-w-full'
     return (
         <View className={width}>
             <SelectInput
@@ -44,7 +44,7 @@ function BoxSelect({ row, isStacked, shownBox, isPending, onChoose }: BoxControl
 
 function BoxText({ row, isStacked }: Pick<BoxControlProps, 'row' | 'isStacked'>) {
     const tone = row.box === '' ? 'text-muted-foreground' : 'text-foreground'
-    const align = isStacked ? '' : 'w-80 text-right'
+    const align = isStacked ? '' : 'w-80 max-w-full text-right'
     return (
         <Text className={`text-sm ${tone} ${align}`} testID={`books-1099-box-text-${row.id}`}>
             {box1099Label(row.box)}
@@ -96,9 +96,12 @@ export function AccountBoxRow({
     const indent = DEPTH_PADDING[Math.min(row.depth - 1, DEPTH_PADDING.length - 1)]
     const dim = row.inactive ? 'opacity-60' : ''
     // Wide rows indent the label only, so the selects stay one column; a stacked row
-    // indents the select with its label.
-    const line = isStacked ? `gap-2 ${indent}` : 'flex-row items-center gap-3'
-    const labelBlock = isStacked ? 'min-w-0' : `min-w-0 flex-1 ${indent}`
+    // indents the select with its label. A wide row wraps its select under the label
+    // when the pane is too narrow for both: the 160 px basis decides the wrap, so the
+    // label never collapses, and min-w-0 lets it shrink to a narrower pane, so it never
+    // runs past the card padding.
+    const line = isStacked ? `gap-2 ${indent}` : 'flex-row flex-wrap items-center gap-3'
+    const labelBlock = isStacked ? 'min-w-0' : `min-w-0 shrink grow basis-40 ${indent}`
     return (
         <View
             className={`gap-1 border-b border-border py-3 ${dim}`}
