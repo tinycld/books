@@ -75,6 +75,10 @@ func postVendorRefund(tx core.App, r *core.Record, now time.Time) error {
 		Vendor:     r.GetString("vendor"),
 		Lines:      append([]postingLine{{Account: account.Id, Debit: amount}}, payables...),
 	}
+	post.CardPayment, err = isCardPayment(tx, r.GetString("payment_method"), account.Id)
+	if err != nil {
+		return err
+	}
 	if original != nil {
 		post.Replaces = original.GetString("entry")
 	}

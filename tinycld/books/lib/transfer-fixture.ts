@@ -161,6 +161,7 @@ function transfer(seed: EntrySeed): BooksJournalEntries {
         reverses: '',
         replaces: '',
         document: '',
+        card_payment: false,
         ...seed,
     }
 }
@@ -244,6 +245,8 @@ function lines(
         posted: isPosted,
         date: isPosted ? entry.date : '',
         currency: TRANSFER_CURRENCY,
+        card_payment: entry.card_payment,
+        doc_type: entry.doc_type,
         created: entry.created,
         updated: entry.updated,
     }

@@ -1,7 +1,7 @@
 ---
 title: Run and customize a report
 summary: Pick a report, set its period and filters, and change how its numbers look.
-tags: [reports, trial balance, general ledger, balance sheet, journal, profit and loss, transaction detail, sales tax liability, customer balance, a/r aging, vendor balance, expenses by vendor, Audit Log, reconciliation report]
+tags: [reports, trial balance, general ledger, balance sheet, journal, profit and loss, transaction detail, sales tax liability, customer balance, a/r aging, vendor balance, expenses by vendor, 1099 summary and detail, Audit Log, reconciliation report]
 order: 60
 ---
 
@@ -479,9 +479,45 @@ The report does not update by itself: under the chips it shows the note "This re
 
 On a phone, each row shows the name on the first line, then Total and % of expenses on the second. A long name or line wraps to at most three lines, and a figure is never cut. Customize and Export are under **⋯**.
 
+## Read the 1099 Summary and Detail report
+
+To see what you paid each 1099 vendor in a calendar year, open Reports and choose 1099 Summary and Detail. You can also press Reports at the top of the Vendors list, then 1099 Summary and Detail, or press **Open the 1099 report** in Settings → 1099s. The heading shows your business name, 1099 Summary and Detail, the period, the Show and Form choices (for example "Vendors: At or above the threshold" and "Form: NEC and MISC"), the vendors that you picked, and the threshold (for example "1099 threshold: $2,000.00").
+
+The report counts payments by their payment date. An expense counts on its date, and a journal entry line counts on the entry's date. A bill counts only as far as it is paid: each bill payment counts its share of the bill's lines on the payment's date, and a vendor credit that pays a bill counts on the day it is applied. A vendor credit that is applied or refunded counts below zero on that day. A payment counts when it is posted, is on a Cost of goods sold, Expense or Other expense account, and names a vendor. A draft does not count. A voided document does not count, because its void reversal cancels the original. A payment's figure is its debit minus its credit.
+
+A card payment is an expense, a bill payment or a vendor refund with the payment method Credit card or Debit card, or one that is paid from a credit card account (for a vendor refund, refunded to one). The card processor reports card payments on a 1099-K, so a card payment is never reportable and the report shows it under Excluded. A journal entry line is never a card payment. So a card charge that you categorize from a bank transaction in Banking, which posts as a journal entry, counts under Reportable when its account has a 1099 box.
+
+Each row shows three figures:
+
+- Reportable: the payments on accounts with a 1099 box that are not card payments.
+- Excluded: the card payments and the payments on accounts with no box. Excluded is blank on a row with nothing excluded.
+- All payments: every payment, so All payments is Reportable plus Excluded.
+
+Each vendor row shows the vendor's name, then "(inactive)" when the vendor is inactive, in lighter text, and "(legal name: …)" when its legal name differs from its name. Under each vendor, the report shows a row for each 1099 box that has payments, such as "NEC 1 · Nonemployee compensation" or "MISC 1 · Rents", in box order, then Not reported. A payment's box is the box that its account has in Settings → 1099s when the report runs, so a change of an account's box moves the account's payments of every year. The Not reported row holds the payments on accounts with no box: to report them, give the account a box in Settings → 1099s, then press **Refresh**. A vendor with no payment in the period has no row. The Total row at the end adds the vendors that the report shows.
+
+The threshold is the 1099 reporting threshold in Settings → 1099s, and only a Books admin can change it there. The report compares the threshold with each vendor's Reportable, added across the vendor's boxes, and a vendor at exactly the threshold is at or above it.
+
+To choose which vendors show, press the Show chip: At or above the threshold, the default, shows the 1099 vendors whose Reportable is equal to or more than the threshold. Below the threshold shows the 1099 vendors whose Reportable is less than it. All 1099 vendors shows every vendor that has Track payments for 1099 on. Not tracked for 1099 shows the vendors with tracking off that have payments, so you can find a vendor that you did not mark. To track a vendor, see [1099 tracking](help://books:1099-tracking).
+
+To report one form, press the Form chip. NEC and MISC, the default, shows every box. With Form set to 1099-NEC the report shows only the box NEC 1, and with 1099-MISC only the MISC boxes; then the Not reported rows and the boxes of the other form do not show, and the threshold is compared with the Reportable of that form.
+
+To change the order, press the Order chip: Name, the default, orders the vendors by name, and Largest reportable puts the largest Reportable first.
+
+To show only some vendors, press Add filter, then Vendor, and pick one or more vendors. Then press Apply. A line under the period names your picks. To remove the filter, press the × on the Vendor chip.
+
+The period is a calendar year: the default is This calendar year, January 1 to December 31, whatever month your fiscal year starts in. To change it, press the Period chip and pick Last calendar year, another preset or Custom; the threshold is then compared with the payments of that period. When no vendor has a row to show, the report shows "No rows for" and the period.
+
+Each vendor row is open when the report opens, and each box row is closed. To see the payments behind a box, press the box row: it opens into one row for each payment, in date order. Each payment shows its date, its type and number, its account and its line memo, or the entry memo when the line has none, for example "2026-05-08 · Bill payment 14 · 6210 Design Tools · Bill 1058 paid (cash basis)". A card payment ends with "· paid by card". When a payment in the period is voided, the opened box shows the payment and its void reversal as two rows, one above zero and one below, that add up to zero. Expand all and Collapse all open and close every row. To open a payment's document, press the payment: the expense, bill payment, vendor credit, vendor refund or journal entry opens as its own screen.
+
+The report shows no tax ID. To see which 1099 vendors are missing a tax ID, open Settings → 1099s.
+
+The report does not update by itself: under the chips it shows the note "This report does not update by itself. Press Refresh to see new changes." and a **Refresh** button. When someone posts or voids a payment, changes an account's box, turns tracking on or off for a vendor, or changes the threshold after you opened the report, press **Refresh** to see the change.
+
+On a phone, each row shows the name on the first line, then Reportable, Excluded and All payments on the second. A long name or payment wraps to at most three lines, and a figure is never cut. Customize and Export are under **⋯**.
+
 ## Reports that you refresh
 
-Six Books reports read every journal line, so they do not run again each time the books change: the General Ledger, Transaction Detail by Account, the Trial Balance, the Balance Sheet, the Journal and the Profit and Loss by Month. Under the chips, each of them shows the note "This report does not update by itself. Press Refresh to see new changes." and a **Refresh** button. The Expenses by Vendor reads every posted expense line on the basis you choose, so it shows the same note and **Refresh** button too.
+Six Books reports read every journal line, so they do not run again each time the books change: the General Ledger, Transaction Detail by Account, the Trial Balance, the Balance Sheet, the Journal and the Profit and Loss by Month. Under the chips, each of them shows the note "This report does not update by itself. Press Refresh to see new changes." and a **Refresh** button. The Expenses by Vendor reads every posted expense line on the basis you choose, so it shows the same note and **Refresh** button too. The 1099 Summary and Detail reads posted payment lines too, with no basis to choose, so it also shows the note and **Refresh** button.
 
 To see the changes made after you opened the report, press **Refresh**, or press the R key. The report runs again and keeps your place. A change that you make to a chip or to a filter runs the report again, and that run reads the newest data. Customize changes only how the figures look.
 
@@ -489,7 +525,7 @@ Transaction Detail by Account opened from a figure, in the panel at the side, ha
 
 The Profit and Loss, the Customer Balance, the Vendor Balance, the A/R Aging, the A/P Aging, the sales reports, the Sales Tax Liability, the Audit Log, the Reconciliation Report and the two statement reports stay current: they run again when the books change, and show no **Refresh** button. When someone saves a change to the columns, the filters or the layout of the Profit and Loss, the Customer Balance, the Vendor Balance, the Audit Log or Statement: Balance Forward, that report does not update by itself any more and shows **Refresh**. A change to only the title or the description keeps it current.
 
-A report that you build over journal lines, or that shows columns from journal lines, or over the Audit log, does not update by itself. A copy that you keep with Save as of one of the six reports above, of the Profit and Loss, of the Customer Balance, of the Vendor Balance, of the Expenses by Vendor, of the Audit Log or of Statement: Balance Forward does not update by itself either. Each shows the same note and **Refresh** button. A copy of the A/R Aging, of the A/P Aging, of a sales report, of the Sales Tax Liability or of Statement: Open Items stays current.
+A report that you build over journal lines, or that shows columns from journal lines, or over the Audit log, does not update by itself. A copy that you keep with Save as of one of the six reports above, of the Profit and Loss, of the Customer Balance, of the Vendor Balance, of the Expenses by Vendor, of the 1099 Summary and Detail, of the Audit Log or of Statement: Balance Forward does not update by itself either. Each shows the same note and **Refresh** button. A copy of the A/R Aging, of the A/P Aging, of a sales report, of the Sales Tax Liability or of Statement: Open Items stays current.
 
 ## Download or email a report
 
@@ -501,7 +537,7 @@ The Audit Log lists every change that people made to Books records: when, who, w
 
 ## Who sees Books reports
 
-Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month, Transaction Detail by Account, the Sales Tax Liability, the Customer Balance, the A/R Aging, the A/P Aging, the Vendor Balance, the Expenses by Vendor, Sales by Customer, Sales by Product/Service, the Reconciliation Report and the Audit Log, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
+Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month, Transaction Detail by Account, the Sales Tax Liability, the Customer Balance, the A/R Aging, the A/P Aging, the Vendor Balance, the Expenses by Vendor, the 1099 Summary and Detail, Sales by Customer, Sales by Product/Service, the Reconciliation Report and the Audit Log, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
 
 A reader can change the chips and Customize for the run, copy a link with Copy link, and keep a copy with Save as. Each reader sees only the data that the reader can access.
 

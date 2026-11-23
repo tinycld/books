@@ -124,6 +124,9 @@ func stampPosted(tx core.App, entry *core.Record, lines []*core.Record, day stri
 	for _, line := range lines {
 		line.Set("posted", true)
 		line.Set("date", day)
+		// The line took these at create; set again so a posted line always
+		// holds its entry's, which checkDraftEdit keeps unchanged in the post.
+		stampEntryCopies(line, entry)
 		if err := tx.Save(line); err != nil {
 			return fmt.Errorf("books: stamp line %s: %w", line.Id, err)
 		}
