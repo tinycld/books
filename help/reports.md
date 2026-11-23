@@ -9,7 +9,7 @@ Books reports, such as the Trial Balance, run in the Reports area of the app. A 
 
 ## Open Books reports
 
-To open Books reports, choose Reports in the Books sidebar. On a phone, swipe in from the left edge of the screen to open the Books menu, then choose Reports. Reports opens with only Books reports shown, under the line "Showing reports from Books". Press a report to open it.
+To open a Books report, choose Reports in the Books sidebar, then press the report. On a phone, swipe in from the left edge of the screen to open the Books menu, then choose Reports. The report opens inside Books. To search the reports, to make a new one or to share one, press All reports at the end of the list: Reports opens with only Books reports shown, under the line "Showing reports from Books". Press a report there to open it. To keep a report one press away, add it to your shortcuts; see [Sidebar and shortcuts](help://books:sidebar-shortcuts).
 
 To go back to the Books reports, press Reports at the top of the report. To see the reports of every package, press Show all reports.
 
