@@ -10,6 +10,7 @@ import {
     postedEntryNumber,
     postOpenEntry,
 } from './journal-entries-helpers'
+import { openNewAction } from './new-menu-helpers'
 import {
     customerWithInvoices,
     localDay,
@@ -194,12 +195,7 @@ async function showEntriesList(page: Page) {
 // Books must already be open. + New → Bank deposit, from the Journal Entries list.
 export async function openNewDeposit(page: Page) {
     await showEntriesList(page)
-    if (isPhone(page)) {
-        await page.getByLabel('New', { exact: true }).click()
-    } else {
-        await page.getByText('New', { exact: true }).filter({ visible: true }).click()
-    }
-    await page.getByTestId('books-new-deposit').click()
+    await openNewAction(page, 'deposit')
     await expect(page).toHaveURL(NEW_DEPOSIT_URL)
     await expect(shownDeposit(page, 'deposit-form')).toBeVisible()
 }

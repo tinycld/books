@@ -1,5 +1,4 @@
 import { expect, type Locator, type Page } from '@playwright/test'
-import { isPhone } from './account-register-helpers'
 import {
     billCellTestId,
     billIdFromUrl,
@@ -10,6 +9,7 @@ import {
     postBill,
 } from './bill-helpers'
 import { openEntriesList } from './journal-entries-helpers'
+import { openNewAction } from './new-menu-helpers'
 import { localDay } from './receive-payment-helpers'
 import { createVendor, uniqueName, vendorHelpers } from './vendor-form-helpers'
 
@@ -110,16 +110,11 @@ export async function returnTo(page: Page, start: number) {
     await expect.poll(() => historyIndex(page)).toBe(start)
 }
 
-// Books must already be open. From the Journal Entries list through the New menu (the
-// phone FAB, or the desktop header's New text) → Pay bills.
+// Books must already be open. From the Journal Entries list through the New menu
+// (tests/e2e/new-menu-helpers.ts) → Pay bills.
 export async function openPayBills(page: Page) {
     await openEntriesList(page)
-    if (isPhone(page)) {
-        await page.getByLabel('New', { exact: true }).click()
-    } else {
-        await page.getByText('New', { exact: true }).filter({ visible: true }).click()
-    }
-    await page.getByTestId('books-new-pay-bills').click()
+    await openNewAction(page, 'pay_bills')
     await expect(page).toHaveURL(PAY_BILLS_URL)
     await expect(page.getByTestId('pay-bills-title')).toHaveText('Pay bills')
 }
