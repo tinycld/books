@@ -8,8 +8,8 @@ import { DASHBOARD_WIDGETS, type WidgetProps } from './widgets'
 const CELL_STYLE = { flex: 1, minWidth: 0 }
 
 function GridCell({ widget, props }: { widget: WidgetId | null; props: WidgetProps }) {
-    const Widget = widget ? DASHBOARD_WIDGETS[widget] : undefined
-    if (!Widget) return <View style={CELL_STYLE} />
+    if (!widget) return <View style={CELL_STYLE} />
+    const Widget = DASHBOARD_WIDGETS[widget]
     return (
         <View style={CELL_STYLE}>
             <Widget {...props} />
@@ -28,9 +28,13 @@ function GridRow({ row, props }: { row: (WidgetId | null)[]; props: WidgetProps 
 // takes (plan D5). `pageWidth` is the dashboard screen's own width, padding included, as
 // measured by the screen. Nothing draws before the first layout, so the grid never
 // starts with the wrong column count.
-export function DashboardGrid({ pageWidth, ...props }: WidgetProps & { pageWidth: number }) {
-    const ids = shownWidgets(props.prefs).filter(id => DASHBOARD_WIDGETS[id])
-    const rows = pageWidth > 0 ? gridRows(ids, columnsFor(pageWidth)) : []
+export function DashboardGrid({
+    pageWidth,
+    ...gridProps
+}: Omit<WidgetProps, 'isOneColumn'> & { pageWidth: number }) {
+    const columns = columnsFor(pageWidth)
+    const props: WidgetProps = { ...gridProps, isOneColumn: columns === 1 }
+    const rows = pageWidth > 0 ? gridRows(shownWidgets(props.prefs), columns) : []
     const drawnRows = rows.map(row => <GridRow key={row.join('-')} row={row} props={props} />)
     return (
         <View testID="dashboard-grid" className="gap-4">

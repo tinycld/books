@@ -9,19 +9,18 @@
 // (`BooksInvoiceDueTotals`, `BooksPaymentDayTotals`, ../types), which migration
 // `2100000041_create_books_dashboard_views.js` defines; `satisfies` checks them
 // against those types. The widget ids, the periods and the preference come from
-// `lib/dashboard-prefs.ts`, and the Invoices model from `lib/dashboard-figures.ts`;
-// the other widget model types below move to `lib/dashboard-figures.ts` with the
-// widgets that compute them.
+// `lib/dashboard-prefs.ts`, and the widget model types from `lib/dashboard-figures.ts`.
 
 import type { BooksInvoiceDueTotals, BooksPaymentDayTotals } from '../types'
-import type { InvoicesModel, Loadable } from './dashboard-figures'
-import {
-    type DashboardPrefs,
-    DEFAULT_DASHBOARD_PREFS,
-    type PeriodId,
-    type SalesPeriodId,
-    WIDGET_IDS,
-} from './dashboard-prefs'
+import type {
+    BankAccountsModel,
+    ExpensesModel,
+    InvoicesModel,
+    Loadable,
+    ProfitAndLossModel,
+    SalesModel,
+} from './dashboard-figures'
+import { type DashboardPrefs, DEFAULT_DASHBOARD_PREFS, WIDGET_IDS } from './dashboard-prefs'
 
 // The day the reference is drawn on: Overdue and the 30-day window are computed against it.
 export const DASHBOARD_TODAY = '2026-11-22'
@@ -46,64 +45,6 @@ export const PAYMENT_DAY_TOTALS = [
     { id: '2026-11-06', date: '2026-11-06', amount: 326500, count: 1 },
     { id: '2026-11-19', date: '2026-11-19', amount: 500000, count: 3 },
 ] satisfies Pick<BooksPaymentDayTotals, 'id' | 'date' | 'amount' | 'count'>[]
-
-// Every amount of a model is in integer cents.
-export interface ExpenseRow {
-    key: string
-    label: string
-    amount: number
-    // The row's amount against the largest row, 0 to 1: the bar's length.
-    share: number
-    isEverythingElse: boolean
-}
-
-export interface ExpensesModel {
-    isEmpty: boolean
-    period: PeriodId
-    total: number
-    rows: ExpenseRow[]
-}
-
-export interface BankRow {
-    accountId: string
-    label: string
-    balance: number
-    // Null for an account with no bank connection.
-    connectionId: string | null
-    reviewCount: number
-}
-
-export interface BankAccountsModel {
-    isEmpty: boolean
-    // At most six rows.
-    rows: BankRow[]
-    moreCount: number
-}
-
-export interface ProfitAndLossModel {
-    isEmpty: boolean
-    period: PeriodId
-    netProfit: number
-    income: number
-    expenses: number
-    // Null when the same period one year earlier has no figure.
-    change: { direction: 'up' | 'down'; percent: number } | null
-}
-
-export interface SalesMonth {
-    // The month's first day.
-    month: string
-    shortLabel: string
-    longLabel: string
-    amount: number
-}
-
-export interface SalesModel {
-    isEmpty: boolean
-    period: SalesPeriodId
-    total: number
-    months: SalesMonth[]
-}
 
 export interface DashboardWidgets {
     invoices: Loadable<InvoicesModel>

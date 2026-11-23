@@ -11,13 +11,13 @@ import {
     Figure,
     type FigureTone,
     LinksRow,
+    type Money,
     TextLink,
     WidgetCard,
     WidgetEmpty,
 } from './WidgetCard'
 import type { WidgetProps } from './widgets'
 
-type Money = (cents: number | null) => string
 type Tone = (cents: number | null) => FigureTone
 
 function overdueText(count: number): string {

@@ -16,7 +16,12 @@ const SKELETON_HEIGHTS: Record<WidgetId, number> = {
 }
 
 const LINK_STYLE = { minHeight: 44 }
-const NO_SHRINK = { flexShrink: 0 }
+// An amount beside a label keeps its width; the label takes the rest and truncates.
+export const NO_SHRINK = { flexShrink: 0 }
+export const LABEL_STYLE = { flex: 1, minWidth: 0 }
+
+// Draws one dashboard amount (dashboardAmount with the widget's currency and mask).
+export type Money = (cents: number | null) => string
 
 export type FigureTone = 'normal' | 'danger'
 
@@ -198,6 +203,43 @@ export function Bar({ parts, testID }: { parts: readonly BarPart[]; testID?: str
     return (
         <View testID={testID} className="h-3 flex-row overflow-hidden rounded-full bg-border">
             {fills}
+        </View>
+    )
+}
+
+interface BarRowProps {
+    label: string
+    // Already drawn by dashboardAmount.
+    amount: string
+    // The fill's length against the track, 0 to 1.
+    share: number
+    fill: string
+    testID?: string
+    amountTestID?: string
+}
+
+// A labelled bar: the label and its amount on one line, the bar under them with its share
+// in the fill and the rest of the track left empty.
+export function BarRow({ label, amount, share, fill, testID, amountTestID }: BarRowProps) {
+    const parts: BarPart[] = [
+        { key: 'fill', weight: share, className: fill },
+        { key: 'rest', weight: 1 - share, className: '' },
+    ]
+    return (
+        <View testID={testID} className="gap-1">
+            <View className="flex-row items-center justify-between gap-3">
+                <Text className="text-sm text-foreground" style={LABEL_STYLE} numberOfLines={1}>
+                    {label}
+                </Text>
+                <Text
+                    testID={amountTestID}
+                    className="text-sm font-medium tabular-nums text-foreground"
+                    style={NO_SHRINK}
+                >
+                    {amount}
+                </Text>
+            </View>
+            <Bar parts={parts} />
         </View>
     )
 }
