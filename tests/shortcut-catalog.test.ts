@@ -1,4 +1,4 @@
-import { List } from 'lucide-react-native'
+import { BookOpen, List } from 'lucide-react-native'
 import { describe, expect, it } from 'vitest'
 import { NEW_ACTIONS, type NewAction } from '../tinycld/books/lib/new-actions'
 import {
@@ -69,6 +69,12 @@ describe('screenTargets', () => {
             [listEntry('accounts', { label: 'Accounts' }), listEntry('customers')]
         )
         expect(targets.map(target => target.label)).toEqual(['Chart of Accounts', 'List customers'])
+    })
+
+    it('draws a list that has no icon of its own with the book icon', () => {
+        expect(BookOpen).toBeDefined()
+        const [target] = screenTargets([], [listEntry('payables')])
+        expect(target.icon).toBe(BookOpen)
     })
 
     it('leaves out an entry that is not available', () => {
