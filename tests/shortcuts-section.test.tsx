@@ -3,7 +3,7 @@ import { fireEvent, waitFor } from '@testing-library/react'
 import { router } from 'expo-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { shortcutTestId } from '../tinycld/books/lib/shortcut-rows'
-import type { BooksSidebarShortcuts } from '../tinycld/books/types'
+import type { BooksAccounts, BooksSidebarShortcuts } from '../tinycld/books/types'
 import { ME, onDemandStore, storedAccounts } from './accounts-form-harness'
 import { byTestId } from './accounts-test-rows'
 import {
@@ -158,6 +158,32 @@ describe('Shortcuts section', () => {
         fireEvent.click(byTestId(container, 'books-shortcuts-retry') as HTMLElement)
 
         expect(await shortcutIds(container, 1)).toEqual(['books-shortcut-screen-vendors'])
+        expect(byTestId(container, 'books-shortcuts-error')).toBeNull()
+    })
+
+    it('keeps the other rows, with an error and Retry, when the accounts cannot be read', async () => {
+        seedSidebar()
+        const [account] = storedAccounts()
+        const registerId = shortcutTestId({ kind: 'register', ref: account.id })
+        seedSidebar({
+            shortcuts: [
+                { kind: 'register', ref: account.id },
+                { kind: 'screen', ref: 'vendors' },
+            ],
+        })
+        const store = onDemandStore<BooksAccounts>('books_accounts', [account], account.id)
+        expectLiveQueryError(store.id)
+        const { container } = renderSidebar()
+
+        await waitFor(() => expect(byTestId(container, 'books-shortcuts-error')).not.toBeNull())
+        expect(idsWith(container, 'books-shortcut-')).toEqual(['books-shortcut-screen-vendors'])
+
+        fireEvent.click(byTestId(container, 'books-shortcuts-retry') as HTMLElement)
+
+        expect(await shortcutIds(container, 2)).toEqual([
+            registerId,
+            'books-shortcut-screen-vendors',
+        ])
         expect(byTestId(container, 'books-shortcuts-error')).toBeNull()
     })
 })

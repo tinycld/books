@@ -692,14 +692,18 @@ function onDemandCollection<T extends { id: string }>(
                 markReady()
                 return {
                     loadSubset: async options => {
-                        const comparisons = extractSimpleComparisons(options.where).filter(
-                            c => c.operator === 'eq'
-                        )
-                        const namesRefused = comparisons.some(
+                        const all = extractSimpleComparisons(options.where)
+                        const comparisons = all.filter(c => c.operator === 'eq')
+                        // An `inArray` filter (a list of ids) names the value too.
+                        const namesRefused = all.some(
                             c =>
                                 refused !== undefined &&
                                 c.field.at(-1) === refused.field &&
-                                c.value === refused.value
+                                (c.operator === 'eq'
+                                    ? c.value === refused.value
+                                    : c.operator === 'in' &&
+                                      Array.isArray(c.value) &&
+                                      c.value.includes(refused.value))
                         )
                         if (!isRefused && namesRefused) {
                             isRefused = true
