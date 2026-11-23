@@ -44,3 +44,6 @@
 - A plan probe of a union source EXPLAINs every branch, not one. — expenses-by-vendor, retro, p5-expenses-by-vendor
 - When a core component lacks an option (a close-focus target, a title without the brand), ask for it in core and delete the Books workaround once it lands; never keep a Books copy of a core part. — email-share, human, revise 1
 - A balance of zero is not "Paid in full": only payments that cover the total are paid; a write-off or a credit memo that closes an invoice reads "No payment is due." — email-share, human, revise 1
+- A Go helper that writes inside a transaction takes the tx as a parameter; a closure over the outer app deadlocks on the SQLite write lock. — bank-deposit, retro, p2-bank-deposit
+- A link from one document to another opens it with `useOpenDocument`, never `router.push`: a push leaves two read screens mounted. — bank-deposit, retro, p2-bank-deposit
+- A capture manifest submits by key (⌘↵), not a pointer click (a tooltip stays open); runs UI setup in its 1280 entry first (the phone bar hides actions in More); never `clickText` a label the route behind also draws; and fakes the read with the fixture's row for a long-content state no seed row has. — email-share, retro, p2-email-share

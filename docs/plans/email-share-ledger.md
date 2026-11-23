@@ -8,7 +8,7 @@
 - checkpoints: docs/plans/email-share-checkpoints.md
 - reference: docs/plans/email-share-reference/
 - evidence: docs/plans/email-share-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (removed by finish.mjs --screen, 2026-11-22)
 - capture manifest: docs/plans/email-share-capture.json
 - review mode: C — none (unattended)
 - core extension: accepted (human, design gate 2026-11-22) — checkpoint 0, core `RichTextToolbar` (`tinycld/core/components/editor/RichTextToolbar.tsx`), generalized from mail's `ComposeToolbar.tsx`; tinycld branch books/p2-email-share, PR not opened yet; small additive change, no `exclusive`; the core PR merges at the next design gate, before the package PRs
@@ -298,7 +298,8 @@
 - human: none (review mode C)
 
 ## Final review
-- eval: revised → revise 1 (human, 2026-11-22, before the eval gate; `revise-1.md` in staging), fix: the commit "fix(books): revise 1 — core focus and title options, no-payment-due state"
+- eval: revised → revise 1 (human, 2026-11-22, before the eval gate; `revise-1.md` in staging), fix: a2b12837 "fix(books): revise 1 — core focus and title options, no-payment-due state"
+- eval: approved (human, 2026-11-22, "approve, accept retro"); e2e sha bb56c138 (books #90 CI 8/8 green; mail #154 2/2; core #516 14/14 at bc712edd)
 - human comments and what changed (revise 1; findings file `cp/cp5-fix-r2.md`):
   - revise item 1, the human: "Delete Books `useReturnFocusOnClose` … and use core Dialog's new close-focus function prop to move focus where the hook did. Behaviour stays the same." → hook deleted; the queued open passes its `returnFocus` to core `Dialog` `onRestoreFocus` (core 2aa72d6e); callers focus only under their own screen's root; `isFocusUnclaimed` removed (core does the check). Pinned by `email-share-forms.spec.ts` focus assertions.
   - revise item 2, the human: "Delete `components/public/PublicPageTitle.tsx`; the invoice public page and the estimate public page both use core `DocumentTitle` with `includeBrand={false}`. The estimate page's title drops "TinyCld: " too" → done; the estimate title e2e asserts the whole title.
