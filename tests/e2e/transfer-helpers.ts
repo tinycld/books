@@ -1,7 +1,7 @@
 import { expect, type Page } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
-import { isPhone } from './account-register-helpers'
 import { openEntriesList, searchEntries } from './journal-entries-helpers'
+import { openNewAction } from './new-menu-helpers'
 
 export { DESKTOP, isPhone, PHONE } from './account-register-helpers'
 
@@ -30,16 +30,10 @@ export function uniqueMemo(label: string): string {
     return `${label} ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-// From the Journal Entries list through the New menu (the phone FAB, or the desktop
-// header's New text).
+// From the Journal Entries list through the New menu (tests/e2e/new-menu-helpers.ts).
 export async function openNewTransfer(page: Page) {
     await openEntriesList(page)
-    if (isPhone(page)) {
-        await page.getByLabel('New', { exact: true }).click()
-    } else {
-        await page.getByText('New', { exact: true }).filter({ visible: true }).click()
-    }
-    await page.getByTestId('books-new-transfer').click()
+    await openNewAction(page, 'transfer')
     await expect(page.getByTestId('transfer-title')).toHaveText('New transfer')
 }
 

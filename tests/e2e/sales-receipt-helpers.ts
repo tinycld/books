@@ -3,6 +3,7 @@ import { accountItem, DESKTOP, isPhone, openChart } from './account-register-hel
 import { openBooksMenu } from './books-report-helpers'
 import { lineCellTestId } from './invoice-helpers'
 import { openEntriesList } from './journal-entries-helpers'
+import { openNewAction } from './new-menu-helpers'
 import { pickFromSearchPicker } from './search-picker-helpers'
 
 // A sales receipt's own screen: `books/sales-receipts/<id>`, never `.../new`.
@@ -20,16 +21,11 @@ export function salesReceiptIdFromUrl(page: Page): string {
     return id
 }
 
-// Books must already be open. From the Journal Entries list through the New menu (the
-// phone FAB, or the desktop header's New text) → Sales receipt.
+// Books must already be open. From the Journal Entries list through the New menu
+// (tests/e2e/new-menu-helpers.ts) → Sales receipt.
 export async function openNewSalesReceipt(page: Page) {
     await openEntriesList(page)
-    if (isPhone(page)) {
-        await page.getByLabel('New', { exact: true }).click()
-    } else {
-        await page.getByText('New', { exact: true }).filter({ visible: true }).click()
-    }
-    await page.getByTestId('books-new-sales-receipt').click()
+    await openNewAction(page, 'sales_receipt')
     await expect(page).toHaveURL(NEW_SALES_RECEIPT_URL)
     await expect(page.getByTestId('sales-receipt-title')).toHaveText('New sales receipt')
 }

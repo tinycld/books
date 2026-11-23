@@ -2,6 +2,7 @@ import { expect, type Page } from '@playwright/test'
 import { isPhone } from './account-register-helpers'
 import { lineCellTestId } from './invoice-helpers'
 import { openEntriesList } from './journal-entries-helpers'
+import { openNewAction } from './new-menu-helpers'
 import { pickFromSearchPicker } from './search-picker-helpers'
 
 // An estimate's own screen: `books/estimates/<id>`, never `books/estimates/new`.
@@ -19,16 +20,11 @@ export function estimateIdFromUrl(page: Page): string {
     return id
 }
 
-// Books must already be open. From the Journal Entries list through the New menu (the
-// phone FAB, or the desktop header's New text) → Estimate.
+// Books must already be open. From the Journal Entries list through the New menu
+// (tests/e2e/new-menu-helpers.ts) → Estimate.
 export async function openNewEstimate(page: Page) {
     await openEntriesList(page)
-    if (isPhone(page)) {
-        await page.getByLabel('New', { exact: true }).click()
-    } else {
-        await page.getByText('New', { exact: true }).filter({ visible: true }).click()
-    }
-    await page.getByTestId('books-new-estimate').click()
+    await openNewAction(page, 'estimate')
     await expect(page).toHaveURL(NEW_ESTIMATE_URL)
     await expect(page.getByTestId('estimate-title')).toHaveText('New estimate')
 }
