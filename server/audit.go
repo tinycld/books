@@ -14,8 +14,9 @@ import (
 )
 
 // auditedCollections are the Books collections a person writes. Left out:
-// books_account_balances, which only Books writes, and the books_access and
-// books_party_balances views, which nobody writes. Core's audit hooks are
+// books_account_balances, which only Books writes, and the books_access,
+// books_party_balances, books_invoice_due_totals and books_payment_day_totals
+// views, which nobody writes. Core's audit hooks are
 // request hooks, so they log what a person asked for (a post, a void); the reversal Books writes inside it is
 // part of that same logged update. The auto-reverse sweep makes no request,
 // so it writes its own row (logAutoReversal, auto_reverse.go).

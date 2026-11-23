@@ -1,16 +1,18 @@
 // Synthetic data for the Books dashboard (spec docs/specs/dashboard-design.md): the
 // helix reference route reads it directly. It holds the widget models of each state
-// the spec names, and the rows of the two new views those models are summed from.
+// the spec names, and the rows of the two views those models are summed from.
 //
 // Account numbers and names are the seeded book's (lib/seed-accounts.ts), except in
 // the `long` state, whose names exist only to exercise truncation.
 //
-// The two view-row interfaces mirror spec §4 "New views". The migration checkpoint
-// that adds `2100000041_create_books_dashboard_views.js` must replace them with the
-// generated row types (`BooksInvoiceDueTotals`, `BooksPaymentDayTotals`, ../types).
-// The widget model types below are the shapes `lib/dashboard-figures.ts` and
-// `lib/dashboard-prefs.ts` return; the checkpoint that adds those modules moves the
-// types there and this file imports them.
+// The two view-row lists hold the fields of the generated view types
+// (`BooksInvoiceDueTotals`, `BooksPaymentDayTotals`, ../types), which migration
+// `2100000041_create_books_dashboard_views.js` defines; `satisfies` checks them
+// against those types. The widget model types below are the shapes
+// `lib/dashboard-figures.ts` and `lib/dashboard-prefs.ts` return; the checkpoint
+// that adds those modules moves the types there and this file imports them.
+
+import type { BooksInvoiceDueTotals, BooksPaymentDayTotals } from '../types'
 
 // The day the reference is drawn on: Overdue and the 30-day window are computed against it.
 export const DASHBOARD_TODAY = '2026-11-22'
@@ -72,40 +74,24 @@ export const DEFAULT_DASHBOARD_PREFS: DashboardPrefs = {
     },
 }
 
-// A row of the view `books_invoice_due_totals`: id = the due date, amounts in integer cents.
-export interface InvoiceDueTotalRow {
-    id: string
-    due_date: string
-    balance: number
-    count: number
-}
-
-// A row of the view `books_payment_day_totals`: id = the date, amounts in integer cents.
-export interface PaymentDayTotalRow {
-    id: string
-    date: string
-    amount: number
-    count: number
-}
-
 // Three due dates before DASHBOARD_TODAY (overdue: 2,760.00 over 3 invoices) and two
 // after it (not due yet: 6,180.00).
-export const INVOICE_DUE_TOTALS: InvoiceDueTotalRow[] = [
+export const INVOICE_DUE_TOTALS = [
     { id: '2026-10-15', due_date: '2026-10-15', balance: 120000, count: 1 },
     { id: '2026-11-05', due_date: '2026-11-05', balance: 96000, count: 1 },
     { id: '2026-11-18', due_date: '2026-11-18', balance: 60000, count: 1 },
     { id: '2026-11-30', due_date: '2026-11-30', balance: 250000, count: 2 },
     { id: '2026-12-15', due_date: '2026-12-15', balance: 368000, count: 3 },
-]
+] satisfies Pick<BooksInvoiceDueTotals, 'id' | 'due_date' | 'balance' | 'count'>[]
 
 // The window is 2026-10-24 to 2026-11-22: the first row is one day too early and is
 // not counted (paid, last 30 days: 12,415.00).
-export const PAYMENT_DAY_TOTALS: PaymentDayTotalRow[] = [
+export const PAYMENT_DAY_TOTALS = [
     { id: '2026-10-23', date: '2026-10-23', amount: 88000, count: 1 },
     { id: '2026-10-28', date: '2026-10-28', amount: 415000, count: 2 },
     { id: '2026-11-06', date: '2026-11-06', amount: 326500, count: 1 },
     { id: '2026-11-19', date: '2026-11-19', amount: 500000, count: 3 },
-]
+] satisfies Pick<BooksPaymentDayTotals, 'id' | 'date' | 'amount' | 'count'>[]
 
 // Every amount of a model is in integer cents.
 export interface InvoicesModel {
