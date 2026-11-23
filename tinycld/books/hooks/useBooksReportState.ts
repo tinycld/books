@@ -6,7 +6,8 @@ import { type BooksReportState, booksReportState } from '../lib/books-report-rou
 /**
  * What the Books report route draws for this report id (`booksReportState`). It reads the
  * one row, not the list of Books reports: the answer must not change when that list
- * reloads or fails. Core's report view reads the same row, so this adds no request.
+ * reloads or fails. Core's `useReportRecord` filters the same `id`, but this query has its
+ * own key and select, so it may load that subset once more.
  */
 export function useBooksReportState(reportId: string): BooksReportState {
     const [reportsCollection] = useStore('reports')
