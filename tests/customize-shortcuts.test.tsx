@@ -1,11 +1,12 @@
 // @vitest-environment happy-dom
-import { fireEvent, render, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, waitFor } from '@testing-library/react'
 import { useToastStore } from '@tinycld/core/lib/stores/toast-store'
 import { useWindowSizeStore } from '@tinycld/core/lib/stores/window-size-store'
 import { useWorkspaceStore } from '@tinycld/core/lib/stores/workspace-store'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CustomizeShortcutsDialog } from '../tinycld/books/components/sidebar/CustomizeShortcutsDialog'
-import type { Shortcut } from '../tinycld/books/lib/sidebar-shortcuts'
+import { useCustomizeShortcuts } from '../tinycld/books/hooks/useCustomizeShortcuts'
+import { MAX_SHORTCUTS, type Shortcut } from '../tinycld/books/lib/sidebar-shortcuts'
 import BooksSidebar from '../tinycld/books/sidebar'
 import { useShortcutsDialogStore } from '../tinycld/books/stores/shortcuts-dialog-store'
 import { holdWrites, refuseNthWrite } from './accounts-form-harness'
@@ -30,6 +31,7 @@ vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } 
 const CUSTOMERS: Shortcut = { kind: 'screen', ref: 'customers' }
 const VENDORS: Shortcut = { kind: 'screen', ref: 'vendors' }
 const INVOICE: Shortcut = { kind: 'new', ref: 'invoice' }
+const BILL: Shortcut = { kind: 'new', ref: 'bill' }
 const GONE_REPORT: Shortcut = { kind: 'report', ref: 'rptgone00000001' }
 
 const ROW = 'books-shortcuts-row-'
@@ -247,6 +249,38 @@ describe('Customize shortcuts dialog', () => {
         await waitFor(() =>
             expect(storedItems(shortcutsStore)).toEqual([[{ kind: 'report', ref: MY_SALES.id }]])
         )
+    })
+
+    // The picker's menu does not open in the unit-test DOM; the pick itself is covered by
+    // tests/e2e/sidebar-shortcuts.spec.ts. Here: what a pick does to the draft.
+    it('adds a picked shortcut to the end of the draft, and saves it', async () => {
+        const { shortcutsStore } = seedSidebar({ shortcuts: [CUSTOMERS] })
+        const { result } = renderHook(() => useCustomizeShortcuts(), { wrapper: SidebarProviders })
+        await waitFor(() => expect(result.current.canOpen).toBe(true))
+
+        act(() => result.current.open())
+        act(() => result.current.add(BILL))
+        act(() => result.current.add(BILL))
+        expect(result.current.rows.map(row => row.label)).toEqual(['Customers', 'New bill'])
+        expect(storedItems(shortcutsStore)).toEqual([[CUSTOMERS]])
+
+        act(() => result.current.save())
+        await waitFor(() => expect(storedItems(shortcutsStore)).toEqual([[CUSTOMERS, BILL]]))
+    })
+
+    it('shows the Add shortcut picker, and the full note at 30 shortcuts', async () => {
+        const full: Shortcut[] = Array.from({ length: MAX_SHORTCUTS }, (_, i) => ({
+            kind: 'register',
+            ref: `acct_${i}`,
+        }))
+        seedSidebar({ shortcuts: [CUSTOMERS] })
+        const { container } = renderShell()
+        await openDialog(container)
+        expect(byTestId(document.body, 'books-shortcuts-add')).not.toBeNull()
+        expect(byTestId(document.body, 'books-shortcuts-full')).toBeNull()
+
+        act(() => useShortcutsDialogStore.getState().setDraft(full))
+        expect(byTestId(document.body, 'books-shortcuts-full')).not.toBeNull()
     })
 
     it('closes the phone drawer when it opens', async () => {

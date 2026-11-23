@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react-native'
 import { shortcutRows } from '../lib/shortcut-rows'
 import {
+    addShortcut,
     DEFAULT_SHORTCUTS,
     moveShortcut,
     removeShortcut,
@@ -78,6 +79,7 @@ export function useCustomizeShortcuts() {
         isEmpty: items.length === 0,
         canSave,
         setDraft,
+        add: (shortcut: Shortcut) => setDraft(addShortcut(items, shortcut)),
         remove: (key: string) => setDraft(removeShortcut(items, key)),
         move: (key: string, by: -1 | 1) => setDraft(moveShortcut(items, key, by)),
         reorder: (next: CustomizeRow[]) => setDraft(next.map(row => row.shortcut)),
