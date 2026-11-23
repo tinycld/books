@@ -4,7 +4,7 @@ import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { router } from 'expo-router'
 import { Pencil } from 'lucide-react-native'
 import { Pressable, Text, View } from 'react-native'
-import { useCustomizeShortcuts } from '../../hooks/useCustomizeShortcuts'
+import { useOpenCustomizeShortcuts } from '../../hooks/useOpenCustomizeShortcuts'
 import { useShortcutRows } from '../../hooks/useShortcutRows'
 import type { ShortcutRow } from '../../lib/shortcut-rows'
 
@@ -40,7 +40,7 @@ function ShortcutsError({ isVisible, onRetry }: { isVisible: boolean; onRetry: (
 // Opens the Customize shortcuts dialog. Hidden until the list is read: the dialog edits
 // a copy of the list, and there is none to copy before that.
 function CustomizeButton() {
-    const { canOpen, open } = useCustomizeShortcuts()
+    const { canOpen, open } = useOpenCustomizeShortcuts()
     const setDrawerOpen = useWorkspaceStore(state => state.setDrawerOpen)
     const color = useThemeColor('muted-foreground')
     if (!canOpen) return null

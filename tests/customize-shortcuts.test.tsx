@@ -8,7 +8,7 @@ import { CustomizeShortcutsDialog } from '../tinycld/books/components/sidebar/Cu
 import type { Shortcut } from '../tinycld/books/lib/sidebar-shortcuts'
 import BooksSidebar from '../tinycld/books/sidebar'
 import { useShortcutsDialogStore } from '../tinycld/books/stores/shortcuts-dialog-store'
-import { refuseNthWrite } from './accounts-form-harness'
+import { holdWrites, refuseNthWrite } from './accounts-form-harness'
 import { byTestId } from './accounts-test-rows'
 import {
     idsWith,
@@ -156,6 +156,27 @@ describe('Customize shortcuts dialog', () => {
         expect(storedItems(shortcutsStore)).toEqual([[INVOICE, CUSTOMERS]])
 
         press(document.body as HTMLElement, 'books-shortcuts-save')
+        await waitFor(() => expect(storedItems(shortcutsStore)).toEqual([[CUSTOMERS]]))
+        await waitFor(() => expect(byTestId(document.body, 'books-shortcuts-dialog')).toBeNull())
+    })
+
+    it('dims Save and ignores Cancel while a write runs, then closes after the write', async () => {
+        const { shortcutsStore } = seedSidebar({ shortcuts: [INVOICE, CUSTOMERS] })
+        const { container } = renderShell()
+        await openDialog(container)
+        press(document.body as HTMLElement, `${ROW}new-invoice-remove`)
+
+        const release = holdWrites()
+        press(document.body as HTMLElement, 'books-shortcuts-save')
+        // The core Button draws its disabled look from isDisabled as data-disabled.
+        const isSaveDisabled = () =>
+            byTestId(document.body, 'books-shortcuts-save')?.getAttribute('data-disabled') ===
+            'true'
+        await waitFor(() => expect(isSaveDisabled()).toBe(true))
+        pressCancel()
+        expect(byTestId(document.body, 'books-shortcuts-dialog')).not.toBeNull()
+
+        release()
         await waitFor(() => expect(storedItems(shortcutsStore)).toEqual([[CUSTOMERS]]))
         await waitFor(() => expect(byTestId(document.body, 'books-shortcuts-dialog')).toBeNull())
     })
