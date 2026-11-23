@@ -8,6 +8,7 @@ import { type CustomizeRow, useCustomizeShortcuts } from '../../hooks/useCustomi
 import { type FocusRequest, type MoveDirection, useMovedFocus } from '../../hooks/useMovedFocus'
 import { shortcutTestId } from '../../lib/shortcut-rows'
 import { DashboardIconButton } from '../dashboard/DashboardIconButton'
+import { ShortcutPicker } from './ShortcutPicker'
 
 type Customize = ReturnType<typeof useCustomizeShortcuts>
 
@@ -120,6 +121,7 @@ export function CustomizeShortcutsDialog() {
             testID="books-shortcuts-dialog"
         >
             <Dialog.Body>
+                <ShortcutPicker list={dialog.draft} onAdd={dialog.add} />
                 <SortableList
                     data={dialog.rows}
                     keyExtractor={keyOf}
