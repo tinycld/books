@@ -1,14 +1,16 @@
 // @vitest-environment happy-dom
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
+import { useWindowSizeStore } from '@tinycld/core/lib/stores/window-size-store'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SectionPanel, SectionPanelScreen } from '../tinycld/books/components/settings/SectionPanel'
+import { SettingsShell } from '../tinycld/books/components/settings/SettingsShell'
 import {
     keepsSectionBody,
     SETTINGS_SECTIONS,
     sectionPanelState,
 } from '../tinycld/books/lib/settings-sections'
 import type { BooksSettings } from '../tinycld/books/types'
-import { seedBooks, settingsStore } from './accounts-form-harness'
+import { failSettingsRead, seedBooks, settingsStore } from './accounts-form-harness'
 import { byTestId } from './accounts-test-rows'
 import { SidebarProviders } from './sidebar-harness'
 import { expectLiveQueryError, silenceLog } from './silence-log'
@@ -151,6 +153,60 @@ describe('SectionPanel', () => {
             expect(byTestId(container, 'books-settings-company-business-name')).not.toBeNull()
         )
         expect(byTestId(container, 'books-settings-panel-error')).toBeNull()
+    })
+
+    it('reloads the settings read on Retry when the read found no row', async () => {
+        seed({ settingsEmptyOnce: true })
+        const { container } = render(<SectionPanel section="company" />, {
+            wrapper: SidebarProviders,
+        })
+        await waitFor(() =>
+            expect(byTestId(container, 'books-settings-panel-error')).not.toBeNull()
+        )
+        fireEvent.click(byTestId(container, 'books-settings-panel-retry') as Element)
+        await waitFor(() =>
+            expect(byTestId(container, 'books-settings-company-business-name')).not.toBeNull()
+        )
+        expect(byTestId(container, 'books-settings-panel-error')).toBeNull()
+    })
+})
+
+function businessName(container: HTMLElement) {
+    return byTestId(container, 'books-settings-company-business-name') as HTMLInputElement | null
+}
+
+// Types into the drawn Company form, fails the settings read, presses the Retry that is
+// shown, and waits for the read to load again.
+async function typeThenFailAndRetry(container: HTMLElement) {
+    await waitFor(() => expect(businessName(container)).not.toBeNull())
+    fireEvent.input(businessName(container) as Element, { target: { value: 'Acme Unsaved' } })
+    expect(businessName(container)?.value).toBe('Acme Unsaved')
+    act(() => failSettingsRead())
+    await waitFor(() => expect(byTestId(container, 'books-settings-panel-retry')).not.toBeNull())
+    fireEvent.click(byTestId(container, 'books-settings-panel-retry') as Element)
+    await waitFor(() => expect(byTestId(container, 'books-settings-panel-error')).toBeNull())
+}
+
+describe('a drawn section keeps its unsaved text through a later read', () => {
+    it('in the panel of core Settings', async () => {
+        seed({ settingsFailsLater: true })
+        expectLiveQueryError(settingsStore().id)
+        const { container } = render(<SectionPanelScreen section="company" />, {
+            wrapper: SidebarProviders,
+        })
+        await typeThenFailAndRetry(container)
+        expect(businessName(container)?.value).toBe('Acme Unsaved')
+    })
+
+    it('in the Books settings shell', async () => {
+        act(() => useWindowSizeStore.getState().setSize(1280, 800))
+        seed({ settingsFailsLater: true })
+        expectLiveQueryError(settingsStore().id)
+        const { container } = render(<SettingsShell section="company" />, {
+            wrapper: SidebarProviders,
+        })
+        await typeThenFailAndRetry(container)
+        expect(businessName(container)?.value).toBe('Acme Unsaved')
     })
 })
 

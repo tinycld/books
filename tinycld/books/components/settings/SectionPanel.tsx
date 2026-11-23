@@ -1,10 +1,14 @@
 import { LoadingState } from '@tinycld/core/components/LoadingState'
+import { log } from '@tinycld/core/lib/logger'
+import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
-import { useRef } from 'react'
 import { ScrollView, Text, View } from 'react-native'
 import { useBooksAccess } from '../../hooks/useBooksAccess'
 import { useBooksSettings } from '../../hooks/useBooksSettings'
+import { useLastDefined } from '../../hooks/useLastDefined'
+import { type LiveRecovery, mergeRecoveries } from '../../lib/live-recovery'
 import { keepsSectionBody, type SectionId, sectionPanelState } from '../../lib/settings-sections'
+import type { BooksSettings } from '../../types'
 import { SectionBody } from './SectionBody'
 
 function PanelLoading({ isVisible }: { isVisible: boolean }) {
@@ -53,22 +57,33 @@ function PanelNote({
 function PanelBody({
     isVisible,
     section,
+    settings,
     isAdmin,
 }: {
     isVisible: boolean
     section: SectionId
+    settings: BooksSettings | undefined
     isAdmin: boolean
 }) {
-    if (!isVisible) return null
-    return <SectionBody section={section} isAdmin={isAdmin} />
+    if (!isVisible || !settings) return null
+    return <SectionBody section={section} settings={settings} isAdmin={isAdmin} />
 }
+
+const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 
 /**
  * One Books settings section with its own load, error and access states and no shell
  * around it. The Books settings screen and the panels of core Settings both draw it, so a
- * section has one implementation behind its two entry points.
+ * section has one implementation behind its two entry points. `alsoRecover` holds the
+ * failed reads of a frame around the panel, so its Retry rebuilds them in the same call.
  */
-export function SectionPanel({ section }: { section: SectionId }) {
+export function SectionPanel({
+    section,
+    alsoRecover = NO_RECOVERY,
+}: {
+    section: SectionId
+    alsoRecover?: LiveRecovery
+}) {
     const access = useBooksAccess()
     const settings = useBooksSettings()
     const state = sectionPanelState(section, {
@@ -80,14 +95,19 @@ export function SectionPanel({ section }: { section: SectionId }) {
         isSettingsError: settings.hasLoadError,
         hasSettings: settings.settings !== undefined,
     })
-    // The section whose body was drawn: its body stays under a later loading or error state.
-    const drawn = useRef<SectionId | null>(null)
-    if (state === 'body') drawn.current = section
-    const showsBody = keepsSectionBody(state, drawn.current === section)
-    // Only a failed read is rebuilt; the access read every Books screen shares stays as it is.
+    // The section whose body was drawn: its body stays under a later loading or error state,
+    // with the last settings row, because a reload empties the read until it lands.
+    const drawnSection = useLastDefined(state === 'body' ? section : undefined)
+    const row = useLastDefined(settings.settings)
+    const showsBody = keepsSectionBody(state, drawnSection === section)
+    // Only a failed read (or a read with no row) is rebuilt; the access read every Books
+    // screen shares stays as it is.
     const retry = () => {
         if (access.isError) access.retry()
-        if (settings.hasLoadError) settings.retryLoad()
+        void recoverLiveQueries({
+            ...mergeRecoveries([settings.recovery, alsoRecover]),
+            onError: error => log.error('books.settings', error),
+        })
     }
 
     return (
@@ -104,7 +124,12 @@ export function SectionPanel({ section }: { section: SectionId }) {
                 testID="books-settings-panel-admin-only"
                 text="Only a Books admin can open this section."
             />
-            <PanelBody isVisible={showsBody} section={section} isAdmin={access.isAdmin} />
+            <PanelBody
+                isVisible={showsBody}
+                section={section}
+                settings={row}
+                isAdmin={access.isAdmin}
+            />
         </>
     )
 }

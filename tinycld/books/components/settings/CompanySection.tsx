@@ -1,7 +1,6 @@
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { FormErrorSummary, TextAreaInput, TextInput } from '@tinycld/core/ui/form'
 import { Text, View } from 'react-native'
-import { useBooksSettings } from '../../hooks/useBooksSettings'
 import { useSettingsForm } from '../../hooks/useSettingsForm'
 import { rootErrorOnly } from '../../lib/root-errors'
 import { type CompanyValues, companySchema, companyValues } from '../../lib/settings-schema'
@@ -108,9 +107,13 @@ function CompanyDetails({ settings, isAdmin }: { settings: BooksSettings; isAdmi
 }
 
 // Every Books reader may preview the printed documents; only an admin edits the details.
-export function CompanySection({ isAdmin }: { isAdmin: boolean }) {
-    const { settings } = useBooksSettings()
-    if (!settings) return null
+export function CompanySection({
+    settings,
+    isAdmin,
+}: {
+    settings: BooksSettings
+    isAdmin: boolean
+}) {
     return (
         <View className="gap-4">
             <CompanyDetails settings={settings} isAdmin={isAdmin} />

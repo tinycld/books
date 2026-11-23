@@ -6,7 +6,6 @@ import { type FieldValues, type Path, useForm, type z, zodResolver } from '@tiny
 import { useRef } from 'react'
 import { messageOnlyRefusal } from '../lib/refusal'
 import type { BooksSettings } from '../types'
-import { useBooksSettings } from './useBooksSettings'
 
 type Options<V extends FieldValues> = {
     schema: z.ZodType<V, V>
@@ -16,7 +15,6 @@ type Options<V extends FieldValues> = {
 
 export function useSettingsForm<V extends FieldValues>({ schema, values, toPatch }: Options<V>) {
     const [settingsCollection] = useStore('books_settings')
-    const { settings } = useBooksSettings()
     const addToast = useToastStore(s => s.addToast)
     const form = useForm<V>({
         resolver: zodResolver(schema),
@@ -29,6 +27,9 @@ export function useSettingsForm<V extends FieldValues>({ schema, values, toPatch
 
     const mutation = useMutation({
         mutationFn: function* (parsed: V) {
+            // The row the drawn form's screen holds in the store. A read of its own here would be
+            // one more query that a settings Retry has to rebuild before Save works again.
+            const [settings] = settingsCollection.toArray
             if (!settings) throw new Error('The Books settings could not be found')
             yield settingsCollection.update(settings.id, draft => {
                 Object.assign(draft, toPatch(parsed))

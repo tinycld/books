@@ -1,5 +1,4 @@
 import { Text, View } from 'react-native'
-import { useBooksSettings } from '../../hooks/useBooksSettings'
 import { useMyCloseOverride } from '../../hooks/useMyCloseOverride'
 import { ownOverrideLine } from '../../lib/overrides'
 import { formatDay } from '../../lib/register-range'
@@ -37,12 +36,12 @@ function AccountingReadOnly({ settings }: { settings: BooksSettings }) {
     )
 }
 
-function AccountingForms() {
+function AccountingForms({ settings }: { settings: BooksSettings }) {
     return (
         <View className="gap-4">
             <SectionCard>
                 <View className="gap-4">
-                    <FiscalYearForm />
+                    <FiscalYearForm settings={settings} />
                     <CloseBooksBlock />
                 </View>
             </SectionCard>
@@ -51,9 +50,13 @@ function AccountingForms() {
     )
 }
 
-export function AccountingSection({ isAdmin }: { isAdmin: boolean }) {
-    const { settings } = useBooksSettings()
-    if (!settings) return null
+export function AccountingSection({
+    settings,
+    isAdmin,
+}: {
+    settings: BooksSettings
+    isAdmin: boolean
+}) {
     if (!isAdmin) return <AccountingReadOnly settings={settings} />
-    return <AccountingForms />
+    return <AccountingForms settings={settings} />
 }
