@@ -8,6 +8,9 @@ interface BooksUIState {
     toggleNew: () => void
     // Opens the New section and never closes it: the phone's New button calls this.
     openNew: () => void
+    // The Reports section of the sidebar. Closed until the user opens it.
+    isReportsOpen: boolean
+    toggleReports: () => void
 }
 
 export const useBooksUIStore = create<BooksUIState>()(
@@ -24,11 +27,19 @@ export const useBooksUIStore = create<BooksUIState>()(
             openNew: () => {
                 set({ isNewOpen: true })
             },
+            isReportsOpen: false,
+            toggleReports: () => {
+                set(s => ({ isReportsOpen: !s.isReportsOpen }))
+            },
         }),
         {
             name: 'tinycld_books_ui',
             storage: asyncStorage,
-            partialize: s => ({ isAccountingOpen: s.isAccountingOpen, isNewOpen: s.isNewOpen }),
+            partialize: s => ({
+                isAccountingOpen: s.isAccountingOpen,
+                isNewOpen: s.isNewOpen,
+                isReportsOpen: s.isReportsOpen,
+            }),
         }
     )
 )

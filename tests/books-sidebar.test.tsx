@@ -27,7 +27,6 @@ describe('useBooksSidebar', () => {
             'sales',
             'expenses',
             'lists',
-            'reports',
         ])
         expect(result.current.accounting.map(e => e.id)).toEqual([
             'accounts',
@@ -36,8 +35,9 @@ describe('useBooksSidebar', () => {
         ])
     })
 
-    // The real entries, not allAvailable: Reports must be available on its own.
-    it('with the real entries, top is Dashboard, Banking, Sales, Expenses, Lists then Reports, and Reports opens the Books hub', () => {
+    // Reports is a section of the sidebar (components/sidebar/ReportsSection.tsx), not an
+    // entry of the fixed navigation.
+    it('with the real entries, top is Dashboard, Banking, Sales, Expenses then Lists, with no Reports entry', () => {
         const { result } = renderHook(() => useBooksSidebar())
         expect(result.current.top.map(e => e.id)).toEqual([
             'dashboard',
@@ -45,10 +45,8 @@ describe('useBooksSidebar', () => {
             'sales',
             'expenses',
             'lists',
-            'reports',
         ])
-        const reports = result.current.top.find(e => e.id === 'reports')
-        expect(reports).toMatchObject({ href: 'reports', params: { package: 'books' } })
+        expect(SIDEBAR_ENTRIES.some(e => e.id === 'reports')).toBe(false)
     })
 
     it('returns an empty accounting list when no accounting entry is available', () => {
@@ -63,7 +61,6 @@ describe('useBooksSidebar', () => {
             'sales',
             'expenses',
             'lists',
-            'reports',
         ])
     })
 
@@ -78,7 +75,6 @@ describe('useBooksSidebar', () => {
             'sales',
             'expenses',
             'lists',
-            'reports',
         ])
         expect(result.current.accounting.map(e => e.id)).toEqual([
             'accounts',
