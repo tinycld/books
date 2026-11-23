@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test'
-import { navigateToPackage } from '@tinycld/core/e2e-helpers'
+import { inStatement, navigateToPackage, waitForTableFit } from '@tinycld/core/e2e-helpers'
 import { rangeWords } from '@tinycld/core/reports/lib/dates'
 import { AP_AGING_TITLE } from '~/tinycld/books/lib/ap-aging-fixture'
 import { EXPENSES_BY_VENDOR_TITLE } from '~/tinycld/books/lib/expenses-by-vendor-fixture'
@@ -29,7 +29,7 @@ import {
 } from './books-report-helpers'
 import { EXPENSE_URL } from './expense-helpers'
 import { expectLabelsWrapWhole, postBillOnAccounts, runLanded } from './expenses-by-vendor-helpers'
-import { openBooks, uniqueName } from './record-form-helpers'
+import { CLASSIC_SCROLLBARS, openBooks, uniqueName } from './record-form-helpers'
 import {
     boxAccounts,
     boxRows,
@@ -199,7 +199,7 @@ test.describe('report-1099: report', () => {
         expect(figures(totalRow(shown))).toEqual(figures(vendorRow(shown, vendor)))
     })
 
-    test('Show moves a vendor across the threshold the heading prints, and an untracked vendor shows only under Not tracked for 1099', async ({
+    test('Show puts a vendor one cent under the threshold the heading prints under Below, and one at it under At or above', async ({
         page,
     }) => {
         await openBooks(page, DESKTOP)
@@ -209,68 +209,56 @@ test.describe('report-1099: report', () => {
         // does, so the vendor and expense helpers start on the screen they need.
         await navigateToPackage(page, 'books')
 
-        const tracked = uniqueName('Form1099 Edge Co')
-        await createTrackedVendor(page, { name: tracked })
-        // Made here, from the Vendors list that createTrackedVendor leaves: a second window
-        // reopens Books at this session's last Books route (an expense's screen), where
-        // createUntrackedVendor has no vendor list to start from.
-        const untracked = uniqueName('Form1099 Untracked Co')
-        await createUntrackedVendor(page, untracked)
+        const under = uniqueName('Form1099 Under Co')
+        const at = uniqueName('Form1099 At Co')
+        await createTrackedVendor(page, { name: under })
+        await createTrackedVendor(page, { name: at })
         const boxed = await ownBoxedAccount(page, uniqueName('Edge Labor'), NEC_1)
         await expenseFor(page, {
-            vendor: tracked,
+            vendor: under,
             account: boxed.name,
             amount: centsText(threshold - 1),
         })
+        await expenseFor(page, { vendor: at, account: boxed.name, amount: centsText(threshold) })
 
-        await openFor(page, 'below', [tracked])
+        await openFor(page, 'below', [under, at])
         const below = await snapshotWhen(
             page,
             reportSnapshot,
-            s => vendorRow(s, tracked) !== undefined,
-            `${tracked} is under Below the threshold`
+            s => vendorRow(s, under) !== undefined,
+            `${under} is under Below the threshold`
         )
-        expect(figures(vendorRow(below, tracked)).reportable).toBe(threshold - 1)
+        expect(vendorRows(below).map(r => r.label)).toEqual([under])
+        expect(figures(vendorRow(below, under)).reportable).toBe(threshold - 1)
+
         await chooseShow(page, 'meets')
-        await expectNoRows(page)
-
-        // The report stays open on `page`; a second window of the same session posts the
-        // cent and the untracked vendor's expense.
-        const poster = await page.context().newPage()
-        try {
-            await openBooks(poster, DESKTOP)
-            await expenseFor(poster, { vendor: tracked, account: boxed.name, amount: '0.01' })
-            await expenseFor(poster, {
-                vendor: untracked,
-                account: boxed.name,
-                amount: centsText(threshold),
-            })
-        } finally {
-            await poster.close()
-        }
-
-        await refreshReport(page)
+        // Only the At or above run shows `at`: the Below run had `under` alone.
         const meets = await snapshotWhen(
             page,
             reportSnapshot,
-            s => vendorRow(s, tracked) !== undefined,
-            `${tracked} is under At or above the threshold after Refresh`
+            s => vendorRow(s, at) !== undefined,
+            `${at} is under At or above the threshold`
         )
-        expect(figures(vendorRow(meets, tracked)).reportable).toBe(threshold)
+        expect(vendorRows(meets).map(r => r.label)).toEqual([at])
+        expect(figures(vendorRow(meets, at)).reportable).toBe(threshold)
+    })
 
-        await filterTo1099Vendors(page, [untracked])
-        const both = await snapshotWhen(
-            page,
-            reportSnapshot,
-            s => vendorRows(s).length > 0,
-            'the vendor rows with both vendors picked'
-        )
-        expect(vendorRows(both).map(r => r.label)).toEqual([tracked])
+    test('an untracked vendor shows only under Not tracked for 1099', async ({ page }) => {
+        await openBooks(page, DESKTOP)
+        const untracked = uniqueName('Form1099 Untracked Co')
+        await createUntrackedVendor(page, untracked)
+        const boxed = await ownBoxedAccount(page, uniqueName('Untracked Labor'), NEC_1)
+        // Reportable in a box and at or above the threshold (checked below): a tracked vendor
+        // with this payment would show under At or above the threshold.
+        const amount = 9_900_000
+        await expenseFor(page, {
+            vendor: untracked,
+            account: boxed.name,
+            amount: centsText(amount),
+        })
 
-        await chooseShow(page, 'below')
-        await expectNoRows(page)
-
-        await chooseShow(page, 'untracked')
+        await openFor(page, 'untracked', [untracked])
+        expect(amount).toBeGreaterThanOrEqual(await thresholdOf(page))
         const notTracked = await snapshotWhen(
             page,
             reportSnapshot,
@@ -278,27 +266,20 @@ test.describe('report-1099: report', () => {
             `${untracked} is under Not tracked for 1099`
         )
         expect(vendorRows(notTracked).map(r => r.label)).toEqual([untracked])
-        expect(figures(vendorRow(notTracked, untracked)).all).toBe(threshold)
+        expect(figures(vendorRow(notTracked, untracked)).all).toBe(amount)
 
+        await chooseShow(page, 'meets')
+        await expectNoRows(page)
+        await chooseShow(page, 'below')
+        await expectNoRows(page)
         await chooseShow(page, 'tracked')
-        const all = await snapshotWhen(
-            page,
-            reportSnapshot,
-            s => vendorRow(s, tracked) !== undefined,
-            `${tracked} is under All 1099 vendors`
-        )
-        expect(vendorRows(all).map(r => r.label)).toEqual([tracked])
+        await expectNoRows(page)
     })
 
-    test('Form 1099-NEC leaves out a MISC box, and Largest reportable orders by Reportable', async ({
-        page,
-    }) => {
+    test('Form 1099-NEC leaves out a MISC box, and Form 1099-MISC an NEC box', async ({ page }) => {
         await openBooks(page, DESKTOP)
-        // A sorts after B by name and before it by Reportable.
-        const vendorA = uniqueName('Yarrow Form1099')
-        const vendorB = uniqueName('Aspen Form1099')
-        await createTrackedVendor(page, { name: vendorA })
-        await createTrackedVendor(page, { name: vendorB })
+        const vendor = uniqueName('Form1099 Form Co')
+        await createTrackedVendor(page, { name: vendor })
         const nec = { name: uniqueName('Form Labor') }
         const misc = { name: uniqueName('Form Rent') }
         const necId = await createExpenseAccount(page, nec.name)
@@ -307,16 +288,15 @@ test.describe('report-1099: report', () => {
             { id: necId, boxLabel: NEC_1 },
             { id: miscId, boxLabel: MISC_1 },
         ])
-        await expenseFor(page, { vendor: vendorA, account: nec.name, amount: '300.00' })
-        await expenseFor(page, { vendor: vendorA, account: misc.name, amount: '200.00' })
-        await expenseFor(page, { vendor: vendorB, account: nec.name, amount: '400.00' })
+        await expenseFor(page, { vendor, account: nec.name, amount: '300.00' })
+        await expenseFor(page, { vendor, account: misc.name, amount: '200.00' })
 
-        await openFor(page, 'tracked', [vendorA, vendorB])
+        await openFor(page, 'tracked', [vendor])
         await snapshotWhen(
             page,
             reportSnapshot,
-            s => vendorRows(s).length === 2,
-            'both vendors show under All 1099 vendors'
+            s => figures(vendorRow(s, vendor)).all === 50000,
+            `${vendor} reads 500.00 under NEC and MISC`
         )
 
         await chooseForm(page, 'nec')
@@ -324,34 +304,67 @@ test.describe('report-1099: report', () => {
         const necOnly = await snapshotWhen(
             page,
             reportSnapshot,
-            s => figures(vendorRow(s, vendorA)).all === 30000,
-            `${vendorA} reads 300.00 under 1099-NEC`
+            s => figures(vendorRow(s, vendor)).all === 30000,
+            `${vendor} reads 300.00 under 1099-NEC`
         )
-        expect(figures(vendorRow(necOnly, vendorA))).toEqual({
+        expect(figures(vendorRow(necOnly, vendor))).toEqual({
             reportable: 30000,
             excluded: null,
             all: 30000,
         })
-        expect(boxRows(necOnly, vendorA).map(r => r.label)).toEqual([NEC_1])
+        expect(boxRows(necOnly, vendor).map(r => r.label)).toEqual([NEC_1])
 
         await chooseForm(page, 'misc')
         await expect(page.getByTestId('report-header-param-form')).toHaveText('Form: 1099-MISC')
         const miscOnly = await snapshotWhen(
             page,
             reportSnapshot,
-            s => vendorRows(s).length === 1,
-            'only one vendor under 1099-MISC'
+            s => figures(vendorRow(s, vendor)).all === 20000,
+            `${vendor} reads 200.00 under 1099-MISC`
         )
-        expect(vendorRows(miscOnly).map(r => r.label)).toEqual([vendorA])
-        expect(figures(vendorRow(miscOnly, vendorA)).all).toBe(20000)
-        expect(boxRows(miscOnly, vendorA).map(r => r.label)).toEqual([MISC_1])
+        expect(vendorRows(miscOnly).map(r => r.label)).toEqual([vendor])
+        expect(figures(vendorRow(miscOnly, vendor)).all).toBe(20000)
+        expect(boxRows(miscOnly, vendor).map(r => r.label)).toEqual([MISC_1])
+    })
 
-        await chooseForm(page, 'all')
+    test('a vendor with no payment in a box of the chosen form has no row', async ({ page }) => {
+        await openBooks(page, DESKTOP)
+        const vendor = uniqueName('Form1099 NecOnly Co')
+        await createTrackedVendor(page, { name: vendor })
+        const boxed = await ownBoxedAccount(page, uniqueName('NecOnly Labor'), NEC_1)
+        await expenseFor(page, { vendor, account: boxed.name, amount: '300.00' })
+
+        await openFor(page, 'tracked', [vendor])
+        const shown = await snapshotWhen(
+            page,
+            reportSnapshot,
+            s => figures(vendorRow(s, vendor)).all === 30000,
+            `${vendor} reads 300.00 under NEC and MISC`
+        )
+        expect(vendorRows(shown).map(r => r.label)).toEqual([vendor])
+
+        await chooseForm(page, 'misc')
+        await expect(page.getByTestId('report-header-param-form')).toHaveText('Form: 1099-MISC')
+        await expectNoRows(page)
+    })
+
+    test('Largest reportable orders the vendors by Reportable', async ({ page }) => {
+        await openBooks(page, DESKTOP)
+        // A sorts after B by name and before it by Reportable.
+        const vendorA = uniqueName('Yarrow Form1099')
+        const vendorB = uniqueName('Aspen Form1099')
+        await createTrackedVendor(page, { name: vendorA })
+        await createTrackedVendor(page, { name: vendorB })
+        const boxed = await ownBoxedAccount(page, uniqueName('Order Labor'), NEC_1)
+        await expenseFor(page, { vendor: vendorA, account: boxed.name, amount: '500.00' })
+        await expenseFor(page, { vendor: vendorB, account: boxed.name, amount: '400.00' })
+
+        await openFor(page, 'tracked', [vendorA, vendorB])
         const byName = await snapshotWhen(
             page,
             reportSnapshot,
             s => vendorRows(s).length === 2,
-            'both vendors under NEC and MISC'
+            'both vendors under All 1099 vendors'
         )
         expect(vendorRows(byName).map(r => r.label)).toEqual([vendorB, vendorA])
 
@@ -591,20 +604,32 @@ const OTHER_VENDOR_REPORTS = [
 ]
 
 // Long line descriptions (spec §3 "Phone"): with the date, number and account, each payment
-// label wraps at 375 and 390 and stays within three lines.
+// label wraps in the 375 px and the 360 px row and stays within three lines.
 const CHECK_DESCRIPTION = 'Studio design suite renewal'
 const CARD_DESCRIPTION = 'Conference booth artwork'
 
-// Spec §3 "Phone" at the current viewport: the table takes its `mobile` arrangement, the
-// vendor row and each payment row of the opened box have the label on line 1 and the three
-// figures on line 2, the payment labels wrap whole, and nothing is cut or scrolls sideways.
+// Spec §3 "Phone" when the `mobile` arrangement does not fit the row (eight-digit figures in
+// a 360 px row): the label on line 1, Reportable and Excluded on line 2, All payments on
+// line 3.
+const FORM_1099_NARROW_LINES = [['reportable', 'excluded'], ['all']] as const
+
+// Waits until core has fitted the report table to the width its rows have now, and asserts
+// that width: the viewport less the 15 px stable gutter of the classic scrollbars.
+async function expectRowWidth(page: Page, width: number): Promise<void> {
+    await expect(page.getByTestId('toolbar-more-button')).toBeVisible()
+    await waitForTableFit(page)
+    await expect(inStatement(page, 'report-table')).toHaveAttribute('data-fit-width', String(width))
+}
+
+// Spec §3 "Phone" at the current viewport: the vendor row and each payment row of the opened
+// box have the label on line 1 and the figures on `phoneLines` below it, the payment labels
+// wrap whole, and nothing is cut or scrolls sideways.
 async function expectOpenedBoxFitsPhone(
     page: Page,
     vendor: string,
-    paymentCount: number
+    paymentCount: number,
+    phoneLines: readonly (readonly string[])[]
 ): Promise<void> {
-    await expect(page.getByTestId('toolbar-more-button')).toBeVisible()
-    await expect(page.getByTestId('report-table')).toHaveAttribute('data-layout', 'mobile')
     const shown = await snapshotWhen(
         page,
         reportSnapshot,
@@ -613,10 +638,10 @@ async function expectOpenedBoxFitsPhone(
     )
     const row = vendorRow(shown, vendor)
     if (!row) throw new Error(`no mounted row "${vendor}"`)
-    await expectSalesPhoneLines(page, row.id, FORM_1099_PHONE_LINES)
+    await expectSalesPhoneLines(page, row.id, phoneLines)
     const lines = paymentLines(shown, vendor, NEC_1)
     expect(lines, `the ${paymentCount} payment rows of ${NEC_1}`).toHaveLength(paymentCount)
-    for (const line of lines) await expectSalesPhoneLines(page, line.id, FORM_1099_PHONE_LINES)
+    for (const line of lines) await expectSalesPhoneLines(page, line.id, phoneLines)
     await expectLabelsWrapWhole(
         page,
         lines.map(line => line.id)
@@ -734,47 +759,19 @@ test.describe('report-1099: entry points and phone rows', () => {
         await none.fresh.close()
     })
 
-    // The phone run: the phone path is other code (the report's `display.layouts` `mobile`
-    // arrangement, core's phone row layout). 375 and 390 are both measured widths of D1
-    // (lesson 21).
-    test('an opened box reads on a 390 px and a 375 px phone with no sideways scroll', async ({
+    // The phone runs: the phone path is other code (the report's `display.layouts` `mobile`
+    // arrangement, core's phone row layout). Both give the page classic scrollbars, as Linux
+    // (CI) and Windows draw them, so the rows' stable gutter takes 15 px on every machine
+    // (macOS overlay scrollbars take none): the 390 px phone gives the 375 px row of D1
+    // (lesson 21), and the 375 px phone a 360 px row.
+    test('an opened box reads on a 390 px phone in the two-line phone rows with no sideways scroll', async ({
         page,
     }) => {
-        await openBooks(page, DESKTOP)
-        const vendor = uniqueName('Form1099 Phone Co')
-        await createTrackedVendor(page, { name: vendor })
-        const boxed = await ownBoxedAccount(page, uniqueName('Phone Labor'), NEC_1)
-        // Figures of eight digits: the three must fit one phone line.
-        await expenseFor(page, {
-            vendor,
-            account: boxed.name,
-            amount: '640152.50',
-            description: CHECK_DESCRIPTION,
-        })
-        await expenseFor(page, {
-            vendor,
-            account: boxed.name,
-            amount: '66100.00',
-            method: 'Credit card',
-            description: CARD_DESCRIPTION,
-        })
-
-        await openFor(page, 'tracked', [vendor])
-        const shown = await snapshotWhen(
-            page,
-            reportSnapshot,
-            s => figures(vendorRow(s, vendor)).all === 70625250,
-            `${vendor} reads 706,252.50 in All payments`
-        )
-        expect(figures(vendorRow(shown, vendor))).toEqual({
-            reportable: 64015250,
-            excluded: 6610000,
-            all: 70625250,
-        })
+        const vendor = await openPhoneVendor(page)
 
         await page.setViewportSize(PHONE)
-        await expect(page.getByTestId('toolbar-more-button')).toBeVisible()
-        await expect(page.getByTestId('report-table')).toHaveAttribute('data-layout', 'mobile')
+        await expectRowWidth(page, 375)
+        await expect(inStatement(page, 'report-table')).toHaveAttribute('data-layout', 'mobile')
         const closed = await snapshotWhen(
             page,
             reportSnapshot,
@@ -785,9 +782,59 @@ test.describe('report-1099: entry points and phone rows', () => {
         if (!row) throw new Error(`no mounted row "${vendor}"`)
         await expectSalesPhoneLines(page, row.id, FORM_1099_PHONE_LINES)
         await openBox(page, vendor, NEC_1)
-        await expectOpenedBoxFitsPhone(page, vendor, 2)
+        await expect(inStatement(page, 'report-table')).toHaveAttribute('data-layout', 'mobile')
+        await expectOpenedBoxFitsPhone(page, vendor, 2, FORM_1099_PHONE_LINES)
+    })
+
+    test('an opened box reads on a 375 px phone with All payments on line 3 and no sideways scroll', async ({
+        page,
+    }) => {
+        const vendor = await openPhoneVendor(page)
 
         await page.setViewportSize({ width: 375, height: 844 })
-        await expectOpenedBoxFitsPhone(page, vendor, 2)
+        await expectRowWidth(page, 360)
+        await openBox(page, vendor, NEC_1)
+        await expectOpenedBoxFitsPhone(page, vendor, 2, FORM_1099_NARROW_LINES)
     })
 })
+
+// The setup of the phone runs: a tracked vendor with two payments of eight-digit figures in
+// one NEC box, one by check and one by card with long descriptions. Leaves the report open
+// at desktop width on today, narrowed to the vendor, with classic scrollbars. Returns the
+// vendor's name.
+async function openPhoneVendor(page: Page): Promise<string> {
+    await openBooks(page, DESKTOP)
+    const vendor = uniqueName('Form1099 Phone Co')
+    await createTrackedVendor(page, { name: vendor })
+    const boxed = await ownBoxedAccount(page, uniqueName('Phone Labor'), NEC_1)
+    await expenseFor(page, {
+        vendor,
+        account: boxed.name,
+        amount: '640152.50',
+        description: CHECK_DESCRIPTION,
+    })
+    await expenseFor(page, {
+        vendor,
+        account: boxed.name,
+        amount: '66100.00',
+        method: 'Credit card',
+        description: CARD_DESCRIPTION,
+    })
+
+    await openFor(page, 'tracked', [vendor])
+    const shown = await snapshotWhen(
+        page,
+        reportSnapshot,
+        s => figures(vendorRow(s, vendor)).all === 70625250,
+        `${vendor} reads 706,252.50 in All payments`
+    )
+    expect(figures(vendorRow(shown, vendor))).toEqual({
+        reportable: 64015250,
+        excluded: 6610000,
+        all: 70625250,
+    })
+    // Classic scrollbars, as Windows and Linux (CI) draw them: the rows' stable gutter takes
+    // width from them. macOS draws overlay scrollbars, which take none.
+    await page.addStyleTag({ content: CLASSIC_SCROLLBARS })
+    return vendor
+}
