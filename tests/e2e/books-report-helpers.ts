@@ -152,6 +152,8 @@ export async function openBooksMenu(page: Page): Promise<void> {
     await expect.poll(async () => (await panel.boundingBox())?.x).toBe(0)
 }
 
+const OPEN_FOLD_TIMEOUT_MS = 5000
+
 // Opens the Reports section of the Books sidebar and leaves it open. The sidebar must be on
 // screen (on a phone: the Books menu, the drawer). The fold state is kept across screens
 // and reloads (books-ui-store persists it through AsyncStorage, which hydrates a tick after
@@ -160,8 +162,6 @@ export async function openBooksMenu(page: Page): Promise<void> {
 // that hydration had just opened closes it, the label reads Expand again, and the next pass
 // opens it. The retries stop at the default expect timeout (5s), so a stuck fold fails with
 // its own message and not at the test timeout.
-const OPEN_FOLD_TIMEOUT_MS = 5000
-
 export async function openReportsSection(page: Page): Promise<void> {
     const toggle = page.getByTestId('books-sidebar-reports-toggle').filter({ visible: true })
     await expect(toggle).toHaveAttribute('aria-label', /^(Expand|Collapse) Reports$/)
