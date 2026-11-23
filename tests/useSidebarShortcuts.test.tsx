@@ -105,13 +105,14 @@ describe('useSidebarShortcuts read', () => {
     it('shows no shortcuts and is not ready when no user is signed in', async () => {
         auth.user = null
         seedBooks({ level: 'bookkeeper' })
-        guardedStore<BooksSidebarShortcuts>('books_sidebar_shortcuts', [])
+        const held = heldOnDemandStore<BooksSidebarShortcuts>('books_sidebar_shortcuts', [])
 
         const { result } = renderHook(() => useSidebarShortcuts(), { wrapper })
-        await act(async () => {
-            await new Promise(resolve => setTimeout(resolve, 30))
-        })
+        // Flushes the pending effects and microtasks; the disabled query asks the store
+        // for nothing, so there is no load to wait for.
+        await act(async () => {})
 
+        expect(held.loads()).toBe(0)
         expect(result.current.shortcuts).toEqual([])
         expect(result.current.isReady).toBe(false)
         act(() => result.current.save([CUSTOMERS]))
