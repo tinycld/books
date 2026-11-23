@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, login, navigateToPackage, test } from '@tinycld/core/e2e-helpers'
+import { appShell, expect, login, navigateToPackage, test } from '@tinycld/core/e2e-helpers'
 import { DESKTOP, PHONE } from './account-register-helpers'
 import { setLevelOf } from './books-access-helpers'
 import { ACCOUNT_LABELS } from './journal-entries-helpers'
@@ -246,7 +246,11 @@ async function expectNewActionsShown(page: Page) {
     await expect(newActionItem(page, 'customer')).toBeInViewport()
 }
 
-// The owner makes this test's own member a reader, before the member opens Books.
+// The owner makes this test's own member a reader. books_access has no realtime, so a
+// member's page reads a new level on its next load only. The member's page may already
+// have read the old level: after sign-in the app lands on the first installed package,
+// which is Books when Books is the only one (as in the Books CI). So the member's page
+// loads again after the change.
 async function readerView(
     page: Page,
     freshMember: { user: { email: string }; page: Page },
@@ -255,6 +259,8 @@ async function readerView(
     await login(page)
     await navigateToPackage(page, 'books')
     await setLevelOf(page, freshMember.user.email, 'read_only')
+    await freshMember.page.reload()
+    await appShell(freshMember.page).waitFor()
     await openBooksAt(freshMember.page, size)
     return freshMember.page
 }
