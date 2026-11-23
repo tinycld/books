@@ -9,7 +9,8 @@ import { useBooksUIStore } from '../stores/books-ui-store'
 
 // The round New button of the phone layout. The New actions are in the Books sidebar, which
 // on a phone is the drawer, and core's drawer has no visible control that opens it (only a
-// pan from the left edge). So the button opens the drawer with the New section open.
+// pan from the left edge). So the button opens the drawer with the New section open, drawn
+// first (books-ui-store isNewFirst).
 export function NewFab() {
     const isMobile = useBreakpoint() === 'mobile'
     const { isVisible } = useNewMenu()

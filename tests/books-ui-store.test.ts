@@ -1,11 +1,14 @@
+import { useWorkspaceStore } from '@tinycld/core/lib/stores/workspace-store'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useBooksUIStore } from '../tinycld/books/stores/books-ui-store'
 
 describe('useBooksUIStore', () => {
     beforeEach(() => {
+        useWorkspaceStore.getState().setDrawerOpen(false)
         useBooksUIStore.setState({
             isAccountingOpen: true,
             isNewOpen: false,
+            isNewFirst: false,
             isReportsOpen: false,
         })
     })
@@ -30,6 +33,18 @@ describe('useBooksUIStore', () => {
         useBooksUIStore.getState().toggleNew()
         expect(useBooksUIStore.getState().isNewOpen).toBe(false)
         useBooksUIStore.getState().openNew()
+        expect(useBooksUIStore.getState().isNewOpen).toBe(true)
+    })
+
+    it('openNew draws New first until the drawer closes; toggleNew does not', () => {
+        expect(useBooksUIStore.getState().isNewFirst).toBe(false)
+        useBooksUIStore.getState().toggleNew()
+        expect(useBooksUIStore.getState().isNewFirst).toBe(false)
+        useBooksUIStore.getState().openNew()
+        useWorkspaceStore.getState().setDrawerOpen(true)
+        expect(useBooksUIStore.getState().isNewFirst).toBe(true)
+        useWorkspaceStore.getState().setDrawerOpen(false)
+        expect(useBooksUIStore.getState().isNewFirst).toBe(false)
         expect(useBooksUIStore.getState().isNewOpen).toBe(true)
     })
 

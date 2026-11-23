@@ -3,10 +3,17 @@ import { expect, login, navigateToPackage, test } from '@tinycld/core/e2e-helper
 import { DESKTOP, PHONE } from './account-register-helpers'
 import { setLevelOf } from './books-access-helpers'
 import { ACCOUNT_LABELS } from './journal-entries-helpers'
-import { newActionItem, newActionTestId, openNewAction, openNewMenu } from './new-menu-helpers'
+import {
+    newActionItem,
+    newActionTestId,
+    newSectionToggle,
+    openNewAction,
+    openNewMenu,
+} from './new-menu-helpers'
 import {
     addShortcut,
     cancelCustomize,
+    closeSidebar,
     DEFAULT_SLUGS,
     dialogRow,
     expectShortcuts,
@@ -14,6 +21,7 @@ import {
     openCustomize,
     pressShortcut,
     saveShortcuts,
+    shortcutRow,
     showSidebar,
 } from './sidebar-shortcuts-helpers'
 
@@ -48,6 +56,38 @@ const NEW_GROUP_ACTIONS = [
     { group: 'customers', id: 'invoice', url: /\/a\/books\/invoices\/new/ },
     { group: 'vendors', id: 'bill', url: /\/a\/books\/bills\/new/ },
     { group: 'other', id: 'transfer', url: /\/a\/books\/transfers\/new/ },
+]
+
+// Seven screens and eighteen forms, added to the five defaults: the full list of 30
+// (MAX_SHORTCUTS), a Shortcuts section taller than a phone.
+const LONG_LIST_SCREENS = [
+    'Dashboard',
+    'Banking',
+    'Sales',
+    'Expenses',
+    'Lists',
+    'Chart of Accounts',
+    'Reconcile',
+]
+const LONG_LIST_FORMS = [
+    'Receive payment',
+    'Pay bills',
+    'New statement',
+    'New customer',
+    'New invoice',
+    'New estimate',
+    'New sales receipt',
+    'New credit memo',
+    'New refund receipt',
+    'New vendor',
+    'New bill',
+    'New expense',
+    'New vendor credit',
+    'New vendor refund',
+    'New journal entry',
+    'New transfer',
+    'New bank deposit',
+    'New product or service',
 ]
 
 async function backToDashboard(page: Page) {
@@ -172,7 +212,56 @@ test.describe('sidebar-shortcuts: the New section', () => {
         await newActionItem(page, 'transfer').click()
         await expect(page).toHaveURL(/\/a\/books\/transfers\/new/)
     })
+
+    // With 30 shortcuts the Shortcuts section is taller than a phone. The round New button
+    // must still show the New actions without a scroll, also when the user scrolled the
+    // drawer before. A click scrolls its target into view, so the checks read the viewport
+    // and press nothing in the section.
+    test('phone: with a long Shortcuts list, the round New button shows the New actions', async ({
+        freshMember,
+    }) => {
+        const { page } = freshMember
+        await openBooksAt(page, PHONE)
+        await openCustomize(page)
+        const added: string[] = []
+        for (const label of LONG_LIST_SCREENS) {
+            added.push(await addShortcut(page, 'screen', label))
+        }
+        for (const label of LONG_LIST_FORMS) added.push(await addShortcut(page, 'new', label))
+        await saveShortcuts(page)
+        await expectShortcuts(page, [...DEFAULT_SLUGS, ...added])
+        // The list is long enough: at the top of the drawer, New is below the screen.
+        await expect(newSectionToggle(page)).not.toBeInViewport()
+        await closeSidebar(page)
+        await expectNewActionsShown(page)
+
+        // Scrolled to the end, the open New section is above the screen. The drawer keeps
+        // its scroll when it closes, and the next press of the button must show New again.
+        await scrollSidebarToEnd(page)
+        await expect(newSectionToggle(page)).not.toBeInViewport()
+        await closeSidebar(page)
+        await expectNewActionsShown(page)
+    })
 })
+
+async function scrollSidebarToEnd(page: Page) {
+    const box = await page.getByTestId('mobile-drawer-panel').boundingBox()
+    if (!box) throw new Error('the drawer has no layout box')
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.wheel(0, 5000)
+    await expect(shortcutRow(page, DEFAULT_SLUGS[0])).not.toBeInViewport()
+}
+
+// Presses the round New button and expects the open New section on screen, without a
+// scroll: its heading and the first action.
+async function expectNewActionsShown(page: Page) {
+    await page.getByLabel('New', { exact: true }).click()
+    const panel = page.getByTestId('mobile-drawer-panel')
+    await expect.poll(async () => (await panel.boundingBox())?.x).toBe(0)
+    await expect(newSectionToggle(page)).toHaveAttribute('aria-label', 'Collapse New')
+    await expect(newSectionToggle(page)).toBeInViewport()
+    await expect(newActionItem(page, 'customer')).toBeInViewport()
+}
 
 // The owner makes this test's own member a reader, before the member opens Books.
 async function readerView(
