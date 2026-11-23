@@ -9,7 +9,7 @@ import {
     shortcutKey,
 } from '../lib/sidebar-shortcuts'
 import { useShortcutsDialogStore } from '../stores/shortcuts-dialog-store'
-import { useOpenRule } from './useOpenCustomizeShortcuts'
+import { useOpenRule } from './useOpenRule'
 import { useShortcutLookup } from './useShortcutLookup'
 import { useSidebarShortcuts } from './useSidebarShortcuts'
 

@@ -4,7 +4,7 @@ import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { router } from 'expo-router'
 import { Pencil } from 'lucide-react-native'
 import { Pressable, Text, View } from 'react-native'
-import { type OpenableList, useOpenRule } from '../../hooks/useOpenCustomizeShortcuts'
+import { type OpenableList, useOpenRule } from '../../hooks/useOpenRule'
 import { useShortcutRows } from '../../hooks/useShortcutRows'
 import type { ShortcutRow } from '../../lib/shortcut-rows'
 
