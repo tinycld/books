@@ -64,6 +64,7 @@ function entry(seed: EntrySeed): BooksJournalEntries {
         reverses: '',
         replaces: '',
         document: '',
+        card_payment: false,
         ...seed,
     }
 }
@@ -151,6 +152,8 @@ function line(seed: LineSeed, isPosted: boolean): BooksJournalLines {
         posted: isPosted,
         date: isPosted ? '2026-09-30' : '',
         currency: ENTRIES_CURRENCY,
+        card_payment: false,
+        doc_type: 'journal',
         created: '2026-09-30 08:00:00.000Z',
         updated: '2026-09-30 08:00:00.000Z',
         ...seed,

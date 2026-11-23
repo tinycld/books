@@ -100,11 +100,13 @@ export async function searchToSalesReceipt(page: Page, memo: string, title = REC
     await expect(page).toHaveURL(SALES_RECEIPT_URL)
 }
 
-// Reopens a sales receipt through core's search palette (`/`), by its memo.
+// Reopens a sales receipt through core's search palette (`/`), by its memo, and waits for
+// the form or the read view of the screen on top. A receipt screen opened earlier stays
+// mounted but hidden under it, so only the visible match counts.
 export async function openSalesReceiptBySearch(page: Page, memo: string) {
     await searchToSalesReceipt(page, memo)
     await expect(
-        page.getByTestId('sales-receipt-form').or(page.getByTestId('sales-receipt-read-only'))
+        visibleTestId(page, 'sales-receipt-form').or(visibleTestId(page, 'sales-receipt-read-only'))
     ).toBeVisible()
 }
 

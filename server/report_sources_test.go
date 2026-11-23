@@ -2,6 +2,8 @@ package books
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,6 +11,8 @@ import (
 	"reflect"
 	"slices"
 	"sort"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -63,6 +67,7 @@ var booksSourceKeys = []string{
 	"books.sales_documents",
 	"books.sales_lines",
 	"books.sales_tax_lines",
+	"books.settings",
 	"books.tax_agencies",
 	"books.tax_rates",
 	"books.vendors",
@@ -236,6 +241,8 @@ func expectedCatalog(t *testing.T) []wantSource {
 				{key: "type", typ: reports.Select, options: accountTypeOptions(t)},
 				text("detail_type"), text("description"), text("currency"),
 				boolField("inactive"),
+				// The account's 1099 box (1099 report spec §4).
+				{key: "form_1099_box", typ: reports.Select, label: "1099 box", options: box1099Options()},
 			},
 			links: []wantLink{
 				toOne("parent", "books.accounts", "parent"),
@@ -295,6 +302,8 @@ func expectedCatalog(t *testing.T) []wantSource {
 				{key: "posted_at", typ: reports.DateTime, aggs: reports.MinMax},
 				// The document an entry posted, so a line opens its screen.
 				text("document"),
+				// The server's card mark of a payment's entry (1099 report spec §4).
+				{key: "card_payment", typ: reports.Bool, label: "Card payment"},
 			},
 			links: []wantLink{
 				toMany("lines", "books.journal_lines", "entry"),
@@ -329,22 +338,32 @@ func expectedCatalog(t *testing.T) []wantSource {
 				boolField("posted"), text("currency"),
 				{key: "position", typ: reports.Number},
 				{key: "layer", typ: reports.Select, optionValues: []string{"ledger", "cash"}},
+				// Each row's copies of its entry's card mark and doc type (1099
+				// report spec §11 Q21), with the entry field's values.
+				{key: "card_payment", typ: reports.Bool, label: "Card payment"},
+				{key: "doc_type", typ: reports.Select, label: "Document type", optionValues: []string{
+					"journal", "transfer", "invoice", "sales_receipt", "bill", "expense", "payment", "bill_payment",
+					"credit_memo", "vendor_credit", "vendor_refund", "refund_receipt", "write_off", "deposit",
+				}},
 			},
 			links: []wantLink{
 				toOne("entry", "books.journal_entries", "entry"),
 				toOne("account", "books.accounts", "account"),
 				toOne("customer", "books.customers", "customer"),
 				toOne("vendor", "books.vendors", "vendor"),
+				// Only the cash part maps it (1099 report spec §4): it reads
+				// blank on a ledger row and on a cash row that takes a document out.
+				{key: "payment_entry", target: "books.journal_entries", card: reports.ToOne, field: "payment_entry"},
 			},
 			parts: []wantPart{
 				{
 					collection: "books_journal_lines",
-					columns:    identity("debit", "credit", "memo", "date", "posted", "currency", "position", "entry", "account", "customer", "vendor"),
+					columns:    identity("debit", "credit", "memo", "date", "posted", "currency", "position", "entry", "account", "customer", "vendor", "card_payment", "doc_type"),
 					values:     map[string]any{"layer": "ledger"},
 				},
 				{
 					collection: "books_cash_basis_lines",
-					columns:    identity("debit", "credit", "memo", "date", "posted", "currency", "position", "entry", "account", "customer", "vendor"),
+					columns:    identity("debit", "credit", "memo", "date", "posted", "currency", "position", "entry", "account", "customer", "vendor", "card_payment", "doc_type", "payment_entry"),
 					values:     map[string]any{"layer": "cash"},
 				},
 			},
@@ -382,14 +401,26 @@ func expectedCatalog(t *testing.T) []wantSource {
 			},
 		},
 		{
-			// The customers source's shape; 1099 fields, tax id and json
-			// columns left out.
+			// The customers source's shape and the 1099 fields the 1099 report
+			// reads (1099 report spec §4); the tax id and json columns left out.
 			key: "books.vendors", collection: "books_vendors", label: "Vendors",
 			fields: []wantField{
 				textMinMax("display_name"),
 				text("company"), text("first_name"), text("last_name"), text("email"),
 				text("phone"), text("mobile"), text("website"), text("notes"),
 				boolField("inactive"),
+				{key: "track_1099", typ: reports.Bool, label: "Track payments for 1099"},
+				text("legal_name"),
+				{key: "tax_id_type", typ: reports.Select, optionValues: []string{"ein", "ssn"}},
+			},
+		},
+		{
+			// The Books settings row the 1099 report reads its threshold from
+			// (1099 report spec §4); no other settings column is a field.
+			key: "books.settings", collection: "books_settings", label: "Books settings",
+			fields: []wantField{
+				{key: "threshold_1099", typ: reports.Money, currency: "currency", label: "1099 threshold", anyAggs: true},
+				text("currency"),
 			},
 		},
 		{
@@ -727,9 +758,26 @@ func aggsOf(a []reports.Aggregate) []reports.Aggregate {
 
 // leftOut are the columns spec §5 keeps out of every Books source.
 var leftOut = []string{
-	"sort_key", "name_key", "form", "form_1099_box", "close_override",
+	"sort_key", "name_key", "form", "close_override",
 	"billing_address", "shipping_address", "fields",
-	"address", "track_1099", "legal_name", "tax_id", "tax_id_type",
+	"address", "tax_id",
+}
+
+// box1099Options are the 1099 box options: boxes1099 in order, each with its
+// label of box1099Label (lib/form-1099.ts; 1099 report spec §4).
+func box1099Options() []reports.Option {
+	return []reports.Option{
+		{Value: "nec_1", Label: "NEC 1 · Nonemployee compensation"},
+		{Value: "misc_1", Label: "MISC 1 · Rents"},
+		{Value: "misc_2", Label: "MISC 2 · Royalties"},
+		{Value: "misc_3", Label: "MISC 3 · Other income"},
+		{Value: "misc_5", Label: "MISC 5 · Fishing boat proceeds"},
+		{Value: "misc_6", Label: "MISC 6 · Medical and health care payments"},
+		{Value: "misc_8", Label: "MISC 8 · Substitute payments in lieu of dividends or interest"},
+		{Value: "misc_9", Label: "MISC 9 · Crop insurance proceeds"},
+		{Value: "misc_10", Label: "MISC 10 · Gross proceeds paid to an attorney"},
+		{Value: "misc_11", Label: "MISC 11 · Fish purchased for resale"},
+	}
 }
 
 func TestReportSourcesCatalog(t *testing.T) {
@@ -770,7 +818,7 @@ func TestReportSourcesCatalog(t *testing.T) {
 				"books.journal_entries", "books.journal_lines", "books.basis_lines", "books.account_balances",
 				"books.cash_basis_balances",
 				"books.sales_documents", "books.sales_tax_lines", "books.sales_lines", "books.products",
-				"books.receivable_items", "books.payable_items",
+				"books.receivable_items", "books.payable_items", "books.settings",
 				"books.reconciliations", "books.reconciled_lines",
 			}, want.key) {
 				wantCurrency = "USD"
@@ -1414,5 +1462,371 @@ func TestReportSources_SalesDocumentsHoldARefundReceipt(t *testing.T) {
 		if read(got) != w.want {
 			t.Errorf("%s's row (kind, status, subtotal, tax, total) = %+v, want %+v", w.what, read(got), w.want)
 		}
+	}
+}
+
+// sourceOf is the registered source key, or a failure.
+func sourceOf(t *testing.T, app core.App, key string) reports.Source {
+	t.Helper()
+	for _, s := range reports.Sources(app) {
+		if s.Key == key {
+			return s
+		}
+	}
+	t.Fatalf("no registered source %s", key)
+	return reports.Source{}
+}
+
+func fieldOf(src reports.Source, key string) (reports.Field, bool) {
+	for _, f := range src.Fields {
+		if f.Key == key {
+			return f, true
+		}
+	}
+	return reports.Field{}, false
+}
+
+func linkOf(src reports.Source, key string) (reports.Link, bool) {
+	for _, l := range src.Links {
+		if l.Key == key {
+			return l, true
+		}
+	}
+	return reports.Link{}, false
+}
+
+// The fields and the link the 1099 report reads (1099 report spec §4): the
+// card mark, the payment entry of a cash row, the account's box and the
+// vendor's 1099 fields. The tax id is in no source.
+func TestForm1099SourceFields(t *testing.T) {
+	app := newBooksApp(t)
+	registerBooksSources(t)
+	if err := reports.CheckSources(app); err != nil {
+		t.Fatalf("CheckSources: %v", err)
+	}
+
+	t.Run("books.journal_entries has the card mark", func(t *testing.T) {
+		f, ok := fieldOf(sourceOf(t, app, "books.journal_entries"), "card_payment")
+		if !ok {
+			t.Fatal("books.journal_entries has no field card_payment")
+		}
+		if f.Type != reports.Bool || f.Label != "Card payment" {
+			t.Errorf("card_payment = %s %q, want a yes/no field labelled \"Card payment\"", f.Type, f.Label)
+		}
+	})
+
+	t.Run("books.basis_lines links a cash row to its payment entry", func(t *testing.T) {
+		src := sourceOf(t, app, "books.basis_lines")
+		l, ok := linkOf(src, "payment_entry")
+		if !ok {
+			t.Fatal("books.basis_lines has no link payment_entry")
+		}
+		if l.Label != "Payment entry" || l.Target != "books.journal_entries" || l.Cardinality != reports.ToOne || l.Field != "payment_entry" {
+			t.Errorf("payment_entry = {%q, target %s, %s, field %q}, want {\"Payment entry\", target books.journal_entries, to-one, field \"payment_entry\"}",
+				l.Label, l.Target, l.Cardinality, l.Field)
+		}
+		parts := map[string]reports.SourcePart{}
+		for _, p := range src.Parts {
+			parts[p.Collection] = p
+		}
+		if got := parts["books_cash_basis_lines"].Columns["payment_entry"]; got != "payment_entry" {
+			t.Errorf("the cash part maps payment_entry to %q, want its payment_entry column", got)
+		}
+		if got, ok := parts["books_journal_lines"].Columns["payment_entry"]; ok {
+			t.Errorf("the ledger part maps payment_entry to %q, want it unmapped (it reads blank)", got)
+		}
+		if _, ok := parts["books_journal_lines"].Values["payment_entry"]; ok {
+			t.Error("the ledger part gives payment_entry a constant, want it unmapped (core refuses a part value for a link key)")
+		}
+	})
+
+	t.Run("books.accounts has the 1099 box", func(t *testing.T) {
+		f, ok := fieldOf(sourceOf(t, app, "books.accounts"), "form_1099_box")
+		if !ok {
+			t.Fatal("books.accounts has no field form_1099_box")
+		}
+		if f.Type != reports.Select || f.Label != "1099 box" {
+			t.Errorf("form_1099_box = %s %q, want a select labelled \"1099 box\"", f.Type, f.Label)
+		}
+		want := box1099Options()
+		if !reflect.DeepEqual(f.Options, want) {
+			t.Errorf("form_1099_box options =\n%v\nwant\n%v", f.Options, want)
+		}
+		values := make([]string, len(want))
+		for i, o := range want {
+			values[i] = o.Value
+		}
+		if !slices.Equal(values, boxes1099) {
+			t.Errorf("the option values %v are not boxes1099 %v in order", values, boxes1099)
+		}
+	})
+
+	t.Run("books.vendors has the 1099 fields and no tax id", func(t *testing.T) {
+		src := sourceOf(t, app, "books.vendors")
+		for _, w := range []struct {
+			key   string
+			typ   reports.FieldType
+			label string
+		}{
+			{"track_1099", reports.Bool, "Track payments for 1099"},
+			{"legal_name", reports.Text, "Legal name"},
+			{"tax_id_type", reports.Select, "Tax ID type"},
+		} {
+			f, ok := fieldOf(src, w.key)
+			if !ok {
+				t.Errorf("books.vendors has no field %s", w.key)
+				continue
+			}
+			if f.Type != w.typ || f.Label != w.label {
+				t.Errorf("%s = %s %q, want %s %q", w.key, f.Type, f.Label, w.typ, w.label)
+			}
+		}
+		if f, ok := fieldOf(src, "tax_id_type"); ok {
+			values := make([]string, len(f.Options))
+			for i, o := range f.Options {
+				values[i] = o.Value
+			}
+			if !slices.Equal(values, taxIDTypes) {
+				t.Errorf("tax_id_type options %v, want %v (EIN, SSN)", values, taxIDTypes)
+			}
+		}
+		if _, ok := fieldOf(src, "tax_id"); ok {
+			t.Error("books.vendors has a field tax_id, want it left out")
+		}
+	})
+
+	t.Run("no Books source reads tax_id", func(t *testing.T) {
+		for _, src := range reports.Sources(app) {
+			for _, f := range src.Fields {
+				if f.Key == "tax_id" || f.Column == "tax_id" {
+					t.Errorf("source %s field %s reads tax_id", src.Key, f.Key)
+				}
+			}
+			for _, p := range src.Parts {
+				for key, column := range p.Columns {
+					if key == "tax_id" || column == "tax_id" {
+						t.Errorf("source %s part %s maps %s to tax_id", src.Key, p.Collection, key)
+					}
+				}
+			}
+		}
+	})
+}
+
+// thresholdByLookup reads the 1099 threshold through a lookup on
+// books.settings, one row per account.
+const thresholdByLookup = `{"version":4,"source":"books.accounts",
+	"columns":[{"id":"name","path":[{"field":"name"}]},
+		{"id":"threshold","formula":{"op":"lookup","source":"books.settings",
+			"value":{"path":[{"field":"threshold_1099"}]},"pick":"min"}}]}`
+
+// settingsRows lists the settings rows a reader sees.
+const settingsRows = `{"version":4,"source":"books.settings",
+	"columns":[{"id":"threshold","path":[{"field":"threshold_1099"}]},{"id":"currency","path":[{"field":"currency"}]}]}`
+
+// books.settings is the one Books settings row, under the Books readers' rule:
+// the 1099 threshold (an amount in the settings currency) and the currency.
+func TestSettingsSource(t *testing.T) {
+	app := newBooksApp(t)
+	users := newLevelUsers(t, app)
+	registerBooksSources(t)
+	if err := reports.CheckSources(app); err != nil {
+		t.Fatalf("CheckSources: %v", err)
+	}
+	src := sourceOf(t, app, "books.settings")
+	if src.Collection != "books_settings" || src.Label != "Books settings" {
+		t.Errorf("books.settings collection, label = %q, %q; want books_settings, \"Books settings\"", src.Collection, src.Label)
+	}
+	var keys []string
+	for _, f := range src.Fields {
+		if f.Key != "id" {
+			keys = append(keys, f.Key)
+		}
+	}
+	sort.Strings(keys)
+	if !slices.Equal(keys, []string{"currency", "threshold_1099"}) {
+		t.Errorf("books.settings fields = %v, want exactly currency and threshold_1099", keys)
+	}
+	if f, _ := fieldOf(src, "threshold_1099"); f.Type != reports.Money || f.Currency != "currency" || f.Label != "1099 threshold" {
+		t.Errorf("threshold_1099 = %s %q, currency field %q; want an amount labelled \"1099 threshold\" in currency", f.Type, f.Label, f.Currency)
+	}
+	if f, _ := fieldOf(src, "currency"); f.Type != reports.Text || f.SameCurrencyAs != "books.journal_lines.currency" {
+		t.Errorf("currency = %s, SameCurrencyAs %q; want text, the same currency as books.journal_lines.currency", f.Type, f.SameCurrencyAs)
+	}
+
+	if err := setFields(t, app, "books_settings", settingsID, map[string]any{"threshold_1099": 250000}); err != nil {
+		t.Fatalf("save the threshold: %v", err)
+	}
+	mkNumberedAccount(t, app, "Design Tools", "6210", "expense", "dues_subscriptions")
+
+	t.Run("a Books reader reads the threshold through a lookup", func(t *testing.T) {
+		details, _ := splitRows(t, runAs(t, app, users.readOnly, thresholdByLookup))
+		if len(details) != 1 {
+			t.Fatalf("%d account rows, want 1", len(details))
+		}
+		if got, ok := wholeCell(details[0].Cells["threshold"]); !ok || got != 250000 {
+			t.Errorf("the lookup's threshold = %v, want 250000 (the settings row)", details[0].Cells["threshold"])
+		}
+	})
+
+	t.Run("a Books reader reads the one settings row", func(t *testing.T) {
+		details, _ := splitRows(t, runAs(t, app, users.readOnly, settingsRows))
+		if len(details) != 1 {
+			t.Fatalf("%d settings rows for a Books reader, want 1", len(details))
+		}
+		if got, ok := wholeCell(details[0].Cells["threshold"]); !ok || got != 250000 {
+			t.Errorf("threshold = %v, want 250000", details[0].Cells["threshold"])
+		}
+		if got := details[0].Cells["currency"]; got != "USD" {
+			t.Errorf("currency = %v, want USD", got)
+		}
+	})
+
+	t.Run("a user without Books access reads none", func(t *testing.T) {
+		details, _ := splitRows(t, runAs(t, app, users.none, settingsRows))
+		if len(details) != 0 {
+			t.Errorf("%d settings rows for a user with Books access none, want 0", len(details))
+		}
+	})
+}
+
+// shippedSpecSHA256 is the sha256 of each shipped report's spec JSON before
+// the 1099 report's source additions (recorded 2026-11-22 on
+// books/p5-1099-report@d5355c4c). Adding a field or a link changes none.
+var shippedSpecSHA256 = map[string]string{
+	"books.trial_balance":             "19e7ecb3e997db35fa0b40b37aa92a43d5b1113e3dc08096c9b2de1219781be4",
+	"books.general_ledger":            "67039989cb7520f2dfd073de18c6f7e9b08fe33cdc2bfd2cade21e9f8e8a784c",
+	"books.balance_sheet":             "e0313a980a11913fc30b8ae9ac1f20ebbd953f22d5e0758870ba3c923c4e91a6",
+	"books.journal":                   "0c22704590476e368aacf6125216b88aafae8ebca940dae85558feca5972371c",
+	"books.profit_and_loss":           "0d0ee1515937f48cd603de7da76769184b921558e4e48759e2d59ed18f36b8d3",
+	"books.profit_and_loss_by_month":  "89a1cca7d61b825eef13dcb9a3ae6b1821a727fad0442cdc8a0064e0f45e5983",
+	"books.transaction_detail":        "2e4c365f17549ba7b0594e2e6f542bbabd23a49b78f90ec14349720db499a712",
+	"books.sales_tax_liability":       "e82a3c515c70380eddbd5c7eb9dbe896cc8e478ed055463d026025aa0e36d3dc",
+	"books.customer_balance":          "aff7bd3202130360e0df714fb5bc64af36a70b2bb983124e73d985f80a3c1787",
+	"books.ar_aging":                  "4fdcc6fd7ef745a7f1ec641d300e2532cb9a990917915d07c4d3c8b8546cd280",
+	"books.ap_aging":                  "fcca5fb271b63c61b211e4f7bb1eeb7e062d66b83adf9aca1af85a4f1898e0e1",
+	"books.vendor_balance":            "0a251c1297a0a1f49b499af783060587f7ca34be2b55f04d422a51dace28b332",
+	"books.expenses_by_vendor":        "bab952a0eddc89363fbde7ef8fce48c5f2496c56b4b815672d2cd66094a4629d",
+	"books.sales_by_customer":         "f4cddc28675db506d709a0ad07f936d599dd91e849d14b5546d0b8b042bc7ebc",
+	"books.sales_by_product":          "ac3251b812b61071e29689a41c25a6fb471998def42e1cb4bfc3abf074cfc3e0",
+	"books.audit_log":                 "34ad17fa387887d353cb91dd1e37bb3bdc682ccaceb86644bb0df6d8d99548f7",
+	"books.statement_balance_forward": "f58b854ec692b8498c49c1fb487eb3192bebf6b774233b1d9fd765d4df2ccdeb",
+	"books.statement_open_items":      "eee17337b00fc4b9b9fc010fdeaaa64127fffaabf9a67976331bf579040300e7",
+}
+
+func TestSourceAdditionsKeepShippedSpecs(t *testing.T) {
+	shipped := []reports.Shipped{
+		trialBalanceShipped(), generalLedgerShipped(), balanceSheetShipped(), journalShipped(),
+		profitAndLossShipped(), profitAndLossByMonthShipped(), transactionDetailShipped(),
+		salesTaxLiabilityShipped(), customerBalanceShipped(), arAgingShipped(), apAgingShipped(),
+		vendorBalanceShipped(), expensesByVendorShipped(), salesByCustomerShipped(), salesByProductShipped(),
+		auditLogShipped(), statementBalanceForwardShipped(), statementOpenItemsShipped(),
+	}
+	if len(shipped) != len(shippedSpecSHA256) {
+		t.Errorf("%d shipped reports, %d recorded sums", len(shipped), len(shippedSpecSHA256))
+	}
+	for _, s := range shipped {
+		sum := sha256.Sum256(s.Spec)
+		got := hex.EncodeToString(sum[:])
+		if want, ok := shippedSpecSHA256[s.Key]; !ok || got != want {
+			t.Errorf("sha256 of the %s spec JSON = %s, want %s", s.Key, got, want)
+		}
+	}
+}
+
+// basisPaymentEntries is the Expenses by Vendor's spec (its account-type and
+// period filter on books.basis_lines, the 1099 report's model) that also reads
+// each line's payment entry id.
+func basisPaymentEntries() *reports.Spec {
+	s := expensesByVendorSpec()
+	s.Columns = append(s.Columns, reports.Column{
+		ID: "pay", Label: "Payment entry", Path: reports.Path{{Link: "payment_entry"}, {Field: "id"}},
+	})
+	return s
+}
+
+// recordRun runs spec as the reader and gives the SELECT statements it ran,
+// each once, in their order.
+func recordRun(t *testing.T, b apBook, spec *reports.Spec, params map[string]any, opts reports.Options) (*reports.Result, []string) {
+	t.Helper()
+	loaded, info, err := reports.Load(mustJSON(spec))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	given := map[string]json.RawMessage{}
+	for id, v := range params {
+		given[id] = mustJSON(v)
+	}
+	var mu sync.Mutex
+	seen := map[string]bool{}
+	var statements []string
+	var res *reports.Result
+	var runErr error
+	recordStatements(t, b.app, func(statement string) {
+		s := strings.TrimSpace(statement)
+		upper := strings.ToUpper(s)
+		if !strings.HasPrefix(upper, "SELECT") && !strings.HasPrefix(upper, "WITH") {
+			return
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if !seen[s] {
+			seen[s] = true
+			statements = append(statements, s)
+		}
+	}, func() {
+		res, runErr = reports.Run(context.Background(), b.app, reports.Request{
+			Spec: loaded, Loaded: info, Auth: b.reader, Headers: readerInfo(b.reader).Headers,
+			Params: given, Options: opts,
+		})
+	})
+	if runErr != nil {
+		t.Fatalf("Run: %v", runErr)
+	}
+	return res, statements
+}
+
+// A filter on the account and the day reaches both parts of books.basis_lines
+// though only the cash part maps payment_entry (core E3, the typed blank): each
+// part is read by its index, and no statement scans a large table or builds an
+// automatic index on one. The runs are the Expenses by Vendor's run 3 (Cash,
+// the whole book) and that run with the busiest vendor opened.
+func TestBasisLinesPartsKeepTheirIndexes(t *testing.T) {
+	b := newAPBook(t)
+	data := writeEBVDataset(t, b, apSmall)
+	vendorKey := ebvVendorKeyOf(t, b, data, ebvBusiestVendor(t, b))
+	params := ebvWith(data, map[string]any{"method": "cash"})
+
+	for _, run := range []arRun{
+		{name: "cash, whole book", opts: reports.Options{Today: data.lastDay}, wholeBook: true, reading: "no statistics"},
+		{name: "cash, busiest vendor opened", opts: reports.Options{Today: data.lastDay, Expand: [][]any{vendorKey}, Collapse: [][]any{}},
+			wholeBook: true, adds: true, reading: "no statistics"},
+	} {
+		t.Run(run.name, func(t *testing.T) {
+			res, statements := recordRun(t, b, basisPaymentEntries(), params, run.opts)
+			if run.adds {
+				paid := 0
+				for _, r := range res.Rows {
+					if v, ok := r.Cells["pay"].(string); r.Kind == reports.KindDetail && ok && v != "" {
+						paid++
+					}
+				}
+				if paid == 0 {
+					t.Error("no opened line reads a payment entry, want the cash rows' payment entries")
+				}
+			}
+			steps := explainStatements(t, b.app, statements)
+			var plans strings.Builder
+			for i, s := range statements {
+				own := arStepsOf(steps, i)
+				checkPlanBars(t, run, s, own, ebvLargeTables)
+				plans.WriteString(arPlanText(own))
+			}
+			for _, want := range []string{"SEARCH books_journal_lines", "SEARCH " + cashLinesCollection} {
+				if !strings.Contains(plans.String(), want) {
+					t.Errorf("no statement of the run has %q:\n%s", want, plans.String())
+				}
+			}
+		})
 	}
 }

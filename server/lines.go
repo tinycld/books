@@ -119,7 +119,86 @@ func registerLineHooks(app core.App) {
 const (
 	msgLineStampByBooks  = "Books sets a line's posted flag and date when it posts the entry."
 	msgLineCurrencyFixed = "A line's currency cannot change."
+	msgLineCopyByBooks   = "Books copies a line's card payment mark and document type from its journal entry."
 )
+
+// entryCopyFields are the fields of its entry that a journal line and a
+// cash-basis row hold a copy of, so a report reads them from the row with no
+// read of the entry (1099 report spec §11 Q21). Each is the same field on the
+// entry.
+var entryCopyFields = []string{"card_payment", "doc_type"}
+
+// stampEntryCopies gives a new line its entry's card mark and doc type, over
+// whatever the caller set: a blank or false copy cannot be told from one that
+// was not set, so a create is corrected, never refused. entry is the line's
+// entry as the guard read it, nil when it is gone (PocketBase's relation
+// validation refuses the line next).
+func stampEntryCopies(line, entry *core.Record) {
+	if entry == nil {
+		return
+	}
+	for _, name := range entryCopyFields {
+		line.Set(name, entry.Get(name))
+	}
+}
+
+// checkLineCopies refuses an update that changes a line's copy to a value
+// other than its entry's. Books moves the copies only to follow its entry
+// (copyEntryToRows, after the entry's own write), so the stored entry already
+// holds the new value then. The update rule pins these fields for a person;
+// this holds for Go and a superuser too. entry is the stored entry, nil when
+// it is gone.
+func checkLineCopies(stored, line, entry *core.Record) error {
+	if entry == nil {
+		return nil
+	}
+	for _, name := range entryCopyFields {
+		if line.GetString(name) != stored.GetString(name) && line.GetString(name) != entry.GetString(name) {
+			return refuse(msgLineCopyByBooks)
+		}
+	}
+	return nil
+}
+
+// entryCopiesChanged reports whether an entry update changes a field its rows
+// hold a copy of.
+func entryCopiesChanged(stored, next *core.Record) bool {
+	for _, name := range entryCopyFields {
+		if stored.GetString(name) != next.GetString(name) {
+			return true
+		}
+	}
+	return false
+}
+
+// copyEntryToRows writes the entry's card mark and doc type to each of its
+// journal lines and each cash-basis row whose entry it is, in the entry
+// update's transaction, after the entry's own write (so the line guard reads
+// the new values on the stored entry). A row that holds them already is not
+// written. Cash-basis rows exist only for a posted entry, and transitionEntry
+// (entries.go) refuses every change to a posted entry, so today the cash loop
+// finds no row to write; it keeps the cash rows right if a later own write
+// changes a posted entry's card mark or doc type.
+func copyEntryToRows(tx core.App, entry *core.Record) error {
+	for _, collection := range []string{"books_journal_lines", cashLinesCollection} {
+		rows, err := tx.FindAllRecords(collection, dbx.HashExp{"entry": entry.Id})
+		if err != nil {
+			return fmt.Errorf("books: read the %s rows of %s: %w", collection, entry.Id, err)
+		}
+		for _, r := range rows {
+			if !entryCopiesChanged(r, entry) {
+				continue
+			}
+			for _, name := range entryCopyFields {
+				r.Set(name, entry.Get(name))
+			}
+			if err := tx.Save(r); err != nil {
+				return fmt.Errorf("books: copy the entry's card mark and doc type to %s %s: %w", collection, r.Id, err)
+			}
+		}
+	}
+	return nil
+}
 
 // checkLineStamp keeps a line's posting stamp and currency Books' own. The
 // posted flag and the date say that the line is in the ledger and on which

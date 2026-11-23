@@ -35,7 +35,7 @@ Only Cost of goods sold, Expense and Other expense accounts take a 1099 box. Boo
 2. In Reporting threshold, type the amount in 1099 reporting threshold.
 3. Choose Save.
 
-Books keeps the threshold for the 1099 report, which is not available yet. Only a Books admin can change the threshold. Other people see the amount but cannot change it.
+The 1099 Summary and Detail report compares each 1099 vendor's reportable payments with the threshold; to read it, see the [1099 Summary and Detail report](help://books:reports). Only a Books admin can change the threshold. Other people see the amount but cannot change it.
 
 ## To review your 1099 vendors
 

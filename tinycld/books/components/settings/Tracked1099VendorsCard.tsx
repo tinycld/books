@@ -40,7 +40,7 @@ function TaxIdStatus({ row }: { row: TrackedVendorRow }) {
     }
     return (
         <View
-            className="rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5"
+            className="shrink rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5"
             testID={`books-1099-vendor-missing-${row.id}`}
         >
             <Text className="text-xs font-medium text-foreground">Missing tax ID</Text>
@@ -50,14 +50,17 @@ function TaxIdStatus({ row }: { row: TrackedVendorRow }) {
 
 function TrackedVendorItem({ row, onOpen }: { row: TrackedVendorRow; onOpen(id: string): void }) {
     const chevronColor = useThemeColor('muted-foreground')
+    // In a narrow pane the tax ID status wraps under the name, at the row's end, so the
+    // name keeps its width. The 160 px basis decides the wrap; min-w-0 and the status
+    // group's max-w-full keep both inside a row narrower than that.
     return (
         <Pressable
             accessibilityRole="button"
             testID={`books-1099-vendor-row-${row.id}`}
             onPress={() => onOpen(row.id)}
-            className="min-h-14 flex-row items-center gap-3 border-b border-border py-2"
+            className="min-h-14 flex-row flex-wrap items-center gap-x-3 gap-y-1 border-b border-border py-2"
         >
-            <View className="min-w-0 flex-1 gap-0.5">
+            <View className="min-w-0 shrink grow basis-40 gap-0.5">
                 <Text
                     className="text-sm text-foreground"
                     numberOfLines={1}
@@ -67,8 +70,10 @@ function TrackedVendorItem({ row, onOpen }: { row: TrackedVendorRow; onOpen(id: 
                 </Text>
                 <VendorDetail detail={row.detail} />
             </View>
-            <TaxIdStatus row={row} />
-            <ChevronRight size={16} color={chevronColor} />
+            <View className="ml-auto min-w-0 max-w-full flex-row items-center gap-3">
+                <TaxIdStatus row={row} />
+                <ChevronRight size={16} color={chevronColor} />
+            </View>
         </Pressable>
     )
 }
