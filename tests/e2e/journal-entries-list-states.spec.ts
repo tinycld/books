@@ -1,7 +1,7 @@
 import { expect, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { ENTRIES_SEED } from '../../tinycld/books/lib/journal-entries-fixture'
-import { DESKTOP, isPhone, PHONE } from './account-register-helpers'
+import { DESKTOP, isPhone, PHONE, showListsHub } from './account-register-helpers'
 import { searchEntries } from './journal-entries-helpers'
 
 // Journal entries are created by the form in a later checkpoint, so this spec
@@ -34,10 +34,15 @@ async function start(page: Page, size: { width: number; height: number }) {
     await page.setViewportSize(size)
 }
 
-// Wide: the Accounting group of the Books sidebar. Phone: the Lists hub card.
+// Wide: the Accounting group of the Books sidebar. Phone: Books lands on the dashboard, so
+// through the Lists hub (showListsHub) to its card.
 async function openEntries(page: Page) {
     if (isPhone(page)) {
-        await page.getByTestId('books-list-card-entries').click()
+        const card = page.getByTestId('books-list-card-entries').filter({ visible: true })
+        const dashboard = page.getByTestId('dashboard-screen').filter({ visible: true })
+        await expect(dashboard.or(card).first()).toBeVisible()
+        await showListsHub(page)
+        await card.click()
     } else {
         const item = page.getByTestId('books-nav-entries')
         const toggle = page.getByTestId('books-nav-accounting-toggle')

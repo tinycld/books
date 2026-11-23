@@ -996,6 +996,21 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // The dashboard views, never written: the server signals each topic when an
+    // invoice or a payment changes (server/dashboard.go), so an open dashboard
+    // follows a post, a void or a payment with no reload.
+    const books_invoice_due_totals = newCollection('books_invoice_due_totals', {
+        ...onDemand,
+        ...liveViewOptions('books_invoice_due_totals'),
+        collectionOptions: indexed,
+    })
+
+    const books_payment_day_totals = newCollection('books_payment_day_totals', {
+        ...onDemand,
+        ...liveViewOptions('books_payment_day_totals'),
+        collectionOptions: indexed,
+    })
+
     // A view over core's audit_logs, never written: the server signals its topic when an
     // audit row is written or a line it reads a parent from changes
     // (server/register.go), so an open report or history follows a change with no
@@ -1085,6 +1100,8 @@ export function registerCollections(
         books_cash_basis_lines,
         books_cash_basis_tax_lines,
         books_party_balances,
+        books_invoice_due_totals,
+        books_payment_day_totals,
         books_party_contacts,
         books_audit_log,
     }

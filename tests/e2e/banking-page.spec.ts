@@ -99,8 +99,9 @@ test.describe('bank-connection: page', () => {
         await navigateToPackage(page, 'books')
         await page.setViewportSize(BANKING_DESKTOP)
         await expect
-            .poll(async () => (await sidebarNavIds(page)).slice(0, 4))
+            .poll(async () => (await sidebarNavIds(page)).slice(0, 5))
             .toEqual([
+                'books-nav-dashboard',
                 'books-nav-banking',
                 'books-nav-sales',
                 'books-nav-expenses',

@@ -1,6 +1,13 @@
 import { expect, type Locator, type Page, type Request, type Route } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
-import { DESKTOP, isPhone, makeAccountInactive, openChart, PHONE } from './account-register-helpers'
+import {
+    DESKTOP,
+    isPhone,
+    makeAccountInactive,
+    openChart,
+    PHONE,
+    showListsHub,
+} from './account-register-helpers'
 
 // Shared by the journal-entries e2e specs. Entries are made by driving the form,
 // never by raw PocketBase writes. `createPostedEntry` and `createDraftEntry`
@@ -31,26 +38,34 @@ export const ACCOUNT_LABELS = {
     equity: "3000 Owner's Equity",
 } as const
 
-// From the Books landing (desktop sidebar, phone Lists hub) to the entries list.
+// From the Books landing, the dashboard (desktop sidebar; phone: the Lists hub, then its
+// card), or the Lists hub, to the entries list.
 export async function openEntriesList(page: Page) {
     // A fresh page may reopen Books at its last route (the list, or an entry),
     // and pressing the nav item over either would stack a second screen.
     const entries = page.getByTestId('entries-screen')
     const back = page.getByTestId('entry-back')
     const listCard = page.getByTestId('books-list-card-entries')
+    // The dashboard is the root of the Books stack: it stays mounted, hidden, under every
+    // screen the sidebar opens (the Chart, Banking, Taxes, …).
+    const root = page.getByTestId('dashboard-screen')
+    const dashboard = root.filter({ visible: true })
     const navItem = isPhone(page) ? listCard : page.getByTestId('books-nav-entries')
     const toggle = page.getByTestId('books-nav-accounting-toggle')
     // Wait on a screen, never on the desktop sidebar toggle: it shows on every Books route,
     // so it cannot say which screen a lazy route is about to mount. The Lists hub keeps its
-    // cards mounted but hidden on desktop, so there its attached card is the landing signal.
-    // A record opened from the list (an entry, transfer, bill or expense) keeps the list
-    // mounted but hidden under it, ahead of the record's Back in the DOM, so only the visible
-    // one of the two is the screen on top.
-    await expect(entries.or(back).or(listCard).first()).toBeAttached()
-    if (!(await listCard.count())) {
-        await expect(entries.or(back).filter({ visible: true }).first()).toBeVisible()
+    // cards mounted but hidden on desktop, so there its attached card is the signal. The
+    // stack root, the dashboard, is attached at any visibility on every other Books screen,
+    // so its attached node is the signal there; a visible-only dashboard cannot match under
+    // a pushed screen. A record opened from the list (an entry, transfer, bill or expense)
+    // keeps the list mounted but hidden under it, ahead of the record's Back in the DOM, so
+    // only the visible one of the two is the screen on top.
+    await expect(entries.or(back).or(listCard).or(root).first()).toBeAttached()
+    if (!(await listCard.count()) && !(await root.count())) {
+        await expect(entries.or(back).or(dashboard).filter({ visible: true }).first()).toBeVisible()
     }
     if (await entries.isVisible()) return
+    if (isPhone(page)) await showListsHub(page)
     // A record pushed over another record keeps the lower one mounted but hidden, with its
     // own Back: only the visible Back is the screen on top, and one press must reach the list.
     const shownBack = back.filter({ visible: true }).first()
@@ -193,11 +208,22 @@ export async function openOtherBooksPage(page: Page, startsOn?: readonly string[
 // Takes a page that openOtherBooksPage reopened on another Books screen (not the Lists hub
 // and not one of `segments`, the routes of the list a helper opens next) to the Lists hub,
 // through the desktop sidebar. On the hub or on those routes it does nothing: the open
-// helpers start there, and a nav press over them would stack a second screen.
+// helpers start there, and a nav press over them would stack a second screen. Books lands
+// on the dashboard: a page on `/books/dashboard`, or on the bare `/books` before its
+// redirect, goes to the hub with showListsHub once the dashboard shows.
 async function leaveForListsHub(page: Page, segments: readonly string[]) {
     const own = segments.join('|')
     const startsHere = new RegExp(`/books(/lists|/(${own})(/[^/]*)?)?/?$`)
-    if (startsHere.test(new URL(page.url()).pathname)) return
+    const path = new URL(page.url()).pathname
+    const onLanding = /\/books(\/dashboard)?\/?$/.test(path)
+    if (onLanding) {
+        const dashboard = page.getByTestId('dashboard-screen').filter({ visible: true })
+        const hubCard = page.getByTestId('books-list-card-accounts').filter({ visible: true })
+        await expect(dashboard.or(hubCard).first()).toBeVisible()
+        await showListsHub(page)
+        return
+    }
+    if (startsHere.test(path)) return
     await page.getByTestId('books-nav-lists').click()
     await expect(
         page.getByTestId('books-list-card-accounts').filter({ visible: true })

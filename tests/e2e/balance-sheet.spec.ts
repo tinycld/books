@@ -90,8 +90,8 @@ async function startBooks(page: Page) {
     await page.setViewportSize(TALL)
 }
 
-// The entries list from the Books sidebar: postEntryOn expects the list, an entry or the
-// Lists hub on screen.
+// The entries list from the Books sidebar: postEntryOn expects the list, an entry, the
+// dashboard or the Lists hub on screen.
 async function openEntriesFromSidebar(page: Page) {
     const item = page.getByTestId('books-nav-entries')
     const toggle = page.getByTestId('books-nav-accounting-toggle')
