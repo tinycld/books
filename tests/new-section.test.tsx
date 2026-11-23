@@ -1,11 +1,12 @@
 // @vitest-environment happy-dom
-import { fireEvent, render, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, waitFor } from '@testing-library/react'
 import { useWindowSizeStore } from '@tinycld/core/lib/stores/window-size-store'
 import { useWorkspaceStore } from '@tinycld/core/lib/stores/workspace-store'
 import { router } from 'expo-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NewFab } from '../tinycld/books/components/NewFab'
 import { NEW_ACTIONS } from '../tinycld/books/lib/new-actions'
+import BooksSidebar from '../tinycld/books/sidebar'
 import { useBooksUIStore } from '../tinycld/books/stores/books-ui-store'
 import { byTestId } from './accounts-test-rows'
 import { idsWith, renderSidebar, SidebarProviders, seedSidebar } from './sidebar-harness'
@@ -90,7 +91,7 @@ describe('New section', () => {
         ])
     })
 
-    it('keeps the fold state the user left', async () => {
+    it('keeps the fold state across remounts', async () => {
         seedSidebar({ level: 'bookkeeper' })
         const first = renderSidebar()
         await waitFor(() => expect(toggle(first.container)).not.toBeNull())
@@ -181,22 +182,46 @@ describe('NewFab', () => {
         expect(useBooksUIStore.getState().isNewOpen).toBe(true)
     })
 
-    it('is not drawn on a wide window, for a reader, or on a form', async () => {
+    // Each case first draws the button for a bookkeeper on a phone list route, so the access
+    // data is loaded, then changes one condition: the button must go.
+    it('is not drawn once the window is wide', async () => {
         seedSidebar({ level: 'bookkeeper' })
-        const wide = renderFab()
-        await waitFor(() => expect(useBooksUIStore.getState()).toBeTruthy())
-        expect(fab()).toBeNull()
-        wide.unmount()
-
         useWindowSizeStore.setState(PHONE)
-        url.pathname = '/a/books/invoices/new'
-        const onForm = renderFab()
-        expect(fab()).toBeNull()
-        onForm.unmount()
-
-        url.pathname = '/a/books/entries'
-        seedSidebar({ level: 'read_only' })
         renderFab()
+        await waitFor(() => expect(fab()).not.toBeNull())
+
+        act(() => useWindowSizeStore.setState(DESKTOP))
+
+        await waitFor(() => expect(fab()).toBeNull())
+    })
+
+    it('is not drawn on a form', async () => {
+        seedSidebar({ level: 'bookkeeper' })
+        useWindowSizeStore.setState(PHONE)
+        const view = renderFab()
+        await waitFor(() => expect(fab()).not.toBeNull())
+
+        url.pathname = '/a/books/invoices/new'
+        view.rerender(<NewFab />)
+
+        await waitFor(() => expect(fab()).toBeNull())
+    })
+
+    it('is not drawn for a reader', async () => {
+        seedSidebar({ level: 'read_only' })
+        useWindowSizeStore.setState(PHONE)
+        // The sidebar reads the same access data: its rows show that the data is loaded.
+        const { container } = render(
+            <>
+                <NewFab />
+                <BooksSidebar />
+            </>,
+            { wrapper: SidebarProviders }
+        )
+        await waitFor(() =>
+            expect(byTestId(container, 'books-shortcut-screen-customers')).not.toBeNull()
+        )
+
         expect(fab()).toBeNull()
     })
 })
