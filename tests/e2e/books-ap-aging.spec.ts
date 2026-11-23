@@ -340,7 +340,7 @@ test.describe('ap-aging: entry points and narrow layouts', () => {
         await expect(aging).toHaveText('A/P Aging')
         await aging.click()
         await expect(page.getByTestId('report-screen')).toBeVisible()
-        await expect(page).toHaveURL(/\/a\/reports\//)
+        await expect(page).toHaveURL(/\/a\/books\/reports\//)
         await expect(
             page.getByTestId('report-document-title').filter({ visible: true })
         ).toHaveText(AP_AGING_TITLE)

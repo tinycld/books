@@ -682,7 +682,7 @@ test.describe('report-1099: entry points and phone rows', () => {
         await expect(form1099).toHaveText(REPORT_1099_TITLE)
         await form1099.click()
         await expect(page.getByTestId('report-screen')).toBeVisible()
-        await expect(page).toHaveURL(/\/a\/reports\//)
+        await expect(page).toHaveURL(/\/a\/books\/reports\//)
         await expect(
             page.getByTestId('report-document-title').filter({ visible: true })
         ).toHaveText(REPORT_1099_TITLE)
@@ -728,7 +728,7 @@ test.describe('report-1099: entry points and phone rows', () => {
         await expect(open).toContainText('Open the 1099 report')
         await open.click()
         await expect(page.getByTestId('report-screen')).toBeVisible()
-        await expect(page).toHaveURL(/\/a\/reports\//)
+        await expect(page).toHaveURL(/\/a\/books\/reports\//)
         await expect(
             page.getByTestId('report-document-title').filter({ visible: true })
         ).toHaveText(REPORT_1099_TITLE)

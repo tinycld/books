@@ -405,7 +405,7 @@ test.describe('vendor-balance: entry points and phone rows', () => {
             .toBe(true)
         await balance.click()
         await expect(page.getByTestId('report-screen')).toBeVisible()
-        await expect(page).toHaveURL(/\/a\/reports\//)
+        await expect(page).toHaveURL(/\/a\/books\/reports\//)
         await expect(
             page.getByTestId('report-document-title').filter({ visible: true })
         ).toHaveText(VENDOR_BALANCE_TITLE)

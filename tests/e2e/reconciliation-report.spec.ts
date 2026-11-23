@@ -32,7 +32,9 @@ function figure(text: string | undefined): string {
 }
 
 function reportUrlOf(reconciliationId: string): RegExp {
-    return new RegExp(`/a/reports/[a-z0-9]{15}\\?(?:.*&)?p-statement=${reconciliationId}(?:&|$)`)
+    return new RegExp(
+        `/a/books/reports/[a-z0-9]{15}\\?(?:.*&)?p-statement=${reconciliationId}(?:&|$)`
+    )
 }
 
 test.describe('reconciliation-report: report', () => {
