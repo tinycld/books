@@ -1,0 +1,126 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated-phone",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-invoices-unpaid",
+            "widths": [390],
+            "height": 1900,
+            "actions": [
+                { "waitFor": "dashboard-expenses-total" },
+                { "waitFor": "dashboard-sales-total" },
+                { "waitFor": "dashboard-pnl-net" },
+                { "waitFor": "dashboard-bank-banking" }
+            ]
+        },
+        {
+            "name": "reordered",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-invoices-unpaid",
+            "widths": [1280],
+            "height": 1100,
+            "actions": [
+                { "waitFor": "dashboard-bank-banking" },
+                { "click": "dashboard-customize" },
+                { "waitFor": "dashboard-edit-list" },
+                { "click": "dashboard-edit-up-bankAccounts" },
+                { "click": "dashboard-edit-show-sales" },
+                { "pause": 1000 },
+                { "click": "dashboard-customize" },
+                { "waitFor": "dashboard-grid" },
+                { "waitFor": "dashboard-bank-banking" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "edit",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-grid",
+            "widths": [1280],
+            "height": 1100,
+            "actions": [
+                { "click": "dashboard-customize" },
+                { "waitFor": "dashboard-edit-list" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "edit",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-grid",
+            "widths": [390],
+            "height": 1100,
+            "actions": [
+                { "click": "dashboard-customize" },
+                { "waitFor": "dashboard-edit-list" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "all-hidden",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-grid",
+            "widths": [1280],
+            "height": 1100,
+            "actions": [
+                { "click": "dashboard-customize" },
+                { "waitFor": "dashboard-edit-list" },
+                { "click": "dashboard-edit-show-invoices" },
+                { "click": "dashboard-edit-show-bankAccounts" },
+                { "click": "dashboard-edit-show-expenses" },
+                { "click": "dashboard-edit-show-profitAndLoss" },
+                { "pause": 1000 },
+                { "click": "dashboard-customize" },
+                { "waitFor": "dashboard-all-hidden" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "all-hidden",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-all-hidden",
+            "widths": [390],
+            "height": 1100
+        },
+        {
+            "name": "hidden-amounts-phone",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-all-hidden",
+            "widths": [390],
+            "height": 1900,
+            "actions": [
+                { "click": "dashboard-all-hidden-customize" },
+                { "waitFor": "dashboard-edit-list" },
+                { "click": "dashboard-reset" },
+                { "pause": 1000 },
+                { "click": "dashboard-customize" },
+                { "waitFor": "dashboard-grid" },
+                { "waitFor": "dashboard-bank-banking" },
+                { "click": "dashboard-hide-amounts" },
+                { "waitFor": "•••••" },
+                { "blur": true }
+            ]
+        },
+        {
+            "name": "prefs-error",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-prefs-banner",
+            "widths": [1280],
+            "height": 1100,
+            "fakeRecords": { "collection": "user_preferences", "status": 400 },
+            "actions": [{ "waitFor": "dashboard-invoices-unpaid" }],
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "prefs-error",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-prefs-banner",
+            "widths": [390],
+            "height": 1100,
+            "fakeRecords": { "collection": "user_preferences", "status": 400 },
+            "actions": [{ "waitFor": "dashboard-invoices-unpaid" }],
+            "hideLabels": ["Reconnecting…"]
+        }
+    ]
+}

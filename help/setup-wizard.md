@@ -5,7 +5,7 @@ tags: [setup, wizard, chart of accounts, fiscal year]
 order: 10
 ---
 
-To set up Books, open the setup step. In the organization setup it is the Accounting step. If Books was added later, choose Finish setting up Books at the top of the Lists page. Only a Books admin can run setup. On the Books setup page, other people see "A Books admin must finish setting up Books."
+To set up Books, open the setup step. In the organization setup it is the Accounting step. If Books was added later, choose Finish setting up Books at the top of the Dashboard or the Lists page. Only a Books admin can run setup. On the Books setup page, other people see "A Books admin must finish setting up Books."
 
 Setup has three parts. The label at the top shows which part you are on, for example "Part 2 of 3".
 

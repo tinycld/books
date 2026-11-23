@@ -12,8 +12,8 @@ import { DESKTOP, openEntriesList, settleFrames } from './journal-entries-helper
 // sidebar press. This spec fails if that happens.
 //
 // Driven through the UI only (login, navigateToPackage, the sidebar item). The sidebar
-// item exists on desktop only. The phone route (the Lists hub card) is covered by
-// openEntriesList in the journal-entries phone specs.
+// item exists on desktop only. The phone route (from the dashboard, Books' landing, through
+// the Lists hub card) is covered by openEntriesList in the journal-entries phone specs.
 
 test.describe('books-sidebar-navigation: the sidebar entries item never stacks a second list (desktop)', () => {
     test('pressing it with the list on top keeps one list, and back leaves the list', async ({

@@ -1,0 +1,254 @@
+{
+    "outDir": ".",
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-invoices-unpaid",
+            "widths": [900],
+            "height": 1100,
+            "actions": [
+                { "waitFor": "dashboard-expenses-total" },
+                { "waitFor": "dashboard-sales-total" },
+                { "waitFor": "dashboard-pnl-net" },
+                { "waitFor": "dashboard-bank-banking" }
+            ]
+        },
+        {
+            "name": "populated",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-invoices-unpaid",
+            "widths": [1280],
+            "height": 1100,
+            "actions": [
+                { "waitFor": "dashboard-expenses-total" },
+                { "waitFor": "dashboard-sales-total" },
+                { "waitFor": "dashboard-pnl-net" },
+                { "waitFor": "dashboard-bank-banking" }
+            ]
+        },
+        {
+            "name": "populated",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-invoices-unpaid",
+            "widths": [1600],
+            "height": 1100,
+            "actions": [
+                { "waitFor": "dashboard-expenses-total" },
+                { "waitFor": "dashboard-sales-total" },
+                { "waitFor": "dashboard-pnl-net" },
+                { "waitFor": "dashboard-bank-banking" }
+            ]
+        },
+        {
+            "name": "populated-phone",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-invoices-unpaid",
+            "widths": [390],
+            "height": 1900,
+            "actions": [
+                { "waitFor": "dashboard-expenses-total" },
+                { "waitFor": "dashboard-sales-total" },
+                { "waitFor": "dashboard-pnl-net" },
+                { "waitFor": "dashboard-bank-banking" }
+            ]
+        },
+        {
+            "name": "long",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-expenses-total",
+            "widths": [1280],
+            "height": 1200,
+            "bookFake": "longNames",
+            "actions": [{ "waitFor": "dashboard-bank-banking" }],
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "long",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-expenses-total",
+            "widths": [1600],
+            "height": 1200,
+            "bookFake": "longNames",
+            "actions": [{ "waitFor": "dashboard-bank-banking" }],
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "long-phone",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-expenses-total",
+            "widths": [375],
+            "height": 2000,
+            "bookFake": "longNames",
+            "actions": [{ "waitFor": "dashboard-bank-banking" }],
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "long-phone",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-expenses-total",
+            "widths": [390],
+            "height": 2000,
+            "bookFake": "longNames",
+            "actions": [{ "waitFor": "dashboard-bank-banking" }],
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "period-menu",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-expenses-total",
+            "widths": [1280],
+            "height": 1100,
+            "actions": [
+                { "click": "dashboard-period-expenses" },
+                { "waitFor": "dashboard-period-expenses-this_month" }
+            ]
+        },
+        {
+            "name": "period-menu-phone",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-expenses-total",
+            "widths": [390],
+            "stable": "dashboard-period-expenses-this_month",
+            "actions": [
+                { "click": "dashboard-period-expenses" },
+                { "waitFor": "dashboard-period-expenses-this_month" }
+            ]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-widget-sales-empty",
+            "widths": [390],
+            "height": 1000,
+            "bookFake": "emptyBook",
+            "actions": [
+                { "waitFor": "dashboard-widget-invoices-empty" },
+                { "waitFor": "dashboard-widget-bankAccounts-empty" }
+            ],
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "empty",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-widget-sales-empty",
+            "widths": [1280],
+            "height": 1000,
+            "bookFake": "emptyBook",
+            "actions": [
+                { "waitFor": "dashboard-widget-invoices-empty" },
+                { "waitFor": "dashboard-widget-bankAccounts-empty" }
+            ],
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "empty-read-only",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-widget-sales-empty",
+            "widths": [1280],
+            "bookFake": "readOnlyEmptyBook",
+            "actions": [
+                { "waitFor": "dashboard-widget-invoices-empty" },
+                { "waitFor": "dashboard-widget-bankAccounts-empty" }
+            ],
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "read-only",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-expenses-total",
+            "widths": [1280],
+            "height": 1100,
+            "bookFake": "readOnly",
+            "actions": [
+                { "waitFor": "dashboard-bank-banking" },
+                { "waitFor": "dashboard-invoices-unpaid" }
+            ],
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "loading",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-widget-expenses-skeleton",
+            "widths": [1280],
+            "height": 1100,
+            "fakeRecords": { "collection": "books_account_balances", "hold": true },
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "loading-phone",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-widget-expenses-skeleton",
+            "widths": [390],
+            "height": 1700,
+            "fakeRecords": { "collection": "books_account_balances", "hold": true },
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "error",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-widget-expenses-error",
+            "widths": [1280],
+            "height": 1100,
+            "fakeRecords": { "collection": "books_account_balances", "status": 400 },
+            "actions": [{ "waitFor": "dashboard-widget-sales-error" }],
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "error-phone",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-widget-expenses-error",
+            "widths": [390],
+            "height": 1700,
+            "fakeRecords": { "collection": "books_account_balances", "status": 400 },
+            "actions": [{ "waitFor": "dashboard-widget-sales-error" }],
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "error-bank",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-widget-bankAccounts-error",
+            "widths": [1280],
+            "height": 1100,
+            "fakeRecords": { "collection": "books_bank_connections", "status": 400 },
+            "actions": [
+                { "waitFor": "dashboard-expenses-total" },
+                { "waitFor": "dashboard-sales-total" }
+            ],
+            "hideLabels": ["Reconnecting…"]
+        },
+        {
+            "name": "sales-12-phone",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-sales-total",
+            "widths": [375],
+            "height": 2000,
+            "actions": [
+                { "click": "dashboard-period-sales" },
+                { "click": "dashboard-period-sales-last_12_months" },
+                { "waitForHidden": "dashboard-period-sales-last_12_months" },
+                { "waitFor": "Last 12 months" }
+            ]
+        },
+        {
+            "name": "hidden-amounts",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-expenses-total",
+            "widths": [1280],
+            "height": 1100,
+            "actions": [
+                { "waitFor": "dashboard-bank-banking" },
+                { "click": "dashboard-hide-amounts" },
+                { "waitFor": "•••••" }
+            ]
+        },
+        {
+            "name": "hidden-amounts-phone",
+            "url": "/a/books/dashboard",
+            "ready": "dashboard-expenses-total",
+            "widths": [390],
+            "height": 1900,
+            "actions": [{ "waitFor": "dashboard-bank-banking" }, { "waitFor": "•••••" }]
+        }
+    ]
+}

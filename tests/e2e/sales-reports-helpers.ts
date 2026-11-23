@@ -174,7 +174,8 @@ export async function postSaleBook(page: Page): Promise<SaleBook> {
     await createProduct(page, { type: 'service', name: service, price: '100.00' })
     await createProduct(page, { type: 'non_inventory', name: goods, price: '40.00' })
     const name = uniqueName('Sale customer')
-    // From the products list back to the Lists hub, where the customer steps start.
+    // From the products list to the Lists hub (Books lands on the dashboard, so the hub is
+    // reached through its sidebar entry), where the customer steps start.
     await page.getByTestId('books-nav-lists').click()
     await expect(
         page.getByTestId('books-list-card-customers').filter({ visible: true })

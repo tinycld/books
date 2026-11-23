@@ -1,7 +1,7 @@
 import { expect, type Page, test } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { ENTRIES_SEED } from '../../tinycld/books/lib/journal-entries-fixture'
-import { openRegister, revealRegisterItem } from './account-register-helpers'
+import { openRegister, revealRegisterItem, showListsHub } from './account-register-helpers'
 import { createCustomer, customerHelpers } from './customer-form-helpers'
 import {
     ACCOUNT_LABELS,
@@ -57,12 +57,15 @@ function topsInOrder(page: Page, testIds: readonly string[]) {
 }
 
 // Back to the Books Lists hub through the browser history (a same-document popstate). The
-// hub's nav item pushes a second hub over a list, whose cards the first hub then hides, and a
-// phone has no Lists nav item, so going back is the one way that leaves a single hub.
+// hub's nav item pushes a second hub over a list, whose cards the first hub then hides, so
+// going back is the way that leaves a single hub. Books lands on the dashboard, so history
+// can end there below the hub: then the hub opens from the dashboard (showListsHub).
 async function backToLists(page: Page) {
     const card = page.getByTestId('books-list-card-entries').filter({ visible: true })
+    const dashboard = page.getByTestId('dashboard-screen').filter({ visible: true })
     await expect(async () => {
-        if (!(await card.isVisible())) await page.goBack()
+        if (await dashboard.isVisible()) await showListsHub(page)
+        else if (!(await card.isVisible())) await page.goBack()
         await expect(card).toBeVisible({ timeout: 1500 })
     }).toPass({ timeout: 15_000 })
 }

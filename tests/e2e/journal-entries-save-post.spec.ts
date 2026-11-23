@@ -275,7 +275,8 @@ test.describe('journal-entries: save and post (desktop)', () => {
 
         // A second page of the same session shows the draft the failed post left. It
         // reopens Books at the context's last Books route (the chart, from the inactive
-        // step above), so it goes through the Lists hub to the entries list.
+        // step above), so it goes through the Lists hub to the entries list (Books' landing
+        // is the dashboard; the hub is reached from the sidebar).
         const other = await openOtherBooksPage(page, ['entries'])
         await openEntriesList(other)
         const draft = listItems(other, memo)

@@ -26,6 +26,68 @@ export function isPhone(page: Page) {
     return (page.viewportSize()?.width ?? DESKTOP.width) < 700
 }
 
+// MobileDrawer opens from a pan that starts in the 20px strip at the left edge;
+// react-native-gesture-handler listens for the mouse on web, so a drag drives it.
+// The pan's end decides open or closed from react-native-gesture-handler's fling
+// velocity, a quadratic fit of the last moves' event timestamps. Moves sent by
+// page.mouse are stamped when the browser takes them, so a busy machine (a stall
+// of more than 40ms, then two moves 1ms apart) gives the fit a large negative
+// velocity and the drawer closes. The moves go through CDP with their own evenly
+// spaced timestamps (16ms, 5 -> 200 in 16 steps: about 800px/s), so the fling the
+// gesture sees is the same on every run.
+export async function swipeFromLeftEdge(page: Page): Promise<void> {
+    const y = (page.viewportSize()?.height ?? 844) / 2
+    const xs = [
+        ...Array.from({ length: 8 }, (_, i) => 5 + (95 * (i + 1)) / 8),
+        ...Array.from({ length: 8 }, (_, i) => 100 + (100 * (i + 1)) / 8),
+    ]
+    const cdp = await page.context().newCDPSession(page)
+    let seconds = Date.now() / 1000
+    const send = (type: 'mouseMoved' | 'mousePressed' | 'mouseReleased', x: number) =>
+        cdp.send('Input.dispatchMouseEvent', {
+            type,
+            x,
+            y,
+            button: 'left',
+            buttons: type === 'mouseReleased' ? 0 : 1,
+            clickCount: 1,
+            timestamp: seconds,
+        })
+    await send('mouseMoved', 5)
+    await send('mousePressed', 5)
+    for (const x of xs) {
+        seconds += 0.016
+        await send('mouseMoved', x)
+    }
+    seconds += 0.004
+    await send('mouseReleased', 200)
+    await cdp.detach()
+}
+
+// The Books landing, the dashboard, when it is the screen on top.
+function shownDashboard(page: Page): Locator {
+    return page.getByTestId('dashboard-screen').filter({ visible: true })
+}
+
+// From the dashboard to the Lists hub, the user's way: the sidebar's Lists entry on a wide
+// screen, the same entry in the Books menu (the drawer, opened with a swipe from the left
+// edge) on a phone. On any other screen it does nothing.
+export async function showListsHub(page: Page) {
+    if (!(await shownDashboard(page).isVisible())) return
+    if (isPhone(page)) {
+        const panel = page.getByTestId('mobile-drawer-panel')
+        await panel.waitFor({ state: 'attached' })
+        await swipeFromLeftEdge(page)
+        await expect.poll(async () => (await panel.boundingBox())?.x).toBe(0)
+        await panel.getByTestId('books-nav-lists').click()
+    } else {
+        await page.getByTestId('books-nav-lists').click()
+    }
+    await expect(
+        page.getByTestId('books-list-card-accounts').filter({ visible: true })
+    ).toBeVisible()
+}
+
 // A row on wide screens, a card on phones. Only the visible chart's: the stack keeps an
 // earlier chart mounted but hidden under a screen the sidebar opened on top of it. The
 // name text matches exactly: `hasText` is a caseless substring of the whole row.
@@ -51,7 +113,8 @@ async function revealInactive(page: Page) {
 }
 
 // Opens the Chart of Accounts: from a register through its back link, on a
-// phone through the Lists card, on desktop through the Books sidebar.
+// phone through the Lists card (from the dashboard, through the Lists hub first), on
+// desktop through the Books sidebar.
 export async function openChart(page: Page) {
     // Only the visible screen's links count: the stack keeps screens a later one was
     // pushed over mounted but hidden, each with its own back link.
@@ -60,9 +123,16 @@ export async function openChart(page: Page) {
         ? page.getByTestId('books-list-card-accounts')
         : page.getByTestId('books-nav-accounting-toggle')
     // A fresh page restores the last route (lastPackageHref), which can be an entry screen
-    // that has neither a register back link nor the hub card on a phone.
+    // that has neither a register back link nor the hub card on a phone. Books lands on
+    // the dashboard, which has no hub card.
     const entryBack = page.getByTestId('entry-back').filter({ visible: true })
-    await entryBack.or(back).or(landing).first().waitFor({ state: 'attached' })
+    await entryBack
+        .or(back)
+        .or(landing)
+        .or(shownDashboard(page))
+        .first()
+        .waitFor({ state: 'attached' })
+    if (isPhone(page)) await showListsHub(page)
     if (await entryBack.isVisible()) {
         await entryBack.click()
         const list = page.getByTestId('entries-screen').filter({ visible: true })

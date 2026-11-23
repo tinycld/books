@@ -37,7 +37,7 @@ import { nameOnDraftLine } from './journal-entries-helpers'
 // a unique name; it reads the seeded Old Mill Bakery and Northwind customers only. The
 // delete refusal is the server's own: another tab puts the customer on a line of a draft
 // journal entry, and deletes that draft before the delete that goes through. The last
-// test holds a delete through `page.route` while the user goes to the Lists hub.
+// test holds a delete through `page.route` while the user goes to the Books home.
 //
 // Not covered here: there is no 390 run, because the panel surface does not exist below
 // a 1360 px window (spec Surfaces: `panel` at 1360 px or more, `page` below). The phone
@@ -55,7 +55,7 @@ const cityLineFits = (page: Page) => customerHelpers.cityLineFits(page, 'billing
 
 const UNSAVED_DELETE_WARNING = 'Unsaved changes to this customer will be lost.'
 
-const jumpToBooksLists = customerHelpers.jumpToLists
+const jumpToBooksHome = customerHelpers.jumpToBooksHome
 
 // The id of the customer whose page is open, read from the URL.
 function openCustomerId(page: Page) {
@@ -405,9 +405,9 @@ test.describe('customer-form: side panel', () => {
     })
 
     // The delete's follow-up acts only while the user still sees that customer: a delete of
-    // the open customer that lands after the user went on to the Lists hub leaves them
-    // there.
-    test('a delete that lands after the user left keeps them on the Lists hub', async ({
+    // the open customer that lands after the user went on to the Books home (the dashboard)
+    // leaves them there.
+    test('a delete that lands after the user left keeps them on the Books home', async ({
         page,
     }) => {
         await openWideCustomers(page)
@@ -421,7 +421,7 @@ test.describe('customer-form: side panel', () => {
         await expect(page.getByTestId('delete-customer-dialog')).toBeVisible()
         await page.getByTestId('delete-customer-confirm').click()
         await heldDelete.arrived
-        await jumpToBooksLists(page)
+        await jumpToBooksHome(page)
         const deleted = page.waitForResponse(
             response =>
                 response.request().method() === 'DELETE' &&
@@ -430,7 +430,7 @@ test.describe('customer-form: side panel', () => {
         await heldDelete.release()
         expect((await deleted).ok()).toBe(true)
         await settle(page)
-        await expect(page).toHaveURL(/\/books\/lists$/)
-        await expect(page.getByTestId('books-list-card-customers')).toBeVisible()
+        await expect(page).toHaveURL(/\/books\/dashboard$/)
+        await expect(page.getByTestId('dashboard-screen').filter({ visible: true })).toBeVisible()
     })
 })
