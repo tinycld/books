@@ -5,12 +5,8 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { getShareToken, setShareToken } from '@tinycld/core/lib/share-token'
 import { useOrgInfo } from '@tinycld/core/lib/use-org-info'
-import {
-    businessNameOf,
-    type PublicEstimateRow,
-    type PublicOutcome,
-    publicOutcomeOf,
-} from '../lib/estimate-public'
+import { type PublicEstimateRow, type PublicOutcome, publicOutcomeOf } from '../lib/estimate-public'
+import { businessNameOf } from '../lib/public-page'
 import { todayIso } from '../lib/register-range'
 
 export type PublicEstimateView =

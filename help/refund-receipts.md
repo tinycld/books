@@ -96,6 +96,12 @@ Use a refund receipt when money goes back to the customer. When the customer has
 - A refund of a sale lowers the Sales Tax Liability and the sales reports on its date: see [Reports](help://books:reports).
 - The app search finds a refund receipt by its number, its reference no., its memo or its message, as "Refund receipt 1003" with its customer's name.
 
+## Send to your customer
+
+To email a posted refund receipt to your customer with its PDF attached, open it and choose **Send…**, or press S. On a phone, Send… is in the More menu. On the form, **Post and send** (⌘⌥↵) posts the refund receipt and then opens the Send dialog. You can also choose Send… in the row menu of the [Sales lists](help://books:sales-lists). A draft or a void refund receipt has no Send….
+
+The Send dialog works as for an invoice: To, Cc, Subject, Message, Reset message (⌥R) and Send (⌘↵). See "Send to your customer" in [Invoices](help://books:invoices). The message starts with "Attached is refund receipt 1003 from" and your business name, the Date and the Refund (the total). A refund receipt has no customer link. After a send, the read view shows a line such as "Sent Nov 20, 2026 to" with the address. When email sending is not set up, the dialog says "Email sending is not set up. Download the PDF and send it to your customer."
+
 ## Keyboard shortcuts
 
 The form uses the same keys as an invoice:
@@ -103,6 +109,7 @@ The form uses the same keys as an invoice:
 | Action | Key |
 | --- | --- |
 | Post | ⌘↵ |
+| Post and send | ⌘⌥↵ |
 | Post & new | ⌘⇧↵ |
 | Save draft | ⌘S |
 | Cancel | Esc |
@@ -112,6 +119,7 @@ The form uses the same keys as an invoice:
 
 On a posted or void refund receipt:
 
+- S: Send… (a posted refund receipt)
 - E: Edit
 - V: Void
 - C: Copy to a new refund receipt

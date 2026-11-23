@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readHelpTopic } from './help-topic'
+import { letterKey, lineWith, readHelpTopic } from './help-topic'
 
 // The credit memo help topic (checkpoint 3 started it; checkpoint 5 completes it, spec
 // §3.10 Help): task-led, with the key map in Mac glyphs and links to its neighbours.
@@ -138,6 +138,24 @@ describe('help/credit-memos.md (refunds)', () => {
 
     it('says nothing that claims a credit memo cannot be refunded yet', () => {
         expect(body).not.toMatch(/\bcannot yet\b[^.]*\brefund/i)
+    })
+})
+
+// Email and share spec §3.7 Help (checkpoint 5): a short Send section.
+describe('help/credit-memos.md (send)', () => {
+    it('has a Send section that names Send… with its key S', () => {
+        expect(headings.some(h => /^Send\b/.test(h ?? ''))).toBe(true)
+        const send = section(/^Send\b/)
+        expect(send).toContain('Send…')
+        expect(lineWith(send, letterKey('S'), /Send…/), 'a line with S and Send…').toBeDefined()
+    })
+
+    it('has no hand-written hostname', () => {
+        expect(exists).toBe(true)
+        const withoutTokens = body.replace(/\{\{server-host\}\}/g, '')
+        expect(withoutTokens).not.toMatch(
+            /\b[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|org|net|io|dev|app)\b/i
+        )
     })
 })
 

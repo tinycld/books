@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { readHelpTopic } from './help-topic'
+import { readHelpTopic, sectionOf } from './help-topic'
 
 // The Sales lists help topic (sales-lists checkpoint 5, spec §3 "Help").
 
@@ -134,6 +134,27 @@ describe('help/navigating-books.md', () => {
     it('names Sales and links the Sales lists topic', () => {
         expect(navigating).toMatch(/\bSales\b/)
         expect(navigating).toContain('help://books:sales-lists')
+    })
+})
+
+// Email and share spec §3.7 Help (checkpoint 5): the row menu's Send… and the batch Send.
+describe('help/sales-lists.md (send)', () => {
+    it('names the row menu’s Send… in The row menu section', () => {
+        expect(sectionOf(body, 'The row menu')).toContain('Send…')
+    })
+
+    it('names the batch Send in the Batch actions section and what it sends', () => {
+        const batch = sectionOf(body, 'Batch actions')
+        expect(batch).toMatch(/\*\*Send\*\*/)
+        expect(batch).toMatch(/email address on the document/)
+    })
+
+    it('has no hand-written hostname', () => {
+        expect(topicExists).toBe(true)
+        const withoutTokens = body.replace(/\{\{server-host\}\}/g, '')
+        expect(withoutTokens).not.toMatch(
+            /\b[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|org|net|io|dev|app)\b/i
+        )
     })
 })
 

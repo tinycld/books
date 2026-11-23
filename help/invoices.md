@@ -131,6 +131,62 @@ A draft prints with the title "Draft invoice" and no number. A void invoice prin
 
 To save the PDF, choose Download PDF (in More on the form). In a web browser, the browser saves the file. In the mobile app, the share sheet opens.
 
+## Send to your customer
+
+To send an invoice to your customer, open the posted invoice and choose **Send…**, or press S. On a phone, Send… is in the More menu. Books opens the Send dialog ("Send invoice 1004"), and the email goes out with the invoice's PDF attached. A draft or a void invoice has no Send….
+
+To post an invoice and send it in one step, choose **Post and send** on the form (⌘⌥↵), after Post. On a phone, it is in the More menu. Books posts the invoice as Post does, then opens the Send dialog on the posted invoice. If Books refuses the post, no dialog opens. If you cancel the dialog, the invoice stays posted and is not sent.
+
+The Send dialog holds:
+
+- **To**: one email address. It starts with the invoice's Email, else the customer's email. In a web browser, To has the focus when the dialog opens.
+- **Cc**: up to 5 more addresses, separated by commas. It starts empty.
+- **Subject**: it starts as "Invoice 1004 from" and your business name. It can have up to 300 characters.
+- **Message**: the text of the email, with a row of format buttons above it: Bold, Italic, Underline, Bullet list, Numbered list, Blockquote and Link. On a narrow screen, the buttons that do not fit are in the row's More menu. To add a link, select the text and choose Link (or press ⌘K in the message), type the address and choose Apply. To remove a link, open Link on it, clear the address and choose Apply.
+- The attachment line, such as "Attachment: invoice-1004.pdf", and two buttons: **Copy customer link** copies the invoice's link (see "Share an invoice by link" below), and **Download PDF** downloads the PDF.
+
+The message starts with a greeting to the customer, "Attached is invoice 1004 from" and your business name, the Invoice date, the Due date, the Total and the Balance due (in bold), your Message to customer when the invoice has one, the invoice's customer link, and "To pay, or to ask about this invoice, reply to this email", with your business phone when it is set in Settings. When the balance is zero, it reads "Balance due: $0.00. No payment is due." The subject and the message do not name the addresses, so they do not change when you type in To or Cc.
+
+You can change the subject and the message before you send. To put the starting subject and message back, choose **Reset message** (⌥R) beside the Message label. It replaces your changes at once, with no question. The changes are not kept: the next time you open the dialog, it starts again from the starting texts.
+
+To send, choose **Send**, or press ⌘↵ in any field of the dialog, the message too. While the email goes out, the button reads "Sending…". When it is sent, the dialog closes and Books shows "Invoice 1004 sent to" with the address. If Books refuses the send, the reason shows in the dialog and the dialog stays open, so you can correct it and choose Send again. Books checks that To holds one valid address, that Cc holds at most 5 valid addresses, and that the subject and the message are not empty.
+
+The email comes from the server's address with your business name as the sender's name (the business name in Settings, else the organization's name). When the customer replies, the reply goes to your own email address. The email shows your business name at the top and a line with your business name, phone and email at the bottom. Only the formats of the format buttons go out: a picture or a table that you paste into the message is removed, and its text stays.
+
+After a send, the invoice shows a line under its status, such as "Sent Nov 20, 2026 to billing@cedarhollow.example", and "· sent 3 times" after more than one send. The line does not name the Cc addresses. Each send is also an entry of the invoice's Audit history (More → Audit history), "Sent to" the address, with the Subject and the Message that went out.
+
+To send many invoices at once, tick them on the [Sales lists](help://books:sales-lists) and choose Batch actions → Send. A batch sends each invoice to the Email on the invoice, with the standard subject and message that Books fills in for each one at the time of the send. You cannot change the text of a batch send.
+
+When email sending is not set up on your server, the dialog says "Email sending is not set up. Share the customer link or the PDF with your customer." and shows only Copy customer link, Download PDF and Close. Copy the link or download the PDF and send it to your customer yourself, or ask the person who runs your server to set up email sending.
+
+Keys of sending:
+
+- S: Send… on the read view of a posted invoice
+- ⌘⌥↵: Post and send on the invoice form
+- ⌘↵: Send, in the Send dialog
+- Esc: Cancel, in the Send dialog
+- ⌥R: Reset message, in the Send dialog
+- ⌘K: Link, while the cursor is in the message
+- ⌥L: Copy customer link on the read view of a posted invoice
+
+In the mobile app with a hardware keyboard, only ⌘↵ and ⌘K work while the cursor is in the message; ⌥R and Esc work from the other fields, and the buttons always work.
+
+## Share an invoice by link
+
+To share an invoice with a link, open the posted invoice and choose **Copy customer link**, or press ⌥L. On a phone, it is in the More menu. Books copies the link and shows "Customer link copied." The link has the form `{{server-host}}/p/books/invoices/` followed by the invoice's own code. The email of a send holds the same link. A draft has no link, and a void invoice does not offer Copy customer link.
+
+The customer opens the link in a web browser, with no account and no sign-in. The page shows your logo and business name, "Invoice 1004 for" and the customer's name, the **Balance due** in large type, and "Total" with the total when the balance is not the total. When the invoice is paid in full, the page shows "Paid in full" in place of the balance. Under it are the Invoice date and the due date, as "Due" and the date; when the due date has passed and a balance is open, it reads "Was due" in red. Then come your message to the customer and **Download PDF**, which gives the customer the invoice as it prints. When your business email or phone is set in Settings, the page shows "Questions? Contact" and your business name, with buttons that start an email or a call. The customer cannot pay or reply on the page.
+
+The page shows the invoice as it is when the customer opens it. A payment or a change that you record shows the next time the customer opens or reloads the page.
+
+What an edit or a void does to the link:
+
+- When you void the invoice, its page says that your business voided the invoice and that no payment is due. It shows no amounts and no PDF.
+- When you edit a posted invoice and post the edit, the original becomes void and the new version gets a link of its own. The original's link says "This invoice was replaced by invoice 1004." with the button **Open invoice 1004**, which opens the new version's page. After more edits, each press goes one version on. To send the new version's link, copy it from the new version.
+- A link with a wrong code says "This link is not valid." and "Ask the business that sent it for a new link."
+
+You cannot turn a link off or make a new one for the same invoice.
+
 ## Keyboard shortcuts
 
 On the invoice form (a new invoice, a draft, an edit or a copy):
@@ -138,6 +194,7 @@ On the invoice form (a new invoice, a draft, an edit or a copy):
 | Action | Key |
 | --- | --- |
 | Post | ⌘↵ |
+| Post and send | ⌘⌥↵ |
 | Post & new | ⌘⇧↵ |
 | Save draft | ⌘S |
 | Cancel (asks first if you changed something) | Esc |
@@ -162,17 +219,19 @@ On a posted or void invoice:
 
 - R: Receive payment (a posted invoice with a balance due)
 - A: Apply credit (a posted invoice with a balance due, while the customer has unapplied credit)
+- S: Send… (a posted invoice)
 - E: Edit
 - V: Void
 - C: Copy to a new invoice
 - M: Create credit memo (a posted invoice)
 - W: Write off (a posted invoice with a balance due)
+- ⌥L: Copy customer link (a posted invoice)
 - J: View journal entry
 - ⌥1 / ⌥2: Details tab / PDF view tab
 - ⌘P: Download PDF
 
-The form keys also work while the cursor is in a text box. R, A, E, V, C, M, W and J do not. A key does nothing while its button is hidden or turned off. If a menu or dialog is open, Esc first closes it, and the other keys do nothing. ⌘P never opens the browser's Print: on a new invoice that is not saved, it does nothing. To see all shortcuts, press ? when the cursor is not in a text box.
+The form keys also work while the cursor is in a text box. R, A, S, E, V, C, M, W and J do not. A key does nothing while its button is hidden or turned off. If a menu or dialog is open, Esc first closes it, and the other keys do nothing. ⌘P never opens the browser's Print: on a new invoice that is not saved, it does nothing. To see all shortcuts, press ? when the cursor is not in a text box.
 
 ## Who can do what
 
-With bookkeeper or admin access you can create, post, edit, void, copy and delete draft invoices, receive payments for them, create credit memos from them, and write them off. With read-only access you can open a posted or void invoice, view its journal entry and download its PDF.
+With bookkeeper or admin access you can create, post, edit, void, copy and delete draft invoices, receive payments for them, create credit memos from them, write them off, send them by email and copy their customer links. With read-only access you can open a posted or void invoice, see its sent line, view its journal entry and download its PDF.

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { readHelpTopic } from './help-topic'
+import { letterKey, lineWith, readHelpTopic, sectionOf } from './help-topic'
 
 const helpDir = path.resolve(__dirname, '../help')
 
@@ -179,6 +179,72 @@ describe('help/invoices.md (write-offs)', () => {
 
     it('links help://books:write-offs', () => {
         expect(body).toContain('(help://books:write-offs)')
+    })
+})
+
+// Email and share spec §3.7 Help (checkpoint 5): sending an invoice by email, and the
+// invoice's customer link.
+describe('help/invoices.md (email and share)', () => {
+    const send = sectionOf(body, 'Send to your customer')
+    const share = sectionOf(body, 'Share an invoice by link')
+    const keys = sectionOf(body, 'Keyboard shortcuts')
+
+    it('has the sections "Send to your customer" and "Share an invoice by link"', () => {
+        expect(body).toMatch(/^## Send to your customer$/m)
+        expect(body).toMatch(/^## Share an invoice by link$/m)
+    })
+
+    it('starts the send section with the task', () => {
+        expect(send.trim()).toMatch(/^To send an invoice to your customer,/)
+    })
+
+    it.each([
+        'Send…',
+        'Post and send',
+        'Subject',
+        'Message',
+        'Reset message',
+        'Cc',
+        'Copy customer link',
+        'Download PDF',
+    ])('the send section names %s', text => {
+        expect(send).toContain(text)
+    })
+
+    it('the send section says what a batch sends, the sent line and email not set up', () => {
+        expect(send).toMatch(/\bbatch\b/i)
+        expect(send).toMatch(/\bSent\b/)
+        expect(send).toMatch(/\bnot set up\b/)
+    })
+
+    it.each([
+        ['⌘⌥↵', /Post and send/],
+        ['⌘↵', /\bSend\b/],
+        ['⌥R', /Reset message/],
+        ['⌥L', /Copy customer link/],
+        ['⌘K', /\bLink\b/],
+    ] as const)('the send section names the key %s with its action', (key, action) => {
+        expect(lineWith(send, new RegExp(key), action), `a line with ${key}`).toBeDefined()
+    })
+
+    it('the send section names the read-view key S with Send…', () => {
+        expect(lineWith(send, letterKey('S'), /Send…/), 'a line with S and Send…').toBeDefined()
+    })
+
+    it('the key table lists Post and send ⌘⌥↵ beside the Add line key ⌥↵', () => {
+        const postAndSend = lineWith(keys, /^\|/, /Post and send/, /⌘⌥↵/)
+        expect(postAndSend, 'a key-table row: Post and send, ⌘⌥↵').toBeDefined()
+        expect(lineWith(keys, /^\|/, /Add an item line/, /\|\s*⌥↵\s*\|/)).toBeDefined()
+    })
+
+    it('the share section says what the customer sees and what an edit or a void does', () => {
+        expect(share.trim()).toMatch(/^To /)
+        expect(share).toContain('Copy customer link')
+        expect(share).toContain('{{server-host}}/p/books/invoices/')
+        expect(share).toMatch(/\bBalance due\b/)
+        expect(share).toMatch(/\bvoid/i)
+        expect(share).toMatch(/\bedit/i)
+        expect(share).toMatch(/\breplac/i)
     })
 })
 

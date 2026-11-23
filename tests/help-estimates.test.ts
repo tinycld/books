@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { readHelpTopic } from './help-topic'
+import { letterKey, lineWith as lineIn, readHelpTopic, sectionOf } from './help-topic'
 
 // The estimate help topic, complete (checkpoint 4): task-led sections for statuses and
 // Expired, accepting, converting to an invoice and undoing it, deleting, the PDF, and the
@@ -96,9 +96,59 @@ describe('help/estimates.md', () => {
         }
     })
 
+    it('has no hand-written hostname', () => {
+        const withoutTokens = body.replace(/\{\{server-host\}\}/g, '')
+        expect(withoutTokens).not.toMatch(
+            /\b[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|org|net|io|dev|app)\b/i
+        )
+    })
+
     it('has no Ctrl or Alt keyboard text and no image line', () => {
         expect(body).not.toMatch(/\bCtrl\b/i)
         expect(body).not.toMatch(/\bAlt\b/i)
         expect(body).not.toMatch(/!\[[^\]]*\]\(/)
+    })
+})
+
+// Email and share spec §3.7 Help (checkpoint 5): sending an estimate by email.
+describe('help/estimates.md (email and share)', () => {
+    const send = sectionOf(body, 'Send to your customer')
+
+    it('has the section "Send to your customer", led by the task', () => {
+        expect(body).toMatch(/^## Send to your customer$/m)
+        expect(send.trim()).toMatch(/^To send an estimate to your customer,/)
+    })
+
+    it.each([
+        'Send…',
+        'Save and send',
+        'Subject',
+        'Message',
+        'Reset message',
+        'Cc',
+        'Copy customer link',
+        'Download PDF',
+    ])('the send section names %s', text => {
+        expect(send).toContain(text)
+    })
+
+    it('the send section says what a batch sends, the sent line and email not set up', () => {
+        expect(send).toMatch(/\bbatch\b/i)
+        expect(send).toMatch(/\bSent\b/)
+        expect(send).toMatch(/\bnot set up\b/)
+    })
+
+    it.each([
+        ['⌘⌥↵', /Save and send/],
+        ['⌘↵', /\bSend\b/],
+        ['⌥R', /Reset message/],
+        ['⌥L', /Copy customer link/],
+        ['⌘K', /\bLink\b/],
+    ] as const)('the send section names the key %s with its action', (key, action) => {
+        expect(lineIn(send, new RegExp(key), action), `a line with ${key}`).toBeDefined()
+    })
+
+    it('the send section names the key S with Send…', () => {
+        expect(lineIn(send, letterKey('S'), /Send…/), 'a line with S and Send…').toBeDefined()
     })
 })
