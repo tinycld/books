@@ -412,27 +412,30 @@ test.describe('vendor-credit-form: keyboard', () => {
     })
 })
 
-test.describe('vendor-credit-form: refusals and read actions', () => {
-    test('refuses a duplicate credit no., then copies, corrects and voids a credit', async ({
-        page,
-    }) => {
-        const ref = uniqueRef('DUP')
-        const memo = uniqueMemo('Vendor credit read actions')
-        await openBooks(page)
-        const today = await localToday(page)
+// Books open, with a posted $60.00 Summit credit of a unique Vendor's credit no. and memo on
+// screen.
+async function postSummitCredit(page: Page, label: string) {
+    const ref = uniqueRef('DUP')
+    const memo = uniqueMemo(label)
+    await openBooks(page)
+    await openNewVendorCredit(page)
+    await pickCreditVendor(page, SUMMIT)
+    await page.getByTestId('form-input-ref_no').fill(ref)
+    const line = await pickCreditLineAccount(page, 0, RENT)
+    await page.getByTestId(creditCellTestId('account_lines', line, 'amount')).fill('60.00')
+    await page.getByTestId('form-input-memo').fill(memo)
+    await page.getByTestId('vendor-credit-post').click()
+    await expect(page).toHaveURL(VENDOR_CREDIT_URL)
+    const posted = { number: await vendorCreditNumberOf(page) }
+    return { ref, memo, posted, firstId: vendorCreditIdFromUrl(page) }
+}
 
-        // A posted credit with a unique Vendor's credit no.
-        await openNewVendorCredit(page)
-        await pickCreditVendor(page, SUMMIT)
+// Each test posts its own credit: one test for all three ran close to the test timeout on
+// CI.
+test.describe('vendor-credit-form: refusals and read actions', () => {
+    test('refuses a duplicate credit no. and a credit with no line', async ({ page }) => {
+        const { ref, posted } = await postSummitCredit(page, 'Vendor credit duplicate no.')
         const refInput = page.getByTestId('form-input-ref_no')
-        await refInput.fill(ref)
-        const firstLine = await pickCreditLineAccount(page, 0, RENT)
-        await page.getByTestId(creditCellTestId('account_lines', firstLine, 'amount')).fill('60.00')
-        await page.getByTestId('form-input-memo').fill(memo)
-        await page.getByTestId('vendor-credit-post').click()
-        await expect(page).toHaveURL(VENDOR_CREDIT_URL)
-        const posted = { number: await vendorCreditNumberOf(page) }
-        const firstId = vendorCreditIdFromUrl(page)
 
         // A second credit of the vendor with the same number: refused under Vendor's
         // credit no.; the form keeps its values, and the summary does not repeat it.
@@ -472,6 +475,12 @@ test.describe('vendor-credit-form: refusals and read actions', () => {
         await expect(page.getByTestId('discard-dialog')).toBeVisible()
         await page.keyboard.press('ControlOrMeta+Enter')
         await expect(page.getByTestId('vendor-credit-form')).toHaveCount(0)
+    })
+
+    test('a refused read of a credit shows the load error, and Retry loads it', async ({
+        page,
+    }) => {
+        const { memo, posted, firstId } = await postSummitCredit(page, 'Vendor credit refused read')
 
         // A refused read of the credit is the screen's load error; Retry loads it. The
         // credit is already in this page's store (it posted it), so the read is made on a
@@ -491,10 +500,15 @@ test.describe('vendor-credit-form: refusals and read actions', () => {
         await second.getByTestId('vendor-credit-retry').click()
         await expect(shown(second, 'vendor-credit-read-only')).toBeVisible()
         await second.close()
+    })
 
-        // Back on the first page, the credit's read view.
-        await searchToVendorCredit(page, memo, `Vendor credit ${posted.number} · ${SUMMIT}`)
-        await expect(page).toHaveURL(CREDIT_URL_OF(firstId))
+    test('copies, corrects and voids a credit', async ({ page }) => {
+        const { ref, memo, posted, firstId } = await postSummitCredit(
+            page,
+            'Vendor credit read actions'
+        )
+        const today = await localToday(page)
+        const refInput = page.getByTestId('form-input-ref_no')
         // Screens pushed over a read view keep it mounted and hidden: read the shown one.
         const readView = shown(page, 'vendor-credit-read-only')
         await expect(readView).toBeVisible()

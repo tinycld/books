@@ -67,22 +67,18 @@ test.describe('vendor-form: inactive and delete', () => {
             await login(page)
             await navigateToPackage(page, 'books')
             await page.setViewportSize(size)
-            const banner = page.getByTestId('vendors-banner')
             const showInactive = page.getByTestId('vendors-show-inactive')
             const prefix = uniqueName(`Actions ${viewportName(page)}`)
             const nameP = `${prefix} P`
-            const nameQ = `${prefix} Q`
 
             // (1) The row (or card) opens through a button named for the vendor; the menu is
             // its own "Vendor actions" button beside it, not nested inside it.
             await openVendorsList(page)
             await createVendor(page, { name: nameP })
-            await createVendor(page, { name: nameQ })
             // Save opens the new vendor's page; the list is behind it.
             await openVendorsList(page)
             await searchVendors(page, prefix)
             const pId = await vendorIdOf(page, nameP)
-            const qId = await vendorIdOf(page, nameQ)
             const entryP = vendorEntry(page, nameP)
             const menuP = page.getByTestId(`vendor-menu-${pId}`)
             await expect(openButton(page, nameP)).toHaveCount(1)
@@ -123,66 +119,6 @@ test.describe('vendor-form: inactive and delete', () => {
             await expect(showInactive).toHaveAttribute('aria-checked', 'false')
             await expect(entryP).toBeVisible()
 
-            if (sizeName === 'desktop') {
-                // (3) A refusal with no dialog open shows in the banner.
-                await page.route(vendorHelpers.recordUrl(pId), route =>
-                    route.request().method() !== 'PATCH'
-                        ? route.continue()
-                        : route.fulfill({
-                              status: 400,
-                              contentType: 'application/json',
-                              body: JSON.stringify({
-                                  code: 400,
-                                  message: CHANGE_REFUSAL,
-                                  data: {},
-                              }),
-                          })
-                )
-                await chooseFromMenu(page, pId, 'toggle-inactive')
-                await expect(banner).toContainText(CHANGE_REFUSAL)
-                await expect(entryP).toBeVisible()
-                await expect(inactiveLabel(entryP)).toHaveCount(0)
-                await page.getByTestId('vendors-banner-dismiss').click()
-                await expect(banner).toHaveCount(0)
-                await page.unroute(vendorHelpers.recordUrl(pId))
-
-                // (4) Offline, a write from the menu fails at once instead of pausing, and the
-                // write items are enabled again.
-                await page.context().setOffline(true)
-                await chooseFromMenu(page, pId, 'toggle-inactive')
-                await expect(banner).toContainText(SERVER_UNREACHED)
-                await expect(page.getByTestId('vendors-banner-dismiss')).toBeVisible()
-                await expect(inactiveLabel(entryP)).toHaveCount(0)
-                await openMenu(page, pId)
-                await expect(menuItem(page, 'toggle-inactive')).toHaveText('Make inactive')
-                await expect.poll(() => isDisabled(menuItem(page, 'toggle-inactive'))).toBe(false)
-                await expect.poll(() => isDisabled(menuItem(page, 'delete'))).toBe(false)
-                await closeMenu(page)
-                await page.getByTestId('vendors-banner-dismiss').click()
-                await expect(banner).toHaveCount(0)
-                await page.context().setOffline(false)
-
-                // While one write is in flight, no other row's Make inactive or Delete can
-                // start; Edit still can.
-                const held = await holdVendorWrite(page, pId, 'PATCH')
-                await chooseFromMenu(page, pId, 'toggle-inactive')
-                await held.arrived
-                await openMenu(page, qId)
-                await expect.poll(() => isDisabled(menuItem(page, 'toggle-inactive'))).toBe(true)
-                await expect.poll(() => isDisabled(menuItem(page, 'delete'))).toBe(true)
-                await expect.poll(() => isDisabled(menuItem(page, 'edit'))).toBe(false)
-                await closeMenu(page)
-                await held.release()
-                await expect(entryP).toHaveCount(0)
-                await showInactive.click()
-                await expect(showInactive).toHaveAttribute('aria-checked', 'true')
-                await chooseFromMenu(page, pId, 'toggle-inactive')
-                await expect(inactiveLabel(entryP)).toHaveCount(0)
-                await showInactive.click()
-                await expect(showInactive).toHaveAttribute('aria-checked', 'false')
-                await expect(entryP).toBeVisible()
-            }
-
             // (5) The Delete vendor dialog: Escape closes it only; a refused delete keeps the
             // vendor and says why in the dialog; then the delete goes through.
             let dialog = await openDeleteDialog(page, pId)
@@ -215,10 +151,95 @@ test.describe('vendor-form: inactive and delete', () => {
             await expect(entryP).toHaveCount(0)
             await searchVendors(page, nameP)
             await expect(page.getByTestId('vendors-no-match')).toBeVisible()
-
-            if (sizeName === 'desktop') await deleteOpenVendorElsewhere(page, prefix)
         })
     }
+
+    test('a refused, an offline and a held row-menu write show in the banner or lock the other rows (desktop)', async ({
+        page,
+    }) => {
+        await login(page)
+        await navigateToPackage(page, 'books')
+        await page.setViewportSize(DESKTOP)
+        const banner = page.getByTestId('vendors-banner')
+        const showInactive = page.getByTestId('vendors-show-inactive')
+        const prefix = uniqueName(`Actions writes ${viewportName(page)}`)
+        const nameP = `${prefix} P`
+        const nameQ = `${prefix} Q`
+        await createVendor(page, { name: nameP })
+        await createVendor(page, { name: nameQ })
+        await openVendorsList(page)
+        await searchVendors(page, prefix)
+        const pId = await vendorIdOf(page, nameP)
+        const qId = await vendorIdOf(page, nameQ)
+        const entryP = vendorEntry(page, nameP)
+
+        // (3) A refusal with no dialog open shows in the banner.
+        await page.route(vendorHelpers.recordUrl(pId), route =>
+            route.request().method() !== 'PATCH'
+                ? route.continue()
+                : route.fulfill({
+                      status: 400,
+                      contentType: 'application/json',
+                      body: JSON.stringify({
+                          code: 400,
+                          message: CHANGE_REFUSAL,
+                          data: {},
+                      }),
+                  })
+        )
+        await chooseFromMenu(page, pId, 'toggle-inactive')
+        await expect(banner).toContainText(CHANGE_REFUSAL)
+        await expect(entryP).toBeVisible()
+        await expect(inactiveLabel(entryP)).toHaveCount(0)
+        await page.getByTestId('vendors-banner-dismiss').click()
+        await expect(banner).toHaveCount(0)
+        await page.unroute(vendorHelpers.recordUrl(pId))
+
+        // (4) Offline, a write from the menu fails at once instead of pausing, and the
+        // write items are enabled again.
+        await page.context().setOffline(true)
+        await chooseFromMenu(page, pId, 'toggle-inactive')
+        await expect(banner).toContainText(SERVER_UNREACHED)
+        await expect(page.getByTestId('vendors-banner-dismiss')).toBeVisible()
+        await expect(inactiveLabel(entryP)).toHaveCount(0)
+        await openMenu(page, pId)
+        await expect(menuItem(page, 'toggle-inactive')).toHaveText('Make inactive')
+        await expect.poll(() => isDisabled(menuItem(page, 'toggle-inactive'))).toBe(false)
+        await expect.poll(() => isDisabled(menuItem(page, 'delete'))).toBe(false)
+        await closeMenu(page)
+        await page.getByTestId('vendors-banner-dismiss').click()
+        await expect(banner).toHaveCount(0)
+        await page.context().setOffline(false)
+
+        // While one write is in flight, no other row's Make inactive or Delete can start;
+        // Edit still can.
+        const held = await holdVendorWrite(page, pId, 'PATCH')
+        await chooseFromMenu(page, pId, 'toggle-inactive')
+        await held.arrived
+        await openMenu(page, qId)
+        await expect.poll(() => isDisabled(menuItem(page, 'toggle-inactive'))).toBe(true)
+        await expect.poll(() => isDisabled(menuItem(page, 'delete'))).toBe(true)
+        await expect.poll(() => isDisabled(menuItem(page, 'edit'))).toBe(false)
+        await closeMenu(page)
+        await held.release()
+        await expect(entryP).toHaveCount(0)
+        await showInactive.click()
+        await expect(showInactive).toHaveAttribute('aria-checked', 'true')
+        await chooseFromMenu(page, pId, 'toggle-inactive')
+        await expect(inactiveLabel(entryP)).toHaveCount(0)
+        await showInactive.click()
+        await expect(showInactive).toHaveAttribute('aria-checked', 'false')
+        await expect(entryP).toBeVisible()
+    })
+
+    test('an open, dirty vendor deleted in another tab shows not found and no Discard question (desktop)', async ({
+        page,
+    }) => {
+        await login(page)
+        await navigateToPackage(page, 'books')
+        await page.setViewportSize(DESKTOP)
+        await deleteOpenVendorElsewhere(page, uniqueName(`Actions elsewhere ${viewportName(page)}`))
+    })
 })
 
 // (6) The open, dirty vendor is deleted in another tab: the not-found message replaces the

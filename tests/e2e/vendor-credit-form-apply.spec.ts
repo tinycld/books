@@ -220,8 +220,15 @@ test.describe('vendor-credit-form: apply from the keyboard', () => {
         await expect(block).toContainText(`Bill ${second.number} · ${today} · $40.00`)
         await expect(page.getByTestId('vendor-credit-total-unapplied')).toContainText('$10.00')
         await expect(page.getByTestId('vendor-credit-badge')).toHaveText('Partly applied')
+    })
 
-        // Escape closes the dialog of a second credit with no application.
+    // Its own vendor and credit: the spread test above ran close to the test timeout on CI.
+    test('Escape closes the dialog and applies nothing', async ({ page }) => {
+        await openBooks(page)
+        const { vendor, bills } = await vendorWithBills(page, {
+            bills: [{ amount: '30.00', due: await localDay(page, 5) }],
+        })
+        const [bill] = bills
         await postVendorCredit(page, {
             vendor: vendor.name,
             account: RENT,
@@ -229,9 +236,9 @@ test.describe('vendor-credit-form: apply from the keyboard', () => {
             memo: uniqueMemo('Vendor credit apply escape'),
         })
         await page.keyboard.press('a')
+        const dialog = applyDialog(page)
         await expect(dialog).toBeVisible()
-        // The first credit's removal opened bill 1 again: it is listed first.
-        await expect(applyAmountCell(page, first.id)).toBeFocused()
+        await expect(applyAmountCell(page, bill.id)).toBeFocused()
         await page.keyboard.press('Escape')
         await expect(dialog).toHaveCount(0)
         await expect(shown(page, 'vendor-credit-badge')).toHaveText('Posted')

@@ -18,10 +18,11 @@ import {
 // `replaces`. It moves no money, so the original stays Posted and the credit keeps its
 // unapplied credit; reopened by search it is the correction form again (read-only Vendor,
 // the row open for the balance plus the original's line, Delete draft in More); its post
-// keeps the original's number and voids the original. A second correction draft saved
-// before that post is left with an original that is no longer posted: it opens as the
-// cannot-edit notice, which still deletes the draft. Desktop; the test makes its own
-// vendor, credit and refund through the UI.
+// keeps the original's number and voids the original. A correction draft saved before
+// another correction of the same original posts is left with an original that is no
+// longer posted: it opens as the cannot-edit notice, which still deletes the draft (the
+// second test; its other correction posts straight from the form). Desktop; each test
+// makes its own vendor, credit and refund through the UI.
 
 const DELETE_BODY = "Delete this draft vendor refund? This can't be undone."
 
@@ -29,7 +30,6 @@ test.describe('vendor-refund: correction draft', () => {
     test('a correction saved as a draft reopens as the correction and posts', async ({ page }) => {
         await openBooks(page)
         const memo = uniqueMemo('Vendor refund correction draft')
-        const secondMemo = uniqueMemo('Second refund fix')
         const { vendor, credits } = await vendorWithCredits(page, [{ amount: '650.00' }])
         const [credit] = credits
         const original = await postRefundOn(page, {
@@ -65,25 +65,6 @@ test.describe('vendor-refund: correction draft', () => {
         // Esc with no edits leaves the saved draft.
         await page.keyboard.press('Escape')
         await expect(page).not.toHaveURL(new RegExp(`/books/vendor-refunds/${draftId}$`))
-
-        // A second correction draft of the same original, saved before the first posts,
-        // with its own memo (the search keeps the two drafts apart).
-        await searchToRefundTitled(page, memo, postedTitle)
-        await expect(page).toHaveURL(new RegExp(`/books/vendor-refunds/${original.id}$`))
-        await shownRefund(page, 'vendor-refund-read-edit').click()
-        await expect(page).toHaveURL(
-            new RegExp(`/books/vendor-refunds/new\\?replaces=${original.id}$`)
-        )
-        await shownRefund(page, 'vendor-refund-amount').fill('130.00')
-        await expect(refundCell(page, credit.id).filter({ visible: true })).toHaveValue('130.00')
-        await shownRefund(page, 'vendor-refund-memo').fill(secondMemo)
-        await page.keyboard.press('ControlOrMeta+s')
-        await expect(page).toHaveURL(VENDOR_REFUND_URL)
-        await expect(page).not.toHaveURL(new RegExp(`/books/vendor-refunds/${draftId}$`))
-        const secondDraftId = vendorRefundIdFromUrl(page)
-        expect(secondDraftId).not.toBe(original.id)
-        await page.keyboard.press('Escape')
-        await expect(page).not.toHaveURL(new RegExp(`/books/vendor-refunds/${secondDraftId}$`))
 
         // The original stays Posted, and its credit keeps $500.00 unapplied.
         await searchToRefundTitled(page, memo, postedTitle)
@@ -137,9 +118,63 @@ test.describe('vendor-refund: correction draft', () => {
         await expect(shownRefund(page, 'vendor-refund-replaced-by')).toHaveText(
             `Replaced by ${original.number} (edited)`
         )
+    })
 
-        // The second draft's original is no longer posted: it opens as the cannot-edit
-        // notice, which still offers Delete draft; ⌘⌫ and the confirm delete it.
+    test('a correction draft whose original was corrected meanwhile opens as the cannot-edit notice and deletes', async ({
+        page,
+    }) => {
+        await openBooks(page)
+        const memo = uniqueMemo('Vendor refund correction second')
+        const secondMemo = uniqueMemo('Second refund fix')
+        const { vendor, credits } = await vendorWithCredits(page, [{ amount: '650.00' }])
+        const [credit] = credits
+        const original = await postRefundOn(page, {
+            vendor: vendor.name,
+            creditId: credit.id,
+            amount: '150.00',
+            memo,
+        })
+        const postedTitle = new RegExp(`^Vendor refund ${original.number} · `)
+
+        // A correction draft of the original with its own memo (the search keeps it apart
+        // from the original).
+        await shownRefund(page, 'vendor-refund-read-edit').click()
+        await expect(page).toHaveURL(
+            new RegExp(`/books/vendor-refunds/new\\?replaces=${original.id}$`)
+        )
+        await shownRefund(page, 'vendor-refund-amount').fill('130.00')
+        await expect(refundCell(page, credit.id).filter({ visible: true })).toHaveValue('130.00')
+        await shownRefund(page, 'vendor-refund-memo').fill(secondMemo)
+        await page.keyboard.press('ControlOrMeta+s')
+        await expect(page).toHaveURL(VENDOR_REFUND_URL)
+        const secondDraftId = vendorRefundIdFromUrl(page)
+        expect(secondDraftId).not.toBe(original.id)
+        // The saved draft's own screen, before Esc leaves it.
+        await expect(shownRefund(page, 'vendor-refund-form')).toBeVisible()
+        await expect(shownRefund(page, 'vendor-refund-title')).toHaveText(
+            `Edit vendor refund ${original.number}`
+        )
+        await page.keyboard.press('Escape')
+        await expect(page).not.toHaveURL(new RegExp(`/books/vendor-refunds/${secondDraftId}$`))
+
+        // Another correction of the same original posts straight from the form, so the
+        // original is no longer posted.
+        await searchToRefundTitled(page, memo, postedTitle)
+        await expect(page).toHaveURL(new RegExp(`/books/vendor-refunds/${original.id}$`))
+        await shownRefund(page, 'vendor-refund-read-edit').click()
+        await expect(page).toHaveURL(
+            new RegExp(`/books/vendor-refunds/new\\?replaces=${original.id}$`)
+        )
+        await shownRefund(page, 'vendor-refund-amount').fill('120.00')
+        await expect(refundCell(page, credit.id).filter({ visible: true })).toHaveValue('120.00')
+        await shownRefund(page, 'vendor-refund-post').click()
+        await expect(shownRefund(page, 'vendor-refund-read-only')).toBeVisible()
+        await expect(shownRefund(page, 'vendor-refund-title')).toHaveText(
+            `Vendor refund ${original.number}`
+        )
+
+        // The draft's original is no longer posted: it opens as the cannot-edit notice,
+        // which still offers Delete draft; ⌘⌫ and the confirm delete it.
         await searchToRefundTitled(
             page,
             secondMemo,
