@@ -9,6 +9,7 @@ import {
     pickLineProduct,
 } from './invoice-helpers'
 import { openEntriesList } from './journal-entries-helpers'
+import { openNewAction } from './new-menu-helpers'
 
 // Shared steps of the receive-payment specs (spec §4.5): every test makes its own customer
 // and posts its own invoices through the UI, so no test reads or changes a seeded invoice or
@@ -140,8 +141,7 @@ export async function customerWithInvoices(
 // header's New menu → Receive payment.
 export async function openNewPayment(page: Page) {
     await openEntriesList(page)
-    await page.getByText('New', { exact: true }).filter({ visible: true }).click()
-    await page.getByTestId('books-new-receive-payment').click()
+    await openNewAction(page, 'receive_payment')
     await expect(page).toHaveURL(NEW_PAYMENT_URL)
     await expect(page.getByTestId('payment-title')).toHaveText('Receive payment')
 }

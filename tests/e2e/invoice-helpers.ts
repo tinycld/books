@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test'
-import { isPhone } from './account-register-helpers'
 import { openEntriesList } from './journal-entries-helpers'
+import { openNewAction } from './new-menu-helpers'
 import { pickFromSearchPicker } from './search-picker-helpers'
 
 export { DESKTOP } from './account-register-helpers'
@@ -30,16 +30,11 @@ export function localToday(page: Page): Promise<string> {
     })
 }
 
-// Books must already be open. From the Journal Entries list through the New menu (the
-// phone FAB, or the desktop header's New text) → Invoice.
+// Books must already be open. From the Journal Entries list through the New menu
+// (tests/e2e/new-menu-helpers.ts) → Invoice.
 export async function openNewInvoice(page: Page) {
     await openEntriesList(page)
-    if (isPhone(page)) {
-        await page.getByLabel('New', { exact: true }).click()
-    } else {
-        await page.getByText('New', { exact: true }).filter({ visible: true }).click()
-    }
-    await page.getByTestId('books-new-invoice').click()
+    await openNewAction(page, 'invoice')
     await expect(page).toHaveURL(NEW_INVOICE_URL)
     await expect(page.getByTestId('invoice-title')).toHaveText('New invoice')
 }

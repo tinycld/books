@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test'
-import { isPhone } from './account-register-helpers'
 import { openEntriesList } from './journal-entries-helpers'
+import { openNewAction } from './new-menu-helpers'
 import { pickFromSearchPicker } from './search-picker-helpers'
 
 // A vendor credit's own screen: `books/vendor-credits/<id>`, never
@@ -17,17 +17,12 @@ export function vendorCreditIdFromUrl(page: Page): string {
     return id
 }
 
-// Books must already be open. From the Journal Entries list through the New menu (the
-// phone FAB, or the desktop header's New text) to the Vendor credit item. A new vendor
+// Books must already be open. From the Journal Entries list through the New menu
+// (tests/e2e/new-menu-helpers.ts) to the Vendor credit item. A new vendor
 // credit's Vendor picker has focus (web, every width).
 export async function openNewVendorCredit(page: Page) {
     await openEntriesList(page)
-    if (isPhone(page)) {
-        await page.getByLabel('New', { exact: true }).click()
-    } else {
-        await page.getByText('New', { exact: true }).filter({ visible: true }).click()
-    }
-    await page.getByTestId('books-new-vendor-credit').click()
+    await openNewAction(page, 'vendor_credit')
     await expect(page).toHaveURL(NEW_VENDOR_CREDIT_URL)
     await expect(page.getByTestId('vendor-credit-form')).toBeVisible()
     await expect(page.getByTestId('vendor-credit-title')).toHaveText('New vendor credit')
