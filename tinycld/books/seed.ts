@@ -132,6 +132,10 @@ interface SeedContext {
     user: { id: string; email: string; name: string }
 }
 
+// The one settings row, made by migration 2100000001.
+const SETTINGS_ROW_ID = 'bookssettings01'
+const SEED_BUSINESS_NAME = 'Hartwell Supply Co.'
+
 // [account key, debit, credit] in cents
 type SeedLine = [string, number, number]
 
@@ -232,8 +236,12 @@ function fiscalYearStart(today: Date, startMonth: number): string {
 export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<void> {
     // The settings row is not seeded from the fixture: it holds fake user ids and
     // setup_completed: true, which would hide the setup card the setup e2e opens.
-    // The settings e2e fills the company fields through the UI.
     // The settings row keeps setup_started and setup_completed false, so the seeded book (which already has accounts) shows the wizard's populated-book path.
+    // The business name is required to save the Company form, and reports and the customer
+    // pages print it. It is seeded so no e2e has to write it: specs on parallel workers read it.
+    await pb.collection('books_settings').update(SETTINGS_ROW_ID, {
+        business_name: SEED_BUSINESS_NAME,
+    })
     const year = new Date().getFullYear()
     const ids = new Map<string, string>()
     const accountIds = new Map<string, string>()

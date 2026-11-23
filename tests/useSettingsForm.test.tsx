@@ -487,6 +487,80 @@ describe('useSettingsForm blocks saved while the company form is dirty', () => {
     })
 })
 
+// Another admin (or another tab) can save the same row while this form is open; their
+// field reaches the store the way a realtime update does. A save writes only the fields
+// typed in this form, so it never puts back an old value of a field it did not touch.
+describe('useSettingsForm with another writer on the same row', () => {
+    const OTHER_EMAIL = 'other-writer@example.com'
+
+    function otherWriterSavesEmail() {
+        return settingsStore().update(ROW.id, draft => {
+            draft.email = OTHER_EMAIL
+        })
+    }
+
+    it('a second save does not write back a field another writer changed during the first save', async () => {
+        const release = holdWrites()
+        const rendered = renderLiveCompany()
+        await waitFor(() => expect(settingsStore().get(ROW.id)).toBeDefined())
+        act(() => {
+            rendered.result.current.form.setValue('phone', '+1 555 000 9999', {
+                shouldDirty: true,
+            })
+        })
+
+        act(() => rendered.result.current.submit())
+        await waitFor(() => expect(rendered.result.current.isPending).toBe(true))
+        act(() => {
+            otherWriterSavesEmail()
+        })
+        release()
+        await waitFor(() => expect(rendered.result.current.isPending).toBe(false))
+        await waitFor(() => expect(savedRow().email).toBe(OTHER_EMAIL))
+        await waitFor(() =>
+            expect(rendered.result.current.form.getValues().email).toBe(OTHER_EMAIL)
+        )
+
+        act(() => {
+            rendered.result.current.form.setValue('tax_id', '98-7654321', { shouldDirty: true })
+        })
+        act(() => rendered.result.current.submit())
+
+        await waitFor(() => expect(savedRow().tax_id).toBe('98-7654321'))
+        expect(savedRow().email).toBe(OTHER_EMAIL)
+        expect(savedRow().phone).toBe('+1 555 000 9999')
+    })
+
+    it('a retry after a refusal does not write back a field another writer changed meanwhile', async () => {
+        seedBooks({ level: 'admin', ledger: LEDGER, refuseSettings: messageRefusal(REFUSAL) })
+        const rendered = renderLiveCompany()
+        await waitFor(() => expect(settingsStore().get(ROW.id)).toBeDefined())
+        act(() => {
+            rendered.result.current.form.setValue('phone', '+1 555 000 9999', {
+                shouldDirty: true,
+            })
+        })
+        act(() => rendered.result.current.submit())
+        await waitFor(() =>
+            expect(rendered.result.current.form.formState.errors.root?.message).toBe(REFUSAL)
+        )
+
+        liftRefusal()
+        act(() => {
+            otherWriterSavesEmail()
+        })
+        await waitFor(() => expect(savedRow().email).toBe(OTHER_EMAIL))
+        await waitFor(() =>
+            expect(rendered.result.current.form.getValues().email).toBe(OTHER_EMAIL)
+        )
+
+        act(() => rendered.result.current.submit())
+
+        await waitFor(() => expect(savedRow().phone).toBe('+1 555 000 9999'))
+        expect(savedRow().email).toBe(OTHER_EMAIL)
+    })
+})
+
 describe('useSettingsForm isSubmitted with values from the live row', () => {
     async function renderTyped(seed?: Parameters<typeof seedBooks>[0]) {
         seedBooks(seed ?? { level: 'admin', ledger: LEDGER })

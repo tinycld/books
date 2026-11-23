@@ -115,8 +115,8 @@ function accountName(prefix: string): string {
 }
 
 // The heading core's document header prints: the Books business name, else the
-// organization's name. Read-only: books-settings.spec.ts types over the business name and
-// restores it on the shared DB, so it is read when compared.
+// organization's name. Read-only, and read when compared, so the test does not depend on
+// what the shared row holds (seed.ts seeds the name; no spec changes it).
 async function expectedHeading(page: Page): Promise<string> {
     const key = await authStorageKey(page)
     const token = await page.evaluate(
