@@ -15,7 +15,8 @@ import { useBooksReports } from './useBooksReports'
  * still returned; the picker shows its loading or error row in place of the options.
  */
 export function useShortcutChoices(list: readonly Shortcut[], term: string) {
-    const { canWrite } = useBooksAccess()
+    const access = useBooksAccess()
+    const { canWrite } = access
     const reports = useBooksReports()
     const accounts = useAccountOptions()
     const all = shortcutChoices(list, {
@@ -25,16 +26,19 @@ export function useShortcutChoices(list: readonly Shortcut[], term: string) {
     })
     const recovery = mergeRecoveries([reports.recovery, accounts.recovery])
     const retry = () => {
+        if (access.isError) access.retry()
         void recoverLiveQueries({
             ...recovery,
             onError: err => log.error('books.sidebar.shortcuts', err),
         })
     }
-    const isError = reports.isError || accounts.isError
+    const isError = reports.isError || accounts.isError || access.isError
+    // The forms are offered to a writer only. Until the level has loaded it reads as 'none',
+    // so the picker waits for it rather than offer a writer the choices of a reader.
     return {
         choices: searchChoices(all, term),
         isFull: !canAddShortcut(list),
-        isLoading: !isError && !(reports.isReady && accounts.isReady),
+        isLoading: !isError && !(reports.isReady && accounts.isReady && access.isReady),
         isError,
         retry,
     }
