@@ -1,56 +1,32 @@
 import { FAB } from '@tinycld/core/components/FAB'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
+import { useWorkspaceStore } from '@tinycld/core/lib/stores/workspace-store'
 import { useUrl } from '@tinycld/core/lib/use-url'
 import { Plus } from 'lucide-react-native'
-import { useState } from 'react'
 import { useNewMenu } from '../hooks/useNewMenu'
 import { hidesNewFab } from '../lib/shell-nav'
-import { NewMenu } from './NewMenu'
+import { useBooksUIStore } from '../stores/books-ui-store'
 
-type NewMenuState = ReturnType<typeof useNewMenu>
-
-interface NewFabContentProps {
-    columns: NewMenuState['columns']
-    onSelect: NewMenuState['open']
-}
-
-// Open state lives here, and this component is mounted only while the FAB
-// is visible, so the state is dropped whenever the FAB hides.
-function NewFabContent({ columns, onSelect }: NewFabContentProps) {
-    const [isOpen, setIsOpen] = useState(false)
-
-    return (
-        <>
-            <FAB icon={Plus} accessibilityLabel="New" isVisible onPress={() => setIsOpen(true)} />
-            <NewMenu
-                columns={columns}
-                onSelect={onSelect}
-                isOpen={isOpen}
-                onOpenChange={setIsOpen}
-            />
-        </>
-    )
-}
-
-interface NewFabGateProps extends NewFabContentProps {
-    isVisible: boolean
-}
-
-function NewFabGate({ isVisible, columns, onSelect }: NewFabGateProps) {
-    if (!isVisible) return null
-    return <NewFabContent columns={columns} onSelect={onSelect} />
-}
-
+// The round New button of the phone layout. The New actions are in the Books sidebar, which
+// on a phone is the drawer, and core's drawer has no visible control that opens it (only a
+// pan from the left edge). So the button opens the drawer with the New section open.
 export function NewFab() {
     const isMobile = useBreakpoint() === 'mobile'
-    const { isVisible, columns, open } = useNewMenu()
+    const { isVisible } = useNewMenu()
     const isOnEntry = hidesNewFab(useUrl().pathname)
+    const setDrawerOpen = useWorkspaceStore(s => s.setDrawerOpen)
+    const openNew = useBooksUIStore(s => s.openNew)
+    const showNewActions = () => {
+        openNew()
+        setDrawerOpen(true)
+    }
 
     return (
-        <NewFabGate
+        <FAB
+            icon={Plus}
+            accessibilityLabel="New"
             isVisible={isMobile && isVisible && !isOnEntry}
-            columns={columns}
-            onSelect={open}
+            onPress={showNewActions}
         />
     )
 }
