@@ -28,7 +28,7 @@ A shortcut to a report or an account that was deleted, or that you can no longer
 
 ## New
 
-To start a transaction, open New in the sidebar and pick an action under Customers, Vendors or Other. The arrow beside the New heading folds the part and opens it again; Books remembers how you left it. On a phone, press the round + button: the Books menu opens with New open. If you have read-only access, New and the round + button are hidden.
+To start a transaction, open New in the sidebar and pick an action under Customers, Vendors or Other. The arrow beside the New heading folds the part and opens it again; Books remembers how you left it. On a phone, press the round + button: the Books menu opens with New open, at the top of the menu. If you have read-only access, New and the round + button are hidden.
 
 ## Reports
 

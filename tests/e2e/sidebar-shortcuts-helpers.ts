@@ -49,6 +49,20 @@ export async function showSidebar(page: Page): Promise<void> {
     await expect.poll(async () => (await panel.boundingBox())?.x).toBe(0)
 }
 
+// The phone drawer is open. Taps the backdrop beside it and waits until it has slid away.
+export async function closeSidebar(page: Page): Promise<void> {
+    const viewport = page.viewportSize()
+    if (!viewport) throw new Error('the page has no viewport size')
+    await page.mouse.click(viewport.width - 20, viewport.height / 2)
+    const panel = page.getByTestId('mobile-drawer-panel')
+    await expect
+        .poll(async () => {
+            const box = await panel.boundingBox()
+            return box ? box.x + box.width : 0
+        })
+        .toBeLessThanOrEqual(0)
+}
+
 export function shortcutRow(page: Page, slug: string): Locator {
     return page.getByTestId(`${ROW_PREFIX}${slug}`).filter({ visible: true })
 }

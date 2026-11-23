@@ -11,6 +11,7 @@ import { ReportsSection } from './components/sidebar/ReportsSection'
 import { ShortcutsSection } from './components/sidebar/ShortcutsSection'
 import { useBooksSidebar } from './hooks/useBooksSidebar'
 import type { SidebarEntry } from './lib/shell-nav'
+import { useBooksUIStore } from './stores/books-ui-store'
 
 interface AccountingHeadingProps {
     isVisible: boolean
@@ -30,9 +31,15 @@ function AccountingHeading({ isVisible, isOpen, onToggle }: AccountingHeadingPro
     )
 }
 
+const SHORTCUTS_FIRST = [<ShortcutsSection key="shortcuts" />, <NewSection key="new" />]
+const NEW_FIRST = [<NewSection key="new" />, <ShortcutsSection key="shortcuts" />]
+
 // The Books sidebar, top to bottom: the user's Shortcuts, the New actions, the Books
 // reports, then the fixed navigation under "Go to". The same component is the desktop
-// sidebar and the phone drawer.
+// sidebar and the phone drawer. The drawer that the phone's New button opens draws New
+// first, because the Shortcuts above it can be taller than the screen. core's SidebarNav
+// gives no handle to its scroll, so the key change draws a new SidebarNav, which starts at
+// the top, also when the drawer was scrolled before it closed.
 export default function BooksSidebar() {
     const {
         top,
@@ -43,6 +50,9 @@ export default function BooksSidebar() {
         toggleAccounting,
         isActive,
     } = useBooksSidebar()
+    const isNewFirst = useBooksUIStore(s => s.isNewFirst)
+    const leadSections = isNewFirst ? NEW_FIRST : SHORTCUTS_FIRST
+    const navKey = isNewFirst ? 'new-first' : 'shortcuts-first'
     const orgHref = useOrgHref()
 
     const renderItem = (entry: SidebarEntry) => (
@@ -61,9 +71,8 @@ export default function BooksSidebar() {
     const endItems = end.map(renderItem)
 
     return (
-        <SidebarNav>
-            <ShortcutsSection />
-            <NewSection />
+        <SidebarNav key={navKey}>
+            {leadSections}
             <ReportsSection />
             <SidebarHeading>Go to</SidebarHeading>
             {topItems}
