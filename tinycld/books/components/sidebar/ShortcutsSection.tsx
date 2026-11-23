@@ -4,7 +4,7 @@ import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { router } from 'expo-router'
 import { Pencil } from 'lucide-react-native'
 import { Pressable, Text, View } from 'react-native'
-import { useOpenCustomizeShortcuts } from '../../hooks/useOpenCustomizeShortcuts'
+import { type OpenableList, useOpenRule } from '../../hooks/useOpenCustomizeShortcuts'
 import { useShortcutRows } from '../../hooks/useShortcutRows'
 import type { ShortcutRow } from '../../lib/shortcut-rows'
 
@@ -39,8 +39,8 @@ function ShortcutsError({ isVisible, onRetry }: { isVisible: boolean; onRetry: (
 
 // Opens the Customize shortcuts dialog. Hidden until the list is read: the dialog edits
 // a copy of the list, and there is none to copy before that.
-function CustomizeButton() {
-    const { canOpen, open } = useOpenCustomizeShortcuts()
+function CustomizeButton({ list }: { list: OpenableList }) {
+    const { canOpen, open } = useOpenRule(list)
     const setDrawerOpen = useWorkspaceStore(state => state.setDrawerOpen)
     const color = useThemeColor('muted-foreground')
     if (!canOpen) return null
@@ -81,11 +81,11 @@ function renderRow(row: ShortcutRow) {
 
 // The first section of the Books sidebar: the user's own shortcuts, in the user's order.
 export function ShortcutsSection() {
-    const { rows, isEmpty, isError, retry } = useShortcutRows()
+    const { list, rows, isEmpty, isError, retry } = useShortcutRows()
     const items = rows.map(renderRow)
     return (
         <>
-            <SidebarHeading action={<CustomizeButton />}>Shortcuts</SidebarHeading>
+            <SidebarHeading action={<CustomizeButton list={list} />}>Shortcuts</SidebarHeading>
             {items}
             <ShortcutsNote isVisible={isEmpty} text="No shortcuts" />
             <ShortcutsError isVisible={isError} onRetry={retry} />

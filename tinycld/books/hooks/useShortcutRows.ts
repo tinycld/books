@@ -25,6 +25,7 @@ export function useShortcutRows() {
     }
 
     return {
+        list: { shortcuts: list.shortcuts, isReady: list.isReady, isError: list.isError },
         rows,
         isReady: list.isReady,
         isEmpty: list.isReady && !list.isError && list.shortcuts.length === 0,
