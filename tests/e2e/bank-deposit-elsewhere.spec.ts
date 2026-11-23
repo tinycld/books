@@ -19,7 +19,7 @@ import {
 import { collaboratorLevel, type Level, setCollaboratorLevel } from './books-access-helpers'
 import { uniqueMemo } from './invoice-helpers'
 import { openEntriesList, settleFrames } from './journal-entries-helpers'
-import { newActionItem } from './new-menu-helpers'
+import { newActionTestId } from './new-menu-helpers'
 import { PAYMENT_URL } from './receive-payment-helpers'
 import { openSalesReceiptBySearch, SALES_RECEIPT_URL } from './sales-receipt-helpers'
 
@@ -318,6 +318,6 @@ test.describe('bank-deposit: reader (collaborator level)', () => {
         await expect(view.getByTestId('entries-screen').filter({ visible: true })).toBeVisible()
         await expect(view.getByTestId('books-nav-lists').filter({ visible: true })).toBeVisible()
         await expect(view.getByTestId('books-sidebar-new-toggle')).toHaveCount(0)
-        await expect(newActionItem(view, 'deposit')).toHaveCount(0)
+        await expect(view.getByTestId(newActionTestId('deposit'))).toHaveCount(0)
     })
 })

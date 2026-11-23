@@ -1,6 +1,6 @@
 import { expect, type Page, test } from '@playwright/test'
 import { DESKTOP, openBooks, openCustomer } from './customer-form-helpers'
-import { newActionItem } from './new-menu-helpers'
+import { newActionTestId } from './new-menu-helpers'
 import { fillInvoice, localDay, postInvoice } from './receive-payment-helpers'
 import {
     newStatementUrl,
@@ -306,7 +306,7 @@ test.describe('statements: tab and statement', () => {
         await expect(shown(page, 'books-nav-lists')).toBeVisible()
         await expect(page.getByTestId('books-sidebar-new-toggle')).toHaveCount(0)
         await expect(page.getByLabel('New', { exact: true })).toHaveCount(0)
-        await expect(newActionItem(page, 'statement')).toHaveCount(0)
+        await expect(page.getByTestId(newActionTestId('statement'))).toHaveCount(0)
 
         await page.setViewportSize(PHONE)
         const cards = shown(page, 'customer-statements-cards')
