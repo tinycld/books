@@ -30,6 +30,7 @@ import {
     REFUND_SEED_PAYOUT,
     REFUND_SEED_PAYOUT_LINES,
 } from '../tinycld/books/lib/refund-receipt-form-fixture'
+import * as fixture1099 from '../tinycld/books/lib/report-1099-fixture'
 import {
     SALES_RECEIPT_IDS,
     SALES_RECEIPT_LINES,
@@ -37,6 +38,7 @@ import {
 } from '../tinycld/books/lib/sales-receipt-form-fixture'
 import { SEED_ACCOUNTS } from '../tinycld/books/lib/seed-accounts'
 import { STATEMENT_SEED } from '../tinycld/books/lib/statements-fixture'
+import { ACCOUNT_BOXES } from '../tinycld/books/lib/vendor-1099-fixture'
 import { VENDOR_BALANCE_SEED } from '../tinycld/books/lib/vendor-balance-fixture'
 import { VENDOR_IDS, VENDORS } from '../tinycld/books/lib/vendor-form-fixture'
 import { VENDOR_REFUND_VENDOR_IDS } from '../tinycld/books/lib/vendor-refund-fixture'
@@ -1286,6 +1288,244 @@ describe('seedExpensesByVendor', () => {
             ['update', VENDOR_IDS.coastalCoffee, { inactive: true }],
         ])
         expect(writes[writes.length - 1]).toEqual(vendorWrites[1])
+    })
+})
+
+const METRO = 'vendmetroprop01'
+const GREENLINE = 'vendgreenline01'
+const F1099_VENDORS = [VENDOR_IDS.okafor, GREENLINE, VENDOR_IDS.oldTownPrint, METRO]
+
+function seedForm1099Fn(): unknown {
+    return (seedModule as Record<string, unknown>).seedForm1099
+}
+
+// 1099 report plan D5: one posted journal entry of ten lines on 2026-09-23 that gives the
+// 1099 vendors their payments by box, and one posted expense of Jamal Okafor by credit card
+// from 2100. The line guard refuses a new line for an inactive vendor, so Old Town Print
+// Shop is made active for the post and inactive again after it.
+describe('seedForm1099', () => {
+    it('runs directly after the Expenses by Vendor seed', () => {
+        const source = readFileSync(seedPath, 'utf8')
+        const start = source.indexOf('export default async function seed(')
+        const body = source.slice(start, source.indexOf('\n}\n', start))
+        const calls = [...body.matchAll(/\bseed[A-Z]\w*\(/g)].map(match => match[0])
+        const ebv = calls.indexOf('seedExpensesByVendor(')
+        expect(ebv).toBeGreaterThan(-1)
+        expect(calls[ebv + 1]).toBe('seedForm1099(')
+    })
+
+    it('posts one entry with the ten D5 lines, each account netting as D5 says', async () => {
+        const seedForm1099 = seedForm1099Fn()
+        expect(typeof seedForm1099).toBe('function')
+        if (typeof seedForm1099 !== 'function') return
+        const { pb, writes } = expensesByVendorPb(F1099_VENDORS)
+        const accounts = seededAccounts()
+        await seedForm1099(pb, { user: USER }, accounts)
+
+        const acct = (number: string) => accounts.get(number)
+        const entries = writes.filter(
+            w => w.collection === 'books_journal_entries' && w.op === 'create'
+        )
+        expect(entries.map(w => ({ date: w.data.date, memo: w.data.memo }))).toEqual([
+            { date: '2026-09-23', memo: 'Seed 1099: payments by box' },
+        ])
+        const entry = entries[0]
+        if (!entry) return
+        const lines = writes
+            .filter(w => w.collection === 'books_journal_lines' && w.data.entry === entry.id)
+            .map(w => ({
+                account: w.data.account,
+                debit: w.data.debit,
+                credit: w.data.credit,
+                vendor: w.data.vendor ?? '',
+            }))
+        expect(lines).toEqual([
+            { account: acct('6210'), debit: 240000, credit: 0, vendor: VENDOR_IDS.okafor },
+            { account: acct('6100'), debit: 65000, credit: 0, vendor: VENDOR_IDS.okafor },
+            { account: acct('6200'), debit: 31000, credit: 0, vendor: VENDOR_IDS.okafor },
+            { account: acct('6210'), debit: 125000, credit: 0, vendor: GREENLINE },
+            { account: acct('6210'), debit: 200000, credit: 0, vendor: VENDOR_IDS.oldTownPrint },
+            { account: acct('6100'), debit: 90000, credit: 0, vendor: METRO },
+            { account: acct('2100'), debit: 48000, credit: 0, vendor: '' },
+            { account: acct('6210'), debit: 0, credit: 613000, vendor: '' },
+            { account: acct('6100'), debit: 0, credit: 155000, vendor: '' },
+            { account: acct('6200'), debit: 0, credit: 31000, vendor: '' },
+        ])
+        const sum = (key: 'debit' | 'credit') =>
+            lines.reduce((total, line) => total + Number(line[key]), 0)
+        expect([sum('debit'), sum('credit')]).toEqual([799000, 799000])
+        const net = (number: string) =>
+            lines
+                .filter(line => line.account === acct(number))
+                .reduce((total, line) => total + Number(line.debit) - Number(line.credit), 0)
+        expect(['6210', '6100', '6200', '2100'].map(net)).toEqual([-48000, 0, 0, 48000])
+        expect(finalStatus(writes, 'books_journal_entries', entry.id)).toBe('posted')
+    })
+
+    it("posts Jamal Okafor's expense by credit card from 2100 through the expense form's writes", async () => {
+        const seedForm1099 = seedForm1099Fn()
+        expect(typeof seedForm1099).toBe('function')
+        if (typeof seedForm1099 !== 'function') return
+        const { pb, writes } = expensesByVendorPb(F1099_VENDORS)
+        const accounts = seededAccounts()
+        await seedForm1099(pb, { user: USER }, accounts)
+
+        const expenses = writes.filter(w => w.collection === 'books_expenses' && w.op === 'create')
+        expect(expenses.map(w => w.data)).toEqual([
+            expect.objectContaining({
+                vendor: VENDOR_IDS.okafor,
+                status: 'draft',
+                date: '2026-09-23',
+                paid_from: accounts.get('2100'),
+                payment_method: 'credit_card',
+            }),
+        ])
+        const expense = expenses[0]
+        if (!expense) return
+        const lines = writes.filter(
+            w => w.collection === 'books_expense_lines' && w.data.expense === expense.id
+        )
+        expect(lines.map(w => w.data)).toEqual([
+            expect.objectContaining({
+                kind: 'account',
+                account: accounts.get('6210'),
+                amount: 48000,
+                description: 'Seed 1099: design software by card',
+            }),
+        ])
+        expect(finalStatus(writes, 'books_expenses', expense.id)).toBe('posted')
+    })
+
+    it('makes Old Town Print Shop active only for the post', async () => {
+        const seedForm1099 = seedForm1099Fn()
+        expect(typeof seedForm1099).toBe('function')
+        if (typeof seedForm1099 !== 'function') return
+        const oldTown = VENDORS.find(row => row.id === VENDOR_IDS.oldTownPrint)
+        expect(oldTown?.inactive).toBe(true)
+        const { pb, writes } = expensesByVendorPb(F1099_VENDORS)
+        await seedForm1099(pb, { user: USER }, seededAccounts())
+
+        const vendorWrites = writes.filter(w => w.collection === 'books_vendors')
+        expect(vendorWrites.map(w => [w.op, w.id, w.data])).toEqual([
+            ['update', VENDOR_IDS.oldTownPrint, { inactive: false }],
+            ['update', VENDOR_IDS.oldTownPrint, { inactive: true }],
+        ])
+        const entry = writes.find(
+            w => w.collection === 'books_journal_entries' && w.op === 'create'
+        )
+        const at = (w: Write | undefined) => (w ? writes.indexOf(w) : -1)
+        const firstLine = writes.find(
+            w => w.collection === 'books_journal_lines' && w.data.entry === entry?.id
+        )
+        const post = writes.find(
+            w =>
+                w.collection === 'books_journal_entries' &&
+                w.id === entry?.id &&
+                w.data.status === 'posted'
+        )
+        expect(at(firstLine)).toBeGreaterThan(-1)
+        expect(at(post)).toBeGreaterThan(-1)
+        expect(at(vendorWrites[0])).toBeLessThan(at(firstLine))
+        expect(at(vendorWrites[1])).toBeGreaterThan(at(post))
+    })
+
+    it('makes Old Town Print Shop inactive again when the post fails', async () => {
+        const seedForm1099 = seedForm1099Fn()
+        expect(typeof seedForm1099).toBe('function')
+        if (typeof seedForm1099 !== 'function') return
+        const { pb, writes } = expensesByVendorPb(F1099_VENDORS, true)
+        await expect(seedForm1099(pb, { user: USER }, seededAccounts())).rejects.toThrow(
+            'the post failed'
+        )
+        const vendorWrites = writes.filter(w => w.collection === 'books_vendors')
+        expect(vendorWrites.map(w => [w.op, w.id, w.data])).toEqual([
+            ['update', VENDOR_IDS.oldTownPrint, { inactive: false }],
+            ['update', VENDOR_IDS.oldTownPrint, { inactive: true }],
+        ])
+        expect(writes[writes.length - 1]).toEqual(vendorWrites[1])
+    })
+
+    it.each([
+        '6210',
+        '6100',
+        '6200',
+        '2100',
+    ])('throws its own error when account %s was not created', async number => {
+        const seedForm1099 = seedForm1099Fn()
+        expect(typeof seedForm1099).toBe('function')
+        if (typeof seedForm1099 !== 'function') return
+        const { pb, writes } = expensesByVendorPb(F1099_VENDORS)
+        const accounts = seededAccounts()
+        accounts.delete(number)
+        const failure = seedForm1099(pb, { user: USER }, accounts)
+        await expect(failure).rejects.toThrow(/^seed: /)
+        await expect(failure).rejects.toThrow(number)
+        await expect(failure).rejects.not.toBeInstanceOf(ClientResponseError)
+        expect(
+            writes.filter(
+                w => w.collection === 'books_journal_entries' || w.collection === 'books_expenses'
+            )
+        ).toEqual([])
+    })
+
+    it.each([
+        ['Jamal Okafor', VENDOR_IDS.okafor],
+        ['Greenline Landscaping', GREENLINE],
+        ['Old Town Print Shop', VENDOR_IDS.oldTownPrint],
+        ['Metro Commercial Properties', METRO],
+    ])('throws its own error when %s was not created in the database', async (_name, missing) => {
+        const seedForm1099 = seedForm1099Fn()
+        expect(typeof seedForm1099).toBe('function')
+        if (typeof seedForm1099 !== 'function') return
+        // The vendor is still in the VENDORS fixture; only its database row is missing.
+        expect(VENDORS.some(row => row.id === missing)).toBe(true)
+        const { pb, writes } = expensesByVendorPb(F1099_VENDORS.filter(id => id !== missing))
+        const failure = seedForm1099(pb, { user: USER }, seededAccounts())
+        await expect(failure).rejects.toThrow(/^seed: /)
+        await expect(failure).rejects.toThrow(missing)
+        await expect(failure).rejects.not.toBeInstanceOf(ClientResponseError)
+        expect(
+            writes.filter(
+                w => w.collection === 'books_journal_entries' || w.collection === 'books_expenses'
+            )
+        ).toEqual([])
+    })
+})
+
+// The values of REPORT_1099_SEED under the keys that name an account, a vendor or a day.
+function seedReferences(value: unknown, out: { key: string; value: unknown }[] = []) {
+    if (Array.isArray(value)) {
+        for (const item of value) seedReferences(item, out)
+    } else if (value !== null && typeof value === 'object') {
+        for (const [key, inner] of Object.entries(value)) {
+            if (['account', 'paid_from', 'vendor', 'date'].includes(key))
+                out.push({ key, value: inner })
+            else seedReferences(inner, out)
+        }
+    }
+    return out
+}
+
+describe('REPORT_1099_SEED', () => {
+    it('names only the boxed accounts and 2100, the D5 vendors and 2026-09-23', () => {
+        const seed = (fixture1099 as Record<string, unknown>).REPORT_1099_SEED
+        expect(seed).toBeDefined()
+        const refs = seedReferences(seed)
+        const accountNumbers = new Set([...ACCOUNT_BOXES.map(box => box.number), '2100'])
+        const accountsNamed = refs.filter(r => r.key === 'account' || r.key === 'paid_from')
+        const vendorsNamed = refs.filter(r => r.key === 'vendor')
+        const daysNamed = refs.filter(r => r.key === 'date')
+        expect(accountsNamed.length).toBeGreaterThan(0)
+        expect(vendorsNamed.length).toBeGreaterThan(0)
+        expect(daysNamed.length).toBeGreaterThan(0)
+        for (const r of accountsNamed) expect(accountNumbers).toContain(r.value)
+        const named = (v: unknown) => v !== '' && v !== null && v !== undefined
+        for (const r of vendorsNamed.filter(r => named(r.value)))
+            expect(F1099_VENDORS).toContain(r.value)
+        for (const r of daysNamed) expect(r.value).toBe('2026-09-23')
+        expect(new Set(vendorsNamed.map(r => r.value).filter(named))).toEqual(
+            new Set(F1099_VENDORS)
+        )
     })
 })
 

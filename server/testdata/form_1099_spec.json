@@ -1,0 +1,98 @@
+{
+    "title": "1099 Summary and Detail",
+    "description": "Payments to each 1099 vendor by box for a calendar year, without card payments, against your 1099 threshold.",
+    "params": [
+        {
+            "id": "period",
+            "type": "dateRange",
+            "label": "Period",
+            "default": { "preset": "thisCalendarYear" }
+        },
+        {
+            "id": "show",
+            "type": "choice",
+            "label": "Show",
+            "default": "meets",
+            "options": [
+                { "value": "meets", "label": "At or above the threshold" },
+                { "value": "below", "label": "Below the threshold" },
+                { "value": "tracked", "label": "All 1099 vendors" },
+                { "value": "untracked", "label": "Not tracked for 1099" }
+            ],
+            "header": "Vendors: {label}"
+        },
+        {
+            "id": "form",
+            "type": "choice",
+            "label": "Form",
+            "default": "all",
+            "options": [
+                { "value": "all", "label": "NEC and MISC" },
+                { "value": "nec", "label": "1099-NEC" },
+                { "value": "misc", "label": "1099-MISC" }
+            ],
+            "header": "Form: {label}"
+        },
+        {
+            "id": "vendors",
+            "type": "choice",
+            "label": "Vendor",
+            "optionsFrom": {
+                "source": "books.vendors",
+                "value": [{ "field": "id" }],
+                "label": [{ "field": "display_name" }]
+            },
+            "multiple": true,
+            "header": "Vendor: {label}"
+        },
+        {
+            "id": "order",
+            "type": "choice",
+            "label": "Order",
+            "default": "name",
+            "options": [
+                { "value": "name", "label": "Name" },
+                { "value": "amount", "label": "Largest reportable" }
+            ]
+        }
+    ],
+    "display": {
+        "oneLine": { "minWidth": "760px" },
+        "columns": {
+            "name": { "whiteSpace": "normal", "lineClamp": 3 },
+            "reportable": { "minWidth": "max-content" },
+            "excluded": { "minWidth": "max-content" },
+            "all": { "minWidth": "max-content" }
+        },
+        "layouts": [
+            {
+                "width": "mobile",
+                "tracks": 3,
+                "cells": [
+                    { "col": "name", "line": 1, "span": 3 },
+                    { "col": "reportable", "line": 2 },
+                    { "col": "excluded", "line": 2 },
+                    { "col": "all", "line": 2 }
+                ]
+            }
+        ]
+    },
+    "boxLabels": [
+        { "key": "nec_1", "label": "NEC 1 · Nonemployee compensation" },
+        { "key": "misc_1", "label": "MISC 1 · Rents" },
+        { "key": "misc_2", "label": "MISC 2 · Royalties" },
+        { "key": "misc_3", "label": "MISC 3 · Other income" },
+        { "key": "misc_5", "label": "MISC 5 · Fishing boat proceeds" },
+        { "key": "misc_6", "label": "MISC 6 · Medical and health care payments" },
+        {
+            "key": "misc_8",
+            "label": "MISC 8 · Substitute payments in lieu of dividends or interest"
+        },
+        { "key": "misc_9", "label": "MISC 9 · Crop insurance proceeds" },
+        { "key": "misc_10", "label": "MISC 10 · Gross proceeds paid to an attorney" },
+        { "key": "misc_11", "label": "MISC 11 · Fish purchased for resale" }
+    ],
+    "notReported": "Not reported",
+    "emptyFrom": "2020-01-01",
+    "emptyTo": "2020-01-31"
+}

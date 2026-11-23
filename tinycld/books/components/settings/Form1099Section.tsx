@@ -1,8 +1,11 @@
 import { LoadingState } from '@tinycld/core/components/LoadingState'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
+import { type Href, router } from 'expo-router'
 import type { ComponentProps } from 'react'
 import { Text, View } from 'react-native'
 import { useForm1099Section } from '../../hooks/useForm1099Section'
+import { useShippedReportHref } from '../../hooks/useShippedReportHref'
+import { FORM_1099_SHIPPED_KEY } from '../../lib/shipped-reports'
 import type { BooksSettings } from '../../types'
 import { AccountBoxesCard } from './AccountBoxesCard'
 import { ThresholdCard } from './ThresholdCard'
@@ -33,8 +36,24 @@ function SectionError({ isVisible, onRetry }: { isVisible: boolean; onRetry: () 
     )
 }
 
+// Navigation only, so every Books reader sees it, as the Vendors list's Reports menu.
+function OpenReportButton({ isVisible, href }: { isVisible: boolean; href: Href | null }) {
+    if (!isVisible || href === null) return null
+    const open = () => router.push(href)
+    return (
+        <View className="items-start">
+            <Button size="sm" variant="outline" testID="books-1099-open-report" onPress={open}>
+                <ButtonText>Open the 1099 report</ButtonText>
+            </Button>
+        </View>
+    )
+}
+
 interface SectionReadyProps {
     isVisible: boolean
+    // Null while the report loads, when its read fails and when the reader has none:
+    // then the section draws no button.
+    reportHref: Href | null
     settings: BooksSettings | undefined
     accounts: ComponentProps<typeof AccountBoxesCard>['accounts']
     controls: ComponentProps<typeof AccountBoxesCard>['controls']
@@ -45,6 +64,7 @@ interface SectionReadyProps {
 
 function SectionReady({
     isVisible,
+    reportHref,
     settings,
     accounts,
     controls,
@@ -55,6 +75,7 @@ function SectionReady({
     if (!isVisible || !settings) return null
     return (
         <View className="gap-4" testID="books-1099-section">
+            <OpenReportButton isVisible={reportHref !== null} href={reportHref} />
             <ThresholdCard settings={settings} editsThreshold={controls.editsThreshold} />
             <AccountBoxesCard accounts={accounts} controls={controls} />
             <Tracked1099VendorsCard
@@ -70,12 +91,14 @@ function SectionReady({
 // every writer, so the section reads the full access level through useForm1099Section.
 export function Form1099Section() {
     const section = useForm1099Section()
+    const reportHref = useShippedReportHref(FORM_1099_SHIPPED_KEY)
     return (
         <>
             <SectionLoading isVisible={section.part === 'loading'} />
             <SectionError isVisible={section.part === 'error'} onRetry={section.retry} />
             <SectionReady
                 isVisible={section.part === 'ready'}
+                reportHref={reportHref}
                 settings={section.settings}
                 accounts={section.accounts}
                 controls={section.controls}

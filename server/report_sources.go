@@ -18,7 +18,7 @@ import (
 // that setting; core uses it only for the rows a report makes when it reads
 // no rows (an empty book's totals and computed rows). Json columns, sort and
 // name keys, form links, close overrides, user relations and the vendors' terms,
-// account number, expense account, 1099 and tax id fields are left out.
+// account number, expense account and tax id are left out.
 func reportSources() []reports.Source {
 	sources := []reports.Source{
 		{
@@ -32,6 +32,8 @@ func reportSources() []reports.Source {
 				{Key: "description", Label: "Description", Type: reports.Text},
 				{Key: "currency", Label: "Currency", Type: reports.Text},
 				{Key: "inactive", Label: "Inactive", Type: reports.Bool},
+				// The account's 1099 box (Settings → 1099s); blank is no box.
+				{Key: "form_1099_box", Label: "1099 box", Type: reports.Select, Options: box1099SelectOptions()},
 			},
 			Links: []reports.Link{
 				{Key: "parent", Label: "Parent account", Target: "books.accounts", Cardinality: reports.ToOne, Field: "parent"},
@@ -68,6 +70,9 @@ func reportSources() []reports.Source {
 				// The id of the document the entry posts (empty for other
 				// entries), so a line opens its document's screen.
 				{Key: "document", Label: "Document", Type: reports.Text},
+				// The server's card mark of a payment's entry (card_payment.go),
+				// which the 1099 report leaves out of Reportable.
+				{Key: "card_payment", Label: "Card payment", Type: reports.Bool},
 			},
 			Links: []reports.Link{
 				{Key: "lines", Label: "Lines", Target: "books.journal_lines", Cardinality: reports.ToMany, BackField: "entry"},
@@ -156,9 +161,10 @@ func reportSources() []reports.Source {
 			},
 		},
 		{
-			// The customers source's shape. Left out: address, terms,
-			// account_number, expense_account, track_1099, legal_name,
-			// tax_id_type, tax_id, form, fields, name_key and sort_key.
+			// The customers source's shape and the 1099 fields the 1099 report
+			// reads. Left out: address, terms, account_number, expense_account,
+			// tax_id (no report shows a tax id), form, fields, name_key and
+			// sort_key.
 			Key: "books.vendors", Collection: "books_vendors", Label: "Vendors",
 			Fields: []reports.Field{
 				{Key: "display_name", Label: "Display name", Type: reports.Text, Aggregates: reports.MinMax},
@@ -171,6 +177,9 @@ func reportSources() []reports.Source {
 				{Key: "website", Label: "Website", Type: reports.Text},
 				{Key: "notes", Label: "Notes", Type: reports.Text},
 				{Key: "inactive", Label: "Inactive", Type: reports.Bool},
+				{Key: "track_1099", Label: "Track payments for 1099", Type: reports.Bool},
+				{Key: "legal_name", Label: "Legal name", Type: reports.Text},
+				{Key: "tax_id_type", Label: "Tax ID type", Type: reports.Select, Options: taxIDTypeSelectOptions()},
 			},
 		},
 		{
@@ -203,6 +212,7 @@ func reportSources() []reports.Source {
 		salesLinesSource(),
 		productsSource(),
 		auditLogSource(),
+		settingsSource(),
 		reconciliationsSource(),
 		reconciledLinesSource(),
 	}
@@ -304,6 +314,7 @@ func reconciledLinesSource() reports.Source {
 // by the same name in both collections.
 var basisLineColumns = []string{
 	"debit", "credit", "memo", "date", "posted", "currency", "position", "entry", "account", "customer", "vendor",
+	"card_payment", "doc_type",
 }
 
 // basisLinesSource is the journal lines by basis (pay-bills spec §3.10), one
@@ -313,13 +324,19 @@ var basisLineColumns = []string{
 // parts on Cash (basisFilter), where the cash rows take out what a bill or an
 // invoice posted and bring back each payment's share.
 func basisLinesSource() reports.Source {
+	// The payment entry link reads the cash part's payment_entry column: the
+	// entry whose payment brings a share back, empty on a row that takes a
+	// document out. The ledger part does not map it, so it is blank there
+	// (core writes a typed blank, so the union still reaches each part's indexes).
+	cash := reports.SourcePart{Collection: "books_cash_basis_lines", Columns: sameNames(basisLineColumns...), Values: map[string]any{"layer": "cash"}}
+	cash.Columns["payment_entry"] = "payment_entry"
 	return reports.Source{
 		Key: "books.basis_lines", Label: "Journal lines by basis",
 		// It reads the journal lines, so it is not live either.
 		NotLive: true,
 		Parts: []reports.SourcePart{
 			{Collection: "books_journal_lines", Columns: sameNames(basisLineColumns...), Values: map[string]any{"layer": "ledger"}},
-			{Collection: "books_cash_basis_lines", Columns: sameNames(basisLineColumns...), Values: map[string]any{"layer": "cash"}},
+			cash,
 		},
 		Fields: []reports.Field{
 			{Key: "debit", Label: "Debit", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
@@ -335,12 +352,34 @@ func basisLinesSource() reports.Source {
 				{Value: "ledger", Label: "Ledger"},
 				{Value: "cash", Label: "Cash basis"},
 			}},
+			// Each row's copies of its entry's card mark and doc type (lines.go
+			// stampEntryCopies, cash_basis.go), so a report reads them with no
+			// read of the entry (1099 report spec §11 Q21).
+			{Key: "card_payment", Label: "Card payment", Type: reports.Bool},
+			{Key: "doc_type", Label: "Document type", Type: reports.Select, Options: entryDocTypeOptions()},
 		},
 		Links: []reports.Link{
 			{Key: "entry", Label: "Entry", Target: "books.journal_entries", Cardinality: reports.ToOne, Field: "entry"},
 			{Key: "account", Label: "Account", Target: "books.accounts", Cardinality: reports.ToOne, Field: "account"},
 			{Key: "customer", Label: "Customer", Target: "books.customers", Cardinality: reports.ToOne, Field: "customer"},
 			{Key: "vendor", Label: "Vendor", Target: "books.vendors", Cardinality: reports.ToOne, Field: "vendor"},
+			{Key: "payment_entry", Label: "Payment entry", Target: "books.journal_entries", Cardinality: reports.ToOne, Field: "payment_entry"},
+		},
+	}
+}
+
+// settingsSource is the one Books settings row (books_settings), read under
+// its own list rule (Books readers): the 1099 threshold, which the 1099 report
+// reads through a lookup, and the currency it is in. No other settings column
+// is a field.
+func settingsSource() reports.Source {
+	return reports.Source{
+		Key: "books.settings", Collection: "books_settings", Label: "Books settings",
+		Fields: []reports.Field{
+			{Key: "threshold_1099", Label: "1099 threshold", Type: reports.Money, Currency: "currency"},
+			// The currency posting stamps on every money row, so a report
+			// compares the threshold with the lines' amounts.
+			{Key: "currency", Label: "Currency", Type: reports.Text, SameCurrencyAs: "books.journal_lines.currency"},
 		},
 	}
 }
@@ -629,6 +668,26 @@ func accountTypeSelectOptions() []reports.Option {
 	out := make([]reports.Option, len(accountTypes))
 	for i, t := range accountTypes {
 		out[i] = reports.Option{Value: t.Key, Label: t.Label}
+	}
+	return out
+}
+
+// box1099SelectOptions are the 1099 boxes in boxes1099 order (the order of the
+// box list), each labelled as box1099Labels writes it.
+func box1099SelectOptions() []reports.Option {
+	out := make([]reports.Option, len(boxes1099))
+	for i, key := range boxes1099 {
+		out[i] = reports.Option{Value: key, Label: box1099Labels[key]}
+	}
+	return out
+}
+
+// taxIDTypeSelectOptions are the tax id types in taxIDTypes order, labelled
+// by their short names (EIN, SSN). The tax id itself is in no source.
+func taxIDTypeSelectOptions() []reports.Option {
+	out := make([]reports.Option, len(taxIDTypes))
+	for i, key := range taxIDTypes {
+		out[i] = reports.Option{Value: key, Label: strings.ToUpper(key)}
 	}
 	return out
 }

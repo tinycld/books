@@ -7,7 +7,9 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/apis"
@@ -49,6 +51,9 @@ var shippedNotLive = map[string]bool{
 	// marks NotLive, and a run over a large book is too slow to run again on
 	// each change, so it shows Refresh, as the six journal-line reports do.
 	"books.expenses_by_vendor": true,
+	// The 1099 Summary and Detail reads books.basis_lines too (1099 report
+	// spec §4), so it is manual and shows Refresh, as the Expenses by Vendor.
+	"books.form_1099": true,
 	// It reads the reconciled lines of finished reconciliations, rows that
 	// change only on a finish or an undo: it stays live.
 	"books.reconciliation_report": false,
@@ -68,9 +73,52 @@ type liveRun struct {
 	Topics []string `json:"topics"`
 }
 
-// savedOnly are the topics core adds to the run of a saved report; a manual
-// run of one carries only these.
-var savedOnly = []string{"collection/report_shares", "collection/reports"}
+// savedOnly splits the topics of a saved report's run into the two
+// record-level topics core adds for that report and that reader, and the data
+// topics. Core adds exactly the report row, `reports/<reportId>`, and the
+// reader's share rows of that report, `report_shares/*?options=<options>`,
+// whose query-escaped options JSON filters on both ids; never a collection
+// topic of reports or report_shares. A manual run of a saved report carries
+// only these two; a live run carries data topics too. It fails unless each of
+// the two is there exactly once.
+func savedOnly(t *testing.T, key string, topics []string, reportID, readerID string) (data []string) {
+	t.Helper()
+	const sharesPrefix = "report_shares/*?options="
+	wantFilter := "report = '" + reportID + "' && user = '" + readerID + "'"
+	var reportTopics, shareTopics int
+	for _, topic := range topics {
+		switch {
+		case topic == "reports/"+reportID:
+			reportTopics++
+		case strings.HasPrefix(topic, sharesPrefix):
+			raw, err := url.QueryUnescape(strings.TrimPrefix(topic, sharesPrefix))
+			if err != nil {
+				t.Errorf("%s: share topic %q: %v", key, topic, err)
+				continue
+			}
+			var options struct {
+				Query map[string]string `json:"query"`
+			}
+			if err := json.Unmarshal([]byte(raw), &options); err != nil {
+				t.Errorf("%s: share topic options %q: %v", key, raw, err)
+				continue
+			}
+			if len(options.Query) != 1 || options.Query["filter"] != wantFilter {
+				t.Errorf("%s: share topic query = %v, want only filter %q", key, options.Query, wantFilter)
+			}
+			shareTopics++
+		case topic == "collection/reports", topic == "collection/report_shares",
+			strings.HasPrefix(topic, "reports/"), strings.HasPrefix(topic, "report_shares/"):
+			t.Errorf("%s: topic %q, want only the saved report's own record topics", key, topic)
+		default:
+			data = append(data, topic)
+		}
+	}
+	if reportTopics != 1 || shareTopics != 1 {
+		t.Errorf("%s: topics %v, want reports/%s and one reader share topic once each", key, topics, reportID)
+	}
+	return data
+}
 
 // Every shipped Books report runs through core's run endpoint as a Books
 // reader: exactly the six of shippedNotLive are manual, and every other one
@@ -134,10 +182,12 @@ func TestShippedReportsNotLive(t *testing.T) {
 			if got.Manual != shippedNotLive[key] {
 				t.Errorf("%s: manual = %v, want %v", key, got.Manual, shippedNotLive[key])
 			}
-			// A manual run follows no data: it keeps only the topics of the
-			// saved report itself. A live run follows its data too.
-			if hasData := !slices.Equal(got.Topics, savedOnly); hasData == got.Manual {
-				t.Errorf("%s: manual = %v with topics %v", key, got.Manual, got.Topics)
+			// A manual run follows no data: it keeps only the two record
+			// topics of this saved report and this reader. A live run follows
+			// its data too.
+			data := savedOnly(t, key, got.Topics, row.Id, reader.Id)
+			if hasData := len(data) > 0; hasData == got.Manual {
+				t.Errorf("%s: manual = %v with data topics %v", key, got.Manual, data)
 			}
 		}
 
@@ -158,12 +208,13 @@ func TestShippedReportsNotLive(t *testing.T) {
 		// A draft is never the shipped record: the same spec, posted as a
 		// copy or from the builder, is manual and follows nothing.
 		drafts := map[string]json.RawMessage{
-			"a copy of the Profit and Loss":     profitAndLossShipped().Spec,
-			"a copy of the Customer Balance":    customerBalanceShipped().Spec,
-			"a copy of the Vendor Balance":      vendorBalanceShipped().Spec,
-			"a copy of the Audit Log":           auditLogShipped().Spec,
-			"a copy of the Expenses by Vendor":  expensesByVendorShipped().Spec,
-			"a report built over journal lines": json.RawMessage(debitToDay),
+			"a copy of the Profit and Loss":         profitAndLossShipped().Spec,
+			"a copy of the Customer Balance":        customerBalanceShipped().Spec,
+			"a copy of the Vendor Balance":          vendorBalanceShipped().Spec,
+			"a copy of the Audit Log":               auditLogShipped().Spec,
+			"a copy of the Expenses by Vendor":      expensesByVendorShipped().Spec,
+			"a copy of the 1099 Summary and Detail": form1099Shipped().Spec,
+			"a report built over journal lines":     json.RawMessage(debitToDay),
 		}
 		for name, spec := range drafts {
 			got, err := run(map[string]any{"spec": spec})
@@ -190,7 +241,7 @@ func TestShippedLiveDeclarations(t *testing.T) {
 		salesTaxLiabilityShipped(), customerBalanceShipped(), arAgingShipped(),
 		salesByCustomerShipped(), salesByProductShipped(), auditLogShipped(),
 		apAgingShipped(), statementBalanceForwardShipped(), statementOpenItemsShipped(),
-		vendorBalanceShipped(), expensesByVendorShipped(),
+		vendorBalanceShipped(), expensesByVendorShipped(), form1099Shipped(),
 	}
 	var live []string
 	for _, s := range all {

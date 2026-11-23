@@ -14,9 +14,9 @@ import (
 // ebvCashColumns are the columns of books_cash_basis_lines (all of them), for
 // the shared row writer.
 var ebvCashColumns = map[string][]string{
-	cashLinesCollection: {"account", "bill", "created", "credit", "credit_memo", "currency", "customer", "date", "debit",
-		"document_kind", "entry", "id", "invoice", "memo", "payment_entry", "position", "posted", "updated", "vendor",
-		"vendor_credit", "write_off"},
+	cashLinesCollection: {"account", "bill", "card_payment", "created", "credit", "credit_memo", "currency", "customer",
+		"date", "debit", "doc_type", "document_kind", "entry", "id", "invoice", "memo", "payment_entry", "position", "posted",
+		"updated", "vendor", "vendor_credit", "write_off"},
 }
 
 // ebvPayerKey names a balance payer by its lines collection and the field that
@@ -48,6 +48,10 @@ func writeEBVDataset(t *testing.T, b apBook, size apSize) apDataset {
 		if err != nil {
 			return err
 		}
+		copies, err := ebvEntryCopies(tx)
+		if err != nil {
+			return err
+		}
 		payers := ebvPayerIndex(data.plan)
 		w := newARWriter(t, tx, ebvCashColumns)
 		for i, d := range data.plan {
@@ -55,7 +59,8 @@ func writeEBVDataset(t *testing.T, b apBook, size apSize) apDataset {
 			if !ok {
 				continue
 			}
-			rows := ebvDocCashRows(t, deferral, data, i, ebvDocPayments(t, deferral, data, i, payers, sequences), b)
+			payments := ebvDocPayments(t, deferral, data, i, payers, sequences, copies)
+			rows := ebvDocCashRows(t, deferral, data, i, payments, copies, b)
 			ebvWriteCashRows(w, deferral, data.docs[i].id, d.date, rows)
 		}
 		w.finish()
@@ -85,6 +90,37 @@ func ebvEntrySequences(tx core.App) (map[string]int, error) {
 		out[r.ID] = r.Sequence
 	}
 	return out, nil
+}
+
+// ebvEntryCopies are the card mark and the doc type of every entry by id, in
+// one read: a cash row holds its entry's (a share row its payment entry's), as
+// cash_basis.go reads them from the entry, so the bulk rows stay right when the
+// A/P writer writes a card entry.
+func ebvEntryCopies(tx core.App) (map[string]arEntryCopy, error) {
+	var rows []struct {
+		ID          string `db:"id"`
+		CardPayment bool   `db:"card_payment"`
+		DocType     string `db:"doc_type"`
+	}
+	if err := tx.DB().NewQuery("SELECT id, card_payment, doc_type FROM books_journal_entries").All(&rows); err != nil {
+		return nil, fmt.Errorf("read the entries' card marks and doc types: %w", err)
+	}
+	out := make(map[string]arEntryCopy, len(rows))
+	for _, r := range rows {
+		out[r.ID] = arEntryCopy{card: r.CardPayment, docType: r.DocType}
+	}
+	return out, nil
+}
+
+// ebvCopyOf is entry's card mark and doc type; an entry the read did not find
+// fails the test, so a missing entry is not read as false and blank.
+func ebvCopyOf(t *testing.T, copies map[string]arEntryCopy, entry string) arEntryCopy {
+	t.Helper()
+	c, ok := copies[entry]
+	if !ok {
+		t.Fatalf("the bulk writer writes a cash row of entry %q, which the book does not hold", entry)
+	}
+	return c
 }
 
 // ebvDeferralOf is the deferred kind of a plan document; payments, refunds,
@@ -136,7 +172,7 @@ func ebvPayerIndex(plan []apDoc) map[ebvPayerKey]map[int][]int {
 // refund (its entry, the sum of its lines on the document) and each
 // application (the vendor credit's posted entry, at the apply date), with the
 // payer's memo; sorted by date, then entry sequence, then id.
-func ebvDocPayments(t *testing.T, d cashDeferral, data apDataset, i int, index map[ebvPayerKey]map[int][]int, sequences map[string]int) []cashPayment {
+func ebvDocPayments(t *testing.T, d cashDeferral, data apDataset, i int, index map[ebvPayerKey]map[int][]int, sequences map[string]int, copies map[string]arEntryCopy) []cashPayment {
 	t.Helper()
 	var payments []cashPayment
 	for _, p := range d.Balance.Payers {
@@ -160,7 +196,11 @@ func ebvDocPayments(t *testing.T, d cashDeferral, data apDataset, i int, index m
 					}
 				}
 				entry := data.docs[j].entry
-				payments = append(payments, cashPayment{ID: entry, Entry: entry, Date: o.date, Sequence: sequences[entry], Amount: amount, Memo: p.CashMemo})
+				c := ebvCopyOf(t, copies, entry)
+				payments = append(payments, cashPayment{
+					ID: entry, Entry: entry, Date: o.date, Sequence: sequences[entry], Amount: amount, Memo: p.CashMemo,
+					CardPayment: c.card, DocType: c.docType,
+				})
 				continue
 			}
 			if p.EntryField != "vendor_credit" {
@@ -170,7 +210,11 @@ func ebvDocPayments(t *testing.T, d cashDeferral, data apDataset, i int, index m
 				continue
 			}
 			entry := data.docs[o.credit].entry
-			payments = append(payments, cashPayment{ID: data.docs[j].id, Entry: entry, Date: o.date, Sequence: sequences[entry], Amount: int64(o.cents), Memo: p.CashMemo})
+			c := ebvCopyOf(t, copies, entry)
+			payments = append(payments, cashPayment{
+				ID: data.docs[j].id, Entry: entry, Date: o.date, Sequence: sequences[entry], Amount: int64(o.cents), Memo: p.CashMemo,
+				CardPayment: c.card, DocType: c.docType,
+			})
 		}
 	}
 	sort.SliceStable(payments, func(x, y int) bool {
@@ -213,12 +257,13 @@ func ebvDocLines(t *testing.T, d apDoc, b apBook) []arJELine {
 // non-control line of its posted entry by largestRemainder over the cumulative
 // amount paid and the control line's row of the payment's amount; each row's
 // position is its index.
-func ebvDocCashRows(t *testing.T, d cashDeferral, data apDataset, i int, payments []cashPayment, b apBook) []cashLine {
+func ebvDocCashRows(t *testing.T, d cashDeferral, data apDataset, i int, payments []cashPayment, copies map[string]arEntryCopy, b apBook) []cashLine {
 	t.Helper()
 	doc, wr := data.plan[i], data.docs[i]
 	jl := ebvDocLines(t, doc, b)
 	var lines []cashSourceLine
 	add := func(entry, status, origin string, reversed bool) {
+		c := ebvCopyOf(t, copies, entry)
 		for pos, l := range jl {
 			debit, credit := int64(l.debit), int64(l.credit)
 			if reversed {
@@ -227,7 +272,7 @@ func ebvDocCashRows(t *testing.T, d cashDeferral, data apDataset, i int, payment
 			lines = append(lines, cashSourceLine{
 				Entry: entry, Status: status, Origin: origin, Number: wr.number, Account: l.account,
 				Debit: debit, Credit: credit, Date: doc.date, Position: pos, Vendor: l.vendor, Customer: l.customer,
-				Currency: "USD",
+				Currency: "USD", CardPayment: c.card, DocType: c.docType,
 			})
 		}
 	}
@@ -246,7 +291,7 @@ func ebvDocCashRows(t *testing.T, d cashDeferral, data apDataset, i int, payment
 		rows = append(rows, cashLine{
 			Entry: l.Entry, Account: l.Account, Vendor: l.Vendor, Customer: l.Customer,
 			Date: l.Date, Memo: d.UnpaidMemo, Currency: l.Currency,
-			Debit: l.Credit, Credit: l.Debit,
+			Debit: l.Credit, Credit: l.Debit, CardPayment: l.CardPayment, DocType: l.DocType,
 		})
 		if l.Status == statusPosted && l.Origin == originDocument {
 			current = append(current, l)
@@ -286,7 +331,7 @@ func ebvShareRows(d cashDeferral, current []cashSourceLine, payments []cashPayme
 	row := func(l cashSourceLine, p cashPayment, signed int64) cashLine {
 		r := cashLine{
 			Entry: p.Entry, PaymentEntry: p.Entry, Account: l.Account, Vendor: l.Vendor, Customer: l.Customer,
-			Date: p.Date, Memo: memoOf(p), Currency: l.Currency,
+			Date: p.Date, Memo: memoOf(p), Currency: l.Currency, CardPayment: p.CardPayment, DocType: p.DocType,
 		}
 		if signed > 0 {
 			r.Debit = signed
@@ -325,6 +370,7 @@ func ebvWriteCashRows(w *arWriter, d cashDeferral, docID, date string, rows []ca
 			"entry": r.Entry, "payment_entry": r.PaymentEntry, "account": r.Account, "vendor": r.Vendor,
 			"customer": r.Customer, "debit": r.Debit, "credit": r.Credit, "date": r.Date, "posted": true,
 			"memo": r.Memo, "currency": r.Currency, "position": r.Position,
+			"card_payment": r.CardPayment, "doc_type": r.DocType,
 		}
 		values[d.Kind] = docID
 		w.row(cashLinesCollection, values)

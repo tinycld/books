@@ -81,6 +81,7 @@ function entry(seed: EntrySeed): BooksJournalEntries {
         reverses: '',
         replaces: '',
         document: '',
+        card_payment: false,
         ...seed,
     }
 }
@@ -105,6 +106,8 @@ function line(seed: LineSeed, parent: BooksJournalEntries): BooksJournalLines {
         posted: isPosted,
         date: isPosted ? parent.date : '',
         currency: 'USD',
+        card_payment: parent.card_payment,
+        doc_type: parent.doc_type,
         created: parent.created,
         updated: parent.updated,
         ...seed,
