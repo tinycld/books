@@ -1,9 +1,11 @@
 import { expect, type Locator, type Page, type Response } from '@playwright/test'
 import type { BooksInvoiceDueTotals } from '../../tinycld/books/types'
 import { isPhone } from './account-register-helpers'
+import { fakeReadOnlyAccess } from './banking-helpers'
 import { swipeFromLeftEdge } from './books-report-helpers'
 import { authToken } from './estimate-public-link-helpers'
 import { holdLoads } from './record-form-helpers'
+import { EMPTY_LIST } from './vendor-1099-helpers'
 
 // The dashboard e2e helpers (dashboard checkpoint 2, Do step 11). The stack keeps a
 // covered screen mounted and hidden, so every locator starts from the visible
@@ -58,8 +60,62 @@ export function prefsWrite(page: Page): Promise<Response> {
     )
 }
 
-// Restores the default arrangement through the UI: Hide amounts off. The preference is one
-// row of the one shared test user, so every test of dashboard.spec.ts ends here.
+// The labels of the period pickers (lib/dashboard-prefs.ts PERIOD_LABELS and
+// SALES_PERIOD_LABELS), written out: that module imports core's form library, which an e2e
+// helper must not load.
+export const PERIOD_TEXT = {
+    this_month: 'This month',
+    last_month: 'Last month',
+    this_quarter: 'This quarter',
+    this_fiscal_year: 'This fiscal year',
+    last_fiscal_year: 'Last fiscal year',
+    last_6_months: 'Last 6 months',
+    last_12_months: 'Last 12 months',
+} as const
+
+export type PeriodWidget = 'expenses' | 'profitAndLoss' | 'sales'
+export type PeriodChoice = keyof typeof PERIOD_TEXT
+
+const DEFAULT_PERIODS: Record<PeriodWidget, PeriodChoice> = {
+    expenses: 'this_fiscal_year',
+    profitAndLoss: 'this_fiscal_year',
+    sales: 'last_6_months',
+}
+
+export function periodTrigger(page: Page, widgetId: PeriodWidget): Locator {
+    return dashboardScreen(page).getByTestId(`dashboard-period-${widgetId}`)
+}
+
+// The two presses of a period pick: the widget's trigger, then the item in its open menu
+// (core Menu draws its items only while open, outside the screen).
+export async function pressPeriod(
+    page: Page,
+    widgetId: PeriodWidget,
+    periodId: PeriodChoice
+): Promise<void> {
+    await periodTrigger(page, widgetId).click()
+    const item = page.getByTestId(`dashboard-period-${widgetId}-${periodId}`)
+    await item.click()
+    await expect(item).toHaveCount(0)
+}
+
+// Picks a widget's period and waits for the trigger to read it and for the saved write.
+export async function pickPeriod(
+    page: Page,
+    widgetId: PeriodWidget,
+    periodId: PeriodChoice
+): Promise<void> {
+    const trigger = periodTrigger(page, widgetId)
+    await expect(trigger).toBeEnabled()
+    const saved = prefsWrite(page)
+    await pressPeriod(page, widgetId, periodId)
+    await expect(trigger).toContainText(PERIOD_TEXT[periodId])
+    expect((await saved).ok()).toBe(true)
+}
+
+// Restores the default arrangement through the UI: Hide amounts off and each widget's
+// default period. The preference is one row of the one shared test user, so every test of
+// dashboard.spec.ts ends here.
 export async function resetDashboardPrefs(page: Page): Promise<void> {
     await openDashboard(page)
     const toggle = hideAmountsSwitch(page)
@@ -70,6 +126,59 @@ export async function resetDashboardPrefs(page: Page): Promise<void> {
         await saved
     }
     await expect(toggle).not.toBeChecked()
+    for (const [widgetId, periodId] of Object.entries(DEFAULT_PERIODS) as [
+        PeriodWidget,
+        PeriodChoice,
+    ][]) {
+        const trigger = periodTrigger(page, widgetId)
+        await expect(trigger).toBeEnabled()
+        if (!(await trigger.innerText()).includes(PERIOD_TEXT[periodId])) {
+            await pickPeriod(page, widgetId, periodId)
+        }
+        await expect(trigger).toContainText(PERIOD_TEXT[periodId])
+    }
+}
+
+const EMPTY_READS = [
+    'books_invoice_due_totals',
+    'books_payment_day_totals',
+    'books_account_balances',
+    'books_bank_connections',
+]
+
+// Install before login. The book reads as empty: no due invoice, no payment, no balance,
+// no bank connection, and a chart with no Bank or Credit card account. Only reads are
+// answered; realtime is cut so no event refills the store.
+export async function fakeEmptyBook(page: Page): Promise<void> {
+    await page.route('**/api/realtime*', route => route.abort())
+    for (const collection of EMPTY_READS) {
+        await page.route(`**/api/collections/${collection}/records*`, async route => {
+            if (route.request().method() !== 'GET') {
+                await route.fallback()
+                return
+            }
+            await route.fulfill({ json: EMPTY_LIST })
+        })
+    }
+    await page.route('**/api/collections/books_accounts/records*', async route => {
+        if (route.request().method() !== 'GET') {
+            await route.fallback()
+            return
+        }
+        const response = await route.fetch()
+        const body = await response.json()
+        const items = (body.items ?? []).filter(
+            (item: { type?: string }) => item.type !== 'bank' && item.type !== 'credit_card'
+        )
+        await route.fulfill({ response, json: { ...body, items, totalItems: items.length } })
+    })
+}
+
+// Install before login: a read-only Books user (banking-helpers fakeReadOnlyAccess) in an
+// empty book (fakeEmptyBook).
+export async function fakeReadOnlyEmptyBook(page: Page): Promise<void> {
+    await fakeEmptyBook(page)
+    await fakeReadOnlyAccess(page)
 }
 
 // A money text ("$8,940.00", "−$12.00") as integer cents. Throws on the mask, so a test
