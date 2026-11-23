@@ -7,7 +7,7 @@ import {
     type ViewportSize,
 } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
-import { DESKTOP, isPhone, PHONE } from './account-register-helpers'
+import { DESKTOP, isPhone, PHONE, showListsHub } from './account-register-helpers'
 
 // Shared by the record-form e2e specs (customers, vendors). Records are created by
 // driving the form, never by raw PocketBase writes. The database is shared by every
@@ -463,10 +463,12 @@ export function recordFormHelpers(kind: RecordKind) {
         // The shown hub's card: a Lists hub that a later screen covers stays mounted below
         // it, so a second Lists press can leave two hubs in the stack.
         const listCard = page.getByTestId(kind.listCard).filter({ visible: true })
+        // Books lands on the dashboard, which has no hub card.
+        const dashboard = page.getByTestId('dashboard-screen').filter({ visible: true })
         // A fresh page may reopen Books at its last route (the list, or a record), and
         // pressing the nav item over either would stack a second screen.
         await expect(
-            list.or(pageBack).or(panelClose).or(notFoundBack).or(listCard).first()
+            list.or(pageBack).or(panelClose).or(notFoundBack).or(listCard).or(dashboard).first()
         ).toBeAttached()
 
         // The URL and the record's screen do not change together. A record arriving: the
@@ -512,6 +514,7 @@ export function recordFormHelpers(kind: RecordKind) {
         }
         if (await list.isVisible()) return
 
+        await showListsHub(page)
         if (!isPhone(page) && !(await listCard.isVisible())) {
             await page.getByTestId('books-nav-lists').click()
         }
@@ -767,13 +770,13 @@ export function recordFormHelpers(kind: RecordKind) {
         )
     }
 
-    // To the Books Lists hub with the `t k` jump, the way out while a dialog's backdrop
-    // takes the pointer off the sidebar, and waits until the hub shows.
-    async function jumpToLists(page: Page) {
+    // To the Books home, the dashboard, with the `t k` jump, the way out while a dialog's
+    // backdrop takes the pointer off the sidebar, and waits until the dashboard shows.
+    async function jumpToBooksHome(page: Page) {
         await page.keyboard.press('t')
         await page.keyboard.press('k')
-        await expect(page).toHaveURL(/\/books\/lists$/)
-        await expect(page.getByTestId(kind.listCard)).toBeVisible()
+        await expect(page).toHaveURL(/\/books\/dashboard$/)
+        await expect(page.getByTestId('dashboard-screen').filter({ visible: true })).toBeVisible()
     }
 
     // The button that opens a record from its row or card. Its accessible name carries
@@ -855,7 +858,7 @@ export function recordFormHelpers(kind: RecordKind) {
         cityLineFits,
         watchForNotFoundAndDiscard,
         seenNotFoundOrDiscard,
-        jumpToLists,
+        jumpToBooksHome,
         openButton,
         menuItem,
         openMenu,

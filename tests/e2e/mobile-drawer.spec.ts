@@ -23,11 +23,14 @@ async function openBooksOnPhone(page: Page) {
     await page.setViewportSize(DESKTOP)
     await navigateToPackage(page, 'books')
     await page.setViewportSize(PHONE)
-    // The books index redirects to the Lists hub; this is the suite's check of that redirect.
+    // The books index redirects to the dashboard; this is the suite's check of that redirect.
     // ActivePkgSync closes the drawer on every route change, so a swipe that
     // lands before the redirect settles is undone by it.
-    await expect(page).toHaveURL(/\/a\/books\/lists/)
-    await page.getByText('Chart of accounts', { exact: true }).waitFor({ state: 'visible' })
+    await expect(page).toHaveURL(/\/a\/books\/dashboard/)
+    await page
+        .getByTestId('dashboard-screen')
+        .filter({ visible: true })
+        .waitFor({ state: 'visible' })
     await page.getByTestId('mobile-drawer-panel').waitFor({ state: 'attached' })
 }
 

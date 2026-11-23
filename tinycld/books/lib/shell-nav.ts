@@ -4,6 +4,7 @@ import {
     BookOpen,
     FileText,
     Landmark,
+    LayoutDashboard,
     List,
     ListChecks,
     Percent,
@@ -41,6 +42,13 @@ export interface NewMenuColumn {
 }
 
 export const SIDEBAR_ENTRIES: SidebarEntry[] = [
+    {
+        id: 'dashboard',
+        label: 'Dashboard',
+        icon: LayoutDashboard,
+        href: 'books/dashboard',
+        available: true,
+    },
     { id: 'banking', label: 'Banking', icon: Landmark, href: 'books/banking', available: true },
     // All sales; the six kind tabs and every sales document keep the entry active.
     {

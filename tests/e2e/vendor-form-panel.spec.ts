@@ -12,7 +12,7 @@ import {
     edges,
     field,
     holdVendorWrite,
-    jumpToLists,
+    jumpToBooksHome,
     leftEdgeOf,
     listSpansContent,
     openVendorId,
@@ -474,8 +474,8 @@ test.describe('vendor-form: side panel', () => {
         await expect(vendorEntry(page, nameD)).toHaveCount(0)
         expect(await seenNotFoundOrDiscard(page)).toEqual({ notFound: false, discard: false })
 
-        // (14) A delete of the open vendor that lands after the user went on to the Lists
-        // hub leaves them there.
+        // (14) A delete of the open vendor that lands after the user went on to the Books
+        // home (the dashboard) leaves them there.
         const nameE = `${prefix} E`
         await createVendor(page, { name: nameE })
         await expect(panel).toBeVisible()
@@ -488,7 +488,7 @@ test.describe('vendor-form: side panel', () => {
         await expect(deleteDialog).toBeVisible()
         await deleteConfirm.click()
         await held.arrived
-        await jumpToLists(page)
+        await jumpToBooksHome(page)
         const deleted = page.waitForResponse(
             response =>
                 response.request().method() === 'DELETE' &&
@@ -497,7 +497,7 @@ test.describe('vendor-form: side panel', () => {
         await held.release()
         expect((await deleted).ok()).toBe(true)
         await settle(page)
-        await expect(page).toHaveURL(/\/books\/lists$/)
-        await expect(page.getByTestId('books-list-card-vendors')).toBeVisible()
+        await expect(page).toHaveURL(/\/books\/dashboard$/)
+        await expect(page.getByTestId('dashboard-screen').filter({ visible: true })).toBeVisible()
     })
 })

@@ -22,6 +22,7 @@ describe('useBooksSidebar', () => {
     it('splits available entries into top and accounting', () => {
         const { result } = renderHook(() => useBooksSidebar(allAvailable))
         expect(result.current.top.map(e => e.id)).toEqual([
+            'dashboard',
             'banking',
             'sales',
             'expenses',
@@ -36,9 +37,10 @@ describe('useBooksSidebar', () => {
     })
 
     // The real entries, not allAvailable: Reports must be available on its own.
-    it('with the real entries, top is Banking, Sales, Expenses, Lists then Reports, and Reports opens the Books hub', () => {
+    it('with the real entries, top is Dashboard, Banking, Sales, Expenses, Lists then Reports, and Reports opens the Books hub', () => {
         const { result } = renderHook(() => useBooksSidebar())
         expect(result.current.top.map(e => e.id)).toEqual([
+            'dashboard',
             'banking',
             'sales',
             'expenses',
@@ -56,6 +58,7 @@ describe('useBooksSidebar', () => {
         const { result } = renderHook(() => useBooksSidebar(entries))
         expect(result.current.accounting).toEqual([])
         expect(result.current.top.map(e => e.id)).toEqual([
+            'dashboard',
             'banking',
             'sales',
             'expenses',
@@ -70,6 +73,7 @@ describe('useBooksSidebar', () => {
         const entries = [...allAvailable, top, hiddenAccounting]
         const { result } = renderHook(() => useBooksSidebar(entries))
         expect(result.current.top.map(e => e.id)).toEqual([
+            'dashboard',
             'banking',
             'sales',
             'expenses',

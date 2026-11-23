@@ -322,6 +322,44 @@ func TestOAuth_PartyContactsAndBalances(t *testing.T) {
 	}
 }
 
+// Dashboard spec §4: a token reads the two dashboard views under the Books
+// read scope, and no Books scope writes them.
+func TestOAuth_DashboardViewsAreReadOnly(t *testing.T) {
+	collections := oauthPackage().Collections
+	views := []string{"books_invoice_due_totals", "books_payment_day_totals"}
+	for _, c := range views {
+		got, ok := collections[c]
+		if !ok {
+			t.Errorf("%s has no OAuth entry", c)
+			continue
+		}
+		if !reflect.DeepEqual(got.Read, []string{scopeRead}) || len(got.Write) != 0 {
+			t.Errorf("%s OAuth access = %+v, want Read [%s] and no Write", c, got, scopeRead)
+		}
+	}
+
+	t.Cleanup(oauth.ResetRegistry)
+	oauth.RegisterPackage(oauthPackage())
+	for _, c := range views {
+		path := "/api/collections/" + c + "/records"
+		if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("GET %s: books:read must read", path)
+		}
+		if oauth.ScopeForRoute(http.MethodPost, path).SatisfiedBy([]string{scopeRead, scopeWrite}) {
+			t.Errorf("POST %s: no Books scope may write the view", path)
+		}
+	}
+
+	// TestOAuth_CoversEveryBooksCollection walks what exists; this pins that
+	// both views exist for it to cover.
+	app := newBooksApp(t)
+	for _, c := range views {
+		if _, err := app.FindCollectionByNameOrId(c); err != nil {
+			t.Errorf("collection %s does not exist: %v", c, err)
+		}
+	}
+}
+
 // Bank-match spec §4: a token makes and undoes a match (books_bank_matches),
 // and only reads the match lines, which the match hook writes, and the
 // suggestion view.

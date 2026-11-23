@@ -617,7 +617,7 @@ test.describe('general-ledger: report', () => {
         const lineMemo = uniqueName('GL line memo')
         const entryMemo = uniqueName('GL entry memo')
         const splitMemo = uniqueName('GL three lines')
-        // The customer first, from the Books landing: from the chart, the Lists hub that
+        // The customer first, from the Books landing (the dashboard): from the chart, the Lists hub that
         // createCustomer passes through stays mounted hidden under the chart's screen, and its
         // first Customers card is that hidden one.
         await createCustomer(page, { name: customer })

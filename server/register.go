@@ -39,6 +39,7 @@ func Register(app *pocketbase.PocketBase) {
 	registerWriteOffGuards(app)
 	registerDepositGuards(app)
 	registerPartyBalances()
+	registerDashboardViews()
 	registerEstimateResponses(app)
 	// Declare the public views' source tables so CheckViews and the change
 	// signals for signed-in clients know them. The signed-out customer page
