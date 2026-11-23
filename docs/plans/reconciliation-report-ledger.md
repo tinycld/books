@@ -8,9 +8,10 @@
 - checkpoints: docs/plans/reconciliation-report-checkpoints.md
 - reference: docs/plans/reconciliation-report-reference/
 - evidence: docs/plans/reconciliation-report-evidence/cp<N>/ (built screenshots, capture.json, critique.md)
-- scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both
+- ~~scratch files: tinycld/books/screens/helix-mockup.tsx, tests/e2e/helix-capture.spec.ts — excluded from git; finish.mjs deletes both~~ (deleted by finish.mjs 2026-11-22)
 - capture manifest: docs/plans/reconciliation-report-capture.json
 - review mode: C — none (unattended)
+- eval: approved by the human 2026-11-22 (e2e sha 72d585a3, CI green on books#88)
 - core extension: accepted by the driver under the standing rule (human 2026-11-01: a missing report capability is implemented in core first) — Design note 1 option (a), checkpoint 0 on core branch books/p4-reconciliation-report (small: no `exclusive`). The same core branch also carries the human-asked MobileDrawer fling fix (2026-11-22, a driver core task, not a checkpoint). One core PR; it merges at the next design gate, before the Books PR.
 - sparks:
   - The report reads as a document: a headed sheet with the account, the statement and who reconciled it → expressible (core's report view: document header, title, filter chips; core's PDF export)
