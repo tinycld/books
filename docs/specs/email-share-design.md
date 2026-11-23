@@ -119,7 +119,8 @@ On success the dialog closes with the toast "Invoice 1004 sent to <address>". A 
 - **States**, each its own testID'd view:
   - **Loading**: the card frame, a spinner, "Loading invoice…".
   - **Open** (posted, balance above zero): as above.
-  - **Paid** (posted, balance zero): the amount line reads "Paid in full" (`text-success`) with "Total <total>" under it.
+  - **Paid** (posted, balance zero, nothing written off and no credit memo applied: payments cover the total): the amount line reads "Paid in full" (`text-success`) with "Total <total>" under it.
+  - **Settled** (posted, balance zero, and a write-off or a credit memo, in whole or in part, lowered it; the view's `written_off` and `credited` columns): the amount line (`invoice-public-settled`) reads "No payment is due." (`text-foreground`: no payment covered it) with "Total <total>" under it.
   - **Void, not replaced**: "<business> voided this invoice. No payment is due." No amounts, no PDF.
   - **Replaced** (void with `replaced_by`): "This invoice was replaced by invoice <new number>." with the button **Open invoice <new number>**, which moves to the replacement's page (`router.replace` to its token path). A chain of edits takes one press for each step.
   - **Not found** (no row: a wrong link, a draft, a deleted draft): "This link is not valid." and "Ask the business that sent it for a new link."
@@ -180,7 +181,7 @@ Rules: list and view for Books `can_read`; no create, update or delete rule (onl
 ### 4.3 Invoice link
 
 - `books_invoices.public_token` (text 43, pattern `^[A-Za-z0-9_-]{43}$`, unique index), added to migration `2100000010_create_books_invoices.js` in place (Books is unreleased; a developer database needs `pnpm run db:reset`). A server field: pinned unset on client create and update; the Go invoice create sets it with `newPublicToken()` (`server/estimate_link.go`).
-- View collection `books_invoice_public` (in the new migration): `id`, `token`, `number`, `status` (posted or void; a draft has no row), `date`, `due_date`, `total`, `balance`, `currency`, `message`, `customer_name`, `replaced_by_token`, `replaced_by_number` (from the invoice in `replaced_by`), `business_name`, `business_email`, `business_phone`. Never memo, fields, form, bill_to, email, lines, tax, terms, the customer id or the entry. listRule = viewRule = `@request.headers.x_share_token != "" && token = @request.headers.x_share_token`. `changesignal.RegisterView('books_invoice_public', 'books_invoices', 'books_customers', 'books_settings')`. OAuth: read scope only.
+- View collection `books_invoice_public` (in the new migration): `id`, `token`, `number`, `status` (posted or void; a draft has no row), `date`, `due_date`, `total`, `balance`, `written_off` (the invoice's posted write-offs), `credited` (the sum of its `books_credit_memo_applications` amounts, 0 with none), `currency`, `message`, `customer_name`, `replaced_by_token`, `replaced_by_number` (from the invoice in `replaced_by`), `business_name`, `business_email`, `business_phone`. Never memo, fields, form, bill_to, email, lines, tax, terms, the customer id or the entry. listRule = viewRule = `@request.headers.x_share_token != "" && token = @request.headers.x_share_token`. `changesignal.RegisterView('books_invoice_public', 'books_invoices', 'books_customers', 'books_settings', 'books_credit_memo_applications')`. OAuth: read scope only.
 - PDF: `GET /api/books/public/invoices/{token}/pdf` in `pdf_routes.go`, by the code of the estimate's token route (shape check, indexed lookup, constant-time compare; 404 for no match, a draft or a void invoice). Not in the OAuth registration.
 
 ### 4.4 Send route (`server/document_send.go`)

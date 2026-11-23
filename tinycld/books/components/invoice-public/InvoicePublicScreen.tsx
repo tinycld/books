@@ -1,5 +1,6 @@
 import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
+import { DocumentTitle } from '@tinycld/core/components/DocumentTitle'
 import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
@@ -15,7 +16,6 @@ import { businessNameOf } from '../../lib/public-page'
 import { todayIso } from '../../lib/register-range'
 import { PublicContact } from '../public/PublicContact'
 import { PublicFrame } from '../public/PublicFrame'
-import { PublicPageTitle } from '../public/PublicPageTitle'
 import { PublicLoadError, PublicLoading, PublicNotFound } from '../public/PublicStates'
 import { type InvoicePublicView, PublicInvoiceCard } from './PublicInvoiceCard'
 
@@ -78,7 +78,7 @@ export function InvoicePublicScreen({ token }: { token: string }) {
             className="flex-1 bg-background"
             contentContainerClassName="items-center px-4 py-8"
         >
-            <PublicPageTitle title={title} />
+            <DocumentTitle title={title} includeBrand={false} />
             <PublicFrame>
                 <PublicLoading
                     isVisible={isLoading}

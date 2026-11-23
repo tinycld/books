@@ -23,7 +23,8 @@ export function EstimatePublicScreen({ token }: { token: string }) {
     const view = usePublicEstimate(token)
     const ready = view.status === 'ready' ? view : null
     const retry = view.status === 'error' ? view.retry : noRetry
-    // Core cuts a long title at 40 characters and puts the org first otherwise.
+    // Without the brand, core sets the title exactly: no app name, no org, no cut (spec §7
+    // spark 2: the customer's page shows the business, not the app).
     const title = ready
         ? publicTitleOf(ready.row.number, ready.business)
         : PUBLIC_TEXTS.loadingTitle
@@ -32,7 +33,7 @@ export function EstimatePublicScreen({ token }: { token: string }) {
             className="flex-1 bg-background"
             contentContainerClassName="items-center px-4 py-8"
         >
-            <DocumentTitle title={title} includeOrg={false} maxDetailChars={Infinity} />
+            <DocumentTitle title={title} includeBrand={false} />
             <PublicFrame>
                 <PublicLoading
                     isVisible={view.status === 'loading'}

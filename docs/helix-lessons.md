@@ -42,3 +42,5 @@
 - The core overlay Drawer is a gluestack modal: read its creator (an Escape listener on document.body, an Android BackHandler, a portal drawn above the `sheet` host) before you judge focus, Escape or stacking in it. — bank-categorize, retro, p4-categorize-split
 - Capture: size the shot height from the tallest state, start each shot where its helpers expect, fake a store read before mount, move the pointer off the last click, and choose list rows bottom-up. — bank-categorize, retro, p4-categorize-split
 - A plan probe of a union source EXPLAINs every branch, not one. — expenses-by-vendor, retro, p5-expenses-by-vendor
+- When a core component lacks an option (a close-focus target, a title without the brand), ask for it in core and delete the Books workaround once it lands; never keep a Books copy of a core part. — email-share, human, revise 1
+- A balance of zero is not "Paid in full": only payments that cover the total are paid; a write-off or a credit memo that closes an invoice reads "No payment is due." — email-share, human, revise 1

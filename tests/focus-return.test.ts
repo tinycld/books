@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from 'vitest'
-import { focusScreenControl, isFocusUnclaimed } from '~/tinycld/books/lib/focus-return.web'
+import { focusScreenControl } from '~/tinycld/books/lib/focus-return.web'
 
 // happy-dom lays nothing out, so every element reads as drawn unless a test hides it.
 function screen(html: string): HTMLElement {
@@ -52,15 +52,6 @@ describe('focusScreenControl', () => {
         focusScreenControl(root, ['send'])
         expect(document.activeElement).toBe(document.body)
         expect(other.isConnected).toBe(true)
-    })
-
-    it('reads the focus as unclaimed only while it is on the body, on the web', () => {
-        const root = screen('<input data-testid="field" />')
-        expect(isFocusUnclaimed()).toBe(true)
-        root.querySelector<HTMLElement>('input')?.focus()
-        expect(isFocusUnclaimed()).toBe(false)
-        root.querySelector<HTMLElement>('input')?.blur()
-        expect(isFocusUnclaimed()).toBe(true)
     })
 
     it('does nothing for a node that is not an element', () => {

@@ -80,6 +80,10 @@
 - cp 5 · critic: no built shot shows the contact block ("Questions? Contact …" with the mailto and tel buttons): the e2e `books_settings` has no email or phone, and the long row has none by design. Its look below the card, in light and dark, is not proved by the capture.
 - cp 5 · reviewer A NOTE 2 (question for the human): `lib/invoice-public.ts` reads `balance <= 0` as "Paid in full", as spec §3.5 says ("Paid (posted, balance zero)"); a written-off invoice, or one closed by a credit memo, therefore reads "Paid in full" to the customer. Should a write-off read "No payment is due."?
 - cp 5 · reviewer A NOTE 8: `invoiceDueLine` drops " · Due …" for an empty `due_date`; a posted invoice always has one, so no user sequence reaches it.
+- revise 1 · reviewer A NOTE 1: core `useLayerFocus` (`tinycld/core/ui/overlay/focus.ts:135-170`) runs `onRestoreFocus` at the web effect's cleanup, whose dependencies are `container`, `initialFocusRef`, `trap`, `restore`; a change of one while the Send dialog stays open would run it mid-open (no ordinary sequence reaches it; `focusScreenControl` would hit the inert screen and not move focus). A core task for the human: run the callback only on a real close.
+- revise 1 · reviewer A NOTE 2: the "No payment is due." state is proved in e2e only for a write-off; the credit-memo path (`credited > 0`) by the Go view test and the `invoicePublicState` unit cases.
+- revise 1 · reviewer A NOTE 3 / B note: the fixture's `settled` row reuses `INVOICE_TOKENS.exempt` (as `paid` does; `voided`/`replaced` share one the same way).
+- revise 1 · runner: the settled line is `text-foreground` (no payment covered it), not the paid line's `text-success`; the human said "same layout as the paid state" and gave no tone.
 - cp 2 · fix implementer D3: TS `trim()` (message, addresses) and Go `strings.TrimSpace` differ on rare edge whitespace (JS trims U+FEFF, Go does not), so such a message could start differently in the dialog than in a batch; no case covers it.
 
 ## Out-of-plan changes
@@ -108,6 +112,9 @@
 - cp 5 · `tests/help-topic.ts`: `sectionOf`, `lineWith`, `letterKey` for the help tests; no existing helper changed.
 - cp 5 · `playwright.config.ts`, `tests/e2e/books-settings.spec.ts` (fix item 7): the five tests that save the Company fields of the shared `books_settings` row run in the one-worker project (lesson 23), so no public-page spec reads the row while they write it.
 - cp 5 · `tests/pdf-download.test.ts`, `tinycld/books/lib/public-page.ts` (new), `tests/public-page.test.ts` (new), `tests/estimate-public.test.ts`, `tinycld/books/lib/estimate-public.ts`, `tinycld/books/hooks/usePublicEstimate.ts` (fix round 1 items 1-3): the shared public-page helpers out of the estimate page's module, and their tests.
+- revise 1 · `server/register.go`: `changesignal.RegisterView` of `books_invoice_public` names `books_credit_memo_applications`, which the view now reads (revise item 3; `TestInvoicePublic_ViewIsRegisteredForChangeSignals`).
+- revise 1 · `tests/e2e/books-settings.spec.ts` (test writer, gate 2 capture failure): `restoreCompanyFields` presses the Settings nav item only off a Settings route and waits for the `/books/settings` URL (the nav press pushed a new Settings screen over the mounted section screen, and the `:visible` rail locator resolved to the covered one; `cp/cp5-r2-capture-fail-tests.md`).
+- revise 1 · `docs/specs/estimate-public-link-design.md:29`: the estimate page title uses `includeBrand={false}`; `docs/specs/email-share-design.md` §4.3: the view's new columns and sources.
 
 ## Phase notes
 - phase 1: no corrections to the extractions (design gate, human, 2026-11-22). The gate added one core extension that no spark asked for: the core rich-text toolbar (checkpoint 0). Intake: `/Users/nas/tmp/tinycld/auto-helix-books/staging/p2-email-share/intake.md`.
@@ -291,6 +298,19 @@
 - human: none (review mode C)
 
 ## Final review
-- eval: (not reached)
-- human comments and what changed
+- eval: revised → revise 1 (human, 2026-11-22, before the eval gate; `revise-1.md` in staging), fix: the commit "fix(books): revise 1 — core focus and title options, no-payment-due state"
+- human comments and what changed (revise 1; findings file `cp/cp5-fix-r2.md`):
+  - revise item 1, the human: "Delete Books `useReturnFocusOnClose` … and use core Dialog's new close-focus function prop to move focus where the hook did. Behaviour stays the same." → hook deleted; the queued open passes its `returnFocus` to core `Dialog` `onRestoreFocus` (core 2aa72d6e); callers focus only under their own screen's root; `isFocusUnclaimed` removed (core does the check). Pinned by `email-share-forms.spec.ts` focus assertions.
+  - revise item 2, the human: "Delete `components/public/PublicPageTitle.tsx`; the invoice public page and the estimate public page both use core `DocumentTitle` with `includeBrand={false}`. The estimate page's title drops "TinyCld: " too" → done; the estimate title e2e asserts the whole title.
+  - revise item 3, the human: ""Paid in full" shows only when payments cover the invoice total. An invoice whose balance is zero because of a write-off or a credit memo shows "No payment is due." (same layout as the paid state)." → view `books_invoice_public` (2100000034, in place) gains `written_off` and `credited` (`CAST((SELECT TOTAL(a.amount) FROM books_credit_memo_applications a WHERE a.invoice = i.id) AS INTEGER)`; no new SQL-text literal, checked by reviewers A and B); state 'settled', test id `invoice-public-settled`; spec §3.5, unit cases, Go view test, fixture row, e2e (part paid, the rest written off through the UI), help `invoices.md` and its test.
+  - lessons: two lines added to `docs/helix-lessons.md` (`— email-share, human, revise 1`).
+  - test writer (`cp/cp5-fix-tests-r2.md`): 13 new or changed unit/Go cases and 2 e2e, red for the right reason; item 1 pinned by existing tests. Staged.
+  - implementer (`cp/cp5-fix-impl-r2.md`): FIXED 3 of 3, no dispute; declared differences (estimate title drops `includeOrg`/`maxDetailChars`, unread with the brand off; spec §4.3 also changed; `credited` cast to INTEGER; settled fixture row reuses a token) accepted.
+  - gate 1: tests unedited (`git diff --name-only` of the test files empty) · `packages:generate` + `tinycld-pkg check` pass (vitest 9610, `cp/cp5-r2-check.log`) · Go `TestInvoicePublic|TestRegister|TestOAuth|TestDocumentSends` ok (`cp/cp5-r2-go.log`); reviewer A ran the full `go test ./...`: ok · e2e ONE command (email-share-dialog, -forms, -lists, -public, estimate-public-link-page, -respond, -note): 22 passed 1.2 m (`cp/cp5-r2-e2e.log`) · pass.
+  - gate 2: manifest `evidence/cp5/revise-1/capture.json` (seeded invoice "Pallet storage, September", written off whole; 390 and 1280, light and dark). Capture run 1 failed in a dependency project: `books-settings.spec.ts:204` afterEach timed out (root cause under Out-of-plan changes; test fixed by a test writer, `books-settings.spec.ts` 18 passed, `cp5-r2-settings-fix.log`; artifacts `<staging>/cp5-r2-capture-fail/`) → run 2: 21 passed (`cp/cp5-r2-capture-2.log`), 4 png. Critic (`evidence/cp5/revise-1/critique.md`): invalid none, blocking none, notes none. The estimate title is not visible in a shot.
+  - gate 3 A (`cp/cp5-r2-review-A.md`): 0 BLOCK, 4 NOTE, 0 DEFERRAL · NOTEs 1-3 → Design notes · NOTE 4 (out-of-plan files) → Out-of-plan changes.
+  - gate 3 B (`cp/cp5-r2-review-B.md`): script lines: 0 real, 1 false positive (2100000034 unreleased, edit asked by the human) · findings 1, 2 (out-of-plan `server/register.go`, `books-settings.spec.ts`; no code change) → Out-of-plan changes · deferrals none.
+  - fix review: n/a — reviewers A and B reviewed the whole revise diff (it is the fix); no finding was accepted for a code change, so no further round. Rounds: 0.
+  - Design notes answered by this revise: cp 4 fix reviewer NOTE 1 (Books focus hook → core `onRestoreFocus`), cp 5 core change request (`PublicPageTitle` → core `includeBrand`), cp 5 reviewer A NOTE 2 (write-off read "Paid in full").
+  - after the commit: the driver runs `pnpm run db:reset` (2100000034 edited in place).
 - native: not executed in this run

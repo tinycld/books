@@ -20,13 +20,6 @@ function focusTargetIn(element: HTMLElement): HTMLElement | null {
     return inner.find(takesFocus) ?? null
 }
 
-/** True while no element holds the focus: it fell to the body (its element unmounted). */
-export function isFocusUnclaimed(): boolean {
-    if (typeof document === 'undefined') return false
-    const active = document.activeElement
-    return !active || active === document.body
-}
-
 /**
  * Focuses the first of `testIds` that is drawn inside `root` (a screen's node) and takes
  * focus: the element itself, or its first focusable. Books uses it to give focus back to a

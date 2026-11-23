@@ -63,15 +63,29 @@ function TotalUnder({ row, isVisible }: { row: BooksInvoicePublic; isVisible: bo
     )
 }
 
-function PaidBlock({ row, isVisible }: { row: BooksInvoicePublic; isVisible: boolean }) {
-    if (!isVisible) return null
+// A zero balance: "Paid in full" (success tone) when payments covered the total, else
+// "No payment is due." (foreground tone: a write-off or a credit memo closed it, no
+// payment did). The total under it in both.
+const ZERO_BALANCE_LINES = {
+    paid: {
+        testID: 'invoice-public-paid',
+        text: INVOICE_PUBLIC_TEXTS.paid,
+        className: 'mt-3 text-center text-3xl font-semibold text-success',
+    },
+    settled: {
+        testID: 'invoice-public-settled',
+        text: INVOICE_PUBLIC_TEXTS.settled,
+        className: 'mt-3 text-center text-3xl font-semibold text-foreground',
+    },
+} as const
+
+function ZeroBalanceBlock({ row, state }: { row: BooksInvoicePublic; state: InvoicePublicState }) {
+    if (state !== 'paid' && state !== 'settled') return null
+    const line = ZERO_BALANCE_LINES[state]
     return (
         <View className="items-center gap-1">
-            <Text
-                testID="invoice-public-paid"
-                className="mt-3 text-center text-3xl font-semibold text-success"
-            >
-                {INVOICE_PUBLIC_TEXTS.paid}
+            <Text testID={line.testID} className={line.className}>
+                {line.text}
             </Text>
             <TotalUnder row={row} isVisible />
         </View>
@@ -144,12 +158,13 @@ function DownloadPdf({ token, number }: { token: string; number: string }) {
     )
 }
 
-// Open, overdue or paid: the heading, the amount, the dates, the message and the PDF.
+// Open, overdue, paid or settled: the heading, the amount, the dates, the message and the
+// PDF.
 function OpenCard({ view, isVisible }: { view: InvoicePublicView; isVisible: boolean }) {
     if (!isVisible) return null
     const { row, state, business } = view
     const heading = invoicePublicHeadingOf(row)
-    const isPaid = state === 'paid'
+    const isZeroBalance = state === 'paid' || state === 'settled'
     return (
         <PublicCardSurface testID="invoice-public">
             <CardLogo />
@@ -161,8 +176,8 @@ function OpenCard({ view, isVisible }: { view: InvoicePublicView; isVisible: boo
                 >
                     {heading}
                 </Text>
-                <PaidBlock row={row} isVisible={isPaid} />
-                <BalanceBlock row={row} isVisible={!isPaid} />
+                <ZeroBalanceBlock row={row} state={state} />
+                <BalanceBlock row={row} isVisible={!isZeroBalance} />
                 <DatesLine row={row} />
             </View>
             <CardMessage text={row.message} />
