@@ -158,14 +158,17 @@ export async function openBooksMenu(page: Page): Promise<void> {
 // the first render), so the label can flip from Expand to Collapse after it is read. The
 // press and the check on its result run as one retried block: a press that landed on a fold
 // that hydration had just opened closes it, the label reads Expand again, and the next pass
-// opens it.
+// opens it. The retries stop at the default expect timeout (5s), so a stuck fold fails with
+// its own message and not at the test timeout.
+const OPEN_FOLD_TIMEOUT_MS = 5000
+
 export async function openReportsSection(page: Page): Promise<void> {
     const toggle = page.getByTestId('books-sidebar-reports-toggle').filter({ visible: true })
     await expect(toggle).toHaveAttribute('aria-label', /^(Expand|Collapse) Reports$/)
     await expect(async () => {
         if ((await toggle.getAttribute('aria-label')) === 'Expand Reports') await toggle.click()
         await expect(toggle).toHaveAttribute('aria-label', 'Collapse Reports')
-    }).toPass()
+    }).toPass({ timeout: OPEN_FOLD_TIMEOUT_MS })
 }
 
 // Core's Reports hub filtered to Books, reached the way a user does: All reports in the

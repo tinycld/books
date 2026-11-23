@@ -873,6 +873,12 @@ test.describe('sales-reports: entry points and phone', () => {
         await expect(page.getByTestId('report-screen')).toBeVisible()
         await expect(shownReportTitle(page)).toHaveText(CUSTOMER_BALANCE_TITLE)
 
+        // Core reopens Books at its last route, and the report is now on the Books route: a
+        // new page would reopen on it, not on the list. Going back leaves the list as the
+        // last route.
+        await page.goBack()
+        await openCustomersList(page)
+
         // Only the Customer Balance is found: the menu holds only its item.
         const one = await freshPageWithReports(page, [
             {
@@ -938,6 +944,11 @@ test.describe('sales-reports: entry points and phone', () => {
         await button.click()
         await expect(page.getByTestId('report-screen')).toBeVisible()
         await expect(shownReportTitle(page)).toHaveText(SALES_BY_PRODUCT_TITLE)
+
+        // Going back leaves the list as Books' last route (the report is on the Books route),
+        // so the new page below opens on the list.
+        await page.goBack()
+        await openProductsList(page)
 
         const none = await freshPageWithReports(page, [])
         await openBooks(none.fresh, DESKTOP)

@@ -678,6 +678,12 @@ test.describe('expenses-by-vendor: entry points and phone rows', () => {
             page.getByTestId('report-document-title').filter({ visible: true })
         ).toHaveText(EXPENSES_BY_VENDOR_TITLE)
 
+        // Core reopens Books at its last route, and the report is now on the Books route: a
+        // new page would reopen on it, not on the list. Going back leaves the list as the
+        // last route.
+        await page.goBack()
+        await openVendorsList(page)
+
         // The Expenses by Vendor is not found: after its read answered with no row, the menu
         // holds the other two only.
         const twoOnly = await freshPageWithReports(page, [

@@ -410,6 +410,12 @@ test.describe('vendor-balance: entry points and phone rows', () => {
             page.getByTestId('report-document-title').filter({ visible: true })
         ).toHaveText(VENDOR_BALANCE_TITLE)
 
+        // Core reopens Books at its last route, and the report is now on the Books route: a
+        // new page would reopen on it, not on the list. Going back leaves the list as the
+        // last route.
+        await page.goBack()
+        await openVendorsList(page)
+
         // Only the A/P Aging is found: after the Vendor Balance read answered with no row,
         // the menu holds the A/P Aging alone.
         const agingOnly = await freshPageWithReports(page, [
