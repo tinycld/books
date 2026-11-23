@@ -7,8 +7,8 @@ import { Pressable, ScrollView, Text, View } from 'react-native'
 import { useSettingsShell } from '../../hooks/useSettingsShell'
 import { useFabClearanceStyle } from '../../lib/fab-clearance'
 import type { SectionId } from '../../lib/settings-sections'
-import { SectionBody } from './SectionBody'
 import { SectionList, type SectionListItem } from './SectionList'
+import { SectionPanel } from './SectionPanel'
 
 function ShellLoading({ isVisible }: { isVisible: boolean }) {
     if (!isVisible) return null
@@ -32,7 +32,6 @@ interface DetailProps {
     isWide: boolean
     sections: SectionListItem[]
     openId: SectionId | undefined
-    isAdmin: boolean
     onOpen: (id: SectionId) => void
     onBack: () => void
 }
@@ -70,7 +69,7 @@ function SectionTitle({ isVisible, label }: { isVisible: boolean; label?: string
 // One tree for both breakpoints: only the chrome (rail or back bar) comes and goes, so the
 // section body keeps its position and a dirty form keeps its edits when the window resizes.
 function DetailFrame(props: DetailProps) {
-    const { isVisible, isWide, sections, openId, isAdmin, onOpen, onBack } = props
+    const { isVisible, isWide, sections, openId, onOpen, onBack } = props
     // The phone New FAB floats over the scroller, so the last row needs room to scroll clear of it.
     const fabClearance = useFabClearanceStyle()
     if (!isVisible || !openId) return null
@@ -87,7 +86,7 @@ function DetailFrame(props: DetailProps) {
                     contentContainerStyle={fabClearance}
                 >
                     <SectionTitle isVisible={isWide} label={label} />
-                    <SectionBody section={openId} isAdmin={isAdmin} />
+                    <SectionPanel section={openId} />
                 </ScrollView>
             </View>
         </View>
@@ -95,7 +94,7 @@ function DetailFrame(props: DetailProps) {
 }
 
 export function SettingsShell({ section }: { section: SectionId | undefined }) {
-    const { part, sections, openId, isAdmin, openSection, back, retry } = useSettingsShell(section)
+    const { part, sections, openId, openSection, back, retry } = useSettingsShell(section)
     const isWide = useBreakpoint() !== 'mobile'
 
     return (
@@ -107,7 +106,6 @@ export function SettingsShell({ section }: { section: SectionId | undefined }) {
                 isWide={isWide}
                 sections={sections}
                 openId={openId}
-                isAdmin={isAdmin}
                 onOpen={openSection}
                 onBack={back}
             />

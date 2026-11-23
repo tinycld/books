@@ -31,6 +31,44 @@ export function visibleSections(isAdmin: boolean): SettingsSection[] {
     return SETTINGS_SECTIONS.filter(s => isAdmin || !s.adminOnly)
 }
 
+export type SectionPanelState = 'loading' | 'error' | 'no-access' | 'admin-only' | 'body'
+
+interface SectionPanelReads {
+    isAccessReady: boolean
+    isAccessError: boolean
+    canRead: boolean
+    isAdmin: boolean
+    isSettingsReady: boolean
+    isSettingsError: boolean
+    hasSettings: boolean
+}
+
+/**
+ * What one settings section shows when it stands alone. The access answers come first: a
+ * person with no Books level cannot read the settings row, so that read tells nothing.
+ */
+export function sectionPanelState(section: SectionId, reads: SectionPanelReads): SectionPanelState {
+    if (reads.isAccessError) return 'error'
+    if (!reads.isAccessReady) return 'loading'
+    if (!reads.canRead) return 'no-access'
+    const adminOnly = SETTINGS_SECTIONS.find(s => s.id === section)?.adminOnly ?? false
+    if (adminOnly && !reads.isAdmin) return 'admin-only'
+    if (reads.isSettingsError) return 'error'
+    if (!reads.isSettingsReady) return 'loading'
+    // A ready read with no settings row has nothing to show.
+    return reads.hasSettings ? 'body' : 'error'
+}
+
+/**
+ * A section body that was drawn stays while a later read loads or fails: it can hold a
+ * form with text the user has not saved, and a frame in its place would drop that text.
+ * Lost access still removes it.
+ */
+export function keepsSectionBody(state: SectionPanelState, wasDrawn: boolean): boolean {
+    if (state === 'body') return true
+    return wasDrawn && (state === 'loading' || state === 'error')
+}
+
 function accountingSummary(settings: BooksSettings | undefined): string {
     const month = FISCAL_MONTHS[(settings?.fiscal_year_start_month ?? 1) - 1] ?? FISCAL_MONTHS[0]
     const base = `Fiscal year starts in ${month}`
