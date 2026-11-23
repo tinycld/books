@@ -2,7 +2,9 @@
 // icon and route it opens. A shortcut that has nothing to open is left out, not drawn dead.
 import type { useOrgHref } from '@tinycld/core/lib/org-routes'
 import type { LucideIcon } from 'lucide-react-native'
+import type { BooksReport } from '../hooks/useBooksReports'
 import { shippedReportHref } from '../hooks/useShippedReportHref'
+import type { ShortcutAccount } from '../hooks/useShortcutLookup'
 import { accountLabel } from './account-options'
 import {
     REGISTER_SHORTCUT_ICON,
@@ -22,17 +24,7 @@ export interface ShortcutRow {
     href: ReturnType<OrgHref>
 }
 
-export interface ShortcutReport {
-    id: string
-    title: string
-    shippedKey: string
-}
-
-export interface ShortcutAccount {
-    id: string
-    number: string
-    name: string
-}
+export type ShortcutReport = Pick<BooksReport, 'id' | 'title' | 'shippedKey'>
 
 export interface ShortcutRowsInput {
     canWrite: boolean

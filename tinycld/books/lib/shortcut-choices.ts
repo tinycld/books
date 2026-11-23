@@ -1,5 +1,6 @@
 // What the Customize shortcuts dialog offers under "Add shortcut": every screen, form,
 // Books report and account register the user can open that is not in the list yet.
+import type { accountOptionList } from './account-options'
 import type { ShortcutTarget } from './shortcut-catalog'
 import type { ShortcutReport } from './shortcut-rows'
 import { canAddShortcut, hasShortcut, type Shortcut, shortcutKey } from './sidebar-shortcuts'
@@ -14,11 +15,8 @@ export interface ShortcutChoice {
     shortcut: Shortcut
 }
 
-export interface ChoiceAccount {
-    value: string
-    label: string
-    indent: number
-}
+// An active account as the account pickers offer it (useAccountOptions).
+export type ChoiceAccount = ReturnType<typeof accountOptionList>['options'][number]
 
 export interface ShortcutChoicesInput {
     // staticTargets(canWrite): a reader's list has no form.

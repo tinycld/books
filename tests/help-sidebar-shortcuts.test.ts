@@ -49,7 +49,7 @@ describe('help/sidebar-shortcuts.md', () => {
     it('covers New on a wide screen and on a phone, and for a reader', () => {
         const section = sectionOf(topic.body, 'New')
         expect(section).toMatch(/Customers, Vendors or Other/)
-        expect(section).toMatch(/round \+ button/)
+        expect(section).toMatch(/round \+ button: the Books menu opens with New open, at the top/)
         expect(section).toMatch(/read-only access, New and the round \+ button are hidden/)
     })
 
@@ -92,6 +92,16 @@ describe('the topics that point at the sidebar', () => {
         expect(body).toMatch(/The report opens inside Books/)
         expect(body).toMatch(/press All reports at the end of the list/)
         expect(body).toContain('(help://books:sidebar-shortcuts)')
+    })
+
+    it('reports says where Books reports open and where their back link goes', () => {
+        const { body } = readHelpTopic('reports')
+        expect(body).not.toContain('Reports area')
+        expect(body).toMatch(/^Books reports, such as the Trial Balance, open inside Books/m)
+        const back = paragraphWith(body, /^To go back, press Reports at the top/) ?? ''
+        expect(back).toMatch(/returns to the screen that you opened the report from/)
+        expect(back).toMatch(/from a link, it shows the list of the Books reports/)
+        expect(back).toMatch(/press All reports in the Books sidebar, then press Show all reports/)
     })
 
     it('settings names both places the sections open from', () => {
