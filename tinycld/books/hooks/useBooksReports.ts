@@ -9,14 +9,32 @@ const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 // A report's source key starts with its package's slug and a dot.
 const BOOKS_SOURCES = 'books.%'
 
-interface ReportRow {
-    id: string
-    title: string
-    shippedKey: string
+// Every `reports` row of a Books source that core's rules let the reader see.
+function useBooksReportsQuery() {
+    const [reportsCollection] = useStore('reports')
+    const query = useLiveQuery({
+        query: q =>
+            q
+                .from({ report: reportsCollection })
+                .where(({ report }) => like(report.source, BOOKS_SOURCES))
+                .select(({ report }) => ({
+                    id: report.id,
+                    title: report.title,
+                    shippedKey: report.shipped_key,
+                })),
+        queryKey: ['books', 'reports'],
+    })
+    return { reportsCollection, query }
 }
 
+// The selected fields of a row, without the `$` keys pbtsdb adds to it.
+type ReportRow = Pick<
+    NonNullable<ReturnType<typeof useBooksReportsQuery>['query']['data']>[number],
+    'id' | 'title' | 'shippedKey'
+>
+
 // The reports Books ships first, then the saved ones; each group by title.
-export function sortBooksReports<R extends ReportRow>(rows: readonly R[]) {
+export function sortBooksReports(rows: readonly ReportRow[]) {
     // Named fields, not a spread: a live query row also carries pbtsdb's own `$` keys.
     return rows
         .map(row => ({
@@ -40,24 +58,10 @@ export function sortBooksReports<R extends ReportRow>(rows: readonly R[]) {
  * `recovery` for recoverLiveQueries.
  */
 export function useBooksReports() {
-    const [reportsCollection] = useStore('reports')
     const {
-        data,
-        isReady,
-        isError,
-        collection: query,
-    } = useLiveQuery({
-        query: q =>
-            q
-                .from({ report: reportsCollection })
-                .where(({ report }) => like(report.source, BOOKS_SOURCES))
-                .select(({ report }) => ({
-                    id: report.id,
-                    title: report.title,
-                    shippedKey: report.shipped_key,
-                })),
-        queryKey: ['books', 'reports'],
-    })
+        reportsCollection,
+        query: { data, isReady, isError, collection: query },
+    } = useBooksReportsQuery()
     const reports = useMemo(() => sortBooksReports(isError ? [] : (data ?? [])), [data, isError])
     const recovery: LiveRecovery =
         isError && query ? { queries: [query], sources: [reportsCollection] } : NO_RECOVERY
