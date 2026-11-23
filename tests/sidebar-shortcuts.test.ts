@@ -84,7 +84,10 @@ describe('addShortcut', () => {
     })
 
     it('does not add a shortcut that is in the list', () => {
-        expect(addShortcut([A, B], { ...A })).toEqual([A, B])
+        const list = [A, B]
+        const result = addShortcut(list, { ...A })
+        expect(result).toEqual([A, B])
+        expect(result).not.toBe(list)
         expect(hasShortcut([A, B], { ...A })).toBe(true)
         expect(hasShortcut([A, B], C)).toBe(false)
     })
@@ -93,7 +96,9 @@ describe('addShortcut', () => {
         const full = many(MAX_SHORTCUTS)
         expect(canAddShortcut(full)).toBe(false)
         expect(canAddShortcut(many(MAX_SHORTCUTS - 1))).toBe(true)
-        expect(addShortcut(full, A)).toEqual(full)
+        const result = addShortcut(full, A)
+        expect(result).toEqual(full)
+        expect(result).not.toBe(full)
     })
 })
 
@@ -107,7 +112,10 @@ describe('removeShortcut', () => {
     })
 
     it('returns the same items for a key that is not in the list', () => {
-        expect(removeShortcut([A, B], shortcutKey(C))).toEqual([A, B])
+        const list = [A, B]
+        const result = removeShortcut(list, shortcutKey(C))
+        expect(result).toEqual([A, B])
+        expect(result).not.toBe(list)
     })
 })
 
@@ -118,8 +126,13 @@ describe('moveShortcut and placeShortcut', () => {
     })
 
     it('keeps the first at the top and the last at the bottom', () => {
-        expect(moveShortcut([A, B, C], shortcutKey(A), -1)).toEqual([A, B, C])
-        expect(moveShortcut([A, B, C], shortcutKey(C), 1)).toEqual([A, B, C])
+        const list = [A, B, C]
+        const first = moveShortcut(list, shortcutKey(A), -1)
+        const last = moveShortcut(list, shortcutKey(C), 1)
+        expect(first).toEqual([A, B, C])
+        expect(last).toEqual([A, B, C])
+        expect(first).not.toBe(list)
+        expect(last).not.toBe(list)
     })
 
     it('places at an index and clamps an index outside the list', () => {
@@ -130,8 +143,22 @@ describe('moveShortcut and placeShortcut', () => {
     })
 
     it('returns the same items for a key that is not in the list', () => {
-        expect(moveShortcut([A, B], shortcutKey(C), 1)).toEqual([A, B])
-        expect(placeShortcut([A, B], shortcutKey(C), 0)).toEqual([A, B])
+        const list = [A, B]
+        const moved = moveShortcut(list, shortcutKey(C), 1)
+        const placed = placeShortcut(list, shortcutKey(C), 0)
+        expect(moved).toEqual([A, B])
+        expect(placed).toEqual([A, B])
+        expect(moved).not.toBe(list)
+        expect(placed).not.toBe(list)
+    })
+
+    it('keeps the order for an index that is not a number', () => {
+        const list = [A, B, C]
+        const placed = placeShortcut(list, shortcutKey(B), Number.NaN)
+        const infinite = placeShortcut(list, shortcutKey(B), Number.POSITIVE_INFINITY)
+        expect(placed).toEqual([A, B, C])
+        expect(infinite).toEqual([A, B, C])
+        expect(placed).not.toBe(list)
     })
 
     it('leaves the given list as it was', () => {
