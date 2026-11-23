@@ -71,10 +71,11 @@ export function removeShortcut(list: readonly Shortcut[], key: string): Shortcut
     return list.filter(item => shortcutKey(item) !== key)
 }
 
-// To `index`, clamped to the list. The same list when `key` is not in it.
+// To `index`, clamped to the list. The same order when `key` is not in it or `index` is not
+// a finite number (splice would read NaN as 0 and send the item to the top).
 export function placeShortcut(list: readonly Shortcut[], key: string, index: number): Shortcut[] {
     const from = list.findIndex(item => shortcutKey(item) === key)
-    if (from < 0) return [...list]
+    if (from < 0 || !Number.isFinite(index)) return [...list]
     const to = Math.max(0, Math.min(list.length - 1, index))
     const next = [...list]
     const [moved] = next.splice(from, 1)
