@@ -11,6 +11,7 @@ import type { BooksSidebarShortcuts } from '../tinycld/books/types'
 import {
     enteredWrites,
     guardedStore,
+    heldOnDemandStore,
     holdWrites,
     ME,
     messageRefusal,
@@ -24,10 +25,11 @@ vi.mock('@tinycld/core/lib/pocketbase', async () => {
     const { useStoreStub } = await import('./accounts-form-harness')
     return { useStore: useStoreStub }
 })
-vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
+const auth = vi.hoisted(() => ({ user: { id: 'u1' } as { id: string } | null }))
+vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: auth.user }) }))
 
 // The refused save logs a warning on purpose.
-silenceLog()
+const { warn: warnLog } = silenceLog()
 
 const STAMP = '2026-11-01 00:00:00.000Z'
 const CUSTOMERS: Shortcut = { kind: 'screen', ref: 'customers' }
@@ -53,6 +55,7 @@ async function renderShortcuts(rows: BooksSidebarShortcuts[]) {
 
 beforeEach(() => {
     useToastStore.setState({ toasts: [] })
+    auth.user = { id: ME }
 })
 
 describe('useSidebarShortcuts read', () => {
@@ -97,6 +100,22 @@ describe('useSidebarShortcuts read', () => {
 
         expect(result.current.shortcuts).toEqual([])
         expect(result.current.isCustomized).toBe(true)
+    })
+
+    it('shows no shortcuts and is not ready when no user is signed in', async () => {
+        auth.user = null
+        seedBooks({ level: 'bookkeeper' })
+        guardedStore<BooksSidebarShortcuts>('books_sidebar_shortcuts', [])
+
+        const { result } = renderHook(() => useSidebarShortcuts(), { wrapper })
+        await act(async () => {
+            await new Promise(resolve => setTimeout(resolve, 30))
+        })
+
+        expect(result.current.shortcuts).toEqual([])
+        expect(result.current.isReady).toBe(false)
+        act(() => result.current.save([CUSTOMERS]))
+        expect(enteredWrites()).toEqual([])
     })
 
     it('keeps the same list across renders while the stored value is the same', async () => {
@@ -181,6 +200,28 @@ describe('useSidebarShortcuts save', () => {
         await waitFor(() => expect(result.current.shortcuts).toEqual([CUSTOMERS]))
         expect(store.toArray[0].items).toEqual([CUSTOMERS])
         expect(result.current.isSaving).toBe(false)
+        expect(warnLog).toHaveBeenCalledWith(
+            'books.sidebar.shortcuts',
+            'the shortcut change was not saved',
+            { error: expect.objectContaining({ message: 'Nope.' }) }
+        )
+    })
+
+    it('writes nothing while the read is not ready', async () => {
+        seedBooks({ level: 'bookkeeper' })
+        const held = heldOnDemandStore<BooksSidebarShortcuts>('books_sidebar_shortcuts', [])
+        held.hold()
+        const { result } = renderHook(() => useSidebarShortcuts(), { wrapper })
+        await waitFor(() => expect(held.loads()).toBe(1))
+        expect(result.current.isReady).toBe(false)
+
+        act(() => result.current.save([CUSTOMERS]))
+        act(() => result.current.reset())
+
+        expect(result.current.isSaving).toBe(false)
+        expect(enteredWrites()).toEqual([])
+        held.release()
+        await waitFor(() => expect(result.current.isReady).toBe(true))
     })
 })
 
