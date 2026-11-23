@@ -155,10 +155,14 @@ describe('moveShortcut and placeShortcut', () => {
     it('keeps the order for an index that is not a number', () => {
         const list = [A, B, C]
         const placed = placeShortcut(list, shortcutKey(B), Number.NaN)
-        const infinite = placeShortcut(list, shortcutKey(B), Number.POSITIVE_INFINITY)
+        const high = placeShortcut(list, shortcutKey(B), Number.POSITIVE_INFINITY)
+        const low = placeShortcut(list, shortcutKey(B), Number.NEGATIVE_INFINITY)
         expect(placed).toEqual([A, B, C])
-        expect(infinite).toEqual([A, B, C])
+        expect(high).toEqual([A, B, C])
+        expect(low).toEqual([A, B, C])
         expect(placed).not.toBe(list)
+        expect(high).not.toBe(list)
+        expect(low).not.toBe(list)
     })
 
     it('leaves the given list as it was', () => {
