@@ -281,7 +281,85 @@ async function expectTransactionDetailScreen(page: Page): Promise<void> {
 }
 
 test.describe('report-drill-down: screen', () => {
-    test('a line opens the transaction that posted it, and Back returns to the report', async ({
+    // The entry line, Back and the section heading need one account and one entry; the
+    // transfer and the bill lines are the next test, so neither test makes every document.
+    test('a line opens the entry that posted it, and Back returns to the report', async ({
+        page,
+    }) => {
+        await startBooks(page)
+        const expense = uniqueName('TD6 expense')
+        // The bank's section comes first, so the expense heading this test folds is not the
+        // first section, which the report's sticky heading covers.
+        const bank = uniqueName('TD6 bank')
+        await createAccounts(page, [
+            { name: expense, kind: EXPENSE },
+            { name: bank, kind: BANK },
+        ])
+        const today = await browserToday(page)
+        const memo = uniqueName('TD6 entry')
+        await openEntriesFromSidebar(page)
+        await postEntryOn(page, {
+            date: today,
+            memo,
+            lines: [
+                { account: expense, debit: '75.00' },
+                { account: bank, credit: '75.00' },
+            ],
+        })
+        const entryId = entryIdFromUrl(page)
+
+        await openTransactionDetail(page, { accounts: [expense, bank] })
+        const header = page.getByTestId('report-document-header')
+        await expect(header).toContainText(TRANSACTION_DETAIL_TITLE)
+        await expect(header).toContainText(monthToDateWords(today))
+        await expect
+            .poll(async () => {
+                const shown = (await page.getByTestId('report-business-name').innerText()).trim()
+                const expected = await expectedHeading(page)
+                return { matches: shown === expected && expected !== '', shown, expected }
+            })
+            .toMatchObject({ matches: true })
+        const before = await snapshotWhen(
+            page,
+            tdSnapshot,
+            s => tdLinesOf(s, expense).length === 1,
+            `${expense}'s entry line`
+        )
+
+        const entryLine = lineWith(before, expense, memo)
+        if (!entryLine) throw new Error(`no line whose Description is ${memo}`)
+        await pressLineLabel(page, entryLine)
+        await expect(page).toHaveURL(entryUrl(entryId))
+        await page.goBack()
+        await expect(page.getByTestId('report-title')).toHaveText(TRANSACTION_DETAIL_TITLE)
+        const back = await snapshotWhen(
+            page,
+            tdSnapshot,
+            s => tdLinesOf(s, expense).length === 1,
+            'the report again after Back'
+        )
+        expect(back.chips.period).toBe(before.chips.period)
+        expect(back.chips.accounts).toBe(before.chips.accounts)
+
+        const sections = await snapshotWhen(
+            page,
+            tdSnapshot,
+            s => groupOf(s, expense) !== undefined && tdSubtotalOf(s, expense) !== undefined,
+            `${expense}'s heading and total`
+        )
+        const total = tdSubtotalOf(sections, expense)
+        const heading = groupOf(sections, expense)
+        if (!total || !heading) throw new Error(`no heading or total for ${expense}`)
+        await expect(page.getByTestId(`report-row-${total.id}`)).not.toHaveRole('link')
+        const headingLabel = page.getByTestId(`report-row-${heading.id}`)
+        await expect(headingLabel).toHaveAttribute('aria-expanded', 'true')
+        const reportUrl = page.url()
+        await headingLabel.click()
+        await expect(headingLabel).toHaveAttribute('aria-expanded', 'false')
+        expect(page.url()).toBe(reportUrl)
+    })
+
+    test("a press on a line's Amount opens its transfer, and a bill line opens its bill", async ({
         page,
     }) => {
         await startBooks(page)
@@ -293,18 +371,7 @@ test.describe('report-drill-down: screen', () => {
             { name: fromBank, kind: BANK },
             { name: toBank, kind: BANK },
         ])
-        const today = await browserToday(page)
-        const memo = uniqueName('TD6 entry')
         await openEntriesFromSidebar(page)
-        await postEntryOn(page, {
-            date: today,
-            memo,
-            lines: [
-                { account: expense, debit: '75.00' },
-                { account: ACCOUNT_LABELS.checking, credit: '75.00' },
-            ],
-        })
-        const entryId = entryIdFromUrl(page)
         await createPostedTransfer(page, {
             from: fromBank,
             to: toBank,
@@ -319,40 +386,15 @@ test.describe('report-drill-down: screen', () => {
         await postBill(page)
 
         await openTransactionDetail(page, { accounts: [expense, toBank] })
-        const header = page.getByTestId('report-document-header')
-        await expect(header).toContainText(TRANSACTION_DETAIL_TITLE)
-        await expect(header).toContainText(monthToDateWords(today))
-        await expect
-            .poll(async () => {
-                const shown = (await page.getByTestId('report-business-name').innerText()).trim()
-                const expected = await expectedHeading(page)
-                return { matches: shown === expected && expected !== '', shown, expected }
-            })
-            .toMatchObject({ matches: true })
         const before = await snapshotWhen(
             page,
             tdSnapshot,
-            s => tdLinesOf(s, expense).length === 2 && tdLinesOf(s, toBank).length === 1,
-            `${expense}'s entry and bill lines and ${toBank}'s transfer line`
+            s => tdLinesOf(s, expense).length === 1 && tdLinesOf(s, toBank).length === 1,
+            `${expense}'s bill line and ${toBank}'s transfer line`
         )
-
-        const entryLine = lineWith(before, expense, memo)
-        if (!entryLine) throw new Error(`no line whose Description is ${memo}`)
-        await pressLineLabel(page, entryLine)
-        await expect(page).toHaveURL(entryUrl(entryId))
-        await page.goBack()
-        await expect(page.getByTestId('report-title')).toHaveText(TRANSACTION_DETAIL_TITLE)
-        const back = await snapshotWhen(
-            page,
-            tdSnapshot,
-            s => tdLinesOf(s, toBank).length === 1,
-            'the report again after Back'
-        )
-        expect(back.chips.period).toBe(before.chips.period)
-        expect(back.chips.accounts).toBe(before.chips.accounts)
 
         // A press anywhere on the row opens it: here its Amount, not its label.
-        const transferLine = tdLinesOf(back, toBank)[0]
+        const transferLine = tdLinesOf(before, toBank)[0]
         expect(transferLine.cells.type).toBe('Transfer')
         await page.getByTestId(`report-cell-amount-${transferLine.id}`).click()
         await expect(page).toHaveURL(TRANSFER_URL)
@@ -371,23 +413,6 @@ test.describe('report-drill-down: screen', () => {
         await expect(page).toHaveURL(BILL_URL)
         await page.goBack()
         await expect(page.getByTestId('report-title')).toHaveText(TRANSACTION_DETAIL_TITLE)
-
-        const sections = await snapshotWhen(
-            page,
-            tdSnapshot,
-            s => groupOf(s, expense) !== undefined && tdSubtotalOf(s, expense) !== undefined,
-            `${expense}'s heading and total`
-        )
-        const total = tdSubtotalOf(sections, expense)
-        const heading = groupOf(sections, expense)
-        if (!total || !heading) throw new Error(`no heading or total for ${expense}`)
-        await expect(page.getByTestId(`report-row-${total.id}`)).not.toHaveRole('link')
-        const headingLabel = page.getByTestId(`report-row-${heading.id}`)
-        await expect(headingLabel).toHaveAttribute('aria-expanded', 'true')
-        const reportUrl = page.url()
-        await headingLabel.click()
-        await expect(headingLabel).toHaveAttribute('aria-expanded', 'false')
-        expect(page.url()).toBe(reportUrl)
     })
 
     test('a General Ledger line and a Journal line open the entry that posted them', async ({
@@ -802,9 +827,7 @@ test.describe('report-drill-down: screen', () => {
         expect(figureDigits(tdSubtotalOf(detail, expense)?.cells.amount)).toBe(figureDigits(cell))
     })
 
-    test('a Balance Sheet and a Trial Balance figure open the account up to the day', async ({
-        page,
-    }) => {
+    test('a Balance Sheet figure opens the account up to the day', async ({ page }) => {
         await startBooks(page)
         const bank = accountName('TD5 bank')
         const equity = accountName('TD5 equity')
@@ -854,12 +877,35 @@ test.describe('report-drill-down: screen', () => {
         await expect(back).toHaveText('Balance Sheet')
         await back.click()
         await expect(page.getByTestId('report-title')).toHaveText('Balance Sheet')
+    })
+
+    // Its own accounts and one entry: the Balance Sheet test's second entry is read only
+    // there, so the two reports are two tests and neither runs both.
+    test('a Trial Balance figure opens the account up to the day, and Retained earnings is no link', async ({
+        page,
+    }) => {
+        await startBooks(page)
+        const bank = accountName('TD5 bank')
+        const equity = accountName('TD5 equity')
+        await createAccounts(page, [
+            { name: bank, kind: BANK },
+            { name: equity, kind: EQUITY },
+        ])
+        await openEntriesFromSidebar(page)
+        await postEntryOn(page, {
+            date: await browserToday(page),
+            memo: uniqueName('TD5 capital'),
+            lines: [
+                { account: bank, debit: '300.00' },
+                { account: equity, credit: '300.00' },
+            ],
+        })
 
         await openTrialBalance(page)
         await chooseAsOf(page, { preset: 'today' })
         await filterToAccounts(page, [bank, RETAINED_EARNINGS])
         const debit = await figureText(page, 'debit', bank)
-        expect(figureDigits(debit)).toBe('325.00')
+        expect(figureDigits(debit)).toBe('300.00')
         // B's Credit draws no figure, so it is no link.
         const blankCredit = await cellOf(page, 'credit', bank)
         await expect(blankCredit).toBeAttached()

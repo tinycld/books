@@ -323,19 +323,38 @@ async function backToListsHub(page: Page) {
 }
 
 test.describe('vendor-form: vendors list', () => {
+    // Steps (0) to (2), (5), (6), the table layout of (9), (10) and (11) run the same code
+    // at both sizes (ListBanner, ListEmptyState, the loading body, search, the child stack,
+    // the hub), so they run on desktop only. The phone run takes the steps whose phone path
+    // runs other code: PartyCard, the Books New FAB and the narrow ListToolbar.
+    test('shows the loading, empty, all-inactive and failed list states (desktop)', async ({
+        page,
+    }) => {
+        await login(page)
+        await navigateToPackage(page, 'books')
+        await page.setViewportSize(DESKTOP)
+        await showListStates(page, DESKTOP)
+    })
+
+    test('the table keeps its columns and windows its rows, takes clicks, and goes back to the hub (desktop)', async ({
+        page,
+    }) => {
+        await login(page)
+        await navigateToPackage(page, 'books')
+        await page.setViewportSize(DESKTOP)
+        await openVendorsList(page)
+        await tableLayout(page)
+        await listTakesClicks(page)
+        await backToListsHub(page)
+    })
+
     for (const [sizeName, size] of SIZES) {
-        test(`finds, filters and shows every list state (${sizeName})`, async ({ page: first }) => {
-            await login(first)
-            await navigateToPackage(first, 'books')
-            await first.setViewportSize(size)
-            // Steps (0) to (2), (5), (6), (10) and (11) run the same code at both sizes
-            // (ListBanner, ListEmptyState, the loading body, search, the child stack, the
-            // hub), so only the desktop run takes them. The phone run takes the steps whose
-            // phone path runs other code: PartyCard, the Books New FAB and the narrow
-            // ListToolbar.
-            const phone = isPhone(first)
-            const page = phone ? first : await showListStates(first, size)
-            if (phone) await openVendorsList(page)
+        test(`finds and filters vendors (${sizeName})`, async ({ page }) => {
+            await login(page)
+            await navigateToPackage(page, 'books')
+            await page.setViewportSize(size)
+            const phone = isPhone(page)
+            await openVendorsList(page)
 
             // (3) Header.
             await expect(page.getByTestId('vendors-back')).toContainText('All lists')
@@ -427,15 +446,13 @@ test.describe('vendor-form: vendors list', () => {
             await expect(shown.first()).toBeVisible()
             await expect.poll(() => shown.count()).toBeGreaterThan(1)
 
-            // (9) Layout.
+            // (9) Layout: a phone draws cards, a desktop the table.
             if (phone) {
                 await expect(page.getByTestId('vendors-cards')).toBeVisible()
                 await expect(page.getByTestId('vendors-table')).not.toBeVisible()
                 return
             }
-            await tableLayout(page)
-            await listTakesClicks(page)
-            await backToListsHub(page)
+            await expect(page.getByTestId('vendors-table')).toBeVisible()
         })
     }
 })
