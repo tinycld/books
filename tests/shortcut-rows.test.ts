@@ -1,6 +1,11 @@
 import { appHref } from '@tinycld/core/lib/org-routes'
 import { describe, expect, it } from 'vitest'
 import {
+    REGISTER_SHORTCUT_ICON,
+    REPORT_SHORTCUT_ICON,
+    staticTarget,
+} from '../tinycld/books/lib/shortcut-catalog'
+import {
     reportOfShortcut,
     type ShortcutRowsInput,
     shortcutRows,
@@ -66,6 +71,17 @@ describe('shortcutRows', () => {
             ['My sales', { pathname: '/a/reports/[id]', params: { id: 'rpt2' } }],
             ['Petty cash', { pathname: '/a/books/accounts/[id]', params: { id: 'acct2' } }],
         ])
+        const icons = [
+            REGISTER_SHORTCUT_ICON,
+            REPORT_SHORTCUT_ICON,
+            staticTarget({ kind: 'new', ref: 'invoice' }, true)?.icon,
+            staticTarget({ kind: 'screen', ref: 'customers' }, true)?.icon,
+            REPORT_SHORTCUT_ICON,
+            REGISTER_SHORTCUT_ICON,
+        ]
+        // An undefined icon would equal an undefined icon: each must exist first.
+        for (const icon of icons) expect(icon).toBeDefined()
+        expect(drawn.map(row => row.icon)).toEqual(icons)
         expect(drawn.map(row => row.key)).toEqual([
             'register:acct1',
             'report:books.profit_and_loss',
