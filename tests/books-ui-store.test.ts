@@ -3,7 +3,11 @@ import { useBooksUIStore } from '../tinycld/books/stores/books-ui-store'
 
 describe('useBooksUIStore', () => {
     beforeEach(() => {
-        useBooksUIStore.setState({ isAccountingOpen: true, isNewOpen: false })
+        useBooksUIStore.setState({
+            isAccountingOpen: true,
+            isNewOpen: false,
+            isReportsOpen: false,
+        })
     })
 
     it('starts with the accounting group open', () => {
@@ -29,11 +33,23 @@ describe('useBooksUIStore', () => {
         expect(useBooksUIStore.getState().isNewOpen).toBe(true)
     })
 
-    it('persists the two fold states under tinycld_books_ui', () => {
+    it('starts with the Reports section closed; toggleReports flips it', () => {
+        expect(useBooksUIStore.getState().isReportsOpen).toBe(false)
+        useBooksUIStore.getState().toggleReports()
+        expect(useBooksUIStore.getState().isReportsOpen).toBe(true)
+        useBooksUIStore.getState().toggleReports()
+        expect(useBooksUIStore.getState().isReportsOpen).toBe(false)
+    })
+
+    it('persists the three fold states under tinycld_books_ui', () => {
         const options = useBooksUIStore.persist.getOptions()
         expect(options.name).toBe('tinycld_books_ui')
         useBooksUIStore.getState().toggleAccounting()
         const partial = options.partialize?.(useBooksUIStore.getState())
-        expect(partial).toEqual({ isAccountingOpen: false, isNewOpen: false })
+        expect(partial).toEqual({
+            isAccountingOpen: false,
+            isNewOpen: false,
+            isReportsOpen: false,
+        })
     })
 })

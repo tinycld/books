@@ -7,6 +7,7 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router } from 'expo-router'
 import { FoldHeading } from './components/sidebar/FoldHeading'
 import { NewSection } from './components/sidebar/NewSection'
+import { ReportsSection } from './components/sidebar/ReportsSection'
 import { ShortcutsSection } from './components/sidebar/ShortcutsSection'
 import { useBooksSidebar } from './hooks/useBooksSidebar'
 import type { SidebarEntry } from './lib/shell-nav'
@@ -29,8 +30,9 @@ function AccountingHeading({ isVisible, isOpen, onToggle }: AccountingHeadingPro
     )
 }
 
-// The Books sidebar, top to bottom: the user's Shortcuts, the New actions, then the fixed
-// navigation under "Go to". The same component is the desktop sidebar and the phone drawer.
+// The Books sidebar, top to bottom: the user's Shortcuts, the New actions, the Books
+// reports, then the fixed navigation under "Go to". The same component is the desktop
+// sidebar and the phone drawer.
 export default function BooksSidebar() {
     const {
         top,
@@ -62,6 +64,7 @@ export default function BooksSidebar() {
         <SidebarNav>
             <ShortcutsSection />
             <NewSection />
+            <ReportsSection />
             <SidebarHeading>Go to</SidebarHeading>
             {topItems}
             <AccountingHeading

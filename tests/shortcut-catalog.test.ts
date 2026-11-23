@@ -148,6 +148,8 @@ describe('staticTargets and staticTarget', () => {
 
     it('has no target for a ref it does not know, a report or a register', () => {
         expect(staticTarget({ kind: 'screen', ref: 'payroll' }, true)).toBeNull()
+        // The Reports entry left the fixed navigation: a stored shortcut to it opens nothing.
+        expect(staticTarget({ kind: 'screen', ref: 'reports' }, true)).toBeNull()
         expect(staticTarget({ kind: 'new', ref: 'paycheck' }, true)).toBeNull()
         expect(staticTarget({ kind: 'report', ref: 'books.balance_sheet' }, true)).toBeNull()
         expect(staticTarget({ kind: 'register', ref: 'customers' }, true)).toBeNull()

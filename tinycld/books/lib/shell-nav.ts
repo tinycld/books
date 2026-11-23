@@ -1,6 +1,5 @@
 import type { LucideIcon } from 'lucide-react-native'
 import {
-    BarChart3,
     BookOpen,
     FileText,
     Landmark,
@@ -84,14 +83,6 @@ export const SIDEBAR_ENTRIES: SidebarEntry[] = [
         available: true,
     },
     { id: 'lists', label: 'Lists', icon: List, href: 'books/lists', available: true },
-    {
-        id: 'reports',
-        label: 'Reports',
-        icon: BarChart3,
-        href: 'reports',
-        params: { package: 'books' },
-        available: true,
-    },
     {
         id: 'accounts',
         label: 'Chart of Accounts',
