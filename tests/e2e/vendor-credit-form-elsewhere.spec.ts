@@ -33,8 +33,9 @@ import {
 // the Payments block with Remove, the void refusal), Pay Bills (the notice of unapplied
 // credits, the open balance after credits), the corrections and void of an applied credit,
 // its journal entry in the Journal Entries list, and its help topic. Every test makes its
-// own vendor with posted bills (`vendorWithBills`) and its own posted credit with a unique
+// own vendor with posted bills (`vendorWithBills`) and, when it reads one, its own posted credit with a unique
 // memo, so no other worker's bill or credit is in its rows and no seeded document moves.
+// A refused read is a test of its own, on a second page with its own login.
 //
 // No phone test: the bill's Payments block and the Pay Bills notice are the same
 // components at both widths. Not driven here: the server rules (vendor_credits_test.go,
@@ -95,25 +96,36 @@ async function isTopToBottom(targets: Locator[]): Promise<boolean> {
     return true
 }
 
+// Books open on a vendor with one posted $100.00 bill and a posted $30.00 credit applied
+// to it in full.
+async function creditAppliedToBill(page: Page, label: string) {
+    const memo = uniqueMemo(label)
+    await openBooks(page)
+    const { vendor, bills } = await vendorWithBills(page, {
+        bills: [{ amount: '100.00', due: await localDay(page, 10) }],
+    })
+    const [bill] = bills
+    const credit = await postVendorCredit(page, {
+        vendor: vendor.name,
+        account: RENT,
+        amount: '30.00',
+        memo,
+    })
+    await applyCreditToBill(page, { memo, billId: bill.id, amount: '30.00' })
+    await expect(shown(page, 'vendor-credit-badge')).toHaveText('Applied')
+    return { memo, vendor, bill, credit }
+}
+
+// Each test makes its own vendor, bill and credit: one test for the refused read and the
+// read view ran past the test timeout on CI.
 test.describe('vendor-credit-form: bill read view', () => {
-    test('a bill shows the credit applied to it, refuses Void, and Remove takes it off', async ({
+    test("a refused read of the bill's credits keeps the totals, and Retry shows the credit row", async ({
         page,
     }) => {
-        const memo = uniqueMemo('Vendor credit on a bill')
-        await openBooks(page)
-        const { vendor, bills } = await vendorWithBills(page, {
-            bills: [{ amount: '100.00', due: await localDay(page, 10) }],
-        })
-        const [bill] = bills
-        const credit = await postVendorCredit(page, {
-            vendor: vendor.name,
-            account: RENT,
-            amount: '30.00',
-            memo,
-        })
-        const today = formatDay(await localToday(page))
-        await applyCreditToBill(page, { memo, billId: bill.id, amount: '30.00' })
-        await expect(shown(page, 'vendor-credit-badge')).toHaveText('Applied')
+        const { vendor, bill, credit } = await creditAppliedToBill(
+            page,
+            'Vendor credit on a bill refused read'
+        )
 
         // A refused read of the bill's credit applications, on a fresh page (its store holds
         // none, and realtime is cut before login, lesson 22): the totals still add up from
@@ -151,6 +163,16 @@ test.describe('vendor-credit-form: bill read view', () => {
         await expect(shown(failed, 'bill-total-credits')).toContainText(`${MINUS}$30.00`)
         await failed.unrouteAll({ behavior: 'wait' })
         await failed.close()
+    })
+
+    test('a bill shows the credit applied to it, refuses Void, and Remove takes it off', async ({
+        page,
+    }) => {
+        const { memo, vendor, bill, credit } = await creditAppliedToBill(
+            page,
+            'Vendor credit on a bill'
+        )
+        const today = formatDay(await localToday(page))
 
         // The bill through search, from the Journal Entries list (so the credit's screen is
         // not below it): Partly paid, Credits applied −$30.00 above Balance due $70.00.
@@ -294,6 +316,18 @@ test.describe('vendor-credit-form: pay bills', () => {
             'More than the open balance of $80.00'
         )
         await expect(page).toHaveURL(PAY_BILLS_URL)
+    })
+
+    // Needs no credit: the refused read is of the vendor credits collection itself, and
+    // Retry is shown to load the vendor's bill.
+    test('a refused vendor credits read shows the load error, and Retry loads the bills', async ({
+        page,
+    }) => {
+        await openBooks(page)
+        const { vendor, bills } = await vendorWithBills(page, {
+            bills: [{ amount: '100.00', due: await localDay(page, 20) }],
+        })
+        const [bill] = bills
 
         // A refused read of the vendor credits on a fresh page (its store holds none, and
         // realtime is cut before login, lesson 22): the screen's load error with Retry,
@@ -321,7 +355,7 @@ test.describe('vendor-credit-form: pay bills', () => {
         await retry.click()
         await expect(message).toHaveCount(0)
         await filterToVendor(failed, vendor)
-        await expect(payBillsRow(failed, large.id)).toBeVisible()
+        await expect(payBillsRow(failed, bill.id)).toBeVisible()
         await failed.unrouteAll({ behavior: 'wait' })
         await failed.close()
     })
