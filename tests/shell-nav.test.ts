@@ -653,7 +653,7 @@ describe('reconcile sidebar entry', () => {
 
 // The Books reports are a section of the sidebar (components/sidebar/ReportsSection.tsx);
 // the fixed navigation has no Reports entry, so a screen shortcut cannot name it.
-describe('reports sidebar entry', () => {
+describe('no reports sidebar entry', () => {
     it('is not in the fixed navigation', () => {
         expect(SIDEBAR_ENTRIES.some(e => e.id === 'reports')).toBe(false)
         expect(SIDEBAR_ENTRIES.some(e => e.href === 'reports')).toBe(false)
