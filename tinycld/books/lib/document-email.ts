@@ -10,6 +10,7 @@ import { documentLinkUrl } from './document-link'
 import type { SendKind } from './document-send'
 import { formatMoney } from './money'
 import { formatDay } from './register-range'
+import { KIND_WORDS } from './send-doc-types'
 
 // The starting subject and message of a document email (spec §3.4). This is a mirror of
 // Go documentEmail (server/document_email.go), which a batch send uses: the same blocks
@@ -30,14 +31,6 @@ export type DocumentEmailInput = {
     message: string
     link: string
     canRespond: boolean
-}
-
-const KIND_WORDS: Record<SendKind, { title: string; noun: string }> = {
-    invoice: { title: 'Invoice', noun: 'invoice' },
-    estimate: { title: 'Estimate', noun: 'estimate' },
-    sales_receipt: { title: 'Sales receipt', noun: 'sales receipt' },
-    credit_memo: { title: 'Credit memo', noun: 'credit memo' },
-    refund_receipt: { title: 'Refund receipt', noun: 'refund receipt' },
 }
 
 const ESCAPES: Record<string, string> = {

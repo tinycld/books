@@ -1,7 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import type { DocumentListRow } from '../tinycld/books/lib/document-list'
 import {
+    batchResultLines,
+    batchSendCopy,
+    batchSendCounts,
+    batchSendOffered,
+    batchSentToast,
     documentSendSchema,
     documentSentLine,
     parseCc,
@@ -9,6 +15,7 @@ import {
     sendOffered,
     sentToast,
 } from '../tinycld/books/lib/document-send'
+import type { TransactionKind } from '../tinycld/books/lib/party-transactions'
 
 // The send rules TypeScript and Go both hold (spec §3.1, §3.2), against the
 // case table the Go route test also runs.
@@ -146,6 +153,241 @@ describe('sendDialogStatus', () => {
 
     it("gives 'ready' for three landed reads when the server can send", () => {
         expect(sendDialogStatus({ reads: [LANDED, LANDED, LANDED], email: CAN_SEND })).toBe('ready')
+    })
+})
+
+// A sales list row (lib/document-list.ts) of a kind and a stored status; `email` is the
+// document's own address (plan decision 7), '' for none.
+let nextId = 0
+function listRow(
+    kind: TransactionKind,
+    recordStatus: string,
+    fields: Partial<DocumentListRow> = {}
+): DocumentListRow {
+    nextId += 1
+    return {
+        id: `doc${String(nextId).padStart(12, '0')}`,
+        kind,
+        number: String(1000 + nextId),
+        date: '2026-11-17',
+        dueDate: '',
+        total: 150,
+        currency: 'USD',
+        created: '2026-11-17 10:00:00.000Z',
+        status: { label: 'Open', tone: 'warning' },
+        sequence: 1000 + nextId,
+        partyId: 'cus000000000001',
+        partyName: 'Acme',
+        memo: '',
+        reference: '',
+        expires: '',
+        balance: 0,
+        entry: '',
+        convertedInvoice: '',
+        recordStatus,
+        category: { kind: 'none' },
+        email: 'billing@acme.example',
+        ...fields,
+    }
+}
+
+const WRITER = true
+const READER = false
+
+// Spec §3.3 "Batch": the Batch actions menu offers Send for a writer when at least one
+// ticked row is sent-able by kind and status (plan decision 6).
+describe('batchSendOffered', () => {
+    const notSentable = [
+        listRow('invoice', 'draft'),
+        listRow('invoice', 'void'),
+        listRow('sales_receipt', 'void'),
+        listRow('estimate', 'closed'),
+        listRow('payment', 'posted', { email: '' }),
+        listRow('credit_memo', 'draft'),
+    ]
+
+    it('is false for a reader, also with a posted invoice ticked', () => {
+        expect(batchSendOffered([listRow('invoice', 'posted')], READER)).toBe(false)
+    })
+
+    it('is false for only drafts, void rows, closed estimates and payment rows', () => {
+        expect(batchSendOffered(notSentable, WRITER)).toBe(false)
+        expect(batchSendOffered([listRow('invoice', 'draft')], WRITER)).toBe(false)
+        expect(batchSendOffered([listRow('payment', 'posted')], WRITER)).toBe(false)
+        expect(batchSendOffered([], WRITER)).toBe(false)
+    })
+
+    it('is true with one posted invoice among them', () => {
+        expect(batchSendOffered([...notSentable, listRow('invoice', 'posted')], WRITER)).toBe(true)
+    })
+
+    it('is true for a sent-able row with no address (the dialog skips it)', () => {
+        expect(batchSendOffered([listRow('invoice', 'posted', { email: '' })], WRITER)).toBe(true)
+    })
+})
+
+// The counts the batch dialog reads: a row is sendable when sent-able and with an address,
+// "no email address" when sent-able with none, "a draft or void" when not sent-able.
+describe('batchSendCounts', () => {
+    it('counts every kind and status, with and without an address', () => {
+        const rows = [
+            // sendable
+            listRow('invoice', 'posted'),
+            listRow('estimate', 'pending'),
+            listRow('estimate', 'accepted'),
+            listRow('estimate', 'rejected'),
+            listRow('sales_receipt', 'posted'),
+            listRow('credit_memo', 'posted'),
+            listRow('refund_receipt', 'posted'),
+            // no address
+            listRow('invoice', 'posted', { email: '' }),
+            listRow('estimate', 'pending', { email: '' }),
+            listRow('refund_receipt', 'posted', { email: '' }),
+            // not sendable, with or without an address
+            listRow('invoice', 'draft'),
+            listRow('invoice', 'void', { email: '' }),
+            listRow('estimate', 'closed'),
+            listRow('sales_receipt', 'draft', { email: '' }),
+            listRow('credit_memo', 'void'),
+            listRow('refund_receipt', 'void'),
+            listRow('payment', 'posted', { email: '' }),
+            listRow('write_off', 'posted', { email: '' }),
+        ]
+        expect(batchSendCounts(rows)).toEqual({ sendable: 7, noAddress: 3, notSendable: 8 })
+    })
+
+    it('counts no row for an empty selection', () => {
+        expect(batchSendCounts([])).toEqual({ sendable: 0, noAddress: 0, notSendable: 0 })
+    })
+
+    it('a draft with no address counts as not sendable, not as no address', () => {
+        expect(batchSendCounts([listRow('invoice', 'draft', { email: '' })])).toEqual({
+            sendable: 0,
+            noAddress: 0,
+            notSendable: 1,
+        })
+    })
+})
+
+// The batch dialog's texts (spec §3.3 "Batch"; plan decision 6): its title, its lead line,
+// the skipped line (null when none is skipped), the refusal (null when none), the confirm's
+// label (null when the dialog has only Close) and whether the confirm is enabled.
+describe('batchSendCopy', () => {
+    it('12 ticked, 9 sendable: the title, the body, the skipped line and "Send 9", enabled', () => {
+        expect(batchSendCopy({ sendable: 9, noAddress: 2, notSendable: 1 }, true)).toEqual({
+            title: 'Send 12 documents?',
+            body: 'Each goes to the email address on the document.',
+            skipped: '3 are skipped: 2 have no email address, 1 is a draft or void.',
+            refusal: null,
+            confirmLabel: 'Send 9',
+            isConfirmEnabled: true,
+        })
+    })
+
+    it('one skipped row with no address: the singular skipped line', () => {
+        expect(batchSendCopy({ sendable: 2, noAddress: 1, notSendable: 0 }, true).skipped).toBe(
+            '1 is skipped: 1 has no email address.'
+        )
+    })
+
+    it('one document: "Send 1 document?" and "Send 1", with no skipped line', () => {
+        expect(batchSendCopy({ sendable: 1, noAddress: 0, notSendable: 0 }, true)).toEqual({
+            title: 'Send 1 document?',
+            body: 'Each goes to the email address on the document.',
+            skipped: null,
+            refusal: null,
+            confirmLabel: 'Send 1',
+            isConfirmEnabled: true,
+        })
+    })
+
+    it('no skipped row: no skipped line', () => {
+        expect(
+            batchSendCopy({ sendable: 4, noAddress: 0, notSendable: 0 }, true).skipped
+        ).toBeNull()
+    })
+
+    it('no sendable row: "Send 0", disabled', () => {
+        const copy = batchSendCopy({ sendable: 0, noAddress: 2, notSendable: 1 }, true)
+        expect(copy.confirmLabel).toBe('Send 0')
+        expect(copy.isConfirmEnabled).toBe(false)
+        expect(copy.skipped).toBe('3 are skipped: 2 have no email address, 1 is a draft or void.')
+    })
+
+    it('201 sendable: the refusal "Select at most 200 documents." and a disabled confirm', () => {
+        const copy = batchSendCopy({ sendable: 201, noAddress: 0, notSendable: 0 }, true)
+        expect(copy.refusal).toBe('Select at most 200 documents.')
+        expect(copy.isConfirmEnabled).toBe(false)
+    })
+
+    it('200 sendable: no refusal, enabled', () => {
+        const copy = batchSendCopy({ sendable: 200, noAddress: 0, notSendable: 0 }, true)
+        expect(copy.refusal).toBeNull()
+        expect(copy.isConfirmEnabled).toBe(true)
+    })
+
+    it('email not set up: the body "Email sending is not set up." and Close alone', () => {
+        const copy = batchSendCopy({ sendable: 9, noAddress: 2, notSendable: 1 }, false)
+        expect(copy.body).toBe('Email sending is not set up.')
+        expect(copy.confirmLabel).toBeNull()
+        expect(copy.isConfirmEnabled).toBe(false)
+    })
+})
+
+describe('batchSentToast', () => {
+    it('counts the documents sent, plural and singular', () => {
+        expect(batchSentToast(9)).toBe('9 documents sent')
+        expect(batchSentToast(1)).toBe('1 document sent')
+    })
+})
+
+// The banner after a part failure (spec §3.3 "Result"): the summary, then one line for each
+// failed document, "<Kind word> <number>: <the server's message>", the number read from the
+// ticked rows by the failed item's id.
+describe('batchResultLines', () => {
+    it('gives "6 of 9 documents were sent." and one line for each failed document', () => {
+        const invoice = listRow('invoice', 'posted', { number: '1003' })
+        const receipt = listRow('sales_receipt', 'posted', { number: '2001' })
+        const memo = listRow('credit_memo', 'posted', { number: 'CM-7' })
+        const refused =
+            'The email server refused billing@northwind.example. Correct the address and send again.'
+        const notRecorded = 'The email was sent, but the send could not be recorded.'
+        expect(
+            batchResultLines({
+                sent: 6,
+                failed: [
+                    { kind: 'invoice', id: invoice.id, message: refused },
+                    { kind: 'sales_receipt', id: receipt.id, message: notRecorded },
+                    { kind: 'credit_memo', id: memo.id, message: refused },
+                ],
+                rows: [invoice, receipt, memo, listRow('invoice', 'posted')],
+            })
+        ).toEqual({
+            summary: '6 of 9 documents were sent.',
+            lines: [
+                `Invoice 1003: ${refused}`,
+                `Sales receipt 2001: ${notRecorded}`,
+                `Credit memo CM-7: ${refused}`,
+            ],
+        })
+    })
+
+    it('names an estimate and a refund receipt by their kind words', () => {
+        const estimate = listRow('estimate', 'pending', { number: 'E-12' })
+        const refund = listRow('refund_receipt', 'posted', { number: 'R-3' })
+        const result = batchResultLines({
+            sent: 1,
+            failed: [
+                { kind: 'estimate', id: estimate.id, message: 'Document not found.' },
+                { kind: 'refund_receipt', id: refund.id, message: 'Document not found.' },
+            ],
+            rows: [estimate, refund],
+        })
+        expect(result.summary).toBe('1 of 3 documents were sent.')
+        expect(result.lines).toEqual([
+            'Estimate E-12: Document not found.',
+            'Refund receipt R-3: Document not found.',
+        ])
     })
 })
 

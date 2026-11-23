@@ -4,8 +4,8 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { ScopeProvider, useShortcutScope } from '@tinycld/core/lib/shortcuts'
 import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { router } from 'expo-router'
-import { type ReactNode, useId } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { type ReactNode, useId, useRef } from 'react'
+import { Pressable, ScrollView, Text, View, type ViewInstance } from 'react-native'
 import {
     type DocumentRecord,
     documentPartyIdOf,
@@ -35,10 +35,12 @@ import { depositEntryOf } from '../../lib/deposit'
 import { removeApplicationOffered } from '../../lib/document-actions'
 import { DOCUMENT_NOTE_LABELS, memoLabelFor } from '../../lib/document-notes'
 import { type DocumentTab, documentHref } from '../../lib/document-routes'
+import { sendOffered } from '../../lib/document-send'
 import { documentTaxOf } from '../../lib/document-tax'
 import { NO_PARTY_TEXT } from '../../lib/document-texts'
 import { lineTableSubtotals } from '../../lib/document-values'
 import { stampText } from '../../lib/entry-display'
+import { focusScreenControl } from '../../lib/focus-return'
 import { DOCUMENT_COLLECTIONS } from '../../lib/history-route'
 import { formatMoney, MINUS } from '../../lib/money'
 import { formatDay, todayIso } from '../../lib/register-range'
@@ -477,18 +479,31 @@ function ReadWriteOffDialog({ owner, isVisible }: { owner: string; isVisible: bo
 }
 
 // The Send dialog of this read view (email-share spec §3.2): a writer on a sent-able kind
-// (Send… opens it with this screen's owner).
+// (Send… opens it with this screen's owner). A Post and send of this document queues its
+// send, which opens here once the document can be sent (`sendOffered`: posted, or an open
+// estimate).
 function ReadSendDialog({
     owner,
-    kind,
+    record,
     canWrite,
+    returnFocus,
 }: {
     owner: string
-    kind: string
+    record: DocumentRecord
     canWrite: boolean
+    returnFocus: () => void
 }) {
+    const kind = record.kindFields.kind
     if (!canWrite || !isSendDocType(kind)) return null
-    return <SendDocumentDialog owner={owner} />
+    const isSendable = sendOffered(kind, record.status)
+    return (
+        <SendDocumentDialog
+            owner={owner}
+            recordId={record.id}
+            isSendable={isSendable}
+            returnFocus={returnFocus}
+        />
+    )
 }
 
 // The sent line under the status (email-share spec §3.6) of a sent-able kind.
@@ -616,6 +631,11 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     // Write off opens useWriteOffStore with this screen as the owner, so only the dialog this
     // screen mounts (ReadWriteOffDialog) draws, not one of a list under it in the stack.
     const owner = useId()
+    // A queued send's dialog (Post and send) gives the focus back to the bar's Send, or to
+    // the bar's first button where Send is a More row (phone).
+    const rootRef = useRef<ViewInstance>(null)
+    const sendReturnIds = [`${doc.testId}-read-send`, `${doc.testId}-read-actions`]
+    const returnSendFocus = () => focusScreenControl(rootRef.current, sendReturnIds)
     const depositRead = useDepositOf(depositEntryOf(record))
     const read = useDocumentReadActions(documentKind, record, data.canWrite, owner, depositRead)
     const isInDeposit = depositRead.deposit !== null
@@ -723,7 +743,7 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
     if (!refunds.isReady && !refunds.isError) return <DocumentLoading />
     return (
         <ScopeProvider owner={scopeOwner}>
-            <View testID={readOnlyId} className="flex-1 bg-background">
+            <View ref={rootRef} testID={readOnlyId} className="flex-1 bg-background">
                 <ScrollView className="flex-1" contentContainerClassName="gap-4 px-4 pt-2 pb-6">
                     <EntryBackLink />
                     <DocumentHeader
@@ -765,8 +785,9 @@ export function DocumentReadView({ data, record, tab }: DocumentReadViewProps) {
                 <ReadWriteOffDialog owner={owner} isVisible={isInvoice} />
                 <ReadSendDialog
                     owner={owner}
-                    kind={record.kindFields.kind}
+                    record={record}
                     canWrite={data.canWrite}
+                    returnFocus={returnSendFocus}
                 />
                 <RemoveApplicationDialog
                     application={removal.target}

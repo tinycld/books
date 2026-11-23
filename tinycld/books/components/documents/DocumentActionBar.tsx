@@ -5,7 +5,7 @@ import { Menu } from '@tinycld/core/ui/menu'
 import { ShortcutButton } from '@tinycld/core/ui/shortcut-button'
 import { useMemo } from 'react'
 import { View } from 'react-native'
-import { FORM_KEYS } from '../../lib/entry-shortcuts'
+import { FORM_KEYS, SEND_FORM_KEYS } from '../../lib/entry-shortcuts'
 import { useDocumentChrome } from './document-chrome'
 
 // A row of a More menu: its key text is shown on the row; the key itself is registered
@@ -29,6 +29,9 @@ export interface DocumentActionBarProps {
     onSaveDraft: () => void
     onPost: () => void
     onPostAndNew: () => void
+    // Post and send (email-share spec §3.3 "Form"): a kind that is sent by email passes it;
+    // the bar has no Post and send without it (a bill, a payment, a deposit).
+    onPostAndSend?: () => void
     onDeleteDraft: () => void
     // More rows after Delete draft (Download PDF, on a kind with a PDF).
     moreItems?: DocumentMoreItem[]
@@ -212,11 +215,26 @@ export function DocumentBar({
     )
 }
 
+// Post and send, when the form passes it: after Post, a More row on a phone.
+function postAndSendActions(onPostAndSend: (() => void) | undefined): DocumentBarAction[] {
+    if (onPostAndSend === undefined) return []
+    const action: DocumentBarAction = {
+        id: 'post-send',
+        label: 'Post and send',
+        keys: SEND_FORM_KEYS.postAndSend,
+        onPress: onPostAndSend,
+        isServerAction: true,
+        wideOnly: true,
+    }
+    return [action]
+}
+
 /**
- * A posting document's bar, in Tab order: Cancel (Esc), Save draft (⌘S), Post (⌘↵), Post &
- * new (⌘⇧↵; a More row on a phone) and More (Delete draft when the document is a saved
- * draft; then the caller's rows: Download PDF, ⌘P, on a kind with a PDF, which the form
- * passes only then). Save draft, Post and Post & new are server actions.
+ * A posting document's bar, in Tab order: Cancel (Esc), Save draft (⌘S), Post (⌘↵), Post
+ * and send (⌘⌥↵, on a kind sent by email; a More row on a phone), Post & new (⌘⇧↵; a More
+ * row on a phone) and More (Delete draft when the document is a saved draft; then the
+ * caller's rows: Download PDF, ⌘P, on a kind with a PDF, which the form passes only then).
+ * Save draft, Post, Post and send and Post & new are server actions.
  */
 export function DocumentActionBar({
     isSaving,
@@ -226,6 +244,7 @@ export function DocumentActionBar({
     onSaveDraft,
     onPost,
     onPostAndNew,
+    onPostAndSend,
     onDeleteDraft,
     moreItems = [],
     scopeOwner,
@@ -248,6 +267,7 @@ export function DocumentActionBar({
             isPrimary: true,
             isServerAction: true,
         },
+        ...postAndSendActions(onPostAndSend),
         {
             id: 'post-new',
             label: 'Post & new',

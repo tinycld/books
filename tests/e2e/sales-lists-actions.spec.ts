@@ -122,6 +122,7 @@ test.describe('sales-lists: row menu and batch', () => {
             .poll(() => rowMenuActions(page))
             .toEqual([
                 'open',
+                'send',
                 'receive-payment',
                 'write-off',
                 'void',

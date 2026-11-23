@@ -19,6 +19,7 @@ import {
     type DocumentSendValues,
     documentSendSchema,
     parseCc,
+    SENT_TOAST_MS,
     type SendKind,
     sentToast,
 } from '../../../lib/document-send'
@@ -30,8 +31,6 @@ import { SEND_DOCUMENT_KINDS } from './send-kinds'
 // ⌥R puts the starting subject and message back, typed in the fields too (the dialog's
 // modal scope).
 const RESET_SHORTCUT = { keys: 'Alt+r', scope: 'modal', allowInInputs: true } as const
-
-const SENT_TOAST_MS = 4000
 
 type SendDialogData = ReturnType<typeof useSendDialogData>
 

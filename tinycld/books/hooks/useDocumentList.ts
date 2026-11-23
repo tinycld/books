@@ -50,7 +50,8 @@ type ListInput = {
 type SalesData = ReturnType<typeof useSalesListQueries>
 type PurchaseData = ReturnType<typeof usePurchaseListQueries>
 
-// The fields every sales kind's row adds to its badge row; a kind without one gives ''.
+// The fields every sales kind's row adds to its badge row; a kind without one gives ''
+// (`email` too: a payment and a write-off have none, the sent-able kinds set theirs).
 // `customerRow` is required, so a query whose select drops or renames it is a type error.
 function salesFields(row: {
     sequence: number
@@ -71,6 +72,7 @@ function salesFields(row: {
         entry: '',
         convertedInvoice: '',
         category: NO_CATEGORY,
+        email: '',
     }
 }
 
@@ -95,6 +97,7 @@ function purchaseFields(row: {
         entry: row.entry,
         convertedInvoice: '',
         category: NO_CATEGORY,
+        email: '',
     }
 }
 
@@ -111,18 +114,21 @@ function salesLists(
         ...salesFields(row),
         balance: row.balance,
         entry: row.entry,
+        email: row.email,
     }))
     const estimateRows: DocumentListRow[] = (data.estimates ?? []).map(row => ({
         ...estimateRow(row, today),
         ...salesFields(row),
         expires: row.expiration_date,
         convertedInvoice: row.invoice,
+        email: row.email,
     }))
     const receiptRows: DocumentListRow[] = (data.receipts ?? []).map(row => ({
         ...salesReceiptRow(row),
         ...salesFields(row),
         reference: row.reference_no,
         entry: row.entry,
+        email: row.email,
     }))
     const paymentRows: DocumentListRow[] = (data.payments ?? []).map(row => ({
         ...paymentRow(row),
@@ -137,6 +143,7 @@ function salesLists(
         total: isSigned ? -row.total : row.total,
         balance: row.balance,
         entry: row.entry,
+        email: row.email,
     }))
     // refundReceiptRow negates the total on every tab: a refund always shows with a minus
     // sign (refund receipt spec §3.13).
@@ -146,6 +153,7 @@ function salesLists(
         reference: row.reference_no,
         entry: row.entry,
         creditMemo: row.credit_memo,
+        email: row.email,
     }))
     // writeOffRow negates the amount on every tab, as a refund's (write-off spec §3.6).
     const writeOffRows: DocumentListRow[] = (data.writeOffs ?? []).map(row => ({

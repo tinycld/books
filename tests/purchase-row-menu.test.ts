@@ -49,6 +49,7 @@ function row(
         convertedInvoice: '',
         recordStatus,
         category: { kind: 'none' },
+        email: '',
         ...fields,
     }
 }

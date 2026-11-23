@@ -261,7 +261,7 @@ test.describe('refund-receipt-form: elsewhere', () => {
         await openRowMenu(page, posted.id)
         await expect
             .poll(() => rowMenuActions(page))
-            .toEqual(['open', 'void', 'copy', 'entry', 'pdf'])
+            .toEqual(['open', 'send', 'void', 'copy', 'entry', 'pdf'])
         await visible(page, 'sales-row-action-void').click()
         await expect(visible(page, 'void-dialog')).toBeVisible()
         await visible(page, 'void-confirm').click()

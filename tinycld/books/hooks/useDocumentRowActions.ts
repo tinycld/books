@@ -19,7 +19,9 @@ import {
     SALES_RECEIPT_KIND,
     type SalesDocumentKind,
 } from '../lib/sales-document-kinds'
+import { isSendDocType } from '../lib/send-doc-types'
 import { type RowDialog, useDocumentListStore } from '../stores/document-list-store'
+import { useDocumentSendStore } from '../stores/document-send-store'
 import { useWriteOffStore } from '../stores/write-off-store'
 import { useDeleteDraftDocument } from './useDeleteDraftDocument'
 import { useOpenCreditWithApply } from './useOpenCreditWithApply'
@@ -54,7 +56,8 @@ function isStillOffered(
 interface RowActionsInput {
     // The mounted list that opens the dialog: its dialog shows only on that list.
     listKey: string
-    // The `useId()` of the list screen, which mounts its one WriteOffDialog with it.
+    // The `useId()` of the list screen, which mounts its one WriteOffDialog and its one
+    // SendDocumentDialog with it.
     owner: string
     rows: readonly DocumentListRow[]
     canWrite: boolean
@@ -74,7 +77,10 @@ interface RowActionsInput {
  * dialog's write is the one the read view and the forms share (`useVoidDocument`,
  * `useDeleteDraftDocument`); a refusal closes the dialog and shows in the list's banner.
  * Write off opens the write-off dialog over the list (`useWriteOffStore` with the list's
- * `owner`); that dialog shows its own refusals and the list stays.
+ * `owner`); that dialog shows its own refusals and the list stays. Send… opens the Send
+ * dialog over the list (`useDocumentSendStore` with the list's `owner`, as the read view
+ * opens it); it is not disabled offline, as the read view's Send… is not: the dialog's
+ * Send waits for the server.
  */
 export function useDocumentRowActions({
     listKey,
@@ -86,6 +92,7 @@ export function useDocumentRowActions({
     const orgHref = useOrgHref()
     const writes = useWritesAvailable()
     const openWriteOff = useWriteOffStore(state => state.open)
+    const openSend = useDocumentSendStore(state => state.open)
     const setBanner = useDocumentListStore(state => state.setBanner)
     const stored = useDocumentListStore(state => state.rowDialog)
     const setRowDialog = useDocumentListStore(state => state.setRowDialog)
@@ -143,6 +150,12 @@ export function useDocumentRowActions({
         if (action === 'write_off') {
             setBanner(null)
             openWriteOff(row.id, owner)
+            return
+        }
+        if (action === 'send') {
+            if (!isSendDocType(row.kind)) return
+            setBanner(null)
+            openSend({ kind: row.kind, id: row.id }, owner)
             return
         }
         if (action === 'apply_credit') {

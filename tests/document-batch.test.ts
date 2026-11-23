@@ -30,6 +30,7 @@ function row(kind: ListKind, recordStatus: string): DocumentListRow {
         convertedInvoice: '',
         recordStatus,
         category: { kind: 'none' },
+        email: '',
     }
 }
 
