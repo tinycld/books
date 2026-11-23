@@ -108,21 +108,25 @@ function accountListMove(move: AccountListMove['move']): AccountListMove {
 // Runs in the page. Finds the accounts list's vertical scroller (table or cards) from its
 // last mounted row and moves it, in one synchronous pass, so a re-render cannot detach the
 // row it measures. Rows of a hidden, stacked screen are skipped. `offset` is where the first
-// mounted row starts in the scrolled content: 0 when the list renders from its first row. A
-// 'step' brings the last mounted row to the top edge, so a step never passes a row that has
-// not mounted yet. `atEnd` is true when a step could not move the list and the mounted rows
-// already reach its end (the spacer after the last one has no height).
+// mounted row starts in the rows block (the rows' parent, which starts with the top spacer):
+// 0 when the list renders from its first row. It is not measured from the scroller's top,
+// because the table's scroller holds its sticky header above the rows block. A 'step'
+// brings the last mounted row to the scroller's top edge (under the table's sticky header,
+// where it stays mounted), so a step never passes a row that has not mounted yet. `atEnd`
+// is true when a step could not move the list and the mounted rows already reach its end
+// (the spacer after the last one has no height).
 function moveAccountList({ move, items }: AccountListMove) {
     const mountedRows = Array.from(document.querySelectorAll(items)).filter(
         node => (node as HTMLElement).offsetParent !== null
     )
     const first = mountedRows[0]
     const last = mountedRows[mountedRows.length - 1]
+    const rowsBlock = first?.parentElement ?? null
     let list = last?.parentElement ?? null
     while (list && !/auto|scroll/.test(getComputedStyle(list).overflowY)) {
         list = list.parentElement
     }
-    if (!first || !last || !list) return { mounted: false, offset: -1, atEnd: false }
+    if (!first || !last || !rowsBlock || !list) return { mounted: false, offset: -1, atEnd: false }
     const top = list.getBoundingClientRect().top
     const before = list.scrollTop
     if (move === 'top') list.scrollTop = 0
@@ -130,7 +134,9 @@ function moveAccountList({ move, items }: AccountListMove) {
     const spacerAfterLast = last.nextElementSibling?.getBoundingClientRect().height ?? 0
     return {
         mounted: true,
-        offset: Math.round(first.getBoundingClientRect().top - top + list.scrollTop),
+        offset: Math.round(
+            first.getBoundingClientRect().top - rowsBlock.getBoundingClientRect().top
+        ),
         atEnd: move === 'step' && list.scrollTop === before && spacerAfterLast === 0,
     }
 }
@@ -271,11 +277,183 @@ export function shownLineIds(page: Page): Promise<string[]> {
     )
 }
 
+export type FinishOneStatementInput = {
+    accountName: string
+    date: string
+    balance: string
+    // The memos of the rows to clear, as `pressRow` finds them.
+    clears: readonly string[]
+}
+
+export type FinishedStatement = { id: string }
+
+// Starts a reconciliation of `accountName` at `date` and `balance`, clears the row of each
+// memo in `clears`, finishes it and waits for its finished summary. Returns its id.
+export async function finishOneStatement(
+    page: Page,
+    input: FinishOneStatementInput
+): Promise<FinishedStatement> {
+    await startReconciliation(page, input.accountName, {
+        balance: input.balance,
+        date: input.date,
+    })
+    for (const memo of input.clears) {
+        await pressRow(page, memo)
+        await expect(lineBox(page, memo)).toHaveAttribute('aria-checked', 'true')
+    }
+    await finishReconciliation(page)
+    return { id: reconciliationIdOf(page) }
+}
+
+// From any Books screen with the sidebar: the accounts screen, then the "Reconciled through"
+// link of the account named `accountName`; waits for that finished summary.
+export async function openFinishedSummary(page: Page, accountName: string): Promise<Locator> {
+    await openReconcile(page)
+    const id = await accountIdOf(page, accountName)
+    await page.getByTestId(`reconcile-through-${id}`).filter({ visible: true }).click()
+    await expect(page).toHaveURL(/\/books\/reconcile\/[a-z0-9]{15}\/?$/)
+    const finished = page.getByTestId('reconcile-finished').filter({ visible: true })
+    await expect(finished).toBeVisible()
+    return finished
+}
+
 // The difference of the visible summary band holds `text` ("$600.00").
 export async function expectDifference(page: Page, text: string): Promise<void> {
     await expect(page.getByTestId('reconcile-difference').filter({ visible: true })).toContainText(
         text
     )
+}
+
+// Opens the History tab of Reconcile from any Books screen with the sidebar and waits for
+// the history screen.
+export async function openHistory(page: Page): Promise<Locator> {
+    await openReconcile(page)
+    await page.getByTestId('reconcile-tab-history').filter({ visible: true }).click()
+    return visibleScreen(page, 'reconcile-history-screen')
+}
+
+// The visible row (wide table) or card (phone) of the finished reconciliation `id`. An
+// earlier history screen can stay stacked and hidden (lesson 38).
+export function historyRow(page: Page, id: string): Locator {
+    return page.getByTestId(`reconcile-history-row-${id}`).filter({ visible: true })
+}
+
+// The history's Account filter chip on the shown screen.
+export function historyFilter(page: Page): Locator {
+    return page.getByTestId('reconcile-history-account').filter({ visible: true })
+}
+
+// Picks the account `accountId` in the history's Account filter and waits until the menu
+// has closed, so the list keys are offered again.
+export async function pickHistoryAccount(page: Page, accountId: string): Promise<void> {
+    await historyFilter(page).click()
+    const item = page.getByTestId(`reconcile-history-account-${accountId}`).filter({
+        visible: true,
+    })
+    await item.click()
+    await expect(item).toHaveCount(0)
+}
+
+const HISTORY_ITEMS = '[data-testid^="reconcile-history-row-"]'
+
+// The reconciliation ids of the history's mounted, visible rows, in screen order, read in
+// one snapshot (lesson 9).
+export function shownHistoryIds(page: Page): Promise<string[]> {
+    return page.evaluate(
+        items =>
+            Array.from(document.querySelectorAll(items))
+                .filter(node => (node as HTMLElement).offsetParent !== null)
+                .map(node =>
+                    (node.getAttribute('data-testid') ?? '').slice('reconcile-history-row-'.length)
+                ),
+        HISTORY_ITEMS
+    )
+}
+
+// Runs in the page. Moves the history list's vertical scroller (found from its last mounted
+// row) to its top, or one step down, in one synchronous pass. `atEnd` is true when the
+// scroller cannot move further down.
+function moveHistoryList({ move, items }: { move: 'top' | 'step'; items: string }) {
+    const mountedRows = Array.from(document.querySelectorAll(items)).filter(
+        node => (node as HTMLElement).offsetParent !== null
+    )
+    const last = mountedRows[mountedRows.length - 1]
+    let list = last?.parentElement ?? null
+    while (list && !/auto|scroll/.test(getComputedStyle(list).overflowY)) {
+        list = list.parentElement
+    }
+    if (!last || !list) return { mounted: false, atEnd: true }
+    if (move === 'top') list.scrollTop = 0
+    if (move === 'step') {
+        list.scrollTop += Math.max(
+            last.getBoundingClientRect().top - list.getBoundingClientRect().top,
+            1
+        )
+    }
+    return {
+        mounted: true,
+        atEnd: list.scrollTop + list.clientHeight >= list.scrollHeight - 1,
+    }
+}
+
+// Every reconciliation id of the history, in screen order. The list mounts only the rows
+// near its scroll position and the shared e2e DB holds the reconciliations of every spec,
+// so the list is read from its top, step by step, until it reaches its end; ids are kept in
+// the order they first show (lesson 9).
+export async function historyOrder(page: Page): Promise<string[]> {
+    await expect(page.locator(HISTORY_ITEMS).filter({ visible: true }).first()).toBeVisible()
+    const order: string[] = []
+    const take = async () => {
+        for (const id of await shownHistoryIds(page)) {
+            if (!order.includes(id)) order.push(id)
+        }
+    }
+    await page.evaluate(moveHistoryList, { move: 'top' as const, items: HISTORY_ITEMS })
+    await nextFrames(page)
+    for (;;) {
+        await take()
+        const { atEnd } = await page.evaluate(moveHistoryList, {
+            move: 'step' as const,
+            items: HISTORY_ITEMS,
+        })
+        await nextFrames(page)
+        if (atEnd) break
+    }
+    await take()
+    return order
+}
+
+// Fakes the signed-in user's Books level as `level` (lesson 32): the books_access read
+// answers with that level and no admin flag. Realtime is cut, so no realtime event brings
+// the real row back. Install it before `login`.
+export async function fakeAccessLevel(
+    page: Page,
+    level: 'read_only' | 'bookkeeper'
+): Promise<void> {
+    await page.route('**/api/realtime*', route => route.abort())
+    await page.route('**/api/collections/books_access/records*', async route => {
+        const response = await route.fetch()
+        const body = await response.json()
+        const items = (body.items ?? []).map((item: Record<string, unknown>) => ({
+            ...item,
+            level,
+            can_read: true,
+            can_write: level === 'bookkeeper',
+            is_admin: false,
+        }))
+        await route.fulfill({ response, json: { ...body, items } })
+    })
+}
+
+// On the shown history, with the row of the finished reconciliation `id` visible: opens the
+// row's More menu (the table row's or the card's), presses Undo reconciliation and waits for
+// the undo dialog (a sheet on a phone, found by its test id). Returns the dialog.
+export async function openUndoFromHistory(page: Page, id: string): Promise<Locator> {
+    await page.getByTestId(`reconcile-history-more-${id}`).filter({ visible: true }).click()
+    await page.getByTestId(`reconcile-history-undo-${id}`).filter({ visible: true }).click()
+    const dialog = page.getByTestId('reconcile-undo-dialog').filter({ visible: true })
+    await expect(dialog).toBeVisible()
+    return dialog
 }
 
 // The test id of the visible row that has the keyboard focus, or '' when none has it. The

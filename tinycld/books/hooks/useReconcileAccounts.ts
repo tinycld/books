@@ -40,8 +40,8 @@ export type ReconcileRowAction = 'start' | 'resume' | 'view' | 'none'
 type KeyAction = ReconcileAccountKeyAction
 
 // A menu or popover pushes no scope: core marks it only in the layer stack, as the top
-// layer that is not modal. Read at press time.
-function noMenuLayerOpen(): boolean {
+// layer that is not modal. Read at press time. The history's keys use it too.
+export function noMenuLayerOpen(): boolean {
     const layer = topLayer()
     return layer === null || layer.isModal
 }

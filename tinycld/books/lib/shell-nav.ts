@@ -221,9 +221,11 @@ export function isActivePath(pathname: string, entry: SidebarEntry): boolean {
 // lists `/invoices`, `/estimates`, `/sales-receipts`, `/payments`, `/credit-memos`,
 // `/refund-receipts`, and the purchase lists `/bills`, `/expenses`, `/bill-payments`,
 // `/vendor-credits`, `/vendor-refunds`), or no screen at all (transfers, write-offs and
-// deposits have no list). Pay Bills has no id: `/pay-bills` itself is the form.
+// deposits have no list). Pay Bills has no id: `/pay-bills` itself is the form. The
+// Reconcile history (`/reconcile/history`) is a list beside the accounts screen, not a
+// reconciliation, so it keeps the button too.
 const FAB_FREE_SCREEN =
-    /\/books\/((entries|customers|vendors|products|transfers|invoices|sales-receipts|credit-memos|refund-receipts|estimates|bills|expenses|vendor-credits|vendor-refunds|payments|bill-payments|write-offs|deposits|reconcile)\/[^/]+|pay-bills)\/?$/
+    /\/books\/((entries|customers|vendors|products|transfers|invoices|sales-receipts|credit-memos|refund-receipts|estimates|bills|expenses|vendor-credits|vendor-refunds|payments|bill-payments|write-offs|deposits)\/[^/]+|reconcile\/(?!history\/?$)[^/]+|pay-bills)\/?$/
 
 export function hidesNewFab(pathname: string): boolean {
     return FAB_FREE_SCREEN.test(pathname)

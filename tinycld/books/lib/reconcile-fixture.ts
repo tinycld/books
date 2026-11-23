@@ -108,6 +108,7 @@ function reconciliation(
         cleared_in_count: 0,
         created_by: BANK_USERS.ana.id,
         finished_by: '',
+        finished_by_name: '',
         finished_at: '',
         currency: RECONCILE_CURRENCY,
         created: STAMP,
@@ -130,6 +131,7 @@ export const RECONCILIATION_FINISHED = reconciliation({
     cleared_out_count: 3,
     cleared_in_count: 1,
     finished_by: BANK_USERS.ana.id,
+    finished_by_name: BANK_USERS.ana.name,
     finished_at: '2026-10-03 16:20:00.000Z',
 })
 
@@ -173,6 +175,7 @@ export const RECONCILIATION_SAVINGS_FINISHED = reconciliation({
     cleared_in: 1_240_000,
     cleared_in_count: 2,
     finished_by: BANK_USERS.ben.id,
+    finished_by_name: BANK_USERS.ben.name,
     finished_at: '2026-09-04 10:02:00.000Z',
 })
 

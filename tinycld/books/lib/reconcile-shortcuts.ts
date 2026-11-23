@@ -11,6 +11,8 @@ import { activeElementMatches } from './dom-focus'
 export const EDIT_KEY = { keys: 'e', scope: 'list' } as const
 export const LATER_KEY = { keys: '$mod+s', scope: 'list' } as const
 export const FINISH_KEY = { keys: '$mod+Enter', scope: 'list' } as const
+// The finished summary's View report (components/reconcile/ReconcileFinished.tsx).
+export const VIEW_REPORT_KEY = { keys: 'r', scope: 'list' } as const
 
 export type ReconcileHeaderKey = 'edit' | 'later'
 

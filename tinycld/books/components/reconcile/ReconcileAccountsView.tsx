@@ -19,6 +19,7 @@ import {
     ReconcileAccountTableRow,
 } from './ReconcileAccountRow'
 import { ReconcileStartDialog } from './ReconcileStartDialog'
+import { ReconcileTabs } from './ReconcileTabs'
 
 type Fits = ReturnType<typeof useFitsTable>
 
@@ -145,8 +146,9 @@ export function ReconcileAccountsView(model: ReconcileAccountsModel) {
             testID="reconcile-accounts-screen"
             className={`flex-1 gap-4 bg-background ${padding}`}
         >
-            <View className="gap-1">
+            <View className="gap-3">
                 <Text className="text-2xl font-semibold text-foreground">Reconcile</Text>
+                <ReconcileTabs selected="accounts" />
                 <Text className="text-sm text-muted-foreground">
                     {RECONCILE_TEXTS.accountsLine}
                 </Text>

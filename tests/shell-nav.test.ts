@@ -599,6 +599,15 @@ describe('reconcile sidebar entry', () => {
         expect(hidesNewFab('/a/books/reconcile')).toBe(false)
         expect(hidesNewFab('/a/books/reconcile/')).toBe(false)
     })
+
+    // Reconciliation report spec §2: books/reconcile/history is a list path, not a record.
+    it('keeps the New button on the history and hides it on a reconciliation', () => {
+        expect(hidesNewFab('/a/books/reconcile/history')).toBe(false)
+        expect(hidesNewFab('/a/books/reconcile/history/')).toBe(false)
+        expect(hidesNewFab('/a/acme/books/reconcile/history')).toBe(false)
+        expect(hidesNewFab('/a/books/reconcile/historyabcdefgh')).toBe(true)
+        expect(hidesNewFab('/a/books/reconcile/rrptseedcrd0831')).toBe(true)
+    })
 })
 
 describe('reports sidebar entry', () => {
