@@ -20,8 +20,7 @@ export function billIdFromUrl(page: Page): string {
 }
 
 // Books must already be open. From the Journal Entries list through the New menu
-// (tests/e2e/new-menu-helpers.ts) → Bill. A new bill's Vendor picker has
-// focus (web, every width).
+// (tests/e2e/new-menu-helpers.ts) → Bill. A new bill's Vendor picker has focus (web, every width).
 export async function openNewBill(page: Page) {
     await openEntriesList(page)
     await openNewAction(page, 'bill')

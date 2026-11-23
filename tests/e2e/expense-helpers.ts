@@ -17,8 +17,8 @@ export function expenseIdFromUrl(page: Page): string {
 }
 
 // Books must already be open. From the Journal Entries list through the New menu
-// (tests/e2e/new-menu-helpers.ts) to the Expense item; leaves the click on
-// it to the caller's next step.
+// (tests/e2e/new-menu-helpers.ts) to the Expense item; leaves the click on it to the
+// caller's next step.
 export async function clickNewExpense(page: Page) {
     await openEntriesList(page)
     await openNewAction(page, 'expense')

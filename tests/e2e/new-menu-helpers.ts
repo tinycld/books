@@ -1,9 +1,9 @@
 import type { Locator, Page } from '@playwright/test'
 import { isPhone } from './account-register-helpers'
 
-// The one place that knows how a spec reaches the actions of Books' New menu. Every
-// helper and spec that starts a transaction from New goes through these three, so a
-// change of where the actions live changes this file only.
+// The one place that knows how a spec reaches the actions of Books' New menu. Every helper and spec
+// that starts a transaction from New goes through these helpers, so a change of where the actions
+// live changes this file only.
 //
 // Today: the round New button (core's FAB, which has no button role) on a phone, the
 // sidebar's New text on a wide screen; both open one menu of `books-new-<id>` items.
