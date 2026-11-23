@@ -213,8 +213,8 @@ test.describe('sidebar-shortcuts: the New section', () => {
     })
 
     // With 30 shortcuts the Shortcuts section is taller than a phone. The round New button
-    // must still show the New actions without a scroll. A click scrolls its target into view, so the checks read the viewport
-    // and press nothing in the section.
+    // must still show the New actions without a scroll. A click scrolls its target into view,
+    // so the checks read the viewport and press nothing in the section.
     test('phone: with a long Shortcuts list, the round New button shows the New actions', async ({
         freshMember,
     }) => {
