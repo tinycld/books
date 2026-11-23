@@ -117,7 +117,8 @@ export function registerCollections(
     // Created before entries so the entry's back-relation can name it; `entry`
     // is added once the entries exist (Object.assign, because typing the key
     // would make the two collections' types refer to each other). posted, date and currency are stamped
-    // when the entry posts. A line's customer and vendor (its Name) file into the
+    // when the entry posts; card_payment and doc_type are copies of the entry's,
+    // stamped by the server (server/lines.go). A line's customer and vendor (its Name) file into the
     // customers and vendors collections, declared above for that reason.
     const lineRelations: {
         account: typeof books_accounts
@@ -125,7 +126,15 @@ export function registerCollections(
         vendor: typeof books_vendors
     } = { account: books_accounts, customer: books_customers, vendor: books_vendors }
     const books_journal_lines = newCollection('books_journal_lines', {
-        omitOnInsert: ['created', 'updated', 'posted', 'date', 'currency'] as const,
+        omitOnInsert: [
+            'created',
+            'updated',
+            'posted',
+            'date',
+            'currency',
+            'card_payment',
+            'doc_type',
+        ] as const,
         ...onDemand,
         relations: lineRelations,
         collectionOptions: indexed,
@@ -133,7 +142,7 @@ export function registerCollections(
 
     // Every field below the omit line is Books' own: the number and totals
     // are assigned at posting, who and when by the request, the override by
-    // the close-date check.
+    // the close-date check, the card mark by the poster (server/card_payment.go).
     const books_journal_entries = newCollection('books_journal_entries', {
         omitOnInsert: [
             'created',
@@ -150,6 +159,7 @@ export function registerCollections(
             'close_override',
             'currency',
             'document',
+            'card_payment',
         ] as const,
         ...onDemand,
         relations: {

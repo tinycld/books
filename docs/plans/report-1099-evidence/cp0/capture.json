@@ -1,0 +1,156 @@
+{
+    "outDir": ".",
+    "schemes": ["light", "dark"],
+    "shots": [
+        {
+            "name": "cp0-seed",
+            "url": "/a/salesstub",
+            "ready": "salesstub-landing",
+            "widths": [1280],
+            "schemes": ["light"],
+            "actions": [
+                {
+                    "fill": "salesstub-data-json",
+                    "value": "{\"label\":\"Capture set cp0\",\"teams\":[{\"name\":\"Capture team cp0\",\"region\":\"north\"}],\"sales\":[{\"team\":\"Capture team cp0\",\"customer\":\"Capture Alpha\",\"amount\":125000,\"cost\":0,\"quantity\":0,\"day\":\"2026-03-14\",\"status\":\"open\"},{\"team\":\"Capture team cp0\",\"customer\":\"Capture Beta\",\"amount\":48050,\"cost\":0,\"quantity\":0,\"day\":\"2026-06-15\",\"status\":\"open\"},{\"team\":\"Capture team cp0\",\"customer\":\"Capture Gamma\",\"amount\":300000,\"cost\":0,\"quantity\":0,\"day\":\"2026-09-02\",\"status\":\"open\"}],\"returns\":[]}"
+                },
+                { "click": "salesstub-data-create" },
+                { "waitFor": "Saved Capture set cp0" }
+            ]
+        },
+        {
+            "name": "cp0-header-1280",
+            "prefix": "cp0-header",
+            "url": "/a/reports",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "actions": [
+                { "click": "reports-hub-tab-published" },
+                { "clickText": "Stub calendar year" },
+                { "waitFor": "report-header-param-header-0" },
+                { "waitFor": "Capture Gamma" }
+            ]
+        },
+        {
+            "name": "cp0-header-1024",
+            "prefix": "cp0-header",
+            "url": "/a/reports",
+            "ready": "reports-hub",
+            "widths": [1024],
+            "actions": [
+                { "click": "reports-hub-tab-published" },
+                { "clickText": "Stub calendar year" },
+                { "waitFor": "report-header-param-header-0" },
+                { "waitFor": "Capture Gamma" }
+            ]
+        },
+        {
+            "name": "cp0-header-768",
+            "prefix": "cp0-header",
+            "url": "/a/reports",
+            "ready": "reports-hub",
+            "widths": [768],
+            "actions": [
+                { "click": "reports-hub-tab-published" },
+                { "clickText": "Stub calendar year" },
+                { "waitFor": "report-header-param-header-0" },
+                { "waitFor": "Capture Gamma" }
+            ]
+        },
+        {
+            "name": "cp0-header-390",
+            "prefix": "cp0-header",
+            "url": "/a/reports",
+            "ready": "reports-hub",
+            "widths": [390],
+            "actions": [
+                { "click": "reports-hub-tab-published" },
+                { "clickText": "Stub calendar year" },
+                { "waitFor": "report-header-param-header-0" },
+                { "waitFor": "Capture Gamma" }
+            ]
+        },
+        {
+            "name": "cp0-header-375",
+            "prefix": "cp0-header",
+            "url": "/a/reports",
+            "ready": "reports-hub",
+            "widths": [375],
+            "actions": [
+                { "click": "reports-hub-tab-published" },
+                { "clickText": "Stub calendar year" },
+                { "waitFor": "report-header-param-header-0" },
+                { "waitFor": "Capture Gamma" }
+            ]
+        },
+        {
+            "name": "cp0-period-picker-1280",
+            "prefix": "cp0-period-picker",
+            "url": "/a/reports",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "stable": "report-period-preset-lastCalendarYear",
+            "actions": [
+                { "click": "reports-hub-tab-published" },
+                { "clickText": "Stub calendar year" },
+                { "waitFor": "Capture Gamma" },
+                { "click": "report-param-period" },
+                { "waitFor": "report-period-preset-lastCalendarYear" }
+            ]
+        },
+        {
+            "name": "cp0-period-picker-390",
+            "prefix": "cp0-period-picker",
+            "url": "/a/reports",
+            "ready": "reports-hub",
+            "widths": [390],
+            "stable": "report-period-preset-lastCalendarYear",
+            "actions": [
+                { "click": "reports-hub-tab-published" },
+                { "clickText": "Stub calendar year" },
+                { "waitFor": "Capture Gamma" },
+                { "click": "report-param-period" },
+                { "waitFor": "report-period-preset-lastCalendarYear" }
+            ]
+        },
+        {
+            "name": "cp0-empty-1024",
+            "prefix": "cp0-empty",
+            "url": "/a/reports",
+            "ready": "reports-hub",
+            "widths": [1024],
+            "actions": [
+                { "click": "reports-hub-tab-published" },
+                { "clickText": "Stub calendar year" },
+                { "waitFor": "Capture Gamma" },
+                { "click": "report-param-period" },
+                { "click": "report-period-preset-custom" },
+                { "fill": "report-period-from", "value": "1903-01-01" },
+                { "fill": "report-period-to", "value": "1903-01-31" },
+                { "press": "Escape" },
+                { "waitForHidden": "report-period-popover" },
+                { "waitFor": "report-empty-action" },
+                { "click": "report-document-period" }
+            ]
+        },
+        {
+            "name": "cp0-empty-390",
+            "prefix": "cp0-empty",
+            "url": "/a/reports",
+            "ready": "reports-hub",
+            "widths": [390],
+            "actions": [
+                { "click": "reports-hub-tab-published" },
+                { "clickText": "Stub calendar year" },
+                { "waitFor": "Capture Gamma" },
+                { "click": "report-param-period" },
+                { "click": "report-period-preset-custom" },
+                { "fill": "report-period-from", "value": "1903-01-01" },
+                { "fill": "report-period-to", "value": "1903-01-31" },
+                { "press": "Escape" },
+                { "waitForHidden": "report-period-popover" },
+                { "waitFor": "report-empty-action" },
+                { "click": "report-document-period" }
+            ]
+        }
+    ]
+}

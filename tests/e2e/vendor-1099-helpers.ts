@@ -22,8 +22,20 @@ export function visible(page: Page, testId: string): Locator {
 
 // Opens Settings → 1099s at desktop through the rail, and waits for the section to show
 // one of its parts: the section, its loading state or its load error.
+// Books reopens at the last Books route of the context, which can be a settings screen.
+// The Settings click pushes the settings index (Company) over it, and the outgoing
+// screen's rail stays visible for a moment before the stack hides it: a click on its
+// item then never lands. So the section item is pressed only once the index is the one
+// visible settings screen, with no 1099 section on screen.
 export async function openForm1099(page: Page): Promise<void> {
     await visible(page, 'books-nav-settings').click()
+    await expect(page).toHaveURL(/\/books\/settings$/)
+    await expect(visible(page, 'books-settings')).toHaveCount(1)
+    await expect(
+        visible(page, 'books-1099-section')
+            .or(visible(page, 'books-1099-loading'))
+            .or(visible(page, 'books-1099-error'))
+    ).toHaveCount(0)
     await visible(page, 'books-settings-section-form-1099').click()
     await expect(
         visible(page, 'books-1099-section')

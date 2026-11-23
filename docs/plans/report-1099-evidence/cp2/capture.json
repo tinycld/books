@@ -1,0 +1,173 @@
+{
+    "outDir": ".",
+    "schemes": ["light", "dark"],
+    "shots": [
+        {
+            "name": "populated",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280, 1024, 768],
+            "height": 1160,
+            "actions": [
+                { "clickText": "1099 Summary and Detail" },
+                { "waitFor": "report-table" },
+                { "waitFor": "Jamal Okafor (legal name: Jamal A. Okafor)" },
+                { "click": "report-document-period" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "below",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "actions": [
+                { "clickText": "1099 Summary and Detail" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-show" },
+                { "clickRole": "radio", "name": "Below the threshold" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitFor": "Greenline Landscaping" },
+                { "click": "report-document-period" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "tracked",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "height": 1260,
+            "actions": [
+                { "clickText": "1099 Summary and Detail" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-show" },
+                { "clickRole": "radio", "name": "All 1099 vendors" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitFor": "Greenline Landscaping" },
+                { "click": "report-document-period" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "untracked",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "height": 1260,
+            "actions": [
+                { "clickText": "1099 Summary and Detail" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-show" },
+                { "clickRole": "radio", "name": "Not tracked for 1099" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitFor": "Metro Commercial Properties" },
+                { "click": "report-document-period" },
+                { "pause": 1500 }
+            ]
+        },
+        {
+            "name": "nec",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "actions": [
+                { "clickText": "1099 Summary and Detail" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-form" },
+                { "clickRole": "radio", "name": "1099-NEC" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitFor": "Form: 1099-NEC" },
+                { "click": "report-document-period" },
+                { "pause": 2000 }
+            ]
+        },
+        {
+            "name": "by-amount",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "height": 1260,
+            "actions": [
+                { "clickText": "1099 Summary and Detail" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-show" },
+                { "clickRole": "radio", "name": "All 1099 vendors" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitFor": "Greenline Landscaping" },
+                { "click": "report-param-order" },
+                { "clickRole": "radio", "name": "Largest reportable" },
+                { "waitForHidden": "report-filter-picker" },
+                { "click": "report-document-period" },
+                { "pause": 2000 }
+            ]
+        },
+        {
+            "name": "filtered",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1280],
+            "actions": [
+                { "clickText": "1099 Summary and Detail" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-show" },
+                { "clickRole": "radio", "name": "All 1099 vendors" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitFor": "Greenline Landscaping" },
+                { "click": "report-add-filter" },
+                { "click": "report-add-filter-vendors" },
+                { "fill": "report-filter-search", "value": "Jamal" },
+                { "clickRole": "checkbox", "name": "Jamal Okafor" },
+                { "fill": "report-filter-search", "value": "Greenline" },
+                { "clickRole": "checkbox", "name": "Greenline Landscaping" },
+                { "click": "report-filter-apply" },
+                { "waitForHidden": "report-filter-picker" },
+                { "waitFor": "report-header-param-vendors" },
+                { "click": "report-document-period" },
+                { "pause": 2000 }
+            ]
+        },
+        {
+            "name": "empty",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1024],
+            "actions": [
+                { "clickText": "1099 Summary and Detail" },
+                { "waitFor": "report-table" },
+                { "click": "report-param-period" },
+                { "click": "report-period-preset-custom" },
+                { "fill": "report-period-from", "value": "2020-01-01" },
+                { "fill": "report-period-to", "value": "2020-01-31" },
+                { "press": "Escape" },
+                { "waitForHidden": "report-period-popover" },
+                { "waitFor": "report-empty-action" },
+                { "click": "report-document-period" }
+            ]
+        },
+        {
+            "name": "loading",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1024],
+            "actions": [
+                { "clickText": "1099 Summary and Detail" },
+                { "waitFor": "report-table" },
+                { "runFake": "hold" },
+                { "reload": true, "ready": "report-loading" }
+            ]
+        },
+        {
+            "name": "error",
+            "url": "/a/reports?package=books",
+            "ready": "reports-hub",
+            "widths": [1024],
+            "actions": [
+                { "clickText": "1099 Summary and Detail" },
+                { "waitFor": "report-table" },
+                { "runFake": 500 },
+                { "reload": true, "ready": "report-error" }
+            ]
+        }
+    ]
+}

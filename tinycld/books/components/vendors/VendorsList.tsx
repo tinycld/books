@@ -17,6 +17,7 @@ import {
 import {
     AP_AGING_SHIPPED_KEY,
     EXPENSES_BY_VENDOR_SHIPPED_KEY,
+    FORM_1099_SHIPPED_KEY,
     VENDOR_BALANCE_SHIPPED_KEY,
 } from '../../lib/shipped-reports'
 import { vendorListCopy } from '../../lib/vendor-display'
@@ -65,6 +66,7 @@ export function VendorsList({ openId, layout }: { openId: string; layout: ListLa
     const balanceHref = useShippedReportHref(VENDOR_BALANCE_SHIPPED_KEY)
     const agingHref = useShippedReportHref(AP_AGING_SHIPPED_KEY)
     const expensesHref = useShippedReportHref(EXPENSES_BY_VENDOR_SHIPPED_KEY)
+    const form1099Href = useShippedReportHref(FORM_1099_SHIPPED_KEY)
     const reportItems = [
         {
             key: VENDOR_BALANCE_SHIPPED_KEY,
@@ -84,9 +86,16 @@ export function VendorsList({ openId, layout }: { openId: string; layout: ListLa
             href: expensesHref,
             testID: 'vendors-reports-expenses',
         },
+        {
+            key: FORM_1099_SHIPPED_KEY,
+            label: '1099 Summary and Detail',
+            href: form1099Href,
+            testID: 'vendors-reports-1099',
+        },
     ]
     // Undefined, not a menu that renders null, so the header draws no empty button group.
-    const hasReport = balanceHref !== null || agingHref !== null || expensesHref !== null
+    const hasReport =
+        balanceHref !== null || agingHref !== null || expensesHref !== null || form1099Href !== null
     const reportsMenu = hasReport ? (
         <ShippedReportsMenu items={reportItems} testID="vendors-reports" />
     ) : undefined

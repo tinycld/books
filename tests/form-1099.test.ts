@@ -12,6 +12,7 @@ import {
     EXPENSE_GROUP_TYPES,
     form1099Controls,
     isExpenseGroupType,
+    NOT_REPORTED,
 } from '../tinycld/books/lib/form-1099'
 import type { BooksAccounts } from '../tinycld/books/types'
 import { fieldValues, migrationField } from './migration-field'
@@ -103,6 +104,25 @@ describe('form-1099.ts imports', () => {
         )
         expect(runtimeImports).toEqual([])
         expect(runtimeReExports).toEqual([])
+    })
+})
+
+// The 1099 report labels its box rows from Go's box1099Labels (server/form1099.go);
+// TestForm1099MatchesSharedSpecFile compares that side with the same case file, so a label
+// changed on one side only fails one of the two tests (plan D6).
+describe('box labels against the shared case file', () => {
+    const readCaseFile = (): { boxLabels: { key: string; label: string }[]; notReported: string } =>
+        JSON.parse(
+            readFileSync(join(__dirname, '..', 'server', 'testdata', 'form_1099_spec.json'), 'utf8')
+        )
+
+    it('BOXES_1099 keys and box1099Label of each equal boxLabels, in order', () => {
+        const ours = BOXES_1099.map(box => ({ key: box.key, label: box1099Label(box.key) }))
+        expect(ours).toEqual(readCaseFile().boxLabels)
+    })
+
+    it('NOT_REPORTED equals notReported', () => {
+        expect(NOT_REPORTED).toBe(readCaseFile().notReported)
     })
 })
 
