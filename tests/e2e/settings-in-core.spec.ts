@@ -51,7 +51,9 @@ async function openCorePanel(page: Page, slug: string) {
 }
 
 // Core Settings and the Books settings screen both stay mounted once opened, and both
-// hold a Company form: every field is read inside the panel or the Books screen.
+// hold a Company form. The visible filter cannot tell them apart: the stack keeps a
+// screen that was pushed over sized, so Playwright counts both as visible and a bare
+// test id fails strict mode. Every field is read inside the panel or the Books screen.
 function inPanel(page: Page, testId: string) {
     return shown(page, 'books-settings-panel').getByTestId(testId)
 }
@@ -107,6 +109,9 @@ test.describe('settings-in-core: Books sections in core Settings', () => {
         // On a phone the panel fills the screen and scrolls: Save, the last control, is reached.
         await openCorePanel(page, 'company')
         await page.setViewportSize(PHONE)
+        // A reload mounts the panel fresh, so its value can only come from the saved row.
+        await page.reload()
+        await expect(shown(page, 'books-settings-panel')).toBeVisible()
         await expect(inPanel(page, 'books-settings-company-website')).toHaveValue(typed)
         await saveWebsite(page, original)
         await expect(inPanel(page, 'books-settings-company-website')).toHaveValue(original)
