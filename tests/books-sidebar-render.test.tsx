@@ -1,9 +1,7 @@
 // @vitest-environment happy-dom
-import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import BooksSidebar from '../tinycld/books/sidebar'
 import { useBooksUIStore } from '../tinycld/books/stores/books-ui-store'
-import { seedBooks } from './accounts-form-harness'
+import { renderSidebar, seedSidebar } from './sidebar-harness'
 
 const url = vi.hoisted(() => ({ pathname: '/' }))
 
@@ -31,13 +29,13 @@ function items(container: HTMLElement) {
 
 describe('BooksSidebar rendering', () => {
     beforeEach(() => {
-        seedBooks({ level: 'admin' })
+        seedSidebar()
         useBooksUIStore.setState({ isAccountingOpen: true })
         url.pathname = '/'
     })
 
     it('draws the Settings entry last', () => {
-        const { container } = render(<BooksSidebar />)
+        const { container } = renderSidebar()
         const ids = items(container).map(i => i.id)
         expect(ids).toContain('books-nav-settings')
         expect(ids[ids.length - 1]).toBe('books-nav-settings')
@@ -45,13 +43,13 @@ describe('BooksSidebar rendering', () => {
 
     it('draws Settings last even when Accounting is folded', () => {
         useBooksUIStore.setState({ isAccountingOpen: false })
-        const { container } = render(<BooksSidebar />)
+        const { container } = renderSidebar()
         const ids = items(container).map(i => i.id)
         expect(ids[ids.length - 1]).toBe('books-nav-settings')
     })
 
     it('draws Dashboard, Banking, Sales, Expenses, then Lists', () => {
-        const { container } = render(<BooksSidebar />)
+        const { container } = renderSidebar()
         const ids = items(container).map(i => i.id)
         expect(ids.slice(0, 5)).toEqual([
             'books-nav-dashboard',
@@ -64,7 +62,7 @@ describe('BooksSidebar rendering', () => {
 
     it('marks only Expenses active on a bill', () => {
         url.pathname = '/a/books/bills/x'
-        const { container } = render(<BooksSidebar />)
+        const { container } = renderSidebar()
         const active = items(container)
             .filter(i => i.isActive)
             .map(i => i.id)
@@ -79,7 +77,7 @@ describe('BooksSidebar rendering', () => {
         '/a/books/credit-memos/abc',
     ])('marks only Sales active on %s', pathname => {
         url.pathname = pathname
-        const { container } = render(<BooksSidebar />)
+        const { container } = renderSidebar()
         const active = items(container)
             .filter(i => i.isActive)
             .map(i => i.id)
@@ -91,7 +89,7 @@ describe('BooksSidebar rendering', () => {
         '/a/books/settings/company',
     ])('marks only Settings active on %s', pathname => {
         url.pathname = pathname
-        const { container } = render(<BooksSidebar />)
+        const { container } = renderSidebar()
         const active = items(container)
             .filter(i => i.isActive)
             .map(i => i.id)
