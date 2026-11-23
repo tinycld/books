@@ -423,6 +423,13 @@ describe('the reconciliation fields', () => {
         expect(fields?.status?.kind).toBe('select')
         expect(fields?.has_statement_totals?.kind).toBe('bool')
     })
+
+    // Reconciliation report spec §4 Schema: the finish stamps the finisher's name, and an
+    // undo clears it, so the audit log names the field in words, as text.
+    it('labels the stamped finisher name "Finished by (name)", as text', () => {
+        const fields = AUDIT_FIELDS.books_reconciliations
+        expect(fields?.finished_by_name).toEqual({ label: 'Finished by (name)', kind: 'text' })
+    })
 })
 
 describe('a field with no entry', () => {

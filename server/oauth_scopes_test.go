@@ -716,6 +716,8 @@ func TestOAuth_ReconcileCollections(t *testing.T) {
 		"books_reconciliations":      rw,
 		"books_reconciliation_lines": rw,
 		"books_reconcile_lines":      ro,
+		// Reconciliation report spec §4 Server: the reconciled lines view is read only.
+		"books_reconciled_lines": ro,
 	}
 	for c, access := range want {
 		got, ok := collections[c]
@@ -746,12 +748,14 @@ func TestOAuth_ReconcileCollections(t *testing.T) {
 			}
 		}
 	}
-	path := "/api/collections/books_reconcile_lines/records"
-	if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
-		t.Errorf("GET %s: books:read must read", path)
-	}
-	if oauth.ScopeForRoute(http.MethodPost, path).SatisfiedBy([]string{scopeRead, scopeWrite}) {
-		t.Errorf("POST %s: no Books scope may write", path)
+	for _, view := range []string{"books_reconcile_lines", "books_reconciled_lines"} {
+		path := "/api/collections/" + view + "/records"
+		if !oauth.ScopeForRoute(http.MethodGet, path).SatisfiedBy([]string{scopeRead}) {
+			t.Errorf("GET %s: books:read must read", path)
+		}
+		if oauth.ScopeForRoute(http.MethodPost, path).SatisfiedBy([]string{scopeRead, scopeWrite}) {
+			t.Errorf("POST %s: no Books scope may write", path)
+		}
 	}
 }
 

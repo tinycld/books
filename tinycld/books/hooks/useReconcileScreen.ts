@@ -6,6 +6,7 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { useDebouncedValue } from '@tinycld/core/lib/use-debounced-value'
+import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { router, useFocusEffect } from 'expo-router'
 import { materialize } from 'pbtsdb'
 import { useCallback, useMemo, useRef } from 'react'
@@ -27,6 +28,7 @@ import {
 } from '../lib/reconcile'
 import { reconcileHints } from '../lib/reconcile-hints'
 import type { ReconcileHeaderKey } from '../lib/reconcile-shortcuts'
+import { RECONCILIATION_REPORT_SHIPPED_KEY } from '../lib/shipped-reports'
 import {
     heldStatementDate,
     isFinishingFor,
@@ -39,6 +41,7 @@ import { useReconcileClear } from './useReconcileClear'
 import { type ReconcileLineRow, useReconcileLines } from './useReconcileLines'
 import { useReconcileHeaderKeys, useReconcileShortcuts } from './useReconcileShortcuts'
 import type { ReconcileEditTarget } from './useReconcileStart'
+import { useShippedReportHref } from './useShippedReportHref'
 import { usePopToScreenBelow } from './useStackScreens'
 
 const LOG_CONTEXT = 'books.reconcile'
@@ -77,9 +80,9 @@ function totalsOf(
 /**
  * The screen of `books/reconcile/<id>` (reconcile spec §3 "The work screen", "States", §4
  * "Reads"): the reconciliation by id (key `books.reconcile.record`, its own live query, so a
- * failed load has an error state) with its account and the user who finished it through
- * `materialize()`, its lines (useReconcileLines) and the band's totals: from the cleared
- * lines while in progress, from the stamped sums once finished. `state` is `loading` until
+ * failed load has an error state) with its account through `materialize()` (the finisher's
+ * name is stamped on the row, `finished_by_name`), its lines (useReconcileLines) and the
+ * band's totals: from the cleared lines while in progress, from the stamped sums once finished. `state` is `loading` until
  * the record and, in progress, its lines have answered, `error` when one of them or the
  * access read failed, `not-found` when the record answered with no row (a bad id, or
  * another user discarded it). Retry recovers every failed read with one call. Back pops to
@@ -96,20 +99,24 @@ function totalsOf(
  * info's data from this one record query (with the account's latest finished statement
  * date), null while the dialog is closed. While its save is in flight the lines and the For
  * review count read the stored date (the store's `heldStatement`), so the state stays `work`
- * and the dialog stays open until the server has answered.
+ * and the dialog stays open until the server has answered. The finished summary's View
+ * report (`reportHref`, `onViewReport`) opens the Reconciliation Report with its Statement
+ * filter set to this reconciliation; its key R is in the same `list` scope. For a Books
+ * admin on the account's latest finished reconciliation (`lastFinished`), `canUndo` offers
+ * Undo reconciliation in the header's More menu; while that undo is sent (the store's
+ * `undoingId`) the screen stays the finished summary, and after the server has answered the
+ * same route draws the work screen.
  */
 export function useReconcileScreen(id: string) {
     const [
         reconciliationsCollection,
         accountsCollection,
-        usersCollection,
         accessCollection,
         connectionsCollection,
         transactionsCollection,
     ] = useStore(
         'books_reconciliations',
         'books_accounts',
-        'users',
         'books_access',
         'books_bank_connections',
         'books_bank_transactions'
@@ -143,14 +150,8 @@ export function useReconcileScreen(id: string) {
                             }))
                             .findOne()
                     ),
-                    finishedBy: materialize(
-                        q
-                            .from({ u: usersCollection })
-                            .where(({ u }) => eq(u.id, r.finished_by))
-                            .select(({ u }) => ({ name: u.name }))
-                            .findOne()
-                    ),
-                    // Edit info's date rule: the account's latest finished statement.
+                    // The account's latest finished reconciliation: Edit info's date rule, and
+                    // on the finished summary whether this one can be undone.
                     lastFinished: materialize(
                         q
                             .from({ f: reconciliationsCollection })
@@ -158,7 +159,7 @@ export function useReconcileScreen(id: string) {
                                 and(eq(f.account, r.account), eq(f.status, 'finished'))
                             )
                             .orderBy(({ f }) => f.statement_date, 'desc')
-                            .select(({ f }) => ({ statement_date: f.statement_date }))
+                            .select(({ f }) => ({ id: f.id, statement_date: f.statement_date }))
                             .findOne()
                     ),
                 }))
@@ -169,16 +170,19 @@ export function useReconcileScreen(id: string) {
     const isFinishing = useReconcileStore(s => isFinishingFor(s, id))
     const isDiscarding = useReconcileStore(s => s.isDiscarding)
     const heldDate = useReconcileStore(s => heldStatementDate(s, id))
+    const isUndoing = useReconcileStore(s => s.undoingId === id)
     // While Finish is sent the optimistic row reads finished; the screen stays the work
-    // screen, with its lines and their sums, until the server has answered.
-    const isFinished = reconciliation?.status === 'finished' && !isFinishing
-    const workRecord = useMemo(
-        () =>
-            reconciliation && !isFinished
-                ? { ...reconciliation, status: 'in_progress' as const }
-                : reconciliation,
-        [reconciliation, isFinished]
-    )
+    // screen, with its lines and their sums, until the server has answered. While an undo
+    // is sent the optimistic row reads in progress; the screen stays the finished summary,
+    // under the undo dialog, until the server has answered.
+    const isFinished =
+        (reconciliation?.status === 'finished' && !isFinishing) ||
+        (reconciliation !== undefined && isUndoing)
+    const workRecord = useMemo(() => {
+        if (!reconciliation) return reconciliation
+        const status = isFinished ? ('finished' as const) : ('in_progress' as const)
+        return reconciliation.status === status ? reconciliation : { ...reconciliation, status }
+    }, [reconciliation, isFinished])
     // While Edit info's save is in flight the optimistic row has the new date; the lines and
     // the For review count stay those of the stored date until the server has answered, so
     // the screen does not load again under the open dialog and a refusal shows in it.
@@ -237,6 +241,9 @@ export function useReconcileScreen(id: string) {
                 const store = useReconcileStore.getState()
                 if (store.isBandOpen) store.toggleBand()
                 store.resetWork()
+                // An undo dialog opened on the finished summary does not follow the user
+                // back to the history; it does nothing while an undo is sent.
+                store.closeUndo()
             },
             []
         )
@@ -321,7 +328,7 @@ export function useReconcileScreen(id: string) {
         const recordRecovery: LiveRecovery = recordQuery.isError
             ? {
                   queries: [recordQuery.collection],
-                  sources: [reconciliationsCollection, accountsCollection, usersCollection],
+                  sources: [reconciliationsCollection, accountsCollection],
               }
             : NO_RECOVERY
         const accessRecovery: LiveRecovery = access.isError
@@ -390,13 +397,33 @@ export function useReconcileScreen(id: string) {
                   rows: lines.rows,
               }
             : null
+    // The stamped name, so the line stays after the finisher's user record is deleted.
     const finishedText = reconciliation
-        ? finishedByText(
-              localDayOf(reconciliation.finished_at),
-              reconciliation.finishedBy?.name ?? ''
-          )
+        ? finishedByText(localDayOf(reconciliation.finished_at), reconciliation.finished_by_name)
         : ''
     const onViewRegister = () => router.push(orgHref(`books/accounts/${statementAccount}`))
+    // The Reconciliation Report with its Statement filter set to this reconciliation; null
+    // while it loads or when the reader has no such report, and then no button is drawn.
+    const reportParams = useMemo(() => ({ statement: id }), [id])
+    const reportHref = useShippedReportHref(RECONCILIATION_REPORT_SHIPPED_KEY, reportParams)
+    const onViewReport = () => {
+        if (reportHref) router.push(reportHref)
+    }
+    // The account's history (reconciliation report spec §3 "The finished summary").
+    const onOpenHistory = () =>
+        router.push(orgHref('books/reconcile/history', { account: statementAccount }))
+    // Undo reconciliation (spec §3 "The finished summary", "Undo"): a Books admin, on the
+    // latest finished reconciliation of its account. The More menu that holds it is open
+    // (`isMenuOpen`): View report's key R is off under it, as a core Menu pushes no scope.
+    const canUndo =
+        access.isAdmin && state === 'finished' && reconciliation?.lastFinished?.id === id
+    const isMenuOpen = useReconcileStore(s => s.isFinishedMenuOpen) && canUndo
+    const onMenuOpenChange = (isOpen: boolean) =>
+        useReconcileStore.getState().setFinishedMenuOpen(isOpen)
+    const onUndo = () => useReconcileStore.getState().openUndo(id)
+    const undoWrites = useServerActionState()
+    const isUndoDisabled = undoWrites.isDisabled || isUndoing
+    const undoHint = undoWrites.accessibilityHint
 
     return {
         state,
@@ -442,6 +469,15 @@ export function useReconcileScreen(id: string) {
         finishedText,
         onAnother: onBack,
         onViewRegister,
+        reportHref,
+        onViewReport,
+        onOpenHistory,
+        canUndo,
+        isMenuOpen,
+        onMenuOpenChange,
+        onUndo,
+        isUndoDisabled,
+        undoHint,
     }
 }
 

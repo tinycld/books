@@ -62,6 +62,8 @@ var booksSourceKeys = []string{
 	"books.payable_items",
 	"books.products",
 	"books.receivable_items",
+	"books.reconciled_lines",
+	"books.reconciliations",
 	"books.sales_documents",
 	"books.sales_lines",
 	"books.sales_tax_lines",
@@ -92,6 +94,53 @@ func TestReportSourcesPass(t *testing.T) {
 	for _, key := range booksSourceKeys {
 		if !accepted[key] {
 			t.Errorf("source %s is not registered and accepted", key)
+		}
+	}
+}
+
+// Reconciliation report spec §4 "Server": the two reconcile sources pass core's
+// check, and each of their links reads a relation field of its collection (the
+// check core's relationCheck makes), never a text column that holds an id.
+func TestReportSources_ReconcileSourcesLinkRelations(t *testing.T) {
+	app := newBooksApp(t)
+	registerBooksSources(t)
+	if err := reports.CheckSources(app); err != nil {
+		t.Fatalf("CheckSources: %v", err)
+	}
+	refused := reports.Refused(app)
+	sources := map[string]reports.Source{}
+	for _, s := range reports.Sources(app) {
+		sources[s.Key] = s
+	}
+	for key, links := range map[string][]string{
+		"books.reconciled_lines": {"reconciliation", "account", "entry"},
+		"books.reconciliations":  {"account"},
+	} {
+		if reason, bad := refused[key]; bad {
+			t.Errorf("source %s refused: %s", key, reason)
+		}
+		src, ok := sources[key]
+		if !ok {
+			t.Errorf("source %s is not registered and accepted", key)
+			continue
+		}
+		col, err := app.FindCollectionByNameOrId(src.Collection)
+		if err != nil {
+			t.Fatalf("source %s reads collection %q: %v", key, src.Collection, err)
+		}
+		byKey := map[string]reports.Link{}
+		for _, l := range src.Links {
+			byKey[l.Key] = l
+		}
+		for _, name := range links {
+			l, ok := byKey[name]
+			if !ok {
+				t.Errorf("source %s has no link %s", key, name)
+				continue
+			}
+			if _, isRelation := col.Fields.GetByName(l.Field).(*core.RelationField); !isRelation {
+				t.Errorf("link %s of %s reads %s.%s, which is not a relation field", name, key, src.Collection, l.Field)
+			}
 		}
 	}
 }
@@ -605,6 +654,45 @@ func expectedCatalog(t *testing.T) []wantSource {
 			},
 		},
 		{
+			// The finished and in-progress reconciliations (reconciliation
+			// report spec §4 "Server").
+			key: "books.reconciliations", collection: "books_reconciliations", label: "Reconciliations",
+			fields: []wantField{
+				{key: "statement_date", typ: reports.Date, textDay: true, anyAggs: true},
+				{key: "statement_balance", typ: reports.Money, currency: "currency", anyAggs: true},
+				{key: "beginning_balance", typ: reports.Money, currency: "currency", anyAggs: true},
+				{key: "cleared_out", typ: reports.Money, currency: "currency", anyAggs: true},
+				{key: "cleared_in", typ: reports.Money, currency: "currency", anyAggs: true},
+				{key: "cleared_out_count", typ: reports.Number, anyAggs: true},
+				{key: "cleared_in_count", typ: reports.Number, anyAggs: true},
+				{key: "status", typ: reports.Select, options: []reports.Option{
+					{Value: "in_progress", Label: "In progress"}, {Value: "finished", Label: "Finished"},
+				}},
+				{key: "finished_at", typ: reports.DateTime, anyAggs: true},
+				{key: "finished_by_name", typ: reports.Text, anyAggs: true},
+				text("currency"),
+			},
+			links: []wantLink{toOne("account", "books.accounts", "account")},
+		},
+		{
+			// The books_reconciled_lines view: one row for each cleared row of a
+			// finished reconciliation (reconciliation report spec §4 "Server").
+			key: "books.reconciled_lines", collection: "books_reconciled_lines", label: "Reconciled lines",
+			fields: []wantField{
+				{key: "date", typ: reports.Date, textDay: true, anyAggs: true},
+				money("debit"), money("credit"),
+				{key: "memo", typ: reports.Text, anyAggs: true},
+				{key: "payee", typ: reports.Text, anyAggs: true},
+				{key: "position", typ: reports.Number, anyAggs: true},
+				text("currency"),
+			},
+			links: []wantLink{
+				toOne("reconciliation", "books.reconciliations", "reconciliation"),
+				toOne("account", "books.accounts", "account"),
+				toOne("entry", "books.journal_entries", "entry"),
+			},
+		},
+		{
 			// Purchase fields, form columns and the name and sort keys are left
 			// out (sales-reports spec §5).
 			key: "books.products", collection: "books_products", label: "Products and services",
@@ -731,6 +819,7 @@ func TestReportSourcesCatalog(t *testing.T) {
 				"books.cash_basis_balances",
 				"books.sales_documents", "books.sales_tax_lines", "books.sales_lines", "books.products",
 				"books.receivable_items", "books.payable_items", "books.settings",
+				"books.reconciliations", "books.reconciled_lines",
 			}, want.key) {
 				wantCurrency = "USD"
 			}

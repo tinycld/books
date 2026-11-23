@@ -1,3 +1,7 @@
+// e2e specs import this module in Node (lesson 29), so it imports only core's
+// param-key, which imports nothing.
+import { paramKey } from '@tinycld/core/reports/lib/param-key'
+
 // The shipped_key of each Books shipped report that a Books screen links to
 // (server/report_sales_tax_liability.go, server/report_customer_balance.go,
 // server/report_ar_aging.go, server/report_ap_aging.go, server/report_vendor_balance.go
@@ -17,3 +21,11 @@ export const SALES_BY_PRODUCT_SHIPPED_KEY = 'books.sales_by_product'
 // server/report_statements.go: the rows of a customer statement's PDF.
 export const STATEMENT_BALANCE_FORWARD_SHIPPED_KEY = 'books.statement_balance_forward'
 export const STATEMENT_OPEN_ITEMS_SHIPPED_KEY = 'books.statement_open_items'
+// server/report_reconciliation.go: the finished reconciliation summary's View report.
+export const RECONCILIATION_REPORT_SHIPPED_KEY = 'books.reconciliation_report'
+
+// A report link's query: each param under the key core's report view reads it from
+// (`paramKey`), so the report opens with those filters set.
+export function reportParamQuery(params: Record<string, string>): Record<string, string> {
+    return Object.fromEntries(Object.entries(params).map(([id, value]) => [paramKey(id), value]))
+}

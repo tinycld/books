@@ -7,6 +7,7 @@ import { ArrowLeft, EllipsisVertical } from 'lucide-react-native'
 import { Pressable, Text, View } from 'react-native'
 import type { ReconcileScreenModel } from '../../hooks/useReconcileScreen'
 import { RECONCILE_TEXTS, statementEndingText } from '../../lib/reconcile'
+import { HISTORY_TEXTS } from '../../lib/reconcile-history'
 import { EDIT_KEY, FINISH_KEY, LATER_KEY } from '../../lib/reconcile-shortcuts'
 import { WhileOpen } from '../RecordRowMenu'
 import { StatusBadge } from '../StatusBadge'
@@ -63,10 +64,10 @@ const MORE_STYLE = { width: 44, minHeight: 44 }
 
 // An element, not a component: Menu clones its trigger with the press and ref props, which
 // a wrapper component would drop.
-function moreTrigger(color: string) {
+function moreTrigger(color: string, testID = 'reconcile-more') {
     return (
         <Pressable
-            testID="reconcile-more"
+            testID={testID}
             accessibilityRole="button"
             accessibilityLabel={RECONCILE_TEXTS.more}
             className="items-center justify-center"
@@ -228,6 +229,35 @@ function PhoneMore({ model }: { model: ReconcileScreenModel }) {
     return <MoreMenu model={model} />
 }
 
+// The finished summary's More menu, on wide and on a phone: Undo reconciliation, for a Books
+// admin on the latest reconciliation of the account (`canUndo`). While the server takes no
+// writes the item is disabled with core's reason.
+function FinishedMore({ model }: { model: ReconcileScreenModel }) {
+    const color = useThemeColor('muted-foreground')
+    if (!model.canUndo) return null
+    const trigger = moreTrigger(color, 'reconcile-finished-more')
+    return (
+        <Menu
+            title={RECONCILE_TEXTS.menuTitle}
+            placement="bottom-end"
+            sheetSide="bottom"
+            trigger={trigger}
+            onOpenChange={model.onMenuOpenChange}
+        >
+            <WhileOpen>
+                <Menu.Item
+                    testID="reconcile-menu-undo"
+                    label={HISTORY_TEXTS.undo}
+                    description={model.undoHint}
+                    isDestructive
+                    isDisabled={model.isUndoDisabled}
+                    onSelect={model.onUndo}
+                />
+            </WhileOpen>
+        </Menu>
+    )
+}
+
 /**
  * The work screen's header (reconcile spec §3 "Header", "Actions"): the back link, which
  * every state keeps, then the account and the statement line once the reconciliation is
@@ -237,7 +267,8 @@ function PhoneMore({ model }: { model: ReconcileScreenModel }) {
  * also holds Edit info (E) and Finish later (⌘S), whose keys useReconcileHeaderKeys
  * registers in the same scope (Finish is the bar at the bottom, ReconcileScreenView). While
  * the server takes no writes, More's Edit info and Discard show core's reason. A reader gets
- * none.
+ * none. The finished summary has its own More menu (`reconcile-finished-more`) with Undo
+ * reconciliation, for a Books admin on the account's latest reconciliation.
  */
 export function ReconcileHeader({ model }: { model: ReconcileScreenModel }) {
     return (
@@ -247,6 +278,7 @@ export function ReconcileHeader({ model }: { model: ReconcileScreenModel }) {
                 <TitleBlock model={model} />
                 <WideActions model={model} />
                 <PhoneMore model={model} />
+                <FinishedMore model={model} />
             </View>
         </View>
     )

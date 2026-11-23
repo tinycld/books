@@ -231,7 +231,8 @@ export function registerCollections(
     // One comparison of an account with one bank statement. A writer inserts the
     // account, the statement fields and `status: 'in_progress'`; the server stamps the
     // beginning balance, who started it and the currency at create, and the cleared sums,
-    // who finished it and when at finish (server/reconcile.go).
+    // who finished it (id and name) and when at finish; an admin's undo clears them again
+    // (server/reconcile.go).
     const books_reconciliations = newCollection('books_reconciliations', {
         omitOnInsert: [
             'created',
@@ -243,6 +244,7 @@ export function registerCollections(
             'cleared_in_count',
             'created_by',
             'finished_by',
+            'finished_by_name',
             'finished_at',
             'currency',
         ] as const,
@@ -281,6 +283,16 @@ export function registerCollections(
     const books_reconcile_lines = newCollection('books_reconcile_lines', {
         ...onDemand,
         ...liveViewOptions('books_reconcile_lines'),
+        collectionOptions: indexed,
+    })
+
+    // A view, never written: one row for each cleared row of a finished reconciliation.
+    // The server signals its topic when a cleared row, a reconciliation, a journal line, an
+    // entry, a customer or a vendor changes (server/register.go), so a finish or an undo
+    // reaches the reconciliation report with no reload.
+    const books_reconciled_lines = newCollection('books_reconciled_lines', {
+        ...onDemand,
+        ...liveViewOptions('books_reconciled_lines'),
         collectionOptions: indexed,
     })
 
@@ -1017,6 +1029,7 @@ export function registerCollections(
         books_reconciliations,
         books_reconciliation_lines,
         books_reconcile_lines,
+        books_reconciled_lines,
         books_journal_lines,
         books_journal_entries,
         books_account_balances,
