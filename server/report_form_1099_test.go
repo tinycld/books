@@ -2103,8 +2103,10 @@ func TestForm1099CSVOpensEveryBox(t *testing.T) {
 // form1099SpecSHA256 is the sha256 of mustJSON(form1099Spec()) with the detail
 // label final (report-1099 checkpoint 3). It is recorded at the end of
 // checkpoint 3: until then it holds no sum. A later change of the filter, the
-// columns, the sort or the labels moves it.
-const form1099SpecSHA256 = "c858de0483feb72e38ee096b3993fb60247dc00ac5ef06a2d1a6d9c26bdf8a9c"
+// columns, the sort or the labels moves it. Checkpoint 4 (spec §11 Q21) moved
+// it once: the card mark and the doc type read the row's own copies
+// (fld("card_payment"), fld("doc_type")) in place of the entry's.
+const form1099SpecSHA256 = "56098d9af26cc7ec4f9f2ffc186bbc502cd588bf3eea7631df68f0c3c4feafb8"
 
 func TestForm1099SpecSHA(t *testing.T) {
 	sum := sha256.Sum256(mustJSON(form1099Spec()))

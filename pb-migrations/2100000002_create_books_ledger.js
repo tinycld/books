@@ -100,7 +100,7 @@ const ENTRY_SERVER_FIELDS = [
     'document',
     'card_payment',
 ]
-const LINE_SERVER_FIELDS = ['posted', 'date', 'currency']
+const LINE_SERVER_FIELDS = ['posted', 'date', 'currency', 'card_payment', 'doc_type']
 
 const AUTODATES = [
     { name: 'created', type: 'autodate', onCreate: true, onUpdate: false },
@@ -311,6 +311,35 @@ migrate(
                     { name: 'posted', type: 'bool' },
                     { name: 'date', type: 'text', max: 10, pattern: OPTIONAL_DAY },
                     { name: 'currency', type: 'text', max: 3, pattern: OPTIONAL_CURRENCY },
+                    // Copies of the line's entry's card_payment and doc_type, so a
+                    // report reads them from the line with no entry read (1099
+                    // report spec §11 Q21). Server-written: on a create by
+                    // lineGuard (server/immutability.go), which calls
+                    // stampEntryCopies, and on an entry change by
+                    // copyEntryToRows (server/lines.go).
+                    { name: 'card_payment', type: 'bool' },
+                    // The values of books_journal_entries.doc_type, in its order.
+                    {
+                        name: 'doc_type',
+                        type: 'select',
+                        maxSelect: 1,
+                        values: [
+                            'journal',
+                            'transfer',
+                            'invoice',
+                            'sales_receipt',
+                            'bill',
+                            'expense',
+                            'payment',
+                            'bill_payment',
+                            'credit_memo',
+                            'vendor_credit',
+                            'vendor_refund',
+                            'refund_receipt',
+                            'write_off',
+                            'deposit',
+                        ],
+                    },
                     ...AUTODATES,
                 ],
                 indexes: [

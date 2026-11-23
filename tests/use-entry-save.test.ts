@@ -132,6 +132,8 @@ function savedLine(id: string, position: number, over: Partial<BooksJournalLines
         posted: false,
         date: '2026-10-12',
         currency: 'USD',
+        card_payment: false,
+        doc_type: 'journal',
         created: NOW,
         updated: NOW,
         ...over,

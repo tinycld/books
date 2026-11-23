@@ -35,12 +35,22 @@
 //
 // No existing index is dropped: idx_books_jlines_account_date and
 // idx_books_cash_basis_lines_account_date stay for the reads that use them now.
+//
+// The 1099 report (spec §8, §11 Q21; human decision of 2026-11-22) reads the
+// card mark (card_payment) of every row, the doc type of every ledger line and
+// the payment_entry of every cash row. The lines hold copies of their entry's
+// card_payment and doc_type (migrations 2100000002 and 2100000021), and the
+// covering indexes end with what the report reads, so its run 3 ("Not tracked
+// for 1099") reads both line tables by USING COVERING INDEX and no entry row.
+// Probe 3 at L (docs/plans/report-1099-ledger.md, checkpoint 4, phase C): the
+// statement that builds the rows took a CPU median of 603 ms with these
+// columns against 1,435 ms with the entry read, with the same rows.
 
 const LINES_COVERING_INDEX =
-    'CREATE INDEX idx_books_jlines_account_date_covering ON books_journal_lines (account, date, posted, vendor, currency, debit, credit, id)'
+    'CREATE INDEX idx_books_jlines_account_date_covering ON books_journal_lines (account, date, posted, vendor, currency, debit, credit, id, card_payment, doc_type)'
 
 const CASH_LINES_COVERING_INDEX =
-    'CREATE INDEX idx_books_cash_basis_lines_account_date_covering ON books_cash_basis_lines (account, date, posted, vendor, currency, debit, credit, id)'
+    'CREATE INDEX idx_books_cash_basis_lines_account_date_covering ON books_cash_basis_lines (account, date, posted, vendor, currency, debit, credit, id, card_payment, payment_entry, doc_type)'
 
 const CASH_LINES_ACCOUNT_POSTED_VENDOR_DATE_INDEX =
     'CREATE INDEX idx_books_cash_basis_lines_account_posted_vendor_date ON books_cash_basis_lines (account, posted, vendor, date)'

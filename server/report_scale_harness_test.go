@@ -53,13 +53,22 @@ type arWriter struct {
 	batches map[string]*arBatch
 	// columns are the columns of each table the writer writes (all of them).
 	columns map[string][]string
+	// copies are the card mark and the doc type of each entry the writer
+	// wrote, which its lines copy as posting stamps them (lines.go).
+	copies map[string]arEntryCopy
+}
+
+// arEntryCopy is an entry's card mark and doc type, as its lines hold them.
+type arEntryCopy struct {
+	card    bool
+	docType string
 }
 
 // newARWriter is a writer of the tables of columns that numbers the documents
 // of docTypes from their sequences.
 func newARWriter(t testing.TB, tx core.App, columns map[string][]string, docTypes ...string) *arWriter {
 	t.Helper()
-	w := &arWriter{t: t, tx: tx, next: map[string]int{}, prefix: map[string]string{}, batches: map[string]*arBatch{}, columns: columns}
+	w := &arWriter{t: t, tx: tx, next: map[string]int{}, prefix: map[string]string{}, batches: map[string]*arBatch{}, columns: columns, copies: map[string]arEntryCopy{}}
 	for name, cols := range columns {
 		w.batches[name] = &arBatch{name: name, cols: cols}
 	}
@@ -151,12 +160,23 @@ func (w *arWriter) finish() {
 
 func (w *arWriter) entry(values map[string]any) {
 	values["auto_reverse_on"], values["close_override"], values["currency"], values["replaces"] = "", "", "USD", ""
+	// The writer leaves an entry's card_payment at its column default (false);
+	// a pass that marks it later moves the lines' copies with it.
+	card, _ := values["card_payment"].(bool)
+	docType, _ := values["doc_type"].(string)
+	w.copies[values["id"].(string)] = arEntryCopy{card: card, docType: docType}
 	w.row(arEntries, values)
 }
 
 // lines writes an entry's lines in position order; reversed swaps each debit
-// and credit, as a reversal does.
+// and credit, as a reversal does. Each line holds its entry's card mark and doc
+// type.
 func (w *arWriter) lines(entry, date, stamp string, lines []arJELine, reversed bool) []string {
+	w.t.Helper()
+	copied, ok := w.copies[entry]
+	if !ok {
+		w.t.Fatalf("the bulk writer writes lines of entry %s before the entry", entry)
+	}
 	ids := make([]string, len(lines))
 	for pos, l := range lines {
 		debit, credit := l.debit, l.credit
@@ -168,6 +188,7 @@ func (w *arWriter) lines(entry, date, stamp string, lines []arJELine, reversed b
 			"id": ids[pos], "account": l.account, "created": stamp, "updated": stamp, "credit": credit,
 			"debit": debit, "currency": "USD", "customer": l.customer, "date": date, "entry": entry, "memo": "",
 			"position": pos, "posted": true, "vendor": l.vendor,
+			"card_payment": copied.card, "doc_type": copied.docType,
 		})
 	}
 	return ids
