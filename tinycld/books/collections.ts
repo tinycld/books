@@ -1049,7 +1049,16 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // One row for each user: the Shortcuts section of the Books sidebar. No relations: the
+    // row's user is the reader.
+    const books_sidebar_shortcuts = newCollection('books_sidebar_shortcuts', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
     return {
+        books_sidebar_shortcuts,
         books_accounts,
         books_bank_connections,
         books_bank_files,

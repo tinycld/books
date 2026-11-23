@@ -78,6 +78,7 @@ const NAMES = [
     'books_reconciled_lines',
     'books_invoice_due_totals',
     'books_payment_day_totals',
+    'books_sidebar_shortcuts',
 ]
 
 function register() {

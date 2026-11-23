@@ -64,7 +64,13 @@ const DASHBOARD_SUFFIX = '_create_books_dashboard_views.js'
 
 const DASHBOARD = MIGRATIONS.filter(file => file.endsWith(DASHBOARD_SUFFIX))
 
-const AFTER_AUDIT: string[] = [...RECONCILE, ...REPORT, ...DASHBOARD]
+// Sidebar shortcuts: one user's own screen arrangement takes the next free number after the
+// dashboard views. It is not audited and the audit view reads nothing of it.
+const SHORTCUTS_SUFFIX = '_create_books_sidebar_shortcuts.js'
+
+const SHORTCUTS = MIGRATIONS.filter(file => file.endsWith(SHORTCUTS_SUFFIX))
+
+const AFTER_AUDIT: string[] = [...RECONCILE, ...REPORT, ...DASHBOARD, ...SHORTCUTS]
 
 function prefixOf(file: string): string {
     return file.split('_')[0] ?? file
@@ -112,6 +118,8 @@ describe('pb-migrations prefixes', () => {
         expect(numberOf(REPORT[0])).toBeGreaterThan(numberOf(RECONCILE[0]))
         expect(DASHBOARD).toHaveLength(1)
         expect(numberOf(DASHBOARD[0])).toBeGreaterThan(numberOf(REPORT[0]))
+        expect(SHORTCUTS).toHaveLength(1)
+        expect(numberOf(SHORTCUTS[0])).toBeGreaterThan(numberOf(DASHBOARD[0]))
         const afterAudit = MIGRATIONS.filter(file => numberOf(file) > numberOf(AUDIT))
         expect(afterAudit).toEqual(AFTER_AUDIT)
     })
