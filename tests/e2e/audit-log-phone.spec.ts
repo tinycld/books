@@ -1,5 +1,10 @@
 import { expect, type Page, test } from '@playwright/test'
-import { login, navigateToPackage, waitForTableFit } from '@tinycld/core/e2e-helpers'
+import {
+    chooseParamOption,
+    login,
+    navigateToPackage,
+    waitForTableFit,
+} from '@tinycld/core/e2e-helpers'
 import { openAuditLog, openHistoryFromRow, waitForAuditRow } from './audit-log-helpers'
 import { openOtherBooksPage } from './journal-entries-helpers'
 import {
@@ -105,6 +110,12 @@ async function expectPhoneRows(page: Page, name: string) {
     const width = page.viewportSize()?.width
     await expect(page.getByTestId('mobile-drawer-panel')).toBeAttached()
     await openAuditLog(page)
+    // The table mounts the newest rows first. Other workers' changes made after the
+    // product's can push its row past them, so only products are shown.
+    await chooseParamOption(page, 'types', {
+        from: 'add-filter',
+        labels: ['Product or service'],
+    })
     const row = await waitForAuditRow(page, { record: name, event: 'Added' })
     expect(await waitForTableFit(page), `the layout core chose at ${width}`).toBe('mobile')
     await expect

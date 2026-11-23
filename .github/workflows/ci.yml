@@ -174,6 +174,8 @@ jobs:
     # are split by their CI time (.github/scripts/e2e-shard.mjs), not by
     # Playwright's --shard, which gives each shard the same number of tests in
     # name order and so put all the slow vendor-* specs on the last shard.
+    # Only shard 1 runs the setup projects of playwright.config.ts; the script
+    # gives the other shards --project=books --no-deps (see its header).
     strategy:
       fail-fast: false
       matrix:
