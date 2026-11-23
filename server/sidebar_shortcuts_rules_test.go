@@ -87,12 +87,40 @@ func TestSidebarShortcutRules_OneRowForEachUser(t *testing.T) {
 	users := newLevelUsers(t, app)
 	mkShortcuts(t, app, users.bookkeeper.Id)
 	apiReq{
-		method: http.MethodPost,
-		url:    shortcutsURL,
-		token:  tokenFor(t, users.bookkeeper),
-		body:   fmt.Sprintf(`{"user":%q,"items":[]}`, users.bookkeeper.Id),
-		want:   http.StatusBadRequest,
+		method:  http.MethodPost,
+		url:     shortcutsURL,
+		token:   tokenFor(t, users.bookkeeper),
+		body:    fmt.Sprintf(`{"user":%q,"items":[]}`, users.bookkeeper.Id),
+		want:    http.StatusBadRequest,
+		content: []string{`"code":"validation_not_unique"`},
 	}.run(t, app)
+}
+
+// The read gate holds on change too: a user with no Books access cannot touch
+// the row that names them.
+func TestSidebarShortcutRules_NoAccessCannotChangeOwn(t *testing.T) {
+	cases := []struct {
+		name   string
+		method string
+		body   string
+	}{
+		{"patch", http.MethodPatch, `{"items":[]}`},
+		{"delete", http.MethodDelete, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			app := newBooksApp(t)
+			users := newLevelUsers(t, app)
+			id := mkShortcuts(t, app, users.none.Id)
+			apiReq{
+				method: tc.method,
+				url:    shortcutsURL + "/" + id,
+				token:  tokenFor(t, users.none),
+				body:   tc.body,
+				want:   http.StatusNotFound,
+			}.run(t, app)
+		})
+	}
 }
 
 func TestSidebarShortcutRules_ChangeOnlyYourOwn(t *testing.T) {
