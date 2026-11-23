@@ -1,12 +1,12 @@
 import { SortableDragHandle, SortableList } from '@tinycld/core/components/SortableList'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
-import { moveFocus } from '@tinycld/core/lib/move-focus'
 import { useServerActionState } from '@tinycld/core/lib/use-writes-available'
 import { ButtonText, ServerActionButton } from '@tinycld/core/ui/button'
 import { Switch } from '@tinycld/core/ui/switch'
 import { ArrowDown, ArrowUp } from 'lucide-react-native'
-import { type RefObject, useLayoutEffect, useRef } from 'react'
+import { type RefObject, useRef } from 'react'
 import { type PressableInstance, Text, View } from 'react-native'
+import { type FocusRequest, type MoveDirection, useMovedFocus } from '../../hooks/useMovedFocus'
 import {
     type DashboardPrefs,
     moveWidget,
@@ -16,52 +16,6 @@ import {
     type WidgetId,
 } from '../../lib/dashboard-prefs'
 import { DashboardIconButton } from './DashboardIconButton'
-
-type MoveDirection = 'up' | 'down'
-
-// The Move button pressed last, so that it can take the focus back after the move.
-interface FocusRequest {
-    id: WidgetId
-    direction: MoveDirection
-}
-
-interface MovedFocus {
-    id: WidgetId
-    index: number
-    place: number
-    isFirst: boolean
-    isLast: boolean
-    focusRequest: RefObject<FocusRequest | null>
-    upRef: RefObject<PressableInstance | null>
-    downRef: RefObject<PressableInstance | null>
-}
-
-// Core SortableList draws its rows in cells keyed by index, so a moved widget is drawn in
-// another cell and the focus stays on the old cell's button, which now belongs to another
-// widget. Once the moved row is drawn at its new place, its pressed Move button takes the
-// focus back, or its other Move button when the pressed one is now disabled at an end.
-function useMovedFocus({
-    id,
-    index,
-    place,
-    isFirst,
-    isLast,
-    focusRequest,
-    upRef,
-    downRef,
-}: MovedFocus) {
-    useLayoutEffect(() => {
-        const request = focusRequest.current
-        if (!request || request.id !== id || index !== place) return
-        focusRequest.current = null
-        const isUp = request.direction === 'up'
-        const isPressedAtEnd = isUp ? isFirst : isLast
-        const pressed = isUp ? upRef : downRef
-        const other = isUp ? downRef : upRef
-        const target = isPressedAtEnd ? other.current : pressed.current
-        if (target) moveFocus(target)
-    }, [id, index, place, isFirst, isLast, focusRequest, upRef, downRef])
-}
 
 function ShowLabel({ isVisible }: { isVisible: boolean }) {
     if (!isVisible) return null
