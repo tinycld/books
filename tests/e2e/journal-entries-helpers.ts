@@ -46,17 +46,22 @@ export async function openEntriesList(page: Page) {
     const entries = page.getByTestId('entries-screen')
     const back = page.getByTestId('entry-back')
     const listCard = page.getByTestId('books-list-card-entries')
-    const dashboard = page.getByTestId('dashboard-screen').filter({ visible: true })
+    // The dashboard is the root of the Books stack: it stays mounted, hidden, under every
+    // screen the sidebar opens (the Chart, Banking, Taxes, …).
+    const root = page.getByTestId('dashboard-screen')
+    const dashboard = root.filter({ visible: true })
     const navItem = isPhone(page) ? listCard : page.getByTestId('books-nav-entries')
     const toggle = page.getByTestId('books-nav-accounting-toggle')
     // Wait on a screen, never on the desktop sidebar toggle: it shows on every Books route,
     // so it cannot say which screen a lazy route is about to mount. The Lists hub keeps its
-    // cards mounted but hidden on desktop, so there its attached card is the landing signal.
-    // A record opened from the list (an entry, transfer, bill or expense) keeps the list
-    // mounted but hidden under it, ahead of the record's Back in the DOM, so only the visible
-    // one of the two is the screen on top.
-    await expect(entries.or(back).or(listCard).or(dashboard).first()).toBeAttached()
-    if (!(await listCard.count())) {
+    // cards mounted but hidden on desktop, so there its attached card is the signal. The
+    // stack root, the dashboard, is attached at any visibility on every other Books screen,
+    // so its attached node is the signal there; a visible-only dashboard cannot match under
+    // a pushed screen. A record opened from the list (an entry, transfer, bill or expense)
+    // keeps the list mounted but hidden under it, ahead of the record's Back in the DOM, so
+    // only the visible one of the two is the screen on top.
+    await expect(entries.or(back).or(listCard).or(root).first()).toBeAttached()
+    if (!(await listCard.count()) && !(await root.count())) {
         await expect(entries.or(back).or(dashboard).filter({ visible: true }).first()).toBeVisible()
     }
     if (await entries.isVisible()) return
