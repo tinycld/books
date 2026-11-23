@@ -39,11 +39,12 @@ import {
     uniqueName,
 } from './customer-form-helpers'
 import { INVOICE_URL, lineCellTestId, pickLineProduct } from './invoice-helpers'
-import { openProductsList, productEntries } from './products-services-helpers'
+import { createProduct, openProductsList, productEntries } from './products-services-helpers'
 import { SALES_RECEIPT_URL } from './sales-receipt-helpers'
 import {
     amountCents,
     chooseSalesOrder,
+    createSaleCustomer,
     DISCOUNT_PRODUCT,
     expectSalesPhoneLines,
     expectSalesRowsFit,
@@ -269,10 +270,18 @@ test.describe('sales-reports: Sales by Customer', () => {
     })
 
     test('a sub-customer sale turns the row into a family with a total', async ({ page }) => {
+        // One product and one invoice each: postSaleBook's second product, three-line
+        // invoice and receipt are not read here, and with them the test ran past the test
+        // timeout on CI.
         await openBooks(page, DESKTOP)
-        const book = await postSaleBook(page)
-        const parent = book.customer.name
-        await expect(page).toHaveURL(customerPath(book.customer.id))
+        const service = uniqueName('Sale service')
+        await createProduct(page, { type: 'service', name: service, price: '100.00' })
+        const customer = await createSaleCustomer(page)
+        const parent = customer.name
+        await postSubInvoice(page, service, '50.00', '$500.00')
+        await page.goBack()
+        await expect(page).toHaveURL(customerPath(customer.id))
+        await expect(page.getByTestId('customer-title')).toHaveText(parent)
 
         // Two sub-customers whose name order (A, B) is the reverse of their sales order: B
         // sells more than the parent's own row, A less. The fold and the Largest sales order
@@ -280,14 +289,14 @@ test.describe('sales-reports: Sales by Customer', () => {
         const small = uniqueName('Sale branch A')
         const big = uniqueName('Sale branch B')
         await addSubCustomer(page, small)
-        await postSubInvoice(page, book.service, '10.00', '$100.00')
+        await postSubInvoice(page, service, '10.00', '$100.00')
         // Back to the sub-customer's page, then through its parent link to the parent's.
         await page.goBack()
         await expect(page.getByTestId('customer-title')).toHaveText(small)
         await page.getByTestId('customer-parent-link').click()
-        await expect(page).toHaveURL(customerPath(book.customer.id))
+        await expect(page).toHaveURL(customerPath(customer.id))
         await addSubCustomer(page, big)
-        await postSubInvoice(page, book.service, '100.00', '$1,000.00')
+        await postSubInvoice(page, service, '100.00', '$1,000.00')
 
         await openSalesByCustomer(page)
         const rows = await filterToFamily(page, { parent, small, big })
@@ -302,7 +311,7 @@ test.describe('sales-reports: Sales by Customer', () => {
         // The family's five rows, then only the report's Total.
         expect(rows.slice(5).map(row => row.kind)).toEqual(['total'])
         const [, own, smallRow, bigRow, familyTotal] = family
-        expect(salesOf(own)).toBe(book.invoice.subtotalCents + book.receipt.subtotalCents)
+        expect(salesOf(own)).toBe(50_000)
         expect(salesOf(bigRow)).toBeGreaterThan(salesOf(own))
         expect(salesOf(smallRow)).toBeLessThan(salesOf(own))
         expect(salesOf(familyTotal)).toBe(salesOf(own) + salesOf(smallRow) + salesOf(bigRow))
