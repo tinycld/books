@@ -1,5 +1,6 @@
 import { expect, type Page, test } from '@playwright/test'
 import { DESKTOP, openBooks, openCustomer } from './customer-form-helpers'
+import { newActionItem } from './new-menu-helpers'
 import { fillInvoice, localDay, postInvoice } from './receive-payment-helpers'
 import {
     newStatementUrl,
@@ -299,15 +300,13 @@ test.describe('statements: tab and statement', () => {
         await page.getByTestId('customer-tab-statements').click()
         await expect(shown(page, 'customer-statements')).toBeVisible()
 
-        // A reader gets no New trigger at all (newMenuForAccess gives no column without
-        // write access), so the sidebar offers no New → Statement. A writer's desktop
-        // trigger is the visible "New" text (transfer-form.spec.ts).
+        // A reader gets no New section at all (newMenuForAccess gives no column without
+        // write access), so the sidebar offers no New → Statement: no fold button, no
+        // round New button, no Statement action. The sidebar itself is drawn.
         await expect(shown(page, 'books-nav-lists')).toBeVisible()
-        await expect(page.getByText('New', { exact: true }).filter({ visible: true })).toHaveCount(
-            0
-        )
+        await expect(page.getByTestId('books-sidebar-new-toggle')).toHaveCount(0)
         await expect(page.getByLabel('New', { exact: true })).toHaveCount(0)
-        await expect(page.getByTestId('books-new-statement')).toHaveCount(0)
+        await expect(newActionItem(page, 'statement')).toHaveCount(0)
 
         await page.setViewportSize(PHONE)
         const cards = shown(page, 'customer-statements-cards')
