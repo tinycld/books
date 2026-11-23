@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import manifest from '../manifest'
 import { DEFAULT_SHORTCUTS, MAX_SHORTCUTS } from '../tinycld/books/lib/sidebar-shortcuts'
@@ -61,6 +63,18 @@ describe('help/sidebar-shortcuts.md', () => {
 
     it('says the phone sidebar is the Books menu', () => {
         expect(topic.body).toMatch(/On a phone, the sidebar is the Books menu/)
+    })
+})
+
+describe('docs/specs/books-shell-design.md decisions', () => {
+    const spec = readFileSync(resolve(__dirname, '../docs/specs/books-shell-design.md'), 'utf8')
+
+    it('records that a stored screen:reports shortcut draws no row', () => {
+        expect(spec).toMatch(/`screen:reports`[^\n]*draws no row[^\n]*Not available/)
+    })
+
+    it('records why core settings panels draw SectionPanelScreen', () => {
+        expect(spec).toMatch(/no scroller[^\n]*`SectionPanelScreen`[^\n]*`ScrollView`/)
     })
 })
 
