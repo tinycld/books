@@ -161,6 +161,21 @@ async function titleNumber(page: Page, testId: string, word: string): Promise<st
 }
 
 /**
+ * Books must be open at desktop width. Creates a customer with a unique name through the
+ * Lists hub and leaves the page on it.
+ */
+export async function createSaleCustomer(page: Page): Promise<{ id: string; name: string }> {
+    const name = uniqueName('Sale customer')
+    // Books lands on the dashboard, so the Lists hub is reached through its sidebar entry.
+    await page.getByTestId('books-nav-lists').click()
+    await expect(
+        page.getByTestId('books-list-card-customers').filter({ visible: true })
+    ).toBeVisible()
+    await createCustomer(page, { name })
+    return { id: new URL(page.url()).pathname.split('/').pop() ?? '', name }
+}
+
+/**
  * Books must be open at desktop width. Creates a Service and a Non-inventory product and a
  * customer, each with a unique name, and from the customer's page posts, dated today:
  * an invoice with the service at quantity 1.5, the product at quantity 2 and a −10 percent
@@ -173,15 +188,7 @@ export async function postSaleBook(page: Page): Promise<SaleBook> {
     const goods = uniqueName('Sale goods')
     await createProduct(page, { type: 'service', name: service, price: '100.00' })
     await createProduct(page, { type: 'non_inventory', name: goods, price: '40.00' })
-    const name = uniqueName('Sale customer')
-    // From the products list to the Lists hub (Books lands on the dashboard, so the hub is
-    // reached through its sidebar entry), where the customer steps start.
-    await page.getByTestId('books-nav-lists').click()
-    await expect(
-        page.getByTestId('books-list-card-customers').filter({ visible: true })
-    ).toBeVisible()
-    await createCustomer(page, { name })
-    const customerId = new URL(page.url()).pathname.split('/').pop() ?? ''
+    const { id: customerId, name } = await createSaleCustomer(page)
 
     await startTransaction(page, 'customer-new-invoice', 'invoices', customerId)
     const first = await pickLineProduct(page, 0, service)
