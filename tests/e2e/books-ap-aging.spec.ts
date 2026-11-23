@@ -345,6 +345,12 @@ test.describe('ap-aging: entry points and narrow layouts', () => {
             page.getByTestId('report-document-title').filter({ visible: true })
         ).toHaveText(AP_AGING_TITLE)
 
+        // Core reopens Books at its last route. The report is now on the Books route, so a new
+        // page would reopen on it, and its answer (no row) would show "no access" instead of the
+        // list. Going back leaves the list as that last route.
+        await page.goBack()
+        await openVendorsList(page)
+
         // No report is found: after the A/P Aging read answered with no row, the list's
         // header draws no Reports menu.
         const none = await freshPageWithReports(page, [])

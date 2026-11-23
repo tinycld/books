@@ -154,12 +154,18 @@ export async function openBooksMenu(page: Page): Promise<void> {
 
 // Opens the Reports section of the Books sidebar and leaves it open. The sidebar must be on
 // screen (on a phone: the Books menu, the drawer). The fold state is kept across screens
-// and reloads, so this opens a folded section and never presses the fold button of an open one.
+// and reloads (books-ui-store persists it through AsyncStorage, which hydrates a tick after
+// the first render), so the label can flip from Expand to Collapse after it is read. The
+// press and the check on its result run as one retried block: a press that landed on a fold
+// that hydration had just opened closes it, the label reads Expand again, and the next pass
+// opens it.
 export async function openReportsSection(page: Page): Promise<void> {
     const toggle = page.getByTestId('books-sidebar-reports-toggle').filter({ visible: true })
-    await toggle.waitFor()
-    if ((await toggle.getAttribute('aria-label')) === 'Expand Reports') await toggle.click()
-    await expect(toggle).toHaveAttribute('aria-label', 'Collapse Reports')
+    await expect(toggle).toHaveAttribute('aria-label', /^(Expand|Collapse) Reports$/)
+    await expect(async () => {
+        if ((await toggle.getAttribute('aria-label')) === 'Expand Reports') await toggle.click()
+        await expect(toggle).toHaveAttribute('aria-label', 'Collapse Reports')
+    }).toPass()
 }
 
 // Core's Reports hub filtered to Books, reached the way a user does: All reports in the
