@@ -229,3 +229,80 @@ func TestInventoryItem_OpeningAdjustmentNamesWhoSavedTheItem(t *testing.T) {
 		},
 	}.run(t, env.app)
 }
+
+// An update request keeps its own person too: the re-cost of a cost change
+// names the admin who sent the update, not the bookkeeper who posted the
+// removal. This pins that the request's record is the one the model hooks get.
+func TestInventoryItem_CostChangeRecostNamesWhoSentTheUpdate(t *testing.T) {
+	env := newItemEnv(t)
+	widget, err := newProduct(env.app, inventoryItem(env, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := removalOf(t, env, widget, "2026-02-01", 4)
+	apiReq{
+		method: http.MethodPatch, url: "/api/collections/books_products/records/" + widget.Id,
+		token: tokenFor(t, env.users.admin), body: `{"cost":700}`, want: 200,
+		after: func(t testing.TB, app *tests.TestApp) {
+			recosts := recostsOf(t, app, out)
+			if len(recosts) != 1 {
+				t.Fatalf("%d re-costs of the removal, want 1", len(recosts))
+			}
+			if got := recosts[0].GetString("posted_by"); got != env.users.admin.Id {
+				t.Errorf("re-cost posted_by = %q, want the admin %q", got, env.users.admin.Id)
+			}
+		},
+	}.run(t, env.app)
+}
+
+// A refused re-cost leaves the old cost stored: storeItemCost writes the new
+// cost inside the write's transaction, which the refusal rolls back.
+func TestInventoryItem_CostChangeInAClosedPeriodKeepsTheOldCost(t *testing.T) {
+	env := newItemEnv(t)
+	widget, err := newProduct(env.app, inventoryItem(env, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := removalOf(t, env, widget, "2026-02-01", 4)
+	if err := setFields(t, env.app, "books_settings", settingsID, map[string]any{"close_date": "2026-03-31"}); err != nil {
+		t.Fatal(err)
+	}
+
+	err = setFields(t, env.app, "books_products", widget.Id, map[string]any{"cost": 700})
+	requireRefused(t, err, "The books are closed through 2026-03-31.")
+	if got := reload(t, env.app, "books_products", widget.Id).GetInt("cost"); got != 500 {
+		t.Errorf("cost = %d after the refused change, want 500", got)
+	}
+	if n := len(recostsOf(t, env.app, out)); n != 0 {
+		t.Errorf("%d re-costs after the refusal, want none", n)
+	}
+	requireOnHand(t, env.app, widget, -4, -2000)
+}
+
+// A superuser's request names no one: the opening adjustment is posted with an
+// empty posted_by, as a Go caller's write is.
+func TestInventoryItem_ASuperuserSavesAnOpeningWithNoPerson(t *testing.T) {
+	env := newItemEnv(t)
+	body := fmt.Sprintf(`{"type":"inventory","name":"Widget","income_account":%q,"cost":500,"opening_quantity":10,"opening_value":4000,"opening_date":"2026-01-01"}`, env.revenue.Id)
+	apiReq{
+		method: http.MethodPost, url: "/api/collections/books_products/records",
+		token: tokenFor(t, mkSuperuser(t, env.app)), body: body, want: 200,
+		after: func(t testing.TB, app *tests.TestApp) {
+			widget, err := app.FindFirstRecordByData("books_products", "name", "Widget")
+			if err != nil {
+				t.Fatalf("read the item: %v", err)
+			}
+			opening := openingOf(t, app, widget)
+			if opening == nil {
+				t.Fatal("no opening adjustment")
+			}
+			if got := opening.GetString("posted_by"); got != "" {
+				t.Errorf("posted_by = %q, want empty", got)
+			}
+			if got := opening.GetString("status"); got != statusPosted {
+				t.Errorf("status = %q, want posted", got)
+			}
+			requireOnHand(t, app, widget, 10, 4000)
+		},
+	}.run(t, env.app)
+}

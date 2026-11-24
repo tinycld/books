@@ -182,7 +182,7 @@ func validateProduct(app core.App, stored, r *core.Record) error {
 	// item's posts after its create). The store's own write of the item's
 	// totals does neither. The new cost is stored before the opening stock
 	// replays, so a write that changes both re-costs a document once.
-	if stored == nil || kind != "inventory" || hasTxMark(app, markStockWrite, r.Id) {
+	if stored == nil || !isInventoryProduct(r) || hasTxMark(app, markStockWrite, r.Id) {
 		return nil
 	}
 	costChanged := stored.GetInt("cost") != r.GetInt("cost")
