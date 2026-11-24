@@ -23,6 +23,7 @@ func inputSchema(res *resource, create bool) map[string]any {
 		} else {
 			allowNull(prop)
 		}
+		narrowToInput(f, prop)
 		props[f.Name] = prop
 	}
 	schema := map[string]any{
@@ -36,6 +37,22 @@ func inputSchema(res *resource, create bool) map[string]any {
 		schema["minProperties"] = 1
 	}
 	return schema
+}
+
+// narrowToInput states in the schema what checkValue refuses and JSON Schema
+// would accept: "" for a required string or id, and an integer written with a
+// fraction or an exponent, or beyond 64 bits. The shared fieldSchema stays as it
+// is, because show and list print values that were stored.
+func narrowToInput(f *field, prop map[string]any) {
+	switch f.Type {
+	case typeString, typeID:
+		if f.Required {
+			prop["minLength"] = 1
+		}
+	case typeInteger:
+		note := "a whole number written without a fraction or an exponent, within the 64-bit range"
+		prop["description"] = strings.TrimSpace(f.Help + " (" + note + ")")
+	}
 }
 
 // allowNull adds null to the schema of a field's value: in an input, null
@@ -137,7 +154,10 @@ func checkValue(f *field, value any) error {
 			return usagef("%q must be a whole number", f.Name)
 		}
 		if _, err := number.Int64(); err != nil {
-			return usagef("%q must be a whole number, without a fraction or an exponent", f.Name)
+			if strings.ContainsAny(number.String(), ".eE") {
+				return usagef("%q must be a whole number, without a fraction or an exponent", f.Name)
+			}
+			return usagef("%q is too large: a whole number within the 64-bit range", f.Name)
 		}
 	case typeNumber:
 		if _, ok := value.(json.Number); !ok {
@@ -158,7 +178,13 @@ func checkValue(f *field, value any) error {
 		if !ok {
 			return usagef("%q must be an object with the keys %s, or null", f.Name, strings.Join(addressKeys, ", "))
 		}
-		for key, part := range parts {
+		keys := make([]string, 0, len(parts))
+		for key := range parts {
+			keys = append(keys, key)
+		}
+		slices.Sort(keys)
+		for _, key := range keys {
+			part := parts[key]
 			if !slices.Contains(addressKeys, key) {
 				return usagef("%q has no key %q; keys: %s", f.Name, key, strings.Join(addressKeys, ", "))
 			}
