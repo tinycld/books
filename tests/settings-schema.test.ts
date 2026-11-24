@@ -4,6 +4,8 @@ import {
     closeDateSchema,
     closeDateValue,
     companySchema,
+    costingMethodSchema,
+    costingMethodValues,
     defaultMessageSchema,
     fiscalYearSchema,
     isReopening,
@@ -268,6 +270,31 @@ describe('purchaseLinesValues', () => {
         })
         expect(purchaseLinesValues({ ...COMPANY_SETTINGS, purchase_lines: 'accounts' })).toEqual({
             purchase_lines: 'accounts',
+        })
+    })
+})
+
+describe('costingMethodSchema', () => {
+    const ok = (costing_method: string) => costingMethodSchema.safeParse({ costing_method }).success
+
+    it('accepts FIFO and average cost', () => {
+        expect(ok('fifo')).toBe(true)
+        expect(ok('average')).toBe(true)
+    })
+
+    it('refuses any other method and an empty one', () => {
+        expect(ok('lifo')).toBe(false)
+        expect(ok('')).toBe(false)
+    })
+})
+
+describe('costingMethodValues', () => {
+    it("reads the row's method, and FIFO for a row with none", () => {
+        expect(costingMethodValues({ ...COMPANY_SETTINGS, costing_method: 'average' })).toEqual({
+            costing_method: 'average',
+        })
+        expect(costingMethodValues({ ...COMPANY_SETTINGS, costing_method: '' })).toEqual({
+            costing_method: 'fifo',
         })
     })
 })
