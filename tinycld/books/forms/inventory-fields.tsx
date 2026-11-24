@@ -9,7 +9,12 @@ import { HostQuantityInput } from '../components/forms/HostQuantityInput'
 import { SearchPicker, useSearchPicker } from '../components/SearchPicker'
 import { useFormAccounts } from '../hooks/useFormAccounts'
 import { textOf } from '../lib/form-values'
-import { assetAccountOptions, assetAccountPlaceholder } from '../lib/inventory-account-options'
+import {
+    assetAccountOptions,
+    assetAccountPlaceholder,
+    cogsAccountOptions,
+    cogsAccountPlaceholder,
+} from '../lib/inventory-account-options'
 import { NO_PREFERRED_VENDOR, preferredVendorLabel } from '../lib/preferred-vendor'
 import { quantityOnHandText } from '../lib/quantity-input'
 import { HostSelect } from './account-fields'
@@ -39,6 +44,31 @@ export function AssetAccountField({
             disabled={disabled}
             options={options}
             placeholder={assetAccountPlaceholder(triggerLabel)}
+        />
+    )
+}
+
+// The expense account of an Inventory item (productHostFor names this component in place
+// of ExpenseAccountField): only the Cost of goods sold accounts, the one type the server
+// takes for it.
+export function CogsAccountField({
+    fieldKey,
+    label,
+    value,
+    onChange,
+    disabled,
+}: BuiltinFieldProps) {
+    const { accounts } = useFormAccounts()
+    const { options, triggerLabel } = cogsAccountOptions(accounts, textOf(value))
+    return (
+        <HostSelect
+            fieldKey={fieldKey}
+            label={label}
+            value={value}
+            onChange={onChange}
+            disabled={disabled}
+            options={options}
+            placeholder={cogsAccountPlaceholder(triggerLabel)}
         />
     )
 }

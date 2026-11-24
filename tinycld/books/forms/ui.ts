@@ -33,6 +33,7 @@ import {
 } from './estimate-fields'
 import {
     AssetAccountField,
+    CogsAccountField,
     OpeningDateField,
     PreferredVendorField,
     QuantityField,
@@ -111,6 +112,7 @@ const ui: FormHostUi = {
         LineTypedAmountCell,
         LineItemAmountCell,
         AssetAccountField,
+        CogsAccountField,
         PreferredVendorField,
         QuantityField,
         QuantityOnHandField,

@@ -4,6 +4,9 @@ import {
     type AssetOptionAccount,
     assetAccountOptions,
     assetAccountPlaceholder,
+    COGS_ACCOUNT_DEFAULT_LABEL,
+    cogsAccountOptions,
+    cogsAccountPlaceholder,
 } from '../tinycld/books/lib/inventory-account-options'
 
 const account = (
@@ -31,6 +34,9 @@ const ACCOUNTS: AssetOptionAccount[] = [
     account('1390', 'Old stock', 'other_current_asset', { inactive: true }),
     account('1500', 'Equipment', 'fixed_asset'),
     account('5000', 'Cost of goods sold', 'cost_of_goods_sold'),
+    account('5010', 'Freight in', 'cost_of_goods_sold', { parent: 'acc-5000' }),
+    account('5900', 'Old cost account', 'cost_of_goods_sold', { inactive: true }),
+    account('6000', 'Operating expenses', 'expense'),
 ]
 
 describe('assetAccountOptions', () => {
@@ -63,6 +69,30 @@ describe('assetAccountOptions', () => {
 
     it('has no trigger label for a stored account it offers', () => {
         expect(assetAccountOptions(ACCOUNTS, 'acc-1300').triggerLabel).toBe('')
+    })
+})
+
+describe('cogsAccountOptions', () => {
+    it('offers the active Cost of goods sold accounts alone, a child indented, with no None', () => {
+        const { options, triggerLabel } = cogsAccountOptions(ACCOUNTS, '')
+        expect(options.map(option => [option.value, option.indent ?? 0])).toEqual([
+            ['acc-5000', 0],
+            ['acc-5010', 1],
+        ])
+        expect(triggerLabel).toBe('')
+    })
+
+    it('names a stored account it does not offer: an inactive one, an expense account', () => {
+        expect(cogsAccountOptions(ACCOUNTS, 'acc-5900').triggerLabel).toContain('Old cost account')
+        const expense = cogsAccountOptions(ACCOUNTS, 'acc-6000')
+        expect(expense.options.some(option => option.value === 'acc-6000')).toBe(false)
+        expect(expense.triggerLabel).toContain('Operating expenses')
+    })
+
+    it('shows the name of the account the server gives an item that names none', () => {
+        expect(COGS_ACCOUNT_DEFAULT_LABEL).toBe('Cost of goods sold')
+        expect(cogsAccountPlaceholder('')).toBe('Cost of goods sold')
+        expect(cogsAccountPlaceholder('5900 Old cost account')).toBe('5900 Old cost account')
     })
 })
 

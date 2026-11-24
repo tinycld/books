@@ -7,6 +7,7 @@ describe('the forms UI module', () => {
     it('provides the components of an Inventory item', () => {
         for (const name of [
             'AssetAccountField',
+            'CogsAccountField',
             'PreferredVendorField',
             'QuantityField',
             'QuantityOnHandField',

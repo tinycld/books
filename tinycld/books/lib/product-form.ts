@@ -69,6 +69,30 @@ function withCogsLabel(
     }
 }
 
+// The component that draws the expense account of an Inventory item: a select of the Cost
+// of goods sold accounts alone (forms/inventory-fields.tsx).
+export const COGS_ACCOUNT_COMPONENT = 'CogsAccountField'
+
+/**
+ * The host the product form draws for a type. A host component has no form context, so
+ * it cannot read the item's type: for an Inventory item the host names the cost of goods
+ * sold select in place of the expense account select. Every other type gets `host` itself.
+ */
+export function productHostFor<H extends Pick<FormHostDef, 'builtin'>>(
+    host: H,
+    type: ProductType
+): H {
+    if (type !== 'inventory') return host
+    return {
+        ...host,
+        builtin: host.builtin.map(field =>
+            field.key === 'expense_account' && field.kind === 'custom'
+                ? { ...field, component: COGS_ACCOUNT_COMPONENT }
+                : field
+        ),
+    }
+}
+
 /**
  * The definition the product form draws for a type, on a new product or an edited one.
  * The engine validates a save against the stored definition, so this changes what the

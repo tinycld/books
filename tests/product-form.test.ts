@@ -7,6 +7,7 @@ import {
     INVENTORY_BUILTINS,
     PRODUCT_HIDDEN_BUILTINS,
     productDefinitionFor,
+    productHostFor,
 } from '../tinycld/books/lib/product-form'
 import { PRODUCT_TYPE_KEYS } from '../tinycld/books/lib/product-types'
 
@@ -281,6 +282,27 @@ describe('productDefinitionFor', () => {
             const result = productDefinitionFor(withSkuHidden(), type, host, 'new')
             expect(hiddenKeys(result)).not.toContain('type')
             expect(hiddenKeys(result)).not.toContain('name')
+        })
+    }
+})
+
+describe('productHostFor', () => {
+    const componentOf = (h: typeof host, key: string) => {
+        const field = h.builtin.find(b => b.key === key)
+        return field?.kind === 'custom' ? field.component : undefined
+    }
+
+    it('names the cost of goods sold select for the expense account of an Inventory item', () => {
+        const result = productHostFor(host, 'inventory')
+        expect(componentOf(result, 'expense_account')).toBe('CogsAccountField')
+        expect(componentOf(host, 'expense_account')).not.toBe('CogsAccountField')
+        const others = (h: typeof host) => h.builtin.filter(b => b.key !== 'expense_account')
+        expect(others(result)).toEqual(others(host))
+    })
+
+    for (const type of PRODUCT_TYPE_KEYS.filter(key => key !== 'inventory')) {
+        it(`gives the host itself for ${type}`, () => {
+            expect(productHostFor(host, type)).toBe(host)
         })
     }
 })
