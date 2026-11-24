@@ -1,9 +1,7 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -21,6 +19,10 @@ type deleteResult struct {
 // confirm is a variable so tests can answer the prompt: core's Interactive
 // flag reads the real os.Stdin, which a test cannot drive.
 var confirm = ui.Confirm
+
+// canPrompt is a variable for the same reason: a test cannot make stdin a
+// terminal.
+var canPrompt = func(o output.Options) bool { return o.Interactive }
 
 // newDeleteCmd deletes a record for good. Books has no trash: the server
 // refuses to delete a record that transactions or other records use, and says
@@ -51,15 +53,14 @@ func newDeleteCmd(c *client.Client, res *resource) *cobra.Command {
 			return err
 		}
 		question := fmt.Sprintf("Delete %s %q for good? This cannot be undone.", res.Singular, rec.label(res))
+		if !yes && !canPrompt(o) {
+			return usagef("refusing to prompt without a terminal; pass --yes to delete")
+		}
 		ok, err := confirm(o, yes, cmd.InOrStdin(), cmd.ErrOrStderr(), question)
 		if err != nil {
-			// Core's no-terminal refusal already says to pass --yes. Any other
-			// error is a failed read (EOF, a closed pipe), which alone would
-			// print as a bare "EOF".
-			if !strings.Contains(err.Error(), "--yes") {
-				err = errors.New("no answer read; pass --yes to delete without asking")
-			}
-			return usagef("%v", err)
+			// With a terminal, an error is a failed read (EOF, a closed pipe),
+			// which alone would print as a bare "EOF".
+			return usagef("no answer read; pass --yes to delete without asking")
 		}
 		result := deleteResult{ID: rec.id(), Deleted: ok}
 		if ok {

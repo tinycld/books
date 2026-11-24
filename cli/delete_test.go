@@ -83,8 +83,8 @@ func TestDeleteWithoutYesDeletesNothing(t *testing.T) {
 	if got := exitcode.Of(err); got != exitcode.Usage {
 		t.Fatalf("exit = %d, want 2; err: %v", got, err)
 	}
-	if err == nil || !strings.Contains(err.Error(), "pass --yes") {
-		t.Errorf("error = %v, want a message that says to pass --yes", err)
+	if err == nil || err.Error() != "refusing to prompt without a terminal; pass --yes to delete" {
+		t.Errorf("error = %v, want delete's own no-terminal message", err)
 	}
 	if len(f.deleted) != 0 {
 		t.Errorf("deleted without --yes: %v", f.deleted)
@@ -98,7 +98,9 @@ func stubConfirm(t *testing.T, answer bool, readErr error) {
 	confirm = func(output.Options, bool, io.Reader, io.Writer, string) (bool, error) {
 		return answer, readErr
 	}
-	t.Cleanup(func() { confirm = orig })
+	origCan := canPrompt
+	canPrompt = func(output.Options) bool { return true }
+	t.Cleanup(func() { confirm = orig; canPrompt = origCan })
 }
 
 func TestDeleteAnsweredNoDeletesNothing(t *testing.T) {
