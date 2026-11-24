@@ -202,6 +202,10 @@ func checkResource(res *resource, names map[string]bool) error {
 			return fmt.Errorf("filter flag %q is used twice", flt.Flag)
 		}
 		flags[flt.Flag] = true
+		// list binds a filter value as text, so only a text field can match it.
+		if f := res.field(flt.Field); f != nil && f.Type != typeString && f.Type != typeID {
+			return fmt.Errorf("filter field %q is not a string or an id", flt.Field)
+		}
 		filterFields = append(filterFields, flt.Field)
 	}
 	uses = append(uses, use{"filters", filterFields})

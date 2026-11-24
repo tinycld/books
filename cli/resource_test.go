@@ -60,6 +60,9 @@ func TestLoadResourcesRefusesAMistake(t *testing.T) {
 		{"duplicate column", `"columns":[]`, `"columns":["name","name"]`, `column "name" is listed twice`},
 		{"empty enum value", `"type":"string"`, `"type":"string","enum":["a",""]`, "empty enum value"},
 		{"search of a non-string", `"search":[],"filters":[],"omit":[],"deleteHelp":"","fields":[{"name":"name","type":"string"`, `"search":["name"],"filters":[],"omit":[],"deleteHelp":"","fields":[{"name":"name","type":"bool"`, `search field "name" is not a string`},
+		// list binds every filter value as text.
+		{"filter on a bool", `"filters":[],"omit":[],"deleteHelp":"","fields":[{"name":"name","type":"string"`, `"filters":[{"flag":"kind","field":"name","help":"h"}],"omit":[],"deleteHelp":"","fields":[{"name":"name","type":"bool"`, `filter field "name" is not a string or an id`},
+		{"filter on an integer", `"filters":[],"omit":[],"deleteHelp":"","fields":[{"name":"name","type":"string"`, `"filters":[{"flag":"kind","field":"name","help":"h"}],"omit":[],"deleteHelp":"","fields":[{"name":"name","type":"integer"`, `filter field "name" is not a string or an id`},
 	} {
 		if !strings.Contains(good, tc.from) {
 			t.Fatalf("%s: the base definition has no %s", tc.name, tc.from)
