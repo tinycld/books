@@ -143,7 +143,6 @@ func TestListSearchTextCannotChangeTheFilter(t *testing.T) {
 	}
 }
 
-// The accounts sort is full_name,id: page 1 holds the two names that sort first.
 // PocketBase reads % and _ in a ~ value as pattern syntax, so the CLI escapes
 // them: the filter must carry `\%` and `\_` (and the escape's own backslash,
 // doubled by the quoting).
@@ -184,6 +183,7 @@ func TestListDefinesExactlyTheReservedAndFilterFlags(t *testing.T) {
 	}
 }
 
+// The accounts sort is full_name,id: page 1 holds the two names that sort first.
 func TestListPages(t *testing.T) {
 	f := chart(t)
 	c := f.serve()
