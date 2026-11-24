@@ -14,7 +14,7 @@ To create an Inventory item, choose New product or service above the list of pro
 An Inventory item has these fields:
 
 - **Inventory asset account**: the account that holds the value of the stock. It must be an Other current asset account. If you choose none, Books uses the Inventory asset account of your chart, and creates that account when the chart has none. You cannot change the account after the item has stock transactions.
-- **Cost of goods sold account**: the account that the cost goes to when you sell the item. The list shows your Cost of goods sold accounts only. A new item starts with the first of them. If your chart has none, Books creates a Cost of goods sold account when you save the item.
+- **Cost of goods sold account**: the account that the cost goes to when you sell the item. The list shows your active Cost of goods sold accounts only. A new item starts with the first active Cost of goods sold account of your chart, and you can pick another. If you choose none, Books uses the first Supplies and materials Cost of goods sold account when you save the item, and creates a Cost of goods sold account when the chart has none of that kind.
 - **Preferred vendor**: the vendor you usually buy the item from.
 - **Reorder point**: the quantity on hand at which you buy more.
 - **Cost**: what you usually pay. A bill or an expense line starts with this rate.
@@ -24,6 +24,8 @@ An Inventory item is always purchased, so the form has no I purchase this from a
 ## Opening stock
 
 If you already have the item when you start, enter Opening quantity, Opening value and Opening stock as of. Opening value is the total cost of the opening quantity, not the cost of one. Opening stock as of is the date the stock is counted on; it is required when you enter an opening quantity. Books posts the opening stock to the inventory asset account against Opening balance equity.
+
+Saving an item with an opening quantity is an inventory transaction: it locks the costing method. Choose the method first: see The costing method below.
 
 ## Quantity on hand
 
@@ -46,7 +48,7 @@ A bundle can hold Inventory items. When you pick the bundle on an invoice or a s
 
 You can sell more of an item than its quantity on hand. The line then shows a note under the product, for example "Quantity on hand is 3. You can post this sale; the quantity on hand goes below zero." The note does not stop you: choose Post as usual. Two lines of the same item are counted together.
 
-Books posts the cost of such a sale at the last cost it knows for the item. When you post the next bill or expense that receives the item, Books works out the cost again and posts the difference by itself.
+Books posts the cost of such a sale at the last cost it knows for the item. When you post the next receipt of the item (a bill, an expense, a return from a customer, or an inventory adjustment that adds stock), Books works out the cost again and posts the difference by itself.
 
 ## The costing method
 
@@ -57,7 +59,7 @@ The costing method decides which cost a sale takes:
 
 You choose the method in setup, and a Books admin can change it in Settings: open Settings, choose Accounting, pick the method under Inventory and press Save. See [Settings](help://books:settings).
 
-You can change the method only until the first inventory transaction posts. After that the method is locked, and Settings shows it as text with "The costing method cannot change after the first inventory transaction posts." A change of method later would change the cost of every sale already in your books.
+You can change the method only until the first inventory transaction posts. After that the method is locked, and Settings shows it as text with "The costing method cannot change after the first inventory transaction posts." Saving an item with opening stock also locks it, so choose the method before you save the first item that has an opening quantity. A change of method later would change the cost of every sale already in your books.
 
 ## When an earlier date changes
 

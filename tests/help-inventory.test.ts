@@ -56,6 +56,14 @@ describe('help/inventory.md', () => {
         expect(section).toMatch(/cannot become another type/)
     })
 
+    it('says what the cost of goods sold account starts as and what Books fills in when it is empty', () => {
+        const section = sectionOf(body, 'Create an Inventory item')
+        expect(section).toMatch(/new item starts with the first active Cost of goods sold account/)
+        expect(section).toMatch(/If you choose none, Books uses the first Supplies and materials/)
+        expect(section).toMatch(/creates a Cost of goods sold account when the chart has none/)
+        expect(section).not.toMatch(/starts with the first of them/)
+    })
+
     it('explains opening stock: the three fields, the total value, and the date', () => {
         const section = sectionOf(body, 'Opening stock')
         expect(section).toContain('Opening quantity')
@@ -63,6 +71,9 @@ describe('help/inventory.md', () => {
         expect(section).toContain('Opening stock as of')
         expect(section).toMatch(/total cost/)
         expect(section).toMatch(/required when you enter an opening quantity/)
+        expect(section).toMatch(
+            /Saving an item with an opening quantity is an inventory transaction: it locks the costing method/
+        )
     })
 
     it('says which transactions change the quantity on hand', () => {
@@ -96,7 +107,10 @@ describe('help/inventory.md', () => {
         expect(section).toContain(`"${note}"`)
         expect(section).toMatch(/does not stop you/)
         expect(section).toMatch(/last cost it knows/)
-        expect(section).toMatch(/next bill or expense/)
+        expect(section).toMatch(
+            /next receipt of the item \(a bill, an expense, a return from a customer, or an inventory adjustment that adds stock\)/
+        )
+        expect(section).not.toMatch(/next bill or expense/)
     })
 
     it('explains both costing methods, where to set one, and the lock', () => {
@@ -106,6 +120,7 @@ describe('help/inventory.md', () => {
         expect(section).toMatch(/open Settings, choose Accounting/)
         expect(section).toContain(`"${COSTING_METHOD_LOCKED}"`)
         expect(section).toContain('(help://books:settings)')
+        expect(section).toMatch(/Saving an item with opening stock also locks it/)
     })
 
     it('says Books re-costs later sales by itself after a back-dated change', () => {

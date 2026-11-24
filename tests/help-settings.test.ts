@@ -83,6 +83,7 @@ describe('help/settings.md', () => {
         expect(part).toContain(
             'The costing method cannot change after the first inventory transaction posts.'
         )
+        expect(part).toMatch(/Saving an item with opening stock also locks it/)
         expect(part).toContain('(help://books:inventory)')
     })
 

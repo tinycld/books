@@ -36,6 +36,7 @@ describe('help/setup-wizard.md', () => {
         expect(part).toContain('Average cost')
         expect(part).toMatch(/default is FIFO/)
         expect(part).toMatch(/until the first inventory transaction posts/)
+        expect(part).toMatch(/Saving an item with opening stock also locks it/)
         expect(part).toContain('(help://books:inventory)')
     })
 

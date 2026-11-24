@@ -26,7 +26,7 @@ To change an earlier answer, choose Back. Your answers stay as you typed them.
 
 Choose how Books costs the inventory you sell: FIFO takes the cost of the oldest stock first, and Average cost takes the average cost of the stock on hand. The default is FIFO. If you sell no inventory, keep FIFO.
 
-You can change the method later in Settings, until the first inventory transaction posts. If one has posted already, this part shows the method as text and you cannot change it. See [Inventory](help://books:inventory).
+You can change the method later in Settings, until the first inventory transaction posts. If one has posted already, this part shows the method as text and you cannot change it. Saving an item with opening stock also locks it. See [Inventory](help://books:inventory).
 
 ## Starter chart
 
