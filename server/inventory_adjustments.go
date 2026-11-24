@@ -139,9 +139,10 @@ func newSystemAdjustment(tx core.App, a systemAdjustment) (*core.Record, error) 
 }
 
 // postInventoryAdjustment posts adjustment r, whose lines are stored, while it
-// moves from draft to posted, inside the caller's transaction. It turns the
-// lines into stock moves (adjustmentStockInputs) against the adjustment
-// account and posts their value.
+// moves from draft to posted, inside the caller's transaction. A manual or an
+// opening adjustment turns its lines into stock moves (adjustmentStockInputs)
+// against its adjustment account and posts their value; a re-cost posts what
+// the ledger does not hold yet of its document's moves and writes no move.
 // The entry posts through postDocument, so postEntry runs every ledger rule
 // (the close date among them) and numbers it from the inventory adjustment
 // sequence. An adjustment whose value is 0 (a quantity at no cost) posts no
@@ -155,19 +156,31 @@ func postInventoryAdjustment(tx core.App, r *core.Record, now time.Time) error {
 		return refuse(msgAdjustmentNoLines)
 	}
 	actor := r.GetString("posted_by")
-	account, err := adjustmentAccount(tx, r)
-	if err != nil {
-		return err
+	var posting []postingLine
+	if r.GetString("kind") == adjustmentKindRecost {
+		moves, err := documentStockMoves(tx, r.GetString("source"), r.GetString("document"))
+		if err != nil {
+			return err
+		}
+		posting = stockDriftLines(moves)
+		if err := markStockPosted(tx, moves); err != nil {
+			return err
+		}
+	} else {
+		account, err := adjustmentAccount(tx, r)
+		if err != nil {
+			return err
+		}
+		inputs, err := adjustmentStockInputs(tx, r, lines, account)
+		if err != nil {
+			return err
+		}
+		moves, err := postDocumentStock(tx, actor, inventoryAdjustmentsCollection, r.Id, "", inputs)
+		if err != nil {
+			return err
+		}
+		posting = stockCostLines(moves)
 	}
-	inputs, err := adjustmentStockInputs(tx, r, lines, account)
-	if err != nil {
-		return err
-	}
-	moves, err := postDocumentStock(tx, actor, inventoryAdjustmentsCollection, r.Id, "", inputs)
-	if err != nil {
-		return err
-	}
-	posting := stockCostLines(moves)
 	if len(posting) == 0 {
 		if err := checkAdjustmentDay(tx, actor, r.GetString("date"), now); err != nil {
 			return err
@@ -298,8 +311,10 @@ func adjustmentStockInputs(tx core.App, r *core.Record, lines []*core.Record, ac
 
 // voidInventoryAdjustment voids posted adjustment r while it moves to void,
 // inside the caller's transaction: its entry is voided (the void reversal
-// posts in the original period, so the close date applies), and its stock
-// moves are withdrawn, which replays their products.
+// posts in the original period, so the close date applies), and the stock
+// moves of a manual or an opening adjustment are withdrawn, which replays
+// their products and re-costs the documents whose cost changes. A re-cost has
+// no move of its own.
 func voidInventoryAdjustment(tx core.App, r *core.Record, now time.Time) error {
 	actor := r.GetString("voided_by")
 	if id := r.GetString("entry"); id != "" {
@@ -316,6 +331,9 @@ func voidInventoryAdjustment(tx core.App, r *core.Record, now time.Time) error {
 		return err
 	}
 	r.Set("voided_at", now)
+	if r.GetString("kind") == adjustmentKindRecost {
+		return nil
+	}
 	return withdrawDocumentStock(tx, actor, inventoryAdjustmentsCollection, r.Id)
 }
 

@@ -3,6 +3,7 @@ package books
 import (
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -12,9 +13,14 @@ import (
 // A document that moves stock calls postDocumentStock inside its posting
 // transaction, before it builds its journal entry: the store writes the
 // document's moves and replays their products, and the document puts the cost
-// of its own moves into its own entry (stockCostLines). A document that stops
-// standing (a void, a correction's original) calls withdrawDocumentStock or
-// names itself in postDocumentStock's replaces.
+// of its own moves into its own entry (stockCostLines). A replay can change
+// the value of a move of ANOTHER posted document (a back-dated receipt, a
+// receipt that fills an oversold sale, a void). That document's entry never
+// changes (ADR 1): recostDrifted posts the difference as an inventory
+// adjustment of the kind recost, dated the document's date. A document that
+// stops standing (a void, a correction's original) calls withdrawDocumentStock
+// or names itself in postDocumentStock's replaces; its re-costs are voided
+// with it.
 
 // ensureInventoryAsset returns the active inventory asset account an Inventory
 // item with none of its own takes: the first in chart order with the detail
@@ -86,10 +92,11 @@ func inventoryAccounts(tx core.App, product *core.Record) (asset, cogs string, e
 // postDocumentStock makes moves the stock moves of the document (a row of the
 // collection source) and answers them, priced. It takes away the moves the
 // document had and the moves of the document it replaces (a correction's
-// original; "" for none), replays every product touched, and records that the
-// ledger holds the document's moves (the caller puts stockCostLines of them
-// into the entry it posts in this transaction). actor is the person who posts
-// the document. No moves and nothing to take away is no work.
+// original; "" for none), with that document's re-costs, replays every product
+// touched, records that the ledger holds the document's moves (the caller puts
+// stockCostLines of them into the entry it posts in this transaction), and
+// re-costs every other posted document whose cost the replay changed. actor
+// posts the re-costs. No moves and nothing to take away is no work.
 func postDocumentStock(tx core.App, actor, source, document, replaces string, moves []stockMoveInput) ([]*core.Record, error) {
 	// A move of another document would be written but never read back nor
 	// marked posted: that is a fault in the caller, not a person's refusal.
@@ -102,6 +109,9 @@ func postDocumentStock(tx core.App, actor, source, document, replaces string, mo
 	for _, id := range []string{replaces, document} {
 		if id == "" {
 			continue
+		}
+		if err := voidRecosts(tx, actor, source, id); err != nil {
+			return nil, err
 		}
 		removed, err := removeStockMoves(tx, source, id)
 		if err != nil {
@@ -125,22 +135,33 @@ func postDocumentStock(tx core.App, actor, source, document, replaces string, mo
 	if err != nil {
 		return nil, err
 	}
+	// Before the re-cost: the document's own moves are in its own entry, so
+	// they are not drift.
 	if err := markStockPosted(tx, own); err != nil {
+		return nil, err
+	}
+	if err := recostDrifted(tx, actor, products); err != nil {
 		return nil, err
 	}
 	return own, nil
 }
 
 // withdrawDocumentStock takes the stock moves of a document that stops
-// standing (a void) away: its moves are deleted and their products replayed.
-// actor is the person who voids the document. The caller voids the document's
-// own entry.
+// standing (a void) away: its re-costs are voided, its moves deleted, their
+// products replayed, and every other posted document whose cost changed is
+// re-costed. The caller voids the document's own entry.
 func withdrawDocumentStock(tx core.App, actor, source, document string) error {
+	if err := voidRecosts(tx, actor, source, document); err != nil {
+		return err
+	}
 	products, err := removeStockMoves(tx, source, document)
 	if err != nil || len(products) == 0 {
 		return err
 	}
-	return recomputeStock(tx, products)
+	if err := recomputeStock(tx, products); err != nil {
+		return err
+	}
+	return recostDrifted(tx, actor, products)
 }
 
 func appendMissing(list []string, ids ...string) []string {
@@ -160,6 +181,14 @@ func stockCostLines(moves []*core.Record) []postingLine {
 	return stockLedgerLines(moves, func(m *core.Record) int64 { return int64(m.GetInt("value")) })
 }
 
+// stockDriftLines are the journal lines of what the ledger does not hold yet
+// of moves: each move's value less its posted value.
+func stockDriftLines(moves []*core.Record) []postingLine {
+	return stockLedgerLines(moves, func(m *core.Record) int64 {
+		return int64(m.GetInt("value")) - int64(m.GetInt("posted_value"))
+	})
+}
+
 func stockLedgerLines(moves []*core.Record, amount func(m *core.Record) int64) []postingLine {
 	sums := map[string]int64{}
 	var accounts []string
@@ -174,4 +203,87 @@ func stockLedgerLines(moves []*core.Record, amount func(m *core.Record) int64) [
 		lines = appendSigned(lines, postingLine{Account: id}, sums[id])
 	}
 	return lines
+}
+
+// recostDrifted posts, for each posted document with a move of products whose
+// value differs from what the ledger holds, one inventory adjustment of the
+// kind recost for the difference, dated the document's date. A difference that
+// nets to no journal line (a move whose two accounts are one) is recorded as
+// posted with no adjustment.
+func recostDrifted(tx core.App, actor string, products []string) error {
+	drifted, err := driftedStockMoves(tx, products)
+	if err != nil {
+		return err
+	}
+	// driftedStockMoves orders by document, so a document's moves are together.
+	for len(drifted) > 0 {
+		source, document := drifted[0].GetString("source"), drifted[0].GetString("document")
+		n := slices.IndexFunc(drifted, func(m *core.Record) bool {
+			return m.GetString("source") != source || m.GetString("document") != document
+		})
+		if n < 0 {
+			n = len(drifted)
+		}
+		group := drifted[:n]
+		drifted = drifted[n:]
+		if len(stockDriftLines(group)) == 0 {
+			if err := markStockPosted(tx, group); err != nil {
+				return err
+			}
+			continue
+		}
+		name, err := stockDocumentName(tx, source, document)
+		if err != nil {
+			return err
+		}
+		lines := make([]adjustmentLineInput, len(group))
+		for i, m := range group {
+			lines[i] = adjustmentLineInput{
+				Product: m.GetString("product"),
+				Value:   int64(m.GetInt("value")) - int64(m.GetInt("posted_value")),
+			}
+		}
+		_, err = newSystemAdjustment(tx, systemAdjustment{
+			Kind: adjustmentKindRecost, Date: group[0].GetString("date"), Actor: actor,
+			Source: source, Document: document, Memo: "Re-cost of " + name, Lines: lines,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// voidRecosts voids the posted re-costs of a document that stops standing.
+func voidRecosts(tx core.App, actor, source, document string) error {
+	recosts, err := tx.FindRecordsByFilter(inventoryAdjustmentsCollection,
+		"source = {:source} && document = {:document} && kind = {:kind} && status = {:posted}", "sequence", 0, 0,
+		dbx.Params{"source": source, "document": document, "kind": adjustmentKindRecost, "posted": statusPosted})
+	if err != nil {
+		return fmt.Errorf("books: read the re-costs of %s %s: %w", source, document, err)
+	}
+	for _, r := range recosts {
+		if err := voidSystemAdjustment(tx, r, actor, time.Now()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// stockDocumentName is how a re-cost's memo names the document it re-costs:
+// the name of the document's journal entry ("Invoice 1001"), or the inventory
+// adjustment's own name when it posted no entry.
+func stockDocumentName(tx core.App, source, document string) (string, error) {
+	doc, err := tx.FindRecordById(source, document)
+	if err != nil {
+		return "", fmt.Errorf("books: read the document to re-cost: %w", err)
+	}
+	if id := doc.GetString("entry"); id != "" {
+		entry, err := tx.FindRecordById("books_journal_entries", id)
+		if err != nil {
+			return "", fmt.Errorf("books: read the entry of the document to re-cost: %w", err)
+		}
+		return entryName(entry), nil
+	}
+	return inventoryAdjustmentName(doc), nil
 }
