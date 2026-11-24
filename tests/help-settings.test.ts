@@ -72,6 +72,20 @@ describe('help/settings.md', () => {
         expect(body).toMatch(/new bills, expenses and vendor credits/)
     })
 
+    it('explains the inventory costing method: where it is, who changes it, and the lock', () => {
+        const start = body.indexOf('## Inventory costing method')
+        expect(start).toBeGreaterThan(-1)
+        const part = body.slice(start, body.indexOf('## Sales'))
+        expect(part).toMatch(/open Settings, choose Accounting/)
+        expect(part).toContain('FIFO (first in, first out)')
+        expect(part).toContain('Average cost')
+        expect(part).toMatch(/only a Books admin can change it/)
+        expect(part).toContain(
+            'The costing method cannot change after the first inventory transaction posts.'
+        )
+        expect(part).toContain('(help://books:inventory)')
+    })
+
     it('hand-writes no hostname other than {{server-host}}', () => {
         const stripped = body.replaceAll('{{server-host}}', '')
         expect(stripped).not.toMatch(/\b[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|org|net|io|dev|app|co)\b/i)

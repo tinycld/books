@@ -1,13 +1,13 @@
 ---
 title: Set up Books
-summary: Name your business, choose how it is owned, and create the starter chart of accounts.
+summary: Name your business, choose how it is owned, choose an inventory costing method, and create the starter chart of accounts.
 tags: [setup, wizard, chart of accounts, fiscal year]
 order: 10
 ---
 
 To set up Books, open the setup step. In the organization setup it is the Accounting step. If Books was added later, choose Finish setting up Books at the top of the Dashboard or the Lists page. Only a Books admin can run setup. On the Books setup page, other people see "A Books admin must finish setting up Books."
 
-Setup has three parts. The label at the top shows which part you are on, for example "Part 2 of 3".
+Setup has four parts. The label at the top shows which part you are on, for example "Part 2 of 4".
 
 ## Business
 
@@ -21,6 +21,12 @@ Choose how the business is owned. This only decides your equity accounts.
 - **Corporation** creates Common stock, Paid-in capital and Retained earnings.
 
 To change an earlier answer, choose Back. Your answers stay as you typed them.
+
+## Inventory costing
+
+Choose how Books costs the inventory you sell: FIFO takes the cost of the oldest stock first, and Average cost takes the average cost of the stock on hand. The default is FIFO. If you sell no inventory, keep FIFO.
+
+You can change the method later in Settings, until the first inventory transaction posts. If one has posted already, this part shows the method as text and you cannot change it. See [Inventory](help://books:inventory).
 
 ## Starter chart
 

@@ -84,6 +84,24 @@ describe('help/products-services.md', () => {
         )
     })
 
+    it('says a bundle holds Services, Non-inventory items and Inventory items', () => {
+        expect(body).toMatch(
+            /(?=[^.\n]*\bbundle holds\b)(?=[^.\n]*\bServices\b)(?=[^.\n]*\bNon-inventory\b)[^.\n]*\bInventory items\b/
+        )
+        expect(body).not.toMatch(/Services and Non-inventory items only/)
+    })
+
+    it('says what an Inventory item adds and links the Inventory topic', () => {
+        expect(body).toMatch(
+            /(?=[^.\n]*\bInventory item\b)(?=[^.\n]*\balways purchased\b)[^.\n]*Cost of goods sold account/
+        )
+        expect(body).toMatch(
+            /(?=[^.\n]*Inventory asset account)(?=[^.\n]*Preferred vendor)(?=[^.\n]*Reorder point)[^.\n]*Quantity on hand/
+        )
+        expect(body).toContain('(help://books:inventory)')
+        expect(body).toMatch(/(?=[^.\n]*\bnew Inventory item\b)[^.\n]*\btaxable\b/)
+    })
+
     it('explains the purchasing fields under I purchase this from a vendor', () => {
         expect(body).toMatch(
             /(?=[^.\n]*I purchase this from a vendor)(?=[^.\n]*Purchase description)(?=[^.\n]*\bCost\b)[^.\n]*Expense account/

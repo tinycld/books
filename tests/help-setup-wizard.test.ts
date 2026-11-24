@@ -18,11 +18,25 @@ describe('help/setup-wizard.md', () => {
         expect(body.trimStart()).toMatch(/^To set up Books,/)
     })
 
-    it('covers the three parts', () => {
-        expect(body).toContain('Business')
-        expect(body).toContain('Ownership')
-        expect(body).toContain('Starter chart')
+    it('covers the four parts', () => {
+        expect(body).toContain('## Business')
+        expect(body).toContain('## Ownership')
+        expect(body).toContain('## Inventory costing')
+        expect(body).toContain('## Starter chart')
         expect(body).toMatch(/fiscal year/i)
+        expect(body).toContain('Setup has four parts')
+        expect(body).toContain('"Part 2 of 4"')
+        expect(body).not.toMatch(/of 3\b/)
+    })
+
+    it('explains the costing part: both methods, the default, and the lock', () => {
+        const start = body.indexOf('## Inventory costing')
+        const part = body.slice(start, body.indexOf('## Starter chart'))
+        expect(part).toContain('FIFO')
+        expect(part).toContain('Average cost')
+        expect(part).toMatch(/default is FIFO/)
+        expect(part).toMatch(/until the first inventory transaction posts/)
+        expect(part).toContain('(help://books:inventory)')
     })
 
     it('explains the case where the book already has accounts', () => {
