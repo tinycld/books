@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -70,6 +71,23 @@ func TestLoadResourcesRefusesAMistake(t *testing.T) {
 	}
 	if _, err := loadResources(wrap(good + "," + good)); err == nil || !strings.Contains(err.Error(), "defined twice") {
 		t.Errorf("a resource defined twice: error = %v", err)
+	}
+}
+
+// The names are spelled out, not read from listFlags/shellFlags, so a name
+// missing from either list fails here. The shell names are the persistent flags
+// of the tinycld root command (cli/root.go) plus cobra's help.
+func TestLoadResourcesRefusesEveryReservedFlag(t *testing.T) {
+	const good = `{"name":"things","singular":"thing","summary":"Things","collection":"books_things","sort":"id","label":"","columns":[],"search":[],"filters":[%s],"omit":[],"deleteHelp":"","fields":[{"name":"name","type":"string","help":"the name"}]}`
+	for _, flag := range []string{
+		"limit", "page", "search", "inactive", "all",
+		"output", "json", "context", "quiet", "no-color", "yes", "help",
+	} {
+		filter := `{"flag":"` + flag + `","field":"name","help":"h"}`
+		_, err := loadResources([]byte(`{"resources":[` + fmt.Sprintf(good, filter) + `]}`))
+		if err == nil || !strings.Contains(err.Error(), `filter flag "`+flag+`" is taken`) {
+			t.Errorf("flag %q: error = %v, want a refusal", flag, err)
+		}
 	}
 }
 
