@@ -107,6 +107,36 @@ export const QUANTITY_DECIMALS = 'Enter a quantity with at most 2 decimals'
 
 export const QUANTITY_TOO_LARGE = 'Too large'
 
+export const INVENTORY_KEEPS_TYPE = 'An inventory item keeps its type.'
+
+// The refusals of an Inventory item (server/product_stock.go), each shown on its field.
+export const INVENTORY_TYPE_FIXED = 'An Inventory item cannot change type.'
+
+export const INVENTORY_ONLY_NEW = 'Only a new product can be an Inventory item.'
+
+export const ASSET_ACCOUNT_MISSING = 'The inventory asset account does not exist.'
+
+export const ASSET_ACCOUNT_INACTIVE = 'The inventory asset account is inactive.'
+
+export const ASSET_ACCOUNT_TYPE =
+    'The inventory asset account must be an Other current asset account.'
+
+export const ASSET_ACCOUNT_FIXED =
+    'The inventory asset account cannot change after the item has stock transactions.'
+
+export const COGS_ACCOUNT_TYPE =
+    'The cost of goods sold account must be a Cost of goods sold account.'
+
+export const PREFERRED_VENDOR_MISSING = 'The preferred vendor does not exist.'
+
+export const OPENING_DATE_REQUIRED = 'Enter the date of the opening quantity.'
+
+export const OPENING_QUANTITY_REQUIRED = 'Enter an opening quantity for the opening value.'
+
+export const OPENING_QUANTITY_DECIMALS = 'Enter an opening quantity with at most 2 decimals.'
+
+export const OPENING_QUANTITY_NEGATIVE = 'An opening quantity cannot be below 0.'
+
 // The product texts of a record save, spread by useProductForm.
 export const PRODUCT_SAVE_TEXTS = {
     logContext: 'books.products',

@@ -1,4 +1,5 @@
 import type { BooksProducts } from '../types'
+import { BUNDLE_KEEPS_TYPE, INVENTORY_KEEPS_TYPE } from './product-messages'
 
 // The migration's type select values (2100000005); tests/product-types.test.ts
 // fails if the two drift.
@@ -59,3 +60,20 @@ const FIXED_TYPES: ReadonlySet<ProductType> = new Set<ProductType>(['bundle', 'i
 export const PRODUCT_TYPE_SELECT_OPTIONS: { value: string; label: string }[] = PRODUCT_TYPES.filter(
     entry => !FIXED_TYPES.has(entry.key)
 ).map(entry => ({ value: entry.key, label: entry.label }))
+
+// What the type field shows in place of the select for a type that never changes.
+export interface FixedProductType {
+    label: string
+    note: string
+}
+
+const FIXED_TYPE_NOTES: Partial<Record<ProductType, string>> = {
+    bundle: BUNDLE_KEEPS_TYPE,
+    inventory: INVENTORY_KEEPS_TYPE,
+}
+
+/** The fixed type of a form value: its label and note, or null for a type the select offers. */
+export function fixedProductType(value: unknown): FixedProductType | null {
+    if (!isProductType(value) || !FIXED_TYPES.has(value)) return null
+    return { label: productTypeLabel(value), note: FIXED_TYPE_NOTES[value] ?? '' }
+}

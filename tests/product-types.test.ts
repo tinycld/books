@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+    fixedProductType,
     isProductType,
     PRODUCT_TYPE_KEYS,
     PRODUCT_TYPE_SELECT_OPTIONS,
@@ -89,6 +90,26 @@ describe('PRODUCT_TYPE_SELECT_OPTIONS', () => {
             { value: 'service', label: 'Service' },
             { value: 'non_inventory', label: 'Non-inventory' },
         ])
+    })
+})
+
+describe('fixedProductType', () => {
+    it('gives a bundle and an Inventory item their label and the note that the type stays', () => {
+        expect(fixedProductType('bundle')).toEqual({
+            label: 'Bundle',
+            note: 'A bundle keeps its type.',
+        })
+        expect(fixedProductType('inventory')).toEqual({
+            label: 'Inventory',
+            note: 'An inventory item keeps its type.',
+        })
+    })
+
+    it('is null for a type the select offers and for a value that is no type', () => {
+        expect(fixedProductType('service')).toBeNull()
+        expect(fixedProductType('non_inventory')).toBeNull()
+        expect(fixedProductType(undefined)).toBeNull()
+        expect(fixedProductType('subscription')).toBeNull()
     })
 })
 
