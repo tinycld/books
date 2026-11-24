@@ -37,7 +37,7 @@ tinycld books customers list --search acme
 tinycld books customers show <id>
 ```
 
-A list shows active records, 200 to a page. Add `--inactive` for the inactive ones, `--all` for both, and `--page 2` for the next page. The last column is the record's id: the other commands take it.
+A list shows active records, 200 to a page; `--limit` takes 1 to 500. Add `--inactive` for the inactive ones, `--all` for both, and `--page 2` for the next page. The last column is the record's id: the other commands take it.
 
 ## To add or change a record
 
@@ -65,5 +65,5 @@ An inactive record is hidden from pickers and keeps its history. `delete` asks f
 ## For scripts and agents
 
 - Add `--json` to any command: it prints one JSON document, the result or an error.
-- The exit code says what went wrong: `2` the call is wrong, `3` sign in again, `4` the sign-in does not include Books, `5` no such record, `6` Books refused the data (the message says why), `7` the server did not answer.
+- The exit code says what went wrong: `1` the command failed for another reason, `2` the call is wrong, `3` sign in again, `4` the sign-in does not include Books, `5` no such record, `6` Books refused the data (the message says why), `7` the server did not answer.
 - `tinycld books schema` prints every command with the JSON Schema of its input and output.
