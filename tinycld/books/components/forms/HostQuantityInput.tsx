@@ -2,7 +2,7 @@ import { useController } from '@tinycld/core/ui/form'
 import { iosInputCenteringStyle } from '@tinycld/core/ui/form/ios-input-style'
 import { useRef } from 'react'
 import { TextInput as RNTextInput } from 'react-native'
-import { moneyTextSchema } from '../../lib/host-value-schemas'
+import { quantityTextSchema } from '../../lib/host-value-schemas'
 import {
     quantityFieldValue,
     quantityHostText,
@@ -34,7 +34,7 @@ export function HostQuantityInput({
     // The outer value comes back as a number. Without the typed text, each keystroke's
     // echo would reset the input ("1." would lose its point).
     const typed = useRef<string | null>(null)
-    const form = useHostValueForm(moneyTextSchema, {
+    const form = useHostValueForm(quantityTextSchema, {
         text: quantityHostText(typed.current, value),
     })
     const { field } = useController({ control: form.control, name: 'text' })
