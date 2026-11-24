@@ -66,7 +66,9 @@ export function useAccessMutation(person: Person) {
             } catch (error) {
                 failure = { error }
             }
-            // books_access has no realtime, so it reloads whether the writes finished or stopped part-way.
+            // books_access's change signal comes only after its coalescing window, so the row reloads here to
+            // show the saved level at once and to report a refresh that fails, whether the writes finished or
+            // stopped part-way.
             // A reload cut short by a concurrent sync run resolves with no data, so after a successful write
             // the refreshed row must show the new level; one more reload covers a cut-short first attempt.
             let reloadFailure: unknown = null

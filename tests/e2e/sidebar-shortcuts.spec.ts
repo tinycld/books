@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { appShell, expect, login, navigateToPackage, test } from '@tinycld/core/e2e-helpers'
+import { expect, login, navigateToPackage, test } from '@tinycld/core/e2e-helpers'
 import { DESKTOP, PHONE } from './account-register-helpers'
 import { setLevelOf } from './books-access-helpers'
 import { ACCOUNT_LABELS } from './journal-entries-helpers'
@@ -246,11 +246,9 @@ async function expectNewActionsShown(page: Page) {
     await expect(newActionItem(page, 'customer')).toBeInViewport()
 }
 
-// The owner makes this test's own member a reader. books_access has no realtime, so a
-// member's page reads a new level on its next load only. The member's page may already
-// have read the old level: after sign-in the app lands on the first installed package,
-// which is Books when Books is the only one (as in the Books CI). So the member's page
-// loads again after the change.
+// The owner makes this test's own member a reader. The member's page may already have read
+// the old level (after sign-in the app lands on the first installed package, which is Books
+// when Books is the only one, as in the Books CI); the level is live, so it follows.
 async function readerView(
     page: Page,
     freshMember: { user: { email: string }; page: Page },
@@ -259,8 +257,6 @@ async function readerView(
     await login(page)
     await navigateToPackage(page, 'books')
     await setLevelOf(page, freshMember.user.email, 'read_only')
-    await freshMember.page.reload()
-    await appShell(freshMember.page).waitFor()
     await openBooksAt(freshMember.page, size)
     return freshMember.page
 }
@@ -311,5 +307,33 @@ test.describe('sidebar-shortcuts: reader', () => {
         const panel = view.getByTestId('mobile-drawer-panel')
         await expect(panel.getByTestId('books-shortcuts-customize')).toBeVisible()
         await expect(panel.getByTestId('books-sidebar-new-toggle')).toHaveCount(0)
+    })
+
+    // A member who has Books open sees a level change at once: the server signals the
+    // books_access view when core access changes, and the page reads the level again. The
+    // marker on window proves the page did not load again. The round New button reads the
+    // same level as the desktop New section, so the phone path adds nothing here.
+    test('desktop: a level change reaches an open Books page with no reload', async ({
+        page,
+        freshMember,
+    }) => {
+        const view = freshMember.page
+        await openBooksAt(view, DESKTOP)
+        await expect(view.getByTestId('books-sidebar-new-toggle')).toBeVisible()
+        await view.evaluate(() => {
+            Object.assign(window, { booksNoReload: true })
+        })
+        const notReloaded = () => view.evaluate(() => 'booksNoReload' in window)
+
+        await login(page)
+        await navigateToPackage(page, 'books')
+        await setLevelOf(page, freshMember.user.email, 'read_only')
+        await expect(view.getByTestId('books-sidebar-new-toggle')).toHaveCount(0)
+        await expectReaderPicker(view)
+        expect(await notReloaded()).toBe(true)
+
+        await setLevelOf(page, freshMember.user.email, 'bookkeeper')
+        await expect(view.getByTestId('books-sidebar-new-toggle')).toBeVisible()
+        expect(await notReloaded()).toBe(true)
     })
 })

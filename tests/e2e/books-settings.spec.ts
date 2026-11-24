@@ -519,7 +519,7 @@ test.describe('books-settings: Settings screens', () => {
         }
     })
 
-    // Regression: books_access has no realtime, so the mutation reloads it. A reload that was cut short
+    // Regression: the mutation reloads books_access to show the saved level. A reload that was cut short
     // used to resolve with no data, and the old level came back after leaving and re-entering the section.
     // The delay holds the unfiltered list request long enough for that to happen every run.
     test('Access: a slow list refresh still shows the saved level after leaving and re-entering (collaborator level)', async ({

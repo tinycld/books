@@ -375,7 +375,7 @@ describe('useAccessMutation refusal', () => {
         expect(result.current.error).toContain(REFUSAL)
     })
 
-    // books_access is a view with no realtime, so after a partial write the real level may differ.
+    // After a partial write the real level may differ, and the view's change signal comes later.
     it('reloads the access list after a refusal on the second write, and stays pending until it returns', async () => {
         seed({ refuseAccess: { after: 1, error: messageRefusal(REFUSAL) } })
         const releaseReload = holdReload()
