@@ -40,6 +40,11 @@ import { superuserClient } from './superuser-seed'
 // save on one worker never puts back an old value of another worker's field.
 // The 'vendor-1099:' describe writes the shared settings row too (the 1099 reporting
 // threshold), so it lives here, and it puts back the threshold it changed.
+// The wizard test shows the Inventory costing part but picks no method and reads no stored
+// value: the costing method is shared and locks at the first inventory transaction, which
+// inventory.spec.ts may post first. The unit tests pin the wizard's write of
+// costing_method instead (tests/useBooksSetup.test.tsx, "useBooksSetup costing method",
+// and tests/setup-parts.test.tsx, "saves the picked method when the book is created").
 
 const DESKTOP = { width: 1280, height: 800 }
 const PHONE = { width: 390, height: 844 }
