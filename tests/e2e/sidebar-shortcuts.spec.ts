@@ -171,6 +171,45 @@ test.describe('sidebar-shortcuts: the Shortcuts section', () => {
             await expectShortcuts(page, DEFAULT_SLUGS)
         })
     }
+
+    // books#93: a report left before its run answers stays mounted and hidden under the next
+    // screen. When the answer came, its table mounted with rows in a hidden container, the
+    // sticky headers read a layout that did not exist yet, and the app error boundary took
+    // the whole page. The answer is held until the next screen shows. Back then shows the
+    // report: its rows prove the answer reached the hidden screen. Both widths run the same
+    // report screen and stack, so desktop only.
+    test('desktop: leaving a report before its run answers keeps the next screen', async ({
+        page,
+    }) => {
+        await login(page)
+        await openBooksAt(page, DESKTOP)
+        let release = () => {}
+        const held = new Promise<void>(resolve => {
+            release = resolve
+        })
+        await page.route('**/api/reports/run', async route => {
+            await held
+            await route.continue()
+        })
+        const runSent = page.waitForRequest('**/api/reports/run')
+        await pressShortcut(page, 'report-books-profit-and-loss')
+        await runSent
+        await expect(page.getByTestId('report-loading').filter({ visible: true })).toBeVisible()
+
+        await pressShortcut(page, 'screen-customers')
+        await expect(page).toHaveURL(/\/a\/books\/customers/)
+        await expect(page.getByTestId('customers-list')).toBeVisible()
+        const runAnswered = page.waitForResponse('**/api/reports/run')
+        release()
+        await runAnswered
+
+        await page.goBack()
+        await expect(page).toHaveURL(/\/a\/books\/reports\/[a-z0-9]{15}(\?|$)/)
+        await expect(
+            page.locator('[data-testid^="report-row-"]').filter({ visible: true }).first()
+        ).toBeVisible()
+        await expect(page.getByTestId('error-boundary')).toHaveCount(0)
+    })
 })
 
 test.describe('sidebar-shortcuts: the New section', () => {
