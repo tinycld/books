@@ -125,6 +125,14 @@ func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 			}
 		}
 	}
+	if !ownLines {
+		// Before the entry: the cost of the document's stock is in its own entry.
+		costLines, err := salesDocStockLines(tx, kind, doc, original, lines, totals)
+		if err != nil {
+			return err
+		}
+		postingLines = append(postingLines, costLines...)
+	}
 	actor := doc.GetString("posted_by")
 	post := documentPost{
 		DocType:    kind.DocType,
@@ -608,6 +616,11 @@ func voidSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 	// The void reversal is taken out too, so the document counts for nothing.
 	if err := rebuildCashBasisOf(tx, kind.Collection, doc.Id); err != nil {
 		return err
+	}
+	if kind.Stock != "" {
+		if err := withdrawDocumentStock(tx, doc.GetString("voided_by"), kind.Collection, doc.Id); err != nil {
+			return err
+		}
 	}
 	if kind.Withdraw == nil {
 		return nil

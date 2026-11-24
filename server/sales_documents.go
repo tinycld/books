@@ -96,7 +96,10 @@ type salesDocKind struct {
 	// figures negated; a vendor credit, the mirror of a bill, debits the total
 	// to DebitAccount and credits its expense accounts.
 	Credit bool
-	Msgs   salesDocMessages
+	// Stock is how the kind's item lines move the stock of an Inventory item
+	// (document_stock.go); "" is a kind that moves none.
+	Stock stockRole
+	Msgs  salesDocMessages
 	// CheckHeader runs the kind's own header guards on a draft write; stored
 	// is the row before an update, nil on a create.
 	CheckHeader func(tx core.App, stored, r *core.Record) error
