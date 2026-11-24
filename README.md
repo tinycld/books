@@ -89,3 +89,5 @@ exactly what a developer runs locally.
 
 - [GLOSSARY.md](GLOSSARY.md): the terms Books uses.
 - [docs/adr/](docs/adr/): decisions and why we made them.
+- [docs/cli.md](docs/cli.md): Books from the command line (`tinycld books`).
+- [docs/cli-conventions.md](docs/cli-conventions.md): the rules every Books command follows, for scripts, agents and the authors of new commands.
