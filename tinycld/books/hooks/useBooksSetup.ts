@@ -108,6 +108,11 @@ export function useBooksSetup() {
                             draft.fiscal_year_start_month = fields.fiscal_year_start_month
                         }
                         if (fields.ownership !== undefined) draft.ownership = fields.ownership
+                        // A locked method is not the wizard's to write: the server refuses
+                        // a change of it, and the Inventory part shows it as text.
+                        if (fields.costing_method !== undefined && !settings.costing_locked) {
+                            draft.costing_method = fields.costing_method
+                        }
                         if (fields.done) draft.setup_completed = true
                     })
                 )
@@ -124,6 +129,7 @@ export function useBooksSetup() {
                 business_name: values.business_name,
                 fiscal_year_start_month: values.fiscal_year_start_month,
                 ownership: values.ownership,
+                costing_method: values.costing_method,
             })
             for (const item of levels.flat()) {
                 const parent = item.parent ? ids.get(item.parent) : ''

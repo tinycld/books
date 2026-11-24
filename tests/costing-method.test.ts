@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
+    COSTING_METHOD_CHOICES,
     COSTING_METHOD_KEYS,
     COSTING_METHOD_LABELS,
     COSTING_METHOD_LOCKED,
@@ -43,6 +44,16 @@ describe('costing method', () => {
         const server = read('../server/settings.go')
         const text = /msgCostingMethodLocked\s+=\s+"([^"]+)"/.exec(server)?.[1]
         expect(text).toBe(COSTING_METHOD_LOCKED)
+    })
+})
+
+describe('the setup wizard choices', () => {
+    it('offers one card for each method, FIFO first, each with a summary', () => {
+        expect(COSTING_METHOD_CHOICES.map(choice => choice.value)).toEqual([...COSTING_METHOD_KEYS])
+        expect(COSTING_METHOD_CHOICES.map(choice => choice.title)).toEqual(['FIFO', 'Average cost'])
+        for (const choice of COSTING_METHOD_CHOICES) {
+            expect(choice.summary.trim()).not.toBe('')
+        }
     })
 })
 

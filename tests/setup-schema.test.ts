@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { setupSchema } from '../tinycld/books/lib/setup-schema'
 
-const valid = { business_name: 'Acme', fiscal_year_start_month: 1, ownership: 'owners' }
+const valid = {
+    business_name: 'Acme',
+    fiscal_year_start_month: 1,
+    ownership: 'owners',
+    costing_method: 'fifo',
+}
 
 function errorFields(overrides: Record<string, unknown>) {
     const result = setupSchema.safeParse({ ...valid, ...overrides })
@@ -43,6 +48,16 @@ describe('setupSchema', () => {
             expect(result.success).toBe(false)
             const issue = result.error?.issues.find(item => item.path[0] === 'ownership')
             expect(issue?.message.length).toBeGreaterThan(0)
+        }
+    })
+
+    it('accepts FIFO and average cost, and rejects a missing or unknown method with a message', () => {
+        expect(errorFields({ costing_method: 'average' })).toEqual([])
+        for (const costing_method of [undefined, '', 'lifo']) {
+            const result = setupSchema.safeParse({ ...valid, costing_method })
+            expect(result.success).toBe(false)
+            const issue = result.error?.issues.find(item => item.path[0] === 'costing_method')
+            expect(issue?.message).toBe('Choose a costing method')
         }
     })
 

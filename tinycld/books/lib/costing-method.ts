@@ -23,6 +23,20 @@ export function costingMethodOf(settings: Pick<BooksSettings, 'costing_method'>)
     return settings.costing_method === 'average' ? 'average' : 'fifo'
 }
 
+// The setup wizard's two cards.
+export const COSTING_METHOD_CHOICES: { value: CostingMethod; title: string; summary: string }[] = [
+    {
+        value: 'fifo',
+        title: 'FIFO',
+        summary: 'First in, first out: a sale takes the cost of the oldest stock you still have.',
+    },
+    {
+        value: 'average',
+        title: 'Average cost',
+        summary: 'A sale takes the average cost of the stock you have on the day of the sale.',
+    },
+]
+
 export const COSTING_METHOD_NOTE =
     'How Books prices the inventory you sell. FIFO takes the cost of the oldest stock first; average cost takes the average cost of the stock on hand. You can change the method until the first inventory transaction posts.'
 

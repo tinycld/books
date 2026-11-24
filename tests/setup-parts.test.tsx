@@ -132,6 +132,7 @@ async function toChart(rendered: Rendered) {
     fill(rendered, { name: 'Acme Plumbing', month: '4', ownership: 'owners' })
     await press(rendered, 'goNext')
     await press(rendered, 'goNext')
+    await press(rendered, 'goNext')
 }
 
 beforeEach(() => {
@@ -139,7 +140,7 @@ beforeEach(() => {
 })
 
 describe('useSetupParts navigation', () => {
-    it('moves from business to ownership to chart on Next', async () => {
+    it('moves from business to ownership to costing to chart on Next', async () => {
         const rendered = await renderOpen({}, { emptyChart: true })
         expect(rendered.result.current.part).toBe('business')
 
@@ -149,7 +150,69 @@ describe('useSetupParts navigation', () => {
 
         fill(rendered, { ownership: 'corporation' })
         await press(rendered, 'goNext')
+        expect(rendered.result.current.part).toBe('costing')
+
+        await press(rendered, 'goNext')
         expect(rendered.result.current.part).toBe('chart')
+    })
+
+    it('numbers the four parts', async () => {
+        const rendered = await renderOpen({}, { emptyChart: true })
+        const labels: string[] = []
+        fill(rendered, { name: 'Acme Plumbing', month: '4', ownership: 'owners' })
+        for (let index = 0; index < 4; index += 1) {
+            labels.push(rendered.result.current.positionLabel)
+            await press(rendered, 'goNext')
+        }
+        expect(labels).toEqual(['Part 1 of 4', 'Part 2 of 4', 'Part 3 of 4', 'Part 4 of 4'])
+    })
+
+    it('starts the costing part on FIFO and keeps a picked method through Back and Next', async () => {
+        const rendered = await renderOpen({}, { emptyChart: true })
+        fill(rendered, { name: 'Acme Plumbing', month: '4', ownership: 'owners' })
+        await press(rendered, 'goNext')
+        await press(rendered, 'goNext')
+        expect(rendered.result.current.part).toBe('costing')
+        expect(rendered.result.current.costingMethod).toBe('fifo')
+        expect(rendered.result.current.isCostingLocked).toBe(false)
+
+        act(() => rendered.result.current.selectCostingMethod('average'))
+        await press(rendered, 'goBack')
+        expect(rendered.result.current.part).toBe('ownership')
+        await press(rendered, 'goNext')
+        expect(rendered.result.current.costingMethod).toBe('average')
+    })
+
+    it('saves the picked method when the book is created', async () => {
+        const rendered = await renderOpen({}, { emptyChart: true })
+        await toChart(rendered)
+        act(() => rendered.result.current.selectCostingMethod('average'))
+
+        await act(async () => {
+            await rendered.result.current.skipChart()
+        })
+
+        await waitFor(() => expect(rendered.result.current.part).toBe('done'))
+        expect(settingsStore().get(SETTINGS_ID)?.costing_method).toBe('average')
+    })
+
+    it('shows the saved method as locked once the first inventory transaction has posted', async () => {
+        const settings = {
+            ...blankSettings(),
+            costing_method: 'average' as const,
+            costing_locked: true,
+        }
+        const rendered = await renderOpen(
+            { ledger: { ...seedLedger, settings: [settings] } },
+            { emptyChart: true }
+        )
+        expect(rendered.result.current.isCostingLocked).toBe(true)
+        await waitFor(() => expect(rendered.result.current.costingMethod).toBe('average'))
+        expect(rendered.result.current.savedCostingMethod).toBe('average')
+        // The locked part shows the book's method, whatever the form holds.
+        act(() => rendered.result.current.selectCostingMethod('fifo'))
+        await waitFor(() => expect(rendered.result.current.costingMethod).toBe('fifo'))
+        expect(rendered.result.current.savedCostingMethod).toBe('average')
     })
 
     it('returns to the previous part on Back and keeps the typed values', async () => {
@@ -157,6 +220,8 @@ describe('useSetupParts navigation', () => {
         await toChart(rendered)
         expect(rendered.result.current.part).toBe('chart')
 
+        await press(rendered, 'goBack')
+        expect(rendered.result.current.part).toBe('costing')
         await press(rendered, 'goBack')
         expect(rendered.result.current.part).toBe('ownership')
         await press(rendered, 'goBack')
@@ -455,8 +520,11 @@ describe('useSetupParts second fix round', () => {
         expect(rendered.result.current.canGoBack).toBe(true)
 
         await press(rendered, 'goBack')
-        expect(rendered.result.current.part).toBe('ownership')
+        expect(rendered.result.current.part).toBe('costing')
         expect(rendered.result.current.canGoBack).toBe(true)
+
+        await press(rendered, 'goBack')
+        expect(rendered.result.current.part).toBe('ownership')
 
         await press(rendered, 'goBack')
         expect(rendered.result.current.part).toBe('business')

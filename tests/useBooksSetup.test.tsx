@@ -40,6 +40,7 @@ const values: SetupValues = {
     business_name: 'Acme Plumbing',
     fiscal_year_start_month: 4,
     ownership: 'owners',
+    costing_method: 'fifo',
 }
 const corporationValues: SetupValues = { ...values, ownership: 'corporation' }
 const chartSize = starterChart('owners').length
@@ -511,6 +512,37 @@ describe('useBooksSetup ownership', () => {
         const again = renderSetup()
 
         await waitFor(() => expect(again.result.current.ownership).toBe('corporation'))
+    })
+})
+
+describe('useBooksSetup costing method', () => {
+    it('saves the chosen method with the chart', async () => {
+        const { rendered } = await renderEmptyBook()
+
+        await run(rendered, 'create', { ...values, costing_method: 'average' })
+
+        expect(settingsRow()).toMatchObject({ costing_method: 'average', setup_completed: true })
+    })
+
+    it('saves the chosen method when the chart is skipped', async () => {
+        const { rendered } = await renderEmptyBook()
+
+        await run(rendered, 'skipChart', { ...values, costing_method: 'average' })
+
+        expect(settingsRow()).toMatchObject({ costing_method: 'average', setup_completed: true })
+    })
+
+    // The server refuses a change of a locked method, which would fail the whole setup.
+    it('leaves a locked method as it is', async () => {
+        const settings = { ...blankSettings(), costing_locked: true }
+        const { rendered } = await renderEmptyBook({
+            ledger: { lines: [], entries: [], balances: [], settings: [settings] },
+        })
+
+        const outcome = await run(rendered, 'skipChart', { ...values, costing_method: 'average' })
+
+        expect(outcome).toEqual({ ok: true, created: 0 })
+        expect(settingsRow()).toMatchObject({ costing_method: 'fifo', setup_completed: true })
     })
 })
 
