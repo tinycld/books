@@ -4,7 +4,7 @@ import type { BuiltinFieldProps } from '@tinycld/core/lib/forms/host-ui'
 import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
-import { Text } from 'react-native'
+import { Text, View } from 'react-native'
 import { HostQuantityInput } from '../components/forms/HostQuantityInput'
 import { SearchPicker, useSearchPicker } from '../components/SearchPicker'
 import { useFormAccounts } from '../hooks/useFormAccounts'
@@ -16,6 +16,7 @@ import {
     cogsAccountPlaceholder,
 } from '../lib/inventory-account-options'
 import { NO_PREFERRED_VENDOR, preferredVendorLabel } from '../lib/preferred-vendor'
+import { ASSET_ACCOUNT_FIXED } from '../lib/product-messages'
 import { quantityOnHandText } from '../lib/quantity-input'
 import { HostSelect } from './account-fields'
 import { DayField, useVendorOptions, vendorPickerProps } from './document-fields'
@@ -23,16 +24,49 @@ import { DayField, useVendorOptions, vendorPickerProps } from './document-fields
 // The `books:product` host components of an Inventory item (hosts.ts). The core cell
 // draws each one's label and error.
 
+// The server refuses a change of the asset account once a stock move names the item
+// (server/product_stock.go). A new item (no recordId) has none.
+function useItemHasStockMoves(productId: string | undefined) {
+    const [movesCollection] = useStore('books_stock_moves')
+    const { data } = useLiveQuery({
+        query: q =>
+            productId
+                ? q
+                      .from({ m: movesCollection })
+                      .where(({ m }) => eq(m.product, productId))
+                      .select(({ m }) => ({ id: m.id }))
+                      .findOne()
+                : null,
+        queryKey: ['books.products.has-stock-moves', productId ?? ''],
+    })
+    return productId !== undefined && data !== undefined
+}
+
+function FixedNote({ isVisible, fieldKey }: { isVisible: boolean; fieldKey: string }) {
+    if (!isVisible) return null
+    return (
+        <Text testID={`form-note-${fieldKey}`} className="mt-1 text-xs text-muted-foreground">
+            {ASSET_ACCOUNT_FIXED}
+        </Text>
+    )
+}
+
 // The account the item's stock is worth in. A stored account that is not offered (it
 // became inactive, or changed type) shows its name in the trigger; an untouched field is
-// not dirty, so the save leaves it out of the patch.
+// not dirty, so the save leaves it out of the patch. Once the item has stock moves the
+// account is fixed, and the note under it says why.
 export function AssetAccountField(props: BuiltinFieldProps) {
+    const isFixed = useItemHasStockMoves(props.recordId)
     return (
-        <InventoryAccountSelect
-            {...props}
-            optionsFor={assetAccountOptions}
-            placeholderFor={assetAccountPlaceholder}
-        />
+        <View>
+            <InventoryAccountSelect
+                {...props}
+                disabled={props.disabled || isFixed}
+                optionsFor={assetAccountOptions}
+                placeholderFor={assetAccountPlaceholder}
+            />
+            <FixedNote isVisible={isFixed} fieldKey={props.fieldKey} />
+        </View>
     )
 }
 
@@ -168,7 +202,9 @@ export function QuantityField({ fieldKey, label, value, onChange, disabled }: Bu
 }
 
 // Quantity on hand: Books counts it from the posted transactions, so it is text, never
-// an input, and the form never writes it.
+// an input, and the form never writes it. The engine gives it the stored item's value,
+// which follows the item while the form is open (tests/e2e/inventory.spec.ts, "shows its
+// stock live").
 export function QuantityOnHandField({ fieldKey, value }: BuiltinFieldProps) {
     return (
         <Text testID={`form-input-${fieldKey}`} className="py-2 text-base text-foreground">

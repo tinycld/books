@@ -189,7 +189,7 @@ describe('entryActions for an inventory adjustment entry', () => {
 
     it('has no note for an entry a person edits', () => {
         expect(entryChangeNote(posted)).toBeNull()
-        expect(entryChangeNote({ ...posted, origin: 'document', doc_type: 'invoice' })).toBeNull()
+        expect(entryChangeNote({ doc_type: 'invoice' })).toBeNull()
     })
 })
 
