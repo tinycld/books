@@ -48,10 +48,10 @@ var wantAuditParentFields = map[string]string{
 	"books_credit_memo_applications": "credit_memo",
 	// A deposit's item and its other funds line each name the deposit (bank
 	// deposit spec §4.1).
+	"books_deposit_items": "deposit",
+	"books_deposit_lines": "deposit",
 	// An inventory adjustment's line names its adjustment (ADR 3).
 	"books_inventory_adjustment_lines": "adjustment",
-	"books_deposit_items":              "deposit",
-	"books_deposit_lines":              "deposit",
 	// A document send names the document it sent; its doc_type gives the
 	// document's collection (email-share plan decision 2).
 	"books_document_sends": "document",

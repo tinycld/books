@@ -142,11 +142,12 @@ const COSTING_METHOD = [
     { value: 'fifo', label: 'FIFO' },
     { value: 'average', label: 'Average cost' },
 ]
-// An opening adjustment is a product's opening stock; the server posts a re-cost when
-// a later or back-dated document changes what a posted document's stock cost (ADR 3).
 const ADJUSTMENT_KIND = [
     { value: 'manual', label: 'Adjustment' },
+    // A product's opening stock (ADR 3).
     { value: 'opening', label: 'Opening stock' },
+    // The server posts one when a later or back-dated document changes what a
+    // posted document's stock cost (ADR 3).
     { value: 'recost', label: 'Re-cost' },
 ]
 const SEND_DOC_TYPE = DOC_TYPE.filter(option => isSendDocType(option.value))
