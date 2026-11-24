@@ -1,21 +1,25 @@
 import type { BuiltinFieldProps } from '@tinycld/core/lib/forms/host-ui'
 import { Text, View } from 'react-native'
 import { ProductPicker } from '../components/products/ProductPicker'
-import { BUNDLE_KEEPS_TYPE } from '../lib/product-messages'
-import { PRODUCT_TYPE_SELECT_OPTIONS } from '../lib/product-types'
+import {
+    type FixedProductType,
+    fixedProductType,
+    PRODUCT_TYPE_SELECT_OPTIONS,
+} from '../lib/product-types'
 import { HostSelect } from './account-fields'
 
 // The `books:product` host components only it names (hosts.ts); the money and account
 // fields are in money-fields.tsx and account-fields.tsx. The core cell draws each one's
 // label and error.
 
-// A bundle never changes type, so its type shows as text, not a select.
-function BundleTypeText({ isVisible }: { isVisible: boolean }) {
-    if (!isVisible) return null
+// A bundle and an Inventory item never change type, so the type shows as text, not a
+// select.
+function FixedTypeText({ fixed }: { fixed: FixedProductType | null }) {
+    if (fixed === null) return null
     return (
         <View testID="form-input-type" className="gap-1">
-            <Text className="py-2 text-base text-foreground">Bundle</Text>
-            <Text className="text-xs text-muted-foreground">{BUNDLE_KEEPS_TYPE}</Text>
+            <Text className="py-2 text-base text-foreground">{fixed.label}</Text>
+            <Text className="text-xs text-muted-foreground">{fixed.note}</Text>
         </View>
     )
 }
@@ -27,11 +31,11 @@ function TypeSelect({ isVisible, ...props }: BuiltinFieldProps & { isVisible: bo
 }
 
 export function ProductTypeField(props: BuiltinFieldProps) {
-    const isBundle = props.value === 'bundle'
+    const fixed = fixedProductType(props.value)
     return (
         <>
-            <BundleTypeText isVisible={isBundle} />
-            <TypeSelect {...props} isVisible={!isBundle} />
+            <FixedTypeText fixed={fixed} />
+            <TypeSelect {...props} isVisible={fixed === null} />
         </>
     )
 }
