@@ -25,6 +25,8 @@ An Inventory item is always purchased, so the form has no I purchase this from a
 
 If you already have the item when you start, enter Opening quantity, Opening value and Opening stock as of. Opening value is the total cost of the opening quantity, not the cost of one. Opening stock as of is the date the stock is counted on; it is required when you enter an opening quantity. Books posts the opening stock to the inventory asset account against Opening balance equity.
 
+The opening stock shows in Journal Entries as an entry of the type Inventory adjustment. That entry has no Edit and no Void: to change it, change the opening fields of the item and save the item. Books then posts the entry again.
+
 Saving an item with an opening quantity is an inventory transaction: it locks the costing method. Choose the method first: see The costing method below.
 
 ## Quantity on hand
@@ -48,7 +50,7 @@ A bundle can hold Inventory items. When you pick the bundle on an invoice or a s
 
 You can sell more of an item than its quantity on hand. The line then shows a note under the product, for example "Quantity on hand is 3. You can post this sale; the quantity on hand goes below zero." The note does not stop you: choose Post as usual. Two lines of the same item are counted together.
 
-Books posts the cost of such a sale at the last cost it knows for the item. When you post the next receipt of the item (a bill, an expense, a return from a customer, or an inventory adjustment that adds stock), Books works out the cost again and posts the difference by itself.
+Books posts the cost of such a sale at the last cost it knows for the item. When you post the next receipt of the item (a bill, an expense or a return from a customer), or when you change its opening stock, Books works out the cost again and posts the difference by itself.
 
 ## The costing method
 
@@ -63,4 +65,8 @@ You can change the method only until the first inventory transaction posts. Afte
 
 ## When an earlier date changes
 
-If you post, change or void a transaction with a date before other transactions of the same item, the cost of the later sales can change. Books works those costs out again and posts the difference by itself, so the inventory asset account and the cost of goods sold stay right.
+If you post, change or void a transaction with a date before other transactions of the same item, the cost of the later sales can change. Books works those costs out again and posts the difference by itself, so the inventory asset account and the cost of goods sold stay right. A change of the item's cost does the same.
+
+Books posts the difference on the date of the sale. If the sale is in a closed period (its date is on or before the close date), Books posts the difference on the date of the transaction that changed the cost. A change of the item's cost posts it on today's date. So a sale in a closed period never stops you from receiving more of the item.
+
+If that date is in the closed period too, Books does not post the transaction. The message names the transaction and the item whose cost would change, for example "The books are closed through 2026-06-30, so Books cannot re-cost Invoice 1001 for Widget on 2026-06-15." Post the transaction on a later date, or ask a Books admin for a close-date override.

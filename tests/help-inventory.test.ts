@@ -108,9 +108,11 @@ describe('help/inventory.md', () => {
         expect(section).toMatch(/does not stop you/)
         expect(section).toMatch(/last cost it knows/)
         expect(section).toMatch(
-            /next receipt of the item \(a bill, an expense, a return from a customer, or an inventory adjustment that adds stock\)/
+            /next receipt of the item \(a bill, an expense or a return from a customer\), or when you change its opening stock/
         )
         expect(section).not.toMatch(/next bill or expense/)
+        // No screen makes an inventory adjustment; opening stock is the one a person makes.
+        expect(section).not.toMatch(/inventory adjustment that adds stock/)
     })
 
     it('explains both costing methods, where to set one, and the lock', () => {
@@ -123,10 +125,24 @@ describe('help/inventory.md', () => {
         expect(section).toMatch(/Saving an item with opening stock also locks it/)
     })
 
+    it('says the opening entry changes only with the item', () => {
+        const section = sectionOf(body, 'Opening stock')
+        expect(section).toMatch(/has no Edit and no Void/)
+        expect(section).toMatch(/change the opening fields of the item/)
+    })
+
     it('says Books re-costs later sales by itself after a back-dated change', () => {
         expect(sectionOf(body, 'When an earlier date changes')).toMatch(
             /works those costs out again and posts the difference by itself/
         )
+    })
+
+    it('says where a re-cost of a sale in a closed period posts, and what a refusal names', () => {
+        const section = sectionOf(body, 'When an earlier date changes')
+        expect(section).toMatch(/on or before the close date/)
+        expect(section).toMatch(/on the date of the transaction that changed the cost/)
+        expect(section).toMatch(/A change of the item's cost posts it on today's date/)
+        expect(section).toMatch(/names the transaction and the item/)
     })
 
     it('hand-writes no hostname and no Ctrl or Alt key text', () => {
