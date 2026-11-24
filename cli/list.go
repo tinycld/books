@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -59,6 +60,9 @@ func newListCmd(c *client.Client, res *resource) *cobra.Command {
 		if opts.onlyInactive && opts.all {
 			return usagef("--inactive and --all cannot be used together")
 		}
+		if err := checkFilterValues(cmd, res, opts); err != nil {
+			return err
+		}
 		page, err := client.ListRecords[rawRecord](cmd.Context(), c, res.Collection, client.ListOptions{
 			Filter: listFilter(cmd, res, opts), Sort: res.Sort, Page: opts.page, PerPage: opts.limit,
 		})
@@ -101,6 +105,27 @@ func newListCmd(c *client.Client, res *resource) *cobra.Command {
 		opts.filters[flt.Flag] = fl.String(flt.Flag, "", flt.Help)
 	}
 	return cmd
+}
+
+// checkFilterValues refuses a filter on a select with a value the select does
+// not have: the list would be empty and exit 0, and a caller reads that as "no
+// such records".
+func checkFilterValues(cmd *cobra.Command, res *resource, opts listOptions) error {
+	for _, flt := range res.Filters {
+		if !cmd.Flags().Changed(flt.Flag) {
+			continue
+		}
+		f := res.field(flt.Field)
+		if f == nil || len(f.Enum) == 0 {
+			continue
+		}
+		value := *opts.filters[flt.Flag]
+		if slices.Contains(f.Enum, value) || (value == "" && !f.Required) {
+			continue
+		}
+		return usagef("--%s %q is not a value of %s; use one of: %s", flt.Flag, value, f.Name, strings.Join(f.Enum, ", "))
+	}
+	return nil
 }
 
 var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)

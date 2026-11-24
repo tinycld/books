@@ -91,6 +91,22 @@ func TestDeleteWithoutYesDeletesNothing(t *testing.T) {
 	}
 }
 
+// The terminal check comes before any request: its message says nothing was
+// sent, and a wrong id is a usage error here, not exit 5.
+func TestDeleteWithoutYesAndTerminalSendsNothing(t *testing.T) {
+	orig := canPrompt
+	canPrompt = func(output.Options) bool { return false }
+	t.Cleanup(func() { canPrompt = orig })
+	f := chart(t)
+	_, _, err := runCmd(t, f.serve(), "", "books", "accounts", "delete", "nope")
+	if got := exitcode.Of(err); got != exitcode.Usage {
+		t.Fatalf("exit = %d, want 2; err: %v", got, err)
+	}
+	if len(f.requests) != 0 {
+		t.Errorf("requests = %v, want none", f.requests)
+	}
+}
+
 // stubConfirm replaces the prompt, which core reads from the real stdin.
 func stubConfirm(t *testing.T, answer bool, readErr error) {
 	t.Helper()

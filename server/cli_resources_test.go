@@ -68,7 +68,7 @@ func loadCLIResources(t testing.TB) []cliResource {
 
 // cliTypeOf is the resources.json type a collection field must be declared
 // as, with the field's required flag and select values.
-func cliTypeOf(f core.Field) (cliType string, required bool, values []string) {
+func cliTypeOf(collection string, f core.Field) (cliType string, required bool, values []string) {
 	switch field := f.(type) {
 	case *core.TextField:
 		return "string", field.Required, nil
@@ -94,10 +94,48 @@ func cliTypeOf(f core.Field) (cliType string, required bool, values []string) {
 		}
 		return "id", field.Required, nil
 	case *core.JSONField:
-		return "address", field.Required, nil
+		// Only a column the server checks with isAddress is an address: the
+		// CLI applies the six-key check to every field it types so.
+		if slices.Contains(addressFields()[collection], field.Name) {
+			return "address", field.Required, nil
+		}
+		return "unsupported json", field.Required, nil
 	default:
 		return "unsupported " + f.Type(), false, nil
 	}
+}
+
+// A JSON column that is not an address must not map to the CLI's address type.
+func TestCLIResources_OnlyAnAddressFieldIsTypedAddress(t *testing.T) {
+	meta := &core.JSONField{Name: "meta"}
+	if got, _, _ := cliTypeOf("books_customers", meta); got != "unsupported json" {
+		t.Errorf("a JSON field that is no address: type = %q, want %q", got, "unsupported json")
+	}
+	if got, _, _ := cliTypeOf("books_customers", &core.JSONField{Name: "billing_address"}); got != "address" {
+		t.Errorf("billing_address: type = %q, want address", got)
+	}
+	if got, _, _ := cliTypeOf("books_vendors", &core.JSONField{Name: "billing_address"}); got != "unsupported json" {
+		t.Errorf("billing_address of vendors: type = %q, want unsupported json", got)
+	}
+}
+
+// addressFields are the JSON columns the server checks with isAddress, by
+// collection: the sources are validateCustomer (customers.go), validateVendor
+// (vendors.go) and AddressField of each salesDocKind (sales_documents.go).
+func addressFields() map[string][]string {
+	fields := map[string][]string{
+		"books_customers": {"billing_address", "shipping_address"},
+		"books_vendors":   {"address"},
+	}
+	for _, kind := range []salesDocKind{
+		invoiceKind, salesReceiptKind, creditMemoKind, refundReceiptKind, estimateKind,
+		billKind, expenseKind, vendorCreditKind,
+	} {
+		if kind.AddressField != "" {
+			fields[kind.Collection] = append(fields[kind.Collection], kind.AddressField)
+		}
+	}
+	return fields
 }
 
 func TestCLIResources_MatchTheCollections(t *testing.T) {
@@ -122,7 +160,7 @@ func TestCLIResources_MatchTheCollections(t *testing.T) {
 			if f.GetHidden() {
 				t.Errorf("%s.%s is hidden: the API never sends it, so the CLI must not declare it", res.Name, declared.Name)
 			}
-			wantType, required, values := cliTypeOf(f)
+			wantType, required, values := cliTypeOf(res.Collection, f)
 			if declared.Type != wantType {
 				t.Errorf("%s.%s: the CLI says %q, the collection field is %q (%s)", res.Name, declared.Name, declared.Type, wantType, f.Type())
 			}

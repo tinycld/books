@@ -46,8 +46,8 @@
         {
             "name": "accounts-every-flag",
             "resource": "accounts",
-            "args": ["--type", "nothinghasthis1", "--parent", "nothinghasthis1", "--search", "nothinghasthis1"],
-            "filter": "inactive = false && type = \"nothinghasthis1\" && parent = \"nothinghasthis1\" && (name ~ \"nothinghasthis1\" || number ~ \"nothinghasthis1\")",
+            "args": ["--type", "bank", "--parent", "nothinghasthis1", "--search", "nothinghasthis1"],
+            "filter": "inactive = false && type = \"bank\" && parent = \"nothinghasthis1\" && (name ~ \"nothinghasthis1\" || number ~ \"nothinghasthis1\")",
             "sort": "full_name,id"
         },
         {
@@ -67,8 +67,8 @@
         {
             "name": "products-every-flag",
             "resource": "products",
-            "args": ["--type", "nothinghasthis1", "--search", "nothinghasthis1"],
-            "filter": "inactive = false && type = \"nothinghasthis1\" && (name ~ \"nothinghasthis1\" || sku ~ \"nothinghasthis1\")",
+            "args": ["--type", "service", "--search", "nothinghasthis1"],
+            "filter": "inactive = false && type = \"service\" && (name ~ \"nothinghasthis1\" || sku ~ \"nothinghasthis1\")",
             "sort": "sort_key,id"
         },
         {
@@ -88,8 +88,8 @@
         {
             "name": "tax-rates-every-flag",
             "resource": "tax-rates",
-            "args": ["--type", "nothinghasthis1", "--agency", "nothinghasthis1", "--search", "nothinghasthis1"],
-            "filter": "inactive = false && type = \"nothinghasthis1\" && agency = \"nothinghasthis1\" && (name ~ \"nothinghasthis1\")",
+            "args": ["--type", "rate", "--agency", "nothinghasthis1", "--search", "nothinghasthis1"],
+            "filter": "inactive = false && type = \"rate\" && agency = \"nothinghasthis1\" && (name ~ \"nothinghasthis1\")",
             "sort": "sort_key,id"
         }
     ]

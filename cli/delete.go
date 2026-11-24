@@ -48,14 +48,14 @@ func newDeleteCmd(c *client.Client, res *resource) *cobra.Command {
 			"required": []string{"id", "deleted"},
 		},
 	}, func(cmd *cobra.Command, args []string, o output.Options, yes bool) error {
+		if !yes && !canPrompt(o) {
+			return usagef("refusing to prompt without a terminal; pass --yes to delete")
+		}
 		rec, err := fetchRecord(cmd.Context(), c, res, args[0])
 		if err != nil {
 			return err
 		}
 		question := fmt.Sprintf("Delete %s %q for good? This cannot be undone.", res.Singular, rec.label(res))
-		if !yes && !canPrompt(o) {
-			return usagef("refusing to prompt without a terminal; pass --yes to delete")
-		}
 		ok, err := confirm(o, yes, cmd.InOrStdin(), cmd.ErrOrStderr(), question)
 		if err != nil {
 			// With a terminal, an error is a failed read (EOF, a closed pipe),
