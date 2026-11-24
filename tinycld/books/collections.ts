@@ -343,8 +343,8 @@ export function registerCollections(
     // No relations: the list loads one page of products at a time; a bundle's
     // rows, the product picker and the account pickers read their own
     // collections. The guard sets name_key and sort_key, and the server stamps currency.
-    // The costing replay writes quantity_on_hand and stock_value. The product form
-    // does not write the other inventory columns yet: they leave this list when it does.
+    // The costing replay writes quantity_on_hand and stock_value; the product form writes
+    // the other inventory columns.
     const books_products = newCollection('books_products', {
         omitOnInsert: [
             'created',
@@ -354,12 +354,6 @@ export function registerCollections(
             'currency',
             'quantity_on_hand',
             'stock_value',
-            'asset_account',
-            'preferred_vendor',
-            'reorder_point',
-            'opening_quantity',
-            'opening_value',
-            'opening_date',
         ] as const,
         ...onDemand,
         collectionOptions: indexed,

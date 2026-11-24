@@ -59,8 +59,8 @@ export function useProductForm(target: ProductFormTarget): RecordChildState {
     const [productsCollection, itemsCollection] = useStore('books_products', 'books_bundle_items')
     const stored = base.definition
     const definition = useMemo(
-        () => (stored ? productDefinitionFor(stored, type, base.host) : undefined),
-        [stored, type, base.host]
+        () => (stored ? productDefinitionFor(stored, type, base.host, target.mode) : undefined),
+        [stored, type, base.host, target.mode]
     )
     const saver = useRecordSave(
         {

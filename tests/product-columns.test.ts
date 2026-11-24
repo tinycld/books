@@ -91,6 +91,36 @@ describe('productColumnsFor', () => {
             price: 500,
         })
     })
+
+    it('accepts the fields of an Inventory item', () => {
+        const columns = {
+            type: 'inventory',
+            name: 'Widget',
+            asset_account: 'acc1300',
+            preferred_vendor: 'ven1',
+            opening_quantity: 12.5,
+            opening_value: 12500,
+            opening_date: '2026-07-01',
+            reorder_point: 4,
+        }
+        expect(columnsOf('inventory', columns)).toEqual(columns)
+    })
+
+    it('refuses opening quantity text', () => {
+        const error = refusalOf('inventory', { name: 'A', opening_quantity: '12.5' })
+        expect(error.issues.map(issue => issue.path[0])).toEqual(['opening_quantity'])
+    })
+
+    it('drops opening value text, as the other money fields', () => {
+        expect(columnsOf('inventory', { name: 'A', opening_value: 'abc' })).toEqual({ name: 'A' })
+    })
+
+    // Books counts them; the server refuses a write of either.
+    it('never writes the quantity on hand or the stock value', () => {
+        expect(
+            columnsOf('inventory', { name: 'A', quantity_on_hand: 7, stock_value: 700 })
+        ).toEqual({ name: 'A' })
+    })
 })
 
 describe('EMPTY_PRODUCT_FIELDS', () => {
@@ -107,6 +137,12 @@ describe('EMPTY_PRODUCT_FIELDS', () => {
             purchase_description: '',
             cost: 0,
             expense_account: '',
+            asset_account: '',
+            preferred_vendor: '',
+            opening_quantity: 0,
+            opening_value: 0,
+            opening_date: '',
+            reorder_point: 0,
         })
     })
 })

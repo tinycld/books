@@ -20,6 +20,12 @@ export const productColumnsSchema = z.strictObject({
     purchase_description: optionalText,
     cost: z.number().optional(),
     expense_account: optionalText,
+    asset_account: optionalText,
+    preferred_vendor: optionalText,
+    opening_quantity: z.number().optional(),
+    opening_value: z.number().optional(),
+    opening_date: optionalText,
+    reorder_point: z.number().optional(),
 })
 
 export type ProductColumns = z.infer<typeof productColumnsSchema>
@@ -37,7 +43,12 @@ const BUNDLE_EMPTY_COLUMNS: ReadonlyMap<string, unknown> = new Map<string, unkno
     ['taxable', false],
 ])
 
-const MONEY_KEYS: ReadonlySet<string> = new Set(['price', 'cost'])
+const MONEY_KEYS: ReadonlySet<string> = new Set(['price', 'cost', 'opening_value'])
+
+// Books counts these from the posted transactions; the server refuses a write of them
+// ("Books sets the quantity on hand and the stock value itself."). The form shows the
+// quantity on hand as text, so its value can reach a save only as what was loaded.
+const SERVER_OWNED_KEYS: ReadonlySet<string> = new Set(['quantity_on_hand', 'stock_value'])
 
 const isMoneyText = (key: string, value: unknown) =>
     MONEY_KEYS.has(key) && typeof value !== 'number'
@@ -45,17 +56,18 @@ const isMoneyText = (key: string, value: unknown) =>
 /**
  * The columns to write for a product of `type`. A money field hidden at save (Cost
  * while purchasing is off) is not validated and may still hold the text its input
- * sent, so a `price` or `cost` that is not a number is dropped and the stored value
- * stays. A bundle's own price, cost, accounts and purchase fields are written empty,
- * whatever the hidden fields hold; a key the form did not send stays absent, so an edit
- * that changed only the name sends only the name.
+ * sent, so a `price`, `cost` or `opening_value` that is not a number is dropped and the
+ * stored value stays. A bundle's own price, cost, accounts and purchase fields are
+ * written empty, whatever the hidden fields hold; a key the form did not send stays
+ * absent, so an edit that changed only the name sends only the name. The quantity on
+ * hand and the stock value are never written.
  */
 export function productColumnsFor(
     type: ProductType,
     columns: Record<string, unknown>
 ): ColumnsParse<ProductColumns> {
     const written = Object.entries(columns)
-        .filter(([key, value]) => !isMoneyText(key, value))
+        .filter(([key, value]) => !SERVER_OWNED_KEYS.has(key) && !isMoneyText(key, value))
         .map(([key, value]) =>
             type === 'bundle' && BUNDLE_EMPTY_COLUMNS.has(key)
                 ? [key, BUNDLE_EMPTY_COLUMNS.get(key)]
@@ -80,6 +92,12 @@ export const EMPTY_PRODUCT_FIELDS: Required<ProductColumns> = {
     purchase_description: '',
     cost: 0,
     expense_account: '',
+    asset_account: '',
+    preferred_vendor: '',
+    opening_quantity: 0,
+    opening_value: 0,
+    opening_date: '',
+    reorder_point: 0,
 }
 
 // The base of an insert, so a column the form left out is stored empty. The `satisfies`

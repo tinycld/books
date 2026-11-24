@@ -89,7 +89,10 @@ export const PRODUCT_HOST_KEY = 'books:product'
 // Income account, and Cost and Expense account side by side wherever the form is 640 px
 // wide or more. The purchase fields hide while "I purchase this from a vendor" is off;
 // that is a rule of the form, so admins see it and may change it in Settings → Forms.
-// Taxable's description is the toggle's help text in the seeded form.
+// Taxable's description is the toggle's help text in the seeded form. The fields of an
+// Inventory item follow: its two accounts' neighbours in one row, the opening stock in
+// the next. Quantity on hand has a row of its own, because a new item does not show it
+// and a missing half would pull the next field into its row.
 const PRODUCT_LAYOUT = {
     pages: [{ key: 'main', title: 'Product or service' }],
     fields: {
@@ -100,6 +103,18 @@ const PRODUCT_LAYOUT = {
         taxable: { description: 'Charge sales tax on this item when it is sold.' },
         cost: { width: 'half' },
         expense_account: { width: 'half' },
+        asset_account: { width: 'half' },
+        preferred_vendor: { width: 'half' },
+        opening_quantity: { width: 'third' },
+        opening_value: { width: 'third' },
+        opening_date: {
+            width: 'third',
+            description: 'The date the opening quantity and value are counted on.',
+        },
+        reorder_point: {
+            width: 'half',
+            description: 'The quantity on hand at which you buy more.',
+        },
     },
     rules: [
         {
@@ -774,6 +789,15 @@ const hosts: FormHostDefInput[] = [
                 columns: [...BUNDLE_ITEM_COLUMNS],
             },
             {
+                key: 'quantity_on_hand',
+                label: 'Quantity on hand',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'QuantityOnHandField',
+                chrome: 'cell',
+            },
+            {
                 key: 'price',
                 label: 'Sales price',
                 kind: 'custom',
@@ -828,6 +852,60 @@ const hosts: FormHostDefInput[] = [
                 storage: 'column',
                 required: false,
                 component: 'ExpenseAccountField',
+                chrome: 'cell',
+            },
+            {
+                key: 'asset_account',
+                label: 'Inventory asset account',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'AssetAccountField',
+                chrome: 'cell',
+            },
+            {
+                key: 'preferred_vendor',
+                label: 'Preferred vendor',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'PreferredVendorField',
+                chrome: 'cell',
+            },
+            {
+                key: 'opening_quantity',
+                label: 'Opening quantity',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'QuantityField',
+                chrome: 'cell',
+            },
+            {
+                key: 'opening_value',
+                label: 'Opening value',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'MoneyField',
+                chrome: 'cell',
+            },
+            {
+                key: 'opening_date',
+                label: 'Opening stock as of',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'OpeningDateField',
+                chrome: 'cell',
+            },
+            {
+                key: 'reorder_point',
+                label: 'Reorder point',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'QuantityField',
                 chrome: 'cell',
             },
         ],
