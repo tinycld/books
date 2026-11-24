@@ -26,7 +26,7 @@ import { describe, expect, it } from 'vitest'
 // view then at 2100000034, because they add indexes only and create no collection the
 // view reads; the bank deposits then moved the view above them. Email and share (plan
 // decisions 1 and 2): the document sends take 2100000034, the number the view left free,
-// and the view at 2100000038 reads them as a line collection, so they run before it.
+// and the audit view reads them as a line collection, so they run before it.
 // Reconcile spec §4 Schema: the reconciliations take the next free number at build time,
 // after the audit view, which reads none of their collections (books_reconciliations is
 // audited through the audit_logs rows the core audit writes, not through the view's LINES).
@@ -45,7 +45,7 @@ const MIGRATIONS = readdirSync(MIGRATIONS_DIR)
 
 // Bank deposit spec §4.1: the deposits take the next free number, 2100000037, because the
 // Expenses by Vendor indexes landed first at 2100000036. The view reads the deposits'
-// items and lines, so the audit view moves to 2100000038, the highest, after the bank
+// items and lines, so the audit view moves to the highest number, after the bank
 // categorizations and the covering indexes too. Inventory (ADR 3): the view moves again,
 // to 2100000043, after the inventory migration at 2100000038.
 const AUDIT = '2100000043_create_books_audit_log.js'
@@ -202,8 +202,8 @@ describe('pb-migrations prefixes', () => {
     // the audit view moved to 2100000032. A/P Aging spec §4.1: the payable items take
     // 2100000029. Statements spec §4.2 (Q21): the statements take 2100000033. Bank-deposit
     // spec: the deposits take 2100000037, and because the view reads their item and line
-    // rows, the audit view moves to 2100000038, the highest.
-    it('holds the vendor credits at 2100000023, the vendor refunds at 2100000024, the refund receipts at 2100000025, the vendor party balances at 2100000026, the write-offs at 2100000027, the receivable items at 2100000028, the payable items at 2100000029, the bank matches at 2100000030, the credit memo applications at 2100000031 and the statements at 2100000033, before the audit log at 2100000038', () => {
+    // rows, the audit view moves to the highest number.
+    it('holds the vendor credits at 2100000023, the vendor refunds at 2100000024, the refund receipts at 2100000025, the vendor party balances at 2100000026, the write-offs at 2100000027, the receivable items at 2100000028, the payable items at 2100000029, the bank matches at 2100000030, the credit memo applications at 2100000031 and the statements at 2100000033, before the audit log', () => {
         expect(MIGRATIONS).toContain('2100000023_create_books_vendor_credits.js')
         expect(MIGRATIONS).toContain('2100000024_create_books_vendor_refunds.js')
         expect(MIGRATIONS).toContain('2100000025_create_books_refund_receipts.js')

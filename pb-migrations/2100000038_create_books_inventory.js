@@ -125,6 +125,7 @@ migrate(
         )
         settings.fields.add(new BoolField({ name: 'costing_locked' }))
         app.save(settings)
+        // The one settings row, seeded by 2100000001 (server/settings.go settingsID).
         const row = app.findRecordById('books_settings', 'bookssettings01')
         row.set('costing_method', 'fifo')
         app.save(row)
@@ -300,7 +301,9 @@ migrate(
 
         const products = app.findCollectionByNameOrId('books_products')
         products.indexes = products.indexes.filter(
-            index => !index.includes('_asset_account ') && !index.includes('_preferred_vendor ')
+            index =>
+                !index.includes('idx_books_products_asset_account') &&
+                !index.includes('idx_books_products_preferred_vendor')
         )
         for (const field of PRODUCT_FIELDS) {
             products.fields.removeByName(field)
