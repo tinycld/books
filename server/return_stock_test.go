@@ -326,10 +326,10 @@ func TestReturnStock_RepointReadsTheReturnsOfAllGoneMovesOnce(t *testing.T) {
 		}
 		return count
 	}
-	var one, many int
-	t.Run("one sale", func(t *testing.T) { one = run(t, 1) })
-	t.Run("three sales", func(t *testing.T) { many = run(t, 3) })
-	if many != one {
-		t.Errorf("%d SELECTs for 6 gone moves, %d for 2: want the same count", many, one)
+	var twoGoneSelects, sixGoneSelects int
+	t.Run("one sale", func(t *testing.T) { twoGoneSelects = run(t, 1) })
+	t.Run("three sales", func(t *testing.T) { sixGoneSelects = run(t, 3) })
+	if sixGoneSelects != twoGoneSelects {
+		t.Errorf("%d SELECTs for 6 gone moves, %d for 2 gone moves: want the same count", sixGoneSelects, twoGoneSelects)
 	}
 }
