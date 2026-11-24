@@ -2106,7 +2106,7 @@ func TestForm1099CSVOpensEveryBox(t *testing.T) {
 // columns, the sort or the labels moves it. Checkpoint 4 (spec §11 Q21) moved
 // it once: the card mark and the doc type read the row's own copies
 // (fld("card_payment"), fld("doc_type")) in place of the entry's.
-const form1099SpecSHA256 = "56098d9af26cc7ec4f9f2ffc186bbc502cd588bf3eea7631df68f0c3c4feafb8"
+const form1099SpecSHA256 = "a2eab9cd704b0231de484134312e72d59ae639c63b36031491b2456b5ac213cb"
 
 func TestForm1099SpecSHA(t *testing.T) {
 	sum := sha256.Sum256(mustJSON(form1099Spec()))

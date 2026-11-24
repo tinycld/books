@@ -413,6 +413,35 @@ func TestAllocateNumber_DepositSequenceStartsAt1001(t *testing.T) {
 	}
 }
 
+// Inventory design, ADR 3: an inventory adjustment numbers on its own from
+// IA-1 (booksseqinvadjt), and its number takes no other document's.
+func TestAllocateNumber_InventoryAdjustmentSequenceStartsAtIA1(t *testing.T) {
+	app := newBooksApp(t)
+	row := reload(t, app, "books_doc_sequences", "booksseqinvadjt")
+	if got := [3]any{row.GetString("doc_type"), row.GetString("prefix"), row.GetInt("next_number")}; got != [3]any{"inventory_adjustment", "IA-", 1} {
+		t.Fatalf("doc_type/prefix/next_number = %v, want [inventory_adjustment IA- 1]", got)
+	}
+	var seq int
+	var number string
+	err := app.RunInTransaction(func(tx core.App) error {
+		var err error
+		seq, number, err = allocateNumber(tx, docTypeInventoryAdjustment)
+		return err
+	})
+	if err != nil {
+		t.Fatalf("allocate an inventory adjustment number: %v", err)
+	}
+	if seq != 1 || number != "IA-1" {
+		t.Fatalf("got %d %q, want 1 \"IA-1\"", seq, number)
+	}
+	if next := reload(t, app, "books_doc_sequences", "booksseqdeposit").GetInt("next_number"); next != 1001 {
+		t.Fatalf("booksseqdeposit next_number = %d, want 1001 (an inventory adjustment must not take its number)", next)
+	}
+	if got := entryName(row); got != "This inventory adjustment" {
+		t.Fatalf("entryName of a row with no number = %q, want %q", got, "This inventory adjustment")
+	}
+}
+
 func TestJournalEntryOrigin_HasDocument(t *testing.T) {
 	app := newBooksApp(t)
 	col, err := app.FindCollectionByNameOrId("books_journal_entries")
@@ -433,7 +462,7 @@ func TestDocTypes_MatchTheMigrations(t *testing.T) {
 	// Estimates never post and a statement is not a journal entry, so only the
 	// sequences know the estimate and statement doc types. The lists are
 	// compared sorted: where a new doc type lands in the select is not a rule.
-	entryTypes := []string{"journal", "transfer", "invoice", "sales_receipt", "bill", "expense", "payment", "bill_payment", "credit_memo", "vendor_credit", "vendor_refund", "refund_receipt", "write_off", "deposit"}
+	entryTypes := []string{"journal", "transfer", "invoice", "sales_receipt", "bill", "expense", "payment", "bill_payment", "credit_memo", "vendor_credit", "vendor_refund", "refund_receipt", "write_off", "deposit", "inventory_adjustment"}
 	want := map[string][]string{
 		"books_journal_entries": slices.Sorted(slices.Values(entryTypes)),
 		"books_doc_sequences":   slices.Sorted(slices.Values(append(slices.Clone(entryTypes), "estimate", "statement"))),

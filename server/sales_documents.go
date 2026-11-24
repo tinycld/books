@@ -219,7 +219,7 @@ const (
 var documentDocTypes = map[string]bool{
 	docTypeInvoice: true, docTypeSalesReceipt: true, docTypeBill: true, docTypeExpense: true, docTypePayment: true,
 	docTypeBillPayment: true, docTypeCreditMemo: true, docTypeVendorCredit: true, docTypeVendorRefund: true,
-	docTypeRefundReceipt: true, docTypeWriteOff: true, docTypeDeposit: true,
+	docTypeRefundReceipt: true, docTypeWriteOff: true, docTypeDeposit: true, docTypeInventoryAdjustment: true,
 }
 
 // maxDocumentLines is the most lines one sales document holds; the client's

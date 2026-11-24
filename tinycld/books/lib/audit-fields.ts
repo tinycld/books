@@ -135,6 +135,7 @@ export const DOC_TYPE = [
     { value: 'vendor_refund', label: 'Vendor refund' },
     { value: 'write_off', label: 'Write-off' },
     { value: 'deposit', label: 'Deposit' },
+    { value: 'inventory_adjustment', label: 'Inventory adjustment' },
     { value: 'statement', label: 'Statement' },
 ]
 const SEND_DOC_TYPE = DOC_TYPE.filter(option => isSendDocType(option.value))

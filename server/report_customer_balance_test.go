@@ -1512,7 +1512,7 @@ func TestCustomerBalanceOrder(t *testing.T) {
 // The bank-deposit unit added "Deposit" to the entry type labels and the
 // deposit route row the detail label and open path read (same Revision, as the
 // write-off unit's label did).
-const customerBalanceSpecSHA256 = "aff7bd3202130360e0df714fb5bc64af36a70b2bb983124e73d985f80a3c1787"
+const customerBalanceSpecSHA256 = "74875ae9b34ff2e4e662ac2673412e7990a46ed43a28b9d89f2b74495be26044"
 
 func TestCustomerBalanceSpecJSONUnchanged(t *testing.T) {
 	sum := sha256.Sum256(mustJSON(customerBalanceSpec()))

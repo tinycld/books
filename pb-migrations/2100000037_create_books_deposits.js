@@ -252,6 +252,7 @@ migrate(
                             'refund_receipt',
                             'write_off',
                             'deposit',
+                            'inventory_adjustment',
                         ],
                     },
                     { name: 'number', type: 'text', max: 40 },

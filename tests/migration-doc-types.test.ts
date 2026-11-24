@@ -91,4 +91,15 @@ describe('doc_type select values against the client lists', () => {
         expect(DOC_TYPE).toContainEqual({ value: 'deposit', label: 'Deposit' })
         expect(ROUTED_DOC_TYPES).toContain('deposit')
     })
+
+    // Inventory design (ADR 3): migrations 2100000001 and 2100000002 are edited in place.
+    it('holds inventory_adjustment in both selects, in DOC_TYPE and in ROUTED_DOC_TYPES', () => {
+        expect(valuesOf('books_doc_sequences')).toContain('inventory_adjustment')
+        expect(valuesOf('books_journal_entries')).toContain('inventory_adjustment')
+        expect(DOC_TYPE).toContainEqual({
+            value: 'inventory_adjustment',
+            label: 'Inventory adjustment',
+        })
+        expect(ROUTED_DOC_TYPES).toContain('inventory_adjustment')
+    })
 })

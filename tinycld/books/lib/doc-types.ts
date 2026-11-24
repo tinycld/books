@@ -14,6 +14,7 @@ export const DOC_TYPES: Record<string, { label: string; noun: string }> = {
     vendor_refund: { label: 'Vendor refunds', noun: 'vendor refund' },
     write_off: { label: 'Write-offs', noun: 'write-off' },
     deposit: { label: 'Deposits', noun: 'deposit' },
+    inventory_adjustment: { label: 'Inventory adjustments', noun: 'inventory adjustment' },
     statement: { label: 'Statements', noun: 'statement' },
 }
 

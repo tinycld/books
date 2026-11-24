@@ -19,7 +19,8 @@
         "vendor_refund": "Vendor refund",
         "refund_receipt": "Refund receipt",
         "write_off": "Write-off",
-        "deposit": "Deposit"
+        "deposit": "Deposit",
+        "inventory_adjustment": "Inventory adjustment"
     },
     "reversalOrigins": ["reversal", "void_reversal", "auto_reversal"]
 }

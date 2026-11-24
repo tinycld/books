@@ -712,6 +712,7 @@ func entryDocTypeOptions() []reports.Option {
 		{Value: docTypeRefundReceipt, Label: entryTypeLabels.DocTypes[docTypeRefundReceipt]},
 		{Value: docTypeWriteOff, Label: entryTypeLabels.DocTypes[docTypeWriteOff]},
 		{Value: docTypeDeposit, Label: entryTypeLabels.DocTypes[docTypeDeposit]},
+		{Value: docTypeInventoryAdjustment, Label: entryTypeLabels.DocTypes[docTypeInventoryAdjustment]},
 	}
 }
 
