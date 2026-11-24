@@ -459,6 +459,47 @@ function useVendorPick(value: string, onChange: (value: unknown) => void) {
 }
 
 /**
+ * The SearchPicker props a vendor picker shares (Vendor on a purchase kind, an item's
+ * Preferred vendor): the field's test ids, the vendor options and their load state.
+ */
+export function vendorPickerProps({
+    picker,
+    fieldKey,
+    label,
+    id,
+    triggerLabel,
+    disabled,
+    options,
+}: {
+    picker: ReturnType<typeof useSearchPicker>
+    fieldKey: string
+    label: string
+    id: string
+    triggerLabel: string
+    disabled: boolean
+    options: ReturnType<typeof useVendorOptions>
+}) {
+    return {
+        picker,
+        title: label,
+        triggerLabel,
+        isPlaceholder: !id,
+        triggerAccessibilityLabel: `${label}: ${id ? triggerLabel : 'none'}`,
+        triggerTestId: `form-input-${fieldKey}`,
+        disabled,
+        searchPlaceholder: 'Search vendors',
+        searchTestId: `form-input-${fieldKey}-search`,
+        options: options.options,
+        optionTestIdPrefix: `form-input-${fieldKey}-option`,
+        value: id,
+        isLoading: options.isLoading,
+        loadFailed: options.loadFailed,
+        onRetry: options.retry,
+        emptyText: options.emptyText,
+    }
+}
+
+/**
  * Vendor on a purchase kind: a picker over active vendors by name. A stored vendor that
  * is now inactive shows by name with "(inactive)". Picking one fills the band
  * (useVendorPick) and moves focus on to the next field control (the band's links are no
@@ -482,33 +523,26 @@ export function VendorField({ value, onChange, disabled, label }: BuiltinFieldPr
     }
     const retry = scope.partyLoadFailed ? scope.retryParty : undefined
     const testID = `${scope.kind.testId}-${fieldKey}`
-    const accessibilityLabel = `${label}: ${id ? triggerLabel : 'none'}`
     const showsLoadError = pickFailed || scope.partyLoadFailed
     const noneOption = scope.kind.customerRequired
         ? undefined
         : { label: NO_VENDOR_TEXT, testID: `form-input-${fieldKey}-none` }
+    const shared = vendorPickerProps({
+        picker,
+        fieldKey,
+        label,
+        id,
+        triggerLabel,
+        disabled,
+        options,
+    })
     return (
         <View testID={testID}>
             <SearchPicker
-                picker={picker}
-                title={label}
-                triggerLabel={triggerLabel}
-                isPlaceholder={!id}
+                {...shared}
                 triggerSuffix={triggerSuffix}
-                triggerAccessibilityLabel={accessibilityLabel}
-                triggerTestId={`form-input-${fieldKey}`}
-                disabled={disabled}
-                searchPlaceholder="Search vendors"
-                searchTestId={`form-input-${fieldKey}-search`}
-                options={options.options}
-                optionTestIdPrefix={`form-input-${fieldKey}-option`}
-                value={id}
                 onChange={onPick}
                 noneOption={noneOption}
-                isLoading={options.isLoading}
-                loadFailed={options.loadFailed}
-                onRetry={options.retry}
-                emptyText={options.emptyText}
                 autoFocus={focus.autoFocus}
                 triggerRef={focus.triggerRef}
                 onPicked={focus.focusNext}

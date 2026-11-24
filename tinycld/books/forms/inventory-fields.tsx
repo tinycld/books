@@ -1,7 +1,9 @@
 import { eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import type { BuiltinFieldProps } from '@tinycld/core/lib/forms/host-ui'
+import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
+import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { Text } from 'react-native'
 import { HostQuantityInput } from '../components/forms/HostQuantityInput'
 import { SearchPicker, useSearchPicker } from '../components/SearchPicker'
@@ -11,7 +13,7 @@ import { assetAccountOptions, assetAccountPlaceholder } from '../lib/inventory-a
 import { NO_PREFERRED_VENDOR, preferredVendorLabel } from '../lib/preferred-vendor'
 import { quantityOnHandText } from '../lib/quantity-input'
 import { HostSelect } from './account-fields'
-import { DayField, useVendorOptions } from './document-fields'
+import { DayField, useVendorOptions, vendorPickerProps } from './document-fields'
 
 // The `books:product` host components of an Inventory item (hosts.ts). The core cell
 // draws each one's label and error.
@@ -45,7 +47,7 @@ export function AssetAccountField({
 // it, an inactive one too, whether or not the picker's options hold it.
 function useChosenVendor(id: string) {
     const [vendorsCollection] = useStore('books_vendors')
-    return useLiveQuery({
+    const query = useLiveQuery({
         query: q =>
             id
                 ? q
@@ -60,6 +62,15 @@ function useChosenVendor(id: string) {
                 : null,
         queryKey: ['books.products.preferred-vendor', id],
     })
+    // A failed live query does not recover on a reload: clean it up and load it again.
+    const retry = () => {
+        void recoverLiveQueries({
+            queries: [query.collection],
+            sources: [vendorsCollection],
+            onError: err => log.error('books.products.preferred-vendor', err),
+        })
+    }
+    return { vendor: query.data, isLoading: query.isLoading, isError: query.isError, retry }
 }
 
 /**
@@ -78,31 +89,32 @@ export function PreferredVendorField({
     const options = useVendorOptions(picker.debouncedTerm, picker.isOpen, id)
     const chosen = useChosenVendor(id)
     const trigger = preferredVendorLabel(id, {
-        vendor: chosen.data,
+        vendor: chosen.vendor,
         isLoading: chosen.isLoading,
         isError: chosen.isError,
     })
+    const shared = vendorPickerProps({
+        picker,
+        fieldKey,
+        label,
+        id,
+        triggerLabel: trigger.label,
+        disabled,
+        options,
+    })
+    // The picker's failed state and Retry cover both reads: the options and the chosen vendor.
+    const retryBoth = () => {
+        options.retry()
+        chosen.retry()
+    }
     return (
         <SearchPicker
-            picker={picker}
-            title={label}
-            triggerLabel={trigger.label}
-            isPlaceholder={!id}
+            {...shared}
             triggerSuffix={trigger.suffix}
-            triggerAccessibilityLabel={`${label}: ${id ? trigger.label : 'none'}`}
-            triggerTestId={`form-input-${fieldKey}`}
-            disabled={disabled}
-            searchPlaceholder="Search vendors"
-            searchTestId={`form-input-${fieldKey}-search`}
-            options={options.options}
-            optionTestIdPrefix={`form-input-${fieldKey}-option`}
-            value={id}
             onChange={onChange}
             noneOption={{ label: NO_PREFERRED_VENDOR, testID: `form-input-${fieldKey}-none` }}
-            isLoading={options.isLoading}
-            loadFailed={options.loadFailed}
-            onRetry={options.retry}
-            emptyText={options.emptyText}
+            loadFailed={options.loadFailed || chosen.isError}
+            onRetry={retryBoth}
         />
     )
 }
