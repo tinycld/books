@@ -52,6 +52,29 @@ func TestCostingMethod_ChangesUntilTheFirstStockMove(t *testing.T) {
 		"Books locks the costing method itself.")
 }
 
+// The mark lets the store set the lock, never clear it: nothing unlocks.
+func TestCostingMethod_TheMarkCannotClearTheLock(t *testing.T) {
+	env := newLedgerEnv(t)
+	writeLock := func(locked bool) error {
+		return env.app.RunInTransaction(func(tx core.App) error {
+			defer setTxMark(tx, markCostingLock, settingsID)()
+			row, err := tx.FindRecordById("books_settings", settingsID)
+			if err != nil {
+				return err
+			}
+			row.Set("costing_locked", locked)
+			return tx.Save(row)
+		})
+	}
+	if err := writeLock(true); err != nil {
+		t.Fatalf("the store sets the lock under its mark: %v", err)
+	}
+	requireMessageOnlyRefusal(t, writeLock(false), "Books locks the costing method itself.")
+	if _, locked := costingSettings(t, env.app); !locked {
+		t.Error("a write under the mark cleared the lock")
+	}
+}
+
 func TestCostingMethod_ThePersonCannotSetTheLock(t *testing.T) {
 	env := newLedgerEnv(t)
 	requireMessageOnlyRefusal(t, setFields(t, env.app, "books_settings", settingsID, map[string]any{"costing_locked": true}),

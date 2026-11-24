@@ -65,11 +65,14 @@ const (
 // checkCostingSettings guards costing_method and costing_locked. The method
 // changes only while the lock is off, and never to none. The lock is the
 // store's: lockCostingMethod sets it, under markCostingLock, when the first
-// stock move is written, and nothing clears it. The update rule pins the lock
-// for a person; this holds for Go and a superuser too.
+// stock move is written, and nothing clears it, not even a write under the
+// mark. The update rule does not pin the lock: this guard is the only barrier,
+// and it holds for a person, Go and a superuser alike.
 func checkCostingSettings(tx core.App, stored, r *core.Record) error {
-	if r.GetBool("costing_locked") != stored.GetBool("costing_locked") && !hasTxMark(tx, markCostingLock, settingsID) {
-		return refuse(msgCostingLockFixed)
+	if r.GetBool("costing_locked") != stored.GetBool("costing_locked") {
+		if stored.GetBool("costing_locked") || !hasTxMark(tx, markCostingLock, settingsID) {
+			return refuse(msgCostingLockFixed)
+		}
 	}
 	method := r.GetString("costing_method")
 	if method == stored.GetString("costing_method") {
