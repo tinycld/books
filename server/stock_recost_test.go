@@ -143,3 +143,121 @@ func TestRecost_InAClosedPeriodRefusesThePost(t *testing.T) {
 	}
 	requireOnHand(t, se.app, se.widget, -4, -2000)
 }
+
+// Voiding a stock-in changes what a later removal cost; the removal's re-cost
+// comes from the withdraw, not from a post.
+func TestRecost_AVoidedStockInRecostsTheLaterRemoval(t *testing.T) {
+	eachCostingMethod(t, func(t *testing.T, se *stockEnv, method string) {
+		// FIFO: the removal took 5 of the 500 stock-in (250) and now takes 5 of the
+		// 1000 one (500). Average: 5 of 20 for 1500 (375), then 5 of 10 for 1000 (500).
+		difference := map[string]int{costingFIFO: 250, costingAverage: 125}[method]
+		first := se.mustAdjust(t, "2026-07-01", se.stockIn(10, 500))
+		se.mustAdjust(t, "2026-07-02", se.stockIn(10, 1000))
+		out := se.mustAdjust(t, "2026-07-03", se.stockOut(5))
+		if got := recostsOf(t, se.app, out); len(got) != 0 {
+			t.Fatalf("%d re-costs before the void, want none", len(got))
+		}
+
+		err := se.app.RunInTransaction(func(tx core.App) error {
+			fresh, err := tx.FindRecordById(inventoryAdjustmentsCollection, first.Id)
+			if err != nil {
+				return err
+			}
+			return voidSystemAdjustment(tx, fresh, se.users.bookkeeper.Id, fresh.GetDateTime("posted_at").Time())
+		})
+		if err != nil {
+			t.Fatalf("void the stock-in: %v", err)
+		}
+		recosts := recostsOf(t, se.app, out)
+		if len(recosts) != 1 {
+			t.Fatalf("%d re-costs of the removal, want 1", len(recosts))
+		}
+		if got := recosts[0].GetString("date"); got != "2026-07-03" {
+			t.Errorf("re-cost date = %s, want the removal's 2026-07-03", got)
+		}
+		requireEntryLines(t, se.app, recosts[0].GetString("entry"),
+			entryLine{account: se.asset.Id, credit: difference},
+			entryLine{account: se.shrinkage(t).Id, debit: difference},
+		)
+		drifted, err := driftedStockMoves(se.app, []string{se.widget.Id})
+		if err != nil || len(drifted) != 0 {
+			t.Errorf("%d moves still differ from the ledger (err %v), want none", len(drifted), err)
+		}
+	})
+}
+
+// A correction takes the re-costs of the document it replaces away with that
+// document's moves.
+func TestRecost_AreVoidedWithTheDocumentACorrectionReplaces(t *testing.T) {
+	se := newStockEnv(t)
+	se.mustAdjust(t, "2026-07-02", se.stockIn(10, 1000))
+	out := se.mustAdjust(t, "2026-07-03", se.stockOut(5))
+	se.mustAdjust(t, "2026-07-01", se.stockIn(10, 500))
+	if got := recostsOf(t, se.app, out); len(got) != 1 {
+		t.Fatalf("%d re-costs before the correction, want 1", len(got))
+	}
+
+	correction := se.receipt("adjustment0000x", "2026-07-03", 5, 500)
+	correction.Source = inventoryAdjustmentsCollection
+	err := se.app.RunInTransaction(func(tx core.App) error {
+		_, err := postDocumentStock(tx, se.users.bookkeeper.Id, inventoryAdjustmentsCollection, correction.Document, out.Id,
+			[]stockMoveInput{correction})
+		return err
+	})
+	if err != nil {
+		t.Fatalf("post the correction's stock: %v", err)
+	}
+	recost := recostsOf(t, se.app, out)[0]
+	if recost.GetString("status") != statusVoid {
+		t.Errorf("the re-cost of the replaced document is %s, want void", recost.GetString("status"))
+	}
+	if got := reload(t, se.app, "books_journal_entries", recost.GetString("entry")).GetString("status"); got != statusVoid {
+		t.Errorf("the re-cost's entry is %s, want void", got)
+	}
+	if n, _ := se.app.CountRecords(stockMovesCollection, dbx.HashExp{"document": out.Id}); n != 0 {
+		t.Errorf("%d moves of the replaced document, want none", n)
+	}
+}
+
+// A drift that nets to no journal line (a move whose asset and offset account
+// are one) posts no adjustment, and the ledger is recorded as holding it.
+func TestRecost_ADriftWithNoJournalLineIsOnlyMarkedPosted(t *testing.T) {
+	se := newStockEnv(t)
+	post := func(document string, m stockMoveInput) {
+		t.Helper()
+		err := se.app.RunInTransaction(func(tx core.App) error {
+			_, err := postDocumentStock(tx, se.users.bookkeeper.Id, m.Source, document, "", []stockMoveInput{m})
+			return err
+		})
+		if err != nil {
+			t.Fatalf("post the stock of %s: %v", document, err)
+		}
+	}
+	post("bill00000000001", se.receipt("bill00000000001", "2026-07-02", 10, 1000))
+	sale := se.sold("inv00000000001", "2026-07-03", 5)
+	sale.OffsetAccount = se.asset.Id
+	post("inv00000000001", sale)
+	post("bill00000000002", se.receipt("bill00000000002", "2026-07-01", 10, 500))
+
+	if n, _ := se.app.CountRecords(inventoryAdjustmentsCollection); n != 0 {
+		t.Errorf("%d adjustments, want none for a drift with no journal line", n)
+	}
+	drifted, err := driftedStockMoves(se.app, []string{se.widget.Id})
+	if err != nil || len(drifted) != 0 {
+		t.Errorf("%d moves still differ from the ledger (err %v), want none", len(drifted), err)
+	}
+}
+
+// A re-cost memo names a sales document that posted no entry as the package
+// names it elsewhere, never as an inventory adjustment.
+func TestStockDocumentName_NamesASalesDocumentWithNoEntry(t *testing.T) {
+	ie := newInvoiceEnv(t)
+	invoice := ie.mkInvoice(t, nil)
+	got, err := stockDocumentName(ie.app, "books_invoices", invoice.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "This invoice"; got != want {
+		t.Errorf("name of a draft invoice = %q, want %q", got, want)
+	}
+}

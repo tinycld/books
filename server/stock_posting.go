@@ -271,8 +271,8 @@ func voidRecosts(tx core.App, actor, source, document string) error {
 }
 
 // stockDocumentName is how a re-cost's memo names the document it re-costs:
-// the name of the document's journal entry ("Invoice 1001"), or the inventory
-// adjustment's own name when it posted no entry.
+// the name of the document's journal entry ("Invoice 1001"), or, when it posted
+// no entry, the name its own kind gives it.
 func stockDocumentName(tx core.App, source, document string) (string, error) {
 	doc, err := tx.FindRecordById(source, document)
 	if err != nil {
@@ -285,5 +285,16 @@ func stockDocumentName(tx core.App, source, document string) (string, error) {
 		}
 		return entryName(entry), nil
 	}
-	return inventoryAdjustmentName(doc), nil
+	if source == inventoryAdjustmentsCollection {
+		return inventoryAdjustmentName(doc), nil
+	}
+	for _, kind := range []salesDocKind{invoiceKind, salesReceiptKind, creditMemoKind, refundReceiptKind, billKind, expenseKind, vendorCreditKind} {
+		if kind.Collection == source {
+			return salesDocName(kind, doc), nil
+		}
+	}
+	if n := doc.GetString("number"); n != "" {
+		return "Document " + n, nil
+	}
+	return "A document", nil
 }
