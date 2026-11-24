@@ -271,10 +271,13 @@ func TestCLIResources_ServerAcceptsEveryListQuery(t *testing.T) {
 	apiSeq(t, app, calls...)
 }
 
-// PocketBase reads % and _ in a ~ value as wildcards. The CLI escapes them, and
-// the fixture holds the text it sends, so a search for "15%" finds the one name
-// that contains those three characters and not "Rate 150" or "Rate 115", and a
-// search for "1_5" finds only "Rate 1_5", not "Rate 105" or "Rate 115".
+// PocketBase reads % and _ in a ~ value as wildcards. A search for "15%" finds
+// only "Rate 15%", not "Rate 150" or "Rate 115": the % case fails if the CLI
+// stops escaping %, as the quote case in TestCLIResources_AccountRoundTrip does
+// for quotes. The "1_5" search finds only "Rate 1_5", but it checks the server's
+// behavior only: when a value has no %, PocketBase's wrapLikeParams escapes _
+// itself (tools/search/filter.go), so this passes even if the CLI stops escaping
+// _. The guard of the CLI's escaper is cli/list_filters_test.go.
 func TestCLIResources_SearchWildcardsAreText(t *testing.T) {
 	app := newGuardedApp(t)
 	users := newLevelUsers(t, app)
