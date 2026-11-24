@@ -668,7 +668,7 @@ func lineFixture(t *testing.T, app core.App, lines string) (parent, line *core.R
 		line = saveRecord(t, app, lines, map[string]any{"deposit": parent.Id, "account": income.Id, "amount": 100, "position": 0})
 	case "books_inventory_adjustment_lines":
 		product := saveRecord(t, app, "books_products", map[string]any{
-			"type": "service", "name": fmt.Sprintf("Widget %d", n), "name_key": fmt.Sprintf("widget %d", n), "currency": "USD",
+			"type": "inventory", "name": fmt.Sprintf("Widget %d", n), "name_key": fmt.Sprintf("widget %d", n), "currency": "USD",
 		})
 		parent = saveRecord(t, app, "books_inventory_adjustments", map[string]any{
 			"status": "draft", "kind": "manual", "date": "2026-11-10", "account": account.Id, "currency": "USD",
