@@ -890,6 +890,7 @@ function productGroupRows(row: ProductRow, total: number, input: SalesInput): Re
 const PRODUCT_TYPE_LABELS: Record<SalesProduct['type'], string> = {
     service: 'Service',
     non_inventory: 'Non-inventory',
+    inventory: 'Inventory',
     bundle: 'Bundle',
 }
 

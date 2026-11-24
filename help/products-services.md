@@ -7,15 +7,16 @@ order: 32
 
 Products and services are the things you sell and buy. To see them, choose Lists in the sidebar and pick the Products and services card. Books opens on the Dashboard the first time. On a phone, Books opens where you left it. To get back to Lists on a phone, choose All lists at the top of the Products and services list, or swipe in from the left edge of the screen to open the Books menu and choose Lists. A read-only user can open products and services but cannot change them. To see what you sold of each product and service in a period, press Sales report at the top of the Products and services list: it opens Sales by Product/Service. To read it, see the [sales reports](help://books:reports).
 
-## The three types
+## The four types
 
-Each product or service has one of three types:
+Each product or service has one of four types:
 
 - Service: Work you do for customers, such as consulting, repairs or lessons.
 - Non-inventory: Goods you buy or sell without counting how many you have, such as parts used on a job.
+- Inventory: Goods you buy and sell and count: Books tracks how many you have and what they cost.
 - Bundle: Products and services you sell together as one line, such as a starter kit.
 
-A Service can become a Non-inventory item and back again. A bundle keeps its type, and an item cannot become a bundle after you create it.
+A Service can become a Non-inventory item and back again. A bundle and an Inventory item keep their type, and an item cannot become a bundle or an Inventory item after you create it.
 
 ## Create a product or service
 

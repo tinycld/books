@@ -31,7 +31,7 @@ describe('productColumnsFor', () => {
     })
 
     it('refuses a type outside the product types', () => {
-        const error = refusalOf('service', { name: 'A', type: 'inventory' })
+        const error = refusalOf('service', { name: 'A', type: 'subscription' })
         expect(error.issues.map(issue => issue.path[0])).toContain('type')
     })
 

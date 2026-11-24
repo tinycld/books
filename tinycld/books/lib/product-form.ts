@@ -9,6 +9,7 @@ import type { ProductType } from './product-types'
 export const PRODUCT_HIDDEN_BUILTINS: Record<ProductType, readonly string[]> = {
     service: ['items'],
     non_inventory: ['items'],
+    inventory: ['items'],
     bundle: [
         'price',
         'income_account',
@@ -23,6 +24,7 @@ export const PRODUCT_HIDDEN_BUILTINS: Record<ProductType, readonly string[]> = {
 export const PRODUCT_REQUIRED_BUILTINS: Record<ProductType, readonly string[]> = {
     service: ['income_account'],
     non_inventory: ['income_account'],
+    inventory: ['income_account'],
     bundle: [],
 }
 

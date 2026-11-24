@@ -12,6 +12,7 @@ export type DefaultAccount = Pick<
 const INCOME_DETAIL: Record<ProductType, string | null> = {
     service: 'service_income',
     non_inventory: 'product_sales',
+    inventory: 'product_sales',
     bundle: null,
 }
 

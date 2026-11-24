@@ -21,6 +21,13 @@ export const PRODUCT_TYPES = [
             'Goods you buy or sell without counting how many you have, such as parts used on a job.',
     },
     {
+        key: 'inventory',
+        label: 'Inventory',
+        noun: 'inventory item',
+        sentence:
+            'Goods you buy and sell and count: Books tracks how many you have and what they cost.',
+    },
+    {
         key: 'bundle',
         label: 'Bundle',
         noun: 'bundle',
@@ -28,7 +35,7 @@ export const PRODUCT_TYPES = [
     },
 ] as const satisfies readonly { key: ProductType; label: string; noun: string; sentence: string }[]
 
-export const PRODUCT_TYPE_KEYS = ['service', 'non_inventory', 'bundle'] as const
+export const PRODUCT_TYPE_KEYS = ['service', 'non_inventory', 'inventory', 'bundle'] as const
 
 const KEYS: ReadonlySet<unknown> = new Set(PRODUCT_TYPE_KEYS)
 
@@ -45,8 +52,10 @@ export function productTypeNoun(type: ProductType): string {
     return PRODUCT_TYPES.find(entry => entry.key === type)?.noun ?? ''
 }
 
-// A product never becomes a bundle after it is created (the server refuses
-// it), so the type field offers only Service and Non-inventory.
+// A product never becomes a bundle or an Inventory item after it is created (the
+// server refuses it), so the type field offers only Service and Non-inventory.
+const FIXED_TYPES: ReadonlySet<string> = new Set(['bundle', 'inventory'])
+
 export const PRODUCT_TYPE_SELECT_OPTIONS: { value: string; label: string }[] = PRODUCT_TYPES.filter(
-    entry => entry.key !== 'bundle'
+    entry => !FIXED_TYPES.has(entry.key)
 ).map(entry => ({ value: entry.key, label: entry.label }))

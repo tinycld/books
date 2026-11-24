@@ -47,7 +47,7 @@ describe('help/products-services.md', () => {
     })
 
     // The chooser's sentence says what each type is for; the topic gives it beside the label.
-    it('names the three types, each with what it is for', () => {
+    it('names every type, each with what it is for', () => {
         expect(topicExists).toBe(true)
         const lines = body.split('\n')
         for (const { label, sentence } of PRODUCT_TYPES) {

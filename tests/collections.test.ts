@@ -202,8 +202,10 @@ describe('registerCollections', () => {
         expect(calls.get('books_vendors')?.relations).toBeUndefined()
     })
 
-    // The guard sets name_key and sort_key and the server stamps currency, so the client
-    // never sends them on a product; a bundle row sends every column it has.
+    // The guard sets name_key and sort_key, the server stamps currency and the costing
+    // replay writes quantity_on_hand and stock_value, so the client never sends them on a
+    // product; a bundle row sends every column it has. The other inventory columns are
+    // optional on insert until the product form writes them.
     it('never inserts a product or bundle row column the server sets', () => {
         const { calls } = register()
         expect(calls.get('books_products')?.omitOnInsert).toEqual([
@@ -212,6 +214,14 @@ describe('registerCollections', () => {
             'name_key',
             'sort_key',
             'currency',
+            'quantity_on_hand',
+            'stock_value',
+            'asset_account',
+            'preferred_vendor',
+            'reorder_point',
+            'opening_quantity',
+            'opening_value',
+            'opening_date',
         ])
         expect(calls.get('books_bundle_items')?.omitOnInsert).toEqual(['created', 'updated'])
     })
