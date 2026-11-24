@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
@@ -255,9 +256,9 @@ func TestInventoryItem_CostChangeRecostNamesWhoSentTheUpdate(t *testing.T) {
 	}.run(t, env.app)
 }
 
-// A refused re-cost leaves the old cost stored: storeItemCost writes the new
-// cost inside the write's transaction, which the refusal rolls back.
-func TestInventoryItem_CostChangeInAClosedPeriodKeepsTheOldCost(t *testing.T) {
+// A cost change that re-costs a removal in a closed period posts the re-cost
+// on the day of the change.
+func TestInventoryItem_CostChangeRecostsAClosedPeriodOnTheDayOfTheChange(t *testing.T) {
 	env := newItemEnv(t)
 	widget, err := newProduct(env.app, inventoryItem(env, nil))
 	if err != nil {
@@ -268,8 +269,37 @@ func TestInventoryItem_CostChangeInAClosedPeriodKeepsTheOldCost(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if err := setFields(t, env.app, "books_products", widget.Id, map[string]any{"cost": 700}); err != nil {
+		t.Fatalf("change the cost: %v", err)
+	}
+	recosts := recostsOf(t, env.app, out)
+	if len(recosts) != 1 {
+		t.Fatalf("%d re-costs of the removal, want 1", len(recosts))
+	}
+	if got, want := recosts[0].GetString("date"), todayUTC(time.Now()); got != want {
+		t.Errorf("re-cost date = %s, want the day of the change %s", got, want)
+	}
+	requireOnHand(t, env.app, widget, -4, -2800)
+}
+
+// A refused re-cost leaves the old cost stored: storeItemCost writes the new
+// cost inside the write's transaction, which the refusal rolls back. Here
+// the day of the change is in the closed period too, so the refusal names
+// the document and the item.
+func TestInventoryItem_CostChangeInAClosedPeriodKeepsTheOldCost(t *testing.T) {
+	env := newItemEnv(t)
+	widget, err := newProduct(env.app, inventoryItem(env, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := removalOf(t, env, widget, "2026-02-01", 4)
+	if err := setFields(t, env.app, "books_settings", settingsID, map[string]any{"close_date": "2999-12-31"}); err != nil {
+		t.Fatal(err)
+	}
+
 	err = setFields(t, env.app, "books_products", widget.Id, map[string]any{"cost": 700})
-	requireRefused(t, err, "The books are closed through 2026-03-31.")
+	requireRefused(t, err, "The books are closed through 2999-12-31, so Books cannot re-cost Inventory adjustment IA-1 for "+
+		widget.GetString("name")+" on "+todayUTC(time.Now())+".")
 	if got := reload(t, env.app, "books_products", widget.Id).GetInt("cost"); got != 500 {
 		t.Errorf("cost = %d after the refused change, want 500", got)
 	}

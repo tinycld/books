@@ -193,7 +193,7 @@ func postAdjustmentReplacing(tx core.App, r *core.Record, replaces string, now t
 		if err != nil {
 			return err
 		}
-		moves, err := postDocumentStock(tx, actor, inventoryAdjustmentsCollection, r.Id, replaces, inputs)
+		moves, err := postDocumentStock(tx, actor, inventoryAdjustmentsCollection, r.Id, replaces, r.GetString("date"), inputs)
 		if err != nil {
 			return err
 		}

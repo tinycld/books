@@ -170,16 +170,45 @@ func TestRecost_IsVoidedWithItsDocument(t *testing.T) {
 	requireOnHand(t, se.app, se.widget, 20, 1500)
 }
 
-// ADR 3, Consequences: a re-cost dated in a closed period refuses the post
-// that caused it, and nothing of that post is written.
-func TestRecost_InAClosedPeriodRefusesThePost(t *testing.T) {
+// A removal in a closed period that a later stock-in prices again: the
+// re-cost cannot post on the removal's day, so it posts on the stock-in's,
+// which passed the close date itself, and the stock-in posts.
+func TestRecost_OfAMoveInAClosedPeriodPostsOnTheDayOfItsCause(t *testing.T) {
+	eachCostingMethod(t, func(t *testing.T, se *stockEnv, _ string) {
+		out := se.mustAdjust(t, "2026-07-01", se.stockOut(4))
+		if err := setFields(t, se.app, "books_settings", settingsID, map[string]any{"close_date": "2026-07-15"}); err != nil {
+			t.Fatalf("close the books: %v", err)
+		}
+		se.mustAdjust(t, "2026-07-20", se.stockIn(10, 7000))
+		recosts := recostsOf(t, se.app, out)
+		if len(recosts) != 1 {
+			t.Fatalf("%d re-costs of the oversold removal, want 1", len(recosts))
+		}
+		got := [3]string{recosts[0].GetString("status"), recosts[0].GetString("date"), recosts[0].GetString("memo")}
+		want := [3]string{statusPosted, "2026-07-20", "Re-cost of Inventory adjustment IA-1"}
+		if got != want {
+			t.Errorf("re-cost status/date/memo = %v, want %v", got, want)
+		}
+		requireEntryLines(t, se.app, recosts[0].GetString("entry"),
+			entryLine{account: se.asset.Id, credit: 800},
+			entryLine{account: se.shrinkage(t).Id, debit: 800},
+		)
+		requireOnHand(t, se.app, se.widget, 6, 4200)
+	})
+}
+
+// A cause that is itself in the closed period cannot carry the re-cost
+// either: the refusal names the document and the item it would re-cost, and
+// nothing of the post is written.
+func TestRecost_ACauseInAClosedPeriodNamesTheDocumentAndTheItem(t *testing.T) {
 	se := newStockEnv(t)
 	se.mustAdjust(t, "2026-07-01", se.stockOut(4))
 	if err := setFields(t, se.app, "books_settings", settingsID, map[string]any{"close_date": "2026-07-15"}); err != nil {
 		t.Fatalf("close the books: %v", err)
 	}
-	_, err := se.adjust("2026-07-20", se.stockIn(10, 7000))
-	requireRefused(t, err, "The books are closed through 2026-07-15.")
+	_, err := se.adjust("2026-07-10", se.stockIn(10, 7000))
+	requireRefused(t, err,
+		"The books are closed through 2026-07-15, so Books cannot re-cost Inventory adjustment IA-1 for Widget on 2026-07-10.")
 	if n, _ := se.app.CountRecords(inventoryAdjustmentsCollection); n != 1 {
 		t.Errorf("%d adjustments after the refusal, want the 1 removal", n)
 	}
@@ -243,7 +272,7 @@ func TestRecost_AreVoidedWithTheDocumentACorrectionReplaces(t *testing.T) {
 	correction.Source = inventoryAdjustmentsCollection
 	err := se.app.RunInTransaction(func(tx core.App) error {
 		_, err := postDocumentStock(tx, se.users.bookkeeper.Id, inventoryAdjustmentsCollection, correction.Document, out.Id,
-			[]stockMoveInput{correction})
+			correction.Date, []stockMoveInput{correction})
 		return err
 	})
 	if err != nil {
@@ -268,7 +297,7 @@ func TestRecost_ADriftWithNoJournalLineIsOnlyMarkedPosted(t *testing.T) {
 	post := func(document string, m stockMoveInput) {
 		t.Helper()
 		err := se.app.RunInTransaction(func(tx core.App) error {
-			_, err := postDocumentStock(tx, se.users.bookkeeper.Id, m.Source, document, "", []stockMoveInput{m})
+			_, err := postDocumentStock(tx, se.users.bookkeeper.Id, m.Source, document, "", m.Date, []stockMoveInput{m})
 			return err
 		})
 		if err != nil {

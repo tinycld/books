@@ -137,7 +137,7 @@ func recostForCost(tx core.App, r *core.Record) error {
 	if err := recomputeStock(tx, products); err != nil {
 		return err
 	}
-	if err := recostDrifted(tx, productActor(r), products); err != nil {
+	if err := recostDrifted(tx, productActor(r), todayUTC(time.Now()), products); err != nil {
 		return err
 	}
 	return takeStockTotals(tx, r)

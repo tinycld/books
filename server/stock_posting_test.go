@@ -18,7 +18,7 @@ func TestPostDocumentStock_ReplacesTheOriginalsMoves(t *testing.T) {
 		var own []*core.Record
 		err := se.app.RunInTransaction(func(tx core.App) error {
 			var err error
-			own, err = postDocumentStock(tx, se.users.bookkeeper.Id, "books_bills", document, replaces,
+			own, err = postDocumentStock(tx, se.users.bookkeeper.Id, "books_bills", document, replaces, "2026-07-01",
 				[]stockMoveInput{se.receipt(document, "2026-07-01", units, value)})
 			return err
 		})
@@ -51,7 +51,7 @@ func TestPostDocumentStock_RefusesAMoveOfAnotherDocument(t *testing.T) {
 	otherSource.Source = "books_invoices"
 	for name, move := range map[string]stockMoveInput{"document": other, "source": otherSource} {
 		err := se.app.RunInTransaction(func(tx core.App) error {
-			_, err := postDocumentStock(tx, se.users.bookkeeper.Id, "books_bills", "bill00000000001", "",
+			_, err := postDocumentStock(tx, se.users.bookkeeper.Id, "books_bills", "bill00000000001", "", "2026-07-01",
 				[]stockMoveInput{move})
 			return err
 		})
@@ -69,7 +69,7 @@ func TestWithdrawDocumentStock_TakesTheMovesAway(t *testing.T) {
 	se := newStockEnv(t)
 	document := "bill00000000001"
 	err := se.app.RunInTransaction(func(tx core.App) error {
-		_, err := postDocumentStock(tx, se.users.bookkeeper.Id, "books_bills", document, "",
+		_, err := postDocumentStock(tx, se.users.bookkeeper.Id, "books_bills", document, "", "2026-07-01",
 			[]stockMoveInput{se.receipt(document, "2026-07-01", 10, 1000)})
 		return err
 	})

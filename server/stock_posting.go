@@ -3,6 +3,7 @@ package books
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/pocketbase/dbx"
@@ -17,7 +18,8 @@ import (
 // the value of a move of ANOTHER posted document (a back-dated receipt, a
 // receipt that fills an oversold sale, a void). That document's entry never
 // changes (ADR 1): recostDrifted posts the difference as an inventory
-// adjustment of the kind recost, dated the document's date. A document that
+// adjustment of the kind recost, dated the document's date (or, when that day
+// is closed, the day of the post that caused it). A document that
 // stops standing (a void, a correction's original) calls withdrawDocumentStock
 // or names itself in postDocumentStock's replaces; its re-costs are voided
 // with it.
@@ -113,8 +115,9 @@ func (c inventoryAccountCache) of(tx core.App, product *core.Record) (asset, cog
 // touched, records that the ledger holds the document's moves (the caller puts
 // stockCostLines of them into the entry it posts in this transaction), and
 // re-costs every other posted document whose cost the replay changed. actor
-// posts the re-costs. No moves and nothing to take away is no work.
-func postDocumentStock(tx core.App, actor, source, document, replaces string, moves []stockMoveInput) ([]*core.Record, error) {
+// posts the re-costs; date is the document's day (recostDrifted's cause). No
+// moves and nothing to take away is no work.
+func postDocumentStock(tx core.App, actor, source, document, replaces, date string, moves []stockMoveInput) ([]*core.Record, error) {
 	// A move of another document would be written but never read back nor
 	// marked posted: that is a fault in the caller, not a person's refusal.
 	for _, m := range moves {
@@ -162,7 +165,7 @@ func postDocumentStock(tx core.App, actor, source, document, replaces string, mo
 	if err := markStockPosted(tx, own); err != nil {
 		return nil, err
 	}
-	if err := recostDrifted(tx, actor, products); err != nil {
+	if err := recostDrifted(tx, actor, date, products); err != nil {
 		return nil, err
 	}
 	return own, nil
@@ -189,7 +192,8 @@ func withdrawDocumentStock(tx core.App, actor, source, document string) error {
 	if err := recomputeStock(tx, products); err != nil {
 		return err
 	}
-	return recostDrifted(tx, actor, products)
+	// The void's day is the document's: its reversal posts there.
+	return recostDrifted(tx, actor, gone[0].GetString("date"), products)
 }
 
 // repointStockReturns keeps the returns of moves that are gone at their sale's
@@ -280,16 +284,24 @@ func stockLedgerLines(moves []*core.Record, amount func(m *core.Record) int64) [
 	return lines
 }
 
+// msgRecostClosed is the refusal of a re-cost whose day is closed: the close
+// date, the document, its items and the day.
+const msgRecostClosed = "The books are closed through %s, so Books cannot re-cost %s for %s on %s. Ask a Books admin for a close-date override."
+
 // recostDrifted posts, for each posted document with a move of products whose
 // value differs from what the ledger holds, one inventory adjustment of the
-// kind recost for the difference, dated the document's date. A difference that
-// nets to no journal line (a move whose two accounts are one) is recorded as
-// posted with no adjustment.
-func recostDrifted(tx core.App, actor string, products []string) error {
+// kind recost for the difference, dated the document's date. A document dated
+// on or before the close date is re-costed on cause instead: the day of the
+// post or the change that moved its cost, which passed the close date itself.
+// Without that, an oversold item whose sale is in a closed period could take
+// no stock-in again. A difference that nets to no journal line (a move whose
+// two accounts are one) is recorded as posted with no adjustment.
+func recostDrifted(tx core.App, actor, cause string, products []string) error {
 	drifted, err := driftedStockMoves(tx, products)
 	if err != nil {
 		return err
 	}
+	var s *settings
 	// driftedStockMoves orders by document, so a document's moves are together.
 	for len(drifted) > 0 {
 		source, document := drifted[0].GetString("source"), drifted[0].GetString("document")
@@ -311,6 +323,17 @@ func recostDrifted(tx core.App, actor string, products []string) error {
 		if err != nil {
 			return err
 		}
+		if s == nil {
+			loaded, err := loadSettings(tx)
+			if err != nil {
+				return err
+			}
+			s = &loaded
+		}
+		date, err := recostDay(tx, *s, actor, cause, name, group)
+		if err != nil {
+			return err
+		}
 		lines := make([]adjustmentLineInput, len(group))
 		for i, m := range group {
 			lines[i] = adjustmentLineInput{
@@ -319,7 +342,7 @@ func recostDrifted(tx core.App, actor string, products []string) error {
 			}
 		}
 		_, err = newSystemAdjustment(tx, systemAdjustment{
-			Kind: adjustmentKindRecost, Date: group[0].GetString("date"), Actor: actor,
+			Kind: adjustmentKindRecost, Date: date, Actor: actor,
 			Source: source, Document: document, Memo: "Re-cost of " + name, Lines: lines,
 		})
 		if err != nil {
@@ -327,6 +350,34 @@ func recostDrifted(tx core.App, actor string, products []string) error {
 		}
 	}
 	return nil
+}
+
+// recostDay is the day the re-cost of a document's moves (group, the
+// document named name) posts on: the document's day, or cause when that day
+// is on or before the close date. A day the actor cannot post on is refused
+// here, naming the document and its items, not by the entry's own close
+// check, which names neither.
+func recostDay(tx core.App, s settings, actor, cause, name string, group []*core.Record) (string, error) {
+	day := group[0].GetString("date")
+	if s.CloseDate == "" || day > s.CloseDate {
+		return day, nil
+	}
+	day = cause
+	_, closed, err := closeOverrideFor(tx, s, actor, day, time.Now())
+	if err != nil || !closed {
+		return day, err
+	}
+	products, err := recordsByID(tx, "books_products", stockMoveProducts(group))
+	if err != nil {
+		return "", err
+	}
+	names := make([]string, 0, len(products))
+	for _, id := range stockMoveProducts(group) {
+		if p, ok := products[id]; ok {
+			names = append(names, p.GetString("name"))
+		}
+	}
+	return "", refuse(msgRecostClosed, s.CloseDate, name, strings.Join(names, ", "), day)
 }
 
 // voidRecosts voids the posted re-costs of a document that stops standing.

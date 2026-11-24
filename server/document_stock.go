@@ -130,7 +130,7 @@ func salesDocStockLines(tx core.App, kind salesDocKind, doc, original *core.Reco
 	if original != nil {
 		replaces = original.Id
 	}
-	moves, err := postDocumentStock(tx, doc.GetString("posted_by"), kind.Collection, doc.Id, replaces, inputs)
+	moves, err := postDocumentStock(tx, doc.GetString("posted_by"), kind.Collection, doc.Id, replaces, doc.GetString("date"), inputs)
 	if err != nil {
 		return nil, err
 	}
