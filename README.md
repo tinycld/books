@@ -56,7 +56,7 @@ app shell's biome config, tsconfig base, and vitest/playwright configs (so
 
 ```sh
 cd books
-pnpm exec tinycld-pkg check       # biome + typecheck
+pnpm exec tinycld-pkg check       # biome + typecheck + vitest + playwright --list
 pnpm exec tinycld-pkg test        # vitest unit tests
 pnpm exec tinycld-pkg test:e2e    # playwright e2e specs (full preset only — packages with screens)
 ```
@@ -69,7 +69,7 @@ package genuinely needs to override a rule:
 
 ```jsonc
 {
-    "$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
+    "$schema": "https://biomejs.dev/schemas/2.5.1/schema.json",
     "root": false,
     "extends": ["../tinycld/biome.json"],
     "linter": { "rules": { /* your overrides */ } }
@@ -88,9 +88,7 @@ exactly what a developer runs locally.
 ## Docs
 
 - [GLOSSARY.md](GLOSSARY.md): the terms Books uses.
-- [docs/adr/](docs/adr/): decisions and why we made them.
-- [docs/cli.md](docs/cli.md): Books from the command line (`tinycld books`).
-- [docs/cli-conventions.md](docs/cli-conventions.md): the rules every Books command follows, for scripts, agents and the authors of new commands.
+- [help/command-line.md](help/command-line.md): Books from the command line (`tinycld books`).
 - [Terms and conditions](TERMS.md) for the Books beta.
 
 ## License
