@@ -13,17 +13,18 @@ import (
 // The statement bounds of a replay over a long history (ADR 3 assumes an item
 // has few moves). One item has 300 moves: 200 receipts of one unit and 100
 // removals of one unit, so under FIFO 100 layers stay open. Each bound is the
-// measured value plus 10 percent. Measured 2026-11-24: a removal after every
-// move is 107 statements under FIFO and 108 under average cost; one read
-// gives the replay every move, so the count does not grow with the history
-// (502 under FIFO while a removal deleted and wrote again every open layer).
+// measured value plus 10 percent. Measured 2026-11-24: an invoice's post after
+// every move is 204 statements under FIFO and 205 under average cost, as many
+// as after one receipt (206 and 205); one read gives the replay every move,
+// so the count does not grow with the history (an adjustment's removal was
+// 502 under FIFO while it deleted and wrote again every open layer).
 // A back-dated receipt is 8,110 under FIFO and 5,593 under average cost: it
 // writes the stock after every later move and a re-cost of each of the 100
 // removals, but only the layers whose data changed (8,410 under FIFO while a
 // layer's position was its replay index, so every open layer was written).
 const (
-	saleAtTheEndFIFOStatementBound     = 118
-	saleAtTheEndAverageStatementBound  = 119
+	saleAtTheEndFIFOStatementBound     = 224
+	saleAtTheEndAverageStatementBound  = 225
 	backDatedReceiptFIFOStatementBound = 8921
 	backDatedReceiptAvgStatementBound  = 6152
 	longHistoryMoves                   = 300
@@ -96,14 +97,23 @@ func replayStatements(t *testing.T, se *stockEnv, day string, line adjustmentLin
 	})
 }
 
-// A post after every move (the common case) writes the new move, the product
+// A sale after every move (the common case) writes the new move, the product
 // and what the open stock changed: it rewrites no earlier move and no layer
-// its removal leaves alone.
+// its removal leaves alone. The sale is an invoice of one unit; the count is
+// its post only, not the save of its draft.
 func TestPostCost_SaleAtTheEndOfALongHistory(t *testing.T) {
 	bounds := map[string]int{costingFIFO: saleAtTheEndFIFOStatementBound, costingAverage: saleAtTheEndAverageStatementBound}
-	eachCostingMethod(t, func(t *testing.T, se *stockEnv, method string) {
-		statements := replayStatements(t, se, longHistoryAfterTheEnd, se.stockOut(1))
-		t.Logf("%s: post of a removal after %d moves: %d statements", method, longHistoryMoves, statements)
+	eachMethod(t, func(t *testing.T, e *saleStockEnv, method string) {
+		longStockHistory(t, e.stock)
+		draft := e.draftInvoiceOf(t, longHistoryAfterTheEnd, 1, nil)
+		statements := countStatements(t, e.app, func(string) bool { return true }, func() {
+			mustPostInvoice(t, e.app, draft.Id, e.users.bookkeeper.Id)
+		})
+		t.Logf("%s: post of an invoice after %d moves: %d statements", method, longHistoryMoves, statements)
+		moves, err := documentStockMoves(e.app, "books_invoices", draft.Id)
+		if err != nil || len(moves) != 1 || moves[0].GetString("kind") != stockKindSale {
+			t.Fatalf("the invoice has %d moves (err %v), want one sale", len(moves), err)
+		}
 		if statements > bounds[method] {
 			t.Fatalf(msgStatementBound, statements, bounds[method])
 		}
