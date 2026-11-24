@@ -51,6 +51,8 @@ const (
 	msgAdjustmentAccountLedger = "Choose an adjustment account other than Accounts receivable or Accounts payable."
 	msgAdjustmentAccountOff    = "%s is inactive. Choose an active adjustment account."
 	msgAdjustmentAccountAsset  = "Choose an adjustment account other than the inventory asset account of %s."
+
+	msgAdjustmentOpeningNegative = "An opening quantity cannot be below 0."
 )
 
 // adjustmentLineFault is why Books cannot cost a line with the quantity change
@@ -206,7 +208,7 @@ func checkAdjustmentDay(tx core.App, actor, day string, now time.Time) error {
 		return err
 	}
 	if closed {
-		return refuse(msgClosedThrough, s.CloseDate, day)
+		return refuseField("date", msgClosedThrough, s.CloseDate, day)
 	}
 	return nil
 }
@@ -261,7 +263,7 @@ func adjustmentStockInputs(tx core.App, r *core.Record, lines []*core.Record, ac
 			return nil, fmt.Errorf("books: read the product of adjustment line %d: %w", i+1, err)
 		}
 		if product.GetString("type") != "inventory" {
-			return nil, refuseNamed(msgStockNotInventory, product.GetString("name"))
+			return nil, refuse(msgAdjustmentLineFault, i+1, fmt.Sprintf(msgStockNotInventory, product.GetString("name")))
 		}
 		asset, _, err := inventoryAccounts(tx, product)
 		if err != nil {
@@ -279,6 +281,11 @@ func adjustmentStockInputs(tx core.App, r *core.Record, lines []*core.Record, ac
 		}
 		if fault := adjustmentLineFault(qty, value); fault != "" {
 			return nil, refuse(msgAdjustmentLineFault, i+1, fault)
+		}
+		// A negative opening quantity would be Given at 0 as a removal, which
+		// the costing cannot price.
+		if kind == stockKindOpening && qty < 0 {
+			return nil, refuse(msgAdjustmentLineFault, i+1, msgAdjustmentOpeningNegative)
 		}
 		// An opening quantity comes in at the value the item gives, 0 too.
 		if qty == 0 || value > 0 || kind == stockKindOpening {

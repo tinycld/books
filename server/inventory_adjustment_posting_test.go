@@ -136,7 +136,7 @@ func TestAdjustment_RefusesALineItCannotCost(t *testing.T) {
 		{"neither a quantity nor a value", adjustmentLineInput{Product: se.widget.Id}, "Line 1: Enter a quantity change, a value change, or both."},
 		{"a decrease with a value", adjustmentLineInput{Product: se.widget.Id, Quantity: -1, Value: -100}, "Line 1: A quantity decrease takes its cost from the costing method."},
 		{"an increase with a value below 0", adjustmentLineInput{Product: se.widget.Id, Quantity: 1, Value: -100}, "Line 1: A quantity increase cannot have a value below 0."},
-		{"a product that is not an Inventory item", adjustmentLineInput{Product: service.Id, Quantity: 1, Value: 100}, "Setup is not an Inventory item."},
+		{"a product that is not an Inventory item", adjustmentLineInput{Product: service.Id, Quantity: 1, Value: 100}, "Line 1: Setup is not an Inventory item."},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -176,7 +176,7 @@ func TestAdjustment_AtNoCostInAClosedPeriodIsRefused(t *testing.T) {
 		t.Fatalf("close the books: %v", err)
 	}
 	_, err := se.adjust("2026-07-01", se.stockOut(2))
-	requireRefused(t, err, "The books are closed through 2026-07-15.")
+	requireFieldRefusal(t, err, "date", "The books are closed through 2026-07-15. Ask a Books admin for a close-date override to post on 2026-07-01.")
 	requireOnHand(t, se.app, se.widget, 0, 0)
 }
 
@@ -191,8 +191,97 @@ func TestAdjustment_AtNoCostVoidInAClosedPeriodIsRefused(t *testing.T) {
 	err := se.app.RunInTransaction(func(tx core.App) error {
 		return voidSystemAdjustment(tx, adj, se.users.bookkeeper.Id, adj.GetDateTime("posted_at").Time())
 	})
-	requireRefused(t, err, "The books are closed through 2026-07-15.")
+	requireFieldRefusal(t, err, "date", "The books are closed through 2026-07-15. Ask a Books admin for a close-date override to post on 2026-07-01.")
 	requireOnHand(t, se.app, sample, 5, 0)
+}
+
+// postAs posts a system adjustment of the given kind and account as the
+// bookkeeper.
+func (se *stockEnv) postAs(kind, account string, lines ...adjustmentLineInput) (*core.Record, error) {
+	var r *core.Record
+	err := se.app.RunInTransaction(func(tx core.App) error {
+		var err error
+		r, err = newSystemAdjustment(tx, systemAdjustment{
+			Kind: kind, Date: "2026-07-01", Actor: se.users.bookkeeper.Id, Account: account, Lines: lines,
+		})
+		return err
+	})
+	return r, err
+}
+
+func TestAdjustment_VoidReversesTheEntryAndTheStock(t *testing.T) {
+	se := newStockEnv(t)
+	adj := se.mustAdjust(t, "2026-07-01", se.stockIn(10, 1000))
+	err := se.app.RunInTransaction(func(tx core.App) error {
+		return voidSystemAdjustment(tx, adj, se.users.bookkeeper.Id, adj.GetDateTime("posted_at").Time())
+	})
+	if err != nil {
+		t.Fatalf("void the adjustment: %v", err)
+	}
+	if got := reload(t, se.app, "books_journal_entries", adj.GetString("entry")).GetString("status"); got != statusVoid {
+		t.Errorf("entry status = %q, want void", got)
+	}
+	if got := reload(t, se.app, inventoryAdjustmentsCollection, adj.Id).GetString("status"); got != statusVoid {
+		t.Errorf("adjustment status = %q, want void", got)
+	}
+	requireOnHand(t, se.app, se.widget, 0, 0)
+}
+
+func TestAdjustment_RefusesAReceivableOrPayableAccount(t *testing.T) {
+	se := newStockEnv(t)
+	for _, typ := range []string{"accounts_receivable", "accounts_payable"} {
+		t.Run(typ, func(t *testing.T) {
+			account := mkAccount(t, se.app, "Ledger "+typ, typ, typ)
+			_, err := se.postAs(adjustmentKindManual, account.Id, se.stockIn(10, 1000))
+			requireFieldRefusal(t, err, "account", msgAdjustmentAccountLedger)
+			requireOnHand(t, se.app, se.widget, 0, 0)
+		})
+	}
+}
+
+func TestAdjustment_RefusesAnInactiveAccount(t *testing.T) {
+	se := newStockEnv(t)
+	account := mkAccount(t, se.app, "Old shrinkage", "cost_of_goods_sold", "supplies_materials")
+	if err := setFields(t, se.app, "books_accounts", account.Id, map[string]any{"inactive": true}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := se.postAs(adjustmentKindManual, account.Id, se.stockIn(10, 1000))
+	requireFieldRefusal(t, err, "account", "Old shrinkage is inactive. Choose an active adjustment account.")
+	requireOnHand(t, se.app, se.widget, 0, 0)
+}
+
+// An opening quantity with no value comes in at no cost: it is Given at 0, not
+// priced at the item's cost, and posts against Opening balance equity.
+func TestAdjustment_OpeningTakesOpeningBalanceEquityAndComesInAtNoCost(t *testing.T) {
+	se := newStockEnv(t)
+	adj, err := se.postAs(adjustmentKindOpening, "", adjustmentLineInput{Product: se.widget.Id, Quantity: 5})
+	if err != nil {
+		t.Fatalf("post the opening adjustment: %v", err)
+	}
+	account := reload(t, se.app, "books_accounts", adj.GetString("account"))
+	if account.GetString("name") != "Opening balance equity" {
+		t.Errorf("the adjustment account is %q, want Opening balance equity", account.GetString("name"))
+	}
+	requireOnHand(t, se.app, se.widget, 5, 0)
+}
+
+// A quantity in with no value comes in at the last known cost.
+func TestAdjustment_StockInWithNoValueComesInAtTheLastCost(t *testing.T) {
+	se := newStockEnv(t)
+	se.mustAdjust(t, "2026-07-01", se.stockIn(10, 1000))
+	adj := se.mustAdjust(t, "2026-07-02", se.stockIn(5, 0))
+	requireEntryLines(t, se.app, adj.GetString("entry"),
+		entryLine{account: se.asset.Id, debit: 500},
+		entryLine{account: se.shrinkage(t).Id, credit: 500},
+	)
+	requireOnHand(t, se.app, se.widget, 15, 1500)
+}
+
+func TestAdjustment_OpeningRefusesAQuantityBelowZero(t *testing.T) {
+	se := newStockEnv(t)
+	_, err := se.postAs(adjustmentKindOpening, "", adjustmentLineInput{Product: se.widget.Id, Quantity: -1})
+	requireRefused(t, err, "Line 1: An opening quantity cannot be below 0.")
+	requireOnHand(t, se.app, se.widget, 0, 0)
 }
 
 // A quantity at no cost has no value to post: the adjustment takes its number
