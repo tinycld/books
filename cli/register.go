@@ -27,5 +27,6 @@ func Register(root *cobra.Command, c *client.Client) {
 		}
 		books.AddCommand(group)
 	}
+	books.AddCommand(newSchemaCmd(books))
 	root.AddCommand(books)
 }
