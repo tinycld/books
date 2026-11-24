@@ -36,7 +36,7 @@ describe('preferredVendorLabel', () => {
         ).toEqual({ label: '…' })
     })
 
-    it('reads "Unknown vendor" when the read failed or the vendor is gone, keeping the id', () => {
+    it('reads "Unknown vendor" when the read failed or the vendor is gone', () => {
         expect(
             preferredVendorLabel('v1', { vendor: undefined, isLoading: false, isError: true })
         ).toEqual({ label: 'Unknown vendor' })

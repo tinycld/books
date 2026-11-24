@@ -55,10 +55,20 @@ export function productTypeNoun(type: ProductType): string {
 
 // A product never becomes a bundle or an Inventory item after it is created (the
 // server refuses it), so the type field offers only Service and Non-inventory.
-const FIXED_TYPES: ReadonlySet<ProductType> = new Set<ProductType>(['bundle', 'inventory'])
+type FixedType = Extract<ProductType, 'bundle' | 'inventory'>
+
+// Total over FixedType: a type added to the union without a note fails to compile.
+const FIXED_TYPE_NOTES: Record<FixedType, string> = {
+    bundle: BUNDLE_KEEPS_TYPE,
+    inventory: INVENTORY_KEEPS_TYPE,
+}
+
+function isFixedType(type: ProductType): type is FixedType {
+    return type in FIXED_TYPE_NOTES
+}
 
 export const PRODUCT_TYPE_SELECT_OPTIONS: { value: string; label: string }[] = PRODUCT_TYPES.filter(
-    entry => !FIXED_TYPES.has(entry.key)
+    entry => !isFixedType(entry.key)
 ).map(entry => ({ value: entry.key, label: entry.label }))
 
 // What the type field shows in place of the select for a type that never changes.
@@ -67,13 +77,8 @@ export interface FixedProductType {
     note: string
 }
 
-const FIXED_TYPE_NOTES: Partial<Record<ProductType, string>> = {
-    bundle: BUNDLE_KEEPS_TYPE,
-    inventory: INVENTORY_KEEPS_TYPE,
-}
-
 /** The fixed type of a form value: its label and note, or null for a type the select offers. */
 export function fixedProductType(value: unknown): FixedProductType | null {
-    if (!isProductType(value) || !FIXED_TYPES.has(value)) return null
-    return { label: productTypeLabel(value), note: FIXED_TYPE_NOTES[value] ?? '' }
+    if (!isProductType(value) || !isFixedType(value)) return null
+    return { label: productTypeLabel(value), note: FIXED_TYPE_NOTES[value] }
 }
