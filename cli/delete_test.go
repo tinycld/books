@@ -3,10 +3,15 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 	"testing"
 
+	"golang.org/x/term"
+
 	"tinycld.org/cli/exitcode"
+	"tinycld.org/cli/output"
 )
 
 func TestDeactivateAndActivate(t *testing.T) {
@@ -67,16 +72,83 @@ func TestDeleteWithYes(t *testing.T) {
 	}
 }
 
-// Without --yes a delete asks. A test has no terminal to answer from (or an
-// empty one), so the call is refused as a usage error and nothing is deleted.
+// Without --yes and without a terminal a delete refuses as a usage error
+// and says to pass --yes. It uses the real ui.Confirm.
 func TestDeleteWithoutYesDeletesNothing(t *testing.T) {
+	if term.IsTerminal(int(os.Stdin.Fd())) {
+		t.Skip("stdin is a terminal: the no-terminal refusal cannot be reached")
+	}
 	f := chart(t)
 	_, _, err := runCmd(t, f.serve(), "", "books", "accounts", "delete", "acctsavings0001")
 	if got := exitcode.Of(err); got != exitcode.Usage {
 		t.Fatalf("exit = %d, want 2; err: %v", got, err)
 	}
+	if err == nil || !strings.Contains(err.Error(), "pass --yes") {
+		t.Errorf("error = %v, want a message that says to pass --yes", err)
+	}
 	if len(f.deleted) != 0 {
 		t.Errorf("deleted without --yes: %v", f.deleted)
+	}
+}
+
+// stubConfirm replaces the prompt, which core reads from the real stdin.
+func stubConfirm(t *testing.T, answer bool, readErr error) {
+	t.Helper()
+	orig := confirm
+	confirm = func(output.Options, bool, io.Reader, io.Writer, string) (bool, error) {
+		return answer, readErr
+	}
+	t.Cleanup(func() { confirm = orig })
+}
+
+func TestDeleteAnsweredNoDeletesNothing(t *testing.T) {
+	stubConfirm(t, false, nil)
+	f := chart(t)
+	out, errOut, err := runCmd(t, f.serve(), "", "books", "accounts", "delete", "acctsavings0001", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := decodeRecord(t, out)
+	if got["id"] != "acctsavings0001" || got["deleted"] != false {
+		t.Errorf("result = %v", got)
+	}
+	if !strings.Contains(errOut, "not deleted") {
+		t.Errorf("stderr = %q", errOut)
+	}
+	if len(f.deleted) != 0 {
+		t.Errorf("deleted after a no: %v", f.deleted)
+	}
+}
+
+func TestDeleteAnsweredYesDeletes(t *testing.T) {
+	stubConfirm(t, true, nil)
+	f := chart(t)
+	out, _, err := runCmd(t, f.serve(), "", "books", "accounts", "delete", "acctsavings0001", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(f.deleted) != "[acctsavings0001]" {
+		t.Errorf("deleted = %v", f.deleted)
+	}
+	if decodeRecord(t, out)["deleted"] != true {
+		t.Errorf("stdout:\n%s", out)
+	}
+}
+
+// An answer that cannot be read (EOF, a closed pipe) is a usage error with an
+// instruction, not the bare "EOF".
+func TestDeleteUnreadableAnswerIsAUsageError(t *testing.T) {
+	stubConfirm(t, false, io.EOF)
+	f := chart(t)
+	_, _, err := runCmd(t, f.serve(), "", "books", "accounts", "delete", "acctsavings0001")
+	if got := exitcode.Of(err); got != exitcode.Usage {
+		t.Fatalf("exit = %d, want 2; err: %v", got, err)
+	}
+	if err == nil || err.Error() != "no answer read; pass --yes to delete without asking" {
+		t.Errorf("error = %v", err)
+	}
+	if len(f.deleted) != 0 {
+		t.Errorf("deleted: %v", f.deleted)
 	}
 }
 
