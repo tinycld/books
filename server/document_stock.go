@@ -18,6 +18,19 @@ type stockRole string
 // (a re-cost).
 const stockSale stockRole = "sale"
 
+// stockReceipt brings the line's quantity in at the line's amount (a bill, an
+// expense, a check): the document's entry debits the item's inventory asset
+// account in place of an expense account (stockInByAccount), so the move adds
+// no cost line of its own.
+const stockReceipt stockRole = "receipt"
+
+// stockVendorReturn takes the line's quantity out at the costing method's cost
+// (a vendor credit). The line credits the item's cost of goods sold account
+// with the credited amount, as any product line of a vendor credit; the move
+// credits the inventory asset account and debits cost of goods sold at cost.
+// Cost of goods sold keeps the difference between the cost and the credit.
+const stockVendorReturn stockRole = "vendor_return"
+
 // documentStockInputs are the stock moves the stored lines of doc make, in the
 // lines' order: one for each item line whose product is an Inventory item.
 // totals holds the lines' amounts (totals.Amounts[i] is the amount of
@@ -52,6 +65,12 @@ func documentStockInputs(tx core.App, kind salesDocKind, doc *core.Record, lines
 		switch kind.Stock {
 		case stockSale:
 			in.Kind, in.Qty = stockKindSale, -qty
+		case stockReceipt:
+			// The amount is never below 0: the schema holds a product line's
+			// rate at 0 or more and the line guard its quantity above 0.
+			in.Kind, in.Qty, in.Given, in.Value = stockKindReceipt, qty, true, totals.Amounts[i]
+		case stockVendorReturn:
+			in.Kind, in.Qty = stockKindVendorReturn, -qty
 		default:
 			return nil, fmt.Errorf("books: %s has no stock role %q", kind.DocType, kind.Stock)
 		}
@@ -79,6 +98,11 @@ func salesDocStockLines(tx core.App, kind salesDocKind, doc, original *core.Reco
 	moves, err := postDocumentStock(tx, doc.GetString("posted_by"), kind.Collection, doc.Id, replaces, inputs)
 	if err != nil {
 		return nil, err
+	}
+	if kind.Stock == stockReceipt {
+		// The kind's line accounts debit the asset account with the line's
+		// amount, which is the move's value.
+		return nil, nil
 	}
 	return stockCostLines(moves), nil
 }

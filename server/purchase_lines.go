@@ -174,10 +174,23 @@ func checkPurchaseLinesToPost(tx core.App, kind salesDocKind, doc *core.Record) 
 // account line's inactive account is refused before
 // (checkPurchaseLinesToPost).
 func expenseByAccount(tx core.App, lines []*core.Record, totals documentTotalsResult) ([]postingLine, error) {
+	return purchaseByAccount(tx, lines, totals, false)
+}
+
+// stockInByAccount is the LineAccounts of a purchase kind that receives stock
+// (a bill, an expense): expenseByAccount, but a product line of an Inventory
+// item debits the item's inventory asset account. Its stock move holds the
+// same amount (stockReceipt).
+func stockInByAccount(tx core.App, lines []*core.Record, totals documentTotalsResult) ([]postingLine, error) {
+	return purchaseByAccount(tx, lines, totals, true)
+}
+
+func purchaseByAccount(tx core.App, lines []*core.Record, totals documentTotalsResult, stockIn bool) ([]postingLine, error) {
 	products, err := lineProducts(tx, lines)
 	if err != nil {
 		return nil, err
 	}
+	assets := inventoryAccountCache{}
 	sums := map[string]int64{}
 	firstLine := map[string]documentLineRef{}
 	for i, line := range lines {
@@ -199,12 +212,19 @@ func expenseByAccount(tx core.App, lines []*core.Record, totals documentTotalsRe
 			if account == "" {
 				return nil, fmt.Errorf("books: %s on purchase line %d has no expense account", product.GetString("name"), i+1)
 			}
+			msg := msgLineExpenseAccountInactive
+			if stockIn && isInventoryProduct(product) {
+				if account, _, err = assets.of(tx, product); err != nil {
+					return nil, err
+				}
+				msg = msgLineAssetAccountInactive
+			}
 			if _, seen := firstLine[account]; !seen {
 				firstLine[account] = documentLineRef{
 					n:       i + 1,
 					label:   lineRowLabel(salesDocKind{LineRowLabels: purchaseLineRowLabels}, lines, line),
 					product: product.GetString("name"),
-					msg:     msgLineExpenseAccountInactive,
+					msg:     msg,
 				}
 			}
 		default:

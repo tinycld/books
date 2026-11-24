@@ -22,6 +22,7 @@ const (
 	// the person never sees.
 	msgLineIncomeAccountInactive  = "%s: the income account of %s is inactive. Choose an active one on the product or service."
 	msgLineExpenseAccountInactive = "%s: the expense account of %s is inactive. Choose an active one on the product or service."
+	msgLineAssetAccountInactive   = "%s: the inventory asset account of %s is inactive. Choose an active one on the product or service."
 	msgTaxAgencyNoAccount         = "%s has no liability account. Choose one on the tax agency."
 	msgTaxComponentNoAgency       = "%s has no tax agency. Choose one on the tax rate."
 )

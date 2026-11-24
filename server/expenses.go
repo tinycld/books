@@ -95,7 +95,8 @@ var expenseKind = salesDocKind{
 	},
 	CheckHeader:   checkExpenseHeader,
 	CreditAccount: expensePaidFrom,
-	LineAccounts:  expenseByAccount,
+	LineAccounts:  stockInByAccount,
+	Stock:         stockReceipt,
 	// The entry is a card payment by its method or its Paid from account.
 	CardPayment: func(tx core.App, doc *core.Record) (bool, error) {
 		return isCardPayment(tx, doc.GetString("payment_method"), doc.GetString("paid_from"))

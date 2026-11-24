@@ -11,10 +11,15 @@ import (
 // (649 while each line's product and account were read one at a time); 3,851
 // for the adjustment (4,349 then). The adjustment still grows by 15 statements
 // a line: each line writes a stock move and a cost layer, and PocketBase
-// checks the relations of every row it saves.
+// checks the relations of every row it saves. After the purchase postings
+// (Task 12) the bill's post is 156 statements (its stock role reads the
+// stock settings and the stock moves of the document), and a 250-line bill
+// of two Inventory items is 3,893, 15.6 a line for the same reason as the
+// adjustment: a receipt writes a stock move and a cost layer for each line.
 const (
-	billPostStatementBound       = 168
-	adjustmentPostStatementBound = 4236
+	billPostStatementBound          = 168
+	adjustmentPostStatementBound    = 4236
+	inventoryBillPostStatementBound = 4282
 )
 
 // billPostStatements saves a draft bill of n lines (every third an account
@@ -58,6 +63,34 @@ func adjustmentPostStatements(t *testing.T, n int) int {
 			t.Fatalf("post the adjustment: %v", err)
 		}
 	})
+}
+
+// inventoryBillPostStatements saves a draft bill of n product lines of two
+// Inventory items (widget and a second one) and counts the statements of its
+// post.
+func inventoryBillPostStatements(t *testing.T, n int) int {
+	t.Helper()
+	e := newBuyStockEnv(t, costingFIFO)
+	gadget := e.stock.mkInventoryItem(t, "Gadget", 300)
+	bill := mkBill(t, e.app, e.summit, map[string]any{"date": "2026-07-01", "due_date": "2026-07-31"})
+	for i := 0; i < n; i++ {
+		product := e.stock.widget
+		if i%2 == 1 {
+			product = gadget
+		}
+		mkBillLine(t, e.app, bill, i, productLine(product, 1, 100))
+	}
+	return countStatements(t, e.app, func(string) bool { return true }, func() {
+		mustPostBill(t, e.app, bill.Id, e.users.bookkeeper.Id)
+	})
+}
+
+func TestPostCost_250LineInventoryBill(t *testing.T) {
+	statements := inventoryBillPostStatements(t, maxDocumentLines)
+	t.Logf("post of a 250-line bill of Inventory items: %d statements", statements)
+	if statements > inventoryBillPostStatementBound {
+		t.Fatalf(msgStatementBound, statements, inventoryBillPostStatementBound)
+	}
 }
 
 func TestPostCost_250LineBill(t *testing.T) {

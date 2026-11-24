@@ -107,6 +107,7 @@ var vendorCreditKind = salesDocKind{
 		return payable.Id, nil
 	},
 	LineAccounts: expenseByAccount,
+	Stock:        stockVendorReturn,
 	CheckVoid:    refuseVendorCreditVoidApplied,
 	Replace:      replaceVendorCredit,
 }

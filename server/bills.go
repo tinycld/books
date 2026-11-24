@@ -97,7 +97,8 @@ var billKind = salesDocKind{
 		}
 		return payable.Id, nil
 	},
-	LineAccounts:  expenseByAccount,
+	LineAccounts:  stockInByAccount,
+	Stock:         stockReceipt,
 	TracksBalance: true,
 	CheckVoid:     refuseBillVoidApplied,
 	Replace:       replaceBill,
