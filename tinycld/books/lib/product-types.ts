@@ -54,7 +54,7 @@ export function productTypeNoun(type: ProductType): string {
 
 // A product never becomes a bundle or an Inventory item after it is created (the
 // server refuses it), so the type field offers only Service and Non-inventory.
-const FIXED_TYPES: ReadonlySet<string> = new Set(['bundle', 'inventory'])
+const FIXED_TYPES: ReadonlySet<ProductType> = new Set<ProductType>(['bundle', 'inventory'])
 
 export const PRODUCT_TYPE_SELECT_OPTIONS: { value: string; label: string }[] = PRODUCT_TYPES.filter(
     entry => !FIXED_TYPES.has(entry.key)
