@@ -41,6 +41,11 @@ const manifest = {
     forms: { hosts: 'forms', ui: 'forms-ui' },
     peerVersions: { '@tinycld/core': '>=0.8 <1' },
     server: { package: 'server', module: 'tinycld.org/packages/books' },
+    // The `tinycld books` commands (cli/). The generator links the module into
+    // the CLI shell. A command signs in through the shell and needs the scopes
+    // that server/oauth_scopes.go registers: books:read to list and show,
+    // books:write to add, edit and delete.
+    cli: { package: 'cli', module: 'tinycld.org/packages/books/cli' },
     // A report row whose `open` is books/history/<collection>/<id> opens the record's
     // history in core's side panel beside the report on a wide window (core D5).
     reportPanels: [{ path: 'history', component: 'components/history/RecordHistoryPanel' }],
