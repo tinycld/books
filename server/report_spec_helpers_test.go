@@ -19,7 +19,8 @@ import (
 // deposit route row the detail label and open path read, which moves the three
 // shas below (same Revision, as for the Customer Balance pin); with the deposit
 // rows taken out of entryRoutes and entryTypeLabels the specs hash to the
-// values pinned before.
+// values pinned before. The inventory-adjustment unit then added "Inventory
+// adjustment" to the entry type labels, which moves them again (same Revision).
 func TestSharedReportHelpersKeepOtherSpecs(t *testing.T) {
 	for _, c := range []struct {
 		name string

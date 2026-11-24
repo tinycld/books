@@ -92,7 +92,30 @@ describe('doc_type select values against the client lists', () => {
         expect(ROUTED_DOC_TYPES).toContain('deposit')
     })
 
-    // Inventory design (ADR 3): migrations 2100000001 and 2100000002 are edited in place.
+    // Three collections repeat the journal entry doc_type list (books_journal_lines in
+    // 2100000002, books_cash_basis_lines in 2100000021, books_deposit_items in 2100000037);
+    // a new doc type left out of one drifts silently, so each must hold exactly the
+    // journal entry values. books_document_sends has its own shorter list.
+    it('repeats the journal entry doc_type values in the line and view selects', () => {
+        const entryValues = [...valuesOf('books_journal_entries')].sort()
+        const views = docTypeSelects().filter(select =>
+            ['books_journal_lines', 'books_cash_basis_lines', 'books_deposit_items'].includes(
+                select.collection
+            )
+        )
+        expect(views.map(select => select.collection).sort()).toEqual([
+            'books_cash_basis_lines',
+            'books_deposit_items',
+            'books_journal_lines',
+        ])
+        for (const view of views) {
+            expect([...view.values].sort(), `${view.file} ${view.collection}`).toEqual(entryValues)
+        }
+    })
+
+    // Inventory design (ADR 3): migrations 2100000001 and 2100000002 are edited in place;
+    // 2100000021 (books_cash_basis_lines) and 2100000037 (books_deposit_items) were edited
+    // too, as the other places that repeat the list (see the test above).
     it('holds inventory_adjustment in both selects, in DOC_TYPE and in ROUTED_DOC_TYPES', () => {
         expect(valuesOf('books_doc_sequences')).toContain('inventory_adjustment')
         expect(valuesOf('books_journal_entries')).toContain('inventory_adjustment')
