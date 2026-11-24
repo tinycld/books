@@ -67,12 +67,14 @@ func documentStockInputs(tx core.App, kind salesDocKind, doc *core.Record, lines
 	return inputs, nil
 }
 
-// lineProducts reads the products the item lines name in one query, by id: a
-// read for each line would make the statements of a post grow with its lines.
+// lineProducts reads the products the item and percent lines name in one
+// query, by id: a read for each line would make the statements of a post grow
+// with its lines. A product that is not found is not in the map.
 func lineProducts(tx core.App, lines []*core.Record) (map[string]*core.Record, error) {
 	var ids []string
 	for _, line := range lines {
-		if line.GetString("kind") == lineKindItem && line.GetString("product") != "" {
+		kind := line.GetString("kind")
+		if (kind == lineKindItem || kind == lineKindPercent) && line.GetString("product") != "" {
 			ids = appendMissing(ids, line.GetString("product"))
 		}
 	}

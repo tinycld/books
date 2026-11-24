@@ -450,6 +450,10 @@ type documentLineRef struct {
 // account that is inactive and takes an amount (a product keeps an account
 // that became inactive after it was saved, so the post is where it stops).
 func incomeByAccount(tx core.App, lines []*core.Record, totals documentTotalsResult) ([]postingLine, error) {
+	products, err := lineProducts(tx, lines)
+	if err != nil {
+		return nil, err
+	}
 	sums := map[string]int64{}
 	firstLine := map[string]documentLineRef{}
 	for i, line := range lines {
@@ -461,9 +465,9 @@ func incomeByAccount(tx core.App, lines []*core.Record, totals documentTotalsRes
 			continue
 		}
 		label := fmt.Sprintf("Line %d", i+1)
-		product, err := tx.FindRecordById("books_products", line.GetString("product"))
-		if err != nil {
-			return nil, fmt.Errorf("books: read the product of line %d: %w", i+1, err)
+		product, ok := products[line.GetString("product")]
+		if !ok {
+			return nil, fmt.Errorf("books: read the product of line %d: %w", i+1, sql.ErrNoRows)
 		}
 		if product.GetString("type") == "bundle" {
 			return nil, refuse(msgLineBundle, label)
