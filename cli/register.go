@@ -21,7 +21,11 @@ func Register(root *cobra.Command, c *client.Client) {
 	books := newGroup("books", "Books: accounts, customers, vendors, products and sales tax")
 	books.Aliases = []string{"book"}
 	for i := range resources {
-		books.AddCommand(newResourceCmd(c, &resources[i]))
+		group := newResourceCmd(c, &resources[i])
+		if resources[i].Name == "accounts" {
+			group.AddCommand(newAccountTypesCmd())
+		}
+		books.AddCommand(group)
 	}
 	root.AddCommand(books)
 }

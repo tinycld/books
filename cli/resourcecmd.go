@@ -10,6 +10,9 @@ import (
 func newResourceCmd(c *client.Client, res *resource) *cobra.Command {
 	group := newGroup(res.Name, res.Summary)
 	group.Aliases = []string{res.Singular}
-	group.AddCommand(newShowCmd(c, res))
+	group.AddCommand(
+		newListCmd(c, res),
+		newShowCmd(c, res),
+	)
 	return group
 }
