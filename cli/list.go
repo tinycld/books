@@ -103,6 +103,8 @@ func newListCmd(c *client.Client, res *resource) *cobra.Command {
 	return cmd
 }
 
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
 // listFilter builds the PocketBase filter. Every value a caller typed is
 // bound through client.Filter, which quotes it: a quote in --search is text to
 // look for, never filter syntax.
@@ -125,7 +127,11 @@ func listFilter(cmd *cobra.Command, res *resource, opts listOptions) string {
 		clauses = append(clauses, flt.Field+" = {:"+name+"}")
 	}
 	if opts.search != "" && len(res.Search) > 0 {
-		params["q"] = opts.search
+		// PocketBase's ~ wraps the value in %…% and reads % and _ as wildcards
+		// (tools/search/filter.go wrapLikeParams). With every % and _ escaped
+		// there is no unescaped %, so the value is wrapped as a literal contains
+		// and escapeUnescapedChars keeps the escapes already there.
+		params["q"] = likeEscaper.Replace(opts.search)
 		alternatives := make([]string, len(res.Search))
 		for i, name := range res.Search {
 			alternatives[i] = name + " ~ {:q}"

@@ -3,8 +3,11 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/spf13/pflag"
 
 	"tinycld.org/cli/exitcode"
 )
@@ -141,6 +144,46 @@ func TestListSearchTextCannotChangeTheFilter(t *testing.T) {
 }
 
 // The accounts sort is full_name,id: page 1 holds the two names that sort first.
+// PocketBase reads % and _ in a ~ value as pattern syntax, so the CLI escapes
+// them: the filter must carry `\%` and `\_` (and the escape's own backslash,
+// doubled by the quoting).
+func TestListSearchEscapesLikeWildcards(t *testing.T) {
+	for _, tc := range []struct{ search, want string }{
+		{"15%", `inactive = false && (name ~ "15\\%" || number ~ "15\\%")`},
+		{"a_b", `inactive = false && (name ~ "a\\_b" || number ~ "a\\_b")`},
+		{`a\b`, `inactive = false && (name ~ "a\\\\b" || number ~ "a\\\\b")`},
+	} {
+		f := chart(t)
+		f.rawFilter = true
+		listJSON(t, f, "books", "accounts", "list", "--search", tc.search)
+		if got := f.lastQuery.Get("filter"); got != tc.want {
+			t.Errorf("--search %q: filter =\n  %s\nwant\n  %s", tc.search, got, tc.want)
+		}
+	}
+}
+
+// The flags are written as literals in list.go and listFlags drives the clash
+// guard: they must name the same flags.
+func TestListDefinesExactlyTheReservedAndFilterFlags(t *testing.T) {
+	res := findResource("accounts")
+	cmd := newListCmd(nil, res)
+	got := []string{}
+	cmd.LocalFlags().VisitAll(func(fl *pflag.Flag) {
+		if fl.Name != "help" {
+			got = append(got, fl.Name)
+		}
+	})
+	want := slices.Clone(listFlags)
+	for _, flt := range res.Filters {
+		want = append(want, flt.Flag)
+	}
+	slices.Sort(got)
+	slices.Sort(want)
+	if !slices.Equal(got, want) {
+		t.Errorf("list flags = %v, want listFlags + filters = %v", got, want)
+	}
+}
+
 func TestListPages(t *testing.T) {
 	f := chart(t)
 	c := f.serve()
