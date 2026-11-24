@@ -121,6 +121,41 @@ func layersOf(t testing.TB, app core.App, product *core.Record) []layer {
 	return out
 }
 
+// A layer row the replay updates in place takes the home currency again, like
+// a row it creates, so no row keeps a currency the book no longer has.
+func TestRecomputeStock_AnUpdatedLayerTakesTheHomeCurrency(t *testing.T) {
+	eachCostingMethod(t, func(t *testing.T, se *stockEnv, method string) {
+		se.mustAdjust(t, "2026-07-01", se.stockIn(10, 1000))
+		settings, err := se.app.FindRecordById("books_settings", settingsID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		home := settings.GetString("currency")
+		row, err := se.app.FindFirstRecordByFilter(stockLayersCollection, "product = {:p}", dbx.Params{"p": se.widget.Id})
+		if err != nil {
+			t.Fatal(err)
+		}
+		stale := "EUR"
+		if home == stale {
+			stale = "GBP"
+		}
+		row.Set("currency", stale)
+		if err := se.app.Save(row); err != nil {
+			t.Fatalf("give the layer a stale currency: %v", err)
+		}
+
+		se.mustAdjust(t, "2026-07-02", se.stockOut(1))
+
+		after, err := se.app.FindRecordById(stockLayersCollection, row.Id)
+		if err != nil {
+			t.Fatalf("the layer is not updated in place: %v", err)
+		}
+		if after.GetFloat("quantity") != 9 || after.GetString("currency") != home {
+			t.Errorf("%s: layer quantity %v currency %q, want 9 in %q", method, after.GetFloat("quantity"), after.GetString("currency"), home)
+		}
+	})
+}
+
 func TestRecomputeStock_WritesValuesLayersAndOnHand(t *testing.T) {
 	cases := []struct {
 		method    string

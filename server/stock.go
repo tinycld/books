@@ -347,7 +347,7 @@ func writeStockLayers(tx core.App, product *core.Record, currency string, moves 
 			kept[r.Id] = true
 		}
 		if r != nil && r.GetFloat("quantity") == qty && int64(r.GetInt("value")) == l.Value &&
-			r.GetInt("position") == position && r.GetString("date") == date {
+			r.GetInt("position") == position && r.GetString("date") == date && r.GetString("currency") == currency {
 			continue
 		}
 		if r == nil {
@@ -359,8 +359,8 @@ func writeStockLayers(tx core.App, product *core.Record, currency string, moves 
 			r = core.NewRecord(col)
 			r.Set("product", product.Id)
 			r.Set("move", l.MoveID)
-			r.Set("currency", currency)
 		}
+		r.Set("currency", currency)
 		r.Set("date", date)
 		r.Set("quantity", qty)
 		r.Set("value", l.Value)
