@@ -1,6 +1,6 @@
 /// <reference path="../../tinycld/server/pb_data/types.d.ts" />
 // Books document emails (email-share spec §4.2 and §4.3). 2100000034 was free
-// (the audit view left it); the audit view 2100000038 reads books_document_sends
+// (the audit view left it); the audit view 2100000043 reads books_document_sends
 // to file a send under its document, so it stays after this migration.
 //
 // books_document_sends holds one row for each email a writer sends of a sales

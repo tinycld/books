@@ -152,7 +152,7 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 }
 
 // auditParentFields maps each line collection to the field that names its
-// document. The books_audit_log view (migration 2100000038) reads the same
+// document. The books_audit_log view (migration 2100000043) reads the same
 // collections to give a line's audit row its document, and Register declares them
 // as the view's sources, because a line write can change that document. A
 // document send is filed as a line of the document it sent; the view reads

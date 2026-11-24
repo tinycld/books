@@ -62,7 +62,7 @@
 // amount are signed: a negative amount takes money out. DATES are YYYY-MM-DD
 // text, as on journal entries.
 //
-// It runs before the audit log view (2100000038), which reads the item and
+// It runs before the audit log view (2100000043), which reads the item and
 // line rows. The rule constants repeat 2100000019's: a migration cannot import
 // another.
 const AUTH = '@request.auth.id != "" && @request.auth.disabled != true'

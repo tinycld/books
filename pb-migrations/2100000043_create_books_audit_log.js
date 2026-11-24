@@ -63,6 +63,7 @@ const LINES = [
     ['books_estimate_lines', 'books_estimates', 'estimate'],
     ['books_estimate_responses', 'books_estimates', 'estimate'],
     ['books_expense_lines', 'books_expenses', 'expense'],
+    ['books_inventory_adjustment_lines', 'books_inventory_adjustments', 'adjustment'],
     ['books_invoice_lines', 'books_invoices', 'invoice'],
     ['books_journal_lines', 'books_journal_entries', 'entry'],
     ['books_payment_applications', 'books_payments', 'payment'],

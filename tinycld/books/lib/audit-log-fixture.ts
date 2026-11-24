@@ -134,7 +134,7 @@ export interface RowInput {
     snapshot?: Record<string, CellValue>
 }
 
-// The view's event_shown (migration 2100000038 EVENT_SHOWN): a credit memo
+// The view's event_shown (migration 2100000043 EVENT_SHOWN): a credit memo
 // application's create and delete show as credit_applied and credit_removed.
 function shownEvent(type: string, event: AuditEvent): string {
     if (type !== 'books_credit_memo_applications') return event
