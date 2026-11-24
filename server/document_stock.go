@@ -23,25 +23,37 @@ const stockSale stockRole = "sale"
 // totals holds the lines' amounts (totals.Amounts[i] is the amount of
 // lines[i]). A document with none answers nil.
 func documentStockInputs(tx core.App, kind salesDocKind, doc *core.Record, lines []*core.Record, totals documentTotalsResult) ([]stockMoveInput, error) {
+	products, err := lineProducts(tx, lines)
+	if err != nil {
+		return nil, err
+	}
+	// An item without its own accounts takes the chart's, which inventoryAccounts
+	// looks up: once for each product, not once for each line.
+	accounts := map[string][2]string{}
 	var inputs []stockMoveInput
 	for i, line := range lines {
 		if line.GetString("kind") != lineKindItem || line.GetString("product") == "" {
 			continue
 		}
-		product, err := tx.FindRecordById("books_products", line.GetString("product"))
-		if err != nil {
-			return nil, fmt.Errorf("books: read the product of line %d: %w", i+1, err)
+		product, ok := products[line.GetString("product")]
+		if !ok {
+			return nil, fmt.Errorf("books: read the product of line %d: no product %s", i+1, line.GetString("product"))
 		}
 		if !isInventoryProduct(product) {
 			continue
 		}
-		asset, cogs, err := inventoryAccounts(tx, product)
-		if err != nil {
-			return nil, err
+		pair, ok := accounts[product.Id]
+		if !ok {
+			asset, cogs, err := inventoryAccounts(tx, product)
+			if err != nil {
+				return nil, err
+			}
+			pair = [2]string{asset, cogs}
+			accounts[product.Id] = pair
 		}
 		in := stockMoveInput{
 			Product: product.Id, Source: kind.Collection, Document: doc.Id, Line: line.Id,
-			Date: doc.GetString("date"), AssetAccount: asset, OffsetAccount: cogs,
+			Date: doc.GetString("date"), AssetAccount: pair[0], OffsetAccount: pair[1],
 		}
 		qty := qtyHundredths(line.GetFloat("quantity"))
 		switch kind.Stock {
@@ -53,6 +65,29 @@ func documentStockInputs(tx core.App, kind salesDocKind, doc *core.Record, lines
 		inputs = append(inputs, in)
 	}
 	return inputs, nil
+}
+
+// lineProducts reads the products the item lines name in one query, by id: a
+// read for each line would make the statements of a post grow with its lines.
+func lineProducts(tx core.App, lines []*core.Record) (map[string]*core.Record, error) {
+	var ids []string
+	for _, line := range lines {
+		if line.GetString("kind") == lineKindItem && line.GetString("product") != "" {
+			ids = appendMissing(ids, line.GetString("product"))
+		}
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	found, err := tx.FindRecordsByIds("books_products", ids)
+	if err != nil {
+		return nil, fmt.Errorf("books: read the products of the lines: %w", err)
+	}
+	products := make(map[string]*core.Record, len(found))
+	for _, p := range found {
+		products[p.Id] = p
+	}
+	return products, nil
 }
 
 // salesDocStockLines writes the stock moves of doc while it posts and answers
