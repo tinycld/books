@@ -77,6 +77,25 @@ func TestWrongArgumentCountIsAUsageError(t *testing.T) {
 	}
 }
 
+func TestACommandWithNoArgumentsRefusesAnExtraOne(t *testing.T) {
+	ran := false
+	def := commandDef{Name: "bare", Output: map[string]any{"type": "object"}}
+	root := probeRoot(def, func(*cobra.Command, []string, output.Options, bool) error {
+		ran = true
+		return nil
+	})
+	_, _, err := runRoot(t, root, "", "books", "bare", "extra")
+	if got := exitcode.Of(err); got != exitcode.Usage {
+		t.Fatalf("exit = %d, want 2; err: %v", got, err)
+	}
+	if err == nil || !strings.Contains(err.Error(), "takes no arguments, got 1") {
+		t.Errorf("message = %v, want it to say the command takes no arguments", err)
+	}
+	if ran {
+		t.Error("the command body ran with an argument it does not take")
+	}
+}
+
 // `books acounts list` must not print the help and exit 0: a script would
 // read a typing mistake as success.
 func TestUnknownCommandInAGroupIsAUsageError(t *testing.T) {
@@ -107,11 +126,17 @@ func TestBareGroupPrintsHelp(t *testing.T) {
 	}
 }
 
+// A bad --output value is in the same class as a flag the shell cannot parse:
+// the shell answers before Books runs, so the format is not known and there is
+// no JSON error document, even with --json beside it. Exit 2, empty stdout.
 func TestAnInvalidOutputFlagIsAUsageError(t *testing.T) {
 	root := probeRoot(probeDef, func(*cobra.Command, []string, output.Options, bool) error { return nil })
-	_, _, err := runRoot(t, root, "", "books", "probe", "abc", "--output", "xml")
+	out, _, err := runRoot(t, root, "", "books", "probe", "abc", "--output", "xml", "--json")
 	if got := exitcode.Of(err); got != exitcode.Usage {
 		t.Fatalf("exit = %d, want 2; err: %v", got, err)
+	}
+	if out != "" {
+		t.Errorf("stdout = %q, want nothing", out)
 	}
 }
 

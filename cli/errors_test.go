@@ -117,6 +117,9 @@ func TestANonJSONErrorBody(t *testing.T) {
 	if doc.Error.Code != "unavailable" || doc.Error.Status != 502 || doc.Error.Message != "server error (HTTP 502)" {
 		t.Errorf("error document = %+v", doc.Error)
 	}
+	if strings.Contains(out, `"fields"`) {
+		t.Errorf("a body with no fields must not print a fields key:\n%s", out)
+	}
 }
 
 func TestAuthExpiredIsExit3(t *testing.T) {
