@@ -98,6 +98,15 @@ export const MONEY_NEGATIVE = 'Enter an amount of 0 or more'
 
 export const MONEY_TOO_LARGE = 'Too large'
 
+// The quantity input's inline refusals (QUANTITY_VALUE_SCHEMA).
+export const QUANTITY_MALFORMED = 'Enter a quantity such as 12.5'
+
+export const QUANTITY_NEGATIVE = 'Enter a quantity of 0 or more'
+
+export const QUANTITY_DECIMALS = 'Enter a quantity with at most 2 decimals'
+
+export const QUANTITY_TOO_LARGE = 'Too large'
+
 // The product texts of a record save, spread by useProductForm.
 export const PRODUCT_SAVE_TEXTS = {
     logContext: 'books.products',
