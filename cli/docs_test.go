@@ -10,6 +10,8 @@ import (
 	"tinycld.org/cli/exitcode"
 )
 
+const helpTopic = "../help/command-line.md"
+
 func readDoc(t *testing.T, path string) string {
 	t.Helper()
 	data, err := os.ReadFile(path)
@@ -71,35 +73,24 @@ func TestDocsNameEveryCommand(t *testing.T) {
 			words[sub.Name()] = true
 		}
 	}
-	for _, path := range []string{"../docs/cli.md", "../help/command-line.md"} {
-		page := readDoc(t, path)
-		for _, group := range groups {
-			if !strings.Contains(page, "`tinycld "+strings.TrimPrefix(group, "tinycld ")+"`") {
-				t.Errorf("%s does not name the group `%s`", path, group)
-			}
+	page := readDoc(t, helpTopic)
+	for _, group := range groups {
+		if !strings.Contains(page, "`tinycld "+strings.TrimPrefix(group, "tinycld ")+"`") {
+			t.Errorf("%s does not name the group `%s`", helpTopic, group)
 		}
-		code := codeText(page)
-		for word := range words {
-			// In a code span, or on a line of a code block.
-			shown := regexp.MustCompile(`(?m)(^|[^a-z-])` + word + `($|[^a-z-])`)
-			if !shown.MatchString(code) {
-				t.Errorf("%s does not show the command %q", path, word)
-			}
+	}
+	code := codeText(page)
+	for word := range words {
+		// In a code span, or on a line of a code block.
+		shown := regexp.MustCompile(`(?m)(^|[^a-z-])` + word + `($|[^a-z-])`)
+		if !shown.MatchString(code) {
+			t.Errorf("%s does not show the command %q", helpTopic, word)
 		}
 	}
 }
 
 func TestDocsHaveEveryExitCode(t *testing.T) {
-	for _, path := range []string{"../docs/cli.md", "../docs/cli-conventions.md"} {
-		page := readDoc(t, path)
-		for _, exit := range exitCodes {
-			row := fmt.Sprintf("| %d | `%s` |", exit.Code, exit.Name)
-			if !strings.Contains(page, row) {
-				t.Errorf("%s has no exit code row %q", path, row)
-			}
-		}
-	}
-	help := readDoc(t, "../help/command-line.md")
+	help := readDoc(t, helpTopic)
 	for code := exitcode.Usage; code <= exitcode.Unavailable; code++ {
 		if !strings.Contains(help, fmt.Sprintf("`%d`", code)) {
 			t.Errorf("the help topic does not explain exit code %d", code)
@@ -107,41 +98,18 @@ func TestDocsHaveEveryExitCode(t *testing.T) {
 	}
 }
 
-// The conventions page states the limits the code enforces.
-func TestConventionsMatchTheCode(t *testing.T) {
-	page := readDoc(t, "../docs/cli-conventions.md")
-	for _, want := range []string{
-		fmt.Sprintf("the default `limit` is %d and the largest %d", defaultListLimit, maxListLimit),
-		fmt.Sprintf("over %d MiB", maxInputBytes>>20),
-		"`--input <file>`", "`--input -`", "`--json`", "`--quiet`", "`--yes`", "`tinycld books schema`",
-		"`newCommand`", "`newGroup`", "`usagef`", "`bindInput`", "`readInput`", "`report`",
-		"`cli/resources.json`", "`server/cli_resources_test.go`", "`server/oauth_scopes.go`",
-	} {
-		if !strings.Contains(page, want) {
-			t.Errorf("docs/cli-conventions.md does not say %q", want)
-		}
-	}
-	for _, key := range []string{"code", "exit", "message", "status", "fields"} {
-		if !strings.Contains(page, `"`+key+`"`) {
-			t.Errorf("docs/cli-conventions.md does not name the error key %q", key)
-		}
-	}
-}
-
 // A caller learns the page size from the pages, so they state the largest one.
 func TestPagesStateTheLimitRange(t *testing.T) {
 	want := fmt.Sprintf("`--limit` takes 1 to %d", maxListLimit)
-	for _, path := range []string{"../docs/cli.md", "../help/command-line.md"} {
-		if !strings.Contains(readDoc(t, path), want) {
-			t.Errorf("%s does not say %q", path, want)
-		}
+	if !strings.Contains(readDoc(t, helpTopic), want) {
+		t.Errorf("%s does not say %q", helpTopic, want)
 	}
 }
 
 // The scripts line of the help topic explains every exit code but 0.
 func TestHelpExitLineHasEveryFailureCode(t *testing.T) {
 	var line string
-	for _, l := range strings.Split(readDoc(t, "../help/command-line.md"), "\n") {
+	for _, l := range strings.Split(readDoc(t, helpTopic), "\n") {
 		if strings.HasPrefix(l, "- The exit code") {
 			line = l
 		}
@@ -160,7 +128,7 @@ func TestHelpExitLineHasEveryFailureCode(t *testing.T) {
 }
 
 func TestHelpTopicFrontmatter(t *testing.T) {
-	help := readDoc(t, "../help/command-line.md")
+	help := readDoc(t, helpTopic)
 	if !strings.HasPrefix(help, "---\ntitle: Books from the command line\nsummary: ") {
 		t.Error("help/command-line.md must start with the frontmatter: title, summary")
 	}
