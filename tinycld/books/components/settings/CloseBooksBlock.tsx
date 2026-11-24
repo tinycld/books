@@ -5,6 +5,7 @@ import { Text, View } from 'react-native'
 import { useCloseBooks } from '../../hooks/useCloseBooks'
 import { rootErrorOnly } from '../../lib/root-errors'
 import type { CloseDateValues } from '../../lib/settings-schema'
+import type { BooksSettings } from '../../types'
 import { ReopenDialog } from './ReopenDialog'
 import { FieldNote } from './SectionCard'
 
@@ -41,8 +42,8 @@ function ClosingDate({ control, isVisible }: ClosingDateProps) {
     )
 }
 
-export function CloseBooksBlock() {
-    const close = useCloseBooks()
+export function CloseBooksBlock({ settings }: { settings: BooksSettings }) {
+    const close = useCloseBooks(settings)
     const { control, formState } = close.form
     const { errors, isSubmitted } = formState
     const oldDate = close.reopen?.oldDate ?? ''

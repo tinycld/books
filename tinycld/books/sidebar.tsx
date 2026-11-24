@@ -1,25 +1,18 @@
 import {
-    SidebarActionButton,
     SidebarHeading,
     SidebarItem,
     SidebarNav,
 } from '@tinycld/core/components/sidebar-primitives'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
-import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
 import { router } from 'expo-router'
-import { ChevronDown, ChevronRight, Plus } from 'lucide-react-native'
-import { Pressable } from 'react-native'
-import { NewMenu } from './components/NewMenu'
+import { FoldHeading } from './components/sidebar/FoldHeading'
+import { NewSection } from './components/sidebar/NewSection'
+import { ReportsSection } from './components/sidebar/ReportsSection'
+import { ShortcutsSection } from './components/sidebar/ShortcutsSection'
 import { useBooksSidebar } from './hooks/useBooksSidebar'
-import { useNewMenu } from './hooks/useNewMenu'
 import type { SidebarEntry } from './lib/shell-nav'
-
-function accountingToggleView(isOpen: boolean) {
-    return isOpen
-        ? { Chevron: ChevronDown, label: 'Collapse Accounting' }
-        : { Chevron: ChevronRight, label: 'Expand Accounting' }
-}
+import { useBooksUIStore } from './stores/books-ui-store'
 
 interface AccountingHeadingProps {
     isVisible: boolean
@@ -28,51 +21,26 @@ interface AccountingHeadingProps {
 }
 
 function AccountingHeading({ isVisible, isOpen, onToggle }: AccountingHeadingProps) {
-    const mutedColor = useThemeColor('muted-foreground')
     if (!isVisible) return null
-    const { Chevron, label } = accountingToggleView(isOpen)
-
     return (
-        <SidebarHeading
-            action={
-                <Pressable
-                    testID="books-nav-accounting-toggle"
-                    accessibilityRole="button"
-                    accessibilityLabel={label}
-                    onPress={onToggle}
-                    hitSlop={8}
-                    className="items-center justify-center"
-                    style={{ minWidth: 44, minHeight: 44 }}
-                >
-                    <Chevron size={16} color={mutedColor} />
-                </Pressable>
-            }
-        >
-            Accounting
-        </SidebarHeading>
-    )
-}
-
-type NewMenuState = ReturnType<typeof useNewMenu>
-
-interface SidebarNewButtonProps {
-    isVisible: boolean
-    columns: NewMenuState['columns']
-    onSelect: NewMenuState['open']
-}
-
-function SidebarNewButton({ isVisible, columns, onSelect }: SidebarNewButtonProps) {
-    if (!isVisible) return null
-
-    return (
-        <NewMenu
-            columns={columns}
-            onSelect={onSelect}
-            trigger={<SidebarActionButton label="New" icon={Plus} />}
+        <FoldHeading
+            title="Accounting"
+            isOpen={isOpen}
+            onToggle={onToggle}
+            testID="books-nav-accounting-toggle"
         />
     )
 }
 
+const SHORTCUTS_FIRST = [<ShortcutsSection key="shortcuts" />, <NewSection key="new" />]
+const NEW_FIRST = [<NewSection key="new" />, <ShortcutsSection key="shortcuts" />]
+
+// The Books sidebar, top to bottom: the user's Shortcuts, the New actions, the Books
+// reports, then the fixed navigation under "Go to". The same component is the desktop
+// sidebar and the phone drawer. The drawer that the phone's New button opens draws New
+// first, because the Shortcuts above it can be taller than the screen. core's SidebarNav
+// gives no handle to its scroll, so the key change draws a new SidebarNav, which starts at
+// the top, also when the drawer was scrolled before it closed.
 export default function BooksSidebar() {
     const {
         top,
@@ -83,9 +51,13 @@ export default function BooksSidebar() {
         toggleAccounting,
         isActive,
     } = useBooksSidebar()
-    const orgHref = useOrgHref()
-    const { isVisible: hasNewActions, columns, open } = useNewMenu()
+    // Only the phone drawer draws New first: a resize to a desktop width can leave the flag
+    // set while the drawer is open.
     const isMobile = useBreakpoint() === 'mobile'
+    const isNewFirst = useBooksUIStore(s => s.isNewFirst) && isMobile
+    const leadSections = isNewFirst ? NEW_FIRST : SHORTCUTS_FIRST
+    const navKey = isNewFirst ? 'new-first' : 'shortcuts-first'
+    const orgHref = useOrgHref()
 
     const renderItem = (entry: SidebarEntry) => (
         <SidebarItem
@@ -98,22 +70,23 @@ export default function BooksSidebar() {
             testID={`books-nav-${entry.id}`}
         />
     )
+    const topItems = top.map(renderItem)
+    const accountingItems = visibleAccounting.map(renderItem)
+    const endItems = end.map(renderItem)
 
     return (
-        <SidebarNav>
-            <SidebarNewButton
-                isVisible={hasNewActions && !isMobile}
-                columns={columns}
-                onSelect={open}
-            />
-            {top.map(renderItem)}
+        <SidebarNav key={navKey}>
+            {leadSections}
+            <ReportsSection />
+            <SidebarHeading>Go to</SidebarHeading>
+            {topItems}
             <AccountingHeading
                 isVisible={hasAccounting}
                 isOpen={isAccountingOpen}
                 onToggle={toggleAccounting}
             />
-            {visibleAccounting.map(renderItem)}
-            {end.map(renderItem)}
+            {accountingItems}
+            {endItems}
         </SidebarNav>
     )
 }

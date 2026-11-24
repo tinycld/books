@@ -35,8 +35,8 @@ import { uniqueMemo } from './invoice-helpers'
 // (estimate-public-link spec §3.1, §3.2, §3.4). Every estimate a test acts on is made by
 // driving the estimate form with a unique memo; a test that only looks at a seeded
 // estimate's page reads its token with a read-only signed-in GET. The business name,
-// email and phone are shared settings (books-settings.spec.ts changes them): no test
-// asserts their values, only what the page shows of them against what it reads.
+// email and phone are shared settings (seed.ts sets the name; no spec changes the three):
+// no test asserts their values, only what the page shows of them against what it reads.
 //
 // The public page runs the same code at every width, so its only phone run is the Books
 // phone bar, where Copy customer link is a More row. Not driven here: the org logo with a

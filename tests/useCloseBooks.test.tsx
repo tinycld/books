@@ -47,8 +47,9 @@ function savedCloseDate() {
     return settingsStore().get(CLOSED.id)?.close_date
 }
 
-async function renderReady() {
-    const rendered = renderHook(() => useCloseBooks(), { wrapper })
+// The hook takes the row the settings panel holds; here that is the seeded row.
+async function renderReady(row: BooksSettings = CLOSED) {
+    const rendered = renderHook(() => useCloseBooks(row), { wrapper })
     await waitFor(() => expect(settingsStore().get(CLOSED.id)).toBeDefined())
     return rendered
 }
@@ -149,7 +150,7 @@ describe('useCloseBooks', () => {
 
     it('with no current close date, turning on and saving a date writes it with no question', async () => {
         seedBooks({ level: 'admin', ledger: ledger(OPEN) })
-        const rendered = await renderReady()
+        const rendered = await renderReady(OPEN)
         expect(rendered.result.current.isClosed).toBe(false)
         act(() => {
             rendered.result.current.form.setValue('closed', true, { shouldDirty: true })
@@ -321,7 +322,7 @@ describe('useCloseBooks beside the fiscal year form', () => {
     function renderBoth() {
         return renderHook(
             () => ({
-                close: useCloseBooks(),
+                close: useCloseBooks(CLOSED),
                 fiscal: useSettingsForm({
                     schema: fiscalYearSchema,
                     values: { fiscal_year_start_month: CLOSED.fiscal_year_start_month },

@@ -113,9 +113,14 @@ const ST_JUDE_GALA = CUSTOMERS.find(
     customer => customer.id === CUSTOMER_BALANCE_SEED.galaInvoice.customer
 )
 
-// An empty answer to the reports list read: the reader has no shipped report to open.
-function noReportRows() {
-    return JSON.stringify({ page: 1, perPage: 0, totalItems: 0, totalPages: 0, items: [] })
+// An empty answer to the reports list read: the reader has no shipped report to open. It
+// echoes the request's page and perPage: the SDK's full-list read asks for the next page
+// while a page holds `perPage` items, so `perPage: 0` makes it page without end and the
+// read never settles.
+function noReportRows(url: URL) {
+    const page = Number(url.searchParams.get('page') ?? '1')
+    const perPage = Number(url.searchParams.get('perPage') ?? '30')
+    return JSON.stringify({ page, perPage, totalItems: 0, totalPages: 0, items: [] })
 }
 
 /**
@@ -516,6 +521,12 @@ test.describe('customer-balance: report', () => {
         )
         expect(snapshot.title).toBe(CUSTOMER_BALANCE_TITLE)
 
+        // The report opens inside Books, and Back returns to the list. The fresh page below
+        // shares this context's storage, so Books reopens at its last route: left on the
+        // report, it would reopen there, and that report's read is answered with no row.
+        await page.getByTestId('report-back').click()
+        await expect(page.getByTestId('customers-title')).toBeVisible()
+
         // A fresh page whose reports list read answers no row, so it has no shipped report
         // to open. Realtime is cut first, so no row arrives by another path.
         const fresh = await page.context().newPage()
@@ -524,11 +535,12 @@ test.describe('customer-balance: report', () => {
         const answered: string[] = []
         await fresh.route('**/api/realtime*', route => route.abort())
         await fresh.route('**/api/collections/reports/records**', async route => {
-            const filter = new URL(route.request().url()).searchParams.get('filter') ?? ''
+            const url = new URL(route.request().url())
+            const filter = url.searchParams.get('filter') ?? ''
             await route.fulfill({
                 status: 200,
                 contentType: 'application/json',
-                body: noReportRows(),
+                body: noReportRows(url),
             })
             answered.push(filter)
         })

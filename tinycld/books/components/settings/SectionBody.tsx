@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 import type { SectionId } from '../../lib/settings-sections'
+import type { BooksSettings } from '../../types'
 import { AccessSection } from './AccessSection'
 import { AccountingSection } from './AccountingSection'
 import { CompanySection } from './CompanySection'
@@ -8,12 +9,18 @@ import { NumberingSection } from './NumberingSection'
 import { PurchasesSection } from './PurchasesSection'
 import { SalesSection } from './SalesSection'
 
-interface SectionBodyProps {
-    section: SectionId
+// The settings row comes from the panel, which keeps it while a reload of the read runs,
+// so a section with a form never unmounts it with its unsaved text.
+interface BodyProps {
+    settings: BooksSettings
     isAdmin: boolean
 }
 
-const BODIES: Partial<Record<SectionId, ComponentType<{ isAdmin: boolean }>>> = {
+interface SectionBodyProps extends BodyProps {
+    section: SectionId
+}
+
+const BODIES: Partial<Record<SectionId, ComponentType<BodyProps>>> = {
     company: CompanySection,
     accounting: AccountingSection,
     sales: SalesSection,
@@ -23,8 +30,8 @@ const BODIES: Partial<Record<SectionId, ComponentType<{ isAdmin: boolean }>>> = 
     access: AccessSection,
 }
 
-export function SectionBody({ section, isAdmin }: SectionBodyProps) {
+export function SectionBody({ section, settings, isAdmin }: SectionBodyProps) {
     const Body = BODIES[section]
     if (!Body) return null
-    return <Body isAdmin={isAdmin} />
+    return <Body settings={settings} isAdmin={isAdmin} />
 }

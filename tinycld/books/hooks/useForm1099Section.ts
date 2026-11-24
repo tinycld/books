@@ -9,7 +9,6 @@ import { EXPENSE_GROUP_TYPES, form1099Controls } from '../lib/form-1099'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
 import { VENDORS_PATH, vendorPath } from '../lib/vendor-route'
 import { useBooksAccess } from './useBooksAccess'
-import { useBooksSettings } from './useBooksSettings'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 
@@ -36,10 +35,12 @@ function sectionPart(states: { isReady: boolean; isError: boolean }[]) {
     return 'ready' as const
 }
 
+// The settings row is not read here: the settings panel owns that read, keeps its row
+// through a later failed read and rebuilds it on its Retry. A read of its own would turn
+// the section to its error part then and drop a typed threshold.
 export function useForm1099Section() {
     const orgHref = useOrgHref()
     const access = useBooksAccess()
-    const booksSettings = useBooksSettings()
     const accounts = useExpenseGroupAccounts()
     const [vendorsCollection] = useStore('books_vendors')
     const vendorsQuery = useLiveQuery({
@@ -57,11 +58,9 @@ export function useForm1099Section() {
 
     return {
         part: sectionPart([
-            { isReady: booksSettings.isReady, isError: booksSettings.hasLoadError },
             accounts,
             { isReady: vendorsQuery.isReady, isError: vendorsQuery.isError },
         ]),
-        settings: booksSettings.settings,
         accounts: accounts.rows,
         vendors,
         controls: form1099Controls(access),
@@ -74,7 +73,7 @@ export function useForm1099Section() {
         // One call over every failed query, so a retry rebuilds them together.
         retry: () => {
             void recoverLiveQueries({
-                ...mergeRecoveries([booksSettings.recovery, accounts.recovery, vendorsRecovery]),
+                ...mergeRecoveries([accounts.recovery, vendorsRecovery]),
                 onError: error => log.error('books.form-1099', error),
             })
         },

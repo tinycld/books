@@ -2,6 +2,7 @@ import { expect, type Page } from '@playwright/test'
 import { isPhone } from './account-register-helpers'
 import { lineCellTestId } from './invoice-helpers'
 import { openEntriesList } from './journal-entries-helpers'
+import { openNewAction } from './new-menu-helpers'
 import { pickFromSearchPicker } from './search-picker-helpers'
 
 // A credit memo's own screen: `books/credit-memos/<id>`, never `.../new`.
@@ -19,16 +20,11 @@ export function creditMemoIdFromUrl(page: Page): string {
     return id
 }
 
-// Books must already be open. From the Journal Entries list through the New menu (the
-// phone FAB, or the desktop header's New text) → Credit memo.
+// Books must already be open. From the Journal Entries list through the New menu
+// (tests/e2e/new-menu-helpers.ts) → Credit memo.
 export async function openNewCreditMemo(page: Page) {
     await openEntriesList(page)
-    if (isPhone(page)) {
-        await page.getByLabel('New', { exact: true }).click()
-    } else {
-        await page.getByText('New', { exact: true }).filter({ visible: true }).click()
-    }
-    await page.getByTestId('books-new-credit-memo').click()
+    await openNewAction(page, 'credit_memo')
     await expect(page).toHaveURL(NEW_CREDIT_MEMO_URL)
     await expect(page.getByTestId('credit-memo-title')).toHaveText('New credit memo')
 }

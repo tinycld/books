@@ -51,6 +51,13 @@ var serverOnly = map[string]bool{
 	"books_reconciliation_lines": true,
 }
 
+// personalOnly are the collections that hold one user's own screen arrangement.
+// Only that user reads or writes the row and it is not company data, so the
+// audit log does not record it.
+var personalOnly = map[string]bool{
+	"books_sidebar_shortcuts": true,
+}
+
 func booksCollections(t testing.TB, app core.App, kinds ...string) []*core.Collection {
 	t.Helper()
 	cols, err := app.FindAllCollections(kinds...)
@@ -92,8 +99,8 @@ func TestAudit_CoversEveryCollectionPeopleWrite(t *testing.T) {
 	app := newBooksApp(t)
 	audited := auditedCollections(app)
 	for _, c := range booksCollections(t, app, core.CollectionTypeBase) {
-		if _, ok := audited[c.Name]; !ok && !serverOnly[c.Name] {
-			t.Errorf("%s is neither audited nor listed as server-only", c.Name)
+		if _, ok := audited[c.Name]; !ok && !serverOnly[c.Name] && !personalOnly[c.Name] {
+			t.Errorf("%s is neither audited nor listed as server-only or personal", c.Name)
 		}
 	}
 	for name := range audited {

@@ -4,6 +4,7 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { useMyLiveQuery } from '@tinycld/core/lib/use-my-live-query'
 import { accessFromRow } from '../lib/access'
+import type { LiveRecovery } from '../lib/live-recovery'
 
 // The caller's Books level, from the same books_access view the server rules
 // read. Shared because every Books screen gates its writes on it.
@@ -25,7 +26,11 @@ export function useBooksAccess() {
             onError: err => log.error('books.access', err),
         })
     }
+    // What a screen with other failed reads merges into its one recovery call.
+    const recovery: LiveRecovery = isError
+        ? { queries: [collection], sources: [accessCollection] }
+        : { queries: [], sources: [] }
     // isError, collection and retry let a screen show an error state and retry the
     // read, instead of waiting forever on an isReady that never turns true.
-    return { ...accessFromRow(data?.[0], isReady), isError, collection, retry }
+    return { ...accessFromRow(data?.[0], isReady), isError, collection, retry, recovery }
 }

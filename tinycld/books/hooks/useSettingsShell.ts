@@ -16,6 +16,7 @@ import { useBooksSettings } from './useBooksSettings'
 import { useDepositAccounts } from './useDepositAccounts'
 import { useDocSequences } from './useDocSequences'
 import { useExpenseGroupAccounts } from './useForm1099Section'
+import { useLastDefined } from './useLastDefined'
 import { usePopToScreenBelow } from './useStackScreens'
 
 export type ShellPart = 'loading' | 'error' | 'list' | 'detail'
@@ -62,18 +63,31 @@ export function useSettingsShell(section: SectionId | undefined) {
         isActive: s.id === open,
     }))
 
+    const settled = shellPart({
+        // Only the Numbering summary needs sequences, so their failure must not block the shell.
+        isReady:
+            access.isReady &&
+            booksSettings.isReady &&
+            (docSequences.isReady || docSequences.hasLoadError),
+        // A ready query with no settings row has nothing to show, so it takes the error path.
+        hasError: booksSettings.hasLoadError || (booksSettings.isReady && !booksSettings.settings),
+        hasOpen: open !== undefined,
+    })
+    // A drawn section stays under a later loading or error state of the reads: it can hold
+    // unsaved text, and its panel shows the error with Retry (over `recovery`) itself.
+    const drawnOpen = useLastDefined(settled === 'detail' ? open : undefined)
+    const keepsDetail = settled !== 'list' && open !== undefined && drawnOpen === open
+    const part: ShellPart = keepsDetail ? 'detail' : settled
+    const recovery = mergeRecoveries([
+        booksSettings.recovery,
+        docSequences.recovery,
+        accounts.recovery,
+        deposit.recovery,
+    ])
+
     return {
-        part: shellPart({
-            // Only the Numbering summary needs sequences, so their failure must not block the shell.
-            isReady:
-                access.isReady &&
-                booksSettings.isReady &&
-                (docSequences.isReady || docSequences.hasLoadError),
-            // A ready query with no settings row has nothing to show, so it takes the error path.
-            hasError:
-                booksSettings.hasLoadError || (booksSettings.isReady && !booksSettings.settings),
-            hasOpen: open !== undefined,
-        }),
+        part,
+        recovery,
         sections,
         openId: open,
         isAdmin,
@@ -95,12 +109,7 @@ export function useSettingsShell(section: SectionId | undefined) {
         // One call over every failed query, so a retry rebuilds them together.
         retry: () => {
             void recoverLiveQueries({
-                ...mergeRecoveries([
-                    booksSettings.recovery,
-                    docSequences.recovery,
-                    accounts.recovery,
-                    deposit.recovery,
-                ]),
+                ...recovery,
                 onError: error => log.error('books.settings', error),
             })
         },

@@ -1,6 +1,5 @@
 import type { LucideIcon } from 'lucide-react-native'
 import {
-    BarChart3,
     BookOpen,
     FileText,
     Landmark,
@@ -84,14 +83,6 @@ export const SIDEBAR_ENTRIES: SidebarEntry[] = [
         available: true,
     },
     { id: 'lists', label: 'Lists', icon: List, href: 'books/lists', available: true },
-    {
-        id: 'reports',
-        label: 'Reports',
-        icon: BarChart3,
-        href: 'reports',
-        params: { package: 'books' },
-        available: true,
-    },
     {
         id: 'accounts',
         label: 'Chart of Accounts',
@@ -231,9 +222,10 @@ export function isActivePath(pathname: string, entry: SidebarEntry): boolean {
 // `/vendor-credits`, `/vendor-refunds`), or no screen at all (transfers, write-offs and
 // deposits have no list). Pay Bills has no id: `/pay-bills` itself is the form. The
 // Reconcile history (`/reconcile/history`) is a list beside the accounts screen, not a
-// reconciliation, so it keeps the button too.
+// reconciliation, so it keeps the button too. A report (`/reports/<id>`) is core's report
+// view, which leaves no room under its table for the button.
 const FAB_FREE_SCREEN =
-    /\/books\/((entries|customers|vendors|products|transfers|invoices|sales-receipts|credit-memos|refund-receipts|estimates|bills|expenses|vendor-credits|vendor-refunds|payments|bill-payments|write-offs|deposits)\/[^/]+|reconcile\/(?!history\/?$)[^/]+|pay-bills)\/?$/
+    /\/books\/((entries|customers|vendors|products|transfers|invoices|sales-receipts|credit-memos|refund-receipts|estimates|bills|expenses|vendor-credits|vendor-refunds|payments|bill-payments|write-offs|deposits|reports)\/[^/]+|reconcile\/(?!history\/?$)[^/]+|pay-bills)\/?$/
 
 export function hidesNewFab(pathname: string): boolean {
     return FAB_FREE_SCREEN.test(pathname)

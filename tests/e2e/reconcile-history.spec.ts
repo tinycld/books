@@ -77,7 +77,9 @@ async function accountWithTwoStatements(page: Page): Promise<TwoStatements> {
 }
 
 function reportUrlOf(reconciliationId: string): RegExp {
-    return new RegExp(`/a/reports/[a-z0-9]{15}\\?(?:.*&)?p-statement=${reconciliationId}(?:&|$)`)
+    return new RegExp(
+        `/a/books/reports/[a-z0-9]{15}\\?(?:.*&)?p-statement=${reconciliationId}(?:&|$)`
+    )
 }
 
 function summaryUrlOf(reconciliationId: string): RegExp {

@@ -1,8 +1,9 @@
 import { expect, type Locator, type Page, type Request } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
-import { DESKTOP, isPhone } from './account-register-helpers'
+import { DESKTOP } from './account-register-helpers'
 import { uniqueMemo } from './invoice-helpers'
 import { openEntriesList } from './journal-entries-helpers'
+import { openNewAction } from './new-menu-helpers'
 import { pickFromSearchPicker } from './search-picker-helpers'
 import {
     creditCellTestId,
@@ -127,17 +128,12 @@ export async function vendorWithCredits(
     return { vendor: { id: vendorId, name }, credits: posted }
 }
 
-// Books must already be open. From the Journal Entries list through the New menu (the
-// phone FAB, or the desktop header's New text) to Vendor refund. A new refund's Vendor
-// picker has focus (web, every width).
+// Books must already be open. From the Journal Entries list through the New menu
+// (tests/e2e/new-menu-helpers.ts) to Vendor refund. A new refund's Vendor picker has focus
+// (web, every width).
 export async function openNewVendorRefund(page: Page) {
     await openEntriesList(page)
-    if (isPhone(page)) {
-        await page.getByLabel('New', { exact: true }).click()
-    } else {
-        await page.getByText('New', { exact: true }).filter({ visible: true }).click()
-    }
-    await page.getByTestId('books-new-vendor-refund').click()
+    await openNewAction(page, 'vendor_refund')
     await expect(page).toHaveURL(NEW_VENDOR_REFUND_URL)
     await expect(page.getByTestId('vendor-refund-form')).toBeVisible()
     await expect(page.getByTestId('vendor-refund-title')).toHaveText('Vendor refund')

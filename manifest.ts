@@ -17,6 +17,18 @@ const manifest = {
     ],
     help: { directory: 'help' },
     sidebar: { component: 'sidebar' },
+    // The Books settings sections as panels of core Settings (Settings, group Books): the
+    // same sections, in the same order and with the same labels, as the Books settings
+    // screen (lib/settings-sections.ts). tests/settings-panels.test.ts holds the two lists equal.
+    settings: [
+        { slug: 'company', label: 'Company', component: 'settings/company' },
+        { slug: 'accounting', label: 'Accounting', component: 'settings/accounting' },
+        { slug: 'sales', label: 'Sales', component: 'settings/sales' },
+        { slug: 'purchases', label: 'Purchases', component: 'settings/purchases' },
+        { slug: 'numbering', label: 'Numbering', component: 'settings/numbering' },
+        { slug: 'form-1099', label: '1099s', component: 'settings/form-1099' },
+        { slug: 'access', label: 'Access', component: 'settings/access' },
+    ],
     provider: { component: 'provider' },
     migrations: { directory: 'pb-migrations' },
     collections: { register: 'collections', types: 'types' },

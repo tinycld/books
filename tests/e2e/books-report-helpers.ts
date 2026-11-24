@@ -25,8 +25,10 @@ import {
 import { isPhone, swipeFromLeftEdge } from './account-register-helpers'
 import { fillLine, type LineInput, openNewEntry, postOpenEntry } from './journal-entries-helpers'
 
-// Books' reports run in core's report view (/a/reports/<id>). These helpers drive it
-// through core's test ids (core/reports/components) and read it in one snapshot.
+// Books' reports run in core's report view: on the Books route (/a/books/reports/<id>) when
+// a Books link or the Books sidebar opens one, on core's route (/a/reports/<id>) when the
+// Reports hub does. These helpers drive the view through core's test ids
+// (core/reports/components) and read it in one snapshot.
 
 export type AsOfPreset = 'today' | 'endOfLastMonth' | 'endOfLastQuarter' | 'endOfLastFiscalYear'
 
@@ -105,8 +107,8 @@ export async function snapshotWhen<T>(
 }
 
 // The heading core's document header prints (useReportView headingOf): the Books business
-// name, else the organization's name. Read-only: books-settings.spec.ts types over the
-// business name and restores it on the shared DB, so it is read when compared. Both reads
+// name, else the organization's name. Read-only, and read when compared, so a caller does
+// not depend on what the shared row holds (seed.ts seeds the name; no spec changes it). Both reads
 // go through the page's own fetch (same origin, the browser's warm connection): a fresh
 // Node-side request context can spend seconds on its first name lookup of localhost,
 // which would eat the budget of a poll that calls this.
@@ -150,18 +152,35 @@ export async function openBooksMenu(page: Page): Promise<void> {
     await expect.poll(async () => (await panel.boundingBox())?.x).toBe(0)
 }
 
-// Core's Reports hub filtered to Books, reached the way a user does: Reports in the Books
-// sidebar (on a phone, in the Books menu, the drawer). Open Books at the desktop viewport
-// first when the page is a phone: navigateToPackage clicks the desktop rail.
+const OPEN_FOLD_TIMEOUT_MS = 5000
+
+// Opens the Reports section of the Books sidebar and leaves it open. The sidebar must be on
+// screen (on a phone: the Books menu, the drawer). The fold state is kept across screens
+// and reloads (books-ui-store persists it through AsyncStorage, which hydrates a tick after
+// the first render), so the label can flip from Expand to Collapse after it is read. The
+// press and the check on its result run as one retried block: a press that landed on a fold
+// that hydration had just opened closes it, the label reads Expand again, and the next pass
+// opens it. The retries stop at the default expect timeout (5s), so a stuck fold fails with
+// its own message and not at the test timeout.
+export async function openReportsSection(page: Page): Promise<void> {
+    const toggle = page.getByTestId('books-sidebar-reports-toggle').filter({ visible: true })
+    await expect(toggle).toHaveAttribute('aria-label', /^(Expand|Collapse) Reports$/)
+    await expect(async () => {
+        if ((await toggle.getAttribute('aria-label')) === 'Expand Reports') await toggle.click()
+        await expect(toggle).toHaveAttribute('aria-label', 'Collapse Reports')
+    }).toPass({ timeout: OPEN_FOLD_TIMEOUT_MS })
+}
+
+// Core's Reports hub filtered to Books, reached the way a user does: All reports in the
+// Reports section of the Books sidebar (on a phone, in the Books menu, the drawer). Open
+// Books at the desktop viewport first when the page is a phone: navigateToPackage clicks
+// the desktop rail.
 export async function openBooksReports(page: Page): Promise<void> {
     await navigateToPackage(page, 'books')
     const width = page.viewportSize()?.width ?? Number.POSITIVE_INFINITY
-    let reports = page.getByTestId('books-nav-reports')
-    if (width <= MOBILE_MAX_WIDTH) {
-        await openBooksMenu(page)
-        reports = page.getByTestId('mobile-drawer-panel').getByTestId('books-nav-reports')
-    }
-    await reports.click()
+    if (width <= MOBILE_MAX_WIDTH) await openBooksMenu(page)
+    await openReportsSection(page)
+    await page.getByTestId('books-sidebar-reports-all').filter({ visible: true }).click()
     await expect(page).toHaveURL(/\/a\/reports\?package=books/)
     await page.getByTestId('reports-hub').waitFor()
 }

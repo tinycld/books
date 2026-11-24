@@ -45,6 +45,9 @@ func Register(app *pocketbase.PocketBase) {
 	// signals for signed-in clients know them. The signed-out customer page
 	// gets no signal; it re-reads on foreground, network back or reload.
 	changesignal.RegisterView("books_estimate_public", "books_estimates", "books_customers", "books_settings")
+	// The level view reads the user's org role, their core access and their
+	// Books admin grant, so an open app sees a changed level with no reload.
+	changesignal.RegisterView("books_access", "users", "org_pkg_access", "books_admins")
 	changesignal.RegisterView(invoicePublicCollection, "books_invoices", "books_customers", "books_settings",
 		creditMemoApplicationsCollection)
 	// The audit log view reads core's audit rows, the actor's name from users

@@ -12,9 +12,9 @@ import {
     messageRefusal,
     overrideDeletes,
     overridesStore,
+    requestedStores,
     seedBooks,
     serverRefusal,
-    settingsStore,
     writeLog,
 } from './accounts-form-harness'
 import { expectLiveQueryError, silenceLog } from './silence-log'
@@ -86,9 +86,7 @@ function seed(opts: {
     overridesNeverReady?: boolean
     overridesErrored?: boolean
     overridesFailsOnce?: boolean
-    settingsNeverReady?: boolean
     settingsErrored?: boolean
-    settingsFailsOnce?: boolean
 }) {
     seedBooks({
         level: 'admin',
@@ -100,21 +98,20 @@ function seed(opts: {
         overridesNeverReady: opts.overridesNeverReady,
         overridesErrored: opts.overridesErrored,
         overridesFailsOnce: opts.overridesFailsOnce,
-        settingsNeverReady: opts.settingsNeverReady,
         settingsErrored: opts.settingsErrored,
-        settingsFailsOnce: opts.settingsFailsOnce,
     })
 }
 
-// Reads the form state during render so react-hook-form tracks and re-renders on it.
-function useWatched() {
-    const panel = useOverridesPanel()
+// Reads the form state during render so react-hook-form tracks and re-renders on it. The
+// hook takes the row the settings panel holds; here that is the seeded row.
+function useWatched(row: BooksSettings = CLOSED) {
+    const panel = useOverridesPanel(row)
     const { errors, isSubmitted, isDirty } = panel.grantForm.formState
     return { panel, errors, isSubmitted, isDirty }
 }
 
-async function renderReady() {
-    const rendered = renderHook(() => useWatched(), { wrapper })
+async function renderReady(row: BooksSettings = CLOSED) {
+    const rendered = renderHook(() => useWatched(row), { wrapper })
     await waitFor(() => expect(rendered.result.current.panel.grantableUsers).toHaveLength(2))
     return rendered
 }
@@ -152,9 +149,8 @@ describe('useOverridesPanel state', () => {
 
     it('reports no close date when the settings row has none', async () => {
         seed({ settings: OPEN })
-        const { result } = await renderReady()
+        const { result } = await renderReady(OPEN)
 
-        await waitFor(() => expect(settingsStore().get(OPEN.id)).toBeDefined())
         expect(result.current.panel.hasCloseDate).toBe(false)
     })
 
@@ -379,55 +375,21 @@ describe('useOverridesPanel load states', () => {
 
     it('reports the no-close-date part when settings have no close date', async () => {
         seed({ settings: OPEN })
-        const { result } = await renderReady()
+        const { result } = await renderReady(OPEN)
 
         await waitFor(() => expect(result.current.panel.part).toBe('no-close-date'))
     })
 })
 
-describe('useOverridesPanel settings load states', () => {
-    it('reports loading, not no-close-date, while the settings row has not loaded', async () => {
-        seed({ settingsNeverReady: true })
-        const { result } = renderHook(() => useWatched(), { wrapper })
-        await settle()
-
-        expect(result.current.panel.part).toBe('loading')
-    })
-
-    it('reports an error part when the settings read fails', async () => {
+// The settings panel owns the settings read, its error and its Retry (section-panel.test.tsx).
+describe('useOverridesPanel and the settings read', () => {
+    it('reads no settings: a failed settings read leaves the panel on the row it was given', async () => {
         seed({ settingsErrored: true })
-        expectLiveQueryError(settingsStore().id)
         const { result } = renderHook(() => useWatched(), { wrapper })
-
-        await waitFor(() => expect(result.current.panel.part).toBe('error'))
-    })
-
-    it('recovers both the settings and overrides reads on retryLoad', async () => {
-        seed({
-            settingsFailsOnce: true,
-            overridesFailsOnce: true,
-            overrides: [override('o_live', 'maya', Date.now() + 3 * DAY)],
-        })
-        expectLiveQueryError(settingsStore().id, overridesStore().id)
-        const { result } = renderHook(() => useWatched(), { wrapper })
-        await waitFor(() => expect(result.current.panel.part).toBe('error'))
-
-        act(() => result.current.panel.retryLoad())
-
-        await waitFor(() => expect(result.current.panel.part).toBe('ready'))
-        expect(result.current.panel.hasCloseDate).toBe(true)
-        expect(result.current.panel.active.map(o => o.id)).toEqual(['o_live'])
-    })
-
-    it('recovers a settings-only failure on retryLoad', async () => {
-        seed({ settingsFailsOnce: true })
-        expectLiveQueryError(settingsStore().id)
-        const { result } = renderHook(() => useWatched(), { wrapper })
-        await waitFor(() => expect(result.current.panel.part).toBe('error'))
-
-        act(() => result.current.panel.retryLoad())
 
         await waitFor(() => expect(result.current.panel.part).toBe('empty'))
+        expect(result.current.panel.hasCloseDate).toBe(true)
+        expect(requestedStores()).not.toContain('books_settings')
     })
 })
 

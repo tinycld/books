@@ -115,6 +115,8 @@ const state = {
     cleanups: [] as string[],
     // Runs one time, right after the next batch lands and before its caller goes on.
     afterBatch: null as (() => Promise<void>) | null,
+    // Puts the settings source seeded with `settingsFailsLater` in error.
+    failSettingsRead: () => {},
 }
 
 // The seeded collections that received cleanup() since the last seed, in order, so a retry
@@ -651,6 +653,65 @@ function refusingOnDemandCollection<T extends { id: string }>(rows: T[], refusal
     })
 }
 
+// Serves `rows` on demand until failSettingsRead() puts the source in error, as a read that
+// fails after the screen was drawn. A retry that cleans the source starts its sync again,
+// and that sync loads the rows.
+function failsLaterCollection<T extends { id: string }>(rows: T[]) {
+    counter += 1
+    return createCollection({
+        id: `fails-later-${counter}`,
+        getKey: (row: T) => row.id,
+        ...indexed,
+        syncMode: 'on-demand',
+        sync: {
+            sync: ({ collection, begin, write, commit, markReady }) => {
+                state.failSettingsRead = () =>
+                    collection._lifecycle.markError(new Error('load failed'))
+                markReady()
+                return {
+                    loadSubset: async () => {
+                        begin()
+                        for (const value of rows) write({ type: 'insert', value })
+                        commit()
+                    },
+                }
+            },
+        },
+    })
+}
+
+// Serves no rows on its first load and `rows` on each later load, so only a retry that
+// loads the query again finds them.
+function emptyOnceCollection<T extends { id: string }>(rows: T[]) {
+    counter += 1
+    let loads = 0
+    return createCollection({
+        id: `empty-once-${counter}`,
+        getKey: (row: T) => row.id,
+        ...indexed,
+        syncMode: 'on-demand',
+        sync: {
+            sync: ({ begin, write, commit, markReady }) => {
+                markReady()
+                return {
+                    loadSubset: async () => {
+                        loads += 1
+                        if (loads === 1) return
+                        begin()
+                        for (const value of rows) write({ type: 'insert', value })
+                        commit()
+                    },
+                }
+            },
+        },
+    })
+}
+
+// Fails the settings source seeded with `settingsFailsLater`.
+export function failSettingsRead() {
+    state.failSettingsRead()
+}
+
 // The value an equality comparison in a subset load names, by the last part of its field
 // path (a live query's alias is not part of the stored row).
 function rowMatches(row: object, comparisons: SimpleComparison[]) {
@@ -692,14 +753,18 @@ function onDemandCollection<T extends { id: string }>(
                 markReady()
                 return {
                     loadSubset: async options => {
-                        const comparisons = extractSimpleComparisons(options.where).filter(
-                            c => c.operator === 'eq'
-                        )
-                        const namesRefused = comparisons.some(
+                        const all = extractSimpleComparisons(options.where)
+                        const comparisons = all.filter(c => c.operator === 'eq')
+                        // An `inArray` filter (a list of ids) names the value too.
+                        const namesRefused = all.some(
                             c =>
                                 refused !== undefined &&
                                 c.field.at(-1) === refused.field &&
-                                c.value === refused.value
+                                (c.operator === 'eq'
+                                    ? c.value === refused.value
+                                    : c.operator === 'in' &&
+                                      Array.isArray(c.value) &&
+                                      c.value.includes(refused.value))
                         )
                         if (!isRefused && namesRefused) {
                             isRefused = true
@@ -829,10 +894,14 @@ function settingsCollectionFor(
         settingsNeverReady?: boolean
         settingsFailsOnce?: boolean
         settingsErrored?: boolean
+        settingsFailsLater?: boolean
+        settingsEmptyOnce?: boolean
     },
     rows: BooksSettings[]
 ) {
     if (opts.settingsErrored) return erroredCollection<BooksSettings>()
+    if (opts.settingsFailsLater) return failsLaterCollection<BooksSettings>(rows)
+    if (opts.settingsEmptyOnce) return emptyOnceCollection<BooksSettings>(rows)
     if (opts.settingsNeverReady) return neverReady<BooksSettings>()
     if (opts.settingsFailsOnce) return failsOnceOnDemandCollection<BooksSettings>(rows)
     return settingsCollection(rows)
@@ -937,6 +1006,11 @@ export function seedBooks(
         settingsFailsOnce?: boolean
         // A settings collection whose sync fails, so the settings query errors.
         settingsErrored?: boolean
+        // A settings collection that loads its rows and fails only when failSettingsRead() is
+        // called, as a later read fails; a retry that cleans it loads the rows again.
+        settingsFailsLater?: boolean
+        // A settings collection whose first load finds no row and whose reload finds the rows.
+        settingsEmptyOnce?: boolean
         // Refuses every write to a close override row with this error.
         refuseOverrides?: unknown
         // A close overrides collection that never finishes loading.

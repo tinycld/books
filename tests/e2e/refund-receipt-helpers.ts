@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
-import { isPhone } from './account-register-helpers'
 import { lineCellTestId } from './invoice-helpers'
 import { openEntriesList } from './journal-entries-helpers'
+import { openNewAction } from './new-menu-helpers'
 import { pickFromSearchPicker } from './search-picker-helpers'
 
 // A refund receipt's own screen: `books/refund-receipts/<id>`, never `.../new`.
@@ -34,16 +34,11 @@ export function visibleTestId(page: Page, testId: string): Locator {
     return page.locator(`[data-testid="${testId}"]:visible`)
 }
 
-// Books must already be open. From the Journal Entries list through the New menu (the
-// phone FAB, or the desktop header's New text) → Refund receipt.
+// Books must already be open. From the Journal Entries list through the New menu
+// (tests/e2e/new-menu-helpers.ts) → Refund receipt.
 export async function openNewRefundReceipt(page: Page) {
     await openEntriesList(page)
-    if (isPhone(page)) {
-        await page.getByLabel('New', { exact: true }).click()
-    } else {
-        await page.getByText('New', { exact: true }).filter({ visible: true }).click()
-    }
-    await page.getByTestId('books-new-refund-receipt').click()
+    await openNewAction(page, 'refund_receipt')
     await expect(page).toHaveURL(NEW_REFUND_RECEIPT_URL)
     await expect(page.getByTestId('refund-receipt-title')).toHaveText('New refund receipt')
 }
