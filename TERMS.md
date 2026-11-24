@@ -1,15 +1,17 @@
 # Books terms and conditions
 
-This is placeholder text. The final terms are not written yet.
+Books is free, open-source beta software. Do not rely on Books to run a business, keep its official accounting records, or prepare a tax filing. The software may lose transactions, calculate balances incorrectly, or leave information out of a report.
 
-## Use of Books
+Books is licensed under version 3 of the GNU Affero General Public License (AGPL-3.0-only). These terms preserve all rights the license grants you.
 
-Books keeps the accounting records of your organization. You are responsible for the accuracy of the records you enter and for the reports you file from them.
+## Your records and decisions
 
-## No professional advice
+If you evaluate Books with real transactions, keep independent records and backups. Check balances and reports against your source documents. You are responsible for your records and filings. Books does not provide accounting, tax, or legal advice.
 
-Books does not give tax, legal, or accounting advice. Speak to a qualified professional before you file a return or make a financial decision.
+## No warranties
 
-## Your data
+Argosity, LLC and the authors, contributors, and copyright holders provide Books as is and make no guarantees about its accuracy, completeness, or availability. To the extent permitted by law, they disclaim all express and implied warranties, including warranties of merchantability, fitness for a particular purpose, and noninfringement.
 
-Your records stay on your server. You can export them at any time.
+## Limitation of liability
+
+You use Books at your own risk. To the extent permitted by law, Argosity, LLC and the authors, contributors, and copyright holders are not liable for errors or omissions in Books or its output, or for any loss or damage arising from your use of Books or inability to use it. This includes lost data, lost profits, business interruption, and tax penalties.
