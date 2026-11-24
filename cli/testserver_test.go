@@ -49,12 +49,12 @@ func newTestRoot(c *client.Client) *cobra.Command {
 		return nil
 	}
 	pf := root.PersistentFlags()
-	pf.String("output", "table", "")
-	pf.Bool("json", false, "")
-	pf.String("context", "", "")
-	pf.Bool("quiet", false, "")
-	pf.Bool("no-color", false, "")
-	pf.Bool("yes", false, "")
+	pf.String("output", "table", "output format: table or json")
+	pf.Bool("json", false, "shorthand for --output json")
+	pf.String("context", "", "name of the server context to use")
+	pf.Bool("quiet", false, "suppress progress text")
+	pf.Bool("no-color", false, "turn off colored output")
+	pf.Bool("yes", false, "answer yes to confirmation prompts")
 	Register(root, c)
 	return root
 }
