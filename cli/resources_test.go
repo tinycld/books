@@ -154,6 +154,11 @@ func TestResourceLifeCycle(t *testing.T) {
 		if err != nil || decodeRecord(t, out)["id"] != id {
 			t.Errorf("%s show: %v\n%s", tc.name, err, out)
 		}
+		if err == nil {
+			if extra := keysOutside(decodeRecord(t, out), recordKeys(res)); extra != "" {
+				t.Errorf("%s show: the record has keys the schema does not: %s", tc.name, extra)
+			}
+		}
 
 		var listed listOut
 		out, _, err = runCmd(t, c, "", "books", tc.name, "list", "--json")
@@ -163,6 +168,14 @@ func TestResourceLifeCycle(t *testing.T) {
 		}
 		if jsonErr := json.Unmarshal([]byte(out), &listed); jsonErr != nil || listed.Total != 1 || len(listed.Items) != 1 {
 			t.Errorf("%s list: %v\n%s", tc.name, jsonErr, out)
+		}
+		for _, item := range listed.Items {
+			if extra := keysOutside(item, recordKeys(res)); extra != "" {
+				t.Errorf("%s list: an item has keys the schema does not: %s", tc.name, extra)
+			}
+			if got, want := len(item), len(recordKeys(res)); got != want {
+				t.Errorf("%s list: an item has %d keys, the schema %d: %v", tc.name, got, want, item)
+			}
 		}
 		if f.lastQuery.Get("sort") != res.Sort {
 			t.Errorf("%s list sort = %q, want %q", tc.name, f.lastQuery.Get("sort"), res.Sort)
@@ -191,6 +204,18 @@ func TestResourceLifeCycle(t *testing.T) {
 			t.Errorf("%s: the record was not deleted", tc.name)
 		}
 	}
+}
+
+// keysOutside names the keys of a record that are not in want.
+func keysOutside(record map[string]any, want []string) string {
+	var extra []string
+	for key := range record {
+		if !slices.Contains(want, key) {
+			extra = append(extra, key)
+		}
+	}
+	slices.Sort(extra)
+	return strings.Join(extra, ", ")
 }
 
 func TestBundleItemsHaveNoInactive(t *testing.T) {
