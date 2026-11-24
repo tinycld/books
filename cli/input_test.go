@@ -59,16 +59,72 @@ func TestReadInputFromAFile(t *testing.T) {
 // Cents are integers up to 2^53-1. A float64 round trip would be exact for
 // them, but json.Number sends the digits as written, whatever their size.
 func TestReadInputKeepsNumbersAsWritten(t *testing.T) {
-	got, err := readWith(t, `{"price": 9007199254740991, "quantity": 2.50}`, "--input", "-")
+	got, err := readWith(t,
+		`{"price": 9007199254740991, "huge": 9007199254740993, "quantity": 2.50}`, "--input", "-")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got["price"] != json.Number("9007199254740991") || got["quantity"] != json.Number("2.50") {
+	if got["price"] != json.Number("9007199254740991") ||
+		got["huge"] != json.Number("9007199254740993") ||
+		got["quantity"] != json.Number("2.50") {
 		t.Errorf("numbers were changed: %#v", got)
 	}
 	sent, _ := json.Marshal(got)
-	if !strings.Contains(string(sent), `"price":9007199254740991`) {
-		t.Errorf("the number is not sent as written: %s", sent)
+	for _, want := range []string{`"price":9007199254740991`, `"huge":9007199254740993`, `"quantity":2.50`} {
+		if !strings.Contains(string(sent), want) {
+			t.Errorf("the number is not sent as written (%s): %s", want, sent)
+		}
+	}
+}
+
+// The limit is on the document: exactly maxInputBytes is read, one byte more
+// is refused.
+func TestReadInputSizeBoundary(t *testing.T) {
+	const frame = len(`{"notes": ""}`)
+	exact := `{"notes": "` + strings.Repeat("x", maxInputBytes-frame) + `"}`
+	if len(exact) != maxInputBytes {
+		t.Fatalf("test document is %d bytes, want %d", len(exact), maxInputBytes)
+	}
+	got, err := readWith(t, exact, "--input", "-")
+	if err != nil {
+		t.Fatalf("a document of exactly 1 MiB was refused: %v", err)
+	}
+	if len(got["notes"].(string)) != maxInputBytes-frame {
+		t.Errorf("notes were cut: %d bytes", len(got["notes"].(string)))
+	}
+	_, err = readWith(t, exact+" ", "--input", "-")
+	if exitcode.Of(err) != exitcode.Usage || !strings.Contains(err.Error(), "larger than 1 MiB") {
+		t.Errorf("one byte over: err = %v", err)
+	}
+}
+
+// A repeated name is refused at every depth: encoding/json would keep the
+// last one in an address as silently as at the top.
+func TestReadInputRefusesANameTwiceAtAnyDepth(t *testing.T) {
+	for _, tc := range []struct{ name, doc, want string }{
+		{"nested", `{"address": {"city": "Oslo", "city": "Bergen"}}`, `names "address.city" twice`},
+		{"deep", `{"a": {"b": {"c": 1, "c": 2}}}`, `names "a.b.c" twice`},
+		{"in an array", `{"lines": [{"qty": 1}, {"qty": 1, "qty": 2}]}`, `names "lines[1].qty" twice`},
+	} {
+		_, err := readWith(t, tc.doc, "--input", "-")
+		if exitcode.Of(err) != exitcode.Usage {
+			t.Errorf("%s: exit = %d, want 2; err: %v", tc.name, exitcode.Of(err), err)
+			continue
+		}
+		if !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%s: error %q does not contain %q", tc.name, err.Error(), tc.want)
+		}
+	}
+}
+
+// The same name under different parents is not a repeat.
+func TestReadInputAllowsTheSameNameUnderDifferentParents(t *testing.T) {
+	got, err := readWith(t, `{"billing": {"city": "Oslo"}, "shipping": {"city": "Bergen"}}`, "--input", "-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["billing"].(map[string]any)["city"] != "Oslo" || got["shipping"].(map[string]any)["city"] != "Bergen" {
+		t.Errorf("parsed = %v", got)
 	}
 }
 

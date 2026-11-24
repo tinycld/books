@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 
@@ -48,11 +49,10 @@ func readInput(cmd *cobra.Command, path string) (map[string]any, error) {
 }
 
 // parseObject decodes one JSON object. Numbers stay json.Number, so integer
-// cents are sent as written. A name given twice is refused: encoding/json
-// would keep the last one and drop the other without a word.
+// cents are sent as written. A name given twice, at any depth, is refused:
+// encoding/json would keep the last one and drop the other without a word.
 func parseObject(data []byte) (map[string]any, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.UseNumber()
 	first, err := dec.Token()
 	if errors.Is(err, io.EOF) {
 		return nil, usagef("--input is empty")
@@ -63,27 +63,68 @@ func parseObject(data []byte) (map[string]any, error) {
 	if delim, ok := first.(json.Delim); !ok || delim != '{' {
 		return nil, usagef("--input must be one JSON object")
 	}
-	out := map[string]any{}
-	for dec.More() {
-		keyToken, err := dec.Token()
-		if err != nil {
-			return nil, usagef("--input is not JSON: %v", err)
-		}
-		key, _ := keyToken.(string)
-		if _, twice := out[key]; twice {
-			return nil, usagef("--input names %q twice", key)
-		}
-		var value any
-		if err := dec.Decode(&value); err != nil {
-			return nil, usagef("--input is not JSON: %v", err)
-		}
-		out[key] = value
-	}
-	if _, err := dec.Token(); err != nil {
-		return nil, usagef("--input is not JSON: %v", err)
+	if err := checkNames(dec, ""); err != nil {
+		return nil, err
 	}
 	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
 		return nil, usagef("--input must be one JSON object, with nothing after it")
 	}
+	// The walk proved the syntax and the names, so this decode only builds the map.
+	out := map[string]any{}
+	body := json.NewDecoder(bytes.NewReader(data))
+	body.UseNumber()
+	if err := body.Decode(&out); err != nil {
+		return nil, usagef("--input is not JSON: %v", err)
+	}
 	return out, nil
+}
+
+// checkNames walks the members of an object whose opening brace the decoder
+// has read, through the closing brace. prefix is the path of that object, so
+// a refusal names "address.city" and not only "city".
+func checkNames(dec *json.Decoder, prefix string) error {
+	seen := map[string]bool{}
+	for dec.More() {
+		keyToken, err := dec.Token()
+		if err != nil {
+			return usagef("--input is not JSON: %v", err)
+		}
+		key, _ := keyToken.(string)
+		path := prefix + key
+		if seen[key] {
+			return usagef("--input names %q twice", path)
+		}
+		seen[key] = true
+		if err := checkValue(dec, path); err != nil {
+			return err
+		}
+	}
+	if _, err := dec.Token(); err != nil {
+		return usagef("--input is not JSON: %v", err)
+	}
+	return nil
+}
+
+// checkValue reads one value and, for an object or an array, everything in it.
+func checkValue(dec *json.Decoder, path string) error {
+	token, err := dec.Token()
+	if err != nil {
+		return usagef("--input is not JSON: %v", err)
+	}
+	delim, ok := token.(json.Delim)
+	if !ok {
+		return nil
+	}
+	if delim == '{' {
+		return checkNames(dec, path+".")
+	}
+	for i := 0; dec.More(); i++ {
+		if err := checkValue(dec, fmt.Sprintf("%s[%d]", path, i)); err != nil {
+			return err
+		}
+	}
+	if _, err := dec.Token(); err != nil {
+		return usagef("--input is not JSON: %v", err)
+	}
+	return nil
 }
