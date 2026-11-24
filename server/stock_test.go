@@ -110,7 +110,7 @@ type layer struct {
 
 func layersOf(t testing.TB, app core.App, product *core.Record) []layer {
 	t.Helper()
-	rows, err := app.FindRecordsByFilter(stockLayersCollection, "product = {:p}", "position", 0, 0, dbx.Params{"p": product.Id})
+	rows, err := app.FindRecordsByFilter(stockLayersCollection, "product = {:p}", stockLayerOrder, 0, 0, dbx.Params{"p": product.Id})
 	if err != nil {
 		t.Fatal(err)
 	}

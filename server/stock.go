@@ -19,6 +19,8 @@ import (
 const (
 	stockMovesCollection  = "books_stock_moves"
 	stockLayersCollection = "books_stock_layers"
+	// stockLayerOrder sorts a product's layers oldest first (writeStockLayers).
+	stockLayerOrder = "date,position"
 )
 
 // The kinds of a stock move.
@@ -195,7 +197,7 @@ func stockMoveProducts(moves []*core.Record) []string {
 }
 
 func deleteStockLayers(tx core.App, product string) error {
-	layers, err := tx.FindRecordsByFilter(stockLayersCollection, "product = {:product}", "position", 0, 0,
+	layers, err := tx.FindRecordsByFilter(stockLayersCollection, "product = {:product}", "", 0, 0,
 		dbx.Params{"product": product})
 	if err != nil {
 		return fmt.Errorf("books: read the stock layers of %s: %w", product, err)
@@ -245,10 +247,8 @@ func recomputeProductStock(tx core.App, method, currency, productID string) erro
 	}
 	moves := make([]costMove, len(rows))
 	byID := make(map[string]*core.Record, len(rows))
-	order := make(map[string]int, len(rows))
 	for i, r := range rows {
 		byID[r.Id] = r
-		order[r.Id] = i
 		moves[i] = costMove{
 			ID:       r.Id,
 			Qty:      qtyHundredths(r.GetFloat("quantity")),
@@ -280,7 +280,7 @@ func recomputeProductStock(tx core.App, method, currency, productID string) erro
 			return fmt.Errorf("books: write the value of a stock move: %w", err)
 		}
 	}
-	if err := writeStockLayers(tx, product, currency, byID, order, result.Layers); err != nil {
+	if err := writeStockLayers(tx, product, currency, byID, result.Layers); err != nil {
 		return err
 	}
 	qty := qtyFromHundredths(result.Qty)
@@ -320,10 +320,11 @@ func stockRefusal(product, move *core.Record, refused *costingError) error {
 // the rows that changed: a row is the layer of one stock-in (the one layer of
 // the average cost names none), so a removal at the end of the history writes
 // the front layer it takes from, not every open one. A layer's position is
-// the place of its stock-in in the replay (order), which a later move leaves
-// as it is; layers come oldest first, so positions rise.
-func writeStockLayers(tx core.App, product *core.Record, currency string, moves map[string]*core.Record, order map[string]int, layers []costLayer) error {
-	rows, err := tx.FindRecordsByFilter(stockLayersCollection, "product = {:product}", "position", 0, 0,
+// the seq of its stock-in, which no other move changes, so a back-dated
+// move writes only the layers whose data it changes. The replay orders moves
+// by date, then seq: layers sort oldest first by date, then position.
+func writeStockLayers(tx core.App, product *core.Record, currency string, moves map[string]*core.Record, layers []costLayer) error {
+	rows, err := tx.FindRecordsByFilter(stockLayersCollection, "product = {:product}", stockLayerOrder, 0, 0,
 		dbx.Params{"product": product.Id})
 	if err != nil {
 		return fmt.Errorf("books: read the stock layers of %s: %w", product.Id, err)
@@ -335,11 +336,11 @@ func writeStockLayers(tx core.App, product *core.Record, currency string, moves 
 	kept := make(map[string]bool, len(layers))
 	var col *core.Collection
 	for _, l := range layers {
-		date := ""
+		date, position := "", 0
 		if move := moves[l.MoveID]; move != nil {
-			date = move.GetString("date")
+			date, position = move.GetString("date"), move.GetInt("seq")
 		}
-		qty, position := qtyFromHundredths(l.Qty), order[l.MoveID]
+		qty := qtyFromHundredths(l.Qty)
 		r := stored[l.MoveID]
 		delete(stored, l.MoveID)
 		if r != nil {

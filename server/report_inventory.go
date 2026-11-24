@@ -70,7 +70,8 @@ func stockMovesSource() reports.Source {
 }
 
 // stockLayersSource is books_stock_layers: the stock on hand of each item by
-// the stock-in it came from, oldest first (position). Under the average cost
+// the stock-in it came from, oldest first (date, then position: the seq of
+// the stock-in). Under the average cost
 // an item has one layer.
 func stockLayersSource() reports.Source {
 	return reports.Source{
