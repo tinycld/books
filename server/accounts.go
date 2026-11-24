@@ -604,7 +604,7 @@ func checkAccountDelete(app core.App, r *core.Record) error {
 	// PocketBase would clear a non-required relation when its account is
 	// deleted, so the account would silently drop off the product.
 	products, err := app.CountRecords("books_products",
-		dbx.Or(dbx.HashExp{"income_account": r.Id}, dbx.HashExp{"expense_account": r.Id}))
+		dbx.Or(dbx.HashExp{"income_account": r.Id}, dbx.HashExp{"expense_account": r.Id}, dbx.HashExp{"asset_account": r.Id}))
 	if err != nil {
 		return err
 	}

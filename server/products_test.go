@@ -116,7 +116,7 @@ func TestProduct_MessagesAreTheDecisionsTexts(t *testing.T) {
 }
 
 func TestProduct_TypeLabels(t *testing.T) {
-	want := map[string]string{"service": "Service", "non_inventory": "Non-inventory", "bundle": "Bundle", "inventory": ""}
+	want := map[string]string{"service": "Service", "non_inventory": "Non-inventory", "bundle": "Bundle", "inventory": "Inventory", "kit": ""}
 	for key, label := range want {
 		if got := productTypeLabel(key); got != label {
 			t.Errorf("productTypeLabel(%q) = %q, want %q", key, got, label)

@@ -64,6 +64,7 @@ var productReferences = []productReference{
 	{collection: billLinesCollection, field: "product", distinct: "bill", message: productOnBillsMessage},
 	{collection: expenseLinesCollection, field: "product", distinct: "expense", message: productOnExpensesMessage},
 	{collection: vendorCreditLinesCollection, field: "product", distinct: "vendor_credit", message: productOnVendorCreditsMessage},
+	{collection: inventoryAdjustmentLinesCollection, field: "product", distinct: "adjustment", message: productOnAdjustmentsMessage},
 }
 
 // The delete refusals of a product on invoice lines, counted by invoice, on
@@ -122,6 +123,22 @@ func validateProduct(app core.App, stored, r *core.Record) error {
 		if was != "bundle" && kind == "bundle" {
 			return refuseField("type", msgBundleOnlyNew)
 		}
+		if was == "inventory" && kind != "inventory" {
+			return refuseField("type", msgInventoryTypeFixed)
+		}
+		if was != "inventory" && kind == "inventory" {
+			return refuseField("type", msgInventoryOnlyNew)
+		}
+	}
+	if err := checkStockTotalsKept(app, stored, r); err != nil {
+		return err
+	}
+	if kind == "inventory" {
+		if err := validateInventoryItem(app, stored, r); err != nil {
+			return err
+		}
+	} else if hasStockFields(r) {
+		return refuse(msgStockFieldsInventory)
 	}
 	if err := stampCurrency(app, r); err != nil {
 		return err
@@ -140,15 +157,14 @@ func validateProduct(app core.App, stored, r *core.Record) error {
 	// name_key belongs to the guard: it overwrites whatever the request sent.
 	key := nameKey(name)
 	r.Set("name_key", key)
-	if stored != nil && stored.GetString("name_key") == key {
-		return nil
-	}
-	taken, err := nameKeyTaken(app, "books_products", key, r.Id, nil)
-	if err != nil {
-		return fmt.Errorf("books: look up product names: %w", err)
-	}
-	if taken {
-		return refuseField("name", msgProductDuplicateName, name)
+	if stored == nil || stored.GetString("name_key") != key {
+		taken, err := nameKeyTaken(app, "books_products", key, r.Id, nil)
+		if err != nil {
+			return fmt.Errorf("books: look up product names: %w", err)
+		}
+		if taken {
+			return refuseField("name", msgProductDuplicateName, name)
+		}
 	}
 	return nil
 }
@@ -364,6 +380,8 @@ func productTypeLabel(t string) string {
 		return "Non-inventory"
 	case "bundle":
 		return "Bundle"
+	case "inventory":
+		return "Inventory"
 	}
 	return ""
 }
