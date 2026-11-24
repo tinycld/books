@@ -8,6 +8,7 @@ import { useClockTick } from '../../hooks/useClockTick'
 import type { ReadyEntryDetail } from '../../hooks/useEntryDetail'
 import { useOpenHistory } from '../../hooks/useOpenHistory'
 import { useReadOnlyActions } from '../../hooks/useReadOnlyActions'
+import { entryChangeNote } from '../../lib/entry-actions'
 import {
     autoReversalOverdueAt,
     autoReversalState,
@@ -188,6 +189,16 @@ function DetailFields({ detail }: { detail: ReadyEntryDetail }) {
     )
 }
 
+function ChangeNote({ entry }: { entry: ReadyEntryDetail['entry'] }) {
+    const note = entryChangeNote(entry)
+    if (note === null) return null
+    return (
+        <Text testID="entry-change-note" className="text-sm text-muted-foreground">
+            {note}
+        </Text>
+    )
+}
+
 function Lines({ detail, isWide }: { detail: ReadyEntryDetail; isWide: boolean }) {
     const { lines, accountNames, currency } = detail
     if (isWide)
@@ -231,8 +242,9 @@ export function EntryReadOnlyView({ detail }: { detail: ReadyEntryDetail }) {
                 currency={currency}
             />
             <ScrollView className="flex-1" contentContainerClassName="gap-4 py-4">
-                <View className="px-4">
+                <View className="gap-3 px-4">
                     <DetailFields detail={detail} />
+                    <ChangeNote entry={entry} />
                 </View>
                 <Lines detail={detail} isWide={isWide} />
             </ScrollView>
