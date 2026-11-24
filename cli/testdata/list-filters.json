@@ -1,0 +1,96 @@
+{
+    "about": "What `books <resource> list <args>` sends as the filter and sort query values. cli/list_filters_test.go holds the command to these texts; server/cli_resources_test.go sends the same texts to the real PocketBase API. Edit a text here only after changing list.go on purpose.",
+    "cases": [
+        {
+            "name": "accounts-default",
+            "resource": "accounts",
+            "args": [],
+            "filter": "inactive = false",
+            "sort": "full_name,id"
+        },
+        {
+            "name": "accounts-type-and-search",
+            "resource": "accounts",
+            "args": ["--type", "bank", "--search", "petty"],
+            "filter": "inactive = false && type = \"bank\" && (name ~ \"petty\" || number ~ \"petty\")",
+            "sort": "full_name,id"
+        },
+        {
+            "name": "accounts-search-quote",
+            "resource": "accounts",
+            "args": ["--search", "x\" || id != \""],
+            "filter": "inactive = false && (name ~ \"x\\\" || id != \\\"\" || number ~ \"x\\\" || id != \\\"\")",
+            "sort": "full_name,id"
+        },
+        {
+            "name": "accounts-search-percent",
+            "resource": "accounts",
+            "args": ["--search", "15%"],
+            "filter": "inactive = false && (name ~ \"15\\\\%\" || number ~ \"15\\\\%\")",
+            "sort": "full_name,id"
+        },
+        {
+            "name": "accounts-search-underscore",
+            "resource": "accounts",
+            "args": ["--search", "1_5"],
+            "filter": "inactive = false && (name ~ \"1\\\\_5\" || number ~ \"1\\\\_5\")",
+            "sort": "full_name,id"
+        },
+        {
+            "name": "accounts-search-backslash",
+            "resource": "accounts",
+            "args": ["--search", "a\\b"],
+            "filter": "inactive = false && (name ~ \"a\\\\\\\\b\" || number ~ \"a\\\\\\\\b\")",
+            "sort": "full_name,id"
+        },
+        {
+            "name": "accounts-every-flag",
+            "resource": "accounts",
+            "args": ["--type", "nothinghasthis1", "--parent", "nothinghasthis1", "--search", "nothinghasthis1"],
+            "filter": "inactive = false && type = \"nothinghasthis1\" && parent = \"nothinghasthis1\" && (name ~ \"nothinghasthis1\" || number ~ \"nothinghasthis1\")",
+            "sort": "full_name,id"
+        },
+        {
+            "name": "customers-every-flag",
+            "resource": "customers",
+            "args": ["--parent", "nothinghasthis1", "--search", "nothinghasthis1"],
+            "filter": "inactive = false && parent = \"nothinghasthis1\" && (display_name ~ \"nothinghasthis1\" || company ~ \"nothinghasthis1\" || email ~ \"nothinghasthis1\")",
+            "sort": "sort_key,id"
+        },
+        {
+            "name": "vendors-every-flag",
+            "resource": "vendors",
+            "args": ["--search", "nothinghasthis1"],
+            "filter": "inactive = false && (display_name ~ \"nothinghasthis1\" || company ~ \"nothinghasthis1\" || email ~ \"nothinghasthis1\")",
+            "sort": "sort_key,id"
+        },
+        {
+            "name": "products-every-flag",
+            "resource": "products",
+            "args": ["--type", "nothinghasthis1", "--search", "nothinghasthis1"],
+            "filter": "inactive = false && type = \"nothinghasthis1\" && (name ~ \"nothinghasthis1\" || sku ~ \"nothinghasthis1\")",
+            "sort": "sort_key,id"
+        },
+        {
+            "name": "bundle-items-every-flag",
+            "resource": "bundle-items",
+            "args": ["--bundle", "nothinghasthis1", "--product", "nothinghasthis1"],
+            "filter": "bundle = \"nothinghasthis1\" && product = \"nothinghasthis1\"",
+            "sort": "bundle,position,id"
+        },
+        {
+            "name": "tax-agencies-every-flag",
+            "resource": "tax-agencies",
+            "args": ["--search", "nothinghasthis1"],
+            "filter": "inactive = false && (name ~ \"nothinghasthis1\")",
+            "sort": "sort_key,id"
+        },
+        {
+            "name": "tax-rates-every-flag",
+            "resource": "tax-rates",
+            "args": ["--type", "nothinghasthis1", "--agency", "nothinghasthis1", "--search", "nothinghasthis1"],
+            "filter": "inactive = false && type = \"nothinghasthis1\" && agency = \"nothinghasthis1\" && (name ~ \"nothinghasthis1\")",
+            "sort": "sort_key,id"
+        }
+    ]
+}
