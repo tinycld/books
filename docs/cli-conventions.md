@@ -29,7 +29,7 @@ The rules every `tinycld books` command follows. A unit that adds a command (tra
 9. **A mistake is never a success.** An unknown command word (`tinycld books acounts list`) exits 2. A `delete` without `--yes` and without a terminal exits 2 and deletes nothing.
 10. **`tinycld books schema` describes every command**: arguments, flags, the JSON Schema of the `--input` document and the JSON Schema of the `--json` result. It prints JSON in every output mode. An input schema allows `null` for a field that `edit` can clear.
 
-The server can refuse what the tool accepted. The tool checks field names, types and choice values; the server checks everything else, and its answer is exit 6 with its message. One refusal has no helpful message: an `add` by a user whose Books access level does not allow it answers `Failed to create record.` with no field (PocketBase does not say which rule failed).
+The server can refuse what the tool accepted. The tool checks field names, types and choice values (also the value of a `list` filter flag on a choice field: `--type bnk` exits 2 and names the values, and sends nothing); the server checks everything else, and its answer is exit 6 with its message. One refusal has no helpful message: an `add` by a user whose Books access level does not allow it answers `Failed to create record.` with no field (PocketBase does not say which rule failed).
 
 ## For the author of a command
 

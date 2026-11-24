@@ -131,13 +131,35 @@ func TestListFilterFlagsAndSearch(t *testing.T) {
 	}
 }
 
+// A filter on a select whose value is not one of its values would list nothing
+// and exit 0: a caller would read that as "no such records". It is a usage
+// error, and nothing is sent.
+func TestListRefusesAFilterValueOutsideTheSelect(t *testing.T) {
+	f := chart(t)
+	_, _, err := runCmd(t, f.serve(), "", "books", "accounts", "list", "--type", "bnk")
+	if got := exitcode.Of(err); got != exitcode.Usage {
+		t.Fatalf("exit = %d, want 2; err: %v", got, err)
+	}
+	if err == nil || !strings.Contains(err.Error(), `"bnk"`) || !strings.Contains(err.Error(), "bank") || !strings.Contains(err.Error(), "income") {
+		t.Errorf("the error must name the value and the allowed values: %v", err)
+	}
+	if len(f.requests) != 0 {
+		t.Errorf("requests = %v, want none", f.requests)
+	}
+	// "" is a select's empty value only where the field is not required.
+	_, _, err = runCmd(t, chart(t).serve(), "", "books", "accounts", "list", "--type", "")
+	if got := exitcode.Of(err); got != exitcode.Usage {
+		t.Errorf("--type \"\" on a required select: exit = %d, want 2; err: %v", got, err)
+	}
+}
+
 // A quote or a backslash in --search is text to look for. It must reach the
 // server inside the quoted value, never as filter syntax.
 func TestListSearchTextCannotChangeTheFilter(t *testing.T) {
 	f := chart(t)
 	f.rawFilter = true
-	listJSON(t, f, "books", "accounts", "list", "--search", `x" || id != "`, "--type", `a\"b`)
-	want := `inactive = false && type = "a\\\"b" && (name ~ "x\" || id != \"" || number ~ "x\" || id != \"")`
+	listJSON(t, f, "books", "accounts", "list", "--search", `x" || id != "`, "--parent", `a\"b`)
+	want := `inactive = false && parent = "a\\\"b" && (name ~ "x\" || id != \"" || number ~ "x\" || id != \"")`
 	if got := f.lastQuery.Get("filter"); got != want {
 		t.Errorf("filter =\n  %s\nwant\n  %s", got, want)
 	}
