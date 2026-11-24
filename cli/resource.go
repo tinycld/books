@@ -38,7 +38,7 @@ var addressKeys = []string{"line1", "line2", "city", "region", "postal_code", "c
 var listFlags = []string{"limit", "page", "search", "inactive", "all"}
 
 // shellFlags are the persistent flags of the tinycld root command.
-var shellFlags = []string{"json", "output", "quiet", "yes", "context", "help"}
+var shellFlags = []string{"json", "output", "quiet", "yes", "context", "no-color", "help"}
 
 // The fields every record has. PocketBase sets them.
 var systemFields = []string{"id", "created", "updated"}
