@@ -96,7 +96,7 @@ describe('purchaseAccountOptions', () => {
 const nameOf = (id: string) => PRODUCTS.find(product => product.id === id)?.name ?? id
 
 describe('purchaseProductOptions', () => {
-    it('lists only active service and non-inventory products I purchase', () => {
+    it('lists only active service, non-inventory and inventory products I purchase', () => {
         const options = purchaseProductOptions(PRODUCTS, '')
         const labels = options.map(option => option.label)
         expect(labels).toContain('Wireless access point')
@@ -109,6 +109,15 @@ describe('purchaseProductOptions', () => {
             expect(product?.inactive, option.label).toBe(false)
             expect(['service', 'non_inventory'], option.label).toContain(product?.type)
         }
+    })
+
+    // The server turns "I purchase this" on for every Inventory item.
+    it('lists an active Inventory item, and never a bundle', () => {
+        const base = { ...PRODUCTS[0], purchases: true, inactive: false }
+        const widget = { ...base, id: 'inv1', name: 'Widget', type: 'inventory' as const }
+        const kit = { ...base, id: 'kit1', name: 'Starter kit', type: 'bundle' as const }
+        const labels = purchaseProductOptions([widget, kit], '').map(option => option.label)
+        expect(labels).toEqual(['Widget'])
     })
 
     it('adds a stored inactive product, marked inactive', () => {

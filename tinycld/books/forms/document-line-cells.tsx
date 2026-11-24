@@ -37,6 +37,7 @@ import { DOCUMENT_FOOTER_ROW, DOCUMENT_FOOTER_SPANS } from '../lib/document-foot
 import type { LineAmountView } from '../lib/document-tax'
 import { isTableRow, textOf } from '../lib/form-values'
 import { moneyInputCents, moneyInputText } from '../lib/money-input'
+import { SALE_ITEM_TYPES, SALE_PERCENT_TYPES } from '../lib/product-picker-types'
 import type { BooksProducts } from '../types'
 
 // A sales document host's line cells. Core draws each one inside the table's cell (the
@@ -52,9 +53,6 @@ export const AMOUNT_TEXT_STYLE = {
     minWidth: AMOUNT_COLUMN_WIDTH,
     paddingRight: TABLE_INPUT_TEXT_INSET,
 }
-
-const ITEM_TYPES: readonly BooksProducts['type'][] = ['service', 'non_inventory', 'bundle']
-const PERCENT_TYPES: readonly BooksProducts['type'][] = ['service', 'non_inventory']
 
 // Typed text keeps the keyboard's punctuation on native (a minus sign, a decimal point).
 const NUMBER_KEYBOARD = Platform.OS === 'web' ? 'default' : 'numbers-and-punctuation'
@@ -228,15 +226,15 @@ function BundleMessage({ message }: { message: string | null }) {
 }
 
 /**
- * Product or service: active Service, Non-inventory and Bundle products on an Item line,
- * Service and Non-inventory on a Percent line. A pick fills the line's other cells and
+ * Product or service: active Service, Non-inventory, Inventory and Bundle products on an
+ * Item line, Service and Non-inventory on a Percent line. A pick fills the line's other cells and
  * moves focus to the line's next cell; a bundle expands into its items (useBundlePick).
  */
 export function LineProductCell(props: BuiltinFieldProps) {
     const { fieldKey, label, value, disabled, table } = props
     const [bundleMessage, setBundleMessage] = useState<string | null>(null)
     const pick = useProductPick(props, setBundleMessage)
-    const types = table?.rowKind === 'percent' ? PERCENT_TYPES : ITEM_TYPES
+    const types = table?.rowKind === 'percent' ? SALE_PERCENT_TYPES : SALE_ITEM_TYPES
     const onPick = (id: string) => {
         void pick(id)
     }
