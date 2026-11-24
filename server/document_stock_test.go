@@ -206,6 +206,77 @@ func TestSaleStock_VoidPutsTheStockBack(t *testing.T) {
 		t.Errorf("%d moves of the voided invoice, want none", len(moves))
 	}
 	requireOnHand(t, app, e.stock.widget, 10, 7000)
+	// The ledger agrees with the stock: only the receipt's 7000 is left.
+	if got := ledgerNetOf(t, app, e.stock.asset.Id); got != 7000 {
+		t.Errorf("the inventory asset account nets %d after the void, want 7000", got)
+	}
+	if got := ledgerNetOf(t, app, e.stock.cogs.Id); got != 0 {
+		t.Errorf("cost of goods sold nets %d after the void, want 0", got)
+	}
+}
+
+// ledgerNetOf is the debit less the credit of every posted journal line of an
+// account, in every period.
+func ledgerNetOf(t testing.TB, app core.App, account string) int {
+	t.Helper()
+	var row struct {
+		Net int `db:"net"`
+	}
+	err := app.DB().NewQuery(`SELECT CAST(COALESCE(SUM(debit - credit), 0) AS INTEGER) AS net
+		FROM books_journal_lines WHERE posted = 1 AND account = {:a}`).
+		Bind(dbx.Params{"a": account}).One(&row)
+	if err != nil {
+		t.Fatalf("add the ledger of account %s: %v", account, err)
+	}
+	return row.Net
+}
+
+// A sale posted into a closed period is refused whole: no move, no stock out,
+// and the invoice stays a draft.
+func TestSaleStock_ARefusedPostLeavesNoMoves(t *testing.T) {
+	e := newSaleStockEnv(t, costingFIFO)
+	app := e.app
+	e.stock.mustAdjust(t, "2026-07-01", e.stock.stockIn(10, 1000))
+	draft := e.draftInvoiceOf(t, "2026-07-05", 4, nil)
+	setCloseDate(t, app, "2026-07-10")
+
+	err := postInvoiceAs(app, draft.Id, e.users.bookkeeper.Id)
+	requireRefused(t, err, "The books are closed through 2026-07-10.")
+	if moves, _ := documentStockMoves(app, "books_invoices", draft.Id); len(moves) != 0 {
+		t.Errorf("%d moves of the refused invoice, want none", len(moves))
+	}
+	requireOnHand(t, app, e.stock.widget, 10, 1000)
+	if got := reload(t, app, "books_invoices", draft.Id).GetString("status"); got != statusDraft {
+		t.Errorf("the refused invoice is %q, want a draft", got)
+	}
+}
+
+// A sales receipt's void puts its stock back, as an invoice's does.
+func TestSaleStock_SalesReceiptVoidPutsTheStockBack(t *testing.T) {
+	e := newSaleStockEnv(t, costingFIFO)
+	app := e.app
+	e.stock.mustAdjust(t, "2026-07-01", e.stock.stockIn(10, 1000))
+	receipt := e.mkReceipt(t, map[string]any{"date": "2026-07-02"})
+	mkReceiptLine(t, app, receipt, 0, item(e.stock.widget, 4, 2000, false))
+	if err := setFieldsOf(app, "books_sales_receipts", receipt.Id, map[string]any{
+		"status": statusPosted, "posted_by": e.users.bookkeeper.Id,
+	}); err != nil {
+		t.Fatalf("post the sales receipt: %v", err)
+	}
+	requireOnHand(t, app, e.stock.widget, 6, 600)
+
+	if err := setFieldsOf(app, "books_sales_receipts", receipt.Id, map[string]any{
+		"status": statusVoid, "voided_by": e.users.bookkeeper.Id,
+	}); err != nil {
+		t.Fatalf("void the sales receipt: %v", err)
+	}
+	if moves, _ := documentStockMoves(app, "books_sales_receipts", receipt.Id); len(moves) != 0 {
+		t.Errorf("%d moves of the voided sales receipt, want none", len(moves))
+	}
+	requireOnHand(t, app, e.stock.widget, 10, 1000)
+	if got := ledgerNetOf(t, app, e.stock.asset.Id); got != 1000 {
+		t.Errorf("the inventory asset account nets %d after the void, want 1000", got)
+	}
 }
 
 // A correction's post replaces the original's moves and voids its re-costs.
@@ -287,7 +358,7 @@ func TestSaleStock_CashBasisTakesOutTheCostLinesOfAnUnpaidInvoice(t *testing.T) 
 		t.Errorf("%d taken-out rows of the invoice, want 4 (receivable, income, asset, cost of goods sold)", len(rows))
 	}
 	after := cashNet(t, app)
-	for _, account := range []string{e.stock.cogs.Id, e.revenue.Id, e.receivable.Id} {
+	for _, account := range []string{e.stock.cogs.Id, e.stock.asset.Id, e.revenue.Id, e.receivable.Id} {
 		if after[account] != before[account] {
 			t.Errorf("account %s nets %d on the cash basis after the unpaid invoice, want %d", account, after[account], before[account])
 		}
