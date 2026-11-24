@@ -79,7 +79,7 @@ package genuinely needs to override a rule:
 ## CI
 
 `.github/workflows/ci.yml` runs typecheck, unit tests, and e2e on every push to
-`main` and every PR, except a change that touches only `docs/`. It checks out this PR's code into a member slot, assembles
+`main` and every PR. It checks out this PR's code into a member slot, assembles
 the rest of the workspace (`app` + `core` + the workspace `package.json` and
 coordination files) via `npx @tinycld/bootstrap --assemble-only`, installs at
 the workspace root, and runs `tinycld-pkg check` / `tinycld-pkg test:e2e` —
