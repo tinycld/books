@@ -85,7 +85,12 @@ type adjustmentLineInput struct {
 // accounts of the stock moves it re-costs.
 type systemAdjustment struct {
 	Kind, Date, Actor, Source, Document, Account, Memo string
-	Lines                                              []adjustmentLineInput
+	// Replaces is the id of the posted adjustment this one takes the place
+	// of ("" for none). That one is voided, and its stock moves leave in the
+	// replay that brings this one's in, so a document after them is re-costed
+	// once, for the net change.
+	Replaces string
+	Lines    []adjustmentLineInput
 }
 
 // newSystemAdjustment writes an adjustment with its lines and posts it as
@@ -129,7 +134,13 @@ func newSystemAdjustment(tx core.App, a systemAdjustment) (*core.Record, error) 
 	}
 	r.Set("status", statusPosted)
 	r.Set("posted_by", a.Actor)
-	if err := postInventoryAdjustment(tx, r, time.Now()); err != nil {
+	now := time.Now()
+	if a.Replaces != "" {
+		if err := retireAdjustment(tx, a.Replaces, a.Actor, now); err != nil {
+			return nil, err
+		}
+	}
+	if err := postAdjustmentReplacing(tx, r, a.Replaces, now); err != nil {
 		return nil, err
 	}
 	if err := tx.Save(r); err != nil {
@@ -148,6 +159,13 @@ func newSystemAdjustment(tx core.App, a systemAdjustment) (*core.Record, error) 
 // sequence. An adjustment whose value is 0 (a quantity at no cost) posts no
 // entry and takes its number from the sequence itself.
 func postInventoryAdjustment(tx core.App, r *core.Record, now time.Time) error {
+	return postAdjustmentReplacing(tx, r, "", now)
+}
+
+// postAdjustmentReplacing is postInventoryAdjustment for an adjustment that
+// takes the place of the posted adjustment replaces ("" for none), whose
+// stock moves and re-costs go in the same replay (postDocumentStock).
+func postAdjustmentReplacing(tx core.App, r *core.Record, replaces string, now time.Time) error {
 	lines, err := docLineRecords(tx, inventoryAdjustmentLinesCollection, "adjustment", r.Id)
 	if err != nil {
 		return err
@@ -175,7 +193,7 @@ func postInventoryAdjustment(tx core.App, r *core.Record, now time.Time) error {
 		if err != nil {
 			return err
 		}
-		moves, err := postDocumentStock(tx, actor, inventoryAdjustmentsCollection, r.Id, "", inputs)
+		moves, err := postDocumentStock(tx, actor, inventoryAdjustmentsCollection, r.Id, replaces, inputs)
 		if err != nil {
 			return err
 		}
@@ -317,17 +335,7 @@ func adjustmentStockInputs(tx core.App, r *core.Record, lines []*core.Record, ac
 // no move of its own.
 func voidInventoryAdjustment(tx core.App, r *core.Record, now time.Time) error {
 	actor := r.GetString("voided_by")
-	if id := r.GetString("entry"); id != "" {
-		entry, err := tx.FindRecordById("books_journal_entries", id)
-		if err != nil {
-			return fmt.Errorf("books: read the adjustment's journal entry: %w", err)
-		}
-		entry.Set("status", statusVoid)
-		entry.Set("voided_by", actor)
-		if err := tx.Save(entry); err != nil {
-			return err
-		}
-	} else if err := checkAdjustmentDay(tx, actor, r.GetString("date"), now); err != nil {
+	if err := voidAdjustmentEntry(tx, r, actor, now); err != nil {
 		return err
 	}
 	r.Set("voided_at", now)
@@ -335,6 +343,43 @@ func voidInventoryAdjustment(tx core.App, r *core.Record, now time.Time) error {
 		return nil
 	}
 	return withdrawDocumentStock(tx, actor, inventoryAdjustmentsCollection, r.Id)
+}
+
+// voidAdjustmentEntry voids the journal entry of adjustment r as actor. One
+// with no entry is held to the close date here.
+func voidAdjustmentEntry(tx core.App, r *core.Record, actor string, now time.Time) error {
+	id := r.GetString("entry")
+	if id == "" {
+		return checkAdjustmentDay(tx, actor, r.GetString("date"), now)
+	}
+	entry, err := tx.FindRecordById("books_journal_entries", id)
+	if err != nil {
+		return fmt.Errorf("books: read the adjustment's journal entry: %w", err)
+	}
+	entry.Set("status", statusVoid)
+	entry.Set("voided_by", actor)
+	return tx.Save(entry)
+}
+
+// retireAdjustment voids the posted adjustment id that another adjustment
+// replaces: its entry is voided and it becomes void, but its stock moves stay
+// for the replacing adjustment's post to take away (postDocumentStock).
+func retireAdjustment(tx core.App, id, actor string, now time.Time) error {
+	old, err := tx.FindRecordById(inventoryAdjustmentsCollection, id)
+	if err != nil {
+		return fmt.Errorf("books: read the adjustment to replace: %w", err)
+	}
+	defer setTxMark(tx, markSystemAdjustment, old.Id)()
+	if err := voidAdjustmentEntry(tx, old, actor, now); err != nil {
+		return err
+	}
+	old.Set("status", statusVoid)
+	old.Set("voided_by", actor)
+	old.Set("voided_at", now)
+	if err := tx.Save(old); err != nil {
+		return fmt.Errorf("books: void the replaced inventory adjustment: %w", err)
+	}
+	return nil
 }
 
 // voidSystemAdjustment voids a posted adjustment Books made, as actor.

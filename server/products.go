@@ -97,7 +97,16 @@ const (
 // write it allows; the delete hook counts the rows that name the product the
 // same way.
 func registerProductGuards(app core.App) {
-	bindSerializedGuard(app, "books_products", validateProduct)
+	bindSerializedGuardThen(app, "books_products", validateProduct, func(tx core.App, r *core.Record) error {
+		// A new item's opening stock posts after the item's own write: the
+		// adjustment's line and its stock moves name the item's row.
+		if !isInventoryProduct(r) || !openingChanged(nil, r) {
+			return nil
+		}
+		return syncOpeningStock(tx, r)
+	})
+	app.OnRecordCreateRequest("books_products").BindFunc(stampProductActor)
+	app.OnRecordUpdateRequest("books_products").BindFunc(stampProductActor)
 	bindSerializedGuard(app, "books_bundle_items", validateBundleItem)
 	app.OnRecordDelete("books_products").BindFunc(func(e *core.RecordEvent) error {
 		return serialized(e, func(tx core.App) error {
@@ -165,6 +174,28 @@ func validateProduct(app core.App, stored, r *core.Record) error {
 		if taken {
 			return refuseField("name", msgProductDuplicateName, name)
 		}
+	}
+	// Last, when nothing else refuses the write: a stored item's changed cost
+	// re-costs what it priced, and its changed opening stock posts (a new
+	// item's posts after its create). The store's own write of the item's
+	// totals does neither. The new cost is stored before the opening stock
+	// replays, so a write that changes both re-costs a document once.
+	if stored == nil || kind != "inventory" || hasTxMark(app, markStockWrite, r.Id) {
+		return nil
+	}
+	costChanged := stored.GetInt("cost") != r.GetInt("cost")
+	if costChanged {
+		if err := storeItemCost(app, stored, r); err != nil {
+			return err
+		}
+	}
+	if openingChanged(stored, r) {
+		if err := syncOpeningStock(app, r); err != nil {
+			return err
+		}
+	}
+	if costChanged {
+		return recostForCost(app, r)
 	}
 	return nil
 }
