@@ -35,7 +35,7 @@ Each list is a command group with the same commands:
 
 | Command | Does |
 |---|---|
-| `list` | Lists the records, 200 to a page. Flags: `--limit`, `--page`, `--search`, `--inactive`, `--all`, and the filters of the group (`--type`, `--parent`, `--bundle`, `--product`, `--agency`). |
+| `list` | Lists the records, 200 to a page; `--limit` takes 1 to 500. Flags: `--limit`, `--page`, `--search`, `--inactive`, `--all`, and the filters of the group (`--type`, `--parent`, `--bundle`, `--product`, `--agency`). |
 | `show <id>` | Prints one record. |
 | `add --input <file>` | Adds the record in the JSON file. `--input -` reads standard input. |
 | `edit <id> --input <file>` | Changes the fields the JSON names. Other fields keep their values. `null` clears a field. |

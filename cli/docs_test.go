@@ -128,6 +128,37 @@ func TestConventionsMatchTheCode(t *testing.T) {
 	}
 }
 
+// A caller learns the page size from the pages, so they state the largest one.
+func TestPagesStateTheLimitRange(t *testing.T) {
+	want := fmt.Sprintf("`--limit` takes 1 to %d", maxListLimit)
+	for _, path := range []string{"../docs/cli.md", "../help/command-line.md"} {
+		if !strings.Contains(readDoc(t, path), want) {
+			t.Errorf("%s does not say %q", path, want)
+		}
+	}
+}
+
+// The scripts line of the help topic explains every exit code but 0.
+func TestHelpExitLineHasEveryFailureCode(t *testing.T) {
+	var line string
+	for _, l := range strings.Split(readDoc(t, "../help/command-line.md"), "\n") {
+		if strings.HasPrefix(l, "- The exit code") {
+			line = l
+		}
+	}
+	if line == "" {
+		t.Fatal("the help topic has no line that starts with \"- The exit code\"")
+	}
+	for _, exit := range exitCodes {
+		if exit.Code == exitcode.OK {
+			continue
+		}
+		if !strings.Contains(line, fmt.Sprintf("`%d`", exit.Code)) {
+			t.Errorf("the exit code line does not explain exit code %d (%s)", exit.Code, exit.Name)
+		}
+	}
+}
+
 func TestHelpTopicFrontmatter(t *testing.T) {
 	help := readDoc(t, "../help/command-line.md")
 	if !strings.HasPrefix(help, "---\ntitle: Books from the command line\nsummary: ") {
