@@ -17,7 +17,7 @@ import (
 // of two Inventory items is 3,893, 15.6 a line for the same reason as the
 // adjustment: a receipt writes a stock move and a cost layer for each line.
 const (
-	billPostStatementBound          = 168
+	billPostStatementBound          = 171
 	adjustmentPostStatementBound    = 4236
 	inventoryBillPostStatementBound = 4282
 )

@@ -193,6 +193,11 @@ func TestBuyStock_RefusedPostMovesNoStock(t *testing.T) {
 	makeAccountInactive(t, e.app, e.stock.asset)
 	requireRefused(t, postBillAs(e.app, bill.Id, e.users.bookkeeper.Id),
 		"Product line 1: the inventory asset account of Widget is inactive. Choose an active one on the product or service.")
+	// An expense takes the same stock-in path as a bill, so it is refused the same way.
+	expense := e.mkExpense(t, map[string]any{"date": "2026-07-01", "vendor": e.summit.Id, "ref_no": "1043"})
+	mkExpenseLine(t, e.app, expense, 0, productLine(e.stock.widget, 2, 100))
+	requireRefused(t, postExpenseAs(e.app, expense.Id, e.users.bookkeeper.Id),
+		"Product line 1: the inventory asset account of Widget is inactive. Choose an active one on the product or service.")
 	if n, _ := e.app.CountRecords(stockMovesCollection); n != 0 {
 		t.Errorf("%d stock moves after the refusals, want none", n)
 	}
