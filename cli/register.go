@@ -20,5 +20,8 @@ import (
 func Register(root *cobra.Command, c *client.Client) {
 	books := newGroup("books", "Books: accounts, customers, vendors, products and sales tax")
 	books.Aliases = []string{"book"}
+	for i := range resources {
+		books.AddCommand(newResourceCmd(c, &resources[i]))
+	}
 	root.AddCommand(books)
 }
