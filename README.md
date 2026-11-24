@@ -91,3 +91,8 @@ exactly what a developer runs locally.
 - [docs/adr/](docs/adr/): decisions and why we made them.
 - [docs/cli.md](docs/cli.md): Books from the command line (`tinycld books`).
 - [docs/cli-conventions.md](docs/cli-conventions.md): the rules every Books command follows, for scripts, agents and the authors of new commands.
+- [Terms and conditions](TERMS.md) for the Books beta.
+
+## License
+
+[AGPL-3.0-only](LICENSE)

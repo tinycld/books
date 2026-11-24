@@ -3,6 +3,7 @@ const manifest = {
     slug: 'books',
     version: '0.1.0',
     description: 'Double-entry bookkeeping and accounting.',
+    terms: { file: 'TERMS.md', version: '2026-11-24' },
     routes: { directory: 'screens' },
     // The customer's estimate page (/p/books/estimates/<token>), outside the auth gate.
     publicRoutes: { directory: 'public-screens' },
