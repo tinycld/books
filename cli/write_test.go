@@ -56,12 +56,45 @@ func TestAddFromAFile(t *testing.T) {
 }
 
 func TestQuietAddPrintsOnlyTheRecord(t *testing.T) {
-	_, errOut, err := runCmd(t, chart(t).serve(), newAccount, "books", "accounts", "add", "--input", "-", "--json", "--quiet")
+	out, errOut, err := runCmd(t, chart(t).serve(), newAccount, "books", "accounts", "add", "--input", "-", "--json", "--quiet")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if errOut != "" {
 		t.Errorf("--quiet must print nothing on stderr, got %q", errOut)
+	}
+	if got := decodeRecord(t, out); got["name"] != "Petty Cash" {
+		t.Errorf("--quiet must still print the record, got %v", got)
+	}
+}
+
+// The input schema must accept only what checkInput accepts: an agent builds
+// input from it.
+func TestInputSchemaMatchesCheckInput(t *testing.T) {
+	res := &resource{Name: "things", Fields: []field{
+		{Name: "name", Type: typeString, Required: true},
+		{Name: "parent", Type: typeID, Ref: "things", Required: true},
+		{Name: "note", Type: typeString},
+		{Name: "price", Type: typeInteger},
+	}}
+	for _, create := range []bool{true, false} {
+		props := inputSchema(res, create)["properties"].(map[string]any)
+		for _, name := range []string{"name", "parent"} {
+			if got := props[name].(map[string]any)["minLength"]; got != 1 {
+				t.Errorf("create=%v: %s minLength = %v, want 1", create, name, got)
+			}
+		}
+		if _, has := props["note"].(map[string]any)["minLength"]; has {
+			t.Errorf("create=%v: an optional string accepts \"\" and must have no minLength", create)
+		}
+		description, _ := props["price"].(map[string]any)["description"].(string)
+		if !strings.Contains(description, "a whole number written without a fraction or an exponent, within the 64-bit range") {
+			t.Errorf("create=%v: price description = %q", create, description)
+		}
+	}
+	// The output schema is shared with show and list and does not change.
+	if _, has := fieldSchema(res.field("name"))["minLength"]; has {
+		t.Error("fieldSchema must not carry minLength")
 	}
 }
 
@@ -112,6 +145,9 @@ func TestCheckValueTypes(t *testing.T) {
 		{`{"price": 1250}`, ""},
 		{`{"price": 12.5}`, `"price" must be a whole number, without a fraction`},
 		{`{"price": 1e3}`, `"price" must be a whole number, without a fraction`},
+		{`{"price": 1E3}`, `"price" must be a whole number, without a fraction`},
+		{`{"price": 99999999999999999999}`, `"price" is too large: a whole number within the 64-bit range`},
+		{`{"price": -99999999999999999999}`, `"price" is too large`},
 		{`{"price": "1250"}`, `"price" must be a whole number`},
 		{`{"price": 9007199254740991}`, ""},
 		{`{"quantity": 2.5}`, ""},
@@ -127,6 +163,9 @@ func TestCheckValueTypes(t *testing.T) {
 		{`{"address": null}`, ""},
 		{`{"address": "1 Main St"}`, `"address" must be an object with the keys line1, line2, city, region, postal_code, country, or null`},
 		{`{"address": {"street": "1 Main St"}}`, `"address" has no key "street"`},
+		// Two bad keys: the first in sorted order is always the one named.
+		{`{"address": {"zeta": "1", "alpha": "2", "mid": "3"}}`, `"address" has no key "alpha"`},
+		{`{"address": {"line2": 1, "line1": 2}}`, `"address": "line1" must be a string`},
 		{`{"address": {"line1": 1, "line2": "", "city": "", "region": "", "postal_code": "", "country": ""}}`, `"address": "line1" must be a string`},
 		{`{"terms": "net_30"}`, ""},
 		{`{"terms": ""}`, ""},
@@ -210,8 +249,8 @@ func TestEditRefusals(t *testing.T) {
 		if !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%s: error %q does not contain %q", tc.name, err.Error(), tc.want)
 		}
-		if f.lastPatch != nil && tc.code == exitcode.Usage {
-			t.Errorf("%s: a change was sent: %v", tc.name, f.lastPatch)
+		if tc.code == exitcode.Usage && len(f.requests) != 0 {
+			t.Errorf("%s: a request was sent: %v", tc.name, f.requests)
 		}
 	}
 }
