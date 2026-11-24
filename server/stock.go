@@ -245,8 +245,10 @@ func recomputeProductStock(tx core.App, method, currency, productID string) erro
 	}
 	moves := make([]costMove, len(rows))
 	byID := make(map[string]*core.Record, len(rows))
+	order := make(map[string]int, len(rows))
 	for i, r := range rows {
 		byID[r.Id] = r
+		order[r.Id] = i
 		moves[i] = costMove{
 			ID:       r.Id,
 			Qty:      qtyHundredths(r.GetFloat("quantity")),
@@ -278,7 +280,7 @@ func recomputeProductStock(tx core.App, method, currency, productID string) erro
 			return fmt.Errorf("books: write the value of a stock move: %w", err)
 		}
 	}
-	if err := writeStockLayers(tx, product, currency, byID, result.Layers); err != nil {
+	if err := writeStockLayers(tx, product, currency, byID, order, result.Layers); err != nil {
 		return err
 	}
 	qty := qtyFromHundredths(result.Qty)
@@ -314,45 +316,64 @@ func stockRefusal(product, move *core.Record, refused *costingError) error {
 	return refused
 }
 
-// writeStockLayers replaces the product's layer rows when the open stock
-// changed, and leaves them when it did not.
-func writeStockLayers(tx core.App, product *core.Record, currency string, moves map[string]*core.Record, layers []costLayer) error {
-	stored, err := tx.FindRecordsByFilter(stockLayersCollection, "product = {:product}", "position", 0, 0,
+// writeStockLayers makes the product's layer rows hold layers, writing only
+// the rows that changed: a row is the layer of one stock-in (the one layer of
+// the average cost names none), so a removal at the end of the history writes
+// the front layer it takes from, not every open one. A layer's position is
+// the place of its stock-in in the replay (order), which a later move leaves
+// as it is; layers come oldest first, so positions rise.
+func writeStockLayers(tx core.App, product *core.Record, currency string, moves map[string]*core.Record, order map[string]int, layers []costLayer) error {
+	rows, err := tx.FindRecordsByFilter(stockLayersCollection, "product = {:product}", "position", 0, 0,
 		dbx.Params{"product": product.Id})
 	if err != nil {
 		return fmt.Errorf("books: read the stock layers of %s: %w", product.Id, err)
 	}
-	same := len(stored) == len(layers)
-	for i := 0; same && i < len(layers); i++ {
-		same = stored[i].GetString("move") == layers[i].MoveID &&
-			qtyHundredths(stored[i].GetFloat("quantity")) == layers[i].Qty &&
-			int64(stored[i].GetInt("value")) == layers[i].Value
+	stored := make(map[string]*core.Record, len(rows))
+	for _, r := range rows {
+		stored[r.GetString("move")] = r
 	}
-	if same {
-		return nil
-	}
-	for _, l := range stored {
-		if err := tx.Delete(l); err != nil {
-			return fmt.Errorf("books: delete a stock layer: %w", err)
-		}
-	}
-	col, err := tx.FindCachedCollectionByNameOrId(stockLayersCollection)
-	if err != nil {
-		return err
-	}
-	for i, l := range layers {
-		r := core.NewRecord(col)
-		r.Set("product", product.Id)
-		r.Set("move", l.MoveID)
+	kept := make(map[string]bool, len(layers))
+	var col *core.Collection
+	for _, l := range layers {
+		date := ""
 		if move := moves[l.MoveID]; move != nil {
-			r.Set("date", move.GetString("date"))
+			date = move.GetString("date")
 		}
-		r.Set("quantity", qtyFromHundredths(l.Qty))
+		qty, position := qtyFromHundredths(l.Qty), order[l.MoveID]
+		r := stored[l.MoveID]
+		delete(stored, l.MoveID)
+		if r != nil {
+			kept[r.Id] = true
+		}
+		if r != nil && r.GetFloat("quantity") == qty && int64(r.GetInt("value")) == l.Value &&
+			r.GetInt("position") == position && r.GetString("date") == date {
+			continue
+		}
+		if r == nil {
+			if col == nil {
+				if col, err = tx.FindCachedCollectionByNameOrId(stockLayersCollection); err != nil {
+					return err
+				}
+			}
+			r = core.NewRecord(col)
+			r.Set("product", product.Id)
+			r.Set("move", l.MoveID)
+			r.Set("currency", currency)
+		}
+		r.Set("date", date)
+		r.Set("quantity", qty)
 		r.Set("value", l.Value)
-		r.Set("position", i)
-		r.Set("currency", currency)
+		r.Set("position", position)
 		if err := tx.Save(r); err != nil {
 			return fmt.Errorf("books: write a stock layer: %w", err)
+		}
+	}
+	for _, r := range rows {
+		if kept[r.Id] {
+			continue
+		}
+		if err := tx.Delete(r); err != nil {
+			return fmt.Errorf("books: delete a stock layer: %w", err)
 		}
 	}
 	return nil
