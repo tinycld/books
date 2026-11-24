@@ -53,6 +53,37 @@ func stampCurrency(app core.App, r *core.Record) error {
 // for a person; this holds for Go and a superuser too.
 const msgCurrencyFixed = "The currency of the books cannot change."
 
+// Refusal texts of the costing settings (books design, "Inventory": an admin
+// changes the method until the first inventory transaction posts; after that
+// it is locked, with no method change and no revaluation).
+const (
+	msgCostingMethodLocked   = "The costing method cannot change after the first inventory transaction posts."
+	msgCostingMethodRequired = "Choose a costing method: FIFO or average cost."
+	msgCostingLockFixed      = "Books locks the costing method itself."
+)
+
+// checkCostingSettings guards costing_method and costing_locked. The method
+// changes only while the lock is off, and never to none. The lock is the
+// store's: lockCostingMethod sets it, under markCostingLock, when the first
+// stock move is written, and nothing clears it. The update rule pins the lock
+// for a person; this holds for Go and a superuser too.
+func checkCostingSettings(tx core.App, stored, r *core.Record) error {
+	if r.GetBool("costing_locked") != stored.GetBool("costing_locked") && !hasTxMark(tx, markCostingLock, settingsID) {
+		return refuse(msgCostingLockFixed)
+	}
+	method := r.GetString("costing_method")
+	if method == stored.GetString("costing_method") {
+		return nil
+	}
+	if stored.GetBool("costing_locked") {
+		return refuseField("costing_method", msgCostingMethodLocked)
+	}
+	if method == "" {
+		return refuseField("costing_method", msgCostingMethodRequired)
+	}
+	return nil
+}
+
 func registerSettingsGuard(app core.App) {
 	// The close date is checked only when it changes, so an edit of another
 	// setting is never refused over the close date.
@@ -69,6 +100,9 @@ func registerSettingsGuard(app core.App) {
 			}
 			if e.Record.GetString("currency") != stored.GetString("currency") {
 				return refuse(msgCurrencyFixed)
+			}
+			if err := checkCostingSettings(tx, stored, e.Record); err != nil {
+				return err
 			}
 			closeDate := e.Record.GetString("close_date")
 			if closeDate != stored.GetString("close_date") {
