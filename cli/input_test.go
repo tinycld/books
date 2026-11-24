@@ -117,6 +117,37 @@ func TestReadInputRefusesANameTwiceAtAnyDepth(t *testing.T) {
 	}
 }
 
+// The top object is level 1: exactly maxInputDepth levels are read, one more
+// is refused as a usage error.
+func TestReadInputDepthBoundary(t *testing.T) {
+	nested := func(levels int) string {
+		return strings.Repeat(`{"a":`, levels-1) + `{}` + strings.Repeat("}", levels-1)
+	}
+	if _, err := readWith(t, nested(maxInputDepth), "--input", "-"); err != nil {
+		t.Fatalf("%d levels were refused: %v", maxInputDepth, err)
+	}
+	_, err := readWith(t, nested(maxInputDepth+1), "--input", "-")
+	if exitcode.Of(err) != exitcode.Usage || !strings.Contains(err.Error(), "nested too deeply") {
+		t.Errorf("%d levels: err = %v", maxInputDepth+1, err)
+	}
+	arrays := `{"a":` + strings.Repeat("[", maxInputDepth) + strings.Repeat("]", maxInputDepth) + `}`
+	_, err = readWith(t, arrays, "--input", "-")
+	if exitcode.Of(err) != exitcode.Usage || !strings.Contains(err.Error(), "nested too deeply") {
+		t.Errorf("arrays past the limit: err = %v", err)
+	}
+}
+
+// A document of nothing but opening brackets, as large as the size limit
+// allows, is refused at the depth limit and does not recurse a million levels.
+func TestReadInputRefusesAMegabyteOfBrackets(t *testing.T) {
+	head := `{"a":`
+	doc := head + strings.Repeat("[", maxInputBytes-len(head))
+	_, err := readWith(t, doc, "--input", "-")
+	if exitcode.Of(err) != exitcode.Usage || !strings.Contains(err.Error(), "nested too deeply") {
+		t.Errorf("err = %v", err)
+	}
+}
+
 // The same name under different parents is not a repeat.
 func TestReadInputAllowsTheSameNameUnderDifferentParents(t *testing.T) {
 	got, err := readWith(t, `{"billing": {"city": "Oslo"}, "shipping": {"city": "Bergen"}}`, "--input", "-")

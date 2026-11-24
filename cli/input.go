@@ -15,6 +15,11 @@ import (
 // customer with two addresses and 5000 characters of notes) is far below it.
 const maxInputBytes = 1 << 20
 
+// maxInputDepth bounds how deep objects and arrays may nest in an --input
+// document, the top object being level 1. A record has two or three levels; the
+// limit keeps the duplicate-name walk from recursing once per bracket.
+const maxInputDepth = 32
+
 // bindInput adds the --input flag. Every command that takes a record takes it
 // this way, and no other: one JSON object, from a file or from stdin.
 func bindInput(cmd *cobra.Command, path *string) {
@@ -63,7 +68,7 @@ func parseObject(data []byte) (map[string]any, error) {
 	if delim, ok := first.(json.Delim); !ok || delim != '{' {
 		return nil, usagef("--input must be one JSON object")
 	}
-	if err := checkNames(dec, ""); err != nil {
+	if err := checkNames(dec, "", 1); err != nil {
 		return nil, err
 	}
 	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
@@ -81,8 +86,12 @@ func parseObject(data []byte) (map[string]any, error) {
 
 // checkNames walks the members of an object whose opening brace the decoder
 // has read, through the closing brace. prefix is the path of that object, so
-// a refusal names "address.city" and not only "city".
-func checkNames(dec *json.Decoder, prefix string) error {
+// a refusal names "address.city" and not only "city". depth is the nesting
+// level of that object, the top one being 1.
+func checkNames(dec *json.Decoder, prefix string, depth int) error {
+	if depth > maxInputDepth {
+		return usagef("--input is nested too deeply: more than %d levels", maxInputDepth)
+	}
 	seen := map[string]bool{}
 	for dec.More() {
 		keyToken, err := dec.Token()
@@ -95,7 +104,7 @@ func checkNames(dec *json.Decoder, prefix string) error {
 			return usagef("--input names %q twice", path)
 		}
 		seen[key] = true
-		if err := checkValue(dec, path); err != nil {
+		if err := checkValue(dec, path, depth); err != nil {
 			return err
 		}
 	}
@@ -106,7 +115,8 @@ func checkNames(dec *json.Decoder, prefix string) error {
 }
 
 // checkValue reads one value and, for an object or an array, everything in it.
-func checkValue(dec *json.Decoder, path string) error {
+// depth is the level of the container that holds the value.
+func checkValue(dec *json.Decoder, path string, depth int) error {
 	token, err := dec.Token()
 	if err != nil {
 		return usagef("--input is not JSON: %v", err)
@@ -116,10 +126,13 @@ func checkValue(dec *json.Decoder, path string) error {
 		return nil
 	}
 	if delim == '{' {
-		return checkNames(dec, path+".")
+		return checkNames(dec, path+".", depth+1)
+	}
+	if depth+1 > maxInputDepth {
+		return usagef("--input is nested too deeply: more than %d levels", maxInputDepth)
 	}
 	for i := 0; dec.More(); i++ {
-		if err := checkValue(dec, fmt.Sprintf("%s[%d]", path, i)); err != nil {
+		if err := checkValue(dec, fmt.Sprintf("%s[%d]", path, i), depth+1); err != nil {
 			return err
 		}
 	}
