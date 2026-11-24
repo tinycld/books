@@ -1,6 +1,7 @@
 package books
 
 import (
+	"fmt"
 	"slices"
 
 	"github.com/pocketbase/dbx"
@@ -90,6 +91,13 @@ func inventoryAccounts(tx core.App, product *core.Record) (asset, cogs string, e
 // into the entry it posts in this transaction). actor is the person who posts
 // the document. No moves and nothing to take away is no work.
 func postDocumentStock(tx core.App, actor, source, document, replaces string, moves []stockMoveInput) ([]*core.Record, error) {
+	// A move of another document would be written but never read back nor
+	// marked posted: that is a fault in the caller, not a person's refusal.
+	for _, m := range moves {
+		if m.Source != source || m.Document != document {
+			return nil, fmt.Errorf("stock move of %s %s given to the stock of %s %s", m.Source, m.Document, source, document)
+		}
+	}
 	var products []string
 	for _, id := range []string{replaces, document} {
 		if id == "" {

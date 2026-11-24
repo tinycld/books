@@ -42,6 +42,82 @@ func TestPostDocumentStock_ReplacesTheOriginalsMoves(t *testing.T) {
 	}
 }
 
+// A move that names another document or collection would be written but never
+// read back nor marked posted: the door refuses it and writes nothing.
+func TestPostDocumentStock_RefusesAMoveOfAnotherDocument(t *testing.T) {
+	se := newStockEnv(t)
+	other := se.receipt("bill00000000009", "2026-07-01", 3, 300)
+	otherSource := se.receipt("bill00000000001", "2026-07-01", 3, 300)
+	otherSource.Source = "books_invoices"
+	for name, move := range map[string]stockMoveInput{"document": other, "source": otherSource} {
+		err := se.app.RunInTransaction(func(tx core.App) error {
+			_, err := postDocumentStock(tx, se.users.bookkeeper.Id, "books_bills", "bill00000000001", "",
+				[]stockMoveInput{move})
+			return err
+		})
+		if err == nil {
+			t.Errorf("a move of another %s was posted, want an error", name)
+		}
+	}
+	if n, _ := se.app.CountRecords(stockMovesCollection); n != 0 {
+		t.Errorf("%d moves written, want none", n)
+	}
+	requireOnHand(t, se.app, se.widget, 0, 0)
+}
+
+func TestWithdrawDocumentStock_TakesTheMovesAway(t *testing.T) {
+	se := newStockEnv(t)
+	document := "bill00000000001"
+	err := se.app.RunInTransaction(func(tx core.App) error {
+		_, err := postDocumentStock(tx, se.users.bookkeeper.Id, "books_bills", document, "",
+			[]stockMoveInput{se.receipt(document, "2026-07-01", 10, 1000)})
+		return err
+	})
+	if err != nil {
+		t.Fatalf("post the stock: %v", err)
+	}
+	requireOnHand(t, se.app, se.widget, 10, 1000)
+
+	err = se.app.RunInTransaction(func(tx core.App) error {
+		return withdrawDocumentStock(tx, se.users.bookkeeper.Id, "books_bills", document)
+	})
+	if err != nil {
+		t.Fatalf("withdraw the stock: %v", err)
+	}
+	if n, _ := se.app.CountRecords(stockMovesCollection, dbx.HashExp{"document": document}); n != 0 {
+		t.Errorf("%d moves left, want none", n)
+	}
+	requireOnHand(t, se.app, se.widget, 0, 0)
+
+	err = se.app.RunInTransaction(func(tx core.App) error {
+		return withdrawDocumentStock(tx, se.users.bookkeeper.Id, "books_bills", document)
+	})
+	if err != nil {
+		t.Errorf("withdraw of a document with no moves: %v", err)
+	}
+}
+
+func TestInventoryAccounts_OwnAccountsThenTheChart(t *testing.T) {
+	se := newStockEnv(t)
+	asset, cogs, err := inventoryAccounts(se.app, se.widget)
+	if err != nil || asset != se.asset.Id || cogs != se.cogs.Id {
+		t.Errorf("item with no accounts: %q, %q, %v; want the chart's %q, %q", asset, cogs, err, se.asset.Id, se.cogs.Id)
+	}
+
+	ownAsset := mkAccount(t, se.app, "Own stock", "other_current_asset", "inventory")
+	ownCogs := mkAccount(t, se.app, "Own cost", "cost_of_goods_sold", "supplies_materials")
+	if err := setFields(t, se.app, "books_products", se.widget.Id, map[string]any{
+		"asset_account": ownAsset.Id, "expense_account": ownCogs.Id,
+	}); err != nil {
+		t.Fatalf("name the item's accounts: %v", err)
+	}
+	item := reload(t, se.app, "books_products", se.widget.Id)
+	asset, cogs, err = inventoryAccounts(se.app, item)
+	if err != nil || asset != ownAsset.Id || cogs != ownCogs.Id {
+		t.Errorf("item with accounts: %q, %q, %v; want %q, %q", asset, cogs, err, ownAsset.Id, ownCogs.Id)
+	}
+}
+
 func TestEnsureInventoryAccounts_CreateEachOnce(t *testing.T) {
 	env := newLedgerEnv(t)
 	cases := []struct {
