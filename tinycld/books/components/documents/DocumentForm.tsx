@@ -949,6 +949,7 @@ export function DocumentForm({
         () => drawnHintsOf(state.definition, state.host),
         [state.definition, state.host]
     )
+    const replacesPosted = data.isCorrection
     const scope = useMemo<DocumentFormScope>(
         () => ({
             kind,
@@ -966,6 +967,7 @@ export function DocumentForm({
             sourceLink,
             hints,
             focusesFirstField,
+            replacesPosted,
         }),
         [
             kind,
@@ -983,6 +985,7 @@ export function DocumentForm({
             sourceLink,
             hints,
             focusesFirstField,
+            replacesPosted,
         ]
     )
     const totals = useDocumentTotals(form, scope)

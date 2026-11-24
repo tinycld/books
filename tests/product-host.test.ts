@@ -14,6 +14,7 @@ import ui from '../tinycld/books/forms/ui'
 import { BUNDLE_ITEM_COLUMNS } from '../tinycld/books/lib/bundle-items'
 import { MONEY_VALUE_SCHEMA } from '../tinycld/books/lib/money-input'
 import { EMPTY_PRODUCT_FIELDS } from '../tinycld/books/lib/product-columns'
+import { QUANTITY_VALUE_SCHEMA } from '../tinycld/books/lib/quantity-input'
 import type { BooksProducts } from '../tinycld/books/types'
 
 // Every column of books_products. `satisfies` makes tsc refuse this literal when the
@@ -30,6 +31,14 @@ const ALL_COLUMNS = {
     purchase_description: true,
     cost: true,
     expense_account: true,
+    asset_account: true,
+    preferred_vendor: true,
+    reorder_point: true,
+    opening_quantity: true,
+    opening_value: true,
+    opening_date: true,
+    quantity_on_hand: true,
+    stock_value: true,
     taxable: true,
     inactive: true,
     currency: true,
@@ -48,6 +57,7 @@ const BUILTINS = [
     ['sku', 'SKU', 'text', false, undefined],
     ['sales_description', 'Sales description', 'textarea', false, undefined],
     ['items', 'Bundle items', 'table', false, undefined],
+    ['quantity_on_hand', 'Quantity on hand', 'custom', false, 'QuantityOnHandField'],
     ['price', 'Sales price', 'custom', false, 'MoneyField'],
     ['income_account', 'Income account', 'custom', false, 'IncomeAccountField'],
     ['taxable', 'Taxable', 'toggle', false, undefined],
@@ -55,9 +65,27 @@ const BUILTINS = [
     ['purchase_description', 'Purchase description', 'textarea', false, undefined],
     ['cost', 'Cost', 'custom', false, 'MoneyField'],
     ['expense_account', 'Expense account', 'custom', false, 'ExpenseAccountField'],
+    ['asset_account', 'Inventory asset account', 'custom', false, 'AssetAccountField'],
+    ['preferred_vendor', 'Preferred vendor', 'custom', false, 'PreferredVendorField'],
+    ['opening_quantity', 'Opening quantity', 'custom', false, 'QuantityField'],
+    ['opening_value', 'Opening value', 'custom', false, 'MoneyField'],
+    ['opening_date', 'Opening stock as of', 'custom', false, 'OpeningDateField'],
+    ['reorder_point', 'Reorder point', 'custom', false, 'QuantityField'],
 ] as const
 
-const HALF_WIDTH = ['name', 'sku', 'price', 'income_account', 'cost', 'expense_account']
+const HALF_WIDTH = [
+    'name',
+    'sku',
+    'price',
+    'income_account',
+    'cost',
+    'expense_account',
+    'asset_account',
+    'preferred_vendor',
+    'reorder_point',
+]
+
+const THIRD_WIDTH = ['opening_quantity', 'opening_value', 'opening_date']
 
 const CTX = { today: '2026-01-01', userId: 'u' }
 
@@ -107,15 +135,22 @@ describe('books:product forms host', () => {
         const custom = parsedHost().builtin.filter(b => b.kind === 'custom')
         expect(custom.map(b => b.key)).toEqual([
             'type',
+            'quantity_on_hand',
             'price',
             'income_account',
             'cost',
             'expense_account',
+            'asset_account',
+            'preferred_vendor',
+            'opening_quantity',
+            'opening_value',
+            'opening_date',
+            'reorder_point',
         ])
         expect(custom.map(b => b.chrome)).toEqual(custom.map(() => 'cell'))
     })
 
-    it('seeds one Product or service page with the three half-width pairs', () => {
+    it('seeds one Product or service page with the half-width pairs and the opening stock row', () => {
         const definition = defaultDefinitionFor(parsedHost())
         expect(definition.pages).toHaveLength(1)
         expect(definition.pages[0].title).toBe('Product or service')
@@ -124,14 +159,25 @@ describe('books:product forms host', () => {
         expect(definition.fields.every(f => f.page === page)).toBe(true)
         const half = definition.fields.filter(f => f.width === 'half').map(f => f.key)
         expect(half).toEqual(HALF_WIDTH)
+        const third = definition.fields.filter(f => f.width === 'third').map(f => f.key)
+        expect(third).toEqual(THIRD_WIDTH)
     })
 
-    it('seeds the Taxable toggle with its help text, and no other field with one', () => {
+    // A new item does not show the quantity on hand; a half-width neighbour would then
+    // take the next field into its row.
+    it('seeds the quantity on hand at full width', () => {
+        const definition = defaultDefinitionFor(parsedHost())
+        expect(definition.fields.find(f => f.key === 'quantity_on_hand')?.width).toBe('full')
+    })
+
+    it('seeds the Taxable toggle, the opening date and the reorder point with their help text', () => {
         expect(builtin('taxable').storage).toBe('column')
         const definition = defaultDefinitionFor(parsedHost())
         const described = definition.fields.filter(f => f.description !== undefined)
         expect(described.map(f => [f.key, f.description])).toEqual([
             ['taxable', 'Charge sales tax on this item when it is sold.'],
+            ['opening_date', 'The date the opening quantity and value are counted on.'],
+            ['reorder_point', 'The quantity on hand at which you buy more.'],
         ])
     })
 
@@ -165,6 +211,11 @@ describe('books:product forms host', () => {
                 'MoneyField',
                 'IncomeAccountField',
                 'ExpenseAccountField',
+                'QuantityOnHandField',
+                'AssetAccountField',
+                'PreferredVendorField',
+                'QuantityField',
+                'OpeningDateField',
             ])
         )
         for (const name of named) {
@@ -194,10 +245,40 @@ describe('books:product forms host', () => {
         expect(schemaFor(cents).safeParse(cents).success).toBe(true)
     })
 
-    it('starts a new product with every built-in other than the bundle items', () => {
+    it('gives QuantityField the quantity value schema', () => {
+        expect(ui.schemas?.QuantityField).toBe(QUANTITY_VALUE_SCHEMA)
+    })
+
+    it('refuses a malformed opening quantity and reorder point through the forms engine', () => {
+        const host = parsedHost()
+        const definition = defaultDefinitionFor(host)
+        const schemaFor = (values: Record<string, unknown>) =>
+            buildSchema(definition, host, evaluate(definition, values, CTX), ui.schemas)
+
+        const malformed = {
+            type: 'inventory',
+            name: 'A',
+            purchases: true,
+            opening_quantity: '1.234',
+            reorder_point: -1,
+        }
+        const refused = schemaFor(malformed).safeParse(malformed)
+        expect(refused.success).toBe(false)
+        expect(refused.error?.issues.map(issue => issue.path[0]).sort()).toEqual([
+            'opening_quantity',
+            'reorder_point',
+        ])
+
+        const fine = { ...malformed, opening_quantity: 12.5, reorder_point: 4 }
+        expect(schemaFor(fine).safeParse(fine).success).toBe(true)
+    })
+
+    // The form never writes the quantity on hand (Books counts it), so a new product
+    // has no starting value for it.
+    it('starts a new product with every built-in other than the bundle items and the quantity on hand', () => {
         const keys = parsedHost()
             .builtin.map(b => b.key)
-            .filter(key => key !== 'items')
+            .filter(key => key !== 'items' && key !== 'quantity_on_hand')
         expect(Object.keys(EMPTY_PRODUCT_FIELDS).sort()).toEqual([...keys].sort())
     })
 

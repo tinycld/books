@@ -47,7 +47,7 @@ describe('help/products-services.md', () => {
     })
 
     // The chooser's sentence says what each type is for; the topic gives it beside the label.
-    it('names the three types, each with what it is for', () => {
+    it('names every type, each with what it is for', () => {
         expect(topicExists).toBe(true)
         const lines = body.split('\n')
         for (const { label, sentence } of PRODUCT_TYPES) {
@@ -82,6 +82,24 @@ describe('help/products-services.md', () => {
         expect(body).toMatch(
             /(?=[^.\n]*\bbundle\b)[^.\n]*\bno price\b[^.\n]*\baccounts?\b[^.\n]*\bof its own\b/i
         )
+    })
+
+    it('says a bundle holds Services, Non-inventory items and Inventory items', () => {
+        expect(body).toMatch(
+            /(?=[^.\n]*\bbundle holds\b)(?=[^.\n]*\bServices\b)(?=[^.\n]*\bNon-inventory\b)[^.\n]*\bInventory items\b/
+        )
+        expect(body).not.toMatch(/Services and Non-inventory items only/)
+    })
+
+    it('says what an Inventory item adds and links the Inventory topic', () => {
+        expect(body).toMatch(
+            /(?=[^.\n]*\bInventory item\b)(?=[^.\n]*\balways purchased\b)[^.\n]*Cost of goods sold account/
+        )
+        expect(body).toMatch(
+            /(?=[^.\n]*Inventory asset account)(?=[^.\n]*Preferred vendor)(?=[^.\n]*Reorder point)[^.\n]*Quantity on hand/
+        )
+        expect(body).toContain('(help://books:inventory)')
+        expect(body).toMatch(/(?=[^.\n]*\bnew Inventory item\b)[^.\n]*\btaxable\b/)
     })
 
     it('explains the purchasing fields under I purchase this from a vendor', () => {

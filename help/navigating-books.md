@@ -27,4 +27,4 @@ To keep the people and companies you sell to, see [Customers](help://books:custo
 
 To keep the people and companies you buy from, see [Vendors](help://books:vendors).
 
-To keep the services, goods and bundles you sell and buy, see [Products and services](help://books:products-services).
+To keep the services, goods and bundles you sell and buy, see [Products and services](help://books:products-services). To count the goods you have and what they cost, see [Inventory](help://books:inventory).

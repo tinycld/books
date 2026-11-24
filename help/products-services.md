@@ -7,15 +7,16 @@ order: 32
 
 Products and services are the things you sell and buy. To see them, choose Lists in the sidebar and pick the Products and services card. Books opens on the Dashboard the first time. On a phone, Books opens where you left it. To get back to Lists on a phone, choose All lists at the top of the Products and services list, or swipe in from the left edge of the screen to open the Books menu and choose Lists. A read-only user can open products and services but cannot change them. To see what you sold of each product and service in a period, press Sales report at the top of the Products and services list: it opens Sales by Product/Service. To read it, see the [sales reports](help://books:reports).
 
-## The three types
+## The four types
 
-Each product or service has one of three types:
+Each product or service has one of four types:
 
 - Service: Work you do for customers, such as consulting, repairs or lessons.
 - Non-inventory: Goods you buy or sell without counting how many you have, such as parts used on a job.
+- Inventory: Goods you buy and sell and count: Books tracks how many you have and what they cost. See [Inventory](help://books:inventory).
 - Bundle: Products and services you sell together as one line, such as a starter kit.
 
-A Service can become a Non-inventory item and back again. A bundle keeps its type, and an item cannot become a bundle after you create it.
+A Service can become a Non-inventory item and back again. A bundle and an Inventory item keep their type, and an item cannot become a bundle or an Inventory item after you create it.
 
 ## Create a product or service
 
@@ -41,17 +42,19 @@ Sales price is the price you usually charge. Income account is the account that 
 
 If you also buy the item, turn on I purchase this from a vendor to show Purchase description, Cost and Expense account. Cost is what you usually pay, and Expense account is the account that a purchase of this item goes to.
 
+An Inventory item is always purchased, so it has no switch, and its Expense account is named Cost of goods sold account. It also has an Inventory asset account, a Preferred vendor, a Reorder point, opening stock and a Quantity on hand. See [Inventory](help://books:inventory).
+
 ## Taxable
 
-Turn on Taxable to charge sales tax on the item when you sell it. A new Non-inventory item starts taxable, and a new Service starts with Taxable off. If you change the type of a new item, Taxable keeps its value. A bundle has no Taxable setting, because each item in it has its own. To set up the tax rates that you charge, see [Sales tax](help://books:sales-tax).
+Turn on Taxable to charge sales tax on the item when you sell it. A new Non-inventory item starts taxable, as a new Inventory item does, and a new Service starts with Taxable off. If you change the type of a new item, Taxable keeps its value. A bundle has no Taxable setting, because each item in it has its own. To set up the tax rates that you charge, see [Sales tax](help://books:sales-tax).
 
 ## Bundles
 
 A bundle is a list of items that you sell together. To add an item to a bundle, choose Add row, pick a product or service and set its Qty. To change the order of the items, open the row's menu (⋮) and choose Move up or Move down. To take an item out, open the row's menu and choose Remove.
 
-A bundle holds Services and Non-inventory items only, so a bundle cannot contain another bundle. A bundle has no price, cost or accounts of its own.
+A bundle holds Services, Non-inventory items and Inventory items, so a bundle cannot contain another bundle. A bundle has no price, cost or accounts of its own.
 
-When you pick a bundle on an invoice line, Books adds one line for each item in the bundle and a subtotal line under them. See [Invoices](help://books:invoices).
+When you pick a bundle on an invoice line, Books adds one line for each item in the bundle and a subtotal line under them. See [Invoices](help://books:invoices). An Inventory item in the bundle is taken from its own quantity on hand when the sale posts.
 
 ## Find a product or service
 

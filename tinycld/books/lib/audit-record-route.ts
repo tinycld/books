@@ -108,6 +108,7 @@ export const ROUTED_DOC_TYPES: readonly string[] = [
     'vendor_refund',
     'write_off',
     'deposit',
+    'inventory_adjustment',
 ] satisfies readonly RoutedEntry['doc_type'][]
 const ROUTED_ORIGINS: readonly string[] = [
     'manual',

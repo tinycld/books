@@ -22,6 +22,7 @@ const (
 	// the person never sees.
 	msgLineIncomeAccountInactive  = "%s: the income account of %s is inactive. Choose an active one on the product or service."
 	msgLineExpenseAccountInactive = "%s: the expense account of %s is inactive. Choose an active one on the product or service."
+	msgLineAssetAccountInactive   = "%s: the inventory asset account of %s is inactive. Choose an active one on the product or service."
 	msgTaxAgencyNoAccount         = "%s has no liability account. Choose one on the tax agency."
 	msgTaxComponentNoAgency       = "%s has no tax agency. Choose one on the tax rate."
 )
@@ -124,6 +125,14 @@ func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 				return err
 			}
 		}
+	}
+	if !ownLines {
+		// Before the entry: the cost of the document's stock is in its own entry.
+		costLines, err := salesDocStockLines(tx, kind, doc, original, lines, totals)
+		if err != nil {
+			return err
+		}
+		postingLines = append(postingLines, costLines...)
 	}
 	actor := doc.GetString("posted_by")
 	post := documentPost{
@@ -298,8 +307,13 @@ func keepsCorrectedParty(tx core.App, kind salesDocKind, doc *core.Record, id st
 // from a line the guard would refuse (one written past it). A bundle on a
 // line is refused when the line accounts read its product.
 func checkStoredLines(tx core.App, kind salesDocKind, lines []*core.Record) error {
+	accounts, err := recordsByID(tx, "books_accounts", lineAccountIDs(lines))
+	if err != nil {
+		return err
+	}
+	readAccount := func(id string) (*core.Record, error) { return recordOf(accounts, id) }
 	for _, line := range lines {
-		if err := checkLineCells(tx, kind, line, lineRowPlace(kind, lines, line)); err != nil {
+		if err := checkLineCells(tx, kind, line, lineRowPlace(kind, lines, line), readAccount); err != nil {
 			return err
 		}
 	}
@@ -442,6 +456,10 @@ type documentLineRef struct {
 // account that is inactive and takes an amount (a product keeps an account
 // that became inactive after it was saved, so the post is where it stops).
 func incomeByAccount(tx core.App, lines []*core.Record, totals documentTotalsResult) ([]postingLine, error) {
+	products, err := lineProducts(tx, lines)
+	if err != nil {
+		return nil, err
+	}
 	sums := map[string]int64{}
 	firstLine := map[string]documentLineRef{}
 	for i, line := range lines {
@@ -453,7 +471,7 @@ func incomeByAccount(tx core.App, lines []*core.Record, totals documentTotalsRes
 			continue
 		}
 		label := fmt.Sprintf("Line %d", i+1)
-		product, err := tx.FindRecordById("books_products", line.GetString("product"))
+		product, err := recordOf(products, line.GetString("product"))
 		if err != nil {
 			return nil, fmt.Errorf("books: read the product of line %d: %w", i+1, err)
 		}
@@ -608,6 +626,11 @@ func voidSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 	// The void reversal is taken out too, so the document counts for nothing.
 	if err := rebuildCashBasisOf(tx, kind.Collection, doc.Id); err != nil {
 		return err
+	}
+	if kind.Stock != "" {
+		if err := withdrawDocumentStock(tx, doc.GetString("voided_by"), kind.Collection, doc.Id); err != nil {
+			return err
+		}
 	}
 	if kind.Withdraw == nil {
 		return nil

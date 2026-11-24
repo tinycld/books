@@ -52,6 +52,7 @@ const docTypeSalesReceipt = "sales_receipt"
 var salesReceiptKind = salesDocKind{
 	DocType:            docTypeSalesReceipt,
 	Lifecycle:          lifecyclePosting,
+	Stock:              stockSale,
 	Collection:         "books_sales_receipts",
 	LinesCollection:    "books_sales_receipt_lines",
 	TaxLinesCollection: "books_sales_receipt_tax_lines",

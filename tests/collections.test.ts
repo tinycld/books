@@ -79,6 +79,17 @@ const NAMES = [
     'books_invoice_due_totals',
     'books_payment_day_totals',
     'books_sidebar_shortcuts',
+    'books_stock_moves',
+    'books_stock_layers',
+    'books_inventory_adjustments',
+    'books_inventory_adjustment_lines',
+]
+
+const INVENTORY = [
+    'books_stock_moves',
+    'books_stock_layers',
+    'books_inventory_adjustments',
+    'books_inventory_adjustment_lines',
 ]
 
 function register() {
@@ -104,6 +115,30 @@ describe('registerCollections', () => {
             expect(calls.get(name)?.syncMode).toBe('on-demand')
             expect(calls.get(name)?.realtime).toBe('query')
         }
+    })
+
+    // ADR 3: the server fills an adjustment's number, entry and stamps, and the stock
+    // rows are read from their own collections.
+    it('declares the inventory collections with no relations, and the server fills an adjustment', () => {
+        const { calls } = register()
+        for (const name of INVENTORY) {
+            expect(calls.get(name)?.relations, name).toBeUndefined()
+        }
+        expect(calls.get('books_inventory_adjustments')?.omitOnInsert).toEqual([
+            'created',
+            'updated',
+            'number',
+            'sequence',
+            'source',
+            'document',
+            'currency',
+            'entry',
+            'posted_by',
+            'posted_at',
+            'voided_by',
+            'voided_at',
+            'sort_key',
+        ])
     })
 
     it('declares the relations the ledger screens read', () => {
@@ -167,8 +202,10 @@ describe('registerCollections', () => {
         expect(calls.get('books_vendors')?.relations).toBeUndefined()
     })
 
-    // The guard sets name_key and sort_key and the server stamps currency, so the client
-    // never sends them on a product; a bundle row sends every column it has.
+    // The guard sets name_key and sort_key, the server stamps currency and the costing
+    // replay writes quantity_on_hand and stock_value, so the client never sends them on a
+    // product; a bundle row sends every column it has. The product form writes the other
+    // inventory columns.
     it('never inserts a product or bundle row column the server sets', () => {
         const { calls } = register()
         expect(calls.get('books_products')?.omitOnInsert).toEqual([
@@ -177,6 +214,8 @@ describe('registerCollections', () => {
             'name_key',
             'sort_key',
             'currency',
+            'quantity_on_hand',
+            'stock_value',
         ])
         expect(calls.get('books_bundle_items')?.omitOnInsert).toEqual(['created', 'updated'])
     })

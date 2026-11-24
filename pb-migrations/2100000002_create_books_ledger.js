@@ -192,6 +192,7 @@ migrate(
                             'refund_receipt',
                             'write_off',
                             'deposit',
+                            'inventory_adjustment',
                         ],
                     },
                     {
@@ -338,6 +339,7 @@ migrate(
                             'refund_receipt',
                             'write_off',
                             'deposit',
+                            'inventory_adjustment',
                         ],
                     },
                     ...AUTODATES,

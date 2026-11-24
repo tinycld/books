@@ -317,6 +317,8 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
         deposit,
         errorText,
         replacesNumber,
+        // Whether the form corrects a posted document (a new correction or its draft).
+        isCorrection,
         taxLines: reads.taxLines.data,
         // The posted payments applied to a posted or void invoice or bill; empty for other
         // kinds.

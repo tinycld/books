@@ -40,6 +40,7 @@ const values: SetupValues = {
     business_name: 'Acme Plumbing',
     fiscal_year_start_month: 4,
     ownership: 'owners',
+    costing_method: 'fifo',
 }
 const corporationValues: SetupValues = { ...values, ownership: 'corporation' }
 const chartSize = starterChart('owners').length
@@ -65,6 +66,8 @@ function blankSettings(): BooksSettings {
         sales_deposit_account: '',
         default_customer_message: '',
         purchase_lines: 'both',
+        costing_method: 'fifo',
+        costing_locked: false,
         created: '2026-01-01 00:00:00.000Z',
         updated: '2026-01-01 00:00:00.000Z',
     }
@@ -509,6 +512,64 @@ describe('useBooksSetup ownership', () => {
         const again = renderSetup()
 
         await waitFor(() => expect(again.result.current.ownership).toBe('corporation'))
+    })
+})
+
+describe('useBooksSetup costing method', () => {
+    it('saves the chosen method with the chart', async () => {
+        const { rendered } = await renderEmptyBook()
+
+        await run(rendered, 'create', { ...values, costing_method: 'average' })
+
+        expect(settingsRow()).toMatchObject({ costing_method: 'average', setup_completed: true })
+    })
+
+    it('saves the chosen method when the chart is skipped', async () => {
+        const { rendered } = await renderEmptyBook()
+
+        await run(rendered, 'skipChart', { ...values, costing_method: 'average' })
+
+        expect(settingsRow()).toMatchObject({ costing_method: 'average', setup_completed: true })
+    })
+
+    // The server refuses a change of a locked method, which would fail the whole setup.
+    it('leaves a locked method as it is', async () => {
+        const settings = { ...blankSettings(), costing_locked: true }
+        const { rendered } = await renderEmptyBook({
+            ledger: { lines: [], entries: [], balances: [], settings: [settings] },
+        })
+
+        const outcome = await run(rendered, 'skipChart', { ...values, costing_method: 'average' })
+
+        expect(outcome).toEqual({ ok: true, created: 0 })
+        expect(settingsRow()).toMatchObject({ costing_method: 'fifo', setup_completed: true })
+    })
+
+    // The lock can arrive between the render that made `create` and the write: the hook
+    // saw an unlocked row, the row at update time is locked. The write is the one that
+    // counts.
+    it('leaves a method that locked after the hook read the settings', async () => {
+        const { rendered } = await renderEmptyBook()
+        const stale = rendered.result.current.skipChart
+        expect(rendered.result.current.isReady).toBe(true)
+
+        // The run starts with the unlocked render's closure; the lock lands in the same tick,
+        // before the mutation function reaches its write.
+        let outcome: Awaited<ReturnType<typeof stale>> | undefined
+        await act(async () => {
+            const running = stale({ ...values, costing_method: 'average' })
+            settingsStore().update(SETTINGS_ID, draft => {
+                draft.costing_locked = true
+            })
+            outcome = await running
+        })
+
+        expect(outcome).toEqual({ ok: true, created: 0 })
+        expect(settingsRow()).toMatchObject({
+            costing_locked: true,
+            costing_method: 'fifo',
+            setup_completed: true,
+        })
     })
 })
 

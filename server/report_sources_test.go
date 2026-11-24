@@ -68,6 +68,8 @@ var booksSourceKeys = []string{
 	"books.sales_lines",
 	"books.sales_tax_lines",
 	"books.settings",
+	"books.stock_layers",
+	"books.stock_moves",
 	"books.tax_agencies",
 	"books.tax_rates",
 	"books.vendors",
@@ -293,6 +295,7 @@ func expectedCatalog(t *testing.T) []wantSource {
 					{Value: "credit_memo", Label: "Credit memo"}, {Value: "vendor_credit", Label: "Vendor credit"},
 					{Value: "vendor_refund", Label: "Vendor refund"}, {Value: "refund_receipt", Label: "Refund receipt"},
 					{Value: "write_off", Label: "Write-off"}, {Value: "deposit", Label: "Deposit"},
+					{Value: "inventory_adjustment", Label: "Inventory adjustment"},
 				}},
 				textMinMax("number"),
 				// The posting order behind number, so opened lines sort 9 before 10.
@@ -344,6 +347,7 @@ func expectedCatalog(t *testing.T) []wantSource {
 				{key: "doc_type", typ: reports.Select, label: "Document type", optionValues: []string{
 					"journal", "transfer", "invoice", "sales_receipt", "bill", "expense", "payment", "bill_payment",
 					"credit_memo", "vendor_credit", "vendor_refund", "refund_receipt", "write_off", "deposit",
+					"inventory_adjustment",
 				}},
 			},
 			links: []wantLink{
@@ -701,16 +705,67 @@ func expectedCatalog(t *testing.T) []wantSource {
 				{key: "sku", typ: reports.Text, anyAggs: true},
 				{key: "type", typ: reports.Select, options: []reports.Option{
 					{Value: "service", Label: "Service"}, {Value: "non_inventory", Label: "Non-inventory"},
-					{Value: "bundle", Label: "Bundle"},
+					{Value: "bundle", Label: "Bundle"}, {Value: "inventory", Label: "Inventory"},
 				}},
 				{key: "sales_description", typ: reports.Text, anyAggs: true},
 				{key: "price", typ: reports.Money, currency: "currency", anyAggs: true},
 				text("currency"),
 				boolField("inactive"),
+				{key: "quantity_on_hand", typ: reports.Number, aggs: reports.SumAll},
+				money("stock_value"),
+				{key: "reorder_point", typ: reports.Number, aggs: reports.MinMax},
 			},
 			links: []wantLink{
 				toOne("income_account", "books.accounts", "income_account"),
+				toOne("asset_account", "books.accounts", "asset_account"),
+				toOne("preferred_vendor", "books.vendors", "preferred_vendor"),
+				toMany("stock_moves", "books.stock_moves", "product"),
+				toMany("stock_layers", "books.stock_layers", "product"),
 				toMany("sales_lines", "books.sales_lines", "product"),
+			},
+		},
+		{
+			// The store's own columns are left out (line, given, given_value,
+			// return_of, posted_value).
+			key: "books.stock_moves", collection: "books_stock_moves", label: "Stock moves",
+			fields: []wantField{
+				{key: "date", typ: reports.Date, textDay: true, aggs: reports.MinMax},
+				{key: "seq", typ: reports.Number},
+				{key: "kind", typ: reports.Select, optionValues: []string{
+					"opening", "receipt", "sale", "customer_return", "vendor_return", "adjustment",
+				}},
+				{key: "source", typ: reports.Select, label: "Document type", options: []reports.Option{
+					{Value: "books_invoices", Label: "Invoice"}, {Value: "books_sales_receipts", Label: "Sales receipt"},
+					{Value: "books_credit_memos", Label: "Credit memo"}, {Value: "books_refund_receipts", Label: "Refund receipt"},
+					{Value: "books_bills", Label: "Bill"}, {Value: "books_expenses", Label: "Expense"},
+					{Value: "books_vendor_credits", Label: "Vendor credit"},
+					{Value: "books_inventory_adjustments", Label: "Inventory adjustment"},
+				}},
+				text("document"),
+				{key: "quantity", typ: reports.Number, aggs: reports.SumAll},
+				money("value"),
+				{key: "quantity_after", typ: reports.Number, aggs: reports.MinMax},
+				{key: "value_after", typ: reports.Money, aggs: reports.MinMax, currency: "currency"},
+				text("currency"),
+			},
+			links: []wantLink{
+				toOne("product", "books.products", "product"),
+				toOne("asset_account", "books.accounts", "asset_account"),
+				toOne("offset_account", "books.accounts", "offset_account"),
+			},
+		},
+		{
+			key: "books.stock_layers", collection: "books_stock_layers", label: "Stock layers",
+			fields: []wantField{
+				{key: "date", typ: reports.Date, textDay: true, aggs: reports.MinMax},
+				{key: "quantity", typ: reports.Number, aggs: reports.SumAll},
+				money("value"),
+				{key: "position", typ: reports.Number, label: "Order"},
+				text("currency"),
+			},
+			links: []wantLink{
+				toOne("product", "books.products", "product"),
+				toOne("move", "books.stock_moves", "move"),
 			},
 		},
 	}
@@ -818,6 +873,7 @@ func TestReportSourcesCatalog(t *testing.T) {
 				"books.journal_entries", "books.journal_lines", "books.basis_lines", "books.account_balances",
 				"books.cash_basis_balances",
 				"books.sales_documents", "books.sales_tax_lines", "books.sales_lines", "books.products",
+				"books.stock_moves", "books.stock_layers",
 				"books.receivable_items", "books.payable_items", "books.settings",
 				"books.reconciliations", "books.reconciled_lines",
 			}, want.key) {
@@ -1697,23 +1753,23 @@ func TestSettingsSource(t *testing.T) {
 // record type to the record filter.
 var shippedSpecSHA256 = map[string]string{
 	"books.trial_balance":             "19e7ecb3e997db35fa0b40b37aa92a43d5b1113e3dc08096c9b2de1219781be4",
-	"books.general_ledger":            "67039989cb7520f2dfd073de18c6f7e9b08fe33cdc2bfd2cade21e9f8e8a784c",
+	"books.general_ledger":            "b3286067b9cf4357cd306a073dfc4d76dd0461f39e7066e3cdcf35ec2385c076",
 	"books.balance_sheet":             "e0313a980a11913fc30b8ae9ac1f20ebbd953f22d5e0758870ba3c923c4e91a6",
-	"books.journal":                   "0c22704590476e368aacf6125216b88aafae8ebca940dae85558feca5972371c",
+	"books.journal":                   "95982654d717ae86ad36bdb97a2f175393300e3fb8b7636506d1c4abbd4616a6",
 	"books.profit_and_loss":           "0d0ee1515937f48cd603de7da76769184b921558e4e48759e2d59ed18f36b8d3",
 	"books.profit_and_loss_by_month":  "89a1cca7d61b825eef13dcb9a3ae6b1821a727fad0442cdc8a0064e0f45e5983",
-	"books.transaction_detail":        "2e4c365f17549ba7b0594e2e6f542bbabd23a49b78f90ec14349720db499a712",
+	"books.transaction_detail":        "e6cf63628a2482a05bbc09aacfa20c22bb70c194af098bac3c85c45033fd7d2a",
 	"books.sales_tax_liability":       "e82a3c515c70380eddbd5c7eb9dbe896cc8e478ed055463d026025aa0e36d3dc",
-	"books.customer_balance":          "aff7bd3202130360e0df714fb5bc64af36a70b2bb983124e73d985f80a3c1787",
-	"books.ar_aging":                  "4fdcc6fd7ef745a7f1ec641d300e2532cb9a990917915d07c4d3c8b8546cd280",
-	"books.ap_aging":                  "fcca5fb271b63c61b211e4f7bb1eeb7e062d66b83adf9aca1af85a4f1898e0e1",
-	"books.vendor_balance":            "0a251c1297a0a1f49b499af783060587f7ca34be2b55f04d422a51dace28b332",
-	"books.expenses_by_vendor":        "bab952a0eddc89363fbde7ef8fce48c5f2496c56b4b815672d2cd66094a4629d",
+	"books.customer_balance":          "74875ae9b34ff2e4e662ac2673412e7990a46ed43a28b9d89f2b74495be26044",
+	"books.ar_aging":                  "5b825bb19944de1b20c75264dbfadee500ea5ef022c79fdfe4fa477ebe6942ac",
+	"books.ap_aging":                  "2fd411d2c13f2b2662a7bce233d384cfd074d330e7d03be23bde213e391b998c",
+	"books.vendor_balance":            "de56492cd35b60d2bf91f4346109d48caecf43668ec9ce42a0ff7256b4649f99",
+	"books.expenses_by_vendor":        "5d6493b5483491c136cc60363e7348b439e479082cc16503670e3992e050fd91",
 	"books.sales_by_customer":         "f4cddc28675db506d709a0ad07f936d599dd91e849d14b5546d0b8b042bc7ebc",
 	"books.sales_by_product":          "ac3251b812b61071e29689a41c25a6fb471998def42e1cb4bfc3abf074cfc3e0",
-	"books.audit_log":                 "b3e2031cfbfb63266e7b77ad4412b924bb896bde6c7fd20c64cd7a30895b1dbc",
-	"books.statement_balance_forward": "f58b854ec692b8498c49c1fb487eb3192bebf6b774233b1d9fd765d4df2ccdeb",
-	"books.statement_open_items":      "eee17337b00fc4b9b9fc010fdeaaa64127fffaabf9a67976331bf579040300e7",
+	"books.audit_log":                 "941943b25c14e98abc153c5f4c00751f83f227de89b9a31288612588377f4236",
+	"books.statement_balance_forward": "b913a43817ddb1fc913c58ce80702e0b4269a1d5a0f05f0e646fd72ee5fbc061",
+	"books.statement_open_items":      "eae980bfc24b920992a4f3996f9401f313a8d6846ac64118bc594b30a0f070f4",
 }
 
 func TestSourceAdditionsKeepShippedSpecs(t *testing.T) {

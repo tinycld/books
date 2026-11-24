@@ -54,11 +54,11 @@ var purchaseLineRowLabels = map[string]string{lineKindAccount: "Account line", l
 // be negative), and an account of an expense type. An inactive account passes
 // here and is refused at posting (checkPurchaseLinesToPost); an account that
 // does not exist is the schema's refusal.
-func checkPurchaseAccountLine(tx core.App, r *core.Record, n int) error {
+func checkPurchaseAccountLine(readAccount accountReader, r *core.Record, n int) error {
 	if r.GetInt("amount") == 0 {
 		return refuse(msgPurchaseAccountAmountZero, n)
 	}
-	account, err := tx.FindRecordById("books_accounts", r.GetString("account"))
+	account, err := readAccount(r.GetString("account"))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
@@ -125,6 +125,14 @@ func checkPurchaseLinesToPost(tx core.App, kind salesDocKind, doc *core.Record) 
 	if err != nil {
 		return err
 	}
+	products, err := lineProducts(tx, lines)
+	if err != nil {
+		return err
+	}
+	accounts, err := recordsByID(tx, "books_accounts", lineAccountIDs(lines))
+	if err != nil {
+		return err
+	}
 	counts := map[string]int{}
 	for _, line := range lines {
 		lineKind := line.GetString("kind")
@@ -132,7 +140,7 @@ func checkPurchaseLinesToPost(tx core.App, kind salesDocKind, doc *core.Record) 
 		n := counts[lineKind]
 		switch lineKind {
 		case lineKindAccount:
-			account, err := tx.FindRecordById("books_accounts", line.GetString("account"))
+			account, err := recordOf(accounts, line.GetString("account"))
 			if err != nil {
 				return fmt.Errorf("books: read the account of account line %d: %w", n, err)
 			}
@@ -140,7 +148,7 @@ func checkPurchaseLinesToPost(tx core.App, kind salesDocKind, doc *core.Record) 
 				return refuseNamed(msgPurchaseAccountInactive, n, account.GetString("name"))
 			}
 		case lineKindItem:
-			product, err := tx.FindRecordById("books_products", line.GetString("product"))
+			product, err := recordOf(products, line.GetString("product"))
 			if err != nil {
 				return fmt.Errorf("books: read the product of product line %d: %w", n, err)
 			}
@@ -166,6 +174,23 @@ func checkPurchaseLinesToPost(tx core.App, kind salesDocKind, doc *core.Record) 
 // account line's inactive account is refused before
 // (checkPurchaseLinesToPost).
 func expenseByAccount(tx core.App, lines []*core.Record, totals documentTotalsResult) ([]postingLine, error) {
+	return purchaseByAccount(tx, lines, totals, false)
+}
+
+// stockInByAccount is the LineAccounts of a purchase kind that receives stock
+// (a bill, an expense): expenseByAccount, but a product line of an Inventory
+// item debits the item's inventory asset account. Its stock move holds the
+// same amount (stockReceipt).
+func stockInByAccount(tx core.App, lines []*core.Record, totals documentTotalsResult) ([]postingLine, error) {
+	return purchaseByAccount(tx, lines, totals, true)
+}
+
+func purchaseByAccount(tx core.App, lines []*core.Record, totals documentTotalsResult, stockIn bool) ([]postingLine, error) {
+	products, err := lineProducts(tx, lines)
+	if err != nil {
+		return nil, err
+	}
+	assets := inventoryAccountCache{}
 	sums := map[string]int64{}
 	firstLine := map[string]documentLineRef{}
 	for i, line := range lines {
@@ -177,7 +202,7 @@ func expenseByAccount(tx core.App, lines []*core.Record, totals documentTotalsRe
 		case lineKindAccount:
 			account = line.GetString("account")
 		case lineKindItem:
-			product, err := tx.FindRecordById("books_products", line.GetString("product"))
+			product, err := recordOf(products, line.GetString("product"))
 			if err != nil {
 				return nil, fmt.Errorf("books: read the product of purchase line %d: %w", i+1, err)
 			}
@@ -187,12 +212,19 @@ func expenseByAccount(tx core.App, lines []*core.Record, totals documentTotalsRe
 			if account == "" {
 				return nil, fmt.Errorf("books: %s on purchase line %d has no expense account", product.GetString("name"), i+1)
 			}
+			msg := msgLineExpenseAccountInactive
+			if stockIn && isInventoryProduct(product) {
+				if account, _, err = assets.of(tx, product); err != nil {
+					return nil, err
+				}
+				msg = msgLineAssetAccountInactive
+			}
 			if _, seen := firstLine[account]; !seen {
 				firstLine[account] = documentLineRef{
 					n:       i + 1,
 					label:   lineRowLabel(salesDocKind{LineRowLabels: purchaseLineRowLabels}, lines, line),
 					product: product.GetString("name"),
-					msg:     msgLineExpenseAccountInactive,
+					msg:     msg,
 				}
 			}
 		default:

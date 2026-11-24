@@ -19,6 +19,12 @@ To change company details, open Settings and choose Company. Enter the legal bus
 
 To change the month the fiscal year starts, open Settings, choose Accounting, pick the month and press Save.
 
+## Inventory costing method
+
+To choose how Books costs the inventory you sell, open Settings, choose Accounting, pick FIFO (first in, first out) or Average cost under Inventory and press Save. Everyone with Books access sees the method; only a Books admin can change it.
+
+You can change the method only until the first inventory transaction posts. After that, the card shows the method as text with "The costing method cannot change after the first inventory transaction posts." Saving an item with opening stock also locks it. To read what each method does, see [Inventory](help://books:inventory).
+
 ## Sales
 
 To set how sales receipts deposit and the message new documents start with, open Settings and choose Sales. Everyone with Books access sees the section; only a Books admin can change it. The section has two cards, each with its own Save button:

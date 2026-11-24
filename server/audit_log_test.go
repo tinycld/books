@@ -50,6 +50,8 @@ var wantAuditParentFields = map[string]string{
 	// deposit spec §4.1).
 	"books_deposit_items": "deposit",
 	"books_deposit_lines": "deposit",
+	// An inventory adjustment's line names its adjustment (ADR 3).
+	"books_inventory_adjustment_lines": "adjustment",
 	// A document send names the document it sent; its doc_type gives the
 	// document's collection (email-share plan decision 2).
 	"books_document_sends": "document",

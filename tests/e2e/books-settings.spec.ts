@@ -40,6 +40,11 @@ import { superuserClient } from './superuser-seed'
 // save on one worker never puts back an old value of another worker's field.
 // The 'vendor-1099:' describe writes the shared settings row too (the 1099 reporting
 // threshold), so it lives here, and it puts back the threshold it changed.
+// The wizard test shows the Inventory costing part but picks no method and reads no stored
+// value: the costing method is shared and locks at the first inventory transaction, which
+// inventory.spec.ts may post first. The unit tests pin the wizard's write of
+// costing_method instead (tests/useBooksSetup.test.tsx, "useBooksSetup costing method",
+// and tests/setup-parts.test.tsx, "saves the picked method when the book is created").
 
 const DESKTOP = { width: 1280, height: 800 }
 const PHONE = { width: 390, height: 844 }
@@ -923,7 +928,7 @@ async function resetSetupToUnfinished() {
 test.describe('books-settings: setup wizard resume after a Settings save', () => {
     test.beforeEach(resetSetupToUnfinished)
 
-    test('a Company save from Settings does not make the setup wizard resume at Part 3', async ({
+    test('a Company save from Settings does not make the setup wizard resume at Part 4', async ({
         page,
     }) => {
         await openCompanySettings(page)
@@ -937,7 +942,7 @@ test.describe('books-settings: setup wizard resume after a Settings save', () =>
         await id(page, 'books-nav-lists').click()
         await id(page, 'books-setup-card').click()
         await page.setViewportSize(DESKTOP)
-        await expect(page.getByTestId('books-setup-part-label')).toHaveText('Part 1 of 3')
+        await expect(page.getByTestId('books-setup-part-label')).toHaveText('Part 1 of 4')
         await expect(page.getByTestId('books-setup-business-name')).toHaveValue(businessName)
         await expect(page.getByTestId('books-setup-populated')).toHaveCount(0)
     })
@@ -952,7 +957,7 @@ test.describe('books-settings: setup wizard resume after a Settings save', () =>
 test.describe('books-settings: setup wizard flow', () => {
     test.beforeEach(resetSetupToUnfinished)
 
-    test('walks Business, Ownership and the populated-book notice, then finishes', async ({
+    test('walks Business, Ownership, Inventory costing and the populated-book notice, then finishes', async ({
         page,
     }) => {
         await login(page)
@@ -965,14 +970,14 @@ test.describe('books-settings: setup wizard flow', () => {
         const next = page.getByTestId('setup-continue')
         const back = page.getByTestId('books-setup-back')
 
-        await expect(partLabel).toHaveText('Part 1 of 3')
+        await expect(partLabel).toHaveText('Part 1 of 4')
         await expect(businessName).not.toHaveValue('')
         const seededName = await businessName.inputValue()
 
         await businessName.fill('')
         await next.click()
         await expect(page.getByText('Enter the legal business name')).toBeVisible()
-        await expect(partLabel).toHaveText('Part 1 of 3')
+        await expect(partLabel).toHaveText('Part 1 of 4')
         await expect(page.getByTestId('books-setup-ownership-owners')).toHaveCount(0)
 
         await businessName.fill(seededName)
@@ -981,32 +986,66 @@ test.describe('books-settings: setup wizard flow', () => {
         await expect(month).toContainText('July')
         await next.click()
 
-        await expect(partLabel).toHaveText('Part 2 of 3')
+        await expect(partLabel).toHaveText('Part 2 of 4')
         await page.getByTestId('books-setup-ownership-corporation').click()
         await expect(page.getByTestId('books-setup-ownership-corporation')).toHaveClass(
             /border-primary/
         )
 
         await back.click()
-        await expect(partLabel).toHaveText('Part 1 of 3')
+        await expect(partLabel).toHaveText('Part 1 of 4')
         await expect(businessName).toHaveValue(seededName)
         await expect(month).toContainText('July')
 
         await next.click()
-        await expect(partLabel).toHaveText('Part 2 of 3')
+        await expect(partLabel).toHaveText('Part 2 of 4')
         await expect(page.getByTestId('books-setup-ownership-corporation')).toHaveClass(
             /border-primary/
         )
         await next.click()
+
+        // The costing part asks FIFO or average cost. The database is shared: when a spec
+        // on another worker has posted the first inventory transaction, the part shows the
+        // locked method as text instead. The test picks no method, so the finish below
+        // saves the method the book already has (the unit test of useBooksSetup pins that a
+        // locked method is never written).
+        await expect(partLabel).toHaveText('Part 3 of 4')
+        const costing = page.getByTestId('books-setup-costing')
+        await expect(costing).toContainText('How do you cost your inventory?')
+        const cards = page.getByTestId('books-setup-costing-fifo')
+        const locked = page.getByTestId('books-setup-costing-locked')
+        await expect(cards.or(locked)).toBeVisible()
+        // Another worker can post the first inventory transaction between the read of the
+        // branch and its checks; the block then runs again on the other branch.
+        await expect(async () => {
+            if (await cards.isVisible()) {
+                await expect(page.getByTestId('books-setup-costing-average')).toBeVisible({
+                    timeout: 1_000,
+                })
+                await expect(costing.getByRole('radio')).toHaveCount(2, { timeout: 1_000 })
+            } else {
+                await expect(locked).toContainText(
+                    /^(FIFO \(first in, first out\)|Average cost)\s*The costing method cannot change after the first inventory transaction posts\.$/,
+                    { timeout: 1_000 }
+                )
+            }
+            // A bound, so a real defect reports its assertion, not the test timeout.
+        }).toPass({ timeout: 10_000 })
+        await next.click()
         await expect(page.getByTestId('books-setup-populated')).toBeVisible()
-        await expect(partLabel).toHaveText('Part 3 of 3')
+        await expect(partLabel).toHaveText('Part 4 of 4')
 
         await page.setViewportSize(PHONE)
         await back.click()
-        await expect(partLabel).toHaveText('Part 2 of 3')
+        await expect(partLabel).toHaveText('Part 3 of 4')
+        await expect(costing).toBeVisible()
+        await back.click()
+        await expect(partLabel).toHaveText('Part 2 of 4')
         await expect(page.getByTestId('books-setup-ownership-corporation')).toHaveClass(
             /border-primary/
         )
+        await next.click()
+        await expect(costing).toBeVisible()
         await next.click()
         await expect(page.getByTestId('books-setup-populated')).toBeVisible()
 

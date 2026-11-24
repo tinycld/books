@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
     entryActions,
+    entryChangeNote,
     newEntryVisible,
     voidsFromDocument,
 } from '../tinycld/books/lib/entry-actions'
@@ -164,6 +165,31 @@ describe('entryActions for a write-off entry', () => {
 
     it('gives a reader open only on a write-off entry', () => {
         expect(entryActions(postedWriteOffEntry, reader)).toEqual(['open'])
+    })
+})
+
+// Books makes an inventory adjustment's entry itself (an item's opening stock, a
+// re-cost): it has no form and no void, and changes only with its item or document.
+describe('entryActions for an inventory adjustment entry', () => {
+    const adjustmentEntry = {
+        ...posted,
+        origin: 'document',
+        doc_type: 'inventory_adjustment',
+    } as const
+
+    it('gives a writer open only, never edit, reverse or void', () => {
+        expect(entryActions(adjustmentEntry, writer)).toEqual(['open'])
+    })
+
+    it('says the entry changes with its item or document', () => {
+        expect(entryChangeNote(adjustmentEntry)).toBe(
+            'Books posts this entry for an inventory item. It changes only when the opening stock of the item or the document it re-costs changes.'
+        )
+    })
+
+    it('has no note for an entry a person edits', () => {
+        expect(entryChangeNote(posted)).toBeNull()
+        expect(entryChangeNote({ doc_type: 'invoice' })).toBeNull()
     })
 })
 

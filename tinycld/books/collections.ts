@@ -343,8 +343,18 @@ export function registerCollections(
     // No relations: the list loads one page of products at a time; a bundle's
     // rows, the product picker and the account pickers read their own
     // collections. The guard sets name_key and sort_key, and the server stamps currency.
+    // The costing replay writes quantity_on_hand and stock_value; the product form writes
+    // the other inventory columns.
     const books_products = newCollection('books_products', {
-        omitOnInsert: ['created', 'updated', 'name_key', 'sort_key', 'currency'] as const,
+        omitOnInsert: [
+            'created',
+            'updated',
+            'name_key',
+            'sort_key',
+            'currency',
+            'quantity_on_hand',
+            'stock_value',
+        ] as const,
         ...onDemand,
         collectionOptions: indexed,
     })
@@ -1059,8 +1069,55 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // Written by the server's costing replay (ADR 3); clients only read them. No
+    // relations: a report or a product page reads the product from its own collection.
+    const books_stock_moves = newCollection('books_stock_moves', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    const books_stock_layers = newCollection('books_stock_layers', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // The server numbers an adjustment and fills its entry and stamps when it posts, and
+    // names the document a re-cost belongs to. No relations: the form reads its lines,
+    // the products and the accounts from their own collections.
+    const books_inventory_adjustments = newCollection('books_inventory_adjustments', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'number',
+            'sequence',
+            'source',
+            'document',
+            'currency',
+            'entry',
+            'posted_by',
+            'posted_at',
+            'voided_by',
+            'voided_at',
+            'sort_key',
+        ] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    const books_inventory_adjustment_lines = newCollection('books_inventory_adjustment_lines', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
     return {
         books_sidebar_shortcuts,
+        books_stock_moves,
+        books_stock_layers,
+        books_inventory_adjustments,
+        books_inventory_adjustment_lines,
         books_accounts,
         books_bank_connections,
         books_bank_files,

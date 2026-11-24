@@ -12,6 +12,7 @@ export type DefaultAccount = Pick<
 const INCOME_DETAIL: Record<ProductType, string | null> = {
     service: 'service_income',
     non_inventory: 'product_sales',
+    inventory: 'product_sales',
     bundle: null,
 }
 
@@ -51,19 +52,38 @@ export function defaultExpenseAccount(accounts: readonly DefaultAccount[]): stri
 }
 
 /**
- * The create form's first values for a new product of `type`. A Non-inventory item
- * starts taxable; a Service and a bundle do not.
+ * A new Inventory item's asset account: the first active Other current asset account
+ * with the detail type Inventory, else none. With none, the server gives the item the
+ * chart's Inventory asset account at the save, and makes that account when the chart
+ * has none.
+ */
+export function defaultAssetAccount(accounts: readonly DefaultAccount[]): string {
+    const match = activeInChartOrder(accounts).find(
+        account => account.type === 'other_current_asset' && account.detail_type === 'inventory'
+    )
+    return match?.id ?? ''
+}
+
+// The types whose new product starts taxable: goods, not work.
+const TAXABLE_TYPES: ReadonlySet<ProductType> = new Set(['non_inventory', 'inventory'])
+
+/**
+ * The create form's first values for a new product of `type`. A Non-inventory item and
+ * an Inventory item start taxable; a Service and a bundle do not. An Inventory item is
+ * always purchased, so its purchase fields show from the start.
  */
 export function newProductValues(
     type: ProductType,
     accounts: readonly DefaultAccount[]
 ): Required<ProductColumns> {
     if (type === 'bundle') return { ...EMPTY_PRODUCT_FIELDS, type }
-    return {
+    const values = {
         ...EMPTY_PRODUCT_FIELDS,
         type,
         income_account: defaultIncomeAccount(accounts, type),
         expense_account: defaultExpenseAccount(accounts),
-        taxable: type === 'non_inventory',
+        taxable: TAXABLE_TYPES.has(type),
     }
+    if (type !== 'inventory') return values
+    return { ...values, purchases: true, asset_account: defaultAssetAccount(accounts) }
 }

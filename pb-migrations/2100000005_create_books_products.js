@@ -67,7 +67,7 @@ migrate(
                     type: 'select',
                     required: true,
                     maxSelect: 1,
-                    values: ['service', 'non_inventory', 'bundle'],
+                    values: ['service', 'non_inventory', 'inventory', 'bundle'],
                 },
                 { name: 'name', type: 'text', required: true, max: 200 },
                 { name: 'sku', type: 'text', max: 100 },

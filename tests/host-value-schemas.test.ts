@@ -3,6 +3,7 @@ import { EMPTY_ADDRESS } from '../tinycld/books/lib/address'
 import {
     contactValueSchema,
     PHONE_MAX_LENGTH,
+    quantityTextSchema,
     selectValueSchema,
     shippingValueSchema,
 } from '../tinycld/books/lib/host-value-schemas'
@@ -34,6 +35,20 @@ describe('selectValueSchema', () => {
 
     it('refuses a value that is not a string', () => {
         expect(selectValueSchema.safeParse({ value: 3 }).success).toBe(false)
+    })
+})
+
+// The quantity input keeps any typed text: QUANTITY_VALUE_SCHEMA (lib/quantity-input.ts)
+// holds the quantity's rules and the engine shows them in the cell.
+describe('quantityTextSchema', () => {
+    it('accepts any typed text', () => {
+        for (const text of ['', '12', '1,250', '1.', 'abc']) {
+            expect(quantityTextSchema.safeParse({ text }).success).toBe(true)
+        }
+    })
+
+    it('refuses a value that is not text', () => {
+        expect(quantityTextSchema.safeParse({ text: 12 }).success).toBe(false)
     })
 })
 

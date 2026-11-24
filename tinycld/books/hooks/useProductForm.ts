@@ -13,7 +13,7 @@ import {
     productColumnsFor,
 } from '../lib/product-columns'
 import { productTitle } from '../lib/product-display'
-import { productDefinitionFor } from '../lib/product-form'
+import { productDefinitionFor, productHostFor } from '../lib/product-form'
 import { bundlePartialMessage, PRODUCT_SAVE_TEXTS } from '../lib/product-messages'
 import { isProductType, type ProductType } from '../lib/product-types'
 import { refusalMessage } from '../lib/record-refusals'
@@ -59,9 +59,10 @@ export function useProductForm(target: ProductFormTarget): RecordChildState {
     const [productsCollection, itemsCollection] = useStore('books_products', 'books_bundle_items')
     const stored = base.definition
     const definition = useMemo(
-        () => (stored ? productDefinitionFor(stored, type, base.host) : undefined),
-        [stored, type, base.host]
+        () => (stored ? productDefinitionFor(stored, type, base.host, target.mode) : undefined),
+        [stored, type, base.host, target.mode]
     )
+    const host = useMemo(() => productHostFor(base.host, type), [base.host, type])
     const saver = useRecordSave(
         {
             columnsFrom: columns => productColumnsFor(type, columns),
@@ -105,7 +106,7 @@ export function useProductForm(target: ProductFormTarget): RecordChildState {
             edit: base.edit,
             recordId: record?.id ?? '',
             leave: navigation.leave,
-            host: base.host,
+            host,
             context: base.context,
             definition,
         }
@@ -113,6 +114,7 @@ export function useProductForm(target: ProductFormTarget): RecordChildState {
     return {
         ...base,
         ...saver,
+        host,
         definition,
         title: productTitle(type, { mode: target.mode, canWrite: base.canWrite }),
     }

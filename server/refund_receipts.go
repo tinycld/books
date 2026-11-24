@@ -83,6 +83,9 @@ var refundReceiptKind = salesDocKind{
 	CustomerRequired:   false,
 	HasTax:             true,
 	Credit:             true,
+	Stock:              stockCustomerReturn,
+	ReturnOfField:      "sales_receipt",
+	ReturnOfCollection: "books_sales_receipts",
 	Msgs: salesDocMessages{
 		TotalNegative:    msgRefundTotalNegative,
 		TotalTooLarge:    msgRefundTotalTooLarge,

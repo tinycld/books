@@ -4,12 +4,13 @@ import type { TableRow } from '@tinycld/core/lib/forms/values'
 import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useThemeColor } from '@tinycld/core/lib/use-app-theme'
+import { useRecord } from '@tinycld/core/lib/use-record'
 import { iosInputCenteringStyle } from '@tinycld/core/ui/form/ios-input-style'
 import { TABLE_INPUT_TEXT_INSET } from '@tinycld/core/ui/forms/fields/table-layout'
 import { Switch } from '@tinycld/core/ui/switch'
 import { newRecordId } from 'pbtsdb/core'
 import { type ReactNode, useState } from 'react'
-import { useFormContext, useFormState } from 'react-hook-form'
+import { useFormContext, useFormState, useWatch } from 'react-hook-form'
 import {
     Platform,
     TextInput as RNTextInput,
@@ -37,6 +38,8 @@ import { DOCUMENT_FOOTER_ROW, DOCUMENT_FOOTER_SPANS } from '../lib/document-foot
 import type { LineAmountView } from '../lib/document-tax'
 import { isTableRow, textOf } from '../lib/form-values'
 import { moneyInputCents, moneyInputText } from '../lib/money-input'
+import { SALE_ITEM_TYPES, SALE_PERCENT_TYPES } from '../lib/product-picker-types'
+import { quantitySold, STOCK_WARNING_KINDS, stockWarning } from '../lib/stock-warning'
 import type { BooksProducts } from '../types'
 
 // A sales document host's line cells. Core draws each one inside the table's cell (the
@@ -52,9 +55,6 @@ export const AMOUNT_TEXT_STYLE = {
     minWidth: AMOUNT_COLUMN_WIDTH,
     paddingRight: TABLE_INPUT_TEXT_INSET,
 }
-
-const ITEM_TYPES: readonly BooksProducts['type'][] = ['service', 'non_inventory', 'bundle']
-const PERCENT_TYPES: readonly BooksProducts['type'][] = ['service', 'non_inventory']
 
 // Typed text keeps the keyboard's punctuation on native (a minus sign, a decimal point).
 const NUMBER_KEYBOARD = Platform.OS === 'web' ? 'default' : 'numbers-and-punctuation'
@@ -228,15 +228,50 @@ function BundleMessage({ message }: { message: string | null }) {
 }
 
 /**
- * Product or service: active Service, Non-inventory and Bundle products on an Item line,
- * Service and Non-inventory on a Percent line. A pick fills the line's other cells and
+ * The negative-stock warning of an Item line of an invoice or a sales receipt: the lines
+ * of the table sell more of the line's Inventory item than its quantity on hand. It is a
+ * note, not an error: Post stays allowed. The component watches the table and reads the
+ * product itself, so a typed quantity re-renders this text and not the picker above it.
+ */
+function StockWarning({
+    fieldKey,
+    productId,
+    table,
+}: {
+    fieldKey: string
+    productId: string
+    table: TableCellContext | undefined
+}) {
+    const [productsCollection] = useStore('books_products')
+    const { kind, replacesPosted } = useDocumentFormScope()
+    const sells = STOCK_WARNING_KINDS.includes(kind.key) && table?.rowKind === 'item'
+    const { record } = useRecord(productsCollection, sells ? productId : '')
+    const rows: unknown = useWatch({ name: fieldKey })
+    // The lines the form opened with: on a correction, what the replaced document took.
+    const { defaultValues } = useFormState()
+    const held = replacesPosted ? quantitySold(defaultValues?.[fieldKey], productId) : 0
+    const message = sells ? stockWarning(record, quantitySold(rows, productId), held) : null
+    if (!message) return null
+    return (
+        <Text
+            testID={cellTestId(fieldKey, table, 'stock-warning')}
+            className="mt-1 text-xs text-warning"
+        >
+            {message}
+        </Text>
+    )
+}
+
+/**
+ * Product or service: active Service, Non-inventory, Inventory and Bundle products on an
+ * Item line, Service and Non-inventory on a Percent line. A pick fills the line's other cells and
  * moves focus to the line's next cell; a bundle expands into its items (useBundlePick).
  */
 export function LineProductCell(props: BuiltinFieldProps) {
     const { fieldKey, label, value, disabled, table } = props
     const [bundleMessage, setBundleMessage] = useState<string | null>(null)
     const pick = useProductPick(props, setBundleMessage)
-    const types = table?.rowKind === 'percent' ? PERCENT_TYPES : ITEM_TYPES
+    const types = table?.rowKind === 'percent' ? SALE_PERCENT_TYPES : SALE_ITEM_TYPES
     const onPick = (id: string) => {
         void pick(id)
     }
@@ -254,6 +289,7 @@ export function LineProductCell(props: BuiltinFieldProps) {
                 onBlur={table?.noteBlur}
             />
             <BundleMessage message={bundleMessage} />
+            <StockWarning fieldKey={fieldKey} productId={textOf(value)} table={table} />
         </View>
     )
 }

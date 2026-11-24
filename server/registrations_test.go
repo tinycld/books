@@ -49,6 +49,10 @@ var serverOnly = map[string]bool{
 	"books_bank_match_lines": true,
 	// one row for each press; the reconciliation is audited
 	"books_reconciliation_lines": true,
+	// The stock moves and the cost layers are written by the costing replay
+	// from the audited documents and inventory adjustments (ADR 3).
+	"books_stock_moves":  true,
+	"books_stock_layers": true,
 }
 
 // personalOnly are the collections that hold one user's own screen arrangement.
@@ -999,6 +1003,7 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 	registerVendorRefundGuards(parts)
 	registerWriteOffGuards(parts)
 	registerDepositGuards(parts)
+	registerInventoryAdjustmentGuards(parts)
 	registerEstimateResponses(parts)
 	registerAudit(&pocketbase.PocketBase{App: parts})
 	registerSearchIndex(&pocketbase.PocketBase{App: parts})

@@ -40,7 +40,9 @@ const HARBORVIEW = customerName(CUSTOMER_IDS.harborview)
 const ACCESS_POINT = productName(PRODUCT_IDS.accessPoint)
 const CHECKING = '1000 Business Checking'
 const SAVINGS = '1010 Business Savings'
-const BALANCE = /^Balance \$[\d,]+\.\d{2}$/
+// Specs of other files pay from the same bank accounts in the shared database, so a
+// balance may be below zero when this file runs; a minus is "-" or "−" (U+2212).
+const BALANCE = /^Balance [-−]?\$[\d,]+\.\d{2}$/
 
 async function openBooks(page: Page) {
     await login(page)

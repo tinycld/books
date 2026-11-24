@@ -6,6 +6,7 @@ import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import type { PressableInstance } from 'react-native'
 import { type LiveRecovery, mergeRecoveries } from '../../lib/live-recovery'
 import { PRODUCT_PICKER_LIMIT, productPickerOptions } from '../../lib/product-list'
+import { BUNDLE_ITEM_TYPES } from '../../lib/product-picker-types'
 import {
     PURCHASE_PRODUCT_EMPTY_TEXT,
     purchaseProductOptions,
@@ -20,9 +21,6 @@ type ProductType = BooksProducts['type']
 // active product of the types; a purchase (a bill line) only those with "I purchase
 // this" on.
 export type ProductPickerPurpose = 'sales' | 'purchases'
-
-// The types a bundle item may hold: today's picker.
-const BUNDLE_ITEM_TYPES: readonly ProductType[] = ['service', 'non_inventory']
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 
@@ -138,11 +136,11 @@ function triggerSuffixOf(
 }
 
 /**
- * A searchable menu of active products of `types` (default Service and Non-inventory,
- * the bundle items' picker), 50 at a time, searched by name or SKU. With `purpose`
- * 'purchases' (a bill line) it lists only products with "I purchase this" on. The
- * trigger names the chosen product, with "(inactive)" when it was made inactive after it
- * was chosen, and on a purchase "(not purchased)" when "I purchase this" was turned off.
+ * A searchable menu of active products of `types` (default Service, Non-inventory and
+ * Inventory, the bundle items' picker), 50 at a time, searched by name or SKU. With `purpose`
+ * 'purchases' (a bill line) it lists only products with "I purchase this" on. The trigger
+ * names the chosen product, with "(inactive)" when it was made inactive after it was
+ * chosen, and on a purchase "(not purchased)" when "I purchase this" was turned off.
  */
 export function ProductPicker({
     purpose = 'sales',

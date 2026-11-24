@@ -12,6 +12,7 @@ import { SearchPicker, useSearchPicker } from '../components/SearchPicker'
 import { useFormAccounts } from '../hooks/useFormAccounts'
 import { textOf } from '../lib/form-values'
 import { centsToText } from '../lib/money-text'
+import { PURCHASE_ITEM_TYPES } from '../lib/product-picker-types'
 import {
     PURCHASE_ACCOUNT_EMPTY_TEXT,
     type PurchaseAccountOption,
@@ -240,6 +241,7 @@ export function LinePurchaseProductCell(props: BuiltinFieldProps) {
     return (
         <ProductPicker
             purpose="purchases"
+            types={PURCHASE_ITEM_TYPES}
             value={id}
             onChange={onPick}
             disabled={disabled}

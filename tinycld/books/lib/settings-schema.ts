@@ -1,5 +1,6 @@
 import { z } from '@tinycld/core/ui/form'
 import type { BooksDocSequences, BooksSettings } from '../types'
+import { COSTING_METHOD_KEYS, costingMethodOf } from './costing-method'
 import { LASTS_FOR_OPTIONS, type LastsFor } from './overrides'
 import { isIsoDay } from './register-range'
 
@@ -102,6 +103,17 @@ export type PurchaseLinesValues = z.infer<typeof purchaseLinesSchema>
 
 export function purchaseLinesValues(row: BooksSettings): PurchaseLinesValues {
     return { purchase_lines: row.purchase_lines }
+}
+
+// The costing method (books design, "Inventory"): FIFO or average cost.
+export const costingMethodSchema = z.object({
+    costing_method: z.enum(COSTING_METHOD_KEYS),
+})
+
+export type CostingMethodValues = z.infer<typeof costingMethodSchema>
+
+export function costingMethodValues(row: BooksSettings): CostingMethodValues {
+    return { costing_method: costingMethodOf(row) }
 }
 
 // The books_settings `default_customer_message` max, in code points as the server counts

@@ -8,6 +8,7 @@
 import type { SearchPickerOption } from '../components/SearchPicker'
 import type { BooksAccounts, BooksProducts, BooksVendors } from '../types'
 import { accountOptionList } from './account-options'
+import { PURCHASE_ITEM_TYPES } from './product-picker-types'
 import { PURCHASE_ACCOUNT_TYPES } from './purchase-line-columns'
 
 export const PURCHASE_ACCOUNT_EMPTY_TEXT = 'No expense accounts'
@@ -64,7 +65,7 @@ export function purchaseAccountOptions(
 
 type PurchaseProductRow = Pick<BooksProducts, 'id' | 'name' | 'type' | 'inactive' | 'purchases'>
 
-const PURCHASE_PRODUCT_TYPES: ReadonlySet<string> = new Set(['service', 'non_inventory'])
+const PURCHASE_PRODUCT_TYPES: ReadonlySet<string> = new Set(PURCHASE_ITEM_TYPES)
 
 function isPurchasable(product: PurchaseProductRow): boolean {
     return !product.inactive && product.purchases && PURCHASE_PRODUCT_TYPES.has(product.type)

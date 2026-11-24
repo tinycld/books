@@ -64,14 +64,15 @@ var productReferences = []productReference{
 	{collection: billLinesCollection, field: "product", distinct: "bill", message: productOnBillsMessage},
 	{collection: expenseLinesCollection, field: "product", distinct: "expense", message: productOnExpensesMessage},
 	{collection: vendorCreditLinesCollection, field: "product", distinct: "vendor_credit", message: productOnVendorCreditsMessage},
+	{collection: inventoryAdjustmentLinesCollection, field: "product", distinct: "adjustment", message: productOnAdjustmentsMessage},
 }
 
 // The delete refusals of a product on invoice lines, counted by invoice, on
 // sales receipt lines, counted by sales receipt, on credit memo lines, counted
 // by credit memo, on refund receipt lines, counted by refund receipt, on
 // estimate lines, counted by estimate, on bill lines, counted by bill, on
-// expense lines, counted by expense, and on vendor credit lines, counted by
-// vendor credit.
+// expense lines, counted by expense, on vendor credit lines, counted by
+// vendor credit, and on inventory adjustment lines, counted by adjustment.
 const (
 	msgProductOnOneVendorCredit  = "This product or service is on 1 vendor credit. Make it inactive instead."
 	msgProductOnVendorCredits    = "This product or service is on %d vendor credits. Make it inactive instead."
@@ -96,7 +97,16 @@ const (
 // write it allows; the delete hook counts the rows that name the product the
 // same way.
 func registerProductGuards(app core.App) {
-	bindSerializedGuard(app, "books_products", validateProduct)
+	bindSerializedGuardThen(app, "books_products", validateProduct, func(tx core.App, r *core.Record) error {
+		// A new item's opening stock posts after the item's own write: the
+		// adjustment's line and its stock moves name the item's row.
+		if !isInventoryProduct(r) || !openingChanged(nil, r) {
+			return nil
+		}
+		return syncOpeningStock(tx, r)
+	})
+	app.OnRecordCreateRequest("books_products").BindFunc(stampProductActor)
+	app.OnRecordUpdateRequest("books_products").BindFunc(stampProductActor)
 	bindSerializedGuard(app, "books_bundle_items", validateBundleItem)
 	app.OnRecordDelete("books_products").BindFunc(func(e *core.RecordEvent) error {
 		return serialized(e, func(tx core.App) error {
@@ -116,12 +126,30 @@ func validateProduct(app core.App, stored, r *core.Record) error {
 	kind := r.GetString("type")
 	if stored != nil {
 		was := stored.GetString("type")
+		// The Inventory checks come first: an item that turns into a bundle
+		// reads that it cannot change type, not that bundles are new only.
+		if was == "inventory" && kind != "inventory" {
+			return refuseField("type", msgInventoryTypeFixed)
+		}
+		if was != "inventory" && kind == "inventory" {
+			return refuseField("type", msgInventoryOnlyNew)
+		}
 		if was == "bundle" && kind != "bundle" {
 			return refuseField("type", msgBundleTypeFixed)
 		}
 		if was != "bundle" && kind == "bundle" {
 			return refuseField("type", msgBundleOnlyNew)
 		}
+	}
+	if err := checkStockTotalsKept(app, stored, r); err != nil {
+		return err
+	}
+	if kind == "inventory" {
+		if err := validateInventoryItem(app, stored, r); err != nil {
+			return err
+		}
+	} else if hasStockFields(r) {
+		return refuse(msgStockFieldsInventory)
 	}
 	if err := stampCurrency(app, r); err != nil {
 		return err
@@ -140,15 +168,36 @@ func validateProduct(app core.App, stored, r *core.Record) error {
 	// name_key belongs to the guard: it overwrites whatever the request sent.
 	key := nameKey(name)
 	r.Set("name_key", key)
-	if stored != nil && stored.GetString("name_key") == key {
+	if stored == nil || stored.GetString("name_key") != key {
+		taken, err := nameKeyTaken(app, "books_products", key, r.Id, nil)
+		if err != nil {
+			return fmt.Errorf("books: look up product names: %w", err)
+		}
+		if taken {
+			return refuseField("name", msgProductDuplicateName, name)
+		}
+	}
+	// Last, when nothing else refuses the write: a stored item's changed cost
+	// re-costs what it priced, and its changed opening stock posts (a new
+	// item's posts after its create). The store's own write of the item's
+	// totals does neither. The new cost is stored before the opening stock
+	// replays, so a write that changes both re-costs a document once.
+	if stored == nil || !isInventoryProduct(r) || hasTxMark(app, markStockWrite, r.Id) {
 		return nil
 	}
-	taken, err := nameKeyTaken(app, "books_products", key, r.Id, nil)
-	if err != nil {
-		return fmt.Errorf("books: look up product names: %w", err)
+	costChanged := stored.GetInt("cost") != r.GetInt("cost")
+	if costChanged {
+		if err := storeItemCost(app, stored, r); err != nil {
+			return err
+		}
 	}
-	if taken {
-		return refuseField("name", msgProductDuplicateName, name)
+	if openingChanged(stored, r) {
+		if err := syncOpeningStock(app, r); err != nil {
+			return err
+		}
+	}
+	if costChanged {
+		return recostForCost(app, r)
 	}
 	return nil
 }
@@ -364,6 +413,8 @@ func productTypeLabel(t string) string {
 		return "Non-inventory"
 	case "bundle":
 		return "Bundle"
+	case "inventory":
+		return "Inventory"
 	}
 	return ""
 }

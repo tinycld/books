@@ -145,7 +145,7 @@ describe('auditRecordHref', () => {
     })
 
     // Vendor refund spec §3.11: a vendor refund's lines are filed under their refund
-    // (parent_type books_vendor_refunds, parent_id the refund id: migration 2100000038's
+    // (parent_type books_vendor_refunds, parent_id the refund id: migration 2100000043's
     // LINES), so the history of a line is the refund's, and its Open is the refund's read
     // view; a refund's entry opens on its refund, and its void reversal as an entry.
     it('a vendor refund record, the refund id a line’s history is filed under, and its entry open books/vendor-refunds/<id>', () => {

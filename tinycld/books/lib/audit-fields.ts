@@ -135,7 +135,20 @@ export const DOC_TYPE = [
     { value: 'vendor_refund', label: 'Vendor refund' },
     { value: 'write_off', label: 'Write-off' },
     { value: 'deposit', label: 'Deposit' },
+    { value: 'inventory_adjustment', label: 'Inventory adjustment' },
     { value: 'statement', label: 'Statement' },
+]
+const COSTING_METHOD = [
+    { value: 'fifo', label: 'FIFO' },
+    { value: 'average', label: 'Average cost' },
+]
+const ADJUSTMENT_KIND = [
+    { value: 'manual', label: 'Adjustment' },
+    // A product's opening stock (ADR 3).
+    { value: 'opening', label: 'Opening stock' },
+    // The server posts one when a later or back-dated document changes what a
+    // posted document's stock cost (ADR 3).
+    { value: 'recost', label: 'Re-cost' },
 ]
 const SEND_DOC_TYPE = DOC_TYPE.filter(option => isSendDocType(option.value))
 const STATEMENT_TYPE = Object.entries(STATEMENT_TYPE_LABELS).map(([value, label]) => ({
@@ -590,6 +603,35 @@ const AUDIT_FIELD_MAPS = {
         position: internal('Position'),
         ...STAMPS,
     },
+    // The server fills number, sequence, currency, entry, the stamps and, on an
+    // adjustment it makes itself, source and document (the document it re-costs).
+    books_inventory_adjustments: {
+        status: select('Status', DOCUMENT_STATUS),
+        kind: select('Kind', ADJUSTMENT_KIND),
+        number: text('Number'),
+        sequence: text('Sequence'),
+        date: day('Adjustment date'),
+        account: relation('Adjustment account', 'books_accounts'),
+        memo: text('Memo'),
+        source: internal('Source collection'),
+        document: internal('Source document'),
+        currency: text('Currency'),
+        entry: relation('Journal entry', 'books_journal_entries'),
+        posted_at: datetime('Posted at'),
+        posted_by: relation('Posted by', 'users'),
+        voided_at: datetime('Voided at'),
+        voided_by: relation('Voided by', 'users'),
+        sort_key: internal('Sort key'),
+        ...STAMPS,
+    },
+    books_inventory_adjustment_lines: {
+        adjustment: relation('Inventory adjustment', 'books_inventory_adjustments'),
+        product: relation('Product or service', 'books_products'),
+        quantity: text('Quantity change'),
+        value: money('Value change'),
+        position: internal('Position'),
+        ...STAMPS,
+    },
     books_attachments: {
         bill: relation('Bill', 'books_bills'),
         expense: relation('Expense', 'books_expenses'),
@@ -721,6 +763,14 @@ const AUDIT_FIELD_MAPS = {
         purchase_description: text('Purchase description'),
         cost: money('Cost'),
         expense_account: relation('Expense account', 'books_accounts'),
+        asset_account: relation('Inventory asset account', 'books_accounts'),
+        preferred_vendor: relation('Preferred vendor', 'books_vendors'),
+        reorder_point: text('Reorder point'),
+        opening_quantity: text('Opening quantity'),
+        opening_value: money('Opening value'),
+        opening_date: day('Opening stock as of'),
+        quantity_on_hand: text('Quantity on hand'),
+        stock_value: money('Stock value'),
         inactive: bool('Inactive'),
         currency: text('Currency'),
         taxable: bool('Taxable'),
@@ -876,6 +926,8 @@ const AUDIT_FIELD_MAPS = {
         default_customer_message: text('Default customer message'),
         purchase_lines: select('Purchase lines', PURCHASE_LINES_OPTIONS),
         sales_deposit_account: relation('Sales deposit account', 'books_accounts'),
+        costing_method: select('Inventory costing method', COSTING_METHOD),
+        costing_locked: bool('Costing method locked'),
         ...STAMPS,
     },
     books_doc_sequences: {

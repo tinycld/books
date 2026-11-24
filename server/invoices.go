@@ -54,6 +54,7 @@ const docTypeInvoice = "invoice"
 var invoiceKind = salesDocKind{
 	DocType:            docTypeInvoice,
 	Lifecycle:          lifecyclePosting,
+	Stock:              stockSale,
 	Collection:         "books_invoices",
 	LinesCollection:    "books_invoice_lines",
 	TaxLinesCollection: "books_invoice_tax_lines",

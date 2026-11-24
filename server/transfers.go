@@ -67,6 +67,8 @@ func entryNouns(docType string) (noun, this, draft string) {
 		return "Vendor refund", "This vendor refund", "Draft vendor refund"
 	case docTypeDeposit:
 		return "Deposit", "This deposit", "Draft deposit"
+	case docTypeInventoryAdjustment:
+		return "Inventory adjustment", "This inventory adjustment", "Draft inventory adjustment"
 	case docTypeBillPayment:
 		// A bill payment has no draft: it is created posted (bill_payments.go).
 		return "Bill payment", "This bill payment", "Bill payment"

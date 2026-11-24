@@ -2,6 +2,7 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useForm, useWatch, z, zodResolver } from '@tinycld/core/ui/form'
 import { router } from 'expo-router'
 import { useRef, useState } from 'react'
+import { type CostingMethod, costingMethodOf } from '../lib/costing-method'
 import { accountCountLabel } from '../lib/setup-copy'
 import { type SetupValues, setupSchema } from '../lib/setup-schema'
 import { availableOnly, LIST_ENTRIES, SIDEBAR_ENTRIES } from '../lib/shell-nav'
@@ -26,7 +27,7 @@ function toSetupValues(values: SetupFormValues): SetupValues {
     return { ...values, fiscal_year_start_month: Number(values.fiscal_year_start_month) }
 }
 
-type Stage = 'business' | 'ownership' | 'chart' | 'creating' | 'done' | 'error'
+type Stage = 'business' | 'ownership' | 'costing' | 'chart' | 'creating' | 'done' | 'error'
 
 export type SetupPart = Stage | 'populated' | 'non-admin' | 'loading'
 
@@ -42,13 +43,17 @@ type ContinueAction = {
 const POSITION: Partial<Record<SetupPart, number>> = {
     business: 1,
     ownership: 2,
-    chart: 3,
-    creating: 3,
-    error: 3,
-    populated: 3,
+    costing: 3,
+    chart: 4,
+    creating: 4,
+    error: 4,
+    populated: 4,
 }
 
+const PART_COUNT = 4
+
 const DEFAULT_OWNERSHIP: Ownership = 'owners'
+const DEFAULT_COSTING_METHOD: CostingMethod = 'fifo'
 
 function useOpeningBalancesEntry() {
     return availableOnly([...SIDEBAR_ENTRIES, ...LIST_ENTRIES]).find(
@@ -71,6 +76,7 @@ export function useSetupParts(next?: () => void) {
               business_name: settings.business_name,
               fiscal_year_start_month: String(settings.fiscal_year_start_month),
               ownership: setup.ownership || DEFAULT_OWNERSHIP,
+              costing_method: costingMethodOf(settings),
           }
         : undefined
     const form = useForm<SetupFormValues>({
@@ -79,12 +85,14 @@ export function useSetupParts(next?: () => void) {
             business_name: '',
             fiscal_year_start_month: '1',
             ownership: DEFAULT_OWNERSHIP,
+            costing_method: DEFAULT_COSTING_METHOD,
         },
         // A half-done book comes back with its saved name; typed fields stay.
         values: saved,
         resetOptions: { keepDirtyValues: true },
     })
     const ownership = useWatch({ control: form.control, name: 'ownership' })
+    const costingMethod = useWatch({ control: form.control, name: 'costing_method' })
     const errors = form.formState.errors
 
     const stage: Stage = moved ?? (setup.isResuming ? 'chart' : 'business')
@@ -107,6 +115,10 @@ export function useSetupParts(next?: () => void) {
         }
         if (stage === 'ownership') {
             const isValid = await form.trigger('ownership')
+            if (isValid) goTo('costing')
+        }
+        if (stage === 'costing') {
+            const isValid = await form.trigger('costing_method')
             if (isValid) goTo('chart')
         }
     }
@@ -115,7 +127,8 @@ export function useSetupParts(next?: () => void) {
 
     const goBack = () => {
         if (!canGoBack) return
-        if (stage === 'chart') goTo('ownership')
+        if (stage === 'chart') goTo('costing')
+        if (stage === 'costing') goTo('ownership')
         if (stage === 'ownership') goTo('business')
     }
 
@@ -165,6 +178,9 @@ export function useSetupParts(next?: () => void) {
     const selectOwnership = (value: Ownership) =>
         form.setValue('ownership', value, { shouldDirty: true })
 
+    const selectCostingMethod = (value: CostingMethod) =>
+        form.setValue('costing_method', value, { shouldDirty: true })
+
     return {
         part,
         form,
@@ -172,6 +188,12 @@ export function useSetupParts(next?: () => void) {
         positionLabel: positionLabelOf(part),
         ownership,
         selectOwnership,
+        costingMethod,
+        selectCostingMethod,
+        // The method the book holds: what the locked part shows, whatever the form holds.
+        savedCostingMethod: saved?.costing_method ?? costingMethod,
+        // A book whose first inventory transaction has posted keeps its method.
+        isCostingLocked: !!settings?.costing_locked,
         groups: groupStarterChart(chart),
         chartCount: chart.length,
         accountCount: setup.accountCount,
@@ -202,7 +224,7 @@ export function useSetupParts(next?: () => void) {
 
 function positionLabelOf(part: SetupPart): string {
     const position = POSITION[part]
-    return position ? `Part ${position} of 3` : ''
+    return position ? `Part ${position} of ${PART_COUNT}` : ''
 }
 
 type PartInputs = {
@@ -235,6 +257,7 @@ function continueActionOf(
     const actions: Partial<Record<SetupPart, ContinueAction>> = {
         business: { label: 'Next', onPress: goNext, isDisabled: false, requiresServer: false },
         ownership: { label: 'Next', onPress: goNext, isDisabled: false, requiresServer: false },
+        costing: { label: 'Next', onPress: goNext, isDisabled: false, requiresServer: false },
         chart: {
             label: `Create ${accountCountLabel(chartCount)}`,
             onPress: create,

@@ -1,5 +1,6 @@
 import type { FormHostUi } from '@tinycld/core/lib/forms/host-ui'
 import { MONEY_VALUE_SCHEMA } from '../lib/money-input'
+import { QUANTITY_VALUE_SCHEMA } from '../lib/quantity-input'
 import { ExpenseAccountField, IncomeAccountField } from './account-fields'
 import { EmailField, PhoneField, PlainAddressField, WebsiteField } from './contact-fields'
 import { ParentCustomerField, ShippingAddressField } from './customer-fields'
@@ -30,6 +31,14 @@ import {
     EstimateStatusField,
     ExpirationDateField,
 } from './estimate-fields'
+import {
+    AssetAccountField,
+    CogsAccountField,
+    OpeningDateField,
+    PreferredVendorField,
+    QuantityField,
+    QuantityOnHandField,
+} from './inventory-fields'
 import { MoneyField } from './money-fields'
 import {
     DepositAccountField,
@@ -102,10 +111,17 @@ const ui: FormHostUi = {
         LinePurchaseProductCell,
         LineTypedAmountCell,
         LineItemAmountCell,
+        AssetAccountField,
+        CogsAccountField,
+        PreferredVendorField,
+        QuantityField,
+        QuantityOnHandField,
+        OpeningDateField,
     },
-    // The money input's rules run through the forms engine, at save and between saves,
-    // so a refused amount blocks the save and its message is the cell's inline text.
-    schemas: { MoneyField: MONEY_VALUE_SCHEMA },
+    // The money and quantity inputs' rules run through the forms engine, at save and
+    // between saves, so a refused value blocks the save and its message is the cell's
+    // inline text.
+    schemas: { MoneyField: MONEY_VALUE_SCHEMA, QuantityField: QUANTITY_VALUE_SCHEMA },
 }
 
 export default ui

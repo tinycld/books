@@ -96,7 +96,14 @@ type salesDocKind struct {
 	// figures negated; a vendor credit, the mirror of a bill, debits the total
 	// to DebitAccount and credits its expense accounts.
 	Credit bool
-	Msgs   salesDocMessages
+	// Stock is how the kind's item lines move the stock of an Inventory item
+	// (document_stock.go); "" is a kind that moves none.
+	Stock stockRole
+	// ReturnOfField is the field of a stockCustomerReturn kind's document that
+	// names the sale it returns (a credit memo's invoice), a row of
+	// ReturnOfCollection; "" is a kind with no such link.
+	ReturnOfField, ReturnOfCollection string
+	Msgs                              salesDocMessages
 	// CheckHeader runs the kind's own header guards on a draft write; stored
 	// is the row before an update, nil on a create.
 	CheckHeader func(tx core.App, stored, r *core.Record) error
@@ -150,6 +157,28 @@ type salesDocKind struct {
 	// (isCardPayment; documentPost.CardPayment); nil is false. Only expenseKind
 	// sets it.
 	CardPayment func(tx core.App, doc *core.Record) (bool, error)
+}
+
+// salesDocKinds is every kind, filled by init: a package-level var that names
+// the kind vars would make an initialization cycle with the kinds' hooks.
+var salesDocKinds []salesDocKind
+
+func init() {
+	salesDocKinds = []salesDocKind{
+		invoiceKind, salesReceiptKind, estimateKind, creditMemoKind,
+		refundReceiptKind, billKind, expenseKind, vendorCreditKind,
+	}
+}
+
+// salesDocKindOf is the kind whose header collection is collection. A new kind
+// is added to salesDocKinds.
+func salesDocKindOf(collection string) (salesDocKind, bool) {
+	for _, kind := range salesDocKinds {
+		if kind.Collection == collection {
+			return kind, true
+		}
+	}
+	return salesDocKind{}, false
 }
 
 // isEditableStatus reports whether a person may change a document in status
@@ -219,7 +248,7 @@ const (
 var documentDocTypes = map[string]bool{
 	docTypeInvoice: true, docTypeSalesReceipt: true, docTypeBill: true, docTypeExpense: true, docTypePayment: true,
 	docTypeBillPayment: true, docTypeCreditMemo: true, docTypeVendorCredit: true, docTypeVendorRefund: true,
-	docTypeRefundReceipt: true, docTypeWriteOff: true, docTypeDeposit: true,
+	docTypeRefundReceipt: true, docTypeWriteOff: true, docTypeDeposit: true, docTypeInventoryAdjustment: true,
 }
 
 // maxDocumentLines is the most lines one sales document holds; the client's
@@ -1027,7 +1056,7 @@ func validateSalesDocLine(tx core.App, kind salesDocKind, stored, r *core.Record
 		if err != nil {
 			return err
 		}
-		if err := checkLineCells(tx, kind, r, place); err != nil {
+		if err := checkLineCells(tx, kind, r, place, findAccount(tx)); err != nil {
 			return err
 		}
 		if err := checkLineProduct(tx, stored, r, place.String()); err != nil {
@@ -1048,7 +1077,7 @@ func validateSalesDocLine(tx core.App, kind salesDocKind, stored, r *core.Record
 	}
 	lines := withLine(others, r)
 	index := slices.IndexFunc(lines, func(l *core.Record) bool { return l.Id == r.Id })
-	if err := checkLineCells(tx, kind, r, lineRowPlace(kind, lines, r)); err != nil {
+	if err := checkLineCells(tx, kind, r, lineRowPlace(kind, lines, r), findAccount(tx)); err != nil {
 		return err
 	}
 	if err := checkLineProduct(tx, stored, r, lineRowLabel(kind, lines, r)); err != nil {
@@ -1113,9 +1142,9 @@ func compareLines(a, b *core.Record) int {
 // rate; a description or subtotal line has no product, rate or percent; a
 // purchase document's product line has no account; an account line has no
 // product, quantity or rate, and checkPurchaseAccountLine checks its account
-// (purchase_lines.go). A 0% percent line is
+// (purchase_lines.go), read through readAccount. A 0% percent line is
 // stored: refusing it is the client's rule.
-func checkLineCells(tx core.App, kind salesDocKind, r *core.Record, place linePlace) error {
+func checkLineCells(tx core.App, kind salesDocKind, r *core.Record, place linePlace, readAccount accountReader) error {
 	label, n := place.String(), place.n
 	table, err := lineTable(tx, kind, r.GetString("kind"))
 	if err != nil {
@@ -1152,7 +1181,7 @@ func checkLineCells(tx core.App, kind salesDocKind, r *core.Record, place linePl
 		if r.GetString("product") != "" || r.GetFloat("quantity") != 0 || r.GetInt("rate") != 0 {
 			return refuse(msgPurchaseAccountLineCells, label)
 		}
-		return checkPurchaseAccountLine(tx, r, n)
+		return checkPurchaseAccountLine(readAccount, r, n)
 	}
 	return nil
 }

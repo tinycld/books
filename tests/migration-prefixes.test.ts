@@ -26,12 +26,16 @@ import { describe, expect, it } from 'vitest'
 // view then at 2100000034, because they add indexes only and create no collection the
 // view reads; the bank deposits then moved the view above them. Email and share (plan
 // decisions 1 and 2): the document sends take 2100000034, the number the view left free,
-// and the view at 2100000038 reads them as a line collection, so they run before it.
+// and the audit view reads them as a line collection, so they run before it.
 // Reconcile spec §4 Schema: the reconciliations take the next free number at build time,
 // after the audit view, which reads none of their collections (books_reconciliations is
 // audited through the audit_logs rows the core audit writes, not through the view's LINES).
 // The number is not named here: the file is found by its suffix, so a rename to the next
-// free number before the unit merges changes no test.
+// free number before the unit merges changes no test. Inventory (ADR 3): the inventory
+// migration takes 2100000038, the number the view leaves, and the view moves to
+// 2100000043, the highest, because it reads the inventory adjustment lines. The
+// reconciliations, their report, the dashboard views and the sidebar shortcuts now run
+// before the view, which reads none of what they create.
 
 const MIGRATIONS_DIR = join(__dirname, '..', 'pb-migrations')
 
@@ -41,9 +45,12 @@ const MIGRATIONS = readdirSync(MIGRATIONS_DIR)
 
 // Bank deposit spec §4.1: the deposits take the next free number, 2100000037, because the
 // Expenses by Vendor indexes landed first at 2100000036. The view reads the deposits'
-// items and lines, so the audit view moves to 2100000038, the highest, after the bank
-// categorizations and the covering indexes too.
-const AUDIT = '2100000038_create_books_audit_log.js'
+// items and lines, so the audit view moves to the highest number, after the bank
+// categorizations and the covering indexes too. Inventory (ADR 3): the view moves again,
+// to 2100000043, after the inventory migration at 2100000038.
+const AUDIT = '2100000043_create_books_audit_log.js'
+
+const INVENTORY = '2100000038_create_books_inventory.js'
 
 const RECONCILE_SUFFIX = '_create_books_reconciliations.js'
 
@@ -70,7 +77,11 @@ const SHORTCUTS_SUFFIX = '_create_books_sidebar_shortcuts.js'
 
 const SHORTCUTS = MIGRATIONS.filter(file => file.endsWith(SHORTCUTS_SUFFIX))
 
-const AFTER_AUDIT: string[] = [...RECONCILE, ...REPORT, ...DASHBOARD, ...SHORTCUTS]
+// No migration runs after the audit view now: it is the highest.
+const AFTER_AUDIT: string[] = []
+
+// The migrations between the inventory migration and the audit view, in their order.
+const BEFORE_AUDIT: string[] = [...RECONCILE, ...REPORT, ...DASHBOARD, ...SHORTCUTS]
 
 function prefixOf(file: string): string {
     return file.split('_')[0] ?? file
@@ -112,7 +123,7 @@ describe('pb-migrations prefixes', () => {
         expect(shared).toEqual([])
     })
 
-    it('runs only the named later migrations after the audit log view', () => {
+    it('runs no migration after the audit log view, and only the named ones between the inventory migration and it', () => {
         expect(RECONCILE).toHaveLength(1)
         expect(REPORT).toHaveLength(1)
         expect(numberOf(REPORT[0])).toBeGreaterThan(numberOf(RECONCILE[0]))
@@ -122,12 +133,16 @@ describe('pb-migrations prefixes', () => {
         expect(numberOf(SHORTCUTS[0])).toBeGreaterThan(numberOf(DASHBOARD[0]))
         const afterAudit = MIGRATIONS.filter(file => numberOf(file) > numberOf(AUDIT))
         expect(afterAudit).toEqual(AFTER_AUDIT)
+        const afterInventory = MIGRATIONS.filter(
+            file => numberOf(file) > numberOf(INVENTORY) && numberOf(file) < numberOf(AUDIT)
+        )
+        expect(afterInventory).toEqual(BEFORE_AUDIT)
     })
 
-    it('runs the reconciliations after the audit log view, which reads none of their collections', () => {
+    it('runs the reconciliations before the audit log view, which reads none of their collections', () => {
         expect(RECONCILE).toHaveLength(1)
         const reconcile = RECONCILE[0] ?? ''
-        expect(numberOf(reconcile)).toBeGreaterThan(numberOf(AUDIT))
+        expect(numberOf(reconcile)).toBeLessThan(numberOf(AUDIT))
         const source = sourceOf(reconcile)
         const read = auditLineCollections().filter(collection =>
             source.includes(`name: '${collection}'`)
@@ -187,8 +202,8 @@ describe('pb-migrations prefixes', () => {
     // the audit view moved to 2100000032. A/P Aging spec §4.1: the payable items take
     // 2100000029. Statements spec §4.2 (Q21): the statements take 2100000033. Bank-deposit
     // spec: the deposits take 2100000037, and because the view reads their item and line
-    // rows, the audit view moves to 2100000038, the highest.
-    it('holds the vendor credits at 2100000023, the vendor refunds at 2100000024, the refund receipts at 2100000025, the vendor party balances at 2100000026, the write-offs at 2100000027, the receivable items at 2100000028, the payable items at 2100000029, the bank matches at 2100000030, the credit memo applications at 2100000031 and the statements at 2100000033, before the audit log at 2100000038', () => {
+    // rows, the audit view moves to the highest number.
+    it('holds the vendor credits at 2100000023, the vendor refunds at 2100000024, the refund receipts at 2100000025, the vendor party balances at 2100000026, the write-offs at 2100000027, the receivable items at 2100000028, the payable items at 2100000029, the bank matches at 2100000030, the credit memo applications at 2100000031 and the statements at 2100000033, before the audit log', () => {
         expect(MIGRATIONS).toContain('2100000023_create_books_vendor_credits.js')
         expect(MIGRATIONS).toContain('2100000024_create_books_vendor_refunds.js')
         expect(MIGRATIONS).toContain('2100000025_create_books_refund_receipts.js')
@@ -224,14 +239,15 @@ describe('pb-migrations prefixes', () => {
         expect(auditLineCollections()).toContain('books_credit_memo_applications')
     })
 
-    it('holds the covering indexes at 2100000036 and the deposits at 2100000037, before the audit log at 2100000038, which reads their items and lines', () => {
+    it('holds the covering indexes at 2100000036 and the deposits at 2100000037, before the audit log, which reads their items and lines', () => {
         expect(MIGRATIONS.filter(file => prefixOf(file) === '2100000036')).toEqual([
             '2100000036_index_books_lines_account_date_covering.js',
         ])
         expect(MIGRATIONS.filter(file => prefixOf(file) === '2100000037')).toEqual([
             '2100000037_create_books_deposits.js',
         ])
-        expect(MIGRATIONS.filter(file => prefixOf(file) === '2100000038')).toEqual([AUDIT])
+        expect(MIGRATIONS.filter(file => prefixOf(file) === '2100000043')).toEqual([AUDIT])
+        expect(MIGRATIONS).not.toContain('2100000038_create_books_audit_log.js')
         expect(MIGRATIONS).not.toContain('2100000034_create_books_audit_log.js')
         expect(MIGRATIONS).not.toContain('2100000037_create_books_audit_log.js')
         expect(numberOf(AUDIT)).toBeGreaterThan(numberOf('2100000037_create_books_deposits.js'))
@@ -241,10 +257,19 @@ describe('pb-migrations prefixes', () => {
         )
     })
 
+    // Inventory (ADR 3): the inventory migration takes 2100000038 and creates the
+    // adjustment lines the view reads, so the view runs after it.
+    it('holds the inventory migration at 2100000038, before the audit log, which reads the adjustment lines', () => {
+        expect(MIGRATIONS.filter(file => prefixOf(file) === '2100000038')).toEqual([INVENTORY])
+        expect(creatorsOf('books_inventory_adjustment_lines')).toEqual([INVENTORY])
+        expect(numberOf(INVENTORY)).toBeLessThan(numberOf(AUDIT))
+        expect(auditLineCollections()).toContain('books_inventory_adjustment_lines')
+    })
+
     // Email-share plan decision 1: the document sends take 2100000034, the number the
-    // audit view left free, and the view at 2100000038 reads them (plan decision 2), so
+    // audit view left free, and the view reads them (plan decision 2), so
     // the sends run before it.
-    it('holds the document sends at 2100000034, before the audit log at 2100000038, which reads them', () => {
+    it('holds the document sends at 2100000034, before the audit log, which reads them', () => {
         expect(MIGRATIONS.filter(file => prefixOf(file) === '2100000034')).toEqual([
             '2100000034_create_books_document_sends.js',
         ])

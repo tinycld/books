@@ -62,6 +62,10 @@ export type DocumentFormScope = {
     // that replaced the document's read view on the same screen (DocumentScreen
     // useOpensForm).
     focusesFirstField: boolean
+    // Whether the form corrects a posted document. That document's stock is already out of
+    // the quantity on hand of its items and comes back when the correction posts
+    // (lib/stock-warning.ts).
+    replacesPosted: boolean
 }
 
 export const DocumentFormContext = createContext<DocumentFormScope | null>(null)
@@ -91,6 +95,7 @@ const EMPTY_SCOPE: DocumentFormScope = {
     },
     hints: {},
     focusesFirstField: true,
+    replacesPosted: false,
 }
 
 export function useDocumentFormScope(): DocumentFormScope {

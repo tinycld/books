@@ -56,8 +56,30 @@ The date on or before which no Journal Entry may be posted, except by a user who
 _Avoid_: Period lock
 
 **Product/Service**:
-A thing the organization sells (Service, Non-inventory, or Bundle). Sets the income Account, default rate, and tax flag for an Invoice line.
+A thing the organization sells (Service, Non-inventory, Inventory, or Bundle). Sets the income Account, default rate, and tax flag for an Invoice line.
 _Avoid_: Item, SKU
+
+**Inventory Item**:
+A Product/Service of the type Inventory. Books counts its quantity on hand and holds what that stock cost in an inventory asset Account.
+_Avoid_: Stock item
+
+**Costing Method**:
+The rule that gives a removal of stock its cost: FIFO (the oldest Layer first) or average cost. One for the company; it locks when the first Stock Move is written.
+
+**Stock Move**:
+One line of a posted document that changes the quantity or the value of an Inventory Item's stock. The server writes it; no person does.
+_Avoid_: Inventory transaction
+
+**Layer**:
+Stock still on hand, with what it cost. FIFO keeps one Layer for each stock-in; average cost keeps one for each Inventory Item.
+_Avoid_: Lot, batch
+
+**Inventory Adjustment**:
+A document that changes the quantity, the value, or both, of Inventory Items against an adjustment Account. Books posts two kinds itself: an opening adjustment (an item's opening stock) and a Re-cost.
+
+**Re-cost**:
+An Inventory Adjustment Books posts when a later or back-dated document changes what the stock of a posted document cost. It posts the difference; the posted Journal Entry does not change.
+_Avoid_: Reposting, revaluation entry
 
 **Sales Receipt**:
 A sale paid in full at the time it is made. Posts the sale and the payment together.

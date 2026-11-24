@@ -5,6 +5,7 @@ import { formatDay } from '../../lib/register-range'
 import { FISCAL_MONTHS } from '../../lib/setup-schema'
 import type { BooksSettings } from '../../types'
 import { CloseBooksBlock } from './CloseBooksBlock'
+import { CostingMethodForm } from './CostingMethodForm'
 import { FiscalYearForm } from './FiscalYearForm'
 import { OverridesPanel } from './OverridesPanel'
 import { ReadOnlyRow, SectionCard } from './SectionCard'
@@ -32,6 +33,9 @@ function AccountingReadOnly({ settings }: { settings: BooksSettings }) {
                 />
             </SectionCard>
             <OwnOverrideLine isVisible={closeDate !== ''} />
+            <SectionCard title="Inventory">
+                <CostingMethodForm settings={settings} isAdmin={false} />
+            </SectionCard>
         </View>
     )
 }
@@ -46,6 +50,9 @@ function AccountingForms({ settings }: { settings: BooksSettings }) {
                 </View>
             </SectionCard>
             <OverridesPanel settings={settings} />
+            <SectionCard title="Inventory">
+                <CostingMethodForm settings={settings} isAdmin />
+            </SectionCard>
         </View>
     )
 }

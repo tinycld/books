@@ -133,6 +133,25 @@ describe('deposit doc type', () => {
     })
 })
 
+// The seeded `inventory_adjustment` row (booksseqinvadjt) gets the "Inventory
+// adjustments" card; registers and the ledger read "Inventory adjustment" as its Type.
+describe('inventory adjustment doc type', () => {
+    it('names the Numbering card, previews the next number and labels the Type', () => {
+        expect(DOC_TYPES.inventory_adjustment).toEqual({
+            label: 'Inventory adjustments',
+            noun: 'inventory adjustment',
+        })
+        expect(DOC_TYPE_LABELS.inventory_adjustment).toBe('Inventory adjustment')
+        expect(docTypeLabel('inventory_adjustment')).toBe('Inventory adjustments')
+        expect(nextNumberPreview('inventory_adjustment', 'IA-', '1')).toBe(
+            'Next inventory adjustment: IA-1'
+        )
+        expect(sequenceHelper('inventory_adjustment')).toContain(
+            'applies to inventory adjustments posted from now on.'
+        )
+    })
+})
+
 // The seeded `statement` row (booksseqstatemt) gets the "Statements" card; a statement
 // takes its number when it is saved, as an estimate does (statements spec §3.1, §4.8).
 describe('statement doc type', () => {

@@ -28,6 +28,14 @@ const PURCHASE_LINES_SETTING = /: (bill|purchase) lines setting/
 // projects save the one shared books_settings row, so this one waits for the other.
 const COLLABORATOR_LEVEL = /\(collaborator level\)/
 
+// The costing method is one value of the shared books_settings row too. The inventory
+// test that changes it saves the row two times, the second to put the stored method back;
+// a books-settings.spec.ts setup wizard that finishes between the two saves writes the
+// method it read at open, and the second save finds nothing to save. So that test runs
+// here, on one worker, after the other setup projects (each saves the same row) and before
+// the rest.
+const COSTING_METHOD_SETTING = /: costing method setting/
+
 export default defineConfig({
     ...appConfig,
     testDir: TEST_DIR,
@@ -44,9 +52,19 @@ export default defineConfig({
             dependencies: ['purchase-lines-setting'],
         },
         {
+            name: 'costing-method-setting',
+            grep: COSTING_METHOD_SETTING,
+            workers: 1,
+            dependencies: ['books-access-level'],
+        },
+        {
             name: 'books',
-            grepInvert: [PURCHASE_LINES_SETTING, COLLABORATOR_LEVEL],
-            dependencies: ['purchase-lines-setting', 'books-access-level'],
+            grepInvert: [PURCHASE_LINES_SETTING, COLLABORATOR_LEVEL, COSTING_METHOD_SETTING],
+            dependencies: [
+                'purchase-lines-setting',
+                'books-access-level',
+                'costing-method-setting',
+            ],
         },
     ],
 })

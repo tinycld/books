@@ -87,7 +87,7 @@ export const insertAnswered = productHelpers.insertAnswered
 // `headerRowWidth` is not bound: it finds only a Name, Email, Phone header row. Specs
 // read `products-header`.
 
-type ChosenType = 'service' | 'non_inventory' | 'bundle'
+type ChosenType = 'service' | 'non_inventory' | 'inventory' | 'bundle'
 
 // From anywhere in Books to an empty New form of `type`, through the chooser.
 export async function openNewProduct(page: Page, type: ChosenType) {

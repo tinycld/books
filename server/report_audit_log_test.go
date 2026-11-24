@@ -554,6 +554,8 @@ var auditParentOf = map[string]string{
 	// spec §4.1).
 	"books_deposit_items": "books_deposits",
 	"books_deposit_lines": "books_deposits",
+	// An inventory adjustment's line opens its adjustment (ADR 3).
+	"books_inventory_adjustment_lines": "books_inventory_adjustments",
 	// A send opens the document it sent, by its doc_type (email-share plan
 	// decision 2); the fixture's send is of an invoice.
 	documentSendsCollection: "books_invoices",
@@ -664,6 +666,14 @@ func lineFixture(t *testing.T, app core.App, lines string) (parent, line *core.R
 		income := mkAccount(t, app, fmt.Sprintf("Interest earned %d", n), "other_income", "interest_earned")
 		parent = saveRecord(t, app, "books_deposits", map[string]any{"status": "draft", "date": "2026-11-16", "deposit_to": account.Id, "currency": "USD"})
 		line = saveRecord(t, app, lines, map[string]any{"deposit": parent.Id, "account": income.Id, "amount": 100, "position": 0})
+	case "books_inventory_adjustment_lines":
+		product := saveRecord(t, app, "books_products", map[string]any{
+			"type": "inventory", "name": fmt.Sprintf("Widget %d", n), "name_key": fmt.Sprintf("widget %d", n), "currency": "USD",
+		})
+		parent = saveRecord(t, app, "books_inventory_adjustments", map[string]any{
+			"status": "draft", "kind": "manual", "date": "2026-11-10", "account": account.Id, "currency": "USD",
+		})
+		line = saveRecord(t, app, lines, map[string]any{"adjustment": parent.Id, "product": product.Id, "quantity": "1", "value": 100, "position": 0})
 	default:
 		t.Fatalf("no fixture for %s", lines)
 	}

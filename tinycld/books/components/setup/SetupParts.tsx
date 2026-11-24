@@ -7,6 +7,11 @@ import type { ComponentType } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { SETTINGS_LABEL } from '../../hooks/useBooksSetup'
 import { useSetupParts } from '../../hooks/useSetupParts'
+import {
+    COSTING_METHOD_CHOICES,
+    COSTING_METHOD_LABELS,
+    COSTING_METHOD_LOCKED,
+} from '../../lib/costing-method'
 import { accountCountLabel, chartCountNote } from '../../lib/setup-copy'
 import { FISCAL_MONTHS } from '../../lib/setup-schema'
 import { OWNERSHIP_CHOICES } from '../../lib/starter-chart'
@@ -101,18 +106,18 @@ function BusinessPart({ parts }: { parts: Parts }) {
 }
 
 interface ChoiceCardProps {
-    value: string
+    testID: string
     label: string
     description: string
     isSelected: boolean
     onSelect: () => void
 }
 
-function ChoiceCard({ value, label, description, isSelected, onSelect }: ChoiceCardProps) {
+function ChoiceCard({ testID, label, description, isSelected, onSelect }: ChoiceCardProps) {
     const frame = isSelected ? 'border-primary bg-surface-secondary' : 'border-border bg-background'
     return (
         <Pressable
-            testID={`books-setup-ownership-${value}`}
+            testID={testID}
             accessibilityRole="radio"
             accessibilityState={{ checked: isSelected }}
             onPress={onSelect}
@@ -129,7 +134,7 @@ function OwnershipPart({ parts }: { parts: Parts }) {
     const cards = OWNERSHIP_CHOICES.map(choice => (
         <ChoiceCard
             key={choice.value}
-            value={choice.value}
+            testID={`books-setup-ownership-${choice.value}`}
             label={choice.title}
             description={choice.summary}
             isSelected={choice.value === parts.ownership}
@@ -146,6 +151,56 @@ function OwnershipPart({ parts }: { parts: Parts }) {
             <View className={direction} accessibilityRole="radiogroup">
                 {cards}
             </View>
+            <BackButton onPress={parts.goBack} isVisible={parts.canGoBack} />
+            <ContinueSlot action={parts.continueAction} />
+        </View>
+    )
+}
+
+function CostingChoices({ parts, isVisible }: { parts: Parts; isVisible: boolean }) {
+    const direction = useRowOnWide()
+    if (!isVisible) return null
+    const cards = COSTING_METHOD_CHOICES.map(choice => (
+        <ChoiceCard
+            key={choice.value}
+            testID={`books-setup-costing-${choice.value}`}
+            label={choice.title}
+            description={choice.summary}
+            isSelected={choice.value === parts.costingMethod}
+            onSelect={() => parts.selectCostingMethod(choice.value)}
+        />
+    ))
+    return (
+        <View className={direction} accessibilityRole="radiogroup">
+            {cards}
+        </View>
+    )
+}
+
+// The method of a book whose first inventory transaction has posted: text, with the
+// reason it cannot change.
+function CostingLocked({ parts, isVisible }: { parts: Parts; isVisible: boolean }) {
+    if (!isVisible) return null
+    return (
+        <View testID="books-setup-costing-locked" className="gap-1">
+            <Text className="text-base font-semibold text-foreground">
+                {COSTING_METHOD_LABELS[parts.savedCostingMethod]}
+            </Text>
+            <Text className="text-sm text-muted-foreground">{COSTING_METHOD_LOCKED}</Text>
+        </View>
+    )
+}
+
+function CostingPart({ parts }: { parts: Parts }) {
+    return (
+        <View className="gap-6" testID="books-setup-costing">
+            <Heading
+                parts={parts}
+                title="How do you cost your inventory?"
+                lead="This decides the cost of the goods you sell. You can change it in Settings until the first inventory transaction posts. If you sell no inventory, keep FIFO."
+            />
+            <CostingChoices parts={parts} isVisible={!parts.isCostingLocked} />
+            <CostingLocked parts={parts} isVisible={parts.isCostingLocked} />
             <BackButton onPress={parts.goBack} isVisible={parts.canGoBack} />
             <ContinueSlot action={parts.continueAction} />
         </View>
@@ -373,6 +428,7 @@ function LoadingPart({ parts }: { parts: Parts }) {
 const PART_VIEWS: Record<Parts['part'], ComponentType<{ parts: Parts }>> = {
     business: BusinessPart,
     ownership: OwnershipPart,
+    costing: CostingPart,
     chart: ChartPart,
     creating: CreatingPart,
     done: DonePart,

@@ -1,4 +1,5 @@
 import type { BooksProducts } from '../types'
+import { BUNDLE_KEEPS_TYPE, INVENTORY_KEEPS_TYPE } from './product-messages'
 
 // The migration's type select values (2100000005); tests/product-types.test.ts
 // fails if the two drift.
@@ -21,6 +22,13 @@ export const PRODUCT_TYPES = [
             'Goods you buy or sell without counting how many you have, such as parts used on a job.',
     },
     {
+        key: 'inventory',
+        label: 'Inventory',
+        noun: 'inventory item',
+        sentence:
+            'Goods you buy and sell and count: Books tracks how many you have and what they cost.',
+    },
+    {
         key: 'bundle',
         label: 'Bundle',
         noun: 'bundle',
@@ -28,7 +36,7 @@ export const PRODUCT_TYPES = [
     },
 ] as const satisfies readonly { key: ProductType; label: string; noun: string; sentence: string }[]
 
-export const PRODUCT_TYPE_KEYS = ['service', 'non_inventory', 'bundle'] as const
+export const PRODUCT_TYPE_KEYS = ['service', 'non_inventory', 'inventory', 'bundle'] as const
 
 const KEYS: ReadonlySet<unknown> = new Set(PRODUCT_TYPE_KEYS)
 
@@ -45,8 +53,32 @@ export function productTypeNoun(type: ProductType): string {
     return PRODUCT_TYPES.find(entry => entry.key === type)?.noun ?? ''
 }
 
-// A product never becomes a bundle after it is created (the server refuses
-// it), so the type field offers only Service and Non-inventory.
+// A product never becomes a bundle or an Inventory item after it is created (the
+// server refuses it), so the type field offers only Service and Non-inventory.
+type FixedType = Extract<ProductType, 'bundle' | 'inventory'>
+
+// Total over FixedType: a type added to the union without a note fails to compile.
+const FIXED_TYPE_NOTES: Record<FixedType, string> = {
+    bundle: BUNDLE_KEEPS_TYPE,
+    inventory: INVENTORY_KEEPS_TYPE,
+}
+
+function isFixedType(type: ProductType): type is FixedType {
+    return type in FIXED_TYPE_NOTES
+}
+
 export const PRODUCT_TYPE_SELECT_OPTIONS: { value: string; label: string }[] = PRODUCT_TYPES.filter(
-    entry => entry.key !== 'bundle'
+    entry => !isFixedType(entry.key)
 ).map(entry => ({ value: entry.key, label: entry.label }))
+
+// What the type field shows in place of the select for a type that never changes.
+export interface FixedProductType {
+    label: string
+    note: string
+}
+
+/** The fixed type of a form value: its label and note, or null for a type the select offers. */
+export function fixedProductType(value: unknown): FixedProductType | null {
+    if (!isProductType(value) || !isFixedType(value)) return null
+    return { label: productTypeLabel(value), note: FIXED_TYPE_NOTES[value] }
+}

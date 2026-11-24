@@ -62,7 +62,7 @@ describe('chosenProductType', () => {
     })
 
     it('is null for a value that is not a product type', () => {
-        expect(chosenProductType('inventory', true)).toBeNull()
+        expect(chosenProductType('subscription', true)).toBeNull()
     })
 
     it('is null when no type was passed', () => {

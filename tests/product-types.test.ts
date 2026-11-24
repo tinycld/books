@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+    fixedProductType,
     isProductType,
     PRODUCT_TYPE_KEYS,
     PRODUCT_TYPE_SELECT_OPTIONS,
@@ -38,6 +39,13 @@ describe('PRODUCT_TYPES', () => {
                     'Goods you buy or sell without counting how many you have, such as parts used on a job.',
             },
             {
+                key: 'inventory',
+                label: 'Inventory',
+                noun: 'inventory item',
+                sentence:
+                    'Goods you buy and sell and count: Books tracks how many you have and what they cost.',
+            },
+            {
                 key: 'bundle',
                 label: 'Bundle',
                 noun: 'bundle',
@@ -55,14 +63,14 @@ describe('PRODUCT_TYPES', () => {
 describe('productTypeLabel', () => {
     it('labels a known type and gives an unknown one no label', () => {
         expect(productTypeLabel('non_inventory')).toBe('Non-inventory')
-        expect(productTypeLabel('inventory')).toBe('')
+        expect(productTypeLabel('subscription')).toBe('')
     })
 })
 
 describe('isProductType', () => {
     it('accepts a product type and refuses anything else', () => {
         expect(isProductType('bundle')).toBe(true)
-        expect(isProductType('inventory')).toBe(false)
+        expect(isProductType('subscription')).toBe(false)
         expect(isProductType(3)).toBe(false)
     })
 })
@@ -75,12 +83,33 @@ describe('productTypeNoun', () => {
 
 describe('PRODUCT_TYPE_SELECT_OPTIONS', () => {
     // A product never becomes a bundle after it is created, so the type field
-    // offers only Service and Non-inventory.
+    // offers only Service and Non-inventory. An Inventory item is made as one and
+    // keeps its type (ADR 3).
     it('offers Service and Non-inventory only', () => {
         expect(PRODUCT_TYPE_SELECT_OPTIONS).toEqual([
             { value: 'service', label: 'Service' },
             { value: 'non_inventory', label: 'Non-inventory' },
         ])
+    })
+})
+
+describe('fixedProductType', () => {
+    it('gives a bundle and an Inventory item their label and the note that the type stays', () => {
+        expect(fixedProductType('bundle')).toEqual({
+            label: 'Bundle',
+            note: 'A bundle keeps its type.',
+        })
+        expect(fixedProductType('inventory')).toEqual({
+            label: 'Inventory',
+            note: 'An inventory item keeps its type.',
+        })
+    })
+
+    it('is null for a type the select offers and for a value that is no type', () => {
+        expect(fixedProductType('service')).toBeNull()
+        expect(fixedProductType('non_inventory')).toBeNull()
+        expect(fixedProductType(undefined)).toBeNull()
+        expect(fixedProductType('subscription')).toBeNull()
     })
 })
 

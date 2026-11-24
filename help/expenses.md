@@ -32,7 +32,7 @@ If the Payment method is Check and another expense from the same Paid from accou
 An expense has the same two tables of lines as a bill, with up to 250 lines in all:
 
 - Account details: account lines. Use an account line for a cost that is not a product you track, such as rent, utilities or a repair. Pick an expense or cost of goods account, type a description if you want one, and type the Amount. When you pick a vendor and the first account line has no account, Books puts the vendor's default expense account on it, if that account is active and is an expense or cost of goods account; otherwise the line stays empty.
-- Product and service details: product lines. Use a product line when you buy a product or service that you track. Only active products and services with "I purchase this" turned on are in the list. Books fills the description and the Rate from the product's purchase description and cost; you can change them. Books calculates the Amount as Qty × Rate, rounded to the cent. When you post, the amount goes to the product's expense account.
+- Product and service details: product lines. Use a product line when you buy a product or service that you track. Only active products and services with "I purchase this" turned on are in the list. Books fills the description and the Rate from the product's purchase description and cost; you can change them. Books calculates the Amount as Qty × Rate, rounded to the cent. When you post, the amount goes to the product's expense account. For an Inventory item, the amount goes to its inventory asset account; see [Inventory](help://books:inventory).
 
 To record a discount, add a negative account line, for example −25.00 on the account of the cost it reduces. The expense total cannot be below zero.
 

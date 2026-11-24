@@ -24,7 +24,7 @@ Each list has its own group of commands:
 - `tinycld books accounts`: the [chart of accounts](help://books:chart-of-accounts)
 - `tinycld books customers`: customers and sub-customers
 - `tinycld books vendors`: vendors
-- `tinycld books products`: products, services and bundles
+- `tinycld books products`: products, services, [Inventory items](help://books:inventory) and bundles. Books keeps the quantity on hand and the stock value of an Inventory item; you cannot set them
 - `tinycld books bundle-items`: the products inside a bundle
 - `tinycld books tax-agencies`: the agencies you pay [sales tax](help://books:sales-tax) to
 - `tinycld books tax-rates`: sales tax rates and groups
