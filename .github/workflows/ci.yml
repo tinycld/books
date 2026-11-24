@@ -66,10 +66,10 @@ jobs:
       # The Books server module commits no go.sum: every dependency resolves
       # through go.work replaces to local dirs, so its cache key is
       # server/go.mod. The CLI module (cli/) has real dependencies and commits
-      # cli/go.sum. The modules the install's schema generation and the Go steps download are
-      # core's graph, so the tinycld go.sum files join the key. Without a
-      # cache-dependency-path, setup-go looks for a go.sum at the repo root,
-      # finds none, and warns on every run.
+      # cli/go.sum. The modules the install's schema generation and the Go
+      # steps download are core's graph, so the tinycld go.sum files join the
+      # key. Without a cache-dependency-path, setup-go looks for a go.sum at
+      # the repo root, finds none, and warns on every run.
       - uses: actions/setup-go@v6
         with:
           go-version-file: ws/tinycld/core/server/go.mod
