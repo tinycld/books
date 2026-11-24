@@ -233,7 +233,29 @@ function fiscalYearStart(today: Date, startMonth: number): string {
     return isoDay(new Date(year, startMonth - 1, 1))
 }
 
+// Books declares terms (manifest.ts), so the app holds Books closed until the owner
+// accepts them. The seeded book is for use and for e2e, so the seeded owner accepts
+// the current version here, as the terms screen would. The version comes from the
+// registry, which the server's boot sync wrote from the manifest. A second seed run
+// finds the terms accepted and writes nothing.
+async function acceptSeedTerms(pb: PocketBase, ownerId: string): Promise<void> {
+    const registry = await pb
+        .collection('pkg_registry')
+        .getFirstListItem<{ terms_version: string; terms_accepted_version: string }>(
+            pb.filter('slug = {:slug}', { slug: 'books' })
+        )
+    if (registry.terms_version === '') return
+    if (registry.terms_accepted_version === registry.terms_version) return
+    await pb.collection('pkg_terms_decisions').create({
+        pkg: 'books',
+        terms_version: registry.terms_version,
+        decision: 'accepted',
+        user: ownerId,
+    })
+}
+
 export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<void> {
+    await acceptSeedTerms(pb, ctx.user.id)
     // The settings row is not seeded from the fixture: it holds fake user ids and
     // setup_completed: true, which would hide the setup card the setup e2e opens.
     // The settings row keeps setup_started and setup_completed false, so the seeded book (which already has accounts) shows the wizard's populated-book path.
