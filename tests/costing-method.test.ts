@@ -25,7 +25,7 @@ describe('costing method', () => {
 
     it("offers exactly the migration's methods", () => {
         const migration = read('../pb-migrations/2100000038_create_books_inventory.js')
-        const values = /name: 'costing_method'[^\n]*values: \[([^\]]*)\]/.exec(migration)?.[1]
+        const values = /name: 'costing_method'[^}]*?values: \[([^\]]*)\]/.exec(migration)?.[1]
         expect(values?.replaceAll("'", '').split(', ')).toEqual([...COSTING_METHOD_KEYS])
     })
 
