@@ -204,7 +204,7 @@ migrate(
                     ...AUTODATES,
                 ],
                 indexes: [
-                    'CREATE INDEX idx_books_stock_layers_product ON books_stock_layers (product, position)',
+                    'CREATE INDEX idx_books_stock_layers_product ON books_stock_layers (product, date, position)',
                     'CREATE INDEX idx_books_stock_layers_move ON books_stock_layers (move)',
                 ],
             })

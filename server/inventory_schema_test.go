@@ -67,6 +67,23 @@ func TestInventorySchema(t *testing.T) {
 	}
 }
 
+// The layer index holds the order every read of a product's layers sorts by
+// (stockLayerOrder), so the sort needs no step of its own.
+func TestInventorySchema_TheLayerIndexHoldsTheReadOrder(t *testing.T) {
+	app := newBooksApp(t)
+	col, err := app.FindCollectionByNameOrId(stockLayersCollection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stockLayerOrder != "date,position" {
+		t.Fatalf("stockLayerOrder is %q: change the index and this test with it", stockLayerOrder)
+	}
+	want := "CREATE INDEX idx_books_stock_layers_product ON books_stock_layers (product, date, position)"
+	if !slices.Contains(col.Indexes, want) {
+		t.Errorf("books_stock_layers indexes %q, want %q", col.Indexes, want)
+	}
+}
+
 // A stock move's seq orders the moves of one day; two moves never share one.
 func TestInventorySchema_AStockMoveSeqIsUnique(t *testing.T) {
 	env := newLedgerEnv(t)

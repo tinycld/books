@@ -70,9 +70,10 @@ func stockMovesSource() reports.Source {
 }
 
 // stockLayersSource is books_stock_layers: the stock on hand of each item by
-// the stock-in it came from, oldest first (date, then position: the seq of
-// the stock-in). Under the average cost
-// an item has one layer.
+// the stock-in it came from. position is the seq of the stock-in, labelled
+// "Order" as the moves source labels seq: like a move's, it orders the layers
+// of one day, so layers come oldest first by Date, then Order. Under the
+// average cost an item has one layer.
 func stockLayersSource() reports.Source {
 	return reports.Source{
 		Key: stockLayersKey, Collection: stockLayersCollection, Label: "Stock layers",
@@ -80,7 +81,7 @@ func stockLayersSource() reports.Source {
 			{Key: "date", Label: "Date", Type: reports.Date, TextDay: true, Aggregates: reports.MinMax},
 			{Key: "quantity", Label: "Quantity", Type: reports.Number, Aggregates: reports.SumAll},
 			{Key: "value", Label: "Value", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
-			{Key: "position", Label: "Position", Type: reports.Number},
+			{Key: "position", Label: "Order", Type: reports.Number},
 			{Key: "currency", Label: "Currency", Type: reports.Text},
 		},
 		Links: []reports.Link{

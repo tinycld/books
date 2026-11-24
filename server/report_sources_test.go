@@ -760,7 +760,7 @@ func expectedCatalog(t *testing.T) []wantSource {
 				{key: "date", typ: reports.Date, textDay: true, aggs: reports.MinMax},
 				{key: "quantity", typ: reports.Number, aggs: reports.SumAll},
 				money("value"),
-				{key: "position", typ: reports.Number},
+				{key: "position", typ: reports.Number, label: "Order"},
 				text("currency"),
 			},
 			links: []wantLink{
