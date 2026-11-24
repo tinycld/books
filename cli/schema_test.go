@@ -130,6 +130,11 @@ func TestSchemaOfEverything(t *testing.T) {
 	if got := flagNames(doc.Conventions.GlobalFlags); got != "--context --json --no-color --output --quiet --yes" {
 		t.Errorf("global flags = %s", got)
 	}
+	for _, f := range doc.Conventions.GlobalFlags {
+		if f.Help == "" {
+			t.Errorf("global flag %s has no help text", f.Name)
+		}
+	}
 	if doc.Conventions.Output == "" || doc.Conventions.Input == "" || doc.Conventions.Errors == "" {
 		t.Error("a convention text is empty")
 	}

@@ -190,6 +190,7 @@ func newSchemaCmd(books *cobra.Command) *cobra.Command {
 			for _, spec := range specs {
 				if spec.Command == want {
 					doc, found = spec, true
+					break
 				}
 			}
 			if !found {
