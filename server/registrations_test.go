@@ -1003,6 +1003,7 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 	registerVendorRefundGuards(parts)
 	registerWriteOffGuards(parts)
 	registerDepositGuards(parts)
+	registerInventoryAdjustmentGuards(parts)
 	registerEstimateResponses(parts)
 	registerAudit(&pocketbase.PocketBase{App: parts})
 	registerSearchIndex(&pocketbase.PocketBase{App: parts})
