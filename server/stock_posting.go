@@ -123,6 +123,7 @@ func postDocumentStock(tx core.App, actor, source, document, replaces string, mo
 		}
 	}
 	var products []string
+	var gone []*core.Record
 	for _, id := range []string{replaces, document} {
 		if id == "" {
 			continue
@@ -130,6 +131,11 @@ func postDocumentStock(tx core.App, actor, source, document, replaces string, mo
 		if err := voidRecosts(tx, actor, source, id); err != nil {
 			return nil, err
 		}
+		was, err := documentStockMoves(tx, source, id)
+		if err != nil {
+			return nil, err
+		}
+		gone = append(gone, was...)
 		removed, err := removeStockMoves(tx, source, id)
 		if err != nil {
 			return nil, err
@@ -137,6 +143,9 @@ func postDocumentStock(tx core.App, actor, source, document, replaces string, mo
 		products = appendMissing(products, removed...)
 	}
 	if err := addStockMoves(tx, moves); err != nil {
+		return nil, err
+	}
+	if err := repointStockReturns(tx, gone, source, document); err != nil {
 		return nil, err
 	}
 	for _, m := range moves {
@@ -171,14 +180,69 @@ func withdrawDocumentStock(tx core.App, actor, source, document string) error {
 	if err := voidRecosts(tx, actor, source, document); err != nil {
 		return err
 	}
+	gone, err := documentStockMoves(tx, source, document)
+	if err != nil {
+		return err
+	}
 	products, err := removeStockMoves(tx, source, document)
 	if err != nil || len(products) == 0 {
+		return err
+	}
+	// The returns of a voided sale name no sale: they come back at the last
+	// known cost.
+	if err := repointStockReturns(tx, gone, "", ""); err != nil {
 		return err
 	}
 	if err := recomputeStock(tx, products); err != nil {
 		return err
 	}
 	return recostDrifted(tx, actor, products)
+}
+
+// repointStockReturns keeps the returns of moves that are gone at their sale's
+// cost: a return (return_of) that names a gone move names instead the first
+// move of the same product on the document that takes their place (a
+// correction's), or no move when there is none, so that it comes back at the
+// last known cost. A return has the product of the move it names, so the
+// caller's replay of the gone moves' products prices it again. It reads the
+// returns of all gone moves, and the moves of the new document, once each.
+func repointStockReturns(tx core.App, gone []*core.Record, source, document string) error {
+	if len(gone) == 0 {
+		return nil
+	}
+	ids := make([]any, len(gone))
+	productOf := make(map[string]string, len(gone))
+	for i, old := range gone {
+		ids[i] = old.Id
+		productOf[old.Id] = old.GetString("product")
+	}
+	returns, err := tx.FindAllRecords(stockMovesCollection, dbx.In("return_of", ids...))
+	if err != nil {
+		return fmt.Errorf("books: read the returns of the stock moves: %w", err)
+	}
+	if len(returns) == 0 {
+		return nil
+	}
+	var now []*core.Record
+	if document != "" {
+		if now, err = documentStockMoves(tx, source, document); err != nil {
+			return err
+		}
+	}
+	for _, r := range returns {
+		product := productOf[r.GetString("return_of")]
+		to := ""
+		if i := slices.IndexFunc(now, func(m *core.Record) bool {
+			return m.GetString("product") == product
+		}); i >= 0 {
+			to = now[i].Id
+		}
+		r.Set("return_of", to)
+		if err := tx.Save(r); err != nil {
+			return fmt.Errorf("books: repoint a stock return: %w", err)
+		}
+	}
+	return nil
 }
 
 func appendMissing(list []string, ids ...string) []string {

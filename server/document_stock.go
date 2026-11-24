@@ -31,12 +31,45 @@ const stockReceipt stockRole = "receipt"
 // Cost of goods sold keeps the difference between the cost and the credit.
 const stockVendorReturn stockRole = "vendor_return"
 
+// stockCustomerReturn brings the line's quantity back in (a credit memo, a
+// refund receipt) at its original cost: the unit cost of the sale's move of
+// the same item on the document the return was made from (the kind's
+// ReturnOfField). A return made from no sale, or of an item that sale did not
+// move, comes back at the last known cost. The document's entry debits the
+// inventory asset account and credits cost of goods sold.
+const stockCustomerReturn stockRole = "customer_return"
+
+// soldMoves are the ids of the sale moves a return's lines come back at the
+// cost of, by product: the first move of each product on the sale that doc
+// names in the kind's ReturnOfField. A kind with no such field, and a document
+// that names no sale, answer an empty map.
+func soldMoves(tx core.App, kind salesDocKind, doc *core.Record) (map[string]string, error) {
+	sold := map[string]string{}
+	if kind.ReturnOfField == "" || doc.GetString(kind.ReturnOfField) == "" {
+		return sold, nil
+	}
+	moves, err := documentStockMoves(tx, kind.ReturnOfCollection, doc.GetString(kind.ReturnOfField))
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range moves {
+		if _, seen := sold[m.GetString("product")]; !seen {
+			sold[m.GetString("product")] = m.Id
+		}
+	}
+	return sold, nil
+}
+
 // documentStockInputs are the stock moves the stored lines of doc make, in the
 // lines' order: one for each item line whose product is an Inventory item.
 // totals holds the lines' amounts (totals.Amounts[i] is the amount of
 // lines[i]). A document with none answers nil.
 func documentStockInputs(tx core.App, kind salesDocKind, doc *core.Record, lines []*core.Record, totals documentTotalsResult) ([]stockMoveInput, error) {
 	products, err := lineProducts(tx, lines)
+	if err != nil {
+		return nil, err
+	}
+	sold, err := soldMoves(tx, kind, doc)
 	if err != nil {
 		return nil, err
 	}
@@ -71,6 +104,8 @@ func documentStockInputs(tx core.App, kind salesDocKind, doc *core.Record, lines
 			in.Kind, in.Qty, in.Given, in.Value = stockKindReceipt, qty, true, totals.Amounts[i]
 		case stockVendorReturn:
 			in.Kind, in.Qty = stockKindVendorReturn, -qty
+		case stockCustomerReturn:
+			in.Kind, in.Qty, in.ReturnOf = stockKindCustomerReturn, qty, sold[product.Id]
 		default:
 			return nil, fmt.Errorf("books: %s has no stock role %q", kind.DocType, kind.Stock)
 		}

@@ -71,6 +71,9 @@ var creditMemoKind = salesDocKind{
 	HasTax:             true,
 	TracksBalance:      true,
 	Credit:             true,
+	Stock:              stockCustomerReturn,
+	ReturnOfField:      "invoice",
+	ReturnOfCollection: "books_invoices",
 	Msgs: salesDocMessages{
 		TotalNegative:    msgCreditMemoTotalNegative,
 		TotalTooLarge:    msgCreditMemoTotalTooLarge,

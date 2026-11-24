@@ -99,7 +99,11 @@ type salesDocKind struct {
 	// Stock is how the kind's item lines move the stock of an Inventory item
 	// (document_stock.go); "" is a kind that moves none.
 	Stock stockRole
-	Msgs  salesDocMessages
+	// ReturnOfField is the field of a stockCustomerReturn kind's document that
+	// names the sale it returns (a credit memo's invoice), a row of
+	// ReturnOfCollection; "" is a kind with no such link.
+	ReturnOfField, ReturnOfCollection string
+	Msgs                              salesDocMessages
 	// CheckHeader runs the kind's own header guards on a draft write; stored
 	// is the row before an update, nil on a create.
 	CheckHeader func(tx core.App, stored, r *core.Record) error
