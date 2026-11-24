@@ -101,6 +101,22 @@ func TestLoadResourcesAcceptsSortTerms(t *testing.T) {
 	}
 }
 
+// A field the CLI leaves out on purpose (sort_key) can still be sorted on.
+func TestLoadResourcesAcceptsSortOnAnOmittedField(t *testing.T) {
+	const def = `{"resources":[{"name":"things","singular":"thing","summary":"Things","collection":"books_things","sort":"sort_key,id","label":"","columns":[],"search":[],"filters":[],"omit":["sort_key"],"deleteHelp":"","fields":[{"name":"name","type":"string","help":"the name"}]}]}`
+	if _, err := loadResources([]byte(def)); err != nil {
+		t.Errorf("a sort on an omitted field must load: %v", err)
+	}
+	bad := strings.Replace(def, `"omit":["sort_key"]`, `"omit":["sort_key","x = 1"]`, 1)
+	if _, err := loadResources([]byte(bad)); err == nil || !strings.Contains(err.Error(), `omit names "x = 1"`) {
+		t.Errorf("an omit name that is no identifier: error = %v", err)
+	}
+	other := strings.Replace(def, `"sort":"sort_key,id"`, `"sort":"other,id"`, 1)
+	if _, err := loadResources([]byte(other)); err == nil || !strings.Contains(err.Error(), `sort names "other"`) {
+		t.Errorf("a sort on a name that is neither field nor omit: error = %v", err)
+	}
+}
+
 // With two mistakes, the error must name the same one on every run.
 func TestLoadResourcesNamesTheSameMistakeEveryTime(t *testing.T) {
 	const def = `{"resources":[{"name":"things","singular":"thing","summary":"Things","collection":"books_things","sort":"id","label":"zz","columns":["yy"],"search":["xx"],"filters":[],"omit":[],"deleteHelp":"","fields":[{"name":"name","type":"string","help":"the name"}]}]}`

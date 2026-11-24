@@ -223,10 +223,18 @@ func checkResource(res *resource, names map[string]bool) error {
 		}
 		listed[name] = true
 	}
+	// Omitted names are sort text too (a server-set sort key), so they are
+	// held to an identifier.
+	for _, name := range res.Omit {
+		if !fieldName.MatchString(name) {
+			return fmt.Errorf("omit names %q, which is not a field name", name)
+		}
+	}
 	// The sort goes into PocketBase sort text as it is.
 	for _, term := range strings.Split(res.Sort, ",") {
 		name := strings.TrimLeft(term, "-+")
-		if len(term)-len(name) > 1 || !(fields[name] || slices.Contains(systemFields, name)) {
+		known := fields[name] || slices.Contains(systemFields, name) || slices.Contains(res.Omit, name)
+		if len(term)-len(name) > 1 || !known {
 			return fmt.Errorf("sort names %q, which is not a field", term)
 		}
 	}

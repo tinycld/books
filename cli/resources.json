@@ -54,6 +54,197 @@
                 { "name": "full_name", "type": "string", "readOnly": true, "help": "the path from the top-level account, parts joined by a colon" },
                 { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books, set by the server" }
             ]
+        },
+        {
+            "name": "customers",
+            "singular": "customer",
+            "summary": "The people and companies the business sells to",
+            "collection": "books_customers",
+            "sort": "sort_key,id",
+            "label": "display_name",
+            "columns": ["display_name", "company", "email", "phone", "inactive"],
+            "search": ["display_name", "company", "email"],
+            "filters": [{ "flag": "parent", "field": "parent", "help": "only the sub-customers of this customer id" }],
+            "omit": ["form", "fields", "sort_key"],
+            "deleteHelp": "The server refuses to delete a customer that has sub-customers or transactions. Make it inactive with `deactivate`.",
+            "fields": [
+                { "name": "display_name", "type": "string", "required": true, "help": "the name shown in lists and on documents, unique among its siblings" },
+                { "name": "company", "type": "string", "help": "company name" },
+                { "name": "first_name", "type": "string", "help": "first name of the contact person" },
+                { "name": "last_name", "type": "string", "help": "last name of the contact person" },
+                { "name": "email", "type": "string", "help": "email address" },
+                { "name": "phone", "type": "string", "help": "phone number" },
+                { "name": "mobile", "type": "string", "help": "mobile phone number" },
+                { "name": "website", "type": "string", "help": "website URL, with its scheme (https://…)" },
+                { "name": "billing_address", "type": "address", "help": "billing address" },
+                { "name": "shipping_address", "type": "address", "help": "shipping address; null means the billing address" },
+                { "name": "notes", "type": "string", "help": "internal notes" },
+                { "name": "inactive", "type": "bool", "help": "an inactive customer is hidden from pickers and keeps its history" },
+                {
+                    "name": "terms",
+                    "type": "string",
+                    "enum": ["due_on_receipt", "net_10", "net_15", "net_30", "net_60"],
+                    "help": "default payment terms of a new invoice; empty for none"
+                },
+                { "name": "parent", "type": "id", "ref": "customers", "help": "the top-level customer this one is a sub-customer of; empty for a top-level customer" },
+                { "name": "tax_exempt", "type": "bool", "help": "sales to this customer are not taxed" },
+                {
+                    "name": "exemption_reason",
+                    "type": "string",
+                    "enum": [
+                        "resale",
+                        "federal_government",
+                        "state_local_government",
+                        "tribal_government",
+                        "nonprofit",
+                        "educational",
+                        "agricultural",
+                        "manufacturing",
+                        "direct_pay",
+                        "other"
+                    ],
+                    "help": "why the customer is exempt from sales tax"
+                },
+                { "name": "exemption_number", "type": "string", "help": "the number of the exemption certificate" },
+                { "name": "default_tax_rate", "type": "id", "ref": "tax-rates", "help": "the tax rate or group a new sale to this customer starts with" }
+            ]
+        },
+        {
+            "name": "vendors",
+            "singular": "vendor",
+            "summary": "The people and companies the business buys from",
+            "collection": "books_vendors",
+            "sort": "sort_key,id",
+            "label": "display_name",
+            "columns": ["display_name", "company", "email", "phone", "inactive"],
+            "search": ["display_name", "company", "email"],
+            "filters": [],
+            "omit": ["form", "fields", "sort_key"],
+            "deleteHelp": "The server refuses to delete a vendor that has transactions. Make it inactive with `deactivate`.",
+            "fields": [
+                { "name": "display_name", "type": "string", "required": true, "help": "the name shown in lists and on documents, unique among vendors" },
+                { "name": "company", "type": "string", "help": "company name" },
+                { "name": "first_name", "type": "string", "help": "first name of the contact person" },
+                { "name": "last_name", "type": "string", "help": "last name of the contact person" },
+                { "name": "email", "type": "string", "help": "email address" },
+                { "name": "phone", "type": "string", "help": "phone number" },
+                { "name": "mobile", "type": "string", "help": "mobile phone number" },
+                { "name": "website", "type": "string", "help": "website URL, with its scheme (https://…)" },
+                { "name": "address", "type": "address", "help": "the vendor's address" },
+                {
+                    "name": "terms",
+                    "type": "string",
+                    "enum": ["due_on_receipt", "net_10", "net_15", "net_30", "net_60"],
+                    "help": "default payment terms of a new bill; empty for none"
+                },
+                { "name": "account_number", "type": "string", "help": "the business's account number at this vendor" },
+                { "name": "expense_account", "type": "id", "ref": "accounts", "help": "the account a new bill or expense line for this vendor starts with" },
+                { "name": "notes", "type": "string", "help": "internal notes" },
+                { "name": "track_1099", "type": "bool", "help": "payments to this vendor are reported on a 1099" },
+                { "name": "legal_name", "type": "string", "help": "the name on the vendor's W-9" },
+                { "name": "tax_id_type", "type": "string", "enum": ["ein", "ssn"], "help": "the kind of tax ID; empty for none" },
+                { "name": "tax_id", "type": "string", "help": "the tax ID: nine digits, with or without dashes; stored as 12-3456789 (EIN) or 123-45-6789 (SSN)" },
+                { "name": "inactive", "type": "bool", "help": "an inactive vendor is hidden from pickers and keeps its history" }
+            ]
+        },
+        {
+            "name": "products",
+            "singular": "product",
+            "summary": "Products and services: what the business sells and buys",
+            "collection": "books_products",
+            "sort": "sort_key,id",
+            "label": "name",
+            "columns": ["name", "type", "sku", "price", "inactive"],
+            "search": ["name", "sku"],
+            "filters": [{ "flag": "type", "field": "type", "help": "only products of this type: service, non_inventory or bundle" }],
+            "omit": ["form", "fields", "sort_key"],
+            "deleteHelp": "The server refuses to delete a product that a bundle or a transaction line uses. Make it inactive with `deactivate`.",
+            "fields": [
+                {
+                    "name": "type",
+                    "type": "string",
+                    "required": true,
+                    "enum": ["service", "non_inventory", "bundle"],
+                    "help": "service, non_inventory or bundle; only a new product can be a bundle, and a bundle stays one"
+                },
+                { "name": "name", "type": "string", "required": true, "help": "the product name, unique among products" },
+                { "name": "sku", "type": "string", "help": "stock keeping unit; may repeat" },
+                { "name": "sales_description", "type": "string", "help": "the description a sales line starts with" },
+                { "name": "price", "type": "integer", "help": "sales price in cents (1250 is 12.50); not for a bundle" },
+                { "name": "income_account", "type": "id", "ref": "accounts", "help": "an active Income or Other income account; needed for a service or non_inventory product, not for a bundle" },
+                { "name": "purchases", "type": "bool", "help": "the business also buys this product; then expense_account is needed" },
+                { "name": "purchase_description", "type": "string", "help": "the description a purchase line starts with" },
+                { "name": "cost", "type": "integer", "help": "purchase cost in cents; not for a bundle" },
+                { "name": "expense_account", "type": "id", "ref": "accounts", "help": "the account a purchase of this product posts to; not Accounts receivable or Accounts payable" },
+                { "name": "inactive", "type": "bool", "help": "an inactive product is hidden from pickers and keeps its history" },
+                { "name": "taxable", "type": "bool", "help": "sales of this product are taxed" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books, set by the server" }
+            ]
+        },
+        {
+            "name": "bundle-items",
+            "singular": "bundle item",
+            "summary": "The products inside a bundle",
+            "collection": "books_bundle_items",
+            "sort": "bundle,position,id",
+            "label": "",
+            "columns": ["bundle", "product", "quantity", "position"],
+            "search": [],
+            "filters": [
+                { "flag": "bundle", "field": "bundle", "help": "only the items of this bundle (a product id)" },
+                { "flag": "product", "field": "product", "help": "only the items that hold this product id" }
+            ],
+            "omit": [],
+            "deleteHelp": "Deleting an item takes the product out of the bundle. Deleting the bundle deletes its items.",
+            "fields": [
+                { "name": "bundle", "type": "id", "ref": "products", "required": true, "help": "the bundle (a product of type bundle); it cannot change later" },
+                { "name": "product", "type": "id", "ref": "products", "required": true, "help": "an active product that is not a bundle" },
+                { "name": "quantity", "type": "number", "help": "how many of the product one bundle holds, from 0.01 to 1000000" },
+                { "name": "position", "type": "integer", "help": "the item's place in the bundle, from 0" }
+            ]
+        },
+        {
+            "name": "tax-agencies",
+            "singular": "tax agency",
+            "summary": "The agencies the business pays sales tax to",
+            "collection": "books_tax_agencies",
+            "sort": "sort_key,id",
+            "label": "name",
+            "columns": ["name", "account", "inactive"],
+            "search": ["name"],
+            "filters": [],
+            "omit": ["sort_key"],
+            "deleteHelp": "The server refuses to delete an agency that has tax rates. Make it inactive with `deactivate`, after its rates.",
+            "fields": [
+                { "name": "name", "type": "string", "required": true, "help": "the agency name, unique among agencies" },
+                { "name": "account", "type": "id", "ref": "accounts", "required": true, "help": "an active Other current liability account that holds the tax owed to the agency" },
+                { "name": "inactive", "type": "bool", "help": "an inactive agency is hidden from pickers" }
+            ]
+        },
+        {
+            "name": "tax-rates",
+            "singular": "tax rate",
+            "summary": "Sales tax rates, and the groups that charge several rates as one",
+            "collection": "books_tax_rates",
+            "sort": "sort_key,id",
+            "label": "name",
+            "columns": ["name", "type", "rate_ppm", "is_default", "inactive"],
+            "search": ["name"],
+            "filters": [
+                { "flag": "type", "field": "type", "help": "only rates (rate) or only groups (group)" },
+                { "flag": "agency", "field": "agency", "help": "only the rates of this tax agency id" }
+            ],
+            "omit": ["sort_key"],
+            "deleteHelp": "The server refuses to delete the default rate, a rate that an active group holds, and a rate that a sale used. Make it inactive with `deactivate`.",
+            "fields": [
+                { "name": "type", "type": "string", "required": true, "enum": ["rate", "group"], "help": "rate or group; it cannot change later" },
+                { "name": "name", "type": "string", "required": true, "help": "the name, unique among rates and groups" },
+                { "name": "rate_ppm", "type": "integer", "help": "the rate in parts per million of the taxable amount: 1% is 10000, 8.875% is 88750; 0 for a group" },
+                { "name": "agency", "type": "id", "ref": "tax-agencies", "help": "the active agency a rate is paid to; empty for a group" },
+                { "name": "components", "type": "ids", "ref": "tax-rates", "help": "for a group: its two to ten rates, none of them a group; empty for a rate" },
+                { "name": "is_default", "type": "bool", "help": "the rate or group a new sale starts with; setting it clears the earlier default" },
+                { "name": "inactive", "type": "bool", "help": "an inactive rate or group is hidden from pickers" }
+            ]
         }
     ]
 }
