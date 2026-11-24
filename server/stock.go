@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"slices"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -163,19 +162,14 @@ func documentStockMoves(tx core.App, source, document string) ([]*core.Record, e
 }
 
 // removeStockMoves deletes the moves of one document (its void, or the
-// replacement of its moves) and answers the products they moved, which the
-// caller must replay.
-func removeStockMoves(tx core.App, source, document string) ([]string, error) {
+// replacement of its moves) and answers the moves it deleted, so that a caller
+// reads them no second time: stockMoveProducts names the products to replay.
+func removeStockMoves(tx core.App, source, document string) ([]*core.Record, error) {
 	moves, err := documentStockMoves(tx, source, document)
 	if err != nil {
 		return nil, err
 	}
-	var products []string
-	for _, m := range moves {
-		if id := m.GetString("product"); !slices.Contains(products, id) {
-			products = append(products, id)
-		}
-	}
+	products := stockMoveProducts(moves)
 	// The layers that name a removed move go first: the replay writes the
 	// product's layers again.
 	for _, product := range products {
@@ -188,7 +182,16 @@ func removeStockMoves(tx core.App, source, document string) ([]string, error) {
 			return nil, fmt.Errorf("books: delete a stock move: %w", err)
 		}
 	}
-	return products, nil
+	return moves, nil
+}
+
+// stockMoveProducts are the products of moves, each once, in order.
+func stockMoveProducts(moves []*core.Record) []string {
+	var products []string
+	for _, m := range moves {
+		products = appendMissing(products, m.GetString("product"))
+	}
+	return products
 }
 
 func deleteStockLayers(tx core.App, product string) error {

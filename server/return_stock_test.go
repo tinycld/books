@@ -266,26 +266,70 @@ func TestReturnStock_CashBasisTakesOutTheCostLinesOfAnUnappliedCreditMemo(t *tes
 }
 
 // repointStockReturns reads the returns of all the gone moves in one query: its
-// SELECT count does not grow with the number of gone moves.
+// SELECT count does not grow with the number of gone moves, and each return
+// follows its own sale move to the replacing document's move of the same
+// product ("" when that document has none).
 func TestReturnStock_RepointReadsTheReturnsOfAllGoneMovesOnce(t *testing.T) {
-	selects := func(gone int) int {
+	run := func(t *testing.T, sales int) int {
 		e := newReturnStockEnv(t, costingFIFO)
-		e.stock.mustAdjust(t, "2026-07-01", e.stock.stockIn(10, 1000))
-		inv := e.soldOn(t, "2026-07-02", 5, nil)
-		e.returnedOn(t, "2026-07-03", 2, inv)
-		sale, err := documentStockMoves(e.app, "books_invoices", inv.Id)
-		if err != nil || len(sale) != 1 {
-			t.Fatal("the invoice has one sale move")
+		gadget := e.stock.mkInventoryItem(t, "Gadget", 300)
+		var gone, memos []*core.Record
+		for i := 0; i < sales; i++ {
+			inv, err := newInvoice(e.app, e.customer, map[string]any{"date": "2026-07-02", "due_date": "2026-07-02"})
+			if err != nil {
+				t.Fatalf("save a draft invoice: %v", err)
+			}
+			mkInvoiceLine(t, e.app, inv, 0, item(e.stock.widget, 3, 2000, false))
+			mkInvoiceLine(t, e.app, inv, 1, item(gadget, 2, 1000, false))
+			mustPostInvoice(t, e.app, inv.Id, e.users.bookkeeper.Id)
+			moves, err := documentStockMoves(e.app, "books_invoices", inv.Id)
+			if err != nil || len(moves) != 2 {
+				t.Fatalf("%d moves of the invoice (err %v), want 2", len(moves), err)
+			}
+			gone = append(gone, moves...)
+			memo := e.mkCreditMemo(t, map[string]any{"date": "2026-07-03", "invoice": inv.Id})
+			mkCreditMemoLine(t, e.app, memo, 0, item(e.stock.widget, 1, 2000, false))
+			mkCreditMemoLine(t, e.app, memo, 1, item(gadget, 1, 1000, false))
+			memos = append(memos, mustPostCreditMemo(t, e.app, memo.Id, e.users.bookkeeper.Id))
 		}
-		list := slices.Repeat(sale, gone)
-		return countStatements(t, e.app, func(sql string) bool { return strings.HasPrefix(strings.TrimSpace(sql), "SELECT") }, func() {
-			if err := repointStockReturns(e.app, list, "", ""); err != nil {
+		// The replacing document sells the widget only: the gadget returns
+		// name no move.
+		fresh := e.soldOn(t, "2026-07-02", 4, nil)
+		freshMoves, err := documentStockMoves(e.app, "books_invoices", fresh.Id)
+		if err != nil || len(freshMoves) != 1 {
+			t.Fatalf("%d moves of the replacing invoice (err %v), want 1", len(freshMoves), err)
+		}
+		// Only the reads of the moves: saving each repointed return costs
+		// its own relation checks, which is no part of what is pinned.
+		reads := func(sql string) bool {
+			return strings.HasPrefix(strings.TrimSpace(sql), "SELECT") && strings.Contains(sql, "books_stock_moves")
+		}
+		count := countStatements(t, e.app, reads, func() {
+			if err := repointStockReturns(e.app, gone, "books_invoices", fresh.Id); err != nil {
 				t.Fatal(err)
 			}
 		})
+		for _, memo := range memos {
+			moves, err := documentStockMoves(e.app, "books_credit_memos", memo.Id)
+			if err != nil || len(moves) != 2 {
+				t.Fatalf("%d moves of the credit memo (err %v), want 2", len(moves), err)
+			}
+			for _, m := range moves {
+				want := ""
+				if m.GetString("product") == e.stock.widget.Id {
+					want = freshMoves[0].Id
+				}
+				if got := m.GetString("return_of"); got != want {
+					t.Errorf("the return of product %s names %q, want %q", m.GetString("product"), got, want)
+				}
+			}
+		}
+		return count
 	}
-	one, many := selects(1), selects(6)
+	var one, many int
+	t.Run("one sale", func(t *testing.T) { one = run(t, 1) })
+	t.Run("three sales", func(t *testing.T) { many = run(t, 3) })
 	if many != one {
-		t.Errorf("%d SELECTs for 6 gone moves, %d for 1: want the same count", many, one)
+		t.Errorf("%d SELECTs for 6 gone moves, %d for 2: want the same count", many, one)
 	}
 }

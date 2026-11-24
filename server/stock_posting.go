@@ -131,16 +131,12 @@ func postDocumentStock(tx core.App, actor, source, document, replaces string, mo
 		if err := voidRecosts(tx, actor, source, id); err != nil {
 			return nil, err
 		}
-		was, err := documentStockMoves(tx, source, id)
-		if err != nil {
-			return nil, err
-		}
-		gone = append(gone, was...)
 		removed, err := removeStockMoves(tx, source, id)
 		if err != nil {
 			return nil, err
 		}
-		products = appendMissing(products, removed...)
+		gone = append(gone, removed...)
+		products = appendMissing(products, stockMoveProducts(removed)...)
 	}
 	if err := addStockMoves(tx, moves); err != nil {
 		return nil, err
@@ -180,14 +176,11 @@ func withdrawDocumentStock(tx core.App, actor, source, document string) error {
 	if err := voidRecosts(tx, actor, source, document); err != nil {
 		return err
 	}
-	gone, err := documentStockMoves(tx, source, document)
-	if err != nil {
+	gone, err := removeStockMoves(tx, source, document)
+	if err != nil || len(gone) == 0 {
 		return err
 	}
-	products, err := removeStockMoves(tx, source, document)
-	if err != nil || len(products) == 0 {
-		return err
-	}
+	products := stockMoveProducts(gone)
 	// The returns of a voided sale name no sale: they come back at the last
 	// known cost.
 	if err := repointStockReturns(tx, gone, "", ""); err != nil {
@@ -204,8 +197,9 @@ func withdrawDocumentStock(tx core.App, actor, source, document string) error {
 // move of the same product on the document that takes their place (a
 // correction's), or no move when there is none, so that it comes back at the
 // last known cost. A return has the product of the move it names, so the
-// caller's replay of the gone moves' products prices it again. It reads the
-// returns of all gone moves, and the moves of the new document, once each.
+// caller's replay of the gone moves' products prices it again. The returns of
+// all gone moves come in one read: a post path reads no record for each line
+// (the statement bounds of purchase_stock_cost_test.go).
 func repointStockReturns(tx core.App, gone []*core.Record, source, document string) error {
 	if len(gone) == 0 {
 		return nil

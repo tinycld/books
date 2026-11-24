@@ -218,10 +218,11 @@ func TestRemoveStockMoves_ReplayLeavesTheSaleOversold(t *testing.T) {
 	se := newStockEnv(t)
 	se.mustMoveStock(t, se.receipt("bill00000000001", "2026-07-01", 10, 1000), se.sold("invoice00000001", "2026-07-03", 5))
 	err := se.app.RunInTransaction(func(tx core.App) error {
-		products, err := removeStockMoves(tx, "books_bills", "bill00000000001")
+		removed, err := removeStockMoves(tx, "books_bills", "bill00000000001")
 		if err != nil {
 			return err
 		}
+		products := stockMoveProducts(removed)
 		if len(products) != 1 || products[0] != se.widget.Id {
 			t.Errorf("products = %v, want the widget", products)
 		}
