@@ -26,24 +26,12 @@ import { DayField, useVendorOptions, vendorPickerProps } from './document-fields
 // The account the item's stock is worth in. A stored account that is not offered (it
 // became inactive, or changed type) shows its name in the trigger; an untouched field is
 // not dirty, so the save leaves it out of the patch.
-export function AssetAccountField({
-    fieldKey,
-    label,
-    value,
-    onChange,
-    disabled,
-}: BuiltinFieldProps) {
-    const { accounts } = useFormAccounts()
-    const { options, triggerLabel } = assetAccountOptions(accounts, textOf(value))
+export function AssetAccountField(props: BuiltinFieldProps) {
     return (
-        <HostSelect
-            fieldKey={fieldKey}
-            label={label}
-            value={value}
-            onChange={onChange}
-            disabled={disabled}
-            options={options}
-            placeholder={assetAccountPlaceholder(triggerLabel)}
+        <InventoryAccountSelect
+            {...props}
+            optionsFor={assetAccountOptions}
+            placeholderFor={assetAccountPlaceholder}
         />
     )
 }
@@ -51,15 +39,32 @@ export function AssetAccountField({
 // The expense account of an Inventory item (productHostFor names this component in place
 // of ExpenseAccountField): only the Cost of goods sold accounts, the one type the server
 // takes for it.
-export function CogsAccountField({
+export function CogsAccountField(props: BuiltinFieldProps) {
+    return (
+        <InventoryAccountSelect
+            {...props}
+            optionsFor={cogsAccountOptions}
+            placeholderFor={cogsAccountPlaceholder}
+        />
+    )
+}
+
+type InventoryAccountSelectProps = BuiltinFieldProps & {
+    optionsFor: typeof assetAccountOptions
+    placeholderFor: (triggerLabel: string) => string
+}
+
+function InventoryAccountSelect({
     fieldKey,
     label,
     value,
     onChange,
     disabled,
-}: BuiltinFieldProps) {
+    optionsFor,
+    placeholderFor,
+}: InventoryAccountSelectProps) {
     const { accounts } = useFormAccounts()
-    const { options, triggerLabel } = cogsAccountOptions(accounts, textOf(value))
+    const { options, triggerLabel } = optionsFor(accounts, textOf(value))
     return (
         <HostSelect
             fieldKey={fieldKey}
@@ -68,7 +73,7 @@ export function CogsAccountField({
             onChange={onChange}
             disabled={disabled}
             options={options}
-            placeholder={cogsAccountPlaceholder(triggerLabel)}
+            placeholder={placeholderFor(triggerLabel)}
         />
     )
 }
