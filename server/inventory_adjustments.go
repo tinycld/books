@@ -287,16 +287,25 @@ func adjustmentStockInputs(tx core.App, r *core.Record, lines []*core.Record, ac
 	if r.GetString("kind") == adjustmentKindOpening {
 		kind = stockKindOpening
 	}
+	ids := make([]string, 0, len(lines))
+	for _, l := range lines {
+		ids = append(ids, l.GetString("product"))
+	}
+	products, err := recordsByID(tx, "books_products", ids)
+	if err != nil {
+		return nil, err
+	}
+	accounts := inventoryAccountCache{}
 	inputs := make([]stockMoveInput, 0, len(lines))
 	for i, l := range lines {
-		product, err := tx.FindRecordById("books_products", l.GetString("product"))
+		product, err := recordOf(products, l.GetString("product"))
 		if err != nil {
 			return nil, fmt.Errorf("books: read the product of adjustment line %d: %w", i+1, err)
 		}
 		if product.GetString("type") != "inventory" {
 			return nil, refuse(msgAdjustmentLineFault, i+1, fmt.Sprintf(msgStockNotInventory, product.GetString("name")))
 		}
-		asset, _, err := inventoryAccounts(tx, product)
+		asset, _, err := accounts.of(tx, product)
 		if err != nil {
 			return nil, err
 		}

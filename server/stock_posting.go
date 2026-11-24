@@ -89,6 +89,23 @@ func inventoryAccounts(tx core.App, product *core.Record) (asset, cogs string, e
 	return asset, cogs, nil
 }
 
+// inventoryAccountCache holds inventoryAccounts of each product for one post:
+// an item without its own accounts takes the chart's, which inventoryAccounts
+// looks up, so a post looks them up once for each product, not each line.
+type inventoryAccountCache map[string][2]string
+
+func (c inventoryAccountCache) of(tx core.App, product *core.Record) (asset, cogs string, err error) {
+	if pair, ok := c[product.Id]; ok {
+		return pair[0], pair[1], nil
+	}
+	asset, cogs, err = inventoryAccounts(tx, product)
+	if err != nil {
+		return "", "", err
+	}
+	c[product.Id] = [2]string{asset, cogs}
+	return asset, cogs, nil
+}
+
 // postDocumentStock makes moves the stock moves of the document (a row of the
 // collection source) and answers them, priced. It takes away the moves the
 // document had and the moves of the document it replaces (a correction's

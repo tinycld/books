@@ -1052,7 +1052,7 @@ func validateSalesDocLine(tx core.App, kind salesDocKind, stored, r *core.Record
 		if err != nil {
 			return err
 		}
-		if err := checkLineCells(tx, kind, r, place); err != nil {
+		if err := checkLineCells(tx, kind, r, place, findAccount(tx)); err != nil {
 			return err
 		}
 		if err := checkLineProduct(tx, stored, r, place.String()); err != nil {
@@ -1073,7 +1073,7 @@ func validateSalesDocLine(tx core.App, kind salesDocKind, stored, r *core.Record
 	}
 	lines := withLine(others, r)
 	index := slices.IndexFunc(lines, func(l *core.Record) bool { return l.Id == r.Id })
-	if err := checkLineCells(tx, kind, r, lineRowPlace(kind, lines, r)); err != nil {
+	if err := checkLineCells(tx, kind, r, lineRowPlace(kind, lines, r), findAccount(tx)); err != nil {
 		return err
 	}
 	if err := checkLineProduct(tx, stored, r, lineRowLabel(kind, lines, r)); err != nil {
@@ -1138,9 +1138,9 @@ func compareLines(a, b *core.Record) int {
 // rate; a description or subtotal line has no product, rate or percent; a
 // purchase document's product line has no account; an account line has no
 // product, quantity or rate, and checkPurchaseAccountLine checks its account
-// (purchase_lines.go). A 0% percent line is
+// (purchase_lines.go), read through readAccount. A 0% percent line is
 // stored: refusing it is the client's rule.
-func checkLineCells(tx core.App, kind salesDocKind, r *core.Record, place linePlace) error {
+func checkLineCells(tx core.App, kind salesDocKind, r *core.Record, place linePlace, readAccount accountReader) error {
 	label, n := place.String(), place.n
 	table, err := lineTable(tx, kind, r.GetString("kind"))
 	if err != nil {
@@ -1177,7 +1177,7 @@ func checkLineCells(tx core.App, kind salesDocKind, r *core.Record, place linePl
 		if r.GetString("product") != "" || r.GetFloat("quantity") != 0 || r.GetInt("rate") != 0 {
 			return refuse(msgPurchaseAccountLineCells, label)
 		}
-		return checkPurchaseAccountLine(tx, r, n)
+		return checkPurchaseAccountLine(readAccount, r, n)
 	}
 	return nil
 }

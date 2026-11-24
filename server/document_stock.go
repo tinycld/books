@@ -27,33 +27,26 @@ func documentStockInputs(tx core.App, kind salesDocKind, doc *core.Record, lines
 	if err != nil {
 		return nil, err
 	}
-	// An item without its own accounts takes the chart's, which inventoryAccounts
-	// looks up: once for each product, not once for each line.
-	accounts := map[string][2]string{}
+	accounts := inventoryAccountCache{}
 	var inputs []stockMoveInput
 	for i, line := range lines {
 		if line.GetString("kind") != lineKindItem || line.GetString("product") == "" {
 			continue
 		}
-		product, ok := products[line.GetString("product")]
-		if !ok {
-			return nil, fmt.Errorf("books: read the product of line %d: no product %s", i+1, line.GetString("product"))
+		product, err := recordOf(products, line.GetString("product"))
+		if err != nil {
+			return nil, fmt.Errorf("books: read the product of line %d: %w", i+1, err)
 		}
 		if !isInventoryProduct(product) {
 			continue
 		}
-		pair, ok := accounts[product.Id]
-		if !ok {
-			asset, cogs, err := inventoryAccounts(tx, product)
-			if err != nil {
-				return nil, err
-			}
-			pair = [2]string{asset, cogs}
-			accounts[product.Id] = pair
+		asset, cogs, err := accounts.of(tx, product)
+		if err != nil {
+			return nil, err
 		}
 		in := stockMoveInput{
 			Product: product.Id, Source: kind.Collection, Document: doc.Id, Line: line.Id,
-			Date: doc.GetString("date"), AssetAccount: pair[0], OffsetAccount: pair[1],
+			Date: doc.GetString("date"), AssetAccount: asset, OffsetAccount: cogs,
 		}
 		qty := qtyHundredths(line.GetFloat("quantity"))
 		switch kind.Stock {
@@ -65,31 +58,6 @@ func documentStockInputs(tx core.App, kind salesDocKind, doc *core.Record, lines
 		inputs = append(inputs, in)
 	}
 	return inputs, nil
-}
-
-// lineProducts reads the products the item and percent lines name in one
-// query, by id: a read for each line would make the statements of a post grow
-// with its lines. A product that is not found is not in the map.
-func lineProducts(tx core.App, lines []*core.Record) (map[string]*core.Record, error) {
-	var ids []string
-	for _, line := range lines {
-		kind := line.GetString("kind")
-		if (kind == lineKindItem || kind == lineKindPercent) && line.GetString("product") != "" {
-			ids = appendMissing(ids, line.GetString("product"))
-		}
-	}
-	if len(ids) == 0 {
-		return nil, nil
-	}
-	found, err := tx.FindRecordsByIds("books_products", ids)
-	if err != nil {
-		return nil, fmt.Errorf("books: read the products of the lines: %w", err)
-	}
-	products := make(map[string]*core.Record, len(found))
-	for _, p := range found {
-		products[p.Id] = p
-	}
-	return products, nil
 }
 
 // salesDocStockLines writes the stock moves of doc while it posts and answers

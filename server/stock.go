@@ -98,8 +98,16 @@ func addStockMoves(tx core.App, moves []stockMoveInput) error {
 	if err != nil {
 		return err
 	}
+	ids := make([]string, len(moves))
 	for i, m := range moves {
-		product, err := tx.FindRecordById("books_products", m.Product)
+		ids[i] = m.Product
+	}
+	products, err := recordsByID(tx, "books_products", ids)
+	if err != nil {
+		return err
+	}
+	for i, m := range moves {
+		product, err := recordOf(products, m.Product)
 		if err != nil {
 			return fmt.Errorf("books: read the product of a stock move: %w", err)
 		}

@@ -306,8 +306,13 @@ func keepsCorrectedParty(tx core.App, kind salesDocKind, doc *core.Record, id st
 // from a line the guard would refuse (one written past it). A bundle on a
 // line is refused when the line accounts read its product.
 func checkStoredLines(tx core.App, kind salesDocKind, lines []*core.Record) error {
+	accounts, err := recordsByID(tx, "books_accounts", lineAccountIDs(lines))
+	if err != nil {
+		return err
+	}
+	readAccount := func(id string) (*core.Record, error) { return recordOf(accounts, id) }
 	for _, line := range lines {
-		if err := checkLineCells(tx, kind, line, lineRowPlace(kind, lines, line)); err != nil {
+		if err := checkLineCells(tx, kind, line, lineRowPlace(kind, lines, line), readAccount); err != nil {
 			return err
 		}
 	}
@@ -465,9 +470,9 @@ func incomeByAccount(tx core.App, lines []*core.Record, totals documentTotalsRes
 			continue
 		}
 		label := fmt.Sprintf("Line %d", i+1)
-		product, ok := products[line.GetString("product")]
-		if !ok {
-			return nil, fmt.Errorf("books: read the product of line %d: %w", i+1, sql.ErrNoRows)
+		product, err := recordOf(products, line.GetString("product"))
+		if err != nil {
+			return nil, fmt.Errorf("books: read the product of line %d: %w", i+1, err)
 		}
 		if product.GetString("type") == "bundle" {
 			return nil, refuse(msgLineBundle, label)
