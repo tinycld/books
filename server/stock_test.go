@@ -1,10 +1,12 @@
 package books
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/router"
 )
 
 // stockEnv is a ledger env with an inventory asset account, a cost of goods
@@ -234,6 +236,40 @@ func TestRemoveStockMoves_ReplayLeavesTheSaleOversold(t *testing.T) {
 	requireOnHand(t, se.app, se.widget, -5, -2500)
 	if got := layersOf(t, se.app, se.widget); len(got) != 0 {
 		t.Errorf("layers = %v, want none", got)
+	}
+}
+
+func TestRecomputeStock_RefusesAValueTooLarge(t *testing.T) {
+	se := newStockEnv(t)
+	// 0.01 unit for 9×10^12 cents, then 100,000 unlinked units priced at that
+	// cost: 9×10^19 cents, more than the stock may hold.
+	tiny := stockMoveInput{
+		Product: se.widget.Id, Kind: stockKindReceipt, Source: "books_bills", Document: "bill00000000001", Date: "2026-07-01",
+		Qty: 1, Given: true, Value: 9_000_000_000_000, AssetAccount: se.asset.Id, OffsetAccount: se.cogs.Id,
+	}
+	huge := stockMoveInput{
+		Product: se.widget.Id, Kind: stockKindAdjustment, Source: "books_inventory_adjustments",
+		Document: "adjust000000001", Date: "2026-07-02", Qty: 10_000_000,
+		AssetAccount: se.asset.Id, OffsetAccount: se.cogs.Id,
+	}
+	requireRefused(t, se.moveStock(t, tiny, huge), "The value of Widget is too large to keep on 2026-07-02.")
+	if n, _ := se.app.CountRecords(stockMovesCollection); n != 0 {
+		t.Errorf("%d stock moves stayed after the refusal, want none", n)
+	}
+}
+
+func TestStockRefusal_AMoveThatIsNotFoundIsAFault(t *testing.T) {
+	product := core.NewRecord(core.NewBaseCollection("books_products"))
+	product.Set("name", "Widget")
+	cause := &costingError{MoveID: "gone", Reason: costReasonNoStockToRevalue}
+	err := stockRefusal(product, nil, cause)
+	var refused *costingError
+	if !errors.As(err, &refused) {
+		t.Fatalf("err = %v, want it to wrap the costingError", err)
+	}
+	var sentence *router.ApiError
+	if errors.As(err, &sentence) {
+		t.Errorf("a move that is not found was refused with a sentence: %v", err)
 	}
 }
 

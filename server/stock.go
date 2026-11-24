@@ -45,6 +45,7 @@ const (
 const (
 	msgNoStockToRevalue    = "%s has no stock to revalue on %s."
 	msgStockValueBelowZero = "The value of %s cannot go below zero on %s."
+	msgStockValueTooLarge  = "The value of %s is too large to keep on %s."
 	msgStockNotInventory   = "%s is not an Inventory item."
 )
 
@@ -81,15 +82,16 @@ func addStockMoves(tx core.App, moves []stockMoveInput) error {
 	if len(moves) == 0 {
 		return nil
 	}
-	if err := lockCostingMethod(tx); err != nil {
-		return err
-	}
-	s, err := loadSettings(tx)
+	settingsRow, err := tx.FindRecordById("books_settings", settingsID)
 	if err != nil {
+		return fmt.Errorf("books: read settings: %w", err)
+	}
+	if err := lockCostingMethod(tx, settingsRow); err != nil {
 		return err
 	}
+	currency := settingsRow.GetString("currency")
 	var seq int
-	if err := tx.DB().NewQuery("SELECT CAST(COALESCE(MAX(seq), 0) AS INTEGER) FROM " + stockMovesCollection).Row(&seq); err != nil {
+	if err := tx.DB().NewQuery("SELECT CAST(COALESCE(MAX(seq), 0) AS INTEGER) FROM books_stock_moves").Row(&seq); err != nil {
 		return fmt.Errorf("books: read the last stock move: %w", err)
 	}
 	col, err := tx.FindCachedCollectionByNameOrId(stockMovesCollection)
@@ -120,7 +122,7 @@ func addStockMoves(tx core.App, moves []stockMoveInput) error {
 		r.Set("return_of", m.ReturnOf)
 		r.Set("asset_account", m.AssetAccount)
 		r.Set("offset_account", m.OffsetAccount)
-		r.Set("currency", s.Currency)
+		r.Set("currency", currency)
 		if err := tx.Save(r); err != nil {
 			return fmt.Errorf("books: write a stock move: %w", err)
 		}
@@ -130,11 +132,7 @@ func addStockMoves(tx core.App, moves []stockMoveInput) error {
 
 // lockCostingMethod sets books_settings.costing_locked the first time a stock
 // move is written. Nothing clears it: a void removes the move, not the lock.
-func lockCostingMethod(tx core.App) error {
-	row, err := tx.FindRecordById("books_settings", settingsID)
-	if err != nil {
-		return fmt.Errorf("books: read settings: %w", err)
-	}
+func lockCostingMethod(tx core.App, row *core.Record) error {
 	if row.GetBool("costing_locked") {
 		return nil
 	}
@@ -210,21 +208,21 @@ func recomputeStock(tx core.App, products []string) error {
 	if err != nil {
 		return fmt.Errorf("books: read settings: %w", err)
 	}
-	method := row.GetString("costing_method")
+	method, currency := row.GetString("costing_method"), row.GetString("currency")
 	seen := map[string]bool{}
 	for _, id := range products {
 		if seen[id] {
 			continue
 		}
 		seen[id] = true
-		if err := recomputeProductStock(tx, method, id); err != nil {
+		if err := recomputeProductStock(tx, method, currency, id); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func recomputeProductStock(tx core.App, method, productID string) error {
+func recomputeProductStock(tx core.App, method, currency, productID string) error {
 	product, err := tx.FindRecordById("books_products", productID)
 	if err != nil {
 		return fmt.Errorf("books: read the product to replay: %w", err)
@@ -269,7 +267,7 @@ func recomputeProductStock(tx core.App, method, productID string) error {
 			return fmt.Errorf("books: write the value of a stock move: %w", err)
 		}
 	}
-	if err := writeStockLayers(tx, product, byID, result.Layers); err != nil {
+	if err := writeStockLayers(tx, product, currency, byID, result.Layers); err != nil {
 		return err
 	}
 	qty := qtyFromHundredths(result.Qty)
@@ -285,26 +283,29 @@ func recomputeProductStock(tx core.App, method, productID string) error {
 	return nil
 }
 
-// stockRefusal is the refusal of a move the engine cannot price. The two
-// revaluation reasons are a person's to fix; any other is a move Books should
-// never have written.
+// stockRefusal is the refusal of a move the engine cannot price. The
+// revaluation reasons and a value too large are a person's to fix; any other
+// is a move Books should never have written. A move that is not among the
+// product's rows is a fault too: a sentence would end "on .".
 func stockRefusal(product, move *core.Record, refused *costingError) error {
-	name, day := product.GetString("name"), ""
-	if move != nil {
-		day = move.GetString("date")
+	if move == nil {
+		return fmt.Errorf("books: the stock move %s of %s is not among its moves: %w", refused.MoveID, product.Id, refused)
 	}
+	name, day := product.GetString("name"), move.GetString("date")
 	switch refused.Reason {
 	case costReasonNoStockToRevalue:
 		return refuseNamed(msgNoStockToRevalue, name, day)
 	case costReasonValueBelowZero:
 		return refuse(msgStockValueBelowZero, name, day)
+	case costReasonValueTooLarge:
+		return refuse(msgStockValueTooLarge, name, day)
 	}
 	return refused
 }
 
 // writeStockLayers replaces the product's layer rows when the open stock
 // changed, and leaves them when it did not.
-func writeStockLayers(tx core.App, product *core.Record, moves map[string]*core.Record, layers []costLayer) error {
+func writeStockLayers(tx core.App, product *core.Record, currency string, moves map[string]*core.Record, layers []costLayer) error {
 	stored, err := tx.FindRecordsByFilter(stockLayersCollection, "product = {:product}", "position", 0, 0,
 		dbx.Params{"product": product.Id})
 	if err != nil {
@@ -338,7 +339,7 @@ func writeStockLayers(tx core.App, product *core.Record, moves map[string]*core.
 		r.Set("quantity", qtyFromHundredths(l.Qty))
 		r.Set("value", l.Value)
 		r.Set("position", i)
-		r.Set("currency", product.GetString("currency"))
+		r.Set("currency", currency)
 		if err := tx.Save(r); err != nil {
 			return fmt.Errorf("books: write a stock layer: %w", err)
 		}
