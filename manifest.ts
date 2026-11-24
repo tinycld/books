@@ -1,7 +1,7 @@
 const manifest = {
     name: 'Books',
     slug: 'books',
-    version: '0.1.0',
+    version: '0.0.1',
     description: 'Double-entry bookkeeping and accounting.',
     terms: { file: 'TERMS.md', version: '2026-11-24' },
     routes: { directory: 'screens' },
