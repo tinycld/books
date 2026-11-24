@@ -167,6 +167,7 @@ export const ACCOUNT_TYPES: readonly AccountTypeDef[] = [
             { key: 'supplies_materials', label: 'Supplies and materials' },
             { key: 'cost_of_labor', label: 'Cost of labor' },
             { key: 'freight_delivery', label: 'Freight and delivery' },
+            { key: 'inventory_shrinkage', label: 'Inventory shrinkage' },
             { key: 'other_costs', label: 'Other costs of sales' },
         ],
     },
