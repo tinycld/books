@@ -18,12 +18,19 @@ import {
     lineCellTestId,
     lineRowId,
     lineRows,
+    localToday,
     openInvoiceBySearch,
     openNewInvoice,
     pickInvoiceCustomer,
     pickLineProduct,
     uniqueMemo,
 } from './invoice-helpers'
+import {
+    openEntriesList,
+    openOtherBooksPage,
+    searchEntries,
+    shownEntries,
+} from './journal-entries-helpers'
 import {
     createBundle,
     expectSavedToList,
@@ -38,7 +45,14 @@ import { visibleTestId } from './sales-receipt-helpers'
 // Settings while no inventory transaction has posted; an Inventory item is made on the
 // Product/Service form, received on a bill, sold on an invoice, corrected, sold below zero
 // with the form's warning, and sold as a part of a bundle; then Settings shows the costing
-// method as locked.
+// method as locked. A second item is made with opening stock typed into the form: its
+// opening entry posts, offers no Edit or Void, and its form keeps the asset account and
+// shows the quantity on hand live.
+//
+// Phones: below the mobile breakpoint core's TableField draws each line as a card, but a
+// card cell renders the same host component as a grid cell (LineProductCell, with its
+// StockWarning), so a phone run would test the same code; this file runs at the desktop
+// size only.
 //
 // The costing method test saves the shared books_settings row two times, so it runs alone
 // in the one-worker `costing-method-setting` project of playwright.config.ts (its title
@@ -72,6 +86,7 @@ const LOCKED = 'The costing method cannot change after the first inventory trans
 const RUN = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 const ITEM = `E2E Stock item ${RUN}`
 const BUNDLE = `E2E Stock kit ${RUN}`
+const OPENING_ITEM = `E2E Opening stock item ${RUN}`
 
 const FIFO = 'FIFO (first in, first out)'
 const AVERAGE = 'Average cost'
@@ -122,11 +137,16 @@ function entryView(page: Page) {
     return page.getByTestId('entry-read-only').filter({ visible: true })
 }
 
-// Opens the item's form and checks the quantity on hand it shows. The products list opens
-// from the Lists hub: a document or journal entry screen has no way to it of its own.
-async function expectOnHand(page: Page, quantity: string) {
+// Opens the form of the item `name`. The products list opens from the Lists hub: a
+// document or journal entry screen has no way to it of its own.
+async function openItem(page: Page, name: string) {
     await visibleTestId(page, 'books-nav-lists').click()
-    await openProduct(page, ITEM)
+    await openProduct(page, name)
+}
+
+// Opens the item's form and checks the quantity on hand it shows.
+async function expectOnHand(page: Page, quantity: string) {
+    await openItem(page, ITEM)
     await expect(field(page, 'quantity_on_hand')).toHaveText(quantity)
 }
 
@@ -406,5 +426,79 @@ test.describe
             // No select and no Save: the method cannot change from here.
             await expect(visibleTestId(page, 'books-settings-costing-method')).toHaveCount(0)
             await expect(visibleTestId(page, 'books-settings-costing-method-save')).toHaveCount(0)
+        })
+
+        test('an item with opening stock posts its opening entry and shows its stock live', async ({
+            page,
+        }) => {
+            await openBooks(page)
+            await openNewProduct(page, 'inventory')
+            await field(page, 'name').fill(OPENING_ITEM)
+            await field(page, 'cost').fill('20.00')
+            await field(page, 'cost').press('Tab')
+            await field(page, 'opening_quantity').fill('12')
+            await field(page, 'opening_quantity').press('Tab')
+            await field(page, 'opening_value').fill('240.00')
+            await field(page, 'opening_value').press('Tab')
+            await field(page, 'opening_date').fill(await localToday(page))
+            // A thousands comma is read as a separator and shown plain after the blur.
+            const reorder = field(page, 'reorder_point')
+            await reorder.fill('1,250')
+            await reorder.press('Tab')
+            await expect(reorder).toHaveValue('1250')
+            await page.getByTestId('product-save').click()
+            await expectSavedToList(page)
+
+            await openItem(page, OPENING_ITEM)
+            await expect(field(page, 'quantity_on_hand')).toHaveText('12')
+            await expect(field(page, 'reorder_point')).toHaveValue('1250')
+            // The item has stock moves, so the server keeps its asset account: the form
+            // offers no change and says why.
+            await expect(field(page, 'asset_account')).toHaveAttribute('aria-disabled', 'true')
+            await expect(page.getByTestId('form-note-asset_account')).toHaveText(
+                'The inventory asset account cannot change after the item has stock transactions.'
+            )
+
+            // The opening entry debits the inventory asset and credits Opening balance equity.
+            // Books keeps it in step with the item, so it offers no Edit and no Void.
+            await openEntriesList(page)
+            await searchEntries(page, `Opening stock of ${OPENING_ITEM}`)
+            const rows = shownEntries(page).locator('[data-testid^="entries-row-menu-"]')
+            await expect(rows).toHaveCount(1)
+            await rows.click()
+            await expect(page.getByTestId('entries-menu-open')).toBeVisible()
+            await expect(page.getByTestId('entries-menu-edit')).toHaveCount(0)
+            await expect(page.getByTestId('entries-menu-void')).toHaveCount(0)
+            await page.getByTestId('entries-menu-open').click()
+            await expect(entryView(page)).toBeVisible()
+            await expect
+                .poll(async () => {
+                    const lines = await readEntryLines(page)
+                    const asset = lines.find(l => /Inventory asset$/.test(l.account))
+                    const equity = lines.find(l => /Opening balance equity$/i.test(l.account))
+                    return {
+                        count: lines.length,
+                        assetDebit: asset?.debit,
+                        equityCredit: equity?.credit,
+                    }
+                })
+                .toEqual({ count: 2, assetDebit: money(24_000), equityCredit: money(24_000) })
+            await expect(entryView(page).getByTestId('entry-edit')).toHaveCount(0)
+            await expect(entryView(page).getByRole('button', { name: 'Void' })).toHaveCount(0)
+            await expect(entryView(page).getByTestId('entry-change-note')).toBeVisible()
+            await page.goBack()
+
+            // Quantity on hand follows the stored item while its form is open: another tab
+            // changes the opening quantity, and this form shows the new count.
+            await openItem(page, OPENING_ITEM)
+            await expect(field(page, 'quantity_on_hand')).toHaveText('12')
+            const other = await openOtherBooksPage(page, ['products'])
+            await openProduct(other, OPENING_ITEM)
+            await field(other, 'opening_quantity').fill('15')
+            await field(other, 'opening_quantity').press('Tab')
+            await other.getByTestId('product-save').click()
+            await expectSavedToList(other)
+            await other.close()
+            await expect(field(page, 'quantity_on_hand')).toHaveText('15')
         })
     })
