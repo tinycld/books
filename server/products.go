@@ -71,8 +71,8 @@ var productReferences = []productReference{
 // sales receipt lines, counted by sales receipt, on credit memo lines, counted
 // by credit memo, on refund receipt lines, counted by refund receipt, on
 // estimate lines, counted by estimate, on bill lines, counted by bill, on
-// expense lines, counted by expense, and on vendor credit lines, counted by
-// vendor credit.
+// expense lines, counted by expense, on vendor credit lines, counted by
+// vendor credit, and on inventory adjustment lines, counted by adjustment.
 const (
 	msgProductOnOneVendorCredit  = "This product or service is on 1 vendor credit. Make it inactive instead."
 	msgProductOnVendorCredits    = "This product or service is on %d vendor credits. Make it inactive instead."
@@ -126,17 +126,19 @@ func validateProduct(app core.App, stored, r *core.Record) error {
 	kind := r.GetString("type")
 	if stored != nil {
 		was := stored.GetString("type")
-		if was == "bundle" && kind != "bundle" {
-			return refuseField("type", msgBundleTypeFixed)
-		}
-		if was != "bundle" && kind == "bundle" {
-			return refuseField("type", msgBundleOnlyNew)
-		}
+		// The Inventory checks come first: an item that turns into a bundle
+		// reads that it cannot change type, not that bundles are new only.
 		if was == "inventory" && kind != "inventory" {
 			return refuseField("type", msgInventoryTypeFixed)
 		}
 		if was != "inventory" && kind == "inventory" {
 			return refuseField("type", msgInventoryOnlyNew)
+		}
+		if was == "bundle" && kind != "bundle" {
+			return refuseField("type", msgBundleTypeFixed)
+		}
+		if was != "bundle" && kind == "bundle" {
+			return refuseField("type", msgBundleOnlyNew)
 		}
 	}
 	if err := checkStockTotalsKept(app, stored, r); err != nil {

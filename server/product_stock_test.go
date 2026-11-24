@@ -70,6 +70,9 @@ func TestInventoryItem_TakesTheChartsAccounts(t *testing.T) {
 func TestInventoryItem_Guards(t *testing.T) {
 	env := newItemEnv(t)
 	bank := env.checking
+	gone := saveRecord(t, env.app, "books_accounts", map[string]any{
+		"name": "Old stock", "type": "other_current_asset", "detail_type": "inventory", "currency": "USD", "inactive": true,
+	})
 	cases := []struct {
 		name, field, want string
 		over              map[string]any
@@ -83,6 +86,8 @@ func TestInventoryItem_Guards(t *testing.T) {
 		{"an opening quantity with 3 decimals", "opening_quantity", "Enter an opening quantity with at most 2 decimals.", map[string]any{"opening_quantity": 1.005, "opening_date": "2026-07-01"}},
 		{"an opening quantity with no date", "opening_date", "Enter the date of the opening quantity.", map[string]any{"opening_quantity": 5}},
 		{"an opening date that does not exist", "opening_date", "Enter a date that exists, in the form YYYY-MM-DD.", map[string]any{"opening_quantity": 5, "opening_date": "2026-02-30"}},
+		{"an opening date that does not exist and no quantity", "opening_date", "Enter a date that exists, in the form YYYY-MM-DD.", map[string]any{"opening_date": "2026-02-30"}},
+		{"an inactive asset account", "asset_account", "The inventory asset account is inactive.", map[string]any{"asset_account": gone.Id}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -114,6 +119,64 @@ func TestInventoryItem_KeepsItsType(t *testing.T) {
 		"type", "Only a new product can be an Inventory item.")
 	requireMessageOnlyRefusal(t, setFields(t, env.app, "books_products", widget.Id, map[string]any{"stock_value": 100}),
 		"Books sets the quantity on hand and the stock value itself.")
+}
+
+// The inventory checks come before the bundle ones, so a move from Inventory to
+// Bundle reads the Inventory sentence.
+func TestInventoryItem_ToBundleReadsTheInventorySentence(t *testing.T) {
+	env := newItemEnv(t)
+	widget, err := newProduct(env.app, inventoryItem(env, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	requireFieldRefusal(t, setFields(t, env.app, "books_products", widget.Id, map[string]any{"type": "bundle"}),
+		"type", "An Inventory item cannot change type.")
+}
+
+func stockIn(t *testing.T, env *ledgerEnv, widget *core.Record) {
+	t.Helper()
+	err := env.app.RunInTransaction(func(tx core.App) error {
+		_, err := newSystemAdjustment(tx, systemAdjustment{
+			Kind: adjustmentKindManual, Date: "2026-07-01", Actor: env.users.bookkeeper.Id,
+			Lines: []adjustmentLineInput{{Product: widget.Id, Quantity: 10, Value: 1000}},
+		})
+		return err
+	})
+	if err != nil {
+		t.Fatalf("bring stock in: %v", err)
+	}
+}
+
+// The asset account is free until the item has a stock move, then fixed.
+func TestInventoryItem_AssetAccountIsFixedAfterStockMoves(t *testing.T) {
+	env := newItemEnv(t)
+	other := mkAccount(t, env.app, "Spare parts", "other_current_asset", "undeposited_funds")
+	idle, err := newProduct(env.app, inventoryItem(env, map[string]any{"name": "Idle"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := setFields(t, env.app, "books_products", idle.Id, map[string]any{"asset_account": other.Id}); err != nil {
+		t.Errorf("an item with no stock moves refuses a new asset account: %v", err)
+	}
+	widget, err := newProduct(env.app, inventoryItem(env, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stockIn(t, env, widget)
+	requireFieldRefusal(t, setFields(t, env.app, "books_products", widget.Id, map[string]any{"asset_account": other.Id}),
+		"asset_account", "The inventory asset account cannot change after the item has stock transactions.")
+}
+
+// A product on an adjustment line is kept: Books makes the line's stock moves.
+func TestInventoryItem_OnAnAdjustmentCannotBeDeleted(t *testing.T) {
+	env := newItemEnv(t)
+	widget, err := newProduct(env.app, inventoryItem(env, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stockIn(t, env, widget)
+	requireMessageOnlyRefusal(t, env.app.Delete(reload(t, env.app, "books_products", widget.Id)),
+		"This product or service is on 1 inventory adjustment. Make it inactive instead.")
 }
 
 // A bundle may hold Inventory items (books design, "Inventory").

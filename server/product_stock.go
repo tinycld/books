@@ -137,6 +137,13 @@ func validateInventoryItem(tx core.App, stored, r *core.Record) error {
 			return fmt.Errorf("books: read the preferred vendor: %w", err)
 		}
 	}
+	// The date is checked whenever a write sets or changes one, with or without
+	// a quantity, and before the opening stock posts.
+	if date := r.GetString("opening_date"); date != "" && (stored == nil || stored.GetString("opening_date") != date) {
+		if _, err := parseDay(date); err != nil {
+			return refuseDocumentDay("opening_date", err)
+		}
+	}
 	if !openingChanged(stored, r) {
 		return nil
 	}
