@@ -23,7 +23,7 @@ An Inventory item is always purchased, so the form has no I purchase this from a
 
 ## Opening stock
 
-If you already have the item when you start, enter Opening quantity, Opening value and Opening stock as of. Opening value is the total cost of the opening quantity, not the cost of one. Opening stock as of is the date the stock is counted on; it is required when you enter an opening quantity. Books posts the opening stock to the inventory asset account against Opening balance equity.
+If you already have the item when you start, enter Opening quantity, Opening value and Opening stock as of. Opening value is the total cost of the opening quantity, not the cost of one. Opening stock as of is the date the stock is counted on; it is required when you enter an opening quantity. Books posts the opening stock to the inventory asset account against Opening Balance Equity.
 
 The opening stock shows in Journal Entries as an entry of the type Inventory adjustment. That entry has no Edit and no Void: to change it, change the opening fields of the item and save the item. Books then posts the entry again.
 

@@ -251,7 +251,7 @@ func TestAdjustment_RefusesAnInactiveAccount(t *testing.T) {
 }
 
 // An opening quantity with no value comes in at no cost: it is Given at 0, not
-// priced at the item's cost, and posts against Opening balance equity.
+// priced at the item's cost, and posts against Opening Balance Equity.
 func TestAdjustment_OpeningTakesOpeningBalanceEquityAndComesInAtNoCost(t *testing.T) {
 	se := newStockEnv(t)
 	adj, err := se.postAs(adjustmentKindOpening, "", adjustmentLineInput{Product: se.widget.Id, Quantity: 5})
@@ -259,8 +259,8 @@ func TestAdjustment_OpeningTakesOpeningBalanceEquityAndComesInAtNoCost(t *testin
 		t.Fatalf("post the opening adjustment: %v", err)
 	}
 	account := reload(t, se.app, "books_accounts", adj.GetString("account"))
-	if account.GetString("name") != "Opening balance equity" {
-		t.Errorf("the adjustment account is %q, want Opening balance equity", account.GetString("name"))
+	if account.GetString("name") != "Opening Balance Equity" {
+		t.Errorf("the adjustment account is %q, want Opening Balance Equity", account.GetString("name"))
 	}
 	requireOnHand(t, se.app, se.widget, 5, 0)
 }

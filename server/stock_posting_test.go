@@ -127,7 +127,7 @@ func TestEnsureInventoryAccounts_CreateEachOnce(t *testing.T) {
 		{ensureInventoryAsset, "Inventory asset", "other_current_asset", "inventory", "1300"},
 		{ensureCostOfGoodsSold, "Cost of goods sold", "cost_of_goods_sold", "supplies_materials", "5000"},
 		{ensureInventoryShrinkage, "Inventory shrinkage", "cost_of_goods_sold", "inventory_shrinkage", "5100"},
-		{ensureOpeningBalanceEquity, "Opening balance equity", "equity", "opening_balance_equity", "3000"},
+		{ensureOpeningBalanceEquity, "Opening Balance Equity", "equity", "opening_balance_equity", "3000"},
 	}
 	for _, tc := range cases {
 		first, err := tc.ensure(env.app)

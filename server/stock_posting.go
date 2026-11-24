@@ -59,12 +59,14 @@ func ensureInventoryShrinkage(tx core.App) (*core.Record, error) {
 
 // ensureOpeningBalanceEquity returns the active account an item's opening
 // stock posts against: the first with the detail type opening_balance_equity.
-// A chart with none gets "Opening balance equity", numbered 3000 when no
-// account holds that number.
+// A chart with none gets "Opening Balance Equity", numbered 3000 when no
+// account holds that number. The name is the one the Opening balances screen
+// gives the account (OPENING_BALANCE_EQUITY_NAME), so the chart shows one name
+// whichever side made it.
 func ensureOpeningBalanceEquity(tx core.App) (*core.Record, error) {
 	return ensureControlAccount(tx, controlAccount{
 		match: dbx.HashExp{"detail_type": "opening_balance_equity"},
-		name:  "Opening balance equity", typ: "equity", detailType: "opening_balance_equity", number: "3000",
+		name:  "Opening Balance Equity", typ: "equity", detailType: "opening_balance_equity", number: "3000",
 	})
 }
 

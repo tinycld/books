@@ -459,7 +459,7 @@ test.describe
                 'The inventory asset account cannot change after the item has stock transactions.'
             )
 
-            // The opening entry debits the inventory asset and credits Opening balance equity.
+            // The opening entry debits the inventory asset and credits Opening Balance Equity.
             // Books keeps it in step with the item, so it offers no Edit and no Void.
             await openEntriesList(page)
             await searchEntries(page, `Opening stock of ${OPENING_ITEM}`)
@@ -475,7 +475,7 @@ test.describe
                 .poll(async () => {
                     const lines = await readEntryLines(page)
                     const asset = lines.find(l => /Inventory asset$/.test(l.account))
-                    const equity = lines.find(l => /Opening balance equity$/i.test(l.account))
+                    const equity = lines.find(l => /Opening Balance Equity$/.test(l.account))
                     return {
                         count: lines.length,
                         assetDebit: asset?.debit,

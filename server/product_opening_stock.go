@@ -40,7 +40,7 @@ func productActor(r *core.Record) string {
 // syncOpeningStock makes the opening inventory adjustment of item r say what
 // r's opening fields say: the posted one, if any, is voided, and an item with
 // an opening quantity gets a new one, dated the opening date, of the opening
-// quantity at the opening value against Opening balance equity. It posts and
+// quantity at the opening value against Opening Balance Equity. It posts and
 // voids as the person whose request writes the product. The adjustment replays
 // the item, which writes quantity_on_hand and stock_value on the stored row;
 // r, which the caller's save writes after, takes them.

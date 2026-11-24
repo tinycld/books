@@ -615,6 +615,34 @@ async function refusePosts(page: Page, url: string, body: object) {
     })
 }
 
+// Leaves the Opening Balance Equity account out of every accounts read, so the next
+// save takes the path that inserts it. Specs of other files share this database, and
+// an item's opening stock (inventory.spec.ts) makes the account on the server, so
+// whether it exists when this file runs depends on the order of the files. Only the
+// read is changed; the account itself is not touched.
+async function hideOpeningEquityAccount(page: Page) {
+    await page.route(ACCOUNTS, async route => {
+        if (route.request().method() !== 'GET') {
+            await route.fallback()
+            return
+        }
+        const response = await route.fetch()
+        const body = await response.json()
+        if (!Array.isArray(body.items)) {
+            await route.fulfill({ response })
+            return
+        }
+        const items = body.items.filter(
+            (item: { detail_type: string }) => item.detail_type !== 'opening_balance_equity'
+        )
+        const hidden = body.items.length - items.length
+        await route.fulfill({
+            response,
+            json: { ...body, items, totalItems: body.totalItems - hidden },
+        })
+    })
+}
+
 function saveButton(page: Page) {
     return page.getByTestId('opening-save')
 }
@@ -667,6 +695,7 @@ test.describe('opening-balances: save draft and discard', () => {
     test('(1) a refused account insert shows the message, creates no draft and keeps the form', async ({
         page,
     }) => {
+        await hideOpeningEquityAccount(page)
         const ids = await begin(page, DESKTOP)
         const writes = trackWrites(page)
         await refusePosts(page, ACCOUNT_WRITES, {

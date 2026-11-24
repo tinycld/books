@@ -250,7 +250,7 @@ func checkStockDay(tx core.App, actor, day string, now time.Time) error {
 // adjustmentAccount is the id of the account r posts against, checked: its
 // own when it names one (active, and not Accounts receivable or Accounts
 // payable, whose lines need a party), else the kind's, which r then names:
-// Opening balance equity for an opening adjustment, Inventory shrinkage for
+// Opening Balance Equity for an opening adjustment, Inventory shrinkage for
 // any other.
 func adjustmentAccount(tx core.App, r *core.Record) (string, error) {
 	if id := r.GetString("account"); id != "" {

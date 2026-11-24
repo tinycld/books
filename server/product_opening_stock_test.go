@@ -32,8 +32,8 @@ func TestInventoryItem_OpeningStockPostsAnOpeningAdjustment(t *testing.T) {
 		t.Errorf("opening adjustment date %q memo %q", opening.GetString("date"), opening.GetString("memo"))
 	}
 	equity := reload(t, env.app, "books_accounts", opening.GetString("account"))
-	if equity.GetString("name") != "Opening balance equity" || equity.GetString("type") != "equity" {
-		t.Errorf("the opening posts against %q (%s), want Opening balance equity", equity.GetString("name"), equity.GetString("type"))
+	if equity.GetString("name") != "Opening Balance Equity" || equity.GetString("type") != "equity" {
+		t.Errorf("the opening posts against %q (%s), want Opening Balance Equity", equity.GetString("name"), equity.GetString("type"))
 	}
 	requireEntryLines(t, env.app, opening.GetString("entry"),
 		entryLine{account: widget.GetString("asset_account"), debit: 4000},
