@@ -104,7 +104,7 @@ func checkNames(dec *json.Decoder, prefix string, depth int) error {
 			return usagef("--input names %q twice", path)
 		}
 		seen[key] = true
-		if err := checkValue(dec, path, depth); err != nil {
+		if err := checkJSONValue(dec, path, depth); err != nil {
 			return err
 		}
 	}
@@ -114,9 +114,9 @@ func checkNames(dec *json.Decoder, prefix string, depth int) error {
 	return nil
 }
 
-// checkValue reads one value and, for an object or an array, everything in it.
+// checkJSONValue reads one value and, for an object or an array, everything in it.
 // depth is the level of the container that holds the value.
-func checkValue(dec *json.Decoder, path string, depth int) error {
+func checkJSONValue(dec *json.Decoder, path string, depth int) error {
 	token, err := dec.Token()
 	if err != nil {
 		return usagef("--input is not JSON: %v", err)
@@ -132,7 +132,7 @@ func checkValue(dec *json.Decoder, path string, depth int) error {
 		return usagef("--input is nested too deeply: more than %d levels", maxInputDepth)
 	}
 	for i := 0; dec.More(); i++ {
-		if err := checkValue(dec, fmt.Sprintf("%s[%d]", path, i), depth+1); err != nil {
+		if err := checkJSONValue(dec, fmt.Sprintf("%s[%d]", path, i), depth+1); err != nil {
 			return err
 		}
 	}
