@@ -64,8 +64,6 @@ export async function openEntriesList(page: Page) {
     if (!(await listCard.count()) && !(await root.count())) {
         await expect(entries.or(back).or(dashboard).filter({ visible: true }).first()).toBeVisible()
     }
-    // A list that a record or another screen covers stays mounted and hidden, so the stack
-    // can hold one under the list on top: only the visible one is the screen on top.
     const shown = shownEntries(page)
     if (await shown.isVisible()) return
     if (isPhone(page)) await showListsHub(page)
