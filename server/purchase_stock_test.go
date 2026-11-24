@@ -206,10 +206,11 @@ func TestBuyStock_RefusedPostMovesNoStock(t *testing.T) {
 	}
 }
 
-// A refusal after the bill's moves are written takes them back: the bill,
-// dated in a closed period itself, fills a removal in that period, and the
-// re-cost of that removal is refused, naming the removal and the item.
-func TestBuyStock_RefusedRecostMovesNoStock(t *testing.T) {
+// A bill dated in a closed period that would re-cost a removal in that period
+// is refused for its own day, on its date field, with the text a bill with no
+// inventory gets: the closed day is the cause, not the re-cost. Nothing of the
+// post is written.
+func TestBuyStock_ABillInAClosedPeriodIsRefusedOnItsDate(t *testing.T) {
 	e := newBuyStockEnv(t, costingFIFO)
 	out := e.stock.mustAdjust(t, "2026-07-01", e.stock.stockOut(4))
 	if err := setFields(t, e.app, "books_settings", settingsID, map[string]any{"close_date": "2026-07-15"}); err != nil {
@@ -217,8 +218,8 @@ func TestBuyStock_RefusedRecostMovesNoStock(t *testing.T) {
 	}
 	bill := mkBill(t, e.app, e.summit, map[string]any{"date": "2026-07-10", "due_date": "2026-07-20"})
 	mkBillLine(t, e.app, bill, 0, productLine(e.stock.widget, 10, 700))
-	requireRefused(t, postBillAs(e.app, bill.Id, e.users.bookkeeper.Id),
-		"The books are closed through 2026-07-15, so Books cannot re-cost Inventory adjustment IA-1 for Widget on 2026-07-10.")
+	requireFieldRefusal(t, postBillAs(e.app, bill.Id, e.users.bookkeeper.Id), "date",
+		"The books are closed through 2026-07-15. Ask a Books admin for a close-date override to post on 2026-07-10.")
 
 	if moves, _ := documentStockMoves(e.app, "books_bills", bill.Id); len(moves) != 0 {
 		t.Errorf("%d moves of the refused bill, want none", len(moves))

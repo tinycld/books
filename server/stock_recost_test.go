@@ -198,17 +198,17 @@ func TestRecost_OfAMoveInAClosedPeriodPostsOnTheDayOfItsCause(t *testing.T) {
 }
 
 // A cause that is itself in the closed period cannot carry the re-cost
-// either: the refusal names the document and the item it would re-cost, and
-// nothing of the post is written.
-func TestRecost_ACauseInAClosedPeriodNamesTheDocumentAndTheItem(t *testing.T) {
+// either: it is refused for its own day, on its date field, before the
+// replay, and nothing of the post is written.
+func TestRecost_ACauseInAClosedPeriodIsRefusedOnItsDate(t *testing.T) {
 	se := newStockEnv(t)
 	se.mustAdjust(t, "2026-07-01", se.stockOut(4))
 	if err := setFields(t, se.app, "books_settings", settingsID, map[string]any{"close_date": "2026-07-15"}); err != nil {
 		t.Fatalf("close the books: %v", err)
 	}
 	_, err := se.adjust("2026-07-10", se.stockIn(10, 7000))
-	requireRefused(t, err,
-		"The books are closed through 2026-07-15, so Books cannot re-cost Inventory adjustment IA-1 for Widget on 2026-07-10.")
+	requireFieldRefusal(t, err, "date",
+		"The books are closed through 2026-07-15. Ask a Books admin for a close-date override to post on 2026-07-10.")
 	if n, _ := se.app.CountRecords(inventoryAdjustmentsCollection); n != 1 {
 		t.Errorf("%d adjustments after the refusal, want the 1 removal", n)
 	}

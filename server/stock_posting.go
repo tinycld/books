@@ -153,6 +153,11 @@ func postDocumentStock(tx core.App, actor, source, document, replaces, date stri
 	if len(products) == 0 {
 		return nil, nil
 	}
+	// Before the replay: a document dated in the closed period is refused for
+	// its own day, as its entry would be, not for a re-cost it would cause.
+	if err := checkStockDay(tx, actor, date, time.Now()); err != nil {
+		return nil, err
+	}
 	if err := recomputeStock(tx, products); err != nil {
 		return nil, err
 	}

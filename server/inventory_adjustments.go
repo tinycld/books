@@ -200,7 +200,7 @@ func postAdjustmentReplacing(tx core.App, r *core.Record, replaces string, now t
 		posting = stockCostLines(moves)
 	}
 	if len(posting) == 0 {
-		if err := checkAdjustmentDay(tx, actor, r.GetString("date"), now); err != nil {
+		if err := checkStockDay(tx, actor, r.GetString("date"), now); err != nil {
 			return err
 		}
 		seq, number, err := allocateNumber(tx, docTypeInventoryAdjustment)
@@ -226,10 +226,13 @@ func postAdjustmentReplacing(tx core.App, r *core.Record, replaces string, now t
 	return nil
 }
 
-// checkAdjustmentDay holds an adjustment that has no journal entry to the
-// close date, which postEntry checks for one that has: a quantity at no cost
-// still changes the stock of its day.
-func checkAdjustmentDay(tx core.App, actor, day string, now time.Time) error {
+// checkStockDay refuses a change of stock dated day, on the date field, when
+// the day is closed to actor. It holds an adjustment that has no journal entry
+// to the close date, which postEntry checks for one that has: a quantity at no
+// cost still changes the stock of its day. postDocumentStock runs it before a
+// replay, so a document in the closed period is refused for its own day, not
+// for a re-cost it would cause.
+func checkStockDay(tx core.App, actor, day string, now time.Time) error {
 	s, err := loadSettings(tx)
 	if err != nil {
 		return err
@@ -359,7 +362,7 @@ func voidInventoryAdjustment(tx core.App, r *core.Record, now time.Time) error {
 func voidAdjustmentEntry(tx core.App, r *core.Record, actor string, now time.Time) error {
 	id := r.GetString("entry")
 	if id == "" {
-		return checkAdjustmentDay(tx, actor, r.GetString("date"), now)
+		return checkStockDay(tx, actor, r.GetString("date"), now)
 	}
 	entry, err := tx.FindRecordById("books_journal_entries", id)
 	if err != nil {
