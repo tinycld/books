@@ -1002,7 +1002,8 @@ test.describe('books-settings: setup wizard flow', () => {
         // The costing part asks FIFO or average cost. The database is shared: when a spec
         // on another worker has posted the first inventory transaction, the part shows the
         // locked method as text instead. The test picks no method, so the finish below
-        // saves the method the book already has.
+        // saves the method the book already has (the unit test of useBooksSetup pins that a
+        // locked method is never written).
         await expect(partLabel).toHaveText('Part 3 of 4')
         const costing = page.getByTestId('books-setup-costing')
         await expect(costing).toContainText('How do you cost your inventory?')
@@ -1019,11 +1020,12 @@ test.describe('books-settings: setup wizard flow', () => {
                 await expect(costing.getByRole('radio')).toHaveCount(2, { timeout: 1_000 })
             } else {
                 await expect(locked).toContainText(
-                    'The costing method cannot change after the first inventory transaction posts.',
+                    /^(FIFO \(first in, first out\)|Average cost)\s*The costing method cannot change after the first inventory transaction posts\.$/,
                     { timeout: 1_000 }
                 )
             }
-        }).toPass()
+            // A bound, so a real defect reports its assertion, not the test timeout.
+        }).toPass({ timeout: 10_000 })
         await next.click()
         await expect(page.getByTestId('books-setup-populated')).toBeVisible()
         await expect(partLabel).toHaveText('Part 4 of 4')

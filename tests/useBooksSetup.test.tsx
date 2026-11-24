@@ -544,6 +544,33 @@ describe('useBooksSetup costing method', () => {
         expect(outcome).toEqual({ ok: true, created: 0 })
         expect(settingsRow()).toMatchObject({ costing_method: 'fifo', setup_completed: true })
     })
+
+    // The lock can arrive between the render that made `create` and the write: the hook
+    // saw an unlocked row, the row at update time is locked. The write is the one that
+    // counts.
+    it('leaves a method that locked after the hook read the settings', async () => {
+        const { rendered } = await renderEmptyBook()
+        const stale = rendered.result.current.skipChart
+        expect(rendered.result.current.isReady).toBe(true)
+
+        // The run starts with the unlocked render's closure; the lock lands in the same tick,
+        // before the mutation function reaches its write.
+        let outcome: Awaited<ReturnType<typeof stale>> | undefined
+        await act(async () => {
+            const running = stale({ ...values, costing_method: 'average' })
+            settingsStore().update(SETTINGS_ID, draft => {
+                draft.costing_locked = true
+            })
+            outcome = await running
+        })
+
+        expect(outcome).toEqual({ ok: true, created: 0 })
+        expect(settingsRow()).toMatchObject({
+            costing_locked: true,
+            costing_method: 'fifo',
+            setup_completed: true,
+        })
+    })
 })
 
 describe('useBooksSetup setup_started', () => {

@@ -107,7 +107,6 @@ function BusinessPart({ parts }: { parts: Parts }) {
 
 interface ChoiceCardProps {
     testID: string
-    value: string
     label: string
     description: string
     isSelected: boolean
@@ -136,7 +135,6 @@ function OwnershipPart({ parts }: { parts: Parts }) {
         <ChoiceCard
             key={choice.value}
             testID={`books-setup-ownership-${choice.value}`}
-            value={choice.value}
             label={choice.title}
             description={choice.summary}
             isSelected={choice.value === parts.ownership}
@@ -166,7 +164,6 @@ function CostingChoices({ parts, isVisible }: { parts: Parts; isVisible: boolean
         <ChoiceCard
             key={choice.value}
             testID={`books-setup-costing-${choice.value}`}
-            value={choice.value}
             label={choice.title}
             description={choice.summary}
             isSelected={choice.value === parts.costingMethod}

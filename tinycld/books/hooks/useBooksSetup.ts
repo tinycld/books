@@ -109,8 +109,10 @@ export function useBooksSetup() {
                         }
                         if (fields.ownership !== undefined) draft.ownership = fields.ownership
                         // A locked method is not the wizard's to write: the server refuses
-                        // a change of it, and the Inventory part shows it as text.
-                        if (fields.costing_method !== undefined && !settings.costing_locked) {
+                        // a change of it, and the Inventory part shows it as text. The
+                        // draft is the row at write time; `settings` is the render's, and
+                        // the lock can land after it.
+                        if (fields.costing_method !== undefined && !draft.costing_locked) {
                             draft.costing_method = fields.costing_method
                         }
                         if (fields.done) draft.setup_completed = true
