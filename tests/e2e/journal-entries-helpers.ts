@@ -64,14 +64,17 @@ export async function openEntriesList(page: Page) {
     if (!(await listCard.count()) && !(await root.count())) {
         await expect(entries.or(back).or(dashboard).filter({ visible: true }).first()).toBeVisible()
     }
-    if (await entries.isVisible()) return
+    // A list that a record or another screen covers stays mounted and hidden, so the stack
+    // can hold one under the list on top: only the visible one is the screen on top.
+    const shown = shownEntries(page)
+    if (await shown.isVisible()) return
     if (isPhone(page)) await showListsHub(page)
     // A record pushed over another record keeps the lower one mounted but hidden, with its
     // own Back: only the visible Back is the screen on top, and one press must reach the list.
     const shownBack = back.filter({ visible: true }).first()
     if (await shownBack.isVisible()) {
         await shownBack.click()
-        await expect(entries).toBeVisible()
+        await expect(shown).toBeVisible()
         return
     }
     if (!isPhone(page)) {
@@ -79,7 +82,7 @@ export async function openEntriesList(page: Page) {
         if (!(await navItem.isVisible())) await toggle.click()
     }
     await navItem.click()
-    await expect(entries).toBeVisible()
+    await expect(shown).toBeVisible()
 }
 
 // The Journal Entries screen on top. A Back from a record that was not opened from the list
