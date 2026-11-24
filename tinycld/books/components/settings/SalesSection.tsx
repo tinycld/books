@@ -2,7 +2,6 @@ import { log } from '@tinycld/core/lib/logger'
 import { recoverLiveQueries } from '@tinycld/core/lib/recover-live-queries'
 import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { Text, View } from 'react-native'
-import { useBooksSettings } from '../../hooks/useBooksSettings'
 import { useDepositAccounts } from '../../hooks/useDepositAccounts'
 import { SALES_RECEIPT_MESSAGES } from '../../lib/document-texts'
 import { defaultMessageReadOnlyText, salesDepositReadOnlyText } from '../../lib/sales-settings'
@@ -95,10 +94,8 @@ function SalesForms({ settings, deposit, onRetry }: CardsProps) {
  * Every Books user sees it; an admin edits each card on its own Save (the books_settings
  * update rule is admin-only), others see read-only rows.
  */
-export function SalesSection({ isAdmin }: { isAdmin: boolean }) {
-    const { settings } = useBooksSettings()
+export function SalesSection({ settings, isAdmin }: { settings: BooksSettings; isAdmin: boolean }) {
     const deposit = useDepositAccounts()
-    if (!settings) return null
     const retry = () => {
         void recoverLiveQueries({
             ...deposit.recovery,

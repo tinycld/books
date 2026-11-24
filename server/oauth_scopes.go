@@ -33,6 +33,8 @@ const (
 // them. The balance rebuild route is left out, so core's grant middleware
 // default-denies it to every token: it is session-only. The public estimate
 // and invoice PDF routes are left out too: the link token is their credential.
+// A user's sidebar shortcuts are read-only: arranging a screen is done in the
+// app, not by a token.
 func oauthPackage() oauth.Package {
 	rw := oauth.Access{Read: []string{scopeRead}, Write: []string{scopeWrite}}
 	ro := oauth.Access{Read: []string{scopeRead}}
@@ -122,6 +124,7 @@ func oauthPackage() oauth.Package {
 			"books_access":                     ro,
 			statementsCollection:               rw,
 			documentSendsCollection:            ro,
+			"books_sidebar_shortcuts":          ro,
 		},
 	}
 }

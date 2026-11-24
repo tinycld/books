@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test'
-import { isPhone } from './account-register-helpers'
 import { openEntriesList } from './journal-entries-helpers'
+import { openNewAction } from './new-menu-helpers'
 import { pickFromSearchPicker } from './search-picker-helpers'
 
 // An expense's own screen: `books/expenses/<id>`, never `books/expenses/new`.
@@ -16,17 +16,12 @@ export function expenseIdFromUrl(page: Page): string {
     return id
 }
 
-// Books must already be open. From the Journal Entries list through the New menu (the
-// phone FAB, or the desktop header's New text) to the Expense item; leaves the click on
-// it to the caller's next step.
+// Books must already be open. From the Journal Entries list through the New menu
+// (tests/e2e/new-menu-helpers.ts) to the Expense item; leaves the click on it to the
+// caller's next step.
 export async function clickNewExpense(page: Page) {
     await openEntriesList(page)
-    if (isPhone(page)) {
-        await page.getByLabel('New', { exact: true }).click()
-    } else {
-        await page.getByText('New', { exact: true }).filter({ visible: true }).click()
-    }
-    await page.getByTestId('books-new-expense').click()
+    await openNewAction(page, 'expense')
     await expect(page).toHaveURL(NEW_EXPENSE_URL)
 }
 

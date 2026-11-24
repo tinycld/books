@@ -18,13 +18,16 @@ export function useBooksSettings() {
         })
     }
 
-    // What a screen with other failed reads merges into its one recovery call.
-    const recovery = settingsQuery.isError
+    const settings = settingsQuery.data?.[0]
+    // What a screen with other failed reads merges into its one recovery call. A ready read
+    // with no row is reloaded too: the settings screens show it as an error with Retry.
+    const needsReload = settingsQuery.isError || (settingsQuery.isReady && !settings)
+    const recovery = needsReload
         ? { queries: [settingsQuery.collection], sources: [settingsCollection] }
         : { queries: [], sources: [] }
 
     return {
-        settings: settingsQuery.data?.[0],
+        settings,
         isReady: settingsQuery.isReady,
         hasLoadError: settingsQuery.isError,
         retryLoad,

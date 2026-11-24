@@ -1,13 +1,38 @@
 package books
 
 import (
+	"maps"
 	"net/http"
+	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
 
+	"tinycld.org/core/changesignal"
 	"tinycld.org/core/pkgaccess"
 )
+
+// A member's level changes when the owner edits their core access, their
+// Books admin grant, or their org role. The view is live through core's
+// change signal over each of those collections, so an open Books app shows
+// the new level with no reload, and CheckViews accepts the declared list.
+func TestBooksAccess_IsLive(t *testing.T) {
+	changesignal.ResetForTesting()
+	app, _ := newRegisteredApp(t)
+	want := []string{"books_admins", "org_pkg_access", "users"}
+	got, ok := changesignal.RegisteredViews()["books_access"]
+	if !ok {
+		t.Fatalf("Register did not register the books_access view; registered views: %v",
+			slices.Sorted(maps.Keys(changesignal.RegisteredViews())))
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("registered sources of books_access = %v, want %v", got, want)
+	}
+	if err := changesignal.CheckViews(app); err != nil {
+		t.Errorf("CheckViews: %v", err)
+	}
+}
 
 // coreLevelOf maps a Books level to the core package-access level it must
 // agree with: bookkeeper and admin are both core "full".

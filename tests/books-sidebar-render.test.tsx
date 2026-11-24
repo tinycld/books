@@ -1,9 +1,8 @@
 // @vitest-environment happy-dom
-import { render } from '@testing-library/react'
+import { useWindowSizeStore } from '@tinycld/core/lib/stores/window-size-store'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import BooksSidebar from '../tinycld/books/sidebar'
 import { useBooksUIStore } from '../tinycld/books/stores/books-ui-store'
-import { seedBooks } from './accounts-form-harness'
+import { idsWith, renderSidebar, seedSidebar } from './sidebar-harness'
 
 const url = vi.hoisted(() => ({ pathname: '/' }))
 
@@ -31,13 +30,40 @@ function items(container: HTMLElement) {
 
 describe('BooksSidebar rendering', () => {
     beforeEach(() => {
-        seedBooks({ level: 'admin' })
-        useBooksUIStore.setState({ isAccountingOpen: true })
+        seedSidebar()
+        useBooksUIStore.setState({ isAccountingOpen: true, isNewFirst: false })
+        useWindowSizeStore.getState().setSize(1280, 800)
         url.pathname = '/'
     })
 
+    describe('the order of Shortcuts and New', () => {
+        const heads = ['books-shortcuts-customize', 'books-sidebar-new-toggle']
+
+        function leadOrder() {
+            const { container } = renderSidebar()
+            return idsWith(container, 'books-').filter(id => heads.includes(id))
+        }
+
+        it('draws New first on a phone, when the New button opened the drawer', () => {
+            useWindowSizeStore.getState().setSize(390, 844)
+            useBooksUIStore.setState({ isNewFirst: true })
+            expect(leadOrder()).toEqual([heads[1], heads[0]])
+        })
+
+        it('draws Shortcuts first on a phone, when the drawer opened otherwise', () => {
+            useWindowSizeStore.getState().setSize(390, 844)
+            expect(leadOrder()).toEqual(heads)
+        })
+
+        it('draws Shortcuts first on a desktop, also with the flag left set by a resize', () => {
+            useWindowSizeStore.getState().setSize(1280, 800)
+            useBooksUIStore.setState({ isNewFirst: true })
+            expect(leadOrder()).toEqual(heads)
+        })
+    })
+
     it('draws the Settings entry last', () => {
-        const { container } = render(<BooksSidebar />)
+        const { container } = renderSidebar()
         const ids = items(container).map(i => i.id)
         expect(ids).toContain('books-nav-settings')
         expect(ids[ids.length - 1]).toBe('books-nav-settings')
@@ -45,13 +71,13 @@ describe('BooksSidebar rendering', () => {
 
     it('draws Settings last even when Accounting is folded', () => {
         useBooksUIStore.setState({ isAccountingOpen: false })
-        const { container } = render(<BooksSidebar />)
+        const { container } = renderSidebar()
         const ids = items(container).map(i => i.id)
         expect(ids[ids.length - 1]).toBe('books-nav-settings')
     })
 
     it('draws Dashboard, Banking, Sales, Expenses, then Lists', () => {
-        const { container } = render(<BooksSidebar />)
+        const { container } = renderSidebar()
         const ids = items(container).map(i => i.id)
         expect(ids.slice(0, 5)).toEqual([
             'books-nav-dashboard',
@@ -64,7 +90,7 @@ describe('BooksSidebar rendering', () => {
 
     it('marks only Expenses active on a bill', () => {
         url.pathname = '/a/books/bills/x'
-        const { container } = render(<BooksSidebar />)
+        const { container } = renderSidebar()
         const active = items(container)
             .filter(i => i.isActive)
             .map(i => i.id)
@@ -79,7 +105,7 @@ describe('BooksSidebar rendering', () => {
         '/a/books/credit-memos/abc',
     ])('marks only Sales active on %s', pathname => {
         url.pathname = pathname
-        const { container } = render(<BooksSidebar />)
+        const { container } = renderSidebar()
         const active = items(container)
             .filter(i => i.isActive)
             .map(i => i.id)
@@ -91,7 +117,7 @@ describe('BooksSidebar rendering', () => {
         '/a/books/settings/company',
     ])('marks only Settings active on %s', pathname => {
         url.pathname = pathname
-        const { container } = render(<BooksSidebar />)
+        const { container } = renderSidebar()
         const active = items(container)
             .filter(i => i.isActive)
             .map(i => i.id)

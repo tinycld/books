@@ -5,6 +5,8 @@ tags: [settings, close date, override, sales, default message, purchases, purcha
 order: 20
 ---
 
+Books settings open from two places, and both show the same sections: Settings in the Books sidebar, and, for an organization owner or admin, the Books group of the app's Settings. A Books admin who is not an organization owner or admin uses Settings in the Books sidebar.
+
 To close the books through a date, open Settings, choose Accounting, turn on Close the books and enter the date. People can no longer post entries dated on or before that date. If you move the date earlier or turn the switch off, Books asks you to confirm that closed periods will reopen.
 
 To let someone post into a closed period, open Settings, choose Accounting and press Grant an override under Close the books. Pick the person, give a reason of at least 3 characters and choose how long it lasts. Only a person with Bookkeeper or Admin access can receive an override. The override ends by itself when its time is over. To end it early, press Revoke on its row. Past overrides stay under Show past overrides, without actions. A person who holds an override sees it in Settings with the reason.

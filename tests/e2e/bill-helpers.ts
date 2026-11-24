@@ -2,6 +2,7 @@ import { expect, type Page } from '@playwright/test'
 import { isPhone } from './account-register-helpers'
 import { openBooksMenu } from './books-report-helpers'
 import { openEntriesList } from './journal-entries-helpers'
+import { openNewAction } from './new-menu-helpers'
 import { visibleTestId } from './sales-receipt-helpers'
 import { pickFromSearchPicker } from './search-picker-helpers'
 
@@ -18,17 +19,11 @@ export function billIdFromUrl(page: Page): string {
     return id
 }
 
-// Books must already be open. From the Journal Entries list through the New menu (the
-// phone FAB, or the desktop header's New text) → Bill. A new bill's Vendor picker has
-// focus (web, every width).
+// Books must already be open. From the Journal Entries list through the New menu
+// (tests/e2e/new-menu-helpers.ts) → Bill. A new bill's Vendor picker has focus (web, every width).
 export async function openNewBill(page: Page) {
     await openEntriesList(page)
-    if (isPhone(page)) {
-        await page.getByLabel('New', { exact: true }).click()
-    } else {
-        await page.getByText('New', { exact: true }).filter({ visible: true }).click()
-    }
-    await page.getByTestId('books-new-bill').click()
+    await openNewAction(page, 'bill')
     await expect(page).toHaveURL(NEW_BILL_URL)
     await expect(page.getByTestId('bill-form')).toBeVisible()
     await expect(page.getByTestId('bill-title')).toHaveText('New bill')

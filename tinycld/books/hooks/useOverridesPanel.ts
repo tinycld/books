@@ -3,7 +3,7 @@ import { useForm, zodResolver } from '@tinycld/core/ui/form'
 import { useState } from 'react'
 import { DEFAULT_LASTS } from '../lib/overrides'
 import { type OverrideValues, overrideSchema } from '../lib/settings-schema'
-import { useBooksSettings } from './useBooksSettings'
+import type { BooksSettings } from '../types'
 import { type OverrideRow, useCloseOverrides } from './useCloseOverrides'
 
 const BLANK_GRANT: OverrideValues = { user: '', reason: '', lasts: DEFAULT_LASTS }
@@ -22,23 +22,11 @@ function panelPart(state: {
     return state.isEmpty ? 'empty' : 'ready'
 }
 
-export function useOverridesPanel() {
-    const {
-        settings,
-        isReady: settingsReady,
-        hasLoadError: settingsFailed,
-        retryLoad: retrySettings,
-    } = useBooksSettings()
-    const {
-        active,
-        past,
-        grantableUsers,
-        grant,
-        revoke,
-        isReady,
-        hasLoadError,
-        retryLoad: retryOverrides,
-    } = useCloseOverrides()
+// The row comes from the settings panel, which owns the settings read and its Retry; this
+// panel's own error and Retry are for the overrides read only.
+export function useOverridesPanel(settings: BooksSettings) {
+    const { active, past, grantableUsers, grant, revoke, isReady, hasLoadError, retryLoad } =
+        useCloseOverrides()
     const addToast = useToastStore(s => s.addToast)
     // Dialog and history flags that no other component reads, so they stay local
     const [isHistoryOpen, setHistoryOpen] = useState(false)
@@ -50,7 +38,7 @@ export function useOverridesPanel() {
         defaultValues: BLANK_GRANT,
     })
     const { setError, reset, handleSubmit } = grantForm
-    const hasCloseDate = !!settings && settings.close_date !== ''
+    const hasCloseDate = settings.close_date !== ''
 
     const dismissGrant = () => {
         setGrantOpen(false)
@@ -61,11 +49,6 @@ export function useOverridesPanel() {
     const closeGrant = () => {
         if (grantForm.formState.isSubmitting) return
         dismissGrant()
-    }
-
-    const retryLoad = () => {
-        retrySettings()
-        retryOverrides()
     }
 
     const submit = handleSubmit(async values => {
@@ -87,8 +70,8 @@ export function useOverridesPanel() {
 
     return {
         part: panelPart({
-            isReady: isReady && settingsReady,
-            hasLoadError: hasLoadError || settingsFailed,
+            isReady,
+            hasLoadError,
             hasCloseDate,
             isEmpty: active.length === 0 && past.length === 0,
         }),

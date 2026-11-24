@@ -71,6 +71,7 @@ export type {
     BooksSalesReceipts,
     BooksSalesReceiptTaxLines,
     BooksSettings,
+    BooksSidebarShortcuts,
     BooksStatements,
     BooksTaxAgencies,
     BooksTaxRates,

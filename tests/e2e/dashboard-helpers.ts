@@ -196,8 +196,20 @@ export async function setShown(page: Page, id: DashboardWidgetId, isShown: boole
     else await expect(toggle).not.toBeChecked()
 }
 
+const DRAG_STEPS = 12
+
+async function liveBox(locator: Locator) {
+    const box = await locator.boundingBox()
+    if (!box) throw new Error('drag handle or target row is not laid out')
+    return box
+}
+
 // Drags a row by its handle above the row of `beforeId` (a real pointer drag in 12 steps,
-// as core tests/e2e/forms-builder.spec.ts drags) and waits for the saved write.
+// as core tests/e2e/forms-builder.spec.ts drags) and waits for the saved write. Drax
+// measures its containers when a drag starts (and on resize) and hit-tests against that
+// measurement for the whole drag, so both boxes are read together right before the press
+// and the steps use fixed coordinates: aiming at a live box would follow a row that moved
+// on screen while Drax still compares against the drag-start position.
 export async function dragRow(
     page: Page,
     id: DashboardWidgetId,
@@ -206,13 +218,17 @@ export async function dragRow(
     const handle = dashboardScreen(page).getByTestId(`dashboard-edit-handle-${id}`)
     const target = editRow(page, beforeId)
     await expect(handle).toBeVisible()
-    const from = await handle.boundingBox()
-    const to = await target.boundingBox()
-    if (!from || !to) throw new Error('drag handle or target row is not laid out')
+    await expect(target).toBeVisible()
     const saved = prefsWrite(page)
-    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
+    const [from, to] = await Promise.all([liveBox(handle), liveBox(target)])
+    const x = from.x + from.width / 2
+    const startY = from.y + from.height / 2
+    const endY = to.y + 2
+    await page.mouse.move(x, startY)
     await page.mouse.down()
-    await page.mouse.move(from.x + from.width / 2, to.y + 2, { steps: 12 })
+    for (let step = 1; step <= DRAG_STEPS; step++) {
+        await page.mouse.move(x, startY + ((endY - startY) * step) / DRAG_STEPS)
+    }
     await page.mouse.up()
     expect((await saved).ok()).toBe(true)
 }

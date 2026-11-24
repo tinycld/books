@@ -4,11 +4,11 @@ import { type Control, FormErrorSummary, useController } from '@tinycld/core/ui/
 import { Menu } from '@tinycld/core/ui/menu'
 import { ChevronDown } from 'lucide-react-native'
 import { Pressable, Text, View } from 'react-native'
-import { useBooksSettings } from '../../hooks/useBooksSettings'
 import { useSettingsForm } from '../../hooks/useSettingsForm'
 import { rootErrorOnly } from '../../lib/root-errors'
 import { type FiscalYearValues, fiscalYearSchema } from '../../lib/settings-schema'
 import { FISCAL_MONTHS } from '../../lib/setup-schema'
+import type { BooksSettings } from '../../types'
 import { FieldNote } from './SectionCard'
 
 const TEST_ID = 'books-settings-fiscal-month'
@@ -56,11 +56,10 @@ function MonthSelect({ control }: { control: Control<FiscalYearValues> }) {
     )
 }
 
-export function FiscalYearForm() {
-    const { settings } = useBooksSettings()
+export function FiscalYearForm({ settings }: { settings: BooksSettings }) {
     const { form, submit, isPending, isDirty } = useSettingsForm({
         schema: fiscalYearSchema,
-        values: { fiscal_year_start_month: settings?.fiscal_year_start_month ?? 1 },
+        values: { fiscal_year_start_month: settings.fiscal_year_start_month },
         toPatch: values => ({ fiscal_year_start_month: values.fiscal_year_start_month }),
     })
     const { errors, isSubmitted } = form.formState

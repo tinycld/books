@@ -19,6 +19,7 @@ import {
 import { collaboratorLevel, type Level, setCollaboratorLevel } from './books-access-helpers'
 import { uniqueMemo } from './invoice-helpers'
 import { openEntriesList, settleFrames } from './journal-entries-helpers'
+import { newActionTestId } from './new-menu-helpers'
 import { PAYMENT_URL } from './receive-payment-helpers'
 import { openSalesReceiptBySearch, SALES_RECEIPT_URL } from './sales-receipt-helpers'
 
@@ -311,11 +312,12 @@ test.describe('bank-deposit: reader (collaborator level)', () => {
         await view.goBack()
         await expect(shownDeposit(view, 'deposit-read-only')).toBeVisible()
 
-        // + New is hidden for a reader.
+        // A reader has no New section: no fold button and no Bank deposit action. The
+        // sidebar itself is drawn.
         await shownDeposit(view, 'deposit-back').click()
         await expect(view.getByTestId('entries-screen').filter({ visible: true })).toBeVisible()
-        await expect(view.getByText('New', { exact: true }).filter({ visible: true })).toHaveCount(
-            0
-        )
+        await expect(view.getByTestId('books-nav-lists').filter({ visible: true })).toBeVisible()
+        await expect(view.getByTestId('books-sidebar-new-toggle')).toHaveCount(0)
+        await expect(view.getByTestId(newActionTestId('deposit'))).toHaveCount(0)
     })
 })

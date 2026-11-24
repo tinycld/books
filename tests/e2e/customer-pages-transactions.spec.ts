@@ -25,6 +25,7 @@ import {
     NEW_INVOICE_URL,
     pickInvoiceCustomer,
 } from './invoice-helpers'
+import { openNewAction } from './new-menu-helpers'
 import { fillInvoice, nonTaxableService, postInvoice } from './receive-payment-helpers'
 import {
     chooseReceiptSelect,
@@ -317,9 +318,8 @@ test.describe('customer-pages: transactions tab', () => {
         await page.getByTestId('customer-back').click()
         await expect(list).toBeVisible()
 
-        // The invoice from the sidebar's New menu, pushed over the list; Back returns.
-        await page.getByText('New', { exact: true }).filter({ visible: true }).click()
-        await page.getByTestId('books-new-invoice').click()
+        // The invoice from the New menu, pushed over the list; Back returns.
+        await openNewAction(page, 'invoice')
         await expect(page).toHaveURL(NEW_INVOICE_URL)
         await pickInvoiceCustomer(page, name)
         await fillInvoice(page, { dueDate: await localToday(page), rate: '120.00' })

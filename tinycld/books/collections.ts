@@ -330,10 +330,12 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
-    // A view: read only, and it emits no realtime events, so a level change
-    // reaches an open app on its next reload or foreground.
+    // A view, never written: the server signals its topic when a user's role, core
+    // access or Books admin grant changes (server/register.go), so a level change
+    // reaches an open app with no reload.
     const books_access = newCollection('books_access', {
         ...onDemand,
+        ...liveViewOptions('books_access'),
         relations: { user: coreStores.users },
         collectionOptions: indexed,
     })
@@ -1049,7 +1051,16 @@ export function registerCollections(
         collectionOptions: indexed,
     })
 
+    // One row for each user: the Shortcuts section of the Books sidebar. No relations: the
+    // row's user is the reader.
+    const books_sidebar_shortcuts = newCollection('books_sidebar_shortcuts', {
+        omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
     return {
+        books_sidebar_shortcuts,
         books_accounts,
         books_bank_connections,
         books_bank_files,

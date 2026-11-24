@@ -434,7 +434,6 @@ describe('dashboard sidebar entry', () => {
             'sales',
             'expenses',
             'lists',
-            'reports',
         ])
     })
 
@@ -468,7 +467,6 @@ describe('banking sidebar entry', () => {
             'sales',
             'expenses',
             'lists',
-            'reports',
         ])
         for (const item of [...NEW_ACTIONS, ...LIST_ENTRIES]) {
             expect(item.id).not.toBe('banking')
@@ -653,33 +651,12 @@ describe('reconcile sidebar entry', () => {
     })
 })
 
-describe('reports sidebar entry', () => {
-    function reportsEntry(): SidebarEntry {
-        const reports = SIDEBAR_ENTRIES.find(e => e.id === 'reports')
-        if (!reports) throw new Error('SIDEBAR_ENTRIES has no reports entry')
-        return reports
-    }
-
-    it("opens core's Reports hub filtered to Books", () => {
-        expect(reportsEntry()).toMatchObject({
-            label: 'Reports',
-            href: 'reports',
-            params: { package: 'books' },
-        })
-    })
-
-    it('is always available and in the top group', () => {
-        const reports = reportsEntry()
-        expect(reports.available).toBe(true)
-        expect(reports.group).toBeUndefined()
-        expect(sidebarSections(availableOnly(SIDEBAR_ENTRIES)).top.map(e => e.id)).toContain(
-            'reports'
-        )
-    })
-
-    it('sits right after lists', () => {
-        const ids = SIDEBAR_ENTRIES.map(e => e.id)
-        expect(ids.indexOf('reports')).toBe(ids.indexOf('lists') + 1)
+// The Books reports are a section of the sidebar (components/sidebar/ReportsSection.tsx);
+// the fixed navigation has no Reports entry, so a screen shortcut cannot name it.
+describe('no reports sidebar entry', () => {
+    it('is not in the fixed navigation', () => {
+        expect(SIDEBAR_ENTRIES.some(e => e.id === 'reports')).toBe(false)
+        expect(SIDEBAR_ENTRIES.some(e => e.href === 'reports')).toBe(false)
     })
 })
 

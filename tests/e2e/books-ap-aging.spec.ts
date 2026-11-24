@@ -340,10 +340,16 @@ test.describe('ap-aging: entry points and narrow layouts', () => {
         await expect(aging).toHaveText('A/P Aging')
         await aging.click()
         await expect(page.getByTestId('report-screen')).toBeVisible()
-        await expect(page).toHaveURL(/\/a\/reports\//)
+        await expect(page).toHaveURL(/\/a\/books\/reports\//)
         await expect(
             page.getByTestId('report-document-title').filter({ visible: true })
         ).toHaveText(AP_AGING_TITLE)
+
+        // Core reopens Books at its last route. The report is now on the Books route, so a new
+        // page would reopen on it, and its answer (no row) would show "no access" instead of the
+        // list. Going back leaves the list as that last route.
+        await page.goBack()
+        await openVendorsList(page)
 
         // No report is found: after the A/P Aging read answered with no row, the list's
         // header draws no Reports menu.

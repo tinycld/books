@@ -83,10 +83,12 @@ async function levelOf(row: Locator): Promise<Level> {
 }
 
 // The page is the owner's, in Books. Opens Settings → Access when it is not open, sets the
-// collaborator's level, and waits until the level shows again after the rows remount.
-export async function setCollaboratorLevel(page: Page, level: Level): Promise<void> {
+// level of the person with `email`, and waits until the level shows again after the rows
+// remount. A test that makes a member of its own (core's `freshMember`) uses this: no other
+// test reads that member's level, so nothing is put back and no one-worker project is needed.
+export async function setLevelOf(page: Page, email: string, level: Level): Promise<void> {
     await openAccess(page)
-    const row = accessRow(page, TEST_COLLABORATOR_EMAIL)
+    const row = accessRow(page, email)
     const userId = await userIdOf(row)
     await shown(page, `books-settings-access-level-${userId}`).click()
     await shown(page, `books-settings-access-level-${userId}-${level}`).click()
@@ -95,6 +97,11 @@ export async function setCollaboratorLevel(page: Page, level: Level): Promise<vo
     await reopenAccess(page)
     await expect(chipOf(page, userId)).toHaveText(LABELS[level])
     await expect(row.getByText(DESCRIPTIONS[level], { exact: true })).toBeVisible()
+}
+
+// The shared collaborator's level: see the note at the top of this file.
+export async function setCollaboratorLevel(page: Page, level: Level): Promise<void> {
+    await setLevelOf(page, TEST_COLLABORATOR_EMAIL, level)
 }
 
 // The page is the owner's, in Books. Opens Settings → Access when it is not open and reads

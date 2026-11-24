@@ -18,6 +18,7 @@
         "./hooks/*": "./tinycld/books/hooks/*.ts",
         "./components/*": "./tinycld/books/components/*.tsx",
         "./setup/*": "./tinycld/books/setup/*.tsx",
+        "./settings/*": "./tinycld/books/settings/*.tsx",
         "./forms": "./tinycld/books/forms/hosts.ts",
         "./forms-ui": "./tinycld/books/forms/ui.ts"
     },

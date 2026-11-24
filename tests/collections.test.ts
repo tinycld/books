@@ -78,6 +78,7 @@ const NAMES = [
     'books_reconciled_lines',
     'books_invoice_due_totals',
     'books_payment_day_totals',
+    'books_sidebar_shortcuts',
 ]
 
 function register() {
@@ -384,6 +385,16 @@ describe('registerCollections', () => {
         expect(view?.syncMode).toBe('on-demand')
         expect(view?.realtime).toBe('query')
         expect(view?.liveTopics).toEqual(['collection/books_reconciled_lines'])
+    })
+
+    // The level view is never written: the server signals its topic when a user's role,
+    // core access or Books admin grant changes, so an open app follows a level change.
+    it('keeps the access view live on its change topic', () => {
+        const { calls } = register()
+        const access = calls.get('books_access')
+        expect(access?.syncMode).toBe('on-demand')
+        expect(access?.realtime).toBe('query')
+        expect(access?.liveTopics).toEqual(['collection/books_access'])
     })
 
     // The audit log view is never written: the server signals its topic when an

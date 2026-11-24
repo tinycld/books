@@ -25,23 +25,21 @@ import { openOpeningBalances } from './opening-balances-helpers'
 import { uniqueName } from './record-form-helpers'
 import { superuserClient } from './superuser-seed'
 
-// The e2e database is shared, so every test sets its own values through the UI and puts back
-// what it changed. Nothing here reads or writes PocketBase directly, except the superuser
-// reset of the setup markers before the setup wizard tests (see resetSetupToUnfinished).
-// This is the only spec file that writes the shared books_settings row (the business name and
-// setup completion), including the setup wizard tests at the end. Playwright runs spec files
-// in parallel workers, so tests that write the same row must live in one file. They run in
+// The e2e database is shared, so every test sets its own values through the UI. Nothing here
+// reads or writes PocketBase directly, except the superuser reset of the setup markers before
+// the setup wizard tests (see resetSetupToUnfinished). The tests of this file run in
 // declaration order in one worker: the Settings screen tests first, the wizard tests last,
-// because the wizard flow completes setup. The tests that save the Company fields, the wizard
-// tests among them, end their titles in "(company settings)": they run in the one-worker
-// `purchase-lines-setting` project (playwright.config.ts) before the rest, because the public
-// customer pages of other spec files show those fields.
+// because the wizard flow completes setup.
+// The Company fields are on the one shared books_settings row, which other spec files read
+// (reports and the customer pages show the business name, email and phone) and which
+// settings-in-core.spec.ts saves (the website) on another worker. So each Company field has
+// one owner: the business name, email and phone are seeded (seed.ts) and no test changes
+// them; the Company test owns the tax ID, the wizard resume test owns the address, and
+// settings-in-core owns the website. A test writes a value unique to its run and asserts only
+// that value. A Company save writes only the fields typed in the form (useSettingsForm), so a
+// save on one worker never puts back an old value of another worker's field.
 // The 'vendor-1099:' describe writes the shared settings row too (the 1099 reporting
 // threshold), so it lives here, and it puts back the threshold it changed.
-// Known consequence: the seeded business name is blank and the schema requires a name, so the
-// Company tests leave 'E2E Company Co' in the shared database. The UI cannot put a blank back.
-// The setup wizard ignores that name, because it resumes only when the setup_started marker,
-// which only the wizard writes, is true. The 'setup wizard resume' test asserts that.
 
 const DESKTOP = { width: 1280, height: 800 }
 const PHONE = { width: 390, height: 844 }
@@ -70,54 +68,6 @@ async function expectSaved(page: Page) {
     await expect(toast.first()).toBeVisible()
     // Wait for the toast to leave so the next save cannot be confused with this one.
     await expect(toast).toHaveCount(0)
-}
-
-// The seeded book has no business name and the schema requires one, so a test that needs to
-// type over the name and put it back first makes sure a name exists.
-async function ensureBusinessName(page: Page) {
-    const name = id(page, 'books-settings-company-business-name')
-    await expect(name).toBeVisible()
-    if ((await name.inputValue()) !== '') return
-    await name.fill('E2E Company Co')
-    await id(page, 'books-settings-save').click()
-    await expectSaved(page)
-}
-
-type CompanyFields = Partial<Record<'name' | 'taxId' | 'phone' | 'email', string>>
-
-const COMPANY_FIELD_IDS = {
-    name: 'books-settings-company-business-name',
-    taxId: 'books-settings-company-tax-id',
-    phone: 'books-settings-company-phone',
-    email: 'books-settings-company-email',
-} as const
-
-const SETTINGS_PATH = /\/books\/settings(\/|$)/
-
-// Puts the given Company fields back through Settings. Save stays disabled when the stored
-// values are already these: nothing was saved, so there is nothing to put back.
-// The route decides whether to press the Settings nav item, not what is painted. On a section
-// route the press opens the Settings index as a new screen and the section screen stays mounted,
-// hidden, under it; the old screen still passes the visible check for a moment, so the next rail
-// press can resolve to the old screen's rail and wait on it until the test times out.
-async function restoreCompanyFields(page: Page, values: CompanyFields) {
-    await page.setViewportSize(DESKTOP)
-    if (!SETTINGS_PATH.test(new URL(page.url()).pathname)) {
-        await id(page, 'books-nav-settings').click()
-        await expect(page).toHaveURL(/\/books\/settings$/)
-    }
-    await expect(id(page, 'books-settings')).toBeVisible()
-    await openRailSection(page, 'numbering')
-    await openRailSection(page, 'company')
-    for (const [field, value] of Object.entries(values) as [keyof CompanyFields, string][]) {
-        const input = id(page, COMPANY_FIELD_IDS[field])
-        await input.fill(value)
-        await expect(input).toHaveValue(value)
-    }
-    const save = id(page, 'books-settings-save')
-    if (!(await save.isEnabled())) return
-    await save.click()
-    await expectSaved(page)
 }
 
 async function pickMenuItem(page: Page, trigger: string, item: string) {
@@ -201,50 +151,39 @@ async function openOpeningForm(page: Page) {
 }
 
 test.describe('books-settings: Settings screens', () => {
-    // The Company test saves the shared settings row. An afterEach hook puts it back also when
-    // the test fails or times out; it does nothing after the other tests.
-    let companyRestore: CompanyFields | undefined
-    test.afterEach(async ({ page }) => {
-        const values = companyRestore
-        companyRestore = undefined
-        if (values) await restoreCompanyFields(page, values)
-    })
-
-    test('Company: validates email and legal name, saves, keeps values, and restores (company settings)', async ({
+    // The business name and the email are fields no test changes: the test types over them to
+    // see the refusals and types them back, so it never saves them. It saves the tax ID, the
+    // Company field it owns, with a value unique to this run.
+    test('Company: validates email and legal name, saves, and keeps the saved value', async ({
         page,
     }) => {
         await openSettings(page)
         const name = id(page, 'books-settings-company-business-name')
         const taxId = id(page, 'books-settings-company-tax-id')
-        const phone = id(page, 'books-settings-company-phone')
         const email = id(page, 'books-settings-company-email')
         const save = id(page, 'books-settings-save')
-        await ensureBusinessName(page)
-        const original = {
-            name: await name.inputValue(),
-            taxId: await taxId.inputValue(),
-            phone: await phone.inputValue(),
-            email: await email.inputValue(),
-        }
-        companyRestore = original
+        await expect(name).not.toHaveValue('')
+        const originalName = await name.inputValue()
+        const originalEmail = await email.inputValue()
         await expect(save).toBeDisabled()
 
         await name.fill('')
         await save.click()
         await expect(page.getByText('Enter the legal business name')).toHaveCount(1)
         await expect(name).toHaveValue('')
-        await name.fill(original.name)
+        await name.fill(originalName)
         await expect(save).toBeDisabled()
 
         await email.fill('not-an-email')
         await save.click()
         await expect(page.getByText('Enter a valid email address')).toBeVisible()
         await expect(email).toHaveValue('not-an-email')
-        await email.fill('')
+        await email.fill(originalEmail)
+        await expect(save).toBeDisabled()
 
-        await name.fill('E2E Company Co')
-        await taxId.fill('12-3456789')
-        await phone.fill('+1 214 555 0100')
+        // At most 20 characters (companySchema).
+        const savedTaxId = `E2E ${Date.now()}`
+        await taxId.fill(savedTaxId)
         await save.click()
         await expectSaved(page)
         await expect(save).toBeDisabled()
@@ -252,19 +191,16 @@ test.describe('books-settings: Settings screens', () => {
         await openRailSection(page, 'numbering')
         await expect(id(page, 'books-settings-numbering')).toBeVisible()
         await openRailSection(page, 'company')
-        await expect(name).toHaveValue('E2E Company Co')
-        await expect(taxId).toHaveValue('12-3456789')
-        await expect(phone).toHaveValue('+1 214 555 0100')
+        await expect(taxId).toHaveValue(savedTaxId)
     })
 
-    test('Company: the phone list shows the saved name and opens the form (company settings)', async ({
-        page,
-    }) => {
+    // The business name is seeded and no test changes it, so the name read here stays.
+    test('Company: the phone list shows the saved name and opens the form', async ({ page }) => {
         await openSettings(page)
         await openRailSection(page, 'numbering')
         await openRailSection(page, 'company')
         const name = id(page, 'books-settings-company-business-name')
-        await ensureBusinessName(page)
+        await expect(name).not.toHaveValue('')
         const saved = await name.inputValue()
 
         await page.setViewportSize(PHONE)
@@ -583,7 +519,7 @@ test.describe('books-settings: Settings screens', () => {
         }
     })
 
-    // Regression: books_access has no realtime, so the mutation reloads it. A reload that was cut short
+    // Regression: the mutation reloads books_access to show the saved level. A reload that was cut short
     // used to resolve with no data, and the old level came back after leaving and re-entering the section.
     // The delay holds the unfiltered list request long enough for that to happen every run.
     test('Access: a slow list refresh still shows the saved level after leaving and re-entering (collaborator level)', async ({
@@ -675,7 +611,8 @@ test.describe('books-settings: Settings screens', () => {
         }
     })
 
-    test('a dirty Company form keeps its edits across the breakpoint and a rail click (company settings)', async ({
+    // Nothing is saved: the draft is typed back to the seeded name, which no test changes.
+    test('a dirty Company form keeps its edits across the breakpoint and a rail click', async ({
         page,
     }) => {
         await openSettings(page)
@@ -685,7 +622,7 @@ test.describe('books-settings: Settings screens', () => {
         await openRailSection(page, 'company')
         const name = id(page, 'books-settings-company-business-name')
         const save = id(page, 'books-settings-save')
-        await ensureBusinessName(page)
+        await expect(name).not.toHaveValue('')
         const original = await name.inputValue()
         await name.fill(`${original} draft`)
         await expect(save).toBeEnabled()
@@ -964,12 +901,6 @@ async function openCompanySettings(page: Page) {
     await openRailSection(page, 'company')
 }
 
-async function saveBusinessName(page: Page, value: string) {
-    await id(page, 'books-settings-company-business-name').fill(value)
-    await id(page, 'books-settings-save').click()
-    await expectSaved(page)
-}
-
 // SEEDED BY A SUPERUSER WRITE. The two setup wizard describes below need a book whose setup
 // is not finished, and the wizard flow finishes it on the shared database. The app has no
 // way back to an unfinished book: only a fresh seed has one, so a second run on the same
@@ -986,36 +917,28 @@ async function resetSetupToUnfinished() {
         .update(SETTINGS_ROW_ID, { setup_completed: false, setup_started: false })
 }
 
-// These tests share the one books_settings row with the finishing flow below, so they run
-// before it. They never complete setup, and they put the business name back.
+// This test shares the one books_settings row with the finishing flow below, so it runs
+// before it. It never completes setup. It saves the address, the Company field it owns, with
+// a value unique to this run; the business name it reads is seeded and no test changes it.
 test.describe('books-settings: setup wizard resume after a Settings save', () => {
     test.beforeEach(resetSetupToUnfinished)
 
-    // An afterEach hook puts the business name back also when the test fails or times out.
-    let companyRestore: CompanyFields | undefined
-    test.afterEach(async ({ page }) => {
-        const values = companyRestore
-        companyRestore = undefined
-        if (values) await restoreCompanyFields(page, values)
-    })
-
-    test('a business name saved from Settings does not make the setup wizard resume at Part 3 (company settings)', async ({
+    test('a Company save from Settings does not make the setup wizard resume at Part 3', async ({
         page,
     }) => {
         await openCompanySettings(page)
         const name = id(page, 'books-settings-company-business-name')
-        await expect(name).toBeVisible()
-        if ((await name.inputValue()) === '') await saveBusinessName(page, 'E2E Company Co')
-        const original = await name.inputValue()
-        companyRestore = { name: original }
-        const saved = 'E2E Wizard Resume Co'
-        await saveBusinessName(page, saved)
+        await expect(name).not.toHaveValue('')
+        const businessName = await name.inputValue()
+        await id(page, 'books-settings-company-address').fill(uniqueName('E2E Wizard Resume St'))
+        await id(page, 'books-settings-save').click()
+        await expectSaved(page)
 
         await id(page, 'books-nav-lists').click()
         await id(page, 'books-setup-card').click()
         await page.setViewportSize(DESKTOP)
         await expect(page.getByTestId('books-setup-part-label')).toHaveText('Part 1 of 3')
-        await expect(page.getByTestId('books-setup-business-name')).toHaveValue(saved)
+        await expect(page.getByTestId('books-setup-business-name')).toHaveValue(businessName)
         await expect(page.getByTestId('books-setup-populated')).toHaveCount(0)
     })
 })
@@ -1024,11 +947,12 @@ test.describe('books-settings: setup wizard resume after a Settings save', () =>
 // test that mutates it once; resetSetupToUnfinished gives each run an unfinished book. The
 // seeded book already has accounts and the seed has no non-admin Books user or empty book,
 // so the fresh-chart, creating, error and non-admin parts are covered by the hook tests,
-// not here.
+// not here. Finishing saves the business name, which other spec files read on other
+// workers: the test types the seeded name back after the refusal, so the save leaves it.
 test.describe('books-settings: setup wizard flow', () => {
     test.beforeEach(resetSetupToUnfinished)
 
-    test('walks Business, Ownership and the populated-book notice, then finishes (company settings)', async ({
+    test('walks Business, Ownership and the populated-book notice, then finishes', async ({
         page,
     }) => {
         await login(page)
@@ -1042,6 +966,8 @@ test.describe('books-settings: setup wizard flow', () => {
         const back = page.getByTestId('books-setup-back')
 
         await expect(partLabel).toHaveText('Part 1 of 3')
+        await expect(businessName).not.toHaveValue('')
+        const seededName = await businessName.inputValue()
 
         await businessName.fill('')
         await next.click()
@@ -1049,7 +975,7 @@ test.describe('books-settings: setup wizard flow', () => {
         await expect(partLabel).toHaveText('Part 1 of 3')
         await expect(page.getByTestId('books-setup-ownership-owners')).toHaveCount(0)
 
-        await businessName.fill('E2E Setup Co')
+        await businessName.fill(seededName)
         await month.click()
         await page.getByTestId('books-setup-month-7').click()
         await expect(month).toContainText('July')
@@ -1063,7 +989,7 @@ test.describe('books-settings: setup wizard flow', () => {
 
         await back.click()
         await expect(partLabel).toHaveText('Part 1 of 3')
-        await expect(businessName).toHaveValue('E2E Setup Co')
+        await expect(businessName).toHaveValue(seededName)
         await expect(month).toContainText('July')
 
         await next.click()
