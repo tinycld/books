@@ -48,6 +48,17 @@ func TestLoadResourcesRefusesAMistake(t *testing.T) {
 		{"required and read-only", `"type":"string"`, `"type":"string","required":true,"readOnly":true`, "cannot be required"},
 		{"enum on a bool", `"type":"string"`, `"type":"bool","enum":["a"]`, "only a string field has an enum"},
 		{"no collection", `"collection":"books_things"`, `"collection":""`, "are required"},
+		{"sort that is no field", `"sort":"id"`, `"sort":"-title"`, `sort names "-title"`},
+		{"sort with an injected term", `"sort":"id"`, `"sort":"id,name;x"`, `sort names "name;x"`},
+		{"sort with an empty term", `"sort":"id"`, `"sort":"id,"`, `sort names ""`},
+		{"filter with no flag", `"filters":[]`, `"filters":[{"flag":"","field":"name","help":"h"}]`, "needs a flag and a help text"},
+		{"filter with no help", `"filters":[]`, `"filters":[{"flag":"kind","field":"name","help":""}]`, "needs a flag and a help text"},
+		{"two filters with one flag", `"filters":[]`, `"filters":[{"flag":"kind","field":"name","help":"h"},{"flag":"kind","field":"name","help":"h"}]`, `filter flag "kind" is used twice`},
+		{"filter flag of a list flag", `"filters":[]`, `"filters":[{"flag":"limit","field":"name","help":"h"}]`, `filter flag "limit" is taken`},
+		{"filter flag of a shell flag", `"filters":[]`, `"filters":[{"flag":"json","field":"name","help":"h"}]`, `filter flag "json" is taken`},
+		{"duplicate column", `"columns":[]`, `"columns":["name","name"]`, `column "name" is listed twice`},
+		{"empty enum value", `"type":"string"`, `"type":"string","enum":["a",""]`, "empty enum value"},
+		{"search of a non-string", `"search":[],"filters":[],"omit":[],"deleteHelp":"","fields":[{"name":"name","type":"string"`, `"search":["name"],"filters":[],"omit":[],"deleteHelp":"","fields":[{"name":"name","type":"bool"`, `search field "name" is not a string`},
 	} {
 		if !strings.Contains(good, tc.from) {
 			t.Fatalf("%s: the base definition has no %s", tc.name, tc.from)
@@ -59,6 +70,36 @@ func TestLoadResourcesRefusesAMistake(t *testing.T) {
 	}
 	if _, err := loadResources(wrap(good + "," + good)); err == nil || !strings.Contains(err.Error(), "defined twice") {
 		t.Errorf("a resource defined twice: error = %v", err)
+	}
+}
+
+func TestLoadResourcesAcceptsSortTerms(t *testing.T) {
+	const def = `{"resources":[{"name":"things","singular":"thing","summary":"Things","collection":"books_things","sort":"-name,+created,id","label":"","columns":[],"search":[],"filters":[],"omit":[],"deleteHelp":"","fields":[{"name":"name","type":"string","help":"the name"}]}]}`
+	if _, err := loadResources([]byte(def)); err != nil {
+		t.Errorf("a sort of declared and system fields must load: %v", err)
+	}
+}
+
+// With two mistakes, the error must name the same one on every run.
+func TestLoadResourcesNamesTheSameMistakeEveryTime(t *testing.T) {
+	const def = `{"resources":[{"name":"things","singular":"thing","summary":"Things","collection":"books_things","sort":"id","label":"zz","columns":["yy"],"search":["xx"],"filters":[],"omit":[],"deleteHelp":"","fields":[{"name":"name","type":"string","help":"the name"}]}]}`
+	_, first := loadResources([]byte(def))
+	if first == nil {
+		t.Fatal("the definition has mistakes")
+	}
+	for range 30 {
+		if _, err := loadResources([]byte(def)); err == nil || err.Error() != first.Error() {
+			t.Fatalf("error = %v, first was %v", err, first)
+		}
+	}
+}
+
+// A caller that edits a schema must not change the next one.
+func TestAddressSchemaDoesNotShareTheKeyList(t *testing.T) {
+	schema := fieldSchema(&field{Name: "address", Type: typeAddress, Help: "h"})
+	schema["required"].([]string)[0] = "changed"
+	if addressKeys[0] != "line1" {
+		t.Errorf("addressKeys[0] = %q: the schema shares the package slice", addressKeys[0])
 	}
 }
 

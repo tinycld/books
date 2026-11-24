@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strings"
 )
 
 // resources.json is the one definition of the list resources: which
@@ -31,6 +32,13 @@ const (
 
 // addressKeys are the keys the server accepts in an address (server/address.go).
 var addressKeys = []string{"line1", "line2", "city", "region", "postal_code", "country"}
+
+// listFlags are the flags `list` has of its own; a filter flag may not reuse
+// one. Task 6 builds the flags from these names.
+var listFlags = []string{"limit", "page", "search", "inactive", "all"}
+
+// shellFlags are the persistent flags of the tinycld root command.
+var shellFlags = []string{"json", "output", "quiet", "yes", "context", "help"}
 
 // The fields every record has. PocketBase sets them.
 var systemFields = []string{"id", "created", "updated"}
@@ -173,25 +181,53 @@ func checkResource(res *resource, names map[string]bool) error {
 			return fmt.Errorf("field %q: %w", f.Name, err)
 		}
 	}
-	uses := map[string][]string{"columns": res.Columns, "search": res.Search, "omit": nil}
-	if res.Label != "" {
-		uses["label"] = []string{res.Label}
+	type use struct {
+		where string
+		names []string
 	}
+	uses := []use{{"columns", res.Columns}, {"search", res.Search}}
+	if res.Label != "" {
+		uses = append(uses, use{"label", []string{res.Label}})
+	}
+	flags := map[string]bool{}
+	filterFields := []string{}
 	for _, flt := range res.Filters {
 		if flt.Flag == "" || flt.Help == "" {
 			return fmt.Errorf("a filter needs a flag and a help text")
 		}
-		uses["filters"] = append(uses["filters"], flt.Field)
+		if slices.Contains(listFlags, flt.Flag) || slices.Contains(shellFlags, flt.Flag) {
+			return fmt.Errorf("filter flag %q is taken by a list or shell flag", flt.Flag)
+		}
+		if flags[flt.Flag] {
+			return fmt.Errorf("filter flag %q is used twice", flt.Flag)
+		}
+		flags[flt.Flag] = true
+		filterFields = append(filterFields, flt.Field)
 	}
-	for where, list := range uses {
-		for _, name := range list {
+	uses = append(uses, use{"filters", filterFields})
+	for _, u := range uses {
+		for _, name := range u.names {
 			if !fields[name] {
-				return fmt.Errorf("%s names %q, which is not a field", where, name)
+				return fmt.Errorf("%s names %q, which is not a field", u.where, name)
 			}
 		}
 	}
+	listed := map[string]bool{}
+	for _, name := range res.Columns {
+		if listed[name] {
+			return fmt.Errorf("column %q is listed twice", name)
+		}
+		listed[name] = true
+	}
+	// The sort goes into PocketBase sort text as it is.
+	for _, term := range strings.Split(res.Sort, ",") {
+		name := strings.TrimLeft(term, "-+")
+		if len(term)-len(name) > 1 || !(fields[name] || slices.Contains(systemFields, name)) {
+			return fmt.Errorf("sort names %q, which is not a field", term)
+		}
+	}
 	for _, name := range res.Search {
-		if res.field(name).Type != typeString {
+		if f := res.field(name); f == nil || f.Type != typeString {
 			return fmt.Errorf("search field %q is not a string", name)
 		}
 	}
@@ -229,6 +265,9 @@ func checkField(f *field, names map[string]bool) error {
 	}
 	if len(f.Enum) > 0 && f.Type != typeString {
 		return fmt.Errorf("only a string field has an enum")
+	}
+	if slices.Contains(f.Enum, "") {
+		return fmt.Errorf("an empty enum value: a select with no value is added by the schema")
 	}
 	if f.Required && f.ReadOnly {
 		return fmt.Errorf("a read-only field is set by the server and cannot be required of the caller")
@@ -270,7 +309,7 @@ func fieldSchema(f *field) map[string]any {
 		}
 		schema["type"] = []string{"object", "null"}
 		schema["properties"] = parts
-		schema["required"] = addressKeys
+		schema["required"] = slices.Clone(addressKeys)
 		schema["additionalProperties"] = false
 	}
 	return schema
