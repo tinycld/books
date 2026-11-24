@@ -16,6 +16,8 @@ export const MAX_QUANTITY = 1000000
 
 const QUANTITY_TEXT = /^-?(\d+\.?\d*|\.\d+)$/
 
+const GROUPED_TEXT = /^-?\d{1,3}(,\d{3})+(\.\d*)?$/
+
 /** The text an input shows for a stored value: nothing for 0 or a value that is no number. */
 export function quantityInputText(value: unknown): string {
     if (typeof value !== 'number' || !Number.isFinite(value) || value === 0) return ''
@@ -24,12 +26,18 @@ export function quantityInputText(value: unknown): string {
 
 /**
  * The quantity of typed text: 0 for empty text, null for text that is not a plain
- * decimal number. A comma thousands separator is allowed, as in a line's Qty cell.
+ * decimal number or beyond the float range. A comma is allowed only as a thousands
+ * separator in groups of 3 digits ("1,250", "12,500.5"); any other comma ("1,25", "1,2,3")
+ * makes the text not parse, so a decimal comma is never read as a different number.
  */
 export function quantityInputNumber(text: string): number | null {
-    const plain = text.trim().replace(/,/g, '')
+    const trimmed = text.trim()
+    if (trimmed.includes(',') && !GROUPED_TEXT.test(trimmed)) return null
+    const plain = trimmed.replace(/,/g, '')
     if (plain === '') return 0
-    return QUANTITY_TEXT.test(plain) ? Number(plain) : null
+    if (!QUANTITY_TEXT.test(plain)) return null
+    const value = Number(plain)
+    return Number.isFinite(value) ? value : null
 }
 
 /** The value the input sends: the number when the text parses, else the text itself. */

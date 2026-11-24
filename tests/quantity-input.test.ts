@@ -48,6 +48,24 @@ describe('quantityInputNumber', () => {
         expect(quantityInputNumber('-3')).toBe(-3)
     })
 
+    it('reads a comma only as a thousands separator in groups of 3 digits', () => {
+        expect(quantityInputNumber('12,500.5')).toBe(12500.5)
+        expect(quantityInputNumber('1,000,000')).toBe(1000000)
+        expect(quantityInputNumber('-1,250')).toBe(-1250)
+        expect(quantityInputNumber('1,25')).toBeNull()
+        expect(quantityInputNumber('1,2,3')).toBeNull()
+        expect(quantityInputNumber('1,2500')).toBeNull()
+        expect(quantityInputNumber(',250')).toBeNull()
+        expect(quantityInputNumber('1,250,')).toBeNull()
+        expect(quantityInputNumber('1,250.5,1')).toBeNull()
+    })
+
+    it('reads -0 as 0 or -0 without failing, and a number beyond the float range as null', () => {
+        expect(quantityInputNumber('-0')).toBe(-0)
+        expect(quantityInputNumber('9'.repeat(400))).toBeNull()
+        expect(quantityFieldValue('9'.repeat(400))).toBe('9'.repeat(400))
+    })
+
     it('reads text that is not a plain decimal number as null', () => {
         expect(quantityInputNumber('abc')).toBeNull()
         expect(quantityInputNumber('1e3')).toBeNull()
