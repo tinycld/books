@@ -40,7 +40,7 @@ const manifest = {
     // Forms hosts: `forms` is the data the generator reads in Node
     // (server/form_hosts.json), `forms-ui` the components the forms render.
     forms: { hosts: 'forms', ui: 'forms-ui' },
-    peerVersions: { '@tinycld/core': '>=0.8 <1' },
+    peerVersions: { '@tinycld/core': '>=0.12.0 <0.13.0' },
     server: { package: 'server', module: 'tinycld.org/packages/books' },
     // The `tinycld books` commands (cli/). The generator links the module into
     // the CLI shell. A command signs in through the shell and needs the scopes
