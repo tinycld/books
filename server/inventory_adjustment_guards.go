@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/pocketbase/dbx"
@@ -27,7 +28,13 @@ const (
 	msgAdjustmentTooManyLines   = "An inventory adjustment holds at most 500 lines."
 	msgAdjustmentLineProduct    = "Choose an Inventory item."
 	msgAdjustmentLineDecimals   = "Enter a quantity with at most 2 decimals."
+	msgAdjustmentLineTooLarge   = "Enter a quantity between -1,000,000 and 1,000,000."
 )
+
+// maxAdjustmentQuantity is the schema's limit of a line's quantity. The guard
+// runs before the schema's check, and a larger quantity overflows int64 in
+// qtyHundredths.
+const maxAdjustmentQuantity = 1000000
 
 // The adjustment fields only Books writes. adjustmentNewBooksFields must be
 // empty on a new adjustment; adjustmentKeptBooksFields cannot change while a
@@ -66,7 +73,7 @@ func registerInventoryAdjustmentGuards(app core.App) {
 		return serialized(e, func(tx core.App) error {
 			stored, err := tx.FindRecordById(inventoryAdjustmentsCollection, e.Record.Id)
 			if err != nil {
-				return err
+				return fmt.Errorf("books: read the adjustment to delete: %w", err)
 			}
 			if stored.GetString("status") != statusDraft {
 				return refuse(msgAdjustmentDeleteNotDraft)
@@ -255,7 +262,11 @@ func validateInventoryAdjustmentLine(tx core.App, stored, r *core.Record) error 
 	}
 	// The stock move holds hundredths: a third decimal would post a quantity
 	// the line does not show.
-	if qty := r.GetFloat("quantity"); qtyFromHundredths(qtyHundredths(qty)) != qty {
+	qty := r.GetFloat("quantity")
+	if math.Abs(qty) > maxAdjustmentQuantity {
+		return refuseField("quantity", msgAdjustmentLineTooLarge)
+	}
+	if qtyFromHundredths(qtyHundredths(qty)) != qty {
 		return refuseField("quantity", msgAdjustmentLineDecimals)
 	}
 	if fault := adjustmentLineFault(qtyHundredths(r.GetFloat("quantity")), int64(r.GetInt("value"))); fault != "" {

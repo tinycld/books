@@ -1,8 +1,10 @@
 package books
 
 import (
+	"net/http"
 	"testing"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -201,4 +203,83 @@ func TestInventoryAdjustment_APersonCannotVoidWhatBooksMade(t *testing.T) {
 		t.Errorf("the re-cost is %s after its document's void, want void", got)
 	}
 	requireOnHand(t, se.app, se.widget, 10, 7000)
+}
+
+// A person's post and void go through the request hook, which stamps who did
+// it; every other test here saves through app.Save and names the actor itself.
+func TestInventoryAdjustment_ARequestIsStampedWithItsActor(t *testing.T) {
+	se := newAdjustmentEnv(t)
+	draft := se.draftAdjustment(t, "2026-07-01", se.stockIn(10, 1000))
+	url := "/api/collections/" + inventoryAdjustmentsCollection + "/records/" + draft.Id
+	token := tokenFor(t, se.users.bookkeeper)
+	apiSeq(t, se.app,
+		apiReq{method: http.MethodPatch, url: url, token: token, body: `{"status":"posted"}`, want: http.StatusOK},
+		apiReq{method: http.MethodPatch, url: url, token: token, body: `{"status":"void"}`, want: http.StatusOK},
+	)
+	got := reload(t, se.app, inventoryAdjustmentsCollection, draft.Id)
+	if got.GetString("status") != statusVoid ||
+		got.GetString("posted_by") != se.users.bookkeeper.Id || got.GetString("voided_by") != se.users.bookkeeper.Id {
+		t.Errorf("status %q posted_by %q voided_by %q, want void and the bookkeeper on both",
+			got.GetString("status"), got.GetString("posted_by"), got.GetString("voided_by"))
+	}
+}
+
+func TestInventoryAdjustment_AnAdjustmentHoldsAtMost500Lines(t *testing.T) {
+	se := newAdjustmentEnv(t)
+	draft := se.draftAdjustment(t, "2026-07-01")
+	for i := 0; i < maxAdjustmentLines; i++ {
+		if _, err := se.adjustmentLine(draft, i, se.stockOut(1)); err != nil {
+			t.Fatalf("save line %d: %v", i+1, err)
+		}
+	}
+	_, err := se.adjustmentLine(draft, maxAdjustmentLines, se.stockOut(1))
+	requireRefused(t, err, "An inventory adjustment holds at most 500 lines.")
+}
+
+func TestInventoryAdjustment_ALineOfAPostedAdjustmentIsFixed(t *testing.T) {
+	se := newAdjustmentEnv(t)
+	draft := se.draftAdjustment(t, "2026-07-01", se.stockIn(10, 1000))
+	if err := se.postAdjustment(draft.Id); err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	line, err := se.app.FindFirstRecordByData(inventoryAdjustmentLinesCollection, "adjustment", draft.Id)
+	if err != nil {
+		t.Fatalf("find the line: %v", err)
+	}
+	const fixed = "The lines of a posted or void inventory adjustment cannot change."
+	requireRefused(t, setFieldsOf(se.app, inventoryAdjustmentLinesCollection, line.Id, map[string]any{"value": 2000}), fixed)
+	requireRefused(t, se.app.Delete(line), fixed)
+}
+
+func TestInventoryAdjustment_ALineNamesAnInventoryItem(t *testing.T) {
+	se := newAdjustmentEnv(t)
+	draft := se.draftAdjustment(t, "2026-07-01")
+	_, err := se.adjustmentLine(draft, 0, adjustmentLineInput{Product: "nosuchproduct1", Quantity: 1, Value: 100})
+	requireFieldRefusal(t, err, "product", "Choose an Inventory item.")
+}
+
+// The guard runs before the schema's check, and quantity*100 of a huge
+// quantity overflows int64 in qtyHundredths: the guard names the limit itself.
+func TestInventoryAdjustment_AHugeQuantityNamesTheLimit(t *testing.T) {
+	se := newAdjustmentEnv(t)
+	draft := se.draftAdjustment(t, "2026-07-01")
+	for _, qty := range []float64{1e17, -1e17, 1000001} {
+		_, err := se.adjustmentLine(draft, 0, adjustmentLineInput{Product: se.widget.Id, Quantity: qty, Value: 100})
+		requireFieldRefusal(t, err, "quantity", "Enter a quantity between -1,000,000 and 1,000,000.")
+	}
+	if _, err := se.adjustmentLine(draft, 0, adjustmentLineInput{Product: se.widget.Id, Quantity: 1000000, Value: 100}); err != nil {
+		t.Errorf("a quantity of 1,000,000: %v, want it kept", err)
+	}
+}
+
+// The delete guard wraps what it cannot read, as the line guard does.
+func TestInventoryAdjustment_ADeleteWrapsAReadFailure(t *testing.T) {
+	se := newAdjustmentEnv(t)
+	draft := se.draftAdjustment(t, "2026-07-01")
+	stale := reload(t, se.app, inventoryAdjustmentsCollection, draft.Id)
+	if _, err := se.app.DB().NewQuery("DELETE FROM " + inventoryAdjustmentsCollection + " WHERE id = {:id}").
+		Bind(dbx.Params{"id": draft.Id}).Execute(); err != nil {
+		t.Fatalf("remove the row: %v", err)
+	}
+	requireRefused(t, se.app.Delete(stale), "books: read the adjustment to delete")
 }
