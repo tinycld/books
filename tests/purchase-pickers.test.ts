@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { PURCHASE_ITEM_TYPES } from '../tinycld/books/lib/product-picker-types'
 import {
     ALL_INACTIVE_PRODUCTS,
     PRODUCT_IDS,
@@ -107,7 +108,7 @@ describe('purchaseProductOptions', () => {
             const product = PRODUCTS.find(row => row.id === option.id)
             expect(product?.purchases, option.label).toBe(true)
             expect(product?.inactive, option.label).toBe(false)
-            expect(['service', 'non_inventory'], option.label).toContain(product?.type)
+            expect(PURCHASE_ITEM_TYPES, option.label).toContain(product?.type)
         }
     })
 

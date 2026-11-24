@@ -138,9 +138,9 @@ function triggerSuffixOf(
 /**
  * A searchable menu of active products of `types` (default Service, Non-inventory and
  * Inventory, the bundle items' picker), 50 at a time, searched by name or SKU. With `purpose`
- * 'purchases' (a bill line) it lists only products with "I purchase this" on. The
- * trigger names the chosen product, with "(inactive)" when it was made inactive after it
- * was chosen, and on a purchase "(not purchased)" when "I purchase this" was turned off.
+ * 'purchases' (a bill line) it lists only products with "I purchase this" on. The trigger
+ * names the chosen product, with "(inactive)" when it was made inactive after it was
+ * chosen, and on a purchase "(not purchased)" when "I purchase this" was turned off.
  */
 export function ProductPicker({
     purpose = 'sales',
