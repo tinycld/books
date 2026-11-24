@@ -79,6 +79,17 @@ const NAMES = [
     'books_invoice_due_totals',
     'books_payment_day_totals',
     'books_sidebar_shortcuts',
+    'books_stock_moves',
+    'books_stock_layers',
+    'books_inventory_adjustments',
+    'books_inventory_adjustment_lines',
+]
+
+const INVENTORY = [
+    'books_stock_moves',
+    'books_stock_layers',
+    'books_inventory_adjustments',
+    'books_inventory_adjustment_lines',
 ]
 
 function register() {
@@ -104,6 +115,30 @@ describe('registerCollections', () => {
             expect(calls.get(name)?.syncMode).toBe('on-demand')
             expect(calls.get(name)?.realtime).toBe('query')
         }
+    })
+
+    // ADR 3: the server fills an adjustment's number, entry and stamps, and the stock
+    // rows are read from their own collections.
+    it('declares the inventory collections with no relations, and the server fills an adjustment', () => {
+        const { calls } = register()
+        for (const name of INVENTORY) {
+            expect(calls.get(name)?.relations, name).toBeUndefined()
+        }
+        expect(calls.get('books_inventory_adjustments')?.omitOnInsert).toEqual([
+            'created',
+            'updated',
+            'number',
+            'sequence',
+            'source',
+            'document',
+            'currency',
+            'entry',
+            'posted_by',
+            'posted_at',
+            'voided_by',
+            'voided_at',
+            'sort_key',
+        ])
     })
 
     it('declares the relations the ledger screens read', () => {

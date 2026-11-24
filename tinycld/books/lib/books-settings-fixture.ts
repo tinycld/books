@@ -27,6 +27,8 @@ export const COMPANY_SETTINGS = {
     sales_deposit_account: '',
     default_customer_message: '',
     purchase_lines: 'both',
+    costing_method: 'fifo',
+    costing_locked: false,
     created: STAMP,
     updated: STAMP,
 } satisfies BooksSettings
