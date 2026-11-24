@@ -1,0 +1,137 @@
+package cli
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+	"testing"
+
+	"tinycld.org/cli/exitcode"
+)
+
+func TestDeactivateAndActivate(t *testing.T) {
+	f := chart(t)
+	c := f.serve()
+	out, errOut, err := runCmd(t, c, "", "books", "accounts", "deactivate", "acctsavings0001", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sent, _ := json.Marshal(f.lastPatch); string(sent) != `{"inactive":true}` {
+		t.Errorf("deactivate sent %s", sent)
+	}
+	if decodeRecord(t, out)["inactive"] != true || !strings.Contains(errOut, "deactivated account Savings") {
+		t.Errorf("stdout:\n%s\nstderr: %q", out, errOut)
+	}
+	if _, _, err := runCmd(t, c, "", "books", "accounts", "activate", "acctsavings0001"); err != nil {
+		t.Fatal(err)
+	}
+	if sent, _ := json.Marshal(f.lastPatch); string(sent) != `{"inactive":false}` {
+		t.Errorf("activate sent %s", sent)
+	}
+	_, _, err = runCmd(t, c, "", "books", "accounts", "deactivate", "nope")
+	if got := exitcode.Of(err); got != exitcode.NotFound {
+		t.Errorf("deactivate of a missing account: exit = %d, want 5", got)
+	}
+}
+
+// The server refuses to make an account inactive while it has active
+// sub-accounts. The CLI passes the server's own sentence on.
+func TestDeactivateRefusalShowsTheServerMessage(t *testing.T) {
+	f := chart(t)
+	f.refuse("PATCH", 400, `{"data":{},"message":"Make the 2 active sub-accounts inactive first.","status":400}`)
+	_, _, err := runCmd(t, f.serve(), "", "books", "accounts", "deactivate", "acctchecking001")
+	if got := exitcode.Of(err); got != exitcode.Refused {
+		t.Fatalf("exit = %d, want 6", got)
+	}
+	want := "account acctchecking001: server error (HTTP 400): Make the 2 active sub-accounts inactive first."
+	if err.Error() != want {
+		t.Errorf("error = %q, want %q", err.Error(), want)
+	}
+}
+
+func TestDeleteWithYes(t *testing.T) {
+	f := chart(t)
+	out, errOut, err := runCmd(t, f.serve(), "", "books", "accounts", "delete", "acctsavings0001", "--yes", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(f.deleted) != "[acctsavings0001]" {
+		t.Errorf("deleted = %v", f.deleted)
+	}
+	got := decodeRecord(t, out)
+	if got["id"] != "acctsavings0001" || got["deleted"] != true {
+		t.Errorf("result = %v", got)
+	}
+	if !strings.Contains(errOut, "deleted account Savings (acctsavings0001)") {
+		t.Errorf("stderr = %q", errOut)
+	}
+}
+
+// Without --yes a delete asks. A test has no terminal to answer from (or an
+// empty one), so the call is refused as a usage error and nothing is deleted.
+func TestDeleteWithoutYesDeletesNothing(t *testing.T) {
+	f := chart(t)
+	_, _, err := runCmd(t, f.serve(), "", "books", "accounts", "delete", "acctsavings0001")
+	if got := exitcode.Of(err); got != exitcode.Usage {
+		t.Fatalf("exit = %d, want 2; err: %v", got, err)
+	}
+	if len(f.deleted) != 0 {
+		t.Errorf("deleted without --yes: %v", f.deleted)
+	}
+}
+
+func TestDeleteOfAMissingRecordIsExit5(t *testing.T) {
+	f := chart(t)
+	_, _, err := runCmd(t, f.serve(), "", "books", "accounts", "delete", "nope", "--yes")
+	if got := exitcode.Of(err); got != exitcode.NotFound {
+		t.Fatalf("exit = %d, want 5; err: %v", got, err)
+	}
+	if fmt.Sprint(f.requests) != "[GET /api/collections/books_accounts/records/nope]" {
+		t.Errorf("requests = %v", f.requests)
+	}
+}
+
+// The server refuses to delete an account in use and says what to do. The
+// message reaches the caller word for word, with exit 6.
+func TestDeleteRefusalShowsTheServerMessage(t *testing.T) {
+	f := chart(t)
+	const message = "This account is used on 3 journal lines and cannot be deleted. Make it inactive instead."
+	f.refuse("DELETE", 400, `{"data":{},"message":"`+message+`","status":400}`)
+	out, _, err := runCmd(t, f.serve(), "", "books", "accounts", "delete", "acctchecking001", "--yes", "--json")
+	if got := exitcode.Of(err); got != exitcode.Refused {
+		t.Fatalf("exit = %d, want 6; err: %v", got, err)
+	}
+	var doc errorDoc
+	if jsonErr := json.Unmarshal([]byte(out), &doc); jsonErr != nil {
+		t.Fatal(jsonErr)
+	}
+	if doc.Error.Message != message {
+		t.Errorf("message = %q", doc.Error.Message)
+	}
+	if f.find("books_accounts", "acctchecking001") == nil {
+		t.Error("the fake deleted a record the server refused to delete")
+	}
+}
+
+func TestDeleteHelpSaysWhenTheServerRefuses(t *testing.T) {
+	out, _, err := runCmd(t, nil, "", "books", "accounts", "delete", "--help")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"cannot be undone", "--yes", "Make it inactive with `deactivate`"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the help has no %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestResourceGroupCommands(t *testing.T) {
+	root := newTestRoot(nil)
+	group, _, err := root.Find([]string{"books", "accounts"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(subcommandNames(group), " "); got != "activate add deactivate delete edit list show types" {
+		t.Errorf("accounts commands = %q", got)
+	}
+}

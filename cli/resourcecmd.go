@@ -16,5 +16,9 @@ func newResourceCmd(c *client.Client, res *resource) *cobra.Command {
 		newAddCmd(c, res),
 		newEditCmd(c, res),
 	)
+	if res.hasInactive() {
+		group.AddCommand(newActiveCmd(c, res, true), newActiveCmd(c, res, false))
+	}
+	group.AddCommand(newDeleteCmd(c, res))
 	return group
 }
