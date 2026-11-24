@@ -1713,7 +1713,7 @@ var shippedSpecSHA256 = map[string]string{
 	"books.expenses_by_vendor":        "5d6493b5483491c136cc60363e7348b439e479082cc16503670e3992e050fd91",
 	"books.sales_by_customer":         "f4cddc28675db506d709a0ad07f936d599dd91e849d14b5546d0b8b042bc7ebc",
 	"books.sales_by_product":          "ac3251b812b61071e29689a41c25a6fb471998def42e1cb4bfc3abf074cfc3e0",
-	"books.audit_log":                 "b3e2031cfbfb63266e7b77ad4412b924bb896bde6c7fd20c64cd7a30895b1dbc",
+	"books.audit_log":                 "941943b25c14e98abc153c5f4c00751f83f227de89b9a31288612588377f4236",
 	"books.statement_balance_forward": "b913a43817ddb1fc913c58ce80702e0b4269a1d5a0f05f0e646fd72ee5fbc061",
 	"books.statement_open_items":      "eae980bfc24b920992a4f3996f9401f313a8d6846ac64118bc594b30a0f070f4",
 }

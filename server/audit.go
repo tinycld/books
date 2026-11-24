@@ -117,6 +117,10 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		depositLinesCollection: {
 			ExtractLabel: func(r *core.Record) string { return depositLineLabel(app, r) },
 		},
+		inventoryAdjustmentsCollection: {ExtractLabel: inventoryAdjustmentName, Redact: []string{"sort_key"}},
+		inventoryAdjustmentLinesCollection: {
+			ExtractLabel: func(r *core.Record) string { return inventoryAdjustmentLineLabel(app, r) },
+		},
 		"books_settings": {
 			ExtractLabel: func(*core.Record) string { return "Books settings" },
 			Redact:       []string{"tax_id"},
@@ -176,6 +180,7 @@ var auditParentFields = map[string]string{
 	vendorRefundLinesCollection:        "refund",
 	depositItemsCollection:             "deposit",
 	depositLinesCollection:             "deposit",
+	inventoryAdjustmentLinesCollection: "adjustment",
 	documentSendsCollection:            "document",
 }
 
@@ -207,6 +212,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: billPaymentsCollection, Label: "Bill payment"},
 		{Value: vendorRefundsCollection, Label: "Vendor refund"},
 		{Value: depositsCollection, Label: "Deposit"},
+		{Value: inventoryAdjustmentsCollection, Label: "Inventory adjustment"},
 		{Value: "books_journal_entries", Label: "Journal entry"},
 		{Value: "books_invoice_lines", Label: "Invoice line"},
 		{Value: "books_sales_receipt_lines", Label: "Sales receipt line"},
@@ -223,6 +229,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: vendorRefundLinesCollection, Label: "Vendor refund line"},
 		{Value: depositItemsCollection, Label: "Deposit item"},
 		{Value: depositLinesCollection, Label: "Deposit line"},
+		{Value: inventoryAdjustmentLinesCollection, Label: "Inventory adjustment line"},
 		{Value: "books_journal_lines", Label: "Journal line"},
 		{Value: "books_attachments", Label: "Attachment"},
 		{Value: "books_accounts", Label: "Account"},
@@ -540,6 +547,17 @@ func depositParentLabel(app core.App, r *core.Record) string {
 		deposit = depositName(rec)
 	}
 	return deposit
+}
+
+// inventoryAdjustmentLineLabel names a line by its adjustment and its place:
+// "Inventory adjustment IA-3: line 2". The adjustment's id stands in when the
+// adjustment is gone.
+func inventoryAdjustmentLineLabel(app core.App, r *core.Record) string {
+	adjustment := r.GetString("adjustment")
+	if rec, err := app.FindRecordById(inventoryAdjustmentsCollection, adjustment); err == nil {
+		adjustment = inventoryAdjustmentName(rec)
+	}
+	return fmt.Sprintf("%s: line %d", adjustment, r.GetInt("position")+1)
 }
 
 // paymentLabel names a payment by its number: "Payment 1004". A draft has no
