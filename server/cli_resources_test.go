@@ -442,6 +442,12 @@ func TestCLIResources_EveryResourceRoundTrip(t *testing.T) {
 			`"income_account":"cliincome000001","taxable":false}`,
 			`"price":15000`, `"currency":"USD"`, `"income_account":"cliincome000001"`),
 		add("books_products", `{"id":"clibundle000001","type":"bundle","name":"Starter pack"}`, `"type":"bundle"`),
+		// An Inventory item with opening stock; the server fills the accounts
+		// left empty and keeps the stock totals.
+		add("books_products", `{"id":"cliinventory001","type":"inventory","name":"Widget","sku":"W-1","price":2500,`+
+			`"income_account":"cliincome000001","preferred_vendor":"clivendor000001","reorder_point":5,`+
+			`"opening_quantity":10,"opening_value":12000,"opening_date":"2026-01-01"}`,
+			`"type":"inventory"`, `"purchases":true`, `"quantity_on_hand":10`, `"stock_value":12000`, `"opening_date":"2026-01-01"`),
 		add("books_bundle_items", `{"id":"clibundleitem01","bundle":"clibundle000001","product":"cliservice00001","quantity":2.5,"position":0}`,
 			`"quantity":2.5`, `"position":0`),
 		add("books_tax_agencies", `{"id":"cliagency000001","name":"State Revenue","account":"clitaxowed00001"}`, `"account":"clitaxowed00001"`),
