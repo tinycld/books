@@ -10,8 +10,8 @@ import (
 
 // recordsByID reads the rows of collection that ids name in one query, keyed
 // by id: a read for each line or move of a post would make its statements grow
-// with its lines. An id with no row is not in the map; recordOf answers
-// sql.ErrNoRows for it, as FindRecordById does.
+// with its lines. An id with no row is not in the map; recordOf answers an
+// error that wraps sql.ErrNoRows for it, as FindRecordById does.
 func recordsByID(tx core.App, collection string, ids []string) (map[string]*core.Record, error) {
 	ids = slices.Compact(slices.Sorted(slices.Values(ids)))
 	if len(ids) == 0 {
@@ -28,12 +28,13 @@ func recordsByID(tx core.App, collection string, ids []string) (map[string]*core
 	return rows, nil
 }
 
-// recordOf is the row of rows with id, or sql.ErrNoRows.
+// recordOf is the row of rows with id, or an error that names id and wraps
+// sql.ErrNoRows.
 func recordOf(rows map[string]*core.Record, id string) (*core.Record, error) {
 	if r, ok := rows[id]; ok {
 		return r, nil
 	}
-	return nil, sql.ErrNoRows
+	return nil, fmt.Errorf("no row %q: %w", id, sql.ErrNoRows)
 }
 
 // lineProducts reads the products the item and percent lines name, in one
