@@ -13,6 +13,8 @@ func newResourceCmd(c *client.Client, res *resource) *cobra.Command {
 	group.AddCommand(
 		newListCmd(c, res),
 		newShowCmd(c, res),
+		newAddCmd(c, res),
+		newEditCmd(c, res),
 	)
 	return group
 }
