@@ -1,0 +1,59 @@
+{
+    "resources": [
+        {
+            "name": "accounts",
+            "singular": "account",
+            "summary": "The chart of accounts",
+            "collection": "books_accounts",
+            "sort": "full_name,id",
+            "label": "name",
+            "columns": ["number", "name", "type", "detail_type", "inactive"],
+            "search": ["name", "number"],
+            "filters": [
+                { "flag": "type", "field": "type", "help": "only accounts of this account type" },
+                { "flag": "parent", "field": "parent", "help": "only the sub-accounts of this account id" }
+            ],
+            "omit": [],
+            "deleteHelp": "The server refuses to delete an account that journal lines, products, tax agencies, sales or sub-accounts use. Make it inactive with `deactivate`.",
+            "fields": [
+                { "name": "name", "type": "string", "required": true, "help": "account name, unique under its parent" },
+                { "name": "number", "type": "string", "help": "account number (letters, digits, . and -), unique when set" },
+                {
+                    "name": "type",
+                    "type": "string",
+                    "required": true,
+                    "enum": [
+                        "bank",
+                        "accounts_receivable",
+                        "other_current_asset",
+                        "fixed_asset",
+                        "other_asset",
+                        "accounts_payable",
+                        "credit_card",
+                        "other_current_liability",
+                        "long_term_liability",
+                        "equity",
+                        "income",
+                        "other_income",
+                        "cost_of_goods_sold",
+                        "expense",
+                        "other_expense"
+                    ],
+                    "help": "account type; a sub-account has the type of its parent"
+                },
+                { "name": "detail_type", "type": "string", "required": true, "help": "a detail type of the account type: `tinycld books accounts types` lists them" },
+                { "name": "description", "type": "string", "help": "what the account is for" },
+                { "name": "parent", "type": "id", "ref": "accounts", "help": "the account this one is a sub-account of; empty for a top-level account" },
+                { "name": "inactive", "type": "bool", "help": "an inactive account is hidden from pickers and keeps its history" },
+                {
+                    "name": "form_1099_box",
+                    "type": "string",
+                    "enum": ["nec_1", "misc_1", "misc_2", "misc_3", "misc_5", "misc_6", "misc_8", "misc_9", "misc_10", "misc_11"],
+                    "help": "the 1099 box that payments from this account report to; expense-group types only"
+                },
+                { "name": "full_name", "type": "string", "readOnly": true, "help": "the path from the top-level account, parts joined by a colon" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books, set by the server" }
+            ]
+        }
+    ]
+}
