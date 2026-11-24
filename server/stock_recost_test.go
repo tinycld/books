@@ -7,6 +7,48 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
+// Every kind var is found by its collection; a kind missing from salesDocKinds
+// would be named as an unknown document in a re-cost's memo.
+func TestSalesDocKindOf_FindsEveryKindByItsCollection(t *testing.T) {
+	kinds := map[string]salesDocKind{
+		"invoiceKind": invoiceKind, "salesReceiptKind": salesReceiptKind, "estimateKind": estimateKind,
+		"creditMemoKind": creditMemoKind, "refundReceiptKind": refundReceiptKind,
+		"billKind": billKind, "expenseKind": expenseKind, "vendorCreditKind": vendorCreditKind,
+	}
+	for name, want := range kinds {
+		got, ok := salesDocKindOf(want.Collection)
+		if !ok || got.Collection != want.Collection || got.DocType != want.DocType {
+			t.Errorf("%s: salesDocKindOf(%q) = %q, %v; want its own kind", name, want.Collection, got.Collection, ok)
+		}
+	}
+	if len(salesDocKinds) != len(kinds) {
+		t.Errorf("salesDocKinds holds %d kinds, want %d", len(salesDocKinds), len(kinds))
+	}
+	if _, ok := salesDocKindOf("books_accounts"); ok {
+		t.Error("books_accounts found as a kind")
+	}
+}
+
+// A source that is neither an adjustment nor a kind, with no entry, is named
+// from its number, or generically with none.
+func TestStockDocumentName_NamesAnUnknownSource(t *testing.T) {
+	se := newStockEnv(t)
+	adj := se.mustAdjust(t, "2026-07-01", se.stockIn(1, 100))
+	entry := reload(t, se.app, "books_journal_entries", adj.GetString("entry"))
+	number := entry.GetString("number")
+	if number == "" {
+		t.Fatal("the posted entry has no number")
+	}
+	got, err := stockDocumentName(se.app, "books_journal_entries", entry.Id)
+	if err != nil || got != "Document "+number {
+		t.Errorf("name of a numbered record = %q, err %v, want %q", got, err, "Document "+number)
+	}
+	got, err = stockDocumentName(se.app, "books_settings", settingsID)
+	if err != nil || got != "A document" {
+		t.Errorf("name of a record with no number = %q, err %v, want %q", got, err, "A document")
+	}
+}
+
 // recostsOf are the re-costs of an adjustment, in the order Books posted them.
 func recostsOf(t testing.TB, app core.App, document *core.Record) []*core.Record {
 	t.Helper()

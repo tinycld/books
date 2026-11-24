@@ -288,10 +288,8 @@ func stockDocumentName(tx core.App, source, document string) (string, error) {
 	if source == inventoryAdjustmentsCollection {
 		return inventoryAdjustmentName(doc), nil
 	}
-	for _, kind := range []salesDocKind{invoiceKind, salesReceiptKind, creditMemoKind, refundReceiptKind, billKind, expenseKind, vendorCreditKind} {
-		if kind.Collection == source {
-			return salesDocName(kind, doc), nil
-		}
+	if kind, ok := salesDocKindOf(source); ok {
+		return salesDocName(kind, doc), nil
 	}
 	if n := doc.GetString("number"); n != "" {
 		return "Document " + n, nil

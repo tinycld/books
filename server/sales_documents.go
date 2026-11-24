@@ -152,6 +152,28 @@ type salesDocKind struct {
 	CardPayment func(tx core.App, doc *core.Record) (bool, error)
 }
 
+// salesDocKinds is every kind, filled by init: a package-level var that names
+// the kind vars would make an initialization cycle with the kinds' hooks.
+var salesDocKinds []salesDocKind
+
+func init() {
+	salesDocKinds = []salesDocKind{
+		invoiceKind, salesReceiptKind, estimateKind, creditMemoKind,
+		refundReceiptKind, billKind, expenseKind, vendorCreditKind,
+	}
+}
+
+// salesDocKindOf is the kind whose header collection is collection. A new kind
+// is added to salesDocKinds.
+func salesDocKindOf(collection string) (salesDocKind, bool) {
+	for _, kind := range salesDocKinds {
+		if kind.Collection == collection {
+			return kind, true
+		}
+	}
+	return salesDocKind{}, false
+}
+
 // isEditableStatus reports whether a person may change a document in status
 // and its lines: a posting document only while it is a draft, a quote until
 // it is closed.
