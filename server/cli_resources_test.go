@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"os"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -194,74 +193,109 @@ func TestCLIResources_AccountTypesAreTheServers(t *testing.T) {
 	}
 }
 
-// listQuery is the query string `list` sends with every filter flag and
-// --search given, as cli/list.go builds it.
-func (r cliResource) listQuery() string {
-	clauses := []string{}
-	if r.field("inactive") != nil {
-		clauses = append(clauses, "inactive = false")
+// listFilterCase is one entry of cli/testdata/list-filters.json: the `list`
+// arguments and the filter and sort texts the CLI sends for them. The CLI's own
+// test (cli/list_filters_test.go) holds the file to cli/list.go, so these texts
+// are what the command sends, and this module never rebuilds them.
+type listFilterCase struct {
+	Name     string `json:"name"`
+	Resource string `json:"resource"`
+	Filter   string `json:"filter"`
+	Sort     string `json:"sort"`
+}
+
+func loadListFilterCases(t testing.TB) []listFilterCase {
+	t.Helper()
+	data, err := os.ReadFile("../cli/testdata/list-filters.json")
+	if err != nil {
+		t.Fatalf("read the CLI's list filters: %v", err)
 	}
-	for _, flt := range r.Filters {
-		clauses = append(clauses, flt.Field+` = "nothinghasthis1"`)
+	var file struct {
+		Cases []listFilterCase `json:"cases"`
 	}
-	if len(r.Search) > 0 {
-		alternatives := []string{}
-		for _, name := range r.Search {
-			alternatives = append(alternatives, name+` ~ "x\" || id != \""`)
-		}
-		clauses = append(clauses, "("+strings.Join(alternatives, " || ")+")")
+	if err := json.Unmarshal(data, &file); err != nil {
+		t.Fatalf("cli/testdata/list-filters.json: %v", err)
 	}
+	if len(file.Cases) == 0 {
+		t.Fatal("cli/testdata/list-filters.json has no cases")
+	}
+	return file.Cases
+}
+
+// query is the query string of that `list`: its filter and sort, and the page
+// and page size it asks for by default.
+func (c listFilterCase) query() string {
 	q := url.Values{}
-	q.Set("filter", strings.Join(clauses, " && "))
-	q.Set("sort", r.Sort)
+	q.Set("filter", c.Filter)
+	q.Set("sort", c.Sort)
 	q.Set("page", "1")
 	q.Set("perPage", "200")
 	return q.Encode()
 }
 
-// The server accepts the filter and sort of every `list`, for a bookkeeper's
-// token: each field named is one the caller may filter and sort on, and the
-// server parses the quoting of client.Filter. That a quote stays text is
-// proved on a record, in TestCLIResources_AccountRoundTrip.
+func listFilterCaseNamed(t testing.TB, name string) listFilterCase {
+	t.Helper()
+	for _, c := range loadListFilterCases(t) {
+		if c.Name == name {
+			return c
+		}
+	}
+	t.Fatalf("cli/testdata/list-filters.json has no case %q", name)
+	return listFilterCase{}
+}
+
+// The server accepts the filter and sort of every list in the fixture, for a
+// bookkeeper's token: each field named is one the caller may filter and sort on,
+// and the server parses the quoting of client.Filter. That a quote or a wildcard
+// stays text is proved on records, in TestCLIResources_AccountRoundTrip and
+// TestCLIResources_SearchWildcardsAreText.
 func TestCLIResources_ServerAcceptsEveryListQuery(t *testing.T) {
 	app := newGuardedApp(t)
 	users := newLevelUsers(t, app)
 	token := tokenFor(t, users.bookkeeper)
-	calls := []apiReq{}
+	collectionOf := map[string]string{}
 	for _, res := range loadCLIResources(t) {
+		collectionOf[res.Name] = res.Collection
+	}
+	calls := []apiReq{}
+	for _, c := range loadListFilterCases(t) {
+		collection, ok := collectionOf[c.Resource]
+		if !ok {
+			t.Fatalf("%s: cli/resources.json has no resource %q", c.Name, c.Resource)
+		}
 		calls = append(calls, apiReq{
-			method: "GET", url: "/api/collections/" + res.Collection + "/records?" + res.listQuery(),
-			token: token, want: 200, content: []string{`"items":[]`, `"totalItems":0`},
+			method: "GET", url: "/api/collections/" + collection + "/records?" + c.query(),
+			token: token, want: 200, content: []string{`"page":1`},
 		})
 	}
 	apiSeq(t, app, calls...)
 }
 
-// The CLI escapes \, % and _ in --search (cli/list.go likeEscaper) and binds the
-// value through client.Filter, which doubles each backslash and escapes quotes.
-// This is the text it sends for --search '15%': the % is text, not a wildcard.
-func TestCLIResources_SearchPercentIsText(t *testing.T) {
+// PocketBase reads % and _ in a ~ value as wildcards. The CLI escapes them, and
+// the fixture holds the text it sends, so a search for "15%" finds the one name
+// that contains those three characters and not "Rate 150" or "Rate 115", and a
+// search for "1_5" finds only "Rate 1_5", not "Rate 105" or "Rate 115".
+func TestCLIResources_SearchWildcardsAreText(t *testing.T) {
 	app := newGuardedApp(t)
 	users := newLevelUsers(t, app)
 	writer := tokenFor(t, users.bookkeeper)
 	const accounts = "/api/collections/books_accounts/records"
-	likeEscaper := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
-	value := likeEscaper.Replace("15%")
-	value = strings.ReplaceAll(value, `\`, `\\`)
-	value = strings.ReplaceAll(value, `"`, `\"`)
-	quoted := `"` + value + `"`
-	search := url.Values{}
-	search.Set("filter", `inactive = false && (name ~ `+quoted+` || number ~ `+quoted+`)`)
-	search.Set("sort", "full_name,id")
-	search.Set("page", "1")
-	search.Set("perPage", "200")
+	add := func(id, name string) apiReq {
+		return apiReq{method: "POST", url: accounts, token: writer, want: 200,
+			body: `{"id":"` + id + `","name":"` + name + `","type":"bank","detail_type":"cash_on_hand"}`}
+	}
+	find := func(caseName, id string) apiReq {
+		return apiReq{method: "GET", url: accounts + "?" + listFilterCaseNamed(t, caseName).query(), token: writer, want: 200,
+			content: []string{`"totalItems":1`, `"id":"` + id + `"`}}
+	}
 	apiSeq(t, app,
-		apiReq{method: "POST", url: accounts, token: writer, want: 200,
-			body: `{"id":"clipercent00001","name":"Rate 15%","type":"bank","detail_type":"cash_on_hand"}`},
-		apiReq{method: "POST", url: accounts, token: writer, want: 200,
-			body: `{"id":"clipercent00002","name":"Rate 150","type":"bank","detail_type":"cash_on_hand"}`},
-		apiReq{method: "GET", url: accounts + "?" + search.Encode(), token: writer, want: 200,
-			content: []string{`"totalItems":1`, `"id":"clipercent00001"`}},
+		add("clipercent00001", "Rate 15%"),
+		add("clipercent00002", "Rate 150"),
+		add("cliunderscore01", "Rate 1_5"),
+		add("cliunderscore02", "Rate 105"),
+		add("cliunderscore03", "Rate 115"),
+		find("accounts-search-percent", "clipercent00001"),
+		find("accounts-search-underscore", "cliunderscore01"),
 	)
 }
 
@@ -308,26 +342,18 @@ func TestCLIResources_AccountRoundTrip(t *testing.T) {
 	reader := tokenFor(t, users.readOnly)
 	const accounts = "/api/collections/books_accounts/records"
 	const one = accounts + "/cliaccount00001"
-	find := url.Values{}
-	find.Set("filter", `inactive = false && type = "bank" && (name ~ "petty" || number ~ "petty")`)
-	find.Set("sort", "full_name,id")
-	find.Set("page", "1")
-	find.Set("perPage", "200")
-	// What `list --search 'x" || id != "'` sends. If the quote ended the text,
-	// `id != ""` would match the account; as text, no name has it.
-	quote := url.Values{}
-	quote.Set("filter", `inactive = false && (name ~ "x\" || id != \"" || number ~ "x\" || id != \"")`)
-	quote.Set("sort", "full_name,id")
-	quote.Set("page", "1")
-	quote.Set("perPage", "200")
+	find := listFilterCaseNamed(t, "accounts-type-and-search").query()
+	// `list --search 'x" || id != "'`: if the quote ended the text, `id != ""`
+	// would match the account; as text, no name has it.
+	quote := listFilterCaseNamed(t, "accounts-search-quote").query()
 	apiSeq(t, app,
 		// The test names the id so the later calls can use it. The CLI does not.
 		apiReq{method: "POST", url: accounts, token: writer, want: 200,
 			body:    `{"id":"cliaccount00001","name":"Petty Cash","number":"1020","type":"bank","detail_type":"cash_on_hand","description":"Till"}`,
 			content: []string{`"full_name":"Petty Cash"`, `"currency":"USD"`, `"inactive":false`, `"parent":""`}},
-		apiReq{method: "GET", url: accounts + "?" + find.Encode(), token: reader, want: 200,
+		apiReq{method: "GET", url: accounts + "?" + find, token: reader, want: 200,
 			content: []string{`"totalItems":1`, `"id":"cliaccount00001"`}},
-		apiReq{method: "GET", url: accounts + "?" + quote.Encode(), token: reader, want: 200,
+		apiReq{method: "GET", url: accounts + "?" + quote, token: reader, want: 200,
 			content: []string{`"totalItems":0`, `"items":[]`}},
 		// null clears a text field to "".
 		apiReq{method: "PATCH", url: one, token: writer, want: 200,
