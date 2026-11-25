@@ -259,21 +259,22 @@ func TestCLIDocuments_RowLimitsAreTheServers(t *testing.T) {
 	// A transfer has exactly two lines (checkTransfer, transfers.go).
 	const transferLines = 2
 	want := map[string]int{
-		"journal-entries.lines": maxLinesPerEntry,
-		"invoices.lines":        maxDocumentLines,
-		"sales-receipts.lines":  maxDocumentLines,
-		"credit-memos.lines":    maxDocumentLines,
-		"refund-receipts.lines": maxDocumentLines,
-		"estimates.lines":       maxDocumentLines,
-		"bills.lines":           maxDocumentLines,
-		"expenses.lines":        maxDocumentLines,
-		"vendor-credits.lines":  maxDocumentLines,
-		"payments.applications": maxPaymentApplications,
-		"bill-payments.lines":   maxBillPaymentLines,
-		"vendor-refunds.lines":  maxVendorRefundLines,
-		"deposits.items":        maxDepositItems,
-		"deposits.lines":        maxDepositLines,
-		"transfers.lines":       transferLines,
+		"journal-entries.lines":       maxLinesPerEntry,
+		"invoices.lines":              maxDocumentLines,
+		"sales-receipts.lines":        maxDocumentLines,
+		"credit-memos.lines":          maxDocumentLines,
+		"refund-receipts.lines":       maxDocumentLines,
+		"estimates.lines":             maxDocumentLines,
+		"bills.lines":                 maxDocumentLines,
+		"expenses.lines":              maxDocumentLines,
+		"vendor-credits.lines":        maxDocumentLines,
+		"payments.applications":       maxPaymentApplications,
+		"bill-payments.lines":         maxBillPaymentLines,
+		"vendor-refunds.lines":        maxVendorRefundLines,
+		"deposits.items":              maxDepositItems,
+		"deposits.lines":              maxDepositLines,
+		"transfers.lines":             transferLines,
+		"inventory-adjustments.lines": maxAdjustmentLines,
 	}
 	seen := 0
 	for _, doc := range loadCLIDocuments(t) {

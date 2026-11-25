@@ -292,6 +292,13 @@
             "args": ["--product", "prodwidget00001"],
             "filter": "product = \"prodwidget00001\"",
             "sort": "product,date,position,id"
+        },
+        {
+            "name": "inventory-adjustments-every-flag",
+            "resource": "inventory-adjustments",
+            "args": ["--status", "posted", "--kind", "manual", "--search", "count"],
+            "filter": "status = \"posted\" && kind = \"manual\" && (number ~ \"count\" || memo ~ \"count\")",
+            "sort": "-date,-created,id"
         }
     ]
 }

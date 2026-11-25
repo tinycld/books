@@ -23,7 +23,9 @@ var documentsJSON []byte
 // The lifecycles of a document.
 const (
 	// lifecyclePosting is the life of a document that posts to the ledger: a
-	// draft, then posted, then void.
+	// draft, then posted, then void. With a `replaces` field, `edit` of a
+	// posted one makes a new document that corrects it; without one (an
+	// inventory adjustment), a posted document is only voided.
 	lifecyclePosting = "posting"
 	// lifecycleQuote is the life of an offer that posts nothing: pending,
 	// accepted or rejected as a person says, and closed by Books when an invoice
@@ -145,6 +147,9 @@ type document struct {
 	// Fixed holds the header values every document of this type has. The CLI
 	// sends them on a create; a caller cannot.
 	Fixed map[string]string `json:"fixed"`
+	// FixedHelp ends the refusal of a record whose fixed values differ. "":
+	// the text for a record that Books made for another transaction.
+	FixedHelp string `json:"fixedHelp"`
 	// Entry names the header field that holds the id of the journal entry
 	// Books writes when the document is posted. "": the type has no `entry`
 	// command (a journal entry is its own entry).
@@ -244,7 +249,7 @@ func (d *document) hasDraft() bool {
 // corrects reports whether `edit` of a posted document of the type makes a new
 // one that replaces it.
 func (d *document) corrects() bool {
-	return d.Lifecycle == lifecyclePosting || (d.Lifecycle == lifecyclePosted && d.field("replaces") != nil)
+	return d.Lifecycle != lifecycleQuote && d.field("replaces") != nil
 }
 
 // editedInPlace reports whether `edit` changes a document with this status
@@ -380,15 +385,9 @@ func checkDocument(doc *document, names map[string]bool) error {
 		if status == nil || !status.ReadOnly || !slices.Equal(status.Enum, []string{statusDraft, statusPosted, statusVoid}) {
 			return fmt.Errorf("a posting document has a read-only status with the values draft, posted, void")
 		}
-		if replaces := doc.field("replaces"); replaces == nil || !replaces.ReadOnly || replaces.Type != typeID || replaces.Ref != doc.Name {
-			return fmt.Errorf("a posting document has a read-only replaces, the id of a document of its own type")
-		}
 	case lifecyclePosted:
 		if status == nil || !status.ReadOnly || !slices.Equal(status.Enum, []string{statusPosted, statusVoid}) {
 			return fmt.Errorf("a document that is created posted has a read-only status with the values posted, void")
-		}
-		if replaces := doc.field("replaces"); replaces != nil && (!replaces.ReadOnly || replaces.Type != typeID || replaces.Ref != doc.Name) {
-			return fmt.Errorf("replaces is read-only, the id of a document of its own type")
 		}
 		// It has no draft to change, so nothing counts its saves.
 		if doc.hasRevision() {
@@ -414,6 +413,10 @@ func checkDocument(doc *document, names map[string]bool) error {
 	default:
 		return fmt.Errorf("unknown lifecycle %q", doc.Lifecycle)
 	}
+	// A type with `replaces` is corrected by `edit`; one without is not.
+	if replaces := doc.field("replaces"); replaces != nil && (!replaces.ReadOnly || replaces.Type != typeID || replaces.Ref != doc.Name) {
+		return fmt.Errorf("replaces is read-only, the id of a document of its own type")
+	}
 	if revision := doc.field("revision"); revision != nil && (!revision.ReadOnly || revision.Type != typeInteger) {
 		return fmt.Errorf("revision is a read-only integer")
 	}
@@ -421,6 +424,9 @@ func checkDocument(doc *document, names map[string]bool) error {
 		if f := doc.field(name); f == nil || !f.ReadOnly || doc.Lifecycle != lifecyclePosting {
 			return fmt.Errorf("keep names %q, which is not a read-only field of a posting document", name)
 		}
+	}
+	if doc.FixedHelp != "" && len(doc.Fixed) == 0 {
+		return fmt.Errorf("fixedHelp is the text for a record whose fixed values differ, and the type has no fixed value")
 	}
 	fixed := make([]string, 0, len(doc.Fixed))
 	for name := range doc.Fixed {

@@ -415,6 +415,25 @@ tinycld books inventory layers --product <product id>
 
 Books writes the moves and the layers when a transaction is posted. No command changes them.
 
+## To adjust inventory
+
+`tinycld books inventory-adjustments` changes the quantity or the value of the stock of Inventory items: a stock count, damage, or a correction of the cost. It has the commands of a transaction: `list`, `show`, `add`, `edit`, `post`, `void`, `delete` and `entry`.
+
+```
+echo '{"date": "2026-09-30", "memo": "Stock count", "lines": [
+  {"product": "<product id>", "quantity": 10, "value": 5000},
+  {"product": "<product id>", "quantity": -2},
+  {"product": "<product id>", "value": -300}
+]}' | tinycld books inventory-adjustments add --input - --post
+tinycld books inventory-adjustments void <id>
+```
+
+Each line names an Inventory item and a change. A `quantity` above 0 puts stock in, and `value` is the cost of that quantity, in cents. A `quantity` below 0 takes stock out: do not give a `value`, because Books takes the cost from the costing method. A line with a `value` and no `quantity` changes the value of the stock only, up or down. An adjustment has up to 500 lines.
+
+`account` is the account for the other side of the change of value. When you do not give one, Books uses Inventory shrinkage. `entry` prints the journal entry; an adjustment that changes no value has none.
+
+Books does not change a posted adjustment: `edit` changes a draft only. To correct a posted adjustment, void it, then add a new one. `--kind opening` and `--kind recost` list the adjustments that Books made: for the opening stock of an item, and when an earlier transaction changed a cost. The commands list and show those, and refuse to change them.
+
 ## To retry safely
 
 When the answer to a write is lost (the network fails, or a proxy answers 502, 503 or 504), the command sends the same write again, with the same ids, up to three more times. Books cannot store it twice: when an earlier send was stored, Books refuses the next one, and the command prints what is stored as usual. This is true for `add`, `add --post`, `convert`, `apply` and `edit`, and in `banking` for `upload`, `import`, `categorize`, `split` and `match`. It is also true for `reconcile start`, `clear` and `unclear`.

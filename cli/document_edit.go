@@ -31,6 +31,9 @@ func checkFixed(cmd *cobra.Command, doc *document, rec record) error {
 					doc.Singular, rec.id(), name, have, doc.Singular))
 			}
 			next := "Books made it for another transaction, so change that transaction"
+			if doc.FixedHelp != "" {
+				next = doc.FixedHelp
+			}
 			if owner := scopedOwner(doc, rec); owner != nil {
 				next = "it is a " + owner.Singular + ": use `" + cmd.Parent().Parent().CommandPath() + " " + owner.Name + " " + cmd.Name() + " " + rec.id() + "`"
 			}
@@ -232,10 +235,13 @@ func newDocumentEditCmd(c *client.Client, doc *document) *cobra.Command {
 	how := "A draft is changed in place. A posted " + doc.Singular + " is never changed: Books\n" +
 		"voids it and posts a new one with the changes, and the command prints the new\n" +
 		"one. Its `replaces` is the id of the one it corrects.\n\n"
-	switch doc.Lifecycle {
-	case lifecycleQuote:
+	switch {
+	case doc.Lifecycle == lifecycleQuote:
 		how = "The " + doc.Singular + " is changed in place. A closed one cannot be changed.\n\n"
-	case lifecyclePosted:
+	case !doc.corrects():
+		how = "A draft is changed in place. A posted " + doc.Singular + " cannot be changed: void it\n" +
+			"with `void`, then add a new one.\n\n"
+	case doc.Lifecycle == lifecyclePosted:
 		how = "A " + doc.Singular + " is never changed: Books voids it and posts a new one with\n" +
 			"the changes, and the command prints the new one. Its `replaces` is the id of\n" +
 			"the one it corrects.\n\n"
@@ -303,6 +309,11 @@ func newDocumentEditCmd(c *client.Client, doc *document) *cobra.Command {
 			stored = func() (bool, error) { return recordExists(cmd.Context(), c, doc.Collection, id) }
 			what = doc.Singular + " " + id
 			next = checkThenResend(group+" show "+id, id)
+		case status == statusPosted:
+			// A type that is not corrected: Books answers "not found" to the
+			// change of a posted document.
+			return refusedf("%s %s is posted: it cannot be changed; void it with `%s void %s`, then add a new one with `%s add`",
+				doc.Singular, current.id(), group, current.id(), group)
 		default:
 			return refusedf("%s %s is %s: it cannot be changed; add a new %s with `%s add`",
 				doc.Singular, current.id(), status, doc.Singular, group)
