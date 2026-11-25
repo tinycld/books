@@ -28,6 +28,7 @@ Each list has its own group of commands:
 - `tinycld books bundle-items`: the products inside a bundle
 - `tinycld books tax-agencies`: the agencies you pay [sales tax](help://books:sales-tax) to
 - `tinycld books tax-rates`: sales tax rates and groups
+- `tinycld books statements`: [statements](help://books:statements) for customers; a statement has no `edit`
 
 ## To list and show records
 
@@ -164,6 +165,19 @@ echo '{"date": "2026-07-22", "deposit_to": "<bank account id>",
 ```
 
 Books fills the rest of an item (the customer, the amount, the date) and computes `total` when the deposit is posted: a draft has the total 0. Books refuses an item that is in another posted deposit. A deposit can have up to 500 items and 100 lines. `edit` of a draft takes up to 1100 changes in one step, and it removes and adds each row of `items` or `lines` that the JSON has: for a very large draft, change `items` and `lines` in two calls.
+
+## To make a statement for a customer
+
+A statement records what a customer owes on a date. It posts nothing.
+
+```
+echo '{"customer": "<customer id>", "type": "open_items", "statement_date": "2026-07-31"}' | tinycld books statements add --input -
+echo '{"customer": "<customer id>", "type": "balance_forward", "statement_date": "2026-07-31", "start_date": "2026-07-01", "end_date": "2026-07-31"}' | tinycld books statements add --input -
+tinycld books statements list --customer <customer id>
+tinycld books statements delete <id>
+```
+
+An `open_items` statement has no period. A `balance_forward` statement needs `start_date` and `end_date`. Books numbers the statement and computes `balance`. A statement is never changed, so there is no `edit`: delete it and add a new one. The command line does not send a statement by email; send it from the app.
 
 ## To sell an Inventory item
 

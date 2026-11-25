@@ -91,6 +91,13 @@
             "args": ["--type", "rate", "--agency", "nothinghasthis1", "--search", "nothinghasthis1"],
             "filter": "inactive = false && type = \"rate\" && agency = \"nothinghasthis1\" && (name ~ \"nothinghasthis1\")",
             "sort": "sort_key,id"
+        },
+        {
+            "name": "statements-every-flag",
+            "resource": "statements",
+            "args": ["--customer", "nothinghasthis1", "--type", "open_items", "--search", "nothinghasthis1"],
+            "filter": "customer = \"nothinghasthis1\" && type = \"open_items\" && (number ~ \"nothinghasthis1\")",
+            "sort": "-statement_date,-created,id"
         }
     ]
 }

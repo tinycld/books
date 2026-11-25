@@ -90,8 +90,11 @@ type resource struct {
 	// both. The server test checks the key against the migrated collection.
 	Timestamps []string `json:"timestamps"`
 	// DeleteHelp says when the server refuses a delete and what to do then.
-	DeleteHelp string  `json:"deleteHelp"`
-	Fields     []field `json:"fields"`
+	DeleteHelp string `json:"deleteHelp"`
+	// NoEdit marks a list resource whose records Books never changes (a
+	// statement is what was true on its date): the group has no `edit`.
+	NoEdit bool    `json:"noEdit"`
+	Fields []field `json:"fields"`
 }
 
 func (r *resource) field(name string) *field {
@@ -176,6 +179,10 @@ func checkResource(res *resource, names map[string]bool) error {
 	}
 	if err := checkTimestamps(res.Timestamps); err != nil {
 		return err
+	}
+	// `activate` and `deactivate` change a record.
+	if res.NoEdit && res.hasInactive() {
+		return fmt.Errorf("a resource with noEdit has no inactive field: its records are never changed")
 	}
 	fields := map[string]bool{}
 	for i := range res.Fields {

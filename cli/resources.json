@@ -253,6 +253,35 @@
                 { "name": "is_default", "type": "bool", "help": "the rate or group a new sale starts with; setting it clears the earlier default" },
                 { "name": "inactive", "type": "bool", "help": "an inactive rate or group is hidden from pickers" }
             ]
+        },
+        {
+            "name": "statements",
+            "singular": "statement",
+            "summary": "Customer statements: what a customer owes on a date",
+            "collection": "books_statements",
+            "sort": "-statement_date,-created,id",
+            "label": "number",
+            "columns": ["statement_date", "number", "customer", "type", "balance"],
+            "search": ["number"],
+            "filters": [
+                { "flag": "customer", "field": "customer", "help": "only the statements of the customer with this id" },
+                { "flag": "type", "field": "type", "help": "only balance forward statements (balance_forward) or only open item statements (open_items)" }
+            ],
+            "omit": ["sequence", "sent_at"],
+            "noEdit": true,
+            "deleteHelp": "A statement posts nothing: to delete one changes no balance.",
+            "fields": [
+                { "name": "customer", "type": "id", "ref": "customers", "required": true, "help": "the customer the statement is for" },
+                { "name": "type", "type": "string", "required": true, "enum": ["balance_forward", "open_items"], "help": "balance_forward: the balance at the start of a period and what changed in it; open_items: every invoice that is not paid on the statement date" },
+                { "name": "statement_date", "type": "string", "required": true, "help": "the date of the statement, as YYYY-MM-DD" },
+                { "name": "start_date", "type": "string", "help": "the first day of the period of a balance_forward statement, as YYYY-MM-DD; leave it out for open_items" },
+                { "name": "end_date", "type": "string", "help": "the last day of the period of a balance_forward statement, as YYYY-MM-DD; leave it out for open_items" },
+                { "name": "email", "type": "string", "help": "the email address the statement is for" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the statement; Books gives it" },
+                { "name": "balance", "type": "integer", "readOnly": true, "help": "what the customer owes on the statement date, in cents; Books computes it" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "sent_to", "type": "string", "readOnly": true, "help": "the email address the statement was sent to; empty when it was not sent" }
+            ]
         }
     ]
 }

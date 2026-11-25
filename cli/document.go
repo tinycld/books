@@ -344,6 +344,10 @@ func loadDocuments(data []byte) ([]document, error) {
 }
 
 func checkDocument(doc *document, names map[string]bool) error {
+	// The lifecycle of a document says which commands it has.
+	if doc.NoEdit {
+		return fmt.Errorf("noEdit is for a list resource")
+	}
 	if err := checkResource(&doc.resource, names); err != nil {
 		return err
 	}
