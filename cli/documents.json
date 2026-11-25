@@ -657,6 +657,56 @@
                     ]
                 }
             ]
+        },
+        {
+            "name": "payments",
+            "singular": "payment",
+            "summary": "Payments: money a customer pays for invoices",
+            "collection": "books_payments",
+            "lifecycle": "posting",
+            "entry": "entry",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "customer", "status", "amount", "applied"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only payments with this status: draft, posted or void" },
+                { "flag": "customer", "field": "customer", "help": "only the payments of the customer with this id" }
+            ],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "sort_key"],
+            "deleteHelp": "Only a draft can be deleted. Void a posted payment with `void`: it stays in the books with its number, and its amounts no longer count.",
+            "fields": [
+                { "name": "customer", "type": "id", "ref": "customers", "required": true, "help": "the customer who paid" },
+                { "name": "date", "type": "string", "required": true, "help": "the date of the payment, as YYYY-MM-DD" },
+                { "name": "amount", "type": "integer", "help": "the amount received, in cents; Books refuses a payment with none" },
+                { "name": "payment_method", "type": "string", "enum": ["cash", "check", "credit_card", "debit_card", "bank_transfer", "other"], "help": "how the customer paid" },
+                { "name": "reference_no", "type": "string", "help": "the check number or another reference of the payment" },
+                { "name": "deposit_to", "type": "id", "ref": "accounts", "help": "the bank account that receives the money; Undeposited funds when left out" },
+                { "name": "memo", "type": "string", "help": "a note for the books" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["draft", "posted", "void"], "help": "draft, posted or void; `add --post`, `post` and `void` change it" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the payment; Books gives it when the payment is posted" },
+                { "name": "applied", "type": "integer", "readOnly": true, "help": "the part of the amount applied to invoices, in cents; Books computes it" },
+                { "name": "credited", "type": "integer", "readOnly": true, "help": "the part of the amount kept as the customer's credit, in cents; Books computes it" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote when the payment was posted; `entry` prints it" },
+                { "name": "replaces", "type": "id", "ref": "payments", "readOnly": true, "help": "the posted payment this one corrects; `edit` of a posted payment sets it" },
+                { "name": "replaced_by", "type": "id", "ref": "payments", "readOnly": true, "help": "the payment that corrects this one" }
+            ],
+            "lines": [
+                {
+                    "key": "applications",
+                    "singular": "application",
+                    "collection": "books_payment_applications",
+                    "parent": "payment",
+                    "sort": "position,id",
+                    "omit": ["payment", "position"],
+                    "max": 500,
+                    "fields": [
+                        { "name": "invoice", "type": "id", "ref": "invoices", "required": true, "help": "a posted invoice of the customer that the payment pays" },
+                        { "name": "amount", "type": "integer", "help": "the part of the payment applied to the invoice, in cents; Books refuses a row with none" }
+                    ]
+                }
+            ]
         }
     ]
 }

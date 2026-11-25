@@ -45,8 +45,9 @@ const (
 	statusClosed   = "closed"
 )
 
-// maxDocumentLines is the most rows one line table of a document may have. The
-// server refuses more (server/sales_documents.go, server/entries.go).
+// maxDocumentLines is the most rows one line table of a document may have,
+// unless the table states its own `max`. The server refuses more
+// (server/sales_documents.go, server/entries.go).
 const maxDocumentLines = 250
 
 // lineTable is one kind of row a document has: the lines of a journal entry,
@@ -73,6 +74,17 @@ type lineTable struct {
 	// amount of an item line of a bill is its quantity times its rate, and the
 	// amount of an account line is typed.
 	Computed []computedField `json:"computed"`
+	// Max is the most rows the table may have, when the server's limit for it
+	// is not maxDocumentLines (a payment pays up to 500 invoices).
+	Max int `json:"max"`
+}
+
+// maxRows is the most rows of the table one document may have.
+func (t *lineTable) maxRows() int {
+	if t.Max > 0 {
+		return t.Max
+	}
+	return maxDocumentLines
 }
 
 // computedField says that Books computes Field on a row whose When field has
@@ -136,6 +148,13 @@ type conversion struct {
 	// Copy names the header fields that go from the source to the new
 	// document. The line tables go as they are.
 	Copy []string `json:"copy"`
+}
+
+// hasRevision reports whether the type counts its saves. The server takes a
+// change of such a document only with the revision it will have; a type with
+// no revision field (a payment) is changed without one.
+func (d *document) hasRevision() bool {
+	return d.field("revision") != nil
 }
 
 // initialStatus is the status the CLI gives a new document.
@@ -251,11 +270,15 @@ func checkDocument(doc *document, names map[string]bool) error {
 		if doc.Entry != "" || len(doc.Fixed) > 0 {
 			return fmt.Errorf("a quote posts nothing: it has no entry and no fixed value")
 		}
+		// Its status commands state the next revision.
+		if !doc.hasRevision() {
+			return fmt.Errorf("a quote has a read-only integer revision")
+		}
 	default:
 		return fmt.Errorf("unknown lifecycle %q", doc.Lifecycle)
 	}
-	if revision := doc.field("revision"); revision == nil || !revision.ReadOnly || revision.Type != typeInteger {
-		return fmt.Errorf("a document has a read-only integer revision")
+	if revision := doc.field("revision"); revision != nil && (!revision.ReadOnly || revision.Type != typeInteger) {
+		return fmt.Errorf("revision is a read-only integer")
 	}
 	for _, name := range doc.Keep {
 		if f := doc.field(name); f == nil || !f.ReadOnly || doc.Lifecycle != lifecyclePosting {
@@ -366,6 +389,9 @@ func checkLineTable(table *lineTable, names map[string]bool) error {
 	if len(table.Fields) == 0 {
 		return fmt.Errorf("no fields")
 	}
+	if table.Max < 0 {
+		return fmt.Errorf("max %d is below zero", table.Max)
+	}
 	fields := map[string]bool{}
 	for i := range table.Fields {
 		f := &table.Fields[i]
@@ -455,7 +481,7 @@ func documentInputSchema(doc *document, create bool) map[string]any {
 		props[table.Key] = map[string]any{
 			"type":        "array",
 			"description": description,
-			"maxItems":    maxDocumentLines,
+			"maxItems":    table.maxRows(),
 			"items":       inputSchema(table.asResource(), true),
 		}
 	}
@@ -518,8 +544,8 @@ func checkLines(table *lineTable, value any) ([]map[string]any, error) {
 	if !ok {
 		return nil, usagef("%q must be an array of objects, one for each %s", table.Key, table.Singular)
 	}
-	if len(list) > maxDocumentLines {
-		return nil, usagef("%q has %d rows: the most is %d", table.Key, len(list), maxDocumentLines)
+	if len(list) > table.maxRows() {
+		return nil, usagef("%q has %d rows: the most is %d", table.Key, len(list), table.maxRows())
 	}
 	res := table.asResource()
 	rows := make([]map[string]any, 0, len(list))

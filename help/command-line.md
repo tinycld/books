@@ -75,6 +75,7 @@ Each type of transaction has its own group of commands:
 - `tinycld books bills`: [bills](help://books:bills), what you owe a vendor
 - `tinycld books expenses`: [expenses](help://books:expenses), a purchase that is paid at once; `paid_from` is the bank or credit card account that the money left
 - `tinycld books vendor-credits`: [vendor credits](help://books:vendor-credits)
+- `tinycld books payments`: [payments](help://books:receive-payment) that a customer makes for invoices
 
 ```
 tinycld books journal-entries list --status draft
@@ -87,6 +88,19 @@ tinycld books invoices show <id>
 A line of an invoice, a sales receipt, a credit memo, a refund receipt or an estimate has a `kind`: `item` (a product or service, a quantity and a rate), `description` (text only), `subtotal` (the sum of the lines above it) or `percent` (a percentage of the item or subtotal right above it, in parts per million: `-100000` is a 10% discount).
 
 A line of a bill, an expense or a vendor credit has a `kind`: `account` (an account and an `amount`) or `item` (a product or service, a quantity and a rate). Do not send the `amount` of an `item` line: Books computes it. An `item` line of an Inventory item puts its quantity into the stock when a bill or an expense is posted, and a vendor credit takes it out.
+
+## To record a payment for invoices
+
+A payment has `applications` in place of lines: each one names a posted invoice of the customer and the part of the payment that pays it.
+
+```
+echo '{"customer": "<customer id>", "date": "2026-07-22", "amount": 35000, "applications": [
+  {"invoice": "<invoice id>", "amount": 30000},
+  {"invoice": "<invoice id>", "amount": 5000}
+]}' | tinycld books payments add --input - --post
+```
+
+When the payment is posted, Books lowers the balance of each invoice. The part of `amount` that no application uses stays as the customer's credit: `show` prints it as `credited`. Without `deposit_to`, the money goes to Undeposited funds. A payment can pay up to 500 invoices.
 
 ## To sell an Inventory item
 

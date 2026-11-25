@@ -54,8 +54,13 @@ func lineOps(doc *document, id string, lines map[string][]map[string]any) []batc
 // postOp posts a draft. The server takes a change of a draft only with the
 // revision it will have: the stored one plus one, or 1 in the batch that
 // creates the document (server/revision.go counts once for each transaction).
+// A type with no revision field sends none.
 func postOp(doc *document, id string, revision int64) batchOp {
-	return updateOp(doc.Collection, id, "post", map[string]any{"status": statusPosted, "revision": revision})
+	body := map[string]any{"status": statusPosted}
+	if doc.hasRevision() {
+		body["revision"] = revision
+	}
+	return updateOp(doc.Collection, id, "post", body)
 }
 
 // storedError marks an error whose text says that the write was stored. With

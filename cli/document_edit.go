@@ -30,8 +30,12 @@ func checkFixed(doc *document, rec record) error {
 	return nil
 }
 
-// revisionOf is the revision the server stored for a document.
+// revisionOf is the revision the server stored for a document, or 0 for a type
+// that has no revision field.
 func revisionOf(doc *document, rec record) (int64, error) {
+	if !doc.hasRevision() {
+		return 0, nil
+	}
 	number, ok := rec.values["revision"].(json.Number)
 	if !ok {
 		return 0, fmt.Errorf("%s %s: the server sent no revision", doc.Singular, rec.id())
@@ -64,7 +68,14 @@ func draftEditOps(doc *document, current record, in documentInput) ([]batchOp, e
 	}
 	ops = append(ops, lineOps(doc, current.id(), in.lines)...)
 	header := maps.Clone(in.header)
-	header["revision"] = revision + 1
+	if doc.hasRevision() {
+		header["revision"] = revision + 1
+	}
+	// A header with nothing to change is still written when the type counts
+	// its saves. Without a revision, an input of only rows writes only rows.
+	if len(header) == 0 {
+		return ops, nil
+	}
 	return append(ops, updateOp(doc.Collection, current.id(), doc.Singular, header)), nil
 }
 
