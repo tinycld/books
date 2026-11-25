@@ -69,14 +69,21 @@ func TestReconcileFinishAndUndo(t *testing.T) {
 // Books answers 404 to a change to the status the reconciliation has: the
 // command reads the status and sends nothing.
 func TestReconcileFinishOfAFinishedOneSendsNothing(t *testing.T) {
-	for word, id := range map[string]string{"finish": reconAug, "undo": reconSept} {
+	for _, tc := range []struct{ word, id, state string }{
+		{"finish", reconAug, "finished"},
+		{"undo", reconSept, "in progress"},
+	} {
 		f := reconcileLinesFake(t)
-		_, stderr, err := runCmd(t, f.serve(), "", "books", "reconcile", word, id)
+		out, stderr, err := runCmd(t, f.serve(), "", "books", "reconcile", tc.word, tc.id, "--json")
 		if err != nil {
-			t.Fatalf("%s: %v", word, err)
+			t.Fatalf("%s: %v", tc.word, err)
 		}
-		if f.lastPatch != nil || !strings.Contains(stderr, "already: nothing was changed") {
-			t.Errorf("%s: sent %v; stderr = %s", word, f.lastPatch, stderr)
+		want := "reconciliation " + tc.id + " is " + tc.state + " already: nothing was changed"
+		if f.lastPatch != nil || !strings.Contains(stderr, want) {
+			t.Errorf("%s: sent %v; stderr = %s, want %q", tc.word, f.lastPatch, stderr, want)
+		}
+		if !strings.Contains(out, `"cleared": [`) || !strings.Contains(out, tc.id) {
+			t.Errorf("%s: printed %s, want the reconciliation", tc.word, out)
 		}
 	}
 }
@@ -95,7 +102,7 @@ func TestReconcileUndoShowsTheRefusalOfBooks(t *testing.T) {
 	f := reconcileLinesFake(t)
 	f.refuse("PATCH", 400, `{"data":{},"message":"Only a Books admin can undo a reconciliation.","status":400}`)
 	_, _, err := runCmd(t, f.serve(), "", "books", "reconcile", "undo", reconAug)
-	if got := exitcode.Of(err); got != exitcode.Refused || !strings.Contains(err.Error(), "Only a Books admin can undo a reconciliation.") {
+	if got := exitcode.Of(err); got != exitcode.Refused || !strings.HasPrefix(err.Error(), "reconciliation "+reconAug+": ") || !strings.Contains(err.Error(), "Only a Books admin can undo a reconciliation.") {
 		t.Fatalf("exit = %d, err = %v", got, err)
 	}
 }
