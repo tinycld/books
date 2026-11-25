@@ -167,6 +167,11 @@ func TestCLIReports_ListShowAndExportWithAToken(t *testing.T) {
 				t.Errorf("%s export with the reports scope only answered %d", format, rec.Code)
 			}
 		}
+		// The body of `reports export <key> --hour12`.
+		rec = send("POST", "/api/reports/export", env.token, `{"format":"csv","hour12":true,"reportId":"`+trial.Id+`"}`)
+		if rec.Code != http.StatusOK || rec.Body.Len() == 0 || !strings.Contains(rec.Header().Get("Content-Disposition"), ".csv") {
+			t.Errorf("hour12 export answered %d, %d bytes, %q", rec.Code, rec.Body.Len(), rec.Header().Get("Content-Disposition"))
+		}
 		// A token without the reports scope reaches neither route.
 		books := "Bearer " + oauthToken(t, env.app, env.reader, scopeRead)
 		for _, path := range []string{"/api/reports/run", "/api/reports/export"} {
