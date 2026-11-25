@@ -137,6 +137,8 @@ func newBankingCmd(c *client.Client) *cobra.Command {
 				"--status all lists the transactions of every status." + paged,
 		}),
 		newBankingShowCmd(c),
+		newBankingUploadCmd(c),
+		newBankingRowsCmd(c),
 	)
 	return group
 }

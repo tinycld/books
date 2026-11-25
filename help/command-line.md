@@ -308,9 +308,20 @@ tinycld books banking show <id>
 
 `show` prints one bank transaction. For a transaction that is For review, `suggestions` holds the posted transactions of Books that it can be [matched](help://books:bank-match) to: `line` is the id that `match` takes. For a reviewed transaction, `match` or `categorization` says how it was handled.
 
+## To import a bank file
+
+Download a statement file from your bank (CSV, OFX, QFX or QBO), then upload it for a connection:
+
+```
+tinycld books banking upload statement.csv --connection <connection id>
+tinycld books banking rows <file id>
+```
+
+`upload` stores the file and prints its id. It makes no transaction. Books refuses a file that has the same content as a stored file. `rows` prints the first rows that Books read, each with its line number: use it to find the columns of a CSV file. A column is counted from 1.
+
 ## To retry safely
 
-When the answer to a write is lost (the network fails, or a proxy answers 502, 503 or 504), the command sends the same write again, with the same ids, up to three more times. Books cannot store it twice: when an earlier send was stored, Books refuses the next one, and the command prints the stored transaction as usual. This is true for `add`, `add --post`, `convert`, `apply` and `edit`.
+When the answer to a write is lost (the network fails, or a proxy answers 502, 503 or 504), the command sends the same write again, with the same ids, up to three more times. Books cannot store it twice: when an earlier send was stored, Books refuses the next one, and the command prints what is stored as usual. This is true for `add`, `add --post`, `convert`, `apply` and `edit`, and in `banking` for `upload`.
 
 When no answer comes back at all, the command exits 7. The transaction may be stored or not, and the message names its id. To find out, run `show` with that id:
 
@@ -318,13 +329,15 @@ When no answer comes back at all, the command exits 7. The transaction may be st
 tinycld books journal-entries show <id>
 ```
 
+For a `banking` command, the id is not that of a bank transaction: the message names the command to check with.
+
 To send it again safely, run the same command with `--id <id>`. When the first run was stored, Books writes nothing, and the command exits 6 with a message that the transaction already exists. A script can also choose the id before the first run: 15 characters, each a lower-case letter a-z or a digit 0-9.
 
 ```
 tinycld books journal-entries add --id entry2026071501 --input entry.json --post
 ```
 
-`add`, `convert`, `apply`, and `edit` take `--id`. For `edit`, it is the id of the new transaction that corrects a posted one; a draft keeps its own id.
+`add`, `convert`, `apply`, and `edit` take `--id`. For `edit`, it is the id of the new transaction that corrects a posted one; a draft keeps its own id. In `banking`, `upload` takes `--id` too.
 
 When the answer to the `edit` of a draft is lost and the change was stored, the command finds the change in the draft and prints it as usual. When someone else changed the draft between the two sends, the command shows the refusal from Books.
 
