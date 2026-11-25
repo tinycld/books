@@ -789,6 +789,7 @@ describe('useDocumentList and usePurchaseCategories: recovery', () => {
 function categoryRow(category: DocumentListRow['category']): DocumentListRow {
     return {
         id: 'plcategoryrow01',
+        key: '1',
         kind: 'bill',
         number: '1',
         date: '2026-10-10',

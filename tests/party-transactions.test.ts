@@ -53,9 +53,16 @@ function byNumber<T extends { number: string }>(rows: readonly T[], number: stri
     return row
 }
 
-const invoice = (id: string) => byId(CUSTOMER_PAGE_INVOICES, id)
-const estimate = (number: string) => byNumber(CUSTOMER_PAGE_ESTIMATES, number)
-const receipt = (number: string) => byNumber(CUSTOMER_PAGE_SALES_RECEIPTS, number)
+// The fixture rows carry no sequence: give each the one posting writes, the digits of its
+// number, and a draft none (lib/record-key.ts).
+function numbered<T extends { status: string; number: string }>(row: T) {
+    const sequence = row.status === 'draft' ? 0 : Number(row.number.replace(/\D/g, ''))
+    return { ...row, sequence }
+}
+
+const invoice = (id: string) => numbered(byId(CUSTOMER_PAGE_INVOICES, id))
+const estimate = (number: string) => numbered(byNumber(CUSTOMER_PAGE_ESTIMATES, number))
+const receipt = (number: string) => numbered(byNumber(CUSTOMER_PAGE_SALES_RECEIPTS, number))
 
 // The three lists one customer's page reads, as the hook feeds them to the merge: the
 // replaced originals are left out of invoices and sales receipts.
@@ -64,11 +71,13 @@ function harborviewLists() {
     return [
         CUSTOMER_PAGE_INVOICES.filter(r => r.customer === harbor)
             .filter(isListedTransaction)
-            .map(r => invoiceRow(r, today)),
-        CUSTOMER_PAGE_ESTIMATES.filter(r => r.customer === harbor).map(r => estimateRow(r, today)),
+            .map(r => invoiceRow(numbered(r), today)),
+        CUSTOMER_PAGE_ESTIMATES.filter(r => r.customer === harbor).map(r =>
+            estimateRow(numbered(r), today)
+        ),
         CUSTOMER_PAGE_SALES_RECEIPTS.filter(r => r.customer === harbor)
             .filter(isListedTransaction)
-            .map(r => salesReceiptRow(r)),
+            .map(r => salesReceiptRow(numbered(r))),
     ]
 }
 
@@ -76,6 +85,7 @@ describe('invoiceRow', () => {
     it('maps an open posted invoice to one transaction row', () => {
         expect(invoiceRow(invoice('cpinv0000001041'), today)).toMatchObject({
             id: 'cpinv0000001041',
+            key: '1041',
             kind: 'invoice',
             number: 'INV-1041',
             date: '2026-11-03',
@@ -92,6 +102,12 @@ describe('invoiceRow', () => {
             label: 'Draft',
             tone: 'muted',
         })
+    })
+
+    it('keys a draft and a replaced original by id, and its correction by number', () => {
+        expect(invoiceRow(invoice('cpinv0000001042'), today).key).toBe('cpinv0000001042')
+        expect(invoiceRow(invoice('cpinv0001038old'), today).key).toBe('cpinv0001038old')
+        expect(invoiceRow(invoice('cpinv0001038fix'), today).key).toBe('1038')
     })
 
     it('a plain void is Void, muted', () => {
@@ -243,6 +259,8 @@ const POSTED_MEMO = {
     applied: 0,
     currency: 'USD',
     created: '2026-11-05 09:00:00.000Z',
+    sequence: 1001,
+    replaced_by: '',
 }
 const DRAFT_MEMO = {
     ...POSTED_MEMO,
@@ -250,6 +268,7 @@ const DRAFT_MEMO = {
     status: 'draft' as const,
     number: '',
     balance: 0,
+    sequence: 0,
 }
 // U+2212, not the ASCII hyphen formatMoney writes for a negative amount.
 const MINUS = '−'
@@ -327,6 +346,7 @@ describe('creditMemoRow', () => {
     it('maps a posted memo to one row of kind credit_memo, its total negated, no due date', () => {
         expect(creditMemoRow(POSTED_MEMO)).toEqual({
             id: POSTED_MEMO.id,
+            key: '1001',
             kind: 'credit_memo',
             number: '1001',
             date: '2026-11-05',
@@ -353,6 +373,7 @@ describe('creditMemoRow', () => {
     it('a draft has no number and its total negated', () => {
         const row = creditMemoRow(DRAFT_MEMO)
         expect(row.number).toBe('')
+        expect(row.key).toBe(DRAFT_MEMO.id)
         expect(row.total).toBe(-25_000)
         expect(row.status).toEqual({ label: 'Draft', tone: 'muted' })
     })
@@ -376,10 +397,13 @@ describe('the credit memo kind', () => {
         expect(TRANSACTION_TYPE_LABELS.credit_memo).toBe('Credit memo')
     })
 
-    it('opens books/credit-memos/<id>', () => {
+    it('opens books/credit-memos/<number>, and a draft by its id', () => {
         expect(TRANSACTION_DOC_KINDS.credit_memo.routeBase).toBe('books/credit-memos')
-        expect(documentHref(TRANSACTION_DOC_KINDS.credit_memo, POSTED_MEMO.id)).toBe(
-            `books/credit-memos/${POSTED_MEMO.id}`
+        expect(documentHref(TRANSACTION_DOC_KINDS.credit_memo, POSTED_MEMO)).toBe(
+            'books/credit-memos/1001'
+        )
+        expect(documentHref(TRANSACTION_DOC_KINDS.credit_memo, DRAFT_MEMO)).toBe(
+            `books/credit-memos/${DRAFT_MEMO.id}`
         )
     })
 
@@ -423,12 +447,15 @@ const POSTED_REFUND = {
     total: 15_000,
     currency: 'USD',
     created: '2026-11-12 09:00:00.000Z',
+    sequence: 1003,
+    replaced_by: '',
 }
 const DRAFT_REFUND = {
     ...POSTED_REFUND,
     id: 'rrtestdraft0001',
     status: 'draft' as const,
     number: '',
+    sequence: 0,
 }
 
 describe('refundReceiptStatus', () => {
@@ -452,6 +479,7 @@ describe('refundReceiptRow', () => {
     it('maps a posted refund to one row of kind refund_receipt, its total negated', () => {
         expect(refundReceiptRow(POSTED_REFUND)).toEqual({
             id: POSTED_REFUND.id,
+            key: '1003',
             kind: 'refund_receipt',
             number: '1003',
             date: '2026-11-12',
@@ -472,6 +500,7 @@ describe('refundReceiptRow', () => {
     it('a draft has an empty No. and reads Draft', () => {
         const row = refundReceiptRow(DRAFT_REFUND)
         expect(row.number).toBe('')
+        expect(row.key).toBe(DRAFT_REFUND.id)
         expect(row.total).toBe(-15_000)
         expect(row.status).toEqual({ label: 'Draft', tone: 'muted' })
     })
@@ -483,10 +512,10 @@ describe('refundReceiptRow', () => {
         })
     })
 
-    it('has the type label Refund receipt and opens books/refund-receipts/<id>', () => {
+    it('has the type label Refund receipt and opens books/refund-receipts/<number>', () => {
         expect(TRANSACTION_TYPE_LABELS.refund_receipt).toBe('Refund receipt')
-        expect(documentHref(TRANSACTION_DOC_KINDS.refund_receipt, POSTED_REFUND.id)).toBe(
-            `books/refund-receipts/${POSTED_REFUND.id}`
+        expect(documentHref(TRANSACTION_DOC_KINDS.refund_receipt, POSTED_REFUND)).toBe(
+            'books/refund-receipts/1003'
         )
     })
 
@@ -512,12 +541,14 @@ const POSTED_WRITE_OFF = {
     amount: 40_000,
     currency: 'USD',
     created: '2026-11-10 09:00:00.000Z',
+    sequence: 1001,
 }
 
 describe('writeOffRow', () => {
     it('maps a posted write-off to one row of kind write_off, its amount negated', () => {
         expect(writeOffRow(POSTED_WRITE_OFF)).toEqual({
             id: POSTED_WRITE_OFF.id,
+            key: '1001',
             kind: 'write_off',
             number: '1001',
             date: '2026-11-10',
@@ -540,10 +571,10 @@ describe('writeOffRow', () => {
         })
     })
 
-    it('has the type label Write-off and opens books/write-offs/<id>', () => {
+    it('has the type label Write-off and opens books/write-offs/<number>', () => {
         expect(TRANSACTION_TYPE_LABELS.write_off).toBe('Write-off')
-        expect(documentHref(TRANSACTION_DOC_KINDS.write_off, POSTED_WRITE_OFF.id)).toBe(
-            `books/write-offs/${POSTED_WRITE_OFF.id}`
+        expect(documentHref(TRANSACTION_DOC_KINDS.write_off, POSTED_WRITE_OFF)).toBe(
+            'books/write-offs/1001'
         )
     })
 
@@ -608,6 +639,8 @@ describe('invoiceRow of a written-off invoice', () => {
             balance: 0,
             currency: 'USD',
             created: '2026-11-01 09:00:00.000Z',
+            sequence: 1,
+            replaced_by: '',
         }
         expect(dueDocumentStatus(bill, today)).toEqual({ label: 'Paid', tone: 'success' })
         expect(billRow(bill, today).status).toEqual({ label: 'Paid', tone: 'success' })
@@ -844,6 +877,7 @@ describe('mergeTransactions over another kind union', () => {
         total: number
     ): PartyTransactionRow<PurchaseKind> => ({
         id,
+        key: id,
         kind,
         number: id.toUpperCase(),
         date,

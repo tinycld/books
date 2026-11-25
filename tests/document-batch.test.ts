@@ -9,8 +9,10 @@ let next = 0
 
 function row(kind: ListKind, recordStatus: string): DocumentListRow {
     next += 1
+    const id = `doc${String(next).padStart(12, '0')}`
     return {
-        id: `doc${String(next).padStart(12, '0')}`,
+        id,
+        key: recordStatus === 'draft' ? id : String(1000 + next),
         kind,
         number: recordStatus === 'draft' ? '' : String(1000 + next),
         date: '2026-11-17',

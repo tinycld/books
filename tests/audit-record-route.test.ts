@@ -4,7 +4,7 @@ import {
     auditRecordHref,
     auditRecordOpenLabel,
 } from '../tinycld/books/lib/audit-record-route'
-import { documentHref } from '../tinycld/books/lib/document-routes'
+import { documentPath } from '../tinycld/books/lib/document-routes'
 import { entryHref } from '../tinycld/books/lib/entry-route'
 import {
     BILL_KIND,
@@ -78,7 +78,7 @@ describe('auditRecordHref', () => {
         path,
     }) => {
         const href = auditRecordHref(collection, ID, { id: ID })
-        expect(href).toBe(documentHref(kind, ID))
+        expect(href).toBe(documentPath(kind, ID))
         expect(href).toBe(`${path}/${ID}`)
     })
 
@@ -133,7 +133,7 @@ describe('auditRecordHref', () => {
         const memo = 'crmo1001foxhv01'
         const live = { id: ID, credit_memo: memo, invoice: 'invc1001foxhv01' }
         expect(auditRecordHref('books_credit_memo_applications', ID, live)).toBe(
-            documentHref(CREDIT_MEMO_KIND, memo)
+            documentPath(CREDIT_MEMO_KIND, memo)
         )
         expect(auditRecordHref('books_credit_memo_applications', ID, live)).toBe(
             `books/credit-memos/${memo}`
@@ -231,7 +231,15 @@ describe('auditRecordHref', () => {
     })
 
     it('opens a journal entry where its live row says (entryHref)', () => {
-        const manual = { id: ID, doc_type: 'journal', origin: 'manual', document: '' } as const
+        // The audit log opens an entry by its id: a live row carries no number here.
+        const unnumbered = { sequence: 0, status: 'posted' } as const
+        const manual = {
+            id: ID,
+            doc_type: 'journal',
+            origin: 'manual',
+            document: '',
+            ...unnumbered,
+        } as const
         expect(auditRecordHref('books_journal_entries', ID, manual)).toBe(entryHref(manual))
         expect(auditRecordHref('books_journal_entries', ID, manual)).toBe(`books/entries/${ID}`)
 
@@ -243,6 +251,7 @@ describe('auditRecordHref', () => {
             doc_type: 'invoice',
             origin: 'document',
             document: 'bkinvoice001001',
+            ...unnumbered,
         } as const
         expect(auditRecordHref('books_journal_entries', ID, posted)).toBe(entryHref(posted))
 

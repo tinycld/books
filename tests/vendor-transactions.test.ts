@@ -35,6 +35,8 @@ const BILL = {
     balance: 40_000,
     currency: 'USD',
     created: '2026-11-01 09:00:00.000Z',
+    sequence: 1001,
+    replaced_by: '',
 }
 
 const EXPENSE = {
@@ -45,6 +47,8 @@ const EXPENSE = {
     total: 12_500,
     currency: 'USD',
     created: '2026-11-04 09:00:00.000Z',
+    sequence: 7,
+    replaced_by: '',
 }
 
 const BILL_PAYMENT = {
@@ -55,6 +59,8 @@ const BILL_PAYMENT = {
     total: 15_000,
     currency: 'USD',
     created: '2026-11-06 09:00:00.000Z',
+    sequence: 3,
+    replaced_by: '',
 }
 
 const VENDOR_CREDIT = {
@@ -66,6 +72,8 @@ const VENDOR_CREDIT = {
     balance: 25_000,
     currency: 'USD',
     created: '2026-11-08 09:00:00.000Z',
+    sequence: 2,
+    replaced_by: '',
 }
 
 const VENDOR_REFUND = {
@@ -76,6 +84,8 @@ const VENDOR_REFUND = {
     amount: 9_900,
     currency: 'USD',
     created: '2026-11-10 09:00:00.000Z',
+    sequence: 1,
+    replaced_by: '',
 }
 
 describe('billRow', () => {
@@ -140,6 +150,7 @@ describe('billRow', () => {
     it('maps a bill to one row of kind bill, with its due date and a positive total', () => {
         expect(billRow(BILL, TODAY)).toMatchObject({
             id: BILL.id,
+            key: '1001',
             kind: 'bill',
             number: 'B-1001',
             date: '2026-11-01',
@@ -266,11 +277,11 @@ describe('vendorRefundRow', () => {
 
 describe('vendorTransactionHref', () => {
     const rows: [VendorTransactionRow, string][] = [
-        [billRow(BILL, TODAY), `books/bills/${BILL.id}`],
-        [expenseRow(EXPENSE), `books/expenses/${EXPENSE.id}`],
-        [billPaymentRow(BILL_PAYMENT), `books/bill-payments/${BILL_PAYMENT.id}`],
-        [vendorCreditRow(VENDOR_CREDIT), `books/vendor-credits/${VENDOR_CREDIT.id}`],
-        [vendorRefundRow(VENDOR_REFUND), `books/vendor-refunds/${VENDOR_REFUND.id}`],
+        [billRow(BILL, TODAY), 'books/bills/1001'],
+        [expenseRow(EXPENSE), 'books/expenses/7'],
+        [billPaymentRow(BILL_PAYMENT), 'books/bill-payments/3'],
+        [vendorCreditRow(VENDOR_CREDIT), 'books/vendor-credits/2'],
+        [vendorRefundRow(VENDOR_REFUND), 'books/vendor-refunds/1'],
     ]
 
     for (const [row, href] of rows) {
@@ -278,6 +289,13 @@ describe('vendorTransactionHref', () => {
             expect(vendorTransactionHref(row)).toBe(href)
         })
     }
+
+    it('opens a draft and a replaced original by its id', () => {
+        const draft = { ...BILL, status: 'draft' as const, number: '', sequence: 0 }
+        expect(vendorTransactionHref(billRow(draft, TODAY))).toBe(`books/bills/${BILL.id}`)
+        const replaced = { ...EXPENSE, status: 'void' as const, replaced_by: 'vptexpense00009' }
+        expect(vendorTransactionHref(expenseRow(replaced))).toBe(`books/expenses/${EXPENSE.id}`)
+    })
 
     it('names one route per kind', () => {
         expect(VENDOR_TRANSACTION_ROUTES).toEqual({
