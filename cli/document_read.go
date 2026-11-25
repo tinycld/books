@@ -25,6 +25,9 @@ func newDocumentCmd(c *client.Client, doc *document) *cobra.Command {
 		newDocumentVoidCmd(c, doc),
 		newDocumentDeleteCmd(c, doc),
 	)
+	if doc.Entry != "" {
+		group.AddCommand(newDocumentEntryCmd(c, doc))
+	}
 	return group
 }
 

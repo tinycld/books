@@ -80,6 +80,9 @@ func correctionInput(doc *document, current record, in documentInput) documentIn
 	maps.Copy(out.header, in.header)
 	for i := range doc.Lines {
 		table := &doc.Lines[i]
+		if table.ReadOnly {
+			continue
+		}
 		if rows, given := in.lines[table.Key]; given {
 			out.lines[table.Key] = rows
 			continue

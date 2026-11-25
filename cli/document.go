@@ -22,6 +22,10 @@ var documentsJSON []byte
 // draft, then posted, then void.
 const lifecyclePosting = "posting"
 
+// journalDocument is the type of the journal entry Books writes for a posted
+// transaction.
+const journalDocument = "journal-entries"
+
 // The values of a document's status.
 const (
 	statusDraft  = "draft"
@@ -50,6 +54,9 @@ type lineTable struct {
 	// position are always among them.
 	Omit   []string `json:"omit"`
 	Fields []field  `json:"fields"`
+	// ReadOnly marks a table Books writes (the tax lines of an invoice). Its
+	// rows are printed, and are never part of an input.
+	ReadOnly bool `json:"readOnly"`
 }
 
 // asResource is the table as a resource, for the functions that check, print
@@ -65,7 +72,11 @@ type document struct {
 	// Fixed holds the header values every document of this type has. The CLI
 	// sends them on a create; a caller cannot.
 	Fixed map[string]string `json:"fixed"`
-	Lines []lineTable       `json:"lines"`
+	// Entry names the header field that holds the id of the journal entry
+	// Books writes when the document is posted. "": the type has no `entry`
+	// command (a journal entry is its own entry).
+	Entry string      `json:"entry"`
+	Lines []lineTable `json:"lines"`
 }
 
 func (d *document) table(key string) *lineTable {
@@ -162,6 +173,12 @@ func checkDocument(doc *document, names map[string]bool) error {
 			return fmt.Errorf("fixed %q: %q is not a value of the field", name, value)
 		}
 	}
+	if doc.Entry != "" {
+		entry := doc.field(doc.Entry)
+		if entry == nil || !entry.ReadOnly || entry.Type != typeID || entry.Ref != journalDocument {
+			return fmt.Errorf("entry names %q, which is not a read-only id of %s", doc.Entry, journalDocument)
+		}
+	}
 	keys := map[string]bool{}
 	for i := range doc.Lines {
 		table := &doc.Lines[i]
@@ -253,6 +270,9 @@ func documentInputSchema(doc *document, create bool) map[string]any {
 	props := schema["properties"].(map[string]any)
 	for i := range doc.Lines {
 		table := &doc.Lines[i]
+		if table.ReadOnly {
+			continue
+		}
 		description := "every " + table.Singular + " of the " + doc.Singular + ", in order"
 		if !create {
 			description += "; when given, these rows replace all the rows the " + doc.Singular + " has"
@@ -283,7 +303,9 @@ func checkDocumentInput(doc *document, body map[string]any, create bool) (docume
 	in := documentInput{header: map[string]any{}, lines: map[string][]map[string]any{}}
 	inputNames := writableNames(&doc.resource)
 	for i := range doc.Lines {
-		inputNames = append(inputNames, doc.Lines[i].Key)
+		if !doc.Lines[i].ReadOnly {
+			inputNames = append(inputNames, doc.Lines[i].Key)
+		}
 	}
 	names := make([]string, 0, len(body))
 	for name := range body {
@@ -292,6 +314,9 @@ func checkDocumentInput(doc *document, body map[string]any, create bool) (docume
 	slices.Sort(names)
 	for _, name := range names {
 		if table := doc.table(name); table != nil {
+			if table.ReadOnly {
+				return in, usagef("%q is set by the server", name)
+			}
 			rows, err := checkLines(table, body[name])
 			if err != nil {
 				return in, err

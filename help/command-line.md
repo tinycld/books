@@ -67,13 +67,25 @@ An inactive record is hidden from pickers and keeps its history. `delete` asks f
 Each type of transaction has its own group of commands:
 
 - `tinycld books journal-entries`: [journal entries](help://books:journal-entries). `list` and `show` also print the journal entry that Books writes for every other transaction; `list --type invoice` lists the entries of the invoices
+- `tinycld books invoices`: [invoices](help://books:invoices)
 
 ```
 tinycld books journal-entries list --status draft
-tinycld books journal-entries show <id>
+tinycld books invoices list --customer <customer id>
+tinycld books invoices show <id>
 ```
 
-`show` prints the transaction with its lines and with the totals that Books computed.
+`show` prints the transaction with its lines and with the totals that Books computed. For an invoice it also prints `tax_lines`: the sales tax that Books computed for each tax rate. You cannot send totals, line amounts or tax lines; Books computes them as it does for the form.
+
+A line of an invoice has a `kind`: `item` (a product or service, a quantity and a rate), `description` (text only), `subtotal` (the sum of the lines above it) or `percent` (a percentage of the item or subtotal right above it, in parts per million: `-100000` is a 10% discount).
+
+## To see the journal entry of a transaction
+
+```
+tinycld books invoices entry <id>
+```
+
+`entry` prints the journal entry that Books wrote when the transaction was posted: the accounts it debits and credits. A draft has no journal entry.
 
 ## To record a transaction
 

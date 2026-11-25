@@ -93,6 +93,102 @@
                     ]
                 }
             ]
+        },
+        {
+            "name": "invoices",
+            "singular": "invoice",
+            "summary": "Invoices: what a customer owes for a sale",
+            "collection": "books_invoices",
+            "lifecycle": "posting",
+            "entry": "entry",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "customer", "status", "total", "balance"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only invoices with this status: draft, posted or void" },
+                { "flag": "customer", "field": "customer", "help": "only the invoices of the customer with this id" }
+            ],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "form", "fields", "public_token", "sort_key", "estimate"],
+            "deleteHelp": "Only a draft can be deleted. Void a posted invoice with `void`: it stays in the books with its number, and its amounts no longer count.",
+            "fields": [
+                { "name": "customer", "type": "id", "ref": "customers", "required": true, "help": "the customer who owes the invoice" },
+                { "name": "date", "type": "string", "required": true, "help": "the invoice date, as YYYY-MM-DD" },
+                { "name": "due_date", "type": "string", "required": true, "help": "the day the invoice is due, as YYYY-MM-DD" },
+                {
+                    "name": "terms",
+                    "type": "string",
+                    "enum": ["due_on_receipt", "net_10", "net_15", "net_30", "net_60"],
+                    "help": "the payment terms printed on the invoice; Books does not compute due_date from them"
+                },
+                { "name": "bill_to", "type": "address", "help": "the billing address printed on the invoice" },
+                { "name": "email", "type": "string", "help": "the address the invoice is sent to" },
+                { "name": "tax_rate", "type": "id", "ref": "tax-rates", "help": "the sales tax rate or group for the taxable lines" },
+                { "name": "message", "type": "string", "help": "a message to the customer, printed on the invoice" },
+                { "name": "memo", "type": "string", "help": "a note for the books; the customer does not see it" },
+                {
+                    "name": "status",
+                    "type": "string",
+                    "readOnly": true,
+                    "enum": ["draft", "posted", "void"],
+                    "help": "draft, posted or void; `add --post`, `post` and `void` change it"
+                },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the invoice number; Books gives it when the invoice is posted" },
+                { "name": "subtotal", "type": "integer", "readOnly": true, "help": "the sum of the lines before tax, in cents; Books computes it" },
+                { "name": "tax_total", "type": "integer", "readOnly": true, "help": "the sales tax, in cents; Books computes it" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "subtotal plus tax, in cents; Books computes it" },
+                { "name": "balance", "type": "integer", "readOnly": true, "help": "what the customer still owes, in cents" },
+                { "name": "written_off", "type": "integer", "readOnly": true, "help": "the part of the invoice written off as bad debt, in cents" },
+                { "name": "revision", "type": "integer", "readOnly": true, "help": "the count of saves; the commands send it so two callers cannot overwrite each other" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote when the invoice was posted; `entry` prints it" },
+                { "name": "replaces", "type": "id", "ref": "invoices", "readOnly": true, "help": "the posted invoice this one corrects; `edit` of a posted invoice sets it" },
+                { "name": "replaced_by", "type": "id", "ref": "invoices", "readOnly": true, "help": "the invoice that corrects this one" }
+            ],
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_invoice_lines",
+                    "parent": "invoice",
+                    "sort": "position,id",
+                    "omit": ["invoice", "position"],
+                    "fields": [
+                        {
+                            "name": "kind",
+                            "type": "string",
+                            "required": true,
+                            "enum": ["item", "description", "subtotal", "percent"],
+                            "help": "item: a product or service with a quantity and a rate; description: text only; subtotal: the sum of the lines above it; percent: a percentage of the item or subtotal right above it"
+                        },
+                        { "name": "product", "type": "id", "ref": "products", "help": "the product or service of an item or percent line; an Inventory item moves stock when the document is posted" },
+                        { "name": "description", "type": "string", "help": "the text of the line" },
+                        { "name": "quantity", "type": "number", "help": "the quantity of an item line, with at most 2 decimals" },
+                        { "name": "rate", "type": "integer", "help": "the price of one unit of an item line, in cents" },
+                        { "name": "percent_ppm", "type": "integer", "help": "the percentage of a percent line, in parts per million; -100000 is a 10% discount" },
+                        { "name": "taxable", "type": "bool", "help": "true when the header's tax rate applies to the line" },
+                        { "name": "amount", "type": "integer", "readOnly": true, "help": "the amount of the line, in cents; Books computes it" }
+                    ]
+                },
+                {
+                    "key": "tax_lines",
+                    "singular": "tax line",
+                    "collection": "books_invoice_tax_lines",
+                    "parent": "invoice",
+                    "sort": "position,id",
+                    "readOnly": true,
+                    "omit": ["invoice", "position", "date", "currency"],
+                    "fields": [
+                        { "name": "rate", "type": "id", "ref": "tax-rates", "readOnly": true, "help": "the tax rate or group of the document" },
+                        { "name": "component", "type": "id", "ref": "tax-rates", "readOnly": true, "help": "the single rate this line is for; the rate itself when it is not a group" },
+                        { "name": "agency", "type": "id", "ref": "tax-agencies", "readOnly": true, "help": "the agency the tax is owed to" },
+                        { "name": "rate_ppm", "type": "integer", "readOnly": true, "help": "the rate of the component, in parts per million" },
+                        { "name": "gross_amount", "type": "integer", "readOnly": true, "help": "the subtotal of the document, in cents" },
+                        { "name": "taxable_amount", "type": "integer", "readOnly": true, "help": "the sum of the taxable lines, in cents" },
+                        { "name": "amount", "type": "integer", "readOnly": true, "help": "the tax of this component, in cents" }
+                    ]
+                }
+            ]
         }
     ]
 }
