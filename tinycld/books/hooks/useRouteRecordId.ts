@@ -1,10 +1,10 @@
 import { and, eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
-import { router } from 'expo-router'
+import { router, useIsFocused } from 'expo-router'
 import { useEffect, useRef } from 'react'
 import type { CodedCollectionName } from '../lib/record-code'
-import { documentKey, entryKey, parseCodeKey, parseRecordKey } from '../lib/record-key'
+import { codeUrlKey, documentKey, entryKey, parseCodeKey, parseRecordKey } from '../lib/record-key'
 import { useRouteKeyStore } from '../stores/route-key-store'
 
 // The numbered document collections whose route takes a URL key (lib/record-key.ts), with
@@ -87,18 +87,23 @@ export function useDocumentRouteId(
 // A route opened by a code follows its record's code: after the code changes, the URL
 // takes the new code, so a reload and a copied link open the record. A code typed in
 // another case is the same code (the router does not tell the two paths apart), and a
-// route opened by an id keeps the id.
+// route opened by an id keeps the id. `router.setParams` acts on the focused route, so a
+// screen under another one (a customer page under its invoice) follows once it is on top
+// again, never by moving the screen above it.
 function useFollowCode(collectionName: CodedCollectionName, key: string, id: string) {
+    const isFocused = useIsFocused()
     const [collection] = useStore(collectionName)
     const { data } = useLiveQuery({
         query: q =>
             id === '' ? undefined : q.from({ row: collection }).where(({ row }) => eq(row.id, id)),
         queryKey: ['books.code-route-follow', collectionName, id],
     })
-    const code = data?.[0]?.code ?? ''
+    const row = data?.[0]
+    const ownKey = row ? codeUrlKey(row) : ''
     useEffect(() => {
-        if (code !== '' && code !== key.toUpperCase()) router.setParams({ id: code })
-    }, [code, key])
+        if (!isFocused || ownKey === '' || ownKey === id) return
+        if (ownKey !== key.toUpperCase()) router.setParams({ id: ownKey })
+    }, [isFocused, ownKey, id, key])
 }
 
 // The record id a customer, vendor or product route's key names, or undefined while it is
@@ -134,7 +139,7 @@ export function useStoredCodeKey(collectionName: CodedCollectionName): (id: stri
     const [collection] = useStore(collectionName)
     return id => {
         const row = collection.get(id)
-        return row?.code || id
+        return row ? codeUrlKey(row) : id
     }
 }
 

@@ -4,6 +4,7 @@ import {
     DESKTOP,
     navigateInApp,
     openBooks,
+    openBooksPage,
     PHONE,
     uniqueName,
 } from './customer-form-helpers'
@@ -65,6 +66,66 @@ test.describe('record codes', () => {
         await code.fill('')
         await name.fill(qzName('again'))
         await expect(code).toHaveValue(/^QZ/)
+    })
+
+    // The suggestion's lookup of taken codes answers after the name changed: a Save in
+    // between must not store the code of the name as it was before.
+    test('a Save before the suggestion answers stores the code of the whole name', async ({
+        page,
+    }) => {
+        await customerHelpers.openNew(page)
+        const name = customerHelpers.field(page, 'display_name')
+        const code = customerHelpers.field(page, 'code')
+        const full = qzName('quick')
+        const firstWord = full.split(' ')[0] ?? full
+        await name.fill(firstWord)
+        await expect(code).toHaveValue(/^QA/)
+        // Hold every later lookup of taken codes.
+        let release = () => {}
+        const held = new Promise<void>(resolve => {
+            release = resolve
+        })
+        await page.route('**/api/collections/books_customers/records?*', async route => {
+            const filter = new URL(route.request().url()).searchParams.get('filter') ?? ''
+            if (filter.includes('code ~')) await held
+            await route.fallback()
+        })
+        await name.fill(full)
+        await page.getByTestId('customer-save').click()
+        await expect(page.getByTestId('customer-code').filter({ visible: true })).toHaveText(
+            /^QZ(-\d+)?$/
+        )
+        release()
+    })
+
+    // A code change that arrives while the customer page is under another screen moves
+    // that page's URL only, never the screen on top.
+    test('a code change under another screen leaves the top screen alone', async ({ page }) => {
+        const name = qzName('under')
+        await customerHelpers.create(page, { name })
+        await page.getByTestId('customer-new-transaction').click()
+        await page.getByTestId('customer-new-invoice').click()
+        await expect(page).toHaveURL(/\/books\/invoices\/new\?customer=[a-z0-9]{15}$/)
+        const invoiceUrl = page.url()
+
+        const other = await openBooksPage(page, DESKTOP, async () => undefined)
+        await customerHelpers.open(other, name)
+        const fresh = `QX${Date.now().toString(36).toUpperCase()}`.slice(0, 15)
+        await customerHelpers.field(other, 'code').fill(fresh)
+        await other.getByTestId('customer-save').filter({ visible: true }).click()
+        await customerHelpers.expectEditSaved(other)
+        await expect(other.getByTestId('customer-code').filter({ visible: true })).toHaveText(fresh)
+
+        // The change reaches the customer screen kept under the invoice through realtime;
+        // its hidden header shows the new code. The invoice keeps its URL.
+        await expect(page.getByTestId('customer-code').first()).toHaveText(fresh)
+        await expect(page.getByTestId('invoice-title').filter({ visible: true })).toBeVisible()
+        await expect(page).toHaveURL(invoiceUrl)
+        await other.close()
+
+        // Back on the customer page, its URL takes the new code.
+        await page.goBack()
+        await expect(page).toHaveURL(new RegExp(`/books/customers/${fresh}(\\?|$)`))
     })
 
     test('a taken code shows the field error', async ({ page }) => {

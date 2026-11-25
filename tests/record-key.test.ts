@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+    codeUrlKey,
     documentKey,
     entryKey,
     hasOwnNumber,
@@ -99,5 +100,22 @@ describe('parseCodeKey', () => {
         expect(parseCodeKey('ARD')).toEqual({ kind: 'code', code: 'ARD' })
         expect(parseCodeKey('ard-2')).toEqual({ kind: 'code', code: 'ARD-2' })
         expect(parseCodeKey('VERYLONGSINGLEW')).toEqual({ kind: 'code', code: 'VERYLONGSINGLEW' })
+    })
+})
+
+describe('codeUrlKey', () => {
+    it('is the code when the code reads back as a code', () => {
+        expect(codeUrlKey({ id: 'abc123def456ghi', code: 'ARD' })).toBe('ARD')
+    })
+
+    it('is the id when the row has no code yet', () => {
+        expect(codeUrlKey({ id: 'abc123def456ghi', code: '' })).toBe('abc123def456ghi')
+    })
+
+    // A 15-digit code has the shape of a record id, and a route reads it as one.
+    it('is the id when the code reads back as an id', () => {
+        expect(codeUrlKey({ id: 'abc123def456ghi', code: '123456789012345' })).toBe(
+            'abc123def456ghi'
+        )
     })
 })

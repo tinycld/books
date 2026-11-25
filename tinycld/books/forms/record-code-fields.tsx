@@ -50,16 +50,27 @@ function useTakenCodesReader(host: CodeHost) {
 
 // The name field. On a new record each change also sets the Code field to the code the
 // name suggests, until the user edits the code (its field is dirty and not empty). The
-// lookup is async; `latest` lets only the newest change write the code.
+// code follows the name at once: from the taken codes last read for the same stem, or
+// empty while none were read, so a Save before the lookup answers never sends the code
+// of an earlier name (an empty code is made by the server). The lookup then fills it;
+// `latest` lets only the newest change write, and only while the form still holds that
+// name (Save and new resets it).
 function NameField({ host, ...props }: BuiltinFieldProps & { host: CodeHost }) {
     const { getFieldState, getValues, setValue } = useFormContext()
     const readTaken = useTakenCodesReader(host)
     const latest = useRef(0)
+    const takenByStem = useRef(new Map<string, Set<string>>())
     const isUserCode = () => getFieldState('code').isDirty && getValues('code') !== ''
+    const suggest = (name: string, taken: ReadonlySet<string>) =>
+        setValue('code', suggestedCode(name, host.kind, taken), { shouldDirty: false })
     const change = async (value: unknown) => {
         props.onChange(value)
         if (props.mode !== 'create' || isUserCode()) return
         const name = typeof value === 'string' ? value : ''
+        const stem = codeStem(suggestedBase(name, host.kind))
+        const known = takenByStem.current.get(stem)
+        if (known) suggest(name, known)
+        else setValue('code', '', { shouldDirty: false })
         latest.current += 1
         const call = latest.current
         let taken: Set<string>
@@ -70,8 +81,9 @@ function NameField({ host, ...props }: BuiltinFieldProps & { host: CodeHost }) {
             log.warn('books.record-code', 'could not read the taken codes', { error })
             return
         }
-        if (call !== latest.current || isUserCode()) return
-        setValue('code', suggestedCode(name, host.kind, taken), { shouldDirty: false })
+        takenByStem.current.set(stem, taken)
+        if (call !== latest.current || isUserCode() || getValues(props.fieldKey) !== name) return
+        suggest(name, taken)
     }
     return (
         <ContactInput

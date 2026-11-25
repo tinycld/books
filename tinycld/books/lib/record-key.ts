@@ -70,3 +70,11 @@ export function parseCodeKey(key: string): CodeKey {
     if (RECORD_ID.test(key)) return { kind: 'id', id: key }
     return { kind: 'code', code: key.toUpperCase() }
 }
+
+// The URL key a customer, vendor or product opens by: its code, or its id while it has
+// none, or when the code (15 digits) has the shape of an id and a route would read it as one.
+export function codeUrlKey(row: { id: string; code?: string }): string {
+    const code = row.code ?? ''
+    if (code === '' || parseCodeKey(code).kind === 'id') return row.id
+    return code
+}
