@@ -150,8 +150,14 @@ type document struct {
 	Convert *conversion `json:"convert"`
 	// Views are read-only lists of a view collection that serve the type: each
 	// is one more list command of the group.
-	Views []listView  `json:"views"`
-	Lines []lineTable `json:"lines"`
+	Views []listView `json:"views"`
+	// Scoped marks a type that is only the records with its fixed values (a
+	// transfer is a journal entry with the type transfer): `list` filters by
+	// them, and every command answers "not found" for another record of the
+	// collection. Without it, `list` and `show` take every record
+	// (`journal-entries` prints the entry of every transaction).
+	Scoped bool        `json:"scoped"`
+	Lines  []lineTable `json:"lines"`
 }
 
 // listView is a list of a view collection, as a command word of a document's
@@ -347,6 +353,12 @@ func checkDocument(doc *document, names map[string]bool) error {
 	// The lifecycle of a document says which commands it has.
 	if doc.NoEdit {
 		return fmt.Errorf("noEdit is for a list resource")
+	}
+	if doc.Scoped {
+		if len(doc.Fixed) == 0 {
+			return fmt.Errorf("scoped needs fixed: the values that make a record a %s", doc.Singular)
+		}
+		doc.scope = doc.Fixed
 	}
 	if err := checkResource(&doc.resource, names); err != nil {
 		return err

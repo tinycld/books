@@ -68,6 +68,7 @@ An inactive record is hidden from pickers and keeps its history. `delete` asks f
 Each type of transaction has its own group of commands:
 
 - `tinycld books journal-entries`: [journal entries](help://books:journal-entries). `list` and `show` also print the journal entry that Books writes for every other transaction; `list --type invoice` lists the entries of the invoices
+- `tinycld books transfers`: [transfers](help://books:transfers), money that you move from one of your accounts to another
 - `tinycld books invoices`: [invoices](help://books:invoices)
 - `tinycld books sales-receipts`: [sales receipts](help://books:sales-receipts), a sale that is paid at once; `deposit_to` is the account that receives the money
 - `tinycld books credit-memos`: [credit memos](help://books:credit-memos); `invoice` names the invoice that the credit is for
@@ -165,6 +166,19 @@ echo '{"date": "2026-07-22", "deposit_to": "<bank account id>",
 ```
 
 Books fills the rest of an item (the customer, the amount, the date) and computes `total` when the deposit is posted: a draft has the total 0. Books refuses an item that is in another posted deposit. A deposit can have up to 500 items and 100 lines. `edit` of a draft takes up to 1100 changes in one step, and it removes and adds each row of `items` or `lines` that the JSON has: for a very large draft, change `items` and `lines` in two calls.
+
+## To move money between your accounts
+
+A transfer has two lines. The first line is the account that the money leaves, with the amount in `credit`. The second line is the account that the money goes to, with the same amount in `debit`.
+
+```
+echo '{"date": "2026-07-22", "memo": "To savings", "lines": [
+  {"account": "<checking account id>", "credit": 50000},
+  {"account": "<savings account id>", "debit": 50000}
+]}' | tinycld books transfers add --input - --post
+```
+
+Books refuses a transfer when it is posted if the lines are in the other order, if it has more than two lines, or if an account is an income or expense account. `tinycld books transfers list` lists only the transfers. `tinycld books journal-entries list --type transfer` shows their journal entries, but change a transfer with `tinycld books transfers`.
 
 ## To make a statement for a customer
 

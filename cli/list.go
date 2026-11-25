@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -155,6 +156,12 @@ func listFilter(cmd *cobra.Command, res *resource, opts listOptions) string {
 		} else {
 			clauses = append(clauses, "inactive = false")
 		}
+	}
+	// The values are from documents.json, and are bound as a caller's are.
+	for i, field := range slices.Sorted(maps.Keys(res.scope)) {
+		name := fmt.Sprintf("s%d", i)
+		params[name] = res.scope[field]
+		clauses = append(clauses, field+" = {:"+name+"}")
 	}
 	for i, flt := range res.Filters {
 		if !cmd.Flags().Changed(flt.Flag) {

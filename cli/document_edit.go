@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"tinycld.org/cli/client"
+	"tinycld.org/cli/exitcode"
 	"tinycld.org/cli/output"
 )
 
@@ -23,6 +24,11 @@ func checkFixed(doc *document, rec record) error {
 	slices.Sort(names)
 	for _, name := range names {
 		if have := rec.cell(name); have != doc.Fixed[name] {
+			// A scoped type does not have the record at all.
+			if doc.Scoped {
+				return exitcode.New(exitcode.NotFound, fmt.Errorf("%s %s: not found: the record with this id has the %s %q, so it is not a %s",
+					doc.Singular, rec.id(), name, have, doc.Singular))
+			}
 			return refusedf("%s %s has the %s %q, not %q: Books made it for another transaction, so change that transaction",
 				doc.Singular, rec.id(), name, have, doc.Fixed[name])
 		}

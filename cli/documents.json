@@ -973,6 +973,93 @@
                 { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
                 { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote for the write-off; `entry` prints it" }
             ]
+        },
+        {
+            "name": "transfers",
+            "singular": "transfer",
+            "summary": "Transfers: money you move from one of your accounts to another",
+            "collection": "books_journal_entries",
+            "lifecycle": "posting",
+            "fixed": { "doc_type": "transfer", "origin": "manual" },
+            "scoped": true,
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "status", "total", "memo"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only transfers with this status: draft, posted or void" }
+            ],
+            "omit": [
+                "auto_reverse_on",
+                "document",
+                "reverses",
+                "card_payment",
+                "sequence",
+                "posted_at",
+                "posted_by",
+                "voided_at",
+                "voided_by",
+                "created_by",
+                "close_override"
+            ],
+            "deleteHelp": "Only a draft can be deleted. Void a posted transfer with `void`: it stays in the books with its number, and its amounts no longer count.",
+            "fields": [
+                { "name": "date", "type": "string", "required": true, "help": "the date of the transfer, as YYYY-MM-DD" },
+                { "name": "memo", "type": "string", "help": "a note for the transfer" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["draft", "posted", "void"], "help": "draft, posted or void; `add --post`, `post` and `void` change it" },
+                {
+                    "name": "doc_type",
+                    "type": "string",
+                    "readOnly": true,
+                    "enum": [
+                        "journal",
+                        "transfer",
+                        "invoice",
+                        "sales_receipt",
+                        "bill",
+                        "expense",
+                        "payment",
+                        "bill_payment",
+                        "credit_memo",
+                        "vendor_credit",
+                        "vendor_refund",
+                        "refund_receipt",
+                        "write_off",
+                        "deposit",
+                        "inventory_adjustment"
+                    ],
+                    "help": "always transfer"
+                },
+                {
+                    "name": "origin",
+                    "type": "string",
+                    "readOnly": true,
+                    "enum": ["manual", "reversal", "auto_reversal", "void_reversal", "opening_balance", "document"],
+                    "help": "always manual"
+                },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the transfer; Books gives it when the transfer is posted" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "the amount that moves, in cents; Books computes it" },
+                { "name": "revision", "type": "integer", "readOnly": true, "help": "the count of saves; the commands send it so two callers cannot overwrite each other" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "replaces", "type": "id", "ref": "transfers", "readOnly": true, "help": "the posted transfer this one corrects; `edit` of a posted transfer sets it" }
+            ],
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_journal_lines",
+                    "parent": "entry",
+                    "sort": "position,id",
+                    "max": 2,
+                    "omit": ["entry", "position", "posted", "date", "currency", "card_payment", "doc_type", "customer", "vendor"],
+                    "fields": [
+                        { "name": "account", "type": "id", "ref": "accounts", "required": true, "help": "line 1: the account the money leaves; line 2: the account it goes to. A bank, credit card, asset, liability or equity account" },
+                        { "name": "debit", "type": "integer", "help": "the amount, in cents, on line 2: the account the money goes to" },
+                        { "name": "credit", "type": "integer", "help": "the amount, in cents, on line 1: the account the money leaves" },
+                        { "name": "memo", "type": "string", "help": "a note for the line" }
+                    ]
+                }
+            ]
         }
     ]
 }

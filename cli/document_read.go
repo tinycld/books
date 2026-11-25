@@ -139,6 +139,13 @@ func newDocumentShowCmd(c *client.Client, doc *document) *cobra.Command {
 		if err != nil {
 			return err
 		}
+		// `journal-entries show` prints the entry of every transaction; a
+		// scoped type shows only its own records.
+		if doc.Scoped {
+			if err := checkFixed(doc, rec); err != nil {
+				return err
+			}
+		}
 		return writeDocument(cmd, o, doc, rec)
 	})
 }

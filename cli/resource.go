@@ -95,6 +95,9 @@ type resource struct {
 	// statement is what was true on its date): the group has no `edit`.
 	NoEdit bool    `json:"noEdit"`
 	Fields []field `json:"fields"`
+	// scope holds the field values every record of `list` has: the fixed
+	// values of a scoped document. It is not read from the file.
+	scope map[string]string
 }
 
 func (r *resource) field(name string) *field {
