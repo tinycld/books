@@ -220,7 +220,9 @@ echo '{"date": "2026-07-15", "memo": "Owner investment", "lines": [
 
 Without `--post`, the transaction is a draft: it does not count in the books until it is posted. Books stores the transaction and its lines in one step. When it refuses a line, it stores nothing, and the message names the line: `lines[1]` is the second line.
 
-To see the fields of a transaction and of its lines, run `tinycld books schema journal-entries add`.
+Three types have no draft. A bill payment and a write-off are posted by `add`, and an estimate is pending at once: they have no `--post` and no `post`.
+
+To see the fields of a transaction and of its lines, run `tinycld books schema journal-entries add`. Each type has its own: `tinycld books schema deposits add`, `tinycld books schema credit-memos apply`.
 
 ## To change a transaction
 
