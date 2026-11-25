@@ -32,7 +32,7 @@ func received(t *testing.T) *fakeBooks {
 	return f
 }
 
-const newPayment = `{"customer": "custacme0000001", "date": "2026-11-04", "amount": 35000, "payment_method": "check", "applications": [
+const newPayment = `{"customer": "custacme0000001", "date": "2026-11-04", "amount": 35000, "payment_method": "check", "reference_no": "2210", "applications": [
 	{"invoice": "invposted000001", "amount": 30000},
 	{"invoice": "invdraft0000001", "amount": 5000}]}`
 
@@ -46,7 +46,7 @@ func TestPaymentAddSendsItsApplicationsAndPostsWithNoRevision(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := `[` +
-		`{"method":"POST","url":"/api/collections/books_payments/records","body":{"amount":35000,"customer":"custacme0000001","date":"2026-11-04","id":"paynew000000001","payment_method":"check","status":"draft"}},` +
+		`{"method":"POST","url":"/api/collections/books_payments/records","body":{"amount":35000,"customer":"custacme0000001","date":"2026-11-04","id":"paynew000000001","payment_method":"check","reference_no":"2210","status":"draft"}},` +
 		`{"method":"POST","url":"/api/collections/books_payment_applications/records","body":{"amount":30000,"invoice":"invposted000001","payment":"paynew000000001","position":0}},` +
 		`{"method":"POST","url":"/api/collections/books_payment_applications/records","body":{"amount":5000,"invoice":"invdraft0000001","payment":"paynew000000001","position":1}},` +
 		`{"method":"PATCH","url":"/api/collections/books_payments/records/paynew000000001","body":{"status":"posted"}}]`
@@ -153,7 +153,7 @@ func TestPaymentInputIsCheckedBeforeItIsSent(t *testing.T) {
 	cases := []struct{ input, want string }{
 		{`{"date": "2026-11-04", "amount": 1}`, `"customer" is required`},
 		{`{"customer": "custacme0000001", "date": "2026-11-04", "applications": [{"amount": 1}]}`, `applications[0]: "invoice" is required`},
-		{`{"customer": "custacme0000001", "date": "2026-11-04", "applications": [{"invoice": "invposted000001", "payment": "x"}]}`, `applications[0]`},
+		{`{"customer": "custacme0000001", "date": "2026-11-04", "applications": [{"invoice": "invposted000001", "payment": "x"}]}`, `applications[0]: applications has no field "payment"`},
 		{`{"customer": "custacme0000001", "date": "2026-11-04", "lines": []}`, `payments has no field "lines"`},
 		{`{"customer": "custacme0000001", "date": "2026-11-04", "applied": 1}`, `"applied" is set by the server`},
 		{`{"customer": "custacme0000001", "date": "2026-11-04", "revision": 1}`, `payments has no field "revision"`},

@@ -43,8 +43,13 @@ func TestCLIDocuments_PaymentRoundTrip(t *testing.T) {
 	if entryID == "" {
 		t.Fatal("the posted payment has no entry")
 	}
-	if got := reload(t, env.app, payments, pay).GetString("deposit_to"); got == "" {
-		t.Error("Books did not fill deposit_to at the post")
+	deposit := reload(t, env.app, payments, pay).GetString("deposit_to")
+	account, err := env.app.FindRecordById("books_accounts", deposit)
+	if err != nil {
+		t.Fatalf("Books did not fill deposit_to at the post: %v", err)
+	}
+	if got := account.GetString("detail_type"); got != "undeposited_funds" {
+		t.Errorf("deposit_to is an account of detail type %q, want undeposited_funds", got)
 	}
 	draftRows := func() string {
 		return cliRows(t, env.app, rows, "payment", draft)[0].Id
@@ -71,8 +76,15 @@ func TestCLIDocuments_PaymentRoundTrip(t *testing.T) {
 			{method: "PATCH", url: recordURL(payments, draft), token: token, want: 200, body: `{"status":"posted"}`,
 				content: []string{`"status":"posted"`, `"number":"1002"`, `"applied":5500`, `"credited":500`}},
 			balance(invB, "9500"),
+		},
+	)...)
+	// The correction copies the stored deposit_to and memo of the payment it
+	// replaces, as the CLI does.
+	storedDeposit := reload(t, env.app, payments, draft).GetString("deposit_to")
+	apiSeq(t, env.app, apiCalls(
+		[]apiReq{
 			// edit of a posted payment: a correction that replaces it.
-			docBatch(token, header(fix, 6000, `,"replaces":"`+draft+`"`), apply(fix, 0, invB, 6000), cliOp("PATCH", payments, fix, `{"status":"posted"}`)),
+			docBatch(token, header(fix, 6000, fmt.Sprintf(`,"deposit_to":%q,"memo":"","replaces":%q`, storedDeposit, draft)), apply(fix, 0, invB, 6000), cliOp("PATCH", payments, fix, `{"status":"posted"}`)),
 			{method: "GET", url: recordURL(payments, draft), token: token, want: 200, content: []string{`"status":"void"`, `"replaced_by":"` + fix + `"`}},
 			{method: "GET", url: recordURL(payments, fix), token: token, want: 200, content: []string{`"status":"posted"`, `"applied":6000`, `"credited":0`}},
 			balance(invB, "9000"),
