@@ -159,6 +159,8 @@ func (f *fakeBooks) batch(w http.ResponseWriter, r *http.Request, one http.Handl
 		f.fail("POST %s: the body is not a batch: %v", batchPath, err)
 	}
 	f.batches = append(f.batches, body.Requests)
+	// The rollback is correct because the fake replaces a row's keys and never
+	// changes a nested value in place. A change that does must deep-copy here.
 	before := map[string][]rawRecord{}
 	for collection, rows := range f.rows {
 		for _, row := range rows {
@@ -174,6 +176,9 @@ func (f *fakeBooks) batch(w http.ResponseWriter, r *http.Request, one http.Handl
 		rec := httptest.NewRecorder()
 		one(rec, httptest.NewRequest(op.Method, op.URL, bytes.NewReader(sent)))
 		if rec.Code >= 400 {
+			// f.lastCreate, f.lastPatch, f.seq and f.requests keep the values of the
+			// rolled-back writes: they record what was sent, not what is stored. A
+			// test of a refused batch reads them.
 			f.rows = before
 			f.deleted = f.deleted[:deletedBefore]
 			w.Header().Set("Content-Type", "application/json")
@@ -234,7 +239,9 @@ const msgStaleRevision = "This entry changed after you opened it. Load it again,
 // revisionRefused keeps the rule of server/revision.go for a row that has a
 // revision: a change of a draft states the stored revision plus one. In the
 // batch that created the row it may state the stored one, because the server
-// counts one time for each transaction.
+// counts one time for each transaction. The rule holds for a stored draft only,
+// so a test that creates a draft must send status "draft" for the fake to check
+// its revision.
 func (f *fakeBooks) revisionRefused(w http.ResponseWriter, row rawRecord, body map[string]any) bool {
 	stored, has := numberOf(row["revision"])
 	if !has || row["status"] != "draft" {
