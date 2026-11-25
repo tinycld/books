@@ -87,11 +87,16 @@ type computedField struct {
 // field of the row as text.
 func (t *lineTable) computes(name string, value func(string) string) bool {
 	for _, rule := range t.Computed {
-		if rule.Field == name && slices.Contains(rule.Is, value(rule.When)) {
+		if rule.Field == name && rule.matches(value) {
 			return true
 		}
 	}
 	return false
+}
+
+// matches reports whether the row is one the rule applies to.
+func (r computedField) matches(value func(string) string) bool {
+	return slices.Contains(r.Is, value(r.When))
 }
 
 // asResource is the table as a resource, for the functions that check, print
@@ -531,7 +536,7 @@ func checkLines(table *lineTable, value any) ([]map[string]any, error) {
 			return s
 		}
 		for _, rule := range table.Computed {
-			if _, given := row[rule.Field]; given && table.computes(rule.Field, text) {
+			if _, given := row[rule.Field]; given && rule.matches(text) {
 				return nil, usagef("%s[%d]: Books computes %q of a row with the %s %q: leave it out", table.Key, i, rule.Field, rule.When, text(rule.When))
 			}
 		}

@@ -124,7 +124,7 @@ func TestPurchaseCorrectionLeavesOutTheAmountBooksComputes(t *testing.T) {
 		header string
 	}{
 		"bills": {
-			map[string]any{"due_date": "2026-12-04", "ref_no": "S-88"},
+			map[string]any{"due_date": "2026-12-04", "ref_no": "S-88", "mailing_address": nil},
 			`"date":"2026-11-04","due_date":"2026-12-04","id":"buynew000000001","memo":"Corrected","ref_no":"S-88","replaces":"buyposted00001","status":"draft","terms":"","vendor":"vendsummit00001"`,
 		},
 		"expenses": {
