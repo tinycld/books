@@ -568,7 +568,7 @@ func lineFixture(t *testing.T, app core.App, lines string) (parent, line *core.R
 	n := userSeq.Add(1)
 	// No guard is bound to set the name key, which is unique.
 	customer := saveRecord(t, app, "books_customers", map[string]any{
-		"display_name": fmt.Sprintf("Harborview Dental %d", n), "name_key": fmt.Sprintf("harborview dental %d", n),
+		"display_name": fmt.Sprintf("Harborview Dental %d", n), "name_key": fmt.Sprintf("harborview dental %d", n), "code": fmt.Sprintf("HD-%d", n),
 	})
 	account := mkAccount(t, app, fmt.Sprintf("Checking %d", n), "bank", "checking")
 	switch lines {
@@ -594,7 +594,7 @@ func lineFixture(t *testing.T, app core.App, lines string) (parent, line *core.R
 		line = saveRecord(t, app, lines, map[string]any{"estimate": parent.Id, "kind": "description", "position": 0})
 	case "books_bill_lines":
 		vendor := saveRecord(t, app, "books_vendors", map[string]any{
-			"display_name": fmt.Sprintf("Summit Supply %d", n), "name_key": fmt.Sprintf("summit supply %d", n),
+			"display_name": fmt.Sprintf("Summit Supply %d", n), "name_key": fmt.Sprintf("summit supply %d", n), "code": fmt.Sprintf("SS-%d", n),
 		})
 		parent = saveRecord(t, app, "books_bills", map[string]any{"vendor": vendor.Id, "status": "draft", "date": "2026-11-10", "due_date": "2026-12-10"})
 		line = saveRecord(t, app, lines, map[string]any{"bill": parent.Id, "kind": "account", "account": account.Id, "position": 0})
@@ -603,10 +603,10 @@ func lineFixture(t *testing.T, app core.App, lines string) (parent, line *core.R
 		line = saveRecord(t, app, lines, map[string]any{"expense": parent.Id, "kind": "account", "account": account.Id, "position": 0})
 	case "books_bundle_items":
 		parent = saveRecord(t, app, "books_products", map[string]any{
-			"type": "bundle", "name": fmt.Sprintf("Starter kit %d", n), "name_key": fmt.Sprintf("starter kit %d", n), "currency": "USD",
+			"type": "bundle", "name": fmt.Sprintf("Starter kit %d", n), "name_key": fmt.Sprintf("starter kit %d", n), "code": fmt.Sprintf("SK-%d", n), "currency": "USD",
 		})
 		product := saveRecord(t, app, "books_products", map[string]any{
-			"type": "service", "name": fmt.Sprintf("Cable %d", n), "name_key": fmt.Sprintf("cable %d", n), "currency": "USD",
+			"type": "service", "name": fmt.Sprintf("Cable %d", n), "name_key": fmt.Sprintf("cable %d", n), "code": fmt.Sprintf("CA-%d", n), "currency": "USD",
 		})
 		line = saveRecord(t, app, lines, map[string]any{"bundle": parent.Id, "product": product.Id, "quantity": 1, "position": 0})
 	case "books_estimate_responses":
@@ -614,7 +614,7 @@ func lineFixture(t *testing.T, app core.App, lines string) (parent, line *core.R
 		line = saveRecord(t, app, lines, map[string]any{"estimate": parent.Id, "decision": "accepted"})
 	case "books_bill_payment_lines":
 		vendor := saveRecord(t, app, "books_vendors", map[string]any{
-			"display_name": fmt.Sprintf("Pacific Power %d", n), "name_key": fmt.Sprintf("pacific power %d", n),
+			"display_name": fmt.Sprintf("Pacific Power %d", n), "name_key": fmt.Sprintf("pacific power %d", n), "code": fmt.Sprintf("PP-%d", n),
 		})
 		bill := saveRecord(t, app, "books_bills", map[string]any{"vendor": vendor.Id, "status": "posted", "date": "2026-11-10", "due_date": "2026-12-10"})
 		parent = saveRecord(t, app, "books_bill_payments", map[string]any{
@@ -623,20 +623,20 @@ func lineFixture(t *testing.T, app core.App, lines string) (parent, line *core.R
 		line = saveRecord(t, app, lines, map[string]any{"payment": parent.Id, "bill": bill.Id, "amount": 100, "position": 0})
 	case "books_vendor_credit_lines":
 		vendor := saveRecord(t, app, "books_vendors", map[string]any{
-			"display_name": fmt.Sprintf("Office Supply %d", n), "name_key": fmt.Sprintf("office supply %d", n),
+			"display_name": fmt.Sprintf("Office Supply %d", n), "name_key": fmt.Sprintf("office supply %d", n), "code": fmt.Sprintf("OS-%d", n),
 		})
 		parent = saveRecord(t, app, "books_vendor_credits", map[string]any{"vendor": vendor.Id, "status": "draft", "date": "2026-11-12"})
 		line = saveRecord(t, app, lines, map[string]any{"vendor_credit": parent.Id, "kind": "account", "account": account.Id, "position": 0})
 	case "books_vendor_credit_applications":
 		vendor := saveRecord(t, app, "books_vendors", map[string]any{
-			"display_name": fmt.Sprintf("Ironclad Rentals %d", n), "name_key": fmt.Sprintf("ironclad rentals %d", n),
+			"display_name": fmt.Sprintf("Ironclad Rentals %d", n), "name_key": fmt.Sprintf("ironclad rentals %d", n), "code": fmt.Sprintf("IR-%d", n),
 		})
 		bill := saveRecord(t, app, "books_bills", map[string]any{"vendor": vendor.Id, "status": "posted", "date": "2026-11-10", "due_date": "2026-12-10"})
 		parent = saveRecord(t, app, "books_vendor_credits", map[string]any{"vendor": vendor.Id, "status": "posted", "date": "2026-11-12"})
 		line = saveRecord(t, app, lines, map[string]any{"vendor_credit": parent.Id, "bill": bill.Id, "amount": 100, "date": "2026-11-16"})
 	case "books_vendor_refund_lines":
 		vendor := saveRecord(t, app, "books_vendors", map[string]any{
-			"display_name": fmt.Sprintf("Cascade Fuel %d", n), "name_key": fmt.Sprintf("cascade fuel %d", n),
+			"display_name": fmt.Sprintf("Cascade Fuel %d", n), "name_key": fmt.Sprintf("cascade fuel %d", n), "code": fmt.Sprintf("CF-%d", n),
 		})
 		credit := saveRecord(t, app, "books_vendor_credits", map[string]any{"vendor": vendor.Id, "status": "posted", "date": "2026-11-12"})
 		parent = saveRecord(t, app, "books_vendor_refunds", map[string]any{
@@ -668,7 +668,7 @@ func lineFixture(t *testing.T, app core.App, lines string) (parent, line *core.R
 		line = saveRecord(t, app, lines, map[string]any{"deposit": parent.Id, "account": income.Id, "amount": 100, "position": 0})
 	case "books_inventory_adjustment_lines":
 		product := saveRecord(t, app, "books_products", map[string]any{
-			"type": "inventory", "name": fmt.Sprintf("Widget %d", n), "name_key": fmt.Sprintf("widget %d", n), "currency": "USD",
+			"type": "inventory", "name": fmt.Sprintf("Widget %d", n), "name_key": fmt.Sprintf("widget %d", n), "code": fmt.Sprintf("WI-%d", n), "currency": "USD",
 		})
 		parent = saveRecord(t, app, "books_inventory_adjustments", map[string]any{
 			"status": "draft", "kind": "manual", "date": "2026-11-10", "account": account.Id, "currency": "USD",
@@ -729,7 +729,7 @@ func TestAuditLogParents(t *testing.T) {
 		})
 	}
 
-	product := saveRecord(t, app, "books_products", map[string]any{"type": "service", "name": "Desk lamp", "name_key": "desk lamp", "currency": "USD"})
+	product := saveRecord(t, app, "books_products", map[string]any{"type": "service", "name": "Desk lamp", "name_key": "desk lamp", "code": "DL", "currency": "USD"})
 	own := mkAuditRow(t, app, auditRowInput{action: "created", resourceType: "books_products", resourceID: product.Id, label: "Desk lamp", created: auditAt(3)})
 	requireParents(t, viewRow(t, app, own.Id), "", "", "books_products", product.Id)
 }
@@ -925,7 +925,7 @@ func TestAuditLogOpenPaths(t *testing.T) {
 	users := newLevelUsers(t, app)
 	actor := namedUser(t, app, "member", "Avery Lin").Id
 
-	lamp := saveRecord(t, app, "books_products", map[string]any{"type": "service", "name": "Desk lamp", "name_key": "desk lamp", "currency": "USD"})
+	lamp := saveRecord(t, app, "books_products", map[string]any{"type": "service", "name": "Desk lamp", "name_key": "desk lamp", "code": "DL", "currency": "USD"})
 	mkAuditRow(t, app, auditRowInput{action: "created", resourceType: "books_products", resourceID: lamp.Id, label: "Own product row", actor: actor, created: auditAt(1)})
 
 	invoice, invoiceLine := lineFixture(t, app, "books_invoice_lines")

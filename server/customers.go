@@ -106,8 +106,8 @@ func registerCustomerGuard(app core.App) {
 }
 
 // validateCustomer stores the display name trimmed, then checks the parent,
-// both addresses and the name among the customer's siblings, and sets the
-// sort key. stored is the record before an update, nil on a create.
+// both addresses, the name among the customer's siblings and the code
+// (record_codes.go), and sets the sort key. stored is the record before an update, nil on a create.
 func validateCustomer(app core.App, stored, r *core.Record) error {
 	name := strings.TrimSpace(r.GetString("display_name"))
 	r.Set("display_name", name)
@@ -123,6 +123,9 @@ func validateCustomer(app core.App, stored, r *core.Record) error {
 		return err
 	}
 	if err := validateSiblingName(app, stored, r, name); err != nil {
+		return err
+	}
+	if err := validateRecordCode(app, customerCode, stored, r); err != nil {
 		return err
 	}
 	key, err := customerSortKey(app, r)

@@ -135,7 +135,7 @@ func TestPDFRoute_RecordKindsFollowTheViewRule(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			app := newBooksApp(t)
 			users := newLevelUsers(t, app)
-			customer := mkCustomer(t, app, "Acme Co", "")
+			customer := saveRecord(t, app, "books_customers", map[string]any{"display_name": "Acme Co", "code": "AC"})
 			if tc.viewRule != "" {
 				col, err := app.FindCollectionByNameOrId("books_customers")
 				if err != nil {

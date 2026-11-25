@@ -203,11 +203,11 @@ func TestProduct_GuardOverwritesNameKey(t *testing.T) {
 // key saved with no hook and no validation still cannot land.
 func TestProductSchema_NameKeyIsUniqueWithoutTheGuard(t *testing.T) {
 	app := newBooksApp(t)
-	first := map[string]any{"type": "service", "name": "Harborview", "currency": "USD", "name_key": "harborview"}
+	first := map[string]any{"type": "service", "name": "Harborview", "currency": "USD", "name_key": "harborview", "code": "HV"}
 	if err := rawSave(t, app, "books_products", first); err != nil {
 		t.Fatalf("save the first product: %v", err)
 	}
-	second := map[string]any{"type": "service", "name": "Harbor View", "currency": "USD", "name_key": "harborview"}
+	second := map[string]any{"type": "service", "name": "Harbor View", "currency": "USD", "name_key": "harborview", "code": "HV-2"}
 	err := rawSave(t, app, "books_products", second)
 	if err == nil {
 		t.Fatal("a second product with name_key harborview was stored")

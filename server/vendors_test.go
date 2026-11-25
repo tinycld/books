@@ -151,10 +151,10 @@ func TestVendor_MayShareANameWithACustomer(t *testing.T) {
 // key saved with no hook and no validation still cannot land.
 func TestVendorSchema_NameKeyIsUniqueWithoutTheGuard(t *testing.T) {
 	app := newBooksApp(t)
-	if err := rawSave(t, app, "books_vendors", map[string]any{"display_name": "Harborview", "name_key": "harborview"}); err != nil {
+	if err := rawSave(t, app, "books_vendors", map[string]any{"display_name": "Harborview", "name_key": "harborview", "code": "HV"}); err != nil {
 		t.Fatalf("save the first vendor: %v", err)
 	}
-	err := rawSave(t, app, "books_vendors", map[string]any{"display_name": "Harbor View", "name_key": "harborview"})
+	err := rawSave(t, app, "books_vendors", map[string]any{"display_name": "Harbor View", "name_key": "harborview", "code": "HV-2"})
 	if err == nil {
 		t.Fatal("a second vendor with name_key harborview was stored")
 	}

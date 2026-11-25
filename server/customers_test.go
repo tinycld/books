@@ -401,17 +401,17 @@ func rawCustomer(t testing.TB, app core.App, fields map[string]any) error {
 func TestCustomerSchema_SiblingNameKeysAreUniqueWithoutTheGuard(t *testing.T) {
 	t.Run("the same name_key under one parent is refused", func(t *testing.T) {
 		app := newBooksApp(t)
-		parent := map[string]any{"id": "harborview00001", "display_name": "Harborview", "name_key": "harborview"}
+		parent := map[string]any{"id": "harborview00001", "display_name": "Harborview", "name_key": "harborview", "code": "HV"}
 		if err := rawCustomer(t, app, parent); err != nil {
 			t.Fatalf("save the parent: %v", err)
 		}
 		if err := rawCustomer(t, app, map[string]any{
-			"display_name": "Kitchen", "parent": "harborview00001", "name_key": "kitchen",
+			"display_name": "Kitchen", "parent": "harborview00001", "name_key": "kitchen", "code": "KI",
 		}); err != nil {
 			t.Fatalf("save the first sub-customer: %v", err)
 		}
 		err := rawCustomer(t, app, map[string]any{
-			"display_name": "Pantry", "parent": "harborview00001", "name_key": "kitchen",
+			"display_name": "Pantry", "parent": "harborview00001", "name_key": "kitchen", "code": "PA",
 		})
 		if err == nil {
 			t.Fatal("a second sub-customer with name_key kitchen was stored")
@@ -430,13 +430,13 @@ func TestCustomerSchema_SiblingNameKeysAreUniqueWithoutTheGuard(t *testing.T) {
 	})
 	t.Run("the same display name with different keys is accepted", func(t *testing.T) {
 		app := newBooksApp(t)
-		parent := map[string]any{"id": "harborview00001", "display_name": "Harborview", "name_key": "harborview"}
+		parent := map[string]any{"id": "harborview00001", "display_name": "Harborview", "name_key": "harborview", "code": "HV"}
 		if err := rawCustomer(t, app, parent); err != nil {
 			t.Fatalf("save the parent: %v", err)
 		}
 		for _, key := range []string{"kitchen-1", "kitchen-2"} {
 			if err := rawCustomer(t, app, map[string]any{
-				"display_name": "Kitchen", "parent": "harborview00001", "name_key": key,
+				"display_name": "Kitchen", "parent": "harborview00001", "name_key": key, "code": strings.ToUpper(key),
 			}); err != nil {
 				t.Fatalf("a Kitchen with name_key %q was refused: %v", key, err)
 			}

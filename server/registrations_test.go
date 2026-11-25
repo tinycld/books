@@ -157,7 +157,7 @@ func TestAudit_LabelsACustomerByDisplayName(t *testing.T) {
 		t.Fatal("books_customers is not audited")
 	}
 	customer := saveRecord(t, app, "books_customers", map[string]any{
-		"display_name": "Harborview Hospitality Group", "company": "Harborview Hospitality Group LLC",
+		"display_name": "Harborview Hospitality Group", "company": "Harborview Hospitality Group LLC", "code": "HHG",
 	})
 	if got, want := config.ExtractLabel(customer), "Harborview Hospitality Group"; got != want {
 		t.Errorf("customer label = %q, want %q", got, want)
@@ -172,7 +172,7 @@ func TestAudit_LabelsAVendorByDisplayName(t *testing.T) {
 		t.Fatal("books_vendors is not audited")
 	}
 	vendor := saveRecord(t, app, "books_vendors", map[string]any{
-		"display_name": "Office Supply World", "company": "Office Supply World Inc.",
+		"display_name": "Office Supply World", "company": "Office Supply World Inc.", "code": "OSW",
 	})
 	if got, want := config.ExtractLabel(vendor), "Office Supply World"; got != want {
 		t.Errorf("vendor label = %q, want %q", got, want)
@@ -194,10 +194,10 @@ func TestAudit_LabelsAProductAndABundleItem(t *testing.T) {
 	}
 	ap := saveRecord(t, app, "books_products", map[string]any{
 		"type": "non_inventory", "name": "Wireless access point", "sku": "HW-WAP-6E",
-		"currency": "USD", "name_key": "wireless access point",
+		"currency": "USD", "name_key": "wireless access point", "code": "WAP",
 	})
 	kit := saveRecord(t, app, "books_products", map[string]any{
-		"type": "bundle", "name": "Home office setup kit", "currency": "USD", "name_key": "home office setup kit",
+		"type": "bundle", "name": "Home office setup kit", "currency": "USD", "name_key": "home office setup kit", "code": "HOSK",
 	})
 	row := saveRecord(t, app, "books_bundle_items", map[string]any{
 		"bundle": kit.Id, "product": ap.Id, "quantity": 2, "position": 0,

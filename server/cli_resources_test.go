@@ -19,12 +19,14 @@ import (
 // does not know, or a collection a token cannot reach fails here.
 
 type cliField struct {
-	Name     string   `json:"name"`
-	Type     string   `json:"type"`
-	Required bool     `json:"required"`
-	ReadOnly bool     `json:"readOnly"`
-	Enum     []string `json:"enum"`
-	Ref      string   `json:"ref"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Required bool   `json:"required"`
+	ReadOnly bool   `json:"readOnly"`
+	// Generated: required by the schema, made by the server when left out.
+	Generated bool     `json:"generated"`
+	Enum      []string `json:"enum"`
+	Ref       string   `json:"ref"`
 }
 
 type cliResource struct {
@@ -165,8 +167,12 @@ func TestCLIResources_MatchTheCollections(t *testing.T) {
 				t.Errorf("%s.%s: the CLI says %q, the collection field is %q (%s)", res.Name, declared.Name, declared.Type, wantType, f.Type())
 			}
 			// A read-only field is set by the server, so the caller is never
-			// asked for it, whatever the schema requires.
-			if !declared.ReadOnly && declared.Required != required {
+			// asked for it, whatever the schema requires. A generated field is
+			// required by the schema and made by the server when left out.
+			if declared.Generated && !required {
+				t.Errorf("%s.%s: the CLI says generated, and the collection does not require it", res.Name, declared.Name)
+			}
+			if !declared.ReadOnly && !declared.Generated && declared.Required != required {
 				t.Errorf("%s.%s: the CLI says required = %v, the collection says %v", res.Name, declared.Name, declared.Required, required)
 			}
 			if !slices.Equal(declared.Enum, values) {

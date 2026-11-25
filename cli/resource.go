@@ -50,6 +50,9 @@ type field struct {
 	Required bool `json:"required,omitempty"`
 	// ReadOnly: the server sets the value; the CLI refuses it in --input.
 	ReadOnly bool `json:"readOnly,omitempty"`
+	// Generated: the schema requires a value, but the server makes one from the record
+	// when the caller gives none (a record code), so the caller is never asked for it.
+	Generated bool `json:"generated,omitempty"`
 	// Enum lists the values of a select.
 	Enum []string `json:"enum,omitempty"`
 	// Ref names the resource an id or ids field points to.
@@ -283,6 +286,12 @@ func checkField(f *field, names map[string]bool) error {
 	}
 	if f.Required && f.ReadOnly {
 		return fmt.Errorf("a read-only field is set by the server and cannot be required of the caller")
+	}
+	if f.Required && f.Generated {
+		return fmt.Errorf("a generated field is made by the server when it is left out and cannot be required of the caller")
+	}
+	if f.ReadOnly && f.Generated {
+		return fmt.Errorf("a generated field takes the caller's value and cannot be read-only")
 	}
 	return nil
 }

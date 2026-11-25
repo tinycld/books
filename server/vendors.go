@@ -99,8 +99,8 @@ func checkVendorDelete(tx core.App, vendor *core.Record) error {
 }
 
 // validateVendor stores the display name trimmed, then checks the address,
-// the 1099 fields, the default expense account and the name among all
-// vendors. stored is the record before an update, nil on a create.
+// the 1099 fields, the default expense account, the code (record_codes.go)
+// and the name among all vendors. stored is the record before an update, nil on a create.
 func validateVendor(app core.App, stored, r *core.Record) error {
 	name := strings.TrimSpace(r.GetString("display_name"))
 	r.Set("display_name", name)
@@ -113,6 +113,9 @@ func validateVendor(app core.App, stored, r *core.Record) error {
 		return err
 	}
 	if err := validateExpenseAccount(app, stored, r, msgExpenseAccountLedger); err != nil {
+		return err
+	}
+	if err := validateRecordCode(app, vendorCode, stored, r); err != nil {
 		return err
 	}
 	// name_key belongs to the guard: it overwrites whatever the request sent.
