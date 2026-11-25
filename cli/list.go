@@ -129,6 +129,9 @@ func checkFilterValues(cmd *cobra.Command, res *resource, opts listOptions) erro
 		if !filterOn(cmd, flt, opts) {
 			continue
 		}
+		if flt.Default != "" && *opts.filters[flt.Flag] == "" {
+			return usagef("--%s is empty; give a value, or use %s to list all", flt.Flag, filterAll)
+		}
 		f := res.field(flt.Field)
 		if f == nil || len(f.Enum) == 0 {
 			continue

@@ -94,6 +94,21 @@ func TestListFilterDefaultRefusesAnotherValue(t *testing.T) {
 	}
 }
 
+// An empty value on a flag with a default is a usage error: all is the value
+// that lists every row. A flag without a default keeps an empty value.
+func TestListFilterDefaultRefusesEmptyValue(t *testing.T) {
+	f, _, err := thingsList(t, "--state", "")
+	if got := exitcode.Of(err); got != exitcode.Usage {
+		t.Fatalf("exit = %d, want 2; err: %v", got, err)
+	}
+	if !strings.Contains(err.Error(), "all") {
+		t.Errorf("the error must name all: %v", err)
+	}
+	if len(f.requests) != 0 {
+		t.Errorf("requests = %v, want none", f.requests)
+	}
+}
+
 // The help of the flag shows the default.
 func TestListFilterDefaultIsTheFlagDefault(t *testing.T) {
 	cmd := buildListCmd(nil, &thingsResource, commandDef{Name: "things", Short: "List things"})
