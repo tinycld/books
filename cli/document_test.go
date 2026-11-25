@@ -58,6 +58,7 @@ func TestLoadDocumentsRefusesAMistake(t *testing.T) {
 		{"a status a caller can set", `"name":"status","type":"string","readOnly":true`, `"name":"status","type":"string"`, "read-only status"},
 		{"a revision a caller sets", `{"name":"revision","type":"integer","readOnly":true,"help":"the revision"},`, `{"name":"revision","type":"integer","help":"the revision"},`, "revision is a read-only integer"},
 		{"replaces of another type", `"ref":"notes"`, `"ref":"accounts"`, "replaces is read-only, the id of a document of its own type"},
+		{"keep on a type that is not corrected", `"name":"replaces","type":"id","ref":"notes","readOnly":true,"help":"the note this one corrects"}]`, `"name":"prior","type":"id","ref":"notes","readOnly":true,"help":"the note this one corrects"}],"keep":["prior"]`, `a document that is not corrected copies nothing`},
 		{"a fixed field a caller can set", `"fixed":{"kind":"plain"}`, `"fixed":{"title":"x"}`, `fixed names "title"`},
 		{"a fixed value outside the select", `"fixed":{"kind":"plain"}`, `"fixed":{"kind":"odd"}`, `"odd" is not a value`},
 		{"a fixedHelp with no fixed value", `"fixed":{"kind":"plain"}`, `"fixed":{},"fixedHelp":"x"`, "fixedHelp is the text for a record whose fixed values differ"},

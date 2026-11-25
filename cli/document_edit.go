@@ -238,7 +238,7 @@ func newDocumentEditCmd(c *client.Client, doc *document) *cobra.Command {
 	switch {
 	case doc.Lifecycle == lifecycleQuote:
 		how = "The " + doc.Singular + " is changed in place. A closed one cannot be changed.\n\n"
-	case !doc.corrects():
+	case doc.hasDraft() && !doc.corrects():
 		how = "A draft is changed in place. A posted " + doc.Singular + " cannot be changed: void it\n" +
 			"with `void`, then add a new one.\n\n"
 	case doc.Lifecycle == lifecyclePosted:

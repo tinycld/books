@@ -421,6 +421,10 @@ func checkDocument(doc *document, names map[string]bool) error {
 		return fmt.Errorf("revision is a read-only integer")
 	}
 	for _, name := range doc.Keep {
+		// Only a correction copies a kept field from the document it replaces.
+		if !doc.corrects() {
+			return fmt.Errorf("keep names %q, and a document that is not corrected copies nothing", name)
+		}
 		if f := doc.field(name); f == nil || !f.ReadOnly || doc.Lifecycle != lifecyclePosting {
 			return fmt.Errorf("keep names %q, which is not a read-only field of a posting document", name)
 		}
