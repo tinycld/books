@@ -363,7 +363,7 @@ tinycld books banking restore <id>
 
 `lines` holds the ids of journal lines on the connected account: `show` prints the lines that Books suggests. One bank transaction can match up to 50 lines. Books refuses lines that do not add up to the bank amount. `unmatch` removes the match, and the transaction is For review again. It does not ask first.
 
-`exclude` leaves a transaction that is For review out of the books: a duplicate, or one that is not of this business. `restore` moves it back to For review. Books does not exclude a reviewed transaction: use `undo` or `unmatch` first.
+`exclude` leaves a transaction that is For review out of the books: a duplicate, or one that is not of this business. `restore` moves it back to For review. Books does not exclude a reviewed transaction: use `undo` or `unmatch` first. Those two also make a reviewed transaction For review, so it needs no `restore`.
 
 ## To retry safely
 

@@ -118,6 +118,27 @@ func TestBankingExcludeOfAReviewedTransaction(t *testing.T) {
 	}
 }
 
+// `undo` and `unmatch` already make the transaction For review, so the
+// refusal must not say they come before a `restore`.
+func TestBankingRestoreOfAReviewedTransaction(t *testing.T) {
+	f := bankingFake(t)
+	_, _, err := runCmd(t, f.serve(), "", "books", "banking", "restore", bankTxnFee)
+	if got := exitcode.Of(err); got != exitcode.Refused || err == nil {
+		t.Fatalf("exit = %d, err = %v", got, err)
+	}
+	for _, want := range []string{"is Reviewed", "`undo`", "`unmatch`", "makes it For review", "`restore` is not needed"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("err = %v, want %q", err, want)
+		}
+	}
+	if strings.Contains(err.Error(), "first") {
+		t.Errorf("err = %v, must not say \"first\"", err)
+	}
+	if f.lastPatch != nil {
+		t.Errorf("the command sent %v", f.lastPatch)
+	}
+}
+
 // Books answers "not found" to a change its update rule refuses (a caller with
 // read-only access): the error names the transaction.
 func TestBankingExcludeThatBooksRefuses(t *testing.T) {

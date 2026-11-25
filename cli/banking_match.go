@@ -79,7 +79,7 @@ func newBankingUnmatchCmd(c *client.Client) *cobra.Command {
 
 // newBankingStatusCmd moves a bank transaction between For review and
 // Excluded: one change of its status, which is all Books lets a caller change.
-func newBankingStatusCmd(c *client.Client, name, short, long, status, state, done string) *cobra.Command {
+func newBankingStatusCmd(c *client.Client, name, short, long, status, state, done, reviewedHint string) *cobra.Command {
 	return newCommand(commandDef{
 		Name:   name,
 		Short:  short,
@@ -98,7 +98,7 @@ func newBankingStatusCmd(c *client.Client, name, short, long, status, state, don
 		}
 		switch txn.cell("status") {
 		case bankStatusReviewed:
-			return refusedf("bank transaction %s is Reviewed: take back its entry with `undo` or its match with `unmatch` first", args[0])
+			return refusedf("bank transaction %s is Reviewed: %s", args[0], reviewedHint)
 		case status:
 			o.Info(cmd.ErrOrStderr(), "bank transaction %s is %s already: nothing was changed", args[0], state)
 			return writeBankTransaction(cmd, c, o, args[0])
@@ -116,11 +116,13 @@ func newBankingExcludeCmd(c *client.Client) *cobra.Command {
 		"Exclude a bank transaction that is For review: a duplicate, or one that is not of this business.\n"+
 			"Books posts nothing for it. `restore` moves it back.\n\n"+
 			"A Reviewed transaction cannot be excluded: take back its entry with `undo` or its match with `unmatch` first.",
-		bankStatusExcluded, "Excluded", "excluded")
+		bankStatusExcluded, "Excluded", "excluded",
+		"take back its entry with `undo` or its match with `unmatch` first")
 }
 
 func newBankingRestoreCmd(c *client.Client) *cobra.Command {
 	return newBankingStatusCmd(c, "restore", "Move an excluded bank transaction back to For review",
 		"Move a bank transaction that is Excluded back to For review.",
-		bankStatusForReview, "For review", "restored")
+		bankStatusForReview, "For review", "restored",
+		"`undo` or `unmatch` makes it For review, so `restore` is not needed")
 }
