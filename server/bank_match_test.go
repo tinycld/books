@@ -881,16 +881,11 @@ func TestBankMatch_Audit(t *testing.T) {
 	m.send(t, m.users.bookkeeper, http.MethodDelete, collectionURL(matchesCollection)+"/"+id, "").
 		requireStatus(t, http.StatusNoContent)
 	awaitAuditRow(t, m.app, matchesCollection, "deleted", id)
-	// A later match of the freed line writes its own created row after the
-	// delete's request; once that row is in, a second row of the first match's
-	// create or delete has had its turn too.
+	// A later match of the freed line writes its own created row.
 	later := m.mustMatch(t, m.bankTxn(t, matchBankDay, -86815, "for_review"), lineOn(t, m.app, tr.Id, m.checking))
 	awaitAuditRow(t, m.app, matchesCollection, "created", later)
 	for _, action := range []string{"created", "deleted"} {
-		n := countOf(t, m.app, "audit_logs", dbx.HashExp{"resource_type": matchesCollection, "action": action, "resource_id": id})
-		if n != 1 {
-			t.Errorf("%d %s audit rows for the match, want 1", n, action)
-		}
+		awaitAuditCount(t, m.app, dbx.HashExp{"resource_type": matchesCollection, "action": action, "resource_id": id}, 1)
 	}
 }
 

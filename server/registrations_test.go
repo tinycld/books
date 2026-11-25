@@ -309,6 +309,27 @@ func awaitAuditRow(t testing.TB, app core.App, collection, action, id string) *c
 	return row
 }
 
+// awaitAuditCount waits until exactly want audit rows match where. Core
+// writes each row on its own background job, in no fixed order, so a row
+// that a later write's row has already passed may still be on its way.
+func awaitAuditCount(t testing.TB, app core.App, where dbx.Expression, want int64) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		n := countOf(t, app, "audit_logs", where)
+		if n == want {
+			return
+		}
+		if n > want {
+			t.Fatalf("%d audit rows match %v, want %d", n, where, want)
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%d audit rows match %v after 5s, want %d", n, where, want)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
 // requireNoLeak fails when the audit row's JSON holds any of the fragments.
 func requireNoLeak(t testing.TB, row *core.Record, fragments ...string) {
 	t.Helper()
