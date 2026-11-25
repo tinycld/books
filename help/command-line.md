@@ -77,6 +77,8 @@ Each type of transaction has its own group of commands:
 - `tinycld books vendor-credits`: [vendor credits](help://books:vendor-credits)
 - `tinycld books payments`: [payments](help://books:receive-payment) that a customer makes for invoices
 - `tinycld books bill-payments`: [bill payments](help://books:pay-bills), money that you pay a vendor for bills
+- `tinycld books vendor-refunds`: [vendor refunds](help://books:vendor-refunds), money that a vendor pays you back for vendor credits
+- `tinycld books deposits`: [bank deposits](help://books:bank-deposits), money that you move from Undeposited funds into a bank account
 
 ```
 tinycld books journal-entries list --status draft
@@ -117,6 +119,29 @@ tinycld books bill-payments void <id>
 ```
 
 A bill payment has no draft: `add` posts it at once, and Books lowers the balance of each bill. It has no `--post`, no `post` and no `delete`. `edit` voids the bill payment and posts a new one with your changes. `void` puts the balances of the bills back. A bill payment can pay up to 250 bills.
+
+## To record a refund from a vendor
+
+A vendor refund has one line for each vendor credit that the vendor pays back. When the refund is posted, the lines must add up to `amount`, and Books lowers the unapplied part of each vendor credit. A vendor refund can have up to 500 lines.
+
+```
+echo '{"vendor": "<vendor id>", "date": "2026-07-22", "refunded_to": "<bank account id>", "amount": 4000, "lines": [
+  {"vendor_credit": "<vendor credit id>", "amount": 4000}
+]}' | tinycld books vendor-refunds add --input - --post
+```
+
+## To make a bank deposit
+
+A deposit has `items` and `lines`. An item is money that waits in Undeposited funds: `line` is the id of the journal line that put it there. To find it, print the journal entry of the payment with `tinycld books payments entry <id>`: each line has an `id`, and the line on the Undeposited funds account is the one. A line is other money in the deposit, such as a bank fee (an amount below zero) or interest.
+
+```
+echo '{"date": "2026-07-22", "deposit_to": "<bank account id>",
+  "items": [{"line": "<journal line id>"}],
+  "lines": [{"account": "<bank fees account id>", "amount": -500, "description": "Bank fee"}]
+}' | tinycld books deposits add --input - --post
+```
+
+Books fills the rest of an item (the customer, the amount, the date) and computes `total` when the deposit is posted: a draft has the total 0. Books refuses an item that is in another posted deposit. A deposit can have up to 500 items and 100 lines. `edit` of a draft takes up to 1100 changes in one step, and it removes and adds each row of `items` or `lines` that the JSON has: for a very large draft, change `items` and `lines` in two calls.
 
 ## To sell an Inventory item
 

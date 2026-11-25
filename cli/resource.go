@@ -310,6 +310,10 @@ func fieldSchema(f *field) map[string]any {
 	case typeID:
 		schema["type"] = "string"
 		schema["description"] = f.Help + " (the id of a record of `books " + f.Ref + "`)"
+		// A ref with a dot names a line table of a document (rowRef).
+		if owner, key, isRow := strings.Cut(f.Ref, "."); isRow {
+			schema["description"] = f.Help + " (the id of a row of `" + key + "` of `books " + owner + "`)"
+		}
 	case typeIDs:
 		schema["type"] = "array"
 		schema["items"] = map[string]any{"type": "string"}

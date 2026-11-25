@@ -26,6 +26,7 @@ type cliLineTable struct {
 	Parent     string     `json:"parent"`
 	Sort       string     `json:"sort"`
 	ReadOnly   bool       `json:"readOnly"`
+	Max        int        `json:"max"`
 	Omit       []string   `json:"omit"`
 	Fields     []cliField `json:"fields"`
 }
@@ -56,8 +57,8 @@ func loadCLIDocuments(t testing.TB) []cliDocument {
 	return file.Documents
 }
 
-// cliCollections maps each name a `ref` may hold (a list resource or a
-// document) to its collection.
+// cliCollections maps each name a `ref` may hold (a list resource, a document,
+// or a line table as `<document>.<key>`) to its collection.
 func cliCollections(t testing.TB) map[string]string {
 	t.Helper()
 	collectionOf := map[string]string{}
@@ -66,6 +67,9 @@ func cliCollections(t testing.TB) map[string]string {
 	}
 	for _, doc := range loadCLIDocuments(t) {
 		collectionOf[doc.Name] = doc.Collection
+		for _, table := range doc.Lines {
+			collectionOf[doc.Name+"."+table.Key] = table.Collection
+		}
 	}
 	return collectionOf
 }

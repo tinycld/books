@@ -752,6 +752,126 @@
                     ]
                 }
             ]
+        },
+        {
+            "name": "vendor-refunds",
+            "singular": "vendor refund",
+            "summary": "Vendor refunds: money a vendor pays you back for vendor credits",
+            "collection": "books_vendor_refunds",
+            "lifecycle": "posting",
+            "entry": "entry",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "vendor", "status", "amount"],
+            "search": ["number", "memo", "reference_no"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only vendor refunds with this status: draft, posted or void" },
+                { "flag": "vendor", "field": "vendor", "help": "only the vendor refunds of the vendor with this id" }
+            ],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "sort_key"],
+            "fields": [
+                { "name": "vendor", "type": "id", "ref": "vendors", "required": true, "help": "the vendor that pays you back; every vendor credit of the refund is a credit of this vendor" },
+                { "name": "date", "type": "string", "required": true, "help": "the date of the refund, as YYYY-MM-DD" },
+                { "name": "refunded_to", "type": "id", "ref": "accounts", "required": true, "help": "the bank account that receives the money, or Undeposited funds" },
+                { "name": "amount", "type": "integer", "help": "the money the vendor pays back, in cents; the lines must add up to it when the refund is posted" },
+                { "name": "payment_method", "type": "string", "enum": ["cash", "check", "credit_card", "debit_card", "bank_transfer", "other"], "help": "how the vendor pays" },
+                { "name": "reference_no", "type": "string", "help": "the check number or another reference of the refund" },
+                { "name": "memo", "type": "string", "help": "a note for your own use" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["draft", "posted", "void"], "help": "draft, posted or void; `post` and `void` change it" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the vendor refund; Books gives it when the refund is posted" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote for the vendor refund; `entry` prints it" },
+                { "name": "replaces", "type": "id", "ref": "vendor-refunds", "readOnly": true, "help": "the vendor refund this one corrects; `edit` of a posted vendor refund sets it" },
+                { "name": "replaced_by", "type": "id", "ref": "vendor-refunds", "readOnly": true, "help": "the vendor refund that corrects this one" }
+            ],
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_vendor_refund_lines",
+                    "parent": "refund",
+                    "sort": "position,id",
+                    "max": 500,
+                    "omit": ["refund", "position"],
+                    "fields": [
+                        { "name": "vendor_credit", "type": "id", "ref": "vendor-credits", "required": true, "help": "a posted vendor credit of the vendor that the money is for" },
+                        { "name": "amount", "type": "integer", "help": "the part of the vendor credit that the vendor pays back, in cents; Books refuses a line with none" }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "deposits",
+            "singular": "deposit",
+            "summary": "Bank deposits: money you move from Undeposited funds into a bank account",
+            "collection": "books_deposits",
+            "lifecycle": "posting",
+            "entry": "entry",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "deposit_to", "status", "total"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only deposits with this status: draft, posted or void" },
+                { "flag": "deposit-to", "field": "deposit_to", "help": "only the deposits into the account with this id" }
+            ],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "sort_key"],
+            "fields": [
+                { "name": "date", "type": "string", "required": true, "help": "the date of the deposit, as YYYY-MM-DD" },
+                { "name": "deposit_to", "type": "id", "ref": "accounts", "required": true, "help": "the bank account that receives the money" },
+                { "name": "memo", "type": "string", "help": "a note for your own use" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["draft", "posted", "void"], "help": "draft, posted or void; `post` and `void` change it" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the deposit; Books gives it when the deposit is posted" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "the money that reaches the bank account, in cents: items_total plus lines_total; Books computes it when the deposit is posted" },
+                { "name": "items_total", "type": "integer", "readOnly": true, "help": "the sum of the items, in cents; Books computes it when the deposit is posted" },
+                { "name": "lines_total", "type": "integer", "readOnly": true, "help": "the sum of the lines, in cents; Books computes it when the deposit is posted" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote for the deposit; `entry` prints it" },
+                { "name": "replaces", "type": "id", "ref": "deposits", "readOnly": true, "help": "the deposit this one corrects; `edit` of a posted deposit sets it" },
+                { "name": "replaced_by", "type": "id", "ref": "deposits", "readOnly": true, "help": "the deposit that corrects this one" }
+            ],
+            "lines": [
+                {
+                    "key": "items",
+                    "singular": "item",
+                    "collection": "books_deposit_items",
+                    "parent": "deposit",
+                    "sort": "position,id",
+                    "max": 500,
+                    "omit": ["deposit", "position"],
+                    "fields": [
+                        { "name": "line", "type": "id", "ref": "journal-entries.lines", "required": true, "help": "money that waits in Undeposited funds: the line of a posted journal entry on that account; `entry` of a payment prints its lines with their ids" },
+                        { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry of the line" },
+                        { "name": "account", "type": "id", "ref": "accounts", "readOnly": true, "help": "the account of the line" },
+                        { "name": "customer", "type": "id", "ref": "customers", "readOnly": true, "help": "the customer of the line" },
+                        { "name": "vendor", "type": "id", "ref": "vendors", "readOnly": true, "help": "the vendor of the line" },
+                        { "name": "amount", "type": "integer", "readOnly": true, "help": "the amount of the line, in cents" },
+                        { "name": "date", "type": "string", "readOnly": true, "help": "the date of the line's journal entry" },
+                        { "name": "doc_type", "type": "string", "readOnly": true, "enum": ["journal", "transfer", "invoice", "sales_receipt", "bill", "expense", "payment", "bill_payment", "credit_memo", "vendor_credit", "vendor_refund", "refund_receipt", "write_off", "deposit", "inventory_adjustment"], "help": "the type of the transaction that received the money" },
+                        { "name": "number", "type": "string", "readOnly": true, "help": "the number of that transaction" },
+                        { "name": "document", "type": "string", "readOnly": true, "help": "the id of that transaction" },
+                        { "name": "payment_method", "type": "string", "readOnly": true, "help": "how the money was paid" },
+                        { "name": "reference_no", "type": "string", "readOnly": true, "help": "the check number or another reference of the money" },
+                        { "name": "posted", "type": "bool", "readOnly": true, "help": "true while the deposit is posted: the money is no longer in Undeposited funds" }
+                    ]
+                },
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_deposit_lines",
+                    "parent": "deposit",
+                    "sort": "position,id",
+                    "max": 100,
+                    "omit": ["deposit", "position"],
+                    "fields": [
+                        { "name": "account", "type": "id", "ref": "accounts", "required": true, "help": "the account of other money in the deposit: a bank fee, interest, cash back" },
+                        { "name": "amount", "type": "integer", "help": "the amount, in cents; below zero takes money out of the deposit (a bank fee)" },
+                        { "name": "description", "type": "string", "help": "what the money is" },
+                        { "name": "customer", "type": "id", "ref": "customers", "help": "the customer the money is from, if any" },
+                        { "name": "vendor", "type": "id", "ref": "vendors", "help": "the vendor the money is from, if any" }
+                    ]
+                }
+            ]
         }
     ]
 }

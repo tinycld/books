@@ -17,6 +17,11 @@ import (
 // as the forms write them, so a refused line leaves nothing behind.
 const batchPath = "/api/batch"
 
+// maxBatchWrites is the most writes the Books server takes in one batch (its
+// batch setting). No `add` and no correction comes near it; an edit of a draft
+// with two full tables of rows does.
+const maxBatchWrites = 1100
+
 // batchOp is one record write of a batch.
 type batchOp struct {
 	Method string         `json:"method"`
@@ -46,6 +51,11 @@ func deleteOp(collection, id, label string) batchOp {
 // none. The answers are not read: a command reads the document again, because
 // the server computes totals after the last write.
 func sendBatch(ctx context.Context, c *client.Client, ops []batchOp) error {
+	// An edit of a draft removes and creates every row of each table it
+	// names. With two full tables (a deposit) that is more than one batch.
+	if len(ops) > maxBatchWrites {
+		return usagef("this change is %d writes, and Books takes %d in one step: change one table of rows in each call", len(ops), maxBatchWrites)
+	}
 	err := c.PostJSON(ctx, batchPath, map[string]any{"requests": ops}, nil)
 	return batchFailure(ops, err)
 }

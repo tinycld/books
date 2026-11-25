@@ -223,6 +223,11 @@ func mustLoadDocuments(data []byte) []document {
 	return loaded
 }
 
+// rowRef is the `ref` of a field that holds the id of a row of a line table.
+func rowRef(document, key string) string {
+	return document + "." + key
+}
+
 // loadDocuments parses and checks the definitions. A mistake in the file is a
 // programming error, found by the first test that loads the package.
 func loadDocuments(data []byte) ([]document, error) {
@@ -248,6 +253,11 @@ func loadDocuments(data []byte) ([]document, error) {
 			return nil, fmt.Errorf("document %q is given to two documents", name)
 		}
 		names[name] = true
+		// A field may also point to a row of a line table: an item of a deposit
+		// is a line of a journal entry, `journal-entries.lines`.
+		for j := range file.Documents[i].Lines {
+			names[rowRef(name, file.Documents[i].Lines[j].Key)] = true
+		}
 	}
 	for i := range file.Documents {
 		doc := &file.Documents[i]
