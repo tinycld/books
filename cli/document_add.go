@@ -1,0 +1,113 @@
+package cli
+
+import (
+	"fmt"
+	"maps"
+
+	"github.com/spf13/cobra"
+
+	"tinycld.org/cli/client"
+	"tinycld.org/cli/exitcode"
+	"tinycld.org/cli/output"
+)
+
+// refusedf is an error for a call the CLI knows the server refuses, from what
+// it has read: exit 6, as the server's own refusal.
+func refusedf(format string, a ...any) error {
+	return exitcode.New(exitcode.Refused, fmt.Errorf(format, a...))
+}
+
+// createOps are the writes that create a document: the header as a draft, then
+// every row with the document's id and its place. replaces is the id of the
+// posted document this one corrects, or "".
+func createOps(doc *document, id string, in documentInput, replaces string) []batchOp {
+	header := maps.Clone(in.header)
+	for name, value := range doc.Fixed {
+		header[name] = value
+	}
+	header["id"] = id
+	header["status"] = statusDraft
+	if replaces != "" {
+		header["replaces"] = replaces
+	}
+	ops := []batchOp{createOp(doc.Collection, doc.Singular, header)}
+	return append(ops, lineOps(doc, id, in.lines)...)
+}
+
+// lineOps are the creates of the rows of every line table in the input, in the
+// order of documents.json.
+func lineOps(doc *document, id string, lines map[string][]map[string]any) []batchOp {
+	ops := []batchOp{}
+	for i := range doc.Lines {
+		table := &doc.Lines[i]
+		for position, row := range lines[table.Key] {
+			body := maps.Clone(row)
+			body[table.Parent] = id
+			body["position"] = position
+			ops = append(ops, createOp(table.Collection, fmt.Sprintf("%s[%d]", table.Key, position), body))
+		}
+	}
+	return ops
+}
+
+// postOp posts a draft. The server takes a change of a draft only with the
+// revision it will have: the stored one plus one, or 1 in the batch that
+// creates the document (server/revision.go counts once for each transaction).
+func postOp(doc *document, id string, revision int64) batchOp {
+	return updateOp(doc.Collection, id, "post", map[string]any{"status": statusPosted, "revision": revision})
+}
+
+// readBack reads a document after a write that the server accepted. A failure
+// here must not read as a failed write: the caller would send it again.
+func readBack(cmd *cobra.Command, c *client.Client, doc *document, id, done string) (record, error) {
+	rec, err := fetchDocument(cmd.Context(), c, doc, id)
+	if err != nil {
+		return record{}, fmt.Errorf("%s %s was %s, and then it could not be read: %w", doc.Singular, id, done, err)
+	}
+	return rec, nil
+}
+
+func newDocumentAddCmd(c *client.Client, doc *document) *cobra.Command {
+	var input string
+	var post bool
+	cmd := newCommand(commandDef{
+		Name:  "add",
+		Short: "Add one " + doc.Singular + " with its lines from a JSON object",
+		Long: "Add one " + doc.Singular + ". --input names a JSON file that holds it, with its\n" +
+			"lines as an array, or - to read it from standard input.\n\n" +
+			"It is a draft unless --post is given. The header and the lines are stored in\n" +
+			"one step: when Books refuses one of them, nothing is stored.\n\n" +
+			"`tinycld books schema " + doc.Name + " add` prints the fields.",
+		Aliases: []string{"new", "create"},
+		Input:   documentInputSchema(doc, true),
+		Output:  documentSchema(doc),
+	}, func(cmd *cobra.Command, _ []string, o output.Options, _ bool) error {
+		body, err := readInput(cmd, input)
+		if err != nil {
+			return err
+		}
+		in, err := checkDocumentInput(doc, body, true)
+		if err != nil {
+			return err
+		}
+		id := newRecordID()
+		ops := createOps(doc, id, in, "")
+		done := "added"
+		if post {
+			ops = append(ops, postOp(doc, id, 1))
+			done = "added and posted"
+		}
+		if err := sendBatch(cmd.Context(), c, ops); err != nil {
+			return err
+		}
+		rec, err := readBack(cmd, c, doc, id, done)
+		if err != nil {
+			return err
+		}
+		o.Info(cmd.ErrOrStderr(), "%s %s %s (%s)", done, doc.Singular, rec.label(&doc.resource), rec.id())
+		return writeDocument(cmd, o, doc, rec)
+	})
+	bindInput(cmd, &input)
+	cmd.Flags().BoolVar(&post, "post", false, "post the "+doc.Singular+" in the same step; without it, it is a draft")
+	return cmd
+}

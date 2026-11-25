@@ -75,6 +75,21 @@ tinycld books journal-entries show <id>
 
 `show` prints the transaction with its lines and with the totals that Books computed.
 
+## To record a transaction
+
+Write the transaction as JSON, with its lines as an array:
+
+```
+echo '{"date": "2026-07-15", "memo": "Owner investment", "lines": [
+  {"account": "<bank account id>", "debit": 50000},
+  {"account": "<equity account id>", "credit": 50000}
+]}' | tinycld books journal-entries add --input - --post
+```
+
+Without `--post`, the transaction is a draft: it does not count in the books until it is posted. Books stores the transaction and its lines in one step. When it refuses a line, it stores nothing, and the message names the line: `lines[1]` is the second line.
+
+To see the fields of a transaction and of its lines, run `tinycld books schema journal-entries add`.
+
 ## For scripts and agents
 
 - Add `--json` to any command: it prints one JSON document, the result or an error.
