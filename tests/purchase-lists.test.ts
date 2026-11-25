@@ -19,7 +19,7 @@ import {
 } from '../tinycld/books/lib/purchase-lists'
 import { salesTabOf } from '../tinycld/books/lib/sales-lists'
 
-// The Expenses area's tabs (spec docs/specs/purchase-lists-design.md §2, §3 "Rows and
+// The Expenses area's tabs (the Purchase lists design spec §2, §3 "Rows and
 // columns", "Search and filters", "Sort"; checkpoint 1 Decisions).
 
 const chips = (...labels: string[]) =>

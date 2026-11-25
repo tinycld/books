@@ -1,4 +1,4 @@
-// Synthetic data for the Expenses lists (spec docs/specs/purchase-lists-design.md): the
+// Synthetic data for the Expenses lists (the Purchase lists design spec): the
 // helix reference route reads it directly. Vendors come from vendor-form-fixture.ts,
 // accounts from the seed chart (by number) and products from products-services-fixture.ts.
 //

@@ -132,7 +132,7 @@ interface DocumentListToolbarProps {
 }
 
 /**
- * The full list's toolbar (spec docs/specs/sales-lists-design.md §3): the search field,
+ * The full list's toolbar (the Sales lists design spec §3): the search field,
  * the status chips, the date-range menu and the party picker (the area's customer or
  * vendor), with the Sort menu when the list draws cards. Wide, they share one wrapping
  * row; on a phone the search takes the first row, the chips scroll sideways on the second,

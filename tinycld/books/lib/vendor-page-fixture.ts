@@ -1,4 +1,4 @@
-// Synthetic data for the vendor page (spec docs/specs/vendor-pages-design.md): the helix
+// Synthetic data for the vendor page (the vendor pages design spec): the helix
 // reference route reads it directly, and seed.ts creates VENDOR_PAGE_CONTACTS. Vendors
 // come from vendor-form-fixture.ts (fixture ids; the seed keeps them).
 //

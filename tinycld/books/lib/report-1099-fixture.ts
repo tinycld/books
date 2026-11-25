@@ -1,5 +1,5 @@
 // Synthetic 1099 Summary and Detail for the helix reference route
-// (docs/specs/report-1099-design.md). The vendors are the seeded ones with their 1099
+// (the 1099 report design spec). The vendors are the seeded ones with their 1099
 // columns (vendor-1099-fixture.ts), so names, legal names, tracking and inactive marks
 // are typed against the generated `BooksVendors`; the boxes are typed against
 // `Box1099Key`, and the threshold is the seeded setting. The run results are typed

@@ -27,7 +27,7 @@ const ID_SCREEN_ONLY = RECORD_DETAIL_SCREENS.filter(name => name !== 'new')
 
 /**
  * A kind tab's route — `/a/books/invoices` and the other kinds — and its documents open
- * over or beside it (spec docs/specs/sales-lists-design.md §2, §3 "Opening a document").
+ * over or beside it (the Sales lists design spec §2, §3 "Opening a document").
  *
  * The kind's list renders here, once, so its rows, scroll position and search stay while
  * documents open and close in the child stack. The open document is read from the URL.

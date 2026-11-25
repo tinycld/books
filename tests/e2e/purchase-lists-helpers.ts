@@ -11,7 +11,7 @@ import {
 } from './bill-helpers'
 import { BILL_EXPENSE_ACCOUNT, historyIndex, localDay, returnTo } from './pay-bills-helpers'
 
-// Shared steps of the purchase-lists specs (spec docs/specs/purchase-lists-design.md). A
+// Shared steps of the purchase-lists specs (the Purchase lists design spec). A
 // seeded row is found by its test id after the list is narrowed to its vendor (vendor
 // picker) or its memo (search field), never by its position in the shared list.
 

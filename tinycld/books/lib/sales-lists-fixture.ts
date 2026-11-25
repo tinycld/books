@@ -1,4 +1,4 @@
-// Synthetic data for the Sales lists (spec docs/specs/sales-lists-design.md): the helix
+// Synthetic data for the Sales lists (the Sales lists design spec): the helix
 // reference route reads it directly. Customers come from customer-form-fixture.ts
 // (fixture ids; a seed maps them to the server's ids).
 //

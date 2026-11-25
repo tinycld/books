@@ -1,4 +1,4 @@
-// Synthetic data for email and share (spec docs/specs/email-share-design.md): what the
+// Synthetic data for email and share (the email and share design spec): what the
 // Send dialog opens on for each kind, the stored sends behind the sent line, the batch
 // Send counts and result, and the rows of the public view `books_invoice_public` for every
 // state of the customer's invoice page. Plain data: it imports other fixtures and types

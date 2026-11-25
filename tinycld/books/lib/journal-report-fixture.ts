@@ -1,4 +1,4 @@
-// Synthetic Journal for the helix reference route (spec docs/specs/journal-report-design.md).
+// Synthetic Journal for the helix reference route (the Journal report design spec).
 // The accounts are the seeded e2e book's (seed-accounts.ts); the entries are typed
 // against the generated journal entry record, and the run results against core's
 // report contract, so tsc checks every field. Money is integer cents.

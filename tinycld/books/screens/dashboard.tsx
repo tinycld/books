@@ -18,7 +18,7 @@ import { useFabClearanceStyle } from '../lib/fab-clearance'
 
 const PREFS_ERROR = 'Your dashboard settings could not load.'
 
-// The dashboard (spec docs/specs/dashboard-design.md): the page Books opens on. A failed
+// The dashboard (the dashboard design spec): the page Books opens on. A failed
 // preference read keeps the default arrangement under a banner with Retry, and the
 // controls that save stay disabled until the read lands.
 export default function DashboardScreen() {

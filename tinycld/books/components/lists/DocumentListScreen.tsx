@@ -223,7 +223,7 @@ interface DocumentListScreenProps {
 }
 
 /**
- * One list tab (spec docs/specs/sales-lists-design.md §3), in the parts, words and test-id
+ * One list tab (the Sales lists design spec §3), in the parts, words and test-id
  * prefix of the tab's list area (`areaOf`): the full list with its
  * header, tabs, search, states, rows, row menus and Batch actions (layout `table`), or the
  * 320 px column of names beside an open document (layout `names`). Both read the tab's one
