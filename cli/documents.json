@@ -317,7 +317,7 @@
                     "omit": ["credit_memo", "position"],
                     "fields": [
                         { "name": "kind", "type": "string", "required": true, "enum": ["item", "description", "subtotal", "percent"], "help": "item: a product or service with a quantity and a rate; description: text only; subtotal: the sum of the lines above it; percent: a percentage of the item or subtotal right above it" },
-                        { "name": "product", "type": "id", "ref": "products", "help": "the product or service of an item or percent line; an Inventory item moves stock when the document is posted" },
+                        { "name": "product", "type": "id", "ref": "products", "help": "the product or service of an item or percent line; an Inventory item's quantity goes back into stock when the document is posted" },
                         { "name": "description", "type": "string", "help": "the text of the line" },
                         { "name": "quantity", "type": "number", "help": "the quantity of an item line, with at most 2 decimals" },
                         { "name": "rate", "type": "integer", "help": "the price of one unit of an item line, in cents" },
@@ -397,7 +397,7 @@
                     "omit": ["refund_receipt", "position"],
                     "fields": [
                         { "name": "kind", "type": "string", "required": true, "enum": ["item", "description", "subtotal", "percent"], "help": "item: a product or service with a quantity and a rate; description: text only; subtotal: the sum of the lines above it; percent: a percentage of the item or subtotal right above it" },
-                        { "name": "product", "type": "id", "ref": "products", "help": "the product or service of an item or percent line; an Inventory item moves stock when the document is posted" },
+                        { "name": "product", "type": "id", "ref": "products", "help": "the product or service of an item or percent line; an Inventory item's quantity goes back into stock when the document is posted" },
                         { "name": "description", "type": "string", "help": "the text of the line" },
                         { "name": "quantity", "type": "number", "help": "the quantity of an item line, with at most 2 decimals" },
                         { "name": "rate", "type": "integer", "help": "the price of one unit of an item line, in cents" },

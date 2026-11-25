@@ -78,8 +78,15 @@ func TestSalesDocumentsShowTheirOwnLinesTaxLinesAndEntry(t *testing.T) {
 			if strings.Count(out, `"kind": "item"`) != 1 || !strings.Contains(out, `"amount": 5000`) || !strings.Contains(out, `"rate_ppm": 87100`) {
 				t.Errorf("the printed %s:\n%s", tc.singular, out)
 			}
-			if got, want := f.lastQuery.Get("filter"), fmt.Sprintf(`%s = "salesposted0001"`, tc.parent); got != want {
-				t.Errorf("the tax lines were asked for with %q, want %q", got, want)
+			for _, collection := range []string{tc.lines, tc.taxLines} {
+				queries := f.listed[collection]
+				if len(queries) != 1 {
+					t.Errorf("%s was read %d times, want 1", collection, len(queries))
+					continue
+				}
+				if got, want := queries[0].Get("filter"), fmt.Sprintf(`%s = "salesposted0001"`, tc.parent); got != want {
+					t.Errorf("%s was asked for with %q, want %q", collection, got, want)
+				}
 			}
 			entry, _, err := runCmd(t, f.serve(), "", "books", tc.name, "entry", "salesposted0001", "--json")
 			if err != nil || !strings.Contains(entry, `"id": "entryinvoice001"`) || !strings.Contains(entry, `"debit": 39274`) {

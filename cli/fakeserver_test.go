@@ -41,8 +41,10 @@ type fakeBooks struct {
 
 	// What the commands sent, so a test asserts the request and not only the
 	// echo of it.
-	requests   []string
-	lastQuery  url.Values
+	requests  []string
+	lastQuery url.Values
+	// listed holds the query of every list request, in the order sent, by collection.
+	listed     map[string][]url.Values
 	lastCreate map[string]any
 	lastPatch  map[string]any
 	deleted    []string
@@ -373,6 +375,10 @@ func (f *fakeBooks) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f.lastQuery = r.URL.Query()
+	if f.listed == nil {
+		f.listed = map[string][]url.Values{}
+	}
+	f.listed[collection] = append(f.listed[collection], f.lastQuery)
 	matched := []rawRecord{}
 	for _, row := range f.rows[collection] {
 		if f.rawFilter || f.matches(row, f.lastQuery.Get("filter")) {
