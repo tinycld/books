@@ -29,7 +29,7 @@ func patchStatus(cmd *cobra.Command, c *client.Client, doc *document, o output.O
 	}
 	rec, err := withLines(cmd.Context(), c, doc, raw)
 	if err != nil {
-		return &storedError{fmt.Errorf("%s %s was %s, and then it could not be read: %w", doc.Singular, id, done, err)}
+		return storedReadError(doc, id, done, err)
 	}
 	o.Info(cmd.ErrOrStderr(), "%s %s %s (%s)", done, doc.Singular, rec.label(&doc.resource), rec.id())
 	return writeDocument(cmd, o, doc, rec)
@@ -77,8 +77,8 @@ func newDocumentVoidCmd(c *client.Client, doc *document) *cobra.Command {
 			return err
 		}
 		if status := current.cell("status"); status != statusPosted {
-			return refusedf("%s %s is %s: only a posted one can be voided; delete a draft with `%s delete`",
-				doc.Singular, current.id(), status, cmd.Parent().CommandPath())
+			return refusedf("%s %s is %s: only a posted one can be voided; %s",
+				doc.Singular, current.id(), status, voidNextStep(status, cmd.Parent().CommandPath()))
 		}
 		question := fmt.Sprintf("Void %s %q? This cannot be undone.", doc.Singular, current.label(&doc.resource))
 		ok, err := confirm(o, yes, cmd.InOrStdin(), cmd.ErrOrStderr(), question)
@@ -95,6 +95,15 @@ func newDocumentVoidCmd(c *client.Client, doc *document) *cobra.Command {
 		}
 		return patchStatus(cmd, c, doc, o, current.id(), map[string]any{"status": statusVoid}, "voided")
 	})
+}
+
+// voidNextStep says what to do with a document that cannot be voided: only a
+// draft has a next step, a delete.
+func voidNextStep(status, group string) string {
+	if status == statusDraft {
+		return "delete a draft with `" + group + " delete`"
+	}
+	return "it is already " + status
 }
 
 // newDocumentDeleteCmd deletes a draft. The server answers the delete of a

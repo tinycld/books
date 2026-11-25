@@ -68,15 +68,20 @@ func (e *storedError) Unwrap() error { return e.error }
 func readBack(cmd *cobra.Command, c *client.Client, doc *document, id, done string) (record, error) {
 	rec, err := fetchDocument(cmd.Context(), c, doc, id)
 	if err != nil {
-		err = &storedError{fmt.Errorf("%s %s was %s, and then it could not be read: %w", doc.Singular, id, done, err)}
-		// Exit 5 would tell a script that the document does not exist, and it
-		// would send the add again: it is stored.
-		if exitcode.Of(exitcode.Classify(err)) == exitcode.NotFound {
-			return record{}, exitcode.New(exitcode.Failed, err)
-		}
-		return record{}, err
+		return record{}, storedReadError(doc, id, done, err)
 	}
 	return rec, nil
+}
+
+// storedReadError words the failure of a read after a write the server stored.
+func storedReadError(doc *document, id, done string, err error) error {
+	err = &storedError{fmt.Errorf("%s %s was %s, and then it could not be read: %w", doc.Singular, id, done, err)}
+	// Exit 5 would tell a script that the document does not exist, and it
+	// would send the write again: it is stored.
+	if exitcode.Of(exitcode.Classify(err)) == exitcode.NotFound {
+		return exitcode.New(exitcode.Failed, err)
+	}
+	return err
 }
 
 func newDocumentAddCmd(c *client.Client, doc *document) *cobra.Command {

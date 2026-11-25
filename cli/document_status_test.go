@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"io"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -107,18 +108,59 @@ func TestDocumentVoidAnsweredNoVoidsNothing(t *testing.T) {
 
 func TestDocumentVoidOfWhatIsNotPostedSendsNothing(t *testing.T) {
 	f := journal(t)
-	cases := []struct{ id, want string }{
-		{"entrydraft00001", "journal entry entrydraft00001 is draft: only a posted one can be voided; delete a draft with `tinycld books journal-entries delete`"},
-		{"entryinvoice001", `has the doc_type "invoice", not "journal"`},
+	f.find("books_journal_entries", "entryposted0001")["status"] = "void"
+	cases := []struct{ id, want, notWant string }{
+		{"entrydraft00001", "journal entry entrydraft00001 is draft: only a posted one can be voided; delete a draft with `tinycld books journal-entries delete`", ""},
+		{"entryposted0001", "journal entry entryposted0001 is void: only a posted one can be voided; it is already void", "delete a draft"},
+		{"entryinvoice001", `has the doc_type "invoice", not "journal"`, ""},
 	}
 	for _, tc := range cases {
 		_, _, err := runCmd(t, f.serve(), "", "books", "journal-entries", "void", tc.id, "--yes", "--json")
 		if got := exitcode.Of(err); got != exitcode.Refused || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%s: exit = %d, err = %v", tc.id, got, err)
 		}
+		if tc.notWant != "" && err != nil && strings.Contains(err.Error(), tc.notWant) {
+			t.Errorf("%s: err = %v, must not say %q", tc.id, err, tc.notWant)
+		}
 	}
 	if f.lastPatch != nil {
 		t.Errorf("a refused void sent %v", f.lastPatch)
+	}
+}
+
+// The change is stored, so a read after it that answers 404 must not exit 5
+// ("no such document"): a script would take the document for gone.
+func TestDocumentStatusChangeExitsFailedWhenTheReadAfterItAnswers404(t *testing.T) {
+	cases := []struct {
+		verb, id, want string
+		args           []string
+	}{
+		{"post", "entrydraft00001", "journal entry entrydraft00001 was posted, and then it could not be read", nil},
+		{"void", "entryposted0001", "journal entry entryposted0001 was voided, and then it could not be read", []string{"--yes"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.verb, func(t *testing.T) {
+			f := journal(t)
+			inner := f.handler()
+			// Arm the refusal once the change is stored, so the read before it works.
+			c := clientFor(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				inner.ServeHTTP(w, r)
+				if r.Method == http.MethodPatch {
+					f.refuse("GET", 404, `{"data":{},"message":"The requested resource wasn't found.","status":404}`)
+				}
+			}))
+			args := append([]string{"books", "journal-entries", tc.verb, tc.id, "--json"}, tc.args...)
+			_, _, err := runCmd(t, c, "", args...)
+			if got := exitcode.Of(err); got != exitcode.Failed {
+				t.Errorf("exit = %d, want %d (%v)", got, exitcode.Failed, err)
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("err = %v, want %q", err, tc.want)
+			}
+			if f.lastPatch == nil {
+				t.Error("the change was not sent")
+			}
+		})
 	}
 }
 
