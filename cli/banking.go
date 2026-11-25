@@ -139,6 +139,7 @@ func newBankingCmd(c *client.Client) *cobra.Command {
 		newBankingShowCmd(c),
 		newBankingUploadCmd(c),
 		newBankingRowsCmd(c),
+		newBankingImportCmd(c),
 	)
 	return group
 }

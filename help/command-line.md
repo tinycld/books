@@ -319,9 +319,23 @@ tinycld books banking rows <file id>
 
 `upload` stores the file and prints its id. It makes no transaction. Books refuses a file that has the same content as a stored file. `rows` prints the first rows that Books read, each with its line number: use it to find the columns of a CSV file. A column is counted from 1.
 
+Then import the rows. For a CSV file, the JSON says which column holds the date, the description and the amount:
+
+```
+echo '{"header_row": true, "date_column": 1, "date_format": "MM/DD/YYYY", "description_column": 2, "amount_columns": "one", "amount_column": 3}' | tinycld books banking import <file id> --input -
+```
+
+An OFX, QFX or QBO file needs no `--input`:
+
+```
+tinycld books banking import <file id>
+```
+
+`import` makes the [bank transactions](help://books:bank-import). `amount_columns` is `one` for one signed column (`amount_column`), or `two` for a column each (`money_in_column`, `money_out_column`). `import` takes every row, but not the first row when `header_row` is true. To import some rows only, give `lines` with their line numbers. Books leaves out a row that it holds already: `duplicates` counts them. When Books cannot read one of the rows, it imports nothing and names the line: give `lines` without that line.
+
 ## To retry safely
 
-When the answer to a write is lost (the network fails, or a proxy answers 502, 503 or 504), the command sends the same write again, with the same ids, up to three more times. Books cannot store it twice: when an earlier send was stored, Books refuses the next one, and the command prints what is stored as usual. This is true for `add`, `add --post`, `convert`, `apply` and `edit`, and in `banking` for `upload`.
+When the answer to a write is lost (the network fails, or a proxy answers 502, 503 or 504), the command sends the same write again, with the same ids, up to three more times. Books cannot store it twice: when an earlier send was stored, Books refuses the next one, and the command prints what is stored as usual. This is true for `add`, `add --post`, `convert`, `apply` and `edit`, and in `banking` for `upload` and `import`.
 
 When no answer comes back at all, the command exits 7. The transaction may be stored or not, and the message names its id. To find out, run `show` with that id:
 
@@ -337,7 +351,7 @@ To send it again safely, run the same command with `--id <id>`. When the first r
 tinycld books journal-entries add --id entry2026071501 --input entry.json --post
 ```
 
-`add`, `convert`, `apply`, and `edit` take `--id`. For `edit`, it is the id of the new transaction that corrects a posted one; a draft keeps its own id. In `banking`, `upload` takes `--id` too.
+`add`, `convert`, `apply`, and `edit` take `--id`. For `edit`, it is the id of the new transaction that corrects a posted one; a draft keeps its own id. In `banking`, `upload` and `import` take `--id` too.
 
 When the answer to the `edit` of a draft is lost and the change was stored, the command finds the change in the draft and prints it as usual. When someone else changed the draft between the two sends, the command shows the refusal from Books.
 
