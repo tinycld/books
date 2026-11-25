@@ -318,7 +318,7 @@ tinycld books banking upload statement.csv --connection <connection id>
 tinycld books banking rows <file id>
 ```
 
-`upload` stores the file and prints its id. It makes no transaction. Books refuses a file that has the same content as a stored file. `rows` prints the first rows that Books read, each with its line number: use it to find the columns of a CSV file. A column is counted from 1.
+`upload` stores the file and prints its id. It makes no transaction. Books takes a file of 5 MB or less. Books refuses a file that has the same content as a stored file. `rows` prints the first rows that Books read, each with its line number: use it to find the columns of a CSV file. A column is counted from 1.
 
 Then import the rows. For a CSV file, the JSON says which column holds the date, the description and the amount:
 
