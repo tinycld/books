@@ -290,6 +290,11 @@ func fieldsOf(collection string) []field {
 	if res := resourceOf(collection); res != nil {
 		return res.Fields
 	}
+	for _, res := range bankingResources() {
+		if res.Collection == collection {
+			return res.Fields
+		}
+	}
 	for i := range documents {
 		if documents[i].Collection == collection {
 			return documents[i].Fields

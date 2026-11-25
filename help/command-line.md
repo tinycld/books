@@ -1,7 +1,7 @@
 ---
 title: Books from the command line
-summary: List and change accounts, customers, vendors, products and sales tax, record transactions, and run reports, from a terminal or a script with the tinycld tool.
-tags: [cli, command line, terminal, automation, scripts, agents, json]
+summary: List and change accounts, customers, vendors, products and sales tax, record transactions, run reports, and review bank transactions, from a terminal or a script with the tinycld tool.
+tags: [cli, command line, terminal, automation, scripts, agents, json, banking]
 order: 62
 ---
 
@@ -288,6 +288,19 @@ tinycld books reports export books.general_ledger --format json --file general-l
 `export` writes the report to a file. `csv`, `xlsx` and `pdf` are the files that the Export menu makes, with every group open and the amounts as you read them. `json` is the result of `run --all`. Books records an export to `csv`, `xlsx` or `pdf` in the audit log; a `json` export is a run, and a run is not recorded. `--file` is written over when it exists. Books does not make a CSV or Excel file of more than 50,000 rows, or a PDF of more than 5,000 rows.
 
 If a report command says that it requires the "reports" scope, you signed in before your server had it. Sign in again with `tinycld auth login {{server-host}}`.
+
+## To review bank transactions
+
+`tinycld books banking` works with [Banking](help://books:banking): the bank and card accounts that you connected in the app, the files that you uploaded for them, and the transactions that Books imported.
+
+```
+tinycld books banking connections
+tinycld books banking files --connection <connection id>
+tinycld books banking list
+tinycld books banking list --status all --search depot
+```
+
+`connections` prints the id of each connected account. To connect an account, use the app: Books, Banking, Connect account. `files` lists the uploaded files, the newest first. `list` prints the transactions that are [For review](help://books:bank-review), the newest first: `--status` takes `for_review`, `reviewed`, `excluded` or `all`. An `amount` above 0 is money in, and below 0 is money out.
 
 ## To retry safely
 

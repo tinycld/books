@@ -80,6 +80,14 @@ func listTargets() []listTarget {
 	}
 	// A list that is built in Go, not read from a file.
 	targets = append(targets, listTarget{name: reportsResource.Name, res: &reportsResource})
+	// The lists of `banking`: `list` is the group's own, the others are views.
+	for word, res := range bankingResources() {
+		view := word
+		if word == "list" {
+			view = ""
+		}
+		targets = append(targets, listTarget{name: "banking", view: view, res: res})
+	}
 	return targets
 }
 

@@ -232,6 +232,43 @@
             "args": ["--search", "trial"],
             "filter": "(source ~ \"books.%\") && (title ~ \"trial\" || description ~ \"trial\")",
             "sort": "title,id"
+        },
+        {
+            "name": "banking-for-review",
+            "resource": "banking",
+            "args": [],
+            "filter": "status = \"for_review\"",
+            "sort": "-date,id"
+        },
+        {
+            "name": "banking-every-status-of-a-connection",
+            "resource": "banking",
+            "args": ["--status", "all", "--connection", "bankconn0000001", "--search", "depot"],
+            "filter": "connection = \"bankconn0000001\" && (description ~ \"depot\" || memo ~ \"depot\")",
+            "sort": "-date,id"
+        },
+        {
+            "name": "banking-excluded",
+            "resource": "banking",
+            "args": ["--status", "excluded", "--connection", "bankconn0000001", "--search", "depot"],
+            "filter": "status = \"excluded\" && connection = \"bankconn0000001\" && (description ~ \"depot\" || memo ~ \"depot\")",
+            "sort": "-date,id"
+        },
+        {
+            "name": "banking-connections-of-an-account",
+            "resource": "banking",
+            "view": "connections",
+            "args": ["--account", "acctchecking001"],
+            "filter": "account = \"acctchecking001\"",
+            "sort": "institution,id"
+        },
+        {
+            "name": "banking-files-of-a-connection",
+            "resource": "banking",
+            "view": "files",
+            "args": ["--connection", "bankconn0000001", "--status", "uploaded"],
+            "filter": "connection = \"bankconn0000001\" && status = \"uploaded\"",
+            "sort": "-created,id"
         }
     ]
 }

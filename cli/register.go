@@ -31,6 +31,7 @@ func Register(root *cobra.Command, c *client.Client) {
 		books.AddCommand(newDocumentCmd(c, &documents[i]))
 	}
 	books.AddCommand(newReportsCmd(c))
+	books.AddCommand(newBankingCmd(c))
 	books.AddCommand(newSchemaCmd(books))
 	root.AddCommand(books)
 }
