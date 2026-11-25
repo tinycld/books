@@ -131,11 +131,15 @@ const OPTION_SELECTOR = '[role="menuitem"]'
 // instead (Enter, or ↓ then Enter typed before the options showed this search).
 type OptionMove = { field: HTMLElement; toLast: boolean; pick: boolean }
 
-// Focus moves into the menu's rows, whose own handlers then take ↑ / ↓ and Enter.
-function focusOption({ field, toLast }: OptionMove) {
+// Focus moves into the menu's rows, whose own handlers then take ↑ / ↓ and Enter. ↓ goes
+// to the first option, past the none row (drawn above the options when the caller offers
+// one), as Enter picks the first option: the same keys pick the same row whether or not the
+// options already showed this search. ↑ from the first option reaches the none row.
+function focusOption({ field, toLast }: OptionMove, hasNone: boolean) {
     const rows = field.closest('[role="menu"]')?.querySelectorAll<HTMLElement>(OPTION_SELECTOR)
     if (!rows || rows.length === 0) return
-    const row = toLast ? rows[rows.length - 1] : rows[0]
+    const first = hasNone && rows.length > 1 ? rows[1] : rows[0]
+    const row = toLast ? rows[rows.length - 1] : first
     row.focus()
 }
 
@@ -154,6 +158,8 @@ interface SearchKeysInput {
     options: readonly SearchPickerOption[]
     // Picks an option and closes the menu, as pressing its row does.
     pickOption: (id: string) => void
+    // The menu draws a none row above the options.
+    hasNone: boolean
 }
 
 /**
@@ -164,12 +170,12 @@ interface SearchKeysInput {
  * search waits until they show this one: typing then ↓ and Enter picks from what was
  * typed.
  */
-function useSearchKeys({ picker, isLoading, options, pickOption }: SearchKeysInput) {
+function useSearchKeys({ picker, isLoading, options, pickOption, hasNone }: SearchKeysInput) {
     const waiting = useRef<OptionMove | null>(null)
     const isCurrent = picker.term === picker.debouncedTerm && !isLoading
     const run = (move: OptionMove) => {
         if (!move.pick) {
-            focusOption(move)
+            focusOption(move, hasNone)
             return
         }
         const option = move.toLast ? options[options.length - 1] : options[0]
@@ -523,7 +529,13 @@ export function SearchPicker({
         pick(id)
         onOpenChange(false)
     }
-    const onSearchKeyPress = useSearchKeys({ picker, isLoading, options, pickOption })
+    const onSearchKeyPress = useSearchKeys({
+        picker,
+        isLoading,
+        options,
+        pickOption,
+        hasNone: noneOption !== undefined,
+    })
     const placeholderColor = useThemeColor('field-placeholder')
     // A core Sheet keeps its content mounted while it slides out, so items render only
     // while the menu is open (helix lesson 8), whatever the caller's query returns.
