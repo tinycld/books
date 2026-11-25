@@ -5,10 +5,10 @@
 // guards in server/ are the whole authorization and validation, so a write
 // from here is checked exactly as a write from the app.
 //
-// The commands are built for agents. docs/cli-conventions.md is the contract:
-// --json output, JSON input from --input, the exit codes of
-// tinycld.org/cli/exitcode, and `books schema`. A new command goes through
-// newCommand, which gives it all four.
+// The commands are built for agents. `tinycld books schema` prints the
+// contract: --json output, JSON input from --input, the exit codes of
+// tinycld.org/cli/exitcode, and the schema of every command. A new command goes
+// through newCommand, which gives it all four.
 package cli
 
 import (

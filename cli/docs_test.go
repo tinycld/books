@@ -10,7 +10,9 @@ import (
 	"tinycld.org/cli/exitcode"
 )
 
-const helpTopic = "../help/command-line.md"
+// helpPage is the help topic of the CLI: the one page of the commands that is
+// in this repository, so the one page a test can hold to the code.
+const helpPage = "../help/command-line.md"
 
 func readDoc(t *testing.T, path string) string {
 	t.Helper()
@@ -53,8 +55,8 @@ func TestCodeTextLeavesProseOut(t *testing.T) {
 	}
 }
 
-// The pages and the code are one contract. A group, a command word or an
-// exit code that a page does not name is a command nobody can find.
+// The help topic and the code are one contract. A group, a command word or an
+// exit code that the topic does not name is a command nobody can find.
 func TestDocsNameEveryCommand(t *testing.T) {
 	root := newTestRoot(nil)
 	books, _, err := root.Find([]string{"books"})
@@ -73,10 +75,10 @@ func TestDocsNameEveryCommand(t *testing.T) {
 			words[sub.Name()] = true
 		}
 	}
-	page := readDoc(t, helpTopic)
+	page := readDoc(t, helpPage)
 	for _, group := range groups {
 		if !strings.Contains(page, "`tinycld "+strings.TrimPrefix(group, "tinycld ")+"`") {
-			t.Errorf("%s does not name the group `%s`", helpTopic, group)
+			t.Errorf("the help topic does not name the group `%s`", group)
 		}
 	}
 	code := codeText(page)
@@ -84,13 +86,13 @@ func TestDocsNameEveryCommand(t *testing.T) {
 		// In a code span, or on a line of a code block.
 		shown := regexp.MustCompile(`(?m)(^|[^a-z-])` + word + `($|[^a-z-])`)
 		if !shown.MatchString(code) {
-			t.Errorf("%s does not show the command %q", helpTopic, word)
+			t.Errorf("the help topic does not show the command %q", word)
 		}
 	}
 }
 
-func TestDocsHaveEveryExitCode(t *testing.T) {
-	help := readDoc(t, helpTopic)
+func TestHelpExplainsEveryFailureExitCode(t *testing.T) {
+	help := readDoc(t, helpPage)
 	for code := exitcode.Usage; code <= exitcode.Unavailable; code++ {
 		if !strings.Contains(help, fmt.Sprintf("`%d`", code)) {
 			t.Errorf("the help topic does not explain exit code %d", code)
@@ -98,18 +100,18 @@ func TestDocsHaveEveryExitCode(t *testing.T) {
 	}
 }
 
-// A caller learns the page size from the pages, so they state the largest one.
-func TestPagesStateTheLimitRange(t *testing.T) {
+// A caller learns the page size from the help topic, so it states the largest one.
+func TestHelpStatesTheLimitRange(t *testing.T) {
 	want := fmt.Sprintf("`--limit` takes 1 to %d", maxListLimit)
-	if !strings.Contains(readDoc(t, helpTopic), want) {
-		t.Errorf("%s does not say %q", helpTopic, want)
+	if !strings.Contains(readDoc(t, helpPage), want) {
+		t.Errorf("the help topic does not say %q", want)
 	}
 }
 
 // The scripts line of the help topic explains every exit code but 0.
 func TestHelpExitLineHasEveryFailureCode(t *testing.T) {
 	var line string
-	for _, l := range strings.Split(readDoc(t, helpTopic), "\n") {
+	for _, l := range strings.Split(readDoc(t, helpPage), "\n") {
 		if strings.HasPrefix(l, "- The exit code") {
 			line = l
 		}
@@ -128,7 +130,7 @@ func TestHelpExitLineHasEveryFailureCode(t *testing.T) {
 }
 
 func TestHelpTopicFrontmatter(t *testing.T) {
-	help := readDoc(t, helpTopic)
+	help := readDoc(t, helpPage)
 	if !strings.HasPrefix(help, "---\ntitle: Books from the command line\nsummary: ") {
 		t.Error("help/command-line.md must start with the frontmatter: title, summary")
 	}
