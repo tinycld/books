@@ -167,14 +167,15 @@ describe('productPickerOptions', () => {
 })
 
 describe('table layout constants', () => {
-    it('has a 560 px minimum width and 56 px rows', () => {
-        expect(PRODUCT_TABLE_MIN_WIDTH).toBe(560)
+    it('has a 604 px minimum width and 56 px rows', () => {
+        expect(PRODUCT_TABLE_MIN_WIDTH).toBe(604)
         expect(PRODUCT_ROW_HEIGHT).toBe(56)
     })
 
     it('has the decided column styles', () => {
         expect(PRODUCT_COLUMNS).toEqual({
-            name: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 148 },
+            code: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 72 },
+            name: { flexGrow: 3, flexShrink: 1, flexBasis: 0, minWidth: 120 },
             type: { width: 120, flexShrink: 0 },
             price: { width: 112, flexShrink: 0 },
             cost: { width: 112, flexShrink: 0 },

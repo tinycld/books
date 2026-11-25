@@ -8,6 +8,7 @@ export type ProductListFields = Pick<
     BooksProducts,
     | 'id'
     | 'name'
+    | 'code'
     | 'sku'
     | 'sales_description'
     | 'type'
@@ -21,11 +22,12 @@ export type ProductListFields = Pick<
 type PriceFields = Pick<ProductListFields, 'type' | 'price' | 'currency'>
 type CostFields = Pick<ProductListFields, 'type' | 'cost' | 'purchases' | 'currency'>
 
-// Shared by the header and every row, so the columns line up. Name shrinks with an
-// ellipsis but keeps a minimum width, so it never collapses to blank: 148 + 120 + 112
-// + 112 + 44 and the row's 24 px padding make the table's 560 px minimum width.
+// Shared by the header and every row, so the columns line up. Code and Name shrink with
+// an ellipsis but keep a minimum width, so neither collapses to blank: 72 + 120 + 120 +
+// 112 + 112 + 44 and the row's 24 px padding make the table's 604 px minimum width.
 export const PRODUCT_COLUMNS = {
-    name: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 148 },
+    code: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 72 },
+    name: { flexGrow: 3, flexShrink: 1, flexBasis: 0, minWidth: 120 },
     type: { width: 120, flexShrink: 0 },
     price: { width: 112, flexShrink: 0 },
     cost: { width: 112, flexShrink: 0 },
@@ -33,7 +35,7 @@ export const PRODUCT_COLUMNS = {
 } as const
 
 // Below this the table scrolls sideways.
-export const PRODUCT_TABLE_MIN_WIDTH = 560
+export const PRODUCT_TABLE_MIN_WIDTH = 604
 
 export const PRODUCT_ROW_HEIGHT = 56
 
@@ -84,8 +86,8 @@ export function productTypeLine(product: PriceFields): string {
 }
 
 export function productCardHeight(
-    product: Pick<ProductListFields, 'type' | 'price' | 'currency' | 'sku'>,
+    product: Pick<ProductListFields, 'type' | 'price' | 'currency' | 'sku' | 'code'>,
     fontScale = 1
 ): number {
-    return recordCardHeight([productTypeLine(product), product.sku], fontScale)
+    return recordCardHeight([product.code, productTypeLine(product), product.sku], fontScale)
 }

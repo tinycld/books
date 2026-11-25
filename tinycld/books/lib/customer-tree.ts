@@ -3,7 +3,7 @@ import type { PartyListRow } from './party-list'
 
 export type TreeCustomer = Pick<
     BooksCustomers,
-    'id' | 'display_name' | 'company' | 'email' | 'phone' | 'parent' | 'inactive'
+    'id' | 'display_name' | 'code' | 'company' | 'email' | 'phone' | 'parent' | 'inactive'
 >
 
 // The list's rows from the server, in sort_key order, which is already the tree: each

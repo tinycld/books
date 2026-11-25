@@ -4,6 +4,18 @@ import type { BooksVendors } from '../../../types'
 
 const MAX_ADDRESS_LINES = 3
 
+function Code({ record }: { record: BooksVendors }) {
+    return (
+        <Text
+            testID="vendor-code"
+            numberOfLines={1}
+            className="text-sm tabular-nums text-muted-foreground"
+        >
+            {record.code}
+        </Text>
+    )
+}
+
 function Company({ record }: { record: BooksVendors }) {
     const company = record.company
     if (company === '' || company === record.display_name) return null
@@ -35,6 +47,7 @@ function Address({ record }: { record: BooksVendors }) {
 export function VendorIdentity({ record }: { record: BooksVendors }) {
     return (
         <>
+            <Code record={record} />
             <Company record={record} />
             <Address record={record} />
         </>

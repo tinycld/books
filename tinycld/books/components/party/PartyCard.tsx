@@ -46,6 +46,10 @@ export function PartyCard<T extends PartyRecord>({
                         </Text>
                         <InactiveLabel isVisible={party.inactive} />
                     </View>
+                    <MutedLine
+                        testID={`${testIdPrefix}-card-code-${party.id}`}
+                        value={party.code}
+                    />
                     <MutedLine value={companyLine(party)} />
                     <MutedLine value={party.email} />
                     <MutedLine value={party.phone} />

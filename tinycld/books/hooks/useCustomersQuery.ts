@@ -30,6 +30,7 @@ export function useCustomersQuery(filters: ListFilters) {
                           {
                               isActive: eq(customer.inactive, false),
                               text: [
+                                  customer.code,
                                   customer.display_name,
                                   customer.company,
                                   customer.email,

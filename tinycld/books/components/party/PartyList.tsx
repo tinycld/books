@@ -60,6 +60,7 @@ function PartyTableHeader({ testID, isNameOnly }: { testID: string; isNameOnly: 
     }
     return (
         <ListHeaderRow testID={testID}>
+            <ListHeaderCell label="Code" style={PARTY_COLUMNS.code} />
             <ListHeaderCell label="Name" style={PARTY_COLUMNS.name} />
             <ListHeaderCell label="Email" style={PARTY_COLUMNS.email} />
             <ListHeaderCell label="Phone" style={PARTY_COLUMNS.phone} />

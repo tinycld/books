@@ -23,6 +23,25 @@ interface PartyRowProps<T extends PartyRecord> {
     isNameOnly: boolean
 }
 
+function CodeCell({
+    isVisible,
+    testID,
+    code,
+}: {
+    isVisible: boolean
+    testID: string
+    code: string
+}) {
+    if (!isVisible) return null
+    return (
+        <View testID={testID} className="min-w-0 pr-3" style={PARTY_COLUMNS.code}>
+            <Text numberOfLines={1} className="text-sm tabular-nums text-muted-foreground">
+                {code}
+            </Text>
+        </View>
+    )
+}
+
 function DetailCells({
     isVisible,
     testIdPrefix,
@@ -86,12 +105,17 @@ export function PartyRow<T extends PartyRecord>({
         >
             <Pressable
                 role="button"
-                // No label: the platform reads the button's own text (name, company, email,
-                // phone and the Inactive label), which a label would hide.
+                // No label: the platform reads the button's own text (code, name, company,
+                // email, phone and the Inactive label), which a label would hide.
                 {...selectedProps(isSelected)}
                 onPress={() => onOpen(id)}
                 className="min-w-0 flex-1 flex-row items-center pl-4"
             >
+                <CodeCell
+                    isVisible={!isNameOnly}
+                    testID={`${testIdPrefix}-cell-code-${id}`}
+                    code={party.code}
+                />
                 <View
                     testID={`${testIdPrefix}-cell-name-${id}`}
                     className="min-w-0 pr-3"

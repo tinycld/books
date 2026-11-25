@@ -6,6 +6,18 @@ import type { BooksCustomers } from '../../../types'
 
 const MAX_ADDRESS_LINES = 3
 
+function Code({ record }: { record: BooksCustomers }) {
+    return (
+        <Text
+            testID="customer-code"
+            numberOfLines={1}
+            className="text-sm tabular-nums text-muted-foreground"
+        >
+            {record.code}
+        </Text>
+    )
+}
+
 function Company({ record }: { record: BooksCustomers }) {
     const company = record.company
     if (company === '' || company === record.display_name) return null
@@ -62,12 +74,13 @@ interface CustomerIdentityProps {
 
 /**
  * The customer's lines under the name in the page header (its `identity` slot): the
- * company when it differs from the name, the billing address, and the parent line of a
+ * code, the company when it differs from the name, the billing address, and the parent line of a
  * sub-customer.
  */
 export function CustomerIdentity({ record, onOpenParent }: CustomerIdentityProps) {
     return (
         <>
+            <Code record={record} />
             <Company record={record} />
             <Address record={record} />
             <ParentLine parentId={record.parent} onOpen={onOpenParent} />
