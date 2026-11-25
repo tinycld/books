@@ -388,6 +388,19 @@ echo '{"lines": ["<journal line id>"]}' | tinycld books reconcile unclear <id> -
 
 `clear` marks each line of `lines` as on the statement. Books refuses a line that is dated after the statement date, and a line that another reconciliation holds; then it clears none of the lines. `unclear` takes lines out of the reconciliation. It does not ask first. The two commands leave a line as it is when it is in that state already, so you can run a command again.
 
+```
+echo '{"statement_balance": 162500}' | tinycld books reconcile edit <id> --input -
+tinycld books reconcile finish <id>
+tinycld books reconcile undo <id>
+tinycld books reconcile delete <id>
+```
+
+`finish` closes the reconciliation when the cleared lines agree with the statement. The tool computes no difference. When the difference is not zero, Books refuses, and the message states it, for example "The difference is $420.00. It must be $0.00 to finish." Then clear or unclear lines, or correct the statement values with `edit`. `edit` changes the closing date, the closing balance or the totals of a reconciliation in progress. With an earlier closing date, Books takes out the cleared lines that are dated after it.
+
+A finished reconciliation and its lines do not change. `undo` opens the latest finished reconciliation of an account again, and its lines stay cleared. Only a Books admin can do this. Books refuses an undo while the account has another reconciliation in progress: delete that one first. `undo` does not ask first. `delete` (or `discard`) removes a reconciliation that is in progress, and its lines are then in no reconciliation. It asks first; in a script, add `--yes`.
+
+Books ships a report of the finished reconciliations, the Reconciliation Report: `tinycld books reports run books.reconciliation_report`. `tinycld books reports show books.reconciliation_report` prints the params that it takes.
+
 ## To retry safely
 
 When the answer to a write is lost (the network fails, or a proxy answers 502, 503 or 504), the command sends the same write again, with the same ids, up to three more times. Books cannot store it twice: when an earlier send was stored, Books refuses the next one, and the command prints what is stored as usual. This is true for `add`, `add --post`, `convert`, `apply` and `edit`, and in `banking` for `upload`, `import`, `categorize`, `split` and `match`. It is also true for `reconcile start`, `clear` and `unclear`.

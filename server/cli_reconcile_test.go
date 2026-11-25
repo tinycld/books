@@ -201,6 +201,22 @@ func TestCLIReconcile_ATokenFinishesAndAnAdminUndoes(t *testing.T) {
 	env.call(t, env.writer, http.MethodPatch, one, finish).requireStatus(t, http.StatusOK)
 }
 
+// `reconcile delete` says that the lines of a deleted reconciliation are in no
+// reconciliation: the next one can clear them.
+func TestCLIReconcile_ADeleteOpensItsLines(t *testing.T) {
+	env := newCLIReconEnv(t)
+	env.start(t)
+	env.batch(t, env.writer, clearOp("clicleared00001", env.in)).requireStatus(t, http.StatusOK)
+	env.call(t, env.writer, http.MethodDelete, collectionURL(reconsCollection)+"/"+cliReconID, "").requireStatus(t, http.StatusNoContent)
+	if rows := env.list(t, clearedRows, `line = "`+env.in+`"`, "").items(t); len(rows) != 0 {
+		t.Errorf("the cleared rows after the delete = %v", rows)
+	}
+	open := fmt.Sprintf(`account = %q && reconciliation = "" && date <= "2026-09-30"`, env.checking.Id)
+	if rows := env.list(t, reconcileView, open, "date,id").items(t); len(rows) != 2 {
+		t.Errorf("the open lines after the delete = %v", rows)
+	}
+}
+
 // cli/reconcile.go declares these fields in Go, so
 // TestCLIResources_MatchTheCollections does not see them. When a command gains
 // a field, add it here.

@@ -29,6 +29,8 @@ var reconciliationsResource = resource{
 	Sort:       "-statement_date,id",
 	Label:      "statement_date",
 	Columns:    []string{"statement_date", "account", "status", "statement_balance"},
+	DeleteHelp: "Only a reconciliation that is in progress can be deleted. Its lines are then in no reconciliation.\n" +
+		"`discard` is another name of this command.",
 	Filters: []filterFlag{
 		{Flag: "account", Field: "account", Help: "only the reconciliations of this account: the id of an account"},
 		{Flag: "status", Field: "status", Help: "only the reconciliations with this status: in_progress or finished"},
@@ -71,6 +73,10 @@ func newReconcileCmd(c *client.Client) *cobra.Command {
 		newReconcileShowCmd(c),
 		newReconcileClearCmd(c),
 		newReconcileUnclearCmd(c),
+		newReconcileEditCmd(c),
+		newReconcileFinishCmd(c),
+		newReconcileUndoCmd(c),
+		newReconcileDeleteCmd(c),
 	)
 	return group
 }
