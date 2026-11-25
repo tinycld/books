@@ -176,9 +176,10 @@ func (f *fakeBooks) batch(w http.ResponseWriter, r *http.Request, one http.Handl
 		rec := httptest.NewRecorder()
 		one(rec, httptest.NewRequest(op.Method, op.URL, bytes.NewReader(sent)))
 		if rec.Code >= 400 {
-			// f.lastCreate, f.lastPatch, f.seq and f.requests keep the values of the
-			// rolled-back writes: they record what was sent, not what is stored. A
-			// test of a refused batch reads them.
+			// The rollback restores only the stored state: f.rows and f.deleted.
+			// f.batches keeps the sent batch, so a test can read what was sent.
+			// f.lastCreate, f.lastPatch and f.seq keep the values of the rolled-back
+			// writes: they show what the fake saw, they are not stored state.
 			f.rows = before
 			f.deleted = f.deleted[:deletedBefore]
 			w.Header().Set("Content-Type", "application/json")
@@ -241,7 +242,8 @@ const msgStaleRevision = "This entry changed after you opened it. Load it again,
 // batch that created the row it may state the stored one, because the server
 // counts one time for each transaction. The rule holds for a stored draft only,
 // so a test that creates a draft must send status "draft" for the fake to check
-// its revision.
+// its revision. The rule also needs a revision field declared for the collection
+// in fieldsOf: a create sets revision 1 only for a declared field.
 func (f *fakeBooks) revisionRefused(w http.ResponseWriter, row rawRecord, body map[string]any) bool {
 	stored, has := numberOf(row["revision"])
 	if !has || row["status"] != "draft" {
