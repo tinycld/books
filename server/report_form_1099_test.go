@@ -407,7 +407,7 @@ func TestForm1099SpecLoads(t *testing.T) {
 	if shipped.Description != f1099Description {
 		t.Errorf("description = %q, want %q", shipped.Description, f1099Description)
 	}
-	if shipped.Revision != 1 || !shipped.Unpublished || shipped.Live {
+	if shipped.Revision != 2 || !shipped.Unpublished || shipped.Live {
 		t.Errorf("revision %d, unpublished %v, live %v; want revision 1, shipped unpublished, not live",
 			shipped.Revision, shipped.Unpublished, shipped.Live)
 	}
@@ -1465,7 +1465,7 @@ func TestForm1099ShippedShared(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "1099 Summary and Detail" || row.GetInt("shipped_revision") != 1 || row.GetString("source") != "books.basis_lines" {
+	if row.GetString("title") != "1099 Summary and Detail" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.basis_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {
@@ -1749,12 +1749,12 @@ func TestForm1099PaymentOpens(t *testing.T) {
 	day, on := f1099Day+" · ", " · "+f1099ContractLabor
 	manualLabel := ebvLedgerLabel(t, b.app, entryLineOn(t, b.app, manual.Id, b.nec), "Journal entry "+ebvEntryNumber(t, b.app, manual.Id))
 	want := map[string]string{
-		day + "Expense " + no(exp) + on: apRoute(t, "expense", exp.Id),
-		day + "Bill payment " + no(pay) + on + " · Bill " + no(bill) + " paid (cash basis)":                            apRoute(t, "bill_payment", pay.Id),
-		day + "Vendor credit " + no(credit) + on + " · Bill " + no(creditBill) + " paid by vendor credit (cash basis)": apRoute(t, "vendor_credit", credit.Id),
-		day + "Vendor credit " + no(credit) + on + " · Vendor credit " + no(credit) + " applied (cash basis)":          apRoute(t, "vendor_credit", credit.Id),
-		day + "Vendor refund " + no(refund) + on + " · Vendor credit " + no(refunded) + " refunded (cash basis)":       apRoute(t, "vendor_refund", refund.Id),
-		manualLabel: "books/entries/" + manual.Id,
+		day + "Expense " + no(exp) + on: apRoute(t, b.app, "expense", exp),
+		day + "Bill payment " + no(pay) + on + " · Bill " + no(bill) + " paid (cash basis)":                            apRoute(t, b.app, "bill_payment", pay),
+		day + "Vendor credit " + no(credit) + on + " · Bill " + no(creditBill) + " paid by vendor credit (cash basis)": apRoute(t, b.app, "vendor_credit", credit),
+		day + "Vendor credit " + no(credit) + on + " · Vendor credit " + no(credit) + " applied (cash basis)":          apRoute(t, b.app, "vendor_credit", credit),
+		day + "Vendor refund " + no(refund) + on + " · Vendor credit " + no(refunded) + " refunded (cash basis)":       apRoute(t, b.app, "vendor_refund", refund),
+		manualLabel: "books/entries/" + urlKey(t, b.app, manual),
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Opens Co's NEC 1 payments open\n%q\nwant\n%q", got, want)
@@ -2106,7 +2106,7 @@ func TestForm1099CSVOpensEveryBox(t *testing.T) {
 // columns, the sort or the labels moves it. Checkpoint 4 (spec §11 Q21) moved
 // it once: the card mark and the doc type read the row's own copies
 // (fld("card_payment"), fld("doc_type")) in place of the entry's.
-const form1099SpecSHA256 = "a2eab9cd704b0231de484134312e72d59ae639c63b36031491b2456b5ac213cb"
+const form1099SpecSHA256 = "ed243377e6f074f22c922c800190f7167221f98028741262e4b96dce52cbd644"
 
 func TestForm1099SpecSHA(t *testing.T) {
 	sum := sha256.Sum256(mustJSON(form1099Spec()))

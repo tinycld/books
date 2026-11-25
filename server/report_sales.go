@@ -17,7 +17,7 @@ func salesByCustomerShipped() reports.Shipped {
 		Spec:        mustJSON(salesByCustomerSpec()),
 		// 1: the first shipped spec. The report is unreleased, so later
 		// checkpoints keep 1 (core re-stores a spec only on a higher revision).
-		Revision:    1,
+		Revision:    2,
 		Unpublished: true,
 	}
 }
@@ -189,7 +189,7 @@ func salesByProductShipped() reports.Shipped {
 		Spec:        mustJSON(salesByProductSpec()),
 		// 1: the first shipped spec. The report is unreleased, so later
 		// checkpoints keep 1 (core re-stores a spec only on a higher revision).
-		Revision:    1,
+		Revision:    2,
 		Unpublished: true,
 	}
 }

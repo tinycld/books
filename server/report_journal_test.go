@@ -187,7 +187,7 @@ func TestJournalSpecLoads(t *testing.T) {
 	if shipped.Description != "Every posted entry with its debit and credit lines, for a period." {
 		t.Errorf("description = %q", shipped.Description)
 	}
-	if shipped.Revision != 2 || !shipped.Unpublished {
+	if shipped.Revision != 3 || !shipped.Unpublished {
 		t.Errorf("revision %d, unpublished %v; want revision 2 (detail.open), shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	built, err := json.Marshal(journalSpec())
@@ -714,7 +714,7 @@ func TestJournalShippedShared(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "Journal" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.journal_lines" {
+	if row.GetString("title") != "Journal" || row.GetInt("shipped_revision") != 3 || row.GetString("source") != "books.journal_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {
@@ -736,7 +736,7 @@ func TestJournalLineOpens(t *testing.T) {
 	if len(block.lines) != 2 {
 		t.Fatalf("the entry's block holds %d lines, want 2", len(block.lines))
 	}
-	want := "books/entries/" + entry.Id
+	want := "books/entries/" + urlKey(t, b.app, entry)
 	for _, r := range block.lines {
 		if r.Open != want {
 			t.Errorf("line %s opens %q, want %q", r.ID, r.Open, want)

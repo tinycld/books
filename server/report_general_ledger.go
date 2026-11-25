@@ -16,7 +16,7 @@ func generalLedgerShipped() reports.Shipped {
 		Spec:        mustJSON(generalLedgerSpec()),
 		// 2: lines open the transaction that posted them (detail.open).
 		// 3: the beginning balance reads the stored months.
-		Revision:    3,
+		Revision:    4,
 		Unpublished: true,
 	}
 }

@@ -238,7 +238,7 @@ func TestStatementReports_SpecsLoad(t *testing.T) {
 			if c.shipped.Title != c.title {
 				t.Errorf("title = %q, want %q", c.shipped.Title, c.title)
 			}
-			if c.shipped.Revision != 1 || !c.shipped.Unpublished {
+			if c.shipped.Revision != 2 || !c.shipped.Unpublished {
 				t.Errorf("revision %d, unpublished %v; want revision 1, shipped unpublished", c.shipped.Revision, c.shipped.Unpublished)
 			}
 			if !jsonEqual(t, c.shipped.Spec, string(mustJSON(c.spec))) {

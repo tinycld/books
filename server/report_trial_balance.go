@@ -24,7 +24,7 @@ func trialBalanceShipped() reports.Shipped {
 		// (drill).
 		// 3: the months before the as-of day's month are read from the stored
 		// months; an opened account shows them as one row.
-		Revision:    3,
+		Revision:    4,
 		Unpublished: true,
 	}
 }

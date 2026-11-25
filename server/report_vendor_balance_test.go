@@ -136,7 +136,7 @@ func TestVendorBalanceSpecLoads(t *testing.T) {
 	if shipped.Description != "What you owe each vendor on one day, from posted transactions on Accounts payable accounts." {
 		t.Errorf("description = %q", shipped.Description)
 	}
-	if shipped.Revision != 1 || !shipped.Unpublished {
+	if shipped.Revision != 2 || !shipped.Unpublished {
 		t.Errorf("revision %d, unpublished %v; want revision 1, shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	if !jsonEqual(t, shipped.Spec, string(mustJSON(vendorBalanceSpec()))) {
@@ -877,11 +877,11 @@ func TestVendorBalanceDetail(t *testing.T) {
 
 	// Five rows, in day order; the apply posts no line, so it has no row.
 	acmeWant := []cbLine{
-		vbLineWant(t, b.app, vbDocLine(t, b, bill), "Bill", apRoute(t, "bill", bill.Id)),
-		vbLineWant(t, b.app, vbDocLine(t, b, pay), "Bill payment", apRoute(t, "bill_payment", pay.Id)),
-		vbLineWant(t, b.app, vbDocLine(t, b, credit), "Vendor credit", apRoute(t, "vendor_credit", credit.Id)),
-		vbLineWant(t, b.app, vbDocLine(t, b, refund), "Vendor refund", apRoute(t, "vendor_refund", refund.Id)),
-		vbLineWant(t, b.app, entryLineOn(t, b.app, manual.Id, b.payable), "Journal entry", "books/entries/"+manual.Id),
+		vbLineWant(t, b.app, vbDocLine(t, b, bill), "Bill", apRoute(t, b.app, "bill", bill)),
+		vbLineWant(t, b.app, vbDocLine(t, b, pay), "Bill payment", apRoute(t, b.app, "bill_payment", pay)),
+		vbLineWant(t, b.app, vbDocLine(t, b, credit), "Vendor credit", apRoute(t, b.app, "vendor_credit", credit)),
+		vbLineWant(t, b.app, vbDocLine(t, b, refund), "Vendor refund", apRoute(t, b.app, "vendor_refund", refund)),
+		vbLineWant(t, b.app, entryLineOn(t, b.app, manual.Id, b.payable), "Journal entry", "books/entries/"+urlKey(t, b.app, manual)),
 	}
 	for i, want := range []struct {
 		day   string
@@ -905,8 +905,8 @@ func TestVendorBalanceDetail(t *testing.T) {
 
 	sameDayWant := func(first, second *core.Record) []cbLine {
 		return []cbLine{
-			vbLineWant(t, b.app, entryLineOn(t, b.app, first.Id, b.payable), "Journal entry", "books/entries/"+first.Id),
-			vbLineWant(t, b.app, entryLineOn(t, b.app, second.Id, b.payable), "Journal entry", "books/entries/"+second.Id),
+			vbLineWant(t, b.app, entryLineOn(t, b.app, first.Id, b.payable), "Journal entry", "books/entries/"+urlKey(t, b.app, first)),
+			vbLineWant(t, b.app, entryLineOn(t, b.app, second.Id, b.payable), "Journal entry", "books/entries/"+urlKey(t, b.app, second)),
 		}
 	}
 	requireLines(res, vbVendorRow(t, res, sameDay), sameDayWant(madeSecond, madeFirst))
@@ -917,8 +917,8 @@ func TestVendorBalanceDetail(t *testing.T) {
 	}
 	slices.SortFunc(splitLines, func(x, y *core.Record) int { return x.GetInt("position") - y.GetInt("position") })
 	splitWant := []cbLine{
-		vbLineWant(t, b.app, splitLines[0], "Journal entry", "books/entries/"+splitEntry.Id),
-		vbLineWant(t, b.app, splitLines[1], "Journal entry", "books/entries/"+splitEntry.Id),
+		vbLineWant(t, b.app, splitLines[0], "Journal entry", "books/entries/"+urlKey(t, b.app, splitEntry)),
+		vbLineWant(t, b.app, splitLines[1], "Journal entry", "books/entries/"+urlKey(t, b.app, splitEntry)),
 	}
 	if !strings.HasSuffix(splitWant[0].Label, " · Line memo wins") || !strings.HasSuffix(splitWant[1].Label, " · Split entry memo") {
 		t.Fatalf("Split Co's wanted labels %q, %q: the first reads its line's memo, the second its entry's", splitWant[0].Label, splitWant[1].Label)
@@ -931,8 +931,8 @@ func TestVendorBalanceDetail(t *testing.T) {
 		t.Fatalf("no No vendor row in the opened run; rows %q", bsLabels(res))
 	}
 	requireLines(res, openNone, []cbLine{
-		vbLineWant(t, b.app, entryLineOn(t, b.app, noneCredit.Id, b.payable), "Journal entry", "books/entries/"+noneCredit.Id),
-		vbLineWant(t, b.app, entryLineOn(t, b.app, noneDebit.Id, b.payable), "Journal entry", "books/entries/"+noneDebit.Id),
+		vbLineWant(t, b.app, entryLineOn(t, b.app, noneCredit.Id, b.payable), "Journal entry", "books/entries/"+urlKey(t, b.app, noneCredit)),
+		vbLineWant(t, b.app, entryLineOn(t, b.app, noneDebit.Id, b.payable), "Journal entry", "books/entries/"+urlKey(t, b.app, noneDebit)),
 	})
 
 	// The other posting order flips the same-day lines.
@@ -1110,7 +1110,7 @@ func TestVendorBalanceShippedShared(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "Vendor Balance" || row.GetInt("shipped_revision") != 1 || row.GetString("source") != "books.journal_lines" {
+	if row.GetString("title") != "Vendor Balance" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.journal_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {

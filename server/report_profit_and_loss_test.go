@@ -279,7 +279,7 @@ func TestProfitAndLossSpecLoads(t *testing.T) {
 	if shipped.Description != "Income and expenses for a period, and what is left." {
 		t.Errorf("description = %q, want the hub text without \"on the accrual basis\"", shipped.Description)
 	}
-	if shipped.Revision != 3 || !shipped.Unpublished {
+	if shipped.Revision != 4 || !shipped.Unpublished {
 		t.Errorf("revision %d, unpublished %v; want revision 3 (the Method param), shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	if !jsonEqual(t, shipped.Spec, string(mustJSON(profitAndLossSpec()))) {
@@ -829,7 +829,7 @@ func TestProfitAndLossShippedShared(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "Profit and Loss" || row.GetInt("shipped_revision") != 3 || row.GetString("source") != "books.basis_lines" {
+	if row.GetString("title") != "Profit and Loss" || row.GetInt("shipped_revision") != 4 || row.GetString("source") != "books.basis_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {
@@ -851,7 +851,7 @@ func TestProfitAndLossLineOpens(t *testing.T) {
 	if len(lines) != 1 {
 		t.Fatalf("Rent or lease's opened lines = %v, want one", plRowTexts(lines))
 	}
-	if want := "books/entries/" + entry.Id; lines[0].Open != want {
+	if want := "books/entries/" + urlKey(t, b.app, entry); lines[0].Open != want {
 		t.Errorf("the opened line opens %q, want %q", lines[0].Open, want)
 	}
 	for _, r := range open.Rows {

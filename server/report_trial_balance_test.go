@@ -260,7 +260,7 @@ func TestTrialBalanceSpecLoads(t *testing.T) {
 	if shipped.Description != "Each account's balance on one day, as a debit or a credit." {
 		t.Errorf("description = %q", shipped.Description)
 	}
-	if shipped.Revision != 3 || !shipped.Unpublished {
+	if shipped.Revision != 4 || !shipped.Unpublished {
 		t.Errorf("revision %d, unpublished %v; want revision 3 (the stored months), shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	built, err := json.Marshal(trialBalanceSpec())
@@ -844,7 +844,7 @@ func TestTrialBalanceShippedUnpublished(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "Trial Balance" || row.GetInt("shipped_revision") != 3 || row.GetString("source") != "books.journal_lines" {
+	if row.GetString("title") != "Trial Balance" || row.GetInt("shipped_revision") != 4 || row.GetString("source") != "books.journal_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 }
@@ -871,7 +871,7 @@ func TestTrialBalanceLineOpens(t *testing.T) {
 	if len(lines) != 1 {
 		t.Fatalf("Supplies' opened lines = %v, want one", labelsOf(lines))
 	}
-	if want := "books/entries/" + entry.Id; lines[0].Open != want {
+	if want := "books/entries/" + urlKey(t, b.app, entry); lines[0].Open != want {
 		t.Errorf("the opened line opens %q, want %q", lines[0].Open, want)
 	}
 	for _, r := range open.Rows {

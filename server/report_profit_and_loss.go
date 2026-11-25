@@ -17,7 +17,7 @@ func profitAndLossShipped() reports.Shipped {
 		// 2: opened lines open the transaction that posted them (detail.open),
 		// and its figures open Transaction Detail by Account (drill).
 		// 3: the Method param (Accrual or Cash) over books.basis_lines.
-		Revision:    3,
+		Revision:    4,
 		Unpublished: true,
 		// It reads books.basis_lines, a source that is NotLive. Its rows are
 		// sums per account, and an opened account reads only its own lines,

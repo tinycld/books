@@ -115,7 +115,7 @@ func TestTransactionDetailSpecLoads(t *testing.T) {
 	if shipped.Description != "Posted lines of chosen accounts for a period, grouped by account." {
 		t.Errorf("description = %q", shipped.Description)
 	}
-	if shipped.Revision != 2 || !shipped.Unpublished {
+	if shipped.Revision != 3 || !shipped.Unpublished {
 		t.Errorf("revision %d, unpublished %v; want revision 2 (the Method param), shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	if !jsonEqual(t, shipped.Spec, string(mustJSON(transactionDetailSpec()))) {
@@ -671,7 +671,7 @@ func TestTransactionDetailPostersHaveRoutes(t *testing.T) {
 }
 
 // Bank deposit spec §3.7: Transaction Detail lists a deposit's line with Type
-// "Deposit" and its number, and the line opens books/deposits/<id>.
+// "Deposit" and its number, and the line opens books/deposits/<number>.
 func TestTransactionDetail_ADepositReadsItsTypeAndOpensTheDeposit(t *testing.T) {
 	p := tdDocumentPosters["deposit"](t)
 	res := tdRun(t, p.app, p.reader, map[string]any{"period": glAllDates})
@@ -679,7 +679,7 @@ func TestTransactionDetail_ADepositReadsItsTypeAndOpensTheDeposit(t *testing.T) 
 	if got, want := [2]string{textCell(t, row, "type"), textCell(t, row, "number")}, [2]string{"Deposit", "1001"}; got != want {
 		t.Errorf("the deposit's line type/number = %v, want %v", got, want)
 	}
-	if want := "books/deposits/" + p.document; row.Open != want {
+	if want := "books/deposits/1001"; row.Open != want {
 		t.Errorf("the deposit's line opens %q, want %q", row.Open, want)
 	}
 }
@@ -719,7 +719,7 @@ func TestTransactionDetailOpenPaths(t *testing.T) {
 			}
 			res := tdRun(t, p.app, p.reader, map[string]any{"period": glAllDates})
 			row := lineRow(t, res, entryLineOn(t, p.app, p.entry, p.account))
-			if want := "books/" + routes[docType] + "/" + p.document; row.Open != want {
+			if want := "books/" + routes[docType] + "/" + urlKey(t, p.app, entry); row.Open != want {
 				t.Errorf("the %s line opens %q, want %q", docType, row.Open, want)
 			}
 			requireOnlyDetailsOpen(t, res)
@@ -749,9 +749,9 @@ func TestTransactionDetailOpenPaths(t *testing.T) {
 			account *core.Record
 			want    string
 		}{
-			{"the journal entry's line", journal.Id, pe.equipment, "books/entries/" + journal.Id},
-			{"the transfer's line", transfer.Id, pe.checking, "books/transfers/" + transfer.Id},
-			{"the bill's void reversal line", voidReversal.Id, pe.software, "books/entries/" + voidReversal.Id},
+			{"the journal entry's line", journal.Id, pe.equipment, "books/entries/" + urlKey(t, pe.app, journal)},
+			{"the transfer's line", transfer.Id, pe.checking, "books/transfers/" + urlKey(t, pe.app, transfer)},
+			{"the bill's void reversal line", voidReversal.Id, pe.software, "books/entries/" + urlKey(t, pe.app, voidReversal)},
 		} {
 			if got := lineRow(t, res, entryLineOn(t, app, w.entry, w.account)).Open; got != w.want {
 				t.Errorf("%s opens %q, want %q", w.what, got, w.want)
@@ -792,7 +792,7 @@ func TestTransactionDetailShippedShared(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "Transaction Detail by Account" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.basis_lines" {
+	if row.GetString("title") != "Transaction Detail by Account" || row.GetInt("shipped_revision") != 3 || row.GetString("source") != "books.basis_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {

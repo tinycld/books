@@ -17,7 +17,7 @@ func salesTaxLiabilityShipped() reports.Shipped {
 		Spec:        mustJSON(salesTaxLiabilitySpec()),
 		// Revision 2: the Method param (pay-bills spec §3.10, Q3).
 		// Revision 3: credit memos (credit memo spec §3.11, Q17).
-		Revision:    3,
+		Revision:    4,
 		Unpublished: true,
 	}
 }
@@ -95,8 +95,19 @@ func byDocumentKind(value func(kind, noun string) *reports.Node) *reports.Node {
 // rows carry it: rate, agency and total rows open nothing. The route segments
 // come from entry_routes.json, the one list of document screens.
 func stlDetailOpen() *reports.Node {
+	// The document's URL key (lib/record-key.ts): its number without the prefix
+	// when it is posted, else its id. A document a correction replaced is void,
+	// and shares its number with the correction.
+	key := op("case",
+		op("and",
+			op("eq", fld("document", "status"), lit(statusPosted)),
+			op("gt", fld("document", "sequence"), lit(0)),
+		),
+		op("concat", fld("document", "sequence")),
+		fld("document", "id"),
+	)
 	return byDocumentKind(func(kind, _ string) *reports.Node {
-		return op("concat", lit("books/"+entryRoutes[kind]+"/"), fld("document", "id"))
+		return op("concat", lit("books/"+entryRoutes[kind]+"/"), key)
 	})
 }
 

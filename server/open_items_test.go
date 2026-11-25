@@ -101,8 +101,8 @@ func TestARAgingSpecKeepsItsJSON(t *testing.T) {
 	if string(got) != string(want) {
 		t.Errorf("the A/R Aging spec JSON changed:\n got %s\nwant %s", got, want)
 	}
-	if rev := arAgingShipped().Revision; rev != 1 {
-		t.Errorf("arAgingShipped().Revision = %d, want 1", rev)
+	if rev := arAgingShipped().Revision; rev != 2 {
+		t.Errorf("arAgingShipped().Revision = %d, want 2", rev)
 	}
 }
 

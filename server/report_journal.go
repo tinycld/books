@@ -15,7 +15,7 @@ func journalShipped() reports.Shipped {
 		Description: "Every posted entry with its debit and credit lines, for a period.",
 		Spec:        mustJSON(journalSpec()),
 		// 2: lines open the transaction that posted them (detail.open).
-		Revision:    2,
+		Revision:    3,
 		Unpublished: true,
 	}
 }
