@@ -28,7 +28,7 @@ import (
 //     posted entry, on the credit and on the bill.
 //
 // Every write that changes a document's entries or payments rebuilds that
-// document's rows in its own transaction (rebuildCashBasisFor); the ledger
+// document's rows in its own transaction (rebuildCashBasisOf); the ledger
 // rebuild recomputes every document (rebuildCashBasis). Nothing else writes the
 // rows, but for the copies of their entry's card mark and doc type, which
 // follow a change of the entry (copyEntryToRows, lines.go). The rows exist
@@ -558,13 +558,8 @@ func syncCashLineRows(tx core.App, d cashDeferral, docID string, months map[bala
 	return len(stray) + len(missing), nil
 }
 
-// rebuildCashBasisFor rebuilds one document's cash-basis rows inside the
-// transaction of the write that changed its entries or its payments.
-func rebuildCashBasisFor(tx core.App, kind cashDeferral, docID string) error {
-	return syncCashDocuments(tx, kind, docID)
-}
-
-// rebuildCashBasisOf rebuilds the rows of each document of collection; a
+// rebuildCashBasisOf rebuilds the rows of each document of collection inside
+// the transaction of the write that changed their entries or their payments; a
 // collection that is not deferred has none.
 func rebuildCashBasisOf(tx core.App, collection string, docIDs ...string) error {
 	d, ok := cashDeferralOf(collection)

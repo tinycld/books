@@ -386,8 +386,11 @@ func shiftDocumentBalances(tx core.App, kind balanceKind, paymentID string, sign
 
 // markPaymentShift marks the document whose balance a payment's post, void or
 // correction moves (shiftDocumentBalances). The payment's own update stores
-// the open-item rows of its lines, so the document's refresh hook skips that
-// balance save: no open-item row reads a balance.
+// the open-item rows of its lines, so the invoice refresh hook
+// (bindReceivableInvoiceRefresh) and the bill refresh hook
+// (bindPayableBillRefresh) skip that balance save: no open-item row reads a
+// balance. Refund receipts and vendor refunds set the mark too, on the credit
+// memos and vendor credits they refund, but no hook reads it for those kinds.
 func markPaymentShift(tx core.App, kind balanceKind, docID string) func() {
 	return setTxMark(tx, kind.Noun+".payment_shift", docID)
 }

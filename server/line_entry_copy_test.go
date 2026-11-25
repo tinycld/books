@@ -246,7 +246,7 @@ func TestLineEntryCopy_TheRebuildReplacesAStaleCopy(t *testing.T) {
 		t.Fatalf("make a cash row's copy stale: %v", err)
 	}
 	if err := b.app.RunInTransaction(func(tx core.App) error {
-		return rebuildCashBasisFor(tx, billCashDeferral, billID)
+		return rebuildCashBasisOf(tx, billKind.Collection, billID)
 	}); err != nil {
 		t.Fatalf("rebuild the bill's cash rows: %v", err)
 	}

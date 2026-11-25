@@ -79,3 +79,43 @@ func TestBatchCost_PaymentPostRefreshesNoInvoiceReceivables(t *testing.T) {
 		t.Fatalf("%d statements refresh the receivable rows of an invoice in the post of a payment of 50 invoices, want 0", n)
 	}
 }
+
+// isPayableBillRefresh matches the reads and writes of the stored payable rows
+// of one bill (refreshPayableBill).
+func isPayableBillRefresh(statement string) bool {
+	return strings.Contains(statement, "FROM books_payable_items WHERE (item = ")
+}
+
+// The post and the void of a bill payment move the balance of each bill it
+// pays. A payable row reads no balance, and the payment's own update stores
+// its lines on every bill (refreshPayablePayment), so those balance saves
+// store no payable row of the bill again.
+func TestBatchCost_BillPaymentPostAndVoidRefreshNoBillPayables(t *testing.T) {
+	const bills = 50
+	env := newBillPayEnv(t)
+	ids := make([]string, bills)
+	for i := range ids {
+		ids[i] = env.postedBill(t, env.summit, 100).Id
+	}
+	const payment = "clibillpaycost1"
+	ops := []string{cliOp("POST", "books_bill_payments", "", fmt.Sprintf(`{"date":"2026-11-10","id":%q,"paid_from":%q,"payment_method":"check","status":"posted","vendor":%q}`,
+		payment, env.checking1000.Id, env.summit.Id))}
+	for position, id := range ids {
+		ops = append(ops, rowOp("books_bill_payment_lines", "payment", payment, position, fmt.Sprintf(`"amount":100,"bill":%q`, id)))
+	}
+	token := tokenFor(t, env.users.bookkeeper)
+	_, post := statementsOf(t, env.app, apiReq{
+		method: http.MethodPost, url: "/api/batch", token: token, body: batchBody(ops...), want: http.StatusOK,
+	})
+	requireNoDrift(t, env.app)
+	_, void := statementsOf(t, env.app, apiReq{
+		method: http.MethodPatch, url: recordURL("books_bill_payments", payment), token: token, body: `{"status":"void"}`, want: http.StatusOK,
+	})
+	requireNoDrift(t, env.app)
+	if n := countMatching(post, isPayableBillRefresh); n != 0 {
+		t.Errorf("%d statements refresh the payable rows of a bill in the post of a bill payment of %d bills, want 0", n, bills)
+	}
+	if n := countMatching(void, isPayableBillRefresh); n != 0 {
+		t.Errorf("%d statements refresh the payable rows of a bill in the void of a bill payment of %d bills, want 0", n, bills)
+	}
+}
