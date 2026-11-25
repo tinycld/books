@@ -72,11 +72,14 @@ export async function recordIdOfKey(page: Page, route: string, key: string): Pro
     if (parsed.kind === 'id') return parsed.id
     const collection = collectionOf(route)
     const docType = ENTRY_ROUTE_TYPES[route]
+    // A void entry keeps its number on the screen that showed it (the route keeps the
+    // record it first read), so an entry's number names the posted entry, else the void one.
     const filter = docType
-        ? `doc_type="${docType}" && sequence=${parsed.sequence} && status="posted" && origin!="void_reversal"`
+        ? `doc_type="${docType}" && sequence=${parsed.sequence} && origin!="void_reversal"`
         : `sequence=${parsed.sequence}`
     const rows = await readRows(page, collection, filter)
-    const row = rows.find(r => !r.replaced_by) ?? rows[0]
+    const row =
+        rows.find(r => r.status === 'posted') ?? rows.find(r => !r.replaced_by) ?? rows[0]
     if (!row) throw new Error(`no ${collection} row with sequence ${parsed.sequence}`)
     return row.id
 }

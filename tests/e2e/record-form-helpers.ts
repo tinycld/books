@@ -468,18 +468,13 @@ export function recordFormHelpers(kind: RecordKind) {
         // A fresh page may reopen Books at its last route (the list, a record, or any other
         // Books screen, such as a document), and pressing the nav item over the list or a
         // record would stack a second screen. On a wide window the sidebar's Lists item shows
-        // that Books is up on any screen; the steps below reach the list from there.
+        // that Books is up on any screen; the steps below reach the list from there. Not on a
+        // phone: the closed drawer is off screen, and Playwright still counts its items as
+        // visible, before the screen under it has rendered.
+        const landed = list.or(pageBack).or(panelClose).or(notFoundBack).or(listCard).or(dashboard)
         const sidebarLists = page.getByTestId('books-nav-lists').filter({ visible: true })
-        await expect(
-            list
-                .or(pageBack)
-                .or(panelClose)
-                .or(notFoundBack)
-                .or(listCard)
-                .or(dashboard)
-                .or(sidebarLists)
-                .first()
-        ).toBeAttached()
+        const ready = isPhone(page) ? landed : landed.or(sidebarLists)
+        await expect(ready.first()).toBeAttached()
 
         // The URL and the record's screen do not change together. A record arriving: the
         // list renders before the record's screen over it (a lazy route). A record leaving
