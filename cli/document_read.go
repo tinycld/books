@@ -21,6 +21,9 @@ func newDocumentCmd(c *client.Client, doc *document) *cobra.Command {
 		newDocumentShowCmd(c, doc),
 		newDocumentAddCmd(c, doc),
 	)
+	for i := range doc.Views {
+		group.AddCommand(newViewListCmd(c, &doc.Views[i]))
+	}
 	switch doc.Lifecycle {
 	case lifecycleQuote:
 		group.AddCommand(newDocumentEditCmd(c, doc), newQuoteAcceptCmd(c, doc), newQuoteStatusCmd(c, doc, quoteReject), newQuoteStatusCmd(c, doc, quoteReopen), newQuoteDeleteCmd(c, doc))

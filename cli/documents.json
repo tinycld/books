@@ -830,6 +830,44 @@
                 { "name": "replaces", "type": "id", "ref": "deposits", "readOnly": true, "help": "the deposit this one corrects; `edit` of a posted deposit sets it" },
                 { "name": "replaced_by", "type": "id", "ref": "deposits", "readOnly": true, "help": "the deposit that corrects this one" }
             ],
+            "views": [
+                {
+                    "word": "undeposited",
+                    "long": "List the money that waits in Undeposited funds and that a deposit can take: every posted line on an Undeposited funds account that no posted deposit holds.\n\n`line` of a row is the value for `{\"line\": \"<line>\"}` of an item of `deposits add` (it is also the `id` of the row). A row shows what the person who pays is named by: the customer or the vendor, the payment method and the reference number (a check number). The rows are in the order of the deposit form: by date, then by number.\n\n  tinycld books deposits undeposited --customer <customer id>\n  tinycld books deposits undeposited --search 4411 --json",
+                    "name": "undeposited items",
+                    "singular": "undeposited item",
+                    "summary": "List the money in Undeposited funds that a deposit can take",
+                    "collection": "books_undeposited_items",
+                    "sort": "date,number,id",
+                    "label": "number",
+                    "columns": ["date", "doc_type", "number", "customer", "vendor", "amount", "payment_method", "reference_no", "line"],
+                    "search": ["number", "reference_no", "memo"],
+                    "filters": [
+                        { "flag": "customer", "field": "customer", "help": "only the money of the customer with this id" },
+                        { "flag": "vendor", "field": "vendor", "help": "only the money of the vendor with this id (a vendor refund)" },
+                        { "flag": "account", "field": "account", "help": "only the money on the Undeposited funds account with this id" },
+                        { "flag": "doc-type", "field": "doc_type", "help": "only the money from this type of transaction: payment, sales_receipt, vendor_refund, refund_receipt, journal or transfer" },
+                        { "flag": "payment-method", "field": "payment_method", "help": "only the money paid this way, for example check or cash" }
+                    ],
+                    "omit": [],
+                    "fields": [
+                        { "name": "line", "type": "id", "ref": "journal-entries.lines", "readOnly": true, "help": "the id of the journal line that holds the money: the value for `line` of an item of a deposit" },
+                        { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry of the line" },
+                        { "name": "account", "type": "id", "ref": "accounts", "readOnly": true, "help": "the Undeposited funds account of the line" },
+                        { "name": "date", "type": "string", "readOnly": true, "help": "the date of the line's journal entry, as YYYY-MM-DD" },
+                        { "name": "doc_type", "type": "string", "readOnly": true, "enum": ["journal", "transfer", "invoice", "sales_receipt", "bill", "expense", "payment", "bill_payment", "credit_memo", "vendor_credit", "vendor_refund", "refund_receipt", "write_off", "deposit", "inventory_adjustment"], "help": "the type of the transaction that received the money, such as payment or sales_receipt" },
+                        { "name": "origin", "type": "string", "readOnly": true, "enum": ["manual", "reversal", "auto_reversal", "void_reversal", "opening_balance", "document"], "help": "how the journal entry was made" },
+                        { "name": "number", "type": "string", "readOnly": true, "help": "the number of that transaction" },
+                        { "name": "document", "type": "string", "readOnly": true, "help": "the id of that transaction" },
+                        { "name": "customer", "type": "id", "ref": "customers", "readOnly": true, "help": "the customer of the line" },
+                        { "name": "vendor", "type": "id", "ref": "vendors", "readOnly": true, "help": "the vendor of the line" },
+                        { "name": "amount", "type": "integer", "readOnly": true, "help": "the amount of the line, in cents" },
+                        { "name": "payment_method", "type": "string", "readOnly": true, "help": "how the money was paid; empty for a journal entry or a transfer" },
+                        { "name": "reference_no", "type": "string", "readOnly": true, "help": "the check number or another reference of the money" },
+                        { "name": "memo", "type": "string", "readOnly": true, "help": "the memo of the line" }
+                    ]
+                }
+            ],
             "lines": [
                 {
                     "key": "items",

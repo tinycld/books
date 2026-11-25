@@ -157,7 +157,11 @@ func TestDepositAndVendorRefundInputIsCheckedBeforeItIsSent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := strings.Join(subcommandNames(group), ","); got != "add,delete,edit,entry,list,post,show,void" {
+		want := "add,delete,edit,entry,list,post,show,void"
+		if name == "deposits" {
+			want = "add,delete,edit,entry,list,post,show,undeposited,void"
+		}
+		if got := strings.Join(subcommandNames(group), ","); got != want {
 			t.Errorf("%s: commands = %s", name, got)
 		}
 	}

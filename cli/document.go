@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -140,7 +141,47 @@ type document struct {
 	// Convert says how `convert` makes a document of another type from one of
 	// this type. nil: the type has no `convert` command.
 	Convert *conversion `json:"convert"`
-	Lines   []lineTable `json:"lines"`
+	// Views are read-only lists of a view collection that serve the type: each
+	// is one more list command of the group.
+	Views []listView  `json:"views"`
+	Lines []lineTable `json:"lines"`
+}
+
+// listView is a list of a view collection, as a command word of a document's
+// group (`deposits undeposited`). The list engine reads it as a resource.
+type listView struct {
+	resource
+	// Word is the command word.
+	Word string `json:"word"`
+	// Long is the help text of the command; the paging text follows it.
+	Long string `json:"long"`
+}
+
+// viewWord is what a command word of a view may be.
+var viewWord = regexp.MustCompile(`^[a-z][a-z-]*$`)
+
+func checkViews(doc *document, names map[string]bool) error {
+	words := map[string]bool{}
+	for i := range doc.Views {
+		view := &doc.Views[i]
+		if view.Word == "" || view.Long == "" {
+			return fmt.Errorf("a view needs a word and a long help text")
+		}
+		if !viewWord.MatchString(view.Word) {
+			return fmt.Errorf("word %q must be lower-case letters and -", view.Word)
+		}
+		if view.Word == "list" {
+			return fmt.Errorf("word %q is the list command", view.Word)
+		}
+		if words[view.Word] {
+			return fmt.Errorf("word %q is used twice", view.Word)
+		}
+		words[view.Word] = true
+		if err := checkResource(&view.resource, names); err != nil {
+			return fmt.Errorf("view %q: %w", view.Word, err)
+		}
+	}
+	return nil
 }
 
 // conversion is the rule of a `convert` command.
@@ -276,6 +317,9 @@ func loadDocuments(data []byte) ([]document, error) {
 
 func checkDocument(doc *document, names map[string]bool) error {
 	if err := checkResource(&doc.resource, names); err != nil {
+		return err
+	}
+	if err := checkViews(doc, names); err != nil {
 		return err
 	}
 	status := doc.field("status")

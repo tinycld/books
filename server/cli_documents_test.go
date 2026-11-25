@@ -37,6 +37,7 @@ type cliDocument struct {
 	Fixed     map[string]string `json:"fixed"`
 	Entry     string            `json:"entry"`
 	Lines     []cliLineTable    `json:"lines"`
+	Views     []cliResource     `json:"views"`
 }
 
 func loadCLIDocuments(t testing.TB) []cliDocument {
@@ -139,6 +140,9 @@ func TestCLIDocuments_MatchTheCollections(t *testing.T) {
 		if requireCLIFields(t, app, doc.Name, doc.Collection, doc.Fields, doc.Omit, collectionOf) == nil {
 			continue
 		}
+		for _, view := range doc.Views {
+			requireCLIFields(t, app, doc.Name+" "+view.Name, view.Collection, view.Fields, view.Omit, collectionOf)
+		}
 		for _, table := range doc.Lines {
 			label := doc.Name + "." + table.Key
 			col := requireCLIFields(t, app, label, table.Collection, table.Fields, table.Omit, collectionOf)
@@ -185,6 +189,9 @@ func TestCLIDocuments_OAuthAllowsEveryCollection(t *testing.T) {
 	}
 	for _, doc := range loadCLIDocuments(t) {
 		check(doc.Name, doc.Collection, true)
+		for _, view := range doc.Views {
+			check(doc.Name+" "+view.Name, view.Collection, false)
+		}
 		for _, table := range doc.Lines {
 			check(doc.Name+"."+table.Key, table.Collection, !table.ReadOnly)
 		}

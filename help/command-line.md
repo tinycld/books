@@ -132,7 +132,7 @@ echo '{"vendor": "<vendor id>", "date": "2026-07-22", "refunded_to": "<bank acco
 
 ## To make a bank deposit
 
-A deposit has `items` and `lines`. An item is money that waits in Undeposited funds: `line` is the id of the journal line that put it there. To find it, print the journal entry of the payment with `tinycld books payments entry <id>`: each line has an `id`, and the line on the Undeposited funds account is the one. A line is other money in the deposit, such as a bank fee (an amount below zero) or interest.
+A deposit has `items` and `lines`. An item is money that waits in Undeposited funds: `line` is the id of the journal line that put it there. To find it, list the money that a deposit can take with `tinycld books deposits undeposited`: it shows each posted line on an Undeposited funds account that no posted deposit holds, with its date, type, number, customer or vendor, amount, payment method and reference number (a check number), and its `line`. It takes `--customer`, `--vendor`, `--account`, `--doc-type`, `--payment-method` and `--search` to narrow the list. The other way is to print the journal entry of one payment with `tinycld books payments entry <id>`: each line has an `id`, and the line on the Undeposited funds account is the one. A line is other money in the deposit, such as a bank fee (an amount below zero) or interest.
 
 ```
 echo '{"date": "2026-07-22", "deposit_to": "<bank account id>",

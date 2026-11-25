@@ -237,6 +237,11 @@ func fieldsOf(collection string) []field {
 		if documents[i].Collection == collection {
 			return documents[i].Fields
 		}
+		for j := range documents[i].Views {
+			if documents[i].Views[j].Collection == collection {
+				return documents[i].Views[j].Fields
+			}
+		}
 		for j := range documents[i].Lines {
 			if documents[i].Lines[j].Collection == collection {
 				return documents[i].Lines[j].Fields

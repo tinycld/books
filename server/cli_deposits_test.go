@@ -2,8 +2,57 @@ package books
 
 import (
 	"fmt"
+	"net/url"
 	"testing"
 )
+
+// undepositedURL is the read of `deposits undeposited`, as the command sends it
+// (the request of TestUndepositedFilters in cli/document_undeposited_test.go):
+// the sort of the deposit form, the first page of 200, and a filter the list
+// engine binds.
+func undepositedURL(filter string) string {
+	q := url.Values{}
+	if filter != "" {
+		q.Set("filter", filter)
+	}
+	q.Set("sort", "date,number,id")
+	q.Set("page", "1")
+	q.Set("perPage", "200")
+	return "/api/collections/books_undeposited_items/records?" + q.Encode()
+}
+
+// `deposits undeposited` through the real API with a bookkeeper's token: the
+// money of a posted deposit leaves the list, the rest stays, and the id of a row
+// is the id of its journal line. Money is posted as journal entries on
+// Undeposited funds, which put the same rows in the view as a payment does.
+func TestCLIDocuments_UndepositedListsWhatADepositCanTake(t *testing.T) {
+	env := newDepositEnv(t)
+	enableBatch(t, env.app)
+	token := tokenFor(t, env.users.bookkeeper)
+	const deposits, items = "books_deposits", "books_deposit_items"
+	taken := env.undepositedItem(t, env.undeposited, depositItemDay, 30000, "Check 1").Id
+	left := env.undepositedItem(t, env.undeposited, depositItemDay, 20000, "Check 2").Id
+	const id = "clideposit00001"
+	apiSeq(t, env.app,
+		apiReq{method: "GET", url: undepositedURL(""), token: token, want: 200,
+			content: []string{`"totalItems":2`, `"line":"` + taken + `"`, `"line":"` + left + `"`}},
+		// The batch of `deposits add --post` with one item.
+		docBatch(token,
+			cliOp("POST", deposits, "", fmt.Sprintf(`{"date":"2026-11-16","deposit_to":%q,"id":%q,"memo":"Week 46","status":"draft"}`, env.checking.Id, id)),
+			rowOp(items, "deposit", id, 0, fmt.Sprintf(`"line":%q`, taken)),
+			cliOp("PATCH", deposits, id, `{"status":"posted"}`)),
+		apiReq{method: "GET", url: undepositedURL(""), token: token, want: 200,
+			content: []string{`"totalItems":1`, `"id":"` + left + `"`, `"line":"` + left + `"`, `"amount":20000`, `"doc_type":"journal"`, `"payment_method":""`, `"reference_no":""`}},
+		// The filters of the command, bound as it binds them.
+		apiReq{method: "GET", url: undepositedURL(fmt.Sprintf(`customer = %q && doc_type = "journal"`, env.customer.Id)), token: token, want: 200,
+			content: []string{`"totalItems":1`, `"line":"` + left + `"`}},
+		apiReq{method: "GET", url: undepositedURL(fmt.Sprintf(`account = %q`, env.undeposited2.Id)), token: token, want: 200, content: []string{`"totalItems":0`}},
+		apiReq{method: "GET", url: undepositedURL(`(number ~ "zzz" || reference_no ~ "zzz" || memo ~ "zzz")`), token: token, want: 200, content: []string{`"totalItems":0`}},
+		apiReq{method: "GET", url: undepositedURL(`(number ~ "x" || reference_no ~ "x" || memo ~ "Check 2")`), token: token, want: 200, content: []string{`"totalItems":1`}},
+		// A quote in a value is a value: the filter is read and matches nothing.
+		apiReq{method: "GET", url: undepositedURL(`customer = "x\" || id != \""`), token: token, want: 200, content: []string{`"totalItems":0`}},
+	)
+}
 
 // A vendor refund through the writes of its commands. It has no revision. The
 // bodies are those of cli/document_deposit_test.go, with the ids of this book.
