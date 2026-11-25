@@ -16,7 +16,7 @@ import (
 // checkFixed refuses a record that is not a document of this type: one whose
 // fixed values differ. `journal-entries show` prints the entry Books wrote for
 // an invoice; `journal-entries void` must not void it.
-func checkFixed(doc *document, rec record) error {
+func checkFixed(cmd *cobra.Command, doc *document, rec record) error {
 	names := make([]string, 0, len(doc.Fixed))
 	for name := range doc.Fixed {
 		names = append(names, name)
@@ -29,8 +29,31 @@ func checkFixed(doc *document, rec record) error {
 				return exitcode.New(exitcode.NotFound, fmt.Errorf("%s %s: not found: the record with this id has the %s %q, so it is not a %s",
 					doc.Singular, rec.id(), name, have, doc.Singular))
 			}
-			return refusedf("%s %s has the %s %q, not %q: Books made it for another transaction, so change that transaction",
-				doc.Singular, rec.id(), name, have, doc.Fixed[name])
+			next := "Books made it for another transaction, so change that transaction"
+			if owner := scopedOwner(doc, rec); owner != nil {
+				next = "it is a " + owner.Singular + ": use `" + cmd.Parent().Parent().CommandPath() + " " + owner.Name + " " + cmd.Name() + " " + rec.id() + "`"
+			}
+			return refusedf("%s %s has the %s %q, not %q: %s", doc.Singular, rec.id(), name, have, doc.Fixed[name], next)
+		}
+	}
+	return nil
+}
+
+// scopedOwner is the scoped type of the same collection whose fixed values the
+// record has (a transfer, for a journal entry), or nil. It is found from the
+// data of documents.json, not by a type's name.
+func scopedOwner(doc *document, rec record) *document {
+	for i := range documents {
+		owner := &documents[i]
+		if !owner.Scoped || owner.Collection != doc.Collection {
+			continue
+		}
+		matches := true
+		for name, want := range owner.Fixed {
+			matches = matches && rec.cell(name) == want
+		}
+		if matches {
+			return owner
 		}
 	}
 	return nil
@@ -168,7 +191,7 @@ func newDocumentEditCmd(c *client.Client, doc *document) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		if err := checkFixed(doc, current); err != nil {
+		if err := checkFixed(cmd, doc, current); err != nil {
 			return err
 		}
 		id, done, corrected := current.id(), "updated", false

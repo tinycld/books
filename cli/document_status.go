@@ -17,7 +17,7 @@ func fetchHeader(cmd *cobra.Command, c *client.Client, doc *document, id string)
 		return record{}, prefixID(&doc.resource, id, err)
 	}
 	rec := project(&doc.resource, raw)
-	return rec, checkFixed(doc, rec)
+	return rec, checkFixed(cmd, doc, rec)
 }
 
 // patchStatus sends one status change and prints the document the server then
@@ -112,7 +112,7 @@ func voidNextStep(doc *document, status, group string) string {
 func newDocumentDeleteCmd(c *client.Client, doc *document) *cobra.Command {
 	var cmd *cobra.Command
 	cmd = newGuardedDeleteCmd(c, &doc.resource, func(rec record) error {
-		if err := checkFixed(doc, rec); err != nil {
+		if err := checkFixed(cmd, doc, rec); err != nil {
 			return err
 		}
 		if status := rec.cell("status"); status != statusDraft {

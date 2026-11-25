@@ -177,9 +177,21 @@ func TestTransferCommandsDoNotReachAnotherJournalEntry(t *testing.T) {
 		}
 	}
 	// The other way stays a refusal: a transfer is not changed as a journal entry.
-	_, _, err = runCmd(t, f.serve(), "", "books", "journal-entries", "void", "transferposted1", "--yes", "--json")
-	if got := exitcode.Of(err); got != exitcode.Refused {
-		t.Errorf("journal-entries void of a transfer: exit = %d, err = %v", got, err)
+	// It names the command of the group that owns it.
+	for _, word := range []string{"void", "post", "delete", "edit"} {
+		args := []string{"books", "journal-entries", word, "transferposted1", "--yes", "--json"}
+		if word == "edit" {
+			args = append(args, "--input", "-")
+		}
+		_, _, err = runCmd(t, f.serve(), `{"memo": "x"}`, args...)
+		if got := exitcode.Of(err); got != exitcode.Refused || err == nil || !strings.Contains(err.Error(), "use `tinycld books transfers "+word+" transferposted1`") {
+			t.Errorf("journal-entries %s of a transfer: exit = %d, err = %v", word, got, err)
+		}
+	}
+	// A record of no scoped type has no group to name.
+	_, _, err = runCmd(t, f.serve(), "", "books", "journal-entries", "void", "entryinvoice001", "--yes", "--json")
+	if got := exitcode.Of(err); got != exitcode.Refused || err == nil || !strings.Contains(err.Error(), "so change that transaction") {
+		t.Errorf("journal-entries void of an invoice's entry: exit = %d, err = %v", got, err)
 	}
 }
 
