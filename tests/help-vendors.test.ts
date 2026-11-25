@@ -45,7 +45,7 @@ describe('help/vendors.md', () => {
     // The list-search sentence also names display name, company and email, so match the app-search sentence itself.
     it('explains finding a vendor from search', () => {
         expect(body.replace(/\s+/g, ' ')).toContain(
-            'use the app search. Search finds vendors by display name, company, email or legal name.'
+            'use the app search. Search finds vendors by code, display name, company, email or legal name.'
         )
     })
 
