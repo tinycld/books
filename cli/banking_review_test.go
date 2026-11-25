@@ -61,14 +61,30 @@ func TestBankingCategorizeATransferOfMoneyIn(t *testing.T) {
 	}
 }
 
+// checkInput lets an empty or null kind through (only a non-empty value is
+// checked against the enum), so the command sets the default itself.
+func TestBankingCategorizeDefaultsAnEmptyKind(t *testing.T) {
+	for _, kind := range []string{`"kind": "", `, `"kind": null, `, ``} {
+		f := reviewFake(t)
+		if _, _, err := runCmd(t, f.serve(), `{`+kind+`"account": "acctsupplies001"}`,
+			"books", "banking", "categorize", bankTxnDepot, "--input", "-", "--id", bankCatID); err != nil {
+			t.Fatalf("%q: %v", kind, err)
+		}
+		want := `{"bank_transaction":"` + bankTxnDepot + `","id":"` + bankCatID + `","kind":"categorize","lines":[{"account":"acctsupplies001","amount":8647}]}`
+		if got := sentJSON(f.lastCreate); got != want {
+			t.Errorf("%q: sent\n  %s\nwant\n  %s", kind, got, want)
+		}
+	}
+}
+
 // `banking split` sends the lines as the caller wrote them: it adds nothing up.
 func TestBankingSplit(t *testing.T) {
 	f := reviewFake(t)
-	input := `{"memo": "Supplies and a fee", "lines": [{"account": "acctsupplies001", "amount": 6000, "memo": "Paper"}, {"account": "acctfees0000001", "amount": 2000}]}`
+	input := `{"memo": "Supplies and a fee", "lines": [{"account": "acctsupplies001", "amount": 6000, "memo": "Paper"}, {"account": "acctfees0000001", "amount": 2647}]}`
 	if _, _, err := runCmd(t, f.serve(), input, "books", "banking", "split", bankTxnDepot, "--input", "-", "--id", bankCatID); err != nil {
 		t.Fatal(err)
 	}
-	want := `{"bank_transaction":"` + bankTxnDepot + `","id":"` + bankCatID + `","kind":"categorize","lines":[{"account":"acctsupplies001","amount":6000,"memo":"Paper"},{"account":"acctfees0000001","amount":2000}],"memo":"Supplies and a fee"}`
+	want := `{"bank_transaction":"` + bankTxnDepot + `","id":"` + bankCatID + `","kind":"categorize","lines":[{"account":"acctsupplies001","amount":6000,"memo":"Paper"},{"account":"acctfees0000001","amount":2647}],"memo":"Supplies and a fee"}`
 	if got := sentJSON(f.lastCreate); got != want {
 		t.Errorf("sent\n  %s\nwant\n  %s", got, want)
 	}

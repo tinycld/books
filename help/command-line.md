@@ -335,7 +335,7 @@ tinycld books banking import <file id>
 
 ## To add a bank transaction to Books
 
-When a bank transaction is not in Books yet, [categorize](help://books:bank-categorize) it: Books posts a journal entry between the connected account and the account that you name, and the transaction is reviewed.
+When a bank transaction is not in Books yet, [categorize](help://books:bank-categorize) it: Books posts a journal entry between the connected account and the account that you name, and the transaction is Reviewed.
 
 ```
 echo '{"account": "<expense account id>", "vendor": "<vendor id>", "memo": "Office supplies"}' | tinycld books banking categorize <id> --input -
