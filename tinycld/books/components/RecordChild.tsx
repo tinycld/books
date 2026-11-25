@@ -4,6 +4,7 @@ import { Button, ButtonText, ServerActionButton } from '@tinycld/core/ui/button'
 import { ConfirmDialog } from '@tinycld/core/ui/ConfirmDialog'
 import { FormRenderer } from '@tinycld/core/ui/forms'
 import { useEffect } from 'react'
+import { FormProvider } from 'react-hook-form'
 import { View } from 'react-native'
 import { useDetailSurface } from '../hooks/useDetailSurface'
 import type { useRecordForm } from '../hooks/useRecordForm'
@@ -36,23 +37,27 @@ export function RecordFormBody({
     rowClassName,
 }: RecordFormBodyProps) {
     const scroll = { rowClassName: rowClassName ?? formRowClassFor(surface) }
+    // A host field that fills a sibling (the name suggests the code) reads the form
+    // through `useFormContext`, as the document forms' fields do.
     return (
-        <View className="flex-1 pt-4">
-            <FormRenderer
-                layout="sections"
-                host={state.host}
-                ui={state.ui}
-                definition={definition}
-                form={state.form}
-                context={state.context}
-                recordId={state.recordId}
-                readOnly={state.readOnly}
-                schemaRef={state.schemaRef}
-                summary="root"
-                scroll={scroll}
-                testID={`${testIdPrefix}-form`}
-            />
-        </View>
+        <FormProvider {...state.form}>
+            <View className="flex-1 pt-4">
+                <FormRenderer
+                    layout="sections"
+                    host={state.host}
+                    ui={state.ui}
+                    definition={definition}
+                    form={state.form}
+                    context={state.context}
+                    recordId={state.recordId}
+                    readOnly={state.readOnly}
+                    schemaRef={state.schemaRef}
+                    summary="root"
+                    scroll={scroll}
+                    testID={`${testIdPrefix}-form`}
+                />
+            </View>
+        </FormProvider>
     )
 }
 

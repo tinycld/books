@@ -33,7 +33,7 @@ export function ProductCard({ product, height, onOpen, menu }: ProductCardProps)
                     </Text>
                     <InactiveLabel isVisible={product.inactive} />
                 </View>
-                <MutedLine testID={`product-card-code-${product.id}`} value={product.code} />
+                <MutedLine testID={`product-code-${product.id}`} value={product.code} />
                 <MutedLine value={productTypeLine(product)} />
                 <MutedLine value={product.sku} />
             </Pressable>

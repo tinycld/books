@@ -6,8 +6,10 @@ import {
     newRecordPath,
     openRecordFromPath,
     type RecordRoute,
+    recordKeyFromPath,
     recordPath,
 } from '../lib/record-route'
+import { useRecordIdForKey } from '../stores/route-key-store'
 
 // `keyOf` turns a record id into its URL key (a code); the open record is still matched
 // by id (record-route.ts reads a key back through the route-key store).
@@ -77,6 +79,10 @@ export function useIsShowingNewRecord(listPath: string) {
 
 // The record the URL opens under `listPath`; `openId` is its id, or '' when none or new.
 export function useOpenRecord(listPath: string) {
-    const open = openRecordFromPath(listPath, useUrl().pathname)
-    return { open, openId: open.kind === 'id' ? open.id : '' }
+    const { pathname } = useUrl()
+    const open = openRecordFromPath(listPath, pathname)
+    const { key, screenName } = recordKeyFromPath(listPath, pathname)
+    // Live, so the list marks the open record once its route read the id behind the key.
+    const openId = useRecordIdForKey(screenName, key)
+    return { open, openId: open.kind === 'id' ? openId : '' }
 }

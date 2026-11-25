@@ -84,9 +84,10 @@ export function useDocumentRouteId(
     return urlKey
 }
 
-// A route opened by a code follows its record's code: after the code changes (or when
-// it was typed in another case), the URL takes the record's code, so a reload and a
-// copied link open the record. A route opened by an id keeps the id.
+// A route opened by a code follows its record's code: after the code changes, the URL
+// takes the new code, so a reload and a copied link open the record. A code typed in
+// another case is the same code (the router does not tell the two paths apart), and a
+// route opened by an id keeps the id.
 function useFollowCode(collectionName: CodedCollectionName, key: string, id: string) {
     const [collection] = useStore(collectionName)
     const { data } = useLiveQuery({
@@ -96,7 +97,7 @@ function useFollowCode(collectionName: CodedCollectionName, key: string, id: str
     })
     const code = data?.[0]?.code ?? ''
     useEffect(() => {
-        if (code !== '' && code !== key) router.setParams({ id: code })
+        if (code !== '' && code !== key.toUpperCase()) router.setParams({ id: code })
     }, [code, key])
 }
 
