@@ -5,7 +5,7 @@ tags: [cli, command line, terminal, automation, scripts, agents, json, banking, 
 order: 62
 ---
 
-To work with your books from a terminal or a script, use the `tinycld` tool. Its `books` commands list, add, change and delete the lists of the books: accounts, customers, vendors, products and services, and sales tax. They also record transactions.
+To work with your books from a terminal or a script, use the `tinycld` tool. Its `books` commands list, add, change and delete the lists of the books: accounts, customers, vendors, products and services, and sales tax. They also record transactions, run reports, review bank transactions, reconcile an account, and show and adjust the stock of Inventory items.
 
 ## Before you start
 
@@ -82,6 +82,7 @@ Each type of transaction has its own group of commands:
 - `tinycld books vendor-refunds`: [vendor refunds](help://books:vendor-refunds), money that a vendor pays you back for vendor credits
 - `tinycld books deposits`: [bank deposits](help://books:bank-deposits), money that you move from Undeposited funds into a bank account
 - `tinycld books write-offs`: [write-offs](help://books:write-offs), the open balance of an invoice that the customer will not pay
+- `tinycld books inventory-adjustments`: [inventory adjustments](help://books:inventory), a change of the quantity or the value of the stock. It has no correction: see "To adjust inventory"
 
 ```
 tinycld books journal-entries list --status draft
