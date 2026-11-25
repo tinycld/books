@@ -427,12 +427,15 @@ func TestOAuth_LedgerIsReadWrite(t *testing.T) {
 	}
 }
 
-// A token that records transactions also connects bank accounts, uploads their statement files and imports them. TestOAuth_CoversEveryBooksCollection checks only that
-// a collection is listed, so this pins the access itself.
+// A token that records transactions also connects bank accounts, uploads their
+// statement files, imports them, and moves a bank transaction between For
+// review and Excluded (its update rule allows a writer nothing else).
+// TestOAuth_CoversEveryBooksCollection checks only that a collection is listed,
+// so this pins the access itself.
 func TestOAuth_BankCollectionsAreReadWrite(t *testing.T) {
 	collections := oauthPackage().Collections
 	want := oauth.Access{Read: []string{scopeRead}, Write: []string{scopeWrite}}
-	for _, c := range []string{"books_bank_connections", "books_bank_files", "books_bank_imports"} {
+	for _, c := range []string{"books_bank_connections", "books_bank_files", "books_bank_imports", "books_bank_transactions"} {
 		got, ok := collections[c]
 		if !ok {
 			t.Errorf("%s has no OAuth entry", c)
@@ -444,12 +447,11 @@ func TestOAuth_BankCollectionsAreReadWrite(t *testing.T) {
 	}
 }
 
-// A file's parsed rows are written only by the server, and a person changes a
-// transaction only to move its status between For review and Excluded, so a
-// token reads them and never writes them.
+// A file's parsed rows are written only by the server, so a token reads them
+// and never writes them.
 func TestOAuth_BankRowsAreReadOnly(t *testing.T) {
 	collections := oauthPackage().Collections
-	for _, c := range []string{"books_bank_file_contents", "books_bank_transactions"} {
+	for _, c := range []string{"books_bank_file_contents"} {
 		got, ok := collections[c]
 		if !ok {
 			t.Errorf("%s has no OAuth entry", c)
