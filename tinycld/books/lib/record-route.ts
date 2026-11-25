@@ -1,3 +1,5 @@
+import { recordIdForKey } from '../stores/route-key-store'
+
 export type RecordRoute = { path: string; params?: Record<string, string> }
 
 export type OpenRecord = { kind: 'new' } | { kind: 'id'; id: string } | { kind: 'none' }
@@ -23,7 +25,9 @@ export function openRecordFromPath(listPath: string, pathname: string): OpenReco
     const segment = new RegExp(`/${listPath}/([^/]+)/?$`).exec(pathname)?.[1]
     if (!segment) return { kind: 'none' }
     if (segment === 'new') return { kind: 'new' }
-    return { kind: 'id', id: segment }
+    // The segment is the record's URL key; a number turns into the id its route read.
+    const screenName = `${listPath.replace(/^books\//, '')}/[id]`
+    return { kind: 'id', id: recordIdForKey(screenName, segment) }
 }
 
 // One record at a time in the child stack: opening another replaces the open one,

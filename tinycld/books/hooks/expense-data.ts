@@ -6,6 +6,7 @@ import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
 import { type EMPTY_EXPENSE_COLUMNS, expenseColumnsFrom } from '../lib/expense-columns'
 import { mergeRecoveries } from '../lib/live-recovery'
+import { documentKey } from '../lib/record-key'
 import { columnsOrThrow } from '../lib/record-save'
 import { EXPENSE_KIND } from '../lib/sales-document-kinds'
 import type { BooksExpenses } from '../types'
@@ -273,6 +274,10 @@ function useExpenseWrites(): DocumentWrites {
                 draft.revision = revision
             }),
         storedRevision: id => expensesCollection.get(id)?.revision,
+        storedKey: id => {
+            const row = expensesCollection.get(id)
+            return row ? documentKey(row) : id
+        },
         lineOps: (expenseId, mapper) =>
             purchaseLineOps(mapper, {
                 insert: record => linesCollection.insert({ ...record, expense: expenseId }),

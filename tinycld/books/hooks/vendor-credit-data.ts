@@ -4,6 +4,7 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
+import { documentKey } from '../lib/record-key'
 import { columnsOrThrow } from '../lib/record-save'
 import { VENDOR_CREDIT_KIND } from '../lib/sales-document-kinds'
 import {
@@ -254,6 +255,10 @@ function useVendorCreditWrites(): DocumentWrites {
                 draft.revision = revision
             }),
         storedRevision: id => creditsCollection.get(id)?.revision,
+        storedKey: id => {
+            const row = creditsCollection.get(id)
+            return row ? documentKey(row) : id
+        },
         lineOps: (creditId, mapper) =>
             purchaseLineOps(mapper, {
                 insert: record => linesCollection.insert({ ...record, vendor_credit: creditId }),

@@ -7,6 +7,7 @@ import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
 import { defaultDepositAccount, isDepositAccountRow } from '../lib/deposit-accounts'
 import { SALES_RECEIPT_MESSAGES } from '../lib/document-texts'
+import { documentKey } from '../lib/record-key'
 import { columnsOrThrow } from '../lib/record-save'
 import { SALES_RECEIPT_KIND } from '../lib/sales-document-kinds'
 import {
@@ -275,6 +276,10 @@ function useSalesReceiptWrites(): DocumentWrites {
                 draft.revision = revision
             }),
         storedRevision: id => receiptsCollection.get(id)?.revision,
+        storedKey: id => {
+            const row = receiptsCollection.get(id)
+            return row ? documentKey(row) : id
+        },
         lineOps: (receiptId, mapper) => {
             const { toRecord } = salesLineMapperOf(mapper)
             const lineRecord = (write: TableRowWrite) => toRecord(write.row, write.position)

@@ -19,7 +19,7 @@ import {
     labelledLineRefusal,
     tableLineRefusal,
 } from '../lib/document-messages'
-import { type DocumentTab, documentHref, documentNewHref } from '../lib/document-routes'
+import { type DocumentTab, documentNewHref, documentPath } from '../lib/document-routes'
 import { documentLinesForSave } from '../lib/document-values'
 import { acceptanceShown } from '../lib/estimate-status'
 import { type HiddenFields, hiddenRefusalKeys, refusalMessage } from '../lib/record-refusals'
@@ -504,8 +504,10 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     // A post from `new` opens the read view on its first tab; a draft keeps the tab it was
     // saved from. (A saved draft posted in place keeps its URL, so its read view opens on
     // the tab the post was made from.)
+    // The saved document's URL key: after a post the store holds the posted row, so the
+    // read view opens on its number.
     const savedHref = (id: string, mode: SaveMode) =>
-        orgHref(documentHref(kind, id, mode.post ? 'edit' : options.tab))
+        orgHref(documentPath(kind, writes.storedKey(id), mode.post ? 'edit' : options.tab))
 
     const release = (id: string) => useDocumentSaveStore.getState().release(id)
     // Drops the send that Post and send or Save and send queued for this document.

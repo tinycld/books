@@ -85,6 +85,7 @@ function useMatchOptionsQuery(txnId: string | null) {
                                 date: e.date,
                                 document: e.document,
                                 status: e.status,
+                                sequence: e.sequence,
                             }))
                             .findOne()
                     ),
@@ -139,7 +140,10 @@ function compareNumbers(a: string, b: string): number {
     return a.localeCompare(b, 'en', { numeric: true })
 }
 
-type OptionEntry = Pick<BooksJournalEntries, 'id' | 'number' | 'doc_type' | 'origin' | 'document'>
+type OptionEntry = Pick<
+    BooksJournalEntries,
+    'id' | 'number' | 'doc_type' | 'origin' | 'document' | 'sequence' | 'status'
+>
 
 // One Books transaction as a row of the Match section shows it, from the suggestions or
 // from the find mode.
@@ -260,6 +264,7 @@ function lineRows(q: InitialQueryBuilder, c: LineCollections, whereOf: LineWhere
             origin: entry.origin,
             status: entry.status,
             document: entry.document,
+            sequence: entry.sequence,
             matchLine: matchLine.id,
             parties: materialize(
                 q
@@ -292,10 +297,18 @@ type LineRow = NonNullable<ReturnType<typeof useChosenLinesQuery>['query']['data
 // A line row with its entry as one value: undefined until the entry has arrived (a left
 // join with no entry row yet), so matchableLines leaves the row out.
 function withEntry(row: LineRow) {
-    const { entryId, number, docType, origin, status, document } = row
+    const { entryId, number, docType, origin, status, document, sequence } = row
     const isFiled = entryId && number !== undefined && docType && origin && status
     const entry = isFiled
-        ? { id: entryId, number, doc_type: docType, origin, status, document: document ?? '' }
+        ? {
+              id: entryId,
+              number,
+              doc_type: docType,
+              origin,
+              status,
+              document: document ?? '',
+              sequence: sequence ?? 0,
+          }
         : undefined
     return { ...row, entry }
 }
@@ -385,6 +398,8 @@ function useMatchedQuery(txnId: string | null) {
                                             doc_type: e.doc_type,
                                             origin: e.origin,
                                             document: e.document,
+                                            sequence: e.sequence,
+                                            status: e.status,
                                         }))
                                         .findOne()
                                 ),

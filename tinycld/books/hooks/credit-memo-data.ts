@@ -7,6 +7,7 @@ import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
 import { creditMemoColumnsFrom, type EMPTY_CREDIT_MEMO_COLUMNS } from '../lib/credit-memo-columns'
 import type { LinkSource } from '../lib/document-source-links'
+import { documentKey } from '../lib/record-key'
 import { columnsOrThrow } from '../lib/record-save'
 import { CREDIT_MEMO_KIND } from '../lib/sales-document-kinds'
 import type { BooksCreditMemos } from '../types'
@@ -293,6 +294,10 @@ function useCreditMemoWrites(): DocumentWrites {
                 draft.revision = revision
             }),
         storedRevision: id => memosCollection.get(id)?.revision,
+        storedKey: id => {
+            const row = memosCollection.get(id)
+            return row ? documentKey(row) : id
+        },
         lineOps: (memoId, mapper) => {
             const { toRecord } = salesLineMapperOf(mapper)
             const lineRecord = (write: TableRowWrite) => toRecord(write.row, write.position)

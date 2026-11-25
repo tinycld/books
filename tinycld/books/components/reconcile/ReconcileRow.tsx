@@ -7,7 +7,7 @@ import { Check, Landmark } from 'lucide-react-native'
 import { Pressable, Text, View } from 'react-native'
 import type { ReconcileLineRow } from '../../hooks/useReconcileLines'
 import type { ReconcileScreenModel } from '../../hooks/useReconcileScreen'
-import { entryHref } from '../../lib/entry-route'
+import { postedLineHref } from '../../lib/entry-route'
 import { amountCellText, clearBoxLabel, lineTypeNumber, RECONCILE_TEXTS } from '../../lib/reconcile'
 import { formatDay } from '../../lib/register-range'
 import { SelectBox } from '../SelectBox'
@@ -71,14 +71,7 @@ export function MatchedMark({ isVisible }: { isVisible: boolean }) {
 // is its own Pressable, so pressing it does not clear the row.
 export function LineLink({ row }: { row: ReconcileLineRow }) {
     const orgHref = useOrgHref()
-    const href = orgHref(
-        entryHref({
-            id: row.entry,
-            doc_type: row.doc_type,
-            origin: row.origin,
-            document: row.document,
-        })
-    )
+    const href = orgHref(postedLineHref(row))
     const text = lineTypeNumber(row)
     return (
         <Link href={href} asChild>

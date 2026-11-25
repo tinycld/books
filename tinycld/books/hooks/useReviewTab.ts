@@ -213,6 +213,8 @@ function useReviewedQuery(connectionId: string, input: ReviewQueryInput) {
                                         origin: e.origin,
                                         document: e.document,
                                         date: e.date,
+                                        sequence: e.sequence,
+                                        status: e.status,
                                     }))
                                     .findOne()
                             ),
@@ -236,6 +238,8 @@ function useReviewedQuery(connectionId: string, input: ReviewQueryInput) {
                                         origin: e.origin,
                                         document: e.document,
                                         date: e.date,
+                                        sequence: e.sequence,
+                                        status: e.status,
                                     }))
                                     .findOne()
                             ),

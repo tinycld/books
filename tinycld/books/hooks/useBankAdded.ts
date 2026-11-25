@@ -63,6 +63,8 @@ function useAddedQuery(txnId: string | null) {
                                 origin: e.origin,
                                 document: e.document,
                                 date: e.date,
+                                sequence: e.sequence,
+                                status: e.status,
                             }))
                             .findOne()
                     ),

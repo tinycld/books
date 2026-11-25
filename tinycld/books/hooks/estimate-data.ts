@@ -6,6 +6,7 @@ import { useRecord } from '@tinycld/core/lib/use-record'
 import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
 import { type EMPTY_ESTIMATE_COLUMNS, estimateColumnsFrom } from '../lib/estimate-columns'
+import { documentKey } from '../lib/record-key'
 import { columnsOrThrow } from '../lib/record-save'
 import { ESTIMATE_KIND } from '../lib/sales-document-kinds'
 import type { BooksEstimates } from '../types'
@@ -265,6 +266,10 @@ function useEstimateWrites(): DocumentWrites {
             throw new Error('an estimate never posts')
         },
         storedRevision: id => estimatesCollection.get(id)?.revision,
+        storedKey: id => {
+            const row = estimatesCollection.get(id)
+            return row ? documentKey(row) : id
+        },
         lineOps: (estimateId, mapper) => {
             const { toRecord } = salesLineMapperOf(mapper)
             const lineRecord = (write: TableRowWrite) => toRecord(write.row, write.position)

@@ -5,7 +5,7 @@
 // unit-tested; hooks/useDocumentList.ts runs the queries.
 
 import { and, eq, gt, gte, ilike, lt, lte, not, or, type Ref } from '@tanstack/db'
-import { documentHref } from './document-routes'
+import { documentPath } from './document-routes'
 import type { ListAreaKey } from './list-areas'
 import { searchPieces } from './list-search'
 import type { LiveRecovery } from './live-recovery'
@@ -71,9 +71,10 @@ export function kindLabel(kind: ListKind): string {
 }
 
 // Where a row opens (without the org prefix): the kind's existing document route.
-export function listDocumentHref(kind: ListKind, id: string): string {
-    if (isSalesKind(kind)) return documentHref(TRANSACTION_DOC_KINDS[kind], id)
-    return documentHref({ routeBase: VENDOR_TRANSACTION_ROUTES[kind] }, id)
+// `key` is the row's URL key (lib/record-key.ts).
+export function listDocumentHref(kind: ListKind, key: string): string {
+    if (isSalesKind(kind)) return documentPath(TRANSACTION_DOC_KINDS[kind], key)
+    return documentPath({ routeBase: VENDOR_TRANSACTION_ROUTES[kind] }, key)
 }
 
 export type ListColumnKey =

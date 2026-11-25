@@ -1,6 +1,7 @@
 // Paths without the org prefix; callers pass them through `useOrgHref`. Each kind's
 // routes start at its `routeBase`.
 
+import { documentKey, type KeyedDocument } from './record-key'
 import type { SalesDocumentKind } from './sales-document-kinds'
 
 type RouteKind = Pick<SalesDocumentKind, 'routeBase'>
@@ -55,9 +56,20 @@ export function documentTabOf(param: string | undefined): DocumentTab {
     return param === 'pdf' ? 'pdf' : 'edit'
 }
 
-export function documentHref(kind: RouteKind, id: string, tab: DocumentTab = 'edit'): string {
-    const path = `${kind.routeBase}/${id}`
+// A stored document's path by its URL key (lib/record-key.ts).
+export function documentPath(kind: RouteKind, key: string, tab: DocumentTab = 'edit'): string {
+    const path = `${kind.routeBase}/${key}`
     return tab === 'pdf' ? `${path}?tab=pdf` : path
+}
+
+// A stored document's path. `doc` carries what its URL key needs: a numbered document
+// that no correction replaced opens by its number, any other by its id.
+export function documentHref(
+    kind: RouteKind,
+    doc: KeyedDocument,
+    tab: DocumentTab = 'edit'
+): string {
+    return documentPath(kind, documentKey(doc), tab)
 }
 
 // The name of a stored document's screen in the Books stack (`estimates/[id]`): its

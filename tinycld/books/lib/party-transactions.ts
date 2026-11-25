@@ -16,6 +16,7 @@ import type { StatusTone } from './document-lifecycle'
 import { statusBadgeOf } from './document-lifecycle'
 import { estimateStatusLabel, isExpired } from './estimate-status'
 import { formatMoney, MINUS } from './money'
+import { documentKey } from './record-key'
 import {
     CREDIT_MEMO_KIND,
     ESTIMATE_KIND,
@@ -40,6 +41,8 @@ export type TransactionFilter = 'all' | TransactionKind
 // sales kinds for a customer (the default), the purchase kinds for a vendor.
 export interface PartyTransactionRow<Kind extends string = TransactionKind> {
     id: string
+    // The row's URL key: its number, or its id (lib/record-key.ts).
+    key: string
     kind: Kind
     number: string
     date: string
@@ -128,30 +131,75 @@ type InvoiceInput = Pick<
     | 'written_off'
     | 'currency'
     | 'created'
+    | 'sequence'
+    | 'replaced_by'
 >
 type EstimateInput = Pick<
     BooksEstimates,
-    'id' | 'status' | 'number' | 'date' | 'expiration_date' | 'total' | 'currency' | 'created'
+    | 'id'
+    | 'status'
+    | 'number'
+    | 'date'
+    | 'expiration_date'
+    | 'total'
+    | 'currency'
+    | 'created'
+    | 'sequence'
 >
 type SalesReceiptInput = Pick<
     BooksSalesReceipts,
-    'id' | 'status' | 'number' | 'date' | 'total' | 'currency' | 'created'
+    | 'id'
+    | 'status'
+    | 'number'
+    | 'date'
+    | 'total'
+    | 'currency'
+    | 'created'
+    | 'sequence'
+    | 'replaced_by'
 >
 type PaymentInput = Pick<
     BooksPayments,
-    'id' | 'status' | 'number' | 'date' | 'amount' | 'credited' | 'currency' | 'created'
+    | 'id'
+    | 'status'
+    | 'number'
+    | 'date'
+    | 'amount'
+    | 'credited'
+    | 'currency'
+    | 'created'
+    | 'sequence'
+    | 'replaced_by'
 >
 type CreditMemoInput = Pick<
     BooksCreditMemos,
-    'id' | 'status' | 'number' | 'date' | 'total' | 'balance' | 'applied' | 'currency' | 'created'
+    | 'id'
+    | 'status'
+    | 'number'
+    | 'date'
+    | 'total'
+    | 'balance'
+    | 'applied'
+    | 'currency'
+    | 'created'
+    | 'sequence'
+    | 'replaced_by'
 >
 type RefundReceiptInput = Pick<
     BooksRefundReceipts,
-    'id' | 'status' | 'number' | 'date' | 'total' | 'currency' | 'created'
+    | 'id'
+    | 'status'
+    | 'number'
+    | 'date'
+    | 'total'
+    | 'currency'
+    | 'created'
+    | 'sequence'
+    | 'replaced_by'
 >
 type WriteOffInput = Pick<
     BooksWriteOffs,
-    'id' | 'status' | 'number' | 'date' | 'amount' | 'currency' | 'created'
+    'id' | 'status' | 'number' | 'date' | 'amount' | 'currency' | 'created' | 'sequence'
 >
 
 type StatusBadge = PartyTransactionRow['status']
@@ -253,6 +301,7 @@ export function refundReceiptStatus(row: { status: string }): StatusBadge {
 export function invoiceRow(row: InvoiceInput, today: string): PartyTransactionRow {
     return {
         id: row.id,
+        key: documentKey(row),
         kind: 'invoice',
         number: row.number,
         date: row.date,
@@ -267,6 +316,7 @@ export function invoiceRow(row: InvoiceInput, today: string): PartyTransactionRo
 export function estimateRow(row: EstimateInput, today: string): PartyTransactionRow {
     return {
         id: row.id,
+        key: documentKey(row),
         kind: 'estimate',
         number: row.number,
         date: row.date,
@@ -281,6 +331,7 @@ export function estimateRow(row: EstimateInput, today: string): PartyTransaction
 export function salesReceiptRow(row: SalesReceiptInput): PartyTransactionRow {
     return {
         id: row.id,
+        key: documentKey(row),
         kind: 'sales_receipt',
         number: row.number,
         date: row.date,
@@ -296,6 +347,7 @@ export function salesReceiptRow(row: SalesReceiptInput): PartyTransactionRow {
 export function paymentRow(row: PaymentInput): PartyTransactionRow {
     return {
         id: row.id,
+        key: documentKey(row),
         kind: 'payment',
         number: row.number,
         date: row.date,
@@ -312,6 +364,7 @@ export function paymentRow(row: PaymentInput): PartyTransactionRow {
 export function creditMemoRow(row: CreditMemoInput): PartyTransactionRow {
     return {
         id: row.id,
+        key: documentKey(row),
         kind: 'credit_memo',
         number: row.number,
         date: row.date,
@@ -328,6 +381,7 @@ export function creditMemoRow(row: CreditMemoInput): PartyTransactionRow {
 export function refundReceiptRow(row: RefundReceiptInput): PartyTransactionRow {
     return {
         id: row.id,
+        key: documentKey(row),
         kind: 'refund_receipt',
         number: row.number,
         date: row.date,
@@ -345,6 +399,7 @@ export function refundReceiptRow(row: RefundReceiptInput): PartyTransactionRow {
 export function writeOffRow(row: WriteOffInput): PartyTransactionRow {
     return {
         id: row.id,
+        key: documentKey(row),
         kind: 'write_off',
         number: row.number,
         date: row.date,

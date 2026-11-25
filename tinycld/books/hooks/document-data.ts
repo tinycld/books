@@ -88,6 +88,7 @@ type SharedColumns = { status: DocumentStatus } & Pick<
     | 'voided_at'
     | 'replaces'
     | 'replaced_by'
+    | 'sequence'
     | 'form'
     | 'fields'
     | 'updated'
@@ -430,6 +431,9 @@ export type DocumentWrites = {
     // undefined when the store holds no such row. The save compares it with the revision
     // the form saw (assertRevisionSeen, lib/revision.ts).
     storedRevision(id: string): number | undefined
+    // The URL key of the stored document (lib/record-key.ts): its number once it is
+    // posted, else its id. A save opens this, so a post lands on `…/<number>`.
+    storedKey(id: string): string
     // One line table's writes: each row converts through the table's mapper
     // (DocumentKind.lineSpecs), and a line insert sets the parent field.
     lineOps(parentId: string, mapper: DocumentLineMapper): TableWriteOps<DocumentTransaction>

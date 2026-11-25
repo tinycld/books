@@ -125,7 +125,7 @@ export function purchaseRowActionHref(
     action: PurchaseRowMenuAction
 ): string | null {
     const { kind } = row
-    if (action === 'open') return listDocumentHref(kind, row.id)
+    if (action === 'open') return listDocumentHref(kind, row.key)
     if (isSalesKind(kind)) return null
     switch (action) {
         case 'pay_bill':

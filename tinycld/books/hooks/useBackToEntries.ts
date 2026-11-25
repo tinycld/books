@@ -1,6 +1,6 @@
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router } from 'expo-router'
-import { documentHref, documentStackRouteName } from '../lib/document-routes'
+import { documentPath, documentStackRouteName } from '../lib/document-routes'
 import { LIST_AREAS, type ListArea } from '../lib/list-areas'
 import {
     BILL_KIND,
@@ -134,7 +134,7 @@ export function useBackToEntries(estimateId = '') {
             popScreens(depth)
             return
         }
-        const href = estimateId ? documentHref(ESTIMATE_KIND, estimateId) : 'books/entries'
+        const href = estimateId ? documentPath(ESTIMATE_KIND, estimateId) : 'books/entries'
         router.replace(orgHref(href))
     }
     return { label, onBack }

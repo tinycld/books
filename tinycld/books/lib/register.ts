@@ -23,6 +23,7 @@ export type RegisterEntry = Pick<
     | 'reverses'
     | 'date'
     | 'document'
+    | 'sequence'
 >
 
 // The line's customer and vendor rows come through materialize (registerLinesQuery):
@@ -102,6 +103,10 @@ export type EntryDetail = {
     origin: BooksJournalEntries['origin']
     // The document a document's entry was posted from (an invoice's id); '' for others.
     document: BooksJournalEntries['document']
+    // The entry's number without its prefix, and its state: the link opens a posted
+    // entry's screen by number (lib/record-key.ts).
+    sequence: BooksJournalEntries['sequence']
+    status: BooksJournalEntries['status']
     lines: {
         id: string
         accountId: string
@@ -270,6 +275,8 @@ export function entryDetail(line: RegisterSourceLine, accountId: string): EntryD
         docType: entry.doc_type,
         origin: entry.origin,
         document: entry.document,
+        sequence: entry.sequence,
+        status: entry.status,
         lines: [...line.entryLines]
             .sort((a, b) => a.position - b.position)
             .map(l => ({

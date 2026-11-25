@@ -1,6 +1,6 @@
 import { useId, useState } from 'react'
 import { useCustomerTransactions } from '../../../hooks/useCustomerTransactions'
-import { documentHref } from '../../../lib/document-routes'
+import { documentPath } from '../../../lib/document-routes'
 import {
     emptyText,
     type PartyTransactionRow,
@@ -19,7 +19,7 @@ const TEXTS = {
     noMatch: (filter: TransactionKind) => emptyText(filter),
 }
 
-const hrefOf = (row: PartyTransactionRow) => documentHref(TRANSACTION_DOC_KINDS[row.kind], row.id)
+const hrefOf = (row: PartyTransactionRow) => documentPath(TRANSACTION_DOC_KINDS[row.kind], row.key)
 
 // A row of the tab: a list row of a sales kind (`useCustomerTransactions`).
 type CustomerRow = ReturnType<typeof useCustomerTransactions>['rows'][number]

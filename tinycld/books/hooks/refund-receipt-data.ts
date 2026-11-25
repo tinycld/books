@@ -7,6 +7,7 @@ import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
 import type { LinkSource } from '../lib/document-source-links'
 import { mergeRecoveries } from '../lib/live-recovery'
+import { documentKey } from '../lib/record-key'
 import { columnsOrThrow } from '../lib/record-save'
 import {
     type EMPTY_REFUND_RECEIPT_COLUMNS,
@@ -410,6 +411,10 @@ function useRefundReceiptWrites(): DocumentWrites {
                 draft.revision = revision
             }),
         storedRevision: id => refundsCollection.get(id)?.revision,
+        storedKey: id => {
+            const row = refundsCollection.get(id)
+            return row ? documentKey(row) : id
+        },
         lineOps: (refundId, mapper) => {
             const { toRecord } = salesLineMapperOf(mapper)
             const lineRecord = (write: TableRowWrite) => toRecord(write.row, write.position)
