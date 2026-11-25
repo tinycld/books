@@ -309,15 +309,11 @@ func fieldSchema(f *field) map[string]any {
 		schema["type"] = "number"
 	case typeID:
 		schema["type"] = "string"
-		schema["description"] = f.Help + " (the id of a record of `books " + f.Ref + "`)"
-		// A ref with a dot names a line table of a document (rowRef).
-		if owner, key, isRow := strings.Cut(f.Ref, "."); isRow {
-			schema["description"] = f.Help + " (the id of a row of `" + key + "` of `books " + owner + "`)"
-		}
+		schema["description"] = refDescription(f, "the id of a record of", "the id of a row of")
 	case typeIDs:
 		schema["type"] = "array"
 		schema["items"] = map[string]any{"type": "string"}
-		schema["description"] = f.Help + " (ids of records of `books " + f.Ref + "`)"
+		schema["description"] = refDescription(f, "ids of records of", "ids of rows of")
 	case typeAddress:
 		parts := map[string]any{}
 		for _, key := range addressKeys {
@@ -329,6 +325,16 @@ func fieldSchema(f *field) map[string]any {
 		schema["additionalProperties"] = false
 	}
 	return schema
+}
+
+// refDescription is the description of an id or ids field: the words say what
+// the ids point to. A ref with a dot names a line table of a document (rowRef),
+// so its ids are rows, not records.
+func refDescription(f *field, records, rows string) string {
+	if owner, key, isRow := strings.Cut(f.Ref, "."); isRow {
+		return f.Help + " (" + rows + " `" + key + "` of `books " + owner + "`)"
+	}
+	return f.Help + " (" + records + " `books " + f.Ref + "`)"
 }
 
 // recordSchema is the JSON Schema of a record as every command prints it: the
