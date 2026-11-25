@@ -101,6 +101,7 @@
             "collection": "books_invoices",
             "lifecycle": "posting",
             "entry": "entry",
+            "keep": ["estimate"],
             "sort": "-date,-created,id",
             "label": "number",
             "columns": ["date", "number", "customer", "status", "total", "balance"],
@@ -109,7 +110,7 @@
                 { "flag": "status", "field": "status", "help": "only invoices with this status: draft, posted or void" },
                 { "flag": "customer", "field": "customer", "help": "only the invoices of the customer with this id" }
             ],
-            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "form", "fields", "public_token", "sort_key", "estimate"],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "form", "fields", "public_token", "sort_key"],
             "deleteHelp": "Only a draft can be deleted. Void a posted invoice with `void`: it stays in the books with its number, and its amounts no longer count.",
             "fields": [
                 { "name": "customer", "type": "id", "ref": "customers", "required": true, "help": "the customer who owes the invoice" },
@@ -142,6 +143,7 @@
                 { "name": "revision", "type": "integer", "readOnly": true, "help": "the count of saves; the commands send it so two callers cannot overwrite each other" },
                 { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
                 { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote when the invoice was posted; `entry` prints it" },
+                { "name": "estimate", "type": "id", "ref": "estimates", "readOnly": true, "help": "the estimate the invoice was made from; `estimates convert` sets it" },
                 { "name": "replaces", "type": "id", "ref": "invoices", "readOnly": true, "help": "the posted invoice this one corrects; `edit` of a posted invoice sets it" },
                 { "name": "replaced_by", "type": "id", "ref": "invoices", "readOnly": true, "help": "the invoice that corrects this one" }
             ],
@@ -462,6 +464,7 @@
                 { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
                 { "name": "invoice", "type": "id", "ref": "invoices", "readOnly": true, "help": "the invoice that was made from the estimate" }
             ],
+            "convert": { "to": "invoices", "link": "estimate", "copy": ["customer", "bill_to", "email", "tax_rate"] },
             "lines": [
                 {
                     "key": "lines",

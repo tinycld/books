@@ -87,8 +87,27 @@ type document struct {
 	// Entry names the header field that holds the id of the journal entry
 	// Books writes when the document is posted. "": the type has no `entry`
 	// command (a journal entry is its own entry).
-	Entry string      `json:"entry"`
-	Lines []lineTable `json:"lines"`
+	Entry string `json:"entry"`
+	// Keep names the read-only header fields a correction copies from the
+	// posted document it replaces (the estimate an invoice was made from: the
+	// server refuses a correction that drops it).
+	Keep []string `json:"keep"`
+	// Convert says how `convert` makes a document of another type from one of
+	// this type. nil: the type has no `convert` command.
+	Convert *conversion `json:"convert"`
+	Lines   []lineTable `json:"lines"`
+}
+
+// conversion is the rule of a `convert` command.
+type conversion struct {
+	// To is the name of the type of the document that is made.
+	To string `json:"to"`
+	// Link is the read-only field of the new document that holds the id of the
+	// document it was made from. Books reads it to close the source.
+	Link string `json:"link"`
+	// Copy names the header fields that go from the source to the new
+	// document. The line tables go as they are.
+	Copy []string `json:"copy"`
 }
 
 // initialStatus is the status the CLI gives a new document.
@@ -169,6 +188,12 @@ func loadDocuments(data []byte) ([]document, error) {
 			return nil, fmt.Errorf("document %q: %w", doc.Name, err)
 		}
 	}
+	for i := range file.Documents {
+		doc := &file.Documents[i]
+		if err := checkConversion(doc, file.Documents); err != nil {
+			return nil, fmt.Errorf("document %q: convert: %w", doc.Name, err)
+		}
+	}
 	return file.Documents, nil
 }
 
@@ -204,6 +229,11 @@ func checkDocument(doc *document, names map[string]bool) error {
 	if revision := doc.field("revision"); revision == nil || !revision.ReadOnly || revision.Type != typeInteger {
 		return fmt.Errorf("a document has a read-only integer revision")
 	}
+	for _, name := range doc.Keep {
+		if f := doc.field(name); f == nil || !f.ReadOnly || doc.Lifecycle != lifecyclePosting {
+			return fmt.Errorf("keep names %q, which is not a read-only field of a posting document", name)
+		}
+	}
 	fixed := make([]string, 0, len(doc.Fixed))
 	for name := range doc.Fixed {
 		fixed = append(fixed, name)
@@ -233,6 +263,53 @@ func checkDocument(doc *document, names map[string]bool) error {
 		keys[table.Key] = true
 		if err := checkLineTable(table, names); err != nil {
 			return fmt.Errorf("line table %q: %w", table.Key, err)
+		}
+	}
+	return nil
+}
+
+// checkConversion checks the rule of a `convert` command against the type it
+// makes: every value the command copies has a place there.
+func checkConversion(doc *document, all []document) error {
+	conv := doc.Convert
+	if conv == nil {
+		return nil
+	}
+	// The command refuses a closed source, and only a quote closes.
+	if doc.Lifecycle != lifecycleQuote {
+		return fmt.Errorf("convert is only for a document with the lifecycle %q", lifecycleQuote)
+	}
+	var to *document
+	for i := range all {
+		if all[i].Name == conv.To {
+			to = &all[i]
+		}
+	}
+	if to == nil || to == doc {
+		return fmt.Errorf("to names %q, which is not another document", conv.To)
+	}
+	if link := to.field(conv.Link); link == nil || !link.ReadOnly || link.Type != typeID || link.Ref != doc.Name {
+		return fmt.Errorf("link names %q, which is not a read-only id of %s in %s", conv.Link, doc.Name, to.Name)
+	}
+	for _, name := range conv.Copy {
+		from, into := doc.field(name), to.field(name)
+		if from == nil || into == nil || from.ReadOnly || into.ReadOnly || from.Type != into.Type {
+			return fmt.Errorf("copy names %q, which is not a writable field of one type in both", name)
+		}
+	}
+	for i := range doc.Lines {
+		table := &doc.Lines[i]
+		if table.ReadOnly {
+			continue
+		}
+		into := to.table(table.Key)
+		if into == nil || into.ReadOnly {
+			return fmt.Errorf("%s has no line table %q to copy to", to.Name, table.Key)
+		}
+		for _, f := range table.asResource().writable() {
+			if g := into.asResource().field(f.Name); g == nil || g.ReadOnly || g.Type != f.Type {
+				return fmt.Errorf("%s.%s has no writable field %q of the type %s", to.Name, table.Key, f.Name, f.Type)
+			}
 		}
 	}
 	return nil

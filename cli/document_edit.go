@@ -77,6 +77,11 @@ func correctionInput(doc *document, current record, in documentInput) documentIn
 			out.header[f.Name] = value
 		}
 	}
+	for _, name := range doc.Keep {
+		if value := current.cell(name); value != "" {
+			out.header[name] = value
+		}
+	}
 	maps.Copy(out.header, in.header)
 	for i := range doc.Lines {
 		table := &doc.Lines[i]
@@ -87,20 +92,26 @@ func correctionInput(doc *document, current record, in documentInput) documentIn
 			out.lines[table.Key] = rows
 			continue
 		}
-		res := table.asResource()
-		rows := []map[string]any{}
-		for _, line := range linesOf(current, table.Key) {
-			row := map[string]any{}
-			for _, f := range res.writable() {
-				if value := line.values[f.Name]; value != nil {
-					row[f.Name] = value
-				}
-			}
-			rows = append(rows, row)
-		}
-		out.lines[table.Key] = rows
+		out.lines[table.Key] = writableRows(table, linesOf(current, table.Key))
 	}
 	return out
+}
+
+// writableRows are stored rows as the rows of an input: the values a caller
+// may send, and nothing Books computes.
+func writableRows(table *lineTable, stored []record) []map[string]any {
+	res := table.asResource()
+	rows := []map[string]any{}
+	for _, line := range stored {
+		row := map[string]any{}
+		for _, f := range res.writable() {
+			if value := line.values[f.Name]; value != nil {
+				row[f.Name] = value
+			}
+		}
+		rows = append(rows, row)
+	}
+	return rows
 }
 
 func newDocumentEditCmd(c *client.Client, doc *document) *cobra.Command {

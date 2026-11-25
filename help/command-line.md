@@ -138,9 +138,12 @@ An estimate has no draft: `add` makes it pending, and Books numbers it at once. 
 tinycld books estimates accept <id> --date 2026-07-20 --by "Dana Lee"
 tinycld books estimates reject <id>
 tinycld books estimates reopen <id>
+echo '{"date": "2026-07-21", "due_date": "2026-08-20"}' | tinycld books estimates convert <id> --input -
 ```
 
 An estimate moves no stock. `accept` and `reject` record the customer's answer; `reopen` makes the estimate pending again. Books closes an estimate when an invoice is made from it. A closed estimate cannot be changed or deleted.
+
+`convert` makes a draft invoice with the customer, the billing address, the email address, the tax rate and the lines of the estimate, and prints it. It does not copy the memo or the message. The JSON gives the invoice's own fields: `date` and `due_date` are required, and `lines` replaces the lines of the estimate. Books closes the estimate in the same step, and one estimate makes one invoice. Post the invoice with `tinycld books invoices post`.
 
 ## For scripts and agents
 

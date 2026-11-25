@@ -30,6 +30,9 @@ func newDocumentCmd(c *client.Client, doc *document) *cobra.Command {
 	if doc.Entry != "" {
 		group.AddCommand(newDocumentEntryCmd(c, doc))
 	}
+	if doc.Convert != nil {
+		group.AddCommand(newDocumentConvertCmd(c, doc))
+	}
 	return group
 }
 
