@@ -343,7 +343,7 @@ When no answer comes back at all, the command exits 7. The transaction may be st
 tinycld books journal-entries show <id>
 ```
 
-For a `banking` command, the id is not that of a bank transaction: the message names the command to check with.
+For a `banking` command, the id is not that of a bank transaction. The message of a command that names a check, such as `upload`, names the command to check with. The message of `import` gives only the step to send it again.
 
 To send it again safely, run the same command with `--id <id>`. When the first run was stored, Books writes nothing, and the command exits 6 with a message that the record already exists. A script can also choose the id before the first run: 15 characters, each a lower-case letter a-z or a digit 0-9.
 
