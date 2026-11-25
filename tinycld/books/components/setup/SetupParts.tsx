@@ -1,3 +1,4 @@
+import { SetupBackButton } from '@tinycld/core/components/setup/wizard/SetupBackButton'
 import { SetupContinueButton } from '@tinycld/core/components/setup/wizard/SetupContinueButton'
 import { StepHeading } from '@tinycld/core/components/setup/wizard/StepHeading'
 import { useBreakpoint } from '@tinycld/core/components/workspace/useBreakpoint'
@@ -45,23 +46,6 @@ function ContinueSlot({ action }: { action: Parts['continueAction'] }) {
             isDisabled={action.isDisabled}
             requiresServer={action.requiresServer}
         />
-    )
-}
-
-function BackButton({ onPress, isVisible }: { onPress: () => void; isVisible: boolean }) {
-    if (!isVisible) return null
-    return (
-        <View className="flex-row">
-            <Button
-                variant="outline"
-                size="lg"
-                accessibilityLabel="Back"
-                testID="books-setup-back"
-                onPress={onPress}
-            >
-                <ButtonText>Back</ButtonText>
-            </Button>
-        </View>
     )
 }
 
@@ -151,7 +135,7 @@ function OwnershipPart({ parts }: { parts: Parts }) {
             <View className={direction} accessibilityRole="radiogroup">
                 {cards}
             </View>
-            <BackButton onPress={parts.goBack} isVisible={parts.canGoBack} />
+            <SetupBackButton onPress={parts.goBack} isVisible={parts.canGoBack} />
             <ContinueSlot action={parts.continueAction} />
         </View>
     )
@@ -201,7 +185,7 @@ function CostingPart({ parts }: { parts: Parts }) {
             />
             <CostingChoices parts={parts} isVisible={!parts.isCostingLocked} />
             <CostingLocked parts={parts} isVisible={parts.isCostingLocked} />
-            <BackButton onPress={parts.goBack} isVisible={parts.canGoBack} />
+            <SetupBackButton onPress={parts.goBack} isVisible={parts.canGoBack} />
             <ContinueSlot action={parts.continueAction} />
         </View>
     )
@@ -261,8 +245,8 @@ function ChartPart({ parts }: { parts: Parts }) {
                 />
                 <ChartPreview groups={parts.groups} />
             </View>
-            <View className="flex-row items-center justify-between">
-                <BackButton onPress={parts.goBack} isVisible={parts.canGoBack} />
+            <SetupBackButton onPress={parts.goBack} isVisible={parts.canGoBack} />
+            <View className="flex-row">
                 <SkipButton onPress={parts.skipChart} isVisible={parts.canSkip} />
             </View>
             <ContinueSlot action={parts.continueAction} />
@@ -338,7 +322,7 @@ function PopulatedPart({ parts }: { parts: Parts }) {
                 title="Your starter chart"
                 lead={`This book already has ${accountCountLabel(parts.accountCount ?? 0)}. We will not add the starter chart.`}
             />
-            <BackButton onPress={parts.goBack} isVisible={parts.canGoBack} />
+            <SetupBackButton onPress={parts.goBack} isVisible={parts.canGoBack} />
             <ContinueSlot action={parts.continueAction} />
         </View>
     )

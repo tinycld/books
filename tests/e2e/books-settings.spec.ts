@@ -968,7 +968,7 @@ test.describe('books-settings: setup wizard flow', () => {
         const businessName = page.getByTestId('books-setup-business-name')
         const month = page.getByTestId('books-setup-month')
         const next = page.getByTestId('setup-continue')
-        const back = page.getByTestId('books-setup-back')
+        const back = page.getByTestId('setup-back')
 
         await expect(partLabel).toHaveText('Part 1 of 4')
         await expect(businessName).not.toHaveValue('')

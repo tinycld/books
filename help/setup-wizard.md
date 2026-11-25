@@ -20,7 +20,7 @@ Choose how the business is owned. This only decides your equity accounts.
 - **One owner or partners** creates Owner's equity, Owner's contributions, Owner's draws and Retained earnings.
 - **Corporation** creates Common stock, Paid-in capital and Retained earnings.
 
-To change an earlier answer, choose Back. Your answers stay as you typed them.
+To change an earlier answer, choose Back, beside Next at the bottom of the card. Your answers stay as you typed them.
 
 ## Inventory costing
 
