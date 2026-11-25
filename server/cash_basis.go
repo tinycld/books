@@ -499,25 +499,26 @@ func storedCashLine(d cashDeferral, r *core.Record) cashLine {
 
 // syncCashRows makes the document's stored rows, its tax rows included,
 // equal the derived ones, touching only the rows that differ, and returns how
-// many rows it deleted and wrote.
-func syncCashRows(tx core.App, d cashDeferral, docID string) (int, error) {
+// many rows it deleted and wrote. It adds the cash month of each line row it
+// deletes or writes to months; the caller refreshes them (refreshCashBalances)
+// after its last document.
+func syncCashRows(tx core.App, d cashDeferral, docID string, months map[balanceKey]bool) (int, error) {
 	taxChanged, err := syncCashTaxRows(tx, d, docID)
 	if err != nil {
 		return 0, err
 	}
-	lineChanged, err := syncCashLineRows(tx, d, docID)
+	lineChanged, err := syncCashLineRows(tx, d, docID, months)
 	return taxChanged + lineChanged, err
 }
 
 // syncCashLineRows makes the document's stored books_cash_basis_lines rows
-// equal the derived ones, and refreshes the stored cash month
-// (cash_balances.go) of every row it deletes or writes.
-func syncCashLineRows(tx core.App, d cashDeferral, docID string) (int, error) {
+// equal the derived ones, and adds the stored cash month (cash_balances.go) of
+// every row it deletes or writes to months.
+func syncCashLineRows(tx core.App, d cashDeferral, docID string, months map[balanceKey]bool) (int, error) {
 	stray, missing, err := cashRowDiff(tx, d, docID)
 	if err != nil {
 		return 0, err
 	}
-	months := map[balanceKey]bool{}
 	for _, r := range stray {
 		months[balanceKey{r.GetString("account"), periodOf(r.GetString("date"))}] = true
 		if err := tx.Delete(r); err != nil {
@@ -525,7 +526,7 @@ func syncCashLineRows(tx core.App, d cashDeferral, docID string) (int, error) {
 		}
 	}
 	if len(missing) == 0 {
-		return len(stray), refreshCashBalances(tx, months)
+		return len(stray), nil
 	}
 	col, err := tx.FindCachedCollectionByNameOrId(cashLinesCollection)
 	if err != nil {
@@ -554,17 +555,13 @@ func syncCashLineRows(tx core.App, d cashDeferral, docID string) (int, error) {
 			return 0, fmt.Errorf("books: write a cash-basis row of %s %s: %w", d.Kind, docID, err)
 		}
 	}
-	if err := refreshCashBalances(tx, months); err != nil {
-		return 0, err
-	}
 	return len(stray) + len(missing), nil
 }
 
 // rebuildCashBasisFor rebuilds one document's cash-basis rows inside the
 // transaction of the write that changed its entries or its payments.
 func rebuildCashBasisFor(tx core.App, kind cashDeferral, docID string) error {
-	_, err := syncCashRows(tx, kind, docID)
-	return err
+	return syncCashDocuments(tx, kind, docID)
 }
 
 // rebuildCashBasisOf rebuilds the rows of each document of collection; a
@@ -574,15 +571,25 @@ func rebuildCashBasisOf(tx core.App, collection string, docIDs ...string) error 
 	if !ok {
 		return nil
 	}
+	return syncCashDocuments(tx, d, docIDs...)
+}
+
+// syncCashDocuments rebuilds the rows of each document of kind d, then
+// refreshes the cash months they touched, one time each. The invoices of one
+// payment write their rows in the same accounts and month, and a refresh sums
+// every cash row of its month: a refresh for each document made the post of N
+// invoices read N*N rows.
+func syncCashDocuments(tx core.App, d cashDeferral, docIDs ...string) error {
+	months := map[balanceKey]bool{}
 	for _, id := range docIDs {
 		if id == "" {
 			continue
 		}
-		if err := rebuildCashBasisFor(tx, d, id); err != nil {
+		if _, err := syncCashRows(tx, d, id, months); err != nil {
 			return err
 		}
 	}
-	return nil
+	return refreshCashBalances(tx, months)
 }
 
 // rebuildPaidCashBasis rebuilds the rows of every document the payments'
@@ -683,20 +690,21 @@ func verifyCashBasis(app core.App) ([]CashBasisDrift, error) {
 func rebuildCashBasis(app core.App) (int, error) {
 	changed := 0
 	err := app.RunInTransaction(func(tx core.App) error {
+		months := map[balanceKey]bool{}
 		for _, d := range cashDeferrals {
 			ids, err := cashDocuments(tx, d)
 			if err != nil {
 				return err
 			}
 			for _, id := range ids {
-				n, err := syncCashRows(tx, d, id)
+				n, err := syncCashRows(tx, d, id, months)
 				if err != nil {
 					return err
 				}
 				changed += n
 			}
 		}
-		return nil
+		return refreshCashBalances(tx, months)
 	})
 	return changed, err
 }
