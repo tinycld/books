@@ -425,6 +425,63 @@
                     ]
                 }
             ]
+        },
+        {
+            "name": "estimates",
+            "singular": "estimate",
+            "summary": "Estimates: an offer to a customer; it posts nothing",
+            "collection": "books_estimates",
+            "lifecycle": "quote",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "customer", "status", "total"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only estimates with this status: pending, accepted, rejected or closed" },
+                { "flag": "customer", "field": "customer", "help": "only the estimates of the customer with this id" }
+            ],
+            "omit": ["sequence", "form", "fields", "public_token", "sort_key"],
+            "deleteHelp": "A closed estimate cannot be deleted: an invoice was made from it.",
+            "fields": [
+                { "name": "customer", "type": "id", "ref": "customers", "required": true, "help": "the customer the estimate is for" },
+                { "name": "date", "type": "string", "required": true, "help": "the date of the estimate, as YYYY-MM-DD" },
+                { "name": "expiration_date", "type": "string", "help": "the last day the offer holds, as YYYY-MM-DD" },
+                { "name": "bill_to", "type": "address", "help": "the billing address printed on the estimate" },
+                { "name": "email", "type": "string", "help": "the address the estimate is sent to" },
+                { "name": "tax_rate", "type": "id", "ref": "tax-rates", "help": "the sales tax rate or group for the taxable lines" },
+                { "name": "message", "type": "string", "help": "a message to the customer, printed on the document" },
+                { "name": "memo", "type": "string", "help": "a note for the books; the customer does not see it" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["pending", "accepted", "rejected", "closed"], "help": "pending, accepted, rejected or closed; `accept`, `reject` and `reopen` change it, and Books closes an estimate when an invoice is made from it" },
+                { "name": "accepted_by", "type": "string", "readOnly": true, "help": "who accepted the estimate; `accept --by` sets it" },
+                { "name": "accepted_date", "type": "string", "readOnly": true, "help": "the day the estimate was accepted, as YYYY-MM-DD; `accept --date` sets it" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the estimate; Books gives it when the estimate is added" },
+                { "name": "subtotal", "type": "integer", "readOnly": true, "help": "the sum of the lines before tax, in cents; Books computes it" },
+                { "name": "tax_total", "type": "integer", "readOnly": true, "help": "the sales tax, in cents; Books computes it" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "subtotal plus tax, in cents; Books computes it" },
+                { "name": "revision", "type": "integer", "readOnly": true, "help": "the count of saves; the commands send it so two callers cannot overwrite each other" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "invoice", "type": "id", "ref": "invoices", "readOnly": true, "help": "the invoice that was made from the estimate" }
+            ],
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_estimate_lines",
+                    "parent": "estimate",
+                    "sort": "position,id",
+                    "omit": ["estimate", "position"],
+                    "fields": [
+                        { "name": "kind", "type": "string", "required": true, "enum": ["item", "description", "subtotal", "percent"], "help": "item: a product or service with a quantity and a rate; description: text only; subtotal: the sum of the lines above it; percent: a percentage of the item or subtotal right above it" },
+                        { "name": "product", "type": "id", "ref": "products", "help": "the product or service of an item or percent line" },
+                        { "name": "description", "type": "string", "help": "the text of the line" },
+                        { "name": "quantity", "type": "number", "help": "the quantity of an item line, with at most 2 decimals" },
+                        { "name": "rate", "type": "integer", "help": "the price of one unit of an item line, in cents" },
+                        { "name": "percent_ppm", "type": "integer", "help": "the percentage of a percent line, in parts per million; -100000 is a 10% discount" },
+                        { "name": "taxable", "type": "bool", "help": "true when the header's tax rate applies to the line" },
+                        { "name": "amount", "type": "integer", "readOnly": true, "help": "the amount of the line, in cents; Books computes it" }
+                    ]
+                }
+            ]
         }
     ]
 }

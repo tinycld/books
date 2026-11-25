@@ -17,8 +17,8 @@ func refusedf(format string, a ...any) error {
 	return exitcode.New(exitcode.Refused, fmt.Errorf(format, a...))
 }
 
-// createOps are the writes that create a document: the header as a draft, then
-// every row with the document's id and its place. replaces is the id of the
+// createOps are the writes that create a document: the header with its first
+// status (a draft; pending for a quote), then every row with the document's id and its place. replaces is the id of the
 // posted document this one corrects, or "".
 func createOps(doc *document, id string, in documentInput, replaces string) []batchOp {
 	header := maps.Clone(in.header)
@@ -26,7 +26,7 @@ func createOps(doc *document, id string, in documentInput, replaces string) []ba
 		header[name] = value
 	}
 	header["id"] = id
-	header["status"] = statusDraft
+	header["status"] = doc.initialStatus()
 	if replaces != "" {
 		header["replaces"] = replaces
 	}
@@ -87,13 +87,18 @@ func storedReadError(doc *document, id, done string, err error) error {
 func newDocumentAddCmd(c *client.Client, doc *document) *cobra.Command {
 	var input string
 	var post bool
+	posts := doc.Lifecycle == lifecyclePosting
+	first := "It is a draft unless --post is given. The header and the lines are stored in\n" +
+		"one step: when Books refuses one of them, nothing is stored.\n\n"
+	if !posts {
+		first = "It is pending, and Books numbers it at once. The header and the lines are\n" +
+			"stored in one step: when Books refuses one of them, nothing is stored.\n\n"
+	}
 	cmd := newCommand(commandDef{
 		Name:  "add",
 		Short: "Add one " + doc.Singular + " with its lines from a JSON object",
 		Long: "Add one " + doc.Singular + ". --input names a JSON file that holds it, with its\n" +
-			"lines as an array, or - to read it from standard input.\n\n" +
-			"It is a draft unless --post is given. The header and the lines are stored in\n" +
-			"one step: when Books refuses one of them, nothing is stored.\n\n" +
+			"lines as an array, or - to read it from standard input.\n\n" + first +
 			"`tinycld books schema " + doc.Name + " add` prints the fields.",
 		Aliases: []string{"new", "create"},
 		Input:   documentInputSchema(doc, true),
@@ -125,6 +130,8 @@ func newDocumentAddCmd(c *client.Client, doc *document) *cobra.Command {
 		return writeDocument(cmd, o, doc, rec)
 	})
 	bindInput(cmd, &input)
-	cmd.Flags().BoolVar(&post, "post", false, "post the "+doc.Singular+" in the same step; without it, it is a draft")
+	if posts {
+		cmd.Flags().BoolVar(&post, "post", false, "post the "+doc.Singular+" in the same step; without it, it is a draft")
+	}
 	return cmd
 }

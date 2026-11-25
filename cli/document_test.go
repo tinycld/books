@@ -54,7 +54,7 @@ func TestLoadDocumentsRefusesAMistake(t *testing.T) {
 		{"an unknown key", `"lifecycle":"posting",`, `"lifecycle":"posting","colour":"red",`, "unknown field"},
 		{"a list resource's name", `"name":"notes"`, `"name":"accounts"`, `document "accounts" is already a list resource`},
 		{"a document name given to two documents", `"the text"}]}]}]}`, `"the text"}]}]},{"name":"notes","singular":"note","summary":"Notes","collection":"books_notes_two","lifecycle":"posting","fixed":{},"sort":"id","label":"","columns":[],"search":[],"filters":[],"omit":[],"deleteHelp":"","fields":[],"lines":[]}]}`, `document "notes" is given to two documents`},
-		{"an unknown lifecycle", `"lifecycle":"posting"`, `"lifecycle":"quote"`, `unknown lifecycle "quote"`},
+		{"an unknown lifecycle", `"lifecycle":"posting"`, `"lifecycle":"memo"`, `unknown lifecycle "memo"`},
 		{"a status a caller can set", `"name":"status","type":"string","readOnly":true`, `"name":"status","type":"string"`, "read-only status"},
 		{"no revision", `{"name":"revision","type":"integer","readOnly":true,"help":"the revision"},`, ``, "read-only integer revision"},
 		{"replaces of another type", `"ref":"notes"`, `"ref":"accounts"`, "read-only replaces"},

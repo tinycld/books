@@ -21,10 +21,12 @@ func newDocumentCmd(c *client.Client, doc *document) *cobra.Command {
 		newDocumentShowCmd(c, doc),
 		newDocumentAddCmd(c, doc),
 		newDocumentEditCmd(c, doc),
-		newDocumentPostCmd(c, doc),
-		newDocumentVoidCmd(c, doc),
-		newDocumentDeleteCmd(c, doc),
 	)
+	if doc.Lifecycle == lifecycleQuote {
+		group.AddCommand(newQuoteAcceptCmd(c, doc), newQuoteStatusCmd(c, doc, quoteReject), newQuoteStatusCmd(c, doc, quoteReopen), newQuoteDeleteCmd(c, doc))
+	} else {
+		group.AddCommand(newDocumentPostCmd(c, doc), newDocumentVoidCmd(c, doc), newDocumentDeleteCmd(c, doc))
+	}
 	if doc.Entry != "" {
 		group.AddCommand(newDocumentEntryCmd(c, doc))
 	}

@@ -105,14 +105,17 @@ func correctionInput(doc *document, current record, in documentInput) documentIn
 
 func newDocumentEditCmd(c *client.Client, doc *document) *cobra.Command {
 	var input string
+	how := "A draft is changed in place. A posted " + doc.Singular + " is never changed: Books\n" +
+		"voids it and posts a new one with the changes, and the command prints the new\n" +
+		"one. Its `replaces` is the id of the one it corrects.\n\n"
+	if doc.Lifecycle == lifecycleQuote {
+		how = "The " + doc.Singular + " is changed in place. A closed one cannot be changed.\n\n"
+	}
 	cmd := newCommand(commandDef{
 		Name:  "edit",
 		Short: "Change one " + doc.Singular + " from a JSON object",
 		Long: "Change one " + doc.Singular + ". Only the fields in --input change; null clears a\n" +
-			"field. When --input names the lines, they replace all the lines.\n\n" +
-			"A draft is changed in place. A posted " + doc.Singular + " is never changed: Books\n" +
-			"voids it and posts a new one with the changes, and the command prints the new\n" +
-			"one. Its `replaces` is the id of the one it corrects.\n\n" +
+			"field. When --input names the lines, they replace all the lines.\n\n" + how +
 			"`tinycld books schema " + doc.Name + " edit` prints the fields.",
 		Aliases: []string{"update", "set"},
 		Args:    idArg(&doc.resource),
@@ -136,12 +139,12 @@ func newDocumentEditCmd(c *client.Client, doc *document) *cobra.Command {
 		}
 		id, done, corrected := current.id(), "updated", false
 		var ops []batchOp
-		switch status := current.cell("status"); status {
-		case statusDraft:
+		switch status := current.cell("status"); {
+		case doc.editedInPlace(status):
 			if ops, err = draftEditOps(doc, current, in); err != nil {
 				return err
 			}
-		case statusPosted:
+		case doc.Lifecycle == lifecyclePosting && status == statusPosted:
 			// The new document is stored and the posted one is void: the read
 			// after it must not say that the id it names was corrected.
 			id, done, corrected = newRecordID(), "added and posted to replace "+current.id(), true

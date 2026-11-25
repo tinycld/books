@@ -18,9 +18,16 @@ import (
 //go:embed documents.json
 var documentsJSON []byte
 
-// lifecyclePosting is the life of a document that posts to the ledger: a
-// draft, then posted, then void.
-const lifecyclePosting = "posting"
+// The lifecycles of a document.
+const (
+	// lifecyclePosting is the life of a document that posts to the ledger: a
+	// draft, then posted, then void.
+	lifecyclePosting = "posting"
+	// lifecycleQuote is the life of an offer that posts nothing: pending,
+	// accepted or rejected as a person says, and closed by Books when an invoice
+	// is made from it.
+	lifecycleQuote = "quote"
+)
 
 // journalDocument is the type of the journal entry Books writes for a posted
 // transaction.
@@ -31,6 +38,11 @@ const (
 	statusDraft  = "draft"
 	statusPosted = "posted"
 	statusVoid   = "void"
+
+	statusPending  = "pending"
+	statusAccepted = "accepted"
+	statusRejected = "rejected"
+	statusClosed   = "closed"
 )
 
 // maxDocumentLines is the most rows one line table of a document may have. The
@@ -77,6 +89,24 @@ type document struct {
 	// command (a journal entry is its own entry).
 	Entry string      `json:"entry"`
 	Lines []lineTable `json:"lines"`
+}
+
+// initialStatus is the status the CLI gives a new document.
+func (d *document) initialStatus() string {
+	if d.Lifecycle == lifecycleQuote {
+		return statusPending
+	}
+	return statusDraft
+}
+
+// editedInPlace reports whether `edit` changes a document with this status
+// itself. A posted document is corrected by a new one; a quote is changed
+// until it is closed.
+func (d *document) editedInPlace(status string) bool {
+	if d.Lifecycle == lifecycleQuote {
+		return status != statusClosed
+	}
+	return status == statusDraft
 }
 
 func (d *document) table(key string) *lineTable {
@@ -146,18 +176,33 @@ func checkDocument(doc *document, names map[string]bool) error {
 	if err := checkResource(&doc.resource, names); err != nil {
 		return err
 	}
-	if doc.Lifecycle != lifecyclePosting {
+	status := doc.field("status")
+	switch doc.Lifecycle {
+	case lifecyclePosting:
+		if status == nil || !status.ReadOnly || !slices.Equal(status.Enum, []string{statusDraft, statusPosted, statusVoid}) {
+			return fmt.Errorf("a posting document has a read-only status with the values draft, posted, void")
+		}
+		if replaces := doc.field("replaces"); replaces == nil || !replaces.ReadOnly || replaces.Type != typeID || replaces.Ref != doc.Name {
+			return fmt.Errorf("a posting document has a read-only replaces, the id of a document of its own type")
+		}
+	case lifecycleQuote:
+		if status == nil || !status.ReadOnly || !slices.Equal(status.Enum, []string{statusPending, statusAccepted, statusRejected, statusClosed}) {
+			return fmt.Errorf("a quote has a read-only status with the values pending, accepted, rejected, closed")
+		}
+		// `accept` sets both; no other command does.
+		for _, name := range []string{"accepted_by", "accepted_date"} {
+			if f := doc.field(name); f == nil || !f.ReadOnly || f.Type != typeString {
+				return fmt.Errorf("a quote has a read-only string %s", name)
+			}
+		}
+		if doc.Entry != "" || len(doc.Fixed) > 0 {
+			return fmt.Errorf("a quote posts nothing: it has no entry and no fixed value")
+		}
+	default:
 		return fmt.Errorf("unknown lifecycle %q", doc.Lifecycle)
 	}
-	status := doc.field("status")
-	if status == nil || !status.ReadOnly || !slices.Equal(status.Enum, []string{statusDraft, statusPosted, statusVoid}) {
-		return fmt.Errorf("a posting document has a read-only status with the values draft, posted, void")
-	}
 	if revision := doc.field("revision"); revision == nil || !revision.ReadOnly || revision.Type != typeInteger {
-		return fmt.Errorf("a posting document has a read-only integer revision")
-	}
-	if replaces := doc.field("replaces"); replaces == nil || !replaces.ReadOnly || replaces.Type != typeID || replaces.Ref != doc.Name {
-		return fmt.Errorf("a posting document has a read-only replaces, the id of a document of its own type")
+		return fmt.Errorf("a document has a read-only integer revision")
 	}
 	fixed := make([]string, 0, len(doc.Fixed))
 	for name := range doc.Fixed {

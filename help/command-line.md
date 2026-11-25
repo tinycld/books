@@ -71,6 +71,7 @@ Each type of transaction has its own group of commands:
 - `tinycld books sales-receipts`: [sales receipts](help://books:sales-receipts), a sale that is paid at once; `deposit_to` is the account that receives the money
 - `tinycld books credit-memos`: [credit memos](help://books:credit-memos); `invoice` names the invoice that the credit is for
 - `tinycld books refund-receipts`: [refund receipts](help://books:refund-receipts); `refund_from` is the bank account that the money leaves
+- `tinycld books estimates`: [estimates](help://books:estimates), an offer to a customer. An estimate posts nothing
 
 ```
 tinycld books journal-entries list --status draft
@@ -80,7 +81,7 @@ tinycld books invoices show <id>
 
 `show` prints the transaction with its lines and with the totals that Books computed. For an invoice, a sales receipt, a credit memo or a refund receipt it also prints `tax_lines`: the sales tax that Books computed for each tax rate. You cannot send totals, line amounts or tax lines; Books computes them as it does for the form.
 
-A line of an invoice, a sales receipt, a credit memo or a refund receipt has a `kind`: `item` (a product or service, a quantity and a rate), `description` (text only), `subtotal` (the sum of the lines above it) or `percent` (a percentage of the item or subtotal right above it, in parts per million: `-100000` is a 10% discount).
+A line of an invoice, a sales receipt, a credit memo, a refund receipt or an estimate has a `kind`: `item` (a product or service, a quantity and a rate), `description` (text only), `subtotal` (the sum of the lines above it) or `percent` (a percentage of the item or subtotal right above it, in parts per million: `-100000` is a 10% discount).
 
 ## To sell an Inventory item
 
@@ -128,6 +129,18 @@ tinycld books journal-entries delete <id>
 ```
 
 `post` is for a draft: Books numbers it, and it counts in the books. `void` is for a posted transaction: it keeps its number, and its amounts no longer count. `delete` is for a draft. `void` and `delete` ask first; `--yes` answers. You cannot undo a post, a void or a delete.
+
+## To work with an estimate
+
+An estimate has no draft: `add` makes it pending, and Books numbers it at once. `edit` changes it in place. It has no `post` and no `void`.
+
+```
+tinycld books estimates accept <id> --date 2026-07-20 --by "Dana Lee"
+tinycld books estimates reject <id>
+tinycld books estimates reopen <id>
+```
+
+An estimate moves no stock. `accept` and `reject` record the customer's answer; `reopen` makes the estimate pending again. Books closes an estimate when an invoice is made from it. A closed estimate cannot be changed or deleted.
 
 ## For scripts and agents
 
