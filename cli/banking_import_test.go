@@ -116,6 +116,9 @@ func TestBankingImportOfAFileWithNoRows(t *testing.T) {
 	if got := exitcode.Of(err); got != exitcode.Refused || !strings.Contains(err.Error(), "has no row to import") {
 		t.Errorf("a header row only: exit = %d, err = %v", got, err)
 	}
+	if n := sends(f, "POST /api/collections/"+bankImportsCollection+"/records"); n != 0 {
+		t.Errorf("a header row only: the command sent %d creates, want none", n)
+	}
 	f = importFake(t, "csv")
 	f.rows[bankFileContentsCollection] = nil
 	_, _, err = runCmd(t, f.serve(), bankCSVMapping, "books", "banking", "import", bankFileOct, "--input", "-")
@@ -124,6 +127,40 @@ func TestBankingImportOfAFileWithNoRows(t *testing.T) {
 	}
 	if n := sends(f, "POST /api/collections/"+bankImportsCollection+"/records"); n != 0 {
 		t.Errorf("the command sent %d creates, want none", n)
+	}
+}
+
+// A stored import with no file names no owner: the message has no empty name.
+func TestBankingImportWithAStoredIDOfNoFile(t *testing.T) {
+	f := importFake(t, "csv")
+	f.add(bankImportsCollection, "bankimport00001", map[string]any{})
+	_, _, err := runCmd(t, f.serve(), bankCSVMapping, "books", "banking", "import", bankFileOct, "--input", "-", "--id", "bankimport00001")
+	want := "bank import bankimport00001 already exists; nothing was written"
+	if got := exitcode.Of(err); got != exitcode.Refused || err.Error() != want {
+		t.Fatalf("exit = %d, err = %v; want %q", got, err, want)
+	}
+}
+
+// No send is answered: the message sends the user to the status of the file,
+// not to a lookup of the import id that `banking files` cannot do.
+func TestBankingImportWhenNoSendIsAnswered(t *testing.T) {
+	quickResends(t)
+	f := importFake(t, "csv")
+	for range len(resendWaits) + 1 {
+		f.loseAnswers(fakeSilence{stored: false, status: 504})
+	}
+	_, _, err := runCmd(t, f.serve(), bankCSVMapping, "books", "banking", "import", bankFileOct, "--input", "-", "--id", "bankimport00002")
+	if got := exitcode.Of(err); got != exitcode.Unavailable {
+		t.Fatalf("exit = %d, err = %v", got, err)
+	}
+	for _, want := range []string{
+		"the import bankimport00002 of bank file " + bankFileOct,
+		"Check with `tinycld books banking files`: bank file " + bankFileOct + " has the status `imported` when the import was stored.",
+		"--id bankimport00002",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("message lacks %q:\n%v", want, err)
+		}
 	}
 }
 
