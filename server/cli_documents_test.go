@@ -245,7 +245,16 @@ func rowOp(collection, parent, docID string, position int, fields string) string
 }
 
 func journalLine(entry string, account *core.Record, side string, cents, position int) string {
-	return rowOp("books_journal_lines", "entry", entry, position, fmt.Sprintf(`"account":%q,%q:%d`, account.Id, side, cents))
+	return journalLineMemo(entry, account, side, cents, position, "")
+}
+
+// journalLineMemo sends the line's memo as the caller's fields do, in the
+// order the CLI writes them (account, side, memo).
+func journalLineMemo(entry string, account *core.Record, side string, cents, position int, memo string) string {
+	if memo == "" {
+		return rowOp("books_journal_lines", "entry", entry, position, fmt.Sprintf(`"account":%q,%q:%d`, account.Id, side, cents))
+	}
+	return rowOp("books_journal_lines", "entry", entry, position, fmt.Sprintf(`"account":%q,%q:%d,"memo":%q`, account.Id, side, cents, memo))
 }
 
 func cliLedgerEnv(t *testing.T) (*ledgerEnv, string) {
@@ -269,16 +278,16 @@ func TestCLIDocuments_JournalEntryRoundTrip(t *testing.T) {
 		// add
 		[]apiReq{docBatch(token, header("clientry0000001", ""),
 			journalLine("clientry0000001", env.checking, "debit", 50000, 0),
-			journalLine("clientry0000001", env.revenue, "credit", 50000, 1))},
+			journalLineMemo("clientry0000001", env.revenue, "credit", 50000, 1, "Paid in"))},
 		showDoc(token, entries, "clientry0000001", []string{`"status":"draft"`, `"revision":1`, `"total":50000`, `"number":""`},
-			lines, "entry", []string{`"totalItems":2`, `"debit":50000`}),
+			lines, "entry", []string{`"totalItems":2`, `"debit":50000`, `"memo":"Paid in"`}),
 		// add --post: the post is the last write and states revision 1.
 		[]apiReq{docBatch(token, header("clientry0000002", ""),
 			journalLine("clientry0000002", env.checking, "debit", 50000, 0),
-			journalLine("clientry0000002", env.revenue, "credit", 50000, 1),
+			journalLineMemo("clientry0000002", env.revenue, "credit", 50000, 1, "Paid in"),
 			cliOp("PATCH", entries, "clientry0000002", `{"revision":1,"status":"posted"}`))},
 		showDoc(token, entries, "clientry0000002", []string{`"status":"posted"`, `"revision":1`, `"number":"1"`},
-			lines, "entry", []string{`"totalItems":2`}),
+			lines, "entry", []string{`"totalItems":2`, `"memo":"Paid in"`}),
 	)...)
 	// The edit removes the lines by id, as draftEditOps does from what it read.
 	for _, line := range mustLines(t, env.app, "clientry0000001") {
@@ -302,9 +311,13 @@ func TestCLIDocuments_JournalEntryRoundTrip(t *testing.T) {
 		// nothing of the batch is stored.
 		[]apiReq{refusedBatch(token, []string{`"requests":{"0":`, `"status":409`, `changed after you opened it`},
 			cliOp("PATCH", entries, "clientry0000001", `{"memo":"Late","revision":2}`))},
+		// edit that clears a field: memo null, in a batch with the next revision.
+		[]apiReq{docBatch(token, cliOp("PATCH", entries, "clientry0000001", `{"memo":null,"revision":3}`))},
+		showDoc(token, entries, "clientry0000001", []string{`"revision":3`, `"memo":""`, `"total":70000`},
+			lines, "entry", []string{`"totalItems":2`}),
 		// post
 		[]apiReq{{method: "PATCH", url: recordURL(entries, "clientry0000001"), token: token, want: 200,
-			body: `{"revision":3,"status":"posted"}`, content: []string{`"status":"posted"`, `"number":"2"`}}},
+			body: `{"revision":4,"status":"posted"}`, content: []string{`"status":"posted"`, `"number":"2"`}}},
 		// edit of a posted entry: a new draft that names it, posted in the same
 		// batch. Books voids the original. Like the correction of
 		// cli/document_edit_test.go, it sends every writable field, also an empty
