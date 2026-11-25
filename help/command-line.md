@@ -98,6 +98,16 @@ tinycld books journal-entries edit <id> --input changes.json
 
 `edit` changes only the fields that the JSON names. When the JSON has `lines`, they replace all the lines of the transaction. Books never changes a posted transaction: `edit` voids it and posts a new one with your changes, and prints the new one. It does not ask first. Its `replaces` is the id of the transaction it corrects.
 
+## To post, void or delete a transaction
+
+```
+tinycld books journal-entries post <id>
+tinycld books journal-entries void <id>
+tinycld books journal-entries delete <id>
+```
+
+`post` is for a draft: Books numbers it, and it counts in the books. `void` is for a posted transaction: it keeps its number, and its amounts no longer count. `delete` is for a draft. `void` and `delete` ask first; `--yes` answers. You cannot undo a post, a void or a delete.
+
 ## For scripts and agents
 
 - Add `--json` to any command: it prints one JSON document, the result or an error.

@@ -28,6 +28,13 @@ var canPrompt = func(o output.Options) bool { return o.Interactive }
 // refuses to delete a record that transactions or other records use, and says
 // so. The command asks first; without a terminal it needs --yes.
 func newDeleteCmd(c *client.Client, res *resource) *cobra.Command {
+	return newGuardedDeleteCmd(c, res, nil)
+}
+
+// newGuardedDeleteCmd is newDeleteCmd with a check of the record before the
+// question: guard refuses a record the command must not delete (a posted
+// document). A nil guard refuses nothing.
+func newGuardedDeleteCmd(c *client.Client, res *resource, guard func(record) error) *cobra.Command {
 	long := "Delete one " + res.Singular + ". This cannot be undone.\n\n" +
 		"The command asks before it deletes. Without a terminal, pass --yes."
 	if res.DeleteHelp != "" {
@@ -54,6 +61,11 @@ func newDeleteCmd(c *client.Client, res *resource) *cobra.Command {
 		rec, err := fetchRecord(cmd.Context(), c, res, args[0])
 		if err != nil {
 			return err
+		}
+		if guard != nil {
+			if err := guard(rec); err != nil {
+				return err
+			}
 		}
 		question := fmt.Sprintf("Delete %s %q for good? This cannot be undone.", res.Singular, rec.label(res))
 		ok, err := confirm(o, yes, cmd.InOrStdin(), cmd.ErrOrStderr(), question)

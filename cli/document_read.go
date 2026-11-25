@@ -21,6 +21,9 @@ func newDocumentCmd(c *client.Client, doc *document) *cobra.Command {
 		newDocumentShowCmd(c, doc),
 		newDocumentAddCmd(c, doc),
 		newDocumentEditCmd(c, doc),
+		newDocumentPostCmd(c, doc),
+		newDocumentVoidCmd(c, doc),
+		newDocumentDeleteCmd(c, doc),
 	)
 	return group
 }
