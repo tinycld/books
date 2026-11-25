@@ -272,7 +272,7 @@ tinycld books reports show books.trial_balance
 
 ```
 tinycld books reports run books.trial_balance
-echo '{"params": {"as_of": "2026-06-30"}}' | tinycld books reports run books.trial_balance --input -
+echo '{"params": {"asOf": "2026-06-30"}}' | tinycld books reports run books.trial_balance --input -
 tinycld books reports run books.general_ledger --expand-all --all --json
 ```
 

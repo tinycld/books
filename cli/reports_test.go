@@ -16,7 +16,7 @@ func reportsFake(t *testing.T) *fakeBooks {
 		"title": "Trial Balance", "description": "Each account's balance on one day.",
 		"source": "books.account_balances", "shipped_key": "books.trial_balance", "published": false, "broken": false,
 		"spec": map[string]any{"version": 4, "params": []any{
-			map[string]any{"id": "as_of", "type": "asOf", "label": "As of"},
+			map[string]any{"id": "asOf", "type": "asOf", "label": "As of"},
 		}},
 	})
 	f.add(reportsCollection, "rep000000000002", map[string]any{
@@ -94,7 +94,7 @@ func TestReportsShowByKeyAndByID(t *testing.T) {
 		if err := json.Unmarshal([]byte(out), &got); err != nil {
 			t.Fatalf("%v\n%s", err, out)
 		}
-		if got.ID != "rep000000000001" || got.Title != "Trial Balance" || len(got.Params) != 1 || got.Params[0].ID != "as_of" || got.Params[0].Type != "asOf" {
+		if got.ID != "rep000000000001" || got.Title != "Trial Balance" || len(got.Params) != 1 || got.Params[0].ID != "asOf" || got.Params[0].Type != "asOf" {
 			t.Errorf("%s:\n%s", ref, out)
 		}
 	}

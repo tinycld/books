@@ -17,13 +17,13 @@ const (
 			{"id":"t","kind":"total","depth":0,"label":"Total","cells":{"debit":150000,"credit":150000}}],
 		"notices":[{"code":"rowCap","message":"Only the first rows are shown."}],
 		"topics":[],"heading":"","page":{"next":"cur2","size":2},
-		"params":[{"id":"as_of","type":"asOf","value":"2026-07-15"}],"headerLines":["Accrual basis"]}`
+		"params":[{"id":"asOf","type":"asOf","value":"2026-07-15"}],"headerLines":["Accrual basis"]}`
 	reportPageTwo = `{"columns":[{"id":"debit","label":"Debit","type":"money","currency":"USD"},{"id":"credit","label":"Credit","type":"money","currency":"USD"}],
 		"rows":[{"id":"g1","kind":"group","depth":0,"label":"Assets","cells":{"debit":150000,"credit":null}},
 			{"id":"d2","kind":"detail","depth":1,"label":"3000 Equity","cells":{"debit":null,"credit":150000}},
 			{"id":"t","kind":"total","depth":0,"label":"Total","cells":{"debit":150000,"credit":150000}}],
 		"notices":[{"code":"rowCap","message":"Only the first rows are shown."}],"topics":[],"heading":"","page":{"size":2},
-		"params":[{"id":"as_of","type":"asOf","value":"2026-07-15"}],"headerLines":["Accrual basis"]}`
+		"params":[{"id":"asOf","type":"asOf","value":"2026-07-15"}],"headerLines":["Accrual basis"]}`
 )
 
 type runOut struct {
@@ -75,9 +75,9 @@ func TestReportsRunSendsTheReportAndPrintsThePage(t *testing.T) {
 func TestReportsRunSendsParamsOptionsAndFlags(t *testing.T) {
 	f := reportsFake(t)
 	f.reports.pages = []string{reportPageTwo}
-	input := `{"params": {"as_of": "2026-07-15"}, "options": {"today": "2026-07-20", "limit": 5}}`
+	input := `{"params": {"asOf": "2026-07-15"}, "options": {"today": "2026-07-20", "limit": 5}}`
 	got := runJSON(t, f, input, "rep000000000001", "--input", "-", "--limit", "2", "--cursor", "cur2", "--expand-all")
-	want := `{"options":{"cursor":"cur2","expandAll":true,"limit":2,"today":"2026-07-20"},"params":{"as_of":"2026-07-15"},"reportId":"rep000000000001"}`
+	want := `{"options":{"cursor":"cur2","expandAll":true,"limit":2,"today":"2026-07-20"},"params":{"asOf":"2026-07-15"},"reportId":"rep000000000001"}`
 	if sent := sentJSON(f.reports.runs[0]); sent != want {
 		t.Errorf("sent %s\nwant %s", sent, want)
 	}
@@ -194,7 +194,7 @@ func TestReportsRunReportsTheServersRefusal(t *testing.T) {
 		exit   int
 	}{
 		{http.StatusForbidden, `{"data":{},"message":"Requires the \"reports\" scope.","status":403}`, exitcode.Forbidden},
-		{http.StatusBadRequest, `{"data":{},"message":"params.as_of: not a day","status":400}`, exitcode.Refused},
+		{http.StatusBadRequest, `{"data":{},"message":"params.asOf: not a day","status":400}`, exitcode.Refused},
 	}
 	for _, c := range cases {
 		f := reportsFake(t)

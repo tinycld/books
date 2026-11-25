@@ -20,12 +20,12 @@ func TestReportsExportWritesTheServersFile(t *testing.T) {
 		f := reportsFake(t)
 		f.reports.file, f.reports.fileName = []byte("Account,Debit\n1000 Checking,1500.00\n"), "Trial Balance."+format
 		file := filepath.Join(t.TempDir(), "out."+format)
-		input := `{"params": {"as_of": "2026-07-15"}, "options": {"today": "2026-07-20"}}`
+		input := `{"params": {"asOf": "2026-07-15"}, "options": {"today": "2026-07-20"}}`
 		out, _, err := runCmd(t, f.serve(), input, "books", "reports", "export", "books.trial_balance", "--format", format, "--file", file, "--input", "-", "--json")
 		if err != nil {
 			t.Fatalf("%s: %v\n%s", format, err, out)
 		}
-		want := `{"format":"` + format + `","options":{"today":"2026-07-20"},"params":{"as_of":"2026-07-15"},"reportId":"rep000000000001"}`
+		want := `{"format":"` + format + `","options":{"today":"2026-07-20"},"params":{"asOf":"2026-07-15"},"reportId":"rep000000000001"}`
 		if sent := sentJSON(f.reports.exports[0]); sent != want {
 			t.Errorf("%s: sent %s\nwant %s", format, sent, want)
 		}
