@@ -296,7 +296,7 @@ func TestLoadDocumentsChecksTheEntryField(t *testing.T) {
 		t.Fatal(err)
 	}
 	body, _ := parseObject([]byte(`{"title":"x","lines":[]}`))
-	if _, err := checkDocumentInput(&docs[0], body, true); err == nil || !strings.Contains(err.Error(), `"lines" is set by the server`) {
+	if _, err := checkDocumentInput(&docs[0], "tinycld books "+docs[0].Name, body, true); err == nil || !strings.Contains(err.Error(), `"lines" is set by the server`) {
 		t.Errorf("a read-only table in the input: err = %v", err)
 	}
 }

@@ -88,7 +88,7 @@ func TestCheckDocumentInputSplitsHeaderAndLines(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	in, err := checkDocumentInput(doc, body, true)
+	in, err := checkDocumentInput(doc, "tinycld books "+doc.Name, body, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestCheckDocumentInputRefusals(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = checkDocumentInput(doc, body, tc.create)
+			_, err = checkDocumentInput(doc, "tinycld books "+doc.Name, body, tc.create)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("err = %v, want one that says %q", err, tc.want)
 			}
@@ -141,7 +141,7 @@ func TestCheckDocumentInputRefusals(t *testing.T) {
 	// An edit may name only the lines, or only a header field.
 	for _, ok := range []string{`{"lines":[]}`, `{"memo":null}`} {
 		body, _ := parseObject([]byte(ok))
-		if _, err := checkDocumentInput(doc, body, false); err != nil {
+		if _, err := checkDocumentInput(doc, "tinycld books "+doc.Name, body, false); err != nil {
 			t.Errorf("edit %s: %v", ok, err)
 		}
 	}

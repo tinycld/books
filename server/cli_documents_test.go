@@ -29,6 +29,7 @@ type cliLineTable struct {
 	Max        int        `json:"max"`
 	Apply      bool       `json:"apply"` // `apply` and `unapply` write its rows
 	Omit       []string   `json:"omit"`
+	Timestamps []string   `json:"timestamps"`
 	Fields     []cliField `json:"fields"`
 }
 
@@ -78,28 +79,29 @@ func cliCollections(t testing.TB) map[string]string {
 
 // requireCLIFields holds the declared fields of one collection to the migrated
 // collection: type, required flag, select values, relation target, and that
-// every column a caller can see is declared or left out on purpose.
-func requireCLIFields(t *testing.T, app core.App, label, collection string, fields []cliField, omit []string, noTimestamps bool, collectionOf map[string]string) *core.Collection {
-	t.Helper()
-	return requireCLIFieldsStamped(t, app, label, collection, fields, omit, noTimestamps, false, collectionOf)
-}
-
-// requireCLIFieldsStamped is requireCLIFields for a collection whose rows are
-// never changed (the applications of a credit): `updatedAbsent` says that it
-// has `created` and no `updated`, so the CLI prints `updated` as null.
-func requireCLIFieldsStamped(t *testing.T, app core.App, label, collection string, fields []cliField, omit []string, noTimestamps, updatedAbsent bool, collectionOf map[string]string) *core.Collection {
+// every column a caller can see is declared or left out on purpose. timestamps
+// is the definition's `timestamps` key: nil means created and updated.
+func requireCLIFields(t *testing.T, app core.App, label, collection string, fields []cliField, omit, timestamps []string, collectionOf map[string]string) *core.Collection {
 	t.Helper()
 	col, err := app.FindCollectionByNameOrId(collection)
 	if err != nil {
 		t.Errorf("%s: collection %s: %v", label, collection, err)
 		return nil
 	}
-	// The CLI prints created and updated for every record unless the definition
-	// says the collection has none.
+	said := timestamps
+	if said == nil {
+		said = []string{"created", "updated"}
+	}
 	for _, stamp := range []string{"created", "updated"} {
-		want := !noTimestamps && !(updatedAbsent && stamp == "updated")
-		if has := col.Fields.GetByName(stamp) != nil; has != want {
-			t.Errorf("%s: %s has the field %q = %v, and the CLI's noTimestamps = %v", label, collection, stamp, has, noTimestamps)
+		if has := col.Fields.GetByName(stamp) != nil; has != slices.Contains(said, stamp) {
+			have := []string{}
+			for _, name := range []string{"created", "updated"} {
+				if col.Fields.GetByName(name) != nil {
+					have = append(have, name)
+				}
+			}
+			t.Errorf("%s: the CLI's timestamps say %v, and %s has %v", label, said, collection, have)
+			break
 		}
 	}
 	declaredNames := map[string]bool{}
@@ -154,15 +156,15 @@ func TestCLIDocuments_MatchTheCollections(t *testing.T) {
 	app := newBooksApp(t)
 	collectionOf := cliCollections(t)
 	for _, doc := range loadCLIDocuments(t) {
-		if requireCLIFields(t, app, doc.Name, doc.Collection, doc.Fields, doc.Omit, doc.NoTimestamps, collectionOf) == nil {
+		if requireCLIFields(t, app, doc.Name, doc.Collection, doc.Fields, doc.Omit, doc.Timestamps, collectionOf) == nil {
 			continue
 		}
 		for _, view := range doc.Views {
-			requireCLIFields(t, app, doc.Name+" "+view.Name, view.Collection, view.Fields, view.Omit, view.NoTimestamps, collectionOf)
+			requireCLIFields(t, app, doc.Name+" "+view.Name, view.Collection, view.Fields, view.Omit, view.Timestamps, collectionOf)
 		}
 		for _, table := range doc.Lines {
 			label := doc.Name + "." + table.Key
-			col := requireCLIFieldsStamped(t, app, label, table.Collection, table.Fields, table.Omit, false, table.Apply, collectionOf)
+			col := requireCLIFields(t, app, label, table.Collection, table.Fields, table.Omit, table.Timestamps, collectionOf)
 			if col == nil {
 				continue
 			}

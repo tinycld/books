@@ -71,8 +71,10 @@ type lineTable struct {
 	Sort string `json:"sort"`
 	// Omit names the collection's fields the CLI leaves out. Parent and
 	// position are always among them.
-	Omit   []string `json:"omit"`
-	Fields []field  `json:"fields"`
+	Omit []string `json:"omit"`
+	// Timestamps names the stamps the table's collection has; see resource.
+	Timestamps []string `json:"timestamps"`
+	Fields     []field  `json:"fields"`
 	// ReadOnly marks a table Books writes (the tax lines of an invoice). Its
 	// rows are printed, and are never part of an input.
 	ReadOnly bool `json:"readOnly"`
@@ -125,7 +127,7 @@ func (r computedField) matches(value func(string) string) bool {
 // asResource is the table as a resource, for the functions that check, print
 // and describe a record by its fields.
 func (t *lineTable) asResource() *resource {
-	return &resource{Name: t.Key, Singular: t.Singular, Collection: t.Collection, Omit: t.Omit, Fields: t.Fields}
+	return &resource{Name: t.Key, Singular: t.Singular, Collection: t.Collection, Omit: t.Omit, Timestamps: t.Timestamps, Fields: t.Fields}
 }
 
 // document is one transaction type: a header record and its line tables.
@@ -331,9 +333,6 @@ func loadDocuments(data []byte) ([]document, error) {
 }
 
 func checkDocument(doc *document, names map[string]bool) error {
-	if doc.NoTimestamps {
-		return fmt.Errorf("noTimestamps is a key of a view: a document's collection has created and updated")
-	}
 	if err := checkResource(&doc.resource, names); err != nil {
 		return err
 	}
@@ -504,6 +503,9 @@ func checkLineTable(table *lineTable, names map[string]bool) error {
 	if len(table.Fields) == 0 {
 		return fmt.Errorf("no fields")
 	}
+	if err := checkTimestamps(table.Timestamps); err != nil {
+		return err
+	}
 	if table.Max < 0 {
 		return fmt.Errorf("max %d is below zero", table.Max)
 	}
@@ -614,8 +616,9 @@ type documentInput struct {
 
 // checkDocumentInput refuses an --input document the server would refuse for
 // its shape, before anything is sent, as checkInput does for a list record. A
-// mistake in a row names the row: "lines[1]".
-func checkDocumentInput(doc *document, body map[string]any, create bool) (documentInput, error) {
+// mistake in a row names the row: "lines[1]". group is the command path of the
+// document's group, for the refusals that name the command to use instead.
+func checkDocumentInput(doc *document, group string, body map[string]any, create bool) (documentInput, error) {
 	in := documentInput{header: map[string]any{}, lines: map[string][]map[string]any{}}
 	inputNames := writableNames(&doc.resource)
 	for i := range doc.Lines {
@@ -630,6 +633,9 @@ func checkDocumentInput(doc *document, body map[string]any, create bool) (docume
 	slices.Sort(names)
 	for _, name := range names {
 		if table := doc.table(name); table != nil {
+			if table.Apply {
+				return in, usagef("%s are added one at a time: use %s apply <id>", name, group)
+			}
 			if table.ReadOnly {
 				return in, usagef("%q is set by the server", name)
 			}

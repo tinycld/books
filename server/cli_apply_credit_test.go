@@ -27,6 +27,10 @@ func TestCLIDocuments_CreditMemoApplyAndUnapply(t *testing.T) {
 		// What Books refuses, with the field it names.
 		create(body(99999, "2026-11-13"), 400, `"invoice":{"code":"validation_books"`, "the credit is more than its open balance of $400.00."),
 		create(body(1000, "2026-11-01"), 400, `"date":{"code":"validation_books"`, "The apply date can't be before the credit date."),
+		// An invoice that does not exist is a relation error of the field, never a 404:
+		// the CLI treats a 404 of the create as a collection the server lacks.
+		create(fmt.Sprintf(`{"amount":100,"credit_memo":%q,"date":"2026-11-13","id":%q,"invoice":"nosuchinvoice01"}`, memo, id), 400,
+			`"invoice":{"code":"validation_missing_rel_records"`),
 		// apply: Books lowers both balances.
 		create(body(10000, "2026-11-13"), 200, `"id":"`+id+`"`, `"amount":10000`),
 		balance("books_credit_memos", memo, "15000"), balance("books_invoices", invoice, "30000"),

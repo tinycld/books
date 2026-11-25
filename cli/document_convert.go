@@ -75,7 +75,7 @@ func newDocumentConvertCmd(c *client.Client, doc *document) *cobra.Command {
 		// An empty object is not "nothing to change": the dates are missing.
 		given := documentInput{header: map[string]any{}, lines: map[string][]map[string]any{}}
 		if len(body) > 0 {
-			if given, err = checkDocumentInput(to, body, false); err != nil {
+			if given, err = checkDocumentInput(to, cmd.Parent().Parent().CommandPath()+" "+to.Name, body, false); err != nil {
 				return err
 			}
 		}

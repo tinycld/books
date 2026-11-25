@@ -119,7 +119,7 @@ func newDocumentAddCmd(c *client.Client, doc *document) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		in, err := checkDocumentInput(doc, body, true)
+		in, err := checkDocumentInput(doc, cmd.Parent().CommandPath(), body, true)
 		if err != nil {
 			return err
 		}

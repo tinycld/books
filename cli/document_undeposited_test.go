@@ -322,13 +322,28 @@ func TestLoadDocumentsChecksAView(t *testing.T) {
 			}
 		})
 	}
-	withoutStamps := strings.Replace(valid, `"omit":[],"deleteHelp":"",`+`"fields":[{"name":"title"`, `"omit":[],"noTimestamps":true,"deleteHelp":"",`+`"fields":[{"name":"title"`, 1)
-	if _, err := loadDocuments([]byte(withoutStamps)); err != nil || withoutStamps == valid {
-		t.Errorf("a view with noTimestamps: err = %v, changed = %v", err, withoutStamps != valid)
+	// `timestamps` is the same key on a view, a document and a line table.
+	stamped := func(base, anchor, list string) string {
+		return strings.Replace(base, anchor, `"timestamps":`+list+`,`+anchor, 1)
 	}
-	onDocument := strings.Replace(minimalDocument, `"lines":[{"key"`, `"noTimestamps":true,"lines":[{"key"`, 1)
-	if _, err := loadDocuments([]byte(onDocument)); err == nil || !strings.Contains(err.Error(), "noTimestamps is a key of a view") {
-		t.Errorf("a document with noTimestamps: err = %v", err)
+	for _, list := range []string{`[]`, `["created"]`, `["updated"]`, `["created","updated"]`} {
+		for name, text := range map[string]string{
+			"view":     stamped(valid, `"deleteHelp":"",`+`"fields":[{"name":"title"`, list),
+			"document": stamped(minimalDocument, `"lines":[{"key"`, list),
+			"table":    stamped(minimalDocument, `"singular":"line",`, list),
+		} {
+			if text == valid || text == minimalDocument {
+				t.Fatalf("timestamps %s on a %s: the text did not change", list, name)
+			}
+			if _, err := loadDocuments([]byte(text)); err != nil {
+				t.Errorf("timestamps %s on a %s: %v", list, name, err)
+			}
+		}
+	}
+	for list, want := range map[string]string{`["deleted"]`: `timestamps names "deleted"`, `["created","created"]`: `timestamps names "created" twice`} {
+		if _, err := loadDocuments([]byte(stamped(minimalDocument, `"lines":[{"key"`, list))); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("timestamps %s: err = %v, want one that says %q", list, err, want)
+		}
 	}
 	doubled := strings.Replace(valid, `"views":[`+viewObject+`]`, `"views":[`+viewObject+`,`+viewObject+`]`, 1)
 	if _, err := loadDocuments([]byte(doubled)); err == nil || !strings.Contains(err.Error(), `word "waiting" is used twice`) {

@@ -154,7 +154,7 @@ func newDocumentEditCmd(c *client.Client, doc *document) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		in, err := checkDocumentInput(doc, body, false)
+		in, err := checkDocumentInput(doc, cmd.Parent().CommandPath(), body, false)
 		if err != nil {
 			return err
 		}

@@ -42,7 +42,7 @@ func newDocumentApplyCmd(c *client.Client, doc *document, table *lineTable) *cob
 		row["id"] = newRecordID()
 		row[table.Parent] = args[0]
 		if _, err := client.CreateRecord[rawRecord](cmd.Context(), c, table.Collection, row); err != nil {
-			return prefixID(&doc.resource, args[0], err)
+			return applyCreateError(doc, table, args[0], err)
 		}
 		rec, err := readBack(cmd, c, doc, args[0], "applied")
 		if err != nil {
@@ -53,6 +53,18 @@ func newDocumentApplyCmd(c *client.Client, doc *document, table *lineTable) *cob
 	})
 	bindInput(cmd, &input)
 	return cmd
+}
+
+// applyCreateError words the failure of the create of one row. Books answers a
+// missing credit or a missing invoice with a 400 and a field error, so a 404
+// is a server that has no collection for the rows (older than this CLI), and
+// not a document that is gone: the message must not say so.
+func applyCreateError(doc *document, table *lineTable, id string, err error) error {
+	if exitcode.Of(exitcode.Classify(err)) == exitcode.NotFound {
+		return fmt.Errorf("no %s was added to %s %s: the server has no collection %s (is it older than this CLI?): %w",
+			table.Singular, doc.Singular, id, table.Collection, err)
+	}
+	return prefixID(&doc.resource, id, err)
 }
 
 // newDocumentUnapplyCmd removes one row that `apply` added. The row must be a

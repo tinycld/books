@@ -85,10 +85,10 @@ type resource struct {
 	// server test fails for a collection field that is neither in Fields nor
 	// here, so a new column cannot be forgotten.
 	Omit []string `json:"omit"`
-	// NoTimestamps: the collection has no created and updated fields (a view),
-	// so a record prints and the schema requires neither. The server test
-	// checks the flag against the migrated collection.
-	NoTimestamps bool `json:"noTimestamps,omitempty"`
+	// Timestamps names the stamps the collection has: "created" and/or
+	// "updated". A record prints and the schema describes only those. Absent:
+	// both. The server test checks the key against the migrated collection.
+	Timestamps []string `json:"timestamps"`
 	// DeleteHelp says when the server refuses a delete and what to do then.
 	DeleteHelp string  `json:"deleteHelp"`
 	Fields     []field `json:"fields"`
@@ -160,9 +160,6 @@ func loadResources(data []byte) ([]resource, error) {
 			return nil, fmt.Errorf("resource %q is defined twice", res.Name)
 		}
 		seen[res.Name] = true
-		if res.NoTimestamps {
-			return nil, fmt.Errorf("resource %q: noTimestamps is a key of a view", res.Name)
-		}
 		if err := checkResource(res, names); err != nil {
 			return nil, fmt.Errorf("resource %q: %w", res.Name, err)
 		}
@@ -176,6 +173,9 @@ func checkResource(res *resource, names map[string]bool) error {
 	}
 	if len(res.Fields) == 0 {
 		return fmt.Errorf("no fields")
+	}
+	if err := checkTimestamps(res.Timestamps); err != nil {
+		return err
 	}
 	fields := map[string]bool{}
 	for i := range res.Fields {
@@ -350,8 +350,10 @@ func recordSchema(res *resource) map[string]any {
 	props := map[string]any{
 		"id": map[string]any{"type": "string", "description": "the record id; the argument of show, edit, delete"},
 	}
-	if !res.NoTimestamps {
+	if slices.Contains(stamps(res.Timestamps), "created") {
 		props["created"] = map[string]any{"type": "string", "description": "when the record was created (UTC)"}
+	}
+	if slices.Contains(stamps(res.Timestamps), "updated") {
 		props["updated"] = map[string]any{"type": "string", "description": "when the record last changed (UTC)"}
 	}
 	for i := range res.Fields {
@@ -385,8 +387,39 @@ func recordKeys(res *resource) []string {
 	for i := range res.Fields {
 		keys = append(keys, res.Fields[i].Name)
 	}
-	if res.NoTimestamps {
-		return keys
+	return append(keys, stamps(res.Timestamps)...)
+}
+
+// allStamps are the timestamps of a collection, in the order they print.
+var allStamps = []string{"created", "updated"}
+
+// stamps is the timestamps a collection has, in print order: all of them when
+// the definition gives no `timestamps` key.
+func stamps(given []string) []string {
+	if given == nil {
+		return allStamps
 	}
-	return append(keys, "created", "updated")
+	have := []string{}
+	for _, stamp := range allStamps {
+		if slices.Contains(given, stamp) {
+			have = append(have, stamp)
+		}
+	}
+	return have
+}
+
+// checkTimestamps refuses a `timestamps` key that names a stamp twice or one
+// that is not created or updated.
+func checkTimestamps(given []string) error {
+	seen := map[string]bool{}
+	for _, stamp := range given {
+		if !slices.Contains(allStamps, stamp) {
+			return fmt.Errorf("timestamps names %q: the values are created and updated", stamp)
+		}
+		if seen[stamp] {
+			return fmt.Errorf("timestamps names %q twice", stamp)
+		}
+		seen[stamp] = true
+	}
+	return nil
 }

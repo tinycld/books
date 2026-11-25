@@ -124,7 +124,7 @@ func TestCreateOpsLabelEachWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	in, err := checkDocumentInput(doc, body, true)
+	in, err := checkDocumentInput(doc, "tinycld books "+doc.Name, body, true)
 	if err != nil {
 		t.Fatal(err)
 	}

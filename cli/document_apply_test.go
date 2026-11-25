@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -153,8 +155,12 @@ func TestApplicationsAreNotInTheInputOfAddOrEdit(t *testing.T) {
 	}
 	_, _, err = runCmd(t, f.serve(), `{"applications": [{"invoice": "invposted000001", "amount": 1, "date": "2026-11-09"}]}`,
 		"books", "credit-memos", "edit", "memoposted00001", "--input", "-", "--json")
-	if got := exitcode.Of(err); got != exitcode.Usage || !strings.Contains(err.Error(), `"applications" is set by the server`) {
+	if got := exitcode.Of(err); got != exitcode.Usage || !strings.Contains(err.Error(), "applications are added one at a time: use tinycld books credit-memos apply <id>") {
 		t.Errorf("edit: exit = %d, err = %v", got, err)
+	}
+	_, _, err = runCmd(t, f.serve(), `{"applications": []}`, "books", "vendor-credits", "edit", "vcposted0000001", "--input", "-", "--json")
+	if got := exitcode.Of(err); got != exitcode.Usage || !strings.Contains(err.Error(), "applications are added one at a time: use tinycld books vendor-credits apply <id>") {
+		t.Errorf("vendor credit edit: exit = %d, err = %v", got, err)
 	}
 	if len(f.requests) != 0 {
 		t.Errorf("a refused input sent %v", f.requests)
@@ -176,6 +182,54 @@ func TestApplicationsAreNotInTheInputOfAddOrEdit(t *testing.T) {
 	batch := sentBatch(t, f, 0)
 	if !strings.Contains(batch, `"replaces":"memoposted00001"`) || strings.Contains(batch, "books_credit_memo_applications") {
 		t.Errorf("the correction:\n%s", batch)
+	}
+}
+
+// The two application tables have a created and no updated. A row prints the
+// keys the collection has, and the schema describes only those.
+func TestAnApplicationRowHasNoUpdated(t *testing.T) {
+	for _, group := range []string{"credit-memos", "vendor-credits"} {
+		f := credited(t)
+		id := map[string]string{"credit-memos": "memoposted00001", "vendor-credits": "vcposted0000001"}[group]
+		out, _, err := runCmd(t, f.serve(), "", "books", group, "show", id, "--json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var shown struct {
+			Applications []map[string]any `json:"applications"`
+		}
+		if err := json.Unmarshal([]byte(out), &shown); err != nil || len(shown.Applications) == 0 {
+			t.Fatalf("%s: not a document: %v\n%s", group, err, out)
+		}
+		row := shown.Applications[0]
+		if _, has := row["updated"]; has {
+			t.Errorf("%s: an application prints `updated`: %v", group, row)
+		}
+		if row["created"] == nil {
+			t.Errorf("%s: an application prints no `created`: %v", group, row)
+		}
+		schema := recordSchema(findDocument(group).applyTable().asResource())
+		if _, has := schema["properties"].(map[string]any)["updated"]; has || slices.Contains(schema["required"].([]string), "updated") {
+			t.Errorf("%s: the schema of an application has `updated`", group)
+		}
+		if _, has := schema["properties"].(map[string]any)["created"]; !has {
+			t.Errorf("%s: the schema of an application has no `created`", group)
+		}
+	}
+}
+
+// A 404 of the create does not say the credit is gone: a bad invoice or a
+// missing credit is a 400 with a field error (server/cli_apply_credit_test.go),
+// so a 404 is a server that has no such collection.
+func TestApplyNotFoundNamesTheCollection(t *testing.T) {
+	f := credited(t)
+	f.refuse("POST", 404, `{"status":404,"message":"The requested resource wasn't found.","data":{}}`)
+	_, _, err := runCmd(t, f.serve(), `{"invoice": "invposted000001", "amount": 100, "date": "2026-11-09"}`, "books", "credit-memos", "apply", "memoposted00001", "--input", "-", "--json")
+	if err == nil || !strings.HasPrefix(err.Error(), "no application was added to credit memo memoposted00001: the server has no collection books_credit_memo_applications") {
+		t.Fatalf("err = %v", err)
+	}
+	if got := exitcode.Of(err); got != exitcode.NotFound {
+		t.Errorf("exit = %d", got)
 	}
 }
 
