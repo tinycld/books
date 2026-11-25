@@ -333,9 +333,25 @@ tinycld books banking import <file id>
 
 `import` makes the [bank transactions](help://books:bank-import). `amount_columns` is `one` for one signed column (`amount_column`), or `two` for a column each (`money_in_column`, `money_out_column`). `import` takes every row, but not the first row when `header_row` is true. To import some rows only, give `lines` with their line numbers. Books leaves out a row that it holds already: `duplicates` counts them. When Books cannot read one of the rows, it imports nothing and names the line: give `lines` without that line.
 
+## To add a bank transaction to Books
+
+When a bank transaction is not in Books yet, [categorize](help://books:bank-categorize) it: Books posts a journal entry between the connected account and the account that you name, and the transaction is reviewed.
+
+```
+echo '{"account": "<expense account id>", "vendor": "<vendor id>", "memo": "Office supplies"}' | tinycld books banking categorize <id> --input -
+echo '{"account": "<savings account id>", "kind": "transfer"}' | tinycld books banking categorize <id> --input -
+echo '{"lines": [
+  {"account": "<supplies account id>", "amount": 6000},
+  {"account": "<fees account id>", "amount": 2647}
+]}' | tinycld books banking split <id> --input -
+tinycld books banking undo <id>
+```
+
+`categorize` uses the whole bank amount for one account. With `"kind": "transfer"`, the account is another bank or card account of yours. `split` divides the amount: each line has an account and an `amount` in cents, above 0 for the direction of the bank transaction. Books refuses lines that do not add up to the bank amount. `undo` voids the journal entry, and the transaction is For review again. It does not ask first.
+
 ## To retry safely
 
-When the answer to a write is lost (the network fails, or a proxy answers 502, 503 or 504), the command sends the same write again, with the same ids, up to three more times. Books cannot store it twice: when an earlier send was stored, Books refuses the next one, and the command prints what is stored as usual. This is true for `add`, `add --post`, `convert`, `apply` and `edit`, and in `banking` for `upload` and `import`.
+When the answer to a write is lost (the network fails, or a proxy answers 502, 503 or 504), the command sends the same write again, with the same ids, up to three more times. Books cannot store it twice: when an earlier send was stored, Books refuses the next one, and the command prints what is stored as usual. This is true for `add`, `add --post`, `convert`, `apply` and `edit`, and in `banking` for `upload`, `import`, `categorize` and `split`.
 
 When no answer comes back at all, the command exits 7. The transaction may be stored or not, and the message names its id. To find out, run `show` with that id:
 
@@ -351,7 +367,7 @@ To send it again safely, run the same command with `--id <id>`. When the first r
 tinycld books journal-entries add --id entry2026071501 --input entry.json --post
 ```
 
-`add`, `convert`, `apply`, and `edit` take `--id`. For `edit`, it is the id of the new transaction that corrects a posted one; a draft keeps its own id. In `banking`, `upload` and `import` take `--id` too.
+`add`, `convert`, `apply`, and `edit` take `--id`. For `edit`, it is the id of the new transaction that corrects a posted one; a draft keeps its own id. In `banking`, `upload`, `import`, `categorize` and `split` take `--id` too.
 
 When the answer to the `edit` of a draft is lost and the change was stored, the command finds the change in the draft and prints it as usual. When someone else changed the draft between the two sends, the command shows the refusal from Books.
 
