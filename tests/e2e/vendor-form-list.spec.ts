@@ -268,7 +268,7 @@ async function tableLayout(page: Page) {
         })
         .toBe(true)
     // Exactly these columns: no balance or other column; the last is the menu cell.
-    await expect.poll(() => headerCellTexts(page)).toEqual(['Name', 'Email', 'Phone', ''])
+    await expect.poll(() => headerCellTexts(page)).toEqual(['Code', 'Name', 'Email', 'Phone', ''])
 
     // No column sorts: pressing a header keeps the name order.
     await searchVendors(page, 'Harbor')

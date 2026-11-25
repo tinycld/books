@@ -28,6 +28,7 @@ import {
     watchForNotFoundAndDiscard,
 } from './customer-form-helpers'
 import { nameOnDraftLine } from './journal-entries-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 
 // The customer surfaces at a window of 1360 px or more: a new customer opens in a 480 px
 // panel beside the full list, and an existing customer's page fills the content area
@@ -58,8 +59,8 @@ const UNSAVED_DELETE_WARNING = 'Unsaved changes to this customer will be lost.'
 const jumpToBooksHome = customerHelpers.jumpToBooksHome
 
 // The id of the customer whose page is open, read from the URL.
-function openCustomerId(page: Page) {
-    return new URL(page.url()).pathname.split('/').pop() ?? ''
+function openCustomerId(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'customers')
 }
 
 // Opens a customer from its list row and shows its Details tab.
@@ -183,8 +184,8 @@ test.describe('customer-form: side panel', () => {
         const idB = await customerIdOf(page, nameB)
         const rowA = page.getByTestId(`customer-row-${idA}`)
         const rowB = page.getByTestId(`customer-row-${idB}`)
-        const urlA = customerPath(idA)
-        const urlB = customerPath(idB)
+        const urlA = await customerPath(page, idA)
+        const urlB = await customerPath(page, idB)
         await openRowDetails(page, rowA)
         await expect(panel).toBeVisible()
         await expect(page).toHaveURL(urlA)
@@ -414,7 +415,7 @@ test.describe('customer-form: side panel', () => {
         const nameE = `${uniqueName(`Panel held ${viewportName(page)}`)} E`
         await createCustomer(page, { name: nameE })
         await expect(page.getByTestId('customer-panel')).toBeVisible()
-        const idE = openCustomerId(page)
+        const idE = await openCustomerId(page)
         const heldDelete = await holdRecordWrite(page, idE, 'DELETE')
         await page.getByTestId('customer-more').click()
         await page.getByTestId('customer-more-delete').click()

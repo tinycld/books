@@ -2,6 +2,7 @@ import { expect, type Page, test } from '@playwright/test'
 import { authStorageKey } from '@tinycld/core/e2e-helpers'
 import { createCustomer, customerPath, uniqueName } from './customer-form-helpers'
 import { fillInvoice, localDay, postInvoice } from './receive-payment-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 
 // Shared steps of the statements specs (statements plan, E2E rules): every test makes its
 // own customer with a unique name, a unique email address and one posted invoice, opens
@@ -38,14 +39,14 @@ export async function statementCustomer(page: Page): Promise<StatementCustomer> 
     const name = uniqueName('Statement')
     const email = uniqueEmail('statement')
     await createCustomer(page, { name, email })
-    const id = new URL(page.url()).pathname.split('/').pop() ?? ''
+    const id = await recordIdFromUrl(page, 'customers')
     await page.getByTestId('customer-new-transaction').click()
     await page.getByTestId('customer-new-invoice').click()
     await expect(page).toHaveURL(new RegExp(`/books/invoices/new\\?customer=${id}$`))
     await fillInvoice(page, { dueDate: await localDay(page, 30), rate: INVOICE_RATE })
     await postInvoice(page)
     await page.goBack()
-    await expect(page).toHaveURL(customerPath(id))
+    await expect(page).toHaveURL(await customerPath(page, id))
     await expect(page.getByTestId('customer-transactions')).toBeVisible()
     return { id, name, email, invoiceCents: 13_725, invoiceAmount: '$137.25' }
 }
@@ -111,7 +112,7 @@ export async function storeStatement(
     await openNewStatementFor(page, customer)
     await expect(page.getByTestId('statements-type')).toBeFocused()
     await page.keyboard.press('ControlOrMeta+s')
-    await expect(page).toHaveURL(customerPath(customer.id))
+    await expect(page).toHaveURL(await customerPath(page, customer.id))
     let stored: StoredStatement | undefined
     await expect
         .poll(async () => {

@@ -27,6 +27,7 @@ import {
     watchForNotFoundAndDiscard,
 } from './customer-form-helpers'
 import { isFocused } from './keyboard-helpers'
+import { codeRouteKeys, recordIdFromUrl } from './record-key-helpers'
 
 // The customer page (customer-pages checkpoint 2): the record width beside a 320 px name
 // column on a very wide window, Details and Notes edited in place with a save bar, driven
@@ -48,8 +49,8 @@ const BUSY = 'Books is busy. Try again.'
 const PHONE = { width: 390, height: 844 }
 
 // The id of the customer whose page is open, read from the URL.
-function openCustomerId(page: Page) {
-    return new URL(page.url()).pathname.split('/').pop() ?? ''
+function openCustomerId(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'customers')
 }
 
 async function openMore(page: Page) {
@@ -83,7 +84,7 @@ test.describe('customer-pages: customer page', () => {
         const rowB = customerEntry(page, nameB)
         const emailCellA = page.getByTestId(`customer-cell-email-${idA}`)
         await rowA.click()
-        await expect(page).toHaveURL(customerPath(idA))
+        await expect(page).toHaveURL(await customerPath(page, idA))
 
         // The page beside a column of names: no back button, no email column.
         await expect(page.getByTestId('customer-tab-details')).toBeVisible()
@@ -104,7 +105,7 @@ test.describe('customer-pages: customer page', () => {
         await expect(dialog.title).toBeVisible()
         await dialog.keepEditing.click()
         await expect(dialog.title).toBeHidden()
-        await expect(page).toHaveURL(customerPath(idA))
+        await expect(page).toHaveURL(await customerPath(page, idA))
 
         // Below 1360 px the page covers the list, and nothing remounts: the note stays.
         await page.setViewportSize({ width: 1280, height: 900 })
@@ -172,7 +173,7 @@ test.describe('customer-pages: customer page', () => {
         const notesInput = page.getByTestId('customer-notes-input')
         const saveBar = page.getByTestId('customer-save-bar')
         await createCustomer(page, { name })
-        const id = openCustomerId(page)
+        const id = await openCustomerId(page)
 
         // Statements spec §2, §3.7: five tabs in the customer's order, Statements second,
         // with no count in its label.
@@ -215,7 +216,11 @@ test.describe('customer-pages: customer page', () => {
         await expect(saveBar).toBeVisible()
         await page.keyboard.press('ControlOrMeta+s')
         await expect(saveBar).toBeHidden()
-        await expect(page).toHaveURL(new RegExp(`/books/customers/${id}\\?tab=notes$`))
+        await expect(page).toHaveURL(
+            new RegExp(
+                `/books/customers/${await codeRouteKeys(page, 'customers', id)}\\?tab=notes$`
+            )
+        )
 
         // The tab is the URL's: a reload opens Notes with the saved note, and the phone
         // was saved too.
@@ -254,8 +259,8 @@ test.describe('customer-pages: customer page', () => {
         await createCustomer(page, { name: nameB })
 
         await openCustomer(page, nameA)
-        const idA = openCustomerId(page)
-        const pathA = customerPath(idA)
+        const idA = await openCustomerId(page)
+        const pathA = await customerPath(page, idA)
 
         // A refused save of a note alone keeps the note unsaved: the bar stays with the
         // refusal in it.
@@ -364,7 +369,7 @@ test.describe('customer-pages: customer page', () => {
         await page.getByTestId('customer-save').click()
         await expect(page).toHaveURL(customerPageUrl)
         await expect(title).toHaveText(nameP)
-        const idP = openCustomerId(page)
+        const idP = await openCustomerId(page)
 
         // Add sub-customer from P's More menu; Save opens S's page.
         await chooseMore(page, 'customer-more-add-sub')
@@ -374,7 +379,7 @@ test.describe('customer-pages: customer page', () => {
         await page.getByTestId('customer-save').click()
         await expect(page).toHaveURL(customerPageUrl)
         await expect(title).toHaveText(nameS)
-        const idS = openCustomerId(page)
+        const idS = await openCustomerId(page)
 
         // S: the parent link, no contact actions, no company, no Add sub-customer.
         const parentLink = page.getByTestId('customer-parent-link')
@@ -389,10 +394,10 @@ test.describe('customer-pages: customer page', () => {
 
         // The parent link replaces S with P's page.
         await parentLink.click()
-        await expect(page).toHaveURL(customerPath(idP))
+        await expect(page).toHaveURL(await customerPath(page, idP))
         await expect(title).toHaveText(nameP)
         await page.goBack()
-        await expect(page).not.toHaveURL(customerPath(idS))
+        await expect(page).not.toHaveURL(await customerPath(page, idS))
 
         // P: Email, Call (from the mobile), the company and the address lines.
         await openCustomer(page, nameP)

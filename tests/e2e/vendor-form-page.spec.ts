@@ -158,7 +158,7 @@ test.describe('vendor-form: vendor page and form', () => {
 
         // The row opens the vendor's page; `openVendor` then selects its Details tab.
         await openVendor(page, OFFICE_SUPPLY)
-        await expect(page).toHaveURL(vendorPath(VENDOR_IDS.officeSupply))
+        await expect(page).toHaveURL(await vendorPath(page, VENDOR_IDS.officeSupply))
         await expect(title).toHaveText(OFFICE_SUPPLY)
         await expect(field(page, 'display_name')).toHaveValue(OFFICE_SUPPLY)
         // Notes live on the Notes tab only; the Details form never shows them.

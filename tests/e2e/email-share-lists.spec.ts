@@ -15,6 +15,7 @@ import {
 } from './email-share-helpers'
 import { INVOICE_URL, invoiceIdFromUrl, pickLineProduct, uniqueMemo } from './invoice-helpers'
 import { fillInvoice, localDay, nonTaxableService, postInvoice } from './receive-payment-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 import {
     openRowMenu,
     openSales,
@@ -86,7 +87,7 @@ async function postFromCustomer(
     await fillInvoice(page, { dueDate: await localDay(page, 30), rate: '120.00' })
     const posted = await postInvoice(page)
     await page.goBack()
-    await expect(page).toHaveURL(customerPath(customerId))
+    await expect(page).toHaveURL(await customerPath(page, customerId))
     return posted
 }
 
@@ -102,7 +103,7 @@ async function draftFromCustomer(page: Page, customerId: string, memo: string) {
     await expect(page.getByTestId('invoice-title')).toHaveText('Draft invoice')
     const id = await invoiceIdFromUrl(page)
     await page.goBack()
-    await expect(page).toHaveURL(customerPath(customerId))
+    await expect(page).toHaveURL(await customerPath(page, customerId))
     return id
 }
 
@@ -192,7 +193,7 @@ test.describe('email-share: send from the sales list', () => {
         const secondEmail = uniqueEmail('batch-b')
         const name = uniqueName('Batch send')
         await createCustomer(page, { name, email: firstEmail })
-        const customerId = new URL(page.url()).pathname.split('/').pop() ?? ''
+        const customerId = await recordIdFromUrl(page, 'customers')
         const base = uniqueMemo('Batch send')
         const draft = await draftFromCustomer(page, customerId, `${base} draft`)
         const first = await postFromCustomer(page, customerId, `${base} one`)

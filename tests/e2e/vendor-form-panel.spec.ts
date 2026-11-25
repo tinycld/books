@@ -165,8 +165,8 @@ async function createPair(page: Page, label: string, afterSave = async () => {})
         nameB,
         rowA: page.getByTestId(`vendor-row-${idA}`),
         rowB: page.getByTestId(`vendor-row-${idB}`),
-        urlA: vendorPath(idA),
-        urlB: vendorPath(idB),
+        urlA: await vendorPath(page, idA),
+        urlB: await vendorPath(page, idB),
     }
 }
 

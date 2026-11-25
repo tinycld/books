@@ -54,7 +54,7 @@ import {
     rowAmount,
 } from './receive-payment-helpers'
 import { WIDE } from './record-form-helpers'
-import { expectRecordUrl } from './record-key-helpers'
+import { expectRecordUrl, recordIdFromUrl } from './record-key-helpers'
 import { fakeReadOnlyAccess } from './tax-rates-helpers'
 
 // The Customer Balance (customer-balance checkpoint 1): the shipped report from the Books
@@ -72,8 +72,8 @@ async function startInvoice(page: Page, customerId: string) {
     await expect(page).toHaveURL(new RegExp(`/books/invoices/new\\?customer=${customerId}$`))
 }
 
-function openCustomerId(page: Page) {
-    return new URL(page.url()).pathname.split('/').pop() ?? ''
+function openCustomerId(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'customers')
 }
 
 // A record's balance in cents, null for a blank cell (a family header).
@@ -250,8 +250,8 @@ test.describe('customer-balance: report', () => {
         await page.getByTestId('customer-save').click()
         await expect(page).toHaveURL(customerPageUrl)
         await expect(page.getByTestId('customer-title')).toHaveText(sub)
-        const subId = openCustomerId(page)
-        await expect(page).toHaveURL(customerPath(subId))
+        const subId = await openCustomerId(page)
+        await expect(page).toHaveURL(await customerPath(page, subId))
         await startInvoice(page, subId)
         await fillInvoice(page, { dueDate, rate: '200.00' })
         await postInvoice(page)
@@ -274,7 +274,7 @@ test.describe('customer-balance: report', () => {
         const dueDate = await localDay(page, 30)
         const name = uniqueName('Voided')
         await createCustomer(page, { name })
-        await startInvoice(page, openCustomerId(page))
+        await startInvoice(page, await openCustomerId(page))
         await fillInvoice(page, { dueDate, rate: '75.00' })
         await postInvoice(page)
         await page.getByTestId('invoice-read-void').click()
@@ -423,7 +423,7 @@ test.describe('customer-balance: report', () => {
         )
         // customerWithInvoices leaves the page on the customer it made last.
         if (second.customerId !== two.customerId) await openCustomer(page, second.name)
-        await expect(page).toHaveURL(customerPath(second.customerId))
+        await expect(page).toHaveURL(await customerPath(page, second.customerId))
         await page.getByTestId('customer-new-transaction').click()
         await page.getByTestId('customer-new-invoice').click()
         await expect(page).toHaveURL(

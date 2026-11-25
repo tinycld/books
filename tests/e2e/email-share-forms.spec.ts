@@ -27,6 +27,7 @@ import {
 import { BATCH_WRITE, batchOperations, refuseBatchOperation } from './journal-entries-helpers'
 import { tabTo } from './keyboard-helpers'
 import { fillInvoice, localDay, nonTaxableService } from './receive-payment-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 import { uniqueEmail } from './statements-helpers'
 
 // Send from a document's form (email-share spec §3.3 "Form", §3.6, §4.5; plan checkpoint 4):
@@ -54,8 +55,8 @@ async function customerWithEmail(page: Page, label: string) {
     const name = uniqueName(label)
     const email = uniqueEmail('form-send')
     await createCustomer(page, { name, email })
-    const id = new URL(page.url()).pathname.split('/').pop() ?? ''
-    await expect(page).toHaveURL(customerPath(id))
+    const id = await recordIdFromUrl(page, 'customers')
+    await expect(page).toHaveURL(await customerPath(page, id))
     return { name, email, id }
 }
 

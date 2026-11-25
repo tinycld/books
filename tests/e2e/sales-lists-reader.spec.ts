@@ -4,7 +4,7 @@ import { collaboratorLevel, type Level, setCollaboratorLevel } from './books-acc
 import { createCustomer, uniqueName } from './customer-form-helpers'
 import { sendDialog, toast } from './email-share-helpers'
 import { uniqueMemo } from './invoice-helpers'
-import { expectRecordUrl } from './record-key-helpers'
+import { expectRecordUrl, recordIdFromUrl } from './record-key-helpers'
 import {
     draftInvoiceFor,
     openRowMenu,
@@ -65,7 +65,7 @@ test.describe('sales-lists: reader (collaborator level)', () => {
         const name = uniqueName('Sales reader')
         const email = uniqueEmail('reader-send')
         await createCustomer(page, { name, email })
-        const customerId = new URL(page.url()).pathname.split('/').pop() ?? ''
+        const customerId = await recordIdFromUrl(page, 'customers')
         const draft = await draftInvoiceFor(page, name, uniqueMemo('Reader draft'))
         const posted = await postedInvoiceFor(page, name, uniqueMemo('Reader posted'))
         await openSales(page)

@@ -180,3 +180,16 @@ export async function expectNotRecordUrl(page: Page, route: string, id: string):
         )
         .toBe(false)
 }
+
+// The path of the record `id` of a code route (`customers`, `vendors`, `products`), by its
+// code or by its id, with or without a query (`?tab=details`). A list, a save and a link
+// that knows the code open the code; a link that knows only the id opens the id.
+export async function codeRoutePath(page: Page, route: string, id: string): Promise<RegExp> {
+    return new RegExp(`/books/${route}/${await codeRouteKeys(page, route, id)}(\\?[^#]*)?$`)
+}
+
+// The URL keys of the record `id` of a code route as a pattern part: its code or its id.
+export async function codeRouteKeys(page: Page, route: string, id: string): Promise<string> {
+    const key = await urlKeyOf(page, route, id)
+    return key === id ? id : `(?:${id}|${key})`
+}

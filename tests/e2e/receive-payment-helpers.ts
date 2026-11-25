@@ -113,7 +113,7 @@ export async function customerWithInvoices(
 ): Promise<{ name: string; customerId: string; invoices: { id: string; number: string }[] }> {
     const name = uniqueName(namePrefix)
     await createCustomer(page, { name })
-    const customerId = new URL(page.url()).pathname.split('/').pop() ?? ''
+    const customerId = await recordIdFromUrl(page, 'customers')
     const today = await localToday(page)
     const posted: { id: string; number: string }[] = []
     for (const invoice of invoices) {
@@ -129,7 +129,7 @@ export async function customerWithInvoices(
         })
         posted.push(await postInvoice(page))
         await page.goBack()
-        await expect(page).toHaveURL(customerPath(customerId))
+        await expect(page).toHaveURL(await customerPath(page, customerId))
         await expect(page.getByTestId('customer-transactions')).toBeVisible()
     }
     return { name, customerId, invoices: posted }

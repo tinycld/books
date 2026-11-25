@@ -129,7 +129,7 @@ test.describe('receive-payment: invoice and customer', () => {
         const payment = await postPayment(page)
 
         await page.goBack()
-        await expect(page).toHaveURL(customerPath(customerId))
+        await expect(page).toHaveURL(await customerPath(page, customerId))
         await expect(page.getByTestId('customer-transactions')).toBeVisible()
         await expect(overdue).toHaveText('$0.00')
 

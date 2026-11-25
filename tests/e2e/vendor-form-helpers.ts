@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 import { type RecordKind, recordFormHelpers } from './record-form-helpers'
-import { recordIdFromUrl } from './record-key-helpers'
+import { codeRoutePath, recordIdFromUrl } from './record-key-helpers'
 
 // Shared by the vendor-form e2e specs: the record-form helpers bound to vendors.
 // Vendors are created by driving the form; a spec never edits a seeded vendor.
@@ -72,8 +72,8 @@ export const expectVendorEditSaved = vendorHelpers.expectEditSaved
 export const vendorPageUrl = vendorHelpers.recordPageUrl
 
 // One vendor's page, with or without a query (`?tab=details`).
-export function vendorPath(id: string) {
-    return new RegExp(`/books/vendors/${id}(\\?[^#]*)?$`)
+export function vendorPath(page: Page, id: string) {
+    return codeRoutePath(page, 'vendors', id)
 }
 
 // The id of the vendor whose page is open, read from the URL (its code, or its id).

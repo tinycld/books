@@ -2,7 +2,7 @@ import { expect, type Page, test } from '@playwright/test'
 import { DESKTOP, openBooks, openCustomer } from './customer-form-helpers'
 import { newActionTestId } from './new-menu-helpers'
 import { fillInvoice, localDay, postInvoice } from './receive-payment-helpers'
-import { expectRecordUrl, urlKeyOf } from './record-key-helpers'
+import { codeRouteKeys, expectRecordUrl, urlKeyOf } from './record-key-helpers'
 import {
     newStatementUrl,
     type StatementCustomer,
@@ -50,8 +50,10 @@ function shown(page: Page, testId: string) {
     return page.getByTestId(testId).filter({ visible: true })
 }
 
-function tabUrl(customerId: string) {
-    return new RegExp(`/books/customers/${customerId}\\?tab=statements$`)
+async function tabUrl(page: Page, customerId: string) {
+    return new RegExp(
+        `/books/customers/${await codeRouteKeys(page, 'customers', customerId)}\\?tab=statements$`
+    )
 }
 
 function pdfAnswered(page: Page, id: string) {
@@ -77,7 +79,7 @@ async function openStatementsTab(page: Page, customer: StatementCustomer) {
         'aria-selected',
         'true'
     )
-    await expect(page).toHaveURL(tabUrl(customer.id))
+    await expect(page).toHaveURL(await tabUrl(page, customer.id))
     await expect(shown(page, 'customer-statements')).toBeVisible()
 }
 
@@ -130,7 +132,7 @@ test.describe('statements: tab and statement', () => {
         await expect(page.getByRole('link', { name: customer.name, exact: true })).toBeVisible()
 
         await page.keyboard.press('Escape')
-        await expect(page).toHaveURL(tabUrl(customer.id))
+        await expect(page).toHaveURL(await tabUrl(page, customer.id))
         await expect(shown(page, `statement-row-${stored.id}`)).toBeVisible()
     })
 
@@ -175,7 +177,7 @@ test.describe('statements: tab and statement', () => {
 
         // Back on the tab the row's Sent cell holds the address.
         await page.keyboard.press('Escape')
-        await expect(page).toHaveURL(tabUrl(customer.id))
+        await expect(page).toHaveURL(await tabUrl(page, customer.id))
         const row = shown(page, `statement-row-${stored.id}`)
         await expect(row).toContainText(first)
 
@@ -221,14 +223,14 @@ test.describe('statements: tab and statement', () => {
 
         // One more invoice for the customer, dated today.
         await page.keyboard.press('Escape')
-        await expect(page).toHaveURL(tabUrl(customer.id))
+        await expect(page).toHaveURL(await tabUrl(page, customer.id))
         await page.getByTestId('customer-new-transaction').click()
         await page.getByTestId('customer-new-invoice').click()
         await expect(page).toHaveURL(new RegExp(`/books/invoices/new\\?customer=${customer.id}$`))
         await fillInvoice(page, { dueDate: await localDay(page, 30), rate: '50.00' })
         await postInvoice(page)
         await page.goBack()
-        await expect(page).toHaveURL(tabUrl(customer.id))
+        await expect(page).toHaveURL(await tabUrl(page, customer.id))
 
         // The first statement's PDF reads the ledger as it is now; the stored amount shows.
         await openStatement(page, first)
@@ -255,7 +257,7 @@ test.describe('statements: tab and statement', () => {
         await shown(page, 'statement-more').click()
         await shown(page, 'statement-delete').click()
         await shown(page, 'statement-delete-confirm').click()
-        await expect(page).toHaveURL(tabUrl(customer.id))
+        await expect(page).toHaveURL(await tabUrl(page, customer.id))
         await expect.poll(() => shownRowIds(page)).toEqual([second.id])
 
         // The deleted statement's screen is the forward history entry: it shows Not found.
@@ -268,7 +270,7 @@ test.describe('statements: tab and statement', () => {
         // Back from there is the tab again. The second from its row menu: the tab is empty,
         // with Create statement.
         await page.goBack()
-        await expect(page).toHaveURL(tabUrl(customer.id))
+        await expect(page).toHaveURL(await tabUrl(page, customer.id))
         await shown(page, `statement-row-menu-${second.id}`).click()
         await shown(page, `statement-row-delete-${second.id}`).click()
         await shown(page, 'statement-delete-confirm').click()

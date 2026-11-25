@@ -6,6 +6,7 @@ import { expectedHeading } from './books-report-helpers'
 import { createCustomer, customerPath, uniqueName } from './customer-form-helpers'
 import { uniqueMemo } from './invoice-helpers'
 import { fillInvoice, localDay, postInvoice } from './receive-payment-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 import { uniqueEmail } from './statements-helpers'
 
 // Shared steps of the email-share specs (email-share plan, E2E rules): every test makes its
@@ -31,7 +32,7 @@ export async function postedInvoiceWithEmail(
     const customer = uniqueName('Send')
     const email = uniqueEmail('send')
     await createCustomer(page, { name: customer, email })
-    const id = new URL(page.url()).pathname.split('/').pop() ?? ''
+    const id = await recordIdFromUrl(page, 'customers')
     await page.getByTestId('customer-new-transaction').click()
     await page.getByTestId('customer-new-invoice').click()
     await expect(page).toHaveURL(new RegExp(`/books/invoices/new\\?customer=${id}$`))
@@ -40,7 +41,7 @@ export async function postedInvoiceWithEmail(
     await fillInvoice(page, { dueDate: await localDay(page, 30), rate: INVOICE_RATE })
     const { number } = await postInvoice(page)
     await page.goBack()
-    await expect(page).toHaveURL(customerPath(id))
+    await expect(page).toHaveURL(await customerPath(page, id))
     return { memo, number, email, customer }
 }
 

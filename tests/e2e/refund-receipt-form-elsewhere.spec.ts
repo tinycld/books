@@ -88,8 +88,8 @@ async function openCents(page: Page): Promise<number> {
     return cents(await page.getByTestId('customer-balance-open').innerText())
 }
 
-function customerIdOfPage(page: Page) {
-    return new URL(page.url()).pathname.split('/').pop() ?? ''
+function customerIdOfPage(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'customers')
 }
 
 function transaction(page: Page, id: string) {
@@ -138,10 +138,10 @@ async function openTransactionsTab(page: Page) {
 // document still holds a hidden list, and opening the list again stacks a second one.
 async function backToCustomerTransactions(page: Page, customerId: string) {
     for (let step = 0; step < 4; step++) {
-        if (customerPath(customerId).test(new URL(page.url()).pathname)) break
+        if ((await customerPath(page, customerId)).test(new URL(page.url()).pathname)) break
         await page.goBack()
     }
-    await expect(page).toHaveURL(customerPath(customerId))
+    await expect(page).toHaveURL(await customerPath(page, customerId))
     await openTransactionsTab(page)
 }
 
@@ -316,7 +316,7 @@ test.describe('refund-receipt-form: elsewhere', () => {
         await openBooks(page)
         const name = uniqueName('Refund page')
         await createCustomer(page, { name })
-        const customerId = customerIdOfPage(page)
+        const customerId = await customerIdOfPage(page)
         await openTransactionsTab(page)
         const openBefore = await openCents(page)
 

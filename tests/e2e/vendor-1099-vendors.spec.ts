@@ -102,7 +102,7 @@ test.describe('vendor-1099: 1099 vendors', () => {
             }
 
             await row.click()
-            await expect(page).toHaveURL(vendorPath(id))
+            await expect(page).toHaveURL(await vendorPath(page, id))
             await expect(visible(page, 'vendor-page')).toBeVisible()
             // The row opens the vendor's page, titled with its name.
             await expect(visible(page, 'vendor-title')).toHaveText(name)

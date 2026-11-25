@@ -154,7 +154,7 @@ test.describe('customer-form: save and discard', () => {
             await expect(customerEntry(page, name)).toBeVisible()
             const id = await customerIdOf(page, name)
             await openCustomer(page, name)
-            await expect(page).toHaveURL(customerPath(id))
+            await expect(page).toHaveURL(await customerPath(page, id))
             await expect(title).toHaveText(name)
             await expect(field(page, 'company')).toHaveValue('Helix Co')
             await expect(field(page, 'phone')).toHaveValue(phone)
@@ -269,7 +269,7 @@ test.describe('customer-form: save and discard', () => {
 
             // The browser's Back button is held while dirty.
             await openCustomer(page, name)
-            await expect(page).toHaveURL(customerPath(id))
+            await expect(page).toHaveURL(await customerPath(page, id))
             await expect(title).toHaveText(name)
             await expect(field(page, 'phone')).toHaveValue(phone)
 
@@ -281,10 +281,10 @@ test.describe('customer-form: save and discard', () => {
             await expect(dialog.title).toBeHidden()
             await page.goBack()
             await expect(dialog.title).toBeVisible()
-            await expect(page).toHaveURL(customerPath(id))
+            await expect(page).toHaveURL(await customerPath(page, id))
             await dialog.keepEditing.click()
             await expect(dialog.title).toBeHidden()
-            await expect(page).toHaveURL(customerPath(id))
+            await expect(page).toHaveURL(await customerPath(page, id))
             await expect(customerSurface(page)).toBeVisible()
             await expect(field(page, 'phone')).toHaveValue(newPhone)
         })
@@ -307,7 +307,7 @@ test.describe('customer-form: save and discard', () => {
             // A refusal with no field, on the Details tab, shows in the form's summary;
             // the page stays open with the edit.
             const recordUrl = isRecordUrl(id)
-            const recordPath = customerPath(id)
+            const recordPath = await customerPath(page, id)
             const patches = refusedPatches()
             const cancel = page.getByTestId('customer-cancel')
             const back = page.getByTestId('customer-back')
@@ -369,7 +369,7 @@ test.describe('customer-form: save and discard', () => {
             const newPhone = `(555) 011-${digits}`
             const id = await createListedCustomer(page, { name, phone })
             const recordUrl = isRecordUrl(id)
-            const recordPath = customerPath(id)
+            const recordPath = await customerPath(page, id)
             const patches = refusedPatches()
             await page.route(recordUrl, patches.handler)
 
@@ -429,7 +429,7 @@ test.describe('customer-form: save and discard', () => {
             const newPhone = `(555) 011-${digits}`
             const id = await createListedCustomer(page, { name, phone })
             const recordUrl = isRecordUrl(id)
-            const recordPath = customerPath(id)
+            const recordPath = await customerPath(page, id)
 
             // An edit typed while a save is in flight is kept when the save succeeds: the
             // page stays open with it, and leaving still asks.
@@ -542,7 +542,7 @@ test.describe('customer-form: save and discard', () => {
             const digits = stampDigits()
             await createCustomer(page, { name: secondName })
             const id = await createListedCustomer(page, { name })
-            const recordPath = customerPath(id)
+            const recordPath = await customerPath(page, id)
 
             // On an edit, a sibling's name is a field refusal too, and the page stays.
             await openCustomer(page, name)
@@ -590,7 +590,7 @@ test.describe('customer-form: save and discard', () => {
             await searched
             await page.getByRole('option').filter({ hasText: name }).click()
             await expect(title).toHaveText(name)
-            await expect(page).toHaveURL(customerPath(id))
+            await expect(page).toHaveURL(await customerPath(page, id))
             // The hit opens the customer's page on its default tab, Transactions.
             await expect(page.getByTestId('customer-tab-transactions')).toHaveAttribute(
                 'aria-selected',
@@ -620,7 +620,7 @@ test.describe('customer-form: save and discard', () => {
         const newPhone = `(555) 011-${digits}`
         await createCustomer(page, { name: secondName })
         const id = await createListedCustomer(page, { name, phone })
-        const recordPath = customerPath(id)
+        const recordPath = await customerPath(page, id)
         const recordUrl = isRecordUrl(id)
         const passed = refusedPatches()
         await page.route(recordUrl, passed.handler)
@@ -629,7 +629,7 @@ test.describe('customer-form: save and discard', () => {
         await page.setViewportSize(WIDE)
         await openCustomersList(page)
         await searchCustomers(page, prefix)
-        const secondPath = customerPath(await customerIdOf(page, secondName))
+        const secondPath = await customerPath(page, await customerIdOf(page, secondName))
         await customerEntry(page, name).click()
         await expect(page).toHaveURL(recordPath)
         await detailsTab.click()

@@ -3,7 +3,7 @@ import { BILL_URL } from './bill-helpers'
 import { uniqueMemo } from './invoice-helpers'
 import { localDay, vendorWithBills } from './pay-bills-helpers'
 import { holdLoads, sideBySide } from './record-form-helpers'
-import { expectRecordUrl } from './record-key-helpers'
+import { codeRouteKeys, expectRecordUrl } from './record-key-helpers'
 import { creditCellTestId, pickCreditLineAccount, VENDOR_CREDIT_URL } from './vendor-credit-helpers'
 import {
     createVendor,
@@ -89,7 +89,7 @@ async function openFromRow(page: Page, name: string) {
 // Back from a pushed document to the vendor page kept under it.
 async function backToVendor(page: Page, id: string) {
     await page.goBack()
-    await expect(page).toHaveURL(vendorPath(id))
+    await expect(page).toHaveURL(await vendorPath(page, id))
     await expect(page.getByTestId('vendor-title')).toBeVisible()
 }
 
@@ -267,7 +267,9 @@ test.describe('vendor-pages: vendor balance', () => {
 
         // A new vendor opens on Transactions, with no tab param, at $0.00.
         const { open, openLabel, overdue } = figures(page)
-        await expect(page).toHaveURL(new RegExp(`/books/vendors/${id}$`))
+        await expect(page).toHaveURL(
+            new RegExp(`/books/vendors/${await codeRouteKeys(page, 'vendors', id)}$`)
+        )
         await expect(page.getByTestId('vendor-tab-transactions')).toHaveAttribute(
             'aria-selected',
             'true'
@@ -305,7 +307,9 @@ test.describe('vendor-pages: vendor balance', () => {
             'aria-selected',
             'true'
         )
-        await expect(page).toHaveURL(new RegExp(`/books/vendors/${id}$`))
+        await expect(page).toHaveURL(
+            new RegExp(`/books/vendors/${await codeRouteKeys(page, 'vendors', id)}$`)
+        )
         await page.keyboard.press('Alt+4')
         await expect(notesInput).toHaveValue(note)
         await page.keyboard.press('ControlOrMeta+s')
@@ -315,7 +319,9 @@ test.describe('vendor-pages: vendor balance', () => {
         await chooseNew(page, 'vendor-new-bill')
         await expect(page).toHaveURL(new RegExp(`/books/bills/new\\?vendor=${id}$`))
         await page.getByTestId('bill-edit-vendor').click()
-        await expect(page).toHaveURL(new RegExp(`/books/vendors/${id}\\?tab=details$`))
+        await expect(page).toHaveURL(
+            new RegExp(`/books/vendors/${await codeRouteKeys(page, 'vendors', id)}\\?tab=details$`)
+        )
         await expect(
             page.getByTestId('vendor-tab-details').filter({ visible: true })
         ).toHaveAttribute('aria-selected', 'true')

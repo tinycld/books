@@ -14,7 +14,7 @@ import { lineCellTestId, localToday, uniqueMemo } from './invoice-helpers'
 import { BATCH_WRITE, refuseBatchOperation, settleFrames } from './journal-entries-helpers'
 import { shown } from './pay-bills-helpers'
 import { nonTaxableService } from './receive-payment-helpers'
-import { expectRecordUrl } from './record-key-helpers'
+import { expectRecordUrl, recordIdFromUrl } from './record-key-helpers'
 
 // Applying a posted credit memo to its customer's open invoices (apply credit spec §3.1,
 // §3.2, §3.4, §3.5, §3.7), checkpoint 3: the memo's Apply to invoices action (A) and
@@ -291,7 +291,7 @@ test.describe('apply-credit: from a credit memo', () => {
         await openBooks(fresh)
         const lone = uniqueName('Apply empty')
         await createCustomer(fresh, { name: lone })
-        const loneId = new URL(fresh.url()).pathname.split('/').pop() ?? ''
+        const loneId = await recordIdFromUrl(fresh, 'customers')
         await postCreditMemo(fresh, {
             customer: lone,
             product: nonTaxableService(),

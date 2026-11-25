@@ -159,7 +159,7 @@ test.describe('vendor-form: save and discard', () => {
         await searchVendors(page, name)
         const id = await vendorIdOf(page, name)
         await openVendor(page, name)
-        await expect(page).toHaveURL(vendorPath(id))
+        await expect(page).toHaveURL(await vendorPath(page, id))
         await expect(title).toHaveText(name)
         await expect(field(page, 'company')).toHaveValue('Helix Supply')
         await expect(field(page, 'phone')).toHaveValue(phone)
@@ -196,7 +196,7 @@ test.describe('vendor-form: save and discard', () => {
         await searched
         await page.getByRole('option').filter({ hasText: name }).click()
         await expect(title).toHaveText(name)
-        await expect(page).toHaveURL(vendorPath(id))
+        await expect(page).toHaveURL(await vendorPath(page, id))
         await page.goBack()
         await expect(hubCard).toBeVisible()
         await expect(vendorSurface(page)).toBeHidden()
@@ -251,7 +251,7 @@ test.describe('vendor-form: save and discard', () => {
         await searchVendors(page, prefix)
         const id = await vendorIdOf(page, name)
         const recordRoute = isRecordUrl(id)
-        const recordPath = vendorPath(id)
+        const recordPath = await vendorPath(page, id)
         const newPhone = `(555) 011-${digits}`
         await openVendor(page, name)
         await field(page, 'phone').fill(newPhone)
@@ -301,7 +301,7 @@ test.describe('vendor-form: save and discard', () => {
         await searchVendors(page, name)
         const id = await vendorIdOf(page, name)
         const recordRoute = isRecordUrl(id)
-        const recordPath = vendorPath(id)
+        const recordPath = await vendorPath(page, id)
 
         // (2) An address part typed and emptied again leaves the form clean: an all-empty
         // address is stored as null, the form's seed. Typed, Escape asks; emptied again,

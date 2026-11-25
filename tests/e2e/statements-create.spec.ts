@@ -57,7 +57,7 @@ function screenParts(page: Page, customer: StatementCustomer) {
 // After a Save: the toast, and the customer's page shown again.
 async function expectSavedAndBack(page: Page, customer: StatementCustomer) {
     await expect(savedToast(page, '1 statement saved')).toBeVisible()
-    await expect(page).toHaveURL(customerPath(customer.id))
+    await expect(page).toHaveURL(await customerPath(page, customer.id))
     await expect(page.getByTestId('customer-transactions')).toBeVisible()
 }
 
@@ -255,7 +255,7 @@ test.describe('statements: create', () => {
 
         await expect(parts.type).toBeFocused()
         await page.keyboard.press('Escape')
-        await expect(page).toHaveURL(customerPath(customer.id))
+        await expect(page).toHaveURL(await customerPath(page, customer.id))
         await expect(page.getByTestId('customer-transactions')).toBeVisible()
         await expect(dialog).toHaveCount(0)
 
@@ -273,7 +273,7 @@ test.describe('statements: create', () => {
         await parts.back.click()
         await expect(dialog).toBeVisible()
         await page.getByTestId('discard-confirm').click()
-        await expect(page).toHaveURL(customerPath(customer.id))
+        await expect(page).toHaveURL(await customerPath(page, customer.id))
         await expect(page.getByTestId('customer-transactions')).toBeVisible()
         expect(await statementsOf(page, customer.id)).toEqual([])
     })
