@@ -59,15 +59,6 @@ func refuseStoredOf(cmd *cobra.Command, c *client.Client, collection, id, what, 
 	return refusedf("%s %s already exists; nothing was written", what, id)
 }
 
-// checkImportThenResend is the next step after a lost import. `banking files`
-// cannot look up an import id: the status of the file shows that the import
-// was stored.
-func checkImportThenResend(show, file, id string) string {
-	return "Check with `" + show + "`: bank file " + file + " has the status `imported` when the import was stored. " +
-		"To send it again, run the same command with --id " + id +
-		": when the first one was stored, Books refuses the second and nothing is written twice."
-}
-
 // bankImportInputSchema is the --input of `banking import`: the columns of a
 // CSV file, and the lines to import.
 func bankImportInputSchema() map[string]any {
@@ -170,7 +161,6 @@ func newBankingImportCmd(c *client.Client) *cobra.Command {
 			}
 		}
 		id := chosenID(cmd, chosen)
-		show := cmd.Parent().CommandPath() + " files"
 		if err := refuseStoredOf(cmd, c, bankImportsCollection, id, bankImportsResource.Singular, "file", bankFilesResource.Singular); err != nil {
 			return err
 		}
@@ -181,7 +171,7 @@ func newBankingImportCmd(c *client.Client) *cobra.Command {
 		}
 		stored := func() (bool, error) { return recordExists(cmd.Context(), c, bankImportsCollection, id) }
 		if err := sendResent(cmd.Context(), send, stored); err != nil {
-			return prefixID(&bankFilesResource, args[0], explain(err, "the import "+id+" of bank file "+args[0], checkImportThenResend(show, args[0], id)))
+			return prefixID(&bankFilesResource, args[0], explain(err, "the import "+id+" of bank file "+args[0], resendWithID(id)))
 		}
 		rec, err := fetchRecord(cmd.Context(), c, &bankImportsResource, id)
 		if err != nil {

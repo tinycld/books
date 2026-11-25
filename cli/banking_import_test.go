@@ -141,8 +141,8 @@ func TestBankingImportWithAStoredIDOfNoFile(t *testing.T) {
 	}
 }
 
-// No send is answered: the message sends the user to the status of the file,
-// not to a lookup of the import id that `banking files` cannot do.
+// No send is answered: the message gives only the resend with the same --id,
+// because the status of the file does not show which of its imports was stored.
 func TestBankingImportWhenNoSendIsAnswered(t *testing.T) {
 	quickResends(t)
 	f := importFake(t, "csv")
@@ -155,12 +155,15 @@ func TestBankingImportWhenNoSendIsAnswered(t *testing.T) {
 	}
 	for _, want := range []string{
 		"the import bankimport00002 of bank file " + bankFileOct,
-		"Check with `tinycld books banking files`: bank file " + bankFileOct + " has the status `imported` when the import was stored.",
-		"--id bankimport00002",
+		"To send it again, run the same command with --id bankimport00002: when the first one was stored, Books refuses the second and nothing is written twice.",
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("message lacks %q:\n%v", want, err)
 		}
+	}
+	// A file can have several imports, so its status does not show this one.
+	if strings.Contains(err.Error(), "Check with") {
+		t.Errorf("message has a check step that cannot be conclusive:\n%v", err)
 	}
 }
 

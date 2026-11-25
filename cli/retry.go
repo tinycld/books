@@ -102,7 +102,13 @@ func explain(err error, what, next string) error {
 // checkThenResend is the next step after a lost create: show it, or send the
 // same command again with its id, which Books refuses if it is stored.
 func checkThenResend(show, id string) string {
-	return "Check with `" + show + "`. To send it again, run the same command with --id " + id +
+	return "Check with `" + show + "`. " + resendWithID(id)
+}
+
+// resendWithID is the resend step alone. It is safe to follow without a check:
+// Books refuses an id that is stored.
+func resendWithID(id string) string {
+	return "To send it again, run the same command with --id " + id +
 		": when the first one was stored, Books refuses the second and nothing is written twice."
 }
 
