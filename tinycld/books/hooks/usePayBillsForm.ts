@@ -43,6 +43,7 @@ import {
     typeRowPayment,
     untickRow,
 } from '../lib/payment-allocation'
+import { codeFirst, matchesNameOrCode } from '../lib/record-code'
 import { usePayBillsStore } from '../stores/pay-bills-store'
 import type { BooksBillPaymentLines, BooksBillPayments, BooksVendors } from '../types'
 import { usePaidFromAccounts } from './usePaidFromAccounts'
@@ -152,11 +153,6 @@ const NO_BALANCES: PayBillsBalances = {
 function balanceAccountType(type: string): 'bank' | 'credit_card' | null {
     if (type === 'bank' || type === 'credit_card') return type
     return null
-}
-
-function matchesTerm(label: string, term: string): boolean {
-    const needle = term.trim().toLowerCase()
-    return needle === '' || label.toLowerCase().includes(needle)
 }
 
 // The row ids with an error under their Payment cell: a filter never hides them.
@@ -282,8 +278,12 @@ export function usePayBillsForm(input: PayBillsFormInput) {
         vendorOptions.find(option => option.id === vendorFilter)?.label ??
         original?.payment.vendorRow?.display_name ??
         ALL_VENDORS_TEXT
-    const vendorPickerOptions = vendorOptions.filter(option =>
-        matchesTerm(option.label, vendorPicker.debouncedTerm)
+    const vendorPickerOptions = codeFirst(
+        vendorOptions.filter(option =>
+            matchesNameOrCode(vendorPicker.debouncedTerm, option.label, option.code)
+        ),
+        vendorPicker.debouncedTerm,
+        option => option.code
     )
     const setVendorFilter = (vendor: string) => setFilters(current => ({ ...current, vendor }))
     const setDue = (next: DueFilter) => setFilters(current => ({ ...current, due: next }))

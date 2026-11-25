@@ -6,6 +6,7 @@ import type { SearchPickerOption } from '../components/SearchPicker'
 import type { BooksCustomers, BooksProducts, BooksTaxRates } from '../types'
 import { dueDateFor } from './document-dates'
 import { centsToText } from './money-text'
+import { codeFirst, matchesNameOrCode } from './record-code'
 import { INVOICE_KIND, type SalesDocumentKind } from './sales-document-kinds'
 
 export type CustomerFill = Pick<
@@ -195,16 +196,19 @@ export function bundleLines(input: {
 // The Customer picker's options in the order given: a sub-customer reads "Parent:
 // Child", and the search runs on that label, so a parent's name finds its children.
 export function documentCustomerOptions(input: {
-    customers: readonly { id: string; display_name: string; parentName: string | undefined }[]
+    customers: readonly {
+        id: string
+        display_name: string
+        code?: string
+        parentName: string | undefined
+    }[]
     term: string
 }): SearchPickerOption[] {
-    const term = input.term.trim().toLowerCase()
-    const options = input.customers.map(customer => ({
-        id: customer.id,
-        label: customer.parentName
+    const labelOf = (customer: (typeof input.customers)[number]) =>
+        customer.parentName
             ? `${customer.parentName}: ${customer.display_name}`
-            : customer.display_name,
-    }))
-    if (term === '') return options
-    return options.filter(option => option.label.toLowerCase().includes(term))
+            : customer.display_name
+    return codeFirst(input.customers, input.term, customer => customer.code)
+        .filter(customer => matchesNameOrCode(input.term, labelOf(customer), customer.code))
+        .map(customer => ({ id: customer.id, label: labelOf(customer) }))
 }

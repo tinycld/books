@@ -10,6 +10,7 @@ import type { BooksAccounts, BooksProducts, BooksVendors } from '../types'
 import { accountOptionList } from './account-options'
 import { PURCHASE_ITEM_TYPES } from './product-picker-types'
 import { PURCHASE_ACCOUNT_TYPES } from './purchase-line-columns'
+import { codeFirst, matchesNameOrCode } from './record-code'
 
 export const PURCHASE_ACCOUNT_EMPTY_TEXT = 'No expense accounts'
 export const PURCHASE_PRODUCT_EMPTY_TEXT = 'No purchased products or services'
@@ -103,21 +104,22 @@ export function purchaseProductOptions(
     return [{ id: stored.id, label: storedProductLabel(stored) }, ...listed]
 }
 
-type VendorPickerRow = Pick<BooksVendors, 'id' | 'display_name' | 'inactive'>
+type VendorPickerRow = Pick<BooksVendors, 'id' | 'display_name' | 'code' | 'inactive'>
 
-// The active vendors by name. The stored vendor, when it is inactive, keeps its place by
-// name, marked "(inactive)": a correction keeps its original's vendor.
+// The active vendors by name, kept when the name or code holds `term`, those whose code
+// starts with it first. The stored vendor, when it is inactive, keeps its place by name,
+// marked "(inactive)": a correction keeps its original's vendor.
 export function vendorPickerOptions(
     vendors: readonly VendorPickerRow[],
-    storedId: string
+    storedId: string,
+    term = ''
 ): SearchPickerOption[] {
-    return vendors
+    const listed = vendors
         .filter(vendor => !vendor.inactive || vendor.id === storedId)
+        .filter(vendor => matchesNameOrCode(term, vendor.display_name, vendor.code))
         .sort((a, b) => a.display_name.localeCompare(b.display_name))
-        .map(vendor => ({
-            id: vendor.id,
-            label: vendor.inactive
-                ? `${vendor.display_name} ${INACTIVE_SUFFIX}`
-                : vendor.display_name,
-        }))
+    return codeFirst(listed, term, vendor => vendor.code).map(vendor => ({
+        id: vendor.id,
+        label: vendor.inactive ? `${vendor.display_name} ${INACTIVE_SUFFIX}` : vendor.display_name,
+    }))
 }

@@ -1,4 +1,4 @@
-import { eq, ilike } from '@tanstack/db'
+import { eq, ilike, or } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
@@ -16,7 +16,7 @@ type Party = ListArea['party']
 
 // Every row of the area's party collection (customers: sub-customers and inactive ones
 // included; vendors: inactive ones included; no `where` on either), by display name; each
-// typed piece must be in the name (`searchPieces`: a piece holds no wildcard, so the
+// typed piece must be in the name or the code (`searchPieces`: a piece holds no wildcard, so the
 // server matches it as plain text). It runs only while the picker is open. With no search
 // typed it lists the first PICKER_LIMIT names; a search lists every match, as the other
 // Books pickers do.
@@ -31,7 +31,13 @@ function usePartyOptions(area: ListArea, term: string, isOpen: boolean) {
                 return from.orderBy(({ p }) => p.display_name).limit(PICKER_LIMIT)
             }
             return from
-                .where(({ p }) => allOf(pieces.map(piece => ilike(p.display_name, `%${piece}%`))))
+                .where(({ p }) =>
+                    allOf(
+                        pieces.map(piece =>
+                            or(ilike(p.display_name, `%${piece}%`), ilike(p.code, `%${piece}%`))
+                        )
+                    )
+                )
                 .orderBy(({ p }) => p.display_name)
         },
         queryKey: [`${area.logContext}.${area.party.noun}-filter`, isOpen, ...pieces],

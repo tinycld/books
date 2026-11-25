@@ -28,7 +28,7 @@ export function useLinePartyOptions(term: string, isEnabled: boolean, stored?: S
                 .from({ c: customersCollection })
                 .where(({ c }) => eq(c.inactive, false))
                 .orderBy(({ c }) => c.display_name)
-                .select(({ c }) => ({ id: c.id, display_name: c.display_name }))
+                .select(({ c }) => ({ id: c.id, display_name: c.display_name, code: c.code }))
             return isSearching ? base : base.limit(PICKER_LIMIT)
         },
         queryKey: ['books.line-party.customers', isEnabled, isSearching],
@@ -40,7 +40,7 @@ export function useLinePartyOptions(term: string, isEnabled: boolean, stored?: S
                 .from({ v: vendorsCollection })
                 .where(({ v }) => eq(v.inactive, false))
                 .orderBy(({ v }) => v.display_name)
-                .select(({ v }) => ({ id: v.id, display_name: v.display_name }))
+                .select(({ v }) => ({ id: v.id, display_name: v.display_name, code: v.code }))
             return isSearching ? base : base.limit(PICKER_LIMIT)
         },
         queryKey: ['books.line-party.vendors', isEnabled, isSearching],

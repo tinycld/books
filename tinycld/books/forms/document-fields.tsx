@@ -377,6 +377,7 @@ export function useVendorOptions(term: string, isOpen: boolean, storedId: string
                 .select(({ v }) => ({
                     id: v.id,
                     display_name: v.display_name,
+                    code: v.code,
                     inactive: v.inactive,
                 }))
             return isSearching ? base : base.limit(PICKER_LIMIT)
@@ -385,11 +386,7 @@ export function useVendorOptions(term: string, isOpen: boolean, storedId: string
     })
     const loadFailed = query.isError
     const isLoading = isOpen && !loadFailed && query.isLoading
-    const needle = term.trim().toLowerCase()
-    const matching = (query.data ?? []).filter(vendor =>
-        vendor.display_name.toLowerCase().includes(needle)
-    )
-    const options = vendorPickerOptions(matching, storedId)
+    const options = vendorPickerOptions(query.data ?? [], storedId, term)
     const emptyText = isSearching ? 'No vendors match' : VENDOR_PICKER_EMPTY_TEXT
     const retry = () => {
         void recoverLiveQueries({

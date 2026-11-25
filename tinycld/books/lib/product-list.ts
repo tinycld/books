@@ -2,6 +2,7 @@ import type { BooksProducts } from '../types'
 import { centsToText, formatMoney } from './money'
 import { recordCardHeight } from './party-list'
 import { productTypeLabel } from './product-types'
+import { codeFirst } from './record-code'
 
 // The columns the list reads; the fixture rows and the query's rows both carry them.
 export type ProductListFields = Pick<
@@ -42,17 +43,17 @@ export const PRODUCT_ROW_HEIGHT = 56
 // The bundle item picker offers this many products while not searching.
 export const PRODUCT_PICKER_LIMIT = 50
 
-// The picker's options: rows whose name or SKU holds the term, any case, the first 50
-// in the order given (the picker's query sorts them by name).
-export function productPickerOptions<T extends Pick<ProductListFields, 'id' | 'name' | 'sku'>>(
-    rows: readonly T[],
-    term: string
-): T[] {
+// The picker's options: rows whose name, SKU or code holds the term, any case, those whose
+// code starts with it first, the first 50 in the order given (the picker's query sorts
+// them by name).
+export function productPickerOptions<
+    T extends Pick<ProductListFields, 'id' | 'name' | 'sku'> & { code?: string },
+>(rows: readonly T[], term: string): T[] {
     const needle = term.trim().toLowerCase()
-    // A row can arrive without a SKU; searching must not throw on it.
+    // A row can arrive without a SKU or a code; searching must not throw on it.
     const matches = (row: T) =>
-        [row.name, row.sku].some(value => (value ?? '').toLowerCase().includes(needle))
-    return rows.filter(matches).slice(0, PRODUCT_PICKER_LIMIT)
+        [row.name, row.sku, row.code].some(value => (value ?? '').toLowerCase().includes(needle))
+    return codeFirst(rows.filter(matches), term, row => row.code).slice(0, PRODUCT_PICKER_LIMIT)
 }
 
 // The server stamps `currency` on create, so an optimistic insert has none until the
