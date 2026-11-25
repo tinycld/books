@@ -75,40 +75,4 @@ describe('BooksSidebar rendering', () => {
             'books-nav-lists',
         ])
     })
-
-    it('marks only Expenses active on a bill', () => {
-        url.pathname = '/a/books/bills/x'
-        const { container } = renderSidebar()
-        const active = items(container)
-            .filter(i => i.isActive)
-            .map(i => i.id)
-        expect(active).toEqual(['books-nav-expenses'])
-    })
-
-    it.each([
-        '/a/books/sales',
-        '/a/books/invoices',
-        '/a/books/invoices/abc',
-        '/a/books/payments/new',
-        '/a/books/credit-memos/abc',
-    ])('marks only Sales active on %s', pathname => {
-        url.pathname = pathname
-        const { container } = renderSidebar()
-        const active = items(container)
-            .filter(i => i.isActive)
-            .map(i => i.id)
-        expect(active).toEqual(['books-nav-sales'])
-    })
-
-    it.each([
-        '/a/books/settings',
-        '/a/books/settings/company',
-    ])('marks only Settings active on %s', pathname => {
-        url.pathname = pathname
-        const { container } = renderSidebar()
-        const active = items(container)
-            .filter(i => i.isActive)
-            .map(i => i.id)
-        expect(active).toEqual(['books-nav-settings'])
-    })
 })

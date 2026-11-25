@@ -4,7 +4,7 @@ import { router } from 'expo-router'
 import type { LucideIcon } from 'lucide-react-native'
 import { BOOKS_REPORT_BASE, BOOKS_REPORT_ROUTE } from '../lib/books-report-route'
 import { newActionSidebarLabel } from '../lib/new-actions'
-import { availableOnly, isActivePath, SIDEBAR_ENTRIES } from '../lib/shell-nav'
+import { activeNewActionId, availableOnly, isActivePath, SIDEBAR_ENTRIES } from '../lib/shell-nav'
 import { filterTerms, matchesTerms } from '../lib/sidebar-filter'
 import { useBooksUIStore } from '../stores/books-ui-store'
 import { useBooksReportList } from './useBooksReportList'
@@ -32,12 +32,13 @@ export function useSidebarFilterRows() {
     const { columns, open } = useNewMenu()
     const list = useBooksReportList()
     const terms = filterTerms(query)
+    const activeNewId = activeNewActionId(pathname)
 
     const navRows: FilterRow[] = availableOnly(SIDEBAR_ENTRIES).map(entry => ({
         key: `nav-${entry.id}`,
         label: entry.label,
         icon: entry.icon,
-        isActive: isActivePath(pathname, entry),
+        isActive: activeNewId === undefined && isActivePath(pathname, entry),
         testID: `books-sidebar-match-nav-${entry.id}`,
         onPress: () => router.navigate(orgHref(entry.href, entry.params)),
     }))
@@ -47,7 +48,7 @@ export function useSidebarFilterRows() {
             key: `new-${action.id}`,
             label: newActionSidebarLabel(action),
             tag: 'New',
-            isActive: false,
+            isActive: action.id === activeNewId,
             testID: `books-sidebar-match-new-${action.id.replace(/_/g, '-')}`,
             onPress: () => open(action),
         }))
