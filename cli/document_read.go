@@ -20,12 +20,18 @@ func newDocumentCmd(c *client.Client, doc *document) *cobra.Command {
 		newListCmd(c, &doc.resource),
 		newDocumentShowCmd(c, doc),
 		newDocumentAddCmd(c, doc),
-		newDocumentEditCmd(c, doc),
 	)
-	if doc.Lifecycle == lifecycleQuote {
-		group.AddCommand(newQuoteAcceptCmd(c, doc), newQuoteStatusCmd(c, doc, quoteReject), newQuoteStatusCmd(c, doc, quoteReopen), newQuoteDeleteCmd(c, doc))
-	} else {
-		group.AddCommand(newDocumentPostCmd(c, doc), newDocumentVoidCmd(c, doc), newDocumentDeleteCmd(c, doc))
+	switch doc.Lifecycle {
+	case lifecycleQuote:
+		group.AddCommand(newDocumentEditCmd(c, doc), newQuoteAcceptCmd(c, doc), newQuoteStatusCmd(c, doc, quoteReject), newQuoteStatusCmd(c, doc, quoteReopen), newQuoteDeleteCmd(c, doc))
+	case lifecyclePosted:
+		// No draft: nothing to post and nothing to delete.
+		if doc.corrects() {
+			group.AddCommand(newDocumentEditCmd(c, doc))
+		}
+		group.AddCommand(newDocumentVoidCmd(c, doc))
+	default:
+		group.AddCommand(newDocumentEditCmd(c, doc), newDocumentPostCmd(c, doc), newDocumentVoidCmd(c, doc), newDocumentDeleteCmd(c, doc))
 	}
 	if doc.Entry != "" {
 		group.AddCommand(newDocumentEntryCmd(c, doc))

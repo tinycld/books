@@ -93,12 +93,17 @@ func storedReadError(doc *document, id, done string, err error) error {
 func newDocumentAddCmd(c *client.Client, doc *document) *cobra.Command {
 	var input string
 	var post bool
-	posts := doc.Lifecycle == lifecyclePosting
+	posts := doc.hasDraft()
 	first := "It is a draft unless --post is given. The header and the lines are stored in\n" +
 		"one step: when Books refuses one of them, nothing is stored.\n\n"
-	if !posts {
+	switch doc.Lifecycle {
+	case lifecycleQuote:
 		first = "It is pending, and Books numbers it at once. The header and the lines are\n" +
 			"stored in one step: when Books refuses one of them, nothing is stored.\n\n"
+	case lifecyclePosted:
+		first = "It has no draft: Books posts and numbers it at once, and it counts in the\n" +
+			"books. The header and the lines are stored in one step: when Books refuses\n" +
+			"one of them, nothing is stored.\n\n"
 	}
 	cmd := newCommand(commandDef{
 		Name:  "add",
@@ -121,6 +126,9 @@ func newDocumentAddCmd(c *client.Client, doc *document) *cobra.Command {
 		id := newRecordID()
 		ops := createOps(doc, id, in, "")
 		done := "added"
+		if doc.Lifecycle == lifecyclePosted {
+			done = "added and posted"
+		}
 		if post {
 			ops = append(ops, postOp(doc, id, 1))
 			done = "added and posted"

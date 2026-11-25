@@ -76,6 +76,7 @@ Each type of transaction has its own group of commands:
 - `tinycld books expenses`: [expenses](help://books:expenses), a purchase that is paid at once; `paid_from` is the bank or credit card account that the money left
 - `tinycld books vendor-credits`: [vendor credits](help://books:vendor-credits)
 - `tinycld books payments`: [payments](help://books:receive-payment) that a customer makes for invoices
+- `tinycld books bill-payments`: [bill payments](help://books:pay-bills), money that you pay a vendor for bills
 
 ```
 tinycld books journal-entries list --status draft
@@ -101,6 +102,21 @@ echo '{"customer": "<customer id>", "date": "2026-07-22", "amount": 35000, "appl
 ```
 
 When the payment is posted, Books lowers the balance of each invoice. The part of `amount` that no application uses stays as the customer's credit: `show` prints it as `credited`. Without `deposit_to`, the money goes to Undeposited funds. A payment can pay up to 500 invoices.
+
+## To pay bills
+
+A bill payment has one line for each bill it pays: a posted bill of the vendor, and the part of the bill that the payment pays.
+
+```
+echo '{"vendor": "<vendor id>", "paid_from": "<bank account id>", "payment_method": "check", "date": "2026-07-22", "lines": [
+  {"bill": "<bill id>", "amount": 30000},
+  {"bill": "<bill id>", "amount": 5000}
+]}' | tinycld books bill-payments add --input -
+tinycld books bill-payments edit <id> --input changes.json
+tinycld books bill-payments void <id>
+```
+
+A bill payment has no draft: `add` posts it at once, and Books lowers the balance of each bill. It has no `--post`, no `post` and no `delete`. `edit` voids the bill payment and posts a new one with your changes. `void` puts the balances of the bills back. A bill payment can pay up to 250 bills.
 
 ## To sell an Inventory item
 

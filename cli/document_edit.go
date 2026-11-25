@@ -131,8 +131,13 @@ func newDocumentEditCmd(c *client.Client, doc *document) *cobra.Command {
 	how := "A draft is changed in place. A posted " + doc.Singular + " is never changed: Books\n" +
 		"voids it and posts a new one with the changes, and the command prints the new\n" +
 		"one. Its `replaces` is the id of the one it corrects.\n\n"
-	if doc.Lifecycle == lifecycleQuote {
+	switch doc.Lifecycle {
+	case lifecycleQuote:
 		how = "The " + doc.Singular + " is changed in place. A closed one cannot be changed.\n\n"
+	case lifecyclePosted:
+		how = "A " + doc.Singular + " is never changed: Books voids it and posts a new one with\n" +
+			"the changes, and the command prints the new one. Its `replaces` is the id of\n" +
+			"the one it corrects.\n\n"
 	}
 	cmd := newCommand(commandDef{
 		Name:  "edit",
@@ -167,11 +172,16 @@ func newDocumentEditCmd(c *client.Client, doc *document) *cobra.Command {
 			if ops, err = draftEditOps(doc, current, in); err != nil {
 				return err
 			}
-		case doc.Lifecycle == lifecyclePosting && status == statusPosted:
+		case doc.corrects() && status == statusPosted:
 			// The new document is stored and the posted one is void: the read
 			// after it must not say that the id it names was corrected.
 			id, done, corrected = newRecordID(), "added and posted to replace "+current.id(), true
-			ops = append(createOps(doc, id, correctionInput(doc, current, in), current.id()), postOp(doc, id, 1))
+			ops = createOps(doc, id, correctionInput(doc, current, in), current.id())
+			// A type with a draft creates the correction as one and posts it in
+			// the same step; a type with none creates it posted.
+			if doc.hasDraft() {
+				ops = append(ops, postOp(doc, id, 1))
+			}
 		default:
 			return refusedf("%s %s is %s: it cannot be changed; add a new %s with `%s add`",
 				doc.Singular, current.id(), status, doc.Singular, cmd.Parent().CommandPath())

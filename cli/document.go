@@ -27,6 +27,11 @@ const (
 	// accepted or rejected as a person says, and closed by Books when an invoice
 	// is made from it.
 	lifecycleQuote = "quote"
+	// lifecyclePosted is the life of a document that has no draft (a bill
+	// payment): it is created posted, with its rows, in one step, and then only
+	// voided. With a `replaces` field, `edit` corrects it as it does a posted
+	// document of a posting type; without one, the type has no `edit`.
+	lifecyclePosted = "posted"
 )
 
 // journalDocument is the type of the journal entry Books writes for a posted
@@ -159,10 +164,25 @@ func (d *document) hasRevision() bool {
 
 // initialStatus is the status the CLI gives a new document.
 func (d *document) initialStatus() string {
-	if d.Lifecycle == lifecycleQuote {
+	switch d.Lifecycle {
+	case lifecycleQuote:
 		return statusPending
+	case lifecyclePosted:
+		return statusPosted
 	}
 	return statusDraft
+}
+
+// hasDraft reports whether a document of the type starts as a draft that
+// `post` posts and `delete` removes.
+func (d *document) hasDraft() bool {
+	return d.Lifecycle == lifecyclePosting
+}
+
+// corrects reports whether `edit` of a posted document of the type makes a new
+// one that replaces it.
+func (d *document) corrects() bool {
+	return d.Lifecycle == lifecyclePosting || (d.Lifecycle == lifecyclePosted && d.field("replaces") != nil)
 }
 
 // editedInPlace reports whether `edit` changes a document with this status
@@ -172,7 +192,7 @@ func (d *document) editedInPlace(status string) bool {
 	if d.Lifecycle == lifecycleQuote {
 		return status != statusClosed
 	}
-	return status == statusDraft
+	return d.hasDraft() && status == statusDraft
 }
 
 func (d *document) table(key string) *lineTable {
@@ -256,6 +276,17 @@ func checkDocument(doc *document, names map[string]bool) error {
 		}
 		if replaces := doc.field("replaces"); replaces == nil || !replaces.ReadOnly || replaces.Type != typeID || replaces.Ref != doc.Name {
 			return fmt.Errorf("a posting document has a read-only replaces, the id of a document of its own type")
+		}
+	case lifecyclePosted:
+		if status == nil || !status.ReadOnly || !slices.Equal(status.Enum, []string{statusPosted, statusVoid}) {
+			return fmt.Errorf("a document that is created posted has a read-only status with the values posted, void")
+		}
+		if replaces := doc.field("replaces"); replaces != nil && (!replaces.ReadOnly || replaces.Type != typeID || replaces.Ref != doc.Name) {
+			return fmt.Errorf("replaces is read-only, the id of a document of its own type")
+		}
+		// It has no draft to change, so nothing counts its saves.
+		if doc.hasRevision() {
+			return fmt.Errorf("a document that is created posted has no revision")
 		}
 	case lifecycleQuote:
 		if status == nil || !status.ReadOnly || !slices.Equal(status.Enum, []string{statusPending, statusAccepted, statusRejected, statusClosed}) {

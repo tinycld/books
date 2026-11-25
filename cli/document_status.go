@@ -78,7 +78,7 @@ func newDocumentVoidCmd(c *client.Client, doc *document) *cobra.Command {
 		}
 		if status := current.cell("status"); status != statusPosted {
 			return refusedf("%s %s is %s: only a posted one can be voided; %s",
-				doc.Singular, current.id(), status, voidNextStep(status, cmd.Parent().CommandPath()))
+				doc.Singular, current.id(), status, voidNextStep(doc, status, cmd.Parent().CommandPath()))
 		}
 		question := fmt.Sprintf("Void %s %q? This cannot be undone.", doc.Singular, current.label(&doc.resource))
 		ok, err := confirm(o, yes, cmd.InOrStdin(), cmd.ErrOrStderr(), question)
@@ -99,8 +99,8 @@ func newDocumentVoidCmd(c *client.Client, doc *document) *cobra.Command {
 
 // voidNextStep says what to do with a document that cannot be voided: only a
 // draft has a next step, a delete.
-func voidNextStep(status, group string) string {
-	if status == statusDraft {
+func voidNextStep(doc *document, status, group string) string {
+	if status == statusDraft && doc.hasDraft() {
 		return "delete a draft with `" + group + " delete`"
 	}
 	return "it is already " + status

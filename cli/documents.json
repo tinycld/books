@@ -707,6 +707,51 @@
                     ]
                 }
             ]
+        },
+        {
+            "name": "bill-payments",
+            "singular": "bill payment",
+            "summary": "Bill payments: money you pay a vendor for bills",
+            "collection": "books_bill_payments",
+            "lifecycle": "posted",
+            "entry": "entry",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "vendor", "status", "total"],
+            "search": ["number", "reference_no"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only bill payments with this status: posted or void" },
+                { "flag": "vendor", "field": "vendor", "help": "only the bill payments of the vendor with this id" }
+            ],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "sort_key"],
+            "fields": [
+                { "name": "vendor", "type": "id", "ref": "vendors", "required": true, "help": "the vendor you pay; every bill of the payment is a bill of this vendor" },
+                { "name": "paid_from", "type": "id", "ref": "accounts", "required": true, "help": "the bank or credit card account the money leaves" },
+                { "name": "payment_method", "type": "string", "required": true, "enum": ["cash", "check", "credit_card", "debit_card", "bank_transfer", "other"], "help": "how you pay" },
+                { "name": "reference_no", "type": "string", "help": "the check number or another reference of the payment" },
+                { "name": "date", "type": "string", "required": true, "help": "the date of the payment, as YYYY-MM-DD" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["posted", "void"], "help": "posted or void; a bill payment has no draft, and `void` voids it" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the bill payment; Books gives it when the payment is added" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "the sum of the lines, in cents; Books computes it" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote for the bill payment; `entry` prints it" },
+                { "name": "replaces", "type": "id", "ref": "bill-payments", "readOnly": true, "help": "the bill payment this one corrects; `edit` sets it" },
+                { "name": "replaced_by", "type": "id", "ref": "bill-payments", "readOnly": true, "help": "the bill payment that corrects this one" }
+            ],
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_bill_payment_lines",
+                    "parent": "payment",
+                    "sort": "position,id",
+                    "omit": ["payment", "position"],
+                    "fields": [
+                        { "name": "bill", "type": "id", "ref": "bills", "required": true, "help": "a posted bill of the vendor that the payment pays" },
+                        { "name": "amount", "type": "integer", "help": "the part of the bill the payment pays, in cents; Books refuses a line with none" }
+                    ]
+                }
+            ]
         }
     ]
 }
