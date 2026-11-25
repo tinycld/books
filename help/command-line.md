@@ -1,7 +1,7 @@
 ---
 title: Books from the command line
-summary: List and change accounts, customers, vendors, products and sales tax, record transactions, run reports, review bank transactions, and reconcile an account, from a terminal or a script with the tinycld tool.
-tags: [cli, command line, terminal, automation, scripts, agents, json, banking, reconcile]
+summary: List and change accounts, customers, vendors, products and sales tax, record transactions, run reports, review bank transactions, reconcile an account, and see and adjust inventory, from a terminal or a script with the tinycld tool.
+tags: [cli, command line, terminal, automation, scripts, agents, json, banking, reconcile, inventory]
 order: 62
 ---
 
@@ -400,6 +400,20 @@ tinycld books reconcile delete <id>
 A finished reconciliation and its lines do not change. `undo` opens the latest finished reconciliation of an account again, and its lines stay cleared. Only a Books admin can do this. Books refuses an undo while the account has another reconciliation in progress: delete that one first. `undo` does not ask first. `delete` (or `discard`) removes a reconciliation that is in progress, and its lines are then in no reconciliation. It asks first; in a script, add `--yes`.
 
 Books ships a report of the finished reconciliations, the Reconciliation Report: `tinycld books reports run books.reconciliation_report`. `tinycld books reports show books.reconciliation_report` prints the params that it takes.
+
+## To see the stock of an Inventory item
+
+`tinycld books inventory` reads what Books keeps for an [Inventory item](help://books:inventory): how much is in stock, and what it cost.
+
+```
+tinycld books products show <product id>
+tinycld books inventory moves --product <product id>
+tinycld books inventory layers --product <product id>
+```
+
+`products show` prints the stock of an item now: `quantity_on_hand` and `stock_value`, in cents. `moves` lists each change of the stock, the newest first: `kind` says what changed it (`opening`, `receipt`, `sale`, `customer_return`, `vendor_return` or `adjustment`), `quantity` and `value` are the change, and `quantity_after` and `value_after` are the stock after it. For a move out of stock, `value` is the cost that the costing method gives. `layers` lists the stock on hand with its cost. With the costing method FIFO, a layer is what is left of one move into stock: the layers of an item are in the order of the date of that move, and Books takes stock out from the first one. With the costing method average cost, an item has one layer: all its stock, at the average cost.
+
+Books writes the moves and the layers when a transaction is posted. No command changes them.
 
 ## To retry safely
 

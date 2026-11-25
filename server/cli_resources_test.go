@@ -319,6 +319,9 @@ func TestCLIResources_ServerAcceptsEveryListQuery(t *testing.T) {
 	collectionOf["banking files"] = "books_bank_files"
 	// So is `reconcile list` (cli/reconcile.go).
 	collectionOf["reconcile"] = "books_reconciliations"
+	// So are the lists of `inventory` (cli/inventory.go).
+	collectionOf["inventory moves"] = "books_stock_moves"
+	collectionOf["inventory layers"] = "books_stock_layers"
 	calls := []apiReq{}
 	for _, c := range loadListFilterCases(t) {
 		list := strings.TrimSpace(c.Resource + " " + c.View)

@@ -303,6 +303,11 @@ func fieldsOf(collection string) []field {
 			return res.Fields
 		}
 	}
+	for _, res := range inventoryResources() {
+		if res.Collection == collection {
+			return res.Fields
+		}
+	}
 	if collection == bankImportsCollection {
 		return bankImportsResource.Fields
 	}

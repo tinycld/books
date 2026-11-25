@@ -276,6 +276,22 @@
             "args": ["--account", "acctchecking001", "--status", "finished"],
             "filter": "account = \"acctchecking001\" && status = \"finished\"",
             "sort": "-statement_date,id"
+        },
+        {
+            "name": "inventory-moves-of-a-product",
+            "resource": "inventory",
+            "view": "moves",
+            "args": ["--product", "prodwidget00001", "--kind", "sale"],
+            "filter": "product = \"prodwidget00001\" && kind = \"sale\"",
+            "sort": "-date,-seq,id"
+        },
+        {
+            "name": "inventory-layers-of-a-product",
+            "resource": "inventory",
+            "view": "layers",
+            "args": ["--product", "prodwidget00001"],
+            "filter": "product = \"prodwidget00001\"",
+            "sort": "product,date,position,id"
         }
     ]
 }

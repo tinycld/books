@@ -89,6 +89,10 @@ func listTargets() []listTarget {
 		targets = append(targets, listTarget{name: "banking", view: view, res: res})
 	}
 	targets = append(targets, listTarget{name: "reconcile", res: &reconciliationsResource})
+	// The lists of `inventory` are both views: the group has no `list`.
+	for word, res := range inventoryResources() {
+		targets = append(targets, listTarget{name: "inventory", view: word, res: res})
+	}
 	return targets
 }
 
