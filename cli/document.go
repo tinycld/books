@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -358,7 +359,7 @@ func checkDocument(doc *document, names map[string]bool) error {
 		if len(doc.Fixed) == 0 {
 			return fmt.Errorf("scoped needs fixed: the values that make a record a %s", doc.Singular)
 		}
-		doc.scope = doc.Fixed
+		doc.scope = maps.Clone(doc.Fixed)
 	}
 	if err := checkResource(&doc.resource, names); err != nil {
 		return err

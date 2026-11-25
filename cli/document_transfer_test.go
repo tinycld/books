@@ -78,16 +78,71 @@ func TestTransferListShowsOnlyTransfers(t *testing.T) {
 	}
 }
 
-// A view of a document is a resource of its own: the scope of the document does
-// not reach it.
+// A view of a scoped type is a list of its own: the scope of the type does not
+// reach it. The copy of documents.json gives transfers a view of every journal
+// entry, which a scope on the view would filter down to the transfers.
 func TestScopeDoesNotReachAView(t *testing.T) {
-	for i := range documents {
-		for j := range documents[i].Views {
-			if documents[i].Views[j].scope != nil {
-				t.Errorf("view %q of %s has a scope", documents[i].Views[j].Word, documents[i].Name)
-			}
+	view := `"views": [{"word": "entries", "long": "List every journal entry.", "name": "entries", "singular": "entry", ` +
+		`"summary": "List every journal entry", "collection": "books_journal_entries", "sort": "date,number,id", "label": "number", ` +
+		`"columns": ["date", "number"], "search": [], "filters": [], "omit": [], "timestamps": [], ` +
+		`"fields": [{"name": "date", "type": "string", "readOnly": true, "help": "the date"}, {"name": "number", "type": "string", "readOnly": true, "help": "the number"}]}],`
+	text := strings.Replace(string(documentsJSON), `"scoped": true,`, `"scoped": true, `+view, 1)
+	if !strings.Contains(text, `"word": "entries"`) {
+		t.Fatal("documents.json has no scoped type to give a view")
+	}
+	docs, err := loadDocuments([]byte(text))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := moved(t)
+	c := f.serve()
+	root := newTestRoot(c)
+	books, _, err := root.Find([]string{"books"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	group, _, err := root.Find([]string{"books", "transfers"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	books.RemoveCommand(group)
+	books.AddCommand(newDocumentCmd(c, documentNamed(t, docs, "transfers")))
+	out, _, err := runRoot(t, root, "", "books", "transfers", "entries", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := f.lastQuery.Get("filter"); got != "" {
+		t.Errorf("the view sent the filter %s, want none", got)
+	}
+	if !strings.Contains(out, "entryposted0001") {
+		t.Errorf("the view does not list an entry that is not a transfer:\n%s", out)
+	}
+}
+
+// The scope of a type is its own copy of the fixed values: a change of the scope
+// does not change the values a create sends.
+func TestScopeIsItsOwnCopy(t *testing.T) {
+	docs, err := loadDocuments(documentsJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := documentNamed(t, docs, "transfers")
+	doc.scope["doc_type"] = "invoice"
+	if got := doc.Fixed["doc_type"]; got != "transfer" {
+		t.Errorf("fixed doc_type = %q after a change of the scope", got)
+	}
+}
+
+// documentNamed is the type of the name in docs, a copy loaded by the test.
+func documentNamed(t *testing.T, docs []document, name string) *document {
+	t.Helper()
+	for i := range docs {
+		if docs[i].Name == name {
+			return &docs[i]
 		}
 	}
+	t.Fatalf("no document %q", name)
+	return nil
 }
 
 // Every command of a scoped type answers "not found" for a record of the
