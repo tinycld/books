@@ -73,11 +73,27 @@ func (env *cliReconEnv) batch(t testing.TB, auth string, ops ...string) apiAnswe
 func (a apiAnswer) requireBatchRefusal(t testing.TB, want string) {
 	t.Helper()
 	a.requireStatus(t, http.StatusBadRequest)
-	data, _ := a.json(t)["data"].(map[string]any)
-	requests, _ := data["requests"].(map[string]any)
-	first, _ := requests["0"].(map[string]any)
-	response, _ := first["response"].(map[string]any)
-	if got, _ := response["message"].(string); got != want {
+	data, ok := a.json(t)["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("the refused batch has no data object; body: %s", a.body)
+	}
+	requests, ok := data["requests"].(map[string]any)
+	if !ok {
+		t.Fatalf("the refused batch has no data.requests object; body: %s", a.body)
+	}
+	first, ok := requests["0"].(map[string]any)
+	if !ok {
+		t.Fatalf("the refused batch has no data.requests[\"0\"] object; body: %s", a.body)
+	}
+	response, ok := first["response"].(map[string]any)
+	if !ok {
+		t.Fatalf("the refused batch has no data.requests[\"0\"].response object; body: %s", a.body)
+	}
+	got, ok := response["message"].(string)
+	if !ok {
+		t.Fatalf("the refused batch has no string response message; body: %s", a.body)
+	}
+	if got != want {
 		t.Errorf("the refusal of the batch = %q, want %q; body: %s", got, want, a.body)
 	}
 }
@@ -138,7 +154,7 @@ func TestCLIReconcile_ATokenClearsAndUnclears(t *testing.T) {
 	env.batch(t, env.writer, clearOp("clicleared00003", env.in)).requireBatchRefusal(t, "Journal entry 1 is cleared in another reconciliation.")
 	env.batch(t, env.writer, clearOp("clicleared00004", env.late)).requireBatchRefusal(t, "Journal entry 3 is dated after Sep 30, 2026.")
 	// `unclear` finds the row of a line and deletes it.
-	rows := env.list(t, clearedRows, `reconciliation = "`+cliReconID+`"`, "").items(t)
+	rows := env.list(t, clearedRows, `reconciliation = "`+cliReconID+`"`, "id").items(t)
 	if len(rows) != 2 || rows[1]["id"] != "clicleared00002" || rows[1]["line"] != env.out {
 		t.Fatalf("the cleared rows = %v", rows)
 	}
