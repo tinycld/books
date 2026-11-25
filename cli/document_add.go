@@ -62,7 +62,13 @@ func postOp(doc *document, id string, revision int64) batchOp {
 func readBack(cmd *cobra.Command, c *client.Client, doc *document, id, done string) (record, error) {
 	rec, err := fetchDocument(cmd.Context(), c, doc, id)
 	if err != nil {
-		return record{}, fmt.Errorf("%s %s was %s, and then it could not be read: %w", doc.Singular, id, done, err)
+		err = fmt.Errorf("%s %s was %s, and then it could not be read: %w", doc.Singular, id, done, err)
+		// Exit 5 would tell a script that the document does not exist, and it
+		// would send the add again: it is stored.
+		if exitcode.Of(exitcode.Classify(err)) == exitcode.NotFound {
+			return record{}, exitcode.New(exitcode.Failed, err)
+		}
+		return record{}, err
 	}
 	return rec, nil
 }

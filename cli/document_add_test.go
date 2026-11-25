@@ -192,3 +192,20 @@ func TestDocumentAddSaysWhenTheReadAfterItFails(t *testing.T) {
 		t.Error("the entry was not stored")
 	}
 }
+
+// A script reads exit 5 as "no such document" and would send the add again.
+func TestDocumentAddExitsFailedWhenTheReadAfterItAnswers404(t *testing.T) {
+	f := journal(t)
+	fixedIDs(t, "entrynew0000001")
+	f.refuse("GET", 404, `{"data":{},"message":"The requested resource wasn't found.","status":404}`)
+	_, _, err := runCmd(t, f.serve(), newEntry, "books", "journal-entries", "add", "--input", "-", "--json")
+	if got := exitcode.Of(err); got != exitcode.Failed {
+		t.Errorf("exit = %d, want %d (%v)", got, exitcode.Failed, err)
+	}
+	if err == nil || !strings.Contains(err.Error(), "journal entry entrynew0000001 was added, and then it could not be read") {
+		t.Errorf("err = %v", err)
+	}
+	if f.find("books_journal_entries", "entrynew0000001") == nil {
+		t.Error("the entry was not stored")
+	}
+}
