@@ -64,6 +64,9 @@ type fakeBooks struct {
 	// filter text of a value the small evaluator cannot split.
 	rawFilter bool
 
+	// reports is the stand-in for core's report routes (fakereports_test.go).
+	reports fakeReports
+
 	// fail reports a request the fake cannot answer like the real server. It
 	// is t.Errorf; a test of the fake itself swaps it to see what was reported.
 	fail func(format string, args ...any)
@@ -144,6 +147,8 @@ func (f *fakeBooks) handler() http.Handler {
 	mux.HandleFunc("POST /api/collections/{collection}/records", f.create)
 	mux.HandleFunc("PATCH /api/collections/{collection}/records/{id}", f.update)
 	mux.HandleFunc("DELETE /api/collections/{collection}/records/{id}", f.remove)
+	mux.HandleFunc("POST "+reportRunPath, f.reportRun)
+	mux.HandleFunc("POST "+reportExportPath, f.reportExport)
 	// one answers one record request: a request of its own, or a write of a batch.
 	one := func(w http.ResponseWriter, r *http.Request) {
 		if f.refused(w, r.Method) {

@@ -269,6 +269,16 @@ tinycld books reports show books.trial_balance
 
 `list` prints each report's id. A report that Books ships also has a key, such as `books.trial_balance`. Give the id or the key to `show`, `run` and `export`. `show` prints the params that the report takes.
 
+```
+tinycld books reports run books.trial_balance
+echo '{"params": {"as_of": "2026-06-30"}}' | tinycld books reports run books.trial_balance --input -
+tinycld books reports run books.general_ledger --expand-all --all --json
+```
+
+`run` prints the rows of the report. With no `--input`, the report runs with its default params. To set params, give a JSON object with `params`: one value for each param, by its id. The same object can hold `options`, such as `today` (the day that the period presets count from). Books checks each value and names the one it refuses.
+
+A report with groups prints its group rows; `--expand-all` opens every group. A long report comes in pages: with `--json`, `next` holds the cursor of the next page, and `--cursor` reads that page. `--all` reads every page. `run` prints an amount in cents.
+
 If a report command says that it requires the "reports" scope, you signed in before your server had it. Sign in again with `tinycld auth login {{server-host}}`.
 
 ## To retry safely

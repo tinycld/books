@@ -135,6 +135,7 @@ func newReportsCmd(c *client.Client) *cobra.Command {
 			Aliases: []string{"ls"},
 		}),
 		newReportShowCmd(c),
+		newReportRunCmd(c),
 	)
 	return group
 }
