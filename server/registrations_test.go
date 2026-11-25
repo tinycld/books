@@ -1,10 +1,12 @@
 package books
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 
+	"tinycld.org/core/background"
 	"tinycld.org/core/changesignal"
 	"tinycld.org/core/oauth"
 	"tinycld.org/core/offboard"
@@ -327,6 +330,33 @@ func awaitAuditCount(t testing.TB, app core.App, where dbx.Expression, want int6
 			t.Fatalf("%d audit rows match %v after 5s, want %d", n, where, want)
 		}
 		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// drainAuditJobs returns when every audit job that the test's writes started
+// has ended. It stops the app's job runners as the app's terminate does (each
+// runner waits for its running jobs), with a finalizer that leaves the
+// database open. A test writes nothing after it: a stopped runner drops a new
+// job.
+func drainAuditJobs(t testing.TB, app core.App) {
+	t.Helper()
+	if err := app.OnTerminate().Trigger(&core.TerminateEvent{App: app}, func(*core.TerminateEvent) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDrainAuditJobs_WaitsForARunningJob(t *testing.T) {
+	app := newBooksApp(t)
+	var done atomic.Bool
+	// A job that is slower than the test: without the drain the flag is not
+	// set yet when the test reads it.
+	background.For(app, "audit").Run("slow audit row", func(context.Context) {
+		time.Sleep(200 * time.Millisecond)
+		done.Store(true)
+	})
+	drainAuditJobs(t, app)
+	if !done.Load() {
+		t.Fatal("drainAuditJobs returned before the running audit job ended")
 	}
 }
 
