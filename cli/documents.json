@@ -943,6 +943,36 @@
                     ]
                 }
             ]
+        },
+        {
+            "name": "write-offs",
+            "singular": "write-off",
+            "summary": "Write-offs: the open balance of an invoice that the customer will not pay",
+            "collection": "books_write_offs",
+            "lifecycle": "posted",
+            "entry": "entry",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "customer", "invoice", "status", "amount"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only write-offs with this status: posted or void" },
+                { "flag": "customer", "field": "customer", "help": "only the write-offs of the customer with this id" },
+                { "flag": "invoice", "field": "invoice", "help": "only the write-offs of the invoice with this id" }
+            ],
+            "omit": ["sequence", "close_override", "posted_at", "posted_by", "voided_at", "voided_by", "sort_key"],
+            "fields": [
+                { "name": "invoice", "type": "id", "ref": "invoices", "required": true, "help": "the posted invoice that has the open balance" },
+                { "name": "date", "type": "string", "required": true, "help": "the date of the write-off, as YYYY-MM-DD" },
+                { "name": "account", "type": "id", "ref": "accounts", "required": true, "help": "the expense account that takes the loss, such as Bad debts" },
+                { "name": "amount", "type": "integer", "required": true, "help": "the open balance of the invoice, in cents: `balance` of `invoices show`; Books refuses another amount" },
+                { "name": "memo", "type": "string", "help": "a note for your own use" },
+                { "name": "customer", "type": "id", "ref": "customers", "readOnly": true, "help": "the customer of the invoice; Books sets it" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["posted", "void"], "help": "posted or void; a write-off has no draft, and `void` voids it" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the write-off; Books gives it when the write-off is added" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote for the write-off; `entry` prints it" }
+            ]
         }
     ]
 }

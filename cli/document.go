@@ -252,6 +252,17 @@ func (d *document) table(key string) *lineTable {
 	return nil
 }
 
+// hasRows reports whether an input of the type may hold rows: it has a line
+// table that Books does not write.
+func (d *document) hasRows() bool {
+	for i := range d.Lines {
+		if !d.Lines[i].ReadOnly {
+			return true
+		}
+	}
+	return false
+}
+
 // applyTable is the table `apply` and `unapply` write, or nil.
 func (d *document) applyTable() *lineTable {
 	for i := range d.Lines {

@@ -105,12 +105,22 @@ func newDocumentAddCmd(c *client.Client, doc *document) *cobra.Command {
 			"books. The header and the lines are stored in one step: when Books refuses\n" +
 			"one of them, nothing is stored.\n\n"
 	}
+	short := "Add one " + doc.Singular + " with its lines from a JSON object"
+	long := "Add one " + doc.Singular + ". --input names a JSON file that holds it, with its\n" +
+		"lines as an array, or - to read it from standard input.\n\n" + first
+	// A type with no rows to send (a write-off) is one record.
+	if !doc.hasRows() {
+		short = "Add one " + doc.Singular + " from a JSON object"
+		long = "Add one " + doc.Singular + ". --input names a JSON file that holds it, or - to read\n" +
+			"it from standard input.\n\n"
+		if doc.Lifecycle == lifecyclePosted {
+			long += "It has no draft: Books posts and numbers it at once, and it counts in the\nbooks.\n\n"
+		}
+	}
 	cmd := newCommand(commandDef{
-		Name:  "add",
-		Short: "Add one " + doc.Singular + " with its lines from a JSON object",
-		Long: "Add one " + doc.Singular + ". --input names a JSON file that holds it, with its\n" +
-			"lines as an array, or - to read it from standard input.\n\n" + first +
-			"`tinycld books schema " + doc.Name + " add` prints the fields.",
+		Name:    "add",
+		Short:   short,
+		Long:    long + "`tinycld books schema " + doc.Name + " add` prints the fields.",
 		Aliases: []string{"new", "create"},
 		Input:   documentInputSchema(doc, true),
 		Output:  documentSchema(doc),

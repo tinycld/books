@@ -79,6 +79,7 @@ Each type of transaction has its own group of commands:
 - `tinycld books bill-payments`: [bill payments](help://books:pay-bills), money that you pay a vendor for bills
 - `tinycld books vendor-refunds`: [vendor refunds](help://books:vendor-refunds), money that a vendor pays you back for vendor credits
 - `tinycld books deposits`: [bank deposits](help://books:bank-deposits), money that you move from Undeposited funds into a bank account
+- `tinycld books write-offs`: [write-offs](help://books:write-offs), the open balance of an invoice that the customer will not pay
 
 ```
 tinycld books journal-entries list --status draft
@@ -131,6 +132,15 @@ tinycld books credit-memos unapply <id> <application id>
 ```
 
 Books lowers the balance of the credit and of the invoice or bill in the same step. It refuses an amount that is more than the credit has left or more than is owed, and a date before the date of the credit. `apply` prints the credit with its `applications`; each one has an `id`. `unapply` removes one application, and Books puts the balances back. It does not ask first. You cannot void a credit while it is applied: remove its applications first. For more, see [apply a credit](help://books:apply-credit).
+
+## To write off an invoice
+
+```
+echo '{"invoice": "<invoice id>", "date": "2026-07-22", "account": "<bad debts account id>", "amount": 39274}' | tinycld books write-offs add --input -
+tinycld books write-offs void <id>
+```
+
+`amount` is the open balance of the invoice: `tinycld books invoices show <id>` prints it as `balance`. Books refuses another amount, so that you do not write off an invoice that changed after you read it. A write-off has no draft: `add` posts it at once, and the invoice has no open balance left. It has no `edit`, no `post` and no `delete`: to change a write-off, void it and add a new one. `void` puts the balance of the invoice back.
 
 ## To record a refund from a vendor
 
