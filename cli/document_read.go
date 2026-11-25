@@ -63,8 +63,8 @@ func linesOf(rec record, key string) []record {
 }
 
 // writeDocument prints one document. With --json it is one object with the
-// lines inside. As a table it is the header as FIELD / VALUE, then one table
-// for each line table.
+// lines inside. As a table or CSV it is the header as FIELD / VALUE, then one
+// block for each line table.
 func writeDocument(cmd *cobra.Command, o output.Options, doc *document, rec record) error {
 	out := cmd.OutOrStdout()
 	if o.Format == output.JSON {
@@ -77,9 +77,8 @@ func writeDocument(cmd *cobra.Command, o output.Options, doc *document, rec reco
 	if err := o.Write(out, []string{"FIELD", "VALUE"}, rows, nil); err != nil {
 		return err
 	}
-	if o.Format != output.Table {
-		return nil
-	}
+	// CSV has no nesting: each line table follows the header as its own block,
+	// the way the table prints, so no format drops the lines.
 	for i := range doc.Lines {
 		table := &doc.Lines[i]
 		headers := []string{}

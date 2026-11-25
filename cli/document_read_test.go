@@ -94,9 +94,39 @@ func TestDocumentShowAsATable(t *testing.T) {
 			t.Errorf("the table has no %q:\n%s", want, out)
 		}
 	}
-	if strings.Index(out, "LINES") < strings.Index(out, "updated") {
-		t.Errorf("the lines come before the end of the header:\n%s", out)
+	assertLinesAfterHeader(t, out)
+}
+
+// assertLinesAfterHeader fails when a header key is missing or comes after the
+// line table.
+func assertLinesAfterHeader(t *testing.T, out string) {
+	t.Helper()
+	lines := strings.Index(out, "\nLINES\n")
+	if lines < 0 {
+		t.Fatalf("no line table:\n%s", out)
 	}
+	for _, key := range []string{"id", "date", "status", "number", "total", "updated"} {
+		at := strings.Index(out, "\n"+key+",")
+		if at < 0 {
+			at = strings.Index(out, "\n"+key+" ")
+		}
+		if at < 0 || at > lines {
+			t.Errorf("header key %q is missing or after the line table:\n%s", key, out)
+		}
+	}
+}
+
+func TestDocumentShowAsCSVKeepsTheLines(t *testing.T) {
+	out, _, err := runCmd(t, journal(t).serve(), "", "books", "journal-entries", "show", "entryposted0001", "--output", "csv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"FIELD,VALUE", "ACCOUNT", "acctsavings0001", "lineposted00001", "lineposted00002"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the csv has no %q:\n%s", want, out)
+		}
+	}
+	assertLinesAfterHeader(t, out)
 }
 
 func TestDocumentShowOfAMissingDocumentIsExit5(t *testing.T) {
