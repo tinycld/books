@@ -256,9 +256,15 @@ func recordURL(collection, id string) string {
 // rowsURL is the read of the rows of one line table, as withLines of
 // cli/document_read.go asks for them.
 func rowsURL(collection, parent, id string) string {
+	return sortedRowsURL(collection, parent, id, "position,id")
+}
+
+// sortedRowsURL is rowsURL for a table that is sorted by its own sort (the
+// applications of a credit, by date).
+func sortedRowsURL(collection, parent, id, sort string) string {
 	q := url.Values{}
 	q.Set("filter", parent+` = "`+id+`"`)
-	q.Set("sort", "position,id")
+	q.Set("sort", sort)
 	return "/api/collections/" + collection + "/records?" + q.Encode()
 }
 

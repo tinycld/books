@@ -35,7 +35,7 @@ func TestCLIDocuments_CreditMemoApplyAndUnapply(t *testing.T) {
 		create(body(10000, "2026-11-13"), 200, `"id":"`+id+`"`, `"amount":10000`),
 		balance("books_credit_memos", memo, "15000"), balance("books_invoices", invoice, "30000"),
 		// show reads the applications by date.
-		apiReq{method: "GET", url: fmt.Sprintf("/api/collections/%s/records?filter=credit_memo%%3D%%22%s%%22&sort=date,created,id", applications, memo), token: token, want: 200,
+		apiReq{method: "GET", url: sortedRowsURL(applications, "credit_memo", memo, "date,created,id"), token: token, want: 200,
 			content: []string{`"totalItems":1`, `"invoice":"` + invoice + `"`}},
 		// An application is never changed, and an applied credit is not voided.
 		apiReq{method: "PATCH", url: recordURL(applications, id), token: token, want: 403, body: `{"amount":1}`},
