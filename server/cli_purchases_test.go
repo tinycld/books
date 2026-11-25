@@ -1,6 +1,7 @@
 package books
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -18,22 +19,29 @@ func TestCLIDocuments_PurchasesRoundTrip(t *testing.T) {
 	widget := recordURL("books_products", env.stock.widget.Id)
 	types := []struct {
 		collection, lines, parent, id, header, docType string
-		posted, stock                                  []string
+		// correction is the header of `edit` of the posted document, as
+		// TestPurchaseCorrectionLeavesOutTheAmountBooksComputes sends it, for the
+		// new id, the replaced id, the vendor and the account paid from.
+		correction    string
+		posted, stock []string
 		// entryLines is the count of lines of the journal entry. A vendor credit
 		// takes the item out through the inventory asset, with two more lines.
 		entryLines int
 	}{
 		{"books_bills", "books_bill_lines", "bill", "clibill00000001",
 			fmt.Sprintf(`"date":"2026-11-04","due_date":"2026-12-04","id":"clibill00000001","ref_no":"S-88","status":"draft","vendor":%q`, env.summit.Id),
-			"bill", []string{`"number":"1001"`, `"subtotal":6500`, `"total":6500`, `"balance":6500`},
+			"bill", `"date":"2026-11-04","due_date":"2026-12-04","id":%[1]q,"memo":"Corrected","ref_no":"S-88","replaces":%[2]q,"status":"draft","terms":"","vendor":%[3]q`,
+			[]string{`"number":"1001"`, `"subtotal":6500`, `"total":6500`, `"balance":6500`, `"mailing_address":null`},
 			[]string{`"quantity_on_hand":4`, `"stock_value":2000`}, 3},
 		{"books_expenses", "books_expense_lines", "expense", "cliexpense00001",
 			fmt.Sprintf(`"date":"2026-11-04","id":"cliexpense00001","paid_from":%q,"payment_method":"check","status":"draft","vendor":%q`, env.checking1000.Id, env.summit.Id),
-			"expense", []string{`"number":"1001"`, `"total":6500`},
+			"expense", `"date":"2026-11-04","id":%[1]q,"memo":"Corrected","paid_from":%[4]q,"payment_method":"check","reference_no":"","replaces":%[2]q,"status":"draft","vendor":%[3]q`,
+			[]string{`"number":"1001"`, `"total":6500`},
 			[]string{`"quantity_on_hand":8`, `"stock_value":4000`}, 3},
 		{"books_vendor_credits", "books_vendor_credit_lines", "vendor_credit", "clivcredit00001",
 			fmt.Sprintf(`"date":"2026-11-04","id":"clivcredit00001","status":"draft","vendor":%q`, env.summit.Id),
-			"vendor_credit", []string{`"number":"1001"`, `"total":6500`, `"balance":6500`},
+			"vendor_credit", `"date":"2026-11-04","id":%[1]q,"memo":"Corrected","ref_no":"","replaces":%[2]q,"status":"draft","vendor":%[3]q`,
+			[]string{`"number":"1001"`, `"total":6500`, `"balance":6500`},
 			[]string{`"quantity_on_hand":4`, `"stock_value":2000`}, 5},
 	}
 	for _, tc := range types {
@@ -63,10 +71,12 @@ func TestCLIDocuments_PurchasesRoundTrip(t *testing.T) {
 				"books_journal_lines", "entry", []string{fmt.Sprintf(`"totalItems":%d`, tc.entryLines)})...)
 
 			// edit of the posted document: a correction with the stored values,
-			// the empty ones too, and no amount on the item line.
+			// the empty text ones too (`terms`, `reference_no`, `ref_no`), no
+			// `mailing_address` (the server holds a bill's as null, and the CLI
+			// leaves a null out) and no amount on the item line.
 			fix := "clifix00" + tc.id[8:]
 			apiSeq(t, env.app,
-				docBatch(token, cliOp("POST", tc.collection, "", `{`+replaceID(tc.header, tc.id, fix)+`,"memo":"Corrected","replaces":"`+tc.id+`"}`),
+				docBatch(token, cliOp("POST", tc.collection, "", fmt.Sprintf(`{`+tc.correction+`}`, fix, tc.id, env.summit.Id, env.checking1000.Id)),
 					rowOp(tc.lines, tc.parent, fix, 0, fmt.Sprintf(`"account":%q,"amount":4500,"description":"Design tools","kind":"account","product":"","quantity":0,"rate":0`, env.software.Id)),
 					rowOp(tc.lines, tc.parent, fix, 1, fmt.Sprintf(`"account":"","description":"","kind":"item","product":%q,"quantity":4,"rate":500`, env.stock.widget.Id)),
 					post(fix)),
@@ -79,10 +89,13 @@ func TestCLIDocuments_PurchasesRoundTrip(t *testing.T) {
 			// add, edit of the draft (new lines, the header last), post, void.
 			// A vendor's bill number is used one time, so the draft has its own.
 			draft := "clidraft" + tc.id[8:]
+			// Marshal sorts the keys, as the CLI does: the parent's name differs by type.
+			line, _ := json.Marshal(map[string]any{"account": env.software.Id, "amount": 100, "id": "clidraftline001", "kind": "account", "position": 0, tc.parent: draft})
+			draftLine := string(line)
 			draftHeader := strings.Replace(replaceID(tc.header, tc.id, draft), `"ref_no":"S-88"`, `"ref_no":"S-89"`, 1)
 			apiSeq(t, env.app,
 				docBatch(token, cliOp("POST", tc.collection, "", `{`+draftHeader+`}`),
-					cliOp("POST", tc.lines, "", fmt.Sprintf(`{"id":"clidraftline001","account":%q,"amount":100,"kind":"account",%q:%q,"position":0}`, env.software.Id, tc.parent, draft))),
+					cliOp("POST", tc.lines, "", draftLine)),
 				docBatch(token, cliOp("DELETE", tc.lines, "clidraftline001", ""), account(draft, 300),
 					cliOp("PATCH", tc.collection, draft, `{"memo":"Changed","revision":2}`)),
 				apiReq{method: "GET", url: recordURL(tc.collection, draft), token: token, want: 200,

@@ -383,8 +383,11 @@ func checkLineTable(table *lineTable, names map[string]bool) error {
 			return fmt.Errorf("computed names %q, which is not an optional field a caller may send", rule.Field)
 		}
 		when := res.field(rule.When)
-		if when == nil || len(rule.Is) == 0 {
-			return fmt.Errorf("computed %q: when names %q, which is not a field, or is has no value", rule.Field, rule.When)
+		if when == nil {
+			return fmt.Errorf("computed %q: when names %q, which is not a field", rule.Field, rule.When)
+		}
+		if len(rule.Is) == 0 {
+			return fmt.Errorf("computed %q: is names no value", rule.Field)
 		}
 		for _, value := range rule.Is {
 			if !slices.Contains(when.Enum, value) {
@@ -523,10 +526,13 @@ func checkLines(table *lineTable, value any) ([]map[string]any, error) {
 		if err := checkInput(res, row, true); err != nil {
 			return nil, usagef("%s[%d]: %v", table.Key, i, err)
 		}
+		text := func(name string) string {
+			s, _ := row[name].(string)
+			return s
+		}
 		for _, rule := range table.Computed {
-			_, given := row[rule.Field]
-			if kind, _ := row[rule.When].(string); given && slices.Contains(rule.Is, kind) {
-				return nil, usagef("%s[%d]: Books computes %q of a row with the %s %q: leave it out", table.Key, i, rule.Field, rule.When, kind)
+			if _, given := row[rule.Field]; given && table.computes(rule.Field, text) {
+				return nil, usagef("%s[%d]: Books computes %q of a row with the %s %q: leave it out", table.Key, i, rule.Field, rule.When, text(rule.When))
 			}
 		}
 		rows = append(rows, row)

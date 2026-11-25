@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"maps"
 	"strings"
 	"testing"
 
@@ -111,42 +112,76 @@ func TestPurchasesCheckTheInputAndHaveEveryCommand(t *testing.T) {
 	}
 }
 
-// A correction copies the lines of the posted bill. The stored item line has
-// the amount Books computed; sending it back would be refused, so it is left
-// out. The amount of an account line is the caller's, and is kept.
-func TestBillCorrectionLeavesOutTheAmountBooksComputes(t *testing.T) {
-	f := sales(t)
-	f.addRow("books_bills", "billposted00001", map[string]any{
-		"vendor": "vendsummit00001", "date": "2026-11-04", "due_date": "2026-12-04", "ref_no": "S-88",
-		"status": "posted", "number": "1001", "total": cents(6500), "balance": cents(6500), "revision": cents(1),
-	})
-	f.addRow("books_bill_lines", "billline0000001", map[string]any{
-		"bill": "billposted00001", "position": cents(0), "kind": "item", "product": "prodwidget00001",
-		"quantity": cents(4), "rate": cents(500), "amount": cents(2000),
-	})
-	f.addRow("books_bill_lines", "billline0000002", map[string]any{
-		"bill": "billposted00001", "position": cents(1), "kind": "account", "account": "acctsoftware001", "amount": cents(4500),
-	})
-	fixedIDs(t, "billnew00000001")
-	if _, _, err := runCmd(t, f.serve(), `{"memo": "Corrected"}`, "books", "bills", "edit", "billposted00001", "--input", "-", "--json"); err != nil {
-		t.Fatal(err)
+// A correction copies the lines of the posted document. The stored item line
+// has the amount Books computed; sending it back would be refused, so it is
+// left out. The amount of an account line is the caller's, and is kept. The
+// header is sent with every stored value, the empty text ones too (the
+// document's `terms`, `reference_no` or `ref_no`); an address the server holds
+// as null is left out. server/cli_purchases_test.go sends a copy of each body.
+func TestPurchaseCorrectionLeavesOutTheAmountBooksComputes(t *testing.T) {
+	corrections := map[string]struct {
+		stored map[string]any
+		header string
+	}{
+		"bills": {
+			map[string]any{"due_date": "2026-12-04", "ref_no": "S-88"},
+			`"date":"2026-11-04","due_date":"2026-12-04","id":"buynew000000001","memo":"Corrected","ref_no":"S-88","replaces":"buyposted00001","status":"draft","terms":"","vendor":"vendsummit00001"`,
+		},
+		"expenses": {
+			map[string]any{"paid_from": "acctchecking001", "payment_method": "check"},
+			`"date":"2026-11-04","id":"buynew000000001","memo":"Corrected","paid_from":"acctchecking001","payment_method":"check","reference_no":"","replaces":"buyposted00001","status":"draft","vendor":"vendsummit00001"`,
+		},
+		"vendor-credits": {
+			map[string]any{},
+			`"date":"2026-11-04","id":"buynew000000001","memo":"Corrected","ref_no":"","replaces":"buyposted00001","status":"draft","vendor":"vendsummit00001"`,
+		},
 	}
-	want := `[` +
-		`{"method":"POST","url":"/api/collections/books_bills/records","body":{"date":"2026-11-04","due_date":"2026-12-04","id":"billnew00000001","memo":"Corrected","ref_no":"S-88","replaces":"billposted00001","status":"draft","terms":"","vendor":"vendsummit00001"}},` +
-		`{"method":"POST","url":"/api/collections/books_bill_lines/records","body":{"account":"","bill":"billnew00000001","description":"","kind":"item","position":0,"product":"prodwidget00001","quantity":4,"rate":500}},` +
-		`{"method":"POST","url":"/api/collections/books_bill_lines/records","body":{"account":"acctsoftware001","amount":4500,"bill":"billnew00000001","description":"","kind":"account","position":1,"product":"","quantity":0,"rate":0}},` +
-		`{"method":"PATCH","url":"/api/collections/books_bills/records/billnew00000001","body":{"revision":1,"status":"posted"}}]`
-	if got := sentBatch(t, f, 0); got != want {
-		t.Errorf("the batch:\n%s\nwant:\n%s", got, want)
+	for _, tc := range purchaseTypes {
+		t.Run(tc.name, func(t *testing.T) {
+			want := corrections[tc.name]
+			f := sales(t)
+			header := map[string]any{
+				"vendor": "vendsummit00001", "date": "2026-11-04", "status": "posted", "number": "1001",
+				"total": cents(6500), "revision": cents(1),
+			}
+			maps.Copy(header, want.stored)
+			f.addRow(tc.collection, "buyposted00001", header)
+			f.addRow(tc.lines, "buyline0000001", map[string]any{
+				tc.parent: "buyposted00001", "position": cents(0), "kind": "account", "account": "acctsoftware001",
+				"description": "Design tools", "amount": cents(4500),
+			})
+			f.addRow(tc.lines, "buyline0000002", map[string]any{
+				tc.parent: "buyposted00001", "position": cents(1), "kind": "item", "product": "prodwidget00001",
+				"quantity": cents(4), "rate": cents(500), "amount": cents(2000),
+			})
+			fixedIDs(t, "buynew000000001")
+			if _, _, err := runCmd(t, f.serve(), `{"memo": "Corrected"}`, "books", tc.name, "edit", "buyposted00001", "--input", "-", "--json"); err != nil {
+				t.Fatal(err)
+			}
+			url := "/api/collections/" + tc.lines + "/records"
+			account, _ := json.Marshal(map[string]any{"account": "acctsoftware001", "amount": 4500, "description": "Design tools", "kind": "account", "position": 0, "product": "", "quantity": 0, "rate": 0, tc.parent: "buynew000000001"})
+			item, _ := json.Marshal(map[string]any{"account": "", "description": "", "kind": "item", "position": 1, "product": "prodwidget00001", "quantity": 4, "rate": 500, tc.parent: "buynew000000001"})
+			got := `[` +
+				`{"method":"POST","url":"/api/collections/` + tc.collection + `/records","body":{` + want.header + `}},` +
+				`{"method":"POST","url":"` + url + `","body":` + string(account) + `},` +
+				`{"method":"POST","url":"` + url + `","body":` + string(item) + `},` +
+				`{"method":"PATCH","url":"/api/collections/` + tc.collection + `/records/buynew000000001","body":{"revision":1,"status":"posted"}}]`
+			if sent := sentBatch(t, f, 0); sent != got {
+				t.Errorf("the batch:\n%s\nwant:\n%s", sent, got)
+			}
+		})
 	}
 }
 
 func TestLoadDocumentsChecksAComputedField(t *testing.T) {
 	cases := []struct{ name, old, new, want string }{
 		{"a field the table has not", `"field": "amount",`, `"field": "total",`, `computed names "total"`},
-		{"a when that is no field", `"when": "kind",`, `"when": "type",`, `when names "type"`},
+		{"a read-only field", `{ "name": "amount", "type": "integer", "help": "the amount of an account line, in cents; Books computes`,
+			`{ "name": "amount", "type": "integer", "readOnly": true, "help": "the amount of an account line, in cents; Books computes`, `computed names "amount", which is not an optional field`},
+		{"a required field", `"field": "amount",`, `"field": "kind",`, `computed names "kind", which is not an optional field`},
+		{"a when that is no field", `"when": "kind",`, `"when": "type",`, `when names "type", which is not a field`},
 		{"a value the when field has not", `"is": ["item"]`, `"is": ["percent"]`, `"percent" is not a value of kind`},
-		{"no value", `"is": ["item"]`, `"is": []`, `is has no value`},
+		{"no value", `"is": ["item"]`, `"is": []`, `computed "amount": is names no value`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
