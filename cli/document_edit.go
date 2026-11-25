@@ -131,7 +131,7 @@ func newDocumentEditCmd(c *client.Client, doc *document) *cobra.Command {
 		if err := checkFixed(doc, current); err != nil {
 			return err
 		}
-		id, done := current.id(), "updated"
+		id, done, corrected := current.id(), "updated", false
 		var ops []batchOp
 		switch status := current.cell("status"); status {
 		case statusDraft:
@@ -139,10 +139,13 @@ func newDocumentEditCmd(c *client.Client, doc *document) *cobra.Command {
 				return err
 			}
 		case statusPosted:
-			id, done = newRecordID(), "corrected"
+			// The new document is stored and the posted one is void: the read
+			// after it must not say that the id it names was corrected.
+			id, done, corrected = newRecordID(), "added and posted to replace "+current.id(), true
 			ops = append(createOps(doc, id, correctionInput(doc, current, in), current.id()), postOp(doc, id, 1))
 		default:
-			return refusedf("%s %s is %s: it cannot be changed", doc.Singular, current.id(), status)
+			return refusedf("%s %s is %s: it cannot be changed; add a new %s with `%s add`",
+				doc.Singular, current.id(), status, doc.Singular, cmd.Parent().CommandPath())
 		}
 		if err := sendBatch(cmd.Context(), c, ops); err != nil {
 			return prefixID(&doc.resource, current.id(), err)
@@ -151,7 +154,7 @@ func newDocumentEditCmd(c *client.Client, doc *document) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		if done == "corrected" {
+		if corrected {
 			o.Info(cmd.ErrOrStderr(), "corrected %s %s: it is void, and %s (%s) is posted in its place",
 				doc.Singular, current.label(&doc.resource), rec.label(&doc.resource), rec.id())
 		} else {

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -114,6 +115,33 @@ func TestDocumentEditOfAPostedDocumentPostsACorrection(t *testing.T) {
 	}
 }
 
+// The correction is stored: the message names the new id as added and posted,
+// and the original as the one it replaces.
+func TestDocumentEditSaysWhenTheReadAfterACorrectionFails(t *testing.T) {
+	f := journal(t)
+	fixedIDs(t, "entrynew0000001")
+	handler := f.handler()
+	stored := false
+	failing := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if stored && r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(404)
+			w.Write([]byte(`{"data":{},"message":"The requested resource wasn't found.","status":404}`))
+			return
+		}
+		handler.ServeHTTP(w, r)
+		stored = stored || r.Method == http.MethodPost
+	})
+	_, _, err := runCmd(t, clientFor(t, failing), `{"memo": "Corrected"}`, "books", "journal-entries", "edit", "entryposted0001", "--input", "-", "--json")
+	want := "journal entry entrynew0000001 was added and posted to replace entryposted0001, and then it could not be read"
+	if err == nil || !strings.Contains(err.Error(), want) {
+		t.Errorf("err = %v, want %q", err, want)
+	}
+	if got := exitcode.Of(err); got != exitcode.Failed {
+		t.Errorf("exit = %d, want %d", got, exitcode.Failed)
+	}
+}
+
 func TestDocumentEditOfAPostedDocumentWithNewLines(t *testing.T) {
 	f := journal(t)
 	fixedIDs(t, "entrynew0000001")
@@ -131,7 +159,7 @@ func TestDocumentEditRefusesWhatItMustNotChange(t *testing.T) {
 	f := journal(t)
 	f.find("books_journal_entries", "entryposted0001")["status"] = "void"
 	cases := []struct{ id, want string }{
-		{"entryposted0001", "journal entry entryposted0001 is void: it cannot be changed"},
+		{"entryposted0001", "journal entry entryposted0001 is void: it cannot be changed; add a new journal entry with `tinycld books journal-entries add`"},
 		{"entryinvoice001", `journal entry entryinvoice001 has the doc_type "invoice", not "journal"`},
 	}
 	for _, tc := range cases {
