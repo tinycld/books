@@ -59,10 +59,9 @@ func newReconcileEditCmd(c *client.Client) *cobra.Command {
 
 // newReconcileStatusCmd finishes a reconciliation or opens it again: one
 // change of its status. Books answers "not found" to a change to the status
-// the reconciliation has, so the command reads the status and sends nothing
-// then (a second run after a lost answer). done is the text for stderr, with
-// %s for the id.
+// the reconciliation has. done is the text for stderr, with %s for the id.
 func newReconcileStatusCmd(c *client.Client, name, short, long, status, state, done string) *cobra.Command {
+	change := statusChange{res: &reconciliationsResource, status: status, state: state, done: done, write: writeReconciliation}
 	return newCommand(commandDef{
 		Name:   name,
 		Short:  short,
@@ -70,19 +69,7 @@ func newReconcileStatusCmd(c *client.Client, name, short, long, status, state, d
 		Args:   reconciliationArg(),
 		Output: reconciliationSchema(),
 	}, func(cmd *cobra.Command, args []string, o output.Options, _ bool) error {
-		rec, err := fetchRecord(cmd.Context(), c, &reconciliationsResource, args[0])
-		if err != nil {
-			return err
-		}
-		if rec.cell("status") == status {
-			o.Info(cmd.ErrOrStderr(), "reconciliation %s is %s already: nothing was changed", args[0], state)
-			return writeReconciliation(cmd, c, o, args[0])
-		}
-		if _, err := client.UpdateRecord[rawRecord](cmd.Context(), c, reconciliationsCollection, args[0], map[string]any{"status": status}); err != nil {
-			return prefixID(&reconciliationsResource, args[0], err)
-		}
-		o.Info(cmd.ErrOrStderr(), done, args[0])
-		return writeReconciliation(cmd, c, o, args[0])
+		return change.run(cmd, c, o, args[0])
 	})
 }
 

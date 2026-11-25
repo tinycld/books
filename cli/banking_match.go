@@ -79,7 +79,18 @@ func newBankingUnmatchCmd(c *client.Client) *cobra.Command {
 
 // newBankingStatusCmd moves a bank transaction between For review and
 // Excluded: one change of its status, which is all Books lets a caller change.
+// Books answers "not found" to a change of a Reviewed transaction.
 func newBankingStatusCmd(c *client.Client, name, short, long, status, state, done, reviewedHint string) *cobra.Command {
+	change := statusChange{
+		res: &bankTransactionsResource, status: status, state: state,
+		done: done + " bank transaction %s", write: writeBankTransaction,
+		refuse: func(id string, txn record) error {
+			if txn.cell("status") == bankStatusReviewed {
+				return refusedf("bank transaction %s is Reviewed: %s", id, reviewedHint)
+			}
+			return nil
+		},
+	}
 	return newCommand(commandDef{
 		Name:   name,
 		Short:  short,
@@ -87,27 +98,7 @@ func newBankingStatusCmd(c *client.Client, name, short, long, status, state, don
 		Args:   bankTransactionArg(),
 		Output: bankTransactionSchema(),
 	}, func(cmd *cobra.Command, args []string, o output.Options, _ bool) error {
-		// Books lets a caller change the status only from For review to
-		// Excluded and back, and answers "not found" to another change. So
-		// the command reads the status: it says what to do for a Reviewed
-		// transaction, and sends nothing when the status is the one asked
-		// for (a second run after a lost answer).
-		txn, err := fetchRecord(cmd.Context(), c, &bankTransactionsResource, args[0])
-		if err != nil {
-			return err
-		}
-		switch txn.cell("status") {
-		case bankStatusReviewed:
-			return refusedf("bank transaction %s is Reviewed: %s", args[0], reviewedHint)
-		case status:
-			o.Info(cmd.ErrOrStderr(), "bank transaction %s is %s already: nothing was changed", args[0], state)
-			return writeBankTransaction(cmd, c, o, args[0])
-		}
-		if _, err := client.UpdateRecord[rawRecord](cmd.Context(), c, bankTransactionsCollection, args[0], map[string]any{"status": status}); err != nil {
-			return prefixID(&bankTransactionsResource, args[0], err)
-		}
-		o.Info(cmd.ErrOrStderr(), "%s bank transaction %s", done, args[0])
-		return writeBankTransaction(cmd, c, o, args[0])
+		return change.run(cmd, c, o, args[0])
 	})
 }
 

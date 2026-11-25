@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -147,7 +148,8 @@ func newBankingCategorizeCmd(c *client.Client) *cobra.Command {
 		// categorization whose lines do not total the bank amount.
 		amount, ok := txn.values["amount"].(json.Number)
 		if !ok {
-			return refusedf("bank transaction %s has no amount", args[0])
+			// A malformed answer of the server: exit 1, not a refusal of the input.
+			return fmt.Errorf("bank transaction %s has no amount", args[0])
 		}
 		body := maps.Clone(given)
 		line := map[string]any{"account": body["account"], "amount": json.Number(strings.TrimPrefix(amount.String(), "-"))}

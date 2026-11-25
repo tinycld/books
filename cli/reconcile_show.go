@@ -99,8 +99,9 @@ func reconciliationSchema() map[string]any {
 
 // writeReconciliation prints a reconciliation as `show` does. Every command
 // that starts or changes one ends with it, so a caller has `open` after each
-// call. The cost is two reads of the view: `open` is every line of the account
-// that is in no reconciliation, up to the statement date.
+// call. The cost is one read of the record and two reads of the view (one for
+// a finished reconciliation): `open` is every line of the account that is in
+// no reconciliation, up to the statement date.
 func writeReconciliation(cmd *cobra.Command, c *client.Client, o output.Options, id string) error {
 	rec, err := reconciliationRecord(cmd.Context(), c, id)
 	if err != nil {

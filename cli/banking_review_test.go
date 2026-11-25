@@ -123,6 +123,20 @@ func TestBankingCategorizeAndSplitRefuseBeforeTheySend(t *testing.T) {
 	}
 }
 
+// A transaction with no amount is a malformed answer of the server, not a
+// refusal of the caller's data: exit 1, and nothing is sent.
+func TestBankingCategorizeOfATransactionWithNoAmountFails(t *testing.T) {
+	f := reviewFake(t)
+	f.add(bankTransactionsCollection, "banktxn00000099", map[string]any{"connection": bankConnChecking, "status": bankStatusForReview})
+	_, _, err := runCmd(t, f.serve(), `{"account": "acctsupplies001"}`, "books", "banking", "categorize", "banktxn00000099", "--input", "-")
+	if got := exitcode.Of(err); got != exitcode.Failed || !strings.Contains(err.Error(), "bank transaction banktxn00000099 has no amount") {
+		t.Errorf("exit = %d, err = %v; want 1", got, err)
+	}
+	if f.lastCreate != nil {
+		t.Errorf("sent %v, want nothing", f.lastCreate)
+	}
+}
+
 // Books refuses lines that do not add up; the command passes the message on
 // and names the transaction.
 func TestBankingSplitShowsTheRefusalOfBooks(t *testing.T) {
