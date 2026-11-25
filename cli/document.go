@@ -80,6 +80,11 @@ type lineTable struct {
 	// amount of an item line of a bill is its quantity times its rate, and the
 	// amount of an account line is typed.
 	Computed []computedField `json:"computed"`
+	// Apply marks a table whose rows a caller adds one at a time with `apply`
+	// and removes with `unapply` (the invoices a credit memo is applied to).
+	// Its rows have no position and are never part of an `add` or `edit`
+	// input, so the table is read-only too.
+	Apply bool `json:"apply"`
 	// Max is the most rows the table may have, when the server's limit for it
 	// is not maxDocumentLines (a payment pays up to 500 invoices).
 	Max int `json:"max"`
@@ -245,6 +250,16 @@ func (d *document) table(key string) *lineTable {
 	return nil
 }
 
+// applyTable is the table `apply` and `unapply` write, or nil.
+func (d *document) applyTable() *lineTable {
+	for i := range d.Lines {
+		if d.Lines[i].Apply {
+			return &d.Lines[i]
+		}
+	}
+	return nil
+}
+
 var documents = mustLoadDocuments(documentsJSON)
 
 func findDocument(name string) *document {
@@ -403,6 +418,10 @@ func checkDocument(doc *document, names map[string]bool) error {
 		if err := checkLineTable(table, names); err != nil {
 			return fmt.Errorf("line table %q: %w", table.Key, err)
 		}
+		// `apply` has no argument that says which table it writes.
+		if table.Apply && doc.applyTable() != table {
+			return fmt.Errorf("line table %q: a document has at most one table with apply", table.Key)
+		}
 	}
 	return nil
 }
@@ -468,10 +487,18 @@ func checkLineTable(table *lineTable, names map[string]bool) error {
 	if !fieldName.MatchString(table.Parent) {
 		return fmt.Errorf("parent %q is not a field name", table.Parent)
 	}
-	// The CLI sets both, so a caller never sends or reads them.
-	for _, set := range []string{table.Parent, "position"} {
-		if !slices.Contains(table.Omit, set) {
-			return fmt.Errorf("omit must name %q: the CLI sets it", set)
+	// The CLI sets both, so a caller never sends or reads them. A row that
+	// `apply` adds has no position.
+	set := []string{table.Parent, "position"}
+	if table.Apply {
+		set = set[:1]
+		if !table.ReadOnly {
+			return fmt.Errorf("a table with apply is read-only: its rows are not part of an `add` or `edit` input")
+		}
+	}
+	for _, name := range set {
+		if !slices.Contains(table.Omit, name) {
+			return fmt.Errorf("omit must name %q: the CLI sets it", name)
 		}
 	}
 	if len(table.Fields) == 0 {

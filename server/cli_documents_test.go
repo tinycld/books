@@ -27,6 +27,7 @@ type cliLineTable struct {
 	Sort       string     `json:"sort"`
 	ReadOnly   bool       `json:"readOnly"`
 	Max        int        `json:"max"`
+	Apply      bool       `json:"apply"` // `apply` and `unapply` write its rows
 	Omit       []string   `json:"omit"`
 	Fields     []cliField `json:"fields"`
 }
@@ -80,6 +81,14 @@ func cliCollections(t testing.TB) map[string]string {
 // every column a caller can see is declared or left out on purpose.
 func requireCLIFields(t *testing.T, app core.App, label, collection string, fields []cliField, omit []string, noTimestamps bool, collectionOf map[string]string) *core.Collection {
 	t.Helper()
+	return requireCLIFieldsStamped(t, app, label, collection, fields, omit, noTimestamps, false, collectionOf)
+}
+
+// requireCLIFieldsStamped is requireCLIFields for a collection whose rows are
+// never changed (the applications of a credit): `updatedAbsent` says that it
+// has `created` and no `updated`, so the CLI prints `updated` as null.
+func requireCLIFieldsStamped(t *testing.T, app core.App, label, collection string, fields []cliField, omit []string, noTimestamps, updatedAbsent bool, collectionOf map[string]string) *core.Collection {
+	t.Helper()
 	col, err := app.FindCollectionByNameOrId(collection)
 	if err != nil {
 		t.Errorf("%s: collection %s: %v", label, collection, err)
@@ -88,7 +97,8 @@ func requireCLIFields(t *testing.T, app core.App, label, collection string, fiel
 	// The CLI prints created and updated for every record unless the definition
 	// says the collection has none.
 	for _, stamp := range []string{"created", "updated"} {
-		if has := col.Fields.GetByName(stamp) != nil; has == noTimestamps {
+		want := !noTimestamps && !(updatedAbsent && stamp == "updated")
+		if has := col.Fields.GetByName(stamp) != nil; has != want {
 			t.Errorf("%s: %s has the field %q = %v, and the CLI's noTimestamps = %v", label, collection, stamp, has, noTimestamps)
 		}
 	}
@@ -152,7 +162,7 @@ func TestCLIDocuments_MatchTheCollections(t *testing.T) {
 		}
 		for _, table := range doc.Lines {
 			label := doc.Name + "." + table.Key
-			col := requireCLIFields(t, app, label, table.Collection, table.Fields, table.Omit, false, collectionOf)
+			col := requireCLIFieldsStamped(t, app, label, table.Collection, table.Fields, table.Omit, false, table.Apply, collectionOf)
 			if col == nil {
 				continue
 			}
@@ -169,6 +179,13 @@ func TestCLIDocuments_MatchTheCollections(t *testing.T) {
 			if target.Name != doc.Collection {
 				t.Errorf("%s: parent %q points to %s, not to %s", label, table.Parent, target.Name, doc.Collection)
 			}
+			// A row that `apply` adds has no place among the others.
+			if table.Apply {
+				if col.Fields.GetByName("position") != nil {
+					t.Errorf("%s: %s has a position, and `apply` sets none", label, table.Collection)
+				}
+				continue
+			}
 			if position, ok := col.Fields.GetByName("position").(*core.NumberField); !ok || !position.OnlyInt {
 				t.Errorf("%s: %s has no whole-number position", label, table.Collection)
 			}
@@ -177,8 +194,8 @@ func TestCLIDocuments_MatchTheCollections(t *testing.T) {
 }
 
 // A token reaches a collection only when the OAuth registration names it. A
-// command writes the document and every table it sends, and only reads a
-// table Books writes.
+// command writes the document, every table it sends and the table of `apply`,
+// and only reads a table Books writes.
 func TestCLIDocuments_OAuthAllowsEveryCollection(t *testing.T) {
 	collections := oauthPackage().Collections
 	check := func(label, collection string, write bool) {
@@ -200,7 +217,7 @@ func TestCLIDocuments_OAuthAllowsEveryCollection(t *testing.T) {
 			check(doc.Name+" "+view.Name, view.Collection, false)
 		}
 		for _, table := range doc.Lines {
-			check(doc.Name+"."+table.Key, table.Collection, !table.ReadOnly)
+			check(doc.Name+"."+table.Key, table.Collection, !table.ReadOnly || table.Apply)
 		}
 	}
 }

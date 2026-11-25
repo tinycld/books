@@ -115,7 +115,7 @@ func TestSalesDocumentsCheckTheInputAndHaveEveryCommand(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := strings.Join(subcommandNames(group), ","); got != "add,delete,edit,entry,list,post,show,void" {
+		if got := strings.Join(subcommandNames(group), ","); got != postingCommands(tc.name) {
 			t.Errorf("%s: commands = %s", tc.name, got)
 		}
 		alias := strings.ReplaceAll(tc.singular, " ", "-")

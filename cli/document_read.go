@@ -42,6 +42,9 @@ func newDocumentCmd(c *client.Client, doc *document) *cobra.Command {
 	if doc.Convert != nil {
 		group.AddCommand(newDocumentConvertCmd(c, doc))
 	}
+	if table := doc.applyTable(); table != nil {
+		group.AddCommand(newDocumentApplyCmd(c, doc, table), newDocumentUnapplyCmd(c, doc, table))
+	}
 	return group
 }
 

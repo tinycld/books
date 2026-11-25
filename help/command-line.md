@@ -120,6 +120,18 @@ tinycld books bill-payments void <id>
 
 A bill payment has no draft: `add` posts it at once, and Books lowers the balance of each bill. It has no `--post`, no `post` and no `delete`. `edit` voids the bill payment and posts a new one with your changes. `void` puts the balances of the bills back. A bill payment can pay up to 250 bills.
 
+## To apply a credit
+
+To use a posted credit memo for an invoice of the same customer, or a posted vendor credit for a bill of the same vendor, apply it:
+
+```
+echo '{"invoice": "<invoice id>", "amount": 10000, "date": "2026-07-22"}' | tinycld books credit-memos apply <id> --input -
+echo '{"bill": "<bill id>", "amount": 3000, "date": "2026-07-22"}' | tinycld books vendor-credits apply <id> --input -
+tinycld books credit-memos unapply <id> <application id>
+```
+
+Books lowers the balance of the credit and of the invoice or bill in the same step. It refuses an amount that is more than the credit has left or more than is owed, and a date before the date of the credit. `apply` prints the credit with its `applications`; each one has an `id`. `unapply` removes one application, and Books puts the balances back. It does not ask first. You cannot void a credit while it is applied: remove its applications first. For more, see [apply a credit](help://books:apply-credit).
+
 ## To record a refund from a vendor
 
 A vendor refund has one line for each vendor credit that the vendor pays back. When the refund is posted, the lines must add up to `amount`, and Books lowers the unapplied part of each vendor credit. A vendor refund can have up to 500 lines.

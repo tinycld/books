@@ -345,6 +345,21 @@
                         { "name": "taxable_amount", "type": "integer", "readOnly": true, "help": "the sum of the taxable lines, in cents" },
                         { "name": "amount", "type": "integer", "readOnly": true, "help": "the tax of this component, in cents" }
                     ]
+                },
+                {
+                    "key": "applications",
+                    "singular": "application",
+                    "collection": "books_credit_memo_applications",
+                    "parent": "credit_memo",
+                    "sort": "date,created,id",
+                    "readOnly": true,
+                    "apply": true,
+                    "omit": ["credit_memo", "applied_by", "close_override"],
+                    "fields": [
+                        { "name": "invoice", "type": "id", "ref": "invoices", "required": true, "help": "a posted invoice of the customer that the credit pays" },
+                        { "name": "amount", "type": "integer", "required": true, "help": "the part of the credit applied to the invoice, in cents" },
+                        { "name": "date", "type": "string", "required": true, "help": "the date the credit is applied, as YYYY-MM-DD; not before the date of the credit memo" }
+                    ]
                 }
             ]
         },
@@ -654,6 +669,21 @@
                         { "name": "quantity", "type": "number", "help": "the quantity of an item line, with at most 2 decimals" },
                         { "name": "rate", "type": "integer", "help": "the cost of one unit of an item line, in cents" },
                         { "name": "amount", "type": "integer", "help": "the amount of an account line, in cents; Books computes it for an item line, so leave it out there" }
+                    ]
+                },
+                {
+                    "key": "applications",
+                    "singular": "application",
+                    "collection": "books_vendor_credit_applications",
+                    "parent": "vendor_credit",
+                    "sort": "date,created,id",
+                    "readOnly": true,
+                    "apply": true,
+                    "omit": ["vendor_credit", "applied_by", "close_override"],
+                    "fields": [
+                        { "name": "bill", "type": "id", "ref": "bills", "required": true, "help": "a posted bill of the vendor that the credit pays" },
+                        { "name": "amount", "type": "integer", "required": true, "help": "the part of the credit applied to the bill, in cents" },
+                        { "name": "date", "type": "string", "required": true, "help": "the date the credit is applied, as YYYY-MM-DD; not before the date of the vendor credit" }
                     ]
                 }
             ]
