@@ -136,6 +136,7 @@ func newReportsCmd(c *client.Client) *cobra.Command {
 		}),
 		newReportShowCmd(c),
 		newReportRunCmd(c),
+		newReportExportCmd(c),
 	)
 	return group
 }

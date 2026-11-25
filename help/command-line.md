@@ -279,6 +279,14 @@ tinycld books reports run books.general_ledger --expand-all --all --json
 
 A report with groups prints its group rows; `--expand-all` opens every group. A long report comes in pages: with `--json`, `next` holds the cursor of the next page, and `--cursor` reads that page. `--all` reads every page. `run` prints an amount in cents.
 
+```
+tinycld books reports export books.profit_and_loss --format pdf --file profit-and-loss.pdf
+tinycld books reports export books.trial_balance --format csv --file trial-balance.csv --input params.json
+tinycld books reports export books.general_ledger --format json --file general-ledger.json
+```
+
+`export` writes the report to a file. `csv`, `xlsx` and `pdf` are the files that the Export menu makes, with every group open and the amounts as you read them. `json` is the result of `run --all`. Books records an export to `csv`, `xlsx` or `pdf` in the audit log; a `json` export is a run, and a run is not recorded. `--file` is written over when it exists. Books does not make a CSV or Excel file of more than 50,000 rows, or a PDF of more than 5,000 rows.
+
 If a report command says that it requires the "reports" scope, you signed in before your server had it. Sign in again with `tinycld auth login {{server-host}}`.
 
 ## To retry safely
