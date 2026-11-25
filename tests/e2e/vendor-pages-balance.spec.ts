@@ -263,7 +263,7 @@ test.describe('vendor-pages: vendor balance', () => {
         const notesInput = page.getByTestId('vendor-notes-input')
         const saveBar = page.getByTestId('vendor-save-bar')
         await createVendor(page, { name })
-        const id = openVendorId(page)
+        const id = await openVendorId(page)
 
         // A new vendor opens on Transactions, with no tab param, at $0.00.
         const { open, openLabel, overdue } = figures(page)

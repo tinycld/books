@@ -6,9 +6,10 @@ import {
     useIsShowingRecord,
     useRecordNavigation,
 } from './useRecordNavigation'
+import { useStoredCodeKey } from './useRouteRecordId'
 
 export function useProductNavigation() {
-    const nav = useRecordNavigation(PRODUCTS_PATH)
+    const nav = useRecordNavigation(PRODUCTS_PATH, useStoredCodeKey('books_products'))
     return {
         open: nav.open,
         openNew: (type?: ProductType) => nav.openNew(type ? { type } : undefined),

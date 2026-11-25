@@ -159,7 +159,7 @@ test.describe('vendor-pages: vendor page', () => {
         // Save opens the new vendor's page.
         await expect(page).toHaveURL(/\/books\/vendors\/(?!new)[a-z0-9]{15}(\?.*)?$/)
         await expect(title).toHaveText(name)
-        const id = openVendorId(page)
+        const id = await openVendorId(page)
         await expect(page.getByTestId('vendor-company')).toHaveText(company)
         const address = page.getByTestId('vendor-address')
         await expect(address).toContainText('12 Harbor Way')
@@ -312,7 +312,7 @@ test.describe('vendor-pages: vendor page', () => {
         await searchVendors(page, prefix)
         await vendorEntry(page, nameA).click()
         await expect(page.getByTestId('vendor-title')).toHaveText(nameA)
-        const idA = openVendorId(page)
+        const idA = await openVendorId(page)
         const isPatchOfA = isRecordUrl(idA)
         const written: Record<string, unknown>[] = []
         page.on('response', response => {
@@ -414,7 +414,7 @@ test.describe('vendor-pages: vendor page', () => {
         const name = uniqueName('Vendor more')
         await createVendor(page, { name })
         await openFromRow(page, name)
-        const id = openVendorId(page)
+        const id = await openVendorId(page)
 
         // Make inactive, then Make active.
         await chooseMore(page, 'vendor-more-inactive')

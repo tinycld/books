@@ -580,8 +580,10 @@ export function recordFormHelpers(kind: RecordKind) {
         await expect(page.getByTestId(`${recordPrefix}-title`)).toHaveText(kind.newTitle)
     }
 
-    // A record's own URL (`<pathSegment>/<15-char id>`), with or without a tab param.
-    const recordPageUrl = new RegExp(`/books/${kind.pathSegment}/(?!new)[a-z0-9]{15}(\\?|$)`)
+    // A record's own URL (`<pathSegment>/<code>`, or its 15-char id), with or without a tab.
+    const recordPageUrl = new RegExp(
+        `/books/${kind.pathSegment}/(?!new(\\?|$))([a-z0-9]{15}|[A-Z0-9][A-Z0-9-]{1,14})(\\?|$)`
+    )
 
     // Creates a record through the New form and waits for where a save lands: the list
     // again, or (`afterSave: 'record'`) the new record's page with its name as the title.

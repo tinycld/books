@@ -3,6 +3,7 @@ import {
     documentKey,
     entryKey,
     type KeyedEntry,
+    parseCodeKey,
     parseRecordKey,
 } from '../../tinycld/books/lib/record-key'
 import { authToken } from './estimate-public-link-helpers'
@@ -36,8 +37,16 @@ const DOCUMENT_COLLECTIONS: Record<string, string> = {
     'write-offs': 'books_write_offs',
 }
 
+// The collection behind each route that opens a record by its code (lib/record-code.ts).
+const CODE_COLLECTIONS: Record<string, string> = {
+    customers: 'books_customers',
+    vendors: 'books_vendors',
+    products: 'books_products',
+}
+
 type Row = {
     id: string
+    code?: string
     sequence?: number
     replaced_by?: string
     status?: string
@@ -47,11 +56,13 @@ type Row = {
 
 // Whether the records of `route` take a URL key, not always their id.
 export function isRecordKeyRoute(route: string): boolean {
-    return route in ENTRY_ROUTE_TYPES || route in DOCUMENT_COLLECTIONS
+    return route in ENTRY_ROUTE_TYPES || route in DOCUMENT_COLLECTIONS || route in CODE_COLLECTIONS
 }
 
 function collectionOf(route: string): string {
     if (route in ENTRY_ROUTE_TYPES) return 'books_journal_entries'
+    const coded = CODE_COLLECTIONS[route]
+    if (coded) return coded
     const collection = DOCUMENT_COLLECTIONS[route]
     if (!collection) throw new Error(`no Books record route "${route}"`)
     return collection
@@ -68,6 +79,13 @@ async function readRows(page: Page, collection: string, filter: string): Promise
 
 // The record id a URL key of `route` names (`invoices`, `entries`, …).
 export async function recordIdOfKey(page: Page, route: string, key: string): Promise<string> {
+    if (route in CODE_COLLECTIONS) {
+        const coded = parseCodeKey(key)
+        if (coded.kind === 'id') return coded.id
+        const [row] = await readRows(page, collectionOf(route), `code="${coded.code}"`)
+        if (!row) throw new Error(`no ${route} record with code ${coded.code}`)
+        return row.id
+    }
     const parsed = parseRecordKey(key)
     if (parsed.kind === 'id') return parsed.id
     const collection = collectionOf(route)
@@ -94,6 +112,7 @@ export async function recordIdFromUrl(page: Page, route: string): Promise<string
 async function keyOf(page: Page, route: string, id: string): Promise<string | undefined> {
     const [row] = await readRows(page, collectionOf(route), `id="${id}"`)
     if (!row) return undefined
+    if (route in CODE_COLLECTIONS) return row.code || row.id
     if (route in ENTRY_ROUTE_TYPES) {
         const entry: KeyedEntry = {
             id: row.id,

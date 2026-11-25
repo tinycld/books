@@ -1,9 +1,10 @@
 import { selectVendorTab } from '../lib/vendor-page-tabs'
 import { VENDORS_PATH } from '../lib/vendor-route'
 import { useIsShowingRecord, useRecordNavigation } from './useRecordNavigation'
+import { useStoredCodeKey } from './useRouteRecordId'
 
 export function useVendorNavigation() {
-    const nav = useRecordNavigation(VENDORS_PATH)
+    const nav = useRecordNavigation(VENDORS_PATH, useStoredCodeKey('books_vendors'))
     const isShowing = useIsShowingRecord(VENDORS_PATH)
     return {
         open: nav.open,

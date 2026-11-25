@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { type RecordKind, recordFormHelpers } from './record-form-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 
 // Shared by the vendor-form e2e specs: the record-form helpers bound to vendors.
 // Vendors are created by driving the form; a spec never edits a seeded vendor.
@@ -75,9 +76,9 @@ export function vendorPath(id: string) {
     return new RegExp(`/books/vendors/${id}(\\?[^#]*)?$`)
 }
 
-// The id of the vendor whose page is open, read from the URL.
+// The id of the vendor whose page is open, read from the URL (its code, or its id).
 export function openVendorId(page: Page) {
-    return new URL(page.url()).pathname.split('/').pop() ?? ''
+    return recordIdFromUrl(page, 'vendors')
 }
 
 export const discardDialog = vendorHelpers.discardDialog

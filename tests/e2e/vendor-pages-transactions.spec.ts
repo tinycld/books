@@ -477,7 +477,7 @@ test.describe('vendor-pages: vendor transactions', () => {
 
         // A vendor with a plain void bill and a corrected bill.
         await createVendor(page, { name: `${prefix} void` })
-        const id = openVendorId(page)
+        const id = await openVendorId(page)
         await chooseNew(page, 'vendor-new-bill')
         await fillBill(page, { amount: '60.00', due: today })
         await postBill(page)

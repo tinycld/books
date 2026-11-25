@@ -3,6 +3,7 @@ import {
     documentKey,
     entryKey,
     hasOwnNumber,
+    parseCodeKey,
     parseRecordKey,
 } from '../tinycld/books/lib/record-key'
 
@@ -86,5 +87,17 @@ describe('entryKey and hasOwnNumber', () => {
         // A document's entry owns its number, but opens on its document (entryHref).
         expect(hasOwnNumber({ ...posted, doc_type: 'invoice', origin: 'document' })).toBe(true)
         expect(entryKey({ ...posted, doc_type: 'invoice', origin: 'document' })).toBe(ID)
+    })
+})
+
+describe('parseCodeKey', () => {
+    it('reads a record id as an id', () => {
+        expect(parseCodeKey('abc123def456ghi')).toEqual({ kind: 'id', id: 'abc123def456ghi' })
+    })
+
+    it('reads anything else as a code, upper-cased', () => {
+        expect(parseCodeKey('ARD')).toEqual({ kind: 'code', code: 'ARD' })
+        expect(parseCodeKey('ard-2')).toEqual({ kind: 'code', code: 'ARD-2' })
+        expect(parseCodeKey('VERYLONGSINGLEW')).toEqual({ kind: 'code', code: 'VERYLONGSINGLEW' })
     })
 })

@@ -537,7 +537,7 @@ test.describe('vendor-form: side panel', () => {
         await expect(panel).toBeVisible()
         await page.getByTestId('vendor-tab-details').click()
         await expect(field(page, 'display_name')).toHaveValue(nameE)
-        const idE = openVendorId(page)
+        const idE = await openVendorId(page)
         const held = await holdVendorWrite(page, idE, 'DELETE')
         await page.getByTestId('vendor-more').click()
         await page.getByTestId('vendor-more-delete').click()
