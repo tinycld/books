@@ -31,7 +31,8 @@ func openQuote(cmd *cobra.Command, c *client.Client, doc *document, id string) (
 		return record{}, 0, err
 	}
 	if current.cell("status") == statusClosed {
-		return record{}, 0, refusedf("%s %s is closed: an invoice was made from it, so it cannot change", doc.Singular, current.id())
+		return record{}, 0, refusedf("%s %s is closed: an invoice was made from it, so it cannot change; add a new %s with `%s add`",
+			doc.Singular, current.id(), doc.Singular, cmd.Parent().CommandPath())
 	}
 	revision, err := revisionOf(doc, current)
 	return current, revision, err

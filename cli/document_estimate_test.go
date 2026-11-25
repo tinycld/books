@@ -34,6 +34,10 @@ func quotes(t *testing.T) *fakeBooks {
 		"customer": "custacme0000001", "date": "2026-11-02", "status": "closed", "number": "1003",
 		"invoice": "invdraft0000001", "revision": cents(5),
 	})
+	f.addRow("books_estimates", "estrejected0001", map[string]any{
+		"customer": "custacme0000001", "date": "2026-11-02", "status": "rejected", "number": "1004",
+		"revision": cents(7),
+	})
 	return f
 }
 
@@ -112,11 +116,18 @@ func TestEstimateEditChangesItInPlace(t *testing.T) {
 	if got, want := sentBatch(t, f, 1), `[{"method":"PATCH","url":"/api/collections/books_estimates/records/estaccepted0001","body":{"memo":"Changed","revision":5}}]`; got != want {
 		t.Errorf("the batch of an accepted estimate:\n%s\nwant:\n%s", got, want)
 	}
+	// A rejected estimate is changed in place too, with no status change.
+	if _, _, err := runCmd(t, f.serve(), `{"memo": "Changed"}`, "books", "estimates", "edit", "estrejected0001", "--input", "-", "--json"); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := sentBatch(t, f, 2), `[{"method":"PATCH","url":"/api/collections/books_estimates/records/estrejected0001","body":{"memo":"Changed","revision":8}}]`; got != want {
+		t.Errorf("the batch of a rejected estimate:\n%s\nwant:\n%s", got, want)
+	}
 	_, _, err := runCmd(t, f.serve(), `{"memo": "Changed"}`, "books", "estimates", "edit", "estclosed000001", "--input", "-", "--json")
 	if got := exitcode.Of(err); got != exitcode.Refused || !strings.Contains(err.Error(), "estimate estclosed000001 is closed: it cannot be changed") {
 		t.Errorf("edit of a closed estimate: exit = %d, err = %v", got, err)
 	}
-	if len(f.batches) != 2 {
+	if len(f.batches) != 3 {
 		t.Errorf("a closed estimate was written: %d batches", len(f.batches))
 	}
 }
@@ -158,16 +169,21 @@ func TestEstimateStatusCommandsRefuseBeforeTheySend(t *testing.T) {
 	if len(f.requests) != 0 {
 		t.Errorf("a wrong date sent %v", f.requests)
 	}
-	for _, args := range [][]string{{"accept", "estclosed000001", "--date", "2026-11-05"}, {"reject", "estclosed000001"}, {"reopen", "estclosed000001"}, {"delete", "estclosed000001", "--yes"}} {
+	for _, args := range [][]string{{"accept", "estclosed000001", "--date", "2026-11-05"}, {"reject", "estclosed000001"}, {"reopen", "estclosed000001"}} {
 		_, _, err := runCmd(t, f.serve(), "", append([]string{"books", "estimates"}, append(args, "--json")...)...)
-		if got := exitcode.Of(err); got != exitcode.Refused || !strings.Contains(err.Error(), "estimate estclosed000001 is closed") {
+		const want = "estimate estclosed000001 is closed: an invoice was made from it, so it cannot change; add a new estimate with `tinycld books estimates add`"
+		if got := exitcode.Of(err); got != exitcode.Refused || !strings.Contains(err.Error(), want) {
 			t.Errorf("%v: exit = %d, err = %v", args, got, err)
 		}
+	}
+	_, _, err := runCmd(t, f.serve(), "", "books", "estimates", "delete", "estclosed000001", "--yes", "--json")
+	if got := exitcode.Of(err); got != exitcode.Refused || !strings.Contains(err.Error(), "estimate estclosed000001 is closed: it cannot be deleted") || strings.Contains(err.Error(), "estimates add") {
+		t.Errorf("delete of a closed estimate: exit = %d, err = %v", got, err)
 	}
 	if f.lastPatch != nil || len(f.deleted) != 0 {
 		t.Errorf("a closed estimate was written: patch %v, deleted %v", f.lastPatch, f.deleted)
 	}
-	_, _, err := runCmd(t, f.serve(), "", "books", "estimates", "reject", "nosuchestimate1", "--json")
+	_, _, err = runCmd(t, f.serve(), "", "books", "estimates", "reject", "nosuchestimate1", "--json")
 	if got := exitcode.Of(err); got != exitcode.NotFound {
 		t.Errorf("a missing estimate: exit = %d, err = %v", got, err)
 	}

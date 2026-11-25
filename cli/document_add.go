@@ -18,8 +18,9 @@ func refusedf(format string, a ...any) error {
 }
 
 // createOps are the writes that create a document: the header with its first
-// status (a draft; pending for a quote), then every row with the document's id and its place. replaces is the id of the
-// posted document this one corrects, or "".
+// status (a draft; pending for a quote), then every row with the document's
+// id and its place. replaces is the id of the posted document this one
+// corrects, or "".
 func createOps(doc *document, id string, in documentInput, replaces string) []batchOp {
 	header := maps.Clone(in.header)
 	for name, value := range doc.Fixed {

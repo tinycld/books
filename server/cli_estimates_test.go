@@ -42,9 +42,11 @@ func TestCLIDocuments_EstimateRoundTrip(t *testing.T) {
 			{method: "GET", url: recordURL("books_estimates", est), token: token, want: 200,
 				content: []string{`"status":"accepted"`, `"accepted_date":"2026-11-05"`, `"revision":4`}},
 			patch(`{"revision":5,"status":"rejected"}`, 200, `"status":"rejected"`, `"accepted_by":""`, `"accepted_date":""`),
-			patch(`{"revision":6,"status":"pending"}`, 200, `"status":"pending"`, `"revision":6`),
+			// edit of a rejected estimate: in place, still rejected.
+			patch(`{"memo":"Changed once more","revision":6}`, 200, `"status":"rejected"`, `"memo":"Changed once more"`, `"revision":6`),
+			patch(`{"revision":7,"status":"pending"}`, 200, `"status":"pending"`, `"revision":7`),
 			// A person cannot close an estimate: the update rule hides the write.
-			patch(`{"revision":7,"status":"closed"}`, 404),
+			patch(`{"revision":8,"status":"closed"}`, 404),
 			// delete: a pending estimate goes with its lines.
 			{method: "DELETE", url: recordURL("books_estimates", est), token: token, want: 204},
 			{method: "GET", url: rowsURL("books_estimate_lines", "estimate", est), token: token, want: 200, content: []string{`"totalItems":0`}},
