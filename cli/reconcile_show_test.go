@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -93,6 +94,7 @@ func TestReconcileShow(t *testing.T) {
 	}
 	queries := f.listed[reconcileLinesCollection]
 	if len(queries) != 2 || queries[0].Get("filter") != `reconciliation = "`+reconSept+`"` || queries[0].Get("sort") != "date,id" ||
+		queries[1].Get("sort") != "date,id" ||
 		queries[1].Get("filter") != `account = "acctchecking001" && reconciliation = "" && date <= "2026-09-30"` {
 		t.Errorf("the reads of the view = %v", queries)
 	}
@@ -164,6 +166,8 @@ func TestReconcileClearRefusesBeforeItSends(t *testing.T) {
 		{"no lines", "clear", reconSept, `{}`, exitcode.Usage, `"lines" is required`},
 		{"an empty lines", "clear", reconSept, `{"lines": []}`, exitcode.Usage, `"lines" is required`},
 		{"another field", "clear", reconSept, `{"lines": ["` + reconLineOut + `"], "date": "x"}`, exitcode.Usage, `no field "date"`},
+		{"more lines than one batch takes", "clear", reconSept, `{"lines": [` + strings.TrimSuffix(strings.Repeat(`"`+reconLineOut+`",`, maxBatchWrites+1), ",") + `]}`, exitcode.Usage,
+			fmt.Sprintf(`"lines" has %d ids: one command takes %d`, maxBatchWrites+1, maxBatchWrites)},
 		{"a finished reconciliation", "clear", reconAug, `{"lines": ["` + reconLineOut + `"]}`, exitcode.Refused, finished},
 		// Books answers "not found" to the delete of a cleared row of a
 		// finished reconciliation: the command reads the status first.
@@ -217,7 +221,31 @@ func TestReconcileUnclearAfterALostAnswer(t *testing.T) {
 	if n := rowsOf(f, clearedRowsCollection, "reconciliation", reconSept); n != 0 {
 		t.Errorf("%d cleared rows, want 0", n)
 	}
-	if !strings.Contains(stderr, "uncleared 1 lines") {
+	if !strings.Contains(stderr, "uncleared 1 line in reconciliation") {
+		t.Errorf("stderr = %s", stderr)
+	}
+}
+
+func TestReconcileClearOfOneLineSaysLine(t *testing.T) {
+	f := reconcileLinesFake(t)
+	_, stderr, err := runCmd(t, f.serve(), `{"lines": ["`+reconLineOut+`"]}`, "books", "reconcile", "clear", reconSept, "--input", "-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stderr, "cleared 1 line in reconciliation") {
+		t.Errorf("stderr = %s", stderr)
+	}
+}
+
+// A line named twice is one line: the message counts it once and does not
+// claim that another line was cleared already.
+func TestReconcileClearOfALineNamedTwice(t *testing.T) {
+	f := reconcileLinesFake(t)
+	_, stderr, err := runCmd(t, f.serve(), `{"lines": ["`+reconLineOut+`", "`+reconLineOut+`"]}`, "books", "reconcile", "clear", reconSept, "--input", "-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stderr, "cleared 1 line in reconciliation") || strings.Contains(stderr, "already") {
 		t.Errorf("stderr = %s", stderr)
 	}
 }

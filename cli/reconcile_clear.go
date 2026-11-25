@@ -115,10 +115,18 @@ func newReconcileLinesCmd(c *client.Client, name, short, long string, clear bool
 				return prefixID(&reconciliationsResource, args[0], explain(err, "the "+name+" of reconciliation "+args[0], next))
 			}
 		}
-		if len(first) == len(lines) {
-			o.Info(cmd.ErrOrStderr(), "%sed %d lines in reconciliation %s", name, len(lines), args[0])
-		} else {
-			o.Info(cmd.ErrOrStderr(), "%sed %d of %d lines in reconciliation %s; the others were %sed already", name, len(first), len(lines), args[0], name)
+		// A line named twice is one line.
+		distinct := map[any]bool{}
+		for _, line := range lines {
+			distinct[line] = true
+		}
+		switch {
+		case len(first) < len(distinct):
+			o.Info(cmd.ErrOrStderr(), "%sed %d of %d lines in reconciliation %s; the others were %sed already", name, len(first), len(distinct), args[0], name)
+		case len(first) == 1:
+			o.Info(cmd.ErrOrStderr(), "%sed 1 line in reconciliation %s", name, args[0])
+		default:
+			o.Info(cmd.ErrOrStderr(), "%sed %d lines in reconciliation %s", name, len(first), args[0])
 		}
 		return writeReconciliation(cmd, c, o, args[0])
 	})
