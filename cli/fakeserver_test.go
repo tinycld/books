@@ -224,11 +224,22 @@ func resourceOf(collection string) *resource {
 	return nil
 }
 
-// fieldsOf is the fields the CLI declares for a collection. nil: the CLI names
-// no such collection.
+// fieldsOf is the fields the CLI declares for a collection: of a list
+// resource, of a document, or of a line table. nil: the CLI names no such
+// collection.
 func fieldsOf(collection string) []field {
 	if res := resourceOf(collection); res != nil {
 		return res.Fields
+	}
+	for i := range documents {
+		if documents[i].Collection == collection {
+			return documents[i].Fields
+		}
+		for j := range documents[i].Lines {
+			if documents[i].Lines[j].Collection == collection {
+				return documents[i].Lines[j].Fields
+			}
+		}
 	}
 	return nil
 }

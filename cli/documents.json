@@ -1,0 +1,98 @@
+{
+    "documents": [
+        {
+            "name": "journal-entries",
+            "singular": "journal entry",
+            "summary": "Journal entries, and the journal entry of every transaction",
+            "collection": "books_journal_entries",
+            "lifecycle": "posting",
+            "fixed": { "doc_type": "journal", "origin": "manual" },
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "doc_type", "status", "total", "memo"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only entries with this status: draft, posted or void" },
+                { "flag": "type", "field": "doc_type", "help": "only the entries of this transaction type (journal is an entry made by hand)" }
+            ],
+            "omit": [
+                "card_payment",
+                "sequence",
+                "posted_at",
+                "posted_by",
+                "voided_at",
+                "voided_by",
+                "created_by",
+                "close_override"
+            ],
+            "deleteHelp": "Only a draft can be deleted. Void a posted journal entry with `void`: it stays in the books with its number, and its amounts no longer count.",
+            "fields": [
+                { "name": "date", "type": "string", "required": true, "help": "the date of the entry, as YYYY-MM-DD" },
+                { "name": "memo", "type": "string", "help": "a note for the whole entry" },
+                { "name": "auto_reverse_on", "type": "string", "help": "a date, as YYYY-MM-DD: Books posts the reversing entry on that day" },
+                {
+                    "name": "status",
+                    "type": "string",
+                    "readOnly": true,
+                    "enum": ["draft", "posted", "void"],
+                    "help": "draft, posted or void; `add --post`, `post` and `void` change it"
+                },
+                {
+                    "name": "doc_type",
+                    "type": "string",
+                    "readOnly": true,
+                    "enum": [
+                        "journal",
+                        "transfer",
+                        "invoice",
+                        "sales_receipt",
+                        "bill",
+                        "expense",
+                        "payment",
+                        "bill_payment",
+                        "credit_memo",
+                        "vendor_credit",
+                        "vendor_refund",
+                        "refund_receipt",
+                        "write_off",
+                        "deposit",
+                        "inventory_adjustment"
+                    ],
+                    "help": "the transaction type the entry belongs to; journal for an entry made by hand"
+                },
+                {
+                    "name": "origin",
+                    "type": "string",
+                    "readOnly": true,
+                    "enum": ["manual", "reversal", "auto_reversal", "void_reversal", "opening_balance", "document"],
+                    "help": "how the entry came to be; document for the entry Books writes for a transaction"
+                },
+                { "name": "document", "type": "string", "readOnly": true, "help": "the id of the transaction Books wrote the entry for" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the entry number; Books gives it when the entry is posted" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "the sum of the debits, in cents; Books computes it" },
+                { "name": "revision", "type": "integer", "readOnly": true, "help": "the count of saves; the commands send it so two callers cannot overwrite each other" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "reverses", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the entry this one reverses" },
+                { "name": "replaces", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the posted entry this one corrects; `edit` of a posted entry sets it" }
+            ],
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_journal_lines",
+                    "parent": "entry",
+                    "sort": "position,id",
+                    "omit": ["entry", "position", "posted", "date", "currency", "card_payment", "doc_type"],
+                    "fields": [
+                        { "name": "account", "type": "id", "ref": "accounts", "required": true, "help": "the account of the line" },
+                        { "name": "debit", "type": "integer", "help": "the debit, in cents; a line has a debit or a credit" },
+                        { "name": "credit", "type": "integer", "help": "the credit, in cents; a line has a debit or a credit" },
+                        { "name": "memo", "type": "string", "help": "a note for the line" },
+                        { "name": "customer", "type": "id", "ref": "customers", "help": "the customer of a line on an accounts receivable account" },
+                        { "name": "vendor", "type": "id", "ref": "vendors", "help": "the vendor of a line on an accounts payable account" }
+                    ]
+                }
+            ]
+        }
+    ]
+}
