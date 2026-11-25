@@ -90,6 +90,14 @@ Without `--post`, the transaction is a draft: it does not count in the books unt
 
 To see the fields of a transaction and of its lines, run `tinycld books schema journal-entries add`.
 
+## To change a transaction
+
+```
+tinycld books journal-entries edit <id> --input changes.json
+```
+
+`edit` changes only the fields that the JSON names. When the JSON has `lines`, they replace all the lines of the transaction. Books never changes a posted transaction: `edit` voids it and posts a new one with your changes, and prints the new one. It does not ask first. Its `replaces` is the id of the transaction it corrects.
+
 ## For scripts and agents
 
 - Add `--json` to any command: it prints one JSON document, the result or an error.

@@ -20,6 +20,7 @@ func newDocumentCmd(c *client.Client, doc *document) *cobra.Command {
 		newListCmd(c, &doc.resource),
 		newDocumentShowCmd(c, doc),
 		newDocumentAddCmd(c, doc),
+		newDocumentEditCmd(c, doc),
 	)
 	return group
 }
