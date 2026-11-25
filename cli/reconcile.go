@@ -68,6 +68,9 @@ func newReconcileCmd(c *client.Client) *cobra.Command {
 				"in progress.\n\n" + fmt.Sprint(defaultListLimit) + " to a page. " + pagingText,
 		}),
 		newReconcileStartCmd(c),
+		newReconcileShowCmd(c),
+		newReconcileClearCmd(c),
+		newReconcileUnclearCmd(c),
 	)
 	return group
 }
@@ -82,9 +85,10 @@ func newReconcileStartCmd(c *client.Client) *cobra.Command {
 			"balance of its statement. Books sets the beginning balance: the closing balance of the last\n" +
 			"finished statement of the account.\n\n" +
 			"Books refuses a second reconciliation while the account has one in progress, and a date that is\n" +
-			"not after the last finished statement.",
+			"not after the last finished statement.\n\n" +
+			"The command prints the reconciliation as `reconcile show` does: `open` holds the lines to clear.",
 		Input:  inputSchema(&reconciliationsResource, true),
-		Output: recordSchema(&reconciliationsResource),
+		Output: reconciliationSchema(),
 	}, func(cmd *cobra.Command, _ []string, o output.Options, _ bool) error {
 		if err := checkIDFlag(cmd, chosen); err != nil {
 			return err
@@ -97,7 +101,7 @@ func newReconcileStartCmd(c *client.Client) *cobra.Command {
 			return err
 		}
 		id := chosenID(cmd, chosen)
-		show := cmd.Parent().CommandPath() + " list --account " + fmt.Sprint(body["account"])
+		show := cmd.Parent().CommandPath() + " show " + id
 		if err := refuseStoredID(cmd, c, reconciliationsCollection, id, reconciliationsResource.Singular, show); err != nil {
 			return err
 		}
@@ -113,12 +117,8 @@ func newReconcileStartCmd(c *client.Client) *cobra.Command {
 		if err := sendResent(cmd.Context(), send, stored); err != nil {
 			return explain(err, "reconciliation "+id, checkThenResend(show, id))
 		}
-		rec, err := fetchRecord(cmd.Context(), c, &reconciliationsResource, id)
-		if err != nil {
-			return err
-		}
 		o.Info(cmd.ErrOrStderr(), "started reconciliation %s", id)
-		return writeRecord(cmd, o, rec)
+		return writeReconciliation(cmd, c, o, id)
 	})
 	bindInput(cmd, &input)
 	bindID(cmd, &chosen, "the id of the new reconciliation")

@@ -309,6 +309,9 @@ func fieldsOf(collection string) []field {
 	if collection == reconciliationsCollection {
 		return reconciliationsResource.Fields
 	}
+	if fields, ok := reconcileRowFields[collection]; ok {
+		return fields
+	}
 	if fields, ok := bankRowFields[collection]; ok {
 		return fields
 	}
@@ -497,6 +500,7 @@ var (
 	reBoolClause   = regexp.MustCompile(`^(\w+) = (true|false)$`)
 	reEqualClause  = regexp.MustCompile(`^(\w+) = "((?:[^"\\]|\\.)*)"$`)
 	reSearchClause = regexp.MustCompile(`^(\w+) ~ "((?:[^"\\]|\\.)*)"$`)
+	reUpToClause   = regexp.MustCompile(`^(\w+) <= "((?:[^"\\]|\\.)*)"$`)
 )
 
 func unquote(s string) string {
@@ -504,8 +508,8 @@ func unquote(s string) string {
 }
 
 // matches evaluates the filters listFilter builds: clauses joined by " && ",
-// each `field = true|false`, `field = "text"`, or a group
-// `(a ~ "text" || b ~ "text")`.
+// each `field = true|false`, `field = "text"`, `field <= "text"` (the lines up
+// to a statement date), or a group `(a ~ "text" || b ~ "text")`.
 func (f *fakeBooks) matches(row rawRecord, filter string) bool {
 	if filter == "" {
 		return true
@@ -521,6 +525,12 @@ func (f *fakeBooks) matches(row rawRecord, filter string) bool {
 		case reEqualClause.MatchString(clause):
 			m := reEqualClause.FindStringSubmatch(clause)
 			if have, _ := row[m[1]].(string); have != unquote(m[2]) {
+				return false
+			}
+		case reUpToClause.MatchString(clause):
+			// A date up to a date: both are YYYY-MM-DD, so text order is date order.
+			m := reUpToClause.FindStringSubmatch(clause)
+			if have, _ := row[m[1]].(string); have > unquote(m[2]) {
 				return false
 			}
 		case strings.HasPrefix(clause, "(") && strings.HasSuffix(clause, ")"):

@@ -59,7 +59,8 @@ func TestReconcileStart(t *testing.T) {
 	if got := sentJSON(f.lastCreate); got != want {
 		t.Errorf("sent\n  %s\nwant\n  %s", got, want)
 	}
-	if !strings.Contains(out, `"beginning_balance": 120000`) || !strings.Contains(out, `"status": "in_progress"`) {
+	// It prints what `show` prints: the lines to clear come with the answer.
+	if !strings.Contains(out, `"beginning_balance": 120000`) || !strings.Contains(out, `"status": "in_progress"`) || !strings.Contains(out, `"open": []`) {
 		t.Errorf("printed %s", out)
 	}
 	if !strings.Contains(stderr, "started reconciliation clirecon0000001") {
