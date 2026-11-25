@@ -125,13 +125,13 @@ func newDocumentAddCmd(c *client.Client, doc *document) *cobra.Command {
 		}
 		id := newRecordID()
 		ops := createOps(doc, id, in, "")
+		// A type created posted has no draft to post: its create posts it.
 		done := "added"
-		if doc.Lifecycle == lifecyclePosted {
+		if post || doc.Lifecycle == lifecyclePosted {
 			done = "added and posted"
 		}
 		if post {
 			ops = append(ops, postOp(doc, id, 1))
-			done = "added and posted"
 		}
 		if err := sendBatch(cmd.Context(), c, ops); err != nil {
 			return err
