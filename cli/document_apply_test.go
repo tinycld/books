@@ -233,6 +233,39 @@ func TestApplyNotFoundNamesTheCollection(t *testing.T) {
 	}
 }
 
+// `apply` does not read the credit first: a draft or a missing credit is the
+// 400 that Books answers to the create (server/cli_apply_credit_test.go sends
+// these bodies), so it is exit 6 and the message names the credit, whatever the
+// message of the server says.
+func TestApplyOnADraftOrMissingCreditIsARefusal(t *testing.T) {
+	cases := []struct{ group, id, body, want string }{
+		{"credit-memos", "memoposted00001",
+			`{"data":{"credit_memo":{"code":"validation_books","message":"Only a posted credit memo is applied to invoices."}},"message":"Only a posted credit memo is applied to invoices.","status":400}`,
+			"Only a posted credit memo is applied to invoices."},
+		{"credit-memos", "nosuchmemo00001",
+			`{"data":{"credit_memo":{"code":"validation_missing_rel_records","message":"Failed to find all relation records with the provided ids."}},"message":"Failed to create record.","status":400}`,
+			"credit memo nosuchmemo00001"},
+		{"vendor-credits", "vcposted0000001",
+			`{"data":{"vendor_credit":{"code":"validation_books","message":"Only a posted vendor credit is applied to bills."}},"message":"Only a posted vendor credit is applied to bills.","status":400}`,
+			"Only a posted vendor credit is applied to bills."},
+		{"vendor-credits", "nosuchcredit001",
+			`{"data":{"vendor_credit":{"code":"validation_missing_rel_records","message":"Failed to find all relation records with the provided ids."}},"message":"Failed to create record.","status":400}`,
+			"vendor credit nosuchcredit001"},
+	}
+	for _, tc := range cases {
+		f := credited(t)
+		f.refuse("POST", 400, tc.body)
+		input := `{"invoice": "invposted000001", "amount": 100, "date": "2026-11-09"}`
+		if tc.group == "vendor-credits" {
+			input = `{"bill": "billposted00001", "amount": 100, "date": "2026-11-09"}`
+		}
+		_, _, err := runCmd(t, f.serve(), input, "books", tc.group, "apply", tc.id, "--input", "-", "--json")
+		if got := exitcode.Of(err); got != exitcode.Refused || err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%s %s: exit = %d, err = %v, want %q", tc.group, tc.id, got, err, tc.want)
+		}
+	}
+}
+
 // The rules of a table with `apply`, checked when documents.json loads.
 func TestLoadDocumentsChecksATableWithApply(t *testing.T) {
 	text := string(documentsJSON)

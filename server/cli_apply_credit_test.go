@@ -49,6 +49,43 @@ func TestCLIDocuments_CreditMemoApplyAndUnapply(t *testing.T) {
 	requireNoDrift(t, env.app)
 }
 
+// `apply` on a credit that is a draft or is gone: the CLI does not read the
+// parent first, so what the user sees is what Books answers to the create.
+func TestCLIDocuments_CreditMemoApplyOnADraftOrMissingCredit(t *testing.T) {
+	env := newMemoApplyEnv(t)
+	token := tokenFor(t, env.users.bookkeeper)
+	invoice := env.invoice(t, env.customer, 40000).Id
+	draft := env.mkCreditMemo(t, map[string]any{"customer": env.customer.Id, "date": memoApplyCreditDay}).Id
+	body := func(memo string) string {
+		return fmt.Sprintf(`{"amount":100,"credit_memo":%q,"date":"2026-11-13","id":"cliapply0000001","invoice":%q}`, memo, invoice)
+	}
+	create := func(memo string, content ...string) apiReq {
+		return apiReq{method: "POST", url: "/api/collections/books_credit_memo_applications/records", token: token, body: body(memo), want: 400, content: content}
+	}
+	apiSeq(t, env.app,
+		create(draft, `"credit_memo":{"code":"validation_books"`, "Only a posted credit memo is applied to invoices."),
+		create("nosuchmemo00001", `"credit_memo":{"code":"validation_missing_rel_records"`, "Failed to find all relation records with the provided ids."),
+	)
+	requireNoDrift(t, env.app)
+}
+
+func TestCLIDocuments_VendorCreditApplyOnADraftOrMissingCredit(t *testing.T) {
+	env := newApplyEnv(t)
+	token := tokenFor(t, env.users.bookkeeper)
+	draft := mkVendorCreditOn(t, env.app, env.pacificPower, map[string]any{"date": vendorCreditDay}).Id
+	body := func(credit string) string {
+		return fmt.Sprintf(`{"amount":100,"bill":%q,"date":"2026-11-13","id":"cliapply0000001","vendor_credit":%q}`, env.small.Id, credit)
+	}
+	create := func(credit string, content ...string) apiReq {
+		return apiReq{method: "POST", url: "/api/collections/books_vendor_credit_applications/records", token: token, body: body(credit), want: 400, content: content}
+	}
+	apiSeq(t, env.app,
+		create(draft, `"vendor_credit":{"code":"validation_books"`, "Only a posted vendor credit is applied to bills."),
+		create("nosuchcredit001", `"vendor_credit":{"code":"validation_missing_rel_records"`, "Failed to find all relation records with the provided ids."),
+	)
+	requireNoDrift(t, env.app)
+}
+
 func TestCLIDocuments_VendorCreditApplyAndUnapply(t *testing.T) {
 	env := newApplyEnv(t)
 	token := tokenFor(t, env.users.bookkeeper)
