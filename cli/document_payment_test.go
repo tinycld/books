@@ -95,8 +95,7 @@ func TestPaymentEditOfADraftStatesNoRevision(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := `[` +
-		`{"method":"DELETE","url":"/api/collections/books_payment_applications/records/payapply0000001"},` +
-		`{"method":"POST","url":"/api/collections/books_payment_applications/records","body":{"amount":6000,"invoice":"invposted000001","payment":"paydraft0000001","position":0}},` +
+		`{"method":"PATCH","url":"/api/collections/books_payment_applications/records/payapply0000001","body":{"amount":6000,"invoice":"invposted000001","position":0}},` +
 		`{"method":"PATCH","url":"/api/collections/books_payments/records/paydraft0000001","body":{"amount":6000}}]`
 	if got := sentBatch(t, f, 0); got != want {
 		t.Errorf("the batch:\n%s\nwant:\n%s", got, want)

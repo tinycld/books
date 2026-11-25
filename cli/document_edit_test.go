@@ -19,18 +19,22 @@ func TestDocumentEditOfADraftReplacesTheLinesAndStatesTheNextRevision(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The removes name the lines in their order, the header change is last.
+	// Each stored row, in its order, takes the new row of its place: every
+	// writable field, null for one the row does not name. The header change is
+	// last.
 	want := `[` +
-		`{"method":"DELETE","url":"/api/collections/books_journal_lines/records/linedraft000001"},` +
-		`{"method":"DELETE","url":"/api/collections/books_journal_lines/records/linedraft000002"},` +
-		`{"method":"POST","url":"/api/collections/books_journal_lines/records","body":{"account":"acctchecking001","credit":130000,"entry":"entrydraft00001","position":0}},` +
-		`{"method":"POST","url":"/api/collections/books_journal_lines/records","body":{"account":"acctincome00001","debit":130000,"entry":"entrydraft00001","position":1}},` +
+		`{"method":"PATCH","url":"/api/collections/books_journal_lines/records/linedraft000001","body":{"account":"acctchecking001","credit":130000,"customer":null,"debit":null,"memo":null,"position":0,"vendor":null}},` +
+		`{"method":"PATCH","url":"/api/collections/books_journal_lines/records/linedraft000002","body":{"account":"acctincome00001","credit":null,"customer":null,"debit":130000,"memo":null,"position":1,"vendor":null}},` +
 		`{"method":"PATCH","url":"/api/collections/books_journal_entries/records/entrydraft00001","body":{"memo":"Rent for July","revision":2}}]`
 	if got := sentBatch(t, f, 0); got != want {
 		t.Errorf("the batch:\n%s\nwant:\n%s", got, want)
 	}
 	if !strings.Contains(out, `"memo": "Rent for July"`) || !strings.Contains(out, `"credit": 130000`) || !strings.Contains(out, `"revision": 2`) {
 		t.Errorf("printed:\n%s", out)
+	}
+	// The cleared fields are empty, as the server stores a null.
+	if line := f.find("books_journal_lines", "linedraft000002"); line["credit"] != json.Number("0") || line["memo"] != "" {
+		t.Errorf("the second line = %v, want credit 0 and no memo", line)
 	}
 	if !strings.Contains(errOut, "updated journal entry entrydraft00001") {
 		t.Errorf("stderr = %q", errOut)
@@ -66,29 +70,39 @@ func TestDocumentEditOfLinesAloneStillStatesTheRevision(t *testing.T) {
 	}
 }
 
-// A journal entry takes 1000 lines, and an edit of a draft removes the old
-// rows and creates the new ones: 2000 writes, and the server takes 1100 in one
-// batch. The command sends nothing and says what to do: `add` of the same
-// lines is one write for each line and fits.
-func TestDocumentEditOfAFullDraftSaysWhatToDo(t *testing.T) {
+// A journal entry takes 1000 lines, and the server takes 1100 writes in one
+// batch. An edit of a full draft changes each stored row in place: 1000 row
+// writes and the header, so it fits, as the `add` of the same lines does.
+func TestDocumentEditOfA1000LineDraftChangesTheRowsInPlace(t *testing.T) {
 	f := journal(t)
 	for i := range 998 {
-		f.addRow("books_journal_lines", fmt.Sprintf("bigline%08d", i), map[string]any{"entry": "entrydraft00001", "position": cents(i + 2), "account": "acctchecking001"})
+		f.addRow("books_journal_lines", fmt.Sprintf("bigline%08d", i), map[string]any{"entry": "entrydraft00001", "position": cents(i + 2), "account": "acctchecking001", "credit": cents(5)})
 	}
 	rows := strings.TrimSuffix(strings.Repeat(`{"account": "acctchecking001", "debit": 1},`, 1000), ",")
-	_, _, err := runCmd(t, f.serve(), `{"lines": [`+rows+`]}`, "books", "journal-entries", "edit", "entrydraft00001", "--input", "-", "--json")
-	if got := exitcode.Of(err); got != exitcode.Usage {
-		t.Fatalf("exit = %d, err = %v", got, err)
+	if _, _, err := runCmd(t, f.serve(), `{"lines": [`+rows+`]}`, "books", "journal-entries", "edit", "entrydraft00001", "--input", "-", "--json"); err != nil {
+		t.Fatal(err)
 	}
-	for _, want := range []string{"this change is 2001 writes, and Books takes 1100 in one step", "delete", "add"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("the message %q does not say %q", err, want)
+	ops := f.batches[0]
+	if len(ops) != 1001 {
+		t.Fatalf("the edit sent %d writes, want 1001", len(ops))
+	}
+	for i, op := range ops[:1000] {
+		if op.Method != "PATCH" {
+			t.Fatalf("write %d is a %s, want a PATCH of a stored row", i, op.Method)
 		}
 	}
-	for _, request := range f.requests {
-		if !strings.HasPrefix(request, "GET ") {
-			t.Errorf("the refused edit sent %s", request)
+	stored := 0
+	for _, line := range f.rows["books_journal_lines"] {
+		if line["entry"] != "entrydraft00001" {
+			continue
 		}
+		stored++
+		if line["debit"] != json.Number("1") || line["credit"] != json.Number("0") {
+			t.Fatalf("line %v: want debit 1 and credit 0", line)
+		}
+	}
+	if stored != 1000 || len(f.deleted) != 0 {
+		t.Errorf("the draft has %d lines and %d were removed, want 1000 and none", stored, len(f.deleted))
 	}
 	add := journal(t)
 	if _, _, err := runCmd(t, add.serve(), `{"date": "2026-07-15", "lines": [`+rows+`]}`, "books", "journal-entries", "add", "--input", "-", "--json"); err != nil {
@@ -96,6 +110,63 @@ func TestDocumentEditOfAFullDraftSaysWhatToDo(t *testing.T) {
 	}
 	if got := len(add.batches[0]); got != 1001 {
 		t.Errorf("the add sent %d writes, want 1001", got)
+	}
+}
+
+// Fewer rows than are stored: the extra stored rows go first, then the kept
+// ones change. More rows: the stored rows change, then the new ones are
+// created.
+func TestDocumentEditOfADraftRemovesOrCreatesTheRowsBeyondTheStoredOnes(t *testing.T) {
+	f := journal(t)
+	if _, _, err := runCmd(t, f.serve(), `{"lines": [{"account": "acctchecking001", "debit": 3}]}`, "books", "journal-entries", "edit", "entrydraft00001", "--input", "-", "--json"); err != nil {
+		t.Fatal(err)
+	}
+	want := `[` +
+		`{"method":"DELETE","url":"/api/collections/books_journal_lines/records/linedraft000002"},` +
+		`{"method":"PATCH","url":"/api/collections/books_journal_lines/records/linedraft000001","body":{"account":"acctchecking001","credit":null,"customer":null,"debit":3,"memo":null,"position":0,"vendor":null}},` +
+		`{"method":"PATCH","url":"/api/collections/books_journal_entries/records/entrydraft00001","body":{"revision":2}}]`
+	if got := sentBatch(t, f, 0); got != want {
+		t.Errorf("the batch:\n%s\nwant:\n%s", got, want)
+	}
+	rows := `{"account": "acctchecking001", "debit": 4}, {"account": "acctincome00001", "credit": 4}`
+	if _, _, err := runCmd(t, f.serve(), `{"lines": [`+rows+`]}`, "books", "journal-entries", "edit", "entrydraft00001", "--input", "-", "--json"); err != nil {
+		t.Fatal(err)
+	}
+	want = `[` +
+		`{"method":"PATCH","url":"/api/collections/books_journal_lines/records/linedraft000001","body":{"account":"acctchecking001","credit":null,"customer":null,"debit":4,"memo":null,"position":0,"vendor":null}},` +
+		`{"method":"POST","url":"/api/collections/books_journal_lines/records","body":{"account":"acctincome00001","credit":4,"entry":"entrydraft00001","position":1}},` +
+		`{"method":"PATCH","url":"/api/collections/books_journal_entries/records/entrydraft00001","body":{"revision":3}}]`
+	if got := sentBatch(t, f, 1); got != want {
+		t.Errorf("the second batch:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+// The biggest `add` or correction of any type (every table at its most rows,
+// the header and the post) fits in one batch, and so does an edit of one
+// table of a draft: one write for each row, or two (a remove and a create) for
+// a table that refuses an update, and the header. So the refusal over the limit
+// can always say to name one table in each call.
+func TestEveryDocumentWriteFitsInOneBatch(t *testing.T) {
+	for i := range documents {
+		doc := &documents[i]
+		writes := 2
+		for j := range doc.Lines {
+			table := &doc.Lines[j]
+			if table.ReadOnly || table.Apply {
+				continue
+			}
+			writes += table.maxRows()
+			edit := 1 + table.maxRows()
+			if table.NoUpdate {
+				edit = 1 + 2*table.maxRows()
+			}
+			if edit > maxBatchWrites {
+				t.Errorf("%s.%s: an edit of the table alone is %d writes, and Books takes %d in one batch", doc.Name, table.Key, edit, maxBatchWrites)
+			}
+		}
+		if writes > maxBatchWrites {
+			t.Errorf("%s: the biggest add is %d writes, and Books takes %d in one batch", doc.Name, writes, maxBatchWrites)
+		}
 	}
 }
 

@@ -113,8 +113,9 @@ func TestCLIDocuments_VendorRefundRoundTrip(t *testing.T) {
 	)...)
 	row := cliRows(t, env.app, rows, "refund", draft)[0].Id
 	apiSeq(t, env.app,
-		// edit of a draft: the rows, then the header, and no revision.
-		docBatch(token, cliOp("DELETE", rows, row, ""), line(draft, 4000), cliOp("PATCH", refunds, draft, `{"amount":4000}`)),
+		// edit of a draft: the row changed in place, then the header, and no
+		// revision.
+		docBatch(token, rowUpdateOp(rows, row, fmt.Sprintf(`"amount":4000,"position":0,"vendor_credit":%q`, credit)), cliOp("PATCH", refunds, draft, `{"amount":4000}`)),
 		// post: one PATCH with no revision.
 		apiReq{method: "PATCH", url: recordURL(refunds, draft), token: token, want: 200, body: `{"status":"posted"}`, content: []string{`"status":"posted"`, `"number":"1002"`}},
 		unapplied("1000"),
@@ -161,6 +162,7 @@ func TestCLIDocuments_DepositRoundTrip(t *testing.T) {
 	const deposits, items, lines = "books_deposits", "books_deposit_items", "books_deposit_lines"
 	itemA := env.undepositedItem(t, env.undeposited, depositItemDay, 30000, "Check 1").Id
 	itemB := env.undepositedItem(t, env.undeposited, depositItemDay, 20000, "Check 2").Id
+	itemC := env.undepositedItem(t, env.undeposited, depositItemDay, 10000, "Check 3").Id
 	header := func(id, extra string) string {
 		return cliOp("POST", deposits, "", fmt.Sprintf(`{"date":"2026-11-16","deposit_to":%q,"id":%q,"memo":"Week 46","status":"draft"%s}`, env.checking.Id, id, extra))
 	}
@@ -187,10 +189,23 @@ func TestCLIDocuments_DepositRoundTrip(t *testing.T) {
 	)...)
 	row := cliRows(t, env.app, items, "deposit", draft)[0].Id
 	apiSeq(t, env.app,
-		// edit of a draft that names both tables and the memo.
-		docBatch(token, cliOp("DELETE", items, row, ""), item(draft, itemB),
+		// edit of a draft that names both tables and the memo. An item cannot
+		// be updated: the one the input repeats at its place stays, and one it
+		// changes is removed and created again (cli/document_deposit_test.go).
+		docBatch(token, cliOp("DELETE", items, row, ""), item(draft, itemC),
 			rowOp(lines, "deposit", draft, 0, fmt.Sprintf(`"account":%q,"amount":100,"customer":%q`, env.interest.Id, env.customer.Id)),
 			cliOp("PATCH", deposits, draft, `{"memo":"Changed"}`)),
+		apiReq{method: "GET", url: rowsURL(items, "deposit", draft), token: token, want: 200, content: []string{`"totalItems":1`, `"line":"` + itemC + `"`}},
+	)
+	// The item the input repeats at its place stays; the line is changed in
+	// place, its customer cleared.
+	apiSeq(t, env.app,
+		docBatch(token, rowUpdateOp(lines, cliRows(t, env.app, lines, "deposit", draft)[0].Id, fmt.Sprintf(`"account":%q,"amount":200,"customer":null,"description":null,"position":0,"vendor":null`, env.interest.Id)),
+			cliOp("PATCH", deposits, draft, `{"memo":"Changed again"}`)),
+		apiReq{method: "GET", url: rowsURL(lines, "deposit", draft), token: token, want: 200, content: []string{`"totalItems":1`, `"amount":200`, `"customer":""`}},
+		apiReq{method: "GET", url: rowsURL(items, "deposit", draft), token: token, want: 200, content: []string{`"totalItems":1`, `"line":"` + itemC + `"`}},
+	)
+	apiSeq(t, env.app,
 		// edit of a posted deposit with `lines` in the input: a correction that
 		// takes the same item and the lines as the caller wrote them.
 		docBatch(token, header(fix, `,"replaces":"`+first+`"`), item(fix, itemA),

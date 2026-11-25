@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -169,26 +170,81 @@ func TestDepositAndVendorRefundInputIsCheckedBeforeItIsSent(t *testing.T) {
 	}
 }
 
-// An edit of a draft removes and creates every row of each table it names. A
-// full deposit with both tables in the input is 1200 writes, and the server
-// takes 1100 in one batch: the command says so and sends nothing. One table in
-// each call fits.
-func TestDepositEditOverTheBatchLimitIsRefusedBeforeItIsSent(t *testing.T) {
+// bigDeposit is a draft deposit with 500 items and 100 lines, the most of each.
+func bigDeposit(t *testing.T) *fakeBooks {
 	f := banked(t)
 	f.addRow("books_deposits", "depbig000000001", map[string]any{"date": "2026-11-12", "deposit_to": "acctchecking001", "status": "draft"})
 	for i := range 500 {
-		f.addRow("books_deposit_items", fmt.Sprintf("bigitem%08d", i), map[string]any{"deposit": "depbig000000001", "position": cents(i), "line": "lineinvoice0001"})
+		f.addRow("books_deposit_items", fmt.Sprintf("bigitem%08d", i), map[string]any{"deposit": "depbig000000001", "position": cents(i), "line": fmt.Sprintf("lineold%08d", i)})
 	}
 	for i := range 100 {
 		f.addRow("books_deposit_lines", fmt.Sprintf("bigline%08d", i), map[string]any{"deposit": "depbig000000001", "position": cents(i), "account": "acctsoftware001", "amount": cents(1)})
 	}
-	rows := func(row string, count int) string {
-		return strings.TrimSuffix(strings.Repeat(row+",", count), ",")
+	return f
+}
+
+// depositRows is the input array of count rows; row makes the row of place i.
+func depositRows(count int, row func(i int) string) string {
+	rows := make([]string, count)
+	for i := range rows {
+		rows[i] = row(i)
 	}
-	items := `"items": [` + rows(`{"line": "lineinvoice0001"}`, 500) + `]`
-	lines := `"lines": [` + rows(`{"account": "acctsoftware001", "amount": 1}`, 100) + `]`
-	_, _, err := runCmd(t, f.serve(), `{`+items+`, `+lines+`}`, "books", "deposits", "edit", "depbig000000001", "--input", "-", "--json")
-	if got := exitcode.Of(err); got != exitcode.Usage || !strings.Contains(err.Error(), "this change is 1200 writes, and Books takes 1100 in one step") {
+	return strings.Join(rows, ",")
+}
+
+// A deposit item cannot be updated (Books copies the line onto it at create):
+// an item the input repeats at its place stays, a changed one is removed and
+// created again. A line is changed in place.
+func TestDepositEditKeepsTheRepeatedItemsAndChangesTheLinesInPlace(t *testing.T) {
+	f := bigDeposit(t)
+	// Item 1 has a new line; every other item is the stored one at its place.
+	items := `"items": [` + depositRows(500, func(i int) string {
+		if i == 1 {
+			return `{"line": "linenew00000001"}`
+		}
+		return fmt.Sprintf(`{"line": "lineold%08d"}`, i)
+	}) + `]`
+	lines := `"lines": [` + depositRows(100, func(int) string { return `{"account": "acctsoftware001", "amount": 2}` }) + `]`
+	if _, _, err := runCmd(t, f.serve(), `{`+items+`, `+lines+`}`, "books", "deposits", "edit", "depbig000000001", "--input", "-", "--json"); err != nil {
+		t.Fatal(err)
+	}
+	ops := f.batches[0]
+	if len(ops) != 102 {
+		t.Fatalf("the edit sent %d writes, want 102: the remove and the create of item 1, and the 100 lines", len(ops))
+	}
+	first, _ := json.Marshal(ops[:2])
+	if want := `[{"method":"DELETE","url":"/api/collections/books_deposit_items/records/bigitem00000001"},` +
+		`{"method":"POST","url":"/api/collections/books_deposit_items/records","body":{"deposit":"depbig000000001","line":"linenew00000001","position":1}}]`; string(first) != want {
+		t.Errorf("the item writes:\n%s\nwant:\n%s", first, want)
+	}
+	for i, op := range ops[2:] {
+		if op.Method != "PATCH" || !strings.Contains(op.URL, "books_deposit_lines") {
+			t.Fatalf("write %d is %s %s, want a PATCH of a deposit line", i+2, op.Method, op.URL)
+		}
+	}
+	of := func(collection string) int {
+		n := 0
+		for _, row := range f.rows[collection] {
+			if row["deposit"] == "depbig000000001" {
+				n++
+			}
+		}
+		return n
+	}
+	if items, lines := of("books_deposit_items"), of("books_deposit_lines"); items != 500 || lines != 100 {
+		t.Errorf("stored %d items and %d lines, want 500 and 100", items, lines)
+	}
+}
+
+// Every item new is 1000 writes for the items; with the 100 lines that is the
+// limit of 1100, and a header change passes it. The command says so and sends
+// nothing; one table in each call fits.
+func TestDepositEditOverTheBatchLimitIsRefusedBeforeItIsSent(t *testing.T) {
+	f := bigDeposit(t)
+	items := `"items": [` + depositRows(500, func(i int) string { return fmt.Sprintf(`{"line": "linenew%08d"}`, i) }) + `]`
+	lines := `"lines": [` + depositRows(100, func(int) string { return `{"account": "acctsoftware001", "amount": 2}` }) + `]`
+	_, _, err := runCmd(t, f.serve(), `{"memo": "Friday", `+items+`, `+lines+`}`, "books", "deposits", "edit", "depbig000000001", "--input", "-", "--json")
+	if got := exitcode.Of(err); got != exitcode.Usage || !strings.Contains(err.Error(), "this change is 1101 writes, and Books takes 1100 in one step: name one table of rows in each call") {
 		t.Errorf("exit = %d, err = %v", got, err)
 	}
 	for _, request := range f.requests {
@@ -196,11 +252,11 @@ func TestDepositEditOverTheBatchLimitIsRefusedBeforeItIsSent(t *testing.T) {
 			t.Errorf("the refused edit sent %s", request)
 		}
 	}
-	if _, _, err := runCmd(t, f.serve(), `{`+items+`}`, "books", "deposits", "edit", "depbig000000001", "--input", "-", "--json"); err != nil {
-		t.Fatalf("an edit of one table: %v", err)
+	if _, _, err := runCmd(t, f.serve(), `{`+items+`, `+lines+`}`, "books", "deposits", "edit", "depbig000000001", "--input", "-", "--json"); err != nil {
+		t.Fatalf("the same edit without the header change: %v", err)
 	}
-	if got := len(f.batches[0]); got != 1000 {
-		t.Errorf("the edit of the items sent %d writes, want 1000", got)
+	if got := len(f.batches[0]); got != 1100 {
+		t.Errorf("the edit sent %d writes, want 1100", got)
 	}
 }
 

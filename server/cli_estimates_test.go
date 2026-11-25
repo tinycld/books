@@ -13,9 +13,6 @@ func TestCLIDocuments_EstimateRoundTrip(t *testing.T) {
 	enableBatch(t, env.app)
 	token := tokenFor(t, env.users.bookkeeper)
 	const est = "cliestimate0001"
-	estLine := func(position, rate int) string {
-		return rowOp("books_estimate_lines", "estimate", est, position, fmt.Sprintf(`"kind":"item","product":%q,"quantity":2,"rate":%d,"taxable":true`, env.service.Id, rate))
-	}
 	patch := func(body string, want int, content ...string) apiReq {
 		return apiReq{method: "PATCH", url: recordURL("books_estimates", est), token: token, body: body, want: want, content: content}
 	}
@@ -28,7 +25,7 @@ func TestCLIDocuments_EstimateRoundTrip(t *testing.T) {
 			"books_estimate_lines", "estimate", []string{`"totalItems":1`, `"amount":10000`}),
 		[]apiReq{
 			// edit: the lines, then the header with the next revision and no status.
-			docBatch(token, cliOp("DELETE", "books_estimate_lines", "cliestline00001", ""), estLine(0, 6000),
+			docBatch(token, rowUpdateOp("books_estimate_lines", "cliestline00001", fmt.Sprintf(`"description":null,"kind":"item","percent_ppm":null,"position":0,"product":%q,"quantity":2,"rate":6000,"taxable":true`, env.service.Id)),
 				cliOp("PATCH", "books_estimates", est, `{"memo":"Changed","revision":2}`)),
 			{method: "GET", url: recordURL("books_estimates", est), token: token, want: 200,
 				content: []string{`"status":"pending"`, `"subtotal":12000`, `"revision":2`, `"memo":"Changed"`}},

@@ -60,16 +60,20 @@ func TestCLIDocuments_PaymentRoundTrip(t *testing.T) {
 		// add: a draft applies nothing.
 		[]apiReq{docBatch(token, header(draft, 4000, ""), apply(draft, 0, invB, 4000)), balance(invB, "15000")},
 	)...)
-	first := draftRows()
+	row := draftRows()
+	// The in-place change of the stored row, as rowUpdate of
+	// cli/document_edit.go sends it.
+	update := func(cents int) string {
+		return rowUpdateOp(rows, row, fmt.Sprintf(`"amount":%d,"invoice":%q,"position":0`, cents, invB))
+	}
 	// edit with a header change: the rows, then the header, and no revision.
 	apiSeq(t, env.app,
-		docBatch(token, cliOp("DELETE", rows, first, ""), apply(draft, 0, invB, 6000), cliOp("PATCH", payments, draft, `{"amount":6000}`)),
+		docBatch(token, update(6000), cliOp("PATCH", payments, draft, `{"amount":6000}`)),
 		apiReq{method: "GET", url: recordURL(payments, draft), token: token, want: 200, content: []string{`"status":"draft"`, `"amount":6000`}},
 	)
-	second := draftRows()
 	apiSeq(t, env.app, apiCalls(
 		// edit with only rows: no header write at all.
-		[]apiReq{docBatch(token, cliOp("DELETE", rows, second, ""), apply(draft, 0, invB, 5500))},
+		[]apiReq{docBatch(token, update(5500))},
 		showDoc(token, payments, draft, []string{`"status":"draft"`, `"amount":6000`}, rows, "payment", []string{`"totalItems":1`, `"amount":5500`}),
 		[]apiReq{
 			// post: one PATCH with no revision.

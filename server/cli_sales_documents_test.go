@@ -58,7 +58,7 @@ func TestCLIDocuments_SalesDocumentsRoundTrip(t *testing.T) {
 				[]apiReq{
 					docBatch(token, cliOp("POST", tc.collection, "", draftHeader),
 						cliOp("POST", tc.lines, "", fmt.Sprintf(`{"id":"clidraftline001","kind":"item","product":%q,"quantity":1,"rate":1000,"taxable":true,%q:%q,"position":0}`, env.service.Id, tc.parent, draft))),
-					docBatch(token, cliOp("DELETE", tc.lines, "clidraftline001", ""), line(draft, 0, 2000),
+					docBatch(token, rowUpdateOp(tc.lines, "clidraftline001", fmt.Sprintf(`"description":null,"kind":"item","percent_ppm":null,"position":0,"product":%q,"quantity":1,"rate":2000,"taxable":true`, env.service.Id)),
 						cliOp("PATCH", tc.collection, draft, `{"memo":"Changed","revision":2}`)),
 					{method: "GET", url: recordURL(tc.collection, draft), token: token, want: 200,
 						content: []string{`"status":"draft"`, `"subtotal":2000`, `"total":2174`, `"revision":2`, `"memo":"Changed"`}},

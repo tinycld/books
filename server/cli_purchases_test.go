@@ -96,7 +96,7 @@ func TestCLIDocuments_PurchasesRoundTrip(t *testing.T) {
 			apiSeq(t, env.app,
 				docBatch(token, cliOp("POST", tc.collection, "", `{`+draftHeader+`}`),
 					cliOp("POST", tc.lines, "", draftLine)),
-				docBatch(token, cliOp("DELETE", tc.lines, "clidraftline001", ""), account(draft, 300),
+				docBatch(token, rowUpdateOp(tc.lines, "clidraftline001", fmt.Sprintf(`"account":%q,"amount":300,"description":"Design tools","kind":"account","position":0,"product":null,"quantity":null,"rate":null`, env.software.Id)),
 					cliOp("PATCH", tc.collection, draft, `{"memo":"Changed","revision":2}`)),
 				apiReq{method: "GET", url: recordURL(tc.collection, draft), token: token, want: 200,
 					content: []string{`"status":"draft"`, `"total":300`, `"revision":2`, `"memo":"Changed"`}},

@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -161,6 +162,14 @@ func (f *fakeBooks) batch(w http.ResponseWriter, r *http.Request, one http.Handl
 		f.fail("POST %s: the body is not a batch: %v", batchPath, err)
 	}
 	f.batches = append(f.batches, body.Requests)
+	// The server refuses the whole batch over its limit; no command may send one.
+	if len(body.Requests) > maxBatchWrites {
+		f.fail("POST %s: %d writes, and the server takes %d in one batch", batchPath, len(body.Requests), maxBatchWrites)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, `{"data":{},"message":"The allowed max number of batch requests is %d.","status":400}`, maxBatchWrites)
+		return
+	}
 	// The rollback is correct because the fake replaces a row's keys and never
 	// changes a nested value in place. A change that does must deep-copy here.
 	before := map[string][]rawRecord{}
@@ -531,7 +540,14 @@ func (f *fakeBooks) update(w http.ResponseWriter, r *http.Request) {
 	if f.revisionRefused(w, row, f.lastPatch) {
 		return
 	}
+	fields := fieldsOf(collection)
 	for key, value := range f.lastPatch {
+		// The server stores a null as the field's empty value.
+		if value == nil {
+			if i := slices.IndexFunc(fields, func(fld field) bool { return fld.Name == key }); i >= 0 {
+				value = emptyValue(&fields[i])
+			}
+		}
 		row[key] = value
 	}
 	writeJSON(w, row)

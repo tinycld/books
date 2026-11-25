@@ -778,6 +778,7 @@
                     "collection": "books_bill_payment_lines",
                     "parent": "payment",
                     "sort": "position,id",
+                    "noUpdate": true,
                     "omit": ["payment", "position"],
                     "fields": [
                         { "name": "bill", "type": "id", "ref": "bills", "required": true, "help": "a posted bill of the vendor that the payment pays" },
@@ -910,6 +911,7 @@
                     "parent": "deposit",
                     "sort": "position,id",
                     "max": 500,
+                    "noUpdate": true,
                     "omit": ["deposit", "position"],
                     "fields": [
                         { "name": "line", "type": "id", "ref": "journal-entries.lines", "required": true, "help": "money that waits in Undeposited funds: the line of a posted journal entry on that account; `entry` of a payment prints its lines with their ids" },

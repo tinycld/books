@@ -93,6 +93,11 @@ type lineTable struct {
 	// Max is the most rows the table may have, when the server's limit for it
 	// is not maxDocumentLines (a payment pays up to 500 invoices).
 	Max int `json:"max"`
+	// NoUpdate marks a table whose collection refuses every update of a row
+	// (Books copies values onto the row when it is created). An edit of a draft
+	// keeps a stored row the input repeats at the same place, and removes and
+	// creates again every other one.
+	NoUpdate bool `json:"noUpdate"`
 }
 
 // maxRows is the most rows of the table one document may have.

@@ -28,6 +28,7 @@ type cliLineTable struct {
 	ReadOnly   bool       `json:"readOnly"`
 	Max        int        `json:"max"`
 	Apply      bool       `json:"apply"` // `apply` and `unapply` write its rows
+	NoUpdate   bool       `json:"noUpdate"`
 	Omit       []string   `json:"omit"`
 	Timestamps []string   `json:"timestamps"`
 	Fields     []cliField `json:"fields"`
@@ -191,6 +192,12 @@ func TestCLIDocuments_MatchTheCollections(t *testing.T) {
 			if position, ok := col.Fields.GetByName("position").(*core.NumberField); !ok || !position.OnlyInt {
 				t.Errorf("%s: %s has no whole-number position", label, table.Collection)
 			}
+			// An edit of a draft updates a stored row in place, unless the
+			// collection refuses every update of a row: then it removes the row
+			// and creates it again (draftEditOps of cli/document_edit.go).
+			if !table.ReadOnly && (col.UpdateRule == nil) != table.NoUpdate {
+				t.Errorf("%s: noUpdate is %v, and the update rule of %s is %v", label, table.NoUpdate, table.Collection, col.UpdateRule)
+			}
 		}
 	}
 }
@@ -300,6 +307,57 @@ func journalLineMemo(entry string, account *core.Record, side string, cents, pos
 	return rowOp("books_journal_lines", "entry", entry, position, fmt.Sprintf(`"account":%q,%q:%d,"memo":%q`, account.Id, side, cents, memo))
 }
 
+// rowUpdateOp is the in-place change of one stored row, as rowUpdate of
+// cli/document_edit.go sends it: every writable field (null for one the new
+// row does not name) and the row's place, never the parent. fields is the
+// inside of a JSON object, its keys in order.
+func rowUpdateOp(collection, id, fields string) string {
+	return cliOp("PATCH", collection, id, "{"+fields+"}")
+}
+
+// journalLineUpdate is the update of a stored journal line to a line with
+// only an account and one side, as the CLI test's batch sends it.
+func journalLineUpdate(id string, account *core.Record, side string, cents, position int) string {
+	other := "credit"
+	if side == "credit" {
+		other = "debit"
+	}
+	values := map[string]string{side: fmt.Sprint(cents), other: "null"}
+	return rowUpdateOp("books_journal_lines", id, fmt.Sprintf(`"account":%q,"credit":%s,"customer":null,"debit":%s,"memo":null,"position":%d,"vendor":null`,
+		account.Id, values["credit"], values["debit"], position))
+}
+
+// An edit of a draft of 1000 lines (a journal entry's most) is 1000 line
+// updates and the header in one batch: under the server's limit of 1100. The
+// body is the one of TestDocumentEditOfA1000LineDraftChangesTheRowsInPlace in
+// cli/document_edit_test.go.
+func TestCLIDocuments_JournalEntryEditOf1000LinesInPlace(t *testing.T) {
+	env, token := cliLedgerEnv(t)
+	entry := bigDraft(t, env, 1000)
+	saw := revisionOf(t, env.app, entry.Id)
+	var ops []string
+	for i, line := range mustLines(t, env.app, entry.Id) {
+		if i%2 == 0 {
+			ops = append(ops, journalLineUpdate(line.Id, env.checking, "debit", 3, i))
+		} else {
+			ops = append(ops, journalLineUpdate(line.Id, env.revenue, "credit", 3, i))
+		}
+	}
+	if len(ops) != 1000 {
+		t.Fatalf("the draft has %d lines, want 1000", len(ops))
+	}
+	ops = append(ops, cliOp("PATCH", "books_journal_entries", entry.Id, fmt.Sprintf(`{"revision":%d}`, saw+1)))
+	apiSeq(t, env.app, docBatch(token, ops...))
+	saved := reload(t, env.app, "books_journal_entries", entry.Id)
+	if saved.GetInt("total") != 1500 || saved.GetInt("revision") != saw+1 {
+		t.Fatalf("total/revision = %d/%d, want 1500/%d", saved.GetInt("total"), saved.GetInt("revision"), saw+1)
+	}
+	if got := len(mustLines(t, env.app, entry.Id)); got != 1000 {
+		t.Fatalf("the draft has %d lines after the edit, want 1000", got)
+	}
+	requireNoDrift(t, env.app)
+}
+
 func cliLedgerEnv(t *testing.T) (*ledgerEnv, string) {
 	t.Helper()
 	env := newLedgerEnv(t)
@@ -332,7 +390,8 @@ func TestCLIDocuments_JournalEntryRoundTrip(t *testing.T) {
 		showDoc(token, entries, "clientry0000002", []string{`"status":"posted"`, `"revision":1`, `"number":"1"`},
 			lines, "entry", []string{`"totalItems":2`, `"memo":"Paid in"`}),
 	)...)
-	// The edit removes the lines by id, as draftEditOps does from what it read.
+	// The edit changes the lines by id in place, as draftEditOps does from what
+	// it read.
 	for _, line := range mustLines(t, env.app, "clientry0000001") {
 		draftLines = append(draftLines, line.Id)
 	}
@@ -340,16 +399,15 @@ func TestCLIDocuments_JournalEntryRoundTrip(t *testing.T) {
 		t.Fatalf("the draft has %d lines, want 2", len(draftLines))
 	}
 	apiSeq(t, env.app, apiCalls(
-		// edit of a draft: the old lines go, the new lines come, the header is
-		// last and states the next revision.
+		// edit of a draft: each stored line takes the new line of its place,
+		// null for a field the new line does not name (the second line's memo);
+		// the header is last and states the next revision.
 		[]apiReq{docBatch(token,
-			cliOp("DELETE", lines, draftLines[0], ""),
-			cliOp("DELETE", lines, draftLines[1], ""),
-			journalLine("clientry0000001", env.checking, "debit", 70000, 0),
-			journalLine("clientry0000001", env.revenue, "credit", 70000, 1),
+			journalLineUpdate(draftLines[0], env.checking, "debit", 70000, 0),
+			journalLineUpdate(draftLines[1], env.revenue, "credit", 70000, 1),
 			cliOp("PATCH", entries, "clientry0000001", `{"memo":"More","revision":2}`))},
 		showDoc(token, entries, "clientry0000001", []string{`"revision":2`, `"total":70000`, `"memo":"More"`},
-			lines, "entry", []string{`"totalItems":2`, `"debit":70000`}),
+			lines, "entry", []string{`"totalItems":2`, `"debit":70000`, `"memo":""`}),
 		// Another caller saved first: the same revision again is refused, and
 		// nothing of the batch is stored.
 		[]apiReq{refusedBatch(token, []string{`"requests":{"0":`, `"status":409`, `changed after you opened it`},

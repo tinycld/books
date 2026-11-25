@@ -73,7 +73,11 @@ func withLines(ctx context.Context, c *client.Client, doc *document, raw rawReco
 		res := table.asResource()
 		lines := make([]record, 0, len(rows))
 		for _, row := range rows {
-			lines = append(lines, project(res, row))
+			line := project(res, row)
+			// Not printed (it is not a key): an edit of a draft keeps a row of a
+			// table that refuses updates only when it already is at its place.
+			line.values["position"] = row["position"]
+			lines = append(lines, line)
 		}
 		rec.keys = append(rec.keys, table.Key)
 		rec.values[table.Key] = lines

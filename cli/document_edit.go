@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -76,26 +77,47 @@ func revisionOf(doc *document, rec record) (int64, error) {
 	return revision, nil
 }
 
-// draftEditOps are the writes that change a draft: for each line table the
-// input names, its rows are removed and the rows of the input are created; the
-// header change is last and states the next revision, so the server restates
-// the totals one time and refuses the batch when another caller saved first.
+// draftEditOps are the writes that change a draft. For each line table the
+// input names, the stored rows and the rows of the input are paired by their
+// place: a pair is an update of the stored row, a stored row past the input's
+// last is removed, and an input row past the last stored one is created. That
+// is at most one write for each row of the table, so any edit fits in one
+// batch (TestEveryDocumentWriteFitsInOneBatch). As the forms' save does
+// (tablesWriteSteps), the removes of every table go first, because the server
+// counts a document's rows at each create; then each table's updates and
+// creates. The header change is last and states the next revision, so the
+// server restates the totals one time and refuses the batch when another
+// caller saved first.
 func draftEditOps(doc *document, current record, in documentInput) ([]batchOp, error) {
 	revision, err := revisionOf(doc, current)
 	if err != nil {
 		return nil, err
 	}
-	ops := []batchOp{}
+	removes, writes := []batchOp{}, []batchOp{}
 	for i := range doc.Lines {
 		table := &doc.Lines[i]
-		if _, given := in.lines[table.Key]; !given {
+		rows, given := in.lines[table.Key]
+		if !given {
 			continue
 		}
-		for position, line := range linesOf(current, table.Key) {
-			ops = append(ops, deleteOp(table.Collection, line.id(), fmt.Sprintf("remove %s[%d]", table.Key, position)))
+		stored := linesOf(current, table.Key)
+		for position, line := range stored {
+			if position >= len(rows) || (table.NoUpdate && !sameRow(table, position, line, rows[position])) {
+				removes = append(removes, deleteOp(table.Collection, line.id(), "remove "+rowLabel(table, position)))
+			}
+		}
+		for position, row := range rows {
+			switch {
+			case position >= len(stored):
+				writes = append(writes, rowCreateOp(table, current.id(), position, row))
+			case !table.NoUpdate:
+				writes = append(writes, updateOp(table.Collection, stored[position].id(), rowLabel(table, position), rowUpdate(table, position, row)))
+			case !sameRow(table, position, stored[position], row):
+				writes = append(writes, rowCreateOp(table, current.id(), position, row))
+			}
 		}
 	}
-	ops = append(ops, lineOps(doc, current.id(), in.lines)...)
+	ops := append(removes, writes...)
 	header := maps.Clone(in.header)
 	if doc.hasRevision() {
 		header["revision"] = revision + 1
@@ -106,6 +128,46 @@ func draftEditOps(doc *document, current record, in documentInput) ([]batchOp, e
 		return ops, nil
 	}
 	return append(ops, updateOp(doc.Collection, current.id(), doc.Singular, header)), nil
+}
+
+// rowUpdate is the body that turns a stored row into the input's row of the
+// same place. The input's row replaces the stored one, so every writable field
+// is sent: null for a field the row does not name, and the server stores the
+// empty value, as for a create that leaves it out. A field Books computes for
+// this row is not sent, as the server refuses it. The parent stays.
+func rowUpdate(table *lineTable, position int, row map[string]any) map[string]any {
+	text := func(name string) string {
+		s, _ := row[name].(string)
+		return s
+	}
+	body := map[string]any{"position": position}
+	for _, f := range table.asResource().writable() {
+		if table.computes(f.Name, text) {
+			continue
+		}
+		body[f.Name] = row[f.Name]
+	}
+	return body
+}
+
+// sameRow reports whether a stored row already is the input's row of the
+// same place: its place and every writable value. A value the input leaves
+// out matches a stored empty one, as a create would store it.
+func sameRow(table *lineTable, position int, stored record, row map[string]any) bool {
+	if stored.cell("position") != strconv.Itoa(position) {
+		return false
+	}
+	for _, f := range table.asResource().writable() {
+		value, given := row[f.Name]
+		have := stored.cell(f.Name)
+		if !given && !slices.Contains([]string{"", "0", "no"}, have) {
+			return false
+		}
+		if given && cellText(value) != have {
+			return false
+		}
+	}
+	return true
 }
 
 // correctionInput is the input of the document that replaces a posted one:

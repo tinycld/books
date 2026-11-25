@@ -103,9 +103,8 @@ func TestEstimateEditChangesItInPlace(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := `[` +
-		`{"method":"DELETE","url":"/api/collections/books_estimate_lines/records/estline00000001"},` +
 		`{"method":"DELETE","url":"/api/collections/books_estimate_lines/records/estline00000002"},` +
-		`{"method":"POST","url":"/api/collections/books_estimate_lines/records","body":{"estimate":"estpending00001","kind":"item","position":0,"product":"prodservice0001","quantity":1,"rate":900}},` +
+		`{"method":"PATCH","url":"/api/collections/books_estimate_lines/records/estline00000001","body":{"description":null,"kind":"item","percent_ppm":null,"position":0,"product":"prodservice0001","quantity":1,"rate":900,"taxable":null}},` +
 		`{"method":"PATCH","url":"/api/collections/books_estimates/records/estpending00001","body":{"memo":"Changed","revision":3}}]`
 	if got := sentBatch(t, f, 0); got != want {
 		t.Errorf("the batch:\n%s\nwant:\n%s", got, want)

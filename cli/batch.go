@@ -18,8 +18,8 @@ import (
 const batchPath = "/api/batch"
 
 // maxBatchWrites is the most writes the Books server takes in one batch (its
-// batch setting). No `add` and no correction comes near it; an edit of a draft
-// with two full tables of rows does.
+// batch setting). An add, a correction, and an edit of one table of a draft
+// always fit (TestEveryDocumentWriteFitsInOneBatch).
 const maxBatchWrites = 1100
 
 // batchOp is one record write of a batch.
@@ -51,11 +51,11 @@ func deleteOp(collection, id, label string) batchOp {
 // none. The answers are not read: a command reads the document again, because
 // the server computes totals after the last write.
 func sendBatch(ctx context.Context, c *client.Client, ops []batchOp) error {
-	// An edit of a draft removes and creates every row of each table it
-	// names. With two full tables (a deposit) that is more than one batch.
+	// Only an edit of a draft can pass the limit: one that names two full
+	// tables, one of which refuses an update of a row (a deposit's items are
+	// removed and created again). One table in each call always fits.
 	if len(ops) > maxBatchWrites {
-		return usagef("this change is %d writes, and Books takes %d in one step: an edit of a draft removes the old rows of each table in --input and creates the new ones. "+
-			"Name one table of rows in each call; or, when one table is too big, delete the draft and add it again with all its rows", len(ops), maxBatchWrites)
+		return usagef("this change is %d writes, and Books takes %d in one step: name one table of rows in each call", len(ops), maxBatchWrites)
 	}
 	err := c.PostJSON(ctx, batchPath, map[string]any{"requests": ops}, nil)
 	return batchFailure(ops, err)

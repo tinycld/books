@@ -42,13 +42,24 @@ func lineOps(doc *document, id string, lines map[string][]map[string]any) []batc
 	for i := range doc.Lines {
 		table := &doc.Lines[i]
 		for position, row := range lines[table.Key] {
-			body := maps.Clone(row)
-			body[table.Parent] = id
-			body["position"] = position
-			ops = append(ops, createOp(table.Collection, fmt.Sprintf("%s[%d]", table.Key, position), body))
+			ops = append(ops, rowCreateOp(table, id, position, row))
 		}
 	}
 	return ops
+}
+
+// rowCreateOp is the create of one row: the caller's fields, the document's id
+// and the row's place.
+func rowCreateOp(table *lineTable, id string, position int, row map[string]any) batchOp {
+	body := maps.Clone(row)
+	body[table.Parent] = id
+	body["position"] = position
+	return createOp(table.Collection, rowLabel(table, position), body)
+}
+
+// rowLabel names a row in a refusal: "lines[1]".
+func rowLabel(table *lineTable, position int) string {
+	return fmt.Sprintf("%s[%d]", table.Key, position)
 }
 
 // postOp posts a draft. The server takes a change of a draft only with the

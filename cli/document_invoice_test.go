@@ -179,9 +179,8 @@ func TestInvoiceEditOfADraftLeavesTheTaxLinesToBooks(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := `[` +
-		`{"method":"DELETE","url":"/api/collections/books_invoice_lines/records/invline00000001"},` +
 		`{"method":"DELETE","url":"/api/collections/books_invoice_lines/records/invline00000002"},` +
-		`{"method":"POST","url":"/api/collections/books_invoice_lines/records","body":{"invoice":"invdraft0000001","kind":"item","position":0,"product":"prodservice0001","quantity":1,"rate":5000}},` +
+		`{"method":"PATCH","url":"/api/collections/books_invoice_lines/records/invline00000001","body":{"description":null,"kind":"item","percent_ppm":null,"position":0,"product":"prodservice0001","quantity":1,"rate":5000,"taxable":null}},` +
 		`{"method":"PATCH","url":"/api/collections/books_invoices/records/invdraft0000001","body":{"memo":"Net 30","revision":4}}]`
 	if got := sentBatch(t, f, 0); got != want {
 		t.Errorf("the batch:\n%s\nwant:\n%s", got, want)
