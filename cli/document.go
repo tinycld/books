@@ -312,6 +312,13 @@ func checkConversion(doc *document, all []document) error {
 			}
 		}
 	}
+	// The input is checked against the target's tables, and the rows come
+	// from the source's: a table the source lacks would drop the caller's rows.
+	for i := range to.Lines {
+		if table := &to.Lines[i]; !table.ReadOnly && doc.table(table.Key) == nil {
+			return fmt.Errorf("%s.%s has no source line table in %s", to.Name, table.Key, doc.Name)
+		}
+	}
 	return nil
 }
 

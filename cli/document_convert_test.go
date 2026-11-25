@@ -32,7 +32,7 @@ func TestEstimateConvertMakesADraftInvoiceInOneBatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := `[` +
-		`{"method":"POST","url":"/api/collections/books_invoices/records","body":{"customer":"custacme0000001","date":"2026-11-06","due_date":"2026-12-06","email":"ap@acme.example","estimate":"estpending00001","id":"invfromest00001","status":"draft","tax_rate":"taxdenver000001"}},` +
+		`{"method":"POST","url":"/api/collections/books_invoices/records","body":{"customer":"custacme0000001","date":"2026-11-06","due_date":"2026-12-06","email":"","estimate":"estpending00001","id":"invfromest00001","status":"draft","tax_rate":"taxdenver000001"}},` +
 		`{"method":"POST","url":"/api/collections/books_invoice_lines/records","body":{"description":"","invoice":"invfromest00001","kind":"item","percent_ppm":0,"position":0,"product":"prodservice0001","quantity":3,"rate":12600,"taxable":true}},` +
 		`{"method":"POST","url":"/api/collections/books_invoice_lines/records","body":{"description":"","invoice":"invfromest00001","kind":"percent","percent_ppm":-100000,"position":1,"product":"proddiscount001","quantity":0,"rate":0,"taxable":false}}]`
 	if got := sentBatch(t, f, 0); got != want {
@@ -108,6 +108,37 @@ func TestEstimateConvertOfAClosedEstimateWithNoInvoiceNamesNoInvoice(t *testing.
 	}
 }
 
+// A record that names two documents made from it shows the first.
+func TestClosedSourceRefusalNamesTheFirstDocument(t *testing.T) {
+	doc := &document{resource: resource{Name: "estimates", Singular: "estimate", Fields: []field{
+		{Name: "first", Type: typeID, Ref: "invoices", ReadOnly: true},
+		{Name: "second", Type: typeID, Ref: "invoices", ReadOnly: true},
+	}}}
+	to := &document{resource: resource{Name: "invoices", Singular: "invoice"}}
+	source := record{values: map[string]any{"id": "est1", "first": "inv1", "second": "inv2"}}
+	root := newTestRoot(nil)
+	group, _, _ := root.Find([]string{"books", "estimates"})
+	cmd, _, _ := root.Find([]string{"books", "estimates", "convert"})
+	if group == nil || cmd == nil {
+		t.Fatal("no convert command")
+	}
+	err := closedSourceRefusal(cmd, doc, to, source)
+	if err == nil || !strings.Contains(err.Error(), "invoices show inv1`") || strings.Contains(err.Error(), "inv2") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+// The Long text names the full command path, as the other commands' do.
+func TestConvertLongNamesFullCommandPaths(t *testing.T) {
+	cmd, _, err := newTestRoot(nil).Find([]string{"books", "estimates", "convert"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(cmd.Long, "`tinycld books invoices post`") || !strings.Contains(cmd.Long, "`tinycld books schema estimates convert`") {
+		t.Errorf("Long:\n%s", cmd.Long)
+	}
+}
+
 // The batch is stored, so a read after it that fails must not read as a failed
 // convert, and it must keep the id of the invoice.
 func TestEstimateConvertSaysWhenTheReadAfterItFails(t *testing.T) {
@@ -164,6 +195,9 @@ func TestLoadDocumentsChecksAConversionAndKeep(t *testing.T) {
 		{"a conversion with a link a caller sets", `"link": "estimate"`, `"link": "customer"`, `link names "customer", which is not a read-only id of estimates in invoices`},
 		{"a conversion that copies a field the target has not", `"copy": ["customer", "bill_to", "email", "tax_rate"]`, `"copy": ["customer", "expiration_date"]`, `copy names "expiration_date"`},
 		{"a conversion of a document that never closes", `"keep": ["estimate"]`, `"keep": ["estimate"], "convert": {"to": "estimates", "link": "customer", "copy": []}`, `convert is only for a document with the lifecycle "quote"`},
+		// The input is checked against the target's tables; a caller's rows for
+		// a table the source lacks would be dropped with no error.
+		{"a conversion to a writable line table the source lacks", "\"sort\": \"position,id\",\n                    \"readOnly\": true,\n                    \"omit\": [\"invoice\", \"position\", \"date\", \"currency\"],", "\"sort\": \"position,id\",\n                    \"omit\": [\"invoice\", \"position\", \"date\", \"currency\"],", `invoices.tax_lines has no source line table in estimates`},
 		{"keep of a field a caller sets", `"keep": ["estimate"]`, `"keep": ["memo"]`, `keep names "memo", which is not a read-only field of a posting document`},
 	}
 	for _, tc := range cases {

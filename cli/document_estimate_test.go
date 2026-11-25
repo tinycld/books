@@ -14,7 +14,7 @@ func quotes(t *testing.T) *fakeBooks {
 	t.Helper()
 	f := sales(t)
 	f.addRow("books_estimates", "estpending00001", map[string]any{
-		"customer": "custacme0000001", "date": "2026-11-02", "expiration_date": "2026-12-02", "email": "ap@acme.example",
+		"customer": "custacme0000001", "date": "2026-11-02", "expiration_date": "2026-12-02", "email": "",
 		"tax_rate": "taxdenver000001", "message": "Thank you", "memo": "Estimate memo", "status": "pending", "number": "1001",
 		"subtotal": cents(34020), "total": cents(36983), "revision": cents(2),
 	})

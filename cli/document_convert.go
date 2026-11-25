@@ -45,6 +45,7 @@ func closedSourceRefusal(cmd *cobra.Command, doc, to *document, source record) e
 		f := &doc.Fields[i]
 		if made := source.cell(f.Name); f.ReadOnly && f.Type == typeID && f.Ref == to.Name && made != "" {
 			next = "; show it with `" + cmd.Parent().Parent().CommandPath() + " " + to.Name + " show " + made + "`"
+			break
 		}
 	}
 	return refusedf("%s %s is closed: one %s was already made from it%s", doc.Singular, source.id(), to.Singular, next)
@@ -61,7 +62,7 @@ func newDocumentConvertCmd(c *client.Client, doc *document) *cobra.Command {
 			"No other field is copied. --input holds the other fields of the\n" +
 			to.Singular + " (its dates), and can give any field or the lines again.\n\n" +
 			"Books closes the " + doc.Singular + " in the same step, and one " + doc.Singular + " makes one\n" +
-			to.Singular + ". The command prints the " + to.Singular + ": post it with `" + to.Name + " post`.\n\n" +
+			to.Singular + ". The command prints the " + to.Singular + ": post it with `tinycld books " + to.Name + " post`.\n\n" +
 			"`tinycld books schema " + doc.Name + " convert` prints the fields.",
 		Args:   idArg(&doc.resource),
 		Input:  documentInputSchema(to, false),

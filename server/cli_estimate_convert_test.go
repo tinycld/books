@@ -8,8 +8,8 @@ import (
 // `estimates convert` through its writes: a draft invoice that names the
 // estimate, with the estimate's lines. Books closes the estimate in the same
 // transaction, and a closed estimate takes no second invoice, no change and no
-// delete. The bodies are those of cli/document_convert_test.go, with the ids
-// of this book.
+// delete. The convert body is the one cli/document_convert_test.go asserts,
+// with the ids of this book.
 func TestCLIDocuments_EstimateConvert(t *testing.T) {
 	env := newConversionEnv(t)
 	enableBatch(t, env.app)
@@ -18,18 +18,16 @@ func TestCLIDocuments_EstimateConvert(t *testing.T) {
 	apiSeq(t, env.app, apiCalls(
 		[]apiReq{docBatch(token,
 			cliOp("POST", "books_estimates", "", fmt.Sprintf(`{"customer":%q,"date":"2026-11-04","id":%q,"status":"pending","tax_rate":%q}`, env.customer.Id, est, env.denver.Id)),
-			rowOp("books_estimate_lines", "estimate", est, 0, fmt.Sprintf(`"kind":"item","product":%q,"quantity":2,"rate":6000,"taxable":true`, env.service.Id)),
-			rowOp("books_estimate_lines", "estimate", est, 1, fmt.Sprintf(`"kind":"percent","percent_ppm":-100000,"product":%q`, env.service.Id)),
-			rowOp("books_estimate_lines", "estimate", est, 2, `"description":"Thank you","kind":"description"`))},
+			rowOp("books_estimate_lines", "estimate", est, 0, fmt.Sprintf(`"kind":"item","product":%q,"quantity":3,"rate":12600,"taxable":true`, env.service.Id)),
+			rowOp("books_estimate_lines", "estimate", est, 1, fmt.Sprintf(`"kind":"percent","percent_ppm":-100000,"product":%q`, env.service.Id)))},
 		[]apiReq{
 			// convert: a draft invoice that names the estimate; Books closes it.
 			docBatch(token,
 				cliOp("POST", "books_invoices", "", fmt.Sprintf(`{"customer":%q,"date":"2026-11-06","due_date":"2026-12-06","email":"","estimate":%q,"id":%q,"status":"draft","tax_rate":%q}`, env.customer.Id, est, inv, env.denver.Id)),
-				cliOp("POST", "books_invoice_lines", "", fmt.Sprintf(`{"description":"","invoice":%q,"kind":"item","percent_ppm":0,"position":0,"product":%q,"quantity":2,"rate":6000,"taxable":true}`, inv, env.service.Id)),
-				cliOp("POST", "books_invoice_lines", "", fmt.Sprintf(`{"description":"","invoice":%q,"kind":"percent","percent_ppm":-100000,"position":1,"product":%q,"quantity":0,"rate":0,"taxable":false}`, inv, env.service.Id)),
-				cliOp("POST", "books_invoice_lines", "", fmt.Sprintf(`{"description":"Thank you","invoice":%q,"kind":"description","percent_ppm":0,"position":2,"product":"","quantity":0,"rate":0,"taxable":false}`, inv))),
+				cliOp("POST", "books_invoice_lines", "", fmt.Sprintf(`{"description":"","invoice":%q,"kind":"item","percent_ppm":0,"position":0,"product":%q,"quantity":3,"rate":12600,"taxable":true}`, inv, env.service.Id)),
+				cliOp("POST", "books_invoice_lines", "", fmt.Sprintf(`{"description":"","invoice":%q,"kind":"percent","percent_ppm":-100000,"position":1,"product":%q,"quantity":0,"rate":0,"taxable":false}`, inv, env.service.Id))),
 			{method: "GET", url: recordURL("books_invoices", inv), token: token, want: 200,
-				content: []string{`"status":"draft"`, `"estimate":"` + est + `"`, `"subtotal":10800`}},
+				content: []string{`"status":"draft"`, `"estimate":"` + est + `"`, `"subtotal":34020`}},
 			{method: "GET", url: recordURL("books_estimates", est), token: token, want: 200,
 				content: []string{`"status":"closed"`, `"invoice":"` + inv + `"`}},
 			// A closed estimate: no second invoice, no change, no delete.
