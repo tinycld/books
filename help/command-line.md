@@ -178,7 +178,7 @@ echo '{"date": "2026-07-22", "memo": "To savings", "lines": [
 ]}' | tinycld books transfers add --input - --post
 ```
 
-Books refuses a transfer when it is posted if the lines are in the other order, if it has more than two lines, or if an account is an income or expense account. `tinycld books transfers list` lists only the transfers. `tinycld books journal-entries list --type transfer` shows their journal entries, but change a transfer with `tinycld books transfers`.
+The command refuses a transfer with more than two lines before it sends anything. Books refuses a transfer when it is posted if the lines are in the other order, or if an account is an income or expense account. `tinycld books transfers list` lists only the transfers. `tinycld books journal-entries list --type transfer` shows their journal entries, but change a transfer with `tinycld books transfers`.
 
 ## To make a statement for a customer
 

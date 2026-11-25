@@ -108,6 +108,16 @@ func TestHelpStatesTheLimitRange(t *testing.T) {
 	}
 }
 
+// The command refuses a third line of a transfer before it sends anything
+// (the table's `max`); Books refuses the other order and the account types at
+// the post. The topic says which refuses what.
+func TestHelpSaysWhoRefusesATransfersLines(t *testing.T) {
+	want := "The command refuses a transfer with more than two lines before it sends anything. Books refuses a transfer when it is posted if the lines are in the other order, or if an account is an income or expense account."
+	if !strings.Contains(readDoc(t, helpPage), want) {
+		t.Errorf("the help topic does not say %q", want)
+	}
+}
+
 // The scripts line of the help topic explains every exit code but 0.
 func TestHelpExitLineHasEveryFailureCode(t *testing.T) {
 	var line string
