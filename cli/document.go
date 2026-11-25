@@ -114,8 +114,11 @@ func loadDocuments(data []byte) ([]document, error) {
 	}
 	for i := range file.Documents {
 		name := file.Documents[i].Name
+		if findResource(name) != nil {
+			return nil, fmt.Errorf("document %q is already a list resource", name)
+		}
 		if names[name] {
-			return nil, fmt.Errorf("document %q is defined twice, or is a list resource", name)
+			return nil, fmt.Errorf("document %q is given to two documents", name)
 		}
 		names[name] = true
 	}
