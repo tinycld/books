@@ -98,6 +98,29 @@ func TestBankingUploadRefusesBeforeItSends(t *testing.T) {
 	}
 }
 
+// A file over the limit of Books is refused before one byte is sent.
+func TestBankingUploadRefusesAFileOverTheLimit(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "big.csv")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Truncate(maxBankFileBytes + 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	f := bankingFake(t)
+	_, _, err = runCmd(t, f.serve(), "", "books", "banking", "upload", path, "--connection", bankConnChecking)
+	if got := exitcode.Of(err); got != exitcode.Usage || err == nil || !strings.Contains(err.Error(), "5 MB") {
+		t.Errorf("exit = %d, err = %v; want 2 and a message with 5 MB", got, err)
+	}
+	if len(f.requests) != 0 {
+		t.Errorf("requests = %v, want none", f.requests)
+	}
+}
+
 // Books refuses a file it holds already; the command passes the message on.
 func TestBankingUploadShowsTheRefusalOfBooks(t *testing.T) {
 	f := bankingFake(t)

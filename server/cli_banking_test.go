@@ -405,6 +405,19 @@ func TestCLIBanking_DeclaredFieldsAreOnTheCollections(t *testing.T) {
 	}
 }
 
+// cli/banking_upload.go refuses a file larger than its copy of this limit.
+func TestCLIBanking_TheUploadLimitIsTheFileFieldLimit(t *testing.T) {
+	const cliMaxBankFileBytes = 5242880
+	col, err := newBooksApp(t).FindCollectionByNameOrId("books_bank_files")
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, ok := col.Fields.GetByName("file").(*core.FileField)
+	if !ok || file.MaxSize != cliMaxBankFileBytes {
+		t.Errorf("the CLI refuses a file over %d bytes, the file field is %+v", cliMaxBankFileBytes, file)
+	}
+}
+
 // The selects the CLI states in Go are the selects of the collections.
 func TestCLIBanking_DeclaredSelectsAreTheCollections(t *testing.T) {
 	app := newBooksApp(t)

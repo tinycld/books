@@ -16,6 +16,11 @@ import (
 // one record for each file.
 const bankFileContentsCollection = "books_bank_file_contents"
 
+// maxBankFileBytes is the `maxSize` of the `file` field of books_bank_files in
+// pb-migrations. The command refuses a larger file before it sends it; a test
+// of the server keeps the two numbers equal.
+const maxBankFileBytes = 5242880
+
 // defaultBankRows is how many parsed rows `banking rows` prints.
 const defaultBankRows = 10
 
@@ -27,7 +32,7 @@ func newBankingUploadCmd(c *client.Client) *cobra.Command {
 	var connection, chosen string
 	cmd := newCommand(commandDef{
 		Name:  "upload",
-		Short: "Upload a CSV or OFX bank file for a connection",
+		Short: "Upload a bank file (CSV, OFX, QFX or QBO) for a connection",
 		Long: "Upload a statement file that you downloaded from your bank: CSV, OFX, QFX or QBO, 5 MB or less.\n" +
 			"Books stores the file and reads its rows; it makes no transaction yet. `banking rows` prints\n" +
 			"what Books read, and `banking import` makes the transactions.\n\n" +
@@ -45,6 +50,8 @@ func newBankingUploadCmd(c *client.Client) *cobra.Command {
 			return usagef("%v", err)
 		} else if info.IsDir() {
 			return usagef("%s is a directory: name a file", args[0])
+		} else if info.Size() > maxBankFileBytes {
+			return usagef("%s is %d bytes: Books takes a bank file of 5 MB (%d bytes) or less", args[0], info.Size(), maxBankFileBytes)
 		}
 		id := chosenID(cmd, chosen)
 		show := cmd.Parent().CommandPath() + " files"
