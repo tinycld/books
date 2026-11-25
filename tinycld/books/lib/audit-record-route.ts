@@ -4,7 +4,7 @@
 // reaches here: its history is its parent's.
 import { recordTypeLabel } from './audit-log'
 import { customerPath } from './customer-route'
-import { documentHref, documentPath } from './document-routes'
+import { documentPath } from './document-routes'
 import { entryHref } from './entry-route'
 import { DOCUMENT_COLLECTIONS } from './history-route'
 import { productPath } from './product-route'

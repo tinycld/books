@@ -78,8 +78,7 @@ export async function recordIdOfKey(page: Page, route: string, key: string): Pro
         ? `doc_type="${docType}" && sequence=${parsed.sequence} && origin!="void_reversal"`
         : `sequence=${parsed.sequence}`
     const rows = await readRows(page, collection, filter)
-    const row =
-        rows.find(r => r.status === 'posted') ?? rows.find(r => !r.replaced_by) ?? rows[0]
+    const row = rows.find(r => r.status === 'posted') ?? rows.find(r => !r.replaced_by) ?? rows[0]
     if (!row) throw new Error(`no ${collection} row with sequence ${parsed.sequence}`)
     return row.id
 }
