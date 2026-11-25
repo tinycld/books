@@ -68,6 +68,9 @@ Each type of transaction has its own group of commands:
 
 - `tinycld books journal-entries`: [journal entries](help://books:journal-entries). `list` and `show` also print the journal entry that Books writes for every other transaction; `list --type invoice` lists the entries of the invoices
 - `tinycld books invoices`: [invoices](help://books:invoices)
+- `tinycld books sales-receipts`: [sales receipts](help://books:sales-receipts), a sale that is paid at once; `deposit_to` is the account that receives the money
+- `tinycld books credit-memos`: [credit memos](help://books:credit-memos); `invoice` names the invoice that the credit is for
+- `tinycld books refund-receipts`: [refund receipts](help://books:refund-receipts); `refund_from` is the bank account that the money leaves
 
 ```
 tinycld books journal-entries list --status draft
@@ -75,9 +78,15 @@ tinycld books invoices list --customer <customer id>
 tinycld books invoices show <id>
 ```
 
-`show` prints the transaction with its lines and with the totals that Books computed. For an invoice it also prints `tax_lines`: the sales tax that Books computed for each tax rate. You cannot send totals, line amounts or tax lines; Books computes them as it does for the form.
+`show` prints the transaction with its lines and with the totals that Books computed. For an invoice, a sales receipt, a credit memo or a refund receipt it also prints `tax_lines`: the sales tax that Books computed for each tax rate. You cannot send totals, line amounts or tax lines; Books computes them as it does for the form.
 
-A line of an invoice has a `kind`: `item` (a product or service, a quantity and a rate), `description` (text only), `subtotal` (the sum of the lines above it) or `percent` (a percentage of the item or subtotal right above it, in parts per million: `-100000` is a 10% discount).
+A line of an invoice, a sales receipt, a credit memo or a refund receipt has a `kind`: `item` (a product or service, a quantity and a rate), `description` (text only), `subtotal` (the sum of the lines above it) or `percent` (a percentage of the item or subtotal right above it, in parts per million: `-100000` is a 10% discount).
+
+## To sell an Inventory item
+
+Put the id of the [Inventory item](help://books:inventory) in `product` of an `item` line, as for a service. When the transaction is posted, Books takes the quantity out of the stock and writes the cost to the journal entry; `entry` prints it. A credit memo or a refund receipt puts the quantity back. A draft moves no stock.
+
+Books does not stop a sale of more than you have: the quantity on hand goes below zero. `tinycld books products show <id>` prints `quantity_on_hand` and `stock_value`.
 
 ## To see the journal entry of a transaction
 
