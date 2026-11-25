@@ -90,6 +90,10 @@ func storedReadError(doc *document, id, done string, err error) error {
 	return err
 }
 
+// noDraftText says what Books does with a type that has no draft. The help of
+// `add` names it for a type with rows and for one without, so both stay the same.
+const noDraftText = "It has no draft: Books posts and numbers it at once, and it counts in the\nbooks."
+
 func newDocumentAddCmd(c *client.Client, doc *document) *cobra.Command {
 	var input string
 	var post bool
@@ -101,8 +105,7 @@ func newDocumentAddCmd(c *client.Client, doc *document) *cobra.Command {
 		first = "It is pending, and Books numbers it at once. The header and the lines are\n" +
 			"stored in one step: when Books refuses one of them, nothing is stored.\n\n"
 	case lifecyclePosted:
-		first = "It has no draft: Books posts and numbers it at once, and it counts in the\n" +
-			"books. The header and the lines are stored in one step: when Books refuses\n" +
+		first = noDraftText + " The header and the lines are stored in one step: when Books refuses\n" +
 			"one of them, nothing is stored.\n\n"
 	}
 	short := "Add one " + doc.Singular + " with its lines from a JSON object"
@@ -114,7 +117,7 @@ func newDocumentAddCmd(c *client.Client, doc *document) *cobra.Command {
 		long = "Add one " + doc.Singular + ". --input names a JSON file that holds it, or - to read\n" +
 			"it from standard input.\n\n"
 		if doc.Lifecycle == lifecyclePosted {
-			long += "It has no draft: Books posts and numbers it at once, and it counts in the\nbooks.\n\n"
+			long += noDraftText + "\n\n"
 		}
 	}
 	cmd := newCommand(commandDef{

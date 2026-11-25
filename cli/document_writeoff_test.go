@@ -103,7 +103,7 @@ func TestWriteOffInputIsCheckedBeforeItIsSent(t *testing.T) {
 		{`{` + header + `}`, `"amount" is required`},
 		{`{"date": "2026-11-20", "account": "acctsoftware001", "amount": 1}`, `"invoice" is required`},
 		{`{` + header + `, "amount": 1, "customer": "custacme0000001"}`, `"customer" is set by the server`},
-		{`{` + header + `, "amount": 1.5}`, `"amount"`},
+		{`{` + header + `, "amount": 1.5}`, `"amount" must be a whole number, without a fraction or an exponent`},
 		{`{` + header + `, "amount": 1, "lines": []}`, `write-offs has no field "lines"`},
 	}
 	for _, tc := range cases {
