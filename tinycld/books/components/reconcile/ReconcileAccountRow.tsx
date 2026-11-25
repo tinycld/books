@@ -134,7 +134,9 @@ function ProgressLine({ row }: { row: ReconcileAccountRowData }) {
 
 // One account of the wide table: Account (with "In progress · statement of …" under it) ·
 // Type · Reconciled through · In Books · the action. A press on the row does what its
-// button does.
+// button does. The row has no button role: it holds the action button and the date link,
+// and on web a button inside a button is not valid HTML. The action button is the control
+// a screen reader and Tab reach.
 export function ReconcileAccountTableRow({
     row,
     action,
@@ -149,7 +151,6 @@ export function ReconcileAccountTableRow({
     return (
         <Pressable
             testID={`reconcile-account-${row.id}`}
-            accessibilityRole="button"
             onPress={press}
             className={ACCOUNT_ROW_CLASS}
             style={style}
@@ -197,7 +198,6 @@ export function ReconcileAccountCard({
     return (
         <Pressable
             testID={`reconcile-account-${row.id}`}
-            accessibilityRole="button"
             onPress={press}
             className="flex-row items-center gap-3 border-b border-border bg-background px-1"
             style={style}
