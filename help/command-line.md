@@ -1,11 +1,11 @@
 ---
 title: Books from the command line
-summary: List and change accounts, customers, vendors, products and sales tax from a terminal or a script with the tinycld tool.
+summary: List and change accounts, customers, vendors, products and sales tax, and record transactions, from a terminal or a script with the tinycld tool.
 tags: [cli, command line, terminal, automation, scripts, agents, json]
 order: 62
 ---
 
-To work with your books from a terminal or a script, use the `tinycld` tool. Its `books` commands list, add, change and delete the lists of the books: accounts, customers, vendors, products and services, and sales tax.
+To work with your books from a terminal or a script, use the `tinycld` tool. Its `books` commands list, add, change and delete the lists of the books: accounts, customers, vendors, products and services, and sales tax. They also record transactions.
 
 ## Before you start
 
@@ -61,6 +61,19 @@ tinycld books vendors delete <id>
 ```
 
 An inactive record is hidden from pickers and keeps its history. `delete` asks first; `--yes` answers. Books refuses to delete a record that is in use (an account with transactions, a customer with invoices): make it inactive.
+
+## The transactions
+
+Each type of transaction has its own group of commands:
+
+- `tinycld books journal-entries`: [journal entries](help://books:journal-entries). `list` and `show` also print the journal entry that Books writes for every other transaction; `list --type invoice` lists the entries of the invoices
+
+```
+tinycld books journal-entries list --status draft
+tinycld books journal-entries show <id>
+```
+
+`show` prints the transaction with its lines and with the totals that Books computed.
 
 ## For scripts and agents
 

@@ -18,7 +18,7 @@ import (
 )
 
 func Register(root *cobra.Command, c *client.Client) {
-	books := newGroup("books", "Books: accounts, customers, vendors, products and sales tax")
+	books := newGroup("books", "Books: the lists (accounts, customers, vendors, products, sales tax) and the transactions")
 	books.Aliases = []string{"book"}
 	for i := range resources {
 		group := newResourceCmd(c, &resources[i])
@@ -26,6 +26,9 @@ func Register(root *cobra.Command, c *client.Client) {
 			group.AddCommand(newAccountTypesCmd())
 		}
 		books.AddCommand(group)
+	}
+	for i := range documents {
+		books.AddCommand(newDocumentCmd(c, &documents[i]))
 	}
 	books.AddCommand(newSchemaCmd(books))
 	root.AddCommand(books)
