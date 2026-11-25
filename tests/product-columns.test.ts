@@ -128,6 +128,7 @@ describe('EMPTY_PRODUCT_FIELDS', () => {
         expect(EMPTY_PRODUCT_FIELDS).toEqual({
             type: 'service',
             name: '',
+            code: '',
             sku: '',
             sales_description: '',
             price: 0,

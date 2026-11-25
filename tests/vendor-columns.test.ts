@@ -16,6 +16,7 @@ import type { BooksVendors } from '../tinycld/books/types'
 
 const BUILTIN_COLUMNS = [
     'display_name',
+    'code',
     'company',
     'first_name',
     'last_name',
@@ -231,7 +232,7 @@ describe('EMPTY_VENDOR_FIELDS', () => {
         const builtinKeys = vendorHost().builtin.map(b => b.key)
         expect(Object.keys(EMPTY_VENDOR_FIELDS).sort()).toEqual([...builtinKeys].sort())
         expect(builtinKeys.sort()).toEqual([...BUILTIN_COLUMNS].sort())
-        expect(Object.keys(EMPTY_VENDOR_FIELDS)).toHaveLength(17)
+        expect(Object.keys(EMPTY_VENDOR_FIELDS)).toHaveLength(18)
     })
 
     // A new vendor's form starts untracked, with empty 1099 details.

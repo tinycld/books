@@ -13,6 +13,7 @@ import type { BooksCustomers } from '../tinycld/books/types'
 const ALL_COLUMNS = {
     id: true,
     display_name: true,
+    code: true,
     company: true,
     first_name: true,
     last_name: true,
@@ -39,7 +40,8 @@ const ALL_COLUMNS = {
 } satisfies Record<keyof BooksCustomers, true>
 
 const BUILTINS = [
-    ['display_name', 'Display name', 'text'],
+    ['display_name', 'Display name', 'custom'],
+    ['code', 'Code', 'custom'],
     ['company', 'Company name', 'text'],
     ['first_name', 'First name', 'text'],
     ['last_name', 'Last name', 'text'],
@@ -64,6 +66,8 @@ const BUILTIN_KEYS = BUILTINS.flatMap(([key]) =>
 )
 
 const CUSTOM_COMPONENTS = {
+    display_name: 'CustomerNameField',
+    code: 'CustomerCodeField',
     email: 'EmailField',
     phone: 'PhoneField',
     mobile: 'PhoneField',
@@ -152,7 +156,7 @@ describe('books:customer forms host', () => {
         expect(custom.map(b => b.chrome)).toEqual(custom.map(() => 'cell'))
     })
 
-    it('seeds one page with half-width pairs, Terms a quarter, and every other field full width', () => {
+    it('seeds one page with half-width pairs, Terms and Code a quarter, and every other field full width', () => {
         const definition = defaultDefinitionFor(parsedHost())
         expect(definition.pages).toHaveLength(1)
         const page = definition.pages[0].key
@@ -160,7 +164,7 @@ describe('books:customer forms host', () => {
         expect(definition.fields.every(f => f.page === page)).toBe(true)
         const widths = Object.fromEntries(definition.fields.map(f => [f.key, f.width]))
         const widthOf = (key: string) => {
-            if (key === 'terms') return 'quarter'
+            if (key === 'terms' || key === 'code') return 'quarter'
             return HALF_WIDTH.includes(key) ? 'half' : 'full'
         }
         expect(widths).toEqual(Object.fromEntries(BUILTIN_KEYS.map(key => [key, widthOf(key)])))

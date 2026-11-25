@@ -32,6 +32,8 @@ type CustomerSeed = Pick<CustomerFixtureRecord, 'id' | 'display_name'> &
 
 function customer(seed: CustomerSeed): CustomerFixtureRecord {
     return {
+        // The server makes the code from the name (server/record_codes.go).
+        code: '',
         company: '',
         first_name: '',
         last_name: '',

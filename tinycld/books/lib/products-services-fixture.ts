@@ -93,6 +93,8 @@ function checkedRow(row: ProductFixtureRecord): ProductFixtureRecord {
 function product(seed: ProductSeed): ProductFixtureRecord {
     const isBundle = seed.type === 'bundle'
     return checkedRow({
+        // The server makes the code from the name (server/record_codes.go).
+        code: '',
         sku: '',
         sales_description: '',
         price: 0,

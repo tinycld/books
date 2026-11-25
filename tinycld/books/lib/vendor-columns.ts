@@ -13,6 +13,7 @@ import { TAX_ID_TYPE_KEYS } from './tax-id'
  */
 export const vendorColumnsSchema = z.strictObject({
     display_name: optionalText,
+    code: optionalText,
     company: optionalText,
     first_name: optionalText,
     last_name: optionalText,
@@ -56,6 +57,7 @@ export const EMPTY_1099_COLUMNS = {
 // start, so the form would stay dirty.
 export const EMPTY_VENDOR_FIELDS: Required<VendorColumns> = {
     display_name: '',
+    code: '',
     company: '',
     first_name: '',
     last_name: '',

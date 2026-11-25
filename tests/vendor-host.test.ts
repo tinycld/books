@@ -10,6 +10,7 @@ import type { BooksVendors } from '../tinycld/books/types'
 const ALL_COLUMNS = {
     id: true,
     display_name: true,
+    code: true,
     company: true,
     first_name: true,
     last_name: true,
@@ -36,7 +37,8 @@ const ALL_COLUMNS = {
 } satisfies Record<keyof BooksVendors, true>
 
 const BUILTINS = [
-    ['display_name', 'Display name', 'text'],
+    ['display_name', 'Display name', 'custom'],
+    ['code', 'Code', 'custom'],
     ['company', 'Company name', 'text'],
     ['first_name', 'First name', 'text'],
     ['last_name', 'Last name', 'text'],
@@ -55,7 +57,14 @@ const BUILTINS = [
     ['notes', 'Notes', 'textarea'],
 ] as const
 
+const widthOf = (key: string) => {
+    if (key === 'code') return 'quarter'
+    return HALF_WIDTH.includes(key) ? 'half' : 'full'
+}
+
 const CUSTOM_COMPONENTS = {
+    display_name: 'VendorNameField',
+    code: 'VendorCodeField',
     email: 'EmailField',
     phone: 'PhoneField',
     mobile: 'PhoneField',
@@ -119,18 +128,14 @@ describe('books:vendor forms host', () => {
         expect(custom.map(b => b.chrome)).toEqual(custom.map(() => 'cell'))
     })
 
-    it('seeds one page with half-width pairs and every other field full width', () => {
+    it('seeds one page with half-width pairs, Code a quarter, and every other field full width', () => {
         const definition = defaultDefinitionFor(parsedHost())
         expect(definition.pages).toHaveLength(1)
         const page = definition.pages[0].key
         expect(definition.fields.map(f => f.key)).toEqual(BUILTINS.map(([key]) => key))
         expect(definition.fields.every(f => f.page === page)).toBe(true)
         const widths = Object.fromEntries(definition.fields.map(f => [f.key, f.width]))
-        expect(widths).toEqual(
-            Object.fromEntries(
-                BUILTINS.map(([key]) => [key, HALF_WIDTH.includes(key) ? 'half' : 'full'])
-            )
-        )
+        expect(widths).toEqual(Object.fromEntries(BUILTINS.map(([key]) => [key, widthOf(key)])))
     })
 
     // The rule is in the stored default form, so an admin edits it in Settings → Forms
