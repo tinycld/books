@@ -98,14 +98,15 @@ func correctionInput(doc *document, current record, in documentInput) documentIn
 }
 
 // writableRows are stored rows as the rows of an input: the values a caller
-// may send, and nothing Books computes.
+// may send, and nothing Books computes (a read-only field, or a field the
+// table's `computed` names for this row).
 func writableRows(table *lineTable, stored []record) []map[string]any {
 	res := table.asResource()
 	rows := []map[string]any{}
 	for _, line := range stored {
 		row := map[string]any{}
 		for _, f := range res.writable() {
-			if value := line.values[f.Name]; value != nil {
+			if value := line.values[f.Name]; value != nil && !table.computes(f.Name, line.cell) {
 				row[f.Name] = value
 			}
 		}

@@ -72,6 +72,9 @@ Each type of transaction has its own group of commands:
 - `tinycld books credit-memos`: [credit memos](help://books:credit-memos); `invoice` names the invoice that the credit is for
 - `tinycld books refund-receipts`: [refund receipts](help://books:refund-receipts); `refund_from` is the bank account that the money leaves
 - `tinycld books estimates`: [estimates](help://books:estimates), an offer to a customer. An estimate posts nothing
+- `tinycld books bills`: [bills](help://books:bills), what you owe a vendor
+- `tinycld books expenses`: [expenses](help://books:expenses), a purchase that is paid at once; `paid_from` is the bank or credit card account that the money left
+- `tinycld books vendor-credits`: [vendor credits](help://books:vendor-credits)
 
 ```
 tinycld books journal-entries list --status draft
@@ -82,6 +85,8 @@ tinycld books invoices show <id>
 `show` prints the transaction with its lines and with the totals that Books computed. For an invoice, a sales receipt, a credit memo or a refund receipt it also prints `tax_lines`: the sales tax that Books computed for each tax rate. You cannot send totals, line amounts or tax lines; Books computes them as it does for the form.
 
 A line of an invoice, a sales receipt, a credit memo, a refund receipt or an estimate has a `kind`: `item` (a product or service, a quantity and a rate), `description` (text only), `subtotal` (the sum of the lines above it) or `percent` (a percentage of the item or subtotal right above it, in parts per million: `-100000` is a 10% discount).
+
+A line of a bill, an expense or a vendor credit has a `kind`: `account` (an account and an `amount`) or `item` (a product or service, a quantity and a rate). Do not send the `amount` of an `item` line: Books computes it. An `item` line of an Inventory item puts its quantity into the stock when a bill or an expense is posted, and a vendor credit takes it out.
 
 ## To sell an Inventory item
 

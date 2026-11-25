@@ -69,6 +69,29 @@ type lineTable struct {
 	// ReadOnly marks a table Books writes (the tax lines of an invoice). Its
 	// rows are printed, and are never part of an input.
 	ReadOnly bool `json:"readOnly"`
+	// Computed names the writable fields Books computes on some rows: the
+	// amount of an item line of a bill is its quantity times its rate, and the
+	// amount of an account line is typed.
+	Computed []computedField `json:"computed"`
+}
+
+// computedField says that Books computes Field on a row whose When field has
+// one of the values of Is. The server refuses such a row that sends the field.
+type computedField struct {
+	Field string   `json:"field"`
+	When  string   `json:"when"`
+	Is    []string `json:"is"`
+}
+
+// computes reports whether Books computes the field on this row. value reads a
+// field of the row as text.
+func (t *lineTable) computes(name string, value func(string) string) bool {
+	for _, rule := range t.Computed {
+		if rule.Field == name && slices.Contains(rule.Is, value(rule.When)) {
+			return true
+		}
+	}
+	return false
 }
 
 // asResource is the table as a resource, for the functions that check, print
@@ -354,6 +377,21 @@ func checkLineTable(table *lineTable, names map[string]bool) error {
 			return fmt.Errorf("omit names %q, which is not a field name", name)
 		}
 	}
+	res := table.asResource()
+	for _, rule := range table.Computed {
+		if f := res.field(rule.Field); f == nil || f.ReadOnly || f.Required {
+			return fmt.Errorf("computed names %q, which is not an optional field a caller may send", rule.Field)
+		}
+		when := res.field(rule.When)
+		if when == nil || len(rule.Is) == 0 {
+			return fmt.Errorf("computed %q: when names %q, which is not a field, or is has no value", rule.Field, rule.When)
+		}
+		for _, value := range rule.Is {
+			if !slices.Contains(when.Enum, value) {
+				return fmt.Errorf("computed %q: %q is not a value of %s", rule.Field, value, rule.When)
+			}
+		}
+	}
 	// The sort goes into PocketBase sort text as it is.
 	for _, term := range strings.Split(table.Sort, ",") {
 		name := strings.TrimLeft(term, "-+")
@@ -484,6 +522,12 @@ func checkLines(table *lineTable, value any) ([]map[string]any, error) {
 		}
 		if err := checkInput(res, row, true); err != nil {
 			return nil, usagef("%s[%d]: %v", table.Key, i, err)
+		}
+		for _, rule := range table.Computed {
+			_, given := row[rule.Field]
+			if kind, _ := row[rule.When].(string); given && slices.Contains(rule.Is, kind) {
+				return nil, usagef("%s[%d]: Books computes %q of a row with the %s %q: leave it out", table.Key, i, rule.Field, rule.When, kind)
+			}
 		}
 		rows = append(rows, row)
 	}

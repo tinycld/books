@@ -485,6 +485,178 @@
                     ]
                 }
             ]
+        },
+        {
+            "name": "bills",
+            "singular": "bill",
+            "summary": "Bills: what you owe a vendor",
+            "collection": "books_bills",
+            "lifecycle": "posting",
+            "entry": "entry",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "vendor", "status", "total", "balance"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only bills with this status: draft, posted or void" },
+                { "flag": "vendor", "field": "vendor", "help": "only the bills of the vendor with this id" }
+            ],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "form", "fields", "sort_key"],
+            "deleteHelp": "Only a draft can be deleted. Void a posted bill with `void`: it stays in the books with its number, and its amounts no longer count.",
+            "fields": [
+                { "name": "vendor", "type": "id", "ref": "vendors", "required": true, "help": "the vendor you owe" },
+                { "name": "date", "type": "string", "required": true, "help": "the date of the bill, as YYYY-MM-DD" },
+                { "name": "due_date", "type": "string", "required": true, "help": "the day the bill is due, as YYYY-MM-DD" },
+                { "name": "terms", "type": "string", "enum": ["due_on_receipt", "net_10", "net_15", "net_30", "net_60"], "help": "the payment terms of the bill; Books does not compute due_date from them" },
+                { "name": "mailing_address", "type": "address", "help": "the vendor's address on the bill" },
+                { "name": "ref_no", "type": "string", "help": "the vendor's own number of the bill" },
+                { "name": "memo", "type": "string", "help": "a note for the books" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["draft", "posted", "void"], "help": "draft, posted or void; `add --post`, `post` and `void` change it" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the bill; Books gives it when the bill is posted" },
+                { "name": "subtotal", "type": "integer", "readOnly": true, "help": "the sum of the lines, in cents; Books computes it" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "the total of the bill, in cents; Books computes it" },
+                { "name": "balance", "type": "integer", "readOnly": true, "help": "what you still owe, in cents" },
+                { "name": "revision", "type": "integer", "readOnly": true, "help": "the count of saves; the commands send it so two callers cannot overwrite each other" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote when the bill was posted; `entry` prints it" },
+                { "name": "replaces", "type": "id", "ref": "bills", "readOnly": true, "help": "the posted bill this one corrects; `edit` of a posted bill sets it" },
+                { "name": "replaced_by", "type": "id", "ref": "bills", "readOnly": true, "help": "the bill that corrects this one" }
+            ],
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_bill_lines",
+                    "parent": "bill",
+                    "sort": "position,id",
+                    "omit": ["bill", "position"],
+                    "computed": [
+                        { "field": "amount", "when": "kind", "is": ["item"] }
+                    ],
+                    "fields": [
+                        { "name": "kind", "type": "string", "required": true, "enum": ["account", "item"], "help": "account: an amount on an account; item: a product or service with a quantity and a rate" },
+                        { "name": "account", "type": "id", "ref": "accounts", "help": "the account of an account line: an expense, or another account the bill is for" },
+                        { "name": "product", "type": "id", "ref": "products", "help": "the product or service of an item line; an Inventory item moves stock when the document is posted" },
+                        { "name": "description", "type": "string", "help": "the text of the line" },
+                        { "name": "quantity", "type": "number", "help": "the quantity of an item line, with at most 2 decimals" },
+                        { "name": "rate", "type": "integer", "help": "the cost of one unit of an item line, in cents" },
+                        { "name": "amount", "type": "integer", "help": "the amount of an account line, in cents; Books computes it for an item line, so leave it out there" }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "expenses",
+            "singular": "expense",
+            "summary": "Expenses: a purchase that is paid at once",
+            "collection": "books_expenses",
+            "lifecycle": "posting",
+            "entry": "entry",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "vendor", "status", "total"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only expenses with this status: draft, posted or void" },
+                { "flag": "vendor", "field": "vendor", "help": "only the expenses of the vendor with this id" }
+            ],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "form", "fields", "sort_key"],
+            "deleteHelp": "Only a draft can be deleted. Void a posted expense with `void`: it stays in the books with its number, and its amounts no longer count.",
+            "fields": [
+                { "name": "vendor", "type": "id", "ref": "vendors", "help": "the vendor you paid" },
+                { "name": "paid_from", "type": "id", "ref": "accounts", "required": true, "help": "the bank or credit card account the money left" },
+                { "name": "payment_method", "type": "string", "required": true, "enum": ["cash", "check", "credit_card", "debit_card", "bank_transfer", "other"], "help": "how you paid" },
+                { "name": "reference_no", "type": "string", "help": "the check number or another reference of the payment" },
+                { "name": "date", "type": "string", "required": true, "help": "the date of the expense, as YYYY-MM-DD" },
+                { "name": "memo", "type": "string", "help": "a note for the books" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["draft", "posted", "void"], "help": "draft, posted or void; `add --post`, `post` and `void` change it" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the expense; Books gives it when the expense is posted" },
+                { "name": "subtotal", "type": "integer", "readOnly": true, "help": "the sum of the lines, in cents; Books computes it" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "the total of the expense, in cents; Books computes it" },
+                { "name": "revision", "type": "integer", "readOnly": true, "help": "the count of saves; the commands send it so two callers cannot overwrite each other" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote when the expense was posted; `entry` prints it" },
+                { "name": "replaces", "type": "id", "ref": "expenses", "readOnly": true, "help": "the posted expense this one corrects; `edit` of a posted expense sets it" },
+                { "name": "replaced_by", "type": "id", "ref": "expenses", "readOnly": true, "help": "the expense that corrects this one" }
+            ],
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_expense_lines",
+                    "parent": "expense",
+                    "sort": "position,id",
+                    "omit": ["expense", "position"],
+                    "computed": [
+                        { "field": "amount", "when": "kind", "is": ["item"] }
+                    ],
+                    "fields": [
+                        { "name": "kind", "type": "string", "required": true, "enum": ["account", "item"], "help": "account: an amount on an account; item: a product or service with a quantity and a rate" },
+                        { "name": "account", "type": "id", "ref": "accounts", "help": "the account of an account line: an expense, or another account the expense is for" },
+                        { "name": "product", "type": "id", "ref": "products", "help": "the product or service of an item line; an Inventory item moves stock when the document is posted" },
+                        { "name": "description", "type": "string", "help": "the text of the line" },
+                        { "name": "quantity", "type": "number", "help": "the quantity of an item line, with at most 2 decimals" },
+                        { "name": "rate", "type": "integer", "help": "the cost of one unit of an item line, in cents" },
+                        { "name": "amount", "type": "integer", "help": "the amount of an account line, in cents; Books computes it for an item line, so leave it out there" }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "vendor-credits",
+            "singular": "vendor credit",
+            "summary": "Vendor credits: what a vendor owes you for a return or a correction",
+            "collection": "books_vendor_credits",
+            "lifecycle": "posting",
+            "entry": "entry",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "vendor", "status", "total", "balance"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only vendor credits with this status: draft, posted or void" },
+                { "flag": "vendor", "field": "vendor", "help": "only the vendor credits of the vendor with this id" }
+            ],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "form", "fields", "sort_key"],
+            "deleteHelp": "Only a draft can be deleted. Void a posted vendor credit with `void`: it stays in the books with its number, and its amounts no longer count.",
+            "fields": [
+                { "name": "vendor", "type": "id", "ref": "vendors", "required": true, "help": "the vendor who gave the credit" },
+                { "name": "date", "type": "string", "required": true, "help": "the date of the vendor credit, as YYYY-MM-DD" },
+                { "name": "ref_no", "type": "string", "help": "the vendor's own number of the credit" },
+                { "name": "memo", "type": "string", "help": "a note for the books" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["draft", "posted", "void"], "help": "draft, posted or void; `add --post`, `post` and `void` change it" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the vendor credit; Books gives it when the vendor credit is posted" },
+                { "name": "subtotal", "type": "integer", "readOnly": true, "help": "the sum of the lines, in cents; Books computes it" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "the total of the vendor credit, in cents; Books computes it" },
+                { "name": "balance", "type": "integer", "readOnly": true, "help": "the credit that is not yet applied or refunded, in cents" },
+                { "name": "revision", "type": "integer", "readOnly": true, "help": "the count of saves; the commands send it so two callers cannot overwrite each other" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote when the vendor credit was posted; `entry` prints it" },
+                { "name": "replaces", "type": "id", "ref": "vendor-credits", "readOnly": true, "help": "the posted vendor credit this one corrects; `edit` of a posted vendor credit sets it" },
+                { "name": "replaced_by", "type": "id", "ref": "vendor-credits", "readOnly": true, "help": "the vendor credit that corrects this one" }
+            ],
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_vendor_credit_lines",
+                    "parent": "vendor_credit",
+                    "sort": "position,id",
+                    "omit": ["vendor_credit", "position"],
+                    "computed": [
+                        { "field": "amount", "when": "kind", "is": ["item"] }
+                    ],
+                    "fields": [
+                        { "name": "kind", "type": "string", "required": true, "enum": ["account", "item"], "help": "account: an amount on an account; item: a product or service with a quantity and a rate" },
+                        { "name": "account", "type": "id", "ref": "accounts", "help": "the account of an account line: an expense, or another account the vendor credit is for" },
+                        { "name": "product", "type": "id", "ref": "products", "help": "the product or service of an item line; an Inventory item moves stock when the document is posted" },
+                        { "name": "description", "type": "string", "help": "the text of the line" },
+                        { "name": "quantity", "type": "number", "help": "the quantity of an item line, with at most 2 decimals" },
+                        { "name": "rate", "type": "integer", "help": "the cost of one unit of an item line, in cents" },
+                        { "name": "amount", "type": "integer", "help": "the amount of an account line, in cents; Books computes it for an item line, so leave it out there" }
+                    ]
+                }
+            ]
         }
     ]
 }
