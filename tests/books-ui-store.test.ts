@@ -6,22 +6,10 @@ describe('useBooksUIStore', () => {
     beforeEach(() => {
         useWorkspaceStore.getState().setDrawerOpen(false)
         useBooksUIStore.setState({
-            isAccountingOpen: true,
             isNewOpen: false,
             isNewFirst: false,
             isReportsOpen: false,
         })
-    })
-
-    it('starts with the accounting group open', () => {
-        expect(useBooksUIStore.getState().isAccountingOpen).toBe(true)
-    })
-
-    it('toggleAccounting flips the flag', () => {
-        useBooksUIStore.getState().toggleAccounting()
-        expect(useBooksUIStore.getState().isAccountingOpen).toBe(false)
-        useBooksUIStore.getState().toggleAccounting()
-        expect(useBooksUIStore.getState().isAccountingOpen).toBe(true)
     })
 
     it('starts with the New section closed; toggleNew flips it and openNew only opens', () => {
@@ -64,15 +52,15 @@ describe('useBooksUIStore', () => {
         expect(useBooksUIStore.getState().isReportsOpen).toBe(false)
     })
 
-    it('persists the three fold states under tinycld_books_ui', () => {
+    it('persists the two fold states under tinycld_books_ui, and not the filter', () => {
         const options = useBooksUIStore.persist.getOptions()
         expect(options.name).toBe('tinycld_books_ui')
-        useBooksUIStore.getState().toggleAccounting()
+        useBooksUIStore.getState().toggleReports()
+        useBooksUIStore.getState().setFilter('aging')
         const partial = options.partialize?.(useBooksUIStore.getState())
         expect(partial).toEqual({
-            isAccountingOpen: false,
             isNewOpen: false,
-            isReportsOpen: false,
+            isReportsOpen: true,
         })
     })
 })

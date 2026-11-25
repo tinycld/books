@@ -156,9 +156,6 @@ function readEntryLines(page: Page) {
 async function reopenCreditByBack(page: Page) {
     const url = page.url()
     const navItem = page.getByTestId('books-nav-entries')
-    if (!(await navItem.isVisible())) {
-        await page.getByTestId('books-nav-accounting-toggle').click()
-    }
     await navItem.click()
     // A sidebar push leaves the earlier screen mounted and hidden: the pushed list is last.
     await expect(page.getByTestId('entries-screen').last()).toBeVisible()

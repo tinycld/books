@@ -5,6 +5,9 @@
 export interface NewAction {
     id: string
     label: string
+    // The label in the sidebar's New section, when `label` needs its group to be clear
+    // there. The customer and vendor pages keep `label`: the page names the group.
+    sidebarLabel?: string
     href: string
     column: 'customers' | 'vendors' | 'other'
     available: boolean
@@ -75,6 +78,7 @@ export const NEW_ACTIONS: NewAction[] = [
     {
         id: 'statement',
         label: 'Statement',
+        sidebarLabel: 'Customer statement',
         href: 'books/statements/new',
         column: 'customers',
         available: true,
@@ -156,3 +160,8 @@ export const NEW_ACTIONS: NewAction[] = [
         available: true,
     },
 ]
+
+// The label of an action in the sidebar: its New section and its filter results.
+export function newActionSidebarLabel(action: NewAction): string {
+    return action.sidebarLabel ?? action.label
+}

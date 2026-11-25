@@ -77,9 +77,6 @@ export function browserToday(page: Page): Promise<string> {
 // openNewEntry expect the list, an entry, the dashboard or the Lists hub on screen.
 export async function openEntriesFromSidebar(page: Page): Promise<void> {
     const item = page.getByTestId('books-nav-entries')
-    const toggle = page.getByTestId('books-nav-accounting-toggle')
-    await expect(toggle).toBeVisible()
-    if (!(await item.isVisible())) await toggle.click()
     await item.click()
     await expect(page.getByTestId('entries-screen')).toBeVisible()
 }

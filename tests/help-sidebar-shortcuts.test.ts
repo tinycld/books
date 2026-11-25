@@ -46,7 +46,8 @@ describe('help/sidebar-shortcuts.md', () => {
 
     it('covers New on a wide screen and on a phone, and for a reader', () => {
         const section = sectionOf(topic.body, 'New')
-        expect(section).toMatch(/Customers, Vendors or Other/)
+        expect(section).toMatch(/A line separates the customer actions, the vendor actions/)
+        expect(section).not.toMatch(/Customers, Vendors or Other/)
         expect(section).toMatch(/round \+ button: the Books menu opens with New open, at the top/)
         expect(section).toMatch(/read-only access, New and the round \+ button are hidden/)
     })
@@ -57,6 +58,13 @@ describe('help/sidebar-shortcuts.md', () => {
         expect(section).toContain('All reports')
         expect(section).toMatch(/back link, Books shows the list of the Books reports/)
         expect(section).toContain('(help://books:reports)')
+        expect(section).toMatch(/overview, sales, expenses and accounting/)
+    })
+
+    it('names the filter box and the fixed screens, with no Go to part', () => {
+        expect(topic.body).toContain('Find in menu')
+        expect(sectionOf(topic.body, 'The fixed screens')).toMatch(/Chart of Accounts/)
+        expect(topic.body).not.toMatch(/## Go to/)
     })
 
     it('says the phone sidebar is the Books menu', () => {

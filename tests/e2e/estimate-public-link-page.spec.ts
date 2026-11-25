@@ -165,7 +165,7 @@ test.describe('estimate-public-link: customer page', () => {
             // Outside the app shell: no rail, no Books sidebar, no sign-in form.
             await expect(q.getByTestId('nav-home')).toHaveCount(0)
             await expect(q.getByTestId('nav-more')).toHaveCount(0)
-            await expect(q.getByTestId('books-nav-accounting-toggle')).toHaveCount(0)
+            await expect(q.getByTestId('books-nav-dashboard')).toHaveCount(0)
             await expect(q.getByTestId('identifier')).toHaveCount(0)
             await expect(q.getByPlaceholder('Password')).toHaveCount(0)
 

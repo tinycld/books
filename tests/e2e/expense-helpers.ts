@@ -177,9 +177,6 @@ export async function openExpenseBySearch(page: Page, term: string) {
 export async function reopenExpenseByBack(page: Page) {
     const url = page.url()
     const navItem = page.getByTestId('books-nav-entries')
-    if (!(await navItem.isVisible())) {
-        await page.getByTestId('books-nav-accounting-toggle').click()
-    }
     await navItem.click()
     // A sidebar push leaves the earlier screen mounted and hidden, so the list may be
     // mounted twice: the pushed one is the last.

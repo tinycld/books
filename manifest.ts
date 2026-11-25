@@ -18,6 +18,9 @@ const manifest = {
     ],
     help: { directory: 'help' },
     sidebar: { component: 'sidebar' },
+    // Sidebar slots other packages render into: after the "Go to" navigation, after the
+    // New actions, and after the reports.
+    slots: ['sidebar.after-navigation', 'sidebar.after-new', 'sidebar.after-reports'],
     // The Books settings sections as panels of core Settings (Settings, group Books): the
     // same sections, in the same order and with the same labels, as the Books settings
     // screen (lib/settings-sections.ts). tests/settings-panels.test.ts holds the two lists equal.

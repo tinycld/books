@@ -203,9 +203,6 @@ export async function newPostedExpense(
 // its unique memo through search.
 export async function reopenPostedBill(page: Page, memo: string) {
     const navItem = page.getByTestId('books-nav-entries')
-    if (!(await navItem.isVisible())) {
-        await page.getByTestId('books-nav-accounting-toggle').click()
-    }
     await navItem.click()
     await expect(page.getByTestId('entries-screen').last()).toBeVisible()
     await expect(page.getByTestId('bill-read-only').filter({ visible: true })).toHaveCount(0)

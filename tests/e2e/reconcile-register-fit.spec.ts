@@ -103,9 +103,6 @@ async function chooseRange(page: Page, name: string) {
 // sidebar pushes the chart over the register, so the register stays mounted and hidden.
 async function openChartFromSidebar(page: Page) {
     const item = page.getByTestId('books-nav-accounts')
-    const toggle = page.getByTestId('books-nav-accounting-toggle')
-    await toggle.waitFor({ state: 'attached' })
-    if (!(await item.isVisible())) await toggle.click()
     await item.click()
     await expect(page.getByTestId('account-search').filter({ visible: true })).toBeVisible()
 }

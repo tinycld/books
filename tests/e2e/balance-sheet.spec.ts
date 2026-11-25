@@ -94,9 +94,6 @@ async function startBooks(page: Page) {
 // dashboard or the Lists hub on screen.
 async function openEntriesFromSidebar(page: Page) {
     const item = page.getByTestId('books-nav-entries')
-    const toggle = page.getByTestId('books-nav-accounting-toggle')
-    await expect(toggle).toBeVisible()
-    if (!(await item.isVisible())) await toggle.click()
     await item.click()
     await expect(page.getByTestId('entries-screen')).toBeVisible()
 }

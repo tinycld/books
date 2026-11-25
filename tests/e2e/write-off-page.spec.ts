@@ -74,7 +74,6 @@ async function sectionWriteOff(page: Page): Promise<{ id: string; number: string
 // Desktop sidebar: Journal Entries, pushed over the screen on top.
 async function openEntriesFromSidebar(page: Page) {
     const navItem = page.getByTestId('books-nav-entries')
-    if (!(await navItem.isVisible())) await page.getByTestId('books-nav-accounting-toggle').click()
     await navItem.click()
     await expect(shown(page, 'entries-screen')).toBeVisible()
 }

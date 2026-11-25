@@ -187,7 +187,6 @@ async function showEntriesList(page: Page) {
         return
     }
     const navItem = page.getByTestId('books-nav-entries')
-    if (!(await navItem.isVisible())) await page.getByTestId('books-nav-accounting-toggle').click()
     await navItem.click()
     await expect(shownEntries).toBeVisible()
 }

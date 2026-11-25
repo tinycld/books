@@ -51,8 +51,7 @@ export async function openEntriesList(page: Page) {
     const root = page.getByTestId('dashboard-screen')
     const dashboard = root.filter({ visible: true })
     const navItem = isPhone(page) ? listCard : page.getByTestId('books-nav-entries')
-    const toggle = page.getByTestId('books-nav-accounting-toggle')
-    // Wait on a screen, never on the desktop sidebar toggle: it shows on every Books route,
+    // Wait on a screen, never on a desktop sidebar item: it shows on every Books route,
     // so it cannot say which screen a lazy route is about to mount. The Lists hub keeps its
     // cards mounted but hidden on desktop, so there its attached card is the signal. The
     // stack root, the dashboard, is attached at any visibility on every other Books screen,
@@ -74,10 +73,6 @@ export async function openEntriesList(page: Page) {
         await shownBack.click()
         await expect(shown).toBeVisible()
         return
-    }
-    if (!isPhone(page)) {
-        await expect(toggle).toBeVisible()
-        if (!(await navItem.isVisible())) await toggle.click()
     }
     await navItem.click()
     await expect(shown).toBeVisible()

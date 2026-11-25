@@ -16,22 +16,17 @@ vi.mock('@tinycld/core/lib/pocketbase', async () => {
 vi.mock('@tinycld/core/lib/auth', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 
 function items(container: HTMLElement) {
-    return [...container.querySelectorAll('[testid^="books-nav-"]')]
-        .filter(node => node.getAttribute('testid') !== 'books-nav-accounting-toggle')
-        .map(node => ({
-            id: node.getAttribute('testid'),
-            // SidebarItem tints the label with the active-indicator colour only when active.
-            isActive: node
-                .querySelector('rn-text')
-                ?.getAttribute('class')
-                ?.includes('font-semibold'),
-        }))
+    return [...container.querySelectorAll('[testid^="books-nav-"]')].map(node => ({
+        id: node.getAttribute('testid'),
+        // SidebarItem tints the label with the active-indicator colour only when active.
+        isActive: node.querySelector('rn-text')?.getAttribute('class')?.includes('font-semibold'),
+    }))
 }
 
 describe('BooksSidebar rendering', () => {
     beforeEach(() => {
         seedSidebar()
-        useBooksUIStore.setState({ isAccountingOpen: true, isNewFirst: false })
+        useBooksUIStore.setState({ isNewFirst: false })
         useWindowSizeStore.getState().setSize(1280, 800)
         url.pathname = '/'
     })
@@ -66,13 +61,6 @@ describe('BooksSidebar rendering', () => {
         const { container } = renderSidebar()
         const ids = items(container).map(i => i.id)
         expect(ids).toContain('books-nav-settings')
-        expect(ids[ids.length - 1]).toBe('books-nav-settings')
-    })
-
-    it('draws Settings last even when Accounting is folded', () => {
-        useBooksUIStore.setState({ isAccountingOpen: false })
-        const { container } = renderSidebar()
-        const ids = items(container).map(i => i.id)
         expect(ids[ids.length - 1]).toBe('books-nav-settings')
     })
 

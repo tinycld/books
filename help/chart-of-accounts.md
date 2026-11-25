@@ -5,7 +5,7 @@ tags: [accounts, chart of accounts, import, csv]
 order: 20
 ---
 
-The Chart of Accounts lists every account your books use. To open it, choose Chart of Accounts in the Accounting group of the sidebar, or choose the Accounts card on the Lists page.
+The Chart of Accounts lists every account your books use. To open it, choose Chart of Accounts in the sidebar, or choose the Accounts card on the Lists page.
 
 ![The Chart of Accounts: a table of accounts with number, name, type, detail type and balance, and a menu on each row.](images/chart-of-accounts-1.png)
 
