@@ -20,6 +20,7 @@ const (
 // The statuses of a bank transaction that a command names.
 const (
 	bankStatusForReview = "for_review"
+	bankStatusReviewed  = "reviewed"
 	bankStatusExcluded  = "excluded"
 )
 
@@ -99,7 +100,7 @@ var bankTransactionsResource = resource{
 		{Name: "amount", Type: typeInteger, ReadOnly: true, Help: "the amount in cents: above 0 is money in, below 0 is money out"},
 		{Name: "fitid", Type: typeString, ReadOnly: true, Help: "the id the bank gives the transaction in an OFX file"},
 		{Name: "check_number", Type: typeString, ReadOnly: true, Help: "the check number, when the bank states one"},
-		{Name: "status", Type: typeString, ReadOnly: true, Enum: []string{bankStatusForReview, "reviewed", bankStatusExcluded}, Help: "for_review: not handled yet; reviewed: categorized or matched; excluded: left out of the books"},
+		{Name: "status", Type: typeString, ReadOnly: true, Enum: []string{bankStatusForReview, bankStatusReviewed, bankStatusExcluded}, Help: "for_review: not handled yet; reviewed: categorized or matched; excluded: left out of the books"},
 	},
 }
 
@@ -143,6 +144,10 @@ func newBankingCmd(c *client.Client) *cobra.Command {
 		newBankingCategorizeCmd(c),
 		newBankingSplitCmd(c),
 		newBankingUndoCmd(c),
+		newBankingMatchCmd(c),
+		newBankingUnmatchCmd(c),
+		newBankingExcludeCmd(c),
+		newBankingRestoreCmd(c),
 	)
 	return group
 }
