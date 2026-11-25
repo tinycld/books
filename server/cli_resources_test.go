@@ -311,6 +311,8 @@ func TestCLIResources_ServerAcceptsEveryListQuery(t *testing.T) {
 			collectionOf[doc.Name+" "+view.Word] = view.Collection
 		}
 	}
+	// `reports list` is built in Go (cli/reports.go) over core's collection.
+	collectionOf["reports"] = "reports"
 	calls := []apiReq{}
 	for _, c := range loadListFilterCases(t) {
 		list := strings.TrimSpace(c.Resource + " " + c.View)

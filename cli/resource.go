@@ -98,6 +98,9 @@ type resource struct {
 	// scope holds the field values every record of `list` has: the fixed
 	// values of a scoped document. It is not read from the file.
 	scope map[string]string
+	// where is a fixed filter clause of `list`, a constant of the code. It is
+	// not read from the file.
+	where string
 }
 
 func (r *resource) field(name string) *field {

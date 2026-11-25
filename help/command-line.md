@@ -1,6 +1,6 @@
 ---
 title: Books from the command line
-summary: List and change accounts, customers, vendors, products and sales tax, and record transactions, from a terminal or a script with the tinycld tool.
+summary: List and change accounts, customers, vendors, products and sales tax, record transactions, and run reports, from a terminal or a script with the tinycld tool.
 tags: [cli, command line, terminal, automation, scripts, agents, json]
 order: 62
 ---
@@ -256,6 +256,20 @@ echo '{"date": "2026-07-21", "due_date": "2026-08-20"}' | tinycld books estimate
 An estimate moves no stock. `accept` and `reject` record the customer's answer; `reopen` makes the estimate pending again. Books closes an estimate when an invoice is made from it. A closed estimate cannot be changed or deleted.
 
 `convert` makes a draft invoice with the customer, the billing address, the email address, the tax rate and the lines of the estimate, and prints it. It does not copy the memo or the message. The JSON gives the invoice's own fields: `date` and `due_date` are required, and `lines` replaces the lines of the estimate. Books closes the estimate in the same step, and one estimate makes one invoice. Post the invoice with `tinycld books invoices post`.
+
+## To run a report
+
+`tinycld books reports` works with the [reports](help://books:reports) of Books that you can open: those Books ships, those shared with you, and your own.
+
+```
+tinycld books reports list
+tinycld books reports list --search balance
+tinycld books reports show books.trial_balance
+```
+
+`list` prints each report's id. A report that Books ships also has a key, such as `books.trial_balance`. Give the id or the key to `show`, `run` and `export`. `show` prints the params that the report takes.
+
+If a report command says that it requires the "reports" scope, you signed in before your server had it. Sign in again with `tinycld auth login {{server-host}}`.
 
 ## To retry safely
 

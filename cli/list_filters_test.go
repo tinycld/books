@@ -42,6 +42,9 @@ func TestListSendsTheTextsOfTheSharedFixture(t *testing.T) {
 	for _, tc := range loadListFilterCases(t) {
 		f := newFakeBooks(t)
 		f.rawFilter = true
+		// Core's collection: no resource file names it, so the fake does not
+		// know it until a test gives it rows.
+		f.rows[reportsCollection] = []rawRecord{}
 		word := "list"
 		if tc.View != "" {
 			word = tc.View
@@ -75,6 +78,8 @@ func listTargets() []listTarget {
 			targets = append(targets, listTarget{name: doc.Name, view: doc.Views[j].Word, res: &doc.Views[j].resource})
 		}
 	}
+	// A list that is built in Go, not read from a file.
+	targets = append(targets, listTarget{name: reportsResource.Name, res: &reportsResource})
 	return targets
 }
 

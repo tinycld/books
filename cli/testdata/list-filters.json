@@ -218,6 +218,20 @@
             "args": ["--status", "posted", "--search", "nothinghasthis1"],
             "filter": "doc_type = \"transfer\" && origin = \"manual\" && status = \"posted\" && (number ~ \"nothinghasthis1\" || memo ~ \"nothinghasthis1\")",
             "sort": "-date,-created,id"
+        },
+        {
+            "name": "reports-list",
+            "resource": "reports",
+            "args": [],
+            "filter": "(source ~ \"books.%\")",
+            "sort": "title,id"
+        },
+        {
+            "name": "reports-search",
+            "resource": "reports",
+            "args": ["--search", "trial"],
+            "filter": "(source ~ \"books.%\") && (title ~ \"trial\" || description ~ \"trial\")",
+            "sort": "title,id"
         }
     ]
 }

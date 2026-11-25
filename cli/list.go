@@ -163,6 +163,9 @@ func listFilter(cmd *cobra.Command, res *resource, opts listOptions) string {
 		params[name] = res.scope[field]
 		clauses = append(clauses, field+" = {:"+name+"}")
 	}
+	if res.where != "" {
+		clauses = append(clauses, res.where)
+	}
 	for i, flt := range res.Filters {
 		if !cmd.Flags().Changed(flt.Flag) {
 			continue
