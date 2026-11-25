@@ -57,12 +57,18 @@ func postOp(doc *document, id string, revision int64) batchOp {
 	return updateOp(doc.Collection, id, "post", map[string]any{"status": statusPosted, "revision": revision})
 }
 
+// storedError marks an error whose text says that the write was stored. With
+// --json its text is the document's message, not the server's own message.
+type storedError struct{ error }
+
+func (e *storedError) Unwrap() error { return e.error }
+
 // readBack reads a document after a write that the server accepted. A failure
 // here must not read as a failed write: the caller would send it again.
 func readBack(cmd *cobra.Command, c *client.Client, doc *document, id, done string) (record, error) {
 	rec, err := fetchDocument(cmd.Context(), c, doc, id)
 	if err != nil {
-		err = fmt.Errorf("%s %s was %s, and then it could not be read: %w", doc.Singular, id, done, err)
+		err = &storedError{fmt.Errorf("%s %s was %s, and then it could not be read: %w", doc.Singular, id, done, err)}
 		// Exit 5 would tell a script that the document does not exist, and it
 		// would send the add again: it is stored.
 		if exitcode.Of(exitcode.Classify(err)) == exitcode.NotFound {

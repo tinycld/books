@@ -193,6 +193,41 @@ func TestDocumentAddSaysWhenTheReadAfterItFails(t *testing.T) {
 	}
 }
 
+// A script that reads stdout must learn the id and that it was added, whatever
+// the read answers.
+func TestDocumentAddJSONErrorOfAFailedReadNamesTheIDAndSaysAdded(t *testing.T) {
+	cases := []struct {
+		name   string
+		status int
+		body   string
+		exit   int
+	}{
+		{"404", 404, `{"data":{},"message":"The requested resource wasn't found.","status":404}`, exitcode.Failed},
+		{"503", 503, `{"data":{},"message":"Busy.","status":503}`, exitcode.Unavailable},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := journal(t)
+			fixedIDs(t, "entrynew0000001")
+			f.refuse("GET", tc.status, tc.body)
+			out, _, err := runCmd(t, f.serve(), newEntry, "books", "journal-entries", "add", "--input", "-", "--json")
+			if got := exitcode.Of(err); got != tc.exit {
+				t.Errorf("exit = %d, want %d (%v)", got, tc.exit, err)
+			}
+			var doc errorDoc
+			if json.Unmarshal([]byte(out), &doc) != nil {
+				t.Fatalf("stdout is not one JSON document:\n%s", out)
+			}
+			if !strings.Contains(doc.Error.Message, "journal entry entrynew0000001 was added") {
+				t.Errorf("message = %q", doc.Error.Message)
+			}
+			if doc.Error.Exit != tc.exit || doc.Error.Status != tc.status {
+				t.Errorf("exit = %d, status = %d, want %d, %d", doc.Error.Exit, doc.Error.Status, tc.exit, tc.status)
+			}
+		})
+	}
+}
+
 // A script reads exit 5 as "no such document" and would send the add again.
 func TestDocumentAddExitsFailedWhenTheReadAfterItAnswers404(t *testing.T) {
 	f := journal(t)

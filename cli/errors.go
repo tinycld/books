@@ -72,7 +72,8 @@ func bodyOf(err error) errorBody {
 		return body
 	}
 	body.Status = api.Status
-	if api.Message != "" {
+	var stored *storedError
+	if api.Message != "" && !errors.As(err, &stored) {
 		body.Message = api.Message
 	}
 	body.Fields = refusedFields(api.Body)
