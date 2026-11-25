@@ -10,7 +10,7 @@ import { fillInvoice, localDay, postInvoice } from './receive-payment-helpers'
 // database, so a spec that picked another account would change a parallel spec's default.
 
 // A write-off's own page: `books/write-offs/<id>`.
-export const WRITE_OFF_URL = /\/books\/write-offs\/[a-z0-9]{15}(?:[?#].*)?$/
+export const WRITE_OFF_URL = /\/books\/write-offs\/(?!new(?:[?#]|$))[^/?#]+(?:[?#].*)?$/
 
 // The one account every e2e write-off names.
 export const BAD_DEBTS = '6050 Bad debts'

@@ -3,6 +3,7 @@ import { BILL_URL } from './bill-helpers'
 import { uniqueMemo } from './invoice-helpers'
 import { localDay, vendorWithBills } from './pay-bills-helpers'
 import { holdLoads, sideBySide } from './record-form-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import { creditCellTestId, pickCreditLineAccount, VENDOR_CREDIT_URL } from './vendor-credit-helpers'
 import {
     createVendor,
@@ -135,7 +136,7 @@ test.describe('vendor-pages: vendor balance', () => {
 
         // The past-due bill voided on its own screen: Overdue $0.00, Open moves by $100.00.
         await page.getByTestId(`vendor-transaction-${pastDue.id}`).click()
-        await expect(page).toHaveURL(new RegExp(`/books/bills/${pastDue.id}$`))
+        await expectRecordUrl(page, 'bills', pastDue.id)
         await expect(page).toHaveURL(BILL_URL)
         // The wide read bar shows Void itself (a phone bar keeps it in More).
         await expect(page.getByTestId('bill-read-only')).toBeVisible()
@@ -372,6 +373,6 @@ test.describe('vendor-pages: vendor balance', () => {
         await expect(page.getByTestId('vendor-transactions-cards')).toBeVisible()
         await expect(page.getByTestId('vendor-transactions-table')).toHaveCount(0)
         await page.getByTestId(`vendor-transaction-${bills[0].id}`).click()
-        await expect(page).toHaveURL(new RegExp(`/books/bills/${bills[0].id}$`))
+        await expectRecordUrl(page, 'bills', bills[0].id)
     })
 })

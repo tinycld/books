@@ -2,6 +2,7 @@ import { expect, type Page, test } from '@playwright/test'
 import { SALES_LIST_SEED_DRAFTS } from '../../tinycld/books/lib/sales-lists-fixture'
 import { createCustomer, DESKTOP, openBooks, PHONE, uniqueName } from './customer-form-helpers'
 import { uniqueMemo } from './invoice-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import {
     draftInvoiceFor,
     openSales,
@@ -86,7 +87,7 @@ test.describe('sales-lists: tabs and rows', () => {
         // A row press opens the draft in its form; its back link names the list and
         // returns to it with the search and the row kept.
         await salesRow(page, id).click()
-        await expect(page).toHaveURL(new RegExp(`/books/invoices/${id}$`))
+        await expectRecordUrl(page, 'invoices', id)
         await expect(visible(page, 'invoice-form')).toBeVisible()
         const back = visible(page, 'entry-back')
         await expect(back).toContainText('Invoices')
@@ -98,7 +99,7 @@ test.describe('sales-lists: tabs and rows', () => {
 
         // The form's Cancel returns to the same list.
         await salesRow(page, id).click()
-        await expect(page).toHaveURL(new RegExp(`/books/invoices/${id}$`))
+        await expectRecordUrl(page, 'invoices', id)
         await visible(page, 'invoice-cancel').click()
         await expect(page).toHaveURL(salesTabUrl('invoices'))
         await expect(salesRow(page, id)).toBeVisible()
@@ -155,7 +156,7 @@ test.describe('sales-lists: tabs and rows', () => {
         await salesRow(page, id).click()
 
         // The invoice's own route, its read view beside the column, its row marked.
-        await expect(page).toHaveURL(new RegExp(`/books/invoices/${id}$`))
+        await expectRecordUrl(page, 'invoices', id)
         const column = visible(page, 'sales-names')
         await expect(column).toBeVisible()
         await expect

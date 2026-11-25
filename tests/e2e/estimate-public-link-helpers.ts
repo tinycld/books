@@ -118,7 +118,7 @@ export async function createLinkedEstimate(
     await memoInput.focus()
     await page.keyboard.press('ControlOrMeta+s')
     await expect(page).toHaveURL(ESTIMATE_URL)
-    const id = estimateIdFromUrl(page)
+    const id = await estimateIdFromUrl(page)
     const number = await estimateNumberOf(page)
     const link = await copyCustomerLink(page)
     return { id, number, memo, link }

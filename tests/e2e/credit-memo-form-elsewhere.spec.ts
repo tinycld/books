@@ -13,7 +13,6 @@ import {
 import {
     CREDIT_MEMO_URL,
     creditMemoIdFromUrl,
-    creditMemoUrlOf,
     pickCreditMemoLineProduct,
 } from './credit-memo-helpers'
 import {
@@ -27,6 +26,7 @@ import {
 } from './customer-form-helpers'
 import { lineCellTestId, localToday, pickLineProduct, uniqueMemo } from './invoice-helpers'
 import { nonTaxableService, postInvoice } from './receive-payment-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 
 // Credit memos elsewhere in Books (credit memo spec §3.10): the customer page's
 // Transactions tab (its Credit memos chip, rows, cards, statuses and empty text), the Open
@@ -154,13 +154,13 @@ async function memoFromCustomer(
         await page.getByTestId('credit-memo-save-draft').click()
         await expect(page).toHaveURL(CREDIT_MEMO_URL)
         await expect(page.getByTestId('credit-memo-title')).toHaveText('Draft credit memo')
-        return { id: creditMemoIdFromUrl(page), number: '' }
+        return { id: await creditMemoIdFromUrl(page), number: '' }
     }
     await page.getByTestId('credit-memo-post').click()
     await expect(page).toHaveURL(CREDIT_MEMO_URL)
     await expect(page.getByTestId('credit-memo-read-only')).toBeVisible()
     const number = await memoNumberOf(page)
-    return { id: creditMemoIdFromUrl(page), number }
+    return { id: await creditMemoIdFromUrl(page), number }
 }
 
 // The open form's Tax → the seeded state rate.
@@ -316,7 +316,7 @@ test.describe('credit-memo-form: elsewhere in Books', () => {
 
         // The posted memo's row opens the memo.
         await transaction(page, posted.id).click()
-        await expect(page).toHaveURL(creditMemoUrlOf(posted.id))
+        await expectRecordUrl(page, 'credit-memos', posted.id)
         await expect(page.getByTestId('credit-memo-read-only')).toBeVisible()
         await backToCustomer(page, customerId)
 
@@ -396,7 +396,7 @@ test.describe('credit-memo-form: elsewhere in Books', () => {
         await expect(card).toContainText(CREDIT_250)
         await expect(card).toContainText('Unapplied')
         await card.click()
-        await expect(page).toHaveURL(creditMemoUrlOf(posted.id))
+        await expectRecordUrl(page, 'credit-memos', posted.id)
         await expect(page.getByTestId('credit-memo-read-only')).toBeVisible()
     })
 
@@ -435,7 +435,7 @@ test.describe('credit-memo-form: elsewhere in Books', () => {
         await page.getByTestId('credit-memo-post').click()
         await expect(page.getByTestId('credit-memo-read-only')).toBeVisible()
         const memoNumber = await memoNumberOf(page)
-        const memoId = creditMemoIdFromUrl(page)
+        const memoId = await creditMemoIdFromUrl(page)
 
         // The report, this month to date, on Accrual.
         await page.setViewportSize(TALL)
@@ -469,7 +469,7 @@ test.describe('credit-memo-form: elsewhere in Books', () => {
         await openReportAccount(page, STATE_RATE)
         const row = await scrollToReportRow(page, `Credit memo ${memoNumber} · ${name}`)
         await row.click()
-        await expect(page).toHaveURL(creditMemoUrlOf(memoId))
+        await expectRecordUrl(page, 'credit-memos', memoId)
         await expect(page.getByTestId('credit-memo-title')).toHaveText(`Credit memo ${memoNumber}`)
 
         // Cash: neither document is paid or applied, so the customer's figures are zero.

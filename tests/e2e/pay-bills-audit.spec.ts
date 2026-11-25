@@ -45,7 +45,7 @@ test.describe('pay-bills: audit history of a bill payment', () => {
         await expect(page).not.toHaveURL(PAY_BILLS_URL)
 
         await searchToBillPayment(page, vendor.name, `Bill payment ${number} · ${vendor.name}`)
-        const id = billPaymentIdFromUrl(page)
+        const id = await billPaymentIdFromUrl(page)
 
         // At 1280 the actions are buttons, so More holds Audit history alone, last.
         const items = await openMoreMenu(page, 'bill-payment-read-more')

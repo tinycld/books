@@ -4,6 +4,7 @@ import { collaboratorLevel, type Level, setCollaboratorLevel } from './books-acc
 import { createCustomer, uniqueName } from './customer-form-helpers'
 import { sendDialog, toast } from './email-share-helpers'
 import { uniqueMemo } from './invoice-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import {
     draftInvoiceFor,
     openRowMenu,
@@ -114,7 +115,7 @@ test.describe('sales-lists: reader (collaborator level)', () => {
 
         // A row press opens the read view.
         await salesRow(view, posted).click()
-        await expect(view).toHaveURL(new RegExp(`/books/invoices/${posted}$`))
+        await expectRecordUrl(view, 'invoices', posted)
         await expect(visible(view, 'invoice-read-only')).toBeVisible()
 
         // The reader sees the sent line and no Send… or Copy customer link (email-share

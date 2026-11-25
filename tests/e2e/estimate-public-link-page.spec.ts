@@ -412,7 +412,7 @@ test.describe('estimate-public-link: customer page', () => {
             await page.getByTestId('form-input-accepted_by').fill('Dana Whitfield')
             await page.getByTestId('estimate-save').click()
             await expect(page.getByTestId('estimate-badge')).toHaveText('Accepted')
-            expect(estimateIdFromUrl(page)).toBe(estimate.id)
+            expect(await estimateIdFromUrl(page)).toBe(estimate.id)
             const acceptedDate = await page.getByTestId('form-input-accepted_date').inputValue()
             expect(acceptedDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
 

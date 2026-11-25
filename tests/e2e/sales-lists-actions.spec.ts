@@ -34,7 +34,7 @@ import {
 //   phone runs).
 
 const INVOICES_RECORDS = '**/api/collections/books_invoices/records'
-const ENTRY_URL = /\/books\/entries\/[a-z0-9]{15}$/
+const ENTRY_URL = /\/books\/entries\/(?!new$)[^/?#]+$/
 
 function visible(page: Page, testId: string) {
     return page.getByTestId(testId).filter({ visible: true })

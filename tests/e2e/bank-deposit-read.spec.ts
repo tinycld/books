@@ -3,13 +3,13 @@ import { PHONE } from './account-register-helpers'
 import { openMoreMenu } from './audit-log-helpers'
 import {
     depositIdFromUrl,
-    depositUrlOf,
     openBooks,
     openDepositBySearch,
     SEEDED_DEPOSIT,
     searchToDeposit,
     shownDeposit,
 } from './bank-deposit-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import { SALES_RECEIPT_URL } from './sales-receipt-helpers'
 
 // The deposit read view (bank deposit spec §3.8, §3.9, §3.2): the seeded posted deposit
@@ -63,8 +63,7 @@ test.describe('bank-deposit: read view', () => {
     }) => {
         await openBooks(page)
         await openDepositBySearch(page, SEEDED_DEPOSIT.memo)
-        const id = depositIdFromUrl(page)
-        const depositUrl = depositUrlOf(id)
+        const id = await depositIdFromUrl(page)
         await expect(shownDeposit(page, 'deposit-read-only')).toBeVisible()
 
         // Header: "Deposit <n>", Posted, the Deposit total; Deposit to.
@@ -117,7 +116,7 @@ test.describe('bank-deposit: read view', () => {
         await expect(group.getByText('View journal entry', { exact: true })).toBeVisible()
         await page.keyboard.press('Escape')
         await expect(shortcutList).toHaveCount(0)
-        await expect(page).toHaveURL(depositUrl)
+        await expectRecordUrl(page, 'deposits', id)
 
         // J: the deposit's journal entry debits 1000 Business Checking for the total.
         await page.keyboard.press('j')
@@ -136,7 +135,7 @@ test.describe('bank-deposit: read view', () => {
         const entryBack = page.getByTestId('entry-back').filter({ visible: true })
         await expect(entryBack).toContainText('Deposit')
         await entryBack.click()
-        await expect(page).toHaveURL(depositUrl)
+        await expectRecordUrl(page, 'deposits', id)
         await expect(title).toHaveText(/^Deposit \d+$/)
 
         // The item's Transaction link opens its sales receipt, whose back link names the
@@ -147,7 +146,7 @@ test.describe('bank-deposit: read view', () => {
         const receiptBack = page.getByTestId('entry-back').filter({ visible: true })
         await expect(receiptBack).toContainText('Deposit')
         await receiptBack.click()
-        await expect(page).toHaveURL(depositUrl)
+        await expectRecordUrl(page, 'deposits', id)
         await expect(shownDeposit(page, 'deposit-read-only')).toBeVisible()
 
         // At 390: items and other funds as cards, no grid, no sideways scroll, and Void in
@@ -172,8 +171,7 @@ test.describe('bank-deposit: read view', () => {
             route.fulfill({ status: 400, contentType: 'application/json', body: '{}' })
         )
         await searchToDeposit(page, SEEDED_DEPOSIT.memo)
-        const id = depositIdFromUrl(page)
-        const depositUrl = depositUrlOf(id)
+        const id = await depositIdFromUrl(page)
         await expect(shownDeposit(page, 'deposit-message')).toContainText(LOAD_ERROR)
         const retry = shownDeposit(page, 'deposit-retry')
         await expect(retry).toBeVisible()
@@ -196,10 +194,10 @@ test.describe('bank-deposit: read view', () => {
         )
         await page.keyboard.press('j')
         await expect(dialog).toBeVisible()
-        await expect(page).toHaveURL(depositUrl)
+        await expectRecordUrl(page, 'deposits', id)
         await page.keyboard.press('Escape')
         await expect(dialog).toHaveCount(0)
-        await expect(page).toHaveURL(depositUrl)
+        await expectRecordUrl(page, 'deposits', id)
         await expect(shownDeposit(page, 'deposit-read-only')).toBeVisible()
         await expect(shownDeposit(page, 'deposit-badge')).toHaveText('Posted')
         await expect(shownDeposit(page, 'deposit-read-void')).toBeVisible()

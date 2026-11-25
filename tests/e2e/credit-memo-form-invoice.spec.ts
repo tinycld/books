@@ -10,7 +10,6 @@ import {
     creditMemoIdFromUrl,
     creditMemoLineRowId,
     creditMemoLineRows,
-    creditMemoUrlOf,
     NEW_CREDIT_MEMO_URL,
     openCreditMemoBySearch,
     pickCreditMemoCustomer,
@@ -29,6 +28,7 @@ import {
 } from './invoice-helpers'
 import { openEntriesList } from './journal-entries-helpers'
 import { tabTo } from './keyboard-helpers'
+import { expectNotRecordUrl, expectRecordUrl } from './record-key-helpers'
 
 // Credit memos from an invoice (credit memo spec §3.2, §3.3, §3.6, §3.10, Q2, Q18, Q20):
 // "Create credit memo" (key M) on a posted invoice, the form started from the invoice with
@@ -83,10 +83,6 @@ function shown(page: Page, testId: string): Locator {
     return page.locator(`[data-testid="${testId}"]:visible`)
 }
 
-function invoiceUrlOf(id: string) {
-    return new RegExp(`/books/invoices/${id}$`)
-}
-
 function fromInvoiceUrlOf(invoiceId: string) {
     return new RegExp(`/books/credit-memos/new\\?(?:[^#]*&)?invoice=${invoiceId}(?:[&#]|$)`)
 }
@@ -126,7 +122,7 @@ async function postInvoice(page: Page, memo: string): Promise<{ id: string; numb
     await page.getByTestId('invoice-post').click()
     await expect(page).toHaveURL(INVOICE_URL)
     await expect(page.getByTestId('invoice-read-only')).toBeVisible()
-    const id = invoiceIdFromUrl(page)
+    const id = await invoiceIdFromUrl(page)
     const number = await titleNumber(shown(page, 'invoice-title'), 'Invoice')
     return { id, number }
 }
@@ -138,7 +134,7 @@ async function postMemo(page: Page, memo: string): Promise<{ id: string; number:
     await expect(page).toHaveURL(CREDIT_MEMO_URL)
     await expect(shown(page, 'credit-memo-read-only')).toBeVisible()
     const number = await titleNumber(shown(page, 'credit-memo-title'), 'Credit memo')
-    return { id: creditMemoIdFromUrl(page), number }
+    return { id: await creditMemoIdFromUrl(page), number }
 }
 
 // Every write of a credit memo create, refused with `body` as the server refuses a field:
@@ -252,7 +248,7 @@ test.describe('credit-memo-form: from an invoice', () => {
 
         // The link opens the invoice: its section lists the memo; Balance due is unchanged.
         await shown(page, 'credit-memo-invoice-link').click()
-        await expect(page).toHaveURL(invoiceUrlOf(invoice.id))
+        await expectRecordUrl(page, 'invoices', invoice.id)
         const section = shown(page, 'invoice-credit-memos')
         await expect(section).toBeVisible()
         await expect(section).toContainText('Credit memos')
@@ -266,7 +262,7 @@ test.describe('credit-memo-form: from an invoice', () => {
 
         // The row's number opens the memo.
         await row.getByText(posted.number, { exact: true }).click()
-        await expect(page).toHaveURL(creditMemoUrlOf(posted.id))
+        await expectRecordUrl(page, 'credit-memos', posted.id)
         await expect(shown(page, 'credit-memo-read-only')).toBeVisible()
 
         // A copy drops the link (spec §3.7, Q16).
@@ -322,7 +318,7 @@ test.describe('credit-memo-form: from an invoice', () => {
         // The stack is entries list → invoice → this draft: Back lands on the invoice, then
         // openEntriesList's one Back lands on the list.
         await shown(page, 'entry-back').click()
-        await expect(page).toHaveURL(invoiceUrlOf(invoice.id))
+        await expectRecordUrl(page, 'invoices', invoice.id)
         await expect(page.getByTestId('credit-memo-form')).toHaveCount(0)
         await expect(shown(page, 'invoice-read-only')).toBeVisible()
         await openEntriesList(page)
@@ -348,7 +344,7 @@ test.describe('credit-memo-form: from an invoice', () => {
 
         // No memo names the invoice: its read view has no section.
         await openInvoiceBySearch(page, invoiceMemo)
-        await expect(page).toHaveURL(invoiceUrlOf(invoice.id))
+        await expectRecordUrl(page, 'invoices', invoice.id)
         await expect(page.getByTestId('invoice-credit-memos')).toHaveCount(0)
     })
 
@@ -364,17 +360,17 @@ test.describe('credit-memo-form: from an invoice', () => {
         await expect(page).toHaveURL(fromInvoiceUrlOf(invoice.id))
         const posted = await postMemo(page, postedMemo)
         await shown(page, 'credit-memo-invoice-link').click()
-        await expect(page).toHaveURL(invoiceUrlOf(invoice.id))
+        await expectRecordUrl(page, 'invoices', invoice.id)
         await createCreditMemoFromInvoice(page)
         await page.getByTestId('form-input-memo').fill(draftMemo)
         await page.getByTestId('credit-memo-save-draft').click()
         await expect(page).toHaveURL(CREDIT_MEMO_URL)
         await expect(page.getByTestId('credit-memo-title')).toHaveText('Draft credit memo')
-        const draftId = creditMemoIdFromUrl(page)
+        const draftId = await creditMemoIdFromUrl(page)
 
         // `v` voids the invoice: no Create credit memo; the section still lists both memos.
         await shown(page, 'credit-memo-invoice-link').click()
-        await expect(page).toHaveURL(invoiceUrlOf(invoice.id))
+        await expectRecordUrl(page, 'invoices', invoice.id)
         await expect(shown(page, 'invoice-read-only')).toBeVisible()
         await page.keyboard.press('v')
         const dialog = page.getByTestId('void-dialog')
@@ -396,16 +392,16 @@ test.describe('credit-memo-form: from an invoice', () => {
         // The draft's link reads void; Enter on it opens the invoice.
         const voidLink = `For invoice ${invoice.number} (void)`
         await openCreditMemoBySearch(page, draftMemo)
-        await expect(page).toHaveURL(creditMemoUrlOf(draftId))
+        await expectRecordUrl(page, 'credit-memos', draftId)
         const draftLink = shown(page, 'credit-memo-invoice-link')
         await expect(draftLink).toHaveText(voidLink)
         await draftLink.focus()
         await page.keyboard.press('Enter')
-        await expect(page).toHaveURL(invoiceUrlOf(invoice.id))
+        await expectRecordUrl(page, 'invoices', invoice.id)
 
         // The posted memo's link reads void; its correction keeps the link and the number.
         await openCreditMemoBySearch(page, postedMemo)
-        await expect(page).toHaveURL(creditMemoUrlOf(posted.id))
+        await expectRecordUrl(page, 'credit-memos', posted.id)
         await expect(shown(page, 'credit-memo-invoice-link')).toHaveText(voidLink)
         await page.keyboard.press('e')
         await expect(page).toHaveURL(new RegExp(`/books/credit-memos/new\\?replaces=${posted.id}$`))
@@ -413,15 +409,15 @@ test.describe('credit-memo-form: from an invoice', () => {
         await page.getByTestId(lineCellTestId(rowId, 'rate')).fill('90')
         await page.getByTestId('credit-memo-post').click()
         await expect(page).toHaveURL(CREDIT_MEMO_URL)
-        await expect(page).not.toHaveURL(creditMemoUrlOf(posted.id))
+        await expectNotRecordUrl(page, 'credit-memos', posted.id)
         await expect(shown(page, 'credit-memo-read-only')).toBeVisible()
         await expect(shown(page, 'credit-memo-title')).toHaveText(`Credit memo ${posted.number}`)
-        const correctionId = creditMemoIdFromUrl(page)
+        const correctionId = await creditMemoIdFromUrl(page)
         await expect(shown(page, 'credit-memo-invoice-link')).toHaveText(voidLink)
 
         // The invoice lists the correction and the draft, not the replaced original.
         await shown(page, 'credit-memo-invoice-link').click()
-        await expect(page).toHaveURL(invoiceUrlOf(invoice.id))
+        await expectRecordUrl(page, 'invoices', invoice.id)
         const after = shown(page, 'invoice-credit-memos')
         await expect(sectionRows(after)).toHaveCount(2)
         await expect(after.getByTestId(`invoice-credit-memo-${correctionId}`)).toBeVisible()
@@ -438,7 +434,7 @@ test.describe('credit-memo-form: from an invoice', () => {
         )
         await openBooks(second)
         await openAnyInvoiceBySearch(second, invoiceMemo)
-        await expect(second).toHaveURL(invoiceUrlOf(invoice.id))
+        await expectRecordUrl(second, 'invoices', invoice.id)
         await expect(shown(second, 'invoice-title')).toHaveText(`Invoice ${invoice.number}`)
         await expect(shown(second, 'invoice-badge')).toHaveText('Void')
         const failed = shown(second, 'invoice-credit-memos')
@@ -479,7 +475,7 @@ test.describe('credit-memo-form: from an invoice', () => {
         const total = await moneyIn(shown(page, 'credit-memo-total-credit'))
 
         await openInvoiceBySearch(page, invoiceMemo)
-        await expect(page).toHaveURL(invoiceUrlOf(invoice.id))
+        await expectRecordUrl(page, 'invoices', invoice.id)
         const cards = shown(page, 'invoice-credit-memos-cards')
         await expect(cards).toBeVisible()
         await expect(

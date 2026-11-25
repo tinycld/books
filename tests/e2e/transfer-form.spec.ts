@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test'
 import { openEntriesList } from './journal-entries-helpers'
 import { newActionItem, newActionTestId, openNewMenu } from './new-menu-helpers'
+import { expectNotRecordUrl, expectRecordUrl } from './record-key-helpers'
 import {
     chooseTransferAccount,
     DESKTOP,
@@ -237,8 +238,7 @@ test.describe('transfer: form', () => {
         await page.keyboard.press('ControlOrMeta+s')
 
         await expect(page).toHaveURL(TRANSFER_URL)
-        const id = transferIdFromUrl(page)
-        const draftUrl = new RegExp(`/books/transfers/${id}$`)
+        const id = await transferIdFromUrl(page)
         await expect(title).toHaveText('Draft transfer')
         await expect(page.getByTestId('transfer-from')).toHaveText(TRANSFER_LABELS.savings)
         await expect(page.getByTestId('transfer-amount-input')).toHaveValue('$12.34')
@@ -255,20 +255,20 @@ test.describe('transfer: form', () => {
         await page.keyboard.press('Escape')
         await expect(dialog).toHaveCount(0)
         await expect(page.getByTestId('transfer-form')).toBeVisible()
-        await expect(page).toHaveURL(draftUrl)
+        await expectRecordUrl(page, 'transfers', id)
         await expect(memoInput).toHaveValue(changed)
 
         await page.getByTestId('transfer-cancel').click()
         await page.getByTestId('discard-confirm').click()
-        await expect(page).not.toHaveURL(draftUrl)
+        await expectNotRecordUrl(page, 'transfers', id)
 
         await openTransferFromList(page, memo)
-        await expect(page).toHaveURL(draftUrl)
+        await expectRecordUrl(page, 'transfers', id)
         await expect(page.getByTestId('transfer-title')).toHaveText('Draft transfer')
         await expect(page.getByTestId('transfer-memo')).toHaveValue(memo)
         await page.getByTestId('transfer-post').click()
         await expect(page.getByTestId('transfer-read-only')).toBeVisible()
         await expect(page.getByTestId('transfer-title')).toHaveText(/^Transfer TR-\d+$/)
-        await expect(page).toHaveURL(draftUrl)
+        await expectRecordUrl(page, 'transfers', id)
     })
 })

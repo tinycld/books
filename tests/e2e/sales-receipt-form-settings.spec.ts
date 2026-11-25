@@ -6,6 +6,7 @@ import { accountItem, DESKTOP, openChart, PHONE } from './account-register-helpe
 import { NEW_ESTIMATE_URL, openNewEstimate } from './estimate-helpers'
 import { lineCellTestId, NEW_INVOICE_URL, openNewInvoice, uniqueMemo } from './invoice-helpers'
 import { tabTo } from './keyboard-helpers'
+import { expectNotRecordUrl, expectRecordUrl } from './record-key-helpers'
 import {
     chooseReceiptSelect,
     leaveSettings,
@@ -18,7 +19,6 @@ import {
     restoreSalesSettings,
     SALES_RECEIPT_URL,
     salesReceiptIdFromUrl,
-    salesReceiptUrlOf,
     setDefaultMessage,
     setSalesDepositedTo,
     visibleTestId,
@@ -251,7 +251,7 @@ test.describe('sales-receipt-form: settings and keyboard', () => {
         await expect(page.getByTestId('sales-receipt-amount-received')).toContainText(total)
 
         // `c` copies it, with Customer focused.
-        const id = salesReceiptIdFromUrl(page)
+        const id = await salesReceiptIdFromUrl(page)
         await page.keyboard.press('c')
         await expect(page).toHaveURL(new RegExp(`/books/sales-receipts/new\\?copy=${id}$`))
         await expect(customer).toBeFocused()
@@ -273,7 +273,7 @@ test.describe('sales-receipt-form: settings and keyboard', () => {
         await page.getByTestId('sales-receipt-post').click()
         await expect(page.getByTestId('sales-receipt-read-only')).toBeVisible()
         await expect(page).toHaveURL(SALES_RECEIPT_URL)
-        const id = salesReceiptIdFromUrl(page)
+        const id = await salesReceiptIdFromUrl(page)
         const number = await receiptNumber(page)
 
         // From here on, keys only.
@@ -298,7 +298,7 @@ test.describe('sales-receipt-form: settings and keyboard', () => {
 
         await page.keyboard.press('ControlOrMeta+Enter')
         await expect(page).toHaveURL(SALES_RECEIPT_URL)
-        await expect(page).not.toHaveURL(salesReceiptUrlOf(id))
+        await expectNotRecordUrl(page, 'sales-receipts', id)
         await expect(page.getByTestId('sales-receipt-read-only')).toBeVisible()
         await expect(page.getByTestId('sales-receipt-title')).toHaveText(`Sales receipt ${number}`)
         await expect(page.getByTestId('sales-receipt-detail-payment')).toHaveText(
@@ -312,7 +312,7 @@ test.describe('sales-receipt-form: settings and keyboard', () => {
 
         // The search palette reaches the original, now void and replaced.
         await searchByKeys(page, memo, /^Sales receipt \d+ \(void\) · /)
-        await expect(page).toHaveURL(salesReceiptUrlOf(id))
+        await expectRecordUrl(page, 'sales-receipts', id)
         await expect(page.getByTestId('sales-receipt-badge')).toHaveText('Void')
         await expect(page.getByTestId('sales-receipt-replaced-by')).toHaveText(
             `Replaced by ${number} (edited)`
@@ -425,15 +425,15 @@ test.describe('sales-receipt-form: settings and keyboard', () => {
         await page.getByTestId('sales-receipt-save-draft').click()
         await expect(page).toHaveURL(SALES_RECEIPT_URL)
         await expect(page.getByTestId('sales-receipt-title')).toHaveText('Draft sales receipt')
-        const id = salesReceiptIdFromUrl(page)
+        const id = await salesReceiptIdFromUrl(page)
         await page.getByTestId('sales-receipt-cancel').click()
-        await expect(page).not.toHaveURL(salesReceiptUrlOf(id))
+        await expectNotRecordUrl(page, 'sales-receipts', id)
 
         // A changed default changes no saved document: the reopened draft keeps the first.
         await setDefaultMessage(page, second)
         await leaveSettings(page)
         await openSalesReceiptBySearch(page, memo)
-        await expect(page).toHaveURL(salesReceiptUrlOf(id))
+        await expectRecordUrl(page, 'sales-receipts', id)
         await expect(page.getByTestId('sales-receipt-title')).toHaveText('Draft sales receipt')
         await expect(message).toHaveValue(first)
 
@@ -441,7 +441,7 @@ test.describe('sales-receipt-form: settings and keyboard', () => {
         // (server/pdf_sales_receipt_test.go pins the Notes block; the canvas has no text).
         await page.getByTestId('sales-receipt-post').click()
         await expect(page.getByTestId('sales-receipt-read-only')).toBeVisible()
-        await expect(page).toHaveURL(salesReceiptUrlOf(id))
+        await expectRecordUrl(page, 'sales-receipts', id)
         const pdf = page.waitForResponse(r =>
             r.url().includes(`/api/books/pdf/sales_receipt/${id}`)
         )

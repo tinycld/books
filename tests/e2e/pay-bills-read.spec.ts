@@ -19,6 +19,7 @@ import {
     uniqueCheckNo,
     vendorWithBills,
 } from './pay-bills-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 
 // The bill payment read view (spec §3.8, §3.11): its details and Bills paid, the load error
 // with Retry, View journal entry (J), Void (V) and its effect on the bills, and the phone
@@ -71,7 +72,7 @@ test.describe('pay-bills: read view, void and journal', () => {
             route.fulfill({ status: 400, contentType: 'application/json', body: '{}' })
         )
         await searchToBillPayment(page, vendor.name, `Bill payment ${number} · ${vendor.name}`)
-        const id = billPaymentIdFromUrl(page)
+        const id = await billPaymentIdFromUrl(page)
         const loadError = page.getByText('Books could not load this bill payment.', { exact: true })
         await expect(loadError).toBeVisible()
         await page.unrouteAll({ behavior: 'wait' })
@@ -110,7 +111,7 @@ test.describe('pay-bills: read view, void and journal', () => {
             .poll(async () => [...new Set(await names.allInnerTexts())])
             .toEqual([vendor.name])
         await page.goBack()
-        await expect(page).toHaveURL(new RegExp(`/books/bill-payments/${id}$`))
+        await expectRecordUrl(page, 'bill-payments', id)
         await expect(title).toHaveText(`Bill payment ${number}`)
 
         // V: the Void dialog with the spec's text; confirmed, the payment is Void and offers
@@ -151,7 +152,7 @@ test.describe('pay-bills: read view, void and journal', () => {
             vendor.name,
             `Bill payment ${number} (void) · ${vendor.name}`
         )
-        await expect(page).toHaveURL(new RegExp(`/books/bill-payments/${id}$`))
+        await expectRecordUrl(page, 'bill-payments', id)
         await page.setViewportSize(PHONE)
         const card = shown(page, `bill-payment-applied-${first.id}`)
         await expect(card).toContainText(`Bill ${first.number}`)

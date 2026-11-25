@@ -18,6 +18,7 @@ import { bankCard, fakeReadOnlyAccess, openBanking } from './banking-helpers'
 import { EXPENSE_URL } from './expense-helpers'
 import { openReviewTab } from './for-review-helpers'
 import { tabTo } from './keyboard-helpers'
+import { urlKeyOf } from './record-key-helpers'
 import { uniqueMemo } from './transfer-helpers'
 
 // The drawer group connects its own number-less account and imports one OFX file with a
@@ -131,7 +132,7 @@ test.describe
             )
             await expect(page.getByTestId(`bank-match-link-${lineId}`)).toHaveAttribute(
                 'href',
-                new RegExp(`books/transfers/${transfer.id}$`)
+                new RegExp(`books/transfers/${await urlKeyOf(page, 'transfers', transfer.id)}$`)
             )
 
             // After the match the drawer shows the next For review row.

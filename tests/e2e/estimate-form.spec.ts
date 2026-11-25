@@ -11,7 +11,6 @@ import {
     estimateLineRowId,
     estimateLineRows,
     estimateNumberOf,
-    estimateUrlOf,
     NEW_ESTIMATE_URL,
     openNewEstimate,
     pickEstimateCustomer,
@@ -23,6 +22,7 @@ import { lineCellTestId, localToday, uniqueMemo } from './invoice-helpers'
 import { batchOperations } from './journal-entries-helpers'
 import { tabTo } from './keyboard-helpers'
 import { isDisabled } from './record-form-helpers'
+import { expectNotRecordUrl, expectRecordUrl } from './record-key-helpers'
 
 // The estimate form, its Save bar and its states (spec §3.2–§3.10). Every estimate is made
 // by driving the form with a unique memo and reopened through search; the spec never
@@ -206,7 +206,7 @@ test.describe('estimate-form: form and save', () => {
         const before = await historyLength(page)
         await page.keyboard.press('ControlOrMeta+s')
         await expect(page).toHaveURL(ESTIMATE_URL)
-        const id = estimateIdFromUrl(page)
+        const id = await estimateIdFromUrl(page)
         const number = await estimateNumberOf(page)
         expect(await historyLength(page)).toBe(before)
         await expect(page.getByTestId('estimate-badge')).toHaveText('Accepted')
@@ -214,10 +214,10 @@ test.describe('estimate-form: form and save', () => {
 
         // ⌘↵ saves and closes.
         await page.keyboard.press('ControlOrMeta+Enter')
-        await expect(page).not.toHaveURL(estimateUrlOf(id))
+        await expectNotRecordUrl(page, 'estimates', id)
 
         await searchToEstimate(page, memo)
-        await expect(page).toHaveURL(estimateUrlOf(id))
+        await expectRecordUrl(page, 'estimates', id)
         await expect(page.getByTestId('estimate-form')).toBeVisible()
         await expect(page.getByTestId('estimate-title')).toHaveText(`Estimate ${number}`)
         await expect(customer).toContainText(HARBORVIEW.name)
@@ -246,7 +246,7 @@ test.describe('estimate-form: form and save', () => {
 
         // From here on, keys only.
         await searchToEstimate(page, memo)
-        const id = estimateIdFromUrl(page)
+        const id = await estimateIdFromUrl(page)
         const number = await estimateNumberOf(page)
         const customer = page.getByTestId('form-input-customer')
         await expect(customer).toBeFocused()
@@ -268,7 +268,7 @@ test.describe('estimate-form: form and save', () => {
         await expect(page.getByTestId('form-field-expiration_date-error')).toHaveText(
             EXPIRATION_BEFORE_DATE
         )
-        await expect(page).toHaveURL(estimateUrlOf(id))
+        await expectRecordUrl(page, 'estimates', id)
         await expect(page.getByTestId('estimate-title')).toHaveText(`Estimate ${number}`)
 
         await page.keyboard.press('Shift+Tab')
@@ -318,7 +318,7 @@ test.describe('estimate-form: form and save', () => {
         await page.keyboard.press('Escape')
         await expect(page).not.toHaveURL(NEW_ESTIMATE_URL)
         await searchToEstimate(page, memo)
-        await expect(page).toHaveURL(estimateUrlOf(id))
+        await expectRecordUrl(page, 'estimates', id)
         await expect(page.getByTestId('form-input-status')).toContainText('Rejected')
         await expect(expiration).toHaveValue(dayAfter)
         await expect(page.getByTestId('estimate-accepted-by')).toHaveCount(0)
@@ -329,7 +329,7 @@ test.describe('estimate-form: form and save', () => {
         // Esc on the clean form is Cancel: it leaves the estimate.
         await expect(customer).toBeFocused()
         await page.keyboard.press('Escape')
-        await expect(page).not.toHaveURL(estimateUrlOf(id))
+        await expectNotRecordUrl(page, 'estimates', id)
     })
 
     test('status and acceptance save, Expired shows from the saved row, and the PDF opens', async ({
@@ -370,7 +370,7 @@ test.describe('estimate-form: form and save', () => {
         await page.getByTestId('form-input-expiration_date').fill(yesterday)
         await page.getByTestId('estimate-save').click()
         await expect(page).toHaveURL(ESTIMATE_URL)
-        const id = estimateIdFromUrl(page)
+        const id = await estimateIdFromUrl(page)
         const number = await estimateNumberOf(page)
         const badge = page.getByTestId('estimate-badge')
         const expiredBadge = page.getByTestId('estimate-expired-badge')
@@ -500,7 +500,7 @@ test.describe('estimate-form: form and save', () => {
 
         await page.getByTestId('estimate-save').click()
         await expect(page).toHaveURL(ESTIMATE_URL)
-        const id = estimateIdFromUrl(page)
+        const id = await estimateIdFromUrl(page)
         await estimateNumberOf(page)
 
         // The estimate's own read fails: Retry loads it.
@@ -510,7 +510,9 @@ test.describe('estimate-form: form and save', () => {
         )
         await openBooks(second)
         await searchToEstimate(second, memo)
-        await expect(second).toHaveURL(estimateUrlOf(id))
+        // Search opens the estimate by id; the route swaps in its number only once it has
+        // read the estimate, which this page cannot.
+        await expect(second).toHaveURL(new RegExp(`/books/estimates/${id}$`))
         await expect(second.getByTestId('estimate-error')).toContainText(LOAD_FAILED)
         await expect(second.getByTestId('estimate-retry')).toBeVisible()
         await expect(second.getByTestId('estimate-form')).toHaveCount(0)
@@ -526,7 +528,7 @@ test.describe('estimate-form: form and save', () => {
         )
         await openBooks(third)
         await searchToEstimate(third, memo)
-        await expect(third).toHaveURL(estimateUrlOf(id))
+        await expectRecordUrl(third, 'estimates', id)
         await expect(third.getByTestId('estimate-error')).toBeVisible()
         await expect(third.getByTestId('estimate-form')).toHaveCount(0)
         await third.unrouteAll({ behavior: 'wait' })

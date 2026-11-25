@@ -1,6 +1,7 @@
 import { expect, type Page } from '@playwright/test'
 import { openEntriesList } from './journal-entries-helpers'
 import { openNewAction } from './new-menu-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 import { pickFromSearchPicker } from './search-picker-helpers'
 
 // A vendor credit's own screen: `books/vendor-credits/<id>`, never
@@ -10,11 +11,8 @@ export const NEW_VENDOR_CREDIT_URL = /\/books\/vendor-credits\/new(?:[?#].*)?$/
 
 export type CreditTable = 'account_lines' | 'item_lines'
 
-export function vendorCreditIdFromUrl(page: Page): string {
-    const match = /\/books\/vendor-credits\/([^/?#]+)$/.exec(new URL(page.url()).pathname)
-    const id = match?.[1]
-    if (!id || id === 'new') throw new Error(`Not on a saved vendor credit: ${page.url()}`)
-    return id
+export async function vendorCreditIdFromUrl(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'vendor-credits')
 }
 
 // Books must already be open. From the Journal Entries list through the New menu
@@ -95,7 +93,7 @@ export async function postVendorCredit(
     await expect(page).toHaveURL(VENDOR_CREDIT_URL)
     await expect(page.getByTestId('vendor-credit-read-only')).toBeVisible()
     const number = await vendorCreditNumberOf(page)
-    return { id: vendorCreditIdFromUrl(page), number }
+    return { id: await vendorCreditIdFromUrl(page), number }
 }
 
 // A vendor credit's search option title (vendor credit spec §3.11): "Draft vendor credit ·

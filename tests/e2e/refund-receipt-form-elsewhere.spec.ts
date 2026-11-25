@@ -5,13 +5,13 @@ import { formatDay } from '../../tinycld/books/lib/register-range'
 import {
     CREDIT_MEMO_URL,
     creditMemoIdFromUrl,
-    creditMemoUrlOf,
     pickCreditMemoLineProduct,
 } from './credit-memo-helpers'
 import { createCustomer, customerPath, PHONE, uniqueName } from './customer-form-helpers'
 import { lineCellTestId, localToday, uniqueMemo } from './invoice-helpers'
 import { openEntriesList, searchEntries } from './journal-entries-helpers'
 import { nonTaxableService } from './receive-payment-helpers'
+import { expectRecordUrl, recordIdFromUrl } from './record-key-helpers'
 import {
     NEW_REFUND_RECEIPT_URL,
     openNewRefundReceipt,
@@ -21,7 +21,6 @@ import {
     REFUND_RECEIPT_URL,
     refundLineRowId,
     refundReceiptIdFromUrl,
-    refundReceiptUrlOf,
     saveRefundDraft,
     searchToRefundReceipt,
     visibleTestId,
@@ -169,7 +168,7 @@ async function postOpenRefund(page: Page, memo: string) {
     await expect(page).toHaveURL(REFUND_RECEIPT_URL)
     await expect(visibleTestId(page, 'refund-receipt-read-only')).toBeVisible()
     const number = await titleNumber(page, 'refund-receipt-title', 'Refund receipt')
-    return { id: refundReceiptIdFromUrl(page), number }
+    return { id: await refundReceiptIdFromUrl(page), number }
 }
 
 // The journal entry read view's lines' names, in one snapshot.
@@ -198,11 +197,8 @@ function escapeRegExp(text: string) {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-function entryIdFromUrl(page: Page): string {
-    const match = /\/books\/entries\/([^/?#]+)$/.exec(new URL(page.url()).pathname)
-    const id = match?.[1]
-    if (!id) throw new Error(`Not on a journal entry: ${page.url()}`)
-    return id
+async function entryIdFromUrl(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'entries')
 }
 
 test.describe('refund-receipt-form: elsewhere', () => {
@@ -332,7 +328,7 @@ test.describe('refund-receipt-form: elsewhere', () => {
         await page.getByTestId('credit-memo-post').click()
         await expect(page).toHaveURL(CREDIT_MEMO_URL)
         await expect(page.getByTestId('credit-memo-read-only')).toBeVisible()
-        const memoId = creditMemoIdFromUrl(page)
+        const memoId = await creditMemoIdFromUrl(page)
 
         // A plain refund of 30.00, from the New transaction menu: the customer is filled.
         await backToCustomerTransactions(page, customerId)
@@ -371,7 +367,7 @@ test.describe('refund-receipt-form: elsewhere', () => {
             `${MINUS}$30.00`
         )
         await transaction(page, plain.id).click()
-        await expect(page).toHaveURL(refundReceiptUrlOf(plain.id))
+        await expectRecordUrl(page, 'refund-receipts', plain.id)
         await expect(visibleTestId(page, 'refund-receipt-read-only')).toBeVisible()
 
         // A payout of 40.00 (Refund credit): Open rises by 40.00; the memo stays Unapplied.
@@ -381,7 +377,7 @@ test.describe('refund-receipt-form: elsewhere', () => {
         await allChip.click()
         await expect(allChip).toHaveAttribute('aria-pressed', 'true')
         await transaction(page, memoId).click()
-        await expect(page).toHaveURL(creditMemoUrlOf(memoId))
+        await expectRecordUrl(page, 'credit-memos', memoId)
         await visibleTestId(page, 'credit-memo-read-refund-credit').click()
         await expect(page).toHaveURL(
             new RegExp(`/books/refund-receipts/new\\?(?:[^#]*&)?credit_memo=${memoId}(?:[&#]|$)`)
@@ -395,7 +391,7 @@ test.describe('refund-receipt-form: elsewhere', () => {
 
         // A payout of the rest, 60.00: the memo reads Refunded and Open is back.
         await transaction(page, memoId).click()
-        await expect(page).toHaveURL(creditMemoUrlOf(memoId))
+        await expectRecordUrl(page, 'credit-memos', memoId)
         await visibleTestId(page, 'credit-memo-read-refund-credit').click()
         await expect(page).toHaveURL(NEW_REFUND_RECEIPT_URL)
         const restRow = await refundLineRowId(page, 0)
@@ -421,7 +417,7 @@ test.describe('refund-receipt-form: elsewhere', () => {
         // J: the journal entry, whose lines name the customer.
         await page.keyboard.press('j')
         await expect(page).toHaveURL(/\/books\/entries\/[^/?#]+$/)
-        const entryId = entryIdFromUrl(page)
+        const entryId = await entryIdFromUrl(page)
         await expect(page.getByTestId('entry-read-only')).toBeVisible()
         await expect
             .poll(async () => [...new Set(await entryLineNames(page))])
@@ -437,7 +433,7 @@ test.describe('refund-receipt-form: elsewhere', () => {
         await expect(page.getByTestId('entries-menu-edit')).toBeVisible()
         await expect(page.getByTestId('entries-menu-reverse')).toHaveCount(0)
         await page.getByTestId('entries-menu-open').click()
-        await expect(page).toHaveURL(refundReceiptUrlOf(id))
+        await expectRecordUrl(page, 'refund-receipts', id)
         await expect(visibleTestId(page, 'refund-receipt-read-only')).toBeVisible()
 
         await openEntriesList(page)
@@ -452,7 +448,7 @@ test.describe('refund-receipt-form: elsewhere', () => {
         // The search palette finds the refund by its reference no.
         const title = `Refund receipt ${number} · ${HARBORVIEW}`
         await searchToRefundReceipt(page, reference, new RegExp(`^${escapeRegExp(title)}`))
-        await expect(page).toHaveURL(refundReceiptUrlOf(id))
+        await expectRecordUrl(page, 'refund-receipts', id)
         await expect(visibleTestId(page, 'refund-receipt-read-only')).toBeVisible()
     })
 })

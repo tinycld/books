@@ -24,6 +24,7 @@ import {
     uniqueMemo,
 } from './invoice-helpers'
 import { PAYMENT_URL, rowAmount } from './receive-payment-helpers'
+import { expectNotRecordUrl } from './record-key-helpers'
 import { writeOffOpenInvoice } from './write-off-helpers'
 
 // The customer's invoice page at /p/books/invoices/<token> (email-share spec §3.5; plan
@@ -82,7 +83,7 @@ test.describe('email-share: public invoice page', () => {
         await openBooks(page, DESKTOP)
         const invoice = await postedInvoiceWithEmail(page)
         await openInvoiceBySearch(page, invoice.memo)
-        const invoiceId = invoiceIdFromUrl(page)
+        const invoiceId = await invoiceIdFromUrl(page)
         const total = (await page.getByTestId('invoice-balance-due').innerText()).trim()
         expect(total).toBe('$212.50')
 
@@ -241,7 +242,7 @@ test.describe('email-share: public invoice page', () => {
         }
 
         await openInvoiceBySearch(page, edited.memo)
-        const oldId = invoiceIdFromUrl(page)
+        const oldId = await invoiceIdFromUrl(page)
         const oldLink = await copyInvoiceLink(page)
 
         // Edit the posted invoice and post the correction (it keeps the number).
@@ -251,7 +252,7 @@ test.describe('email-share: public invoice page', () => {
         await page.getByTestId(lineCellTestId(rowId, 'quantity')).fill('2')
         await page.getByTestId('invoice-post').click()
         await expect(page).toHaveURL(INVOICE_URL)
-        await expect(page).not.toHaveURL(new RegExp(`/books/invoices/${oldId}$`))
+        await expectNotRecordUrl(page, 'invoices', oldId)
         await expect(page.getByTestId('invoice-read-only').filter({ visible: true })).toBeVisible()
 
         const oldPage = await openInvoicePublicPage(browser, oldLink)

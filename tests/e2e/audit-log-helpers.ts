@@ -11,6 +11,7 @@ import {
     pickLineProduct,
 } from './invoice-helpers'
 import { openEntriesList, searchEntries } from './journal-entries-helpers'
+import { expectRecordUrl, isRecordKeyRoute, recordIdFromUrl } from './record-key-helpers'
 
 // A seeded active product an invoice line can take (invoice-form-post.spec.ts uses it too).
 function invoiceProduct(): string {
@@ -160,13 +161,17 @@ export async function postInvoiceFor(
     const text = await title.innerText()
     const number = /^Invoice (\d+)$/.exec(text)?.[1]
     if (!number) throw new Error(`no invoice number in the title "${text}"`)
-    return { id: invoiceIdFromUrl(page), number }
+    return { id: await invoiceIdFromUrl(page), number }
 }
 
-// The id of the record whose screen is open, read from the URL's last segment.
-export function openRecordId(page: Page): string {
-    const id = /\/([a-z0-9]{15})$/.exec(new URL(page.url()).pathname)?.[1]
-    if (!id) throw new Error(`no record id at the end of ${page.url()}`)
+// The id of the record whose screen is open, read from the URL's last segment: the
+// record's id, or the URL key of a document or an entry (record-key-helpers.ts).
+export async function openRecordId(page: Page): Promise<string> {
+    const match = /\/books\/([^/]+)\/([^/?#]+)$/.exec(new URL(page.url()).pathname)
+    const route = match?.[1]
+    const id = match?.[2]
+    if (!route || !id) throw new Error(`no record id at the end of ${page.url()}`)
+    if (isRecordKeyRoute(route)) return recordIdFromUrl(page, route)
     return id
 }
 
@@ -193,7 +198,7 @@ export async function openEntryFromList(page: Page, memo: string, id: string): P
     await openEntriesList(page)
     await searchEntries(page, memo)
     await page.getByTestId(`entries-row-${id}`).click()
-    await expect(page).toHaveURL(new RegExp(`/books/entries/${id}$`))
+    await expectRecordUrl(page, 'entries', id)
 }
 
 // The events of the history on screen, newest first.

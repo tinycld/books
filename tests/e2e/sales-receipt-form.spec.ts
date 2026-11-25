@@ -12,6 +12,7 @@ import {
 } from './invoice-helpers'
 import { openEntriesList, PHONE, searchEntries } from './journal-entries-helpers'
 import { isDisabled } from './record-form-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import {
     chooseReceiptSelect,
     NEW_SALES_RECEIPT_URL,
@@ -22,7 +23,6 @@ import {
     receiptLineRowId,
     SALES_RECEIPT_URL,
     salesReceiptIdFromUrl,
-    salesReceiptUrlOf,
     searchToSalesReceipt,
 } from './sales-receipt-helpers'
 
@@ -107,7 +107,7 @@ async function saveReceiptDraft(page: Page, memo: string): Promise<string> {
     await page.getByTestId('sales-receipt-save-draft').click()
     await expect(page).toHaveURL(SALES_RECEIPT_URL)
     await expect(page.getByTestId('sales-receipt-title')).toHaveText('Draft sales receipt')
-    return salesReceiptIdFromUrl(page)
+    return await salesReceiptIdFromUrl(page)
 }
 
 test.describe('sales-receipt-form: form and read view', () => {
@@ -168,7 +168,7 @@ test.describe('sales-receipt-form: form and read view', () => {
         await page.keyboard.press('Alt+1')
         await page.getByTestId('sales-receipt-save-draft').click()
         await expect(page).toHaveURL(SALES_RECEIPT_URL)
-        const id = salesReceiptIdFromUrl(page)
+        const id = await salesReceiptIdFromUrl(page)
         await expect(page.getByTestId('sales-receipt-title')).toHaveText('Draft sales receipt')
         await expect(page.getByTestId('form-input-customer')).toBeFocused()
         await expect.poll(() => billToText(page)).toContain(street)
@@ -199,7 +199,7 @@ test.describe('sales-receipt-form: form and read view', () => {
 
         await page.getByTestId('sales-receipt-post').click()
         await expect(page.getByTestId('sales-receipt-read-only')).toBeVisible()
-        await expect(page).toHaveURL(salesReceiptUrlOf(id))
+        await expectRecordUrl(page, 'sales-receipts', id)
         const number = await receiptNumber(page)
         await expect(page.getByTestId('sales-receipt-detail-customer')).toContainText('No customer')
         await expect(page.getByTestId('sales-receipt-detail-payment')).toHaveText(
@@ -231,7 +231,7 @@ test.describe('sales-receipt-form: form and read view', () => {
         await expect(page.getByTestId('entries-menu-open')).toBeVisible()
         await expect(page.getByTestId('entries-menu-reverse')).toHaveCount(0)
         await page.getByTestId('entries-menu-open').click()
-        await expect(page).toHaveURL(salesReceiptUrlOf(id))
+        await expectRecordUrl(page, 'sales-receipts', id)
         await expect(page.getByTestId('sales-receipt-read-only')).toBeVisible()
 
         // The invoice's shared Customer field shows the exempt hint too.
@@ -262,7 +262,7 @@ test.describe('sales-receipt-form: form and read view', () => {
         await expect.poll(async () => [...new Set(await drawerNames.allInnerTexts())]).toEqual([''])
         await expect(drawer.getByText(/Reverse/)).toHaveCount(0)
         await drawer.getByTestId('register-drawer-open-entry').click()
-        await expect(page).toHaveURL(salesReceiptUrlOf(id))
+        await expectRecordUrl(page, 'sales-receipts', id)
         await expect(page.getByTestId('sales-receipt-read-only')).toBeVisible()
     })
 
@@ -337,7 +337,7 @@ test.describe('sales-receipt-form: form and read view', () => {
         )
         await openBooks(second)
         await searchToSalesReceipt(second, memo)
-        await expect(second).toHaveURL(salesReceiptUrlOf(id))
+        await expectRecordUrl(second, 'sales-receipts', id)
         await expect(second.getByTestId('sales-receipt-error')).toContainText(
             'Books could not load this sales receipt.'
         )
@@ -355,7 +355,7 @@ test.describe('sales-receipt-form: form and read view', () => {
         )
         await openBooks(third)
         await searchToSalesReceipt(third, memo)
-        await expect(third).toHaveURL(salesReceiptUrlOf(id))
+        await expectRecordUrl(third, 'sales-receipts', id)
         await expect(third.getByTestId('sales-receipt-error')).toBeVisible()
         await expect(third.getByTestId('sales-receipt-form')).toHaveCount(0)
         await third.unrouteAll({ behavior: 'wait' })
@@ -378,7 +378,7 @@ test.describe('sales-receipt-form: form and read view', () => {
         await page.getByTestId('sales-receipt-post').click()
         await expect(page.getByTestId('sales-receipt-read-only')).toBeVisible()
         await expect(page).toHaveURL(SALES_RECEIPT_URL)
-        const id = salesReceiptIdFromUrl(page)
+        const id = await salesReceiptIdFromUrl(page)
         const number = await receiptNumber(page)
 
         await page.setViewportSize(PHONE)

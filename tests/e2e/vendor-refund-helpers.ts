@@ -4,6 +4,7 @@ import { DESKTOP } from './account-register-helpers'
 import { uniqueMemo } from './invoice-helpers'
 import { openEntriesList } from './journal-entries-helpers'
 import { openNewAction } from './new-menu-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 import { pickFromSearchPicker } from './search-picker-helpers'
 import {
     creditCellTestId,
@@ -48,11 +49,8 @@ export function watchRefundWrites(page: Page): string[] {
     return writes
 }
 
-export function vendorRefundIdFromUrl(page: Page): string {
-    const match = /\/books\/vendor-refunds\/([^/?#]+)$/.exec(new URL(page.url()).pathname)
-    const id = match?.[1]
-    if (!id || id === 'new') throw new Error(`Not on a saved vendor refund: ${page.url()}`)
-    return id
+export async function vendorRefundIdFromUrl(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'vendor-refunds')
 }
 
 export type CreditInput = {
@@ -122,7 +120,7 @@ export async function vendorWithCredits(
         await expect(page).toHaveURL(VENDOR_CREDIT_URL)
         await expect(page.getByTestId('vendor-credit-read-only')).toBeVisible()
         const number = await vendorCreditNumberOf(page)
-        posted.push({ id: vendorCreditIdFromUrl(page), number, memo })
+        posted.push({ id: await vendorCreditIdFromUrl(page), number, memo })
     }
     await returnTo(page, start)
     return { vendor: { id: vendorId, name }, credits: posted }
@@ -223,7 +221,7 @@ export async function postRefundOn(
     await page.getByTestId('vendor-refund-post').click()
     await expect(page).toHaveURL(VENDOR_REFUND_URL)
     await expect(shownRefund(page, 'vendor-refund-read-only')).toBeVisible()
-    return { id: vendorRefundIdFromUrl(page), number: await refundNumberOf(page) }
+    return { id: await vendorRefundIdFromUrl(page), number: await refundNumberOf(page) }
 }
 
 /**

@@ -48,7 +48,7 @@ test.describe('audit-log: access (collaborator level)', () => {
         await navigateToPackage(page, 'books')
         const customer = uniqueName('Audit access customer')
         await createCustomer(page, { name: customer })
-        const customerId = openRecordId(page)
+        const customerId = await openRecordId(page)
         const invoiceMemo = uniqueMemo('Audit access invoice')
         const invoice = await postInvoiceFor(page, customer, invoiceMemo)
         const entryMemo = uniqueMemo('Audit access entry')
@@ -58,7 +58,7 @@ test.describe('audit-log: access (collaborator level)', () => {
             debitAccount: ACCOUNT_LABELS.checking,
             creditAccount: ACCOUNT_LABELS.equity,
         })
-        const entryId = openRecordId(page)
+        const entryId = await openRecordId(page)
         const entryTitle = `Journal entry ${await postedEntryNumber(page)}`
 
         restore.level = await collaboratorLevel(page)

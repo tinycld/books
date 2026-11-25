@@ -15,6 +15,7 @@ import {
     settleFrames,
 } from './journal-entries-helpers'
 import { uniqueName } from './record-form-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 
 // The per-row menu on the entries list (Open, Edit, Reverse, Void, Delete) and the dialogs it
 // opens.
@@ -65,8 +66,10 @@ async function itemId(item: Locator) {
     return testId.replace(/^entries-(row|card)-/, '')
 }
 
-function entryIdOf(page: Page) {
-    return new URL(page.url()).pathname.split('/').pop() ?? ''
+// The id of the entry the page is on, or '' off a saved entry (the list, a new form).
+async function entryIdOf(page: Page) {
+    if (!/\/books\/entries\/(?!new$)[^/]+$/.test(new URL(page.url()).pathname)) return ''
+    return recordIdFromUrl(page, 'entries')
 }
 
 async function backToList(page: Page) {
@@ -171,7 +174,7 @@ async function goBackToList(page: Page) {
 
 async function makePosted(page: Page, memo: string) {
     await createPostedEntry(page, entryInput(memo))
-    return { id: entryIdOf(page), number: await entryNumber(page) }
+    return { id: await entryIdOf(page), number: await entryNumber(page) }
 }
 
 for (const [sizeName, size] of SIZES) {
@@ -211,7 +214,7 @@ for (const [sizeName, size] of SIZES) {
             await findItem(page, ENTRIES_SEED.posted)
             await chooseFromMenu(page, posted.id, 'open')
             await expect(page.getByTestId('entry-read-only')).toBeVisible()
-            expect(entryIdOf(page)).toBe(posted.id)
+            expect(await entryIdOf(page)).toBe(posted.id)
 
             await backToList(page)
             await findItem(page, ENTRIES_SEED.posted)
@@ -453,7 +456,7 @@ test.describe('journal-entries: row menu and flows (desktop)', () => {
         await start(page, size)
         const memo = uniqueName(`Stale delete ${sizeName}`)
         await createDraftEntry(page, entryInput(memo))
-        const id = entryIdOf(page)
+        const id = await entryIdOf(page)
         const draftUrl = page.url()
         await backToList(page)
         await findItem(page, memo)
@@ -525,7 +528,7 @@ test.describe('journal-entries: row menu and flows (desktop)', () => {
         await start(page, size)
         const memo = uniqueName(`Menu delete ${sizeName}`)
         await createDraftEntry(page, entryInput(memo))
-        const id = entryIdOf(page)
+        const id = await entryIdOf(page)
         await backToList(page)
         await findItem(page, memo)
 

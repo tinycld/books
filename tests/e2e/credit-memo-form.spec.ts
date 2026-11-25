@@ -7,7 +7,6 @@ import {
     CREDIT_MEMO_URL,
     creditMemoIdFromUrl,
     creditMemoLineRowId,
-    creditMemoUrlOf,
     NEW_CREDIT_MEMO_URL,
     openNewCreditMemo,
     pickCreditMemoCustomer,
@@ -20,6 +19,7 @@ import { batchWriteIndex } from './document-batch-helpers'
 import { lineCellTestId, localToday, uniqueMemo } from './invoice-helpers'
 import { openEntriesList, searchEntries } from './journal-entries-helpers'
 import { isDisabled } from './record-form-helpers'
+import { expectNotRecordUrl, expectRecordUrl, recordIdFromUrl } from './record-key-helpers'
 
 // The credit memo form and its read view (credit memo spec §3.2–§3.9). Every memo is
 // made by driving the form with a unique memo text and the default date (today, after the
@@ -81,11 +81,8 @@ async function memoNumber(page: Page): Promise<string> {
     return number
 }
 
-function entryIdFromUrl(page: Page): string {
-    const match = /\/books\/entries\/([^/?#]+)$/.exec(new URL(page.url()).pathname)
-    const id = match?.[1]
-    if (!id) throw new Error(`Not on a journal entry: ${page.url()}`)
-    return id
+async function entryIdFromUrl(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'entries')
 }
 
 // The entry read view's lines, in one snapshot: account label, debit, credit and name.
@@ -180,11 +177,11 @@ test.describe('credit-memo-form: form and read view', () => {
         await page.getByTestId(lineCellTestId(rowId, 'rate')).fill('120')
         await page.getByTestId('credit-memo-post').click()
         await expect(page).toHaveURL(CREDIT_MEMO_URL)
-        await expect(page).not.toHaveURL(creditMemoUrlOf(id))
+        await expectNotRecordUrl(page, 'credit-memos', id)
         await expect(page.getByTestId('credit-memo-read-only')).toBeVisible()
         await expect(page.getByTestId('credit-memo-title')).toHaveText(`Credit memo ${number}`)
         await expect(page.getByTestId('credit-memo-total-subtotal')).toContainText('$120.00')
-        const correctionId = creditMemoIdFromUrl(page)
+        const correctionId = await creditMemoIdFromUrl(page)
         const total = await moneyIn(page.getByTestId('credit-memo-total'))
 
         // `j`: the entry credits Accounts receivable for the total and debits income and
@@ -192,7 +189,7 @@ test.describe('credit-memo-form: form and read view', () => {
         // lines); every line names the customer.
         await page.keyboard.press('j')
         await expect(page).toHaveURL(/\/books\/entries\/[^/?#]+$/)
-        const entryId = entryIdFromUrl(page)
+        const entryId = await entryIdFromUrl(page)
         const entry = page.getByTestId('entry-read-only')
         await expect(entry.getByTestId('entry-detail-type')).toContainText('Credit memo')
         await expect
@@ -224,12 +221,12 @@ test.describe('credit-memo-form: form and read view', () => {
         await expect(page.getByTestId('entries-menu-open')).toBeVisible()
         await expect(page.getByTestId('entries-menu-reverse')).toHaveCount(0)
         await page.getByTestId('entries-menu-open').click()
-        await expect(page).toHaveURL(creditMemoUrlOf(correctionId))
+        await expectRecordUrl(page, 'credit-memos', correctionId)
         await expect(page.getByTestId('credit-memo-read-only')).toBeVisible()
 
         // The original is void and names its correction.
         await searchToCreditMemo(page, memo, /^Credit memo \d+ \(void\) · /)
-        await expect(page).toHaveURL(creditMemoUrlOf(id))
+        await expectRecordUrl(page, 'credit-memos', id)
         // The correction's read view stays mounted under the pushed original.
         await expect(page.locator('[data-testid="credit-memo-badge"]:visible')).toHaveText('Void')
         await expect(page.getByTestId('credit-memo-replaced-by')).toHaveText(
@@ -337,7 +334,7 @@ test.describe('credit-memo-form: form and read view', () => {
         )
         await openBooks(second)
         await searchToCreditMemo(second, memo)
-        await expect(second).toHaveURL(creditMemoUrlOf(id))
+        await expectRecordUrl(second, 'credit-memos', id)
         await expect(second.getByTestId('credit-memo-error')).toContainText(
             'Books could not load this credit memo.'
         )
@@ -357,7 +354,7 @@ test.describe('credit-memo-form: form and read view', () => {
         )
         await openBooks(third)
         await searchToCreditMemo(third, memo)
-        await expect(third).toHaveURL(creditMemoUrlOf(id))
+        await expectRecordUrl(third, 'credit-memos', id)
         await expect(third.getByTestId('credit-memo-error')).toContainText(
             'Books could not load this credit memo.'
         )
@@ -385,7 +382,7 @@ test.describe('credit-memo-form: form and read view', () => {
         await third.keyboard.press('ControlOrMeta+Backspace')
         await expect(third.getByTestId('delete-draft-dialog')).toBeVisible()
         await third.getByTestId('delete-draft-confirm').click()
-        await expect(third).not.toHaveURL(creditMemoUrlOf(id))
+        await expectNotRecordUrl(third, 'credit-memos', id)
         await expect(third.getByTestId('credit-memo-form')).toHaveCount(0)
 
         await third.keyboard.press('/')
@@ -421,7 +418,7 @@ test.describe('credit-memo-form: form and read view', () => {
         await page.getByTestId('credit-memo-post').click()
         await expect(page).toHaveURL(CREDIT_MEMO_URL)
         await expect(page.getByTestId('credit-memo-read-more')).toBeVisible()
-        const id = creditMemoIdFromUrl(page)
+        const id = await creditMemoIdFromUrl(page)
         const number = await memoNumber(page)
 
         // The read lines draw as cards ("1 · <product>", "<qty> × <rate>"), not the grid

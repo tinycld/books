@@ -3,21 +3,15 @@ import { isPhone } from './account-register-helpers'
 import { lineCellTestId } from './invoice-helpers'
 import { openEntriesList } from './journal-entries-helpers'
 import { openNewAction } from './new-menu-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 import { pickFromSearchPicker } from './search-picker-helpers'
 
 // An estimate's own screen: `books/estimates/<id>`, never `books/estimates/new`.
 export const ESTIMATE_URL = /\/books\/estimates\/(?!new(?:[?#]|$))[^/?#]+$/
 export const NEW_ESTIMATE_URL = /\/books\/estimates\/new(?:[?#].*)?$/
 
-export function estimateUrlOf(id: string) {
-    return new RegExp(`/books/estimates/${id}$`)
-}
-
-export function estimateIdFromUrl(page: Page): string {
-    const match = /\/books\/estimates\/([^/?#]+)$/.exec(new URL(page.url()).pathname)
-    const id = match?.[1]
-    if (!id || id === 'new') throw new Error(`Not on a saved estimate: ${page.url()}`)
-    return id
+export async function estimateIdFromUrl(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'estimates')
 }
 
 // Books must already be open. From the Journal Entries list through the New menu

@@ -38,6 +38,7 @@ import {
     searchProducts,
     uniqueName,
 } from './products-services-helpers'
+import { expectRecordUrl, recordIdFromUrl } from './record-key-helpers'
 
 // Record history as a Books screen, opened from an Audit Log row (spec §3 Record history).
 // Every change is made through the UI; the reader's zone is Central time, not the
@@ -174,8 +175,7 @@ test.describe('audit-log: record history', () => {
             debitAccount: ACCOUNT_LABELS.checking,
             creditAccount: ACCOUNT_LABELS.equity,
         })
-        const entryId = /\/books\/entries\/([a-z0-9]{15})/.exec(page.url())?.[1]
-        if (!entryId) throw new Error(`no entry id in ${page.url()}`)
+        const entryId = await recordIdFromUrl(page, 'entries')
 
         // The saved draft, both sides changed, saved again, then posted.
         await fillLine(page, 0, { debit: second })
@@ -207,7 +207,7 @@ test.describe('audit-log: record history', () => {
         ).toHaveCount(1)
 
         await page.getByTestId('history-open').click()
-        await expect(page).toHaveURL(new RegExp(`/books/entries/${entryId}`))
+        await expectRecordUrl(page, 'entries', entryId)
         // The report's row link pushed the history on top of the Books stack, so the entry
         // screen posted earlier stays mounted and hidden under the one Open pushes.
         await expect(page.getByTestId('entry-read-only').filter({ visible: true })).toBeVisible()
@@ -270,7 +270,7 @@ test.describe('audit-log: record history', () => {
         // The invoice's customer, new, from the Books landing.
         const customer = uniqueName('Audit menu customer')
         await createCustomer(page, { name: customer })
-        const customerId = openRecordId(page)
+        const customerId = await openRecordId(page)
         const customerItems = await openMoreMenu(page, 'customer-more')
         await expect(customerItems).toHaveText([
             'Add sub-customer',
@@ -330,7 +330,7 @@ test.describe('audit-log: record history', () => {
             debitAccount: ACCOUNT_LABELS.checking,
             creditAccount: ACCOUNT_LABELS.equity,
         })
-        const postedId = openRecordId(page)
+        const postedId = await openRecordId(page)
         const postedTitle = `Journal entry ${await postedEntryNumber(page)}`
         await openEntryFromList(page, postedMemo, postedId)
         await expect(page.getByTestId('entry-read-only').filter({ visible: true })).toBeVisible()
@@ -359,7 +359,7 @@ test.describe('audit-log: record history', () => {
             debitAccount: ACCOUNT_LABELS.checking,
             creditAccount: ACCOUNT_LABELS.equity,
         })
-        const draftId = openRecordId(page)
+        const draftId = await openRecordId(page)
         await openEntryFromList(page, draftMemo, draftId)
         await expect(page.getByTestId('entry-badge').filter({ visible: true })).toHaveText('Draft')
         const draftItems = await openMoreMenu(page, 'entry-more')

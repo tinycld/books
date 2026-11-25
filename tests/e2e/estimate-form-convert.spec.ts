@@ -13,7 +13,6 @@ import {
     estimateLineRowId,
     estimateLineRows,
     estimateNumberOf,
-    estimateUrlOf,
     INVOICE_FROM_ESTIMATE_URL,
     NEW_ESTIMATE_URL,
     openEstimateBySearch,
@@ -32,6 +31,7 @@ import {
     uniqueMemo,
 } from './invoice-helpers'
 import { batchOperations } from './journal-entries-helpers'
+import { expectNotRecordUrl, expectRecordUrl } from './record-key-helpers'
 
 // Convert to invoice, Delete estimate and undoing a conversion (spec §3.6–§3.8). Every
 // estimate is made by driving the form with a unique memo and reopened through search;
@@ -65,10 +65,6 @@ function addDays(day: string, days: number): string {
     const date = new Date(`${day}T00:00:00Z`)
     date.setUTCDate(date.getUTCDate() + days)
     return date.toISOString().slice(0, 10)
-}
-
-function invoiceUrlOf(id: string) {
-    return new RegExp(`/books/invoices/${id}$`)
 }
 
 async function openBooks(page: Page) {
@@ -116,7 +112,7 @@ async function fillNewEstimate(page: Page, memo: string) {
 async function saveNewEstimate(page: Page) {
     await page.getByTestId('estimate-save').click()
     await expect(page).toHaveURL(ESTIMATE_URL)
-    return { id: estimateIdFromUrl(page), number: await estimateNumberOf(page) }
+    return { id: await estimateIdFromUrl(page), number: await estimateNumberOf(page) }
 }
 
 test.describe('estimate-form: convert and delete', () => {
@@ -207,7 +203,7 @@ test.describe('estimate-form: convert and delete', () => {
         // Convert replaced the new route with the saved estimate's before it pushed the
         // invoice form, so Back is the saved estimate.
         await page.goBack()
-        await expect(page).toHaveURL(estimateUrlOf(id))
+        await expectRecordUrl(page, 'estimates', id)
         await expect(page.getByTestId('estimate-form')).toBeVisible()
         await expect(page.getByTestId('estimate-title')).toHaveText(`Estimate ${number}`)
         await page.goForward()
@@ -217,11 +213,11 @@ test.describe('estimate-form: convert and delete', () => {
         // The invoice's first save closes the estimate.
         await page.getByTestId('invoice-save-draft').click()
         await expect(page).toHaveURL(INVOICE_URL)
-        const invoiceId = invoiceIdFromUrl(page)
+        const invoiceId = await invoiceIdFromUrl(page)
         await expect(page.getByTestId('invoice-title')).toHaveText('Draft invoice')
 
         await openInvoiceFromEstimateLink(page)
-        await expect(page).toHaveURL(estimateUrlOf(id))
+        await expectRecordUrl(page, 'estimates', id)
         await expect(page.getByTestId('estimate-read-only')).toBeVisible()
         await expect(page.getByTestId('estimate-badge')).toHaveText('Closed')
         await expect(page.getByTestId('estimate-converted-to')).toHaveText(
@@ -235,13 +231,13 @@ test.describe('estimate-form: convert and delete', () => {
         // I opens the invoice; deleting its draft goes Back to the estimate, which reopens
         // as Pending on that screen.
         await page.keyboard.press('i')
-        await expect(page).toHaveURL(invoiceUrlOf(invoiceId))
+        await expectRecordUrl(page, 'invoices', invoiceId)
         await expect(page.getByTestId('invoice-form')).toBeVisible()
         await page.getByTestId('invoice-more').click()
         await page.getByTestId('invoice-delete-draft').click()
         await expect(page.getByTestId('delete-draft-dialog')).toBeVisible()
         await page.getByTestId('delete-draft-confirm').click()
-        await expect(page).toHaveURL(estimateUrlOf(id))
+        await expectRecordUrl(page, 'estimates', id)
         await expect(page.getByTestId('estimate-form').filter({ visible: true })).toBeVisible()
         await expect(page.getByTestId('estimate-badge')).toHaveText('Pending')
         await expect(page.getByTestId('estimate-converted-to')).toHaveCount(0)
@@ -262,7 +258,7 @@ test.describe('estimate-form: convert and delete', () => {
         await page.getByTestId('invoice-save-draft').click()
         await expect(page).toHaveURL(INVOICE_URL)
         await openInvoiceFromEstimateLink(page)
-        await expect(page).toHaveURL(estimateUrlOf(id))
+        await expectRecordUrl(page, 'estimates', id)
         await expect(page.getByTestId('estimate-read-only').filter({ visible: true })).toBeVisible()
 
         const other = await otherSession(browser)
@@ -281,7 +277,7 @@ test.describe('estimate-form: convert and delete', () => {
         await expect(form.getByTestId('estimate-badge')).toHaveText('Pending')
         await expect(form.getByTestId('form-input-customer')).not.toBeFocused()
         await openEstimateBySearch(page, memo)
-        await expect(page).toHaveURL(estimateUrlOf(id))
+        await expectRecordUrl(page, 'estimates', id)
     })
 
     test('accepted, posted, voided, delete refused', async ({ page }) => {
@@ -305,7 +301,7 @@ test.describe('estimate-form: convert and delete', () => {
         await expect(page).toHaveURL(INVOICE_FROM_ESTIMATE_URL)
         await expect(page.getByTestId('invoice-form')).toBeVisible()
         await page.getByTestId('invoice-cancel').click()
-        await expect(page).toHaveURL(estimateUrlOf(id))
+        await expectRecordUrl(page, 'estimates', id)
         await expect(page.getByTestId('estimate-form')).toBeVisible()
         await expect(page.getByTestId('estimate-badge')).toHaveText('Accepted')
 
@@ -335,7 +331,7 @@ test.describe('estimate-form: convert and delete', () => {
         // estimate; a later mount of the same `?estimate` route did not write the draft, so
         // it cannot convert the estimate again.
         await page.getByTestId('invoice-cancel').click()
-        await expect(page).toHaveURL(estimateUrlOf(id))
+        await expectRecordUrl(page, 'estimates', id)
         await expect(page.getByTestId('estimate-read-only').filter({ visible: true })).toBeVisible()
         const draftLink = page.getByTestId('estimate-converted-to').filter({ visible: true })
         await expect(draftLink).toHaveText('Converted to a draft invoice')
@@ -348,14 +344,14 @@ test.describe('estimate-form: convert and delete', () => {
 
         // Post the draft from the estimate's "Converted to a draft invoice" link.
         await page.goBack()
-        await expect(page).toHaveURL(estimateUrlOf(id))
+        await expectRecordUrl(page, 'estimates', id)
         await draftLink.click()
         await expect(page).toHaveURL(INVOICE_URL)
         await expect(page.getByTestId('invoice-form').filter({ visible: true })).toBeVisible()
         await page.getByTestId('invoice-post').filter({ visible: true }).click()
         await expect(page.getByTestId('invoice-read-only')).toBeVisible()
         await expect(page).toHaveURL(INVOICE_URL)
-        const invoiceId = invoiceIdFromUrl(page)
+        const invoiceId = await invoiceIdFromUrl(page)
         const invoiceNumber = await invoiceNumberOf(page)
 
         // The posted invoice names its estimate under the Posted-by stamp.
@@ -371,7 +367,7 @@ test.describe('estimate-form: convert and delete', () => {
             .toBeGreaterThanOrEqual(0)
 
         await openInvoiceFromEstimateLink(page)
-        await expect(page).toHaveURL(estimateUrlOf(id))
+        await expectRecordUrl(page, 'estimates', id)
         await expect(page.getByTestId('estimate-read-only')).toBeVisible()
         await expect(page.getByTestId('estimate-converted-to')).toHaveText(
             `Converted to invoice ${invoiceNumber}`
@@ -409,7 +405,7 @@ test.describe('estimate-form: convert and delete', () => {
         const convertedTo = page.getByTestId('estimate-converted-to').filter({ visible: true })
         await expect(convertedTo).toHaveRole('link')
         await convertedTo.click()
-        await expect(page).toHaveURL(invoiceUrlOf(invoiceId))
+        await expectRecordUrl(page, 'invoices', invoiceId)
 
         // Voiding the invoice reopens the estimate as Accepted, Accepted by kept.
         await expect(page.getByTestId('invoice-read-only')).toBeVisible()
@@ -427,7 +423,7 @@ test.describe('estimate-form: convert and delete', () => {
             `From estimate ${number}`
         )
         await openEstimateBySearch(page, memo)
-        await expect(page).toHaveURL(estimateUrlOf(id))
+        await expectRecordUrl(page, 'estimates', id)
         const form = page.getByTestId('estimate-form').filter({ visible: true })
         await expect(form).toBeVisible()
         await expect(form.getByTestId('estimate-badge')).toHaveText('Accepted')
@@ -447,7 +443,7 @@ test.describe('estimate-form: convert and delete', () => {
             `Estimate ${number} has invoice ${invoiceNumber}. Set it to Rejected instead.`
         )
         await expect(dialog).toBeVisible()
-        await expect(page).toHaveURL(estimateUrlOf(id))
+        await expectRecordUrl(page, 'estimates', id)
         await page.keyboard.press('Escape')
         await expect(dialog).toHaveCount(0)
         await expect(form.getByTestId('estimate-title')).toHaveText(`Estimate ${number}`)
@@ -466,14 +462,14 @@ test.describe('estimate-form: convert and delete', () => {
         await expect(dialog).toContainText(`Delete estimate ${number}?`)
         await page.keyboard.press('Escape')
         await expect(dialog).toHaveCount(0)
-        await expect(page).toHaveURL(estimateUrlOf(id))
+        await expectRecordUrl(page, 'estimates', id)
         await expect(page.getByTestId('estimate-title')).toHaveText(`Estimate ${number}`)
 
         // ⌘⌫ again and the dialog's ⌘↵ (DIALOG_SUBMIT_SHORTCUT) delete it.
         await page.keyboard.press('ControlOrMeta+Backspace')
         await expect(dialog).toBeVisible()
         await page.keyboard.press('ControlOrMeta+Enter')
-        await expect(page).not.toHaveURL(estimateUrlOf(id))
+        await expectNotRecordUrl(page, 'estimates', id)
         await expect(page.getByTestId('estimate-form')).toHaveCount(0)
 
         // Numbers are never reused. Other specs may take numbers in between.
@@ -481,7 +477,7 @@ test.describe('estimate-form: convert and delete', () => {
         const next = await saveNewEstimate(page)
         expect(Number(next.number)).toBeGreaterThan(Number(number))
         await page.keyboard.press('Escape')
-        await expect(page).not.toHaveURL(estimateUrlOf(next.id))
+        await expectNotRecordUrl(page, 'estimates', next.id)
 
         // Search no longer finds the deleted estimate.
         await page.keyboard.press('/')
@@ -508,7 +504,7 @@ test.describe('estimate-form: convert and delete', () => {
         await page.getByTestId('estimate-more').click()
         await page.getByTestId('estimate-save').click()
         await expect(page).toHaveURL(ESTIMATE_URL)
-        const id = estimateIdFromUrl(page)
+        const id = await estimateIdFromUrl(page)
         const number = await estimateNumberOf(page)
 
         // The saved estimate's bar keeps three buttons on one row; Convert and Delete are
@@ -571,7 +567,7 @@ test.describe('estimate-form: convert and delete', () => {
 
         // Cancel changes nothing and returns to the saved estimate.
         await page.getByTestId('invoice-cancel').click()
-        await expect(page).toHaveURL(estimateUrlOf(id))
+        await expectRecordUrl(page, 'estimates', id)
         await expect(page.getByTestId('estimate-form')).toBeVisible()
         await expect(page.getByTestId('estimate-badge')).toHaveText('Pending')
 
@@ -583,7 +579,7 @@ test.describe('estimate-form: convert and delete', () => {
         await expect(dialog).toContainText(`Delete estimate ${number}?`)
         await dialog.getByText('Cancel', { exact: true }).click()
         await expect(dialog).toHaveCount(0)
-        await expect(page).toHaveURL(estimateUrlOf(id))
+        await expectRecordUrl(page, 'estimates', id)
         await expect(page.getByTestId('estimate-form')).toBeVisible()
     })
 

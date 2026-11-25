@@ -6,6 +6,7 @@ import {
     purchaseTabUrl,
 } from './purchase-lists-helpers'
 import { DESKTOP, openBooks } from './record-form-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 
 // The purchase list keys (purchase-lists checkpoint 4, spec §3 "Keyboard"): after the
 // Expenses area opens and Northwest Paper Co. is picked, the test uses the keyboard only.
@@ -60,10 +61,10 @@ function focusedRowId(page: Page): Promise<string | null> {
     })
 }
 
-function documentUrl(id: string): RegExp {
+function documentRoute(id: string): string {
     const route = ROUTE_OF_PREFIX.find(([prefix]) => prefix.test(id))?.[1]
     if (route === undefined) throw new Error(`no route for ${id}`)
-    return new RegExp(`/books/${route}/${id}$`)
+    return route
 }
 
 async function pressTab(page: Page, key: string, tabKey: string) {
@@ -158,6 +159,6 @@ test.describe('purchase-lists: keys', () => {
         const focused = await focusedRowId(page)
         if (focused === null) throw new Error('no row focused')
         await page.keyboard.press('Enter')
-        await expect(page).toHaveURL(documentUrl(focused))
+        await expectRecordUrl(page, documentRoute(focused), focused)
     })
 })

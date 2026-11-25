@@ -36,6 +36,7 @@ import { localToday, uniqueMemo } from './invoice-helpers'
 import { batchOperations, openEntriesList, searchEntries } from './journal-entries-helpers'
 import { tabTo } from './keyboard-helpers'
 import { isDisabled } from './record-form-helpers'
+import { expectNotRecordUrl, expectRecordUrl, recordIdFromUrl } from './record-key-helpers'
 import { leaveSettings, visibleTestId } from './sales-receipt-helpers'
 
 // The expense form and its read view (expense spec §3.1–§3.9), checkpoint 3. Every expense
@@ -87,8 +88,6 @@ function money(cents: number) {
 function uniqueRef(label: string): string {
     return `${label}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`
 }
-
-const DRAFT_URL_OF = (id: string) => new RegExp(`/books/expenses/${id}$`)
 
 async function openBooks(page: Page) {
     await login(page)
@@ -374,7 +373,7 @@ test.describe('expense-form: keyboard', () => {
         await page.keyboard.press('ControlOrMeta+s')
         await expect(page).toHaveURL(EXPENSE_URL)
         await expect(page.getByTestId('expense-title')).toHaveText('Draft expense')
-        const id = expenseIdFromUrl(page)
+        const id = await expenseIdFromUrl(page)
 
         // The draft opens with focus in Vendor (spec §3.2); from here on, no click.
         const vendor = page.getByTestId('form-input-vendor')
@@ -413,7 +412,7 @@ test.describe('expense-form: keyboard', () => {
         const saved = batchAnswered(page, 'books_expenses', 'PATCH', 200)
         await page.keyboard.press('ControlOrMeta+s')
         await saved
-        await expect(page).toHaveURL(DRAFT_URL_OF(id))
+        await expectRecordUrl(page, 'expenses', id)
 
         // The empty trailing account line was dropped at save.
         await reopenExpenseByBack(page)
@@ -655,8 +654,7 @@ test.describe('expense-form: form', () => {
         await page.getByTestId('expense-save-draft').click()
         await expect(page).toHaveURL(EXPENSE_URL)
         await expect(page.getByTestId('expense-title')).toHaveText('Draft expense')
-        const id = expenseIdFromUrl(page)
-        const draftUrl = DRAFT_URL_OF(id)
+        const id = await expenseIdFromUrl(page)
 
         // An inactive Paid from shows under Paid from; the draft and its values stay.
         await refuseExpenseWrites(
@@ -668,7 +666,7 @@ test.describe('expense-form: form', () => {
         await expect(page.getByTestId('form-field-paid_from-error')).toHaveText(
             EXPENSE_REFUSALS.inactivePaidFrom
         )
-        await expect(page).toHaveURL(draftUrl)
+        await expectRecordUrl(page, 'expenses', id)
         await expect(page.getByTestId('expense-title')).toHaveText('Draft expense')
         await expect(refInput).toHaveValue(ref)
         await expect(memoInput).toHaveValue(memo)
@@ -686,7 +684,7 @@ test.describe('expense-form: form', () => {
             expenseAccountLineRows(page).nth(0).getByText(accountRefusal, { exact: true })
         ).toBeVisible()
         await expect(expenseAccountLineRows(page)).toHaveCount(2)
-        await expect(page).toHaveURL(draftUrl)
+        await expectRecordUrl(page, 'expenses', id)
 
         // A product line refusal shows under that product line.
         await page.unrouteAll({ behavior: 'wait' })
@@ -699,26 +697,26 @@ test.describe('expense-form: form', () => {
         await expect(
             expenseItemLineRows(page).nth(0).getByText(productRefusal, { exact: true })
         ).toBeVisible()
-        await expect(page).toHaveURL(draftUrl)
+        await expectRecordUrl(page, 'expenses', id)
 
         // An inactive vendor refusal shows under Vendor.
         const vendorRefusal = `${SUMMIT} is inactive. Choose an active vendor.`
         await refuseExpenseWrites(page, id, messageRefusal(vendorRefusal))
         await page.getByTestId('expense-post').click()
         await expect(page.getByTestId('form-field-vendor-error')).toHaveText(vendorRefusal)
-        await expect(page).toHaveURL(draftUrl)
+        await expectRecordUrl(page, 'expenses', id)
 
         // Field refusals on Payment date and Payment method show under those fields.
         const dateRefusal = 'Enter a payment date.'
         await refuseExpenseWrites(page, id, fieldRefusal('date', dateRefusal))
         await page.getByTestId('expense-post').click()
         await expect(page.getByTestId('form-field-date-error')).toHaveText(dateRefusal)
-        await expect(page).toHaveURL(draftUrl)
+        await expectRecordUrl(page, 'expenses', id)
         const methodRefusal = 'Choose a payment method.'
         await refuseExpenseWrites(page, id, fieldRefusal('payment_method', methodRefusal))
         await page.getByTestId('expense-post').click()
         await expect(page.getByTestId('form-field-payment_method-error')).toHaveText(methodRefusal)
-        await expect(page).toHaveURL(draftUrl)
+        await expectRecordUrl(page, 'expenses', id)
 
         // Anything else (the close date) shows in the error summary.
         await refuseExpenseWrites(page, id, messageRefusal(EXPENSE_REFUSALS.closeDate))
@@ -726,7 +724,7 @@ test.describe('expense-form: form', () => {
         await expect(page.getByTestId('expense-error-summary')).toContainText(
             EXPENSE_REFUSALS.closeDate
         )
-        await expect(page).toHaveURL(draftUrl)
+        await expectRecordUrl(page, 'expenses', id)
         await page.unrouteAll({ behavior: 'wait' })
 
         // Out of the text fields, so ⌘⌫ is the screen's Delete draft.
@@ -737,7 +735,7 @@ test.describe('expense-form: form', () => {
         await expect(dialog).toContainText(DELETE_TITLE)
         await expect(dialog).toContainText(DELETE_BODY)
         await page.getByTestId('delete-draft-confirm').click()
-        await expect(page).not.toHaveURL(draftUrl)
+        await expectNotRecordUrl(page, 'expenses', id)
         await expect(page.getByTestId('expense-form')).toHaveCount(0)
 
         // Post with no lines (the one empty account line): the line-count rule under the
@@ -764,7 +762,7 @@ test.describe('expense-form: form', () => {
         await page.getByTestId(expenseCellTestId('account_lines', line1, 'amount')).fill('200.00')
         await page.getByTestId('form-input-memo').fill(memo)
         const number = await postExpense(page)
-        const originalId = expenseIdFromUrl(page)
+        const originalId = await expenseIdFromUrl(page)
 
         // E: a correction that keeps the number and the Ref no.
         await page.keyboard.press('e')
@@ -779,10 +777,10 @@ test.describe('expense-form: form', () => {
         // Post: no duplicate check number against its own original.
         await page.getByTestId('expense-post').click()
         await expect(page).toHaveURL(EXPENSE_URL)
-        expect(expenseIdFromUrl(page)).not.toBe(originalId)
+        expect(await expenseIdFromUrl(page)).not.toBe(originalId)
         await expect(page.getByTestId('expense-title')).toHaveText(`Expense ${number}`)
         await expect(page.getByTestId('expense-total')).toContainText(money(21_000))
-        const correctionId = expenseIdFromUrl(page)
+        const correctionId = await expenseIdFromUrl(page)
 
         // C: a copy of the correction, dated today with an empty Ref no.
         await page.keyboard.press('c')
@@ -868,7 +866,7 @@ test.describe('expense-form: phone', () => {
         await page.getByTestId('expense-save-draft').click()
         await expect(page).toHaveURL(EXPENSE_URL)
         await expect(page.getByTestId('expense-title')).toHaveText('Draft expense')
-        const draftUrl = DRAFT_URL_OF(expenseIdFromUrl(page))
+        const draftId = await expenseIdFromUrl(page)
 
         await page.getByTestId('expense-more').click()
         await expect(page.getByText('Post & new', { exact: true })).toBeVisible()
@@ -880,7 +878,7 @@ test.describe('expense-form: phone', () => {
         await expect(dialog).toContainText(DELETE_TITLE)
         await expect(dialog).toContainText(DELETE_BODY)
         await page.getByTestId('delete-draft-confirm').click()
-        await expect(page).not.toHaveURL(draftUrl)
+        await expectNotRecordUrl(page, 'expenses', draftId)
         await expect(page.getByTestId('expense-form')).toHaveCount(0)
     })
 })
@@ -893,11 +891,8 @@ const VOID_BODY = 'A reversing entry is posted in the original period. The numbe
 // The Journal Entries list's rows, without their row menu buttons.
 const ROWS = '[data-testid^="entries-row-"]:not([data-testid^="entries-row-menu-"])'
 
-function entryIdFromUrl(page: Page): string {
-    const match = /\/books\/entries\/([^/?#]+)$/.exec(new URL(page.url()).pathname)
-    const id = match?.[1]
-    if (!id) throw new Error(`Not on a journal entry: ${page.url()}`)
-    return id
+async function entryIdFromUrl(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'entries')
 }
 
 // The entry read view's lines, in one snapshot: account label, debit, credit and name.
@@ -969,7 +964,7 @@ test.describe('expense-form: across Books', () => {
         await page.getByTestId(expenseCellTestId('account_lines', line1, 'amount')).fill('72.00')
         await page.getByTestId('form-input-memo').fill(postedMemo)
         const number = await postExpense(page)
-        const postedId = expenseIdFromUrl(page)
+        const postedId = await expenseIdFromUrl(page)
 
         // A draft with no vendor.
         await openNewExpense(page)
@@ -984,13 +979,13 @@ test.describe('expense-form: across Books', () => {
         await expect(page).toHaveURL(EXPENSE_URL)
         const draftForm = page.getByTestId('expense-form')
         await expect(draftForm.getByTestId('expense-title')).toHaveText('Draft expense')
-        const draftId = expenseIdFromUrl(page)
+        const draftId = await expenseIdFromUrl(page)
 
         // By the posted expense's Ref no.: its read view. Out of the text fields first, so
         // `/` opens the search palette.
         await draftForm.getByTestId('expense-title').click()
         await searchToExpense(page, ref, `Expense ${number} · ${SUMMIT}`)
-        await expect(page).toHaveURL(DRAFT_URL_OF(postedId))
+        await expectRecordUrl(page, 'expenses', postedId)
         // The draft's form stays mounted under the pushed read view: scope to the screen.
         const readView = page.getByTestId('expense-read-only')
         await expect(readView).toBeVisible()
@@ -998,7 +993,7 @@ test.describe('expense-form: across Books', () => {
 
         // By the draft's memo: its form.
         await searchToExpense(page, draftMemo, 'Draft expense')
-        await expect(page).toHaveURL(DRAFT_URL_OF(draftId))
+        await expectRecordUrl(page, 'expenses', draftId)
         const form = page.getByTestId('expense-form').filter({ visible: true })
         await expect(form).toBeVisible()
         await expect(form.getByTestId('form-input-memo')).toHaveValue(draftMemo)
@@ -1020,7 +1015,7 @@ test.describe('expense-form: across Books', () => {
             await form.getByTestId('expense-save-draft').click()
             const conflict = page.getByTestId('expense-conflict').filter({ visible: true })
             await expect(conflict).toContainText(EXPENSE_CONFLICT)
-            await expect(page).toHaveURL(DRAFT_URL_OF(draftId))
+            await expectRecordUrl(page, 'expenses', draftId)
             await expect(form.getByTestId('form-input-memo')).toHaveValue(changedMemo)
 
             // Load the current expense: the notice goes and the stored expense replaces what was typed.
@@ -1051,13 +1046,13 @@ test.describe('expense-form: across Books', () => {
         await account1('amount').fill('150.00')
         await page.getByTestId('form-input-memo').fill(memo)
         const number = await postExpense(page)
-        const id = expenseIdFromUrl(page)
+        const id = await expenseIdFromUrl(page)
 
         // J: the entry, typed Expense with the expense's number; it debits 6200 and credits
         // 1000 Business Checking, each line naming the vendor.
         await page.keyboard.press('j')
         await expect(page).toHaveURL(/\/books\/entries\/[^/?#]+$/)
-        const entryId = entryIdFromUrl(page)
+        const entryId = await entryIdFromUrl(page)
         const entry = page.getByTestId('entry-read-only')
         await expect(entry).toBeVisible()
         await expect(entry.getByTestId('entry-detail-type')).toContainText('Expense')
@@ -1091,7 +1086,7 @@ test.describe('expense-form: across Books', () => {
         await expect(page.getByTestId('entries-menu-edit')).toBeVisible()
         await expect(page.getByTestId('entries-menu-reverse')).toHaveCount(0)
         await page.getByTestId('entries-menu-open').click()
-        await expect(page).toHaveURL(DRAFT_URL_OF(id))
+        await expectRecordUrl(page, 'expenses', id)
         await expect(page.getByTestId('expense-read-only')).toBeVisible()
 
         // Edit opens the correction; Post it with $160.00.
@@ -1106,7 +1101,7 @@ test.describe('expense-form: across Books', () => {
         await page.getByTestId(expenseCellTestId('account_lines', line, 'amount')).fill('160.00')
         await page.getByTestId('expense-post').click()
         await expect(page).toHaveURL(EXPENSE_URL)
-        expect(expenseIdFromUrl(page)).not.toBe(id)
+        expect(await expenseIdFromUrl(page)).not.toBe(id)
         await expect(page.getByTestId('expense-title')).toHaveText(`Expense ${number}`)
         await expect(page.getByTestId('expense-total')).toContainText(money(16_000))
 
@@ -1117,7 +1112,7 @@ test.describe('expense-form: across Books', () => {
         const originalEntry = await entryRowId(page, /^Expense$/, /^Void$/)
         await page.getByTestId(`entries-row-menu-${originalEntry}`).click()
         await page.getByTestId('entries-menu-open').click()
-        await expect(page).toHaveURL(DRAFT_URL_OF(id))
+        await expectRecordUrl(page, 'expenses', id)
         await expect(page.getByTestId('expense-badge')).toHaveText('Void')
         await expect(page.getByTestId('expense-replaced-by')).toHaveText(
             `Replaced by ${number} (edited)`
@@ -1158,7 +1153,7 @@ test.describe('expense-form: across Books', () => {
         await expect(page.getByTestId('expense-read-void')).toHaveCount(0)
 
         // The void reversal of this expense's entry names its number and links back to the expense.
-        const expenseUrl = page.url()
+        const expenseId = await recordIdFromUrl(page, 'expenses')
         await page.keyboard.press('j')
         await expect(page).toHaveURL(/\/books\/entries\//)
         await page.getByTestId('entry-link-reversed-by').click()
@@ -1166,7 +1161,7 @@ test.describe('expense-form: across Books', () => {
         const reverses = page.getByTestId('entry-link-reverses')
         await expect(reverses).toHaveText(`Reverses ${number}`)
         await reverses.click()
-        await expect(page).toHaveURL(expenseUrl)
+        await expectRecordUrl(page, 'expenses', expenseId)
         await expect(page.getByTestId('expense-badge')).toHaveText('Void')
 
         // The Paid from account's register names the reversal "Void reversal of <n>" (spec
@@ -1226,7 +1221,7 @@ test.describe('expense-form: purchase lines setting', () => {
         await item('quantity').fill('5')
         await page.getByTestId('form-input-memo').fill(memo)
         const number = await postExpense(page)
-        const originalId = expenseIdFromUrl(page)
+        const originalId = await expenseIdFromUrl(page)
         await expect(page.getByTestId('expense-read-only')).toContainText(PATCH_CABLE)
 
         // The card, the select and the note name bills, expenses and vendor credits.

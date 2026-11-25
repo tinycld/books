@@ -1,6 +1,7 @@
 import { expect, type Page } from '@playwright/test'
 import { openEntriesList } from './journal-entries-helpers'
 import { openNewAction } from './new-menu-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 import { pickFromSearchPicker } from './search-picker-helpers'
 
 export { DESKTOP } from './account-register-helpers'
@@ -9,11 +10,8 @@ export { DESKTOP } from './account-register-helpers'
 export const INVOICE_URL = /\/books\/invoices\/(?!new(?:[?#]|$))[^/?#]+$/
 export const NEW_INVOICE_URL = /\/books\/invoices\/new(?:[?#].*)?$/
 
-export function invoiceIdFromUrl(page: Page): string {
-    const match = /\/books\/invoices\/([^/?#]+)$/.exec(new URL(page.url()).pathname)
-    const id = match?.[1]
-    if (!id || id === 'new') throw new Error(`Not on a saved invoice: ${page.url()}`)
-    return id
+export async function invoiceIdFromUrl(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'invoices')
 }
 
 // The DB is shared by every spec file, so each invoice a spec makes carries its own memo.
@@ -115,5 +113,5 @@ export async function saveInvoiceDraft(
     await page.getByTestId('invoice-save-draft').click()
     await expect(page).toHaveURL(INVOICE_URL)
     await expect(page.getByTestId('invoice-title')).toHaveText('Draft invoice')
-    return invoiceIdFromUrl(page)
+    return await invoiceIdFromUrl(page)
 }

@@ -23,6 +23,12 @@ import {
     searchEntries,
 } from './journal-entries-helpers'
 import { createProduct } from './products-services-helpers'
+import {
+    expectNotRecordUrl,
+    expectRecordNumberUrl,
+    expectRecordUrl,
+    recordIdFromUrl,
+} from './record-key-helpers'
 
 // Posting an invoice, its read view, and what it posts to the ledger (spec §3.5, §3.6, §3.9).
 // Every invoice is made by driving the form with a unique memo and the default date (today,
@@ -53,15 +59,8 @@ function productName(id: string) {
 const ACCESS_POINT = productName(PRODUCT_IDS.accessPoint)
 const PATCH_CABLE = productName(PRODUCT_IDS.patchCable)
 
-function invoiceUrlOf(id: string) {
-    return new RegExp(`/books/invoices/${id}$`)
-}
-
-function entryIdFromUrl(page: Page): string {
-    const match = /\/books\/entries\/([^/?#]+)$/.exec(new URL(page.url()).pathname)
-    const id = match?.[1]
-    if (!id) throw new Error(`Not on a journal entry: ${page.url()}`)
-    return id
+async function entryIdFromUrl(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'entries')
 }
 
 async function openBooks(page: Page) {
@@ -98,7 +97,7 @@ test.describe('invoice-form: post and read', () => {
         await page.keyboard.press('ControlOrMeta+Enter')
         await expect(page).toHaveURL(INVOICE_URL)
         await expect(page.getByTestId('invoice-read-only')).toBeVisible()
-        const id = invoiceIdFromUrl(page)
+        const id = await invoiceIdFromUrl(page)
         const number = await invoiceNumber(page)
         await expect(page.getByTestId('invoice-badge')).toHaveText('Posted')
         await expect(page.getByTestId('invoice-posted-by')).toHaveText(/^Posted by /)
@@ -117,7 +116,7 @@ test.describe('invoice-form: post and read', () => {
 
         await page.keyboard.press('j')
         await expect(page).toHaveURL(/\/books\/entries\/[^/?#]+$/)
-        const entryId = entryIdFromUrl(page)
+        const entryId = await entryIdFromUrl(page)
         const entry = page.getByTestId('entry-read-only')
         await expect(entry.getByTestId('entry-detail-type')).toContainText('Invoice')
         // Spec Q21: every line of the invoice's entry names the customer.
@@ -139,7 +138,7 @@ test.describe('invoice-form: post and read', () => {
         await expect(page.getByTestId('entries-menu-open')).toBeVisible()
         await expect(page.getByTestId('entries-menu-reverse')).toHaveCount(0)
         await page.getByTestId('entries-menu-open').click()
-        await expect(page).toHaveURL(invoiceUrlOf(id))
+        await expectRecordNumberUrl(page, 'invoices', id)
         await expect(page.getByTestId('invoice-read-only')).toBeVisible()
     })
 
@@ -191,7 +190,7 @@ test.describe('invoice-form: post and read', () => {
 
         await page.getByTestId('invoice-post').click()
         await expect(page.getByTestId('invoice-read-only')).toBeVisible()
-        await expect(page).toHaveURL(invoiceUrlOf(id))
+        await expectRecordUrl(page, 'invoices', id)
         const number = await invoiceNumber(page)
 
         await page.getByTestId('invoice-read-more').click()
@@ -230,7 +229,7 @@ test.describe('invoice-form: post and read', () => {
         await page.getByTestId('invoice-post').click()
         await expect(page.getByTestId('invoice-read-only')).toBeVisible()
         await expect(page).toHaveURL(INVOICE_URL)
-        const id = invoiceIdFromUrl(page)
+        const id = await invoiceIdFromUrl(page)
         const number = await invoiceNumber(page)
 
         await page.keyboard.press('e')
@@ -243,7 +242,7 @@ test.describe('invoice-form: post and read', () => {
 
         await page.getByTestId('invoice-post').click()
         await expect(page).toHaveURL(INVOICE_URL)
-        await expect(page).not.toHaveURL(invoiceUrlOf(id))
+        await expectNotRecordUrl(page, 'invoices', id)
         await expect(page.getByTestId('invoice-read-only')).toBeVisible()
         await expect(page.getByTestId('invoice-title')).toHaveText(`Invoice ${number}`)
 
@@ -266,7 +265,7 @@ test.describe('invoice-form: post and read', () => {
         )
         await page.getByTestId(`entries-row-menu-${entryId}`).click()
         await page.getByTestId('entries-menu-open').click()
-        await expect(page).toHaveURL(invoiceUrlOf(id))
+        await expectRecordUrl(page, 'invoices', id)
         await expect(page.getByTestId('invoice-badge')).toHaveText('Void')
         await expect(page.getByTestId('invoice-replaced-by')).toHaveText(
             `Replaced by ${number} (edited)`

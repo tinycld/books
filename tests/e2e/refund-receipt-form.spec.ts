@@ -5,6 +5,7 @@ import { PRODUCT_IDS, PRODUCTS } from '../../tinycld/books/lib/products-services
 import { batchWriteIndex } from './document-batch-helpers'
 import { lineCellTestId, localToday, uniqueMemo } from './invoice-helpers'
 import { refuseBatchOperation } from './journal-entries-helpers'
+import { expectNotRecordUrl, expectRecordUrl } from './record-key-helpers'
 import {
     NEW_REFUND_RECEIPT_URL,
     openNewRefundReceipt,
@@ -15,7 +16,6 @@ import {
     refundLineRowId,
     refundLineRows,
     refundReceiptIdFromUrl,
-    refundReceiptUrlOf,
     searchToRefundReceipt,
     visibleTestId,
 } from './refund-receipt-helpers'
@@ -109,7 +109,7 @@ test.describe('refund-receipt-form: form and read view', () => {
         const title = page.getByTestId('refund-receipt-title')
         await expect(title).toHaveText(/^Refund receipt \d+$/)
         const number = /^Refund receipt (\d+)$/.exec(await title.innerText())?.[1] ?? ''
-        const id = refundReceiptIdFromUrl(page)
+        const id = await refundReceiptIdFromUrl(page)
         await expect(page.getByTestId('refund-receipt-detail-customer')).toContainText(
             'No customer'
         )
@@ -122,18 +122,18 @@ test.describe('refund-receipt-form: form and read view', () => {
         await page.getByTestId(lineCellTestId(correctionRow, 'rate')).fill('120')
         await page.getByTestId('refund-receipt-post').click()
         await expect(page).toHaveURL(REFUND_RECEIPT_URL)
-        await expect(page).not.toHaveURL(refundReceiptUrlOf(id))
+        await expectNotRecordUrl(page, 'refund-receipts', id)
         await expect(visibleTestId(page, 'refund-receipt-read-only')).toBeVisible()
         await expect(visibleTestId(page, 'refund-receipt-title')).toHaveText(
             `Refund receipt ${number}`
         )
         await expect(visibleTestId(page, 'refund-receipt-total-subtotal')).toContainText('$120.00')
-        const correctionId = refundReceiptIdFromUrl(page)
+        const correctionId = await refundReceiptIdFromUrl(page)
 
         // The original (a walk-in has no customer, so search does not list it) is void and
         // names its correction.
         await pushPath(page, `/a/books/refund-receipts/${id}`)
-        await expect(page).toHaveURL(refundReceiptUrlOf(id))
+        await expectRecordUrl(page, 'refund-receipts', id)
         await expect(visibleTestId(page, 'refund-receipt-badge')).toHaveText('Void')
         await expect(visibleTestId(page, 'refund-receipt-replaced-by')).toHaveText(
             `Replaced by ${number} (edited)`
@@ -162,9 +162,9 @@ test.describe('refund-receipt-form: form and read view', () => {
         await expect(page).not.toHaveURL(/\/books\/refund-receipts\/new\?copy=/)
         await expect(page.getByTestId('discard-dialog')).toHaveCount(0)
         await pushPath(page, `/a/books/refund-receipts/${id}`)
-        await expect(page).toHaveURL(refundReceiptUrlOf(id))
+        await expectRecordUrl(page, 'refund-receipts', id)
         await visibleTestId(page, 'refund-receipt-replaced-by').click()
-        await expect(page).toHaveURL(refundReceiptUrlOf(correctionId))
+        await expectRecordUrl(page, 'refund-receipts', correctionId)
         await expect(visibleTestId(page, 'refund-receipt-badge')).toHaveText('Posted')
         await page.keyboard.press('v')
         const dialog = page.getByTestId('void-dialog')
@@ -290,7 +290,7 @@ test.describe('refund-receipt-form: form and read view', () => {
         await page.keyboard.press('ControlOrMeta+s')
         await expect(page).toHaveURL(REFUND_RECEIPT_URL)
         await expect(page.getByTestId('refund-receipt-title')).toHaveText('Draft refund receipt')
-        const id = refundReceiptIdFromUrl(page)
+        const id = await refundReceiptIdFromUrl(page)
 
         // Saved: the PDF tab draws the stored draft.
         const pdf = page.waitForResponse(r =>
@@ -318,7 +318,7 @@ test.describe('refund-receipt-form: form and read view', () => {
         await page.getByTestId('refund-receipt-cancel').click()
         const discard = page.getByTestId('discard-dialog')
         await expect(discard).toBeVisible()
-        await expect(page).toHaveURL(refundReceiptUrlOf(id))
+        await expectRecordUrl(page, 'refund-receipts', id)
         await page.getByTestId('discard-confirm').click()
         await expect(discard).toHaveCount(0)
         await expect(page).not.toHaveURL(/\/books\/refund-receipts\//)
@@ -336,7 +336,7 @@ test.describe('refund-receipt-form: form and read view', () => {
         )
         await openBooks(second)
         await searchToRefundReceipt(second, memo)
-        await expect(second).toHaveURL(refundReceiptUrlOf(id))
+        await expectRecordUrl(second, 'refund-receipts', id)
         await expect(second.getByTestId('refund-receipt-error')).toContainText(
             'Books could not load this refund receipt.'
         )
@@ -363,7 +363,7 @@ test.describe('refund-receipt-form: form and read view', () => {
         )
         await openBooks(third)
         await searchToRefundReceipt(third, memo)
-        await expect(third).toHaveURL(refundReceiptUrlOf(id))
+        await expectRecordUrl(third, 'refund-receipts', id)
         await expect(third.getByTestId('refund-receipt-error')).toContainText(
             'Books could not load this refund receipt.'
         )

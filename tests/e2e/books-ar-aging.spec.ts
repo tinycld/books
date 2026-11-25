@@ -44,6 +44,7 @@ import {
     rowAmount,
 } from './receive-payment-helpers'
 import { openBooks } from './record-form-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import { fakeReadOnlyAccess } from './tax-rates-helpers'
 
 // The A/R Aging (ar-aging checkpoint 2): the shipped report from the Books hub, and the
@@ -261,7 +262,7 @@ test.describe('ar-aging: report', () => {
 
         await page.getByTestId(`report-row-${lines[0].id}`).click()
         await expect(page).toHaveURL(INVOICE_URL)
-        await expect(page).toHaveURL(new RegExp(`/books/invoices/${older.id}$`))
+        await expectRecordUrl(page, 'invoices', older.id)
     })
 
     test('a part payment lowers the item in the open report', async ({ page }) => {
@@ -287,7 +288,7 @@ test.describe('ar-aging: report', () => {
         await page.getByTestId('payment-post').click()
         await expect(page).toHaveURL(PAYMENT_URL)
         await expect(page.getByTestId('payment-read-only')).toBeVisible()
-        const paymentId = paymentIdFromUrl(page)
+        const paymentId = await paymentIdFromUrl(page)
         const number = await paymentNumber(page)
         const today = await browserToday(page)
 
@@ -309,7 +310,7 @@ test.describe('ar-aging: report', () => {
 
         await viewer.getByTestId(`report-row-${lines[1].id}`).click()
         await expect(viewer).toHaveURL(PAYMENT_URL)
-        await expect(viewer).toHaveURL(new RegExp(`/books/payments/${paymentId}$`))
+        await expectRecordUrl(viewer, 'payments', paymentId)
     })
 
     test('an overpayment shows as a negative item', async ({ page }) => {

@@ -11,6 +11,7 @@ import {
 import { openEntriesList } from './journal-entries-helpers'
 import { openNewAction } from './new-menu-helpers'
 import { localDay } from './receive-payment-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 import { createVendor, uniqueName, vendorHelpers } from './vendor-form-helpers'
 
 // Shared steps of the Pay Bills specs (spec §4.5). No test reads or changes a seeded bill or
@@ -83,7 +84,7 @@ export async function vendorWithBills(
         const line = await billLineRowId(page, 'account_lines', 0)
         await page.getByTestId(billCellTestId('account_lines', line, 'amount')).fill(bill.amount)
         const number = await postBill(page)
-        bills.push({ id: billIdFromUrl(page), number })
+        bills.push({ id: await billIdFromUrl(page), number })
     }
     await returnTo(page, start)
     return { vendor: { id: vendorId, name }, bills }
@@ -192,10 +193,8 @@ export function moneyCents(text: string): number {
 // A bill payment's read view: `books/bill-payments/<id>`.
 export const BILL_PAYMENT_URL = /\/books\/bill-payments\/[^/?#]+$/
 
-export function billPaymentIdFromUrl(page: Page): string {
-    const id = /\/books\/bill-payments\/([^/?#]+)$/.exec(new URL(page.url()).pathname)?.[1]
-    if (!id) throw new Error(`Not on a bill payment: ${page.url()}`)
-    return id
+export async function billPaymentIdFromUrl(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'bill-payments')
 }
 
 // Pay Bills editing a posted bill payment: `books/pay-bills?replaces=<id>`.

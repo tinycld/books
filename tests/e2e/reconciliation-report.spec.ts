@@ -158,7 +158,7 @@ test.describe('reconciliation-report: report', () => {
         const label = page.getByTestId(`report-row-${line.id}`)
         await expect(label).toHaveRole('link')
         await label.click()
-        await expect(page).toHaveURL(/\/books\/entries\/[a-z0-9]{15}$/)
+        await expect(page).toHaveURL(/\/books\/entries\/(?!new$)[^/?#]+$/)
         // postDatedEntry left the read view of this same entry mounted, hidden, in the
         // Journal Entries stack (lessons 5 and 38).
         await expect(page.getByTestId('entry-detail-memo').filter({ visible: true })).toContainText(

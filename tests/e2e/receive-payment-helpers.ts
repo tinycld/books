@@ -10,6 +10,7 @@ import {
 } from './invoice-helpers'
 import { openEntriesList } from './journal-entries-helpers'
 import { openNewAction } from './new-menu-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 
 // Shared steps of the receive-payment specs (spec §4.5): every test makes its own customer
 // and posts its own invoices through the UI, so no test reads or changes a seeded invoice or
@@ -20,11 +21,8 @@ import { openNewAction } from './new-menu-helpers'
 export const PAYMENT_URL = /\/books\/payments\/(?!new(?:[?#]|$))[^/?#]+$/
 export const NEW_PAYMENT_URL = /\/books\/payments\/new(?:[?#].*)?$/
 
-export function paymentIdFromUrl(page: Page): string {
-    const match = /\/books\/payments\/([^/?#]+)$/.exec(new URL(page.url()).pathname)
-    const id = match?.[1]
-    if (!id || id === 'new') throw new Error(`Not on a saved payment: ${page.url()}`)
-    return id
+export async function paymentIdFromUrl(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'payments')
 }
 
 // A seeded Service: not taxable, so a document's total is its line amount.
@@ -86,7 +84,7 @@ export async function postInvoice(page: Page) {
     await expect(page).toHaveURL(INVOICE_URL)
     await expect(page.getByTestId('invoice-read-only')).toBeVisible()
     await expect(page.getByTestId('invoice-badge')).toHaveText('Posted')
-    return { id: invoiceIdFromUrl(page), number: await invoiceNumber(page) }
+    return { id: await invoiceIdFromUrl(page), number: await invoiceNumber(page) }
 }
 
 // The browser's local day `days` from today, as the forms' default date (todayIso).

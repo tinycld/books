@@ -54,6 +54,7 @@ import {
     rowAmount,
 } from './receive-payment-helpers'
 import { WIDE } from './record-form-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import { fakeReadOnlyAccess } from './tax-rates-helpers'
 
 // The Customer Balance (customer-balance checkpoint 1): the shipped report from the Books
@@ -346,10 +347,9 @@ test.describe('customer-balance: report', () => {
 
         const reportUrl = page.url()
         const lineRow = page.getByTestId(`report-row-${line.id}`)
-        const invoicePath = new RegExp(`/books/invoices/${invoice.id}$`)
         await lineRow.click()
         await expect(page).toHaveURL(INVOICE_URL)
-        await expect(page).toHaveURL(invoicePath)
+        await expectRecordUrl(page, 'invoices', invoice.id)
         await expect(page.getByTestId('invoice-title')).toHaveText(`Invoice ${invoice.number}`)
 
         await page.goBack()
@@ -373,7 +373,7 @@ test.describe('customer-balance: report', () => {
         // Spec §3 "Opening a transaction": beside the report only where Books registers a
         // report panel for the path (it registers none for invoices), else its own screen.
         await lineRow.click()
-        await expect(page).toHaveURL(invoicePath)
+        await expectRecordUrl(page, 'invoices', invoice.id)
         await expect(page.getByTestId('invoice-title')).toHaveText(`Invoice ${invoice.number}`)
         await expect(drillPanel(page)).toHaveCount(0)
     })

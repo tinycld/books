@@ -11,6 +11,7 @@ import {
     refusePurchaseWrite,
 } from './purchase-lists-helpers'
 import { DESKTOP, openBooks, PHONE } from './record-form-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import { createVendor, uniqueName, vendorHelpers } from './vendor-form-helpers'
 
 // The purchase lists' batch actions (purchase-lists checkpoint 4, spec §3 "Batch actions"
@@ -148,7 +149,7 @@ test.describe('purchase-lists: batch actions', () => {
         await page.setViewportSize(WIDE)
         await expect(visible(page, 'purchases-table')).toBeVisible()
         await purchaseRow(page, bill).click()
-        await expect(page).toHaveURL(new RegExp(`/books/bills/${bill}$`))
+        await expectRecordUrl(page, 'bills', bill)
         const column = visible(page, 'purchases-names')
         await expect(column).toBeVisible()
         await expect(column.getByTestId(`purchases-name-row-${bill}`)).toBeVisible()

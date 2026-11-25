@@ -5,7 +5,6 @@ import {
     depositIdFromUrl,
     depositItemLineId,
     depositItemRow,
-    depositUrlOf,
     openBooks,
     openDepositBySearch,
     openNewDeposit,
@@ -17,6 +16,7 @@ import {
 import { uniqueMemo } from './invoice-helpers'
 import { searchEntries, shownEntries } from './journal-entries-helpers'
 import { tabTo } from './keyboard-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 
 // Edit and Void of a posted deposit (bank deposit spec §3.7, §3.8, §3.2): E opens the
 // correction ("Edit deposit <n>", the shared DocumentBar with Cancel and Save) and its save
@@ -55,7 +55,7 @@ async function postDeposit(page: Page, reference: string, memo: string) {
     await expect(title).toHaveText(/^Deposit \d+$/)
     const number = /^Deposit (\d+)$/.exec(await title.innerText())?.[1]
     if (!number) throw new Error('the deposit read view title has no number')
-    return { id: depositIdFromUrl(page), number }
+    return { id: await depositIdFromUrl(page), number }
 }
 
 // The row of the Journal Entries list on top whose Type and status are these.
@@ -96,7 +96,7 @@ test.describe('bank-deposit: edit and void', () => {
 
         // Opened through search; no click or tap follows.
         await openDepositBySearch(page, memo)
-        await expect(page).toHaveURL(depositUrlOf(original.id))
+        await expectRecordUrl(page, 'deposits', original.id)
         await expect(shownDeposit(page, 'deposit-read-edit')).toBeVisible()
 
         // E: the correction, with the focus in Deposit to; the bar is Cancel and Save.
@@ -184,7 +184,7 @@ test.describe('bank-deposit: edit and void', () => {
         // The correction's read view: the same number, both items, the line, the new total.
         await expect(shownDeposit(page, 'deposit-read-only')).toBeVisible()
         await expect(page).toHaveURL(DEPOSIT_URL)
-        const correctionId = depositIdFromUrl(page)
+        const correctionId = await depositIdFromUrl(page)
         expect(correctionId).not.toBe(original.id)
         await expect(shownDeposit(page, 'deposit-title')).toHaveText(`Deposit ${original.number}`)
         const items = shownDeposit(page, 'deposit-read-items-grid')
@@ -212,7 +212,7 @@ test.describe('bank-deposit: edit and void', () => {
         )
         await list.getByTestId(`entries-row-menu-${voidedId}`).click()
         await page.getByTestId('entries-menu-open').filter({ visible: true }).click()
-        await expect(page).toHaveURL(depositUrlOf(original.id))
+        await expectRecordUrl(page, 'deposits', original.id)
         await expect(shownDeposit(page, 'deposit-badge')).toHaveText('Void')
         await expect(shownDeposit(page, 'deposit-replaced-by')).toHaveText(
             `Replaced by ${original.number} (edited)`
@@ -252,18 +252,18 @@ test.describe('bank-deposit: edit and void', () => {
         await shownDeposit(page, 'deposit-save').click()
         await expect(shownDeposit(page, 'deposit-read-only')).toBeVisible()
         await expect(page).toHaveURL(DEPOSIT_URL)
-        const correctionId = depositIdFromUrl(page)
+        const correctionId = await depositIdFromUrl(page)
         expect(correctionId).not.toBe(original.id)
 
         // The correction again: E, then Esc with no edit leaves at once.
         await openDepositBySearch(page, editedMemo)
-        await expect(page).toHaveURL(depositUrlOf(correctionId))
+        await expectRecordUrl(page, 'deposits', correctionId)
         await expect(shownDeposit(page, 'deposit-read-edit')).toBeVisible()
         await page.keyboard.press('e')
         await expect(page).toHaveURL(CORRECTION_URL)
         await expect(shownDeposit(page, 'deposit-to')).toBeFocused()
         await page.keyboard.press('Escape')
-        await expect(page).toHaveURL(depositUrlOf(correctionId))
+        await expectRecordUrl(page, 'deposits', correctionId)
         await expect(page.getByTestId('discard-dialog')).toHaveCount(0)
         await expect(shownDeposit(page, 'deposit-read-only')).toBeVisible()
     })
@@ -296,7 +296,7 @@ test.describe('bank-deposit: edit and void', () => {
         await expect(dialog).toContainText(VOID_TEXT)
         await page.keyboard.press('Escape')
         await expect(dialog).toHaveCount(0)
-        await expect(page).toHaveURL(depositUrlOf(deposit.id))
+        await expectRecordUrl(page, 'deposits', deposit.id)
         await expect(shownDeposit(page, 'deposit-badge')).toHaveText('Posted')
 
         // V and confirm: Void, View journal entry only, Voided by.

@@ -172,7 +172,7 @@ test.describe('reconcile: clear transactions', () => {
                 // The link opens the entry and does not clear the row.
                 const p1 = await lineIdOf(lineRow(page, a.p1))
                 await page.getByTestId(`reconcile-link-${p1}`).filter({ visible: true }).click()
-                await expect(page).toHaveURL(/\/books\/entries\/[a-z0-9]{15}\/?$/)
+                await expect(page).toHaveURL(/\/books\/entries\/(?!new\/?$)[^/?#]+\/?$/)
                 await expect(
                     page.getByTestId('entry-read-only').filter({ visible: true })
                 ).toContainText(a.p1)
@@ -376,7 +376,7 @@ test.describe('reconcile: clear transactions', () => {
                 for (let press = 0; press < order.length; press++) await page.keyboard.press('k')
                 await expect(rowById(page, order[0])).toHaveAttribute('data-focused', 'true')
                 await page.keyboard.press('o')
-                await expect(page).toHaveURL(/\/books\/entries\/[a-z0-9]{15}\/?$/)
+                await expect(page).toHaveURL(/\/books\/entries\/(?!new\/?$)[^/?#]+\/?$/)
                 await expect(
                     page.getByTestId('entry-read-only').filter({ visible: true })
                 ).toContainText(a.p1)

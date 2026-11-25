@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import { uniqueMemo } from './invoice-helpers'
 import { tabTo } from './keyboard-helpers'
 import { CHECKING, pickFocusedSelect } from './pay-bills-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import { VENDOR_CREDIT_URL } from './vendor-credit-helpers'
 import {
     openBooks,
@@ -74,7 +75,7 @@ test.describe('vendor-refund: keyboard create', () => {
         // ⌘↵ posts and opens the read view.
         await page.keyboard.press('ControlOrMeta+Enter')
         await expect(page).toHaveURL(VENDOR_REFUND_URL)
-        const refundId = vendorRefundIdFromUrl(page)
+        const refundId = await vendorRefundIdFromUrl(page)
         await expect(page.getByTestId('vendor-refund-read-only')).toBeVisible()
 
         // A writer's posted refund offers Edit, Void and View journal entry.
@@ -108,10 +109,10 @@ test.describe('vendor-refund: keyboard create', () => {
 
         // Back on the refund, its credit link opens the credit: $500.00 is still unapplied.
         await page.goBack()
-        await expect(page).toHaveURL(new RegExp(`/books/vendor-refunds/${refundId}$`))
+        await expectRecordUrl(page, 'vendor-refunds', refundId)
         await page.getByTestId(`vendor-refund-read-link-${credit.id}`).click()
         await expect(page).toHaveURL(VENDOR_CREDIT_URL)
-        await expect(page).toHaveURL(new RegExp(`/books/vendor-credits/${credit.id}$`))
+        await expectRecordUrl(page, 'vendor-credits', credit.id)
         await expect(page.getByTestId('vendor-credit-total-unapplied')).toContainText('$500.00')
     })
 })

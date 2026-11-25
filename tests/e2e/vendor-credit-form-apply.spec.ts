@@ -6,6 +6,7 @@ import { batchWriteIndex } from './document-batch-helpers'
 import { localToday, uniqueMemo } from './invoice-helpers'
 import { BATCH_WRITE, refuseBatchOperation, settleFrames } from './journal-entries-helpers'
 import { localDay, shown, vendorWithBills } from './pay-bills-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import {
     applyAmountCell,
     applyCreditToBill,
@@ -378,7 +379,7 @@ test.describe('vendor-credit-form: apply refusals', () => {
         const row = applicationRows(page.getByTestId('vendor-credit-applications'))
         await expect(row).toHaveCount(1)
         await row.getByText(new RegExp(`^Bill ${bill.number} · `)).click()
-        await expect(page).toHaveURL(new RegExp(`/books/bills/${bill.id}$`))
+        await expectRecordUrl(page, 'bills', bill.id)
         await expect(shown(page, 'bill-badge')).toHaveText('Paid')
     })
 })

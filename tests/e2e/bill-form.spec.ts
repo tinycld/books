@@ -35,6 +35,7 @@ import {
 import { shiftTabTo, tabTo } from './keyboard-helpers'
 import { createProduct } from './products-services-helpers'
 import { uniqueName } from './record-form-helpers'
+import { expectNotRecordUrl, expectRecordUrl, recordIdFromUrl } from './record-key-helpers'
 import { leaveSettings, visibleTestId } from './sales-receipt-helpers'
 
 // The bill form and its read view (spec §3.1–§3.12), checkpoint 3. Every bill is made by
@@ -92,13 +93,8 @@ const VOID_BODY = 'A reversing entry is posted in the original period. The numbe
 // The Journal Entries list's rows, without their row menu buttons.
 const ROWS = '[data-testid^="entries-row-"]:not([data-testid^="entries-row-menu-"])'
 
-const DRAFT_URL_OF = (id: string) => new RegExp(`/books/bills/${id}$`)
-
-function entryIdFromUrl(page: Page): string {
-    const match = /\/books\/entries\/([^/?#]+)$/.exec(new URL(page.url()).pathname)
-    const id = match?.[1]
-    if (!id) throw new Error(`Not on a journal entry: ${page.url()}`)
-    return id
+async function entryIdFromUrl(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'entries')
 }
 
 // The entry read view's lines, in one snapshot: account label, debit, credit and name.
@@ -326,7 +322,7 @@ test.describe('bill-form: keyboard', () => {
         await page.keyboard.press('ControlOrMeta+s')
         await expect(page).toHaveURL(BILL_URL)
         await expect(page.getByTestId('bill-title')).toHaveText('Draft bill')
-        const id = billIdFromUrl(page)
+        const id = await billIdFromUrl(page)
 
         await reopenByBack(page)
         // Back shows the same mounted form; it does not open the draft again, so
@@ -361,7 +357,7 @@ test.describe('bill-form: keyboard', () => {
         const saved = batchAnswered(page, 'books_bills', 'PATCH', 200)
         await page.keyboard.press('ControlOrMeta+s')
         await saved
-        await expect(page).toHaveURL(DRAFT_URL_OF(id))
+        await expectRecordUrl(page, 'bills', id)
 
         // The empty trailing account line was dropped at save.
         await reopenByBack(page)
@@ -554,8 +550,7 @@ test.describe('bill-form: form', () => {
         await page.getByTestId('bill-save-draft').click()
         await expect(page).toHaveURL(BILL_URL)
         await expect(page.getByTestId('bill-title')).toHaveText('Draft bill')
-        const id = billIdFromUrl(page)
-        const draftUrl = DRAFT_URL_OF(id)
+        const id = await billIdFromUrl(page)
 
         // An account line refusal shows under that line; the draft and its values stay.
         const accountRefusal = 'Account line 1: Rent is inactive. Choose an active account.'
@@ -564,7 +559,7 @@ test.describe('bill-form: form', () => {
         await expect(
             accountLineRows(page).nth(0).getByText(accountRefusal, { exact: true })
         ).toBeVisible()
-        await expect(page).toHaveURL(draftUrl)
+        await expectRecordUrl(page, 'bills', id)
         await expect(page.getByTestId('bill-title')).toHaveText('Draft bill')
         await expect(refInput).toHaveValue(`${ref}-B`)
         await expect(memoInput).toHaveValue(memo)
@@ -581,20 +576,20 @@ test.describe('bill-form: form', () => {
         await expect(
             itemLineRows(page).nth(0).getByText(productRefusal, { exact: true })
         ).toBeVisible()
-        await expect(page).toHaveURL(draftUrl)
+        await expectRecordUrl(page, 'bills', id)
 
         // An inactive vendor refusal shows under Vendor.
         const vendorRefusal = `${SUMMIT} is inactive. Choose an active vendor.`
         await refuseBillWrites(page, id, vendorRefusal)
         await page.getByTestId('bill-post').click()
         await expect(page.getByTestId('form-field-vendor-error')).toHaveText(vendorRefusal)
-        await expect(page).toHaveURL(draftUrl)
+        await expectRecordUrl(page, 'bills', id)
 
         // Anything else (the close date) shows in the error summary.
         await refuseBillWrites(page, id, BILL_REFUSALS.closeDate)
         await page.getByTestId('bill-post').click()
         await expect(page.getByTestId('bill-error-summary')).toContainText(BILL_REFUSALS.closeDate)
-        await expect(page).toHaveURL(draftUrl)
+        await expectRecordUrl(page, 'bills', id)
         await page.unrouteAll({ behavior: 'wait' })
 
         // Out of the text fields, so ⌘⌫ is the screen's Delete draft.
@@ -605,7 +600,7 @@ test.describe('bill-form: form', () => {
         await expect(dialog).toContainText(DELETE_TITLE)
         await expect(dialog).toContainText(DELETE_BODY)
         await page.getByTestId('delete-draft-confirm').click()
-        await expect(page).not.toHaveURL(draftUrl)
+        await expectNotRecordUrl(page, 'bills', id)
         await expect(page.getByTestId('bill-form')).toHaveCount(0)
 
         // Post with no lines: the line-count rule under the tables, and no write.
@@ -634,7 +629,7 @@ test.describe('bill-form: form', () => {
         await page.getByTestId(billCellTestId('account_lines', line1, 'amount')).fill('200.00')
         await page.getByTestId('form-input-memo').fill(memo)
         const number = await postBill(page)
-        const originalId = billIdFromUrl(page)
+        const originalId = await billIdFromUrl(page)
 
         // E: a correction that keeps the number.
         await page.keyboard.press('e')
@@ -646,10 +641,10 @@ test.describe('bill-form: form', () => {
         await page.getByTestId(billCellTestId('account_lines', line, 'amount')).fill('210.00')
         await page.getByTestId('bill-post').click()
         await expect(page).toHaveURL(BILL_URL)
-        expect(billIdFromUrl(page)).not.toBe(originalId)
+        expect(await billIdFromUrl(page)).not.toBe(originalId)
         await expect(page.getByTestId('bill-title')).toHaveText(`Bill ${number}`)
         await expect(page.getByTestId('bill-total')).toContainText(money(21_000))
-        const correctionId = billIdFromUrl(page)
+        const correctionId = await billIdFromUrl(page)
 
         // C: a copy of the correction, dated today with no vendor's bill no.
         await page.keyboard.press('c')
@@ -688,7 +683,7 @@ test.describe('bill-form: form', () => {
         )
         await page.getByTestId(`entries-row-menu-${entryId}`).click()
         await page.getByTestId('entries-menu-open').click()
-        await expect(page).toHaveURL(DRAFT_URL_OF(originalId))
+        await expectRecordUrl(page, 'bills', originalId)
         await expect(page.getByTestId('bill-badge')).toHaveText('Void')
         await expect(page.getByTestId('bill-replaced-by')).toHaveText(
             `Replaced by ${number} (edited)`
@@ -710,7 +705,7 @@ test.describe('bill-form: across Books', () => {
         await page.getByTestId(billCellTestId('account_lines', line1, 'amount')).fill('72.00')
         await page.getByTestId('form-input-memo').fill(postedMemo)
         const number = await postBill(page)
-        const postedId = billIdFromUrl(page)
+        const postedId = await billIdFromUrl(page)
 
         await openNewBill(page)
         await pickBillVendor(page, SUMMIT)
@@ -721,19 +716,19 @@ test.describe('bill-form: across Books', () => {
         await expect(page).toHaveURL(BILL_URL)
         const draftForm = page.getByTestId('bill-form')
         await expect(draftForm.getByTestId('bill-title')).toHaveText('Draft bill')
-        const draftId = billIdFromUrl(page)
+        const draftId = await billIdFromUrl(page)
 
         // Out of the text fields, so `/` opens the search palette.
         await draftForm.getByTestId('bill-title').click()
         await searchToBill(page, ref, `Bill ${number} · ${SUMMIT}`)
-        await expect(page).toHaveURL(DRAFT_URL_OF(postedId))
+        await expectRecordUrl(page, 'bills', postedId)
         // The draft's form stays mounted under the pushed read view: scope to the screen.
         const readView = page.getByTestId('bill-read-only')
         await expect(readView).toBeVisible()
         await expect(readView.getByTestId('bill-title')).toHaveText(`Bill ${number}`)
 
         await searchToBill(page, draftMemo, `Draft bill · ${SUMMIT}`)
-        await expect(page).toHaveURL(DRAFT_URL_OF(draftId))
+        await expectRecordUrl(page, 'bills', draftId)
         const reopenedForm = page.getByTestId('bill-form').filter({ visible: true })
         await expect(reopenedForm).toBeVisible()
         await expect(reopenedForm.getByTestId('form-input-memo')).toHaveValue(draftMemo)
@@ -750,13 +745,13 @@ test.describe('bill-form: across Books', () => {
         await account1('amount').fill('150.00')
         await page.getByTestId('form-input-memo').fill(memo)
         const number = await postBill(page)
-        const id = billIdFromUrl(page)
+        const id = await billIdFromUrl(page)
 
         // J: the entry, typed Bill with the bill's number; it debits 6200 and credits
         // Accounts payable, each line naming the vendor.
         await page.keyboard.press('j')
         await expect(page).toHaveURL(/\/books\/entries\/[^/?#]+$/)
-        const entryId = entryIdFromUrl(page)
+        const entryId = await entryIdFromUrl(page)
         const entry = page.getByTestId('entry-read-only')
         await expect(entry).toBeVisible()
         await expect(entry.getByTestId('entry-detail-type')).toContainText('Bill')
@@ -799,7 +794,7 @@ test.describe('bill-form: across Books', () => {
         await searchEntries(page, memo)
         await page.getByTestId(`entries-row-menu-${entryId}`).click()
         await page.getByTestId('entries-menu-open').click()
-        await expect(page).toHaveURL(DRAFT_URL_OF(id))
+        await expectRecordUrl(page, 'bills', id)
         await expect(page.getByTestId('bill-read-only')).toBeVisible()
     })
 })
@@ -817,7 +812,7 @@ test.describe('bill-form: phone read view', () => {
         await page.getByTestId(billCellTestId('account_lines', line1, 'amount')).fill('64.00')
         await page.getByTestId('form-input-memo').fill(memo)
         const number = await postBill(page)
-        const id = billIdFromUrl(page)
+        const id = await billIdFromUrl(page)
         await page.setViewportSize(PHONE)
 
         // The bill has a balance, so the phone bar keeps Pay bill (pay-bills spec §2); More
@@ -940,7 +935,7 @@ test.describe('bill-form: phone', () => {
         await page.getByTestId('bill-save-draft').click()
         await expect(page).toHaveURL(BILL_URL)
         await expect(page.getByTestId('bill-title')).toHaveText('Draft bill')
-        const draftUrl = DRAFT_URL_OF(billIdFromUrl(page))
+        const draftId = await billIdFromUrl(page)
 
         await page.getByTestId('bill-more').click()
         await expect(page.getByText('Post & new', { exact: true })).toBeVisible()
@@ -952,7 +947,7 @@ test.describe('bill-form: phone', () => {
         await expect(dialog).toContainText(DELETE_TITLE)
         await expect(dialog).toContainText(DELETE_BODY)
         await page.getByTestId('delete-draft-confirm').click()
-        await expect(page).not.toHaveURL(draftUrl)
+        await expectNotRecordUrl(page, 'bills', draftId)
         await expect(page.getByTestId('bill-form')).toHaveCount(0)
     })
 })
@@ -1176,7 +1171,7 @@ test.describe('bill-form: bill lines setting', () => {
         await item('quantity').fill('5')
         await page.getByTestId('form-input-memo').fill(memo)
         const number = await postBill(page)
-        const originalId = billIdFromUrl(page)
+        const originalId = await billIdFromUrl(page)
         await expect(page.getByTestId('bill-read-only')).toContainText(PATCH_CABLE)
 
         // A refused save shows the server's text and keeps the chosen value.

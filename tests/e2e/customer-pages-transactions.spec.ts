@@ -27,6 +27,7 @@ import {
 } from './invoice-helpers'
 import { openNewAction } from './new-menu-helpers'
 import { fillInvoice, nonTaxableService, postInvoice } from './receive-payment-helpers'
+import { expectNotRecordUrl, expectRecordUrl } from './record-key-helpers'
 import {
     chooseReceiptSelect,
     pickReceiptLineProduct,
@@ -159,7 +160,7 @@ test.describe('customer-pages: transactions tab', () => {
         await page.getByTestId('invoice-save-draft').click()
         await expect(page).toHaveURL(INVOICE_URL)
         await expect(page.getByTestId('invoice-title')).toHaveText('Draft invoice')
-        const draftId = invoiceIdFromUrl(page)
+        const draftId = await invoiceIdFromUrl(page)
         await backToCustomer(page, id)
 
         // A posted invoice dated today, due today: Open.
@@ -189,9 +190,9 @@ test.describe('customer-pages: transactions tab', () => {
         await page.getByTestId(lineCellTestId(lineId, 'rate')).fill('145.00')
         await page.getByTestId('invoice-post').click()
         await expect(page).toHaveURL(INVOICE_URL)
-        await expect(page).not.toHaveURL(new RegExp(`/books/invoices/${originalId}$`))
+        await expectNotRecordUrl(page, 'invoices', originalId)
         await expect(page.getByTestId('invoice-title')).toHaveText(`Invoice ${correctedNumber}`)
-        const correctedId = invoiceIdFromUrl(page)
+        const correctedId = await invoiceIdFromUrl(page)
         await backToCustomer(page, id)
 
         // An estimate on the voided invoice's date, made after it.
@@ -201,7 +202,7 @@ test.describe('customer-pages: transactions tab', () => {
         await page.getByTestId('estimate-save').click()
         await expect(page).toHaveURL(ESTIMATE_URL)
         await expect(page.getByTestId('estimate-title')).toHaveText(/^Estimate \d+$/)
-        const estimateId = estimateIdFromUrl(page)
+        const estimateId = await estimateIdFromUrl(page)
         await backToCustomer(page, id)
 
         // A posted sales receipt.
@@ -212,7 +213,7 @@ test.describe('customer-pages: transactions tab', () => {
         await page.getByTestId('sales-receipt-post').click()
         await expect(page.getByTestId('sales-receipt-read-only')).toBeVisible()
         await expect(page).toHaveURL(SALES_RECEIPT_URL)
-        const receiptId = salesReceiptIdFromUrl(page)
+        const receiptId = await salesReceiptIdFromUrl(page)
         await backToCustomer(page, id)
 
         // Date desc, then created desc (the estimate was made after the void invoice of the
@@ -237,7 +238,7 @@ test.describe('customer-pages: transactions tab', () => {
 
         // A row opens its document; the page stays mounted under it, chip and all.
         await transaction(page, openId).click()
-        await expect(page).toHaveURL(new RegExp(`/books/invoices/${openId}$`))
+        await expectRecordUrl(page, 'invoices', openId)
         await page.goBack()
         await expect(page).toHaveURL(customerPath(id))
         await expect(transactionsTab).toHaveAttribute('aria-selected', 'true')

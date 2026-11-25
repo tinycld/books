@@ -16,6 +16,7 @@ import {
     shown,
     vendorWithBills,
 } from './pay-bills-helpers'
+import { expectRecordUrl, recordIdFromUrl } from './record-key-helpers'
 import {
     applyAmountCell,
     applyCreditToBill,
@@ -56,22 +57,12 @@ async function openBooks(page: Page) {
     await navigateToPackage(page, 'books')
 }
 
-function billUrlOf(id: string) {
-    return new RegExp(`/books/bills/${id}$`)
-}
-
-function creditUrlOf(id: string) {
-    return new RegExp(`/books/vendor-credits/${id}$`)
-}
-
 function removeText(billNumber: string, amount: string) {
     return `Remove this credit from Bill ${billNumber}? The bill's balance goes up by ${amount} and the credit is unapplied again.`
 }
 
-function entryIdFromUrl(page: Page): string {
-    const id = /\/books\/entries\/([^/?#]+)$/.exec(new URL(page.url()).pathname)?.[1]
-    if (!id) throw new Error(`Not on a journal entry: ${page.url()}`)
-    return id
+async function entryIdFromUrl(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'entries')
 }
 
 // The names on the entry read view's lines, in one snapshot.
@@ -140,7 +131,7 @@ test.describe('vendor-credit-form: bill read view', () => {
         await openBooks(failed)
         await openEntriesList(failed)
         await searchToBill(failed, vendor.name, `Bill ${bill.number} · ${vendor.name}`)
-        await expect(failed).toHaveURL(billUrlOf(bill.id))
+        await expectRecordUrl(failed, 'bills', bill.id)
         await expect(shown(failed, 'bill-read-only')).toBeVisible()
         await expect(shown(failed, 'bill-payments-credits-banner')).toContainText(
             'Books could not load the credits applied to this bill.'
@@ -178,7 +169,7 @@ test.describe('vendor-credit-form: bill read view', () => {
         // not below it): Partly paid, Credits applied −$30.00 above Balance due $70.00.
         await openEntriesList(page)
         await searchToBill(page, vendor.name, `Bill ${bill.number} · ${vendor.name}`)
-        await expect(page).toHaveURL(billUrlOf(bill.id))
+        await expectRecordUrl(page, 'bills', bill.id)
         await expect(shown(page, 'bill-read-only')).toBeVisible()
         await expect(shown(page, 'bill-badge')).toHaveText('Partly paid')
         const credits = shown(page, 'bill-total-credits')
@@ -202,12 +193,12 @@ test.describe('vendor-credit-form: bill read view', () => {
         await expect(block).toContainText(`Vendor credit ${credit.number} · ${today} · $30.00`)
         await expect(block.locator(CREDIT_ROWS)).toHaveCount(1)
         await block.getByText(new RegExp(`^Vendor credit ${credit.number} · `)).click()
-        await expect(page).toHaveURL(creditUrlOf(credit.id))
+        await expectRecordUrl(page, 'vendor-credits', credit.id)
         await expect(shown(page, 'vendor-credit-title')).toHaveText(
             `Vendor credit ${credit.number}`
         )
         await shown(page, 'entry-back').click()
-        await expect(page).toHaveURL(billUrlOf(bill.id))
+        await expectRecordUrl(page, 'bills', bill.id)
         await expect(shown(page, 'bill-badge')).toHaveText('Partly paid')
 
         // V: the void is refused in the Void dialog; the bill stays Partly paid.
@@ -235,7 +226,7 @@ test.describe('vendor-credit-form: bill read view', () => {
 
         // The credit, through search, is unapplied again.
         await openVendorCreditBySearch(page, memo)
-        await expect(page).toHaveURL(creditUrlOf(credit.id))
+        await expectRecordUrl(page, 'vendor-credits', credit.id)
         await expect(shown(page, 'vendor-credit-total-unapplied')).toContainText('$30.00')
         await expect(shown(page, 'vendor-credit-badge')).toHaveText('Posted')
     })
@@ -286,7 +277,7 @@ test.describe('vendor-credit-form: pay bills', () => {
 
         // The link opens the credit; A and ⌘↵ apply it in full, oldest due first.
         await creditLink.click()
-        await expect(page).toHaveURL(creditUrlOf(credit.id))
+        await expectRecordUrl(page, 'vendor-credits', credit.id)
         await expect(shown(page, 'vendor-credit-read-only')).toBeVisible()
         await page.keyboard.press('a')
         await expect(applyDialog(page)).toBeVisible()
@@ -400,7 +391,7 @@ test.describe('vendor-credit-form: corrections and the ledger', () => {
         await amount.fill('40.00')
         await page.keyboard.press('ControlOrMeta+Enter')
         await expect(page).toHaveURL(VENDOR_CREDIT_URL)
-        const correctionId = vendorCreditIdFromUrl(page)
+        const correctionId = await vendorCreditIdFromUrl(page)
         expect(correctionId).not.toBe(credit.id)
         await expect(shown(page, 'vendor-credit-read-only')).toBeVisible()
         await expect(shown(page, 'vendor-credit-title')).toHaveText(
@@ -426,7 +417,7 @@ test.describe('vendor-credit-form: corrections and the ledger', () => {
         await page.keyboard.press('j')
         await expect(page).toHaveURL(/\/books\/entries\/[^/?#]+$/)
         await expect(page.getByTestId('entry-read-only')).toBeVisible()
-        const entryId = entryIdFromUrl(page)
+        const entryId = await entryIdFromUrl(page)
         await expect
             .poll(async () => [...new Set(await entryLineNames(page))])
             .toEqual([vendor.name])
@@ -439,7 +430,7 @@ test.describe('vendor-credit-form: corrections and the ledger', () => {
         await expect(page.getByTestId(`entries-cell-number-${entryId}`)).toHaveText(credit.number)
         await page.getByTestId(`entries-row-menu-${entryId}`).click()
         await page.getByTestId('entries-menu-open').click()
-        await expect(page).toHaveURL(creditUrlOf(correctionId))
+        await expectRecordUrl(page, 'vendor-credits', correctionId)
         const readView = shown(page, 'vendor-credit-read-only')
         await expect(readView).toBeVisible()
 

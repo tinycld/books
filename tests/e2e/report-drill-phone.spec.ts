@@ -26,6 +26,7 @@ import {
 } from './books-report-helpers'
 import { ACCOUNT_LABELS } from './journal-entries-helpers'
 import { CLASSIC_SCROLLBARS, uniqueName } from './record-form-helpers'
+import { expectRecordUrl, recordIdFromUrl } from './record-key-helpers'
 
 // A statement figure on a phone (report drill-down spec §3 "Window below 1360 px, and
 // every phone", §7 phone item 1): the phone path runs different code (core's wrapped
@@ -76,8 +77,7 @@ test.describe('report-drill-down: phone', () => {
                 { account: ACCOUNT_LABELS.checking, credit: '52.00' },
             ],
         })
-        const entryPath = new URL(page.url()).pathname
-        expect(entryPath).toMatch(/\/books\/entries\/[^/]+$/)
+        const entryId = await recordIdFromUrl(page, 'entries')
 
         await page.addStyleTag({ content: CLASSIC_SCROLLBARS })
         await openProfitAndLoss(page)
@@ -113,7 +113,7 @@ test.describe('report-drill-down: phone', () => {
         const label = page.getByTestId(`report-row-${line.id}`)
         await expect(label).toHaveRole('link')
         await label.click()
-        await expect(page).toHaveURL(new RegExp(`${entryPath}$`))
+        await expectRecordUrl(page, 'entries', entryId)
 
         await page.goBack()
         await expect(page.getByTestId('report-title')).toHaveText(TRANSACTION_DETAIL_TITLE)

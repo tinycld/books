@@ -5,13 +5,13 @@ import { PRODUCT_IDS, PRODUCTS } from '../../tinycld/books/lib/products-services
 import { batchAnswered } from './document-batch-helpers'
 import { lineCellTestId, uniqueMemo } from './invoice-helpers'
 import { shiftTabTo, tabTo } from './keyboard-helpers'
+import { expectNotRecordUrl, expectRecordUrl } from './record-key-helpers'
 import {
     NEW_REFUND_RECEIPT_URL,
     openNewRefundReceipt,
     REFUND_RECEIPT_URL,
     refundLineRowId,
     refundReceiptIdFromUrl,
-    refundReceiptUrlOf,
 } from './refund-receipt-helpers'
 
 // The refund receipt's keyboard-only create and edit (refund receipt spec §3.2, §3.4,
@@ -219,14 +219,14 @@ test.describe('refund-receipt-form: keyboard', () => {
         await page.keyboard.press('ControlOrMeta+s')
         await expect(page).toHaveURL(REFUND_RECEIPT_URL)
         await expect(page.getByTestId('refund-receipt-title')).toHaveText('Draft refund receipt')
-        const id = refundReceiptIdFromUrl(page)
+        const id = await refundReceiptIdFromUrl(page)
 
         // Escape leaves the saved (clean) form at once; search reopens the draft.
         await page.keyboard.press('Escape')
-        await expect(page).not.toHaveURL(refundReceiptUrlOf(id))
+        await expectNotRecordUrl(page, 'refund-receipts', id)
         await expect(page.getByTestId('discard-dialog')).toHaveCount(0)
         await searchByKeys(page, memo, /^Draft refund receipt/)
-        await expect(page).toHaveURL(refundReceiptUrlOf(id))
+        await expectRecordUrl(page, 'refund-receipts', id)
         await expect(page.getByTestId('refund-receipt-form')).toBeVisible()
         await expect(page.getByTestId('form-input-customer')).toBeFocused()
 
@@ -258,11 +258,11 @@ test.describe('refund-receipt-form: keyboard', () => {
         const saved = batchAnswered(page, 'books_refund_receipts', 'PATCH', 200)
         await page.keyboard.press('ControlOrMeta+s')
         await saved
-        await expect(page).toHaveURL(refundReceiptUrlOf(id))
+        await expectRecordUrl(page, 'refund-receipts', id)
 
         // Escape leaves the clean form; reopened, the stored values come back.
         await page.keyboard.press('Escape')
-        await expect(page).not.toHaveURL(refundReceiptUrlOf(id))
+        await expectNotRecordUrl(page, 'refund-receipts', id)
         await expect(page.getByTestId('discard-dialog')).toHaveCount(0)
         await searchByKeys(page, memo, /^Draft refund receipt/)
         await expect(page.getByTestId('refund-receipt-form')).toBeVisible()
@@ -273,7 +273,7 @@ test.describe('refund-receipt-form: keyboard', () => {
         // ⌘↵ posts the draft in place.
         await expect(page.getByTestId('form-input-customer')).toBeFocused()
         await page.keyboard.press('ControlOrMeta+Enter')
-        await expect(page).toHaveURL(refundReceiptUrlOf(id))
+        await expectRecordUrl(page, 'refund-receipts', id)
         await expect(page.getByTestId('refund-receipt-read-only')).toBeVisible()
         await expect(page.getByTestId('refund-receipt-badge')).toHaveText('Posted')
         await expect(page.getByTestId('refund-receipt-total-subtotal')).toContainText('$300.00')

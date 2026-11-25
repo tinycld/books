@@ -17,6 +17,7 @@ import {
 } from './bank-match-helpers'
 import { BANKING_PHONE, bankCard, fakeReadOnlyAccess, openBanking } from './banking-helpers'
 import { openReviewTab } from './for-review-helpers'
+import { urlKeyOf } from './record-key-helpers'
 import { openTransferFromList, uniqueMemo } from './transfer-helpers'
 
 // The Reviewed tab of a matched transaction: its In Books link, the drawer's Matched to
@@ -137,7 +138,7 @@ test.describe
             await expect(inBooks).toHaveText(`Matched · Transfer ${transfer.number}`)
             await expect(inBooks).toHaveAttribute(
                 'href',
-                new RegExp(`books/transfers/${transfer.id}$`)
+                new RegExp(`books/transfers/${await urlKeyOf(page, 'transfers', transfer.id)}$`)
             )
             await expect.poll(() => sidewaysScrollers(page)).toEqual([])
 
@@ -149,7 +150,7 @@ test.describe
             await expect(matchedLinks(page)).toHaveCount(1)
             await expect(matchedLinks(page)).toHaveAttribute(
                 'href',
-                new RegExp(`books/transfers/${transfer.id}$`)
+                new RegExp(`books/transfers/${await urlKeyOf(page, 'transfers', transfer.id)}$`)
             )
             await expect(page.getByTestId('bank-matched-by')).toHaveText(
                 `Matched ${todayText()} by ${TEST_USER_NAME}`

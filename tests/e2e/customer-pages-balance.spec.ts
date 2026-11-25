@@ -19,6 +19,7 @@ import {
 import { localToday } from './invoice-helpers'
 import { fillInvoice, postInvoice } from './receive-payment-helpers'
 import { holdLoads } from './record-form-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 
 // The customer page's Open and Overdue figures and its New transaction menu
 // (customer-pages checkpoint 3, spec §3.2 and §3.3). Every test creates its own customers
@@ -173,7 +174,7 @@ test.describe('customer-pages: balance and new transaction', () => {
 
         // Voiding the second invoice takes it out of Open.
         await page.goForward()
-        await expect(page).toHaveURL(new RegExp(`/books/invoices/${secondId}$`))
+        await expectRecordUrl(page, 'invoices', secondId)
         await page.getByTestId('invoice-read-void').click()
         await page.getByTestId('void-confirm').click()
         await expect(page.getByTestId('invoice-badge')).toHaveText('Void')

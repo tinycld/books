@@ -2,6 +2,7 @@ import { expect, type Page, test } from '@playwright/test'
 import { DESKTOP, openBooks, openCustomer } from './customer-form-helpers'
 import { newActionTestId } from './new-menu-helpers'
 import { fillInvoice, localDay, postInvoice } from './receive-payment-helpers'
+import { expectRecordUrl, urlKeyOf } from './record-key-helpers'
 import {
     newStatementUrl,
     type StatementCustomer,
@@ -53,10 +54,6 @@ function tabUrl(customerId: string) {
     return new RegExp(`/books/customers/${customerId}\\?tab=statements$`)
 }
 
-function statementUrl(id: string) {
-    return new RegExp(`/books/statements/${id}$`)
-}
-
 function pdfAnswered(page: Page, id: string) {
     return page.waitForResponse(response => response.url().includes(`${PDF_PATH}${id}`))
 }
@@ -88,7 +85,7 @@ async function openStatementsTab(page: Page, customer: StatementCustomer) {
 async function openStatement(page: Page, row: StoredStatement) {
     const pdf = pdfAnswered(page, row.id)
     await shown(page, `statement-row-${row.id}`).click()
-    await expect(page).toHaveURL(statementUrl(row.id))
+    await expectRecordUrl(page, 'statements', row.id)
     await expect(shown(page, 'statement-title')).toHaveText(`Statement ${row.number}`)
     expect((await pdf).status()).toBe(200)
     await expect(shown(page, 'statement-pdf')).toBeVisible()
@@ -249,9 +246,10 @@ test.describe('statements: tab and statement', () => {
         ).toBeVisible()
         await confirm.getByRole('button', { name: /^Cancel/ }).click()
         await expect(confirm).toHaveCount(0)
-        await expect(page).toHaveURL(statementUrl(first.id))
+        await expectRecordUrl(page, 'statements', first.id)
         expect((await statementsOf(page, customer.id)).map(r => r.id)).toContain(first.id)
 
+        const firstKey = await urlKeyOf(page, 'statements', first.id)
         // Delete: the screen pops back to the tab below it (no second tab entry is pushed),
         // with one row left.
         await shown(page, 'statement-more').click()
@@ -262,7 +260,7 @@ test.describe('statements: tab and statement', () => {
 
         // The deleted statement's screen is the forward history entry: it shows Not found.
         await page.goForward()
-        await expect(page).toHaveURL(statementUrl(first.id))
+        await expect(page).toHaveURL(new RegExp(`/books/statements/${firstKey}$`))
         await expect(shown(page, 'statement-not-found')).toContainText(
             'This statement does not exist, or you cannot open it.'
         )
@@ -331,7 +329,7 @@ test.describe('statements: tab and statement', () => {
 
         // Open: the statement with its PDF page, Download PDF, no Send… and no More → Delete.
         await shown(page, `statement-row-open-${top}`).click()
-        await expect(page).toHaveURL(statementUrl(top))
+        await expectRecordUrl(page, 'statements', top)
         await expect(shown(page, 'statement-pdf')).toBeVisible()
         await expect(shown(page, 'statement-download')).toBeVisible()
         await expect(page.getByTestId('statement-send')).toHaveCount(0)

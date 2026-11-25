@@ -32,6 +32,7 @@ import {
 } from './books-report-helpers'
 import { ACCOUNT_LABELS } from './journal-entries-helpers'
 import { uniqueName } from './record-form-helpers'
+import { expectRecordUrl, recordIdFromUrl } from './record-key-helpers'
 
 // Transaction Detail by Account in core's drill panel beside the Profit and Loss, on a
 // window of 1360 px or more (report drill-down spec §3 "Where the opened report shows",
@@ -259,8 +260,7 @@ test.describe('report-drill-down: panel', () => {
         await createExpenseAccount(page, expense)
         await openEntriesFromSidebar(page)
         await postExpense(page, expense, '27.00')
-        const entryPath = new URL(page.url()).pathname
-        expect(entryPath).toMatch(/\/books\/entries\/[^/]+$/)
+        const entryId = await recordIdFromUrl(page, 'entries')
 
         await openStatementTo(page, expense)
         await pressFigure(page, 'amount', expense)
@@ -276,7 +276,7 @@ test.describe('report-drill-down: panel', () => {
         const label = panel.getByTestId(`report-row-${line.id}`)
         await expect(label).toHaveRole('link')
         await label.click()
-        await expect(page).toHaveURL(new RegExp(`${entryPath}$`))
+        await expectRecordUrl(page, 'entries', entryId)
 
         await page.goBack()
         await expect(inStatement(page, 'report-title')).toHaveText(PL_TITLE)
