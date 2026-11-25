@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -62,26 +63,15 @@ func writeFileWhole(path string, fill func(io.Writer) error) (int64, error) {
 			return 0, usagef("--file: %v", err)
 		}
 	}
-	mode, created, err := targetMode(path)
+	mode, err := targetMode(path)
 	if err != nil {
 		return 0, err
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+"-*")
 	if err != nil {
-		if created {
-			os.Remove(path)
-		}
 		return 0, usagef("--file: %v", err)
 	}
 	defer os.Remove(tmp.Name())
-	// The empty file that gave the mode of a new file goes with a failure: the
-	// rename replaces it on success.
-	failed := true
-	defer func() {
-		if created && failed {
-			os.Remove(path)
-		}
-	}()
 	if err := fill(tmp); err != nil {
 		tmp.Close()
 		return 0, err
@@ -98,7 +88,6 @@ func writeFileWhole(path string, fill func(io.Writer) error) (int64, error) {
 	if err == nil {
 		err = os.Rename(tmp.Name(), path)
 	}
-	failed = err != nil
 	if err != nil {
 		return 0, fmt.Errorf("--file: %w", err)
 	}
@@ -106,43 +95,64 @@ func writeFileWhole(path string, fill func(io.Writer) error) (int64, error) {
 }
 
 // targetMode is the mode the written file gets. A file that is there keeps its
-// own; a directory is no file to write. For a new path it makes an empty file,
-// so the process umask decides the mode as it does for any ordinary write;
-// created says the caller must remove that file when the write fails.
-func targetMode(path string) (mode os.FileMode, created bool, err error) {
+// own; a directory is no file to write. For a new path it makes an empty file
+// to read the mode that the process umask gives to an ordinary write, and
+// removes it at once: the file appears only when the download is whole.
+func targetMode(path string) (os.FileMode, error) {
 	info, err := os.Stat(path)
 	if err == nil {
 		if info.IsDir() {
-			return 0, false, usagef("--file: %s is a directory", path)
+			return 0, usagef("--file: %s is a directory", path)
 		}
-		return info.Mode().Perm(), false, nil
+		return info.Mode().Perm(), nil
 	}
 	if !errors.Is(err, fs.ErrNotExist) {
-		return 0, false, usagef("--file: %v", err)
+		return 0, usagef("--file: %v", err)
 	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o666)
 	if err != nil {
-		return 0, false, usagef("--file: %v", err)
+		return 0, usagef("--file: %v", err)
 	}
-	defer f.Close()
 	info, err = f.Stat()
+	f.Close()
+	os.Remove(path)
 	if err != nil {
-		os.Remove(path)
-		return 0, false, usagef("--file: %v", err)
+		return 0, usagef("--file: %v", err)
 	}
-	return info.Mode().Perm(), true, nil
+	return info.Mode().Perm(), nil
 }
 
 // readFailure marks an error of the download itself, to tell it from an error
 // of the write to the file.
-type readFailure struct{ r io.Reader }
+// A cancel keeps its own exit code: Ctrl-C is not "try again later".
+type readFailure struct {
+	r      io.Reader
+	failed bool
+}
 
-func (f readFailure) Read(p []byte) (int, error) {
+func (f *readFailure) Read(p []byte) (int, error) {
 	n, err := f.r.Read(p)
 	if err != nil && err != io.EOF {
-		err = exitcode.New(exitcode.Unavailable, err)
+		f.failed = true
+		if !errors.Is(err, context.Canceled) {
+			err = exitcode.New(exitcode.Unavailable, err)
+		}
 	}
 	return n, err
+}
+
+// copyDownload copies a download to the file. A read error is the download's
+// (exit 7 unless cancelled); a write error is the file's.
+func copyDownload(w io.Writer, r io.Reader) error {
+	src := &readFailure{r: r}
+	_, err := io.Copy(w, src)
+	if err == nil {
+		return nil
+	}
+	if src.failed {
+		return fmt.Errorf("the download of the report stopped: %w", err)
+	}
+	return fmt.Errorf("--file: %w", err)
 }
 
 func newReportExportCmd(c *client.Client) *cobra.Command {
@@ -197,10 +207,7 @@ func newReportExportCmd(c *client.Client) *cobra.Command {
 				return err
 			}
 			defer stream.Close()
-			if _, err := io.Copy(w, readFailure{stream}); err != nil {
-				return fmt.Errorf("the download of the report stopped: %w", err)
-			}
-			return nil
+			return copyDownload(w, stream)
 		})
 		if err != nil {
 			return err

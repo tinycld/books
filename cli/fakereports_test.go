@@ -27,6 +27,8 @@ type fakeReports struct {
 	// cutAfter, when above 0, makes an export declare the whole file and end
 	// the answer after that many bytes.
 	cutAfter int
+	// onExport, when set, runs as an export arrives, before the answer.
+	onExport func()
 }
 
 func (f *fakeBooks) reportRun(w http.ResponseWriter, r *http.Request) {
@@ -44,6 +46,9 @@ func (f *fakeBooks) reportRun(w http.ResponseWriter, r *http.Request) {
 func (f *fakeBooks) reportExport(w http.ResponseWriter, r *http.Request) {
 	body := decodeBody(r)
 	f.reports.exports = append(f.reports.exports, body)
+	if f.reports.onExport != nil {
+		f.reports.onExport()
+	}
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+f.reports.fileName+`"`)
 	if cut := f.reports.cutAfter; cut > 0 {

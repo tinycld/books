@@ -1,7 +1,10 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -203,6 +206,83 @@ func TestReportsExportCutDownloadIsUnavailable(t *testing.T) {
 	}
 	if entries, _ := os.ReadDir(dir); len(entries) != 1 {
 		t.Errorf("a temporary file was left: %v", entries)
+	}
+}
+
+// A new file does not exist while the server is asked, so a watcher reads no
+// empty file and a kill leaves none.
+func TestReportsExportNewFileAppearsOnlyWhole(t *testing.T) {
+	f := reportsFake(t)
+	f.reports.file, f.reports.fileName = []byte("0123456789"), "out.csv"
+	file := filepath.Join(t.TempDir(), "out.csv")
+	existed := false
+	f.reports.onExport = func() {
+		_, err := os.Stat(file)
+		existed = err == nil
+	}
+	if err := exportTo(t, f, file); err != nil {
+		t.Fatal(err)
+	}
+	if existed {
+		t.Errorf("the file existed while the export was asked for")
+	}
+	if data, _ := os.ReadFile(file); string(data) != "0123456789" {
+		t.Errorf("file %q", data)
+	}
+}
+
+// A refused export or a cut download makes no new file.
+func TestReportsExportFailureMakesNoNewFile(t *testing.T) {
+	cases := []struct {
+		name  string
+		setup func(f *fakeBooks)
+	}{
+		{"refused", func(f *fakeBooks) {
+			f.refuse(http.MethodPost, http.StatusBadRequest, `{"data":{},"message":"No.","status":400}`)
+		}},
+		{"cut", func(f *fakeBooks) { f.reports.cutAfter = 4 }},
+	}
+	for _, c := range cases {
+		f := reportsFake(t)
+		f.reports.file, f.reports.fileName = []byte("0123456789"), "out.csv"
+		c.setup(f)
+		dir := t.TempDir()
+		if err := exportTo(t, f, filepath.Join(dir, "out.csv")); err == nil {
+			t.Errorf("%s: no error", c.name)
+		}
+		if entries, _ := os.ReadDir(dir); len(entries) != 0 {
+			t.Errorf("%s: files left: %v", c.name, entries)
+		}
+	}
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("disk full") }
+
+type brokenReader struct{ err error }
+
+func (r brokenReader) Read([]byte) (int, error) { return 0, r.err }
+
+// A cancel (Ctrl-C) is not "try again": it keeps the exit code of a failure.
+func TestCopyDownloadCancelIsNotUnavailable(t *testing.T) {
+	err := copyDownload(io.Discard, brokenReader{context.Canceled})
+	if got := exitcode.Of(err); got == exitcode.Unavailable || err == nil {
+		t.Errorf("exit %d, err %v", got, err)
+	}
+	if err = copyDownload(io.Discard, brokenReader{io.ErrUnexpectedEOF}); exitcode.Of(err) != exitcode.Unavailable {
+		t.Errorf("a cut read: exit %d, err %v", exitcode.Of(err), err)
+	}
+}
+
+// A write error is the file's, not the download's.
+func TestCopyDownloadWriteErrorNamesTheFile(t *testing.T) {
+	err := copyDownload(failingWriter{}, strings.NewReader("data"))
+	if err == nil || !strings.Contains(err.Error(), "--file: disk full") || strings.Contains(err.Error(), "stopped") {
+		t.Errorf("err %v", err)
+	}
+	if got := exitcode.Of(err); got == exitcode.Unavailable {
+		t.Errorf("exit %d", got)
 	}
 }
 
