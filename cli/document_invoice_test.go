@@ -244,7 +244,7 @@ func TestInvoiceEntryPrintsTheJournalEntryWithItsLines(t *testing.T) {
 func TestInvoiceEntryOfADraftIsARefusalAndOfAMissingInvoiceIsNotFound(t *testing.T) {
 	f := sales(t)
 	_, _, err := runCmd(t, f.serve(), "", "books", "invoices", "entry", "invdraft0000001", "--json")
-	want := "invoice invdraft0000001 is draft: it has no journal entry; Books writes one when the invoice is posted"
+	want := "invoice invdraft0000001 is draft: it has no journal entry; Books writes one when the invoice is posted: post it with `tinycld books invoices post`"
 	if got := exitcode.Of(err); got != exitcode.Refused || !strings.Contains(err.Error(), want) {
 		t.Errorf("a draft: exit = %d, err = %v", got, err)
 	}
@@ -254,6 +254,12 @@ func TestInvoiceEntryOfADraftIsARefusalAndOfAMissingInvoiceIsNotFound(t *testing
 	_, _, err = runCmd(t, f.serve(), "", "books", "invoices", "entry", "nosuchinvoice01", "--json")
 	if got := exitcode.Of(err); got != exitcode.NotFound || !strings.Contains(err.Error(), "invoice nosuchinvoice01") {
 		t.Errorf("a missing invoice: exit = %d, err = %v", got, err)
+	}
+	// A posted or void invoice with no entry is not told to post.
+	f.addRow("books_invoices", "invnoentry00001", map[string]any{"status": "posted", "entry": ""})
+	_, _, err = runCmd(t, f.serve(), "", "books", "invoices", "entry", "invnoentry00001", "--json")
+	if got := exitcode.Of(err); got != exitcode.Refused || err.Error() != "invoice invnoentry00001 is posted and has no journal entry" {
+		t.Errorf("a posted invoice with no entry: exit = %d, err = %v", got, err)
 	}
 	// The entry is gone, or the caller may not read it: the error says whose it is.
 	f.addRow("books_invoices", "invorphan000001", map[string]any{"status": "posted", "entry": "nosuchentry0001"})

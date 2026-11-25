@@ -248,8 +248,8 @@ func journalLine(entry string, account *core.Record, side string, cents, positio
 	return journalLineMemo(entry, account, side, cents, position, "")
 }
 
-// journalLineMemo sends a line with a memo, with the same fields and values as
-// the CLI test's line.
+// journalLineMemo sends a line, with its memo when memo is not empty, with the
+// same fields and values as the CLI test's line.
 func journalLineMemo(entry string, account *core.Record, side string, cents, position int, memo string) string {
 	if memo == "" {
 		return rowOp("books_journal_lines", "entry", entry, position, fmt.Sprintf(`"account":%q,%q:%d`, account.Id, side, cents))

@@ -101,6 +101,8 @@ func TestCLIDocuments_InvoiceRefusals(t *testing.T) {
 		// The message names the line as the form does: "Line 1" is lines[0].
 		refusedBatch(token, []string{`"requests":{"1":`, `"message":"Line 1: Product or service is required."`}, header,
 			rowOp(lines, "invoice", "cliinvoice00009", 0, `"kind":"item","quantity":1,"rate":500`)),
+		refusedBatch(token, []string{`"requests":{"1":`, `"message":"Line 1: A percent line applies to the item or subtotal right above it."`}, header,
+			rowOp(lines, "invoice", "cliinvoice00009", 0, fmt.Sprintf(`"kind":"percent","percent_ppm":-100000,"product":%q,"taxable":true`, env.service.Id))),
 		refusedBatch(token, []string{`"requests":{"1":`, `"message":"An invoice with a total of zero cannot be posted. Add an amount or keep it as a draft."`}, header,
 			cliOp("PATCH", invoices, "cliinvoice00009", `{"revision":1,"status":"posted"}`)),
 		refusedBatch(token, []string{`"requests":{"0":`, `"due_date":{"code":"validation_books"`},

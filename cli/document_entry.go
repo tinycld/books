@@ -29,8 +29,12 @@ func newDocumentEntryCmd(c *client.Client, doc *document) *cobra.Command {
 		}
 		entryID := current.cell(doc.Entry)
 		if entryID == "" {
-			return refusedf("%s %s is %s: it has no journal entry; Books writes one when the %s is posted",
-				doc.Singular, current.id(), current.cell("status"), doc.Singular)
+			status := current.cell("status")
+			if status != "draft" {
+				return refusedf("%s %s is %s and has no journal entry", doc.Singular, current.id(), status)
+			}
+			return refusedf("%s %s is draft: it has no journal entry; Books writes one when the %s is posted: post it with `%s post`",
+				doc.Singular, current.id(), doc.Singular, cmd.Parent().CommandPath())
 		}
 		rec, err := fetchDocument(cmd.Context(), c, journal, entryID)
 		if err != nil {
