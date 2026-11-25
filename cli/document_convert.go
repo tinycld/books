@@ -98,7 +98,7 @@ func closedSourceRefusal(cmd *cobra.Command, doc, to *document, source record) e
 
 func newDocumentConvertCmd(c *client.Client, doc *document) *cobra.Command {
 	to := findDocument(doc.Convert.To)
-	var input string
+	var input, chosen string
 	cmd := newCommand(commandDef{
 		Name:  "convert",
 		Short: "Make one draft " + to.Singular + " from one " + doc.Singular,
@@ -113,12 +113,23 @@ func newDocumentConvertCmd(c *client.Client, doc *document) *cobra.Command {
 		Input:  convertInputSchema(doc, to),
 		Output: documentSchema(to),
 	}, func(cmd *cobra.Command, args []string, o output.Options, _ bool) error {
+		if err := checkIDFlag(cmd, chosen); err != nil {
+			return err
+		}
 		body, err := readInput(cmd, input)
 		if err != nil {
 			return err
 		}
-		given, err := checkConvertBody(to, cmd.Parent().Parent().CommandPath()+" "+to.Name, body)
+		toGroup := cmd.Parent().Parent().CommandPath() + " " + to.Name
+		given, err := checkConvertBody(to, toGroup, body)
 		if err != nil {
+			return err
+		}
+		// A run sent again after a stored one finds the source closed: the
+		// stored id is the answer it needs.
+		id := chosenID(cmd, chosen)
+		show := toGroup + " show " + id
+		if err := refuseStoredID(cmd, c, to.Collection, id, to.Singular, show); err != nil {
 			return err
 		}
 		source, err := fetchDocument(cmd.Context(), c, doc, args[0])
@@ -133,9 +144,8 @@ func newDocumentConvertCmd(c *client.Client, doc *document) *cobra.Command {
 			return err
 		}
 		in.header[doc.Convert.Link] = source.id()
-		id := newRecordID()
-		if err := sendBatch(cmd.Context(), c, createOps(to, id, in, "")); err != nil {
-			return prefixID(&doc.resource, source.id(), err)
+		if err := sendCreate(cmd.Context(), c, to, id, createOps(to, id, in, "")); err != nil {
+			return prefixID(&doc.resource, source.id(), explain(err, to.Singular+" "+id, checkThenResend(show, id)))
 		}
 		rec, err := readBack(cmd, c, to, id, "added")
 		if err != nil {
@@ -145,5 +155,6 @@ func newDocumentConvertCmd(c *client.Client, doc *document) *cobra.Command {
 		return writeDocument(cmd, o, to, rec)
 	})
 	bindInput(cmd, &input)
+	bindID(cmd, &chosen, "the id of the new "+to.Singular)
 	return cmd
 }

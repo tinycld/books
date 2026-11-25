@@ -16,7 +16,7 @@ import (
 // of one record, so Books stores it or refuses it as a whole. The CLI computes
 // nothing: Books lowers both balances and refuses an amount that is too large.
 func newDocumentApplyCmd(c *client.Client, doc *document, table *lineTable) *cobra.Command {
-	var input string
+	var input, chosen string
 	res := table.asResource()
 	cmd := newCommand(commandDef{
 		Name:  "apply",
@@ -31,6 +31,9 @@ func newDocumentApplyCmd(c *client.Client, doc *document, table *lineTable) *cob
 		Input:  inputSchema(res, true),
 		Output: documentSchema(doc),
 	}, func(cmd *cobra.Command, args []string, o output.Options, _ bool) error {
+		if err := checkIDFlag(cmd, chosen); err != nil {
+			return err
+		}
 		body, err := readInput(cmd, input)
 		if err != nil {
 			return err
@@ -38,11 +41,22 @@ func newDocumentApplyCmd(c *client.Client, doc *document, table *lineTable) *cob
 		if err := checkInput(res, body, true); err != nil {
 			return err
 		}
+		id := chosenID(cmd, chosen)
+		show := cmd.Parent().CommandPath() + " show " + args[0]
+		if err := refuseStoredID(cmd, c, table.Collection, id, table.Singular, show); err != nil {
+			return err
+		}
 		row := maps.Clone(body)
-		row["id"] = newRecordID()
+		row["id"] = id
 		row[table.Parent] = args[0]
-		if _, err := client.CreateRecord[rawRecord](cmd.Context(), c, table.Collection, row); err != nil {
-			return applyCreateError(doc, table, args[0], err)
+		send := func() error {
+			_, err := client.CreateRecord[rawRecord](cmd.Context(), c, table.Collection, row)
+			return err
+		}
+		stored := func() (bool, error) { return recordExists(cmd.Context(), c, table.Collection, id) }
+		if err := sendResent(cmd.Context(), send, stored); err != nil {
+			what := table.Singular + " " + id + " of " + doc.Singular + " " + args[0]
+			return applyCreateError(doc, table, args[0], explain(err, what, checkThenResend(show, id)))
 		}
 		rec, err := readBack(cmd, c, doc, args[0], "applied")
 		if err != nil {
@@ -52,6 +66,7 @@ func newDocumentApplyCmd(c *client.Client, doc *document, table *lineTable) *cob
 		return writeDocument(cmd, o, doc, rec)
 	})
 	bindInput(cmd, &input)
+	bindID(cmd, &chosen, "the id of the new "+table.Singular)
 	return cmd
 }
 

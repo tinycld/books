@@ -257,8 +257,28 @@ An estimate moves no stock. `accept` and `reject` record the customer's answer; 
 
 `convert` makes a draft invoice with the customer, the billing address, the email address, the tax rate and the lines of the estimate, and prints it. It does not copy the memo or the message. The JSON gives the invoice's own fields: `date` and `due_date` are required, and `lines` replaces the lines of the estimate. Books closes the estimate in the same step, and one estimate makes one invoice. Post the invoice with `tinycld books invoices post`.
 
+## To retry safely
+
+When the answer to a write is lost (the network fails, or a proxy answers 502, 503 or 504), the command sends the same write again, with the same ids, up to three more times. Books cannot store it twice: when an earlier send was stored, Books refuses the next one, and the command prints the stored transaction as usual. This is true for `add`, `add --post`, `convert`, `apply` and `edit`.
+
+When no answer comes back at all, the command exits 7. The transaction may be stored or not, and the message names its id. To find out, run `show` with that id:
+
+```
+tinycld books journal-entries show <id>
+```
+
+To send it again safely, run the same command with `--id <id>`. When the first run was stored, Books writes nothing, and the command exits 6 with a message that the transaction already exists. A script can also choose the id before the first run: 15 characters, each a lower-case letter a-z or a digit 0-9.
+
+```
+tinycld books journal-entries add --id entry2026071501 --input entry.json --post
+```
+
+`add`, `convert`, `apply`, and `edit` take `--id`. For `edit`, it is the id of the new transaction that corrects a posted one; a draft keeps its own id.
+
+When the answer to the `edit` of a draft is lost and the change was stored, the command finds the change in the draft and prints it as usual. When someone else changed the draft between the two sends, the command shows the refusal from Books.
+
 ## For scripts and agents
 
 - Add `--json` to any command: it prints one JSON document, the result or an error.
-- The exit code says what went wrong: `1` the command failed for another reason, `2` the call is wrong, `3` sign in again, `4` the sign-in does not include Books, `5` no such record, `6` Books refused the data (the message says why), `7` the server did not answer.
+- The exit code says what went wrong: `1` the command failed for another reason, `2` the call is wrong, `3` sign in again, `4` the sign-in does not include Books, `5` no such record, `6` Books refused the data (the message says why), `7` the server did not answer. After a write, the message of exit 7 names the id: see "To retry safely".
 - `tinycld books schema` prints every command with the JSON Schema of its input and output.

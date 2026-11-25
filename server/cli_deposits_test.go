@@ -192,8 +192,9 @@ func TestCLIDocuments_DepositRoundTrip(t *testing.T) {
 		// edit of a draft that names both tables and the memo. An item cannot
 		// be updated: the one the input repeats at its place stays, and one it
 		// changes is removed and created again (cli/document_deposit_test.go).
-		docBatch(token, cliOp("DELETE", items, row, ""), item(draft, itemC),
-			rowOp(lines, "deposit", draft, 0, fmt.Sprintf(`"account":%q,"amount":100,"customer":%q`, env.interest.Id, env.customer.Id)),
+		// A row the edit creates has an id of the CLI.
+		docBatch(token, cliOp("DELETE", items, row, ""), editRowOp(items, "deposit", draft, "cliitem00000001", 0, fmt.Sprintf(`"line":%q`, itemC)),
+			editRowOp(lines, "deposit", draft, "cliline00000001", 0, fmt.Sprintf(`"account":%q,"amount":100,"customer":%q`, env.interest.Id, env.customer.Id)),
 			cliOp("PATCH", deposits, draft, `{"memo":"Changed"}`)),
 		apiReq{method: "GET", url: rowsURL(items, "deposit", draft), token: token, want: 200, content: []string{`"totalItems":1`, `"line":"` + itemC + `"`}},
 	)

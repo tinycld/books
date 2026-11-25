@@ -106,7 +106,7 @@ func storedReadError(doc *document, id, done string, err error) error {
 const noDraftText = "It has no draft: Books posts and numbers it at once, and it counts in the\nbooks."
 
 func newDocumentAddCmd(c *client.Client, doc *document) *cobra.Command {
-	var input string
+	var input, chosen string
 	var post bool
 	posts := doc.hasDraft()
 	first := "It is a draft unless --post is given. The header and the lines are stored in\n" +
@@ -139,15 +139,23 @@ func newDocumentAddCmd(c *client.Client, doc *document) *cobra.Command {
 		Input:   documentInputSchema(doc, true),
 		Output:  documentSchema(doc),
 	}, func(cmd *cobra.Command, _ []string, o output.Options, _ bool) error {
+		if err := checkIDFlag(cmd, chosen); err != nil {
+			return err
+		}
 		body, err := readInput(cmd, input)
 		if err != nil {
 			return err
 		}
-		in, err := checkDocumentInput(doc, cmd.Parent().CommandPath(), body, true)
+		group := cmd.Parent().CommandPath()
+		in, err := checkDocumentInput(doc, group, body, true)
 		if err != nil {
 			return err
 		}
-		id := newRecordID()
+		id := chosenID(cmd, chosen)
+		show := group + " show " + id
+		if err := refuseStoredID(cmd, c, doc.Collection, id, doc.Singular, show); err != nil {
+			return err
+		}
 		ops := createOps(doc, id, in, "")
 		// A type created posted has no draft to post: its create posts it.
 		done := "added"
@@ -157,8 +165,8 @@ func newDocumentAddCmd(c *client.Client, doc *document) *cobra.Command {
 		if post {
 			ops = append(ops, postOp(doc, id, 1))
 		}
-		if err := sendBatch(cmd.Context(), c, ops); err != nil {
-			return err
+		if err := sendCreate(cmd.Context(), c, doc, id, ops); err != nil {
+			return explain(err, doc.Singular+" "+id, checkThenResend(show, id))
 		}
 		rec, err := readBack(cmd, c, doc, id, done)
 		if err != nil {
@@ -168,6 +176,7 @@ func newDocumentAddCmd(c *client.Client, doc *document) *cobra.Command {
 		return writeDocument(cmd, o, doc, rec)
 	})
 	bindInput(cmd, &input)
+	bindID(cmd, &chosen, "the id of the new "+doc.Singular)
 	if posts {
 		cmd.Flags().BoolVar(&post, "post", false, "post the "+doc.Singular+" in the same step; without it, it is a draft")
 	}

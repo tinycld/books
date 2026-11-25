@@ -57,6 +57,9 @@ type fakeBooks struct {
 
 	// refusal answers the next request of its method, once.
 	refusal *fakeRefusal
+	// silences lose the answers of the next writes (a batch, or a write of
+	// its own), one for each write, in order.
+	silences []fakeSilence
 	// rawFilter turns the filter evaluation off, for a test that asserts the
 	// filter text of a value the small evaluator cannot split.
 	rawFilter bool
@@ -70,6 +73,34 @@ type fakeRefusal struct {
 	method string
 	status int
 	body   string
+}
+
+// fakeSilence is a write whose answer does not come back, as when a proxy or
+// the network fails: the fake stores the write or not, then answers status
+// with a proxy's page, or closes the connection with no answer for status 0.
+type fakeSilence struct {
+	stored bool
+	status int
+}
+
+// loseAnswers loses the answers of the next writes, one silence for each.
+func (f *fakeBooks) loseAnswers(silences ...fakeSilence) {
+	f.silences = append(f.silences, silences...)
+}
+
+// silent answers a write whose answer is lost.
+func (f *fakeBooks) silent(w http.ResponseWriter, status int) {
+	if status != 0 {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(status)
+		fmt.Fprintf(w, "<html>%d %s</html>", status, http.StatusText(status))
+		return
+	}
+	conn, _, err := w.(http.Hijacker).Hijack()
+	if err != nil {
+		f.t.Fatalf("the fake cannot close the connection: %v", err)
+	}
+	conn.Close()
 }
 
 func newFakeBooks(t *testing.T) *fakeBooks {
@@ -120,16 +151,28 @@ func (f *fakeBooks) handler() http.Handler {
 		}
 		mux.ServeHTTP(w, r)
 	}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		f.requests = append(f.requests, r.Method+" "+r.URL.Path)
-		if r.Header.Get("Authorization") != "Bearer test-token" {
-			f.t.Errorf("%s %s: no bearer token", r.Method, r.URL.Path)
-		}
+	serve := func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost && r.URL.Path == batchPath {
 			f.batch(w, r, one)
 			return
 		}
 		one(w, r)
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f.requests = append(f.requests, r.Method+" "+r.URL.Path)
+		if r.Header.Get("Authorization") != "Bearer test-token" {
+			f.t.Errorf("%s %s: no bearer token", r.Method, r.URL.Path)
+		}
+		if r.Method != http.MethodGet && len(f.silences) > 0 {
+			silence := f.silences[0]
+			f.silences = f.silences[1:]
+			if silence.stored {
+				serve(httptest.NewRecorder(), r)
+			}
+			f.silent(w, silence.status)
+			return
+		}
+		serve(w, r)
 	})
 }
 
@@ -263,6 +306,10 @@ func fieldsOf(collection string) []field {
 // msgStaleRevision is the server's refusal of a change that states another
 // revision than the next one (server/revision.go).
 const msgStaleRevision = "This entry changed after you opened it. Load it again, then review it before you save or post."
+
+// msgIDNotUnique is the server's answer to a create whose id is stored, as the
+// write of a batch answers it (TestCLIDocuments_ResendOfAStoredBatch).
+const msgIDNotUnique = `{"data":{"id":{"code":"validation_not_unique","message":"Value must be unique."}},"message":"Failed to create record.","status":400}`
 
 // revisionRefused keeps the rule of server/revision.go for a row that has a
 // revision: a change of a draft states the stored revision plus one. In the
@@ -505,6 +552,14 @@ func (f *fakeBooks) create(w http.ResponseWriter, r *http.Request) {
 	// A caller may name the id, as a document's batch does for its lines.
 	if given, ok := f.lastCreate["id"].(string); ok && given != "" {
 		id = given
+	}
+	// The real answer to a create with a stored id
+	// (TestCLIDocuments_ResendOfAStoredBatch).
+	if f.find(collection, id) != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(msgIDNotUnique))
+		return
 	}
 	// The server answers with every column: one the body did not send is empty.
 	stored := map[string]any{}

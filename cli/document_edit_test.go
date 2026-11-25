@@ -128,13 +128,15 @@ func TestDocumentEditOfADraftRemovesOrCreatesTheRowsBeyondTheStoredOnes(t *testi
 	if got := sentBatch(t, f, 0); got != want {
 		t.Errorf("the batch:\n%s\nwant:\n%s", got, want)
 	}
+	// A created row has an id of the CLI, so a resend cannot store it twice.
+	fixedIDs(t, "linenew00000001")
 	rows := `{"account": "acctchecking001", "debit": 4}, {"account": "acctincome00001", "credit": 4}`
 	if _, _, err := runCmd(t, f.serve(), `{"lines": [`+rows+`]}`, "books", "journal-entries", "edit", "entrydraft00001", "--input", "-", "--json"); err != nil {
 		t.Fatal(err)
 	}
 	want = `[` +
 		`{"method":"PATCH","url":"/api/collections/books_journal_lines/records/linedraft000001","body":{"account":"acctchecking001","credit":null,"customer":null,"debit":4,"memo":null,"position":0,"vendor":null}},` +
-		`{"method":"POST","url":"/api/collections/books_journal_lines/records","body":{"account":"acctincome00001","credit":4,"entry":"entrydraft00001","position":1}},` +
+		`{"method":"POST","url":"/api/collections/books_journal_lines/records","body":{"account":"acctincome00001","credit":4,"entry":"entrydraft00001","id":"linenew00000001","position":1}},` +
 		`{"method":"PATCH","url":"/api/collections/books_journal_entries/records/entrydraft00001","body":{"revision":3}}]`
 	if got := sentBatch(t, f, 1); got != want {
 		t.Errorf("the second batch:\n%s\nwant:\n%s", got, want)

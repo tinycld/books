@@ -197,6 +197,7 @@ func depositRows(count int, row func(i int) string) string {
 // created again. A line is changed in place.
 func TestDepositEditKeepsTheRepeatedItemsAndChangesTheLinesInPlace(t *testing.T) {
 	f := bigDeposit(t)
+	fixedIDs(t, "itemnew00000001")
 	// Item 1 has a new line; every other item is the stored one at its place.
 	items := `"items": [` + depositRows(500, func(i int) string {
 		if i == 1 {
@@ -214,7 +215,7 @@ func TestDepositEditKeepsTheRepeatedItemsAndChangesTheLinesInPlace(t *testing.T)
 	}
 	first, _ := json.Marshal(ops[:2])
 	if want := `[{"method":"DELETE","url":"/api/collections/books_deposit_items/records/bigitem00000001"},` +
-		`{"method":"POST","url":"/api/collections/books_deposit_items/records","body":{"deposit":"depbig000000001","line":"linenew00000001","position":1}}]`; string(first) != want {
+		`{"method":"POST","url":"/api/collections/books_deposit_items/records","body":{"deposit":"depbig000000001","id":"itemnew00000001","line":"linenew00000001","position":1}}]`; string(first) != want {
 		t.Errorf("the item writes:\n%s\nwant:\n%s", first, want)
 	}
 	for i, op := range ops[2:] {

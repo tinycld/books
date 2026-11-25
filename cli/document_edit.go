@@ -109,11 +109,11 @@ func draftEditOps(doc *document, current record, in documentInput) ([]batchOp, e
 		for position, row := range rows {
 			switch {
 			case position >= len(stored):
-				writes = append(writes, rowCreateOp(table, current.id(), position, row))
+				writes = append(writes, editRowCreateOp(table, current.id(), position, row))
 			case !table.NoUpdate:
 				writes = append(writes, updateOp(table.Collection, stored[position].id(), rowLabel(table, position), rowUpdate(table, position, row)))
 			case !sameRow(table, position, stored[position], row):
-				writes = append(writes, rowCreateOp(table, current.id(), position, row))
+				writes = append(writes, editRowCreateOp(table, current.id(), position, row))
 			}
 		}
 	}
@@ -128,6 +128,16 @@ func draftEditOps(doc *document, current record, in documentInput) ([]batchOp, e
 		return ops, nil
 	}
 	return append(ops, updateOp(doc.Collection, current.id(), doc.Singular, header)), nil
+}
+
+// editRowCreateOp is the create of a row of an edit, with an id the CLI
+// chose. A type with no revision (a payment) has nothing else that refuses the
+// resend of an edit the first send stored: the stored id makes the server
+// refuse it, where a row id of the server's would be stored a second time.
+func editRowCreateOp(table *lineTable, id string, position int, row map[string]any) batchOp {
+	op := rowCreateOp(table, id, position, row)
+	op.Body["id"] = newRecordID()
+	return op
 }
 
 // rowUpdate is the body that turns a stored row into the input's row of the
@@ -218,7 +228,7 @@ func writableRows(table *lineTable, stored []record) []map[string]any {
 }
 
 func newDocumentEditCmd(c *client.Client, doc *document) *cobra.Command {
-	var input string
+	var input, chosen string
 	how := "A draft is changed in place. A posted " + doc.Singular + " is never changed: Books\n" +
 		"voids it and posts a new one with the changes, and the command prints the new\n" +
 		"one. Its `replaces` is the id of the one it corrects.\n\n"
@@ -241,12 +251,21 @@ func newDocumentEditCmd(c *client.Client, doc *document) *cobra.Command {
 		Input:   documentInputSchema(doc, false),
 		Output:  documentSchema(doc),
 	}, func(cmd *cobra.Command, args []string, o output.Options, _ bool) error {
+		if err := checkIDFlag(cmd, chosen); err != nil {
+			return err
+		}
 		body, err := readInput(cmd, input)
 		if err != nil {
 			return err
 		}
-		in, err := checkDocumentInput(doc, cmd.Parent().CommandPath(), body, false)
+		group := cmd.Parent().CommandPath()
+		in, err := checkDocumentInput(doc, group, body, false)
 		if err != nil {
+			return err
+		}
+		// A run sent again after a stored correction finds the original void:
+		// the stored id is the answer it needs.
+		if err := refuseStoredID(cmd, c, doc.Collection, chosen, doc.Singular, group+" show "+chosen); err != nil {
 			return err
 		}
 		current, err := fetchDocument(cmd.Context(), c, doc, args[0])
@@ -258,27 +277,39 @@ func newDocumentEditCmd(c *client.Client, doc *document) *cobra.Command {
 		}
 		id, done, corrected := current.id(), "updated", false
 		var ops []batchOp
+		var stored func() (bool, error)
+		var what, next string
 		switch status := current.cell("status"); {
 		case doc.editedInPlace(status):
 			if ops, err = draftEditOps(doc, current, in); err != nil {
 				return err
 			}
+			stored = func() (bool, error) {
+				rec, err := fetchDocument(cmd.Context(), c, doc, id)
+				return err == nil && holdsEdit(doc, rec, in), err
+			}
+			what = "the change of " + doc.Singular + " " + id
+			next = "Check with `" + group + " show " + id + "`: when it was stored, the " + doc.Singular + " holds the change."
 		case doc.corrects() && status == statusPosted:
 			// The new document is stored and the posted one is void: the read
 			// after it must not say that the id it names was corrected.
-			id, done, corrected = newRecordID(), "added and posted to replace "+current.id(), true
+			id, done, corrected = chosenID(cmd, chosen), "added and posted to replace "+current.id(), true
 			ops = createOps(doc, id, correctionInput(doc, current, in), current.id())
 			// A type with a draft creates the correction as one and posts it in
 			// the same step; a type with none creates it posted.
 			if doc.hasDraft() {
 				ops = append(ops, postOp(doc, id, 1))
 			}
+			stored = func() (bool, error) { return recordExists(cmd.Context(), c, doc.Collection, id) }
+			what = doc.Singular + " " + id
+			next = checkThenResend(group+" show "+id, id)
 		default:
 			return refusedf("%s %s is %s: it cannot be changed; add a new %s with `%s add`",
-				doc.Singular, current.id(), status, doc.Singular, cmd.Parent().CommandPath())
+				doc.Singular, current.id(), status, doc.Singular, group)
 		}
-		if err := sendBatch(cmd.Context(), c, ops); err != nil {
-			return prefixID(&doc.resource, current.id(), err)
+		send := func() error { return sendBatch(cmd.Context(), c, ops) }
+		if err := sendResent(cmd.Context(), send, stored); err != nil {
+			return prefixID(&doc.resource, current.id(), explain(err, what, next))
 		}
 		rec, err := readBack(cmd, c, doc, id, done)
 		if err != nil {
@@ -293,5 +324,8 @@ func newDocumentEditCmd(c *client.Client, doc *document) *cobra.Command {
 		return writeDocument(cmd, o, doc, rec)
 	})
 	bindInput(cmd, &input)
+	if doc.corrects() {
+		bindID(cmd, &chosen, "the id of the new "+doc.Singular+" when the edit corrects a posted one (a draft keeps its id)")
+	}
 	return cmd
 }

@@ -294,6 +294,12 @@ func rowOp(collection, parent, docID string, position int, fields string) string
 	return cliOp("POST", collection, "", fmt.Sprintf(`{%s,%q:%q,"position":%d}`, fields, parent, docID, position))
 }
 
+// editRowOp is the create of one row by an edit of a draft, as editRowCreateOp
+// of cli/document_edit.go sends it: rowOp with an id the CLI chose.
+func editRowOp(collection, parent, docID, id string, position int, fields string) string {
+	return cliOp("POST", collection, "", fmt.Sprintf(`{%s,"id":%q,%q:%q,"position":%d}`, fields, id, parent, docID, position))
+}
+
 func journalLine(entry string, account *core.Record, side string, cents, position int) string {
 	return journalLineMemo(entry, account, side, cents, position, "")
 }
@@ -472,4 +478,44 @@ func TestCLIDocuments_BatchRefusalShapes(t *testing.T) {
 		// A caller with read access only: the create rule refuses the first write.
 		refusedBatch(reader, []string{`"requests":{"0":`, `"message":"Failed to create record."`}, header),
 	)
+}
+
+// A resend of a batch the server stored, with the same ids: the create of the
+// header is refused, and nothing of the resend is stored. cli/retry.go reads
+// this answer as "the first send was stored"; cli/retry_test.go uses its body.
+func TestCLIDocuments_ResendOfAStoredBatch(t *testing.T) {
+	env, token := cliLedgerEnv(t)
+	const entries, lines = "books_journal_entries", "books_journal_lines"
+	ops := []string{
+		cliOp("POST", entries, "", `{"date":"2026-07-15","doc_type":"journal","id":"clientry0000010","origin":"manual","status":"draft"}`),
+		journalLine("clientry0000010", env.checking, "debit", 500, 0),
+		journalLine("clientry0000010", env.revenue, "credit", 500, 1),
+		cliOp("PATCH", entries, "clientry0000010", `{"revision":1,"status":"posted"}`),
+	}
+	draft := cliOp("POST", entries, "", `{"date":"2026-07-15","doc_type":"journal","id":"clientry0000011","origin":"manual","status":"draft"}`)
+	edit := []string{
+		editRowOp(lines, "entry", "clientry0000011", "cliline00000011", 2, fmt.Sprintf(`"account":%q,"debit":100`, env.checking.Id)),
+		editRowOp(lines, "entry", "clientry0000011", "cliline00000012", 3, fmt.Sprintf(`"account":%q,"credit":100`, env.revenue.Id)),
+		cliOp("PATCH", entries, "clientry0000011", `{"revision":2}`),
+	}
+	apiSeq(t, env.app,
+		docBatch(token, ops...),
+		refusedBatch(token, []string{`"requests":{"0":`, `"id":{"code":"validation_not_unique"`, `"status":400`}, ops...),
+		// A create of its own (`apply`) with a stored id: the same refusal.
+		apiReq{method: "POST", url: "/api/collections/" + entries + "/records", token: token, want: 400,
+			body:    `{"date":"2026-07-15","doc_type":"journal","id":"clientry0000010","origin":"manual","status":"draft"}`,
+			content: []string{`"id":{"code":"validation_not_unique"`}},
+		// A draft edit that creates rows with the CLI's ids, sent twice: the
+		// resend is refused, and the rows are stored once.
+		docBatch(token, draft,
+			journalLine("clientry0000011", env.checking, "debit", 500, 0),
+			journalLine("clientry0000011", env.revenue, "credit", 500, 1)),
+		docBatch(token, edit...),
+		refusedBatch(token, []string{`"requests":{"0":`, `"id":{"code":"validation_not_unique"`}, edit...),
+		apiReq{method: "GET", url: rowsURL(lines, "entry", "clientry0000011"), token: token, want: 200, content: []string{`"totalItems":4`}},
+		apiReq{method: "GET", url: rowsURL(lines, "entry", "clientry0000010"), token: token, want: 200, content: []string{`"totalItems":2`}},
+	)
+	if got := revisionOf(t, env.app, "clientry0000011"); got != 2 {
+		t.Errorf("the draft's revision = %d, want 2", got)
+	}
 }
