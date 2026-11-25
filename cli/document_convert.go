@@ -2,6 +2,7 @@ package cli
 
 import (
 	"maps"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -36,6 +37,50 @@ func conversionInput(doc, to *document, source record, in documentInput) documen
 	return out
 }
 
+// convertInputSchema is the JSON Schema of the --input of `convert`: the fields
+// of the new document, as `edit` of it takes them. Unlike `edit`, an empty
+// input is a valid one when the source gives every required field, and the
+// required fields are those of the new document that the rule does not copy
+// (checkConvertHeader).
+func convertInputSchema(doc, to *document) map[string]any {
+	schema := documentInputSchema(to, false)
+	delete(schema, "minProperties")
+	required := []string{}
+	for _, f := range to.writable() {
+		if f.Required && !slices.Contains(doc.Convert.Copy, f.Name) {
+			required = append(required, f.Name)
+		}
+	}
+	schema["required"] = required
+	props := schema["properties"].(map[string]any)
+	for i := range to.Lines {
+		table := &to.Lines[i]
+		if table.ReadOnly {
+			continue
+		}
+		rows := props[table.Key].(map[string]any)
+		rows["description"] = "every " + table.Singular + " of the " + to.Singular + ", in order; when given, these rows " +
+			"replace the " + table.Key + " of the " + doc.Singular + ", which the " + to.Singular + " takes otherwise"
+	}
+	return schema
+}
+
+// checkConvertBody checks the --input of `convert` as the fields of the new
+// document. An empty object is not "nothing to change": the dates are missing.
+func checkConvertBody(to *document, group string, body map[string]any) (documentInput, error) {
+	if len(body) == 0 {
+		return documentInput{header: map[string]any{}, lines: map[string][]map[string]any{}}, nil
+	}
+	return checkDocumentInput(to, group, body, false)
+}
+
+// checkConvertHeader checks the whole header as that of a new document: a
+// required field neither the source nor the input gives is named here.
+func checkConvertHeader(doc, to *document, source record, given documentInput) (documentInput, error) {
+	in := conversionInput(doc, to, source, given)
+	return in, checkInput(&to.resource, in.header, true)
+}
+
 // closedSourceRefusal is the refusal of a source that is closed: Books made a
 // document from it, and the server answers a second one with a refusal that
 // does not say which. The next step is to show the document the record names.
@@ -65,19 +110,16 @@ func newDocumentConvertCmd(c *client.Client, doc *document) *cobra.Command {
 			to.Singular + ". The command prints the " + to.Singular + ": post it with `tinycld books " + to.Name + " post`.\n\n" +
 			"`tinycld books schema " + doc.Name + " convert` prints the fields.",
 		Args:   idArg(&doc.resource),
-		Input:  documentInputSchema(to, false),
+		Input:  convertInputSchema(doc, to),
 		Output: documentSchema(to),
 	}, func(cmd *cobra.Command, args []string, o output.Options, _ bool) error {
 		body, err := readInput(cmd, input)
 		if err != nil {
 			return err
 		}
-		// An empty object is not "nothing to change": the dates are missing.
-		given := documentInput{header: map[string]any{}, lines: map[string][]map[string]any{}}
-		if len(body) > 0 {
-			if given, err = checkDocumentInput(to, cmd.Parent().Parent().CommandPath()+" "+to.Name, body, false); err != nil {
-				return err
-			}
+		given, err := checkConvertBody(to, cmd.Parent().Parent().CommandPath()+" "+to.Name, body)
+		if err != nil {
+			return err
 		}
 		source, err := fetchDocument(cmd.Context(), c, doc, args[0])
 		if err != nil {
@@ -86,10 +128,8 @@ func newDocumentConvertCmd(c *client.Client, doc *document) *cobra.Command {
 		if source.cell("status") == statusClosed {
 			return closedSourceRefusal(cmd, doc, to, source)
 		}
-		in := conversionInput(doc, to, source, given)
-		// The whole header is checked as that of a new document: a required
-		// field neither the source nor the input gives is named here.
-		if err := checkInput(&to.resource, in.header, true); err != nil {
+		in, err := checkConvertHeader(doc, to, source, given)
+		if err != nil {
 			return err
 		}
 		in.header[doc.Convert.Link] = source.id()
