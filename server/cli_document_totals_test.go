@@ -60,14 +60,16 @@ func TestCLIDocuments_TotalsMatchTheFormCases(t *testing.T) {
 				// Books checks the target of a percent line when the header is
 				// written, and names the line.
 				line := fmt.Sprintf(`"message":"Line %d: A percent line applies to the item or subtotal right above it."`, tc.PercentTargetErrors[0]+1)
-				apiSeq(t, env.app, refusedBatch(token, []string{line}, append(ops, post)...))
+				apiSeq(t, env.app, refusedBatch(token, []string{line}, append(append([]string{}, ops...), post)...))
 				return
 			case tc.Total < 0:
 				// The form shows the negative total; Books refuses to store it.
 				apiSeq(t, env.app, refusedBatch(token, []string{`"message":"An invoice total cannot be below zero. Use a credit memo."`}, ops...))
 				return
-			case len(tc.Components) > 0:
-				// Tax lines exist only on a posted invoice.
+			case tc.Total > 0:
+				// Tax lines exist only on a posted invoice, so every case is posted and
+				// held to the form's numbers again. A zero total stays a draft: the
+				// server does not post one.
 				ops = append(ops, post)
 			}
 			apiSeq(t, env.app, apiCalls(
