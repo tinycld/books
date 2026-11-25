@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -28,7 +29,9 @@ type cliField struct {
 }
 
 type cliResource struct {
-	Name       string   `json:"name"`
+	Name string `json:"name"`
+	// Word is the command word of a view of a transaction type.
+	Word       string   `json:"word"`
 	Collection string   `json:"collection"`
 	Sort       string   `json:"sort"`
 	Search     []string `json:"search"`
@@ -240,8 +243,11 @@ func TestCLIResources_AccountTypesAreTheServers(t *testing.T) {
 type listFilterCase struct {
 	Name     string `json:"name"`
 	Resource string `json:"resource"`
-	Filter   string `json:"filter"`
-	Sort     string `json:"sort"`
+	// View is the command word of a view of the transaction type Resource
+	// names; empty for the `list` of Resource.
+	View   string `json:"view"`
+	Filter string `json:"filter"`
+	Sort   string `json:"sort"`
 }
 
 func loadListFilterCases(t testing.TB) []listFilterCase {
@@ -293,15 +299,24 @@ func TestCLIResources_ServerAcceptsEveryListQuery(t *testing.T) {
 	app := newGuardedApp(t)
 	users := newLevelUsers(t, app)
 	token := tokenFor(t, users.bookkeeper)
+	// A list is named by its resource or transaction type, and a view by its
+	// type and command word.
 	collectionOf := map[string]string{}
 	for _, res := range loadCLIResources(t) {
 		collectionOf[res.Name] = res.Collection
 	}
+	for _, doc := range loadCLIDocuments(t) {
+		collectionOf[doc.Name] = doc.Collection
+		for _, view := range doc.Views {
+			collectionOf[doc.Name+" "+view.Word] = view.Collection
+		}
+	}
 	calls := []apiReq{}
 	for _, c := range loadListFilterCases(t) {
-		collection, ok := collectionOf[c.Resource]
+		list := strings.TrimSpace(c.Resource + " " + c.View)
+		collection, ok := collectionOf[list]
 		if !ok {
-			t.Fatalf("%s: cli/resources.json has no resource %q", c.Name, c.Resource)
+			t.Fatalf("%s: cli/resources.json and cli/documents.json have no list %q", c.Name, list)
 		}
 		calls = append(calls, apiReq{
 			method: "GET", url: "/api/collections/" + collection + "/records?" + c.query(),
