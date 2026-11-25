@@ -20,6 +20,7 @@ func inventoryFake(t *testing.T) *fakeBooks {
 		{"stockmove000001", stockWidget, "2026-09-01", "receipt", "1", "10", "5000"},
 		{"stockmove000002", stockWidget, "2026-09-08", "sale", "2", "-4", "-2000"},
 		{"stockmove000003", stockGadget, "2026-09-05", "adjustment", "3", "3", "900"},
+		{"stockmove000004", stockWidget, "2026-08-20", "receipt", "4", "2", "800"},
 	} {
 		f.add(stockMovesCollection, m.id, map[string]any{
 			"product": m.product, "date": m.date, "kind": m.kind, "seq": json.Number(m.seq),
@@ -55,7 +56,7 @@ func TestInventoryResourcesAreLegalDefinitions(t *testing.T) {
 
 func TestInventoryMoves(t *testing.T) {
 	f := inventoryFake(t)
-	if got := itemIDs(listJSON(t, f, "books", "inventory", "moves")); got != "[stockmove000002 stockmove000003 stockmove000001]" {
+	if got := itemIDs(listJSON(t, f, "books", "inventory", "moves")); got != "[stockmove000002 stockmove000003 stockmove000001 stockmove000004]" {
 		t.Errorf("moves = %s, want the newest first", got)
 	}
 	if got := itemIDs(listJSON(t, f, "books", "inventory", "moves", "--product", stockWidget, "--kind", "sale")); got != "[stockmove000002]" {
