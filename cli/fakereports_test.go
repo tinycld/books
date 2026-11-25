@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 )
 
 // fakeReports is the fake's stand-in for core's report routes. It runs no
@@ -23,6 +24,9 @@ type fakeReports struct {
 	fileName string
 	// exports holds the body of each export, in the order sent.
 	exports []map[string]any
+	// cutAfter, when above 0, makes an export declare the whole file and end
+	// the answer after that many bytes.
+	cutAfter int
 }
 
 func (f *fakeBooks) reportRun(w http.ResponseWriter, r *http.Request) {
@@ -42,6 +46,11 @@ func (f *fakeBooks) reportExport(w http.ResponseWriter, r *http.Request) {
 	f.reports.exports = append(f.reports.exports, body)
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+f.reports.fileName+`"`)
+	if cut := f.reports.cutAfter; cut > 0 {
+		w.Header().Set("Content-Length", strconv.Itoa(len(f.reports.file)))
+		w.Write(f.reports.file[:cut])
+		return
+	}
 	w.Write(f.reports.file)
 }
 

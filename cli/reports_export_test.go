@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -92,6 +93,119 @@ func TestReportsExportRefusedKeepsTheOldFile(t *testing.T) {
 	}
 }
 
+func exportTo(t *testing.T, f *fakeBooks, file string) error {
+	t.Helper()
+	_, _, err := runCmd(t, f.serve(), "", "books", "reports", "export", "books.trial_balance", "--file", file)
+	return err
+}
+
+// An export written over a file keeps the mode of that file.
+func TestReportsExportKeepsTheModeOfTheFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no file modes on Windows")
+	}
+	for _, mode := range []os.FileMode{0o640, 0o664} {
+		f := reportsFake(t)
+		f.reports.file, f.reports.fileName = []byte("new"), "out.csv"
+		file := filepath.Join(t.TempDir(), "out.csv")
+		if err := os.WriteFile(file, []byte("old"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(file, mode); err != nil {
+			t.Fatal(err)
+		}
+		if err := exportTo(t, f, file); err != nil {
+			t.Fatal(err)
+		}
+		info, err := os.Stat(file)
+		if err != nil || info.Mode().Perm() != mode {
+			t.Errorf("mode %v, want %v, err %v", info.Mode().Perm(), mode, err)
+		}
+	}
+}
+
+// A new file gets the mode an ordinary write gives: 0666 less the umask, as
+// the downloads of the CLI do. os.CreateTemp alone makes it 0600.
+func TestReportsExportNewFileGetsTheDefaultMode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no file modes on Windows")
+	}
+	f := reportsFake(t)
+	f.reports.file, f.reports.fileName = []byte("new"), "out.csv"
+	dir := t.TempDir()
+	probe, err := os.OpenFile(filepath.Join(dir, "probe"), os.O_CREATE|os.O_WRONLY, 0o666)
+	if err != nil {
+		t.Fatal(err)
+	}
+	probe.Close()
+	info, err := os.Stat(probe.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := info.Mode().Perm()
+	if want == 0o600 {
+		t.Skip("the umask makes the default mode the same as 0600")
+	}
+	file := filepath.Join(dir, "out.csv")
+	if err := exportTo(t, f, file); err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Stat(file); err != nil || info.Mode().Perm() != want {
+		t.Errorf("mode %v, want %v, err %v", info.Mode().Perm(), want, err)
+	}
+}
+
+// A file that is a link is written through: the link stays and its target
+// holds the export.
+func TestReportsExportWritesThroughALink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("links need a privilege on Windows")
+	}
+	f := reportsFake(t)
+	f.reports.file, f.reports.fileName = []byte("new"), "out.csv"
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target.csv")
+	if err := os.WriteFile(target, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "link.csv")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := exportTo(t, f, link); err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Lstat(link); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Errorf("the link was replaced: %v, err %v", info, err)
+	}
+	if data, _ := os.ReadFile(target); string(data) != "new" {
+		t.Errorf("target holds %q", data)
+	}
+}
+
+// A download that ends before its declared length is a lost connection: exit
+// 7, as the client gives a network failure, and the old file stays.
+func TestReportsExportCutDownloadIsUnavailable(t *testing.T) {
+	f := reportsFake(t)
+	f.reports.file, f.reports.fileName = []byte("0123456789"), "out.csv"
+	f.reports.cutAfter = 4
+	dir := t.TempDir()
+	file := filepath.Join(dir, "out.csv")
+	if err := os.WriteFile(file, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := exportTo(t, f, file)
+	if got := exitcode.Of(err); got != exitcode.Unavailable || err == nil || !strings.Contains(err.Error(), "the download of the report stopped") {
+		t.Errorf("exit %d, err %v", got, err)
+	}
+	if data, _ := os.ReadFile(file); string(data) != "old" {
+		t.Errorf("the file was changed: %q", data)
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 1 {
+		t.Errorf("a temporary file was left: %v", entries)
+	}
+}
+
 func TestReportsExportUsageErrorsSendNothing(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "no-such-dir", "out.csv")
 	cases := []struct {
@@ -112,11 +226,21 @@ func TestReportsExportUsageErrorsSendNothing(t *testing.T) {
 			t.Errorf("%s: a request was sent", c.name)
 		}
 	}
-	// A file that cannot be written is a usage error before the export is
-	// asked for: the server records every export it makes.
+	// A directory is no file to write, and the export is not asked for.
 	f := reportsFake(t)
 	f.reports.file = []byte("x")
-	_, _, err := runCmd(t, f.serve(), "", "books", "reports", "export", "books.trial_balance", "--file", missing)
+	_, _, err := runCmd(t, f.serve(), "", "books", "reports", "export", "books.trial_balance", "--file", t.TempDir())
+	if got := exitcode.Of(err); got != exitcode.Usage || !strings.Contains(err.Error(), "--file") {
+		t.Errorf("directory: exit %d, err %v", got, err)
+	}
+	if len(f.reports.exports) != 0 {
+		t.Errorf("directory: the export was sent")
+	}
+	// A file that cannot be written is a usage error before the export is
+	// asked for: the server records every export it makes.
+	f = reportsFake(t)
+	f.reports.file = []byte("x")
+	_, _, err = runCmd(t, f.serve(), "", "books", "reports", "export", "books.trial_balance", "--file", missing)
 	if got := exitcode.Of(err); got != exitcode.Usage || !strings.Contains(err.Error(), "--file") {
 		t.Errorf("unwritable file: exit %d, err %v", got, err)
 	}
