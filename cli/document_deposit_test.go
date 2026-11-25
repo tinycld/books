@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -157,12 +158,13 @@ func TestDepositAndVendorRefundInputIsCheckedBeforeItIsSent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := "add,delete,edit,entry,list,post,show,void"
-		if name == "deposits" {
-			want = "add,delete,edit,entry,list,post,show,undeposited,void"
+		want := []string{"add", "delete", "edit", "entry", "list", "post", "show", "void"}
+		for _, view := range findDocument(name).Views {
+			want = append(want, view.Word)
 		}
-		if got := strings.Join(subcommandNames(group), ","); got != want {
-			t.Errorf("%s: commands = %s", name, got)
+		slices.Sort(want)
+		if got := strings.Join(subcommandNames(group), ","); got != strings.Join(want, ",") {
+			t.Errorf("%s: commands = %s, want %v", name, got, want)
 		}
 	}
 }

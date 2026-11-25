@@ -316,6 +316,9 @@ func loadDocuments(data []byte) ([]document, error) {
 }
 
 func checkDocument(doc *document, names map[string]bool) error {
+	if doc.NoTimestamps {
+		return fmt.Errorf("noTimestamps is a key of a view: a document's collection has created and updated")
+	}
 	if err := checkResource(&doc.resource, names); err != nil {
 		return err
 	}

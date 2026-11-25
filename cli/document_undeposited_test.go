@@ -2,6 +2,8 @@ package cli
 
 import (
 	"encoding/json"
+	"slices"
+	"sort"
 	"strings"
 	"testing"
 
@@ -100,6 +102,42 @@ func TestUndepositedTablePrintsWhatAPersonChoosesBy(t *testing.T) {
 	want := []string{"DATE", "DOC_TYPE", "NUMBER", "CUSTOMER", "VENDOR", "AMOUNT", "PAYMENT_METHOD", "REFERENCE_NO", "LINE", "ID"}
 	if strings.Join(header, ",") != strings.Join(want, ",") {
 		t.Errorf("columns = %v, want %v", header, want)
+	}
+}
+
+// A row of a view has no created and no updated. What the command prints and
+// what `books schema` requires are the same keys, and neither has a timestamp.
+func TestUndepositedRowHasNoTimestamps(t *testing.T) {
+	f := undeposited(t)
+	out, _, err := runCmd(t, f.serve(), "", "books", "deposits", "undeposited", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.Unmarshal([]byte(out), &result); err != nil || len(result.Items) == 0 {
+		t.Fatalf("not a list result: %v\n%s", err, out)
+	}
+	printed := []string{}
+	for key := range result.Items[0] {
+		printed = append(printed, key)
+	}
+	sort.Strings(printed)
+	view := &findDocument("deposits").Views[0].resource
+	schema := recordSchema(view)
+	required := append([]string{}, schema["required"].([]string)...)
+	sort.Strings(required)
+	if strings.Join(printed, ",") != strings.Join(required, ",") {
+		t.Errorf("the row prints %v, the schema requires %v", printed, required)
+	}
+	for _, key := range []string{"created", "updated"} {
+		if _, ok := schema["properties"].(map[string]any)[key]; ok || slices.Contains(required, key) {
+			t.Errorf("the schema of a view row has %q", key)
+		}
+		if strings.Contains(out, `"`+key+`"`) {
+			t.Errorf("the row prints %q:\n%s", key, out)
+		}
 	}
 }
 
@@ -283,6 +321,14 @@ func TestLoadDocumentsChecksAView(t *testing.T) {
 				t.Errorf("err = %v, want one that says %q", err, tc.want)
 			}
 		})
+	}
+	withoutStamps := strings.Replace(valid, `"omit":[],"deleteHelp":"",`+`"fields":[{"name":"title"`, `"omit":[],"noTimestamps":true,"deleteHelp":"",`+`"fields":[{"name":"title"`, 1)
+	if _, err := loadDocuments([]byte(withoutStamps)); err != nil || withoutStamps == valid {
+		t.Errorf("a view with noTimestamps: err = %v, changed = %v", err, withoutStamps != valid)
+	}
+	onDocument := strings.Replace(minimalDocument, `"lines":[{"key"`, `"noTimestamps":true,"lines":[{"key"`, 1)
+	if _, err := loadDocuments([]byte(onDocument)); err == nil || !strings.Contains(err.Error(), "noTimestamps is a key of a view") {
+		t.Errorf("a document with noTimestamps: err = %v", err)
 	}
 	doubled := strings.Replace(valid, `"views":[`+viewObject+`]`, `"views":[`+viewObject+`,`+viewObject+`]`, 1)
 	if _, err := loadDocuments([]byte(doubled)); err == nil || !strings.Contains(err.Error(), `word "waiting" is used twice`) {

@@ -850,6 +850,7 @@
                         { "flag": "payment-method", "field": "payment_method", "help": "only the money paid this way, for example check or cash" }
                     ],
                     "omit": [],
+                    "noTimestamps": true,
                     "fields": [
                         { "name": "line", "type": "id", "ref": "journal-entries.lines", "readOnly": true, "help": "the id of the journal line that holds the money: the value for `line` of an item of a deposit" },
                         { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry of the line" },

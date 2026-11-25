@@ -23,8 +23,9 @@ func undepositedURL(filter string) string {
 
 // `deposits undeposited` through the real API with a bookkeeper's token: the
 // money of a posted deposit leaves the list, the rest stays, and the id of a row
-// is the id of its journal line. Money is posted as journal entries on
-// Undeposited funds, which put the same rows in the view as a payment does.
+// is the id of its journal line. The money here is journal entries on
+// Undeposited funds; TestCLIDocuments_UndepositedListsAPostedPayment posts a
+// payment.
 func TestCLIDocuments_UndepositedListsWhatADepositCanTake(t *testing.T) {
 	env := newDepositEnv(t)
 	enableBatch(t, env.app)
@@ -51,6 +52,29 @@ func TestCLIDocuments_UndepositedListsWhatADepositCanTake(t *testing.T) {
 		apiReq{method: "GET", url: undepositedURL(`(number ~ "x" || reference_no ~ "x" || memo ~ "Check 2")`), token: token, want: 200, content: []string{`"totalItems":1`}},
 		// A quote in a value is a value: the filter is read and matches nothing.
 		apiReq{method: "GET", url: undepositedURL(`customer = "x\" || id != \""`), token: token, want: 200, content: []string{`"totalItems":0`}},
+	)
+}
+
+// A posted payment with no deposit_to lands on Undeposited funds. Its row in the
+// view names the payment method and the reference number, which a journal entry
+// cannot. The filters are the copies of TestUndepositedFilters.
+func TestCLIDocuments_UndepositedListsAPostedPayment(t *testing.T) {
+	pe := newPaymentEnv(t)
+	token := tokenFor(t, pe.users.bookkeeper)
+	invoice := pe.invoiceDue(t, "2026-12-04", 30000, true)
+	payment := pe.mkPayment(t, map[string]any{"date": "2026-11-04", "amount": 30000, "payment_method": "check", "reference_no": "4411"})
+	mkApplication(t, pe.app, payment, invoice, 0, 30000)
+	mustPostPayment(t, pe.app, payment.Id, pe.users.bookkeeper.Id)
+	line := lineOn(t, pe.app, reload(t, pe.app, "books_payments", payment.Id).GetString("entry"), pe.undeposited)
+	row := []string{`"totalItems":1`, `"line":"` + line.Id + `"`, `"id":"` + line.Id + `"`, `"doc_type":"payment"`,
+		`"document":"` + payment.Id + `"`, `"amount":30000`, `"payment_method":"check"`, `"reference_no":"4411"`}
+	apiSeq(t, pe.app,
+		apiReq{method: "GET", url: undepositedURL(""), token: token, want: 200, content: row},
+		apiReq{method: "GET", url: undepositedURL(fmt.Sprintf(`customer = %q`, pe.customer.Id)), token: token, want: 200, content: row},
+		apiReq{method: "GET", url: undepositedURL(`payment_method = "check"`), token: token, want: 200, content: row},
+		apiReq{method: "GET", url: undepositedURL(`doc_type = "payment"`), token: token, want: 200, content: row},
+		apiReq{method: "GET", url: undepositedURL(`(number ~ "4411" || reference_no ~ "4411" || memo ~ "4411")`), token: token, want: 200, content: row},
+		apiReq{method: "GET", url: undepositedURL(`payment_method = "cash"`), token: token, want: 200, content: []string{`"totalItems":0`}},
 	)
 }
 

@@ -33,7 +33,9 @@ type cliResource struct {
 	Sort       string   `json:"sort"`
 	Search     []string `json:"search"`
 	Omit       []string `json:"omit"`
-	Filters    []struct {
+	// NoTimestamps: the CLI prints and requires no created and updated.
+	NoTimestamps bool `json:"noTimestamps"`
+	Filters      []struct {
 		Field string `json:"field"`
 	} `json:"filters"`
 	Fields []cliField `json:"fields"`

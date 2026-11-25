@@ -85,6 +85,10 @@ type resource struct {
 	// server test fails for a collection field that is neither in Fields nor
 	// here, so a new column cannot be forgotten.
 	Omit []string `json:"omit"`
+	// NoTimestamps: the collection has no created and updated fields (a view),
+	// so a record prints and the schema requires neither. The server test
+	// checks the flag against the migrated collection.
+	NoTimestamps bool `json:"noTimestamps,omitempty"`
 	// DeleteHelp says when the server refuses a delete and what to do then.
 	DeleteHelp string  `json:"deleteHelp"`
 	Fields     []field `json:"fields"`
@@ -156,6 +160,9 @@ func loadResources(data []byte) ([]resource, error) {
 			return nil, fmt.Errorf("resource %q is defined twice", res.Name)
 		}
 		seen[res.Name] = true
+		if res.NoTimestamps {
+			return nil, fmt.Errorf("resource %q: noTimestamps is a key of a view", res.Name)
+		}
 		if err := checkResource(res, names); err != nil {
 			return nil, fmt.Errorf("resource %q: %w", res.Name, err)
 		}
@@ -341,9 +348,11 @@ func refDescription(f *field, records, rows string) string {
 // id, the resource's fields in their declared order, created and updated.
 func recordSchema(res *resource) map[string]any {
 	props := map[string]any{
-		"id":      map[string]any{"type": "string", "description": "the record id; the argument of show, edit, delete"},
-		"created": map[string]any{"type": "string", "description": "when the record was created (UTC)"},
-		"updated": map[string]any{"type": "string", "description": "when the record last changed (UTC)"},
+		"id": map[string]any{"type": "string", "description": "the record id; the argument of show, edit, delete"},
+	}
+	if !res.NoTimestamps {
+		props["created"] = map[string]any{"type": "string", "description": "when the record was created (UTC)"}
+		props["updated"] = map[string]any{"type": "string", "description": "when the record last changed (UTC)"}
 	}
 	for i := range res.Fields {
 		props[res.Fields[i].Name] = fieldSchema(&res.Fields[i])
@@ -375,6 +384,9 @@ func recordKeys(res *resource) []string {
 	keys := []string{"id"}
 	for i := range res.Fields {
 		keys = append(keys, res.Fields[i].Name)
+	}
+	if res.NoTimestamps {
+		return keys
 	}
 	return append(keys, "created", "updated")
 }
