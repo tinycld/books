@@ -306,6 +306,9 @@ func fieldsOf(collection string) []field {
 	if collection == bankImportsCollection {
 		return bankImportsResource.Fields
 	}
+	if collection == reconciliationsCollection {
+		return reconciliationsResource.Fields
+	}
 	if fields, ok := bankRowFields[collection]; ok {
 		return fields
 	}

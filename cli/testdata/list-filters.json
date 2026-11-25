@@ -269,6 +269,13 @@
             "args": ["--connection", "bankconn0000001", "--status", "uploaded"],
             "filter": "connection = \"bankconn0000001\" && status = \"uploaded\"",
             "sort": "-created,id"
+        },
+        {
+            "name": "reconcile-finished-of-an-account",
+            "resource": "reconcile",
+            "args": ["--account", "acctchecking001", "--status", "finished"],
+            "filter": "account = \"acctchecking001\" && status = \"finished\"",
+            "sort": "-statement_date,id"
         }
     ]
 }

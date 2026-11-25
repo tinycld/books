@@ -88,6 +88,7 @@ func listTargets() []listTarget {
 		}
 		targets = append(targets, listTarget{name: "banking", view: view, res: res})
 	}
+	targets = append(targets, listTarget{name: "reconcile", res: &reconciliationsResource})
 	return targets
 }
 

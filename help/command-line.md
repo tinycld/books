@@ -1,7 +1,7 @@
 ---
 title: Books from the command line
-summary: List and change accounts, customers, vendors, products and sales tax, record transactions, run reports, and review bank transactions, from a terminal or a script with the tinycld tool.
-tags: [cli, command line, terminal, automation, scripts, agents, json, banking]
+summary: List and change accounts, customers, vendors, products and sales tax, record transactions, run reports, review bank transactions, and reconcile an account, from a terminal or a script with the tinycld tool.
+tags: [cli, command line, terminal, automation, scripts, agents, json, banking, reconcile]
 order: 62
 ---
 
@@ -365,9 +365,22 @@ tinycld books banking restore <id>
 
 `exclude` leaves a transaction that is For review out of the books: a duplicate, or one that is not of this business. `restore` moves it back to For review. Books does not exclude a reviewed transaction: use `undo` or `unmatch` first. Those two also make a reviewed transaction For review, so it needs no `restore`.
 
+## To reconcile an account
+
+`tinycld books reconcile` works with [Reconcile](help://books:reconcile): you compare a bank or credit card account with its statement. An account has one reconciliation in progress at a time.
+
+```
+tinycld books reconcile list --account <account id>
+echo '{"account": "<account id>", "statement_date": "2026-09-30", "statement_balance": 162000}' | tinycld books reconcile start --input -
+```
+
+`list` prints the reconciliations, the newest statement first: `--status` takes `in_progress` or `finished`. `start` takes the closing date and the closing balance of the statement, in cents. For a bank account, a balance above 0 is money in the account. For a credit card, a balance above 0 is money that you owe. Books sets `beginning_balance`: the closing balance of the last finished statement of the account. When the statement gives its totals, add `"has_statement_totals": true` with `statement_out` and `statement_in`. `statement_out` is the total of the payments from a bank account, or of the charges of a credit card. `statement_in` is the total of the deposits of a bank account, or of the payments to a credit card.
+
+Books refuses `start` while the account has a reconciliation in progress, and for a date that is not after the last finished statement.
+
 ## To retry safely
 
-When the answer to a write is lost (the network fails, or a proxy answers 502, 503 or 504), the command sends the same write again, with the same ids, up to three more times. Books cannot store it twice: when an earlier send was stored, Books refuses the next one, and the command prints what is stored as usual. This is true for `add`, `add --post`, `convert`, `apply` and `edit`, and in `banking` for `upload`, `import`, `categorize`, `split` and `match`.
+When the answer to a write is lost (the network fails, or a proxy answers 502, 503 or 504), the command sends the same write again, with the same ids, up to three more times. Books cannot store it twice: when an earlier send was stored, Books refuses the next one, and the command prints what is stored as usual. This is true for `add`, `add --post`, `convert`, `apply` and `edit`, and in `banking` for `upload`, `import`, `categorize`, `split` and `match`. It is also true for `reconcile start`.
 
 When no answer comes back at all, the command exits 7. The transaction may be stored or not, and the message names its id. To find out, run `show` with that id:
 
@@ -383,7 +396,7 @@ To send it again safely, run the same command with `--id <id>`. When the first r
 tinycld books journal-entries add --id entry2026071501 --input entry.json --post
 ```
 
-`add`, `convert`, `apply`, and `edit` take `--id`. For `edit`, it is the id of the new transaction that corrects a posted one; a draft keeps its own id. In `banking`, `upload`, `import`, `categorize`, `split` and `match` take `--id` too.
+`add`, `convert`, `apply`, and `edit` take `--id`. For `edit`, it is the id of the new transaction that corrects a posted one; a draft keeps its own id. In `banking`, `upload`, `import`, `categorize`, `split` and `match` take `--id` too. So does `reconcile start`.
 
 When the answer to the `edit` of a draft is lost and the change was stored, the command finds the change in the draft and prints it as usual. When someone else changed the draft between the two sends, the command shows the refusal from Books.
 
