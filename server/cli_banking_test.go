@@ -54,9 +54,9 @@ func newCLIBankEnv(t *testing.T) *cliBankEnv {
 }
 
 // call sends one JSON request with an access token.
-func (env *cliBankEnv) call(t testing.TB, auth, method, url, body string) apiAnswer {
+func (env *cliBankEnv) call(t testing.TB, auth, method, target, body string) apiAnswer {
 	t.Helper()
-	req := httptest.NewRequest(method, url, strings.NewReader(body))
+	req := httptest.NewRequest(method, target, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", auth)
 	rec := httptest.NewRecorder()
@@ -71,27 +71,76 @@ func (env *cliBankEnv) call(t testing.TB, auth, method, url, body string) apiAns
 func TestCLIBanking_ATokenExcludesAndRestores(t *testing.T) {
 	env := newCLIBankEnv(t)
 	txn := env.bankTxn(t, "2026-09-05", -8647, bankTxnStatusForReview)
-	url := collectionURL("books_bank_transactions") + "/" + txn.Id
+	target := collectionURL("books_bank_transactions") + "/" + txn.Id
+	patch := func(auth, body string) apiAnswer {
+		return env.call(t, auth, http.MethodPatch, target, body)
+	}
 
-	env.call(t, env.reader, http.MethodPatch, url, `{"status":"excluded"}`).requireStatus(t, http.StatusForbidden)
+	patch(env.reader, `{"status":"excluded"}`).requireStatus(t, http.StatusForbidden)
 	requireStatusOf(t, env.app, txn, bankTxnStatusForReview)
 
-	env.call(t, env.writer, http.MethodPatch, url, `{"status":"excluded"}`).requireStatus(t, http.StatusOK)
+	patch(env.writer, `{"status":"excluded"}`).requireStatus(t, http.StatusOK)
 	requireStatusOf(t, env.app, txn, bankTxnStatusExcluded)
-	env.call(t, env.writer, http.MethodPatch, url, `{"status":"for_review"}`).requireStatus(t, http.StatusOK)
+	// An excluded row goes nowhere but back to For review.
+	patch(env.writer, `{"status":"reviewed"}`).requireStatus(t, http.StatusNotFound)
+	patch(env.writer, `{"status":"excluded"}`).requireStatus(t, http.StatusNotFound)
+	requireStatusOf(t, env.app, txn, bankTxnStatusExcluded)
+	patch(env.writer, `{"status":"for_review"}`).requireStatus(t, http.StatusOK)
 	requireStatusOf(t, env.app, txn, bankTxnStatusForReview)
 
-	env.call(t, env.writer, http.MethodPatch, url, `{"status":"reviewed"}`).requireStatus(t, http.StatusNotFound)
-	env.call(t, env.writer, http.MethodPatch, url, `{"status":"excluded","memo":"x"}`).requireStatus(t, http.StatusNotFound)
+	patch(env.writer, `{"status":"reviewed"}`).requireStatus(t, http.StatusNotFound)
 	// The status it has already is no change the rule allows.
-	env.call(t, env.writer, http.MethodPatch, url, `{"status":"for_review"}`).requireStatus(t, http.StatusNotFound)
+	patch(env.writer, `{"status":"for_review"}`).requireStatus(t, http.StatusNotFound)
+	// A PATCH with no status changes nothing the rule allows.
+	patch(env.writer, `{"memo":"x"}`).requireStatus(t, http.StatusNotFound)
 	requireStatusOf(t, env.app, txn, bankTxnStatusForReview)
+
+	// Each pinned field is refused beside a valid status change, whatever its
+	// value; the values are of the type of the field.
+	pinned := map[string]string{
+		"connection":   `"` + env.cardConn.Id + `"`,
+		"file":         `"` + env.cardFl.Id + `"`,
+		"bank_import":  `"` + env.cardImport.Id + `"`,
+		"line":         `99`,
+		"date":         `"2026-09-07"`,
+		"description":  `"x"`,
+		"memo":         `"x"`,
+		"amount":       `1`,
+		"fitid":        `"x"`,
+		"check_number": `"7"`,
+		"dedupe_hash":  `"` + fmt.Sprintf("%064d", 999) + `"`,
+	}
+	if len(pinned) != 11 {
+		t.Fatalf("%d pinned fields, want 11", len(pinned))
+	}
+	for field, value := range pinned {
+		body := `{"status":"excluded","` + field + `":` + value + `}`
+		patch(env.writer, body).requireStatus(t, http.StatusNotFound)
+		requireStatusOf(t, env.app, txn, bankTxnStatusForReview)
+	}
 
 	// Write access for a token opens no create and no delete: the collection
-	// has no rule for either, so only an import makes a bank transaction.
-	create := `{"connection":"` + txn.GetString("connection") + `","date":"2026-09-06","description":"x","amount":100,"status":"for_review"}`
-	env.call(t, env.writer, http.MethodPost, collectionURL("books_bank_transactions"), create).requireStatus(t, http.StatusForbidden)
-	env.call(t, env.writer, http.MethodDelete, url, "").requireStatus(t, http.StatusForbidden)
+	// has no rule for either, so only an import makes a bank transaction. The
+	// refusal is the rule's, not the scope check's.
+	const superusersOnly = "Only superusers can perform this action"
+	before := countOf(t, env.app, "books_bank_transactions", nil)
+	create := `{"connection":"` + txn.GetString("connection") + `","date":"2026-09-06","description":"x","amount":100,"dedupe_hash":"` + fmt.Sprintf("%064d", 998) + `","status":"for_review"}`
+	answer := env.call(t, env.writer, http.MethodPost, collectionURL("books_bank_transactions"), create)
+	answer.requireStatus(t, http.StatusForbidden)
+	if !strings.Contains(answer.body, superusersOnly) {
+		t.Errorf("create answer = %s, want it to hold %q", answer.body, superusersOnly)
+	}
+	if after := countOf(t, env.app, "books_bank_transactions", nil); after != before {
+		t.Errorf("%d bank transactions after the create, want %d", after, before)
+	}
+	answer = env.call(t, env.writer, http.MethodDelete, target, "")
+	answer.requireStatus(t, http.StatusForbidden)
+	if !strings.Contains(answer.body, superusersOnly) {
+		t.Errorf("delete answer = %s, want it to hold %q", answer.body, superusersOnly)
+	}
+	if after := countOf(t, env.app, "books_bank_transactions", nil); after != before {
+		t.Errorf("%d bank transactions after the delete, want %d", after, before)
+	}
 	requireStatusOf(t, env.app, txn, bankTxnStatusForReview)
 }
 
