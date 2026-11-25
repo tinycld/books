@@ -136,6 +136,7 @@ func newBankingCmd(c *client.Client) *cobra.Command {
 				"that are For review: those nobody has categorized, matched or excluded.\n" +
 				"--status all lists the transactions of every status." + paged,
 		}),
+		newBankingShowCmd(c),
 	)
 	return group
 }

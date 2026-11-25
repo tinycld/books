@@ -295,6 +295,9 @@ func fieldsOf(collection string) []field {
 			return res.Fields
 		}
 	}
+	if fields, ok := bankRowFields[collection]; ok {
+		return fields
+	}
 	for i := range documents {
 		if documents[i].Collection == collection {
 			return documents[i].Fields

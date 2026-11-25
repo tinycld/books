@@ -302,6 +302,12 @@ tinycld books banking list --status all --search depot
 
 `connections` prints the id of each connected account. To connect an account, use the app: Books, Banking, Connect account. `files` lists the uploaded files, the newest first. `list` prints the transactions that are [For review](help://books:bank-review), the newest first: `--status` takes `for_review`, `reviewed`, `excluded` or `all`. An `amount` above 0 is money in, and below 0 is money out.
 
+```
+tinycld books banking show <id>
+```
+
+`show` prints one bank transaction. For a transaction that is For review, `suggestions` holds the posted transactions of Books that it can be [matched](help://books:bank-match) to: `line` is the id that `match` takes. For a reviewed transaction, `match` or `categorization` says how it was handled.
+
 ## To retry safely
 
 When the answer to a write is lost (the network fails, or a proxy answers 502, 503 or 504), the command sends the same write again, with the same ids, up to three more times. Books cannot store it twice: when an earlier send was stored, Books refuses the next one, and the command prints the stored transaction as usual. This is true for `add`, `add --post`, `convert`, `apply` and `edit`.

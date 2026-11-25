@@ -17,6 +17,28 @@ const (
 	bankTxnTransfer  = "banktxn00000004"
 )
 
+// bankRowFields are the columns of the banking collections that no list of
+// the group names, so that the fake knows the collections and fills a created
+// row as the server does. A json column (the lines of a categorization) has
+// the type typeIDs here: the fake stores such a value as it is sent.
+var bankRowFields = map[string][]field{
+	bankSuggestionsCollection: {
+		{Name: "bank_transaction", Type: typeString}, {Name: "connection", Type: typeString},
+		{Name: "line", Type: typeString}, {Name: "entry", Type: typeString},
+		{Name: "date", Type: typeString}, {Name: "days_apart", Type: typeInteger},
+	},
+	bankMatchesCollection: {
+		{Name: "bank_transaction", Type: typeString}, {Name: "lines", Type: typeIDs},
+		{Name: "connection", Type: typeString}, {Name: "created_by", Type: typeString},
+	},
+	bankCategorizationsCollection: {
+		{Name: "bank_transaction", Type: typeString}, {Name: "kind", Type: typeString},
+		{Name: "customer", Type: typeString}, {Name: "vendor", Type: typeString},
+		{Name: "memo", Type: typeString}, {Name: "lines", Type: typeIDs},
+		{Name: "connection", Type: typeString}, {Name: "entry", Type: typeString}, {Name: "created_by", Type: typeString},
+	},
+}
+
 // bankingFake holds two connections, one imported CSV file and four
 // transactions of it: two For review, one Reviewed and one Excluded.
 func bankingFake(t *testing.T) *fakeBooks {
