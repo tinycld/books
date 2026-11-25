@@ -124,6 +124,7 @@ func targetMode(path string) (os.FileMode, error) {
 
 // readFailure marks an error of the download itself, to tell it from an error
 // of the write to the file.
+//
 // A cancel keeps its own exit code: Ctrl-C is not "try again later".
 type readFailure struct {
 	r      io.Reader
