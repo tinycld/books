@@ -11,7 +11,7 @@ import { Button, ButtonText } from '@tinycld/core/ui/button'
 import { TextInput } from '@tinycld/core/ui/form'
 import { DateField } from '@tinycld/core/ui/forms/fields/DateField'
 import { router } from 'expo-router'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useFormContext, useFormState, useWatch } from 'react-hook-form'
 import {
     type KeyDownEvent,
@@ -428,8 +428,6 @@ function useVendorPick(value: string, onChange: (value: unknown) => void) {
         return isPurchaseAccountListed(account)
     }
     const pick = async (id: string) => {
-        // DEBUG(vendor-pick): temporary instrumentation, remove before merge.
-        log.warn('debug.vendor-pick', 'pick start', { id, value, t: Date.now() })
         if (id === value) return
         setPickFailed(false)
         if (id === '') {
@@ -444,21 +442,10 @@ function useVendorPick(value: string, onChange: (value: unknown) => void) {
                         .where(({ v }) => eq(v.id, id))
                         .findOne(),
             })
-            log.warn('debug.vendor-pick', 'vendor read', { id, found: !!vendor, t: Date.now() })
             if (!vendor) throw new Error(`vendor ${id} not found`)
             const accountIsListed = await isListedAccount(vendor.expense_account)
-            log.warn('debug.vendor-pick', 'account read', {
-                account: vendor.expense_account,
-                accountIsListed,
-                t: Date.now(),
-            })
             const fills = partyFills?.(vendor, accountIsListed, getValues()) ?? {}
             onChange(id)
-            log.warn('debug.vendor-pick', 'onChange done', {
-                id,
-                fills: Object.keys(fills),
-                t: Date.now(),
-            })
             for (const [key, fill] of Object.entries(fills)) setValue(key, fill, DIRTY)
         } catch (error) {
             log.warn(`books.${kind.key}`, 'vendor pick could not read the vendor', {
@@ -529,14 +516,6 @@ export function VendorField({ value, onChange, disabled, label }: BuiltinFieldPr
     const focus = usePartyFocus(`${scope.kind.testId}-form`)
     const options = useVendorOptions(picker.debouncedTerm, picker.isOpen, id)
     const { pick, pickFailed } = useVendorPick(id, onChange)
-    // DEBUG(vendor-pick): temporary instrumentation, remove before merge.
-    useEffect(() => {
-        log.warn('debug.vendor-pick', 'value now', {
-            id,
-            t: Date.now(),
-            stack: new Error().stack?.split('\n').slice(1, 6).join(' | '),
-        })
-    }, [id])
     const triggerLabel = partyTriggerLabel(id, scope)
     const triggerSuffix = scope.party?.inactive ? '(inactive)' : undefined
     const onPick = (next: string) => {
