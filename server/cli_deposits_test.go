@@ -237,20 +237,39 @@ func TestCLIDocuments_DepositRefusals(t *testing.T) {
 }
 
 // The most rows of a table in cli/documents.json is the server's own limit. A
-// table with no `max` has the limit of a document's lines.
+// table with no `max` has the limit of a document's lines. Every table a
+// caller writes has a row here: a new table with none fails the test.
 func TestCLIDocuments_RowLimitsAreTheServers(t *testing.T) {
+	// A transfer has exactly two lines (checkTransfer, transfers.go).
+	const transferLines = 2
 	want := map[string]int{
+		"journal-entries.lines": maxLinesPerEntry,
+		"invoices.lines":        maxDocumentLines,
+		"sales-receipts.lines":  maxDocumentLines,
+		"credit-memos.lines":    maxDocumentLines,
+		"refund-receipts.lines": maxDocumentLines,
+		"estimates.lines":       maxDocumentLines,
+		"bills.lines":           maxDocumentLines,
+		"expenses.lines":        maxDocumentLines,
+		"vendor-credits.lines":  maxDocumentLines,
 		"payments.applications": maxPaymentApplications,
 		"bill-payments.lines":   maxBillPaymentLines,
 		"vendor-refunds.lines":  maxVendorRefundLines,
 		"deposits.items":        maxDepositItems,
 		"deposits.lines":        maxDepositLines,
+		"transfers.lines":       transferLines,
 	}
 	seen := 0
 	for _, doc := range loadCLIDocuments(t) {
 		for _, table := range doc.Lines {
-			limit, ok := want[doc.Name+"."+table.Key]
+			// Books writes these rows, or `apply` adds them one at a time.
+			if table.ReadOnly || table.Apply {
+				continue
+			}
+			name := doc.Name + "." + table.Key
+			limit, ok := want[name]
 			if !ok {
+				t.Errorf("%s: a table a caller writes has no row limit in this test", name)
 				continue
 			}
 			seen++
@@ -259,7 +278,7 @@ func TestCLIDocuments_RowLimitsAreTheServers(t *testing.T) {
 				most = maxDocumentLines
 			}
 			if most != limit {
-				t.Errorf("%s.%s: the CLI takes %d rows, the server %d", doc.Name, table.Key, most, limit)
+				t.Errorf("%s: the CLI takes %d rows, the server %d", name, most, limit)
 			}
 		}
 	}

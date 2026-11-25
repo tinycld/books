@@ -54,7 +54,8 @@ func sendBatch(ctx context.Context, c *client.Client, ops []batchOp) error {
 	// An edit of a draft removes and creates every row of each table it
 	// names. With two full tables (a deposit) that is more than one batch.
 	if len(ops) > maxBatchWrites {
-		return usagef("this change is %d writes, and Books takes %d in one step: change one table of rows in each call", len(ops), maxBatchWrites)
+		return usagef("this change is %d writes, and Books takes %d in one step: an edit of a draft removes the old rows of each table in --input and creates the new ones. "+
+			"Name one table of rows in each call; or, when one table is too big, delete the draft and add it again with all its rows", len(ops), maxBatchWrites)
 	}
 	err := c.PostJSON(ctx, batchPath, map[string]any{"requests": ops}, nil)
 	return batchFailure(ops, err)

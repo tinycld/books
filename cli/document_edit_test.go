@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -62,6 +63,39 @@ func TestDocumentEditOfLinesAloneStillStatesTheRevision(t *testing.T) {
 	last, _ := json.Marshal(ops[len(ops)-1])
 	if len(ops) != 3 || string(last) != `{"method":"PATCH","url":"/api/collections/books_journal_entries/records/entrydraft00001","body":{"revision":2}}` {
 		t.Errorf("the batch = %s", sentBatch(t, f, 0))
+	}
+}
+
+// A journal entry takes 1000 lines, and an edit of a draft removes the old
+// rows and creates the new ones: 2000 writes, and the server takes 1100 in one
+// batch. The command sends nothing and says what to do: `add` of the same
+// lines is one write for each line and fits.
+func TestDocumentEditOfAFullDraftSaysWhatToDo(t *testing.T) {
+	f := journal(t)
+	for i := range 998 {
+		f.addRow("books_journal_lines", fmt.Sprintf("bigline%08d", i), map[string]any{"entry": "entrydraft00001", "position": cents(i + 2), "account": "acctchecking001"})
+	}
+	rows := strings.TrimSuffix(strings.Repeat(`{"account": "acctchecking001", "debit": 1},`, 1000), ",")
+	_, _, err := runCmd(t, f.serve(), `{"lines": [`+rows+`]}`, "books", "journal-entries", "edit", "entrydraft00001", "--input", "-", "--json")
+	if got := exitcode.Of(err); got != exitcode.Usage {
+		t.Fatalf("exit = %d, err = %v", got, err)
+	}
+	for _, want := range []string{"this change is 2001 writes, and Books takes 1100 in one step", "delete", "add"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the message %q does not say %q", err, want)
+		}
+	}
+	for _, request := range f.requests {
+		if !strings.HasPrefix(request, "GET ") {
+			t.Errorf("the refused edit sent %s", request)
+		}
+	}
+	add := journal(t)
+	if _, _, err := runCmd(t, add.serve(), `{"date": "2026-07-15", "lines": [`+rows+`]}`, "books", "journal-entries", "add", "--input", "-", "--json"); err != nil {
+		t.Fatalf("an add of 1000 lines: %v", err)
+	}
+	if got := len(add.batches[0]); got != 1001 {
+		t.Errorf("the add sent %d writes, want 1001", got)
 	}
 }
 

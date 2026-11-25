@@ -82,6 +82,7 @@
                     "collection": "books_journal_lines",
                     "parent": "entry",
                     "sort": "position,id",
+                    "max": 1000,
                     "omit": ["entry", "position", "posted", "date", "currency", "card_payment", "doc_type"],
                     "fields": [
                         { "name": "account", "type": "id", "ref": "accounts", "required": true, "help": "the account of the line" },

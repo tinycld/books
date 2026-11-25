@@ -104,7 +104,8 @@ func TestCheckDocumentInputSplitsHeaderAndLines(t *testing.T) {
 
 func TestCheckDocumentInputRefusals(t *testing.T) {
 	doc := findDocument("journal-entries")
-	manyLines := `{"date":"2026-07-15","lines":[` + strings.Repeat(`{"account":"a"},`, maxDocumentLines) + `{"account":"a"}]}`
+	// A journal entry takes 1000 lines (the server's maxLinesPerEntry).
+	manyLines := `{"date":"2026-07-15","lines":[` + strings.Repeat(`{"account":"a"},`, 1000) + `{"account":"a"}]}`
 	cases := []struct {
 		name, input string
 		create      bool
@@ -120,7 +121,7 @@ func TestCheckDocumentInputRefusals(t *testing.T) {
 		{"a line with no account", `{"date":"2026-07-15","lines":[{"account":"a"},{"debit":5}]}`, true, `lines[1]: "account" is required`},
 		{"a line amount with a fraction", `{"date":"2026-07-15","lines":[{"account":"a","debit":1.5}]}`, true, `lines[0]: "debit" must be a whole number`},
 		{"a line field the CLI sets", `{"date":"2026-07-15","lines":[{"account":"a","position":3}]}`, true, `lines[0]: lines has no field "position"`},
-		{"too many lines", manyLines, true, `"lines" has 251 rows: the most is 250`},
+		{"too many lines", manyLines, true, `"lines" has 1001 rows: the most is 1000`},
 		{"an empty edit", `{}`, false, "nothing to change"},
 	}
 	for _, tc := range cases {
@@ -178,7 +179,7 @@ func TestDocumentSchemas(t *testing.T) {
 		t.Errorf("add: required %v, additionalProperties %v", add.Required, add.Additional)
 	}
 	lines := add.Properties["lines"]
-	if lines.Type != "array" || lines.MaxItems != maxDocumentLines || strings.Join(lines.Items.Required, ",") != "account" ||
+	if lines.Type != "array" || lines.MaxItems != 1000 || strings.Join(lines.Items.Required, ",") != "account" ||
 		lines.Items.Additional == nil || *lines.Items.Additional {
 		t.Errorf("add: lines = %+v", lines)
 	}
@@ -192,7 +193,7 @@ func TestDocumentSchemas(t *testing.T) {
 			t.Errorf("add: a line of the input schema has %q, which the CLI sets", name)
 		}
 	}
-	if edit.MinProps != 1 || len(edit.Required) != 0 || edit.Properties["lines"].MaxItems != maxDocumentLines {
+	if edit.MinProps != 1 || len(edit.Required) != 0 || edit.Properties["lines"].MaxItems != 1000 {
 		t.Errorf("edit: minProperties %d, required %v", edit.MinProps, edit.Required)
 	}
 	want := "id,date,memo,auto_reverse_on,status,doc_type,origin,document,number,total,revision,currency,reverses,replaces,created,updated,lines"

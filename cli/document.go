@@ -53,8 +53,10 @@ const (
 )
 
 // maxDocumentLines is the most rows one line table of a document may have,
-// unless the table states its own `max`. The server refuses more
-// (server/sales_documents.go, server/entries.go).
+// unless the table states its own `max`: the limit of a sales or purchase
+// document (server/sales_documents.go). A table whose server limit differs
+// (journal lines, payment applications, deposit items) states it; the server
+// test TestCLIDocuments_RowLimitsAreTheServers holds every table to its limit.
 const maxDocumentLines = 250
 
 // lineTable is one kind of row a document has: the lines of a journal entry,
