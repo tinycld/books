@@ -21,7 +21,8 @@ const maxReportPages = 10000
 
 // reportResult is what `reports run` prints with --json: the server's result,
 // with the cursor of the next page as `next`. The columns, rows, notices and
-// params are the server's own JSON, so nothing of a row is lost.
+// params are the server's own JSON, so nothing of a row is lost. The server's
+// change topics and page size are left out (the cursor is `next`).
 type reportResult struct {
 	ID          string            `json:"id"`
 	Title       string            `json:"title"`
@@ -122,17 +123,18 @@ func (r pageRow) wholeReportRow() bool {
 // reportPages joins the pages of one run, as the app does (core
 // reports/lib/rows.ts mergePages): the whole-report rows at the end of every
 // page but the last go, a row whose id an earlier page gave is kept one time,
-// and a notice of one code is kept one time. The rest is the last page's.
+// and the notices of one code join into one (reportNotice.join). The rest is
+// the last page's.
 type reportPages struct {
 	rows    []json.RawMessage
 	seen    map[string]bool
-	notices []json.RawMessage
-	codes   map[string]bool
+	notices map[string]reportNotice
+	order   []string
 }
 
 func (p *reportPages) add(page reportResult, last bool) error {
 	if p.seen == nil {
-		p.seen, p.codes = map[string]bool{}, map[string]bool{}
+		p.seen, p.notices = map[string]bool{}, map[string]reportNotice{}
 	}
 	rows := make([]pageRow, len(page.Rows))
 	for i, raw := range page.Rows {
@@ -152,18 +154,90 @@ func (p *reportPages) add(page reportResult, last bool) error {
 		p.rows = append(p.rows, page.Rows[i])
 	}
 	for _, raw := range page.Notices {
-		var notice struct {
-			Code string `json:"code"`
-		}
+		var notice reportNotice
 		if err := json.Unmarshal(raw, &notice); err != nil {
 			return fmt.Errorf("the server's notice is not a notice: %w", err)
 		}
-		if !p.codes[notice.Code] {
-			p.codes[notice.Code] = true
-			p.notices = append(p.notices, raw)
+		code := notice.text("code")
+		earlier, seen := p.notices[code]
+		if !seen {
+			p.order = append(p.order, code)
+			p.notices[code] = notice
+			continue
 		}
+		p.notices[code] = earlier.join(notice)
 	}
 	return nil
+}
+
+// finish gives the joined notices, in the order their codes first came.
+func (p *reportPages) finish() ([]json.RawMessage, error) {
+	out := make([]json.RawMessage, 0, len(p.order))
+	for _, code := range p.order {
+		raw, err := json.Marshal(p.notices[code])
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, raw)
+	}
+	return out, nil
+}
+
+// reportNotice is a notice as the server sent it, every key kept as it came.
+type reportNotice map[string]json.RawMessage
+
+// text reads a key that holds a string; "" when it holds none.
+func (n reportNotice) text(key string) string {
+	var s string
+	_ = json.Unmarshal(n[key], &s)
+	return s
+}
+
+// list reads a key that holds a list of strings; nil when it holds none.
+func (n reportNotice) list(key string) []string {
+	var l []string
+	_ = json.Unmarshal(n[key], &l)
+	return l
+}
+
+// sentences are the notice's parts, or its message as one.
+func (n reportNotice) sentences() []string {
+	if parts := n.list("parts"); parts != nil {
+		return parts
+	}
+	return []string{n.text("message")}
+}
+
+func unionStrings(a, b []string) []string {
+	out := []string{}
+	for _, s := range append(slices.Clone(a), b...) {
+		if !slices.Contains(out, s) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// join merges two notices of one code as core's joinNotices does (reports/lib
+// rows.ts): a page names only what its own rows show, so the sentences, the
+// columns and the conditions of both join, each one time, in the order the
+// pages first name them. `parts` is set only when there is more than one
+// sentence; every other key is the earlier notice's.
+func (n reportNotice) join(other reportNotice) reportNotice {
+	parts := unionStrings(n.sentences(), other.sentences())
+	joined := maps.Clone(n)
+	joined["message"], _ = json.Marshal(strings.Join(parts, " "))
+	if len(parts) > 1 {
+		joined["parts"], _ = json.Marshal(parts)
+	}
+	for _, key := range []string{"columns", "conditions"} {
+		_, inN := n[key]
+		_, inOther := other[key]
+		if inN || inOther {
+			joined[key], _ = json.Marshal(unionStrings(n.list(key), other.list(key)))
+		}
+	}
+	return joined
 }
 
 // runWholeReport runs every page of a report, from cursor, and gives the rows
@@ -179,10 +253,11 @@ func runWholeReport(ctx context.Context, c *client.Client, req reportRequest, cu
 			return reportResult{}, err
 		}
 		if page.Next == "" {
-			page.Rows, page.Notices = pages.rows, pages.notices
-			if page.Notices == nil {
-				page.Notices = []json.RawMessage{}
+			notices, err := pages.finish()
+			if err != nil {
+				return reportResult{}, err
 			}
+			page.Rows, page.Notices = pages.rows, notices
 			if page.Rows == nil {
 				page.Rows = []json.RawMessage{}
 			}
@@ -242,7 +317,8 @@ var reportInputSchema = map[string]any{
 }
 
 var reportResultSchema = map[string]any{
-	"type": "object",
+	"type":        "object",
+	"description": "the server's columns, rows, notices and params unchanged; it leaves out the server's change topics and page size (the cursor is next)",
 	"properties": map[string]any{
 		"id":          map[string]any{"type": "string", "description": "the id of the report"},
 		"title":       map[string]any{"type": "string"},
@@ -270,7 +346,7 @@ type reportRunFlags struct {
 // A flag wins over the same option of the document.
 func (fl reportRunFlags) request(cmd *cobra.Command, raw rawRecord) (reportRequest, error) {
 	if fl.limit < 0 {
-		return reportRequest{}, usagef("--limit must be 1 or more")
+		return reportRequest{}, usagef("--limit must not be negative")
 	}
 	if fl.all && fl.cursor != "" {
 		return reportRequest{}, usagef("--all and --cursor cannot be used together")

@@ -105,6 +105,46 @@ func TestReportsRunAllReadsEveryPage(t *testing.T) {
 	}
 }
 
+// A page names only what its own rows show, so notices of one code join as
+// core's joinNotices does: the sentences (parts) and the columns and conditions
+// of every page once, in first-seen order; the other keys are the first page's.
+func TestReportsRunAllJoinsNoticesOfOneCode(t *testing.T) {
+	page := func(next, notices string) string {
+		return `{"columns":[],"rows":[],"notices":` + notices + `,"topics":[],"heading":"","page":{"next":"` + next + `"},"params":[],"headerLines":[]}`
+	}
+	f := reportsFake(t)
+	f.reports.pages = []string{
+		page("cur2", `[{"code":"mixedCurrency","message":"Credit mixes currencies.","columns":["credit"],"conditions":["c1"],"severity":"warn"},{"code":"rowCap","message":"Capped."}]`),
+		page("cur3", `[{"code":"mixedCurrency","message":"Debit mixes currencies. Credit mixes currencies.","parts":["Debit mixes currencies.","Credit mixes currencies."],"columns":["debit","credit"],"conditions":["c1","c2"],"severity":"error"}]`),
+		page("", `[{"code":"mixedCurrency","message":"Debit mixes currencies.","columns":["debit"]},{"code":"rowCap","message":"Capped."}]`),
+	}
+	got := runJSON(t, f, "", "books.trial_balance", "--all")
+	if len(got.Notices) != 2 {
+		t.Fatalf("notices: %+v", got.Notices)
+	}
+	mixed, capped := got.Notices[0], got.Notices[1]
+	if mixed["code"] != "mixedCurrency" || mixed["message"] != "Credit mixes currencies. Debit mixes currencies." || mixed["severity"] != "warn" {
+		t.Errorf("joined notice: %+v", mixed)
+	}
+	if want := `["Credit mixes currencies.","Debit mixes currencies."]`; jsonText(mixed["parts"]) != want {
+		t.Errorf("parts %s, want %s", jsonText(mixed["parts"]), want)
+	}
+	if want := `["credit","debit"]`; jsonText(mixed["columns"]) != want {
+		t.Errorf("columns %s, want %s", jsonText(mixed["columns"]), want)
+	}
+	if want := `["c1","c2"]`; jsonText(mixed["conditions"]) != want {
+		t.Errorf("conditions %s, want %s", jsonText(mixed["conditions"]), want)
+	}
+	if capped["code"] != "rowCap" || capped["message"] != "Capped." || capped["parts"] != nil || capped["columns"] != nil {
+		t.Errorf("single notice: %+v", capped)
+	}
+}
+
+func jsonText(v any) string {
+	b, _ := json.Marshal(v)
+	return string(b)
+}
+
 func TestReportsRunTable(t *testing.T) {
 	f := reportsFake(t)
 	f.reports.pages = []string{reportPageOne}
