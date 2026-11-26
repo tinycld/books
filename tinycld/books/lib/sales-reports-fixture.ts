@@ -150,7 +150,7 @@ export const SALES_BY_PRODUCT_PARAMS: ParamDef[] = [
 ]
 
 // --- The display blocks, measured in phase 3 pass 2 for each report's own columns
-// (docs/plans/sales-reports-ledger.md has the figures). ---
+// (the sales reports ledger has the figures). ---
 
 // A phone row of Sales by Customer: the name on line 1, Sales and % of sales on line 2.
 export const SALES_BY_CUSTOMER_PHONE_LAYOUT: DisplayLayout = {

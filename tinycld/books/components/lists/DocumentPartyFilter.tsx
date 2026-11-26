@@ -98,7 +98,7 @@ interface DocumentPartyFilterProps {
 }
 
 /**
- * The list's party filter (spec docs/specs/sales-lists-design.md §3, purchase-lists §3
+ * The list's party filter (the Sales lists design spec §3, the Purchase lists spec §3
  * "Search and filters"): a search picker over every row of the area's party collection
  * (`area.party.collection`), whose first item, `area.party.allLabel`, removes the filter.
  * Its test ids start with `<prefix>-<party noun>`: the customer picker of Sales, the

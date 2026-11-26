@@ -14,8 +14,10 @@ func newResourceCmd(c *client.Client, res *resource) *cobra.Command {
 		newListCmd(c, res),
 		newShowCmd(c, res),
 		newAddCmd(c, res),
-		newEditCmd(c, res),
 	)
+	if !res.NoEdit {
+		group.AddCommand(newEditCmd(c, res))
+	}
 	if res.hasInactive() {
 		group.AddCommand(newActiveCmd(c, res, true), newActiveCmd(c, res, false))
 	}

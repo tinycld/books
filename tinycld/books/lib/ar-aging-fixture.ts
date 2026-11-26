@@ -1,4 +1,4 @@
-// Synthetic A/R Aging for the helix reference route (docs/specs/ar-aging-design.md).
+// Synthetic A/R Aging for the helix reference route (the A/R Aging design spec).
 // The customers are the seeded ones (customer-form-fixture.ts), so their names, parents
 // and inactive marks are typed against the generated `BooksCustomers`. The run results
 // are typed against core's report contract, so tsc checks every field. Money is integer

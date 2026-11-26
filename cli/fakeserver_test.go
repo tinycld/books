@@ -1,12 +1,16 @@
 package cli
 
 import (
+	"bytes"
 	"cmp"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,10 +25,16 @@ import (
 // shape fails the test: a filter the fake ignored is how `list` would seem to
 // work while it shows inactive rows.
 //
-// WHAT IT CANNOT SEE: it runs no collection rule, no Go guard and no OAuth
-// scope check. It proves what the commands send and how they read an answer.
-// That the real server accepts those requests is proven in
-// server/cli_resources_test.go, against the migrated collections.
+// It answers POST /api/batch as PocketBase does: the writes in order, all of
+// them or none, and a refusal under data.requests.<index>.response. It keeps
+// the revision rule of server/revision.go, because a command that states the
+// wrong revision works against a fake that ignores it.
+//
+// WHAT IT CANNOT SEE: it runs no collection rule, no other Go guard and no
+// OAuth scope check, and it computes no total and no number. It proves what the
+// commands send and how they read an answer. That the real server accepts those
+// requests is proven in server/cli_resources_test.go and
+// server/cli_documents_test.go, against the migrated collections.
 type fakeBooks struct {
 	t    *testing.T
 	rows map[string][]rawRecord
@@ -32,14 +42,24 @@ type fakeBooks struct {
 
 	// What the commands sent, so a test asserts the request and not only the
 	// echo of it.
-	requests   []string
-	lastQuery  url.Values
+	requests  []string
+	lastQuery url.Values
+	// listed holds the query of every list request, in the order sent, by collection.
+	listed     map[string][]url.Values
 	lastCreate map[string]any
 	lastPatch  map[string]any
 	deleted    []string
+	// batches holds the writes of each POST /api/batch, in the order sent.
+	batches [][]batchOp
+	// createdInBatch holds the ids the batch in progress created; nil outside
+	// a batch.
+	createdInBatch map[string]bool
 
 	// refusal answers the next request of its method, once.
 	refusal *fakeRefusal
+	// silences lose the answers of the next writes (a batch, or a write of
+	// its own), one for each write, in order.
+	silences []fakeSilence
 	// rawFilter turns the filter evaluation off, for a test that asserts the
 	// filter text of a value the small evaluator cannot split.
 	rawFilter bool
@@ -55,6 +75,34 @@ type fakeRefusal struct {
 	body   string
 }
 
+// fakeSilence is a write whose answer does not come back, as when a proxy or
+// the network fails: the fake stores the write or not, then answers status
+// with a proxy's page, or closes the connection with no answer for status 0.
+type fakeSilence struct {
+	stored bool
+	status int
+}
+
+// loseAnswers loses the answers of the next writes, one silence for each.
+func (f *fakeBooks) loseAnswers(silences ...fakeSilence) {
+	f.silences = append(f.silences, silences...)
+}
+
+// silent answers a write whose answer is lost.
+func (f *fakeBooks) silent(w http.ResponseWriter, status int) {
+	if status != 0 {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(status)
+		fmt.Fprintf(w, "<html>%d %s</html>", status, http.StatusText(status))
+		return
+	}
+	conn, _, err := w.(http.Hijacker).Hijack()
+	if err != nil {
+		f.t.Fatalf("the fake cannot close the connection: %v", err)
+	}
+	conn.Close()
+}
+
 func newFakeBooks(t *testing.T) *fakeBooks {
 	return &fakeBooks{t: t, rows: map[string][]rawRecord{}, fail: t.Errorf}
 }
@@ -68,7 +116,9 @@ func (f *fakeBooks) add(collection, id string, fields map[string]any) {
 	f.rows[collection] = append(f.rows[collection], row)
 }
 
-// refuse makes the next request of the method fail with status and body.
+// refuse makes the next request of the method fail with status and body. A
+// write inside a batch counts as a request of its own method; the method BATCH
+// refuses the batch request itself, as the scope check of the server does.
 func (f *fakeBooks) refuse(method string, status int, body string) {
 	f.refusal = &fakeRefusal{method: method, status: status, body: body}
 }
@@ -94,21 +144,111 @@ func (f *fakeBooks) handler() http.Handler {
 	mux.HandleFunc("POST /api/collections/{collection}/records", f.create)
 	mux.HandleFunc("PATCH /api/collections/{collection}/records/{id}", f.update)
 	mux.HandleFunc("DELETE /api/collections/{collection}/records/{id}", f.remove)
+	// one answers one record request: a request of its own, or a write of a batch.
+	one := func(w http.ResponseWriter, r *http.Request) {
+		if f.refused(w, r.Method) {
+			return
+		}
+		mux.ServeHTTP(w, r)
+	}
+	serve := func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == batchPath {
+			f.batch(w, r, one)
+			return
+		}
+		one(w, r)
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.requests = append(f.requests, r.Method+" "+r.URL.Path)
 		if r.Header.Get("Authorization") != "Bearer test-token" {
 			f.t.Errorf("%s %s: no bearer token", r.Method, r.URL.Path)
 		}
-		if f.refusal != nil && f.refusal.method == r.Method {
-			refusal := f.refusal
-			f.refusal = nil
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(refusal.status)
-			w.Write([]byte(refusal.body))
+		if r.Method != http.MethodGet && len(f.silences) > 0 {
+			silence := f.silences[0]
+			f.silences = f.silences[1:]
+			if silence.stored {
+				serve(httptest.NewRecorder(), r)
+			}
+			f.silent(w, silence.status)
 			return
 		}
-		mux.ServeHTTP(w, r)
+		serve(w, r)
 	})
+}
+
+// refused answers with the refusal a test set for the method, one time.
+func (f *fakeBooks) refused(w http.ResponseWriter, method string) bool {
+	if f.refusal == nil || f.refusal.method != method {
+		return false
+	}
+	refusal := f.refusal
+	f.refusal = nil
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(refusal.status)
+	w.Write([]byte(refusal.body))
+	return true
+}
+
+// batch runs the writes of a POST /api/batch in order. When one fails, the
+// rows go back to what they were and the answer names the write, as
+// PocketBase's does.
+func (f *fakeBooks) batch(w http.ResponseWriter, r *http.Request, one http.HandlerFunc) {
+	if f.refused(w, "BATCH") {
+		return
+	}
+	var body struct {
+		Requests []batchOp `json:"requests"`
+	}
+	dec := json.NewDecoder(r.Body)
+	dec.UseNumber()
+	if err := dec.Decode(&body); err != nil {
+		f.fail("POST %s: the body is not a batch: %v", batchPath, err)
+	}
+	f.batches = append(f.batches, body.Requests)
+	// The server refuses the whole batch over its limit; no command may send one.
+	if len(body.Requests) > maxBatchWrites {
+		f.fail("POST %s: %d writes, and the server takes %d in one batch", batchPath, len(body.Requests), maxBatchWrites)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, `{"data":{},"message":"The allowed max number of batch requests is %d.","status":400}`, maxBatchWrites)
+		return
+	}
+	// The rollback is correct because the fake replaces a row's keys and never
+	// changes a nested value in place. A change that does must deep-copy here.
+	before := map[string][]rawRecord{}
+	for collection, rows := range f.rows {
+		for _, row := range rows {
+			before[collection] = append(before[collection], maps.Clone(row))
+		}
+	}
+	deletedBefore := len(f.deleted)
+	f.createdInBatch = map[string]bool{}
+	defer func() { f.createdInBatch = nil }()
+	answers := []map[string]any{}
+	for i, op := range body.Requests {
+		sent, _ := json.Marshal(op.Body)
+		rec := httptest.NewRecorder()
+		one(rec, httptest.NewRequest(op.Method, op.URL, bytes.NewReader(sent)))
+		if rec.Code >= 400 {
+			// The rollback restores only the stored state: f.rows and f.deleted.
+			// f.batches keeps the sent batch, so a test can read what was sent.
+			// f.lastCreate, f.lastPatch and f.seq keep the values of the rolled-back
+			// writes: they show what the fake saw, they are not stored state.
+			f.rows = before
+			f.deleted = f.deleted[:deletedBefore]
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, `{"data":{"requests":{"%d":{"code":"batch_request_failed","message":"Batch request failed.","response":%s}}},"message":"Batch transaction failed.","status":400}`,
+				i, strings.TrimSpace(rec.Body.String()))
+			return
+		}
+		answer := map[string]any{"status": rec.Code, "body": nil}
+		if rec.Body.Len() > 0 {
+			answer["body"] = json.RawMessage(rec.Body.Bytes())
+		}
+		answers = append(answers, answer)
+	}
+	writeJSON(w, answers)
 }
 
 // writeJSON answers as PocketBase does: a JSON body with its content type.
@@ -121,7 +261,7 @@ func writeJSON(w http.ResponseWriter, body any) {
 // whether or not it holds a row, and one the test added by hand.
 func (f *fakeBooks) known(w http.ResponseWriter, r *http.Request) (string, bool) {
 	collection := r.PathValue("collection")
-	if _, ok := f.rows[collection]; !ok && resourceOf(collection) == nil {
+	if _, ok := f.rows[collection]; !ok && fieldsOf(collection) == nil {
 		f.fail("%s %s: the test did not set up collection %q", r.Method, r.URL.Path, collection)
 		notFound(w)
 		return "", false
@@ -136,6 +276,62 @@ func resourceOf(collection string) *resource {
 		}
 	}
 	return nil
+}
+
+// fieldsOf is the fields the CLI declares for a collection: of a list
+// resource, of a document, or of a line table. nil: the CLI names no such
+// collection.
+func fieldsOf(collection string) []field {
+	if res := resourceOf(collection); res != nil {
+		return res.Fields
+	}
+	for i := range documents {
+		if documents[i].Collection == collection {
+			return documents[i].Fields
+		}
+		for j := range documents[i].Views {
+			if documents[i].Views[j].Collection == collection {
+				return documents[i].Views[j].Fields
+			}
+		}
+		for j := range documents[i].Lines {
+			if documents[i].Lines[j].Collection == collection {
+				return documents[i].Lines[j].Fields
+			}
+		}
+	}
+	return nil
+}
+
+// msgStaleRevision is the server's refusal of a change that states another
+// revision than the next one (server/revision.go).
+const msgStaleRevision = "This entry changed after you opened it. Load it again, then review it before you save or post."
+
+// msgIDNotUnique is the server's answer to a create whose id is stored, as the
+// write of a batch answers it (TestCLIDocuments_ResendOfAStoredBatch).
+const msgIDNotUnique = `{"data":{"id":{"code":"validation_not_unique","message":"Value must be unique."}},"message":"Failed to create record.","status":400}`
+
+// revisionRefused keeps the rule of server/revision.go for a row that has a
+// revision: a change of a draft states the stored revision plus one. In the
+// batch that created the row it may state the stored one, because the server
+// counts one time for each transaction. The rule holds for a stored draft only,
+// so a test that creates a draft must send status "draft" for the fake to check
+// its revision. The rule also needs a revision field declared for the collection
+// in fieldsOf: a create sets revision 1 only for a declared field.
+func (f *fakeBooks) revisionRefused(w http.ResponseWriter, row rawRecord, body map[string]any) bool {
+	stored, has := numberOf(row["revision"])
+	if !has || row["status"] != "draft" {
+		return false
+	}
+	stated, _ := numberOf(body["revision"])
+	id, _ := row["id"].(string)
+	if stated == stored+1 || (f.createdInBatch[id] && stated == stored) {
+		return false
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusConflict)
+	fmt.Fprintf(w, `{"data":{},"message":%q,"status":409}`, msgStaleRevision)
+	return true
 }
 
 // emptyValue is what the server stores and returns for a field a create did
@@ -240,6 +436,10 @@ func (f *fakeBooks) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f.lastQuery = r.URL.Query()
+	if f.listed == nil {
+		f.listed = map[string][]url.Values{}
+	}
+	f.listed[collection] = append(f.listed[collection], f.lastQuery)
 	matched := []rawRecord{}
 	for _, row := range f.rows[collection] {
 		if f.rawFilter || f.matches(row, f.lastQuery.Get("filter")) {
@@ -349,15 +549,33 @@ func (f *fakeBooks) create(w http.ResponseWriter, r *http.Request) {
 	f.lastCreate = decodeBody(r)
 	f.seq++
 	id := fmt.Sprintf("rec%012d", f.seq)
+	// A caller may name the id, as a document's batch does for its lines.
+	if given, ok := f.lastCreate["id"].(string); ok && given != "" {
+		id = given
+	}
+	// The real answer to a create with a stored id
+	// (TestCLIDocuments_ResendOfAStoredBatch).
+	if f.find(collection, id) != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(msgIDNotUnique))
+		return
+	}
 	// The server answers with every column: one the body did not send is empty.
 	stored := map[string]any{}
-	if res := resourceOf(collection); res != nil {
-		for i := range res.Fields {
-			stored[res.Fields[i].Name] = emptyValue(&res.Fields[i])
+	fields := fieldsOf(collection)
+	for i := range fields {
+		stored[fields[i].Name] = emptyValue(&fields[i])
+		// The server starts a document at revision 1.
+		if fields[i].Name == "revision" {
+			stored["revision"] = json.Number("1")
 		}
 	}
 	for key, value := range f.lastCreate {
 		stored[key] = value
+	}
+	if f.createdInBatch != nil {
+		f.createdInBatch[id] = true
 	}
 	f.add(collection, id, stored)
 	writeJSON(w, f.find(collection, id))
@@ -374,7 +592,17 @@ func (f *fakeBooks) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f.lastPatch = decodeBody(r)
+	if f.revisionRefused(w, row, f.lastPatch) {
+		return
+	}
+	fields := fieldsOf(collection)
 	for key, value := range f.lastPatch {
+		// The server stores a null as the field's empty value.
+		if value == nil {
+			if i := slices.IndexFunc(fields, func(fld field) bool { return fld.Name == key }); i >= 0 {
+				value = emptyValue(&fields[i])
+			}
+		}
 		row[key] = value
 	}
 	writeJSON(w, row)

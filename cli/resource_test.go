@@ -182,3 +182,20 @@ func TestFieldSchemaOfAnAddressAndASelect(t *testing.T) {
 		t.Errorf("a required select cannot be empty: enum = %q", got)
 	}
 }
+
+// An ids field may hold rows of a line table too: its description names the
+// document and the table, as an id field's does.
+func TestFieldSchemaOfIDsNamesARowRef(t *testing.T) {
+	ids := fieldSchema(&field{Name: "lines", Type: typeIDs, Ref: "journal-entries.lines", Help: "h"})
+	if got, want := ids["description"], "h (ids of rows of `lines` of `books journal-entries`)"; got != want {
+		t.Errorf("description = %q, want %q", got, want)
+	}
+	one := fieldSchema(&field{Name: "line", Type: typeID, Ref: "journal-entries.lines", Help: "h"})
+	if got, want := one["description"], "h (the id of a row of `lines` of `books journal-entries`)"; got != want {
+		t.Errorf("description = %q, want %q", got, want)
+	}
+	records := fieldSchema(&field{Name: "accounts", Type: typeIDs, Ref: "accounts", Help: "h"})
+	if got, want := records["description"], "h (ids of records of `books accounts`)"; got != want {
+		t.Errorf("description = %q, want %q", got, want)
+	}
+}

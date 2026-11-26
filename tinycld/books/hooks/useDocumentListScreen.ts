@@ -122,7 +122,7 @@ function useRowFocus(scope: string, rows: readonly DocumentListRow[], openId: st
 }
 
 /**
- * One list tab (spec docs/specs/sales-lists-design.md §3): its kept search, chip, date
+ * One list tab (the Sales lists design spec §3): its kept search, chip, date
  * range, party and sort (`useDocumentListStore`), its rows (`useDocumentList`, with the
  * search debounced), what the user may do on it, and where its rows, New and tabs lead
  * (the New items and tabs of the tab's list area, `areaOf`). The screen waits for the

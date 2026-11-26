@@ -88,9 +88,19 @@ type resource struct {
 	// server test fails for a collection field that is neither in Fields nor
 	// here, so a new column cannot be forgotten.
 	Omit []string `json:"omit"`
+	// Timestamps names the stamps the collection has: "created" and/or
+	// "updated". A record prints and the schema describes only those. Absent:
+	// both. The server test checks the key against the migrated collection.
+	Timestamps []string `json:"timestamps"`
 	// DeleteHelp says when the server refuses a delete and what to do then.
-	DeleteHelp string  `json:"deleteHelp"`
-	Fields     []field `json:"fields"`
+	DeleteHelp string `json:"deleteHelp"`
+	// NoEdit marks a list resource whose records Books never changes (a
+	// statement is what was true on its date): the group has no `edit`.
+	NoEdit bool    `json:"noEdit"`
+	Fields []field `json:"fields"`
+	// scope holds the field values every record of `list` has: the fixed
+	// values of a scoped document. It is not read from the file.
+	scope map[string]string
 }
 
 func (r *resource) field(name string) *field {
@@ -172,6 +182,13 @@ func checkResource(res *resource, names map[string]bool) error {
 	}
 	if len(res.Fields) == 0 {
 		return fmt.Errorf("no fields")
+	}
+	if err := checkTimestamps(res.Timestamps); err != nil {
+		return err
+	}
+	// `activate` and `deactivate` change a record.
+	if res.NoEdit && res.hasInactive() {
+		return fmt.Errorf("a resource with noEdit has no inactive field: its records are never changed")
 	}
 	fields := map[string]bool{}
 	for i := range res.Fields {
@@ -318,11 +335,11 @@ func fieldSchema(f *field) map[string]any {
 		schema["type"] = "number"
 	case typeID:
 		schema["type"] = "string"
-		schema["description"] = f.Help + " (the id of a record of `books " + f.Ref + "`)"
+		schema["description"] = refDescription(f, "the id of a record of", "the id of a row of")
 	case typeIDs:
 		schema["type"] = "array"
 		schema["items"] = map[string]any{"type": "string"}
-		schema["description"] = f.Help + " (ids of records of `books " + f.Ref + "`)"
+		schema["description"] = refDescription(f, "ids of records of", "ids of rows of")
 	case typeAddress:
 		parts := map[string]any{}
 		for _, key := range addressKeys {
@@ -336,13 +353,27 @@ func fieldSchema(f *field) map[string]any {
 	return schema
 }
 
+// refDescription is the description of an id or ids field: the words say what
+// the ids point to. A ref with a dot names a line table of a document (rowRef),
+// so its ids are rows, not records.
+func refDescription(f *field, records, rows string) string {
+	if owner, key, isRow := strings.Cut(f.Ref, "."); isRow {
+		return f.Help + " (" + rows + " `" + key + "` of `books " + owner + "`)"
+	}
+	return f.Help + " (" + records + " `books " + f.Ref + "`)"
+}
+
 // recordSchema is the JSON Schema of a record as every command prints it: the
 // id, the resource's fields in their declared order, created and updated.
 func recordSchema(res *resource) map[string]any {
 	props := map[string]any{
-		"id":      map[string]any{"type": "string", "description": "the record id; the argument of show, edit, delete"},
-		"created": map[string]any{"type": "string", "description": "when the record was created (UTC)"},
-		"updated": map[string]any{"type": "string", "description": "when the record last changed (UTC)"},
+		"id": map[string]any{"type": "string", "description": "the record id; the argument of show, edit, delete"},
+	}
+	if slices.Contains(stamps(res.Timestamps), "created") {
+		props["created"] = map[string]any{"type": "string", "description": "when the record was created (UTC)"}
+	}
+	if slices.Contains(stamps(res.Timestamps), "updated") {
+		props["updated"] = map[string]any{"type": "string", "description": "when the record last changed (UTC)"}
 	}
 	for i := range res.Fields {
 		props[res.Fields[i].Name] = fieldSchema(&res.Fields[i])
@@ -375,5 +406,39 @@ func recordKeys(res *resource) []string {
 	for i := range res.Fields {
 		keys = append(keys, res.Fields[i].Name)
 	}
-	return append(keys, "created", "updated")
+	return append(keys, stamps(res.Timestamps)...)
+}
+
+// allStamps are the timestamps of a collection, in the order they print.
+var allStamps = []string{"created", "updated"}
+
+// stamps is the timestamps a collection has, in print order: all of them when
+// the definition gives no `timestamps` key.
+func stamps(given []string) []string {
+	if given == nil {
+		return allStamps
+	}
+	have := []string{}
+	for _, stamp := range allStamps {
+		if slices.Contains(given, stamp) {
+			have = append(have, stamp)
+		}
+	}
+	return have
+}
+
+// checkTimestamps refuses a `timestamps` key that names a stamp twice or one
+// that is not created or updated.
+func checkTimestamps(given []string) error {
+	seen := map[string]bool{}
+	for _, stamp := range given {
+		if !slices.Contains(allStamps, stamp) {
+			return fmt.Errorf("timestamps names %q: the values are created and updated", stamp)
+		}
+		if seen[stamp] {
+			return fmt.Errorf("timestamps names %q twice", stamp)
+		}
+		seen[stamp] = true
+	}
+	return nil
 }

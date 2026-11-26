@@ -1,4 +1,4 @@
-// The toolbar menus of a sales document list (spec docs/specs/sales-lists-design.md §3
+// The toolbar menus of a sales document list (the Sales lists design spec §3
 // "Search and filters", "Sort"): the date-range items, the cards' Sort menu, and the
 // header sort cycle. Pure, so each rule is unit-tested.
 

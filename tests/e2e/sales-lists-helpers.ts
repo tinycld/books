@@ -8,7 +8,7 @@ import {
 } from './invoice-helpers'
 import { fillInvoice, nonTaxableService, postInvoice } from './receive-payment-helpers'
 
-// Shared steps of the sales-lists specs (spec docs/specs/sales-lists-design.md). Every test
+// Shared steps of the sales-lists specs (the Sales lists design spec). Every test
 // makes its own customer and documents with a unique memo and finds its rows through the
 // list's search field, never by position in the shared list.
 

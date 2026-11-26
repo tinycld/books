@@ -1,5 +1,5 @@
 // Synthetic data for the helix reference route of the reconciliation history, the undo and
-// the Reconciliation Report (docs/specs/reconciliation-report-design.md). Plain data, and
+// the Reconciliation Report (the Reconciliation Report design spec). Plain data, and
 // it imports only types and other plain data, because the seed graph runs in plain node
 // (tests/seed-node.test.ts). Amounts are integer minor units (cents). Accounts are the
 // seeded e2e book's, by number, and 1020, the long-named account of reconcile-fixture.ts.

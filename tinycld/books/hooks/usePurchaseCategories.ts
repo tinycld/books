@@ -17,8 +17,8 @@ function categoryIds(rows: readonly DocumentListRow[], kind: 'account' | 'produc
 }
 
 /**
- * The names the Category column of the rows on screen reads (spec
- * docs/specs/purchase-lists-design.md §4 "Category"): one live query over `books_accounts`
+ * The names the Category column of the rows on screen reads (the
+ * Purchase lists design spec §4 "Category"): one live query over `books_accounts`
  * and one over `books_products` for the ids of the rows' categories (`inArray`). A query
  * with no id returns `undefined` and sends no request. A name not loaded (yet) is absent
  * from its map, and `categoryText` draws "—" for it. `isError` is true while a read of

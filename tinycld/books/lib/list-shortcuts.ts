@@ -1,8 +1,8 @@
 import type { Shortcut } from '@tinycld/core/lib/shortcuts'
 import type { ListArea } from './list-areas'
 
-// The keys of a document list tab (spec docs/specs/sales-lists-design.md §3 "Keyboard";
-// docs/specs/purchase-lists-design.md for the Expenses area). Pure, so the key map, which
+// The keys of a document list tab (the Sales lists design spec §3 "Keyboard";
+// the Purchase lists design spec for the Expenses area). Pure, so the key map, which
 // keys are offered and the shortcuts core registers are unit-tested. The pattern is
 // lib/review-shortcuts.ts.
 

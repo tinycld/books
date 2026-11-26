@@ -91,6 +91,133 @@
             "args": ["--type", "rate", "--agency", "nothinghasthis1", "--search", "nothinghasthis1"],
             "filter": "inactive = false && type = \"rate\" && agency = \"nothinghasthis1\" && (name ~ \"nothinghasthis1\")",
             "sort": "sort_key,id"
+        },
+        {
+            "name": "statements-every-flag",
+            "resource": "statements",
+            "args": ["--customer", "nothinghasthis1", "--type", "open_items", "--search", "nothinghasthis1"],
+            "filter": "customer = \"nothinghasthis1\" && type = \"open_items\" && (number ~ \"nothinghasthis1\")",
+            "sort": "-statement_date,-created,id"
+        },
+        {
+            "name": "journal-entries-every-flag",
+            "resource": "journal-entries",
+            "args": ["--status", "draft", "--type", "journal", "--search", "nothinghasthis1"],
+            "filter": "status = \"draft\" && doc_type = \"journal\" && (number ~ \"nothinghasthis1\" || memo ~ \"nothinghasthis1\")",
+            "sort": "-date,-created,id"
+        },
+        {
+            "name": "invoices-every-flag",
+            "resource": "invoices",
+            "args": ["--status", "posted", "--customer", "nothinghasthis1", "--search", "nothinghasthis1"],
+            "filter": "status = \"posted\" && customer = \"nothinghasthis1\" && (number ~ \"nothinghasthis1\" || memo ~ \"nothinghasthis1\")",
+            "sort": "-date,-created,id"
+        },
+        {
+            "name": "sales-receipts-every-flag",
+            "resource": "sales-receipts",
+            "args": ["--status", "posted", "--customer", "nothinghasthis1", "--search", "nothinghasthis1"],
+            "filter": "status = \"posted\" && customer = \"nothinghasthis1\" && (number ~ \"nothinghasthis1\" || memo ~ \"nothinghasthis1\")",
+            "sort": "-date,-created,id"
+        },
+        {
+            "name": "credit-memos-every-flag",
+            "resource": "credit-memos",
+            "args": ["--status", "posted", "--customer", "nothinghasthis1", "--search", "nothinghasthis1"],
+            "filter": "status = \"posted\" && customer = \"nothinghasthis1\" && (number ~ \"nothinghasthis1\" || memo ~ \"nothinghasthis1\")",
+            "sort": "-date,-created,id"
+        },
+        {
+            "name": "refund-receipts-every-flag",
+            "resource": "refund-receipts",
+            "args": ["--status", "posted", "--customer", "nothinghasthis1", "--search", "nothinghasthis1"],
+            "filter": "status = \"posted\" && customer = \"nothinghasthis1\" && (number ~ \"nothinghasthis1\" || memo ~ \"nothinghasthis1\")",
+            "sort": "-date,-created,id"
+        },
+        {
+            "name": "estimates-every-flag",
+            "resource": "estimates",
+            "args": ["--status", "pending", "--customer", "nothinghasthis1", "--search", "nothinghasthis1"],
+            "filter": "status = \"pending\" && customer = \"nothinghasthis1\" && (number ~ \"nothinghasthis1\" || memo ~ \"nothinghasthis1\")",
+            "sort": "-date,-created,id"
+        },
+        {
+            "name": "bills-every-flag",
+            "resource": "bills",
+            "args": ["--status", "posted", "--vendor", "nothinghasthis1", "--search", "nothinghasthis1"],
+            "filter": "status = \"posted\" && vendor = \"nothinghasthis1\" && (number ~ \"nothinghasthis1\" || memo ~ \"nothinghasthis1\")",
+            "sort": "-date,-created,id"
+        },
+        {
+            "name": "expenses-every-flag",
+            "resource": "expenses",
+            "args": ["--status", "posted", "--vendor", "nothinghasthis1", "--search", "nothinghasthis1"],
+            "filter": "status = \"posted\" && vendor = \"nothinghasthis1\" && (number ~ \"nothinghasthis1\" || memo ~ \"nothinghasthis1\")",
+            "sort": "-date,-created,id"
+        },
+        {
+            "name": "vendor-credits-every-flag",
+            "resource": "vendor-credits",
+            "args": ["--status", "posted", "--vendor", "nothinghasthis1", "--search", "nothinghasthis1"],
+            "filter": "status = \"posted\" && vendor = \"nothinghasthis1\" && (number ~ \"nothinghasthis1\" || memo ~ \"nothinghasthis1\")",
+            "sort": "-date,-created,id"
+        },
+        {
+            "name": "payments-every-flag",
+            "resource": "payments",
+            "args": ["--status", "posted", "--customer", "nothinghasthis1", "--search", "nothinghasthis1"],
+            "filter": "status = \"posted\" && customer = \"nothinghasthis1\" && (number ~ \"nothinghasthis1\" || memo ~ \"nothinghasthis1\")",
+            "sort": "-date,-created,id"
+        },
+        {
+            "name": "bill-payments-every-flag",
+            "resource": "bill-payments",
+            "args": ["--status", "posted", "--vendor", "nothinghasthis1", "--search", "nothinghasthis1"],
+            "filter": "status = \"posted\" && vendor = \"nothinghasthis1\" && (number ~ \"nothinghasthis1\" || reference_no ~ \"nothinghasthis1\")",
+            "sort": "-date,-created,id"
+        },
+        {
+            "name": "vendor-refunds-every-flag",
+            "resource": "vendor-refunds",
+            "args": ["--status", "posted", "--vendor", "nothinghasthis1", "--search", "nothinghasthis1"],
+            "filter": "status = \"posted\" && vendor = \"nothinghasthis1\" && (number ~ \"nothinghasthis1\" || memo ~ \"nothinghasthis1\" || reference_no ~ \"nothinghasthis1\")",
+            "sort": "-date,-created,id"
+        },
+        {
+            "name": "deposits-every-flag",
+            "resource": "deposits",
+            "args": ["--status", "posted", "--deposit-to", "nothinghasthis1", "--search", "nothinghasthis1"],
+            "filter": "status = \"posted\" && deposit_to = \"nothinghasthis1\" && (number ~ \"nothinghasthis1\" || memo ~ \"nothinghasthis1\")",
+            "sort": "-date,-created,id"
+        },
+        {
+            "name": "deposits-undeposited-every-flag",
+            "resource": "deposits",
+            "view": "undeposited",
+            "args": ["--customer", "nothinghasthis1", "--vendor", "nothinghasthis1", "--account", "nothinghasthis1", "--doc-type", "payment", "--payment-method", "check", "--search", "nothinghasthis1"],
+            "filter": "customer = \"nothinghasthis1\" && vendor = \"nothinghasthis1\" && account = \"nothinghasthis1\" && doc_type = \"payment\" && payment_method = \"check\" && (number ~ \"nothinghasthis1\" || reference_no ~ \"nothinghasthis1\" || memo ~ \"nothinghasthis1\")",
+            "sort": "date,number,id"
+        },
+        {
+            "name": "write-offs-every-flag",
+            "resource": "write-offs",
+            "args": ["--status", "posted", "--customer", "nothinghasthis1", "--invoice", "nothinghasthis1", "--search", "nothinghasthis1"],
+            "filter": "status = \"posted\" && customer = \"nothinghasthis1\" && invoice = \"nothinghasthis1\" && (number ~ \"nothinghasthis1\" || memo ~ \"nothinghasthis1\")",
+            "sort": "-date,-created,id"
+        },
+        {
+            "name": "transfers-scope",
+            "resource": "transfers",
+            "args": [],
+            "filter": "doc_type = \"transfer\" && origin = \"manual\"",
+            "sort": "-date,-created,id"
+        },
+        {
+            "name": "transfers-every-flag",
+            "resource": "transfers",
+            "args": ["--status", "posted", "--search", "nothinghasthis1"],
+            "filter": "doc_type = \"transfer\" && origin = \"manual\" && status = \"posted\" && (number ~ \"nothinghasthis1\" || memo ~ \"nothinghasthis1\")",
+            "sort": "-date,-created,id"
         }
     ]
 }

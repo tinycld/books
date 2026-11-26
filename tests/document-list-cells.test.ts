@@ -12,7 +12,7 @@ import { formatDay } from '../tinycld/books/lib/register-range'
 import { customerTransactionsTab, salesTabOf } from '../tinycld/books/lib/sales-lists'
 
 // The text of a sales list's cells, cards and names-column rows (spec
-// docs/specs/sales-lists-design.md §3 "Rows and columns", checkpoint 2).
+// the Sales lists design spec §3 "Rows and columns", checkpoint 2).
 
 const DASH = '—'
 const MINUS = '−'
@@ -242,7 +242,7 @@ describe('nameRowLines', () => {
     })
 })
 
-// The purchase lists (spec docs/specs/purchase-lists-design.md §3 "Rows and columns",
+// The purchase lists (the Purchase lists design spec §3 "Rows and columns",
 // checkpoint 3): the Vendor, Category and Type cells, the purchase cards and the names
 // column's rows.
 describe('purchase cells', () => {

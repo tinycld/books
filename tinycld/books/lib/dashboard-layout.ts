@@ -1,4 +1,4 @@
-// The dashboard grid (spec docs/specs/dashboard-design.md §3 "The page"): the columns
+// The dashboard grid (the dashboard design spec §3 "The page"): the columns
 // follow the page's own width, not the window's.
 
 export const THREE_COLUMNS_FROM = 1100

@@ -1,5 +1,5 @@
 // Synthetic Expenses by Vendor for the helix reference route
-// (docs/specs/expenses-by-vendor-design.md). The vendors are the seeded ones
+// (the Expenses by Vendor design spec). The vendors are the seeded ones
 // (vendor-form-fixture.ts), so their names and inactive marks are typed against the
 // generated `BooksVendors`. The run results are typed against core's report contract, so
 // tsc checks every field. Money is integer cents.

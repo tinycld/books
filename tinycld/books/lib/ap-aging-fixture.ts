@@ -1,4 +1,4 @@
-// Synthetic A/P Aging for the helix reference route (docs/specs/ap-aging-design.md).
+// Synthetic A/P Aging for the helix reference route (the A/P Aging design spec).
 // The vendors are the seeded ones (vendor-form-fixture.ts), so their names and inactive
 // marks are typed against the generated `BooksVendors`. The run results are typed against
 // core's report contract, so tsc checks every field. Money is integer cents. No client

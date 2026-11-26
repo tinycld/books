@@ -1,4 +1,4 @@
-// The Sales area's tabs (spec docs/specs/sales-lists-design.md §2, §3): each tab's route,
+// The Sales area's tabs (the Sales lists design spec §2, §3): each tab's route,
 // the kinds it lists, its columns, chips and sortable columns, and its New action.
 
 import type { DocumentListTab, ListChip, ListColumnKey, ListSortKey } from './document-list'

@@ -30,7 +30,7 @@ import {
 import { accountsStore, heldOnDemandStore, seedBooks } from './accounts-form-harness'
 import { expectLiveQueryError } from './silence-log'
 
-// The purchase list reads (spec docs/specs/purchase-lists-design.md §4 "Data"), on the
+// The purchase list reads (the Purchase lists design spec §4 "Data"), on the
 // Books harness. The harness loader applies only the `eq` filters of a load on its fake
 // server (a load with an `or` or an `ilike` serves every row), so these cases prove the
 // client expression of each query: its `where`, order, limit and select. The e2e specs of
