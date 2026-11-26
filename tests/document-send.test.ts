@@ -167,6 +167,7 @@ function listRow(
     nextId += 1
     return {
         id: `doc${String(nextId).padStart(12, '0')}`,
+        key: String(1000 + nextId),
         kind,
         number: String(1000 + nextId),
         date: '2026-11-17',

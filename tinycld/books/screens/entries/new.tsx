@@ -14,6 +14,7 @@ import { useBackToEntries } from '../../hooks/useBackToEntries'
 import { useBooksAccess } from '../../hooks/useBooksAccess'
 import { useEntryDetail } from '../../hooks/useEntryDetail'
 import type { SaveOutcome } from '../../hooks/useEntrySubmit'
+import { useStoredEntryKey } from '../../hooks/useRouteRecordId'
 import { type EntryFormValues, newEntryDefaults } from '../../lib/entry-schema'
 import { todayIso } from '../../lib/register-range'
 import { warnOnce } from '../../lib/warn-once'
@@ -29,9 +30,10 @@ function NoAccess() {
 
 function useAfterSave() {
     const orgHref = useOrgHref()
+    const keyOf = useStoredEntryKey()
     // Replacing keeps the unsaved form out of the back stack; Post & new mounts a fresh form.
     return (id: string, outcome: SaveOutcome) => {
-        const target = outcome === 'post-new' ? 'books/entries/new' : `books/entries/${id}`
+        const target = outcome === 'post-new' ? 'books/entries/new' : `books/entries/${keyOf(id)}`
         router.replace(orgHref(target))
     }
 }

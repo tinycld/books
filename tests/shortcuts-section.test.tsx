@@ -125,7 +125,7 @@ describe('Shortcuts section', () => {
         expect(byTestId(container, 'books-shortcuts-empty')).toBeNull()
     })
 
-    it('draws the fixed navigation under a Go to heading, after the shortcuts', async () => {
+    it('draws the fixed navigation right after the shortcuts, with no heading of its own', async () => {
         seedSidebar()
         const { container } = renderSidebar()
         await shortcutIds(container, 5)
@@ -133,7 +133,7 @@ describe('Shortcuts section', () => {
         const headings = [...container.querySelectorAll('rn-text')]
             .map(node => node.textContent)
             .filter(text => text === 'Shortcuts' || text === 'Go to' || text === 'Accounting')
-        expect(headings).toEqual(['Shortcuts', 'Go to', 'Accounting'])
+        expect(headings).toEqual(['Shortcuts'])
         const lastShortcut = byTestId(container, DEFAULT_IDS[4]) as HTMLElement
         const dashboard = byTestId(container, 'books-nav-dashboard') as HTMLElement
         expect(

@@ -2,7 +2,7 @@ import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import type { SearchRow } from '@tinycld/core/lib/search/types'
 import { useUrl } from '@tinycld/core/lib/use-url'
 import { useRouter } from 'expo-router'
-import { opensOverSameReadView, searchTarget } from './lib/search-target'
+import { opensOverSameReadView, searchTarget, shownKeyFor } from './lib/search-target'
 
 // Row shaping is the server's job (server/search.go). Selection stays here
 // because it needs the router. The palette calls this hook for every package
@@ -17,7 +17,7 @@ export function useSearchActions() {
         onSelect: (row: SearchRow) => {
             const target = searchTarget(row.id)
             if (!target) return
-            const href = orgHref(target.path, { id: target.id })
+            const href = orgHref(target.path, { id: shownKeyFor(target, pathname) })
             if (opensOverSameReadView(target, pathname)) router.replace(href)
             else router.navigate(href)
         },

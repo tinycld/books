@@ -275,6 +275,7 @@ function linesOf(
             credit,
             memo,
             number,
+            sequence: index + 1,
             doc_type: docType,
             origin: byHand ? 'manual' : 'document',
             document: byHand ? '' : serialId(`${prefix}dc`, index + 1),

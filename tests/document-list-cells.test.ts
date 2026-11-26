@@ -25,8 +25,10 @@ const CREDIT_MEMOS = salesTabOf('credit-memos')
 let next = 0
 function listRow(over: Partial<DocumentListRow>): DocumentListRow {
     next++
+    const id = `cell${String(next).padStart(11, '0')}`
     return {
-        id: `cell${String(next).padStart(11, '0')}`,
+        id,
+        key: id,
         kind: 'invoice',
         number: '',
         date: '2026-11-01',

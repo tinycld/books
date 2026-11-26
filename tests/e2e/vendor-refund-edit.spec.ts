@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { uniqueMemo } from './invoice-helpers'
 import { shiftTabTo, tabTo } from './keyboard-helpers'
+import { expectNotRecordUrl, expectRecordUrl } from './record-key-helpers'
 import { VENDOR_CREDIT_URL } from './vendor-credit-helpers'
 import {
     openBooks,
@@ -39,7 +40,7 @@ test.describe('vendor-refund: keyboard edit', () => {
         await page.goBack()
         await expect(page.getByTestId('entries-screen')).toBeVisible()
         await searchToVendorRefund(page, memo)
-        await expect(page).toHaveURL(new RegExp(`/books/vendor-refunds/${original.id}$`))
+        await expectRecordUrl(page, 'vendor-refunds', original.id)
         await expect(shownRefund(page, 'vendor-refund-read-only')).toBeVisible()
 
         // From here no click. E opens the correction of this refund.
@@ -101,8 +102,8 @@ test.describe('vendor-refund: keyboard edit', () => {
         // ⌘↵ posts the correction: a new refund with the original's number.
         await page.keyboard.press('ControlOrMeta+Enter')
         await expect(page).toHaveURL(VENDOR_REFUND_URL)
-        await expect(page).not.toHaveURL(new RegExp(`/books/vendor-refunds/${original.id}$`))
-        const correctionId = vendorRefundIdFromUrl(page)
+        await expectNotRecordUrl(page, 'vendor-refunds', original.id)
+        const correctionId = await vendorRefundIdFromUrl(page)
         expect(correctionId).not.toBe(original.id)
         await expect(shownRefund(page, 'vendor-refund-read-only')).toBeVisible()
         await expect(shownRefund(page, 'vendor-refund-title')).toHaveText(
@@ -122,7 +123,7 @@ test.describe('vendor-refund: keyboard edit', () => {
             memo,
             new RegExp(`^Vendor refund ${original.number} \\(void\\) · `)
         )
-        await expect(page).toHaveURL(new RegExp(`/books/vendor-refunds/${original.id}$`))
+        await expectRecordUrl(page, 'vendor-refunds', original.id)
         await expect(shownRefund(page, 'vendor-refund-badge')).toHaveText('Void')
         await expect(shownRefund(page, 'vendor-refund-replaced-by')).toHaveText(
             `Replaced by ${original.number} (edited)`
@@ -134,7 +135,7 @@ test.describe('vendor-refund: keyboard edit', () => {
         // The credit: $650.00 less the correction's $200.00.
         await shownRefund(page, `vendor-refund-read-link-${credit.id}`).click()
         await expect(page).toHaveURL(VENDOR_CREDIT_URL)
-        await expect(page).toHaveURL(new RegExp(`/books/vendor-credits/${credit.id}$`))
+        await expectRecordUrl(page, 'vendor-credits', credit.id)
         await expect(page.getByTestId('vendor-credit-total-unapplied')).toContainText('$450.00')
     })
 })

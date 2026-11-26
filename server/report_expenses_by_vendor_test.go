@@ -282,7 +282,7 @@ func TestExpensesByVendorSpecLoads(t *testing.T) {
 	if shipped.Description != "What you spent with each vendor in a period, from posted transactions on expense accounts." {
 		t.Errorf("description = %q", shipped.Description)
 	}
-	if shipped.Revision != 1 || !shipped.Unpublished {
+	if shipped.Revision != 2 || !shipped.Unpublished {
 		t.Errorf("revision %d, unpublished %v; want revision 1, shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	if !jsonEqual(t, shipped.Spec, string(mustJSON(expensesByVendorSpec()))) {
@@ -1007,7 +1007,7 @@ func TestExpensesByVendorShippedShared(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "Expenses by Vendor" || row.GetInt("shipped_revision") != 1 || row.GetString("source") != "books.basis_lines" {
+	if row.GetString("title") != "Expenses by Vendor" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.basis_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {
@@ -1548,10 +1548,10 @@ func TestExpensesByVendorDetailOpen(t *testing.T) {
 	}
 	accrual := opens(map[string]any{"period": ebvOctober})
 	want := map[string]string{
-		"d:" + entryLineOn(t, b.app, bill.GetString("entry"), b.office).Id:    apRoute(t, "bill", bill.Id),
-		"d:" + entryLineOn(t, b.app, exp.GetString("entry"), b.office).Id:     apRoute(t, "expense", exp.Id),
-		"d:" + entryLineOn(t, b.app, credit.GetString("entry"), b.expense).Id: apRoute(t, "vendor_credit", credit.Id),
-		"d:" + entryLineOn(t, b.app, manual.Id, b.expense).Id:                 "books/entries/" + manual.Id,
+		"d:" + entryLineOn(t, b.app, bill.GetString("entry"), b.office).Id:    apRoute(t, b.app, "bill", bill),
+		"d:" + entryLineOn(t, b.app, exp.GetString("entry"), b.office).Id:     apRoute(t, b.app, "expense", exp),
+		"d:" + entryLineOn(t, b.app, credit.GetString("entry"), b.expense).Id: apRoute(t, b.app, "vendor_credit", credit),
+		"d:" + entryLineOn(t, b.app, manual.Id, b.expense).Id:                 "books/entries/" + urlKey(t, b.app, manual),
 	}
 	if !reflect.DeepEqual(accrual, want) {
 		t.Errorf("Accrual: the opened lines open\n%q\nwant\n%q", accrual, want)
@@ -1563,11 +1563,11 @@ func TestExpensesByVendorDetailOpen(t *testing.T) {
 		wantOpen := ""
 		switch {
 		case strings.Contains(r.Label, " paid (cash basis)"):
-			wantOpen = apRoute(t, "bill_payment", pay.Id)
+			wantOpen = apRoute(t, b.app, "bill_payment", pay)
 		case strings.HasPrefix(r.Label, "2026-10-05 · Bill "):
-			wantOpen = apRoute(t, "bill", bill.Id)
+			wantOpen = apRoute(t, b.app, "bill", bill)
 		case strings.HasPrefix(r.Label, "2026-10-07 · Vendor credit "):
-			wantOpen = apRoute(t, "vendor_credit", credit.Id)
+			wantOpen = apRoute(t, b.app, "vendor_credit", credit)
 		default:
 			wantOpen = accrual[r.ID]
 		}

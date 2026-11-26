@@ -3,6 +3,7 @@ import { isPhone } from './account-register-helpers'
 import { openBooksMenu } from './books-report-helpers'
 import { openEntriesList } from './journal-entries-helpers'
 import { openNewAction } from './new-menu-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 import { visibleTestId } from './sales-receipt-helpers'
 import { pickFromSearchPicker } from './search-picker-helpers'
 
@@ -12,11 +13,8 @@ export const NEW_BILL_URL = /\/books\/bills\/new(?:[?#].*)?$/
 
 export type BillTable = 'account_lines' | 'item_lines'
 
-export function billIdFromUrl(page: Page): string {
-    const match = /\/books\/bills\/([^/?#]+)$/.exec(new URL(page.url()).pathname)
-    const id = match?.[1]
-    if (!id || id === 'new') throw new Error(`Not on a saved bill: ${page.url()}`)
-    return id
+export async function billIdFromUrl(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'bills')
 }
 
 // Books must already be open. From the Journal Entries list through the New menu
@@ -213,9 +211,6 @@ export async function setPurchaseLines(page: Page, label: PurchaseLinesLabel) {
 export async function reopenByBack(page: Page) {
     const url = page.url()
     const navItem = page.getByTestId('books-nav-entries')
-    if (!(await navItem.isVisible())) {
-        await page.getByTestId('books-nav-accounting-toggle').click()
-    }
     await navItem.click()
     // A sidebar push leaves the earlier screen mounted and hidden, so the list may be
     // mounted twice: the pushed one is the last.

@@ -223,12 +223,15 @@ test.describe('customer-form: customer page and form', () => {
             const parentSearch = page.getByTestId('customer-parent-search')
             const fab = page.getByLabel('New', { exact: true })
 
-            // (1) The New menu's Customers column opens a new customer on the page surface.
+            // (1) The New menu's customer group opens a new customer on the page surface.
             await openCustomersList(page)
             await openNewMenu(page)
             const newCustomer = newActionItem(page, 'customer')
             await expect(newCustomer).toHaveText('Customer')
-            await expect(newCustomer.locator('xpath=..')).toContainText('Customers')
+            await expect(newCustomer.locator('xpath=..')).toHaveAttribute(
+                'data-testid',
+                'books-sidebar-new-group-customers'
+            )
             await newCustomer.click()
             await expect(surface).toBeVisible()
             await expect(title).toHaveText('New customer')

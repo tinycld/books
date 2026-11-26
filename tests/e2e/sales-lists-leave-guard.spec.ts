@@ -3,6 +3,7 @@ import { createCustomer, DESKTOP, openBooks, uniqueName } from './customer-form-
 import { NEW_INVOICE_URL, uniqueMemo } from './invoice-helpers'
 import { PHONE, settleFrames } from './journal-entries-helpers'
 import { NEW_PAYMENT_URL, openNewPayment } from './receive-payment-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import {
     openSales,
     openSalesTab,
@@ -117,7 +118,7 @@ test.describe('sales-lists: leave guard beside the list', () => {
         await postedName.click()
         await expect(discardDialog(page)).toBeVisible()
         await page.getByTestId('discard-confirm').click()
-        await expect(page).toHaveURL(new RegExp(`/books/invoices/${postedId}$`))
+        await expectRecordUrl(page, 'invoices', postedId)
         await expect(visible(page, 'invoice-read-only')).toBeVisible()
         await settleFrames(page)
         await expect(discardDialog(page)).toHaveCount(0)

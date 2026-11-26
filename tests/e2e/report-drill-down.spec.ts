@@ -52,6 +52,7 @@ import {
 } from './books-report-helpers'
 import { ACCOUNT_LABELS, postedEntryNumber } from './journal-entries-helpers'
 import { uniqueName } from './record-form-helpers'
+import { expectRecordUrl, recordIdFromUrl } from './record-key-helpers'
 import { createPostedTransfer, TRANSFER_URL } from './transfer-helpers'
 
 // Transaction Detail by Account on core's report screen (/a/reports/<id>), and the line
@@ -148,14 +149,8 @@ function accountName(prefix: string): string {
 }
 
 // The entry open in its read view: its id from the URL (`/books/entries/<id>`).
-function entryIdFromUrl(page: Page): string {
-    const id = /\/books\/entries\/([^/?#]+)$/.exec(new URL(page.url()).pathname)?.[1]
-    if (!id || id === 'new') throw new Error(`Not on a saved entry: ${page.url()}`)
-    return id
-}
-
-function entryUrl(id: string): RegExp {
-    return new RegExp(`/books/entries/${id}$`)
+async function entryIdFromUrl(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'entries')
 }
 
 // This month to date in the words core's document header and empty state print
@@ -306,7 +301,7 @@ test.describe('report-drill-down: screen', () => {
                 { account: bank, credit: '75.00' },
             ],
         })
-        const entryId = entryIdFromUrl(page)
+        const entryId = await entryIdFromUrl(page)
 
         await openTransactionDetail(page, { accounts: [expense, bank] })
         const header = page.getByTestId('report-document-header')
@@ -329,7 +324,7 @@ test.describe('report-drill-down: screen', () => {
         const entryLine = lineWith(before, expense, memo)
         if (!entryLine) throw new Error(`no line whose Description is ${memo}`)
         await pressLineLabel(page, entryLine)
-        await expect(page).toHaveURL(entryUrl(entryId))
+        await expectRecordUrl(page, 'entries', entryId)
         await page.goBack()
         await expect(page.getByTestId('report-title')).toHaveText(TRANSACTION_DETAIL_TITLE)
         const back = await snapshotWhen(
@@ -431,7 +426,7 @@ test.describe('report-drill-down: screen', () => {
                 { account: ACCOUNT_LABELS.checking, credit: '33.00' },
             ],
         })
-        const entryId = entryIdFromUrl(page)
+        const entryId = await entryIdFromUrl(page)
         const entryNumber = await postedEntryNumber(page)
 
         await openGeneralLedger(page)
@@ -446,7 +441,7 @@ test.describe('report-drill-down: screen', () => {
         const ledgerLine = lineWith(ledger, expense, memo)
         if (!ledgerLine) throw new Error(`no General Ledger line ${memo}`)
         await pressLineLabel(page, ledgerLine)
-        await expect(page).toHaveURL(entryUrl(entryId))
+        await expectRecordUrl(page, 'entries', entryId)
         await expect(page.getByTestId('entry-detail-memo')).toContainText(memo)
         await page.goBack()
         await expect(page.getByTestId('report-title')).toHaveText('General Ledger')
@@ -478,7 +473,7 @@ test.describe('report-drill-down: screen', () => {
         const journalLine = lineWith(journal, headingText, memo)
         if (!journalLine) throw new Error(`no Journal line ${memo}`)
         await pressLineLabel(page, journalLine)
-        await expect(page).toHaveURL(entryUrl(entryId))
+        await expectRecordUrl(page, 'entries', entryId)
         await expect(page.getByTestId('entry-detail-memo')).toContainText(memo)
     })
 

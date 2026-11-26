@@ -72,6 +72,7 @@ function entryOf(id: string, posted_at: string): RegisterEntry {
         reverses: '',
         date: '2026-10-05',
         document: '',
+        sequence: 0,
     }
 }
 
@@ -438,6 +439,8 @@ describe('entryDetail fields', () => {
             docType: 'journal',
             origin: 'reversal',
             document: '',
+            sequence: 0,
+            status: 'draft',
             lines: [
                 {
                     id: 'x1',
@@ -493,6 +496,7 @@ function viewRow(
         credit: line.credit,
         memo: line.memo,
         number: '',
+        sequence: 0,
         doc_type: 'journal',
         origin: 'manual',
         document: '',

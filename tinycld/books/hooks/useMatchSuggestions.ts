@@ -36,6 +36,8 @@ function useSuggestionsQuery(connectionId: string | null) {
                                 origin: e.origin,
                                 date: e.date,
                                 document: e.document,
+                                sequence: e.sequence,
+                                status: e.status,
                             }))
                             .findOne()
                     ),

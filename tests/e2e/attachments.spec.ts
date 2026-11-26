@@ -32,6 +32,7 @@ import {
 import { searchToExpense } from './expense-helpers'
 import { DESKTOP, openInvoiceBySearch, uniqueMemo } from './invoice-helpers'
 import { isDisabled } from './record-form-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 
 // Attachments spec §3.3, §3.4, §3.5, plan checkpoint 2. Every test reads the seeded
 // documents only (bill 1002 and 1003, expense 1002 and 1003, invoice 1003): none adds, removes,
@@ -622,13 +623,13 @@ test.describe('attachments: draft edit keyboard', () => {
         await expect(page.getByTestId('bill-title').filter({ visible: true })).toHaveText(
             'Draft bill'
         )
-        const id = billIdFromUrl(page)
+        const id = await billIdFromUrl(page)
         await expect(attachmentRow(page, 'bill', 'a.pdf').getByText(STORED_DETAIL)).toBeVisible()
 
         // Reopen the draft. Focus Memo without a click; from here on, no click.
         await blurFocus(page)
         await openBillBySearch(page, memo)
-        await expect(page).toHaveURL(new RegExp(`/books/bills/${id}$`))
+        await expectRecordUrl(page, 'bills', id)
         const section = formSection(page, 'bill')
         const memoInput = page.getByTestId('form-input-memo').filter({ visible: true })
         await memoInput.focus()

@@ -18,7 +18,7 @@ func customerBalanceShipped() reports.Shipped {
 		// 2: the detail label drops an empty description's " · " and a
 		// reversal's repeated number (p5-vendor-balance, Amendment 3). Core
 		// re-stores a shipped spec only on a higher revision.
-		Revision:    2,
+		Revision:    3,
 		Unpublished: true,
 		// It reads books.journal_lines, a source that is NotLive. Its rows are
 		// sums per customer, and an opened customer reads only its own lines,

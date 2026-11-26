@@ -29,6 +29,7 @@ import {
     vendorWithBills,
 } from './pay-bills-helpers'
 import { holdLoads } from './record-form-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import {
     creditCellTestId,
     pickCreditLineAccount,
@@ -262,7 +263,7 @@ test.describe('vendor-pages: vendor transactions', () => {
                 .fill(uniqueMemo('Vendor transactions expense'))
             await postExpense(page)
             await expect(page).toHaveURL(EXPENSE_URL)
-            docs.expense = expenseIdFromUrl(page)
+            docs.expense = await expenseIdFromUrl(page)
 
             // A draft bill, from the page's menu.
             await openFromRow(page, docs.vendorName)
@@ -272,7 +273,7 @@ test.describe('vendor-pages: vendor transactions', () => {
             await page.getByTestId('bill-save-draft').click()
             await expect(page).toHaveURL(BILL_URL)
             await expect(page.getByTestId('bill-title')).toHaveText('Draft bill')
-            docs.draft = billIdFromUrl(page)
+            docs.draft = await billIdFromUrl(page)
             await backToVendor(page, id)
         })
 
@@ -301,7 +302,7 @@ test.describe('vendor-pages: vendor transactions', () => {
             await page.getByTestId('vendor-credit-post').click()
             await expect(page).toHaveURL(VENDOR_CREDIT_URL)
             await expect(page.getByTestId('vendor-credit-read-only')).toBeVisible()
-            docs.credit = vendorCreditIdFromUrl(page)
+            docs.credit = await vendorCreditIdFromUrl(page)
             await backToVendor(page, id)
 
             // A refund of $30.00 on it, from the page's menu: $50.00 of the credit stays
@@ -318,7 +319,7 @@ test.describe('vendor-pages: vendor transactions', () => {
             await page.getByTestId('vendor-refund-post').click()
             await expect(page).toHaveURL(VENDOR_REFUND_URL)
             await expect(shownRefund(page, 'vendor-refund-read-only')).toBeVisible()
-            docs.refund = vendorRefundIdFromUrl(page)
+            docs.refund = await vendorRefundIdFromUrl(page)
             await backToVendor(page, id)
         })
 
@@ -419,7 +420,7 @@ test.describe('vendor-pages: vendor transactions', () => {
             await page.keyboard.press('Alt+1')
             await expect(page.getByTestId('vendor-transactions-table')).toBeVisible()
             await transaction(page, docs.pastDue).click()
-            await expect(page).toHaveURL(new RegExp(`/books/bills/${docs.pastDue}$`))
+            await expectRecordUrl(page, 'bills', docs.pastDue)
             await expect(discardDialog(page).title).toHaveCount(0)
             await backToVendor(page, id)
             await expect(saveBar).toBeVisible()
@@ -435,7 +436,7 @@ test.describe('vendor-pages: vendor transactions', () => {
                 [docs.credit, 'vendor-credits'],
             ] as const) {
                 await transaction(page, rowId).click()
-                await expect(page).toHaveURL(new RegExp(`/books/${route}/${rowId}$`))
+                await expectRecordUrl(page, route, rowId)
                 await backToVendor(page, id)
             }
 
@@ -480,7 +481,7 @@ test.describe('vendor-pages: vendor transactions', () => {
         await chooseNew(page, 'vendor-new-bill')
         await fillBill(page, { amount: '60.00', due: today })
         await postBill(page)
-        const voidId = billIdFromUrl(page)
+        const voidId = await billIdFromUrl(page)
         await page.getByTestId('bill-read-void').click()
         await page.getByTestId('void-confirm').click()
         await expect(page.getByTestId('bill-badge')).toHaveText('Void')
@@ -489,7 +490,7 @@ test.describe('vendor-pages: vendor transactions', () => {
         await chooseNew(page, 'vendor-new-bill')
         await fillBill(page, { amount: '90.00', due: today })
         const number = await postBill(page)
-        const originalId = billIdFromUrl(page)
+        const originalId = await billIdFromUrl(page)
         await page.keyboard.press('e')
         await expect(page).toHaveURL(new RegExp(`/books/bills/new\\?replaces=${originalId}$`))
         await expect(page.getByTestId('bill-title')).toHaveText(`Edit ${number}`)
@@ -497,9 +498,9 @@ test.describe('vendor-pages: vendor transactions', () => {
         await page.getByTestId(billCellTestId('account_lines', line, 'amount')).fill('95.00')
         await page.getByTestId('bill-post').click()
         await expect(page).toHaveURL(BILL_URL)
-        expect(billIdFromUrl(page)).not.toBe(originalId)
+        expect(await billIdFromUrl(page)).not.toBe(originalId)
         await expect(page.getByTestId('bill-title')).toHaveText(`Bill ${number}`)
-        const correctionId = billIdFromUrl(page)
+        const correctionId = await billIdFromUrl(page)
         await backToVendor(page, id)
 
         // The plain void stays with Void; the replaced original is left out.

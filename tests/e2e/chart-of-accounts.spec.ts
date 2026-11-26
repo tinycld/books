@@ -24,12 +24,6 @@ function row(page: Page, name: string) {
 
 async function openChartOfAccounts(page: Page) {
     const item = page.getByTestId('books-nav-accounts')
-    const toggle = page.getByTestId('books-nav-accounting-toggle')
-    // On desktop both are visible, so waiting on either through `.or()` is a strict-mode violation.
-    await toggle.waitFor({ state: 'attached' })
-    if (!(await item.isVisible())) {
-        await toggle.click()
-    }
     await item.click()
     await expect(page.getByText('Chart of Accounts', { exact: true }).first()).toBeVisible()
 }

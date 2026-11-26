@@ -4,6 +4,7 @@ import { ENTRIES_SEED } from '../../tinycld/books/lib/journal-entries-fixture'
 import { DESKTOP, isPhone, PHONE, showListsHub } from './account-register-helpers'
 import { ACCOUNT_LABELS, createDraftEntry, searchEntries } from './journal-entries-helpers'
 import { uniqueName } from './record-form-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 
 // Journal entries are created by the form in a later checkpoint, so this spec
 // reads the one entry per lifecycle state that `seed.ts` posts through the
@@ -45,9 +46,6 @@ async function openEntries(page: Page) {
         await card.click()
     } else {
         const item = page.getByTestId('books-nav-entries')
-        const toggle = page.getByTestId('books-nav-accounting-toggle')
-        await toggle.waitFor({ state: 'attached' })
-        if (!(await item.isVisible())) await toggle.click()
         await item.click()
     }
     await expect(page.getByTestId('entries-screen')).toBeVisible()
@@ -156,18 +154,17 @@ test.describe('journal-entries: list rows (desktop)', () => {
 
         const posted = item(page, ENTRIES_SEED.posted)
         const id = await idOf(posted)
-        const entryUrl = new RegExp(`/entries/${id}$`)
 
         await posted.focus()
         await page.keyboard.press('Enter')
-        await expect(page).toHaveURL(entryUrl)
+        await expectRecordUrl(page, 'entries', id)
 
         await page.getByTestId('entry-back').click()
         await expect(page.getByTestId('entries-screen')).toBeVisible()
         await showSeededEntries(page)
         await posted.focus()
         await page.keyboard.press('Space')
-        await expect(page).toHaveURL(entryUrl)
+        await expectRecordUrl(page, 'entries', id)
     })
 
     test('search: the lower-case number shows that row and hides the draft row', async ({

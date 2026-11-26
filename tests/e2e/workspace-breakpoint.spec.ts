@@ -27,9 +27,6 @@ test.describe('workspace-breakpoint: breakpoint changes', () => {
         await navigateToPackage(page, 'books')
 
         const accounts = page.getByTestId('books-nav-accounts')
-        const toggle = page.getByTestId('books-nav-accounting-toggle')
-        await toggle.waitFor({ state: 'attached' })
-        if (!(await accounts.isVisible())) await toggle.click()
         await accounts.click()
 
         const search = page.getByTestId('account-search')

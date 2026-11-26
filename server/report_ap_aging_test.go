@@ -187,7 +187,9 @@ func apNo(t *testing.T, b apBook, doc *core.Record) string {
 }
 
 // apRoute is the app path of a document of type kind (server/entry_routes.json).
-func apRoute(t *testing.T, kind, id string) string {
+// apRoute is the path a report's link opens for rec, a document of kind: its route
+// (entry_routes.json) and its URL key (urlKey).
+func apRoute(t *testing.T, app core.App, kind string, rec *core.Record) string {
 	t.Helper()
 	raw, err := os.ReadFile("entry_routes.json")
 	if err != nil {
@@ -201,7 +203,7 @@ func apRoute(t *testing.T, kind, id string) string {
 	if !ok {
 		t.Fatalf("entry_routes.json has no route for %s", kind)
 	}
-	return "books/" + route + "/" + id
+	return "books/" + route + "/" + urlKey(t, app, rec)
 }
 
 type apLineShape struct {
@@ -234,7 +236,7 @@ func TestAPAgingSpecLoads(t *testing.T) {
 	if shipped.Description != "What you owe each vendor on one day, by how long each open bill is past due." {
 		t.Errorf("description = %q", shipped.Description)
 	}
-	if shipped.Revision != 1 || !shipped.Unpublished {
+	if shipped.Revision != 2 || !shipped.Unpublished {
 		t.Errorf("revision %d, unpublished %v; want revision 1, shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	if !jsonEqual(t, shipped.Spec, string(mustJSON(apAgingSpec()))) {
@@ -593,9 +595,9 @@ func TestAPAgingItemLines(t *testing.T) {
 	creditNo := apNo(t, b, credit)
 	got := apLineShapes(t, arLinesOf(t, res, item))
 	want := []apLineShape{
-		{"2026-10-01 · Bill " + billNo, apRoute(t, "bill", bill.Id), "", map[string]int64{"d30": 200000, "total": 200000}},
-		{"2026-11-03 · Bill payment " + apNo(t, b, pay), apRoute(t, "bill_payment", pay.Id), "", map[string]int64{"d30": -80000, "total": -80000}},
-		{"2026-11-05 · Vendor credit " + creditNo, apRoute(t, "vendor_credit", credit.Id), "", map[string]int64{"d30": -15000, "total": -15000}},
+		{"2026-10-01 · Bill " + billNo, apRoute(t, b.app, "bill", bill), "", map[string]int64{"d30": 200000, "total": 200000}},
+		{"2026-11-03 · Bill payment " + apNo(t, b, pay), apRoute(t, b.app, "bill_payment", pay), "", map[string]int64{"d30": -80000, "total": -80000}},
+		{"2026-11-05 · Vendor credit " + creditNo, apRoute(t, b.app, "vendor_credit", credit), "", map[string]int64{"d30": -15000, "total": -15000}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("the bill's lines =\n%+v\nwant\n%+v", got, want)
@@ -614,9 +616,9 @@ func TestAPAgingItemLines(t *testing.T) {
 	cres, citem := apOpenItem(t, b, nil, v, credit.Id)
 	gotCredit := apLineShapes(t, arLinesOf(t, cres, citem))
 	wantCredit := []apLineShape{
-		{"2026-10-02 · Vendor credit " + creditNo, apRoute(t, "vendor_credit", credit.Id), "", map[string]int64{"d60": -40000, "total": -40000}},
-		{"2026-11-05 · Bill " + billNo, apRoute(t, "bill", bill.Id), "", map[string]int64{"d60": 15000, "total": 15000}},
-		{"2026-11-09 · Vendor refund " + apNo(t, b, refund), apRoute(t, "vendor_refund", refund.Id), "", map[string]int64{"d60": 10000, "total": 10000}},
+		{"2026-10-02 · Vendor credit " + creditNo, apRoute(t, b.app, "vendor_credit", credit), "", map[string]int64{"d60": -40000, "total": -40000}},
+		{"2026-11-05 · Bill " + billNo, apRoute(t, b.app, "bill", bill), "", map[string]int64{"d60": 15000, "total": 15000}},
+		{"2026-11-09 · Vendor refund " + apNo(t, b, refund), apRoute(t, b.app, "vendor_refund", refund), "", map[string]int64{"d60": 10000, "total": 10000}},
 	}
 	if !reflect.DeepEqual(gotCredit, wantCredit) {
 		t.Errorf("the credit's lines =\n%+v\nwant\n%+v", gotCredit, wantCredit)
@@ -627,7 +629,7 @@ func TestAPAgingItemLines(t *testing.T) {
 
 	jres, jitem := apOpenItem(t, b, nil, v, apLineOf(t, b, je.Id).Id)
 	jlines := arLinesOf(t, jres, jitem)
-	if len(jlines) != 1 || jlines[0].Open != "books/entries/"+je.Id {
+	if len(jlines) != 1 || jlines[0].Open != "books/entries/"+urlKey(t, b.app, je) {
 		t.Errorf("the journal item's lines = %+v, want one that opens books/entries/%s", apLineShapes(t, jlines), je.Id)
 	}
 	requireNoDrift(t, b.app)
@@ -1088,7 +1090,7 @@ func TestAPAgingShippedShared(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "A/P Aging" || row.GetInt("shipped_revision") != 1 || row.GetString("source") != "books.payable_items" {
+	if row.GetString("title") != "A/P Aging" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.payable_items" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {

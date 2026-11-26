@@ -70,7 +70,7 @@ async function postMemoFromInvoice(page: Page, rate: string, memo: string) {
     await expect(page).toHaveURL(CREDIT_MEMO_URL)
     await expect(shown(page, 'credit-memo-read-only')).toBeVisible()
     const number = await titleNumber(shown(page, 'credit-memo-title'), 'Credit memo')
-    return { id: creditMemoIdFromUrl(page), number, memo }
+    return { id: await creditMemoIdFromUrl(page), number, memo }
 }
 
 /**

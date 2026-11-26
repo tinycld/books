@@ -386,13 +386,14 @@ func TestCashBasisReport_ShippedSpecs(t *testing.T) {
 		revision int
 		after    string
 	}{
-		{profitAndLossShipped(), 3, "period"},
+		// 4 for the drill links by number (lib/record-key.ts).
+		{profitAndLossShipped(), 4, "period"},
 		{profitAndLossByMonthShipped(), 3, "period"},
 		// 3 for the Method param, 4 for the stored months, 5 for the stored
 		// months on Cash, 6 for the drill's first day from the stored months,
 		// 7 for the stored cash months on Cash.
 		{balanceSheetShipped(), 7, "asOf"},
-		{transactionDetailShipped(), 2, "period"},
+		{transactionDetailShipped(), 3, "period"},
 	}
 	for _, c := range cases {
 		t.Run(c.shipped.Title, func(t *testing.T) {

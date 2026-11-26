@@ -297,7 +297,7 @@ func TestARAgingSpecLoads(t *testing.T) {
 	if shipped.Description != "What each customer owes on one day, by how long each open invoice is past due." {
 		t.Errorf("description = %q", shipped.Description)
 	}
-	if shipped.Revision != 1 || !shipped.Unpublished {
+	if shipped.Revision != 2 || !shipped.Unpublished {
 		t.Errorf("revision %d, unpublished %v; want revision 1, shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	if !jsonEqual(t, shipped.Spec, string(mustJSON(arAgingSpec()))) {
@@ -727,11 +727,11 @@ func TestARAgingItemLines(t *testing.T) {
 	want := []lineShape{
 		{
 			"2026-10-01 · Invoice " + entryNumber(t, b, m.invoice.GetString("entry")),
-			"books/invoices/" + m.invoice.Id, "", map[string]int64{"d30": 200000, "total": 200000},
+			"books/invoices/" + urlKey(t, b.app, m.invoice), "", map[string]int64{"d30": 200000, "total": 200000},
 		},
 		{
 			"2026-11-03 · Payment " + entryNumber(t, b, m.payment.GetString("entry")),
-			"books/payments/" + m.payment.Id, "", map[string]int64{"d30": -80000, "total": -80000},
+			"books/payments/" + urlKey(t, b.app, m.payment), "", map[string]int64{"d30": -80000, "total": -80000},
 		},
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -743,7 +743,7 @@ func TestARAgingItemLines(t *testing.T) {
 
 	jeRes, jeItem := b.openItem(t, nil, m.customer, arLineOf(t, b, m.entry.Id).Id)
 	jeLines := arLinesOf(t, jeRes, jeItem)
-	if len(jeLines) != 1 || jeLines[0].Open != "books/entries/"+m.entry.Id {
+	if len(jeLines) != 1 || jeLines[0].Open != "books/entries/"+urlKey(t, b.app, m.entry) {
 		t.Errorf("the journal item's lines = %+v, want one that opens books/entries/%s", jeLines, m.entry.Id)
 	}
 
@@ -1305,7 +1305,7 @@ func TestARAgingShippedShared(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "A/R Aging" || row.GetInt("shipped_revision") != 1 || row.GetString("source") != "books.receivable_items" {
+	if row.GetString("title") != "A/R Aging" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.receivable_items" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {
@@ -1587,8 +1587,8 @@ func TestARAgingCreditApplication_ItemLines(t *testing.T) {
 		got = append(got, lineShape{l.Label, l.Open, v})
 	}
 	want := []lineShape{
-		{memoApplyInvoiceDay + " · Invoice " + entryNumber(t, b, inv.GetString("entry")), "books/invoices/" + inv.Id, 40000},
-		{memoApplyDay + " · Credit memo " + entryNumber(t, b, memo.GetString("entry")), "books/credit-memos/" + memo.Id, -15000},
+		{memoApplyInvoiceDay + " · Invoice " + entryNumber(t, b, inv.GetString("entry")), "books/invoices/" + urlKey(t, b.app, inv), 40000},
+		{memoApplyDay + " · Credit memo " + entryNumber(t, b, memo.GetString("entry")), "books/credit-memos/" + urlKey(t, b.app, memo), -15000},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("the invoice's lines =\n%+v\nwant\n%+v", got, want)

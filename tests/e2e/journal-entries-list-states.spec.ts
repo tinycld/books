@@ -46,9 +46,6 @@ async function openEntries(page: Page) {
         await card.click()
     } else {
         const item = page.getByTestId('books-nav-entries')
-        const toggle = page.getByTestId('books-nav-accounting-toggle')
-        await toggle.waitFor({ state: 'attached' })
-        if (!(await item.isVisible())) await toggle.click()
         await item.click()
     }
     await expect(page.getByTestId('entries-screen')).toBeVisible()

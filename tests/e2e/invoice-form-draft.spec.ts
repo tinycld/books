@@ -24,6 +24,7 @@ import {
 } from './invoice-helpers'
 import { createProduct, makeProductInactiveElsewhere } from './products-services-helpers'
 import { isDisabled } from './record-form-helpers'
+import { expectNotRecordUrl, expectRecordUrl } from './record-key-helpers'
 
 // The seeded customer whose terms are Net 30 (CUSTOMER_TERMS_PATCHES) and whose default
 // tax is Denver combined (CUSTOMER_TAX_PATCHES), and a taxable seeded product: the seed
@@ -47,8 +48,6 @@ const DENVER_COMPONENTS = [TAX_IDS.state, TAX_IDS.rtd, TAX_IDS.denverCity].map(i
     if (!rate) throw new Error(`no tax rate ${id}`)
     return { id, ppm: rate.rate_ppm }
 })
-
-const DRAFT_URL_OF = (id: string) => new RegExp(`/books/invoices/${id}$`)
 
 function money(cents: number) {
     return new Intl.NumberFormat('en-US', {
@@ -235,7 +234,7 @@ test.describe('invoice-form: draft invoice', () => {
 
         await page.keyboard.press('ControlOrMeta+s')
         await expect(page).toHaveURL(INVOICE_URL)
-        const draftUrl = DRAFT_URL_OF(invoiceIdFromUrl(page))
+        const draftId = await invoiceIdFromUrl(page)
         await expect(page.getByTestId('invoice-title')).toHaveText('Draft invoice')
         await expect(page.getByTestId('invoice-badge')).toHaveText('Draft')
 
@@ -244,13 +243,13 @@ test.describe('invoice-form: draft invoice', () => {
         await expect(page).toHaveURL(/\/books\/customers\/(?!new$)[^/?#]+(\?tab=details)?$/)
         await expect(page.getByTestId('form-input-display_name')).toHaveValue(customer.name)
         await page.goBack()
-        await expect(page).toHaveURL(draftUrl)
+        await expectRecordUrl(page, 'invoices', draftId)
         await expect(page.getByTestId('invoice-form')).toBeVisible()
 
         await page.getByTestId('entry-back').click()
-        await expect(page).not.toHaveURL(draftUrl)
+        await expectNotRecordUrl(page, 'invoices', draftId)
         await openInvoiceBySearch(page, memo)
-        await expect(page).toHaveURL(draftUrl)
+        await expectRecordUrl(page, 'invoices', draftId)
         await expect(page.getByTestId('form-input-customer')).toContainText(customer.name)
         await expect(lineRows(page)).toHaveCount(1)
         const reopenedRow = await lineRowId(page, 0)
@@ -343,17 +342,16 @@ test.describe('invoice-form: draft invoice', () => {
             product: seededProduct().name,
             memo: uniqueMemo('Invoice draft delete'),
         })
-        const draftUrl = DRAFT_URL_OF(id)
         await expect(page.getByTestId('invoice-badge')).toHaveText('Draft')
 
         await page.keyboard.press('ControlOrMeta+Backspace')
         await expect(page.getByTestId('delete-draft-dialog')).toBeVisible()
         await page.getByTestId('delete-draft-confirm').click()
-        await expect(page).not.toHaveURL(draftUrl)
+        await expectNotRecordUrl(page, 'invoices', id)
         await expect(page.getByTestId('invoice-form')).toHaveCount(0)
 
         await page.goForward()
-        await expect(page).toHaveURL(draftUrl)
+        await expectRecordUrl(page, 'invoices', id)
         await expect(page.getByTestId('invoice-not-found')).toContainText(
             'This invoice does not exist'
         )
@@ -366,7 +364,6 @@ test.describe('invoice-form: draft invoice', () => {
             product: seededProduct().name,
             memo: uniqueMemo('Invoice draft refused delete'),
         })
-        const draftUrl = DRAFT_URL_OF(id)
         const edited = uniqueMemo('Invoice draft unsaved memo')
         const memo = page.getByTestId('form-input-memo')
         await memo.fill(edited)
@@ -395,7 +392,7 @@ test.describe('invoice-form: draft invoice', () => {
 
         await expect(dialog).toContainText(refusal)
         await expect(page.getByTestId('invoice-not-found')).toHaveCount(0)
-        await expect(page).toHaveURL(draftUrl)
+        await expectRecordUrl(page, 'invoices', id)
         await page.unrouteAll({ behavior: 'wait' })
         await page.keyboard.press('Escape')
         await expect(dialog).toHaveCount(0)
@@ -631,7 +628,7 @@ test.describe('invoice-form: draft invoice', () => {
         )
         await openBooks(page)
         await searchToInvoice(page, memo)
-        await expect(page).toHaveURL(DRAFT_URL_OF(id))
+        await expectRecordUrl(page, 'invoices', id)
         await expect(page.getByTestId('invoice-error')).toContainText(
             'Books could not load this invoice.'
         )

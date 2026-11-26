@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest'
 import { postAndNewHref } from '../tinycld/books/hooks/useDocumentSave'
-import { documentHref, documentNewHref } from '../tinycld/books/lib/document-routes'
+import { documentHref, documentNewHref, documentPath } from '../tinycld/books/lib/document-routes'
 import {
     CREDIT_MEMO_KIND,
     ESTIMATE_KIND,
@@ -76,18 +76,39 @@ describe('documentNewHref', () => {
     })
 })
 
-describe('documentHref', () => {
+describe('documentPath', () => {
     it("is the invoice's own route", () => {
-        expect(documentHref(INVOICE_KIND, 'i1')).toBe('books/invoices/i1')
+        expect(documentPath(INVOICE_KIND, 'i1')).toBe('books/invoices/i1')
     })
 
     it('opens a tab with ?tab', () => {
-        expect(documentHref(INVOICE_KIND, 'abc', 'pdf')).toBe('books/invoices/abc?tab=pdf')
+        expect(documentPath(INVOICE_KIND, 'abc', 'pdf')).toBe('books/invoices/abc?tab=pdf')
     })
 
     it("takes the route from the kind's routeBase", () => {
-        expect(documentHref(OTHER_KIND, 'abc', 'pdf')).toBe('books/x/abc?tab=pdf')
-        expect(documentHref(OTHER_KIND, 'abc')).toBe('books/x/abc')
+        expect(documentPath(OTHER_KIND, 'abc', 'pdf')).toBe('books/x/abc?tab=pdf')
+        expect(documentPath(OTHER_KIND, 'abc')).toBe('books/x/abc')
+    })
+})
+
+describe('documentHref', () => {
+    it('opens a numbered document by its sequence', () => {
+        expect(documentHref(INVOICE_KIND, { id: 'i1', sequence: 1005, replaced_by: '' })).toBe(
+            'books/invoices/1005'
+        )
+        expect(documentHref(INVOICE_KIND, { id: 'i1', sequence: 1005 }, 'pdf')).toBe(
+            'books/invoices/1005?tab=pdf'
+        )
+    })
+
+    it('opens a draft and a replaced document by its id', () => {
+        expect(documentHref(INVOICE_KIND, { id: 'i1', sequence: 0, replaced_by: '' })).toBe(
+            'books/invoices/i1'
+        )
+        expect(documentHref(INVOICE_KIND, { id: 'i1', sequence: 1005, replaced_by: 'i2' })).toBe(
+            'books/invoices/i1'
+        )
+        expect(documentHref(INVOICE_KIND, { id: 'i1' })).toBe('books/invoices/i1')
     })
 })
 
@@ -134,8 +155,8 @@ describe('the credit memo routes', () => {
     })
 
     it('opens a memo and its PDF tab', () => {
-        expect(documentHref(CREDIT_MEMO_KIND, 'm1')).toBe('books/credit-memos/m1')
-        expect(documentHref(CREDIT_MEMO_KIND, 'm1', 'pdf')).toBe('books/credit-memos/m1?tab=pdf')
+        expect(documentPath(CREDIT_MEMO_KIND, 'm1')).toBe('books/credit-memos/m1')
+        expect(documentPath(CREDIT_MEMO_KIND, 'm1', 'pdf')).toBe('books/credit-memos/m1?tab=pdf')
     })
 
     it('Post & new starts a fresh memo, with the customer only when the form had one', () => {
@@ -165,8 +186,8 @@ describe('the refund receipt routes', () => {
     })
 
     it('opens a refund and its PDF tab', () => {
-        expect(documentHref(REFUND_RECEIPT_KIND, 'r1')).toBe('books/refund-receipts/r1')
-        expect(documentHref(REFUND_RECEIPT_KIND, 'r1', 'pdf')).toBe(
+        expect(documentPath(REFUND_RECEIPT_KIND, 'r1')).toBe('books/refund-receipts/r1')
+        expect(documentPath(REFUND_RECEIPT_KIND, 'r1', 'pdf')).toBe(
             'books/refund-receipts/r1?tab=pdf'
         )
     })

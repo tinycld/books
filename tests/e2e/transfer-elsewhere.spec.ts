@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test'
 import { openRegister, revealRegisterItem } from './account-register-helpers'
 import { openEntriesList, searchEntries } from './journal-entries-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import {
     chooseTransferAccount,
     createPostedTransfer,
@@ -98,7 +99,7 @@ test.describe('transfer: entry points', () => {
         const editUrl = new RegExp(`/books/transfers/new\\?replaces=${id}$`)
 
         await page.getByTestId('transfer-view-entry').click()
-        await expect(page).toHaveURL(new RegExp(`/books/entries/${id}$`))
+        await expectRecordUrl(page, 'entries', id)
         await expect(page.getByTestId('entry-detail-type')).toContainText('Transfer')
         const actions = page.getByTestId('entry-actions')
         await expect(actions.getByText('Edit', { exact: true })).toBeVisible()

@@ -1,6 +1,6 @@
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router } from 'expo-router'
-import { documentHref, documentStackRouteName } from '../lib/document-routes'
+import { documentPath, documentStackRouteName } from '../lib/document-routes'
 import type { SalesDocumentKind } from '../lib/sales-document-kinds'
 import { screensAboveTarget } from '../lib/stack-screens'
 import { usePopScreens, useStackPosition, useStackPositionAtCall } from './useStackScreens'
@@ -25,7 +25,7 @@ export function useOpenDocument(kind: LinkKind, id: string) {
             popScreens(screensAbove)
             return
         }
-        router.push(orgHref(documentHref(kind, id)))
+        router.push(orgHref(documentPath(kind, id)))
     }
 }
 
@@ -47,6 +47,6 @@ export function useOpenDocumentById(kind: LinkKind): (id: string) => void {
             popScreens(screensAbove)
             return
         }
-        router.push(orgHref(documentHref(kind, id)))
+        router.push(orgHref(documentPath(kind, id)))
     }
 }

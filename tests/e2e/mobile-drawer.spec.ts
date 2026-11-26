@@ -49,13 +49,14 @@ test.describe('mobile-drawer: package sidebar on phones', () => {
         await expectDrawerOpen(page)
 
         const panel = page.getByTestId('mobile-drawer-panel')
-        // The drawer is the whole Books sidebar: the Shortcuts, New and Reports sections,
-        // then the fixed navigation.
+        // The drawer is the whole Books sidebar: the filter box, the Shortcuts, the fixed
+        // navigation, then the New and Reports sections.
+        await expect(panel.getByTestId('books-sidebar-filter')).toBeVisible()
         await expect(panel.getByTestId('books-shortcuts-customize')).toBeVisible()
         await expect(panel.getByTestId('books-shortcut-screen-customers')).toBeVisible()
         await expect(panel.getByTestId('books-sidebar-new-toggle')).toBeVisible()
         await expect(panel.getByTestId('books-sidebar-reports-toggle')).toBeVisible()
-        await expect(panel.getByTestId('books-nav-accounting-toggle')).toBeVisible()
+        await expect(panel.getByTestId('books-nav-accounts')).toBeVisible()
 
         await page.mouse.click(PHONE.width - 20, PHONE.height / 2)
 

@@ -1,4 +1,4 @@
-import { SidebarItem } from '@tinycld/core/components/sidebar-primitives'
+import { SidebarDivider, SidebarItem } from '@tinycld/core/components/sidebar-primitives'
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { useUrl } from '@tinycld/core/lib/use-url'
 import { router } from 'expo-router'
@@ -19,6 +19,11 @@ export type ReportListScope = 'sidebar' | 'screen'
 const ID_PREFIX: Record<ReportListScope, { row: string; part: string }> = {
     sidebar: { row: 'books-sidebar-report', part: 'books-sidebar-reports' },
     screen: { row: 'books-reports-row', part: 'books-reports' },
+}
+
+function GroupDivider({ isVisible }: { isVisible: boolean }) {
+    if (!isVisible) return null
+    return <SidebarDivider />
 }
 
 function ReportsNote({
@@ -84,15 +89,21 @@ export function BooksReportList(props: BooksReportListProps) {
     if (!isVisible) return null
 
     const { row, part } = ID_PREFIX[scope]
-    const items = reports.map(report => (
-        <SidebarItem
-            key={report.id}
-            label={report.title}
-            isActive={pathname.endsWith(`/${BOOKS_REPORT_BASE}/${report.id}`)}
-            closesDrawer
-            onPress={() => router.navigate(orgHref(BOOKS_REPORT_ROUTE, { id: report.id }))}
-            testID={`${row}-${report.id}`}
-        />
+    // The list is in group order (sortBooksReports): a divider starts each group after the
+    // first.
+    const startsGroup = (index: number) =>
+        index > 0 && reports[index - 1].group !== reports[index].group
+    const items = reports.map((report, index) => (
+        <View key={report.id}>
+            <GroupDivider isVisible={startsGroup(index)} />
+            <SidebarItem
+                label={report.title}
+                isActive={pathname.endsWith(`/${BOOKS_REPORT_BASE}/${report.id}`)}
+                closesDrawer
+                onPress={() => router.navigate(orgHref(BOOKS_REPORT_ROUTE, { id: report.id }))}
+                testID={`${row}-${report.id}`}
+            />
+        </View>
     ))
     const isEmpty = !isLoading && !isError && reports.length === 0
     return (

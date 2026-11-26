@@ -12,6 +12,7 @@ import { INVOICE_URL, localToday, uniqueMemo } from './invoice-helpers'
 import { settleFrames } from './journal-entries-helpers'
 import { shown } from './pay-bills-helpers'
 import { localDay, PAYMENT_URL, paymentIdFromUrl, rowAmount } from './receive-payment-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import { openPostedInvoiceBySearch } from './write-off-helpers'
 
 // Applying a customer's credit memos to a posted invoice from the invoice's read view (apply
@@ -59,7 +60,7 @@ async function postPayment(page: Page) {
     await expect(title).toHaveText(/^Payment \d+$/)
     const number = /^Payment (\d+)$/.exec(await title.innerText())?.[1]
     if (!number) throw new Error('the payment read view title has no number')
-    return { id: paymentIdFromUrl(page), number }
+    return { id: await paymentIdFromUrl(page), number }
 }
 
 test.describe('apply-credit: from an invoice', () => {
@@ -210,7 +211,7 @@ test.describe('apply-credit: from an invoice', () => {
         const notice = shown(page, 'invoice-apply-notice')
         await expect(notice).toContainText(paymentLineText(payment.number, '$100.00'))
         await shown(page, `invoice-unapplied-payment-${payment.id}`).click()
-        await expect(page).toHaveURL(new RegExp(`/books/payments/${payment.id}$`))
+        await expectRecordUrl(page, 'payments', payment.id)
         await expect(shown(page, 'payment-read-only')).toBeVisible()
         await page.goBack()
         await expect(page).toHaveURL(INVOICE_URL)

@@ -1,9 +1,8 @@
 // @vitest-environment happy-dom
-import { act, renderHook } from '@testing-library/react'
+import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBooksSidebar } from '../tinycld/books/hooks/useBooksSidebar'
-import { isActivePath, SIDEBAR_ENTRIES, type SidebarEntry } from '../tinycld/books/lib/shell-nav'
-import { useBooksUIStore } from '../tinycld/books/stores/books-ui-store'
+import { SIDEBAR_ENTRIES, type SidebarEntry } from '../tinycld/books/lib/shell-nav'
 
 const url = vi.hoisted(() => ({ pathname: '/' }))
 
@@ -15,159 +14,37 @@ const allAvailable: SidebarEntry[] = SIDEBAR_ENTRIES.map(entry => ({ ...entry, a
 
 describe('useBooksSidebar', () => {
     beforeEach(() => {
-        useBooksUIStore.setState({ isAccountingOpen: true })
         url.pathname = '/'
     })
 
-    it('splits available entries into top and accounting', () => {
-        const { result } = renderHook(() => useBooksSidebar(allAvailable))
-        expect(result.current.top.map(e => e.id)).toEqual([
-            'dashboard',
-            'banking',
-            'sales',
-            'expenses',
-            'lists',
-        ])
-        expect(result.current.accounting.map(e => e.id)).toEqual([
-            'accounts',
-            'entries',
-            'reconcile',
-        ])
-    })
+    const ALL_IDS = [
+        'dashboard',
+        'banking',
+        'sales',
+        'expenses',
+        'lists',
+        'accounts',
+        'entries',
+        'reconcile',
+        'taxes',
+        'settings',
+    ]
 
     // Reports is a section of the sidebar (components/sidebar/ReportsSection.tsx), not an
     // entry of the fixed navigation.
-    it('with the real entries, top is Dashboard, Banking, Sales, Expenses then Lists, with no Reports entry', () => {
+    it('lists every entry in sidebar order: the top ones, the accounting ones, then Taxes and Settings', () => {
         const { result } = renderHook(() => useBooksSidebar())
-        expect(result.current.top.map(e => e.id)).toEqual([
-            'dashboard',
-            'banking',
-            'sales',
-            'expenses',
-            'lists',
-        ])
+        expect(result.current.entries.map(e => e.id)).toEqual(ALL_IDS)
         expect(SIDEBAR_ENTRIES.some(e => e.id === 'reports')).toBe(false)
     })
 
-    it('returns an empty accounting list when no accounting entry is available', () => {
+    it('leaves out the entries that are not available', () => {
         const entries = allAvailable.map(e =>
             e.group === 'accounting' ? { ...e, available: false } : e
         )
         const { result } = renderHook(() => useBooksSidebar(entries))
-        expect(result.current.accounting).toEqual([])
-        expect(result.current.top.map(e => e.id)).toEqual([
-            'dashboard',
-            'banking',
-            'sales',
-            'expenses',
-            'lists',
-        ])
-    })
-
-    it('excludes unavailable entries from both sections', () => {
-        const top = { ...allAvailable[0], id: 'hidden-top', available: false }
-        const hiddenAccounting = { ...allAvailable[1], id: 'hidden-acct', available: false }
-        const entries = [...allAvailable, top, hiddenAccounting]
-        const { result } = renderHook(() => useBooksSidebar(entries))
-        expect(result.current.top.map(e => e.id)).toEqual([
-            'dashboard',
-            'banking',
-            'sales',
-            'expenses',
-            'lists',
-        ])
-        expect(result.current.accounting.map(e => e.id)).toEqual([
-            'accounts',
-            'entries',
-            'reconcile',
-        ])
-    })
-
-    it('toggleAccounting flips isAccountingOpen', () => {
-        const { result } = renderHook(() => useBooksSidebar(allAvailable))
-        expect(result.current.isAccountingOpen).toBe(true)
-        act(() => result.current.toggleAccounting())
-        expect(result.current.isAccountingOpen).toBe(false)
-        act(() => result.current.toggleAccounting())
-        expect(result.current.isAccountingOpen).toBe(true)
-    })
-
-    it('isActive agrees with isActivePath for the stubbed pathname and marks every entry inactive', () => {
-        const { result } = renderHook(() => useBooksSidebar(allAvailable))
-        for (const entry of allAvailable) {
-            expect(result.current.isActive(entry)).toBe(isActivePath('/', entry))
-            expect(result.current.isActive(entry)).toBe(false)
-        }
-    })
-
-    it('isActive is true only for the entry matching the current path', () => {
-        url.pathname = '/a/books/lists'
-        const { result } = renderHook(() => useBooksSidebar(allAvailable))
-        for (const entry of allAvailable) {
-            expect(result.current.isActive(entry)).toBe(entry.id === 'lists')
-        }
-    })
-
-    it('shows the accounting entries and reports hasAccounting when unfolded', () => {
-        const { result } = renderHook(() => useBooksSidebar(allAvailable))
-        expect(result.current.visibleAccounting.map(e => e.id)).toEqual([
-            'accounts',
-            'entries',
-            'reconcile',
-        ])
-        expect(result.current.hasAccounting).toBe(true)
-    })
-
-    it('hides visibleAccounting but keeps hasAccounting when folded', () => {
-        const { result } = renderHook(() => useBooksSidebar(allAvailable))
-        act(() => result.current.toggleAccounting())
-        expect(result.current.visibleAccounting).toEqual([])
-        expect(result.current.hasAccounting).toBe(true)
-    })
-
-    it('reports no accounting when no accounting entry is available', () => {
-        const entries = allAvailable.map(e =>
-            e.group === 'accounting' ? { ...e, available: false } : e
+        expect(result.current.entries.map(e => e.id)).toEqual(
+            ALL_IDS.filter(id => !['accounts', 'entries', 'reconcile'].includes(id))
         )
-        const { result } = renderHook(() => useBooksSidebar(entries))
-        expect(result.current.hasAccounting).toBe(false)
-        expect(result.current.visibleAccounting).toEqual([])
-    })
-
-    it.each([
-        '/a/books/sales',
-        '/a/books/invoices',
-        '/a/books/estimates/abc',
-        '/a/books/sales-receipts/new',
-        '/a/books/payments/abc',
-        '/a/books/credit-memos',
-    ])('marks only Sales active on %s', pathname => {
-        url.pathname = pathname
-        const { result } = renderHook(() => useBooksSidebar(allAvailable))
-        const active = allAvailable.filter(e => result.current.isActive(e)).map(e => e.id)
-        expect(active).toEqual(['sales'])
-    })
-
-    it.each([
-        '/a/books/purchases',
-        '/a/books/pay-bills',
-        '/a/books/bills/x',
-    ])('marks only Expenses active on %s', pathname => {
-        url.pathname = pathname
-        const { result } = renderHook(() => useBooksSidebar(allAvailable))
-        const active = allAvailable.filter(e => result.current.isActive(e)).map(e => e.id)
-        expect(active).toEqual(['expenses'])
-    })
-
-    it.each([
-        '/a/books/settings',
-        '/a/books/settings/company',
-    ])('exposes settings last in end and marks only it active on %s', pathname => {
-        url.pathname = pathname
-        const { result } = renderHook(() => useBooksSidebar(allAvailable))
-        expect(result.current.end.map(e => e.id)).toEqual(['taxes', 'settings'])
-        expect(result.current.top.map(e => e.id)).not.toContain('settings')
-        const active = allAvailable.filter(e => result.current.isActive(e)).map(e => e.id)
-        expect(active).toEqual(['settings'])
     })
 })

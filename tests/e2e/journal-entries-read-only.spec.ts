@@ -11,6 +11,12 @@ import {
     showListsHub,
 } from './account-register-helpers'
 import { searchEntries } from './journal-entries-helpers'
+import {
+    expectNotRecordUrl,
+    expectRecordNumberUrl,
+    expectRecordUrl,
+    recordIdFromUrl,
+} from './record-key-helpers'
 
 // Journal entries are created by the form in a later checkpoint, so this spec
 // reads the one entry per lifecycle state that `seed.ts` posts through the
@@ -51,9 +57,6 @@ async function openEntries(page: Page) {
         await card.click()
     } else {
         const item = page.getByTestId('books-nav-entries')
-        const toggle = page.getByTestId('books-nav-accounting-toggle')
-        await toggle.waitFor({ state: 'attached' })
-        if (!(await item.isVisible())) await toggle.click()
         await item.click()
     }
     await expect(page.getByTestId('entries-screen')).toBeVisible()
@@ -151,7 +154,8 @@ for (const [sizeName, size] of SIZES) {
             await expect(page.getByTestId('entry-read-only')).toBeVisible()
 
             // Back returns to the register the entry was opened from, labelled for it.
-            const entryUrl = page.url()
+            const entryId = await recordIdFromUrl(page, 'entries')
+            await expectRecordUrl(page, 'entries', entryId)
             await expect(page.getByTestId('entry-back')).toHaveText('Register')
             await page.getByTestId('entry-back').click()
             await expect(page.getByTestId('register-title')).toBeVisible()
@@ -160,7 +164,7 @@ for (const [sizeName, size] of SIZES) {
 
             // Back pops the entry off history; it must not reopen on goBack.
             await page.goBack()
-            await expect(page).not.toHaveURL(entryUrl)
+            await expectNotRecordUrl(page, 'entries', entryId)
             await expect(page.getByTestId('entry-read-only')).toHaveCount(0)
         })
     })
@@ -291,7 +295,8 @@ test.describe('journal-entries: read-only view (desktop)', () => {
     test('back: returns to the list and pops browser history', async ({ page }) => {
         await start(page, DESKTOP)
         await openEntry(page, ENTRIES_SEED.posted)
-        const entryUrl = page.url()
+        const entryId = await recordIdFromUrl(page, 'entries')
+        await expectRecordNumberUrl(page, 'entries', entryId)
 
         await page.getByTestId('entry-back').click()
         await expect(page.getByTestId('entries-screen')).toBeVisible()
@@ -299,7 +304,7 @@ test.describe('journal-entries: read-only view (desktop)', () => {
 
         // Back must pop the entry off history, not push the list on top of it.
         await page.goBack()
-        await expect(page).not.toHaveURL(entryUrl)
+        await expectNotRecordUrl(page, 'entries', entryId)
         await expect(page.getByTestId('entry-read-only')).toHaveCount(0)
     })
 

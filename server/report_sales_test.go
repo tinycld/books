@@ -277,7 +277,7 @@ func TestSalesByCustomerSpecLoads(t *testing.T) {
 	if want := "What each customer bought in a period, from posted invoices and sales receipts, less posted credit memos, before sales tax."; shipped.Description != want {
 		t.Errorf("description = %q, want %q", shipped.Description, want)
 	}
-	if shipped.Revision != 1 || !shipped.Unpublished {
+	if shipped.Revision != 2 || !shipped.Unpublished {
 		t.Errorf("revision %d, unpublished %v; want revision 1, shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	built, err := json.Marshal(salesByCustomerSpec())
@@ -667,7 +667,7 @@ func TestSalesByCustomerOpened(t *testing.T) {
 			product := reload(t, b.app, "books_products", l.GetString("product"))
 			wants = append(wants, want{
 				label:  day + " · " + word + " " + doc.GetString("number") + " · " + product.GetString("name"),
-				open:   "books/" + segment + "/" + doc.Id,
+				open:   "books/" + segment + "/" + urlKey(t, b.app, doc),
 				amount: sign * int64(l.GetInt("amount")),
 			})
 		}
@@ -885,7 +885,7 @@ func TestSalesByCustomerReaders(t *testing.T) {
 	if row.GetBool("published") {
 		t.Errorf("published = true, want unpublished")
 	}
-	if row.GetString("title") != "Sales by Customer" || row.GetInt("shipped_revision") != 1 || row.GetString("source") != "books.sales_lines" {
+	if row.GetString("title") != "Sales by Customer" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.sales_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {
@@ -1092,7 +1092,7 @@ func TestSalesByProductSpecLoads(t *testing.T) {
 	if want := "What you sold of each product and service in a period, from posted invoices and sales receipts, less posted credit memos, before sales tax."; shipped.Description != want {
 		t.Errorf("description = %q, want %q", shipped.Description, want)
 	}
-	if shipped.Revision != 1 || !shipped.Unpublished {
+	if shipped.Revision != 2 || !shipped.Unpublished {
 		t.Errorf("revision %d, unpublished %v; want revision 1, shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	built, err := json.Marshal(salesByProductSpec())
@@ -1255,7 +1255,7 @@ func TestSalesByProductSharedBehavior(t *testing.T) {
 	if row.GetBool("published") {
 		t.Errorf("published = true, want unpublished")
 	}
-	if row.GetString("title") != "Sales by Product/Service" || row.GetInt("shipped_revision") != 1 || row.GetString("source") != "books.sales_lines" {
+	if row.GetString("title") != "Sales by Product/Service" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.sales_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {
@@ -1482,7 +1482,7 @@ func TestSalesByProductOpened(t *testing.T) {
 			}
 			wants = append(wants, want{
 				label:  label,
-				open:   "books/" + segment + "/" + doc.Id,
+				open:   "books/" + segment + "/" + urlKey(t, b.app, doc),
 				qty:    float64(sign) * l.GetFloat("quantity"),
 				amount: sign * int64(l.GetInt("amount")),
 			})
@@ -1766,8 +1766,8 @@ func TestSalesByCustomerRefundReceipt(t *testing.T) {
 			continue
 		}
 		found = true
-		if r.Open != "books/refund-receipts/"+refund.Id {
-			t.Errorf("%s opens %q, want %q", r.Label, r.Open, "books/refund-receipts/"+refund.Id)
+		if r.Open != "books/refund-receipts/"+urlKey(t, b.app, refund) {
+			t.Errorf("%s opens %q, want %q", r.Label, r.Open, "books/refund-receipts/"+urlKey(t, b.app, refund))
 		}
 		if got := amt(t, r, "sales"); got != -15000 {
 			t.Errorf("%s Sales = %d, want -15000", r.Label, got)
@@ -1812,8 +1812,8 @@ func TestSalesByProductRefundReceipt(t *testing.T) {
 			continue
 		}
 		found = true
-		if r.Open != "books/refund-receipts/"+refund.Id {
-			t.Errorf("%s opens %q, want %q", r.Label, r.Open, "books/refund-receipts/"+refund.Id)
+		if r.Open != "books/refund-receipts/"+urlKey(t, b.app, refund) {
+			t.Errorf("%s opens %q, want %q", r.Label, r.Open, "books/refund-receipts/"+urlKey(t, b.app, refund))
 		}
 		if got := amt(t, r, "amount"); got != -15000 {
 			t.Errorf("%s Amount = %d, want -15000", r.Label, got)

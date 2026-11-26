@@ -17,7 +17,7 @@ func transactionDetailShipped() reports.Shipped {
 		Spec:        mustJSON(transactionDetailSpec()),
 		// 2: the Method param (Accrual or Cash) over books.basis_lines, so a
 		// statement's drill keeps its method.
-		Revision:    2,
+		Revision:    3,
 		Unpublished: true,
 	}
 }

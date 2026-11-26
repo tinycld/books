@@ -222,7 +222,7 @@ export async function postSaleBook(page: Page): Promise<SaleBook> {
     await expect(page).toHaveURL(INVOICE_URL)
     await expect(page.getByTestId('invoice-read-only')).toBeVisible()
     const invoice: SaleDocument = {
-        id: invoiceIdFromUrl(page),
+        id: await invoiceIdFromUrl(page),
         number: await titleNumber(page, 'invoice-title', 'Invoice'),
         subtotalCents: await centsIn(page.getByTestId('invoice-total-subtotal')),
         lines: invoiceLines,
@@ -240,7 +240,7 @@ export async function postSaleBook(page: Page): Promise<SaleBook> {
     await expect(page).toHaveURL(SALES_RECEIPT_URL)
     await expect(page.getByTestId('sales-receipt-read-only')).toBeVisible()
     const receipt: SaleDocument = {
-        id: salesReceiptIdFromUrl(page),
+        id: await salesReceiptIdFromUrl(page),
         number: await titleNumber(page, 'sales-receipt-title', 'Sales receipt'),
         subtotalCents: await centsIn(page.getByTestId('sales-receipt-total-subtotal')),
         lines: receiptLines,

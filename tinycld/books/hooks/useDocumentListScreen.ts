@@ -194,7 +194,7 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
     const openRow = (row: DocumentListRow) => {
         rowFocus.setFocusedId(row.id)
         if (open.kind === 'id' && open.id === row.id) return
-        const href = orgHref(listDocumentHref(row.kind, row.id))
+        const href = orgHref(listDocumentHref(row.kind, row.key))
         if (navigationModeFor(open) === 'replace') router.replace(href)
         else router.push(href)
     }

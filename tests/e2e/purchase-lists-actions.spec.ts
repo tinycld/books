@@ -31,6 +31,7 @@ import {
     refusePurchaseWrite,
 } from './purchase-lists-helpers'
 import { DESKTOP, openBooks } from './record-form-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import { applyDialog } from './vendor-credit-helpers'
 
 // The purchase lists' row menus (purchase-lists checkpoint 4, spec §3 "Row menu" and
@@ -169,7 +170,7 @@ test.describe('purchase-lists: row menus', () => {
 
         // Apply to bills opens the credit with its Apply dialog; the test closes it unwritten.
         await visible(page, 'purchases-row-action-apply-credit').click()
-        await expect(page).toHaveURL(new RegExp(`/books/vendor-credits/${CREDIT_31}$`))
+        await expectRecordUrl(page, 'vendor-credits', CREDIT_31)
         await expect(applyDialog(page)).toBeVisible()
         await page.keyboard.press('Escape')
         await expect(applyDialog(page)).toHaveCount(0)
@@ -207,7 +208,7 @@ test.describe('purchase-lists: row menus', () => {
         await page.setViewportSize(WIDE)
         await expect(visible(page, 'purchases-table')).toBeVisible()
         await purchaseRow(page, paymentId).click()
-        await expect(page).toHaveURL(new RegExp(`/books/bill-payments/${paymentId}$`))
+        await expectRecordUrl(page, 'bill-payments', paymentId)
         await expect(visible(page, 'purchases-names')).toBeVisible()
         await expect(visible(page, 'bill-payment-title')).toBeVisible()
 
@@ -218,7 +219,7 @@ test.describe('purchase-lists: row menus', () => {
         await expect(visible(page, 'pay-bills-title')).toBeVisible()
         await expect.poll(() => reachableCount(page, 'purchases-names')).toBe(0)
         await page.goBack()
-        await expect(page).toHaveURL(new RegExp(`/books/bill-payments/${paymentId}$`))
+        await expectRecordUrl(page, 'bill-payments', paymentId)
         await expect(visible(page, 'purchases-names')).toBeVisible()
         await expect(visible(page, 'bill-payment-title')).toBeVisible()
 
@@ -229,8 +230,10 @@ test.describe('purchase-lists: row menus', () => {
         await payBillsRowAmount(page, bill.id).fill('150.00')
         await page.keyboard.press('ControlOrMeta+Enter')
         await expect(page).toHaveURL(BILL_PAYMENT_URL)
-        const correctionId = billPaymentIdFromUrl(page)
+        const correctionId = await billPaymentIdFromUrl(page)
         expect(correctionId).not.toBe(paymentId)
+        // The route swaps the correction's number into the URL; Back waits for it.
+        await expectRecordUrl(page, 'bill-payments', correctionId)
         await page.goBack()
         await expect(page).toHaveURL(purchaseTabUrl('bill-payments'))
         await expect.poll(() => reachableCount(page, 'purchases-list')).toBe(1)

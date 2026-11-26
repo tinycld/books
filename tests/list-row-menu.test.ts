@@ -22,6 +22,7 @@ const ENTRY = 'ent000000000001'
 function row(kind: ListKind, fields: Partial<DocumentListRow> = {}): DocumentListRow {
     return {
         id: ID,
+        key: '1004',
         kind,
         number: '1004',
         date: '2026-11-17',

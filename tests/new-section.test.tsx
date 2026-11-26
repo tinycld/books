@@ -67,13 +67,16 @@ describe('New section', () => {
             NEW_ACTIONS.map(action => `books-sidebar-new-${action.id.replace(/_/g, '-')}`)
         )
         expect(items.some(id => id.includes('_'))).toBe(false)
-        // An action is a direct child of its group, and the group names itself.
+        // An action is a direct child of its group, and the group has no label of its own.
         const invoice = byTestId(container, 'books-sidebar-new-invoice') as HTMLElement
-        expect(invoice.parentElement?.getAttribute('testid')).toBe(
-            'books-sidebar-new-group-customers'
-        )
-        expect(invoice.parentElement?.textContent).toContain('Customers')
+        const customers = invoice.parentElement as HTMLElement
+        expect(customers.getAttribute('testid')).toBe('books-sidebar-new-group-customers')
+        expect(customers.textContent).not.toContain('Customers')
         expect(invoice.textContent).toBe('Invoice')
+        // A statement needs its group to be clear without the label.
+        expect(byTestId(container, 'books-sidebar-new-statement')?.textContent).toBe(
+            'Customer statement'
+        )
     })
 
     it('opens the form of a pressed action', async () => {
@@ -105,7 +108,7 @@ describe('New section', () => {
         )
     })
 
-    it('stands between the shortcuts and the fixed navigation', async () => {
+    it('stands after the shortcuts and the fixed navigation', async () => {
         seedSidebar({ level: 'bookkeeper' })
         const { container } = renderSidebar()
         await waitFor(() =>
@@ -113,13 +116,14 @@ describe('New section', () => {
         )
 
         const shortcut = byTestId(container, 'books-shortcut-screen-customers') as HTMLElement
-        const fold = toggle(container) as HTMLElement
         const dashboard = byTestId(container, 'books-nav-dashboard') as HTMLElement
+        const settings = byTestId(container, 'books-nav-settings') as HTMLElement
+        const fold = toggle(container) as HTMLElement
         expect(
-            shortcut.compareDocumentPosition(fold) & Node.DOCUMENT_POSITION_FOLLOWING
+            shortcut.compareDocumentPosition(dashboard) & Node.DOCUMENT_POSITION_FOLLOWING
         ).toBeTruthy()
         expect(
-            fold.compareDocumentPosition(dashboard) & Node.DOCUMENT_POSITION_FOLLOWING
+            settings.compareDocumentPosition(fold) & Node.DOCUMENT_POSITION_FOLLOWING
         ).toBeTruthy()
     })
 

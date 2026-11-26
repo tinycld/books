@@ -5,6 +5,7 @@ import { useRecord } from '@tinycld/core/lib/use-record'
 import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
 import { billColumnsFrom, type EMPTY_BILL_COLUMNS } from '../lib/bill-columns'
+import { documentKey } from '../lib/record-key'
 import { columnsOrThrow } from '../lib/record-save'
 import { BILL_KIND } from '../lib/sales-document-kinds'
 import type { BooksBills } from '../types'
@@ -273,6 +274,10 @@ function useBillWrites(): DocumentWrites {
                 draft.revision = revision
             }),
         storedRevision: id => billsCollection.get(id)?.revision,
+        storedKey: id => {
+            const row = billsCollection.get(id)
+            return row ? documentKey(row) : id
+        },
         lineOps: (billId, mapper) =>
             purchaseLineOps(mapper, {
                 insert: record => linesCollection.insert({ ...record, bill: billId }),

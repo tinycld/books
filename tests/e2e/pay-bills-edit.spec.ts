@@ -22,6 +22,7 @@ import {
     vendorWithBills,
 } from './pay-bills-helpers'
 import { isDisabled } from './record-form-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 
 // Editing a posted bill payment (spec §3.6, §3.11) from the keyboard only: the read view's E
 // opens Pay Bills in edit mode with the vendor fixed and the original's rows paid; Tab, Enter
@@ -99,7 +100,7 @@ test.describe('pay-bills: keyboard edit', () => {
         await page.getByTestId(`entries-row-menu-${postedEntryId}`).click()
         await page.getByTestId('entries-menu-open').click()
         await expect(page).toHaveURL(BILL_PAYMENT_URL)
-        const originalId = billPaymentIdFromUrl(page)
+        const originalId = await billPaymentIdFromUrl(page)
         await expect(shown(page, 'bill-payment-title')).toHaveText(`Bill payment ${number}`)
 
         // From here no click. E opens edit mode: the vendor fixed, rows 1 and 2 paid as
@@ -160,7 +161,7 @@ test.describe('pay-bills: keyboard edit', () => {
         // ⌘↵ saves: the correction's read view, the same number, bills 1 and 3 paid.
         await page.keyboard.press('ControlOrMeta+Enter')
         await expect(page).toHaveURL(BILL_PAYMENT_URL)
-        const correctionId = billPaymentIdFromUrl(page)
+        const correctionId = await billPaymentIdFromUrl(page)
         expect(correctionId).not.toBe(originalId)
         await expect(shown(page, 'bill-payment-title')).toHaveText(`Bill payment ${number}`)
         await expect(shown(page, 'bill-payment-badge')).toHaveText('Posted')
@@ -174,7 +175,7 @@ test.describe('pay-bills: keyboard edit', () => {
             vendor.name,
             `Bill payment ${number} (void) · ${vendor.name}`
         )
-        await expect(page).toHaveURL(new RegExp(`/books/bill-payments/${originalId}$`))
+        await expectRecordUrl(page, 'bill-payments', originalId)
         await expect(shown(page, 'bill-payment-replaced-by')).toHaveText(
             `Replaced by ${number} (edited)`
         )

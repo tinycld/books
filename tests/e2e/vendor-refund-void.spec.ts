@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from '@playwright/test'
 import { uniqueMemo } from './invoice-helpers'
 import { searchEntries } from './journal-entries-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import { VENDOR_CREDIT_URL } from './vendor-credit-helpers'
 import { openBooks, postRefundOn, shownRefund, vendorWithCredits } from './vendor-refund-helpers'
 
@@ -38,7 +39,6 @@ test.describe('vendor-refund: void and journal entry', () => {
             amount: '137.45',
             memo,
         })
-        const refundUrl = new RegExp(`/books/vendor-refunds/${refund.id}$`)
 
         // Journal Entries: the refund's entry reads Type Vendor refund with its number.
         await page.goBack()
@@ -66,7 +66,7 @@ test.describe('vendor-refund: void and journal entry', () => {
         // Open goes to the refund's read view, which a writer may Edit and Void.
         await page.getByTestId(`entries-row-menu-${entryId}`).click()
         await page.getByTestId('entries-menu-open').click()
-        await expect(page).toHaveURL(refundUrl)
+        await expectRecordUrl(page, 'vendor-refunds', refund.id)
         await expect(shownRefund(page, 'vendor-refund-read-only')).toBeVisible()
         await expect(shownRefund(page, 'vendor-refund-read-edit')).toBeVisible()
         await expect(shownRefund(page, 'vendor-refund-read-void')).toBeVisible()
@@ -89,7 +89,7 @@ test.describe('vendor-refund: void and journal entry', () => {
 
         // The refund's own entry: Type Vendor refund, and its lines name the vendor.
         await shownRefund(page, 'vendor-refund-read-entry').click()
-        await expect(page).toHaveURL(new RegExp(`/books/entries/${entryId}$`))
+        await expectRecordUrl(page, 'entries', entryId)
         const refundEntry = page.getByTestId('entry-read-only').filter({ visible: true })
         await expect(refundEntry).toBeVisible()
         await expect(refundEntry.getByTestId('entry-detail-type')).toContainText('Vendor refund')
@@ -99,18 +99,18 @@ test.describe('vendor-refund: void and journal entry', () => {
             .poll(async () => [...new Set(await refundNames.allInnerTexts())])
             .toEqual([vendor.name])
         await page.goBack()
-        await expect(page).toHaveURL(refundUrl)
+        await expectRecordUrl(page, 'vendor-refunds', refund.id)
 
         // The credit is unapplied again for its whole total.
         await shownRefund(page, `vendor-refund-read-link-${credit.id}`).click()
         await expect(page).toHaveURL(VENDOR_CREDIT_URL)
-        await expect(page).toHaveURL(new RegExp(`/books/vendor-credits/${credit.id}$`))
+        await expectRecordUrl(page, 'vendor-credits', credit.id)
         await expect(page.getByTestId('vendor-credit-total-unapplied')).toContainText('$480.00')
 
         // Back to the list: the voided entry keeps Type and number; its menu has Open (the
         // refund) and no Reverse.
         await page.goBack()
-        await expect(page).toHaveURL(refundUrl)
+        await expectRecordUrl(page, 'vendor-refunds', refund.id)
         await page.goBack()
         await expect(page.getByTestId('entries-screen')).toBeVisible()
         await searchEntries(page, memo)
@@ -120,7 +120,7 @@ test.describe('vendor-refund: void and journal entry', () => {
         await page.getByTestId(`entries-row-menu-${entryId}`).click()
         await expect(page.getByTestId('entries-menu-reverse')).toHaveCount(0)
         await page.getByTestId('entries-menu-open').click()
-        await expect(page).toHaveURL(refundUrl)
+        await expectRecordUrl(page, 'vendor-refunds', refund.id)
         await expect(shownRefund(page, 'vendor-refund-badge')).toHaveText('Void')
         await page.goBack()
         await expect(page.getByTestId('entries-screen')).toBeVisible()

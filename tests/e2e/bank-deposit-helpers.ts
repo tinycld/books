@@ -17,6 +17,7 @@ import {
     PAYMENT_URL,
     paymentIdFromUrl,
 } from './receive-payment-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 import {
     chooseReceiptSelect,
     openNewSalesReceipt,
@@ -40,15 +41,8 @@ export const SEEDED_DEPOSIT = {
     total: '$192.40',
 } as const
 
-export function depositUrlOf(id: string) {
-    return new RegExp(`/books/deposits/${id}$`)
-}
-
-export function depositIdFromUrl(page: Page): string {
-    const match = /\/books\/deposits\/([^/?#]+)$/.exec(new URL(page.url()).pathname)
-    const id = match?.[1]
-    if (!id || id === 'new') throw new Error(`Not on a saved deposit: ${page.url()}`)
-    return id
+export async function depositIdFromUrl(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'deposits')
 }
 
 // A screen covered in the navigation stack stays mounted but hidden, so only the visible
@@ -187,7 +181,6 @@ async function showEntriesList(page: Page) {
         return
     }
     const navItem = page.getByTestId('books-nav-entries')
-    if (!(await navItem.isVisible())) await page.getByTestId('books-nav-accounting-toggle').click()
     await navItem.click()
     await expect(shownEntries).toBeVisible()
 }
@@ -243,7 +236,7 @@ export async function postOpenDeposit(
     await expect(title).toHaveText(/^Deposit \d+$/)
     const number = /^Deposit (\d+)$/.exec(await title.innerText())?.[1]
     if (!number) throw new Error('the deposit read view title has no number')
-    return { id: depositIdFromUrl(page), number }
+    return { id: await depositIdFromUrl(page), number }
 }
 
 /**
@@ -282,12 +275,11 @@ export async function postUndepositedPayment(
     await expect(title).toHaveText(/^Payment \d+$/)
     const number = /^Payment (\d+)$/.exec(await title.innerText())?.[1]
     if (!number) throw new Error('the payment read view title has no number')
-    return { id: paymentIdFromUrl(page), number }
+    return { id: await paymentIdFromUrl(page), number }
 }
 
 const UNDEPOSITED_FUNDS = '1200 Undeposited funds'
 const CONSULTING_INCOME = '4000 Consulting Income'
-const ENTRY_URL = /\/books\/entries\/([^/?#]+)$/
 
 /**
  * Books must already be open. Posts a journal entry dated today that debits 1200
@@ -308,9 +300,7 @@ export async function postUndepositedEntry(
     })
     await fillLine(page, 1, { account: CONSULTING_INCOME, credit: input.amount })
     await postOpenEntry(page)
-    const id = ENTRY_URL.exec(new URL(page.url()).pathname)?.[1]
-    if (!id || id === 'new') throw new Error(`Not on a posted entry: ${page.url()}`)
-    return { id, number: await postedEntryNumber(page) }
+    return { id: await recordIdFromUrl(page, 'entries'), number: await postedEntryNumber(page) }
 }
 
 // The shown form's other funds lines (`deposit-line-<n>`), counted by their own test id:

@@ -4,9 +4,10 @@ import { CUSTOMER_IDS, CUSTOMERS } from '../../tinycld/books/lib/customer-form-f
 import { PRODUCT_IDS, PRODUCTS } from '../../tinycld/books/lib/products-services-fixture'
 import { formatDay } from '../../tinycld/books/lib/register-range'
 import { PHONE } from './account-register-helpers'
-import { creditMemoUrlOf, openCreditMemoBySearch, postCreditMemo } from './credit-memo-helpers'
+import { openCreditMemoBySearch, postCreditMemo } from './credit-memo-helpers'
 import { lineCellTestId, localToday, uniqueMemo } from './invoice-helpers'
 import { shiftTabTo, tabTo } from './keyboard-helpers'
+import { expectNotRecordUrl, expectRecordUrl } from './record-key-helpers'
 import {
     pickRefundCustomer,
     pickRefundLineProduct,
@@ -15,7 +16,6 @@ import {
     refundLineRowId,
     refundLineRows,
     refundReceiptIdFromUrl,
-    refundReceiptUrlOf,
     visibleTestId,
 } from './refund-receipt-helpers'
 import {
@@ -25,7 +25,6 @@ import {
     pickReceiptLineProduct,
     SALES_RECEIPT_URL,
     salesReceiptIdFromUrl,
-    salesReceiptUrlOf,
 } from './sales-receipt-helpers'
 
 // The two sources of a refund receipt (refund receipt spec §3.2, §3.3, §3.8, §3.11,
@@ -149,7 +148,7 @@ async function postSalesReceipt(page: Page, memo: string) {
     await page.getByTestId('sales-receipt-post').click()
     await expect(page).toHaveURL(SALES_RECEIPT_URL)
     await expect(shown(page, 'sales-receipt-read-only')).toBeVisible()
-    const id = salesReceiptIdFromUrl(page)
+    const id = await salesReceiptIdFromUrl(page)
     const number = await titleNumber(shown(page, 'sales-receipt-title'), 'Sales receipt')
     return { id, number }
 }
@@ -161,7 +160,7 @@ async function postRefund(page: Page, memo: string) {
     await expect(page).toHaveURL(REFUND_RECEIPT_URL)
     await expect(shown(page, 'refund-receipt-read-only')).toBeVisible()
     const number = await titleNumber(shown(page, 'refund-receipt-title'), 'Refund receipt')
-    return { id: refundReceiptIdFromUrl(page), number }
+    return { id: await refundReceiptIdFromUrl(page), number }
 }
 
 // Removes the refund line at `index` with its row key (⌘⌥⌫ from a cell of the row).
@@ -270,12 +269,12 @@ test.describe('refund-receipt-form: sources', () => {
         )
         await page.getByTestId('refund-receipt-post').click()
         await expect(page).toHaveURL(REFUND_RECEIPT_URL)
-        await expect(page).not.toHaveURL(refundReceiptUrlOf(posted.id))
+        await expectNotRecordUrl(page, 'refund-receipts', posted.id)
         await expect(shown(page, 'refund-receipt-read-only')).toBeVisible()
         await expect(shown(page, 'refund-receipt-title')).toHaveText(
             `Refund receipt ${posted.number}`
         )
-        const correctionId = refundReceiptIdFromUrl(page)
+        const correctionId = await refundReceiptIdFromUrl(page)
         const correctionLink = shown(page, 'refund-receipt-source-link')
         await expect(correctionLink).toHaveText(`Refund of sales receipt ${receipt.number}`)
         const amount = money(await centsIn(shown(page, 'refund-receipt-total-refunded')))
@@ -284,7 +283,7 @@ test.describe('refund-receipt-form: sources', () => {
         // are unchanged.
         await correctionLink.focus()
         await page.keyboard.press('Enter')
-        await expect(page).toHaveURL(salesReceiptUrlOf(receipt.id))
+        await expectRecordUrl(page, 'sales-receipts', receipt.id)
         const section = shown(page, 'sales-receipt-refunds')
         await expect(section).toBeVisible()
         await expect(section).toContainText('Refund receipts')
@@ -404,9 +403,9 @@ test.describe('refund-receipt-form: sources', () => {
         )
         await page.getByTestId('refund-receipt-post').click()
         await expect(page).toHaveURL(REFUND_RECEIPT_URL)
-        await expect(page).not.toHaveURL(refundReceiptUrlOf(first.id))
+        await expectNotRecordUrl(page, 'refund-receipts', first.id)
         await expect(shown(page, 'refund-receipt-read-only')).toBeVisible()
-        const correctionId = refundReceiptIdFromUrl(page)
+        const correctionId = await refundReceiptIdFromUrl(page)
         await expect(shown(page, 'refund-receipt-source-link')).toHaveText(
             `Pays out credit memo ${memo.number}`
         )
@@ -422,7 +421,7 @@ test.describe('refund-receipt-form: sources', () => {
         // The memo: Refunded and Unapplied credit after "Credit amount", the Refunds
         // section, and Refund credit still offered.
         await shown(page, 'refund-receipt-source-link').click()
-        await expect(page).toHaveURL(creditMemoUrlOf(memo.id))
+        await expectRecordUrl(page, 'credit-memos', memo.id)
         const credit = shown(page, 'credit-memo-total-credit')
         const refunded = shown(page, 'credit-memo-total-refunded')
         const unapplied = shown(page, 'credit-memo-total-unapplied')
@@ -458,7 +457,7 @@ test.describe('refund-receipt-form: sources', () => {
         await postRefund(page, restMemo)
         await expect(shown(page, 'refund-receipt-badge')).toHaveText('Posted')
         await shown(page, 'refund-receipt-source-link').click()
-        await expect(page).toHaveURL(creditMemoUrlOf(memo.id))
+        await expectRecordUrl(page, 'credit-memos', memo.id)
         await expect(shown(page, 'credit-memo-total-unapplied')).toContainText('$0.00')
         await expect(shown(page, 'credit-memo-total-refunded')).toContainText(
             `${MINUS}${money(memo.total)}`
@@ -482,7 +481,7 @@ test.describe('refund-receipt-form: sources', () => {
         // V on the memo: refused while the payout is posted; the memo stays Refunded
         // (its whole total is paid out: balance 0, applied 0).
         await shown(page, 'refund-receipt-source-link').click()
-        await expect(page).toHaveURL(creditMemoUrlOf(memo.id))
+        await expectRecordUrl(page, 'credit-memos', memo.id)
         await expect(shown(page, 'credit-memo-read-refund-credit')).toHaveCount(0)
         await page.keyboard.press('v')
         const dialog = page.getByTestId('void-dialog')
@@ -499,7 +498,7 @@ test.describe('refund-receipt-form: sources', () => {
             .getByTestId(`credit-memo-refunds-row-${payout.id}`)
             .getByText(payout.number, { exact: true })
             .click()
-        await expect(page).toHaveURL(refundReceiptUrlOf(payout.id))
+        await expectRecordUrl(page, 'refund-receipts', payout.id)
         await expect(shown(page, 'refund-receipt-badge')).toHaveText('Posted')
         await page.keyboard.press('v')
         await expect(dialog).toBeVisible()
@@ -511,7 +510,7 @@ test.describe('refund-receipt-form: sources', () => {
         // The memo: no Refunded or Unapplied credit row, Refund credit again, the refund
         // listed as Void; and now it voids.
         await shown(page, 'refund-receipt-source-link').click()
-        await expect(page).toHaveURL(creditMemoUrlOf(memo.id))
+        await expectRecordUrl(page, 'credit-memos', memo.id)
         await expect(shown(page, 'credit-memo-read-refund-credit')).toBeVisible()
         await expect(shown(page, 'credit-memo-total-refunded')).toHaveCount(0)
         await expect(shown(page, 'credit-memo-total-unapplied')).toHaveCount(0)
@@ -534,7 +533,7 @@ test.describe('refund-receipt-form: sources', () => {
         await page.getByTestId('sales-receipt-save-draft').click()
         await expect(page).toHaveURL(SALES_RECEIPT_URL)
         await expect(page.getByTestId('sales-receipt-title')).toHaveText('Draft sales receipt')
-        const draftId = salesReceiptIdFromUrl(page)
+        const draftId = await salesReceiptIdFromUrl(page)
         await pushPath(page, `/a/books/refund-receipts/new?sales_receipt=${draftId}`)
         await expect(page).toHaveURL(fromSalesReceiptUrlOf(draftId))
         const notice = shown(page, 'refund-receipt-cannot-refund')
@@ -603,7 +602,7 @@ test.describe('refund-receipt-form: sources', () => {
         // Post from the bar; the receipt's section draws cards.
         const refund = await postRefund(page, refundMemo)
         await shown(page, 'refund-receipt-source-link').click()
-        await expect(page).toHaveURL(salesReceiptUrlOf(receipt.id))
+        await expectRecordUrl(page, 'sales-receipts', receipt.id)
         const cards = shown(page, 'sales-receipt-refunds-cards')
         await expect(cards).toBeVisible()
         await expect(

@@ -5,7 +5,7 @@ import { FoldHeading } from './FoldHeading'
 
 // The Reports section of the Books sidebar: every Books report the reader can open, the
 // shipped ones first, each on the Books report route. Folded until the user opens it (the
-// state is kept): Books ships more reports than the sidebar has room for above "Go to".
+// state is kept): Books ships more reports than the sidebar has room for.
 export function ReportsSection() {
     const list = useBooksReportList()
     const isOpen = useBooksUIStore(s => s.isReportsOpen)

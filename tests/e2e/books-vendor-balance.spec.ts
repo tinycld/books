@@ -35,6 +35,7 @@ import {
 } from './customer-balance-helpers'
 import { BILL_EXPENSE_ACCOUNT, localDay, vendorWithBills } from './pay-bills-helpers'
 import { openBooks, uniqueName } from './record-form-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import {
     openVendorBalance,
     totalCents,
@@ -179,7 +180,7 @@ test.describe('vendor-balance: report', () => {
 
         await page.getByTestId(`report-row-${line.id}`).click()
         await expect(page).toHaveURL(BILL_URL)
-        await expect(page).toHaveURL(new RegExp(`/books/bills/${billId}$`))
+        await expectRecordUrl(page, 'bills', billId)
         await expect(page.getByTestId('bill-read-only').filter({ visible: true })).toBeVisible()
     })
 

@@ -12,7 +12,7 @@ import { useApplyCreditStore } from '../stores/apply-credit-store'
 export function useOpenCreditWithApply(): (row: DocumentListRow) => void {
     const orgHref = useOrgHref()
     return row => {
-        router.push(orgHref(listDocumentHref(row.kind, row.id)))
+        router.push(orgHref(listDocumentHref(row.kind, row.key)))
         // After the push, so the credit's read frame, which draws the dialog, finds it.
         useApplyCreditStore.getState().open(row.id)
     }

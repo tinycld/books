@@ -11,6 +11,7 @@ import {
     paymentIdFromUrl,
     rowAmount,
 } from './receive-payment-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 
 // Receive payment elsewhere in Books (spec §3.9) at desktop width: the invoice read view's
 // balance due, badge, Payments total and block and its Receive payment action (R); the
@@ -54,7 +55,7 @@ async function postPayment(page: Page) {
     await expect(title).toHaveText(/^Payment \d+$/)
     const number = /^Payment (\d+)$/.exec(await title.innerText())?.[1]
     if (!number) throw new Error('the payment read view title has no number')
-    return { id: paymentIdFromUrl(page), number }
+    return { id: await paymentIdFromUrl(page), number }
 }
 
 test.describe('receive-payment: invoice and customer', () => {
@@ -67,7 +68,7 @@ test.describe('receive-payment: invoice and customer', () => {
         const today = await localToday(page)
 
         await transaction(page, invoice.id).click()
-        await expect(page).toHaveURL(new RegExp(`/books/invoices/${invoice.id}$`))
+        await expectRecordUrl(page, 'invoices', invoice.id)
         await expect(page.getByTestId('invoice-read-only')).toBeVisible()
         await expect(page.getByTestId('invoice-badge')).toHaveText('Posted')
         await expect(page.getByTestId('invoice-balance-due')).toHaveText('$400.00')
@@ -91,7 +92,7 @@ test.describe('receive-payment: invoice and customer', () => {
 
         // The applied Invoice link opens the invoice, now partly paid.
         await page.getByTestId(`payment-read-link-${invoice.id}`).click()
-        await expect(page).toHaveURL(new RegExp(`/books/invoices/${invoice.id}$`))
+        await expectRecordUrl(page, 'invoices', invoice.id)
         await expect(page.getByTestId('invoice-read-only')).toBeVisible()
         await expect(page.getByTestId('invoice-badge')).toHaveText('Partly paid')
         await expect(page.getByTestId('invoice-balance-due')).toHaveText('$300.00')
@@ -145,7 +146,7 @@ test.describe('receive-payment: invoice and customer', () => {
 
         // The row opens the payment.
         await paymentRow.click()
-        await expect(page).toHaveURL(new RegExp(`/books/payments/${payment.id}$`))
+        await expectRecordUrl(page, 'payments', payment.id)
         await expect(page.getByTestId('payment-read-only')).toBeVisible()
     })
 })

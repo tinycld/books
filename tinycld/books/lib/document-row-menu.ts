@@ -20,7 +20,7 @@ import {
 } from './document-actions'
 import { type DocumentStatus, quoteReadActions } from './document-lifecycle'
 import { type DocumentListRow, isSalesKind, listDocumentHref } from './document-list'
-import { documentHref, documentNewHref } from './document-routes'
+import { documentNewHref, documentPath } from './document-routes'
 import { sendOffered } from './document-send'
 import { TRANSACTION_DOC_KINDS } from './party-transactions'
 import { paymentReadActions } from './payment-read-actions'
@@ -197,7 +197,7 @@ export function rowActionTestId(
 // (`useDocumentRowActions`). A purchase row's routes come from `purchaseRowActionHref`
 // (`listRowActionHref` picks by the row's kind); here it has Open only.
 export function rowActionHref(row: DocumentListRow, action: RowMenuAction): string | null {
-    if (action === 'open') return listDocumentHref(row.kind, row.id)
+    if (action === 'open') return listDocumentHref(row.kind, row.key)
     if (!isSalesKind(row.kind)) return null
     const kind = TRANSACTION_DOC_KINDS[row.kind]
     switch (action) {
@@ -210,7 +210,7 @@ export function rowActionHref(row: DocumentListRow, action: RowMenuAction): stri
         case 'entry':
             return `books/entries/${row.entry}`
         case 'invoice':
-            return documentHref(INVOICE_KIND, row.convertedInvoice)
+            return documentPath(INVOICE_KIND, row.convertedInvoice)
         case 'pdf':
         case 'void':
         case 'delete_draft':

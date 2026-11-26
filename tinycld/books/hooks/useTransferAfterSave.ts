@@ -1,12 +1,14 @@
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router } from 'expo-router'
 import type { SaveOutcome } from './useEntrySubmit'
+import { useStoredEntryKey } from './useRouteRecordId'
 
 // Where a new form (or a new correction) goes after a save. Replacing keeps the unsaved
 // form out of the back stack. A post opens the read view, a draft its own form, and Post &
 // new a fresh form that keeps the register's account.
 export function useTransferAfterSave(from?: string) {
     const orgHref = useOrgHref()
+    const keyOf = useStoredEntryKey()
     return (id: string, outcome: SaveOutcome) => {
         if (outcome === 'post-new') {
             router.replace(
@@ -18,6 +20,6 @@ export function useTransferAfterSave(from?: string) {
             )
             return
         }
-        router.replace(orgHref(`books/transfers/${id}`))
+        router.replace(orgHref(`books/transfers/${keyOf(id)}`))
     }
 }

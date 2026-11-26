@@ -28,9 +28,9 @@ func TestSharedReportHelpersKeepOtherSpecs(t *testing.T) {
 		want string
 	}{
 		{"Customer Balance", customerBalanceSpec(), customerBalanceSpecSHA256},
-		{"Vendor Balance", vendorBalanceSpec(), "de56492cd35b60d2bf91f4346109d48caecf43668ec9ce42a0ff7256b4649f99"},
-		{"A/R Aging", arAgingSpec(), "5b825bb19944de1b20c75264dbfadee500ea5ef022c79fdfe4fa477ebe6942ac"},
-		{"A/P Aging", apAgingSpec(), "2fd411d2c13f2b2662a7bce233d384cfd074d330e7d03be23bde213e391b998c"},
+		{"Vendor Balance", vendorBalanceSpec(), "f52f95804fe43978b579e697e39d79cd31a5d5188e1ee86812bdee46933e27b1"},
+		{"A/R Aging", arAgingSpec(), "28bc06fd8038e41835954f583a4b2f26c3973e5a144bf3f92163728d2fee20bd"},
+		{"A/P Aging", apAgingSpec(), "fb9cd1d0d49bf336a36d40140462941e54d0d173f59fccc79d5cba9e738aa5a0"},
 	} {
 		sum := sha256.Sum256(mustJSON(c.spec))
 		if got := hex.EncodeToString(sum[:]); got != c.want {

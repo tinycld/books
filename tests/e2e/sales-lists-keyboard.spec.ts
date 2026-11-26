@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test'
 import { createCustomer, DESKTOP, openBooks, uniqueName } from './customer-form-helpers'
 import { NEW_INVOICE_URL } from './invoice-helpers'
+import { expectRecordUrl, urlKeyOf } from './record-key-helpers'
 import { openSales, postedInvoiceFor, salesRow, salesTabUrl } from './sales-lists-helpers'
 
 // The Sales list keys (sales-lists checkpoint 5, spec §3 "Keyboard"): after the Sales
@@ -29,7 +30,7 @@ import { openSales, postedInvoiceFor, salesRow, salesTabUrl } from './sales-list
 //   phone runs).
 
 const WIDE = { width: 1440, height: 900 }
-const ENTRY_URL = /\/books\/entries\/[a-z0-9]{15}$/
+const ENTRY_URL = /\/books\/entries\/(?!new$)[^/?#]+$/
 
 function visible(page: Page, testId: string) {
     return page.getByTestId(testId).filter({ visible: true })
@@ -155,9 +156,9 @@ test.describe('sales-lists: keyboard', () => {
         await expectTicked(page, second, false)
 
         // Enter opens the focused invoice.
-        const firstUrl = new RegExp(`/books/invoices/${first}$`)
         await page.keyboard.press('Enter')
-        await expect(page).toHaveURL(firstUrl)
+        await expectRecordUrl(page, 'invoices', first)
+        const firstUrl = new RegExp(`/books/invoices/${await urlKeyOf(page, 'invoices', first)}$`)
         await expect(visible(page, 'invoice-read-only')).toBeVisible()
 
         // The list under the pushed invoice has no keys: ArrowDown and 3 do nothing. (J is
@@ -211,9 +212,9 @@ test.describe('sales-lists: keyboard', () => {
         await expect(search).not.toBeFocused()
         await page.keyboard.press('j')
         await expectFocusedRow(page, first, second)
-        const firstUrl = new RegExp(`/books/invoices/${first}$`)
         await page.keyboard.press('o')
-        await expect(page).toHaveURL(firstUrl)
+        await expectRecordUrl(page, 'invoices', first)
+        const firstUrl = new RegExp(`/books/invoices/${await urlKeyOf(page, 'invoices', first)}$`)
 
         // At 1440 px the invoice opens beside the 320 px column, whose list keys stay active
         // under the read view: ArrowDown and ArrowUp move the row focus there.
@@ -233,7 +234,7 @@ test.describe('sales-lists: keyboard', () => {
         await page.keyboard.press('ArrowDown')
         await expect(secondName).toHaveAttribute('aria-current', 'true')
         await page.keyboard.press('Enter')
-        await expect(page).toHaveURL(new RegExp(`/books/invoices/${second}$`))
+        await expectRecordUrl(page, 'invoices', second)
         await expect(visible(page, 'invoice-read-only')).toBeVisible()
         await expect(secondName).toHaveAttribute('aria-current', 'true')
 
@@ -247,7 +248,7 @@ test.describe('sales-lists: keyboard', () => {
         await page.keyboard.press('ArrowDown')
         await expect(secondName).toHaveAttribute('aria-current', 'true')
         await page.keyboard.press('Enter')
-        await expect(page).toHaveURL(new RegExp(`/books/invoices/${second}$`))
+        await expectRecordUrl(page, 'invoices', second)
         await expect(visible(page, 'invoice-read-only')).toBeVisible()
         await expect(secondName).toHaveAttribute('aria-current', 'true')
         await expect(firstName).not.toHaveAttribute('aria-current', 'true')

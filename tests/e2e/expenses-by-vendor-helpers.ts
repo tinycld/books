@@ -125,7 +125,7 @@ export async function postBillOnAccounts(
     }
     if (options.memo !== undefined) await page.getByTestId('form-input-memo').fill(options.memo)
     const number = await postBill(page)
-    return { id: billIdFromUrl(page), number }
+    return { id: await billIdFromUrl(page), number }
 }
 
 // The % of expenses of the row labelled exactly `label` (a vendor's group row, or "Total"

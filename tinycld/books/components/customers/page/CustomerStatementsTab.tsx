@@ -15,6 +15,7 @@ import { useFitsTable } from '../../../hooks/useFitsTable'
 import { usePdfDownload } from '../../../hooks/usePdfDownload'
 import { useStatementDelete } from '../../../hooks/useStatementDelete'
 import { formatMoney } from '../../../lib/money'
+import { documentKey } from '../../../lib/record-key'
 import { formatDay } from '../../../lib/register-range'
 import {
     STATEMENT_TAB_CARD_HEIGHT,
@@ -381,7 +382,7 @@ export function CustomerStatementsTab({
     const isDeleteRowListed = rows.some(row => row.id === deleteTarget?.id)
     const isDeleteOpen = deleteTarget !== null && (deletion.isDeleting || isDeleteRowListed)
 
-    const open = (row: StatementRow) => router.push(orgHref(statementHref(row.id)))
+    const open = (row: StatementRow) => router.push(orgHref(statementHref(documentKey(row))))
     const create = () => router.push(orgHref(newStatementHref(customerId)))
     const retry = () => {
         void recoverLiveQueries({

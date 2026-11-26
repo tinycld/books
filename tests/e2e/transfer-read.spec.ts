@@ -3,6 +3,7 @@ import { ENTRIES_SEED } from '../../tinycld/books/lib/journal-entries-fixture'
 import { TRANSFER_SEED } from '../../tinycld/books/lib/transfer-fixture'
 import { openRegister, revealRegisterItem } from './account-register-helpers'
 import { openEntriesList, searchEntries } from './journal-entries-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import { DESKTOP, startTransfers, TRANSFER_LABELS } from './transfer-helpers'
 
 // The read-view tests read the seeded transfer (`TRANSFER_SEED`). `seed.ts` posts it
@@ -59,7 +60,7 @@ test.describe('transfer: read view', () => {
         const number = (await numberCell.innerText()).trim()
 
         await row.click()
-        await expect(page).toHaveURL(new RegExp(`/books/transfers/${id}$`))
+        await expectRecordUrl(page, 'transfers', id)
         const view = page.getByTestId('transfer-read-only')
         await expect(view).toBeVisible()
         await expect(page.getByTestId('transfer-title')).toHaveText(/^Transfer TR-\d+$/)
@@ -82,7 +83,7 @@ test.describe('transfer: read view', () => {
         await expect(view.getByLabel('Open help')).toBeVisible()
 
         await page.getByTestId('transfer-view-entry').click()
-        await expect(page).toHaveURL(new RegExp(`/books/entries/${id}$`))
+        await expectRecordUrl(page, 'entries', id)
         const entryView = page.getByTestId('entry-read-only')
         await expect(entryView).toBeVisible()
         await expect(entryView.getByTestId('entry-line-0')).toBeVisible()
@@ -100,7 +101,7 @@ test.describe('transfer: read view', () => {
             page.getByTestId('register-drawer-field-type').getByText('Transfer', { exact: true })
         ).toBeVisible()
         await page.getByTestId('register-drawer-open-entry').click()
-        await expect(page).toHaveURL(new RegExp(`/books/transfers/${id}$`))
+        await expectRecordUrl(page, 'transfers', id)
         await expect(page.getByTestId('transfer-read-only')).toBeVisible()
     })
 
@@ -135,7 +136,7 @@ test.describe('transfer: read view', () => {
         const row = await findEntryRow(page, ENTRIES_SEED.posted)
         const entryId = await idFromTestId(row, 'entries-row-')
         await pushPath(page, `/a/books/transfers/${entryId}`)
-        await expect(page).toHaveURL(new RegExp(`/books/entries/${entryId}$`))
+        await expectRecordUrl(page, 'entries', entryId)
         await expect(page.getByTestId('entry-read-only')).toBeVisible()
     })
 })

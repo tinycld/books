@@ -2,6 +2,7 @@ import { expect, type Locator, type Page, test } from '@playwright/test'
 import { ENTRIES_SEED } from '../../tinycld/books/lib/journal-entries-fixture'
 import { createAccount, makeAccountInactive, openChart } from './account-register-helpers'
 import { openEntriesList, refuseEntryWrite, searchEntries } from './journal-entries-helpers'
+import { expectNotRecordUrl, expectRecordUrl } from './record-key-helpers'
 import {
     chooseTransferAccount,
     createPostedTransfer,
@@ -89,10 +90,9 @@ test.describe('transfer: actions', () => {
         await page.getByTestId('transfer-save-draft').click()
         await expect(page).toHaveURL(TRANSFER_URL)
         await expect(page.getByTestId('transfer-title')).toHaveText('Draft transfer')
-        const id = transferIdFromUrl(page)
-        const draftUrl = new RegExp(`/books/transfers/${id}$`)
+        const id = await transferIdFromUrl(page)
         await page.getByTestId('transfer-cancel').click()
-        await expect(page).not.toHaveURL(draftUrl)
+        await expectNotRecordUrl(page, 'transfers', id)
 
         // The sidebar pushes the chart over the Journal Entries list Cancel returned to, and
         // pushing the list again would mount a second one: go back to it instead.
@@ -102,7 +102,7 @@ test.describe('transfer: actions', () => {
         await expect(page.getByTestId('entries-screen')).toBeVisible()
 
         await openTransferFromList(page, memo)
-        await expect(page).toHaveURL(draftUrl)
+        await expectRecordUrl(page, 'transfers', id)
         await expect(page.getByTestId('transfer-to')).toHaveText(name)
 
         await refuseEntryWrite(page, 'post', CLOSED)
@@ -125,7 +125,7 @@ test.describe('transfer: actions', () => {
         await expect(page.getByTestId('transfer-read-only')).toBeVisible()
         const title = page.getByTestId('transfer-title')
         await expect(title).toHaveText(/^Transfer TR-\d+$/)
-        await expect(page).toHaveURL(draftUrl)
+        await expectRecordUrl(page, 'transfers', id)
         const number = (await title.innerText()).trim().replace(/^Transfer /, '')
 
         // Each save updated the one draft: the list holds one row for the memo.
@@ -161,7 +161,7 @@ test.describe('transfer: actions', () => {
         await page.getByTestId('transfer-post').click()
         await expect(page.getByTestId('transfer-read-only')).toBeVisible()
         await expect(page).toHaveURL(TRANSFER_URL)
-        expect(transferIdFromUrl(page)).not.toBe(id)
+        expect(await transferIdFromUrl(page)).not.toBe(id)
         await expect(page.getByTestId('transfer-title')).toHaveText(`Transfer ${number}`)
         await expect(page.getByTestId('transfer-amount')).toHaveText('$12.00')
 
@@ -195,7 +195,6 @@ test.describe('transfer: actions', () => {
             amount: '7.00',
             memo: uniqueMemo('Voided transfer'),
         })
-        const transferUrl = new RegExp(`/books/transfers/${id}$`)
 
         await expect(page.getByTestId('entry-edit')).toBeVisible()
         const more = page.getByTestId('entry-more')
@@ -211,7 +210,7 @@ test.describe('transfer: actions', () => {
         await expect(dialog).toBeHidden()
         await expect(page.getByTestId('transfer-read-only')).toBeVisible()
         await expect(page.getByTestId('transfer-badge')).toHaveText('Posted')
-        await expect(page).toHaveURL(transferUrl)
+        await expectRecordUrl(page, 'transfers', id)
 
         await more.click()
         await expect(page.getByRole('menuitem', { name: 'Void', exact: true })).toBeVisible()
@@ -225,7 +224,7 @@ test.describe('transfer: actions', () => {
         await page.getByTestId('void-confirm').click()
 
         await expect(page.getByTestId('transfer-badge')).toHaveText('Void')
-        await expect(page).toHaveURL(transferUrl)
+        await expectRecordUrl(page, 'transfers', id)
         await expect(page.getByTestId('transfer-read-only')).toBeVisible()
         await expect(page.getByTestId('transfer-voided-by')).toBeVisible()
         await expect(page.getByTestId('entry-more')).toHaveCount(0)
@@ -241,7 +240,6 @@ test.describe('transfer: actions', () => {
             amount: '5.00',
             memo,
         })
-        const draftUrl = new RegExp(`/books/transfers/${id}$`)
 
         // ⌘⌫ is Delete draft, also from the memo field: it opens the same dialog, and the
         // field never sees the key (with the caret at the end, the browser's own ⌘⌫ would
@@ -256,7 +254,7 @@ test.describe('transfer: actions', () => {
         await expect(memoInput).toHaveValue(memo)
         await page.keyboard.press('Escape')
         await expect(deleteDialog).toBeHidden()
-        await expect(page).toHaveURL(draftUrl)
+        await expectRecordUrl(page, 'transfers', id)
         await expect(page.getByTestId('transfer-title')).toHaveText('Draft transfer')
         await expect(memoInput).toHaveValue(memo)
 
@@ -268,7 +266,7 @@ test.describe('transfer: actions', () => {
         await item.click()
         await expect(deleteDialog).toBeVisible()
         await page.getByTestId('delete-draft-confirm').click()
-        await expect(page).not.toHaveURL(draftUrl)
+        await expectNotRecordUrl(page, 'transfers', id)
 
         await openEntriesList(page)
         await searchEntries(page, memo)

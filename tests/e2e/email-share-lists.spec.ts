@@ -100,7 +100,7 @@ async function draftFromCustomer(page: Page, customerId: string, memo: string) {
     await page.getByTestId('invoice-save-draft').click()
     await expect(page).toHaveURL(INVOICE_URL)
     await expect(page.getByTestId('invoice-title')).toHaveText('Draft invoice')
-    const id = invoiceIdFromUrl(page)
+    const id = await invoiceIdFromUrl(page)
     await page.goBack()
     await expect(page).toHaveURL(customerPath(customerId))
     return id

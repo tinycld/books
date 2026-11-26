@@ -143,6 +143,7 @@ describe('entryActions for a payment entry', () => {
             origin: 'document',
             doc_type: 'payment',
             document: 'pmntpinpayment1',
+            sequence: 0,
             isReversed: false,
         } as const
         const actions = entryActions(entry, writer)

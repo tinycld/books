@@ -540,6 +540,7 @@ function line(seed: Partial<LineRow> & Pick<LineRow, 'id'>): LineRow {
         credit: 0,
         memo: '',
         number: '10',
+        sequence: 10,
         doc_type: 'journal',
         origin: 'manual',
         document: '',

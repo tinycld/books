@@ -1,3 +1,4 @@
+import { recordIdForKey } from '../stores/route-key-store'
 // Where a federated search hit opens. The server (server/search.go) prefixes
 // each row id with its kind; the screens below are the account register, the
 // journal entry screen, the transfer screen, the customer screen, the vendor
@@ -67,4 +68,17 @@ export function opensOverSameReadView(target: SearchTarget, pathname: string): b
     if (at < 0) return false
     const id = pathname.slice(at + prefix.length)
     return id !== '' && !id.includes('/')
+}
+
+/**
+ * The URL key to open `target` by: when the URL already shows that record by its number
+ * (`books/credit-memos/1005`), that number, so the router finds the screen with the same
+ * params and opens no second copy of it; else the target's id.
+ */
+export function shownKeyFor(target: SearchTarget, pathname: string): string {
+    const base = target.path.replace('/[id]', '')
+    const segment = new RegExp(`/${base}/([^/]+)/?$`).exec(pathname)?.[1]
+    if (!segment) return target.id
+    const screenName = `${base.replace(/^books\//, '')}/[id]`
+    return recordIdForKey(screenName, segment) === target.id ? segment : target.id
 }

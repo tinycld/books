@@ -55,6 +55,8 @@ export function useEntriesScreen() {
                         doc_type: 'journal',
                         origin: 'manual',
                         document: '',
+                        sequence: 0,
+                        status: 'draft',
                     }
                 )
             )

@@ -3,21 +3,15 @@ import { isPhone } from './account-register-helpers'
 import { lineCellTestId } from './invoice-helpers'
 import { openEntriesList } from './journal-entries-helpers'
 import { openNewAction } from './new-menu-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 import { pickFromSearchPicker } from './search-picker-helpers'
 
 // A credit memo's own screen: `books/credit-memos/<id>`, never `.../new`.
 export const CREDIT_MEMO_URL = /\/books\/credit-memos\/(?!new(?:[?#]|$))[^/?#]+$/
 export const NEW_CREDIT_MEMO_URL = /\/books\/credit-memos\/new(?:[?#].*)?$/
 
-export function creditMemoUrlOf(id: string) {
-    return new RegExp(`/books/credit-memos/${id}$`)
-}
-
-export function creditMemoIdFromUrl(page: Page): string {
-    const match = /\/books\/credit-memos\/([^/?#]+)$/.exec(new URL(page.url()).pathname)
-    const id = match?.[1]
-    if (!id || id === 'new') throw new Error(`Not on a saved credit memo: ${page.url()}`)
-    return id
+export async function creditMemoIdFromUrl(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'credit-memos')
 }
 
 // Books must already be open. From the Journal Entries list through the New menu
@@ -26,7 +20,11 @@ export async function openNewCreditMemo(page: Page) {
     await openEntriesList(page)
     await openNewAction(page, 'credit_memo')
     await expect(page).toHaveURL(NEW_CREDIT_MEMO_URL)
-    await expect(page.getByTestId('credit-memo-title')).toHaveText('New credit memo')
+    // A credit memo a fresh page reopened (its last Books route) stays mounted, hidden,
+    // under the new form: only the shown title is the form's.
+    await expect(page.getByTestId('credit-memo-title').filter({ visible: true })).toHaveText(
+        'New credit memo'
+    )
 }
 
 export async function pickCreditMemoCustomer(page: Page, name: string) {
@@ -79,7 +77,10 @@ export async function searchToCreditMemo(page: Page, memo: string, title = CREDI
 export async function openCreditMemoBySearch(page: Page, memo: string) {
     await searchToCreditMemo(page, memo)
     await expect(
-        page.getByTestId('credit-memo-form').or(page.getByTestId('credit-memo-read-only'))
+        page
+            .getByTestId('credit-memo-form')
+            .or(page.getByTestId('credit-memo-read-only'))
+            .filter({ visible: true })
     ).toBeVisible()
 }
 
@@ -95,7 +96,7 @@ export async function createCreditMemoFromInvoice(page: Page) {
     await page.locator('[data-testid="invoice-read-credit-memo"]:visible').click()
     await expect(page).toHaveURL(NEW_CREDIT_MEMO_URL)
     await expect(page).toHaveURL(CREDIT_MEMO_FROM_INVOICE_URL)
-    await expect(page.getByTestId('credit-memo-form')).toBeVisible()
+    await expect(page.getByTestId('credit-memo-form').filter({ visible: true })).toBeVisible()
 }
 
 // Books must already be open. Leaves the page on the saved draft's form.
@@ -112,8 +113,10 @@ export async function saveCreditMemoDraft(
     await page.getByTestId('form-input-memo').fill(input.memo)
     await page.getByTestId('credit-memo-save-draft').click()
     await expect(page).toHaveURL(CREDIT_MEMO_URL)
-    await expect(page.getByTestId('credit-memo-title')).toHaveText('Draft credit memo')
-    return creditMemoIdFromUrl(page)
+    await expect(page.getByTestId('credit-memo-title').filter({ visible: true })).toHaveText(
+        'Draft credit memo'
+    )
+    return await creditMemoIdFromUrl(page)
 }
 
 // Books must already be open. Posts a new memo of one line and leaves the page on its
@@ -144,10 +147,10 @@ export async function postCreditMemo(
     await page.getByTestId('form-input-memo').fill(input.memo)
     await page.getByTestId('credit-memo-post').click()
     await expect(page).toHaveURL(CREDIT_MEMO_URL)
-    await expect(page.getByTestId('credit-memo-read-only')).toBeVisible()
-    const title = page.getByTestId('credit-memo-title')
+    await expect(page.getByTestId('credit-memo-read-only').filter({ visible: true })).toBeVisible()
+    const title = page.getByTestId('credit-memo-title').filter({ visible: true })
     await expect(title).toHaveText(/^Credit memo \d+$/)
     const number = /^Credit memo (\d+)$/.exec(await title.innerText())?.[1]
     if (!number) throw new Error('the read view title has no number')
-    return { id: creditMemoIdFromUrl(page), number }
+    return { id: await creditMemoIdFromUrl(page), number }
 }

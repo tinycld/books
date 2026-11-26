@@ -13,7 +13,7 @@ import { useCallback, useMemo, useRef } from 'react'
 import type { TextInputInstance } from 'react-native'
 import type { ListScrollHandle } from '../components/ListTable'
 import { accountLabel } from '../lib/account-options'
-import { entryHref } from '../lib/entry-route'
+import { postedLineHref } from '../lib/entry-route'
 import { SEARCH_DELAY_MS } from '../lib/list-search'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
 import { localDayOf } from '../lib/opening-balances'
@@ -296,17 +296,7 @@ export function useReconcileScreen(id: string) {
     })
     const searchRef = useRef<TextInputInstance>(null)
     const listScrollRef = useRef<ListScrollHandle>(null)
-    const onOpen = (row: ReconcileLineRow) =>
-        router.push(
-            orgHref(
-                entryHref({
-                    id: row.entry,
-                    doc_type: row.doc_type,
-                    origin: row.origin,
-                    document: row.document,
-                })
-            )
-        )
+    const onOpen = (row: ReconcileLineRow) => router.push(orgHref(postedLineHref(row)))
     const scopeOwner = useReconcileShortcuts({
         isEnabled: state === 'work' && !isFinishing,
         canWrite,

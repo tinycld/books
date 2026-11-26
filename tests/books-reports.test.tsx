@@ -32,6 +32,23 @@ describe('sortBooksReports', () => {
         ])
     })
 
+    it('orders the shipped reports by group: Overview, Sales, Expenses, then Accounting', () => {
+        const sorted = sortBooksReports([
+            { id: '1', title: 'Trial Balance', shippedKey: 'books.trial_balance' },
+            { id: '2', title: 'A/P Aging', shippedKey: 'books.ap_aging' },
+            { id: '3', title: 'A/R Aging', shippedKey: 'books.ar_aging' },
+            { id: '4', title: 'Profit and Loss', shippedKey: 'books.profit_and_loss' },
+            { id: '5', title: 'My report', shippedKey: '' },
+        ])
+        expect(sorted.map(report => [report.title, report.group])).toEqual([
+            ['Profit and Loss', 'overview'],
+            ['A/R Aging', 'sales'],
+            ['A/P Aging', 'expenses'],
+            ['Trial Balance', 'accounting'],
+            ['My report', 'saved'],
+        ])
+    })
+
     it('keeps two reports of one title in a fixed order', () => {
         const rows = [
             { id: 'b', title: 'Same', shippedKey: '' },
@@ -54,14 +71,22 @@ describe('useBooksReports', () => {
                 title: 'Balance Sheet',
                 shippedKey: 'books.balance_sheet',
                 isShipped: true,
+                group: 'overview',
             },
             {
                 id: PROFIT_AND_LOSS.id,
                 title: 'Profit and Loss',
                 shippedKey: 'books.profit_and_loss',
                 isShipped: true,
+                group: 'overview',
             },
-            { id: MY_SALES.id, title: 'My sales by month', shippedKey: '', isShipped: false },
+            {
+                id: MY_SALES.id,
+                title: 'My sales by month',
+                shippedKey: '',
+                isShipped: false,
+                group: 'saved',
+            },
         ])
         expect(result.current.isError).toBe(false)
         expect(result.current.recovery).toEqual({ queries: [], sources: [] })

@@ -17,7 +17,7 @@ func vendorBalanceShipped() reports.Shipped {
 		Spec:        mustJSON(vendorBalanceSpec()),
 		// 1: the first shipped spec. The report is unreleased, so later
 		// checkpoints keep 1 (core re-stores a spec only on a higher revision).
-		Revision:    1,
+		Revision:    2,
 		Unpublished: true,
 		// It reads books.journal_lines, a source that is NotLive. Its rows are
 		// sums per vendor, and an opened vendor reads only its own lines, so its

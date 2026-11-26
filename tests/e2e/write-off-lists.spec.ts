@@ -140,7 +140,7 @@ test.describe('write-off: lists', () => {
     test('writes off an invoice from the Invoices list', async ({ page }) => {
         await openBooks(page)
         const { memo, number } = await invoiceToWriteOff(page, 'Write-off list')
-        const id = invoiceIdFromUrl(page)
+        const id = await invoiceIdFromUrl(page)
         const balanceColumn = salesTabOf('invoices').columns.indexOf('balance')
 
         await openSales(page)

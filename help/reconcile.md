@@ -11,7 +11,7 @@ Every Bank account (Checking, Savings, Money market, Cash on hand or Trust accou
 
 ## Open Reconcile
 
-To open Reconcile, choose Reconcile in the Accounting group of the sidebar. The screen lists each active bank and credit card account, with the date it is reconciled through ("Never" when it has no finished reconciliation) and its balance in Books. Press the date to see that statement's summary.
+To open Reconcile, choose Reconcile in the sidebar. The screen lists each active bank and credit card account, with the date it is reconciled through ("Never" when it has no finished reconciliation) and its balance in Books. Press the date to see that statement's summary.
 
 ![Reconcile: the list of bank and credit card accounts, with the date each is reconciled through, its balance in Books and its Reconcile or Resume button.](images/reconcile-1.png)
 

@@ -70,7 +70,16 @@ export function itemAmountText(amount: number, currency: string): string {
 export function itemHref(item: { entry: string; doc_type: string; document: string }): string {
     const docType = isDocType(item.doc_type) ? item.doc_type : 'journal'
     const origin = item.document === '' ? 'manual' : 'document'
-    return entryHref({ id: item.entry, doc_type: docType, origin, document: item.document })
+    // The item holds no number: the link opens by id, and the route puts the number in the
+    // URL (hooks/useRouteRecordId.ts).
+    return entryHref({
+        id: item.entry,
+        doc_type: docType,
+        origin,
+        document: item.document,
+        sequence: 0,
+        status: 'posted',
+    })
 }
 
 const NO_PARTY = '—'

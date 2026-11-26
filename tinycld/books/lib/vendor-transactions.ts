@@ -10,13 +10,14 @@ import type {
     BooksVendorCredits,
     BooksVendorRefunds,
 } from '../types'
-import { documentHref } from './document-routes'
+import { documentPath } from './document-routes'
 import {
     creditStatus,
     dueDocumentStatus,
     lifecycleStatus,
     type PartyTransactionRow,
 } from './party-transactions'
+import { documentKey } from './record-key'
 
 export type VendorTransactionKind =
     | 'bill'
@@ -74,7 +75,15 @@ export const VENDOR_TRANSACTION_TEXTS = {
     noMatch: (kind: VendorTransactionKind) => `No ${NO_MATCH_NOUNS[kind]} for this vendor`,
 }
 
-type Common = 'id' | 'status' | 'number' | 'date' | 'currency' | 'created'
+type Common =
+    | 'id'
+    | 'status'
+    | 'number'
+    | 'date'
+    | 'currency'
+    | 'created'
+    | 'sequence'
+    | 'replaced_by'
 type BillInput = Pick<BooksBills, Common | 'due_date' | 'total' | 'balance'>
 type ExpenseInput = Pick<BooksExpenses, Common | 'total'>
 type BillPaymentInput = Pick<BooksBillPayments, Common | 'total'>
@@ -96,6 +105,7 @@ function rowOf(
 ): VendorTransactionRow {
     return {
         id: row.id,
+        key: documentKey(row),
         kind,
         number: row.number,
         date: row.date,
@@ -151,5 +161,5 @@ export function vendorRefundRow(row: VendorRefundInput): VendorTransactionRow {
 }
 
 export function vendorTransactionHref(row: VendorTransactionRow): string {
-    return documentHref({ routeBase: VENDOR_TRANSACTION_ROUTES[row.kind] }, row.id)
+    return documentPath({ routeBase: VENDOR_TRANSACTION_ROUTES[row.kind] }, row.key)
 }

@@ -4,7 +4,7 @@
 // reaches here: its history is its parent's.
 import { recordTypeLabel } from './audit-log'
 import { customerPath } from './customer-route'
-import { documentHref } from './document-routes'
+import { documentPath } from './document-routes'
 import { entryHref } from './entry-route'
 import { DOCUMENT_COLLECTIONS } from './history-route'
 import { productPath } from './product-route'
@@ -136,6 +136,9 @@ function entryPath(id: string, live: LiveRecord): string {
         doc_type: isDocType(docType) ? docType : 'journal',
         origin: isOrigin(origin) ? origin : 'reversal',
         document: textOf(live, 'document'),
+        // No number here: the link opens by id, and the route puts the number in the URL.
+        sequence: 0,
+        status: 'posted',
     })
 }
 
@@ -203,7 +206,7 @@ function parentDocumentPath(
     const parent = parentOf(live)
     if (!parent) return null
     const kind = DOCUMENT_KINDS.get(parent.collection)
-    if (kind) return documentHref(kind, parent.id)
+    if (kind) return documentPath(kind, parent.id)
     return RECORD_PATHS[parent.collection]?.(parent.id) ?? null
 }
 
@@ -218,7 +221,7 @@ export function auditRecordHref(
 ): string | null {
     if (!live) return null
     const kind = DOCUMENT_KINDS.get(collection)
-    if (kind) return documentHref(kind, id)
+    if (kind) return documentPath(kind, id)
     if (collection === 'books_journal_entries') return entryPath(id, live)
     if (collection === 'books_party_contacts') return contactPath(live)
     const parentOf = PARENT_DOCUMENTS[collection]

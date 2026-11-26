@@ -4,6 +4,7 @@ import { formatDay } from '../../tinycld/books/lib/register-range'
 import { DESKTOP } from './account-register-helpers'
 import { invoiceIdFromUrl, localToday, openInvoiceBySearch } from './invoice-helpers'
 import { localDay, PAYMENT_URL, rowAmount } from './receive-payment-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import {
     BAD_DEBTS,
     holdWriteOffInsert,
@@ -39,10 +40,6 @@ function shown(page: Page, testId: string): Locator {
     return page.locator(`[data-testid="${testId}"]:visible`)
 }
 
-function invoiceUrlOf(id: string) {
-    return new RegExp(`/books/invoices/${id}$`)
-}
-
 // The Write-offs section's rows: `invoice-write-off-<id>`, never the links
 // (`invoice-write-off-link-<id>`) or the section's own `invoice-write-offs-…` ids.
 function writeOffRows(section: Locator) {
@@ -55,7 +52,7 @@ test.describe('write-off: dialog', () => {
     test('writes off an invoice from the keyboard only', async ({ page }) => {
         await openBooks(page)
         const { number } = await invoiceToWriteOff(page, 'Write-off keys')
-        const id = invoiceIdFromUrl(page)
+        const id = await invoiceIdFromUrl(page)
         await expect(shown(page, 'invoice-read-write-off')).toBeVisible()
 
         // From here on, keys only.
@@ -81,7 +78,7 @@ test.describe('write-off: dialog', () => {
 
         await expect(writeOffToast(page, number, '$400.00')).toBeVisible()
         await expect(dialog).toHaveCount(0)
-        await expect(page).toHaveURL(invoiceUrlOf(id))
+        await expectRecordUrl(page, 'invoices', id)
         await expect(shown(page, 'invoice-badge')).toHaveText('Written off')
         await expect(shown(page, 'invoice-total-written-off')).toContainText('Written off')
         await expect(shown(page, 'invoice-total-written-off')).toContainText('−$400.00')
@@ -141,7 +138,7 @@ test.describe('write-off: dialog', () => {
     test('follows a payment posted while the dialog is open', async ({ page }) => {
         await openBooks(page)
         const { memo, number } = await invoiceToWriteOff(page, 'Write-off live')
-        const id = invoiceIdFromUrl(page)
+        const id = await invoiceIdFromUrl(page)
 
         await page.keyboard.press('w')
         const dialog = page.getByTestId('write-off-dialog')
@@ -153,7 +150,7 @@ test.describe('write-off: dialog', () => {
         const other = await page.context().newPage()
         await openBooks(other)
         await openInvoiceBySearch(other, memo)
-        await expect(other).toHaveURL(invoiceUrlOf(id))
+        await expectRecordUrl(other, 'invoices', id)
         await other.keyboard.press('r')
         await expect(rowAmount(other, id)).toHaveValue('400.00')
         await rowAmount(other, id).fill('100.00')
@@ -186,7 +183,7 @@ test.describe('write-off: dialog', () => {
         await held.release()
         await expect(writeOffToast(page, number, '$300.00')).toBeVisible()
         await expect(dialog).toHaveCount(0)
-        await expect(page).toHaveURL(invoiceUrlOf(id))
+        await expectRecordUrl(page, 'invoices', id)
         await expect(shown(page, 'invoice-total-written-off')).toContainText('−$300.00')
         await expect(shown(page, 'invoice-total-payments')).toContainText('−$100.00')
         await expect(shown(page, 'invoice-balance-due')).toHaveText('$0.00')
@@ -196,7 +193,7 @@ test.describe('write-off: dialog', () => {
     test('a written-off invoice refuses Void and Edit', async ({ page }) => {
         await openBooks(page)
         const { memo, number } = await invoiceToWriteOff(page, 'Write-off refusals')
-        const id = invoiceIdFromUrl(page)
+        const id = await invoiceIdFromUrl(page)
         await writeOffOpenInvoice(page)
         await expect(shown(page, 'invoice-badge')).toHaveText('Written off')
 
@@ -230,7 +227,7 @@ test.describe('write-off: dialog', () => {
         await page.getByTestId('invoice-cancel').click()
         await expect(page).not.toHaveURL(editUrl)
         await openPostedInvoiceBySearch(page, memo, number)
-        await expect(page).toHaveURL(invoiceUrlOf(id))
+        await expectRecordUrl(page, 'invoices', id)
         await expect(shown(page, 'invoice-title')).toHaveText(`Invoice ${number}`)
         await expect(shown(page, 'invoice-badge')).toHaveText('Written off')
         await expect(shown(page, 'invoice-read-void')).toBeVisible()

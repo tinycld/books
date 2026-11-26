@@ -110,7 +110,7 @@ export async function draftBillFor(page: Page, vendorName: string, memo: string)
     await page.getByTestId('bill-save-draft').click()
     await expect(page).toHaveURL(/\/books\/bills\/(?!new(?:[?#]|$))[^/?#]+$/)
     await expect(page.getByTestId('bill-title')).toHaveText('Draft bill')
-    const id = billIdFromUrl(page)
+    const id = await billIdFromUrl(page)
     await returnTo(page, start)
     return id
 }
@@ -126,7 +126,7 @@ export async function postedBillFor(page: Page, vendorName: string, memo: string
     await fillNewBill(page, vendorName, memo)
     await page.getByTestId('form-input-due_date').fill(await localDay(page, 0))
     await postBill(page)
-    const id = billIdFromUrl(page)
+    const id = await billIdFromUrl(page)
     await returnTo(page, start)
     return id
 }

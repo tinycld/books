@@ -131,20 +131,22 @@ const REFUND_BASE = {
     created: '2026-11-05 09:00:00.000Z',
     memo: '',
     replaced_by: '',
+    sequence: 0,
 }
 const REFUND_ROWS = [
-    { ...REFUND_BASE, id: 'slrr00000001001', status: 'posted', number: '1001' },
-    { ...REFUND_BASE, id: 'slrr00000001002', status: 'posted', number: '1002' },
+    { ...REFUND_BASE, id: 'slrr00000001001', status: 'posted', number: '1001', sequence: 1001 },
+    { ...REFUND_BASE, id: 'slrr00000001002', status: 'posted', number: '1002', sequence: 1002 },
     { ...REFUND_BASE, id: 'slrrdraft000001', status: 'draft' },
-    { ...REFUND_BASE, id: 'slrr00000001003', status: 'void', number: '1003' },
+    { ...REFUND_BASE, id: 'slrr00000001003', status: 'void', number: '1003', sequence: 1003 },
     {
         ...REFUND_BASE,
         id: 'slrr0001004old0',
         status: 'void',
         number: '1004',
+        sequence: 1004,
         replaced_by: 'slrr0001004fix0',
     },
-    { ...REFUND_BASE, id: 'slrr0001004fix0', status: 'posted', number: '1004' },
+    { ...REFUND_BASE, id: 'slrr0001004fix0', status: 'posted', number: '1004', sequence: 1004 },
 ] as const
 
 // Write-off spec §3.6 (Q11): the fixture's invoices carry `written_off` 0 (a value the
@@ -194,9 +196,10 @@ const APPLIED_MEMO_BASE = {
     date: '2026-11-12',
     memo: 'Applied to an invoice',
     total: 25_000,
+    replaced_by: '',
 }
 const CREDIT_MEMO_ROWS = [
-    ...SALES_LIST_CREDIT_MEMOS.map(row => ({ applied: 0, ...row })),
+    ...SALES_LIST_CREDIT_MEMOS.map(row => ({ applied: 0, replaced_by: '', ...row })),
     {
         ...APPLIED_MEMO_BASE,
         id: 'slcmappliedfull',
@@ -617,8 +620,10 @@ describe('searchClauses', () => {
 let next = 0
 function listRow(over: Partial<DocumentListRow>): DocumentListRow {
     next++
+    const id = `row${String(next).padStart(12, '0')}`
     return {
-        id: `row${String(next).padStart(12, '0')}`,
+        id,
+        key: id,
         kind: 'invoice',
         number: '',
         date: '2026-11-01',

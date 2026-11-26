@@ -2,14 +2,23 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { entryActions } from '../tinycld/books/lib/entry-actions'
-import { DOCUMENT_ROUTES, entryEditHref, entryHref } from '../tinycld/books/lib/entry-route'
+import {
+    DOCUMENT_ROUTES,
+    entryEditHref,
+    entryHref,
+    postedLineHref,
+} from '../tinycld/books/lib/entry-route'
 import type { BooksJournalEntries } from '../tinycld/books/types'
 
+// A posted entry with no number of its own (sequence 0) keeps its id in its URL, so
+// these cases test where an entry opens; the numbered cases below test its key.
 const entry = (
     doc_type: BooksJournalEntries['doc_type'],
     origin: BooksJournalEntries['origin'],
-    document = ''
-) => ({ id: 'a', doc_type, origin, document })
+    document = '',
+    sequence = 0,
+    status: BooksJournalEntries['status'] = 'posted'
+) => ({ id: 'a', doc_type, origin, document, sequence, status })
 
 describe('entryHref', () => {
     it('opens a transfer on the transfer screen', () => {
@@ -27,6 +36,53 @@ describe('entryHref', () => {
 
     it("opens an invoice's void reversal on the entry screen", () => {
         expect(entryHref(entry('invoice', 'void_reversal'))).toBe('books/entries/a')
+    })
+
+    it('opens a posted journal entry and a posted manual transfer by their number', () => {
+        expect(entryHref(entry('journal', 'manual', '', 12))).toBe('books/entries/12')
+        expect(entryHref(entry('transfer', 'manual', '', 7))).toBe('books/transfers/7')
+    })
+
+    it('opens a void or draft numbered entry by its id', () => {
+        expect(entryHref(entry('journal', 'manual', '', 12, 'void'))).toBe('books/entries/a')
+        expect(entryHref(entry('transfer', 'manual', '', 7, 'void'))).toBe('books/transfers/a')
+        expect(entryHref(entry('journal', 'manual', '', 12, 'draft'))).toBe('books/entries/a')
+    })
+
+    it("opens a numbered void reversal by its id, as its number is its entry's", () => {
+        expect(entryHref(entry('journal', 'void_reversal', '', 12))).toBe('books/entries/a')
+        expect(entryHref(entry('invoice', 'void_reversal', '', 1005))).toBe('books/entries/a')
+    })
+
+    it('opens an entry of another doc type on the entry screen by its id', () => {
+        expect(entryHref(entry('inventory_adjustment', 'manual', '', 3))).toBe('books/entries/a')
+    })
+
+    it("opens a posted document entry on its document by the entry's number", () => {
+        expect(entryHref(entry('invoice', 'document', 'invc1', 1005))).toBe('books/invoices/1005')
+    })
+
+    it("opens a void document entry on its document by the document's id", () => {
+        expect(entryHref(entry('invoice', 'document', 'invc1', 1005, 'void'))).toBe(
+            'books/invoices/invc1'
+        )
+    })
+})
+
+describe('postedLineHref', () => {
+    it('opens a reconcile line by its posted entry', () => {
+        const line = { entry: 'e1', doc_type: 'journal' as const, origin: 'manual' as const }
+        expect(postedLineHref({ ...line, document: '', sequence: 4 })).toBe('books/entries/4')
+        expect(postedLineHref({ ...line, document: '', sequence: 0 })).toBe('books/entries/e1')
+        expect(
+            postedLineHref({
+                entry: 'e2',
+                doc_type: 'bill',
+                origin: 'document',
+                document: 'b1',
+                sequence: 31,
+            })
+        ).toBe('books/bills/31')
     })
 })
 
@@ -48,8 +104,11 @@ describe('entry routes match server/entry_routes.json', () => {
                 doc_type: docType as BooksJournalEntries['doc_type'],
                 origin: 'document' as const,
                 document: 'd1',
+                sequence: 0,
+                status: 'posted' as const,
             }
             expect(entryHref(documentEntry)).toBe(`books/${route}/d1`)
+            expect(entryHref({ ...documentEntry, sequence: 9 })).toBe(`books/${route}/9`)
         }
     })
 
@@ -60,14 +119,15 @@ describe('entry routes match server/entry_routes.json', () => {
     it('opens a manual transfer, a journal entry and an unrouted document entry by the entry', () => {
         // An estimate posts no entry, so the JSON has no route for it.
         expect(Object.keys(entryRoutesFile())).not.toContain('estimate')
-        expect(entryHref({ id: 'e1', doc_type: 'transfer', origin: 'manual', document: '' })).toBe(
+        const unnumbered = { id: 'e1', document: '', sequence: 0, status: 'posted' as const }
+        expect(entryHref({ ...unnumbered, doc_type: 'transfer', origin: 'manual' })).toBe(
             'books/transfers/e1'
         )
-        expect(entryHref({ id: 'e1', doc_type: 'journal', origin: 'manual', document: '' })).toBe(
+        expect(entryHref({ ...unnumbered, doc_type: 'journal', origin: 'manual' })).toBe(
             'books/entries/e1'
         )
         const unrouted = {
-            id: 'e1',
+            ...unnumbered,
             doc_type: 'estimate' as BooksJournalEntries['doc_type'],
             origin: 'document' as const,
             document: 'd1',

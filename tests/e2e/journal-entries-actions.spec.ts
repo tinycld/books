@@ -18,6 +18,7 @@ import {
     settleFrames,
 } from './journal-entries-helpers'
 import { uniqueName } from './record-form-helpers'
+import { expectRecordUrl, recordIdFromUrl } from './record-key-helpers'
 
 // Edit (replacement draft), Reverse and Void on a posted entry's read-only view.
 // Decisions that shape it (design gate): writers get Edit, Reverse and Void in the
@@ -65,8 +66,10 @@ async function makePosted(page: Page, memo: string) {
     })
 }
 
-function entryIdOf(page: Page) {
-    return new URL(page.url()).pathname.split('/').pop() ?? ''
+// The id of the entry the page is on, or '' off a saved entry (the list, a new form).
+async function entryIdOf(page: Page) {
+    if (!/\/books\/entries\/(?!new$)[^/]+$/.test(new URL(page.url()).pathname)) return ''
+    return recordIdFromUrl(page, 'entries')
 }
 
 // The read-only view prints the date as "Oct 25, 2026"; the rule works on ISO days.
@@ -196,7 +199,7 @@ for (const [sizeName, size] of SIZES) {
             await start(page, size)
             const memo = uniqueName(`Reverse me ${sizeName}`)
             await makePosted(page, memo)
-            const originalId = entryIdOf(page)
+            const originalId = await entryIdOf(page)
             const number = await postedEntryNumber(page)
             expect(number).toMatch(NUMBER)
             const day = await entryDay(page)
@@ -216,7 +219,7 @@ for (const [sizeName, size] of SIZES) {
             await expect(dialog).toContainText('cannot be dated before the entry')
             await expect(dialog).toBeVisible()
             await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
-            expect(entryIdOf(page)).toBe(originalId)
+            expect(await entryIdOf(page)).toBe(originalId)
 
             await page.getByTestId('reverse-date').fill(defaultDate)
             await page.getByTestId('reverse-confirm').click()
@@ -288,7 +291,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         await start(page, size)
         const memo = uniqueName(`Void me ${sizeName}`)
         await makePosted(page, memo)
-        const id = entryIdOf(page)
+        const id = await entryIdOf(page)
         const number = await postedEntryNumber(page)
 
         await chooseAction(page, 'Void')
@@ -302,7 +305,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         await page.getByTestId('void-confirm').click()
         await expect(page.getByTestId('entry-badge')).toHaveText('Void')
         await expect(page.getByTestId('entry-title')).toHaveText(`Journal entry ${number}`)
-        expect(entryIdOf(page)).toBe(id)
+        expect(await entryIdOf(page)).toBe(id)
 
         await backToList(page)
         await searchList(page, memo)
@@ -317,7 +320,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
     }) => {
         await start(page, size)
         await openSeeded(page, ENTRIES_SEED.reversed)
-        const id = entryIdOf(page)
+        const id = await entryIdOf(page)
 
         await chooseAction(page, 'Void')
         const dialog = page.getByTestId('void-dialog')
@@ -328,7 +331,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
         await expect(dialog).toHaveCount(0)
         await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
-        expect(entryIdOf(page)).toBe(id)
+        expect(await entryIdOf(page)).toBe(id)
     })
 
     test('edit: prefilled replacement form keeps the number, leaving writes nothing, posting replaces under the same number', async ({
@@ -337,7 +340,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         await start(page, size)
         const memo = uniqueName(`Edit me ${sizeName}`)
         await makePosted(page, memo)
-        const originalId = entryIdOf(page)
+        const originalId = await entryIdOf(page)
         const number = await postedEntryNumber(page)
 
         // E is the read view's Edit key.
@@ -381,7 +384,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         await page.keyboard.press('ControlOrMeta+Enter')
 
         await waitForOtherEntry(page, originalId)
-        const replacementId = entryIdOf(page)
+        const replacementId = await entryIdOf(page)
         await expect(page.getByTestId('entry-title')).toHaveText(`Journal entry ${number}`)
         await expect(page.getByTestId('entry-badge')).toHaveText('Posted')
         await expect(page.getByTestId('entry-link-replaces')).toHaveText(`Replaces ${number}`)
@@ -426,7 +429,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
     }) => {
         await start(page, size)
         await makePosted(page, uniqueName(`Unreverse ${sizeName}`))
-        const originalId = entryIdOf(page)
+        const originalId = await entryIdOf(page)
         const number = await postedEntryNumber(page)
 
         // R is the read view's Reverse key.
@@ -457,7 +460,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
     }) => {
         await start(page, size)
         await makePosted(page, uniqueName(`Reverse busy ${sizeName}`))
-        const originalId = entryIdOf(page)
+        const originalId = await entryIdOf(page)
 
         await chooseAction(page, 'Reverse')
         const dialog = page.getByTestId('reverse-dialog')
@@ -469,7 +472,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         await expect(dialog).toBeVisible()
         await page.mouse.click(2, 2)
         await expect(dialog).toBeVisible()
-        expect(entryIdOf(page)).toBe(originalId)
+        expect(await entryIdOf(page)).toBe(originalId)
 
         held.release()
         await waitForOtherEntry(page, originalId)
@@ -482,6 +485,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         await start(page, size)
         await makePosted(page, uniqueName(`Reverse left ${sizeName}`))
         const number = await postedEntryNumber(page)
+        await expectRecordUrl(page, 'entries', await entryIdOf(page))
         const entryPath = new URL(page.url()).pathname
 
         const today = await localToday(page)
@@ -511,7 +515,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         await start(page, size)
         const memo = uniqueName(`Reverse refused ${sizeName}`)
         await makePosted(page, memo)
-        const originalId = entryIdOf(page)
+        const originalId = await entryIdOf(page)
         const number = await postedEntryNumber(page)
 
         await chooseAction(page, 'Reverse')
@@ -537,7 +541,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
             new RegExp(`${number} is already reversed by entry JE-\\d+\\.`)
         )
         await expect(dialog).toBeVisible()
-        expect(entryIdOf(page)).toBe(originalId)
+        expect(await entryIdOf(page)).toBe(originalId)
 
         await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
         await expect(dialog).toHaveCount(0)
@@ -565,7 +569,7 @@ test.describe('journal-entries: edit, reverse, void (desktop)', () => {
         await searchEntries(other, memo)
         await listItems(other, memo).first().click()
         await expect(other.getByTestId('entry-read-only')).toBeVisible()
-        const originalId = entryIdOf(other)
+        const originalId = await entryIdOf(other)
         await chooseAction(other, 'Edit')
         await expect(other.getByTestId('entry-title')).toHaveText(/^Edit /)
 

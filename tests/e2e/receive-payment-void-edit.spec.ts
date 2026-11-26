@@ -12,6 +12,7 @@ import {
     paymentRow,
     rowAmount,
 } from './receive-payment-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 
 // Void and Edit of a posted payment (spec §3.7, §3.9, Q8) at desktop width: the read view's
 // Void opens its invoices again; Edit from the Journal Entries list opens the correction
@@ -54,7 +55,7 @@ async function postPayment(page: Page) {
     await expect(title).toHaveText(/^Payment \d+$/)
     const number = /^Payment (\d+)$/.exec(await title.innerText())?.[1]
     if (!number) throw new Error('the payment read view title has no number')
-    return { id: paymentIdFromUrl(page), number }
+    return { id: await paymentIdFromUrl(page), number }
 }
 
 // The entries list row of this memo whose Type and status are these.
@@ -153,7 +154,7 @@ test.describe('receive-payment: void and edit', () => {
         const entryBack = entry.getByTestId('entry-back')
         await expect(entryBack).toHaveText('Payment')
         await entryBack.click()
-        await expect(page).toHaveURL(new RegExp(`/books/payments/${original.id}$`))
+        await expectRecordUrl(page, 'payments', original.id)
         await expect(shown(page, 'payment-title')).toHaveText(`Payment ${original.number}`)
         await expect(entry).toHaveCount(0)
         await shown(page, 'entry-back').click()
@@ -202,7 +203,7 @@ test.describe('receive-payment: void and edit', () => {
         const voidedId = await entryIdOf(voided)
         await page.getByTestId(`entries-row-menu-${voidedId}`).click()
         await page.getByTestId('entries-menu-open').click()
-        await expect(page).toHaveURL(new RegExp(`/books/payments/${original.id}$`))
+        await expectRecordUrl(page, 'payments', original.id)
         await expect(shown(page, 'payment-badge')).toHaveText('Void')
         await expect(shown(page, 'payment-replaced-by')).toHaveText(
             `Replaced by ${original.number} (edited)`

@@ -30,6 +30,7 @@ function row(
 ): DocumentListRow {
     return {
         id: ID,
+        key: recordStatus === 'draft' ? ID : '1057',
         kind,
         number: recordStatus === 'draft' ? '' : '1057',
         date: '2026-11-17',
@@ -222,18 +223,22 @@ describe('purchaseRowActionHref', () => {
         )
     })
 
-    it("open gives the document's route for each kind", () => {
-        expect(purchaseRowActionHref(row('bill', 'posted'), 'open')).toBe(`books/bills/${ID}`)
-        expect(purchaseRowActionHref(row('expense', 'posted'), 'open')).toBe(`books/expenses/${ID}`)
+    it("open gives the document's route for each kind, by its number", () => {
+        expect(purchaseRowActionHref(row('bill', 'posted'), 'open')).toBe('books/bills/1057')
+        expect(purchaseRowActionHref(row('expense', 'posted'), 'open')).toBe('books/expenses/1057')
         expect(purchaseRowActionHref(row('bill_payment', 'posted'), 'open')).toBe(
-            `books/bill-payments/${ID}`
+            'books/bill-payments/1057'
         )
         expect(purchaseRowActionHref(row('vendor_credit', 'posted'), 'open')).toBe(
-            `books/vendor-credits/${ID}`
+            'books/vendor-credits/1057'
         )
         expect(purchaseRowActionHref(row('vendor_refund', 'posted'), 'open')).toBe(
-            `books/vendor-refunds/${ID}`
+            'books/vendor-refunds/1057'
         )
+    })
+
+    it("open gives a draft's route by its id", () => {
+        expect(purchaseRowActionHref(row('bill', 'draft'), 'open')).toBe(`books/bills/${ID}`)
     })
 
     it('void and delete_draft give null', () => {

@@ -21,7 +21,7 @@ func statementBalanceForwardShipped() reports.Shipped {
 		Spec:        mustJSON(statementBalanceForwardSpec()),
 		// 1: the first shipped spec. The report is unreleased, so later
 		// checkpoints keep 1 (core re-stores a spec only on a higher revision).
-		Revision:    1,
+		Revision:    2,
 		Unpublished: true,
 		// It reads books.journal_lines, a source that is NotLive. A section
 		// reads only its customer's Accounts receivable lines in the period,
@@ -40,7 +40,7 @@ func statementOpenItemsShipped() reports.Shipped {
 		Description: "Each customer's open items on one day, by due date, with the amount due and its aging.",
 		Spec:        mustJSON(statementOpenItemsSpec()),
 		// 1: as statementBalanceForwardShipped.
-		Revision:    1,
+		Revision:    2,
 		Unpublished: true,
 	}
 }

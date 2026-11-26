@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { uniqueMemo } from './invoice-helpers'
+import { expectNotRecordUrl, expectRecordUrl } from './record-key-helpers'
 import { VENDOR_CREDIT_URL } from './vendor-credit-helpers'
 import {
     openBooks,
@@ -55,7 +56,7 @@ test.describe('vendor-refund: correction draft', () => {
         await expect(refundCell(page, credit.id).filter({ visible: true })).toHaveValue('120.00')
         await page.keyboard.press('ControlOrMeta+s')
         await expect(page).toHaveURL(VENDOR_REFUND_URL)
-        const draftId = vendorRefundIdFromUrl(page)
+        const draftId = await vendorRefundIdFromUrl(page)
         expect(draftId).not.toBe(original.id)
         await expect(shownRefund(page, 'vendor-refund-form')).toBeVisible()
         await expect(shownRefund(page, 'vendor-refund-title')).toHaveText(
@@ -64,15 +65,15 @@ test.describe('vendor-refund: correction draft', () => {
 
         // Esc with no edits leaves the saved draft.
         await page.keyboard.press('Escape')
-        await expect(page).not.toHaveURL(new RegExp(`/books/vendor-refunds/${draftId}$`))
+        await expectNotRecordUrl(page, 'vendor-refunds', draftId)
 
         // The original stays Posted, and its credit keeps $500.00 unapplied.
         await searchToRefundTitled(page, memo, postedTitle)
-        await expect(page).toHaveURL(new RegExp(`/books/vendor-refunds/${original.id}$`))
+        await expectRecordUrl(page, 'vendor-refunds', original.id)
         await expect(shownRefund(page, 'vendor-refund-badge')).toHaveText('Posted')
         await shownRefund(page, `vendor-refund-read-link-${credit.id}`).click()
         await expect(page).toHaveURL(VENDOR_CREDIT_URL)
-        await expect(page).toHaveURL(new RegExp(`/books/vendor-credits/${credit.id}$`))
+        await expectRecordUrl(page, 'vendor-credits', credit.id)
         await expect(page.getByTestId('vendor-credit-total-unapplied')).toContainText('$500.00')
 
         // The draft, reopened by search, is the correction form as saved.
@@ -81,7 +82,7 @@ test.describe('vendor-refund: correction draft', () => {
             memo,
             new RegExp(`^Draft vendor refund · ${escapeRegExp(vendor.name)}$`)
         )
-        await expect(page).toHaveURL(new RegExp(`/books/vendor-refunds/${draftId}$`))
+        await expectRecordUrl(page, 'vendor-refunds', draftId)
         await expect(shownRefund(page, 'vendor-refund-form')).toBeVisible()
         await expect(shownRefund(page, 'vendor-refund-title')).toHaveText(
             `Edit vendor refund ${original.number}`
@@ -103,7 +104,7 @@ test.describe('vendor-refund: correction draft', () => {
 
         // Post: the draft becomes the posted refund with the original's number.
         await shownRefund(page, 'vendor-refund-post').click()
-        await expect(page).toHaveURL(new RegExp(`/books/vendor-refunds/${draftId}$`))
+        await expectRecordUrl(page, 'vendor-refunds', draftId)
         await expect(shownRefund(page, 'vendor-refund-read-only')).toBeVisible()
         await expect(shownRefund(page, 'vendor-refund-title')).toHaveText(
             `Vendor refund ${original.number}`
@@ -113,7 +114,7 @@ test.describe('vendor-refund: correction draft', () => {
 
         // The original is Void and names its replacement.
         await searchToRefundTitled(page, memo, voidTitle)
-        await expect(page).toHaveURL(new RegExp(`/books/vendor-refunds/${original.id}$`))
+        await expectRecordUrl(page, 'vendor-refunds', original.id)
         await expect(shownRefund(page, 'vendor-refund-badge')).toHaveText('Void')
         await expect(shownRefund(page, 'vendor-refund-replaced-by')).toHaveText(
             `Replaced by ${original.number} (edited)`
@@ -147,7 +148,7 @@ test.describe('vendor-refund: correction draft', () => {
         await shownRefund(page, 'vendor-refund-memo').fill(secondMemo)
         await page.keyboard.press('ControlOrMeta+s')
         await expect(page).toHaveURL(VENDOR_REFUND_URL)
-        const secondDraftId = vendorRefundIdFromUrl(page)
+        const secondDraftId = await vendorRefundIdFromUrl(page)
         expect(secondDraftId).not.toBe(original.id)
         // The saved draft's own screen, before Esc leaves it.
         await expect(shownRefund(page, 'vendor-refund-form')).toBeVisible()
@@ -155,12 +156,12 @@ test.describe('vendor-refund: correction draft', () => {
             `Edit vendor refund ${original.number}`
         )
         await page.keyboard.press('Escape')
-        await expect(page).not.toHaveURL(new RegExp(`/books/vendor-refunds/${secondDraftId}$`))
+        await expectNotRecordUrl(page, 'vendor-refunds', secondDraftId)
 
         // Another correction of the same original posts straight from the form, so the
         // original is no longer posted.
         await searchToRefundTitled(page, memo, postedTitle)
-        await expect(page).toHaveURL(new RegExp(`/books/vendor-refunds/${original.id}$`))
+        await expectRecordUrl(page, 'vendor-refunds', original.id)
         await shownRefund(page, 'vendor-refund-read-edit').click()
         await expect(page).toHaveURL(
             new RegExp(`/books/vendor-refunds/new\\?replaces=${original.id}$`)
@@ -180,7 +181,7 @@ test.describe('vendor-refund: correction draft', () => {
             secondMemo,
             new RegExp(`^Draft vendor refund · ${escapeRegExp(vendor.name)}$`)
         )
-        await expect(page).toHaveURL(new RegExp(`/books/vendor-refunds/${secondDraftId}$`))
+        await expectRecordUrl(page, 'vendor-refunds', secondDraftId)
         const notice = shownRefund(page, 'vendor-refund-cannot-edit')
         await expect(notice).toContainText('This vendor refund cannot be edited')
         await expect(notice.getByRole('button', { name: /Delete draft/ })).toBeVisible()
@@ -189,7 +190,7 @@ test.describe('vendor-refund: correction draft', () => {
         await expect(deleteDialog).toBeVisible()
         await expect(deleteDialog).toContainText(DELETE_BODY)
         await page.getByTestId('delete-draft-confirm').click()
-        await expect(page).not.toHaveURL(new RegExp(`/books/vendor-refunds/${secondDraftId}$`))
+        await expectNotRecordUrl(page, 'vendor-refunds', secondDraftId)
         await expect(shownRefund(page, 'vendor-refund-cannot-edit')).toHaveCount(0)
 
         // The search no longer finds the second draft.

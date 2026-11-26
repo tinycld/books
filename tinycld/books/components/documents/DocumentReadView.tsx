@@ -526,7 +526,10 @@ function ReplacedByLink({ record, isVisible }: { record: DocumentRecord; isVisib
     const { doc } = useDocumentKind()
     const orgHref = useOrgHref()
     if (!isVisible || !record.replaced_by) return null
-    const open = () => router.replace(orgHref(documentHref(doc, record.replaced_by)))
+    const open = () =>
+        router.replace(
+            orgHref(documentHref(doc, { id: record.replaced_by, sequence: record.sequence }))
+        )
     // A correction keeps the number of the document it replaces.
     const text = `Replaced by ${record.number} (edited)`
     const testID = `${doc.testId}-replaced-by`

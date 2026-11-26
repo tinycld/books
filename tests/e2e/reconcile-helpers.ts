@@ -35,9 +35,6 @@ export function daysAgo(n: number): string {
 // Opens the accounts screen through the desktop sidebar's Accounting item "Reconcile".
 export async function openReconcile(page: Page): Promise<Locator> {
     const item = page.getByTestId('books-nav-reconcile')
-    const toggle = page.getByTestId('books-nav-accounting-toggle')
-    await toggle.waitFor({ state: 'attached' })
-    if (!(await item.isVisible())) await toggle.click()
     await expect(item).toContainText('Reconcile')
     await item.click()
     return visibleScreen(page, 'reconcile-accounts-screen')

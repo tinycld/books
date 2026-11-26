@@ -21,6 +21,7 @@ import { entryCents, type Payments } from '../lib/payment-allocation'
 import { writeRefusalText } from '../lib/refusal'
 import { usePayBillsStore } from '../stores/pay-bills-store'
 import type { BooksBillPayments } from '../types'
+import { useStoredDocumentKey } from './useRouteRecordId'
 import { useReplaceRecordBelow } from './useStackScreens'
 
 const LOG_CONTEXT = 'books.billPayment'
@@ -110,6 +111,7 @@ export function usePayBillsSave({
     )
     const orgHref = useOrgHref()
     const replaceRecordBelow = useReplaceRecordBelow('bill-payments')
+    const keyOf = useStoredDocumentKey('books_bill_payments')
     const isBusy = useRef(false)
     const isLive = useRef(true)
     const left = useRef(false)
@@ -209,8 +211,8 @@ export function usePayBillsSave({
         // original's read view in the Bill payments child stack, it takes the original's
         // place there, so Back returns to the list (useReplaceRecordBelow).
         if (replacesId !== null) {
-            if (!replaceRecordBelow(replacesId, first)) {
-                router.replace(orgHref(`books/bill-payments/${first}`))
+            if (!replaceRecordBelow(replacesId, keyOf(first))) {
+                router.replace(orgHref(`books/bill-payments/${keyOf(first)}`))
             }
             return
         }

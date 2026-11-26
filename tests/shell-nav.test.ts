@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { accessFromRow } from '../tinycld/books/lib/access'
 import { NEW_ACTIONS, type NewAction } from '../tinycld/books/lib/new-actions'
 import {
+    activeNewActionId,
     availableOnly,
     hidesNewFab,
     isActivePath,
@@ -853,5 +854,20 @@ describe('hidesNewFab', () => {
         '/a/acme/books/deposits/abc123/',
     ])('hides the New button on %s', path => {
         expect(hidesNewFab(path)).toBe(true)
+    })
+})
+
+describe('activeNewActionId', () => {
+    it('names the New action whose own route is open', () => {
+        expect(activeNewActionId('/a/books/invoices/new')).toBe('invoice')
+        expect(activeNewActionId('/a/books/invoices/new/')).toBe('invoice')
+        expect(activeNewActionId('/a/books/pay-bills')).toBe('pay_bills')
+        expect(activeNewActionId('/a/books/customers/new')).toBe('customer')
+    })
+
+    it('names none on a list or a record', () => {
+        expect(activeNewActionId('/a/books/invoices')).toBeUndefined()
+        expect(activeNewActionId('/a/books/invoices/abc')).toBeUndefined()
+        expect(activeNewActionId('/a/books/dashboard')).toBeUndefined()
     })
 })

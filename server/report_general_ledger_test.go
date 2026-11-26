@@ -357,7 +357,7 @@ func TestGeneralLedgerSpecLoads(t *testing.T) {
 	if shipped.Description != "Every posted line, grouped by account, for a period." {
 		t.Errorf("description = %q", shipped.Description)
 	}
-	if shipped.Revision != 3 || !shipped.Unpublished {
+	if shipped.Revision != 4 || !shipped.Unpublished {
 		t.Errorf("revision %d, unpublished %v; want revision 3 (the beginning balance reads the stored months), shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	built, err := json.Marshal(generalLedgerSpec())
@@ -1144,7 +1144,7 @@ func TestGeneralLedgerShippedUnpublished(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "General Ledger" || row.GetInt("shipped_revision") != 3 || row.GetString("source") != "books.journal_lines" {
+	if row.GetString("title") != "General Ledger" || row.GetInt("shipped_revision") != 4 || row.GetString("source") != "books.journal_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {
@@ -1328,7 +1328,7 @@ func TestGeneralLedgerLineOpens(t *testing.T) {
 
 	res := runGL(t, b.app, b.reader, map[string]any{"period": glPeriod("2026-08-01", "2026-08-31")}, reports.Options{Today: glToday})
 	row := lineRow(t, res, entryLineOn(t, b.app, entry.Id, rent))
-	if want := "books/entries/" + entry.Id; row.Open != want {
+	if want := "books/entries/" + urlKey(t, b.app, entry); row.Open != want {
 		t.Errorf("the entry's Office rent line opens %q, want %q", row.Open, want)
 	}
 	if s := sectionFor(t, res, rent); s.opening == nil {

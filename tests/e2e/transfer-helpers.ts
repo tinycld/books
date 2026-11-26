@@ -2,6 +2,7 @@ import { expect, type Page } from '@playwright/test'
 import { login, navigateToPackage } from '@tinycld/core/e2e-helpers'
 import { openEntriesList, searchEntries } from './journal-entries-helpers'
 import { openNewAction } from './new-menu-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 
 export { DESKTOP, isPhone, PHONE } from './account-register-helpers'
 
@@ -54,11 +55,8 @@ export async function fillTransfer(page: Page, input: TransferInput) {
     await page.getByTestId('transfer-memo').fill(input.memo)
 }
 
-export function transferIdFromUrl(page: Page): string {
-    const match = /\/books\/transfers\/([^/?#]+)$/.exec(new URL(page.url()).pathname)
-    const id = match?.[1]
-    if (!id || id === 'new') throw new Error(`Not on a saved transfer: ${page.url()}`)
-    return id
+export async function transferIdFromUrl(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'transfers')
 }
 
 // Books must already be open. Leaves the page on the posted transfer's read view, once the
@@ -78,7 +76,7 @@ export async function createPostedTransfer(
     await expect(title).toHaveText(/^Transfer TR-\d+$/)
     await expect(page).toHaveURL(TRANSFER_URL)
     const number = (await title.innerText()).trim().replace(/^Transfer /, '')
-    return { id: transferIdFromUrl(page), number }
+    return { id: await transferIdFromUrl(page), number }
 }
 
 // Books must already be open. Leaves the page on the saved draft's form.
@@ -88,7 +86,7 @@ export async function saveTransferDraft(page: Page, input: TransferInput): Promi
     await page.getByTestId('transfer-save-draft').click()
     await expect(page).toHaveURL(TRANSFER_URL)
     await expect(page.getByTestId('transfer-title')).toHaveText('Draft transfer')
-    return transferIdFromUrl(page)
+    return await transferIdFromUrl(page)
 }
 
 // The Journal Entries list is windowed, so a transfer is found through the search box.

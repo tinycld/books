@@ -4,6 +4,7 @@ import { DESKTOP } from './account-register-helpers'
 import { openAuditLog, openHistoryFromRow } from './audit-log-helpers'
 import { invoiceIdFromUrl, uniqueMemo } from './invoice-helpers'
 import { searchEntries } from './journal-entries-helpers'
+import { expectRecordUrl, recordIdFromUrl } from './record-key-helpers'
 import {
     BAD_DEBTS,
     invoiceToWriteOff,
@@ -39,10 +40,6 @@ function shown(page: Page, testId: string): Locator {
     return page.locator(`[data-testid="${testId}"]:visible`)
 }
 
-function invoiceUrlOf(id: string) {
-    return new RegExp(`/books/invoices/${id}$`)
-}
-
 // The Write-offs section's rows: `invoice-write-off-<id>`, never its links
 // (`invoice-write-offs-open-<id>`) or the section's own `invoice-write-offs-…` ids.
 function writeOffRows(section: Locator) {
@@ -74,7 +71,6 @@ async function sectionWriteOff(page: Page): Promise<{ id: string; number: string
 // Desktop sidebar: Journal Entries, pushed over the screen on top.
 async function openEntriesFromSidebar(page: Page) {
     const navItem = page.getByTestId('books-nav-entries')
-    if (!(await navItem.isVisible())) await page.getByTestId('books-nav-accounting-toggle').click()
     await navItem.click()
     await expect(shown(page, 'entries-screen')).toBeVisible()
 }
@@ -83,7 +79,7 @@ test.describe('write-off: page', () => {
     test('voids a write-off from the keyboard only', async ({ page }) => {
         await openBooks(page)
         await invoiceToWriteOff(page, 'Write-off page void')
-        const invoiceId = invoiceIdFromUrl(page)
+        const invoiceId = await invoiceIdFromUrl(page)
         await writeOffOpenInvoice(page)
         await openWriteOffFromInvoice(page)
         const number = await writeOffNumber(page)
@@ -123,7 +119,7 @@ test.describe('write-off: page', () => {
         // right below the write-off page, so I pops to it: one copy of the invoice read
         // view stays mounted, and the write-off page is gone (lesson 12).
         await page.keyboard.press('i')
-        await expect(page).toHaveURL(invoiceUrlOf(invoiceId))
+        await expectRecordUrl(page, 'invoices', invoiceId)
         await expect(shown(page, 'invoice-read-only')).toBeVisible()
         await expect(page.locator('[data-testid="invoice-read-only"]')).toHaveCount(1)
         await expect(page.locator('[data-testid="write-off-read-only"]')).toHaveCount(0)
@@ -140,10 +136,10 @@ test.describe('write-off: page', () => {
         await openBooks(page)
         const reason = uniqueMemo('Write-off page entry')
         const { customer } = await invoiceToWriteOff(page, 'Write-off page entry')
-        const invoiceId = invoiceIdFromUrl(page)
+        const invoiceId = await invoiceIdFromUrl(page)
         await writeOffOpenInvoice(page, reason)
         await openWriteOffFromInvoice(page)
-        const writeOffUrl = page.url()
+        const writeOffId = await recordIdFromUrl(page, 'write-offs')
         const number = await writeOffNumber(page)
 
         // J: the write-off's own entry.
@@ -184,12 +180,12 @@ test.describe('write-off: page', () => {
         // Back on the write-off page, its back link names the invoice below and returns
         // to it with one press.
         await page.goBack()
-        await expect(page).toHaveURL(writeOffUrl)
+        await expectRecordUrl(page, 'write-offs', writeOffId)
         const back = shown(page, 'entry-back')
         await expect(back).toHaveCount(1)
         await expect(back).toHaveText('Invoice')
         await back.click()
-        await expect(page).toHaveURL(invoiceUrlOf(invoiceId))
+        await expectRecordUrl(page, 'invoices', invoiceId)
         await expect(shown(page, 'invoice-read-only')).toBeVisible()
         await expect(shown(page, 'write-off-read-only')).toHaveCount(0)
 
@@ -204,18 +200,18 @@ test.describe('write-off: page', () => {
         await expect(page.getByTestId('entries-menu-reverse')).toHaveCount(0)
         await page.getByTestId('entries-menu-open').click()
         await expect(page).toHaveURL(WRITE_OFF_URL)
-        await expect(page).toHaveURL(writeOffUrl)
+        await expectRecordUrl(page, 'write-offs', writeOffId)
         await expect(shown(page, 'write-off-title')).toHaveText(`Write-off ${number}`)
 
         // The entry page reached by J opens its document: its Void (a document's entry is
         // voided from its document, voidsFromDocument) leads to the write-off page.
         await page.keyboard.press('j')
-        await expect(page).toHaveURL(new RegExp(`/books/entries/${entryId}$`))
+        await expectRecordUrl(page, 'entries', entryId)
         const entryAgain = page.getByTestId('entry-read-only').filter({ visible: true })
         await expect(entryAgain).toBeVisible()
         await entryAgain.getByRole('button', { name: 'Void', exact: true }).click()
         await expect(page).toHaveURL(WRITE_OFF_URL)
-        await expect(page).toHaveURL(writeOffUrl)
+        await expectRecordUrl(page, 'write-offs', writeOffId)
         await expect(shown(page, 'write-off-title')).toHaveText(`Write-off ${number}`)
     })
 
@@ -225,7 +221,6 @@ test.describe('write-off: page', () => {
         const { customer } = await invoiceToWriteOff(page, 'Write-off page search')
         await writeOffOpenInvoice(page, reason)
         const { id, number } = await sectionWriteOff(page)
-        const writeOffUrl = new RegExp(`/books/write-offs/${id}$`)
 
         // Books search: the reason finds the write-off.
         await page.keyboard.press('/')
@@ -245,7 +240,7 @@ test.describe('write-off: page', () => {
         await expect(option).toHaveCount(1)
         await option.click()
         await expect(page).toHaveURL(WRITE_OFF_URL)
-        await expect(page).toHaveURL(writeOffUrl)
+        await expectRecordUrl(page, 'write-offs', id)
         await expect(shown(page, 'write-off-detail-reason')).toContainText(reason)
 
         // Audit Log: the write-off's row opens its history, whose Open leads to the page.
@@ -254,7 +249,7 @@ test.describe('write-off: page', () => {
         await expect(page).toHaveURL(new RegExp(`/books/history/books_write_offs/${id}$`))
         await shown(page, 'history-open').click()
         await expect(page).toHaveURL(WRITE_OFF_URL)
-        await expect(page).toHaveURL(writeOffUrl)
+        await expectRecordUrl(page, 'write-offs', id)
         const readView = shown(page, 'write-off-read-only')
         await expect(readView).toBeVisible()
 

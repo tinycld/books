@@ -4,7 +4,6 @@ import { applyCell, applyDialogOf, customerWithInvoiceAndMemo } from './apply-cr
 import {
     CREDIT_MEMO_URL,
     creditMemoIdFromUrl,
-    creditMemoUrlOf,
     pickCreditMemoLineProduct,
 } from './credit-memo-helpers'
 import { customerPath } from './customer-form-helpers'
@@ -18,6 +17,7 @@ import {
     paymentRow,
     pickPaymentCustomer,
 } from './receive-payment-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import {
     openRowMenu,
     openSales,
@@ -101,7 +101,7 @@ async function postMemoFromCustomer(
     const title = page.getByTestId('credit-memo-title')
     await expect(title).toHaveText(/^Credit memo \d+$/)
     const number = /^Credit memo (\d+)$/.exec(await title.innerText())?.[1] ?? ''
-    return { id: creditMemoIdFromUrl(page), number }
+    return { id: await creditMemoIdFromUrl(page), number }
 }
 
 test.describe('apply-credit: lists and Receive payment', () => {
@@ -143,7 +143,7 @@ test.describe('apply-credit: lists and Receive payment', () => {
 
         // A press opens the memo's read view with its apply dialog open.
         await apply.click()
-        await expect(page).toHaveURL(creditMemoUrlOf(memo.id))
+        await expectRecordUrl(page, 'credit-memos', memo.id)
         const dialog = applyDialogOf(page)
         await expect(dialog).toBeVisible()
         await expect(dialog).toContainText(`Apply credit memo ${memo.number}`)
@@ -199,7 +199,7 @@ test.describe('apply-credit: lists and Receive payment', () => {
         const apply = shown(page, `${ROW_ACTION}apply-credit`)
         await expect(apply).toContainText('Apply to invoices')
         await apply.click()
-        await expect(page).toHaveURL(creditMemoUrlOf(memo.id))
+        await expectRecordUrl(page, 'credit-memos', memo.id)
         const dialog = applyDialogOf(page)
         await expect(dialog).toBeVisible()
         await expect(dialog).toContainText(`Apply credit memo ${memo.number}`)
@@ -278,7 +278,7 @@ test.describe('apply-credit: lists and Receive payment', () => {
         await pickPaymentCustomer(page, name)
         await expect(link).toBeVisible()
         await link.click()
-        await expect(page).toHaveURL(creditMemoUrlOf(memo.id))
+        await expectRecordUrl(page, 'credit-memos', memo.id)
         await expect(shown(page, 'credit-memo-read-only')).toBeVisible()
         await expect(shown(page, 'credit-memo-title')).toHaveText(`Credit memo ${memo.number}`)
     })

@@ -9,6 +9,7 @@ import {
     shown,
     vendorWithBills,
 } from './pay-bills-helpers'
+import { expectNotRecordUrl, expectRecordUrl } from './record-key-helpers'
 import {
     applyDialog,
     openApplyDialog,
@@ -48,10 +49,6 @@ const REFUND_LINES = 'books_vendor_refund_lines'
 // The form a vendor credit's Record refund opens: `?vendor=<vendor>&credit=<credit>`.
 function refundFormUrl(vendorId: string, creditId: string): RegExp {
     return new RegExp(`/books/vendor-refunds/new\\?vendor=${vendorId}&credit=${creditId}$`)
-}
-
-function creditUrl(creditId: string): RegExp {
-    return new RegExp(`/books/vendor-credits/${creditId}$`)
 }
 
 // The read bar's Apply to bills, Record refund and Edit, in screen order.
@@ -96,7 +93,7 @@ async function expectFormForCredit(
 // From the posted refund's read view, opens the credit by the refund's row link.
 async function openCreditFromRefund(page: Page, creditId: string) {
     await shownRefund(page, `vendor-refund-read-link-${creditId}`).click()
-    await expect(page).toHaveURL(creditUrl(creditId))
+    await expectRecordUrl(page, 'vendor-credits', creditId)
     await expect(shown(page, 'vendor-credit-read-only')).toBeVisible()
 }
 
@@ -114,7 +111,7 @@ test.describe('vendor-refund: vendor credit', () => {
         const creditMemo = credit.memo
         const today = formatDay(await localToday(page))
         await openVendorCreditBySearch(page, creditMemo)
-        await expect(page).toHaveURL(creditUrl(credit.id))
+        await expectRecordUrl(page, 'vendor-credits', credit.id)
 
         // The bar shows Record refund right after Apply to bills.
         const bar = shown(page, 'vendor-credit-read-actions')
@@ -147,7 +144,7 @@ test.describe('vendor-refund: vendor credit', () => {
         await page.keyboard.press('ControlOrMeta+Enter')
         await expect(page).toHaveURL(VENDOR_REFUND_URL)
         await expect(shownRefund(page, 'vendor-refund-read-only')).toBeVisible()
-        const firstRefundId = vendorRefundIdFromUrl(page)
+        const firstRefundId = await vendorRefundIdFromUrl(page)
         const firstNumber = await refundNumberOf(page)
 
         // The credit: Partly applied, Refunded −$120.00 above Unapplied credit $180.00, and
@@ -178,22 +175,21 @@ test.describe('vendor-refund: vendor credit', () => {
         // The row's link opens the refund. Reached refund → credit (the credit pushed over
         // the refund), the link goes back to the refund already on the stack, so Back from
         // it leaves both: a second pushed copy of the refund would go Back to the credit.
-        const firstRefundUrl = new RegExp(`/books/vendor-refunds/${firstRefundId}$`)
         await page.goBack()
-        await expect(page).not.toHaveURL(creditUrl(credit.id))
+        await expectNotRecordUrl(page, 'vendor-credits', credit.id)
         await searchToVendorRefund(page, firstMemo)
-        await expect(page).toHaveURL(firstRefundUrl)
+        await expectRecordUrl(page, 'vendor-refunds', firstRefundId)
         await openCreditFromRefund(page, credit.id)
         await refundUseRow(page, firstRefundId).getByRole('link').click()
-        await expect(page).toHaveURL(firstRefundUrl)
+        await expectRecordUrl(page, 'vendor-refunds', firstRefundId)
         await expect(shownRefund(page, 'vendor-refund-read-only')).toBeVisible()
         await page.goBack()
-        await expect(page).not.toHaveURL(firstRefundUrl)
-        await expect(page).not.toHaveURL(creditUrl(credit.id))
+        await expectNotRecordUrl(page, 'vendor-refunds', firstRefundId)
+        await expectNotRecordUrl(page, 'vendor-credits', credit.id)
 
         // Back on the credit, opened by search.
         await openVendorCreditBySearch(page, creditMemo)
-        await expect(page).toHaveURL(creditUrl(credit.id))
+        await expectRecordUrl(page, 'vendor-credits', credit.id)
 
         // V: the void of a credit a posted refund names is refused; it stays posted.
         await page.keyboard.press('v')
@@ -246,9 +242,9 @@ test.describe('vendor-refund: vendor credit', () => {
         })
         const firstRefundId = first.id
         await page.goBack()
-        await expect(page).not.toHaveURL(new RegExp(`/books/vendor-refunds/${firstRefundId}$`))
+        await expectNotRecordUrl(page, 'vendor-refunds', firstRefundId)
         await openVendorCreditBySearch(page, creditMemo)
-        await expect(page).toHaveURL(creditUrl(credit.id))
+        await expectRecordUrl(page, 'vendor-credits', credit.id)
         await expect(shown(page, 'vendor-credit-badge')).toHaveText('Partly applied')
 
         // R: the rest, $180.00, is ticked; ⌘↵ posts it.
@@ -263,7 +259,7 @@ test.describe('vendor-refund: vendor credit', () => {
         await page.keyboard.press('ControlOrMeta+Enter')
         await expect(page).toHaveURL(VENDOR_REFUND_URL)
         await expect(shownRefund(page, 'vendor-refund-read-only')).toBeVisible()
-        const secondRefundId = vendorRefundIdFromUrl(page)
+        const secondRefundId = await vendorRefundIdFromUrl(page)
         expect(secondRefundId).not.toBe(firstRefundId)
 
         // Refunded in full: the Refunded badge, no Record refund and no Apply to bills.
@@ -316,7 +312,7 @@ test.describe('vendor-refund: vendor credit', () => {
         await page.keyboard.press('ControlOrMeta+Enter')
         await expect(page).toHaveURL(VENDOR_REFUND_URL)
         await expect(shownRefund(page, 'vendor-refund-read-only')).toBeVisible()
-        const refundId = vendorRefundIdFromUrl(page)
+        const refundId = await vendorRefundIdFromUrl(page)
         const number = await refundNumberOf(page)
         const today = formatDay(await localToday(page))
 
@@ -365,7 +361,7 @@ test.describe('vendor-refund: vendor credit', () => {
         const [credit] = credits
         const refundDay = await localDay(page, -3)
         await openVendorCreditBySearch(page, credit.memo)
-        await expect(page).toHaveURL(creditUrl(credit.id))
+        await expectRecordUrl(page, 'vendor-credits', credit.id)
 
         // R: a posted refund of $120.00, dated two days after the credit.
         await page.keyboard.press('r')

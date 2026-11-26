@@ -4,21 +4,15 @@ import { openBooksMenu } from './books-report-helpers'
 import { lineCellTestId } from './invoice-helpers'
 import { openEntriesList } from './journal-entries-helpers'
 import { openNewAction } from './new-menu-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 import { pickFromSearchPicker } from './search-picker-helpers'
 
 // A sales receipt's own screen: `books/sales-receipts/<id>`, never `.../new`.
 export const SALES_RECEIPT_URL = /\/books\/sales-receipts\/(?!new(?:[?#]|$))[^/?#]+$/
 export const NEW_SALES_RECEIPT_URL = /\/books\/sales-receipts\/new(?:[?#].*)?$/
 
-export function salesReceiptUrlOf(id: string) {
-    return new RegExp(`/books/sales-receipts/${id}$`)
-}
-
-export function salesReceiptIdFromUrl(page: Page): string {
-    const match = /\/books\/sales-receipts\/([^/?#]+)$/.exec(new URL(page.url()).pathname)
-    const id = match?.[1]
-    if (!id || id === 'new') throw new Error(`Not on a saved sales receipt: ${page.url()}`)
-    return id
+export async function salesReceiptIdFromUrl(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'sales-receipts')
 }
 
 // Books must already be open. From the Journal Entries list through the New menu

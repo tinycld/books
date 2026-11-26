@@ -204,6 +204,17 @@ function isOnPath(pathname: string, path: string): boolean {
     return pathname.endsWith(`/${path}`) || pathname.includes(`/${path}/`)
 }
 
+// The New action whose own route is open (`/books/invoices/new`), or undefined. A New
+// action's route is under a navigation entry's path (Sales holds books/invoices), so while
+// one is open the sidebar marks the New action and no navigation entry.
+export function activeNewActionId(
+    pathname: string,
+    actions: readonly NewAction[] = NEW_ACTIONS
+): string | undefined {
+    const path = pathname.replace(/\/$/, '')
+    return actions.find(action => path.endsWith(`/${action.href}`))?.id
+}
+
 export function isActivePath(pathname: string, entry: SidebarEntry): boolean {
     const paths = [entry.href, ...(entry.activePaths ?? [])]
     return paths.some(path => isOnPath(pathname, path))

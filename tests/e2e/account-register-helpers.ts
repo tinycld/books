@@ -121,7 +121,7 @@ export async function openChart(page: Page) {
     const back = page.getByTestId('register-back').filter({ visible: true })
     const landing = isPhone(page)
         ? page.getByTestId('books-list-card-accounts')
-        : page.getByTestId('books-nav-accounting-toggle')
+        : page.getByTestId('books-nav-accounts')
     // A fresh page restores the last route (lastPackageHref), which can be an entry screen
     // that has neither a register back link nor the hub card on a phone. Books lands on
     // the dashboard, which has no hub card.
@@ -153,9 +153,6 @@ export async function openChart(page: Page) {
         await page.getByTestId('books-list-card-accounts').click()
     } else {
         const item = page.getByTestId('books-nav-accounts')
-        const toggle = page.getByTestId('books-nav-accounting-toggle')
-        await toggle.waitFor({ state: 'attached' })
-        if (!(await item.isVisible())) await toggle.click()
         await item.click()
     }
     await expect(chartSearch(page)).toBeVisible()

@@ -40,6 +40,7 @@ import {
 } from './customer-form-helpers'
 import { INVOICE_URL, lineCellTestId, pickLineProduct } from './invoice-helpers'
 import { createProduct, openProductsList, productEntries } from './products-services-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import {
     chooseReceiptSelect,
     pickReceiptLineProduct,
@@ -234,7 +235,7 @@ test.describe('sales-reports: Sales by Customer', () => {
         if (!serviceLine) throw new Error('no invoice line of the service')
         await page.getByTestId(`report-row-${serviceLine.id}`).click()
         await expect(page).toHaveURL(INVOICE_URL)
-        await expect(page).toHaveURL(new RegExp(`/books/invoices/${book.invoice.id}$`))
+        await expectRecordUrl(page, 'invoices', book.invoice.id)
         await expect(page.getByTestId('invoice-title')).toHaveText(`Invoice ${book.invoice.number}`)
     })
 
@@ -274,7 +275,7 @@ test.describe('sales-reports: Sales by Customer', () => {
         expect(salesOf(memoLine)).toBe(-memoCents)
         await page.getByTestId(`report-row-${memoLine.id}`).click()
         await expect(page).toHaveURL(CREDIT_MEMO_URL)
-        await expect(page).toHaveURL(new RegExp(`/books/credit-memos/${memo.id}$`))
+        await expectRecordUrl(page, 'credit-memos', memo.id)
     })
 
     test('a sub-customer sale turns the row into a family with a total', async ({ page }) => {
@@ -521,7 +522,7 @@ async function postServiceReceipt(page: Page, customerId: string, product: strin
     const subtotal = page.getByTestId('sales-receipt-total-subtotal')
     await expect(subtotal).toContainText('$100.00')
     return {
-        id: salesReceiptIdFromUrl(page),
+        id: await salesReceiptIdFromUrl(page),
         number,
         subtotalCents: amountCents(await subtotal.innerText()),
     }
@@ -676,7 +677,7 @@ test.describe('sales-reports: Sales by Product/Service', () => {
         if (!receiptLine) throw new Error('no sale line of the sales receipt')
         await pressReportRow(page, receiptLine.id)
         await expect(page).toHaveURL(SALES_RECEIPT_URL)
-        await expect(page).toHaveURL(new RegExp(`/books/sales-receipts/${book.receipt.id}$`))
+        await expectRecordUrl(page, 'sales-receipts', book.receipt.id)
         await expect(page.getByTestId('sales-receipt-title')).toHaveText(
             `Sales receipt ${book.receipt.number}`
         )
@@ -709,7 +710,7 @@ test.describe('sales-reports: Sales by Product/Service', () => {
         )
         if (!receiptLine) throw new Error('no sale line of the sales receipt')
         await pressReportRow(page, receiptLine.id)
-        await expect(page).toHaveURL(new RegExp(`/books/sales-receipts/${receipt.id}$`))
+        await expectRecordUrl(page, 'sales-receipts', receipt.id)
         await page.getByTestId('sales-receipt-read-void').click()
         await page.getByTestId('void-confirm').click()
         await expect(page.getByTestId('sales-receipt-badge')).toHaveText('Void')

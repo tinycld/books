@@ -253,7 +253,7 @@ func TestCustomerBalanceSpecLoads(t *testing.T) {
 	}
 	// Revision 2: vendor-balance Amendment 3 changed the detail label, and core
 	// re-stores a shipped spec only on a higher revision.
-	if shipped.Revision != 2 || !shipped.Unpublished {
+	if shipped.Revision != 3 || !shipped.Unpublished {
 		t.Errorf("revision %d, unpublished %v; want revision 2, shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	built, err := json.Marshal(customerBalanceSpec())
@@ -961,7 +961,7 @@ func TestCustomerBalanceShippedShared(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "Customer Balance" || row.GetInt("shipped_revision") != 2 || row.GetString("source") != "books.journal_lines" {
+	if row.GetString("title") != "Customer Balance" || row.GetInt("shipped_revision") != 3 || row.GetString("source") != "books.journal_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {
@@ -1122,8 +1122,8 @@ func TestCustomerBalanceDetail(t *testing.T) {
 	if acmeRow.Depth != 0 {
 		t.Errorf("Acme Co is at depth %d, want 0 (an inlined family)", acmeRow.Depth)
 	}
-	invLine := cbLineWant(t, b.app, entryLineOn(t, b.app, inv.GetString("entry"), b.receivable), "Invoice", "books/invoices/"+inv.Id, 1)
-	payLine := cbLineWant(t, b.app, entryLineOn(t, b.app, pay.GetString("entry"), b.receivable), "Payment", "books/payments/"+pay.Id, 1)
+	invLine := cbLineWant(t, b.app, entryLineOn(t, b.app, inv.GetString("entry"), b.receivable), "Invoice", "books/invoices/"+urlKey(t, b.app, inv), 1)
+	payLine := cbLineWant(t, b.app, entryLineOn(t, b.app, pay.GetString("entry"), b.receivable), "Payment", "books/payments/"+urlKey(t, b.app, pay), 1)
 	if invLine.Balance != 100000 || payLine.Balance != -40000 {
 		t.Fatalf("the invoice line nets %d and the payment line %d, want 100000 and -40000", invLine.Balance, payLine.Balance)
 	}
@@ -1138,14 +1138,14 @@ func TestCustomerBalanceDetail(t *testing.T) {
 
 	// Date order, then a manual entry opens its read view as "Journal entry".
 	requireLines(res, cbCustomerRow(t, res, dated), []cbLine{
-		cbLineWant(t, b.app, entryLineOn(t, b.app, earlier.Id, b.receivable), "Journal entry", "books/entries/"+earlier.Id, 1),
-		cbLineWant(t, b.app, entryLineOn(t, b.app, later.Id, b.receivable), "Journal entry", "books/entries/"+later.Id, 1),
+		cbLineWant(t, b.app, entryLineOn(t, b.app, earlier.Id, b.receivable), "Journal entry", "books/entries/"+urlKey(t, b.app, earlier), 1),
+		cbLineWant(t, b.app, entryLineOn(t, b.app, later.Id, b.receivable), "Journal entry", "books/entries/"+urlKey(t, b.app, later), 1),
 	})
 
 	sameDayWant := func(first, second *core.Record) []cbLine {
 		return []cbLine{
-			cbLineWant(t, b.app, entryLineOn(t, b.app, first.Id, b.receivable), "Journal entry", "books/entries/"+first.Id, 1),
-			cbLineWant(t, b.app, entryLineOn(t, b.app, second.Id, b.receivable), "Journal entry", "books/entries/"+second.Id, 1),
+			cbLineWant(t, b.app, entryLineOn(t, b.app, first.Id, b.receivable), "Journal entry", "books/entries/"+urlKey(t, b.app, first), 1),
+			cbLineWant(t, b.app, entryLineOn(t, b.app, second.Id, b.receivable), "Journal entry", "books/entries/"+urlKey(t, b.app, second), 1),
 		}
 	}
 	requireLines(res, cbCustomerRow(t, res, sameDay), sameDayWant(madeSecond, madeFirst))
@@ -1156,8 +1156,8 @@ func TestCustomerBalanceDetail(t *testing.T) {
 	}
 	slices.SortFunc(splitLines, func(x, y *core.Record) int { return x.GetInt("position") - y.GetInt("position") })
 	splitWant := []cbLine{
-		cbLineWant(t, b.app, splitLines[0], "Journal entry", "books/entries/"+splitEntry.Id, 1),
-		cbLineWant(t, b.app, splitLines[1], "Journal entry", "books/entries/"+splitEntry.Id, 1),
+		cbLineWant(t, b.app, splitLines[0], "Journal entry", "books/entries/"+urlKey(t, b.app, splitEntry), 1),
+		cbLineWant(t, b.app, splitLines[1], "Journal entry", "books/entries/"+urlKey(t, b.app, splitEntry), 1),
 	}
 	if !strings.HasSuffix(splitWant[0].Label, " · Line memo wins") || !strings.HasSuffix(splitWant[1].Label, " · Split entry memo") {
 		t.Fatalf("Split Co's wanted labels %q, %q: the first reads its line's memo, the second its entry's", splitWant[0].Label, splitWant[1].Label)
@@ -1170,8 +1170,8 @@ func TestCustomerBalanceDetail(t *testing.T) {
 		t.Fatalf("no No customer row in the opened run; rows %q", bsLabels(res))
 	}
 	requireLines(res, openNone, []cbLine{
-		cbLineWant(t, b.app, entryLineOn(t, b.app, noneCharge.Id, b.receivable), "Journal entry", "books/entries/"+noneCharge.Id, 1),
-		cbLineWant(t, b.app, entryLineOn(t, b.app, noneCredit.Id, b.receivable), "Journal entry", "books/entries/"+noneCredit.Id, 1),
+		cbLineWant(t, b.app, entryLineOn(t, b.app, noneCharge.Id, b.receivable), "Journal entry", "books/entries/"+urlKey(t, b.app, noneCharge), 1),
+		cbLineWant(t, b.app, entryLineOn(t, b.app, noneCredit.Id, b.receivable), "Journal entry", "books/entries/"+urlKey(t, b.app, noneCredit), 1),
 	})
 
 	// A customer row inside a family opens at depth 2.
@@ -1180,7 +1180,7 @@ func TestCustomerBalanceDetail(t *testing.T) {
 		t.Errorf("Fam Sub is at depth %d, want 1 (inside its family)", famSubRow.Depth)
 	}
 	requireLines(res, famSubRow, []cbLine{
-		cbLineWant(t, b.app, entryLineOn(t, b.app, famSubEntry.Id, b.receivable), "Journal entry", "books/entries/"+famSubEntry.Id, 2),
+		cbLineWant(t, b.app, entryLineOn(t, b.app, famSubEntry.Id, b.receivable), "Journal entry", "books/entries/"+urlKey(t, b.app, famSubEntry), 2),
 	})
 	if lines := cbLinesUnder(t, res, cbCustomerRow(t, res, fam)); len(lines) != 0 {
 		t.Errorf("Fam Co's own row opened though it was not pressed: %+v", lines)
@@ -1513,7 +1513,7 @@ func TestCustomerBalanceOrder(t *testing.T) {
 // deposit route row the detail label and open path read (same Revision, as the
 // write-off unit's label did). The inventory-adjustment unit then added
 // "Inventory adjustment" to the labels (same Revision).
-const customerBalanceSpecSHA256 = "74875ae9b34ff2e4e662ac2673412e7990a46ed43a28b9d89f2b74495be26044"
+const customerBalanceSpecSHA256 = "120856536d6ff1435a7c184575fa451be85b66e7654fef561e52255db102fa14"
 
 func TestCustomerBalanceSpecJSONUnchanged(t *testing.T) {
 	sum := sha256.Sum256(mustJSON(customerBalanceSpec()))

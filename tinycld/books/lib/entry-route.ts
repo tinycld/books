@@ -1,8 +1,12 @@
 import entryRoutes from '../../../server/entry_routes.json'
 import type { BooksJournalEntries } from '../types'
+import { entryKey, hasOwnNumber } from './record-key'
 
 // Paths without the org prefix; callers pass them through `useOrgHref`.
-type RoutedEntry = Pick<BooksJournalEntries, 'id' | 'doc_type' | 'origin' | 'document'>
+type RoutedEntry = Pick<
+    BooksJournalEntries,
+    'id' | 'doc_type' | 'origin' | 'document' | 'sequence' | 'status'
+>
 
 // The screen of each posting document type, by the entry's doc_type, from the one
 // table the server's report links read too (entryOpenPath in
@@ -23,11 +27,13 @@ function documentRoute(entry: RoutedEntry): string | null {
 // as an entry.
 export function entryHref(entry: RoutedEntry): string {
     const route = documentRoute(entry)
-    if (route) return `${route}/${entry.document}`
+    // A document takes the number of the entry it posts, so a posted entry's number is its
+    // document's URL key; a void one's document shares its number with a correction.
+    if (route) return `${route}/${hasOwnNumber(entry) ? entry.sequence : entry.document}`
     if (entry.doc_type === 'transfer' && entry.origin === 'manual') {
-        return `books/transfers/${entry.id}`
+        return `books/transfers/${entryKey(entry)}`
     }
-    return `books/entries/${entry.id}`
+    return `books/entries/${entryKey(entry)}`
 }
 
 // The server refuses a correction whose type or origin differs from the original's, so
@@ -43,4 +49,23 @@ export function entryEditHref(entry: RoutedEntry): string {
     if (entry.doc_type === 'transfer') return `books/transfers/new?replaces=${entry.id}`
     if (entry.origin === 'opening_balance') return 'books/opening-balances?edit=1'
     return `books/entries/new?replaces=${entry.id}`
+}
+
+// The link of a row from a view that holds only posted entries that are not a void
+// reversal (books_reconcile_lines): the row names its entry by `entry`.
+export function postedLineHref(row: {
+    entry: string
+    doc_type: RoutedEntry['doc_type']
+    origin: RoutedEntry['origin']
+    document: string
+    sequence: number
+}): string {
+    return entryHref({
+        id: row.entry,
+        doc_type: row.doc_type,
+        origin: row.origin,
+        document: row.document,
+        sequence: row.sequence,
+        status: 'posted',
+    })
 }

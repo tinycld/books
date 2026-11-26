@@ -2,8 +2,6 @@ import { asyncStorage, create, persist } from '@tinycld/core/lib/store'
 import { useWorkspaceStore } from '@tinycld/core/lib/stores/workspace-store'
 
 interface BooksUIState {
-    isAccountingOpen: boolean
-    toggleAccounting: () => void
     // The New section of the sidebar. Closed until the user opens it.
     isNewOpen: boolean
     toggleNew: () => void
@@ -16,15 +14,14 @@ interface BooksUIState {
     // The Reports section of the sidebar. Closed until the user opens it.
     isReportsOpen: boolean
     toggleReports: () => void
+    // The text of the sidebar's filter box. Not kept: a new session starts unfiltered.
+    filter: string
+    setFilter: (filter: string) => void
 }
 
 export const useBooksUIStore = create<BooksUIState>()(
     persist(
         set => ({
-            isAccountingOpen: true,
-            toggleAccounting: () => {
-                set(s => ({ isAccountingOpen: !s.isAccountingOpen }))
-            },
             isNewOpen: false,
             toggleNew: () => {
                 set(s => ({ isNewOpen: !s.isNewOpen }))
@@ -37,12 +34,15 @@ export const useBooksUIStore = create<BooksUIState>()(
             toggleReports: () => {
                 set(s => ({ isReportsOpen: !s.isReportsOpen }))
             },
+            filter: '',
+            setFilter: filter => {
+                set({ filter })
+            },
         }),
         {
             name: 'tinycld_books_ui',
             storage: asyncStorage,
             partialize: s => ({
-                isAccountingOpen: s.isAccountingOpen,
                 isNewOpen: s.isNewOpen,
                 isReportsOpen: s.isReportsOpen,
             }),

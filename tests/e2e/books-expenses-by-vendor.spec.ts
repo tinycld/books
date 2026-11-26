@@ -58,6 +58,7 @@ import {
 } from './expenses-by-vendor-helpers'
 import { BILL_EXPENSE_ACCOUNT, CHECKING, localDay, vendorWithBills } from './pay-bills-helpers'
 import { escapeRegExp, openBooks, uniqueName } from './record-form-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import { expectSalesPhoneLines, expectSalesRowsFit } from './sales-reports-helpers'
 import { postVendorCredit } from './vendor-credit-helpers'
 import { openVendorsList, vendorEntries } from './vendor-form-helpers'
@@ -364,7 +365,7 @@ test.describe('expenses-by-vendor: report', () => {
 
         await page.getByTestId(`report-row-${lines[0].id}`).click()
         await expect(page).toHaveURL(BILL_URL)
-        await expect(page).toHaveURL(new RegExp(`/books/bills/${bill.id}$`))
+        await expectRecordUrl(page, 'bills', bill.id)
         await expect(page.getByTestId('bill-read-only').filter({ visible: true })).toBeVisible()
     })
 

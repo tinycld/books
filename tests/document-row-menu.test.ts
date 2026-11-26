@@ -34,6 +34,7 @@ function row(
 ): DocumentListRow {
     return {
         id: ID,
+        key: recordStatus === 'draft' ? ID : '1004',
         kind,
         number: '1004',
         date: '2026-11-17',
@@ -42,7 +43,7 @@ function row(
         currency: 'USD',
         created: '2026-11-17 10:00:00.000Z',
         status: { label: 'Open', tone: 'warning' },
-        sequence: 1004,
+        sequence: recordStatus === 'draft' ? 0 : 1004,
         partyId: CUSTOMER,
         partyName: 'Acme',
         memo: '',
@@ -384,7 +385,7 @@ describe('documentRowMenuItems, refund receipt', () => {
 
     it('open and copy give the refund receipt routes', () => {
         expect(rowActionHref(row('refund_receipt', 'posted'), 'open')).toBe(
-            `books/refund-receipts/${ID}`
+            'books/refund-receipts/1004'
         )
         expect(parts(rowActionHref(row('refund_receipt', 'posted'), 'copy'))).toEqual({
             path: 'books/refund-receipts/new',
@@ -514,7 +515,7 @@ describe('documentRowMenuItems, write off', () => {
     })
 
     it("a write-off row's Open gives the write-off page", () => {
-        expect(rowActionHref(row('write_off', 'posted'), 'open')).toBe(`books/write-offs/${ID}`)
+        expect(rowActionHref(row('write_off', 'posted'), 'open')).toBe('books/write-offs/1004')
     })
 })
 
@@ -528,14 +529,18 @@ function parts(href: string | null) {
 describe('rowActionHref', () => {
     const posted = row('invoice', 'posted', { balance: 150 })
 
-    it("open gives the document's route", () => {
-        expect(rowActionHref(posted, 'open')).toBe(`books/invoices/${ID}`)
-        expect(rowActionHref(row('payment', 'posted'), 'open')).toBe(`books/payments/${ID}`)
-        expect(rowActionHref(row('estimate', 'pending'), 'open')).toBe(`books/estimates/${ID}`)
+    it("open gives the document's route by its number", () => {
+        expect(rowActionHref(posted, 'open')).toBe('books/invoices/1004')
+        expect(rowActionHref(row('payment', 'posted'), 'open')).toBe('books/payments/1004')
+        expect(rowActionHref(row('estimate', 'pending'), 'open')).toBe('books/estimates/1004')
         expect(rowActionHref(row('sales_receipt', 'posted'), 'open')).toBe(
-            `books/sales-receipts/${ID}`
+            'books/sales-receipts/1004'
         )
-        expect(rowActionHref(row('credit_memo', 'posted'), 'open')).toBe(`books/credit-memos/${ID}`)
+        expect(rowActionHref(row('credit_memo', 'posted'), 'open')).toBe('books/credit-memos/1004')
+    })
+
+    it("open gives a draft's route by its id", () => {
+        expect(rowActionHref(row('invoice', 'draft'), 'open')).toBe(`books/invoices/${ID}`)
     })
 
     it('receive_payment gives the new payment with the customer and the invoice', () => {

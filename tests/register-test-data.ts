@@ -87,6 +87,7 @@ export function reconcileViewRow(
         credit: line.credit,
         memo: line.memo,
         number: '',
+        sequence: 0,
         doc_type: 'journal',
         origin: 'manual',
         document: '',

@@ -77,8 +77,13 @@ const SHORTCUTS_SUFFIX = '_create_books_sidebar_shortcuts.js'
 
 const SHORTCUTS = MIGRATIONS.filter(file => file.endsWith(SHORTCUTS_SUFFIX))
 
-// No migration runs after the audit view now: it is the highest.
-const AFTER_AUDIT: string[] = []
+// URL keys (lib/record-key.ts): the sequence indexes and the reconcile lines view's sequence
+// run after the audit view. They add indexes and change a view, and create no collection
+// the view reads.
+const AFTER_AUDIT: string[] = [
+    '2100000044_index_books_document_sequence.js',
+    '2100000045_books_reconcile_lines_sequence.js',
+]
 
 // The migrations between the inventory migration and the audit view, in their order.
 const BEFORE_AUDIT: string[] = [...RECONCILE, ...REPORT, ...DASHBOARD, ...SHORTCUTS]
@@ -123,7 +128,7 @@ describe('pb-migrations prefixes', () => {
         expect(shared).toEqual([])
     })
 
-    it('runs no migration after the audit log view, and only the named ones between the inventory migration and it', () => {
+    it('runs only the named migrations after the audit log view, and only the named ones between the inventory migration and it', () => {
         expect(RECONCILE).toHaveLength(1)
         expect(REPORT).toHaveLength(1)
         expect(numberOf(REPORT[0])).toBeGreaterThan(numberOf(RECONCILE[0]))
@@ -133,6 +138,7 @@ describe('pb-migrations prefixes', () => {
         expect(numberOf(SHORTCUTS[0])).toBeGreaterThan(numberOf(DASHBOARD[0]))
         const afterAudit = MIGRATIONS.filter(file => numberOf(file) > numberOf(AUDIT))
         expect(afterAudit).toEqual(AFTER_AUDIT)
+        for (const file of AFTER_AUDIT) expect(sourceOf(file)).not.toContain("name: '")
         const afterInventory = MIGRATIONS.filter(
             file => numberOf(file) > numberOf(INVENTORY) && numberOf(file) < numberOf(AUDIT)
         )

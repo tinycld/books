@@ -150,7 +150,7 @@ test.describe('email-share: send dialog', () => {
         await openBooks(page, DESKTOP)
         const invoice = await postedInvoiceWithEmail(page)
         await openInvoiceBySearch(page, invoice.memo)
-        const invoiceId = invoiceIdFromUrl(page)
+        const invoiceId = await invoiceIdFromUrl(page)
         const dialog = await openSendDialog(page)
 
         const subject = uniqueMemo('Your invoice')

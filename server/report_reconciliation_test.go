@@ -150,7 +150,7 @@ func (r *rrEnv) requireSection(t *testing.T, res *reports.Result, id, label stri
 	var debits, credits int64
 	for i, want := range lines {
 		row := g.lines[i]
-		if wantOpen := "books/entries/" + want.entry.Id; row.Open != wantOpen {
+		if wantOpen := "books/entries/" + urlKey(t, r.app, want.entry); row.Open != wantOpen {
 			t.Errorf("line %d opens %q, want the entry's path %q", i, row.Open, wantOpen)
 		}
 		if got := rrFigure(t, row, "debit"); got != want.debit {
@@ -540,7 +540,7 @@ func TestReconciliationReport_PayeeRename(t *testing.T) {
 	}
 	var payees []string
 	for _, row := range g.lines {
-		if row.Open == "books/entries/"+paid.Id {
+		if row.Open == "books/entries/"+urlKey(t, r.app, paid) {
 			payees = append(payees, textCell(t, row, "payee"))
 		}
 	}
@@ -556,7 +556,7 @@ func TestReconciliationReport_ShippedAndShared(t *testing.T) {
 	if shipped.Key != "books.reconciliation_report" || shipped.Title != "Reconciliation Report" {
 		t.Errorf("key, title = %q, %q; want books.reconciliation_report, Reconciliation Report", shipped.Key, shipped.Title)
 	}
-	if shipped.Revision != 1 || !shipped.Unpublished || !shipped.Live {
+	if shipped.Revision != 2 || !shipped.Unpublished || !shipped.Live {
 		t.Errorf("revision %d, unpublished %v, live %v; want revision 1, unpublished, live",
 			shipped.Revision, shipped.Unpublished, shipped.Live)
 	}

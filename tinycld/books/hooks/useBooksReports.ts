@@ -3,6 +3,7 @@ import { useLiveQuery } from '@tanstack/react-db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useMemo } from 'react'
 import type { LiveRecovery } from '../lib/live-recovery'
+import { REPORT_GROUPS, reportGroup } from '../lib/report-groups'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 
@@ -33,7 +34,8 @@ type ReportRow = Pick<
     'id' | 'title' | 'shippedKey'
 >
 
-// The reports Books ships first, then the saved ones; each group by title.
+// The reports in the order of their groups (lib/report-groups.ts): the shipped ones first,
+// then the saved ones; each group by title.
 export function sortBooksReports(rows: readonly ReportRow[]) {
     // Named fields, not a spread: a live query row also carries pbtsdb's own `$` keys.
     return rows
@@ -42,10 +44,11 @@ export function sortBooksReports(rows: readonly ReportRow[]) {
             title: row.title,
             shippedKey: row.shippedKey,
             isShipped: row.shippedKey !== '',
+            group: reportGroup(row.shippedKey),
         }))
         .sort(
             (a, b) =>
-                Number(b.isShipped) - Number(a.isShipped) ||
+                REPORT_GROUPS.indexOf(a.group) - REPORT_GROUPS.indexOf(b.group) ||
                 a.title.localeCompare(b.title) ||
                 a.id.localeCompare(b.id)
         )

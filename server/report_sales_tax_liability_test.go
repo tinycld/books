@@ -253,7 +253,7 @@ func TestSalesTaxLiabilitySpecLoads(t *testing.T) {
 	if strings.Contains(strings.ToLower(shipped.Description), "accrual basis") {
 		t.Errorf("description %q still says \"accrual basis\"", shipped.Description)
 	}
-	if shipped.Revision != 3 || !shipped.Unpublished {
+	if shipped.Revision != 4 || !shipped.Unpublished {
 		t.Errorf("revision %d, unpublished %v; want revision 3 (credit memos), shipped unpublished", shipped.Revision, shipped.Unpublished)
 	}
 	built, err := json.Marshal(salesTaxLiabilitySpec())
@@ -954,8 +954,8 @@ func TestSalesTaxLiabilityDocumentOpens(t *testing.T) {
 	}
 
 	want := map[string]string{
-		"2026-10-05 · Invoice " + inv.GetString("number") + " · " + customer:       "books/invoices/" + inv.Id,
-		"2026-10-06 · Sales receipt " + rct.GetString("number") + " · " + customer: "books/sales-receipts/" + rct.Id,
+		"2026-10-05 · Invoice " + inv.GetString("number") + " · " + customer:       "books/invoices/" + urlKey(t, b.app, inv),
+		"2026-10-06 · Sales receipt " + rct.GetString("number") + " · " + customer: "books/sales-receipts/" + urlKey(t, b.app, rct),
 	}
 	got := map[string]string{}
 	for _, r := range stlDetailsUnder(opened, openRate) {
@@ -999,7 +999,7 @@ func TestSalesTaxLiabilityShippedShared(t *testing.T) {
 	if row.GetBool("published") || row.GetString("published_by") != "" {
 		t.Errorf("published = %v (by %q), want unpublished", row.GetBool("published"), row.GetString("published_by"))
 	}
-	if row.GetString("title") != "Sales Tax Liability" || row.GetInt("shipped_revision") != 3 || row.GetString("source") != "books.sales_tax_lines" {
+	if row.GetString("title") != "Sales Tax Liability" || row.GetInt("shipped_revision") != 4 || row.GetString("source") != "books.sales_tax_lines" {
 		t.Errorf("row = %v", row.PublicExport())
 	}
 	if err := reconcileBooksReportShares(app); err != nil {
@@ -1079,9 +1079,9 @@ func TestSalesTaxLiabilityCreditMemo(t *testing.T) {
 		got[r.Label] = r.Open
 	}
 	want := map[string]string{
-		"2026-10-05 · Invoice " + inv.GetString("number") + " · " + customer:       "books/invoices/" + inv.Id,
-		"2026-10-06 · Sales receipt " + rct.GetString("number") + " · " + customer: "books/sales-receipts/" + rct.Id,
-		"2026-10-07 · Credit memo 1001 · " + customer:                              "books/credit-memos/" + memo.Id,
+		"2026-10-05 · Invoice " + inv.GetString("number") + " · " + customer:       "books/invoices/" + urlKey(t, b.app, inv),
+		"2026-10-06 · Sales receipt " + rct.GetString("number") + " · " + customer: "books/sales-receipts/" + urlKey(t, b.app, rct),
+		"2026-10-07 · Credit memo 1001 · " + customer:                              "books/credit-memos/" + urlKey(t, b.app, memo),
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Accrual document rows (label → open) =\n%q\nwant\n%q", got, want)
@@ -1221,8 +1221,8 @@ func TestSalesTaxLiabilityRefundReceipt(t *testing.T) {
 			got[r.Label] = r.Open
 		}
 		want := map[string]string{
-			"2026-10-06 · Sales receipt " + rct.GetString("number") + " · " + customer: "books/sales-receipts/" + rct.Id,
-			"2026-10-08 · Refund receipt 1001 · " + customer:                           "books/refund-receipts/" + refund.Id,
+			"2026-10-06 · Sales receipt " + rct.GetString("number") + " · " + customer: "books/sales-receipts/" + urlKey(t, b.app, rct),
+			"2026-10-08 · Refund receipt 1001 · " + customer:                           "books/refund-receipts/" + urlKey(t, b.app, refund),
 		}
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("%s document rows (label → open) =\n%q\nwant\n%q", method, got, want)

@@ -6,7 +6,6 @@ import {
     CREDIT_MEMO_URL,
     creditMemoIdFromUrl,
     creditMemoLineRowId,
-    creditMemoUrlOf,
     NEW_CREDIT_MEMO_URL,
     openNewCreditMemo,
     saveCreditMemoDraft,
@@ -15,6 +14,7 @@ import { batchAnswered } from './document-batch-helpers'
 import { lineCellTestId, uniqueMemo } from './invoice-helpers'
 import { openEntriesList } from './journal-entries-helpers'
 import { tabTo } from './keyboard-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 
 // The credit memo's keyboard-only create and edit (credit memo spec §3.2, §3.5, §3.10).
 // After the form opens, no click: focus starts in Customer, Tab moves between fields,
@@ -203,14 +203,14 @@ test.describe('credit-memo-form: keyboard', () => {
 
         // From here on, keys only.
         await searchByKeys(page, memo, /^Draft credit memo/)
-        await expect(page).toHaveURL(creditMemoUrlOf(id))
+        await expectRecordUrl(page, 'credit-memos', id)
         await expect(page.getByTestId('credit-memo-form')).toBeVisible()
         await expect(page.getByTestId('form-input-customer')).toBeFocused()
 
         // A zero total is refused by the server; the draft stays.
         await page.keyboard.press('ControlOrMeta+Enter')
         await expect(page.getByTestId('credit-memo-error-summary')).toContainText(ZERO_TOTAL)
-        await expect(page).toHaveURL(creditMemoUrlOf(id))
+        await expectRecordUrl(page, 'credit-memos', id)
         await expect(page.getByTestId('credit-memo-title')).toHaveText('Draft credit memo')
 
         const cell = (column: string) => page.getByTestId(lineCellTestId(line1, column))
@@ -227,7 +227,7 @@ test.describe('credit-memo-form: keyboard', () => {
         const saved = batchAnswered(page, 'books_credit_memos', 'PATCH', 200)
         await page.keyboard.press('ControlOrMeta+s')
         await saved
-        await expect(page).toHaveURL(creditMemoUrlOf(id))
+        await expectRecordUrl(page, 'credit-memos', id)
         await page.keyboard.press('Alt+2')
         await expect(page.getByTestId('credit-memo-pdf')).toBeVisible()
         await expect(page.getByTestId('credit-memo-pdf-stale')).toHaveCount(0)
@@ -241,13 +241,13 @@ test.describe('credit-memo-form: keyboard', () => {
         await expect(cell('quantity')).toHaveValue('2')
 
         await page.keyboard.press('ControlOrMeta+Enter')
-        await expect(page).toHaveURL(creditMemoUrlOf(id))
+        await expectRecordUrl(page, 'credit-memos', id)
         await expect(page.getByTestId('credit-memo-read-only')).toBeVisible()
         await expect(page.getByTestId('credit-memo-title')).toHaveText(/^Credit memo \d+$/)
         const line = page.getByTestId(`credit-memo-line-${line1}`)
         await expect(line).toContainText('40.00')
         await expect(line).toContainText(/\b2\b/)
         await expect(page.getByTestId('credit-memo-total-subtotal')).toContainText('$80.00')
-        expect(creditMemoIdFromUrl(page)).toBe(id)
+        expect(await creditMemoIdFromUrl(page)).toBe(id)
     })
 })

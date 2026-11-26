@@ -6,6 +6,7 @@ import { useRecord } from '@tinycld/core/lib/use-record'
 import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
 import { type EMPTY_INVOICE_COLUMNS, invoiceColumnsFrom } from '../lib/invoice-columns'
+import { documentKey } from '../lib/record-key'
 import { columnsOrThrow } from '../lib/record-save'
 import { INVOICE_KIND } from '../lib/sales-document-kinds'
 import type { BooksInvoices } from '../types'
@@ -282,6 +283,10 @@ function useInvoiceWrites(): DocumentWrites {
                 draft.revision = revision
             }),
         storedRevision: id => invoicesCollection.get(id)?.revision,
+        storedKey: id => {
+            const row = invoicesCollection.get(id)
+            return row ? documentKey(row) : id
+        },
         lineOps: (invoiceId, mapper) => {
             const { toRecord } = salesLineMapperOf(mapper)
             const lineRecord = (write: TableRowWrite) => toRecord(write.row, write.position)

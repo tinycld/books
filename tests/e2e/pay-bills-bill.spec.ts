@@ -22,6 +22,7 @@ import {
     shown,
     vendorWithBills,
 } from './pay-bills-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 
 // The bill after this unit (pay-bills spec §3.9, §2, §3.1): the read view's Balance due,
 // Payments total line and Payments block, the Paid / Partly paid badge, Pay bill (P) to Pay
@@ -45,10 +46,6 @@ function uniqueBillNo(): string {
     return `PB${Date.now()}${Math.random().toString(36).slice(2, 6)}`
 }
 
-function billUrl(id: string) {
-    return new RegExp(`/books/bills/${id}$`)
-}
-
 // The bar's action buttons in screen order (More excluded), read in one snapshot.
 function barActionIds(page: Page): Promise<string[]> {
     return shown(page, 'bill-read-actions').evaluate(bar =>
@@ -65,7 +62,7 @@ async function payFromChecking(page: Page, billId: string): Promise<string> {
     await pickSelect(page, 'pay-bills-paid-from', CHECKING)
     await page.getByTestId('pay-bills-pay').click()
     const number = await postedNumber(page)
-    await expect(page).toHaveURL(billUrl(billId))
+    await expectRecordUrl(page, 'bills', billId)
     await expect(shown(page, 'bill-read-only')).toBeVisible()
     return number
 }
@@ -82,7 +79,7 @@ test.describe('pay-bills: bill balance and Pay bill', () => {
 
         // The read view: Balance due 500.00, Posted, no Payments, Pay bill first.
         await openBillBySearch(page, billNo)
-        await expect(page).toHaveURL(billUrl(bill.id))
+        await expectRecordUrl(page, 'bills', bill.id)
         await expect(shown(page, 'bill-badge')).toHaveText('Posted')
         await expect(shown(page, 'bill-balance-due')).toHaveText('$500.00')
         await expect(shown(page, 'bill-total-payments')).toHaveCount(0)
@@ -102,7 +99,7 @@ test.describe('pay-bills: bill balance and Pay bill', () => {
         await expect(payBack).toContainText('Bill')
         await payBack.click()
         await page.getByTestId('discard-confirm').click()
-        await expect(page).toHaveURL(billUrl(bill.id))
+        await expectRecordUrl(page, 'bills', bill.id)
         await expect(shown(page, 'bill-read-only')).toBeVisible()
         await page.keyboard.press('p')
         await expect(page).toHaveURL(new RegExp(`/books/pay-bills\\?bill=${bill.id}$`))
@@ -139,7 +136,7 @@ test.describe('pay-bills: bill balance and Pay bill', () => {
         await expect(paymentBack).not.toContainText('Journal entries')
         await expect(paymentBack).toContainText('Bill')
         await paymentBack.click()
-        await expect(page).toHaveURL(billUrl(bill.id))
+        await expectRecordUrl(page, 'bills', bill.id)
         await expect(shown(page, 'bill-badge')).toHaveText('Partly paid')
 
         // Pay bill again: the rest, 300.00, in full.
@@ -197,7 +194,7 @@ test.describe('pay-bills: bill void refusal', () => {
 
         // Back on the bill: open again, and now it voids.
         await page.goBack()
-        await expect(page).toHaveURL(billUrl(bill.id))
+        await expectRecordUrl(page, 'bills', bill.id)
         await expect(shown(page, 'bill-badge')).toHaveText('Posted')
         await expect(shown(page, 'bill-payments')).toHaveCount(0)
         await page.keyboard.press('v')
@@ -227,7 +224,7 @@ test.describe('pay-bills: unsaved draft bill kept under a searched bill', () => 
             await page.getByTestId('bill-save-draft').click()
             await expect(page).toHaveURL(BILL_URL)
             await expect(shown(page, 'bill-title')).toHaveText('Draft bill')
-            ids.push(billIdFromUrl(page))
+            ids.push(await billIdFromUrl(page))
         }
         const [idA, idB] = ids
 
@@ -235,28 +232,28 @@ test.describe('pay-bills: unsaved draft bill kept under a searched bill', () => 
         // Vendor picker, which takes typed keys: leave it so `/` opens the search palette.
         await shown(page, 'bill-title').click()
         await openBillBySearch(page, memoA)
-        await expect(page).toHaveURL(billUrl(idA))
+        await expectRecordUrl(page, 'bills', idA)
         await shown(page, 'form-input-ref_no').fill(typed)
         // Leave the text field so `/` opens the search palette.
         await shown(page, 'bill-title').click()
 
         // B, by search over A; its back link names what it leads to and goes back to A.
         await openBillBySearch(page, memoB)
-        await expect(page).toHaveURL(billUrl(idB))
+        await expectRecordUrl(page, 'bills', idB)
         await expect(shown(page, 'form-input-memo')).toHaveValue(memoB)
         const back = shown(page, 'entry-back')
         await expect(back).not.toContainText('Journal entries')
         await back.click()
-        await expect(page).toHaveURL(billUrl(idA))
+        await expectRecordUrl(page, 'bills', idA)
         await expect(shown(page, 'form-input-memo')).toHaveValue(memoA)
         await expect(shown(page, 'form-input-ref_no')).toHaveValue(typed)
 
         // B again, and its Cancel: back to A, still with the typed value.
         await shown(page, 'bill-title').click()
         await openBillBySearch(page, memoB)
-        await expect(page).toHaveURL(billUrl(idB))
+        await expectRecordUrl(page, 'bills', idB)
         await shown(page, 'bill-cancel').click()
-        await expect(page).toHaveURL(billUrl(idA))
+        await expectRecordUrl(page, 'bills', idA)
         await expect(shown(page, 'form-input-memo')).toHaveValue(memoA)
         await expect(shown(page, 'form-input-ref_no')).toHaveValue(typed)
     })

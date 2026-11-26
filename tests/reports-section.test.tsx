@@ -50,7 +50,7 @@ async function openRows(container: HTMLElement, count: number) {
 }
 
 beforeEach(() => {
-    useBooksUIStore.setState({ isAccountingOpen: true, isNewOpen: false, isReportsOpen: true })
+    useBooksUIStore.setState({ isNewOpen: false, isReportsOpen: true })
     url.pathname = '/a/books/dashboard'
     vi.mocked(router.navigate).mockClear()
 })
@@ -86,7 +86,7 @@ describe('Reports section', () => {
         expect(byTestId(container, ALL)?.textContent).toBe('All reports')
     })
 
-    it('sits between the New section and the fixed navigation', async () => {
+    it('sits after the fixed navigation and the New section', async () => {
         seedSidebar()
         const { container } = renderSidebar()
         await openRows(container, 2)
@@ -95,8 +95,8 @@ describe('Reports section', () => {
             (byTestId(container, first) as HTMLElement).compareDocumentPosition(
                 byTestId(container, second) as HTMLElement
             ) & Node.DOCUMENT_POSITION_FOLLOWING
+        expect(before('books-nav-settings', 'books-sidebar-new-toggle')).toBeTruthy()
         expect(before('books-sidebar-new-toggle', 'books-sidebar-reports-toggle')).toBeTruthy()
-        expect(before(ALL, 'books-nav-dashboard')).toBeTruthy()
         expect(byTestId(container, 'books-nav-reports')).toBeNull()
     })
 

@@ -1,6 +1,7 @@
 import { expect, type Page } from '@playwright/test'
 import { openEntriesList } from './journal-entries-helpers'
 import { openNewAction } from './new-menu-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 import { pickFromSearchPicker } from './search-picker-helpers'
 
 // An expense's own screen: `books/expenses/<id>`, never `books/expenses/new`.
@@ -9,11 +10,8 @@ export const NEW_EXPENSE_URL = /\/books\/expenses\/new(?:[?#].*)?$/
 
 export type ExpenseTable = 'account_lines' | 'item_lines'
 
-export function expenseIdFromUrl(page: Page): string {
-    const match = /\/books\/expenses\/([^/?#]+)$/.exec(new URL(page.url()).pathname)
-    const id = match?.[1]
-    if (!id || id === 'new') throw new Error(`Not on a saved expense: ${page.url()}`)
-    return id
+export async function expenseIdFromUrl(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'expenses')
 }
 
 // Books must already be open. From the Journal Entries list through the New menu
@@ -177,9 +175,6 @@ export async function openExpenseBySearch(page: Page, term: string) {
 export async function reopenExpenseByBack(page: Page) {
     const url = page.url()
     const navItem = page.getByTestId('books-nav-entries')
-    if (!(await navItem.isVisible())) {
-        await page.getByTestId('books-nav-accounting-toggle').click()
-    }
     await navItem.click()
     // A sidebar push leaves the earlier screen mounted and hidden, so the list may be
     // mounted twice: the pushed one is the last.

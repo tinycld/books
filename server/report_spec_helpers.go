@@ -38,7 +38,23 @@ func mustParseEntryRoutes(raw []byte) map[string]string {
 // document, a manual transfer opens the transfer, and any other entry (a
 // reversal of a document included) opens the entry's read view. Paths start
 // at a journal line.
+//
+// A path holds the record's URL key (lib/record-key.ts): the number without
+// its prefix (the entry's sequence, which its document takes too) when the
+// entry has a number of its own, else the id. A journal entry and a manual
+// transfer open by number on their own screens; any other entry on the entry
+// screen opens by id.
 func entryOpenPath() *reports.Node {
+	// The entry is posted and is not a void reversal: its number is its own.
+	ownNumber := op("and",
+		op("eq", fld("entry", "status"), lit("posted")),
+		op("gt", fld("entry", "sequence"), lit(0)),
+		op("not", op("eq", fld("entry", "origin"), lit("void_reversal"))),
+	)
+	keyOr := func(id *reports.Node) *reports.Node {
+		// concat makes the number text, as each result of a case is of one kind.
+		return op("case", ownNumber, op("concat", fld("entry", "sequence")), id)
+	}
 	var args []*reports.Node
 	// Sorted, so the spec's JSON does not move with map order.
 	for _, docType := range slices.Sorted(maps.Keys(entryRoutes)) {
@@ -48,7 +64,7 @@ func entryOpenPath() *reports.Node {
 				op("eq", fld("entry", "doc_type"), lit(docType)),
 				op("not", op("isEmpty", fld("entry", "document"))),
 			),
-			op("concat", lit("books/"+entryRoutes[docType]+"/"), fld("entry", "document")),
+			op("concat", lit("books/"+entryRoutes[docType]+"/"), keyOr(fld("entry", "document"))),
 		)
 	}
 	args = append(args,
@@ -56,7 +72,9 @@ func entryOpenPath() *reports.Node {
 			op("eq", fld("entry", "doc_type"), lit("transfer")),
 			op("eq", fld("entry", "origin"), lit("manual")),
 		),
-		op("concat", lit("books/transfers/"), fld("entry", "id")),
+		op("concat", lit("books/transfers/"), keyOr(fld("entry", "id"))),
+		op("eq", fld("entry", "doc_type"), lit("journal")),
+		op("concat", lit("books/entries/"), keyOr(fld("entry", "id"))),
 	)
 	return op("case", append(args, op("concat", lit("books/entries/"), fld("entry", "id")))...)
 }

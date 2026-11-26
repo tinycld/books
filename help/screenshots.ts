@@ -24,10 +24,6 @@ async function fitToContent(page: Page, table: Locator, lastRow: Locator) {
 async function openChartOfAccounts(page: Page) {
     await navigateToPackage(page, 'books')
     const item = page.getByTestId('books-nav-accounts')
-    const toggle = page.getByTestId('books-nav-accounting-toggle')
-    // Both are visible on desktop, so waiting on either through `.or()` would be a strict-mode violation.
-    await toggle.waitFor({ state: 'attached' })
-    if (!(await item.isVisible())) await toggle.click()
     await item.click()
     await expect(page.getByTestId('account-search')).toBeVisible()
     await expect(page.locator('[data-testid^="account-row-"]').first()).toBeVisible()
@@ -231,9 +227,6 @@ async function openReconcileForShot(page: Page) {
 async function openSavingsRow(page: Page) {
     await navigateToPackage(page, 'books')
     const item = page.getByTestId('books-nav-reconcile')
-    const toggle = page.getByTestId('books-nav-accounting-toggle')
-    await toggle.waitFor({ state: 'attached' })
-    if (!(await item.isVisible())) await toggle.click()
     await item.click()
     await expect(page.getByTestId('reconcile-accounts-table')).toBeVisible()
     const row = savingsRow(page)

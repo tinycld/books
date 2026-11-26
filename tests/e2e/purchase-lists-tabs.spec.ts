@@ -9,6 +9,7 @@ import {
     searchPurchases,
 } from './purchase-lists-helpers'
 import { DESKTOP, openBooks, PHONE } from './record-form-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import { openVendor } from './vendor-form-helpers'
 
 // The Expenses area's tabs and rows (purchase-lists checkpoint 3, spec §2 and §3 "Tabs and
@@ -198,7 +199,7 @@ test.describe('purchase-lists: tabs and rows', () => {
 
         // A press opens the bill form as a page, with no list on screen.
         await card.click()
-        await expect(page).toHaveURL(new RegExp(`/books/bills/${DRAFT_BILL}$`))
+        await expectRecordUrl(page, 'bills', DRAFT_BILL)
         await expect(visible(page, 'bill-form')).toBeVisible()
         await expect.poll(() => reachableCount(page, 'purchases-list')).toBe(0)
 
@@ -222,7 +223,7 @@ test.describe('purchase-lists: tabs and rows', () => {
         // From the Bills list, View journal entry takes the read view's place, so Back
         // returns to the Bills list with its search kept.
         await purchaseRow(page, BILL_1057).click()
-        await expect(page).toHaveURL(new RegExp(`/books/bills/${BILL_1057}$`))
+        await expectRecordUrl(page, 'bills', BILL_1057)
         await expect(visible(page, 'bill-read-only')).toBeVisible()
         await visible(page, 'bill-read-entry').click()
         await expect(page).toHaveURL(/\/books\/entries\/[^/?#]+$/)
@@ -242,7 +243,7 @@ test.describe('purchase-lists: tabs and rows', () => {
         // beside the column, with its row marked.
         await pickPurchaseVendor(page, ZENITH)
         await purchaseRow(page, BILL_1057).click()
-        await expect(page).toHaveURL(new RegExp(`/books/bills/${BILL_1057}$`))
+        await expectRecordUrl(page, 'bills', BILL_1057)
         const column = visible(page, 'purchases-names')
         await expect(column).toBeVisible()
         const marked = column.getByTestId(`purchases-name-row-${BILL_1057}`)
@@ -276,7 +277,7 @@ test.describe('purchase-lists: tabs and rows', () => {
         await openVendor(page, ZENITH)
         await page.getByTestId('vendor-tab-transactions').click()
         await page.getByTestId(`vendor-transaction-${BILL_1057}`).click()
-        await expect(page).toHaveURL(new RegExp(`/books/bills/${BILL_1057}$`))
+        await expectRecordUrl(page, 'bills', BILL_1057)
         await expect(visible(page, 'purchases-names')).toBeVisible()
         await expect(
             visible(page, 'purchases-names').getByTestId(`purchases-name-row-${BILL_1057}`)

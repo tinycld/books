@@ -7,6 +7,7 @@ import { batchAnswered } from './document-batch-helpers'
 import { localToday, uniqueMemo } from './invoice-helpers'
 import { tabTo } from './keyboard-helpers'
 import { moneyCents, shown } from './pay-bills-helpers'
+import { expectRecordUrl } from './record-key-helpers'
 import { leaveSettings } from './sales-receipt-helpers'
 import {
     creditAccountLineRows,
@@ -69,8 +70,6 @@ function money(cents: number) {
 function uniqueRef(label: string): string {
     return `${label}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`
 }
-
-const CREDIT_URL_OF = (id: string) => new RegExp(`/books/vendor-credits/${id}$`)
 
 async function openBooks(page: Page) {
     await login(page)
@@ -156,9 +155,6 @@ function readEntryLines(page: Page) {
 async function reopenCreditByBack(page: Page) {
     const url = page.url()
     const navItem = page.getByTestId('books-nav-entries')
-    if (!(await navItem.isVisible())) {
-        await page.getByTestId('books-nav-accounting-toggle').click()
-    }
     await navItem.click()
     // A sidebar push leaves the earlier screen mounted and hidden: the pushed list is last.
     await expect(page.getByTestId('entries-screen').last()).toBeVisible()
@@ -328,7 +324,7 @@ test.describe('vendor-credit-form: keyboard', () => {
         await page.keyboard.press('ControlOrMeta+s')
         await expect(page).toHaveURL(VENDOR_CREDIT_URL)
         await expect(page.getByTestId('vendor-credit-title')).toHaveText('Draft vendor credit')
-        const id = vendorCreditIdFromUrl(page)
+        const id = await vendorCreditIdFromUrl(page)
 
         // Save draft replaces the new form with the draft's own route, which opens with
         // focus in Vendor (spec §3.2). (Search over the same draft would push a second
@@ -372,7 +368,7 @@ test.describe('vendor-credit-form: keyboard', () => {
         const saved = batchAnswered(page, 'books_vendor_credits', 'PATCH', 200)
         await page.keyboard.press('ControlOrMeta+s')
         await saved
-        await expect(page).toHaveURL(CREDIT_URL_OF(id))
+        await expectRecordUrl(page, 'vendor-credits', id)
 
         // Reopened through Back, the draft holds what was saved.
         await reopenCreditByBack(page)
@@ -405,7 +401,7 @@ test.describe('vendor-credit-form: keyboard', () => {
 
         // Search finds the credit posted, with its number and Total.
         await openVendorCreditBySearch(page, memo)
-        await expect(page).toHaveURL(CREDIT_URL_OF(id))
+        await expectRecordUrl(page, 'vendor-credits', id)
         await expect(shown(page, 'vendor-credit-read-only')).toBeVisible()
         await expect(shown(page, 'vendor-credit-title')).toHaveText(/^Vendor credit \d+$/)
         await expect(shown(page, 'vendor-credit-total')).toContainText(money(8_000))
@@ -427,7 +423,7 @@ async function postSummitCredit(page: Page, label: string) {
     await page.getByTestId('vendor-credit-post').click()
     await expect(page).toHaveURL(VENDOR_CREDIT_URL)
     const posted = { number: await vendorCreditNumberOf(page) }
-    return { ref, memo, posted, firstId: vendorCreditIdFromUrl(page) }
+    return { ref, memo, posted, firstId: await vendorCreditIdFromUrl(page) }
 }
 
 // Each test posts its own credit: one test for all three ran close to the test timeout on
@@ -492,7 +488,9 @@ test.describe('vendor-credit-form: refusals and read actions', () => {
         )
         await openBooks(second)
         await searchToVendorCredit(second, memo, `Vendor credit ${posted.number} · ${SUMMIT}`)
-        await expect(second).toHaveURL(CREDIT_URL_OF(firstId))
+        // Search opens the credit by id; the route swaps in its number only once it has
+        // read the credit, which this page cannot.
+        await expect(second).toHaveURL(new RegExp(`/books/vendor-credits/${firstId}$`))
         await expect(second.getByTestId('vendor-credit-error')).toBeVisible()
         await expect(second.getByTestId('vendor-credit-read-only')).toHaveCount(0)
         await second.unrouteAll({ behavior: 'wait' })
@@ -531,7 +529,7 @@ test.describe('vendor-credit-form: refusals and read actions', () => {
         await expect(page).not.toHaveURL(NEW_VENDOR_CREDIT_URL)
         await expect(page.getByTestId('vendor-credit-form')).toHaveCount(0)
         await searchToVendorCredit(page, memo, `Vendor credit ${posted.number} · ${SUMMIT}`)
-        await expect(page).toHaveURL(CREDIT_URL_OF(firstId))
+        await expectRecordUrl(page, 'vendor-credits', firstId)
         await expect(shown(page, 'vendor-credit-read-only')).toBeVisible()
 
         // E: a correction that keeps the number; Post shows the new total.
@@ -543,23 +541,23 @@ test.describe('vendor-credit-form: refusals and read actions', () => {
         await cellOf(page, 'account_lines', editLine)('amount').fill('70.00')
         await page.keyboard.press('ControlOrMeta+Enter')
         await expect(page).toHaveURL(VENDOR_CREDIT_URL)
-        expect(vendorCreditIdFromUrl(page)).not.toBe(firstId)
+        expect(await vendorCreditIdFromUrl(page)).not.toBe(firstId)
         await expect(shown(page, 'vendor-credit-title')).toHaveText(
             `Vendor credit ${posted.number}`
         )
         await expect(shown(page, 'vendor-credit-total')).toContainText(money(7_000))
-        const correctionId = vendorCreditIdFromUrl(page)
+        const correctionId = await vendorCreditIdFromUrl(page)
 
         // The original, through search, reads Replaced by.
         await searchToVendorCredit(page, memo, `Vendor credit ${posted.number} (void) · ${SUMMIT}`)
-        await expect(page).toHaveURL(CREDIT_URL_OF(firstId))
+        await expectRecordUrl(page, 'vendor-credits', firstId)
         await expect(shown(page, 'vendor-credit-replaced-by')).toHaveText(
             `Replaced by ${posted.number} (edited)`
         )
 
         // V on the correction: the void dialog; confirming voids it.
         await searchToVendorCredit(page, memo, `Vendor credit ${posted.number} · ${SUMMIT}`)
-        await expect(page).toHaveURL(CREDIT_URL_OF(correctionId))
+        await expectRecordUrl(page, 'vendor-credits', correctionId)
         await expect(readView).toBeVisible()
         await page.keyboard.press('v')
         const dialog = page.getByTestId('void-dialog')

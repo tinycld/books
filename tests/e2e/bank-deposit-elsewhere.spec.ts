@@ -3,7 +3,6 @@ import { expect, type Page, test } from '@playwright/test'
 import { login, navigateToPackage, signInAsCollaborator } from '@tinycld/core/e2e-helpers'
 import { DESKTOP, PHONE } from './account-register-helpers'
 import {
-    depositUrlOf,
     openBooks,
     openDepositBySearch,
     openNewDeposit,
@@ -21,6 +20,7 @@ import { uniqueMemo } from './invoice-helpers'
 import { openEntriesList, settleFrames } from './journal-entries-helpers'
 import { newActionTestId } from './new-menu-helpers'
 import { PAYMENT_URL } from './receive-payment-helpers'
+import { expectRecordUrl, recordIdFromUrl } from './record-key-helpers'
 import { openSalesReceiptBySearch, SALES_RECEIPT_URL } from './sales-receipt-helpers'
 
 // A deposited document elsewhere in Books (bank deposit spec §3.10): the read view of a
@@ -69,8 +69,7 @@ async function postOwnReceipt(page: Page) {
     const reference = uniqueReference('DR')
     const memo = uniqueMemo('Deposited receipt')
     await postUndepositedReceipt(page, { reference, memo, amount: '140.00' })
-    const id = /\/books\/sales-receipts\/([^/?#]+)$/.exec(new URL(page.url()).pathname)?.[1]
-    if (!id) throw new Error(`not on the sales receipt: ${page.url()}`)
+    const id = await recordIdFromUrl(page, 'sales-receipts')
     return { reference, memo, id }
 }
 
@@ -104,6 +103,7 @@ test.describe('bank-deposit: elsewhere', () => {
         await shownDeposit(page, `deposit-item-link-${receiptLine}`).click()
         await expect(page).toHaveURL(SALES_RECEIPT_URL)
         await expect(shownDeposit(page, 'sales-receipt-read-only')).toBeVisible()
+        await expectRecordUrl(page, 'sales-receipts', await recordIdFromUrl(page, 'sales-receipts'))
         const receiptUrl = page.url()
         const notice = shownDeposit(page, 'in-deposit-notice')
         await expect(notice).toContainText(`In Deposit ${deposit.number}`)
@@ -141,7 +141,7 @@ test.describe('bank-deposit: elsewhere', () => {
 
         // The link opens the deposit.
         await shownDeposit(page, 'in-deposit-link').click()
-        await expect(page).toHaveURL(depositUrlOf(deposit.id))
+        await expectRecordUrl(page, 'deposits', deposit.id)
         await expect(shownDeposit(page, 'deposit-read-only')).toBeVisible()
     })
 
@@ -185,7 +185,7 @@ test.describe('bank-deposit: elsewhere', () => {
 
         // The journal entry: Void is offered, and the server refuses it in the dialog.
         await shownDeposit(page, `deposit-item-link-${entryLine}`).click()
-        await expect(page).toHaveURL(new RegExp(`/books/entries/${entry.id}$`))
+        await expectRecordUrl(page, 'entries', entry.id)
         await expect(shownDeposit(page, 'entry-read-only')).toBeVisible()
         await shownDeposit(page, 'entry-actions')
             .getByRole('button', { name: 'Void', exact: true })
@@ -213,14 +213,14 @@ test.describe('bank-deposit: elsewhere', () => {
 
         // While deposited, the receipt offers no Edit or Void.
         await shownDeposit(page, `deposit-item-link-${receiptLine}`).click()
-        await expect(page).toHaveURL(new RegExp(`/books/sales-receipts/${receipt.id}$`))
+        await expectRecordUrl(page, 'sales-receipts', receipt.id)
         await expect(shownDeposit(page, 'in-deposit-notice')).toBeVisible()
         await expect(shownDeposit(page, 'sales-receipt-read-edit')).toHaveCount(0)
         await expect(shownDeposit(page, 'sales-receipt-read-void')).toHaveCount(0)
 
         // The deposit is voided: the sales receipt offers Edit and Void again, with no notice.
         await shownDeposit(page, 'in-deposit-link').click()
-        await expect(page).toHaveURL(depositUrlOf(deposit.id))
+        await expectRecordUrl(page, 'deposits', deposit.id)
         // V registers only once the read bar offers Void.
         const voidDialog = page.getByTestId('void-dialog')
         await expect(shownDeposit(page, 'deposit-read-void')).toBeVisible()
@@ -230,7 +230,7 @@ test.describe('bank-deposit: elsewhere', () => {
         await expect(voidDialog).toHaveCount(0)
         await expect(shownDeposit(page, 'deposit-badge')).toHaveText('Void')
         await openSalesReceiptBySearch(page, receipt.memo)
-        await expect(page).toHaveURL(new RegExp(`/books/sales-receipts/${receipt.id}$`))
+        await expectRecordUrl(page, 'sales-receipts', receipt.id)
         await expect(shownDeposit(page, 'sales-receipt-read-edit')).toBeVisible()
         await expect(shownDeposit(page, 'sales-receipt-read-void')).toBeVisible()
         await expect(shownDeposit(page, 'in-deposit-notice')).toHaveCount(0)

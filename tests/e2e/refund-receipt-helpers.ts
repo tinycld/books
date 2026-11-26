@@ -2,21 +2,15 @@ import { expect, type Locator, type Page } from '@playwright/test'
 import { lineCellTestId } from './invoice-helpers'
 import { openEntriesList } from './journal-entries-helpers'
 import { openNewAction } from './new-menu-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 import { pickFromSearchPicker } from './search-picker-helpers'
 
 // A refund receipt's own screen: `books/refund-receipts/<id>`, never `.../new`.
 export const REFUND_RECEIPT_URL = /\/books\/refund-receipts\/(?!new(?:[?#]|$))[^/?#]+$/
 export const NEW_REFUND_RECEIPT_URL = /\/books\/refund-receipts\/new(?:[?#].*)?$/
 
-export function refundReceiptUrlOf(id: string) {
-    return new RegExp(`/books/refund-receipts/${id}$`)
-}
-
-export function refundReceiptIdFromUrl(page: Page): string {
-    const match = /\/books\/refund-receipts\/([^/?#]+)$/.exec(new URL(page.url()).pathname)
-    const id = match?.[1]
-    if (!id || id === 'new') throw new Error(`Not on a saved refund receipt: ${page.url()}`)
-    return id
+export async function refundReceiptIdFromUrl(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'refund-receipts')
 }
 
 // The in-app move a link with no button makes: the app's router reads the pushed URL,
@@ -139,7 +133,7 @@ export async function saveRefundDraft(page: Page, input: RefundInput): Promise<s
     await page.getByTestId('refund-receipt-save-draft').click()
     await expect(page).toHaveURL(REFUND_RECEIPT_URL)
     await expect(page.getByTestId('refund-receipt-title')).toHaveText('Draft refund receipt')
-    return refundReceiptIdFromUrl(page)
+    return await refundReceiptIdFromUrl(page)
 }
 
 // Books must already be open. Posts a new refund of one line and leaves the page on its
@@ -156,5 +150,5 @@ export async function postRefundReceipt(
     await expect(title).toHaveText(/^Refund receipt \d+$/)
     const number = /^Refund receipt (\d+)$/.exec(await title.innerText())?.[1]
     if (!number) throw new Error('the read view title has no number')
-    return { id: refundReceiptIdFromUrl(page), number }
+    return { id: await refundReceiptIdFromUrl(page), number }
 }

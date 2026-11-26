@@ -6,6 +6,10 @@
 // the kind routes had a layout, which `popDepth`, `backTarget` and `isReadOnlyRoute` match.
 // Pure, so each rule is unit-tested; hooks/useStackScreens.ts reads the live state.
 
+import { recordIdForKey } from '../stores/route-key-store'
+
+// `id` is the record id: a document route's URL key may be its number, which
+// recordIdForKey turns into the id the route read.
 export type StackScreen = { key: string; name: string; id: string }
 
 // The parts of a navigation state these functions read. A nested state that is not built
@@ -58,7 +62,7 @@ function childScreens(parentName: string, parentKey: string, state: StackState):
             {
                 key: child.key ?? `${parentKey}-${index}`,
                 name: `${parentName}/${child.name}`,
-                id: idOf(child.params),
+                id: recordIdForKey(`${parentName}/${child.name}`, idOf(child.params)),
             },
             parentKey
         )
@@ -69,10 +73,9 @@ function screensOfRoute(route: StackRoute, index: number): StackScreen[] {
     const key = route.key ?? `root-${index}`
     if (route.state !== undefined) return childScreens(route.name, key, route.state)
     const pending = pendingChild(route.params)
-    const screen =
-        pending === null
-            ? { key, name: route.name, id: idOf(route.params) }
-            : { key, name: `${route.name}/${pending.name}`, id: pending.id }
+    const name = pending === null ? route.name : `${route.name}/${pending.name}`
+    const urlKey = pending === null ? idOf(route.params) : pending.id
+    const screen = { key, name, id: recordIdForKey(name, urlKey) }
     return [inRootRoute(screen, key)]
 }
 
