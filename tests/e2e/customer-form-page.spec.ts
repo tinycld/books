@@ -446,7 +446,7 @@ test.describe('customer-form: customer page and form', () => {
             await searchCustomers(page, HARBORVIEW)
             const harborviewId = await customerIdOf(page, HARBORVIEW)
             await openCustomer(page, HARBORVIEW)
-            await expect(page).toHaveURL(customerPath(harborviewId))
+            await expect(page).toHaveURL(await customerPath(page, harborviewId))
             await expect(title).toHaveText(HARBORVIEW)
             await expect(field(page, 'display_name')).toHaveValue(HARBORVIEW)
             // Notes live on the Notes tab only; the Details form never shows them.
