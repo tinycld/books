@@ -311,6 +311,17 @@ func TestCLIResources_ServerAcceptsEveryListQuery(t *testing.T) {
 			collectionOf[doc.Name+" "+view.Word] = view.Collection
 		}
 	}
+	// `reports list` is built in Go (cli/reports.go) over core's collection.
+	collectionOf["reports"] = "reports"
+	// The lists of `banking` are built in Go too (cli/banking.go).
+	collectionOf["banking"] = "books_bank_transactions"
+	collectionOf["banking connections"] = "books_bank_connections"
+	collectionOf["banking files"] = "books_bank_files"
+	// So is `reconcile list` (cli/reconcile.go).
+	collectionOf["reconcile"] = "books_reconciliations"
+	// So are the lists of `inventory` (cli/inventory.go).
+	collectionOf["inventory moves"] = "books_stock_moves"
+	collectionOf["inventory layers"] = "books_stock_layers"
 	calls := []apiReq{}
 	for _, c := range loadListFilterCases(t) {
 		list := strings.TrimSpace(c.Resource + " " + c.View)

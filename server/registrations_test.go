@@ -1,10 +1,12 @@
 package books
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 
+	"tinycld.org/core/background"
 	"tinycld.org/core/changesignal"
 	"tinycld.org/core/oauth"
 	"tinycld.org/core/offboard"
@@ -309,6 +312,54 @@ func awaitAuditRow(t testing.TB, app core.App, collection, action, id string) *c
 	return row
 }
 
+// awaitAuditCount waits until exactly want audit rows match where. Core
+// writes each row on its own background job, in no fixed order, so a row
+// that a later write's row has already passed may still be on its way.
+func awaitAuditCount(t testing.TB, app core.App, where dbx.Expression, want int64) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		n := countOf(t, app, "audit_logs", where)
+		if n == want {
+			return
+		}
+		if n > want {
+			t.Fatalf("%d audit rows match %v, want %d", n, where, want)
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%d audit rows match %v after 5s, want %d", n, where, want)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// drainAuditJobs returns when every audit job that the test's writes started
+// has ended. It stops the app's job runners as the app's terminate does (each
+// runner waits for its running jobs), with a finalizer that leaves the
+// database open. A test writes nothing after it: a stopped runner drops a new
+// job.
+func drainAuditJobs(t testing.TB, app core.App) {
+	t.Helper()
+	if err := app.OnTerminate().Trigger(&core.TerminateEvent{App: app}, func(*core.TerminateEvent) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDrainAuditJobs_WaitsForARunningJob(t *testing.T) {
+	app := newBooksApp(t)
+	var done atomic.Bool
+	// A job that is slower than the test: without the drain the flag is not
+	// set yet when the test reads it.
+	background.For(app, "audit").Run("slow audit row", func(context.Context) {
+		time.Sleep(200 * time.Millisecond)
+		done.Store(true)
+	})
+	drainAuditJobs(t, app)
+	if !done.Load() {
+		t.Fatal("drainAuditJobs returned before the running audit job ended")
+	}
+}
+
 // requireNoLeak fails when the audit row's JSON holds any of the fragments.
 func requireNoLeak(t testing.TB, row *core.Record, fragments ...string) {
 	t.Helper()
@@ -427,12 +478,15 @@ func TestOAuth_LedgerIsReadWrite(t *testing.T) {
 	}
 }
 
-// A token that records transactions also connects bank accounts, uploads their statement files and imports them. TestOAuth_CoversEveryBooksCollection checks only that
-// a collection is listed, so this pins the access itself.
+// A token that records transactions also connects bank accounts, uploads their
+// statement files, imports them, and moves a bank transaction between For
+// review and Excluded (its update rule allows a writer nothing else).
+// TestOAuth_CoversEveryBooksCollection checks only that a collection is listed,
+// so this pins the access itself.
 func TestOAuth_BankCollectionsAreReadWrite(t *testing.T) {
 	collections := oauthPackage().Collections
 	want := oauth.Access{Read: []string{scopeRead}, Write: []string{scopeWrite}}
-	for _, c := range []string{"books_bank_connections", "books_bank_files", "books_bank_imports"} {
+	for _, c := range []string{"books_bank_connections", "books_bank_files", "books_bank_imports", "books_bank_transactions"} {
 		got, ok := collections[c]
 		if !ok {
 			t.Errorf("%s has no OAuth entry", c)
@@ -444,12 +498,11 @@ func TestOAuth_BankCollectionsAreReadWrite(t *testing.T) {
 	}
 }
 
-// A file's parsed rows are written only by the server, and a person changes a
-// transaction only to move its status between For review and Excluded, so a
-// token reads them and never writes them.
+// A file's parsed rows are written only by the server, so a token reads them
+// and never writes them.
 func TestOAuth_BankRowsAreReadOnly(t *testing.T) {
 	collections := oauthPackage().Collections
-	for _, c := range []string{"books_bank_file_contents", "books_bank_transactions"} {
+	for _, c := range []string{"books_bank_file_contents"} {
 		got, ok := collections[c]
 		if !ok {
 			t.Errorf("%s has no OAuth entry", c)

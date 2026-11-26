@@ -15,8 +15,10 @@ import (
 // rows of that month, as books_account_balances holds the ledger's. A Cash
 // report reads the months before its period here, so that part of its cost
 // does not grow with the cash rows. syncCashLineRows, the one writer of the
-// cash rows, refreshes the months of the rows it deletes and writes, in the
-// same transaction; rebuildBalances repairs every month (rebuildCashBalances);
+// cash rows, collects the months of the rows it deletes and writes, and its
+// caller refreshes each of them one time, in the same transaction
+// (syncCashDocuments, rebuildCashBasis); rebuildBalances repairs every month
+// (rebuildCashBalances);
 // verifyCashBalances is the check. A month with no cash row has no stored row.
 
 const cashBalancesCollection = "books_cash_basis_balances"

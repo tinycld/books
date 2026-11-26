@@ -116,7 +116,7 @@ func buildListCmd(c *client.Client, res *resource, def commandDef) *cobra.Comman
 		fl.BoolVar(&opts.all, "all", false, "list active and inactive "+res.Name)
 	}
 	for _, flt := range res.Filters {
-		opts.filters[flt.Flag] = fl.String(flt.Flag, "", flt.Help)
+		opts.filters[flt.Flag] = fl.String(flt.Flag, flt.Default, flt.Help)
 	}
 	return cmd
 }
@@ -126,8 +126,11 @@ func buildListCmd(c *client.Client, res *resource, def commandDef) *cobra.Comman
 // such records".
 func checkFilterValues(cmd *cobra.Command, res *resource, opts listOptions) error {
 	for _, flt := range res.Filters {
-		if !cmd.Flags().Changed(flt.Flag) {
+		if !filterOn(cmd, flt, opts) {
 			continue
+		}
+		if flt.Default != "" && *opts.filters[flt.Flag] == "" {
+			return usagef("--%s is empty; give a value, or use %s to list all", flt.Flag, filterAll)
 		}
 		f := res.field(flt.Field)
 		if f == nil || len(f.Enum) == 0 {
@@ -137,9 +140,22 @@ func checkFilterValues(cmd *cobra.Command, res *resource, opts listOptions) erro
 		if slices.Contains(f.Enum, value) || (value == "" && !f.Required) {
 			continue
 		}
-		return usagef("--%s %q is not a value of %s; use one of: %s", flt.Flag, value, f.Name, strings.Join(f.Enum, ", "))
+		allowed := f.Enum
+		if flt.Default != "" {
+			allowed = append(slices.Clone(f.Enum), filterAll)
+		}
+		return usagef("--%s %q is not a value of %s; use one of: %s", flt.Flag, value, f.Name, strings.Join(allowed, ", "))
 	}
 	return nil
+}
+
+// filterOn reports whether a filter flag adds a clause: a flag the caller
+// gave, or a flag with a default, unless its value is filterAll.
+func filterOn(cmd *cobra.Command, flt filterFlag, opts listOptions) bool {
+	if flt.Default == "" {
+		return cmd.Flags().Changed(flt.Flag)
+	}
+	return *opts.filters[flt.Flag] != filterAll
 }
 
 var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
@@ -163,8 +179,11 @@ func listFilter(cmd *cobra.Command, res *resource, opts listOptions) string {
 		params[name] = res.scope[field]
 		clauses = append(clauses, field+" = {:"+name+"}")
 	}
+	if res.where != "" {
+		clauses = append(clauses, res.where)
+	}
 	for i, flt := range res.Filters {
-		if !cmd.Flags().Changed(flt.Flag) {
+		if !filterOn(cmd, flt, opts) {
 			continue
 		}
 		name := fmt.Sprintf("f%d", i)

@@ -77,11 +77,15 @@ func refreshPayableRefund(tx core.App, refund *core.Record) error {
 
 // bindPayableBillRefresh keeps the rows that read a bill through its post, its
 // void and its replacement by a correction (each an update of the bill), and
-// through a balance change. It is called from registerSalesDocGuards, after
-// the bill's serialized guard. A draft has no row.
+// through the balance change of a vendor credit application
+// (shiftApplicationBalances). It is called from registerSalesDocGuards, after
+// the bill's serialized guard. A draft has no row. A bill payment's shift of
+// the bill's balance writes no row: the payment's own update stores its lines
+// (refreshPayablePayment), and a payment of 250 bills would otherwise refresh
+// them 250 more times inside one batch.
 func bindPayableBillRefresh(app core.App) {
 	bindItemRefresh(app, billKind.Collection, func(tx core.App, r *core.Record) error {
-		if r.GetString("status") == statusDraft {
+		if r.GetString("status") == statusDraft || isPaymentShift(tx, billBalanceKind, r.Id) {
 			return nil
 		}
 		return refreshPayableBill(tx, r)

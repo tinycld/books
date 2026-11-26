@@ -30,6 +30,10 @@ func Register(root *cobra.Command, c *client.Client) {
 	for i := range documents {
 		books.AddCommand(newDocumentCmd(c, &documents[i]))
 	}
+	books.AddCommand(newReportsCmd(c))
+	books.AddCommand(newBankingCmd(c))
+	books.AddCommand(newReconcileCmd(c))
+	books.AddCommand(newInventoryCmd(c))
 	books.AddCommand(newSchemaCmd(books))
 	root.AddCommand(books)
 }
