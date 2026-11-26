@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { isOneBareAddress } from './bare-address'
 import type { DocumentListRow } from './document-list'
 import { formatDay } from './register-range'
-import { isSendDocType, KIND_WORDS, SEND_DOC_TYPES } from './send-doc-types'
+import { isSendDocType, KIND_WORDS, type SEND_DOC_TYPES } from './send-doc-types'
 import { readerDayOf } from './statement-texts'
 
 // The send of a sales document by email (spec §3.1, §3.2, §4.4). The rules here are the
@@ -10,7 +10,15 @@ import { readerDayOf } from './statement-texts'
 // (server/testdata/document_send_cases.json). PocketBase adds a final period to the
 // server's text; the texts here are written with theirs.
 
-export const SEND_KINDS = SEND_DOC_TYPES
+// The kinds the send dialog, the batch send and the sent line open: every send kind but
+// the purchase order, which the server sends (SEND_DOC_TYPES) and no screen offers yet.
+export const SEND_KINDS = [
+    'invoice',
+    'estimate',
+    'sales_receipt',
+    'credit_memo',
+    'refund_receipt',
+] as const satisfies readonly (typeof SEND_DOC_TYPES)[number][]
 export type SendKind = (typeof SEND_KINDS)[number]
 
 export const DOCUMENT_SEND_PATH = '/api/books/documents/send'
@@ -38,13 +46,15 @@ export const SEND_MESSAGES = {
     bodyTooLong: 'The message is too long. Shorten it and send again.',
 } as const
 
-// A posting kind is sent once posted; an estimate while it is open or decided. A draft,
-// a void document and a closed estimate are not (Go sendableStatus).
+// A posting kind is sent once posted; an estimate while it is open or decided; a
+// purchase order while it is open. A draft, a void document, a closed estimate and a
+// closed purchase order are not (Go sendableStatus).
 const ESTIMATE_SEND_STATUSES: readonly string[] = ['pending', 'accepted', 'rejected']
 
 export function sendOffered(kind: string, status: string): boolean {
     if (!isSendDocType(kind)) return false
     if (kind === 'estimate') return ESTIMATE_SEND_STATUSES.includes(status)
+    if (kind === 'purchase_order') return status === 'open'
     return status === 'posted'
 }
 

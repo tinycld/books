@@ -420,6 +420,11 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 	if kind.Lifecycle == lifecycleOrder {
 		bindPurchaseOrderHooks(app, kind)
 	}
+	// Bound after the delete guard, so the order of a deleted draft is computed
+	// again inside the guard's transaction, after its lines are gone.
+	if kind.Collection == billsCollection {
+		bindBillOrderRefresh(app)
+	}
 }
 
 // The marks of a document whose rows Books is writing itself: the restatement

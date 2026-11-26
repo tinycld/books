@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { documentTotals } from '../tinycld/books/lib/document-lines'
@@ -1052,6 +1052,28 @@ describe('server/purchase_orders.go', () => {
     for (const text of PURCHASE_ORDER_DELETE_GUARDS) {
         it(`holds the delete guard "${text}" verbatim as a Go string`, () => {
             const source = purchaseOrderServerSource(['vendors.go', 'products.go', 'accounts.go'])
+            expect(holdsGoString(source, text), text).toBe(true)
+        })
+    }
+})
+
+// The refusals of a bill made from a purchase order (purchase order spec, Messages, bill
+// side), whose Go constants live in server/purchase_order_bills.go.
+const PURCHASE_ORDER_BILL_TEXTS = [
+    'Purchase order %s is closed. Reopen it to copy it to a bill.',
+    'Product line %d: a line from purchase order %s keeps its product. Remove it and add a new line.',
+    'Account line %d: a line from purchase order %s keeps its account. Remove it and add a new line.',
+    "A bill from a purchase order bills the order's vendor.",
+    'A bill keeps the purchase order it was made from.',
+    'Line %d names a line of another purchase order.',
+    'Line %d names a purchase order line of the other table.',
+] as const
+
+describe('server/purchase_order_bills.go', () => {
+    const file = join(__dirname, '..', 'server', 'purchase_order_bills.go')
+    for (const text of PURCHASE_ORDER_BILL_TEXTS) {
+        it(`holds "${text}" verbatim as a Go string`, () => {
+            const source = existsSync(file) ? readFileSync(file, 'utf8') : ''
             expect(holdsGoString(source, text), text).toBe(true)
         })
     }

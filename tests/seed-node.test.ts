@@ -18,6 +18,12 @@ import { CUSTOMERS } from '../tinycld/books/lib/customer-form-fixture'
 import { REVIEW_SEED_ENTRIES, REVIEW_SEED_STATEMENT } from '../tinycld/books/lib/for-review-fixture'
 import { GENERAL_LEDGER_LONG_SECTION } from '../tinycld/books/lib/general-ledger-fixture'
 import {
+    orderLineOpenAmount,
+    orderLineOpenQuantity,
+} from '../tinycld/books/lib/purchase-order-status'
+import {
+    PURCHASE_ORDER_BILLS,
+    PURCHASE_ORDER_IDS,
     PURCHASE_ORDER_INVENTORY_PRODUCT,
     PURCHASE_ORDER_LINES,
     PURCHASE_ORDERS,
@@ -2029,6 +2035,183 @@ describe('seedPurchaseOrders', () => {
                 w => w.collection === 'books_bills' || w.collection === 'books_bill_lines'
             )
         ).toEqual([])
+    })
+})
+
+// Purchase order spec §4 seed and §3.8: the bills of PURCHASE_ORDER_BILLS, saved with
+// `purchase_order` and `po_line` and posted (all but the draft), then the admin Close of
+// 1002. recordingPb runs no server, so this reads the writes by the server's rule: each
+// order line's received and billed values come from the posted bills' lines that name it,
+// the open values from them (lib/purchase-order-status.ts), an order the seed closed is
+// closed by hand, an order with no open line closes as received, and a closed order's
+// header open amount is 0.
+describe('seedPurchaseOrderBills', () => {
+    it('runs after seedPurchaseOrders in the seed', () => {
+        const source = readFileSync(seedPath, 'utf8')
+        const body = source.slice(source.indexOf('export default async function seed('))
+        const orders = body.indexOf('seedPurchaseOrders(')
+        const bills = body.indexOf('seedPurchaseOrderBills(')
+        expect(orders).toBeGreaterThan(-1)
+        expect(bills).toBeGreaterThan(orders)
+    })
+
+    it('leaves the five orders in their fixture states', async () => {
+        const seedPurchaseOrders = (seedModule as Record<string, unknown>).seedPurchaseOrders
+        const seedPurchaseOrderBills = (seedModule as Record<string, unknown>)
+            .seedPurchaseOrderBills
+        expect(typeof seedPurchaseOrders).toBe('function')
+        expect(typeof seedPurchaseOrderBills).toBe('function')
+        if (typeof seedPurchaseOrders !== 'function') return
+        if (typeof seedPurchaseOrderBills !== 'function') return
+        const { pb, writes } = recordingPb()
+        const accounts = seededAccounts()
+        await seedPurchaseOrders(pb, { user: USER }, accounts)
+        await seedPurchaseOrderBills(pb, { user: USER }, accounts)
+        const at = (w: Write | undefined) => (w ? writes.indexOf(w) : -1)
+
+        // Each fixture bill: the order's vendor and its date, as a draft that names the
+        // order, with a line for each fixture line that names its order line with the
+        // order line's product and rate (or account), and its final status.
+        const billWrites = writes.filter(w => w.collection === 'books_bills' && w.op === 'create')
+        const postedBillIds: string[] = []
+        for (const bill of PURCHASE_ORDER_BILLS) {
+            const order = PURCHASE_ORDERS.find(row => row.id === bill.purchase_order)
+            const created = billWrites.find(
+                w =>
+                    w.data.purchase_order === bill.purchase_order &&
+                    String(w.data.date).slice(0, 10) === bill.date
+            )
+            expect(created, bill.id).toBeDefined()
+            if (created === undefined || order === undefined) continue
+            expect(created.data.vendor, bill.id).toBe(order.vendor)
+            expect(created.data.status, bill.id).toBe('draft')
+            const lines = writes.filter(
+                w => w.collection === 'books_bill_lines' && w.data.bill === created.id
+            )
+            expect(
+                lines.map(w => {
+                    const orderLine = PURCHASE_ORDER_LINES.find(row => row.id === w.data.po_line)
+                    return orderLine?.kind === 'item'
+                        ? {
+                              po_line: w.data.po_line,
+                              kind: w.data.kind,
+                              product: w.data.product,
+                              quantity: w.data.quantity,
+                              rate: w.data.rate,
+                          }
+                        : {
+                              po_line: w.data.po_line,
+                              kind: w.data.kind,
+                              account: w.data.account,
+                              amount: w.data.amount,
+                          }
+                }),
+                bill.id
+            ).toEqual(
+                bill.lines.map(line => {
+                    const orderLine = PURCHASE_ORDER_LINES.find(row => row.id === line.po_line)
+                    return orderLine?.kind === 'item'
+                        ? {
+                              po_line: line.po_line,
+                              kind: 'item',
+                              product: orderLine.product,
+                              quantity: line.quantity,
+                              rate: orderLine.rate,
+                          }
+                        : {
+                              po_line: line.po_line,
+                              kind: 'account',
+                              account: accounts.get(orderLine?.account_number ?? ''),
+                              amount: line.amount,
+                          }
+                })
+            )
+            expect(finalStatus(writes, 'books_bills', created.id), bill.id).toBe(bill.status)
+            if (bill.status === 'posted') postedBillIds.push(created.id)
+        }
+
+        // The server's numbers, from the posted bills' lines.
+        const postedLines = writes.filter(
+            w =>
+                w.collection === 'books_bill_lines' &&
+                w.op === 'create' &&
+                postedBillIds.includes(String(w.data.bill))
+        )
+        const computed = PURCHASE_ORDER_LINES.map(line => {
+            const named = postedLines.filter(w => w.data.po_line === line.id)
+            const received =
+                line.kind === 'item'
+                    ? named.reduce((sum, w) => sum + Number(w.data.quantity), 0)
+                    : 0
+            const billed = named.reduce(
+                (sum, w) =>
+                    sum +
+                    (line.kind === 'item'
+                        ? Math.round(Number(w.data.quantity) * Number(w.data.rate))
+                        : Number(w.data.amount)),
+                0
+            )
+            const values = { ...line, received, billed }
+            return {
+                id: line.id,
+                purchase_order: line.purchase_order,
+                received,
+                billed,
+                open_quantity: orderLineOpenQuantity(values),
+                open_amount: orderLineOpenAmount(values),
+            }
+        })
+        expect(computed).toEqual(
+            PURCHASE_ORDER_LINES.map(line => ({
+                id: line.id,
+                purchase_order: line.purchase_order,
+                received: line.received,
+                billed: line.billed,
+                open_quantity: line.open_quantity,
+                open_amount: line.open_amount,
+            }))
+        )
+
+        // The seed closes 1002 alone, after its bill posts; the server closes an order
+        // with no open line as received.
+        const closes = writes.filter(
+            w =>
+                w.collection === 'books_purchase_orders' &&
+                w.op === 'update' &&
+                w.data.status === 'closed'
+        )
+        expect(closes.map(w => w.id)).toEqual([PURCHASE_ORDER_IDS.closedManual])
+        const manualBill = billWrites.find(
+            w => w.data.purchase_order === PURCHASE_ORDER_IDS.closedManual
+        )
+        const manualPost = writes.find(
+            w =>
+                w.collection === 'books_bills' &&
+                w.op === 'update' &&
+                w.id === manualBill?.id &&
+                w.data.status === 'posted'
+        )
+        expect(at(manualPost)).toBeGreaterThan(-1)
+        expect(at(closes[0])).toBeGreaterThan(at(manualPost))
+        expect(
+            PURCHASE_ORDERS.map(order => {
+                const own = computed.filter(line => line.purchase_order === order.id)
+                const hasOpenLine = own.some(line => line.open_quantity > 0 || line.open_amount > 0)
+                const closedByHand = closes.some(w => w.id === order.id)
+                const status = closedByHand || !hasOpenLine ? 'closed' : 'open'
+                const reason = closedByHand ? 'manual' : hasOpenLine ? '' : 'received'
+                const open =
+                    status === 'closed' ? 0 : own.reduce((sum, line) => sum + line.open_amount, 0)
+                return { id: order.id, status, closed_reason: reason, open_amount: open }
+            })
+        ).toEqual(
+            PURCHASE_ORDERS.map(order => ({
+                id: order.id,
+                status: order.status,
+                closed_reason: order.closed_reason,
+                open_amount: order.open_amount,
+            }))
+        )
     })
 })
 

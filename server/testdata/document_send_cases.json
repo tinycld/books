@@ -15,7 +15,9 @@
         { "name": "a pending estimate", "kind": "estimate", "status": "pending", "offered": true, "message": "" },
         { "name": "an accepted estimate", "kind": "estimate", "status": "accepted", "offered": true, "message": "" },
         { "name": "a rejected estimate", "kind": "estimate", "status": "rejected", "offered": true, "message": "" },
-        { "name": "a closed estimate", "kind": "estimate", "status": "closed", "offered": false, "message": "A closed estimate cannot be sent." }
+        { "name": "a closed estimate", "kind": "estimate", "status": "closed", "offered": false, "message": "A closed estimate cannot be sent." },
+        { "name": "an open purchase order", "kind": "purchase_order", "status": "open", "offered": true, "message": "" },
+        { "name": "a closed purchase order", "kind": "purchase_order", "status": "closed", "offered": false, "message": "A closed purchase order cannot be sent." }
     ],
     "fields": [
         {

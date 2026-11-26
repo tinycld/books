@@ -82,6 +82,7 @@ var documentEmailWords = map[string]struct{ title, noun string }{
 	docTypeSalesReceipt:  {"Sales receipt", "sales receipt"},
 	docTypeCreditMemo:    {"Credit memo", "credit memo"},
 	docTypeRefundReceipt: {"Refund receipt", "refund receipt"},
+	docTypePurchaseOrder: {"Purchase order", "purchase order"},
 }
 
 // messageLineBreaks turns each line break of the document's (escaped) message
@@ -175,9 +176,10 @@ var documentLinkPaths = map[string]string{
 
 // documentEmailInputOf fills the input of record's starting email: the money
 // through formatMoney in the document's currency (else the book's, as the PDF
-// prints it), the days through formatDay, the customer's display name (an
-// empty name for a document with no customer), and the customer link from the
-// server address and the row's public_token.
+// prints it), the days through formatDay, the party's display name (the
+// vendor of a purchase order, else the customer; an empty name for a document
+// with no customer), and the customer link from the server address and the
+// row's public_token. A purchase order has no link: the vendor gets the PDF.
 func documentEmailInputOf(app core.App, kind string, record *core.Record, business documentBusiness) (documentEmailInput, error) {
 	if _, ok := documentEmailWords[kind]; !ok {
 		return documentEmailInput{}, fmt.Errorf("books: no document email for kind %q", kind)
@@ -186,15 +188,9 @@ func documentEmailInputOf(app core.App, kind string, record *core.Record, busine
 	if err != nil {
 		return documentEmailInput{}, fmt.Errorf("books: read settings: %w", err)
 	}
-	// A walk-in sales or refund receipt names no customer (2100000011
-	// "Optional: a walk-in sale names no customer"): its email names nobody.
-	customerName := ""
-	if customerID := record.GetString("customer"); customerID != "" {
-		customer, err := app.FindRecordById("books_customers", customerID)
-		if err != nil {
-			return documentEmailInput{}, fmt.Errorf("books: read the document's customer: %w", err)
-		}
-		customerName = customer.GetString("display_name")
+	customerName, err := documentPartyName(app, kind, record)
+	if err != nil {
+		return documentEmailInput{}, err
 	}
 	currency := record.GetString("currency")
 	if currency == "" {
@@ -230,6 +226,26 @@ func documentEmailInputOf(app core.App, kind string, record *core.Record, busine
 		in.CanRespond = record.GetString("status") == statusPending && !estimateExpired(expiration, time.Now())
 	}
 	return in, nil
+}
+
+// documentPartyName is the display name of the party a document's email
+// greets: a purchase order's vendor, else the document's customer. A walk-in
+// sales or refund receipt names no customer (2100000011 "Optional: a walk-in
+// sale names no customer"): its email names nobody.
+func documentPartyName(app core.App, kind string, record *core.Record) (string, error) {
+	collection, field := "books_customers", "customer"
+	if kind == docTypePurchaseOrder {
+		collection, field = "books_vendors", "vendor"
+	}
+	id := record.GetString(field)
+	if id == "" {
+		return "", nil
+	}
+	party, err := app.FindRecordById(collection, id)
+	if err != nil {
+		return "", fmt.Errorf("books: read the document's %s: %w", field, err)
+	}
+	return party.GetString("display_name"), nil
 }
 
 // estimateExpired is true when expiration is a day before now's day (UTC), as

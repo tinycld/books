@@ -15,10 +15,12 @@ const documentSendsCollection = "books_document_sends"
 const invoicePublicCollection = "books_invoice_public"
 
 // sendDocTypes are the doc types a send names, the five sales document kinds
-// that have a PDF and an email: the values of the collection's doc_type.
+// and the purchase order, which have a PDF and an email: the values of the
+// collection's doc_type. testdata/send_doc_types.json lists them for the
+// client's SEND_DOC_TYPES (lib/send-doc-types.ts).
 var sendDocTypes = map[string]bool{
 	docTypeInvoice: true, docTypeEstimate: true, docTypeSalesReceipt: true,
-	docTypeCreditMemo: true, docTypeRefundReceipt: true,
+	docTypeCreditMemo: true, docTypeRefundReceipt: true, docTypePurchaseOrder: true,
 }
 
 // documentSendLabel names a send by the document it sent: "Invoice 1004".

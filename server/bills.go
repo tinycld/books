@@ -9,6 +9,7 @@ import (
 // server/purchase_lines.go.
 const (
 	billHostKey         = "books:bill"
+	billsCollection     = "books_bills"
 	billLinesCollection = "books_bill_lines"
 )
 
@@ -61,7 +62,7 @@ const billDraftName = "a draft bill"
 var billKind = salesDocKind{
 	DocType:            docTypeBill,
 	Lifecycle:          lifecyclePosting,
-	Collection:         "books_bills",
+	Collection:         billsCollection,
 	LinesCollection:    billLinesCollection,
 	TaxLinesCollection: "",
 	ParentField:        "bill",
@@ -90,6 +91,7 @@ var billKind = salesDocKind{
 		RevisionConflict: msgBillRevisionConflict,
 	},
 	CheckHeader: checkBillHeader,
+	CheckLine:   checkBillLine,
 	CreditAccount: func(tx core.App, _ *core.Record) (string, error) {
 		payable, err := ensurePayables(tx)
 		if err != nil {
@@ -160,7 +162,8 @@ func refuseBillVoidApplied(tx core.App, doc *core.Record) error {
 // balance postSalesDoc then sets to its total less them. A void payment's
 // lines stay on the original, which keeps its history: the correction may
 // name another vendor, and a line must name a bill of its payment's vendor.
-// The correction also takes every file of the original.
+// The correction bills the original's purchase order (moveOrderLinksTo) and
+// takes every file of the original.
 func replaceBill(tx core.App, original, correction *core.Record) error {
 	paid, credited, err := billAppliedTo(tx, original.Id)
 	if err != nil {
@@ -184,6 +187,9 @@ func replaceBill(tx core.App, original, correction *core.Record) error {
 	if err := movePostedLines(tx, billBalanceKind, original, correction); err != nil {
 		return err
 	}
+	if err := moveOrderLinksTo(tx, original, correction); err != nil {
+		return err
+	}
 	return moveAttachments(tx, "bill", original.Id, correction.Id)
 }
 
@@ -195,8 +201,10 @@ func init() {
 
 // checkBillHeader is the bill's own header guard on a draft write: the bill
 // date and the due date are real days, the due date is not before the bill
-// date, and no other bill of the vendor has its vendor's bill no.
-func checkBillHeader(tx core.App, _, r *core.Record) error {
+// date, a bill from a purchase order keeps the order and its vendor
+// (checkBillPurchaseOrder), and no other bill of the vendor has its vendor's
+// bill no.
+func checkBillHeader(tx core.App, stored, r *core.Record) error {
 	date, err := parseDay(r.GetString("date"))
 	if err != nil {
 		return refuseField("date", msgDocumentDay)
@@ -207,6 +215,9 @@ func checkBillHeader(tx core.App, _, r *core.Record) error {
 	}
 	if due.Before(date) {
 		return refuseField("due_date", msgBillDueBeforeDate)
+	}
+	if err := checkBillPurchaseOrder(tx, stored, r); err != nil {
+		return err
 	}
 	return checkBillRef(tx, r)
 }

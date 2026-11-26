@@ -1,9 +1,11 @@
 package books
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -24,6 +26,50 @@ const (
 	sendTestBody     = "<p>Hello Harborview Dental,</p><p>Attached is invoice 1001.</p>"
 	sendTestBodyText = "Hello Harborview Dental,\n\nAttached is invoice 1001."
 )
+
+// Each kind a send names, with its email words, as server/testdata/
+// send_doc_types.json lists them; tests/send-doc-types.test.ts reads the same
+// file against lib/send-doc-types.ts, so the two sides cannot drift.
+func TestSendDocTypes_MatchTheSharedFile(t *testing.T) {
+	raw, err := os.ReadFile("testdata/send_doc_types.json")
+	if err != nil {
+		t.Fatalf("read the shared send kinds: %v", err)
+	}
+	var file struct {
+		Kinds []struct {
+			Kind  string `json:"kind"`
+			Title string `json:"title"`
+			Noun  string `json:"noun"`
+		} `json:"kinds"`
+	}
+	if err := json.Unmarshal(raw, &file); err != nil {
+		t.Fatalf("parse the shared send kinds: %v", err)
+	}
+	if len(file.Kinds) == 0 {
+		t.Fatal("the shared send kinds are empty")
+	}
+	listed := map[string]bool{}
+	for _, k := range file.Kinds {
+		listed[k.Kind] = true
+		if !sendDocTypes[k.Kind] {
+			t.Errorf("sendDocTypes has no %q", k.Kind)
+		}
+		words, ok := documentEmailWords[k.Kind]
+		if !ok || words.title != k.Title || words.noun != k.Noun {
+			t.Errorf("documentEmailWords[%q] = {%q, %q} (set %v), want {%q, %q}", k.Kind, words.title, words.noun, ok, k.Title, k.Noun)
+		}
+	}
+	for kind := range sendDocTypes {
+		if !listed[kind] {
+			t.Errorf("sendDocTypes has %q, which the shared file does not list", kind)
+		}
+	}
+	for kind := range documentEmailWords {
+		if !listed[kind] {
+			t.Errorf("documentEmailWords has %q, which the shared file does not list", kind)
+		}
+	}
+}
 
 // sendsEnv is an app wired by Register, as production wires it, with the
 // generated invoice and estimate form hosts bound in one call (the line guards

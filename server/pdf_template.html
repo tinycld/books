@@ -69,9 +69,9 @@ table.aging td { padding: 3px 6px; white-space: nowrap; }
 {{range .Parties}}<div class="party"><div class="label">{{.Label}}</div>{{range .Lines}}<div>{{.}}</div>{{end}}</div>{{end}}
 </div>
 {{if .Statement}}{{template "statement" .Statement}}{{else}}<table class="lines">
-<thead><tr><th>Item</th><th>Description</th><th class="n">Qty</th><th class="n">Price</th><th class="n">Amount</th></tr></thead>
+<thead><tr><th>Item</th>{{if .PartNoColumn}}<th>Vendor part no.</th>{{end}}<th>Description</th><th class="n">Qty</th><th class="n">Price</th><th class="n">Amount</th></tr></thead>
 <tbody>
-{{range .Rows}}<tr class="{{.Kind}}"><td>{{.Item}}</td><td>{{range .Description}}<div>{{.}}</div>{{end}}</td><td class="n">{{.Quantity}}</td><td class="n">{{.Rate}}</td><td class="n">{{.Amount}}</td></tr>
+{{range .Rows}}<tr class="{{.Kind}}"><td>{{.Item}}</td>{{if $.PartNoColumn}}<td>{{.PartNo}}</td>{{end}}<td>{{range .Description}}<div>{{.}}</div>{{end}}</td><td class="n">{{.Quantity}}</td><td class="n">{{.Rate}}</td><td class="n">{{.Amount}}</td></tr>
 {{end}}</tbody>
 </table>
 <table class="summary">

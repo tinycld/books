@@ -61,11 +61,27 @@ export function viewportName(page: Page): string {
 
 let uniqueCounter = 0
 
+// `index` in base 26, one letter word for each digit (0 is "a"): only letters, so no
+// character splits a word, and two indexes never give the same words.
+function laneWords(index: number): string {
+    const letters = [String.fromCharCode(97 + (index % 26))]
+    for (let rest = Math.floor(index / 26); rest > 0; rest = Math.floor(rest / 26)) {
+        letters.unshift(String.fromCharCode(97 + (rest % 26)))
+    }
+    return letters.join(' ')
+}
+
 // A name no other worker, test or earlier run can have: the worker index keeps two
 // workers apart in the same millisecond, the counter two calls in one test. Call it
 // inside a test.
+// The form suggests a record's code from the initials of its name's words, and two
+// live workers that suggest the same code race each other's Save. The lane words from
+// `parallelIndex` (never shared by two live workers, unlike `workerIndex`, which grows
+// on a restart) give the initials after the prefix's, and a digit of the time follows
+// them, so each live worker has its own code base.
 export function uniqueName(prefix: string): string {
-    return `${prefix} w${test.info().workerIndex}-${Date.now()}-${++uniqueCounter}`
+    const { parallelIndex, workerIndex } = test.info()
+    return `${prefix} ${laneWords(parallelIndex)}w${workerIndex}-${Date.now()}-${++uniqueCounter}`
 }
 
 // Four digits that differ between runs, for phone numbers and emails.
