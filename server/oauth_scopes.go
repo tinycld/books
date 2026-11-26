@@ -19,7 +19,9 @@ const (
 // sales tax agencies,
 // rates and groups, the bank connections, their files and the imports of those
 // files, the bank matches, and the reconciliations with their cleared rows are
-// read-write; a file's parsed rows, the bank transactions, the matched lines
+// read-write. So are the bank transactions: their update rule lets a writer
+// change only status, and only between For review and Excluded, and they have
+// no create and no delete rule. A file's parsed rows, the matched lines
 // and the cash-basis rows, which only the server writes, and the party
 // balances, match suggestions, reconcile lines and audit log views are
 // read-only. Everything that
@@ -56,7 +58,7 @@ func oauthPackage() oauth.Package {
 			"books_bank_files":                 rw,
 			"books_bank_imports":               rw,
 			"books_bank_file_contents":         ro,
-			"books_bank_transactions":          ro,
+			"books_bank_transactions":          rw,
 			bankMatchesCollection:              rw,
 			bankCategorizationsCollection:      rw,
 			bankMatchLinesCollection:           ro,

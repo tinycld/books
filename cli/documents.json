@@ -1063,6 +1063,54 @@
                     ]
                 }
             ]
+        },
+        {
+            "name": "inventory-adjustments",
+            "singular": "inventory adjustment",
+            "summary": "Inventory adjustments: a change of the quantity or the value of the stock",
+            "collection": "books_inventory_adjustments",
+            "lifecycle": "posting",
+            "fixed": { "kind": "manual" },
+            "fixedHelp": "Books made it, and no command changes it",
+            "entry": "entry",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "kind", "status", "memo"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only inventory adjustments with this status: draft, posted or void" },
+                { "flag": "kind", "field": "kind", "help": "only inventory adjustments of this kind: manual, opening or recost" }
+            ],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "sort_key"],
+            "deleteHelp": "Only a draft can be deleted. Void a posted inventory adjustment with `void`: it stays in the books with its number, and the stock is as it was before it.",
+            "fields": [
+                { "name": "date", "type": "string", "required": true, "help": "the date of the adjustment, as YYYY-MM-DD" },
+                { "name": "account", "type": "id", "ref": "accounts", "help": "the account that takes the other side of the change of value; when it is empty, Books uses Inventory shrinkage at the post" },
+                { "name": "memo", "type": "string", "help": "why the stock changes: a stock count, damage, a correction" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["draft", "posted", "void"], "help": "draft, posted or void; `add --post`, `post` and `void` change it" },
+                { "name": "kind", "type": "string", "readOnly": true, "enum": ["manual", "opening", "recost"], "help": "manual: a person made it. opening and recost: Books made it for the opening stock of an item, or when an earlier transaction changed a cost; no command changes those" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the adjustment; Books gives it when the adjustment is posted" },
+                { "name": "source", "type": "string", "readOnly": true, "help": "for an adjustment that Books made: the collection of the record it belongs to" },
+                { "name": "document", "type": "string", "readOnly": true, "help": "for an adjustment that Books made: the id of that record" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote for the adjustment; `entry` prints it. Empty when the adjustment changes no value" }
+            ],
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_inventory_adjustment_lines",
+                    "parent": "adjustment",
+                    "sort": "position,id",
+                    "max": 500,
+                    "omit": ["adjustment", "position"],
+                    "fields": [
+                        { "name": "product", "type": "id", "ref": "products", "required": true, "help": "the Inventory item" },
+                        { "name": "quantity", "type": "number", "help": "the change of the quantity, with at most 2 decimals: above 0 into stock, below 0 out of stock, 0 for a change of value only" },
+                        { "name": "value", "type": "integer", "help": "the change of the value of the stock, in cents. With a quantity above 0, it is the cost of that quantity. With a quantity below 0, leave it out: Books takes the cost from the costing method. With no quantity, it changes the value only, up or down" }
+                    ]
+                }
+            ]
         }
     ]
 }

@@ -91,6 +91,17 @@ func TestDocsNameEveryCommand(t *testing.T) {
 	}
 }
 
+// "The transactions" is the one list of the transaction types: a type that has
+// only a section of its own further down is not found by a reader of the list.
+func TestHelpListsEveryTransactionType(t *testing.T) {
+	page := readDoc(t, helpPage)
+	for i := range documents {
+		if line := "\n- `tinycld books " + documents[i].Name + "`"; !strings.Contains(page, line) {
+			t.Errorf("the list of transaction types in the help topic has no line for `tinycld books %s`", documents[i].Name)
+		}
+	}
+}
+
 func TestHelpExplainsEveryFailureExitCode(t *testing.T) {
 	help := readDoc(t, helpPage)
 	for code := exitcode.Usage; code <= exitcode.Unavailable; code++ {

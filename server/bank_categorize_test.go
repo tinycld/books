@@ -751,11 +751,11 @@ func TestBankCategorize_Audit(t *testing.T) {
 		t.Errorf("created audit row label = %q, want %q", got, want)
 	}
 
-	// A later create writes its own row after the first; once it is in, any
-	// second row of the first create has had its turn too.
+	// A later create writes its own row.
 	later := c.mustCategorize(t, c.bankTxn(t, catDay, -1200, "for_review"), "categorize",
 		[]catLine{{Account: c.rent.Id, Amount: 1200}}, nil)
 	awaitAuditRow(t, c.app, catCollection, "created", later.Id)
+	awaitAuditCount(t, c.app, nil, rowsBefore+2)
 
 	// One create is one person's write: one "created" row of the
 	// categorization. The entry, its lines, the match and the bank
@@ -771,9 +771,6 @@ func TestBankCategorize_Audit(t *testing.T) {
 	}
 	if fmt.Sprint(actions) != fmt.Sprint([]string{catCollection + " created"}) {
 		t.Errorf("audit rows of the categorization = %v, want only %q", actions, catCollection+" created")
-	}
-	if n := countOf(t, c.app, "audit_logs", nil); n != rowsBefore+2 {
-		t.Errorf("%d audit rows after two creates, want %d: one for each", n, rowsBefore+2)
 	}
 }
 

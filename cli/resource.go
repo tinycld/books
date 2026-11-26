@@ -66,7 +66,14 @@ type filterFlag struct {
 	Flag  string `json:"flag"`
 	Field string `json:"field"`
 	Help  string `json:"help"`
+	// Default is the value the list uses when the flag is not given. A filter
+	// with a default is always on; the flag value filterAll turns it off.
+	Default string `json:"default,omitempty"`
 }
+
+// filterAll is the value of a filter flag with a default that lists the rows
+// of every value.
+const filterAll = "all"
 
 type resource struct {
 	// Name is the command group: `tinycld books <name>`.
@@ -101,6 +108,9 @@ type resource struct {
 	// scope holds the field values every record of `list` has: the fixed
 	// values of a scoped document. It is not read from the file.
 	scope map[string]string
+	// where is a fixed filter clause of `list`, a constant of the code. It is
+	// not read from the file.
+	where string
 }
 
 func (r *resource) field(name string) *field {
@@ -225,6 +235,15 @@ func checkResource(res *resource, names map[string]bool) error {
 		// list binds a filter value as text, so only a text field can match it.
 		if f := res.field(flt.Field); f != nil && f.Type != typeString && f.Type != typeID {
 			return fmt.Errorf("filter field %q is not a string or an id", flt.Field)
+		}
+		if flt.Default != "" {
+			f := res.field(flt.Field)
+			if f == nil || !slices.Contains(f.Enum, flt.Default) {
+				return fmt.Errorf("filter flag %q has the default %q, which is not an enum value of its field", flt.Flag, flt.Default)
+			}
+			if slices.Contains(f.Enum, filterAll) {
+				return fmt.Errorf("filter flag %q has a default, and its field has the value %q, which the flag reads as every value", flt.Flag, filterAll)
+			}
 		}
 		filterFields = append(filterFields, flt.Field)
 	}

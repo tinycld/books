@@ -5,7 +5,9 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
+	"io"
 	"maps"
+	"mime"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -63,6 +65,15 @@ type fakeBooks struct {
 	// rawFilter turns the filter evaluation off, for a test that asserts the
 	// filter text of a value the small evaluator cannot split.
 	rawFilter bool
+
+	// stamps holds what the hooks of the server set on a created row, by
+	// collection: the fake computes none of it.
+	stamps map[string]map[string]any
+	// uploads holds the file of each multipart create, by collection.
+	uploads map[string]fakeUpload
+
+	// reports is the stand-in for core's report routes (fakereports_test.go).
+	reports fakeReports
 
 	// fail reports a request the fake cannot answer like the real server. It
 	// is t.Errorf; a test of the fake itself swaps it to see what was reported.
@@ -144,6 +155,8 @@ func (f *fakeBooks) handler() http.Handler {
 	mux.HandleFunc("POST /api/collections/{collection}/records", f.create)
 	mux.HandleFunc("PATCH /api/collections/{collection}/records/{id}", f.update)
 	mux.HandleFunc("DELETE /api/collections/{collection}/records/{id}", f.remove)
+	mux.HandleFunc("POST "+reportRunPath, f.reportRun)
+	mux.HandleFunc("POST "+reportExportPath, f.reportExport)
 	// one answers one record request: a request of its own, or a write of a batch.
 	one := func(w http.ResponseWriter, r *http.Request) {
 		if f.refused(w, r.Method) {
@@ -284,6 +297,28 @@ func resourceOf(collection string) *resource {
 func fieldsOf(collection string) []field {
 	if res := resourceOf(collection); res != nil {
 		return res.Fields
+	}
+	for _, res := range bankingResources() {
+		if res.Collection == collection {
+			return res.Fields
+		}
+	}
+	for _, res := range inventoryResources() {
+		if res.Collection == collection {
+			return res.Fields
+		}
+	}
+	if collection == bankImportsCollection {
+		return bankImportsResource.Fields
+	}
+	if collection == reconciliationsCollection {
+		return reconciliationsResource.Fields
+	}
+	if fields, ok := reconcileRowFields[collection]; ok {
+		return fields
+	}
+	if fields, ok := bankRowFields[collection]; ok {
+		return fields
 	}
 	for i := range documents {
 		if documents[i].Collection == collection {
@@ -470,6 +505,7 @@ var (
 	reBoolClause   = regexp.MustCompile(`^(\w+) = (true|false)$`)
 	reEqualClause  = regexp.MustCompile(`^(\w+) = "((?:[^"\\]|\\.)*)"$`)
 	reSearchClause = regexp.MustCompile(`^(\w+) ~ "((?:[^"\\]|\\.)*)"$`)
+	reUpToClause   = regexp.MustCompile(`^(\w+) <= "((?:[^"\\]|\\.)*)"$`)
 )
 
 func unquote(s string) string {
@@ -477,8 +513,8 @@ func unquote(s string) string {
 }
 
 // matches evaluates the filters listFilter builds: clauses joined by " && ",
-// each `field = true|false`, `field = "text"`, or a group
-// `(a ~ "text" || b ~ "text")`.
+// each `field = true|false`, `field = "text"`, `field <= "text"` (the lines up
+// to a statement date), or a group `(a ~ "text" || b ~ "text")`.
 func (f *fakeBooks) matches(row rawRecord, filter string) bool {
 	if filter == "" {
 		return true
@@ -494,6 +530,12 @@ func (f *fakeBooks) matches(row rawRecord, filter string) bool {
 		case reEqualClause.MatchString(clause):
 			m := reEqualClause.FindStringSubmatch(clause)
 			if have, _ := row[m[1]].(string); have != unquote(m[2]) {
+				return false
+			}
+		case reUpToClause.MatchString(clause):
+			// A date up to a date: both are YYYY-MM-DD, so text order is date order.
+			m := reUpToClause.FindStringSubmatch(clause)
+			if have, _ := row[m[1]].(string); have > unquote(m[2]) {
 				return false
 			}
 		case strings.HasPrefix(clause, "(") && strings.HasSuffix(clause, ")"):
@@ -533,6 +575,44 @@ func (f *fakeBooks) view(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, row)
 }
 
+// fakeUpload is one file a multipart create sent.
+type fakeUpload struct {
+	field, name, content string
+}
+
+// createBody reads the body of a create: JSON, or a multipart form with one
+// file. A form field is text, and the file field holds the file's name, as
+// PocketBase stores it.
+func (f *fakeBooks) createBody(r *http.Request, collection string) map[string]any {
+	kind, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if kind != "multipart/form-data" {
+		return decodeBody(r)
+	}
+	if err := r.ParseMultipartForm(8 << 20); err != nil {
+		f.fail("POST %s: the body is not a multipart form: %v", r.URL.Path, err)
+		return map[string]any{}
+	}
+	body := map[string]any{}
+	for name, values := range r.MultipartForm.Value {
+		body[name] = values[0]
+	}
+	for name, headers := range r.MultipartForm.File {
+		file, err := headers[0].Open()
+		if err != nil {
+			f.fail("POST %s: %v", r.URL.Path, err)
+			continue
+		}
+		content, _ := io.ReadAll(file)
+		file.Close()
+		if f.uploads == nil {
+			f.uploads = map[string]fakeUpload{}
+		}
+		f.uploads[collection] = fakeUpload{field: name, name: headers[0].Filename, content: string(content)}
+		body[name] = headers[0].Filename
+	}
+	return body
+}
+
 func decodeBody(r *http.Request) map[string]any {
 	dec := json.NewDecoder(r.Body)
 	dec.UseNumber()
@@ -546,7 +626,7 @@ func (f *fakeBooks) create(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	f.lastCreate = decodeBody(r)
+	f.lastCreate = f.createBody(r, collection)
 	f.seq++
 	id := fmt.Sprintf("rec%012d", f.seq)
 	// A caller may name the id, as a document's batch does for its lines.
@@ -572,6 +652,9 @@ func (f *fakeBooks) create(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	for key, value := range f.lastCreate {
+		stored[key] = value
+	}
+	for key, value := range f.stamps[collection] {
 		stored[key] = value
 	}
 	if f.createdInBatch != nil {

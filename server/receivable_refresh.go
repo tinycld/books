@@ -88,10 +88,13 @@ func bindReceivablePaymentRefresh(app core.App) {
 
 // bindReceivableInvoiceRefresh keeps the rows that read an invoice through
 // its post: the entry is posted before the invoice row holds its due day and
-// its entry.
+// its entry. A payment's shift of the invoice's balance writes no row: the
+// payment's own update stores its applications (refreshReceivablePayment), and
+// a payment of 500 invoices would otherwise refresh them 500 more times inside
+// one batch.
 func bindReceivableInvoiceRefresh(app core.App) {
 	bindItemRefresh(app, invoiceKind.Collection, func(tx core.App, r *core.Record) error {
-		if r.GetString("status") == statusDraft {
+		if r.GetString("status") == statusDraft || isPaymentShift(tx, invoiceBalanceKind, r.Id) {
 			return nil
 		}
 		return refreshReceivableInvoice(tx, r)

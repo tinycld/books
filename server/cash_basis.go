@@ -28,7 +28,7 @@ import (
 //     posted entry, on the credit and on the bill.
 //
 // Every write that changes a document's entries or payments rebuilds that
-// document's rows in its own transaction (rebuildCashBasisFor); the ledger
+// document's rows in its own transaction (rebuildCashBasisOf); the ledger
 // rebuild recomputes every document (rebuildCashBasis). Nothing else writes the
 // rows, but for the copies of their entry's card mark and doc type, which
 // follow a change of the entry (copyEntryToRows, lines.go). The rows exist
@@ -499,9 +499,9 @@ func storedCashLine(d cashDeferral, r *core.Record) cashLine {
 
 // syncCashRows makes the document's stored rows, its tax rows included,
 // equal the derived ones, touching only the rows that differ, and returns how
-// many rows it deleted and wrote. It adds to months the account-months of the
-// rows it deletes and writes; the caller refreshes them (refreshCashBalances)
-// once, after every document it syncs in the transaction.
+// many rows it deleted and wrote. It adds the cash month of each line row it
+// deletes or writes to months; the caller refreshes them (refreshCashBalances)
+// after its last document.
 func syncCashRows(tx core.App, d cashDeferral, docID string, months map[balanceKey]bool) (int, error) {
 	taxChanged, err := syncCashTaxRows(tx, d, docID)
 	if err != nil {
@@ -512,8 +512,8 @@ func syncCashRows(tx core.App, d cashDeferral, docID string, months map[balanceK
 }
 
 // syncCashLineRows makes the document's stored books_cash_basis_lines rows
-// equal the derived ones, and adds to months the stored cash month
-// (cash_balances.go) of every row it deletes or writes.
+// equal the derived ones, and adds the stored cash month (cash_balances.go) of
+// every row it deletes or writes to months.
 func syncCashLineRows(tx core.App, d cashDeferral, docID string, months map[balanceKey]bool) (int, error) {
 	stray, missing, err := cashRowDiff(tx, d, docID)
 	if err != nil {
@@ -558,26 +558,23 @@ func syncCashLineRows(tx core.App, d cashDeferral, docID string, months map[bala
 	return len(stray) + len(missing), nil
 }
 
-// rebuildCashBasisFor rebuilds one document's cash-basis rows inside the
-// transaction of the write that changed its entries or its payments, and
-// refreshes the cash months it touched.
-func rebuildCashBasisFor(tx core.App, kind cashDeferral, docID string) error {
-	months := map[balanceKey]bool{}
-	if _, err := syncCashRows(tx, kind, docID, months); err != nil {
-		return err
-	}
-	return refreshCashBalances(tx, months)
-}
-
-// rebuildCashBasisOf rebuilds the rows of each document of collection; a
+// rebuildCashBasisOf rebuilds the rows of each document of collection inside
+// the transaction of the write that changed their entries or their payments; a
 // collection that is not deferred has none.
 func rebuildCashBasisOf(tx core.App, collection string, docIDs ...string) error {
 	d, ok := cashDeferralOf(collection)
 	if !ok {
 		return nil
 	}
-	// One refresh of each month for all the documents: a payment that pays 500
-	// invoices touches the same few account-months 500 times.
+	return syncCashDocuments(tx, d, docIDs...)
+}
+
+// syncCashDocuments rebuilds the rows of each document of kind d, then
+// refreshes the cash months they touched, one time each. The invoices of one
+// payment write their rows in the same accounts and month, and a refresh sums
+// every cash row of its month: a refresh for each document made the post of N
+// invoices read N*N rows.
+func syncCashDocuments(tx core.App, d cashDeferral, docIDs ...string) error {
 	months := map[balanceKey]bool{}
 	for _, id := range docIDs {
 		if id == "" {

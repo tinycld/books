@@ -1107,11 +1107,11 @@ func TestReconcile_Audit(t *testing.T) {
 		{discarded, "deleted", 1},
 	}
 	for _, c := range counts {
-		n := countOf(t, r.app, "audit_logs", dbx.HashExp{"resource_type": rtRecons, "action": c.action, "resource_id": c.id})
-		if n != c.want {
-			t.Errorf("%d %s audit rows of %s, want %d", n, c.action, c.id, c.want)
-		}
+		awaitAuditCount(t, r.app, dbx.HashExp{"resource_type": rtRecons, "action": c.action, "resource_id": c.id}, c.want)
 	}
+	// Audit rows are written on unordered jobs: a row of a cleared row could
+	// still be on its way after the counts above, so wait for every job.
+	drainAuditJobs(t, r.app)
 	if n := countOf(t, r.app, "audit_logs", dbx.HashExp{"resource_type": rtCleared}); n != 0 {
 		t.Errorf("%d audit rows of cleared rows (one was %s), want 0", n, cleared)
 	}
