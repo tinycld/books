@@ -223,11 +223,15 @@ test.describe('customer-form: customer page and form', () => {
             const parentSearch = page.getByTestId('customer-parent-search')
             const fab = page.getByLabel('New', { exact: true })
 
-            // (1) The sidebar's New section opens a new customer on the page surface.
+            // (1) The New menu's customer group opens a new customer on the page surface.
             await openCustomersList(page)
             await openNewMenu(page)
             const newCustomer = newActionItem(page, 'customer')
             await expect(newCustomer).toHaveText('Customer')
+            await expect(newCustomer.locator('xpath=..')).toHaveAttribute(
+                'data-testid',
+                'books-sidebar-new-group-customers'
+            )
             await newCustomer.click()
             await expect(surface).toBeVisible()
             await expect(title).toHaveText('New customer')
@@ -442,7 +446,7 @@ test.describe('customer-form: customer page and form', () => {
             await searchCustomers(page, HARBORVIEW)
             const harborviewId = await customerIdOf(page, HARBORVIEW)
             await openCustomer(page, HARBORVIEW)
-            await expect(page).toHaveURL(await customerPath(page, harborviewId))
+            await expect(page).toHaveURL(customerPath(harborviewId))
             await expect(title).toHaveText(HARBORVIEW)
             await expect(field(page, 'display_name')).toHaveValue(HARBORVIEW)
             // Notes live on the Notes tab only; the Details form never shows them.

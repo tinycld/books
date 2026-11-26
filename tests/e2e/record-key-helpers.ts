@@ -90,18 +90,19 @@ export async function recordIdOfKey(page: Page, route: string, key: string): Pro
     if (parsed.kind === 'id') return parsed.id
     const collection = collectionOf(route)
     const docType = ENTRY_ROUTE_TYPES[route]
+    // A void entry keeps its number on the screen that showed it (the route keeps the
+    // record it first read), so an entry's number names the posted entry, else the void one.
     const filter = docType
-        ? `doc_type="${docType}" && sequence=${parsed.sequence} && status="posted" && origin!="void_reversal"`
+        ? `doc_type="${docType}" && sequence=${parsed.sequence} && origin!="void_reversal"`
         : `sequence=${parsed.sequence}`
     const rows = await readRows(page, collection, filter)
-    const row = rows.find(r => !r.replaced_by) ?? rows[0]
+    const row = rows.find(r => r.status === 'posted') ?? rows.find(r => !r.replaced_by) ?? rows[0]
     if (!row) throw new Error(`no ${collection} row with sequence ${parsed.sequence}`)
     return row.id
 }
 
 // The record id of the record the page's URL opens on `route`
-// (`…/books/invoices/1005` → the invoice's id). The id URL a save leaves before the route
-// swaps in the number names the same record, so the URL may be read at either point.
+// (`…/books/invoices/1005` → the invoice's id). A URL by id gives the id itself.
 export async function recordIdFromUrl(page: Page, route: string): Promise<string> {
     const match = new RegExp(`/books/${route}/([^/?#]+)/?$`).exec(new URL(page.url()).pathname)
     if (!match?.[1] || match[1] === 'new')
@@ -137,16 +138,32 @@ function isOnRecord(page: Page, route: string, key: string): boolean {
     return new RegExp(`/books/${route}/${key}$`).test(page.url())
 }
 
-// Waits until the page is on the record `id` of `route`, by its number or by its id. A
-// link that knows only the id (search, a link between records, the audit log) opens the
-// id URL; a list, a report link and a save open the number. A save may reach the server
-// after the URL changed, so the check reads the key again on each try.
+// The record's number without its prefix, when it has one on `route` (an entry of the
+// route's own doc type, or any numbered document), whatever its state now.
+async function numberOf(page: Page, route: string, id: string): Promise<string | undefined> {
+    const [row] = await readRows(page, collectionOf(route), `id="${id}"`)
+    const sequence = row?.sequence ?? 0
+    if (sequence <= 0) return undefined
+    if (route in ENTRY_ROUTE_TYPES && row?.doc_type !== ENTRY_ROUTE_TYPES[route]) return undefined
+    return String(sequence)
+}
+
+// Waits until the page is on the record `id` of `route`: by its URL key, by its id, or by
+// its number. A link that knows only the id (search, a link between records, the audit
+// log) opens the id URL; a list, a report link and a save open the number. A screen keeps
+// its URL when its record is voided, so a void record's page can still be on its number.
+// A save may reach the server after the URL changed, so each try reads the record again.
 export async function expectRecordUrl(page: Page, route: string, id: string): Promise<void> {
     await expect
         .poll(
             async () => {
                 const key = (await keyOf(page, route, id)) ?? id
-                return isOnRecord(page, route, key) || isOnRecord(page, route, id)
+                const number = await numberOf(page, route, id)
+                return (
+                    isOnRecord(page, route, key) ||
+                    isOnRecord(page, route, id) ||
+                    (number !== undefined && isOnRecord(page, route, number))
+                )
             },
             { message: `the page is on the ${route} record ${id}` }
         )

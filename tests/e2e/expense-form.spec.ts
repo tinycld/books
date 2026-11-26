@@ -61,6 +61,18 @@ import { leaveSettings, visibleTestId } from './sales-receipt-helpers'
 // the empty-chart Paid from error (unit: tests/paid-from.test.ts).
 
 const SUMMIT = 'Summit IT Services'
+
+// The Vendor menu shows only this search's matches (and the No vendor row above them).
+// ↓ then waits on nothing: it moves into the options the menu shows, so it must reach the
+// first match, not the No vendor row (the keys picked No vendor when the search had settled
+// before ↓, and Summit when it had not).
+async function expectOnlySummitListed(page: Page) {
+    const others = page
+        .getByRole('menuitem')
+        .filter({ visible: true })
+        .filter({ hasNotText: /Summit|No vendor/ })
+    await expect(others).toHaveCount(0)
+}
 const OFFICE_SUPPLY = 'Office Supply World'
 const PACIFIC_POWER = 'Pacific Power'
 const CHECKING = '1000 Business Checking'
@@ -236,6 +248,7 @@ test.describe('expense-form: keyboard', () => {
         await page.keyboard.type('Summit')
         await expect(page.getByTestId('form-input-vendor-search')).toBeFocused()
         await expect(page.getByRole('menuitem', { name: SUMMIT, exact: true })).toBeVisible()
+        await expectOnlySummitListed(page)
         await page.keyboard.press('ArrowDown')
         await page.keyboard.press('Enter')
         await expect(vendor).toContainText(SUMMIT)
@@ -434,6 +447,7 @@ test.describe('expense-form: keyboard', () => {
 
         await page.keyboard.type('Summit')
         await expect(page.getByRole('menuitem', { name: SUMMIT, exact: true })).toBeVisible()
+        await expectOnlySummitListed(page)
         await page.keyboard.press('ArrowDown')
         await page.keyboard.press('Enter')
         await expect(vendor).toContainText(SUMMIT)
