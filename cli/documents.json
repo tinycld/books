@@ -1,0 +1,1068 @@
+{
+    "documents": [
+        {
+            "name": "journal-entries",
+            "singular": "journal entry",
+            "summary": "Journal entries, and the journal entry of every transaction",
+            "collection": "books_journal_entries",
+            "lifecycle": "posting",
+            "fixed": { "doc_type": "journal", "origin": "manual" },
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "doc_type", "status", "total", "memo"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only entries with this status: draft, posted or void" },
+                { "flag": "type", "field": "doc_type", "help": "only the entries of this transaction type (journal is an entry made by hand)" }
+            ],
+            "omit": [
+                "card_payment",
+                "sequence",
+                "posted_at",
+                "posted_by",
+                "voided_at",
+                "voided_by",
+                "created_by",
+                "close_override"
+            ],
+            "deleteHelp": "Only a draft can be deleted. Void a posted journal entry with `void`: it stays in the books with its number, and its amounts no longer count.",
+            "fields": [
+                { "name": "date", "type": "string", "required": true, "help": "the date of the entry, as YYYY-MM-DD" },
+                { "name": "memo", "type": "string", "help": "a note for the whole entry" },
+                { "name": "auto_reverse_on", "type": "string", "help": "a date, as YYYY-MM-DD: Books posts the reversing entry on that day" },
+                {
+                    "name": "status",
+                    "type": "string",
+                    "readOnly": true,
+                    "enum": ["draft", "posted", "void"],
+                    "help": "draft, posted or void; `add --post`, `post` and `void` change it"
+                },
+                {
+                    "name": "doc_type",
+                    "type": "string",
+                    "readOnly": true,
+                    "enum": [
+                        "journal",
+                        "transfer",
+                        "invoice",
+                        "sales_receipt",
+                        "bill",
+                        "expense",
+                        "payment",
+                        "bill_payment",
+                        "credit_memo",
+                        "vendor_credit",
+                        "vendor_refund",
+                        "refund_receipt",
+                        "write_off",
+                        "deposit",
+                        "inventory_adjustment"
+                    ],
+                    "help": "the transaction type the entry belongs to; journal for an entry made by hand"
+                },
+                {
+                    "name": "origin",
+                    "type": "string",
+                    "readOnly": true,
+                    "enum": ["manual", "reversal", "auto_reversal", "void_reversal", "opening_balance", "document"],
+                    "help": "how the entry came to be; document for the entry Books writes for a transaction"
+                },
+                { "name": "document", "type": "string", "readOnly": true, "help": "the id of the transaction Books wrote the entry for" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the entry number; Books gives it when the entry is posted" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "the sum of the debits, in cents; Books computes it" },
+                { "name": "revision", "type": "integer", "readOnly": true, "help": "the count of saves; the commands send it so two callers cannot overwrite each other" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "reverses", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the entry this one reverses" },
+                { "name": "replaces", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the posted entry this one corrects; `edit` of a posted entry sets it" }
+            ],
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_journal_lines",
+                    "parent": "entry",
+                    "sort": "position,id",
+                    "max": 1000,
+                    "omit": ["entry", "position", "posted", "date", "currency", "card_payment", "doc_type"],
+                    "fields": [
+                        { "name": "account", "type": "id", "ref": "accounts", "required": true, "help": "the account of the line" },
+                        { "name": "debit", "type": "integer", "help": "the debit, in cents; a line has a debit or a credit" },
+                        { "name": "credit", "type": "integer", "help": "the credit, in cents; a line has a debit or a credit" },
+                        { "name": "memo", "type": "string", "help": "a note for the line" },
+                        { "name": "customer", "type": "id", "ref": "customers", "help": "the customer of a line on an accounts receivable account" },
+                        { "name": "vendor", "type": "id", "ref": "vendors", "help": "the vendor of a line on an accounts payable account" }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "invoices",
+            "singular": "invoice",
+            "summary": "Invoices: what a customer owes for a sale",
+            "collection": "books_invoices",
+            "lifecycle": "posting",
+            "entry": "entry",
+            "keep": ["estimate"],
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "customer", "status", "total", "balance"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only invoices with this status: draft, posted or void" },
+                { "flag": "customer", "field": "customer", "help": "only the invoices of the customer with this id" }
+            ],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "form", "fields", "public_token", "sort_key"],
+            "deleteHelp": "Only a draft can be deleted. Void a posted invoice with `void`: it stays in the books with its number, and its amounts no longer count.",
+            "fields": [
+                { "name": "customer", "type": "id", "ref": "customers", "required": true, "help": "the customer who owes the invoice" },
+                { "name": "date", "type": "string", "required": true, "help": "the invoice date, as YYYY-MM-DD" },
+                { "name": "due_date", "type": "string", "required": true, "help": "the day the invoice is due, as YYYY-MM-DD" },
+                {
+                    "name": "terms",
+                    "type": "string",
+                    "enum": ["due_on_receipt", "net_10", "net_15", "net_30", "net_60"],
+                    "help": "the payment terms printed on the invoice; Books does not compute due_date from them"
+                },
+                { "name": "bill_to", "type": "address", "help": "the billing address printed on the invoice" },
+                { "name": "email", "type": "string", "help": "the address the invoice is sent to" },
+                { "name": "tax_rate", "type": "id", "ref": "tax-rates", "help": "the sales tax rate or group for the taxable lines" },
+                { "name": "message", "type": "string", "help": "a message to the customer, printed on the invoice" },
+                { "name": "memo", "type": "string", "help": "a note for the books; the customer does not see it" },
+                {
+                    "name": "status",
+                    "type": "string",
+                    "readOnly": true,
+                    "enum": ["draft", "posted", "void"],
+                    "help": "draft, posted or void; `add --post`, `post` and `void` change it"
+                },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the invoice number; Books gives it when the invoice is posted" },
+                { "name": "subtotal", "type": "integer", "readOnly": true, "help": "the sum of the lines before tax, in cents; Books computes it" },
+                { "name": "tax_total", "type": "integer", "readOnly": true, "help": "the sales tax, in cents; Books computes it" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "subtotal plus tax, in cents; Books computes it" },
+                { "name": "balance", "type": "integer", "readOnly": true, "help": "what the customer still owes, in cents" },
+                { "name": "written_off", "type": "integer", "readOnly": true, "help": "the part of the invoice written off as bad debt, in cents" },
+                { "name": "revision", "type": "integer", "readOnly": true, "help": "the count of saves; the commands send it so two callers cannot overwrite each other" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote when the invoice was posted; `entry` prints it" },
+                { "name": "estimate", "type": "id", "ref": "estimates", "readOnly": true, "help": "the estimate the invoice was made from; `estimates convert` sets it" },
+                { "name": "replaces", "type": "id", "ref": "invoices", "readOnly": true, "help": "the posted invoice this one corrects; `edit` of a posted invoice sets it" },
+                { "name": "replaced_by", "type": "id", "ref": "invoices", "readOnly": true, "help": "the invoice that corrects this one" }
+            ],
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_invoice_lines",
+                    "parent": "invoice",
+                    "sort": "position,id",
+                    "omit": ["invoice", "position"],
+                    "fields": [
+                        {
+                            "name": "kind",
+                            "type": "string",
+                            "required": true,
+                            "enum": ["item", "description", "subtotal", "percent"],
+                            "help": "item: a product or service with a quantity and a rate; description: text only; subtotal: the sum of the lines above it; percent: a percentage of the item or subtotal right above it"
+                        },
+                        { "name": "product", "type": "id", "ref": "products", "help": "the product or service of an item or percent line; an Inventory item moves stock when the document is posted" },
+                        { "name": "description", "type": "string", "help": "the text of the line" },
+                        { "name": "quantity", "type": "number", "help": "the quantity of an item line, with at most 2 decimals" },
+                        { "name": "rate", "type": "integer", "help": "the price of one unit of an item line, in cents" },
+                        { "name": "percent_ppm", "type": "integer", "help": "the percentage of a percent line, in parts per million; -100000 is a 10% discount" },
+                        { "name": "taxable", "type": "bool", "help": "true when the header's tax rate applies to the line" },
+                        { "name": "amount", "type": "integer", "readOnly": true, "help": "the amount of the line, in cents; Books computes it" }
+                    ]
+                },
+                {
+                    "key": "tax_lines",
+                    "singular": "tax line",
+                    "collection": "books_invoice_tax_lines",
+                    "parent": "invoice",
+                    "sort": "position,id",
+                    "readOnly": true,
+                    "omit": ["invoice", "position", "date", "currency"],
+                    "fields": [
+                        { "name": "rate", "type": "id", "ref": "tax-rates", "readOnly": true, "help": "the tax rate or group of the document" },
+                        { "name": "component", "type": "id", "ref": "tax-rates", "readOnly": true, "help": "the single rate this line is for; the rate itself when it is not a group" },
+                        { "name": "agency", "type": "id", "ref": "tax-agencies", "readOnly": true, "help": "the agency the tax is owed to" },
+                        { "name": "rate_ppm", "type": "integer", "readOnly": true, "help": "the rate of the component, in parts per million" },
+                        { "name": "gross_amount", "type": "integer", "readOnly": true, "help": "the subtotal of the document, in cents" },
+                        { "name": "taxable_amount", "type": "integer", "readOnly": true, "help": "the sum of the taxable lines, in cents" },
+                        { "name": "amount", "type": "integer", "readOnly": true, "help": "the tax of this component, in cents" }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "sales-receipts",
+            "singular": "sales receipt",
+            "summary": "Sales receipts: a sale that is paid at once",
+            "collection": "books_sales_receipts",
+            "lifecycle": "posting",
+            "entry": "entry",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "customer", "status", "total"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only sales receipts with this status: draft, posted or void" },
+                { "flag": "customer", "field": "customer", "help": "only the sales receipts of the customer with this id" }
+            ],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "form", "fields", "sort_key"],
+            "deleteHelp": "Only a draft can be deleted. Void a posted sales receipt with `void`: it stays in the books with its number, and its amounts no longer count.",
+            "fields": [
+                { "name": "customer", "type": "id", "ref": "customers", "help": "the customer of the sales receipt" },
+                { "name": "date", "type": "string", "required": true, "help": "the date of the sales receipt, as YYYY-MM-DD" },
+                { "name": "bill_to", "type": "address", "help": "the billing address printed on the sales receipt" },
+                { "name": "email", "type": "string", "help": "the address the sales receipt is sent to" },
+                { "name": "tax_rate", "type": "id", "ref": "tax-rates", "help": "the sales tax rate or group for the taxable lines" },
+                { "name": "payment_method", "type": "string", "enum": ["cash", "check", "credit_card", "debit_card", "bank_transfer", "other"], "help": "how the customer paid" },
+                { "name": "reference_no", "type": "string", "help": "the check number or another reference of the payment" },
+                { "name": "deposit_to", "type": "id", "ref": "accounts", "required": true, "help": "the bank account, or Undeposited funds, that receives the money" },
+                { "name": "message", "type": "string", "help": "a message to the customer, printed on the document" },
+                { "name": "memo", "type": "string", "help": "a note for the books; the customer does not see it" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["draft", "posted", "void"], "help": "draft, posted or void; `add --post`, `post` and `void` change it" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the sales receipt; Books gives it when the sales receipt is posted" },
+                { "name": "subtotal", "type": "integer", "readOnly": true, "help": "the sum of the lines before tax, in cents; Books computes it" },
+                { "name": "tax_total", "type": "integer", "readOnly": true, "help": "the sales tax, in cents; Books computes it" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "subtotal plus tax, in cents; Books computes it" },
+                { "name": "revision", "type": "integer", "readOnly": true, "help": "the count of saves; the commands send it so two callers cannot overwrite each other" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote when the sales receipt was posted; `entry` prints it" },
+                { "name": "replaces", "type": "id", "ref": "sales-receipts", "readOnly": true, "help": "the posted sales receipt this one corrects; `edit` of a posted sales receipt sets it" },
+                { "name": "replaced_by", "type": "id", "ref": "sales-receipts", "readOnly": true, "help": "the sales receipt that corrects this one" }
+            ],
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_sales_receipt_lines",
+                    "parent": "sales_receipt",
+                    "sort": "position,id",
+                    "omit": ["sales_receipt", "position"],
+                    "fields": [
+                        { "name": "kind", "type": "string", "required": true, "enum": ["item", "description", "subtotal", "percent"], "help": "item: a product or service with a quantity and a rate; description: text only; subtotal: the sum of the lines above it; percent: a percentage of the item or subtotal right above it" },
+                        { "name": "product", "type": "id", "ref": "products", "help": "the product or service of an item or percent line; an Inventory item moves stock when the document is posted" },
+                        { "name": "description", "type": "string", "help": "the text of the line" },
+                        { "name": "quantity", "type": "number", "help": "the quantity of an item line, with at most 2 decimals" },
+                        { "name": "rate", "type": "integer", "help": "the price of one unit of an item line, in cents" },
+                        { "name": "percent_ppm", "type": "integer", "help": "the percentage of a percent line, in parts per million; -100000 is a 10% discount" },
+                        { "name": "taxable", "type": "bool", "help": "true when the header's tax rate applies to the line" },
+                        { "name": "amount", "type": "integer", "readOnly": true, "help": "the amount of the line, in cents; Books computes it" }
+                    ]
+                },
+                {
+                    "key": "tax_lines",
+                    "singular": "tax line",
+                    "collection": "books_sales_receipt_tax_lines",
+                    "parent": "sales_receipt",
+                    "sort": "position,id",
+                    "readOnly": true,
+                    "omit": ["sales_receipt", "position", "date", "currency"],
+                    "fields": [
+                        { "name": "rate", "type": "id", "ref": "tax-rates", "readOnly": true, "help": "the tax rate or group of the document" },
+                        { "name": "component", "type": "id", "ref": "tax-rates", "readOnly": true, "help": "the single rate this line is for; the rate itself when it is not a group" },
+                        { "name": "agency", "type": "id", "ref": "tax-agencies", "readOnly": true, "help": "the agency the tax is owed to" },
+                        { "name": "rate_ppm", "type": "integer", "readOnly": true, "help": "the rate of the component, in parts per million" },
+                        { "name": "gross_amount", "type": "integer", "readOnly": true, "help": "the subtotal of the document, in cents" },
+                        { "name": "taxable_amount", "type": "integer", "readOnly": true, "help": "the sum of the taxable lines, in cents" },
+                        { "name": "amount", "type": "integer", "readOnly": true, "help": "the tax of this component, in cents" }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "credit-memos",
+            "singular": "credit memo",
+            "summary": "Credit memos: what you owe a customer for a return or a correction",
+            "collection": "books_credit_memos",
+            "lifecycle": "posting",
+            "entry": "entry",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "customer", "status", "total", "balance"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only credit memos with this status: draft, posted or void" },
+                { "flag": "customer", "field": "customer", "help": "only the credit memos of the customer with this id" }
+            ],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "form", "fields", "sort_key"],
+            "deleteHelp": "Only a draft can be deleted. Void a posted credit memo with `void`: it stays in the books with its number, and its amounts no longer count.",
+            "fields": [
+                { "name": "customer", "type": "id", "ref": "customers", "required": true, "help": "the customer of the credit memo" },
+                { "name": "date", "type": "string", "required": true, "help": "the date of the credit memo, as YYYY-MM-DD" },
+                { "name": "bill_to", "type": "address", "help": "the billing address printed on the credit memo" },
+                { "name": "email", "type": "string", "help": "the address the credit memo is sent to" },
+                { "name": "tax_rate", "type": "id", "ref": "tax-rates", "help": "the sales tax rate or group for the taxable lines" },
+                { "name": "invoice", "type": "id", "ref": "invoices", "help": "the invoice the credit memo is for; Books applies the credit to it when the credit memo is posted" },
+                { "name": "message", "type": "string", "help": "a message to the customer, printed on the document" },
+                { "name": "memo", "type": "string", "help": "a note for the books; the customer does not see it" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["draft", "posted", "void"], "help": "draft, posted or void; `add --post`, `post` and `void` change it" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the credit memo; Books gives it when the credit memo is posted" },
+                { "name": "subtotal", "type": "integer", "readOnly": true, "help": "the sum of the lines before tax, in cents; Books computes it" },
+                { "name": "tax_total", "type": "integer", "readOnly": true, "help": "the sales tax, in cents; Books computes it" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "subtotal plus tax, in cents; Books computes it" },
+                { "name": "balance", "type": "integer", "readOnly": true, "help": "the credit that is not yet applied or refunded, in cents" },
+                { "name": "applied", "type": "integer", "readOnly": true, "help": "the credit applied to invoices, in cents" },
+                { "name": "revision", "type": "integer", "readOnly": true, "help": "the count of saves; the commands send it so two callers cannot overwrite each other" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote when the credit memo was posted; `entry` prints it" },
+                { "name": "replaces", "type": "id", "ref": "credit-memos", "readOnly": true, "help": "the posted credit memo this one corrects; `edit` of a posted credit memo sets it" },
+                { "name": "replaced_by", "type": "id", "ref": "credit-memos", "readOnly": true, "help": "the credit memo that corrects this one" }
+            ],
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_credit_memo_lines",
+                    "parent": "credit_memo",
+                    "sort": "position,id",
+                    "omit": ["credit_memo", "position"],
+                    "fields": [
+                        { "name": "kind", "type": "string", "required": true, "enum": ["item", "description", "subtotal", "percent"], "help": "item: a product or service with a quantity and a rate; description: text only; subtotal: the sum of the lines above it; percent: a percentage of the item or subtotal right above it" },
+                        { "name": "product", "type": "id", "ref": "products", "help": "the product or service of an item or percent line; an Inventory item's quantity goes back into stock when the document is posted" },
+                        { "name": "description", "type": "string", "help": "the text of the line" },
+                        { "name": "quantity", "type": "number", "help": "the quantity of an item line, with at most 2 decimals" },
+                        { "name": "rate", "type": "integer", "help": "the price of one unit of an item line, in cents" },
+                        { "name": "percent_ppm", "type": "integer", "help": "the percentage of a percent line, in parts per million; -100000 is a 10% discount" },
+                        { "name": "taxable", "type": "bool", "help": "true when the header's tax rate applies to the line" },
+                        { "name": "amount", "type": "integer", "readOnly": true, "help": "the amount of the line, in cents; Books computes it" }
+                    ]
+                },
+                {
+                    "key": "tax_lines",
+                    "singular": "tax line",
+                    "collection": "books_credit_memo_tax_lines",
+                    "parent": "credit_memo",
+                    "sort": "position,id",
+                    "readOnly": true,
+                    "omit": ["credit_memo", "position", "date", "currency"],
+                    "fields": [
+                        { "name": "rate", "type": "id", "ref": "tax-rates", "readOnly": true, "help": "the tax rate or group of the document" },
+                        { "name": "component", "type": "id", "ref": "tax-rates", "readOnly": true, "help": "the single rate this line is for; the rate itself when it is not a group" },
+                        { "name": "agency", "type": "id", "ref": "tax-agencies", "readOnly": true, "help": "the agency the tax is owed to" },
+                        { "name": "rate_ppm", "type": "integer", "readOnly": true, "help": "the rate of the component, in parts per million" },
+                        { "name": "gross_amount", "type": "integer", "readOnly": true, "help": "the subtotal of the document, in cents" },
+                        { "name": "taxable_amount", "type": "integer", "readOnly": true, "help": "the sum of the taxable lines, in cents" },
+                        { "name": "amount", "type": "integer", "readOnly": true, "help": "the tax of this component, in cents" }
+                    ]
+                },
+                {
+                    "key": "applications",
+                    "singular": "application",
+                    "collection": "books_credit_memo_applications",
+                    "parent": "credit_memo",
+                    "sort": "date,created,id",
+                    "readOnly": true,
+                    "apply": true,
+                    "timestamps": ["created"],
+                    "omit": ["credit_memo", "applied_by", "close_override"],
+                    "fields": [
+                        { "name": "invoice", "type": "id", "ref": "invoices", "required": true, "help": "a posted invoice of the customer that the credit pays" },
+                        { "name": "amount", "type": "integer", "required": true, "help": "the part of the credit applied to the invoice, in cents" },
+                        { "name": "date", "type": "string", "required": true, "help": "the date the credit is applied, as YYYY-MM-DD; not before the date of the credit memo" }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "refund-receipts",
+            "singular": "refund receipt",
+            "summary": "Refund receipts: money you give back to a customer",
+            "collection": "books_refund_receipts",
+            "lifecycle": "posting",
+            "entry": "entry",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "customer", "status", "total"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only refund receipts with this status: draft, posted or void" },
+                { "flag": "customer", "field": "customer", "help": "only the refund receipts of the customer with this id" }
+            ],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "form", "fields", "sort_key"],
+            "deleteHelp": "Only a draft can be deleted. Void a posted refund receipt with `void`: it stays in the books with its number, and its amounts no longer count.",
+            "fields": [
+                { "name": "customer", "type": "id", "ref": "customers", "help": "the customer of the refund receipt" },
+                { "name": "date", "type": "string", "required": true, "help": "the date of the refund receipt, as YYYY-MM-DD" },
+                { "name": "bill_to", "type": "address", "help": "the billing address printed on the refund receipt" },
+                { "name": "email", "type": "string", "help": "the address the refund receipt is sent to" },
+                { "name": "tax_rate", "type": "id", "ref": "tax-rates", "help": "the sales tax rate or group for the taxable lines" },
+                { "name": "payment_method", "type": "string", "enum": ["cash", "check", "credit_card", "debit_card", "bank_transfer", "other"], "help": "how you paid the customer" },
+                { "name": "reference_no", "type": "string", "help": "the check number or another reference of the refund" },
+                { "name": "refund_from", "type": "id", "ref": "accounts", "required": true, "help": "the bank account the money leaves" },
+                { "name": "sales_receipt", "type": "id", "ref": "sales-receipts", "help": "the sales receipt the refund is for" },
+                { "name": "credit_memo", "type": "id", "ref": "credit-memos", "help": "the credit memo the refund pays out" },
+                { "name": "message", "type": "string", "help": "a message to the customer, printed on the document" },
+                { "name": "memo", "type": "string", "help": "a note for the books; the customer does not see it" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["draft", "posted", "void"], "help": "draft, posted or void; `add --post`, `post` and `void` change it" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the refund receipt; Books gives it when the refund receipt is posted" },
+                { "name": "subtotal", "type": "integer", "readOnly": true, "help": "the sum of the lines before tax, in cents; Books computes it" },
+                { "name": "tax_total", "type": "integer", "readOnly": true, "help": "the sales tax, in cents; Books computes it" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "subtotal plus tax, in cents; Books computes it" },
+                { "name": "revision", "type": "integer", "readOnly": true, "help": "the count of saves; the commands send it so two callers cannot overwrite each other" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote when the refund receipt was posted; `entry` prints it" },
+                { "name": "replaces", "type": "id", "ref": "refund-receipts", "readOnly": true, "help": "the posted refund receipt this one corrects; `edit` of a posted refund receipt sets it" },
+                { "name": "replaced_by", "type": "id", "ref": "refund-receipts", "readOnly": true, "help": "the refund receipt that corrects this one" }
+            ],
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_refund_receipt_lines",
+                    "parent": "refund_receipt",
+                    "sort": "position,id",
+                    "omit": ["refund_receipt", "position"],
+                    "fields": [
+                        { "name": "kind", "type": "string", "required": true, "enum": ["item", "description", "subtotal", "percent"], "help": "item: a product or service with a quantity and a rate; description: text only; subtotal: the sum of the lines above it; percent: a percentage of the item or subtotal right above it" },
+                        { "name": "product", "type": "id", "ref": "products", "help": "the product or service of an item or percent line; an Inventory item's quantity goes back into stock when the document is posted" },
+                        { "name": "description", "type": "string", "help": "the text of the line" },
+                        { "name": "quantity", "type": "number", "help": "the quantity of an item line, with at most 2 decimals" },
+                        { "name": "rate", "type": "integer", "help": "the price of one unit of an item line, in cents" },
+                        { "name": "percent_ppm", "type": "integer", "help": "the percentage of a percent line, in parts per million; -100000 is a 10% discount" },
+                        { "name": "taxable", "type": "bool", "help": "true when the header's tax rate applies to the line" },
+                        { "name": "amount", "type": "integer", "readOnly": true, "help": "the amount of the line, in cents; Books computes it" }
+                    ]
+                },
+                {
+                    "key": "tax_lines",
+                    "singular": "tax line",
+                    "collection": "books_refund_receipt_tax_lines",
+                    "parent": "refund_receipt",
+                    "sort": "position,id",
+                    "readOnly": true,
+                    "omit": ["refund_receipt", "position", "date", "currency"],
+                    "fields": [
+                        { "name": "rate", "type": "id", "ref": "tax-rates", "readOnly": true, "help": "the tax rate or group of the document" },
+                        { "name": "component", "type": "id", "ref": "tax-rates", "readOnly": true, "help": "the single rate this line is for; the rate itself when it is not a group" },
+                        { "name": "agency", "type": "id", "ref": "tax-agencies", "readOnly": true, "help": "the agency the tax is owed to" },
+                        { "name": "rate_ppm", "type": "integer", "readOnly": true, "help": "the rate of the component, in parts per million" },
+                        { "name": "gross_amount", "type": "integer", "readOnly": true, "help": "the subtotal of the document, in cents" },
+                        { "name": "taxable_amount", "type": "integer", "readOnly": true, "help": "the sum of the taxable lines, in cents" },
+                        { "name": "amount", "type": "integer", "readOnly": true, "help": "the tax of this component, in cents" }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "estimates",
+            "singular": "estimate",
+            "summary": "Estimates: an offer to a customer; it posts nothing",
+            "collection": "books_estimates",
+            "lifecycle": "quote",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "customer", "status", "total"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only estimates with this status: pending, accepted, rejected or closed" },
+                { "flag": "customer", "field": "customer", "help": "only the estimates of the customer with this id" }
+            ],
+            "omit": ["sequence", "form", "fields", "public_token", "sort_key"],
+            "deleteHelp": "A closed estimate cannot be deleted: an invoice was made from it.",
+            "fields": [
+                { "name": "customer", "type": "id", "ref": "customers", "required": true, "help": "the customer the estimate is for" },
+                { "name": "date", "type": "string", "required": true, "help": "the date of the estimate, as YYYY-MM-DD" },
+                { "name": "expiration_date", "type": "string", "help": "the last day the offer holds, as YYYY-MM-DD" },
+                { "name": "bill_to", "type": "address", "help": "the billing address printed on the estimate" },
+                { "name": "email", "type": "string", "help": "the address the estimate is sent to" },
+                { "name": "tax_rate", "type": "id", "ref": "tax-rates", "help": "the sales tax rate or group for the taxable lines" },
+                { "name": "message", "type": "string", "help": "a message to the customer, printed on the document" },
+                { "name": "memo", "type": "string", "help": "a note for the books; the customer does not see it" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["pending", "accepted", "rejected", "closed"], "help": "pending, accepted, rejected or closed; `accept`, `reject` and `reopen` change it, and Books closes an estimate when an invoice is made from it" },
+                { "name": "accepted_by", "type": "string", "readOnly": true, "help": "who accepted the estimate; `accept --by` sets it" },
+                { "name": "accepted_date", "type": "string", "readOnly": true, "help": "the day the estimate was accepted, as YYYY-MM-DD; `accept --date` sets it" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the estimate; Books gives it when the estimate is added" },
+                { "name": "subtotal", "type": "integer", "readOnly": true, "help": "the sum of the lines before tax, in cents; Books computes it" },
+                { "name": "tax_total", "type": "integer", "readOnly": true, "help": "the sales tax, in cents; Books computes it" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "subtotal plus tax, in cents; Books computes it" },
+                { "name": "revision", "type": "integer", "readOnly": true, "help": "the count of saves; the commands send it so two callers cannot overwrite each other" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "invoice", "type": "id", "ref": "invoices", "readOnly": true, "help": "the invoice that was made from the estimate" }
+            ],
+            "convert": { "to": "invoices", "link": "estimate", "copy": ["customer", "bill_to", "email", "tax_rate"] },
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_estimate_lines",
+                    "parent": "estimate",
+                    "sort": "position,id",
+                    "omit": ["estimate", "position"],
+                    "fields": [
+                        { "name": "kind", "type": "string", "required": true, "enum": ["item", "description", "subtotal", "percent"], "help": "item: a product or service with a quantity and a rate; description: text only; subtotal: the sum of the lines above it; percent: a percentage of the item or subtotal right above it" },
+                        { "name": "product", "type": "id", "ref": "products", "help": "the product or service of an item or percent line" },
+                        { "name": "description", "type": "string", "help": "the text of the line" },
+                        { "name": "quantity", "type": "number", "help": "the quantity of an item line, with at most 2 decimals" },
+                        { "name": "rate", "type": "integer", "help": "the price of one unit of an item line, in cents" },
+                        { "name": "percent_ppm", "type": "integer", "help": "the percentage of a percent line, in parts per million; -100000 is a 10% discount" },
+                        { "name": "taxable", "type": "bool", "help": "true when the header's tax rate applies to the line" },
+                        { "name": "amount", "type": "integer", "readOnly": true, "help": "the amount of the line, in cents; Books computes it" }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "bills",
+            "singular": "bill",
+            "summary": "Bills: what you owe a vendor",
+            "collection": "books_bills",
+            "lifecycle": "posting",
+            "entry": "entry",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "vendor", "status", "total", "balance"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only bills with this status: draft, posted or void" },
+                { "flag": "vendor", "field": "vendor", "help": "only the bills of the vendor with this id" }
+            ],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "form", "fields", "sort_key"],
+            "deleteHelp": "Only a draft can be deleted. Void a posted bill with `void`: it stays in the books with its number, and its amounts no longer count.",
+            "fields": [
+                { "name": "vendor", "type": "id", "ref": "vendors", "required": true, "help": "the vendor you owe" },
+                { "name": "date", "type": "string", "required": true, "help": "the date of the bill, as YYYY-MM-DD" },
+                { "name": "due_date", "type": "string", "required": true, "help": "the day the bill is due, as YYYY-MM-DD" },
+                { "name": "terms", "type": "string", "enum": ["due_on_receipt", "net_10", "net_15", "net_30", "net_60"], "help": "the payment terms of the bill; Books does not compute due_date from them" },
+                { "name": "mailing_address", "type": "address", "help": "the vendor's address on the bill" },
+                { "name": "ref_no", "type": "string", "help": "the vendor's own number of the bill" },
+                { "name": "memo", "type": "string", "help": "a note for the books" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["draft", "posted", "void"], "help": "draft, posted or void; `add --post`, `post` and `void` change it" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the bill; Books gives it when the bill is posted" },
+                { "name": "subtotal", "type": "integer", "readOnly": true, "help": "the sum of the lines, in cents; Books computes it" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "the total of the bill, in cents; Books computes it" },
+                { "name": "balance", "type": "integer", "readOnly": true, "help": "what you still owe, in cents" },
+                { "name": "revision", "type": "integer", "readOnly": true, "help": "the count of saves; the commands send it so two callers cannot overwrite each other" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote when the bill was posted; `entry` prints it" },
+                { "name": "replaces", "type": "id", "ref": "bills", "readOnly": true, "help": "the posted bill this one corrects; `edit` of a posted bill sets it" },
+                { "name": "replaced_by", "type": "id", "ref": "bills", "readOnly": true, "help": "the bill that corrects this one" }
+            ],
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_bill_lines",
+                    "parent": "bill",
+                    "sort": "position,id",
+                    "omit": ["bill", "position"],
+                    "computed": [
+                        { "field": "amount", "when": "kind", "is": ["item"] }
+                    ],
+                    "fields": [
+                        { "name": "kind", "type": "string", "required": true, "enum": ["account", "item"], "help": "account: an amount on an account; item: a product or service with a quantity and a rate" },
+                        { "name": "account", "type": "id", "ref": "accounts", "help": "the account of an account line: an expense, or another account the bill is for" },
+                        { "name": "product", "type": "id", "ref": "products", "help": "the product or service of an item line; an Inventory item moves stock when the document is posted" },
+                        { "name": "description", "type": "string", "help": "the text of the line" },
+                        { "name": "quantity", "type": "number", "help": "the quantity of an item line, with at most 2 decimals" },
+                        { "name": "rate", "type": "integer", "help": "the cost of one unit of an item line, in cents" },
+                        { "name": "amount", "type": "integer", "help": "the amount of an account line, in cents; Books computes it for an item line, so leave it out there" }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "expenses",
+            "singular": "expense",
+            "summary": "Expenses: a purchase that is paid at once",
+            "collection": "books_expenses",
+            "lifecycle": "posting",
+            "entry": "entry",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "vendor", "status", "total"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only expenses with this status: draft, posted or void" },
+                { "flag": "vendor", "field": "vendor", "help": "only the expenses of the vendor with this id" }
+            ],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "form", "fields", "sort_key"],
+            "deleteHelp": "Only a draft can be deleted. Void a posted expense with `void`: it stays in the books with its number, and its amounts no longer count.",
+            "fields": [
+                { "name": "vendor", "type": "id", "ref": "vendors", "help": "the vendor you paid" },
+                { "name": "paid_from", "type": "id", "ref": "accounts", "required": true, "help": "the bank or credit card account the money left" },
+                { "name": "payment_method", "type": "string", "required": true, "enum": ["cash", "check", "credit_card", "debit_card", "bank_transfer", "other"], "help": "how you paid" },
+                { "name": "reference_no", "type": "string", "help": "the check number or another reference of the payment" },
+                { "name": "date", "type": "string", "required": true, "help": "the date of the expense, as YYYY-MM-DD" },
+                { "name": "memo", "type": "string", "help": "a note for the books" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["draft", "posted", "void"], "help": "draft, posted or void; `add --post`, `post` and `void` change it" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the expense; Books gives it when the expense is posted" },
+                { "name": "subtotal", "type": "integer", "readOnly": true, "help": "the sum of the lines, in cents; Books computes it" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "the total of the expense, in cents; Books computes it" },
+                { "name": "revision", "type": "integer", "readOnly": true, "help": "the count of saves; the commands send it so two callers cannot overwrite each other" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote when the expense was posted; `entry` prints it" },
+                { "name": "replaces", "type": "id", "ref": "expenses", "readOnly": true, "help": "the posted expense this one corrects; `edit` of a posted expense sets it" },
+                { "name": "replaced_by", "type": "id", "ref": "expenses", "readOnly": true, "help": "the expense that corrects this one" }
+            ],
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_expense_lines",
+                    "parent": "expense",
+                    "sort": "position,id",
+                    "omit": ["expense", "position"],
+                    "computed": [
+                        { "field": "amount", "when": "kind", "is": ["item"] }
+                    ],
+                    "fields": [
+                        { "name": "kind", "type": "string", "required": true, "enum": ["account", "item"], "help": "account: an amount on an account; item: a product or service with a quantity and a rate" },
+                        { "name": "account", "type": "id", "ref": "accounts", "help": "the account of an account line: an expense, or another account the expense is for" },
+                        { "name": "product", "type": "id", "ref": "products", "help": "the product or service of an item line; an Inventory item moves stock when the document is posted" },
+                        { "name": "description", "type": "string", "help": "the text of the line" },
+                        { "name": "quantity", "type": "number", "help": "the quantity of an item line, with at most 2 decimals" },
+                        { "name": "rate", "type": "integer", "help": "the cost of one unit of an item line, in cents" },
+                        { "name": "amount", "type": "integer", "help": "the amount of an account line, in cents; Books computes it for an item line, so leave it out there" }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "vendor-credits",
+            "singular": "vendor credit",
+            "summary": "Vendor credits: what a vendor owes you for a return or a correction",
+            "collection": "books_vendor_credits",
+            "lifecycle": "posting",
+            "entry": "entry",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "vendor", "status", "total", "balance"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only vendor credits with this status: draft, posted or void" },
+                { "flag": "vendor", "field": "vendor", "help": "only the vendor credits of the vendor with this id" }
+            ],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "form", "fields", "sort_key"],
+            "deleteHelp": "Only a draft can be deleted. Void a posted vendor credit with `void`: it stays in the books with its number, and its amounts no longer count.",
+            "fields": [
+                { "name": "vendor", "type": "id", "ref": "vendors", "required": true, "help": "the vendor who gave the credit" },
+                { "name": "date", "type": "string", "required": true, "help": "the date of the vendor credit, as YYYY-MM-DD" },
+                { "name": "ref_no", "type": "string", "help": "the vendor's own number of the credit" },
+                { "name": "memo", "type": "string", "help": "a note for the books" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["draft", "posted", "void"], "help": "draft, posted or void; `add --post`, `post` and `void` change it" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the vendor credit; Books gives it when the vendor credit is posted" },
+                { "name": "subtotal", "type": "integer", "readOnly": true, "help": "the sum of the lines, in cents; Books computes it" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "the total of the vendor credit, in cents; Books computes it" },
+                { "name": "balance", "type": "integer", "readOnly": true, "help": "the credit that is not yet applied or refunded, in cents" },
+                { "name": "revision", "type": "integer", "readOnly": true, "help": "the count of saves; the commands send it so two callers cannot overwrite each other" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote when the vendor credit was posted; `entry` prints it" },
+                { "name": "replaces", "type": "id", "ref": "vendor-credits", "readOnly": true, "help": "the posted vendor credit this one corrects; `edit` of a posted vendor credit sets it" },
+                { "name": "replaced_by", "type": "id", "ref": "vendor-credits", "readOnly": true, "help": "the vendor credit that corrects this one" }
+            ],
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_vendor_credit_lines",
+                    "parent": "vendor_credit",
+                    "sort": "position,id",
+                    "omit": ["vendor_credit", "position"],
+                    "computed": [
+                        { "field": "amount", "when": "kind", "is": ["item"] }
+                    ],
+                    "fields": [
+                        { "name": "kind", "type": "string", "required": true, "enum": ["account", "item"], "help": "account: an amount on an account; item: a product or service with a quantity and a rate" },
+                        { "name": "account", "type": "id", "ref": "accounts", "help": "the account of an account line: an expense, or another account the vendor credit is for" },
+                        { "name": "product", "type": "id", "ref": "products", "help": "the product or service of an item line; an Inventory item moves stock when the document is posted" },
+                        { "name": "description", "type": "string", "help": "the text of the line" },
+                        { "name": "quantity", "type": "number", "help": "the quantity of an item line, with at most 2 decimals" },
+                        { "name": "rate", "type": "integer", "help": "the cost of one unit of an item line, in cents" },
+                        { "name": "amount", "type": "integer", "help": "the amount of an account line, in cents; Books computes it for an item line, so leave it out there" }
+                    ]
+                },
+                {
+                    "key": "applications",
+                    "singular": "application",
+                    "collection": "books_vendor_credit_applications",
+                    "parent": "vendor_credit",
+                    "sort": "date,created,id",
+                    "readOnly": true,
+                    "apply": true,
+                    "timestamps": ["created"],
+                    "omit": ["vendor_credit", "applied_by", "close_override"],
+                    "fields": [
+                        { "name": "bill", "type": "id", "ref": "bills", "required": true, "help": "a posted bill of the vendor that the credit pays" },
+                        { "name": "amount", "type": "integer", "required": true, "help": "the part of the credit applied to the bill, in cents" },
+                        { "name": "date", "type": "string", "required": true, "help": "the date the credit is applied, as YYYY-MM-DD; not before the date of the vendor credit" }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "payments",
+            "singular": "payment",
+            "summary": "Payments: money a customer pays for invoices",
+            "collection": "books_payments",
+            "lifecycle": "posting",
+            "entry": "entry",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "customer", "status", "amount", "applied"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only payments with this status: draft, posted or void" },
+                { "flag": "customer", "field": "customer", "help": "only the payments of the customer with this id" }
+            ],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "sort_key"],
+            "deleteHelp": "Only a draft can be deleted. Void a posted payment with `void`: it stays in the books with its number, and its amounts no longer count.",
+            "fields": [
+                { "name": "customer", "type": "id", "ref": "customers", "required": true, "help": "the customer who paid" },
+                { "name": "date", "type": "string", "required": true, "help": "the date of the payment, as YYYY-MM-DD" },
+                { "name": "amount", "type": "integer", "help": "the amount received, in cents; Books refuses a payment with none" },
+                { "name": "payment_method", "type": "string", "enum": ["cash", "check", "credit_card", "debit_card", "bank_transfer", "other"], "help": "how the customer paid" },
+                { "name": "reference_no", "type": "string", "help": "the check number or another reference of the payment" },
+                { "name": "deposit_to", "type": "id", "ref": "accounts", "help": "the bank account that receives the money; Undeposited funds when left out" },
+                { "name": "memo", "type": "string", "help": "a note for the books" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["draft", "posted", "void"], "help": "draft, posted or void; `add --post`, `post` and `void` change it" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the payment; Books gives it when the payment is posted" },
+                { "name": "applied", "type": "integer", "readOnly": true, "help": "the part of the amount applied to invoices, in cents; Books computes it" },
+                { "name": "credited", "type": "integer", "readOnly": true, "help": "the part of the amount kept as the customer's credit, in cents; Books computes it" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote when the payment was posted; `entry` prints it" },
+                { "name": "replaces", "type": "id", "ref": "payments", "readOnly": true, "help": "the posted payment this one corrects; `edit` of a posted payment sets it" },
+                { "name": "replaced_by", "type": "id", "ref": "payments", "readOnly": true, "help": "the payment that corrects this one" }
+            ],
+            "lines": [
+                {
+                    "key": "applications",
+                    "singular": "application",
+                    "collection": "books_payment_applications",
+                    "parent": "payment",
+                    "sort": "position,id",
+                    "omit": ["payment", "position"],
+                    "max": 500,
+                    "fields": [
+                        { "name": "invoice", "type": "id", "ref": "invoices", "required": true, "help": "a posted invoice of the customer that the payment pays" },
+                        { "name": "amount", "type": "integer", "help": "the part of the payment applied to the invoice, in cents; Books refuses a row with none" }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "bill-payments",
+            "singular": "bill payment",
+            "summary": "Bill payments: money you pay a vendor for bills",
+            "collection": "books_bill_payments",
+            "lifecycle": "posted",
+            "entry": "entry",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "vendor", "status", "total"],
+            "search": ["number", "reference_no"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only bill payments with this status: posted or void" },
+                { "flag": "vendor", "field": "vendor", "help": "only the bill payments of the vendor with this id" }
+            ],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "sort_key"],
+            "fields": [
+                { "name": "vendor", "type": "id", "ref": "vendors", "required": true, "help": "the vendor you pay; every bill of the payment is a bill of this vendor" },
+                { "name": "paid_from", "type": "id", "ref": "accounts", "required": true, "help": "the bank or credit card account the money leaves" },
+                { "name": "payment_method", "type": "string", "required": true, "enum": ["cash", "check", "credit_card", "debit_card", "bank_transfer", "other"], "help": "how you pay" },
+                { "name": "reference_no", "type": "string", "help": "the check number or another reference of the payment" },
+                { "name": "date", "type": "string", "required": true, "help": "the date of the payment, as YYYY-MM-DD" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["posted", "void"], "help": "posted or void; a bill payment has no draft, and `void` voids it" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the bill payment; Books gives it when the payment is added" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "the sum of the lines, in cents; Books computes it" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote for the bill payment; `entry` prints it" },
+                { "name": "replaces", "type": "id", "ref": "bill-payments", "readOnly": true, "help": "the bill payment this one corrects; `edit` sets it" },
+                { "name": "replaced_by", "type": "id", "ref": "bill-payments", "readOnly": true, "help": "the bill payment that corrects this one" }
+            ],
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_bill_payment_lines",
+                    "parent": "payment",
+                    "sort": "position,id",
+                    "noUpdate": true,
+                    "omit": ["payment", "position"],
+                    "fields": [
+                        { "name": "bill", "type": "id", "ref": "bills", "required": true, "help": "a posted bill of the vendor that the payment pays" },
+                        { "name": "amount", "type": "integer", "help": "the part of the bill the payment pays, in cents; Books refuses a line with none" }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "vendor-refunds",
+            "singular": "vendor refund",
+            "summary": "Vendor refunds: money a vendor pays you back for vendor credits",
+            "collection": "books_vendor_refunds",
+            "lifecycle": "posting",
+            "entry": "entry",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "vendor", "status", "amount"],
+            "search": ["number", "memo", "reference_no"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only vendor refunds with this status: draft, posted or void" },
+                { "flag": "vendor", "field": "vendor", "help": "only the vendor refunds of the vendor with this id" }
+            ],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "sort_key"],
+            "fields": [
+                { "name": "vendor", "type": "id", "ref": "vendors", "required": true, "help": "the vendor that pays you back; every vendor credit of the refund is a credit of this vendor" },
+                { "name": "date", "type": "string", "required": true, "help": "the date of the refund, as YYYY-MM-DD" },
+                { "name": "refunded_to", "type": "id", "ref": "accounts", "required": true, "help": "the bank account that receives the money, or Undeposited funds" },
+                { "name": "amount", "type": "integer", "help": "the money the vendor pays back, in cents; the lines must add up to it when the refund is posted" },
+                { "name": "payment_method", "type": "string", "enum": ["cash", "check", "credit_card", "debit_card", "bank_transfer", "other"], "help": "how the vendor pays" },
+                { "name": "reference_no", "type": "string", "help": "the check number or another reference of the refund" },
+                { "name": "memo", "type": "string", "help": "a note for your own use" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["draft", "posted", "void"], "help": "draft, posted or void; `post` and `void` change it" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the vendor refund; Books gives it when the refund is posted" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote for the vendor refund; `entry` prints it" },
+                { "name": "replaces", "type": "id", "ref": "vendor-refunds", "readOnly": true, "help": "the vendor refund this one corrects; `edit` of a posted vendor refund sets it" },
+                { "name": "replaced_by", "type": "id", "ref": "vendor-refunds", "readOnly": true, "help": "the vendor refund that corrects this one" }
+            ],
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_vendor_refund_lines",
+                    "parent": "refund",
+                    "sort": "position,id",
+                    "max": 500,
+                    "omit": ["refund", "position"],
+                    "fields": [
+                        { "name": "vendor_credit", "type": "id", "ref": "vendor-credits", "required": true, "help": "a posted vendor credit of the vendor that the money is for" },
+                        { "name": "amount", "type": "integer", "help": "the part of the vendor credit that the vendor pays back, in cents; Books refuses a line with none" }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "deposits",
+            "singular": "deposit",
+            "summary": "Bank deposits: money you move from Undeposited funds into a bank account",
+            "collection": "books_deposits",
+            "lifecycle": "posting",
+            "entry": "entry",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "deposit_to", "status", "total"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only deposits with this status: draft, posted or void" },
+                { "flag": "deposit-to", "field": "deposit_to", "help": "only the deposits into the account with this id" }
+            ],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "sort_key"],
+            "fields": [
+                { "name": "date", "type": "string", "required": true, "help": "the date of the deposit, as YYYY-MM-DD" },
+                { "name": "deposit_to", "type": "id", "ref": "accounts", "required": true, "help": "the bank account that receives the money" },
+                { "name": "memo", "type": "string", "help": "a note for your own use" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["draft", "posted", "void"], "help": "draft, posted or void; `post` and `void` change it" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the deposit; Books gives it when the deposit is posted" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "the money that reaches the bank account, in cents: items_total plus lines_total; Books computes it when the deposit is posted" },
+                { "name": "items_total", "type": "integer", "readOnly": true, "help": "the sum of the items, in cents; Books computes it when the deposit is posted" },
+                { "name": "lines_total", "type": "integer", "readOnly": true, "help": "the sum of the lines, in cents; Books computes it when the deposit is posted" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote for the deposit; `entry` prints it" },
+                { "name": "replaces", "type": "id", "ref": "deposits", "readOnly": true, "help": "the deposit this one corrects; `edit` of a posted deposit sets it" },
+                { "name": "replaced_by", "type": "id", "ref": "deposits", "readOnly": true, "help": "the deposit that corrects this one" }
+            ],
+            "views": [
+                {
+                    "word": "undeposited",
+                    "long": "List the money that waits in Undeposited funds and that a deposit can take: every posted line on an Undeposited funds account that no posted deposit holds.\n\n`line` of a row is the value for `{\"line\": \"<line>\"}` of an item of `deposits add` (it is also the `id` of the row). A row shows what the person who pays is named by: the customer or the vendor, the payment method and the reference number (a check number). The rows are in the order of the deposit form: by date, then by number.\n\n  tinycld books deposits undeposited --customer <customer id>\n  tinycld books deposits undeposited --search 4411 --json",
+                    "name": "undeposited items",
+                    "singular": "undeposited item",
+                    "summary": "List the money in Undeposited funds that a deposit can take",
+                    "collection": "books_undeposited_items",
+                    "sort": "date,number,id",
+                    "label": "number",
+                    "columns": ["date", "doc_type", "number", "customer", "vendor", "amount", "payment_method", "reference_no", "line"],
+                    "search": ["number", "reference_no", "memo"],
+                    "filters": [
+                        { "flag": "customer", "field": "customer", "help": "only the money of the customer with this id" },
+                        { "flag": "vendor", "field": "vendor", "help": "only the money of the vendor with this id (a vendor refund)" },
+                        { "flag": "account", "field": "account", "help": "only the money on the Undeposited funds account with this id" },
+                        { "flag": "doc-type", "field": "doc_type", "help": "only the money from this type of transaction: payment, sales_receipt, vendor_refund, refund_receipt, journal or transfer" },
+                        { "flag": "payment-method", "field": "payment_method", "help": "only the money paid this way, for example check or cash" }
+                    ],
+                    "omit": [],
+                    "timestamps": [],
+                    "fields": [
+                        { "name": "line", "type": "id", "ref": "journal-entries.lines", "readOnly": true, "help": "the id of the journal line that holds the money: the value for `line` of an item of a deposit" },
+                        { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry of the line" },
+                        { "name": "account", "type": "id", "ref": "accounts", "readOnly": true, "help": "the Undeposited funds account of the line" },
+                        { "name": "date", "type": "string", "readOnly": true, "help": "the date of the line's journal entry, as YYYY-MM-DD" },
+                        { "name": "doc_type", "type": "string", "readOnly": true, "enum": ["journal", "transfer", "invoice", "sales_receipt", "bill", "expense", "payment", "bill_payment", "credit_memo", "vendor_credit", "vendor_refund", "refund_receipt", "write_off", "deposit", "inventory_adjustment"], "help": "the type of the transaction that received the money, such as payment or sales_receipt" },
+                        { "name": "origin", "type": "string", "readOnly": true, "enum": ["manual", "reversal", "auto_reversal", "void_reversal", "opening_balance", "document"], "help": "how the journal entry was made" },
+                        { "name": "number", "type": "string", "readOnly": true, "help": "the number of that transaction" },
+                        { "name": "document", "type": "string", "readOnly": true, "help": "the id of that transaction" },
+                        { "name": "customer", "type": "id", "ref": "customers", "readOnly": true, "help": "the customer of the line" },
+                        { "name": "vendor", "type": "id", "ref": "vendors", "readOnly": true, "help": "the vendor of the line" },
+                        { "name": "amount", "type": "integer", "readOnly": true, "help": "the amount of the line, in cents" },
+                        { "name": "payment_method", "type": "string", "readOnly": true, "help": "how the money was paid; empty for a journal entry or a transfer" },
+                        { "name": "reference_no", "type": "string", "readOnly": true, "help": "the check number or another reference of the money" },
+                        { "name": "memo", "type": "string", "readOnly": true, "help": "the memo of the line" }
+                    ]
+                }
+            ],
+            "lines": [
+                {
+                    "key": "items",
+                    "singular": "item",
+                    "collection": "books_deposit_items",
+                    "parent": "deposit",
+                    "sort": "position,id",
+                    "max": 500,
+                    "noUpdate": true,
+                    "omit": ["deposit", "position"],
+                    "fields": [
+                        { "name": "line", "type": "id", "ref": "journal-entries.lines", "required": true, "help": "money that waits in Undeposited funds: the line of a posted journal entry on that account; `entry` of a payment prints its lines with their ids" },
+                        { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry of the line" },
+                        { "name": "account", "type": "id", "ref": "accounts", "readOnly": true, "help": "the account of the line" },
+                        { "name": "customer", "type": "id", "ref": "customers", "readOnly": true, "help": "the customer of the line" },
+                        { "name": "vendor", "type": "id", "ref": "vendors", "readOnly": true, "help": "the vendor of the line" },
+                        { "name": "amount", "type": "integer", "readOnly": true, "help": "the amount of the line, in cents" },
+                        { "name": "date", "type": "string", "readOnly": true, "help": "the date of the line's journal entry" },
+                        { "name": "doc_type", "type": "string", "readOnly": true, "enum": ["journal", "transfer", "invoice", "sales_receipt", "bill", "expense", "payment", "bill_payment", "credit_memo", "vendor_credit", "vendor_refund", "refund_receipt", "write_off", "deposit", "inventory_adjustment"], "help": "the type of the transaction that received the money" },
+                        { "name": "number", "type": "string", "readOnly": true, "help": "the number of that transaction" },
+                        { "name": "document", "type": "string", "readOnly": true, "help": "the id of that transaction" },
+                        { "name": "payment_method", "type": "string", "readOnly": true, "help": "how the money was paid" },
+                        { "name": "reference_no", "type": "string", "readOnly": true, "help": "the check number or another reference of the money" },
+                        { "name": "posted", "type": "bool", "readOnly": true, "help": "true while the deposit is posted: the money is no longer in Undeposited funds" }
+                    ]
+                },
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_deposit_lines",
+                    "parent": "deposit",
+                    "sort": "position,id",
+                    "max": 100,
+                    "omit": ["deposit", "position"],
+                    "fields": [
+                        { "name": "account", "type": "id", "ref": "accounts", "required": true, "help": "the account of other money in the deposit: a bank fee, interest, cash back" },
+                        { "name": "amount", "type": "integer", "help": "the amount, in cents; below zero takes money out of the deposit (a bank fee)" },
+                        { "name": "description", "type": "string", "help": "what the money is" },
+                        { "name": "customer", "type": "id", "ref": "customers", "help": "the customer the money is from, if any" },
+                        { "name": "vendor", "type": "id", "ref": "vendors", "help": "the vendor the money is from, if any" }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "write-offs",
+            "singular": "write-off",
+            "summary": "Write-offs: the open balance of an invoice that the customer will not pay",
+            "collection": "books_write_offs",
+            "lifecycle": "posted",
+            "entry": "entry",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "customer", "invoice", "status", "amount"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only write-offs with this status: posted or void" },
+                { "flag": "customer", "field": "customer", "help": "only the write-offs of the customer with this id" },
+                { "flag": "invoice", "field": "invoice", "help": "only the write-offs of the invoice with this id" }
+            ],
+            "omit": ["sequence", "close_override", "posted_at", "posted_by", "voided_at", "voided_by", "sort_key"],
+            "fields": [
+                { "name": "invoice", "type": "id", "ref": "invoices", "required": true, "help": "the posted invoice that has the open balance" },
+                { "name": "date", "type": "string", "required": true, "help": "the date of the write-off, as YYYY-MM-DD" },
+                { "name": "account", "type": "id", "ref": "accounts", "required": true, "help": "the expense account that takes the loss, such as Bad debts" },
+                { "name": "amount", "type": "integer", "required": true, "help": "the open balance of the invoice, in cents: `balance` of `invoices show`; Books refuses another amount" },
+                { "name": "memo", "type": "string", "help": "a note for your own use" },
+                { "name": "customer", "type": "id", "ref": "customers", "readOnly": true, "help": "the customer of the invoice; Books sets it" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["posted", "void"], "help": "posted or void; a write-off has no draft, and `void` voids it" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the write-off; Books gives it when the write-off is added" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote for the write-off; `entry` prints it" }
+            ]
+        },
+        {
+            "name": "transfers",
+            "singular": "transfer",
+            "summary": "Transfers: money you move from one of your accounts to another",
+            "collection": "books_journal_entries",
+            "lifecycle": "posting",
+            "fixed": { "doc_type": "transfer", "origin": "manual" },
+            "scoped": true,
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "status", "total", "memo"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only transfers with this status: draft, posted or void" }
+            ],
+            "omit": [
+                "auto_reverse_on",
+                "document",
+                "reverses",
+                "card_payment",
+                "sequence",
+                "posted_at",
+                "posted_by",
+                "voided_at",
+                "voided_by",
+                "created_by",
+                "close_override"
+            ],
+            "deleteHelp": "Only a draft can be deleted. Void a posted transfer with `void`: it stays in the books with its number, and its amounts no longer count.",
+            "fields": [
+                { "name": "date", "type": "string", "required": true, "help": "the date of the transfer, as YYYY-MM-DD" },
+                { "name": "memo", "type": "string", "help": "a note for the transfer" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["draft", "posted", "void"], "help": "draft, posted or void; `add --post`, `post` and `void` change it" },
+                {
+                    "name": "doc_type",
+                    "type": "string",
+                    "readOnly": true,
+                    "enum": [
+                        "journal",
+                        "transfer",
+                        "invoice",
+                        "sales_receipt",
+                        "bill",
+                        "expense",
+                        "payment",
+                        "bill_payment",
+                        "credit_memo",
+                        "vendor_credit",
+                        "vendor_refund",
+                        "refund_receipt",
+                        "write_off",
+                        "deposit",
+                        "inventory_adjustment"
+                    ],
+                    "help": "always transfer"
+                },
+                {
+                    "name": "origin",
+                    "type": "string",
+                    "readOnly": true,
+                    "enum": ["manual", "reversal", "auto_reversal", "void_reversal", "opening_balance", "document"],
+                    "help": "always manual"
+                },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the transfer; Books gives it when the transfer is posted" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "the amount that moves, in cents; Books computes it" },
+                { "name": "revision", "type": "integer", "readOnly": true, "help": "the count of saves; the commands send it so two callers cannot overwrite each other" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
+                { "name": "replaces", "type": "id", "ref": "transfers", "readOnly": true, "help": "the posted transfer this one corrects; `edit` of a posted transfer sets it" }
+            ],
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_journal_lines",
+                    "parent": "entry",
+                    "sort": "position,id",
+                    "max": 2,
+                    "omit": ["entry", "position", "posted", "date", "currency", "card_payment", "doc_type", "customer", "vendor"],
+                    "fields": [
+                        { "name": "account", "type": "id", "ref": "accounts", "required": true, "help": "line 1: the account the money leaves; line 2: the account it goes to. A bank, credit card, asset, liability or equity account" },
+                        { "name": "debit", "type": "integer", "help": "the amount, in cents, on line 2: the account the money goes to" },
+                        { "name": "credit", "type": "integer", "help": "the amount, in cents, on line 1: the account the money leaves" },
+                        { "name": "memo", "type": "string", "help": "a note for the line" }
+                    ]
+                }
+            ]
+        }
+    ]
+}

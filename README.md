@@ -88,7 +88,7 @@ exactly what a developer runs locally.
 ## Docs
 
 - [GLOSSARY.md](GLOSSARY.md): the terms Books uses.
-- [help/command-line.md](help/command-line.md): Books from the command line (`tinycld books`).
+- [help/command-line.md](help/command-line.md): Books from the command line (`tinycld books`). `tinycld books schema` prints the rules every command follows, with the input and the output of each command.
 - [Terms and conditions](TERMS.md) for the Books beta.
 
 ## License

@@ -24,7 +24,7 @@ const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 const CATEGORY_LINES = 2
 
 /**
- * The five purchase reads of a document list (spec docs/specs/purchase-lists-design.md
+ * The five purchase reads of a document list (the Purchase lists design spec
  * §4): one live query per kind the tab lists, each filtered by the listed rule, the chip,
  * the date range, the vendor and the search (number, reference no., memo) in its `where`,
  * ordered by the sort column then `created` descending, and cut to its first `n` rows. Each

@@ -17,7 +17,7 @@ describe('books manifest', () => {
     })
 
     it('pins a core range and keeps the migrations directory', () => {
-        expect(manifest.peerVersions).toEqual({ '@tinycld/core': '>=0.8 <1' })
+        expect(manifest.peerVersions).toEqual({ '@tinycld/core': '>=0.12.0 <0.13.0' })
         expect(existsSync(join(__dirname, '..', manifest.migrations.directory))).toBe(true)
     })
 

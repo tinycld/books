@@ -37,8 +37,8 @@ type exitSpec struct {
 	Meaning string `json:"meaning"`
 }
 
-// conventions is what holds for every Books command. docs/cli-conventions.md
-// says the same in prose; cli/docs_test.go holds the two together.
+// conventions is what holds for every Books command. `tinycld books schema`
+// prints it, and cli/schema_test.go holds it to the code.
 type conventions struct {
 	Output      string         `json:"output"`
 	Input       string         `json:"input"`

@@ -1,4 +1,4 @@
-// The Expenses area's tabs (spec docs/specs/purchase-lists-design.md §2, §3): each tab's
+// The Expenses area's tabs (the Purchase lists design spec §2, §3): each tab's
 // route, the kinds it lists, its columns, chips and sortable columns, and its New action.
 // Free of React Native and icon imports: the e2e helpers import it in Node.
 

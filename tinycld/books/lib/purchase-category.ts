@@ -1,4 +1,4 @@
-// The Category of a purchase list row (spec docs/specs/purchase-lists-design.md §3 "Rows
+// The Category of a purchase list row (the Purchase lists design spec §3 "Rows
 // and columns", §4 "Category"): a bill, an expense or a vendor credit with one line names
 // that line's account or product, two or more lines read "Split", no line reads "—". The
 // list's queries read a document's first two lines by position (`.limit(2)`), so two

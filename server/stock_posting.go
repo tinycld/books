@@ -10,7 +10,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// How a posted document changes stock (docs/adr/0003-inventory-costing.md).
+// How a posted document changes stock (the inventory costing decision, ADR 0003).
 // A document that moves stock calls postDocumentStock inside its posting
 // transaction, before it builds its journal entry: the store writes the
 // document's moves and replays their products, and the document puts the cost

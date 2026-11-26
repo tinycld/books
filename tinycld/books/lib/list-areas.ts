@@ -1,4 +1,4 @@
-// The list areas (spec docs/specs/purchase-lists-design.md §2 "Where it lives"): each
+// The list areas (the Purchase lists design spec §2 "Where it lives"): each
 // document list belongs to one, which gives its title, tabs, New items, party (customer or
 // vendor), texts, shortcut group, log context and test-id prefix. Free of React Native and
 // icon imports: the e2e helpers import the tab modules it reads in Node.

@@ -1,5 +1,5 @@
-// The rules of a document list, sales and purchases (specs docs/specs/sales-lists-design.md
-// and docs/specs/purchase-lists-design.md, §3 and §4): the columns, the chips, the date
+// The rules of a document list, sales and purchases (the Sales lists
+// and Purchase lists design specs, §3 and §4): the columns, the chips, the date
 // range, the search and the sort, as TanStack DB clauses the list's live queries put in
 // their `where`, and as the compare the merged window is sorted by. Pure, so each rule is
 // unit-tested; hooks/useDocumentList.ts runs the queries.

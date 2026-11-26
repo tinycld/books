@@ -51,7 +51,7 @@ function relayTo(ref: RefObject<KeyHandlers>): KeyHandlers {
 }
 
 /**
- * The keys of a document list tab (spec docs/specs/sales-lists-design.md §3 "Keyboard"),
+ * The keys of a document list tab (the Sales lists design spec §3 "Keyboard"),
  * in the ⇧? group of the tab's list area with its tab labels (`area`), registered in the
  * screen's `list` scope, each only while its action is offered
  * (lib/list-shortcuts.ts): no tick keys without tick boxes (a reader, the 320 px column,

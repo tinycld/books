@@ -4,7 +4,7 @@ package books
 // testdata/ar_aging_spec_full.json, hold the text of every statement the A/R
 // Aging's stored rows are written with and the whole A/R Aging spec as it was
 // before the open-items engine was extracted. They change only with a new A/R
-// Aging scale run: docs/plans/ar-aging-evidence/perf-plans.md and
+// Aging scale run: perf-plans.md of the A/R Aging evidence and
 // testdata/ar_aging_stat1.json are recorded against these texts. With
 // BOOKS_GOLDEN=1 the two tests write their files and fail with "golden
 // written".

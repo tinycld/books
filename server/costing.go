@@ -5,7 +5,7 @@ import (
 	"math/big"
 )
 
-// The costing engine (docs/adr/0003-inventory-costing.md). It is pure: it
+// The costing engine (the inventory costing decision, ADR 0003). It is pure: it
 // reads no row and writes none. runCosting replays the moves of ONE product,
 // in order, and answers the value of each move and the stock that is left.
 //

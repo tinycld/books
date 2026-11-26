@@ -72,7 +72,11 @@ func bodyOf(err error) errorBody {
 		return body
 	}
 	body.Status = api.Status
-	if api.Message != "" {
+	// A write that was stored, or whose answer was lost, has the CLI's words:
+	// they name the id, which the server's message does not.
+	var stored *storedError
+	var lost *unansweredError
+	if api.Message != "" && !errors.As(err, &stored) && !errors.As(err, &lost) {
 		body.Message = api.Message
 	}
 	body.Fields = refusedFields(api.Body)

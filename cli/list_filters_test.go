@@ -8,11 +8,14 @@ import (
 )
 
 type listFilterCase struct {
-	Name     string   `json:"name"`
-	Resource string   `json:"resource"`
-	Args     []string `json:"args"`
-	Filter   string   `json:"filter"`
-	Sort     string   `json:"sort"`
+	Name     string `json:"name"`
+	Resource string `json:"resource"`
+	// View is the command word of a view of the transaction type that Resource
+	// names (`deposits undeposited`); empty for the `list` of Resource.
+	View   string   `json:"view"`
+	Args   []string `json:"args"`
+	Filter string   `json:"filter"`
+	Sort   string   `json:"sort"`
 }
 
 // testdata/list-filters.json is shared with server/cli_resources_test.go, which
@@ -39,7 +42,11 @@ func TestListSendsTheTextsOfTheSharedFixture(t *testing.T) {
 	for _, tc := range loadListFilterCases(t) {
 		f := newFakeBooks(t)
 		f.rawFilter = true
-		listJSON(t, f, append([]string{"books", tc.Resource, "list"}, tc.Args...)...)
+		word := "list"
+		if tc.View != "" {
+			word = tc.View
+		}
+		listJSON(t, f, append([]string{"books", tc.Resource, word}, tc.Args...)...)
 		if got := f.lastQuery.Get("filter"); got != tc.Filter {
 			t.Errorf("%s: filter =\n  %s\nwant\n  %s", tc.Name, got, tc.Filter)
 		}
@@ -49,25 +56,56 @@ func TestListSendsTheTextsOfTheSharedFixture(t *testing.T) {
 	}
 }
 
-// The server test sends every case, so each resource needs one that uses all of
-// its filter flags and --search.
-func TestListFilterFixtureHasACaseWithEveryFlagOfEveryResource(t *testing.T) {
+// listTarget is one list of the CLI: a resource's `list`, a transaction type's
+// `list`, or a view of a transaction type (`deposits undeposited`).
+type listTarget struct {
+	name, view string
+	res        *resource
+}
+
+func listTargets() []listTarget {
+	targets := []listTarget{}
+	for i := range resources {
+		targets = append(targets, listTarget{name: resources[i].Name, res: &resources[i]})
+	}
+	for i := range documents {
+		doc := &documents[i]
+		targets = append(targets, listTarget{name: doc.Name, res: &doc.resource})
+		for j := range doc.Views {
+			targets = append(targets, listTarget{name: doc.Name, view: doc.Views[j].Word, res: &doc.Views[j].resource})
+		}
+	}
+	return targets
+}
+
+// The server test sends every case, so each list (of a resource, of a
+// transaction type, and of a view) needs one that uses all of its filter flags
+// and --search. A scoped type needs one with no flag, which shows its scope.
+func TestListFilterFixtureHasACaseWithEveryFlagOfEveryList(t *testing.T) {
 	cases := loadListFilterCases(t)
-	for _, res := range resources {
+	for _, target := range listTargets() {
 		want := []string{}
-		for _, flt := range res.Filters {
+		for _, flt := range target.res.Filters {
 			want = append(want, "--"+flt.Flag)
 		}
-		if len(res.Search) > 0 {
+		if len(target.res.Search) > 0 {
 			want = append(want, "--search")
 		}
 		found := slices.ContainsFunc(cases, func(tc listFilterCase) bool {
-			return tc.Resource == res.Name && !slices.ContainsFunc(want, func(flag string) bool {
+			return tc.Resource == target.name && tc.View == target.view && !slices.ContainsFunc(want, func(flag string) bool {
 				return !slices.Contains(tc.Args, flag)
 			})
 		})
 		if !found {
-			t.Errorf("%s: testdata/list-filters.json has no case with %v", res.Name, want)
+			t.Errorf("%s %s: testdata/list-filters.json has no case with %v", target.name, target.view, want)
+		}
+		if len(target.res.scope) == 0 {
+			continue
+		}
+		if !slices.ContainsFunc(cases, func(tc listFilterCase) bool {
+			return tc.Resource == target.name && tc.View == target.view && len(tc.Args) == 0
+		}) {
+			t.Errorf("%s: a scoped type has no case with no flag in testdata/list-filters.json", target.name)
 		}
 	}
 }

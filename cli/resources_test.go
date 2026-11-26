@@ -80,6 +80,15 @@ var resourceCases = []resourceCase{
 		sent:      `{"components":["taxratestate001","taxratecity0001"],"is_default":true,"name":"City and state","type":"group"}`,
 		label:     "City and state",
 	},
+	{
+		// Books numbers a statement, so the fake's record has no label but its id.
+		name: "statements", collection: "books_statements", singular: "statement",
+		commands:  "add delete list show",
+		listFlags: []string{"customer", "limit", "page", "search", "type"},
+		input:     `{"customer": "custacme0000001", "type": "balance_forward", "statement_date": "2026-11-20", "start_date": "2026-11-01", "end_date": "2026-11-20"}`,
+		sent:      `{"customer":"custacme0000001","end_date":"2026-11-20","start_date":"2026-11-01","statement_date":"2026-11-20","type":"balance_forward"}`,
+		label:     "rec000000000001",
+	},
 }
 
 func TestEveryResourceHasACase(t *testing.T) {

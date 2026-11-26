@@ -1,4 +1,4 @@
-// The periods of the dashboard widgets (spec docs/specs/dashboard-design.md §4 "Periods"):
+// The periods of the dashboard widgets (the dashboard design spec §4 "Periods"):
 // whole calendar months only, so the monthly balance rows answer every period. Month
 // arithmetic runs on a year * 12 + month index of the ISO text, so no Date, time zone or
 // rollover applies.

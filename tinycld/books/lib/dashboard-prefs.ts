@@ -1,4 +1,4 @@
-// The dashboard preference (spec docs/specs/dashboard-design.md §3 "What is saved", §4
+// The dashboard preference (the dashboard design spec §3 "What is saved", §4
 // "Preference shape"): one value per user, read through core useUserPreference.
 
 import { z } from '@tinycld/core/ui/form'

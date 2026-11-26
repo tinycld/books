@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -34,21 +35,34 @@ type listOptions struct {
 	filters map[string]*string
 }
 
+const pagingText = "`total` in the --json result is the number of records that match on all\n" +
+	"pages: ask for --page 2 while page × limit is below it."
+
 func newListCmd(c *client.Client, res *resource) *cobra.Command {
-	opts := listOptions{filters: map[string]*string{}}
-	long := "List " + res.Name + ", " + fmt.Sprint(defaultListLimit) + " to a page.\n\n" +
-		"`total` in the --json result is the number of records that match on all\n" +
-		"pages: ask for --page 2 while page × limit is below it."
+	long := "List " + res.Name + ", " + fmt.Sprint(defaultListLimit) + " to a page.\n\n" + pagingText
 	if res.hasInactive() {
 		long += "\n\nInactive records are left out unless --inactive or --all is given."
 	}
-	cmd := newCommand(commandDef{
+	return buildListCmd(c, res, commandDef{
 		Name:    "list",
 		Short:   "List " + res.Name,
 		Long:    long,
 		Aliases: []string{"ls"},
-		Output:  listSchema(res),
-	}, func(cmd *cobra.Command, _ []string, o output.Options, _ bool) error {
+	})
+}
+
+// newViewListCmd is the list command of a view of a document: the list engine
+// over the view collection, under the view's own command word.
+func newViewListCmd(c *client.Client, view *listView) *cobra.Command {
+	long := view.Long + "\n\n" + fmt.Sprint(defaultListLimit) + " to a page. " + pagingText
+	return buildListCmd(c, &view.resource, commandDef{Name: view.Word, Short: view.Summary, Long: long})
+}
+
+// buildListCmd lists the records of res; def names the command and its help.
+func buildListCmd(c *client.Client, res *resource, def commandDef) *cobra.Command {
+	opts := listOptions{filters: map[string]*string{}}
+	def.Output = listSchema(res)
+	cmd := newCommand(def, func(cmd *cobra.Command, _ []string, o output.Options, _ bool) error {
 		if opts.limit < 1 || opts.limit > maxListLimit {
 			return usagef("--limit must be from 1 to %d", maxListLimit)
 		}
@@ -142,6 +156,12 @@ func listFilter(cmd *cobra.Command, res *resource, opts listOptions) string {
 		} else {
 			clauses = append(clauses, "inactive = false")
 		}
+	}
+	// The values are from documents.json, and are bound as a caller's are.
+	for i, field := range slices.Sorted(maps.Keys(res.scope)) {
+		name := fmt.Sprintf("s%d", i)
+		params[name] = res.scope[field]
+		clauses = append(clauses, field+" = {:"+name+"}")
 	}
 	for i, flt := range res.Filters {
 		if !cmd.Flags().Changed(flt.Flag) {

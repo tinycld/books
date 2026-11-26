@@ -1,4 +1,4 @@
-// The figures of the dashboard widgets (spec docs/specs/dashboard-design.md §3), summed
+// The figures of the dashboard widgets (the dashboard design spec §3), summed
 // in integer cents from the rows of their live reads.
 
 import type { AccountRow } from '../hooks/useAccountsQuery'

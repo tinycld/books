@@ -1,4 +1,4 @@
-// Synthetic data for the Books dashboard (spec docs/specs/dashboard-design.md): the
+// Synthetic data for the Books dashboard (the dashboard design spec): the
 // helix reference route reads it directly. It holds the widget models of each state
 // the spec names, and the rows of the two views those models are summed from.
 //

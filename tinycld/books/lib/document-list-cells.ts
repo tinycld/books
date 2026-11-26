@@ -1,6 +1,6 @@
 // The text of a document list's table cells, cards and names-column rows, and the sizes
-// the windowed lists draw them at (spec docs/specs/sales-lists-design.md and
-// docs/specs/purchase-lists-design.md, §3 "Rows and columns"). The header cell and the
+// the windowed lists draw them at (the Sales lists and
+// Purchase lists design specs, §3 "Rows and columns"). The header cell and the
 // row cell share `columnStyle`, so the columns line up.
 
 import type { ViewStyle } from 'react-native'

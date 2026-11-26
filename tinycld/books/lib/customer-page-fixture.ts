@@ -1,4 +1,4 @@
-// Synthetic data for the customer page (spec docs/specs/customer-pages-design.md): the
+// Synthetic data for the customer page (the customer pages design spec): the
 // helix reference route reads it directly, and seed.ts creates CUSTOMER_PAGE_CONTACTS
 // (seedPartyContacts). Customers come from customer-form-fixture.ts (fixture ids; the
 // seed maps them to the server's ids).
