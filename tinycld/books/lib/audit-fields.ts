@@ -757,7 +757,7 @@ const AUDIT_FIELD_MAPS = {
         type: select('Type', optionsOf(PRODUCT_TYPES)),
         name: text('Name'),
         code: text('Code'),
-        sku: text('SKU'),
+        vendor_part_no: text('Vendor part no.'),
         sales_description: text('Sales description'),
         price: money('Price'),
         income_account: relation('Income account', 'books_accounts'),

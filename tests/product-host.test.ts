@@ -24,7 +24,7 @@ const ALL_COLUMNS = {
     type: true,
     name: true,
     code: true,
-    sku: true,
+    vendor_part_no: true,
     sales_description: true,
     price: true,
     income_account: true,
@@ -56,7 +56,7 @@ const BUILTINS = [
     ['type', 'Type', 'custom', true, 'ProductTypeField'],
     ['name', 'Name', 'custom', true, 'ProductNameField'],
     ['code', 'Code', 'custom', false, 'ProductCodeField'],
-    ['sku', 'SKU', 'text', false, undefined],
+    ['vendor_part_no', 'Vendor part no.', 'text', false, undefined],
     ['sales_description', 'Sales description', 'textarea', false, undefined],
     ['items', 'Bundle items', 'table', false, undefined],
     ['quantity_on_hand', 'Quantity on hand', 'custom', false, 'QuantityOnHandField'],
@@ -77,7 +77,7 @@ const BUILTINS = [
 
 const HALF_WIDTH = [
     'name',
-    'sku',
+    'vendor_part_no',
     'price',
     'income_account',
     'cost',

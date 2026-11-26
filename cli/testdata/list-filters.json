@@ -68,7 +68,7 @@
             "name": "products-every-flag",
             "resource": "products",
             "args": ["--type", "service", "--search", "nothinghasthis1"],
-            "filter": "inactive = false && type = \"service\" && (code ~ \"nothinghasthis1\" || name ~ \"nothinghasthis1\" || sku ~ \"nothinghasthis1\")",
+            "filter": "inactive = false && type = \"service\" && (code ~ \"nothinghasthis1\" || name ~ \"nothinghasthis1\" || vendor_part_no ~ \"nothinghasthis1\")",
             "sort": "sort_key,id"
         },
         {

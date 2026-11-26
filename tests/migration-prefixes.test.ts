@@ -85,9 +85,13 @@ const AFTER_AUDIT: string[] = [
     '2100000045_books_reconcile_lines_sequence.js',
 ]
 
-// Record codes add a code field to the customers, vendors and products, none of them a
-// line collection the audit view reads, so they also run after it.
-const AFTER_AUDIT_FIELDS: string[] = ['2100000046_add_books_record_codes.js']
+// Record codes add a code field to the customers, vendors and products, and the products'
+// SKU becomes their vendor part number; none of them is a line collection the audit view
+// reads, so they also run after it.
+const AFTER_AUDIT_FIELDS: string[] = [
+    '2100000046_add_books_record_codes.js',
+    '2100000047_rename_books_products_sku.js',
+]
 
 // The migrations between the inventory migration and the audit view, in their order.
 const BEFORE_AUDIT: string[] = [...RECONCILE, ...REPORT, ...DASHBOARD, ...SHORTCUTS]

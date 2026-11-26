@@ -10,7 +10,7 @@ export type ProductListFields = Pick<
     | 'id'
     | 'name'
     | 'code'
-    | 'sku'
+    | 'vendor_part_no'
     | 'sales_description'
     | 'type'
     | 'price'
@@ -43,16 +43,18 @@ export const PRODUCT_ROW_HEIGHT = 56
 // The bundle item picker offers this many products while not searching.
 export const PRODUCT_PICKER_LIMIT = 50
 
-// The picker's options: rows whose name, SKU or code holds the term, any case, those whose
+// The picker's options: rows whose name, vendor part number or code holds the term, any case, those whose
 // code starts with it first, the first 50 in the order given (the picker's query sorts
 // them by name).
 export function productPickerOptions<
-    T extends Pick<ProductListFields, 'id' | 'name' | 'sku'> & { code?: string },
+    T extends Pick<ProductListFields, 'id' | 'name' | 'vendor_part_no'> & { code?: string },
 >(rows: readonly T[], term: string): T[] {
     const needle = term.trim().toLowerCase()
-    // A row can arrive without a SKU or a code; searching must not throw on it.
+    // A row can arrive without a vendor part number or a code; searching must not throw on it.
     const matches = (row: T) =>
-        [row.name, row.sku, row.code].some(value => (value ?? '').toLowerCase().includes(needle))
+        [row.name, row.vendor_part_no, row.code].some(value =>
+            (value ?? '').toLowerCase().includes(needle)
+        )
     return codeFirst(rows.filter(matches), term, row => row.code).slice(0, PRODUCT_PICKER_LIMIT)
 }
 
@@ -87,8 +89,11 @@ export function productTypeLine(product: PriceFields): string {
 }
 
 export function productCardHeight(
-    product: Pick<ProductListFields, 'type' | 'price' | 'currency' | 'sku' | 'code'>,
+    product: Pick<ProductListFields, 'type' | 'price' | 'currency' | 'vendor_part_no' | 'code'>,
     fontScale = 1
 ): number {
-    return recordCardHeight([product.code, productTypeLine(product), product.sku], fontScale)
+    return recordCardHeight(
+        [product.code, productTypeLine(product), product.vendor_part_no],
+        fontScale
+    )
 }

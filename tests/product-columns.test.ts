@@ -129,7 +129,7 @@ describe('EMPTY_PRODUCT_FIELDS', () => {
             type: 'service',
             name: '',
             code: '',
-            sku: '',
+            vendor_part_no: '',
             sales_description: '',
             price: 0,
             income_account: '',

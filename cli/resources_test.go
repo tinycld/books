@@ -50,9 +50,9 @@ var resourceCases = []resourceCase{
 		name: "products", collection: "books_products", singular: "product",
 		commands:  "activate add deactivate delete edit list show",
 		listFlags: []string{"all", "inactive", "limit", "page", "search", "type"},
-		input: `{"type": "service", "name": "Consulting hour", "sku": "CONS-1", "price": 15000,
+		input: `{"type": "service", "name": "Consulting hour", "vendor_part_no": "CONS-1", "price": 15000,
 			"income_account": "acctincome00001", "taxable": false}`,
-		sent:  `{"income_account":"acctincome00001","name":"Consulting hour","price":15000,"sku":"CONS-1","taxable":false,"type":"service"}`,
+		sent:  `{"income_account":"acctincome00001","name":"Consulting hour","price":15000,"taxable":false,"type":"service","vendor_part_no":"CONS-1"}`,
 		label: "Consulting hour",
 	},
 	{

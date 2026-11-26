@@ -132,7 +132,7 @@ export async function createProduct(
     values: {
         type: 'service' | 'non_inventory'
         name: string
-        sku?: string
+        vendorPartNo?: string
         price?: string
         cost?: string
         expenseAccount?: string
@@ -142,7 +142,8 @@ export async function createProduct(
 ) {
     await openNewProduct(page, values.type)
     await field(page, 'name').fill(values.name)
-    if (values.sku !== undefined) await field(page, 'sku').fill(values.sku)
+    if (values.vendorPartNo !== undefined)
+        await field(page, 'vendor_part_no').fill(values.vendorPartNo)
     if (values.incomeAccount !== undefined) {
         await pickOption(page, 'income_account', values.incomeAccount)
     }

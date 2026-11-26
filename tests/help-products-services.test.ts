@@ -168,9 +168,9 @@ describe('help/products-services.md', () => {
         expect(body).toMatch(/\bown page\b/i)
     })
 
-    it('says search finds products by code, name, SKU or sales description', () => {
+    it('says search finds products by code, name, vendor part number or sales description', () => {
         expect(body.replace(/\s+/g, ' ')).toContain(
-            'Search finds products by code, name, SKU or sales description.'
+            'Search finds products by code, name, vendor part number or sales description.'
         )
     })
 

@@ -198,7 +198,9 @@ test.describe('products-services: bundles', () => {
         const [rowId] = await bundleRowIds(page)
         const trigger = page.getByTestId(`form-table-items-${rowId}-product`)
         await expect(trigger).toContainText(item)
-        await expect.poll(() => stacked(field(page, 'name'), field(page, 'sku'))).toBe(true)
+        await expect
+            .poll(() => stacked(field(page, 'name'), field(page, 'vendor_part_no')))
+            .toBe(true)
 
         // Nothing was changed, so Cancel asks no question.
         await page.getByTestId('product-cancel').click()

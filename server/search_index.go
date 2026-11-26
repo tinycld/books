@@ -52,7 +52,7 @@ var searchIndexes = []fts.Config{
 	{Slug: "books", Collection: "books_journal_entries", Table: entriesIndex, Columns: ftsColumns("number", "memo")},
 	{Slug: "books", Collection: "books_customers", Table: customersIndex, Columns: ftsColumns("code", "display_name", "company", "email")},
 	{Slug: "books", Collection: "books_vendors", Table: vendorsIndex, Columns: ftsColumns("code", "display_name", "company", "email", "legal_name")},
-	{Slug: "books", Collection: "books_products", Table: productsIndex, Columns: ftsColumns("code", "name", "sku", "sales_description")},
+	{Slug: "books", Collection: "books_products", Table: productsIndex, Columns: ftsColumns("code", "name", "vendor_part_no", "sales_description")},
 	{Slug: "books", Collection: "books_invoices", Table: invoicesIndex, Columns: ftsColumns("number", "memo", "message")},
 	{Slug: "books", Collection: "books_sales_receipts", Table: salesReceiptsIndex, Columns: ftsColumns("number", "reference_no", "memo", "message")},
 	{Slug: "books", Collection: "books_estimates", Table: estimatesIndex, Columns: ftsColumns("number", "memo", "message")},

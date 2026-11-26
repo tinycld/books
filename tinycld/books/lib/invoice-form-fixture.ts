@@ -45,7 +45,7 @@ export const INVOICE_PRODUCTS = [
         type: 'service',
         name: 'Discount',
         code: '',
-        sku: '',
+        vendor_part_no: '',
         sales_description: 'Discount',
         price: 0,
         income_account_number: '4000',

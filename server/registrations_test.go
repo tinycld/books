@@ -193,7 +193,7 @@ func TestAudit_LabelsAProductAndABundleItem(t *testing.T) {
 		t.Fatal("books_bundle_items is not audited")
 	}
 	ap := saveRecord(t, app, "books_products", map[string]any{
-		"type": "non_inventory", "name": "Wireless access point", "sku": "HW-WAP-6E",
+		"type": "non_inventory", "name": "Wireless access point", "vendor_part_no": "HW-WAP-6E",
 		"currency": "USD", "name_key": "wireless access point", "code": "WAP",
 	})
 	kit := saveRecord(t, app, "books_products", map[string]any{

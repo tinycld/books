@@ -43,7 +43,8 @@ Each product or service has a code: a short name that you type to find the produ
 - When you type the name of a new product or service, Books fills in the Code field. The code is the first letter of each word in the name, or the whole word when the name has one word. When another product or service has that code, Books adds `-2`, `-3` and so on.
 - To use a different code, type it in the Code field. Books then keeps your code when you change the name. Letters change to capital letters as you type.
 - When you leave the Code field empty, Books makes the code from the name when you save.
-- No two products and services can have the same code. A customer or a vendor can have the same code as a product. The code is different from the SKU: a SKU can repeat, and it can hold a number from your vendor.
+- No two products and services can have the same code. A customer or a vendor can have the same code as a product.
+- The code identifies the item in Books. To record the number that your vendor sells the item under, use the **Vendor part no.** field. A vendor part number can have up to 100 characters, and two items can have the same one.
 - To find a product or service, type its code in any field where you choose a product or service, in the list search, or in the app search.
 - The address of the product or service's page ends with its code. When you change the code, links that you saved with the old code no longer open the product or service.
 
@@ -69,7 +70,7 @@ When you pick a bundle on an invoice line, Books adds one line for each item in 
 
 ## Find a product or service
 
-To find a product or service, type in the search field above the list. Search finds products by code, name, SKU or sales description. In the list search, `%`, `_` and `\` split the text into parts that must all appear, and the list search ignores case for the letters A to Z only, while the app search ignores all case and accents. The list loads more items as you scroll down.
+To find a product or service, type in the search field above the list. Search finds products by code, name, vendor part number or sales description. In the list search, `%`, `_` and `\` split the text into parts that must all appear, and the list search ignores case for the letters A to Z only, while the app search ignores all case and accents. The list loads more items as you scroll down.
 
 To find a product or service from anywhere in the app, use the app search. It matches words that start with what you type, and it ignores case and accents. Choose a result to open that item.
 

@@ -35,7 +35,7 @@ export function ProductCard({ product, height, onOpen, menu }: ProductCardProps)
                 </View>
                 <MutedLine testID={`product-code-${product.id}`} value={product.code} />
                 <MutedLine value={productTypeLine(product)} />
-                <MutedLine value={product.sku} />
+                <MutedLine value={product.vendor_part_no} />
             </Pressable>
             <PartyMenuSlot menu={menu} />
         </View>

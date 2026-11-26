@@ -29,8 +29,8 @@ describe('pickers find a record by its code, code matches first', () => {
 
     it('product picker', () => {
         const rows = [
-            { id: 'p1', name: 'Cleaning', sku: '', code: 'CLN' },
-            { id: 'p2', name: 'Whitening', sku: '', code: 'WHT' },
+            { id: 'p1', name: 'Cleaning', vendor_part_no: '', code: 'CLN' },
+            { id: 'p2', name: 'Whitening', vendor_part_no: '', code: 'WHT' },
         ]
         expect(productPickerOptions(rows, 'wht').map(r => r.id)).toEqual(['p2'])
     })

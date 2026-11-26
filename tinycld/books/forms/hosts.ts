@@ -87,7 +87,7 @@ const VENDOR_LAYOUT = {
 
 export const PRODUCT_HOST_KEY = 'books:product'
 
-// The default Product or service form: one page, with Name and SKU, Sales price and
+// The default Product or service form: one page, with Name and vendor part number, Sales price and
 // Income account, and Cost and Expense account side by side wherever the form is 640 px
 // wide or more. The purchase fields hide while "I purchase this from a vendor" is off;
 // that is a rule of the form, so admins see it and may change it in Settings → Forms.
@@ -100,7 +100,7 @@ const PRODUCT_LAYOUT = {
     fields: {
         name: { width: 'half' },
         code: { width: 'quarter' },
-        sku: { width: 'half' },
+        vendor_part_no: { width: 'half' },
         price: { width: 'half' },
         income_account: { width: 'half' },
         taxable: { description: 'Charge sales tax on this item when it is sold.' },
@@ -769,7 +769,7 @@ const hosts: FormHostDefInput[] = [
             'type',
             'name',
             'code',
-            'sku',
+            'vendor_part_no',
             'sales_description',
             'price',
             'income_account',
@@ -826,7 +826,13 @@ const hosts: FormHostDefInput[] = [
                 component: 'ProductCodeField',
                 chrome: 'cell',
             },
-            { key: 'sku', label: 'SKU', kind: 'text', storage: 'column', required: false },
+            {
+                key: 'vendor_part_no',
+                label: 'Vendor part no.',
+                kind: 'text',
+                storage: 'column',
+                required: false,
+            },
             {
                 key: 'sales_description',
                 label: 'Sales description',

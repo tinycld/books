@@ -26,7 +26,7 @@ export function useProductsQuery(filters: ListFilters) {
                               text: [
                                   product.code,
                                   product.name,
-                                  product.sku,
+                                  product.vendor_part_no,
                                   product.sales_description,
                               ],
                           },

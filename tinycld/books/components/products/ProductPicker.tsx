@@ -45,7 +45,7 @@ interface ProductPickerProps {
     onPicked?: () => void
 }
 
-// Active products of the given types. The name and SKU search runs on the client
+// Active products of the given types. The name and vendor part number search runs on the client
 // (`productPickerOptions`): it was written when pbtsdb could not push `ilike`, and
 // pbtsdb 2.1.0 pushes it as PocketBase `~`, so it can move to the server later. The
 // server limit applies only while not searching: a limit pushed during a search would
@@ -137,7 +137,7 @@ function triggerSuffixOf(
 
 /**
  * A searchable menu of active products of `types` (default Service, Non-inventory and
- * Inventory, the bundle items' picker), 50 at a time, searched by name or SKU. With `purpose`
+ * Inventory, the bundle items' picker), 50 at a time, searched by name or vendor part number. With `purpose`
  * 'purchases' (a bill line) it lists only products with "I purchase this" on. The trigger
  * names the chosen product, with "(inactive)" when it was made inactive after it was
  * chosen, and on a purchase "(not purchased)" when "I purchase this" was turned off.

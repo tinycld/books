@@ -307,7 +307,7 @@ func TestSearch_FindsProducts(t *testing.T) {
 	env := newSearchEnv(t)
 	income := mkIncomeAccount(t, env.app)
 	withSku := mkSearchProduct(t, env, map[string]any{
-		"type": "service", "name": "Zircon Consulting", "sku": "ZC-4471", "income_account": income.Id,
+		"type": "service", "name": "Zircon Consulting", "vendor_part_no": "ZC-4471", "income_account": income.Id,
 		"sales_description": "Quarterly tamarack review", "purchase_description": "Sourced from Wexford",
 	})
 	noSku := mkSearchProduct(t, env, map[string]any{
@@ -341,7 +341,7 @@ func TestSearch_FindsProducts(t *testing.T) {
 		t.Fatalf("basalt found products %q, want product:%s", rowIDs(rows), noSku.Id)
 	}
 	if rows[0].Title != "Basalt Tiles" || rows[0].Subtitle != "Non-inventory" || rows[0].Meta != "Product or service" {
-		t.Fatalf("SKU-less row title %q subtitle %q meta %q", rows[0].Title, rows[0].Subtitle, rows[0].Meta)
+		t.Fatalf("row with no vendor part number: title %q subtitle %q meta %q", rows[0].Title, rows[0].Subtitle, rows[0].Meta)
 	}
 	if rows := find("wexford"); len(rows) != 0 {
 		t.Fatalf("purchase description term found products %s", rowIDs(rows))
@@ -394,7 +394,7 @@ func TestSearch_NoAccessFindsNothing(t *testing.T) {
 		"display_name": "Checking Supply", "company": "Checking Wholesale", "email": "checking@vendor.example",
 	})
 	mkSearchProduct(t, env, map[string]any{
-		"type": "service", "name": "Checking Review", "sku": "CHECKING-1",
+		"type": "service", "name": "Checking Review", "vendor_part_no": "CHECKING-1",
 		"sales_description": "Checking account review", "income_account": mkIncomeAccount(t, env.app).Id,
 	})
 	res, err := searchBooks(env.app, env.users.none.Id, search.Query{Include: []string{"checking"}, Limit: 10})

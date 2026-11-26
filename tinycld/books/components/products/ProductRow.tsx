@@ -19,11 +19,11 @@ interface ProductRowProps {
     menu: ReactNode
 }
 
-function SkuText({ testID, sku }: { testID: string; sku: string | undefined }) {
-    if (!sku) return null
+function VendorPartNoText({ testID, partNo }: { testID: string; partNo: string | undefined }) {
+    if (!partNo) return null
     return (
         <Text testID={testID} numberOfLines={1} className="text-xs text-muted-foreground">
-            {sku}
+            {partNo}
         </Text>
     )
 }
@@ -53,7 +53,7 @@ export function ProductRow({ product, isSelected, onOpen, menu }: ProductRowProp
         >
             <Pressable
                 role="button"
-                // No label: the platform reads the button's own text (code, name, SKU, type,
+                // No label: the platform reads the button's own text (code, name, vendor part number, type,
                 // prices and the Inactive label), which a label would hide.
                 {...selectedProps(isSelected)}
                 onPress={() => onOpen(id)}
@@ -79,7 +79,10 @@ export function ProductRow({ product, isSelected, onOpen, menu }: ProductRowProp
                         </Text>
                         <InactiveLabel isVisible={product.inactive} />
                     </View>
-                    <SkuText testID={`product-cell-sku-${id}`} sku={product.sku} />
+                    <VendorPartNoText
+                        testID={`product-cell-vendor-part-no-${id}`}
+                        partNo={product.vendor_part_no}
+                    />
                 </View>
                 <View
                     testID={`product-cell-type-${id}`}
