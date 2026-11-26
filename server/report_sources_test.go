@@ -702,7 +702,7 @@ func expectedCatalog(t *testing.T) []wantSource {
 			key: "books.products", collection: "books_products", label: "Products and services",
 			fields: []wantField{
 				{key: "name", typ: reports.Text, anyAggs: true},
-				{key: "sku", typ: reports.Text, anyAggs: true},
+				{key: "vendor_part_no", typ: reports.Text, anyAggs: true},
 				{key: "type", typ: reports.Select, options: []reports.Option{
 					{Value: "service", Label: "Service"}, {Value: "non_inventory", Label: "Non-inventory"},
 					{Value: "bundle", Label: "Bundle"}, {Value: "inventory", Label: "Inventory"},

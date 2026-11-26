@@ -229,7 +229,7 @@ test.describe('write-off: lists', () => {
         await expect(item).toContainText('Write off')
         await item.click()
         expect(await confirmWriteOff(page, invoice.number)).toBe('$400.00')
-        await expect(page).toHaveURL(customerPath(made.customerId))
+        await expect(page).toHaveURL(await customerPath(page, made.customerId))
 
         // The invoice reads Written off, Open falls to $0.00, and a Write-off row shows.
         await expect.poll(async () => (await rowCells(page, invoice.id)).Status).toBe('Written off')
@@ -281,7 +281,7 @@ test.describe('write-off: lists', () => {
         await expect(page.getByTestId('void-dialog')).toHaveCount(0)
         await expect(shown(page, 'write-off-badge')).toHaveText('Void')
         await page.goBack()
-        await expect(page).toHaveURL(customerPath(made.customerId))
+        await expect(page).toHaveURL(await customerPath(page, made.customerId))
         await expect.poll(async () => (await rowCells(page, writeOffId)).Status).toBe('Void')
         await expect(open).toHaveText('$400.00')
     })

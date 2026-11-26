@@ -112,8 +112,8 @@ describe('partyTitle', () => {
 })
 
 describe('table sizes', () => {
-    it('has a 540 px minimum table width and 56 px rows', () => {
-        expect(PARTY_TABLE_MIN_WIDTH).toBe(540)
+    it('has a 572 px minimum table width and 56 px rows', () => {
+        expect(PARTY_TABLE_MIN_WIDTH).toBe(572)
         expect(PARTY_ROW_HEIGHT).toBe(56)
     })
 })

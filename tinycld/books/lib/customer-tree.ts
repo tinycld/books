@@ -1,9 +1,10 @@
 import type { BooksCustomers } from '../types'
 import type { PartyListRow } from './party-list'
+import { codeFirst, matchesNameOrCode } from './record-code'
 
 export type TreeCustomer = Pick<
     BooksCustomers,
-    'id' | 'display_name' | 'company' | 'email' | 'phone' | 'parent' | 'inactive'
+    'id' | 'display_name' | 'code' | 'company' | 'email' | 'phone' | 'parent' | 'inactive'
 >
 
 // The list's rows from the server, in sort_key order, which is already the tree: each
@@ -44,19 +45,17 @@ export function customerTreeRows<T extends TreeCustomer>(
 // The parent picker shows this many customers at a time.
 export const PICKER_LIMIT = 50
 
-// The parent picker's options: customers whose display name holds the term (any case;
-// `%` and `_` are plain characters), the customer being edited left out, the first
-// PICKER_LIMIT in the order given.
-export function pickerOptions<T extends Pick<BooksCustomers, 'id' | 'display_name'>>(
-    rows: readonly T[],
-    opts: { term: string; selfId: string }
-): T[] {
-    const term = opts.term.trim().toLowerCase()
+// The parent picker's options: customers whose display name or code holds the term (any
+// case; `%` and `_` are plain characters), those whose code starts with it first, the
+// customer being edited left out, the first PICKER_LIMIT in the order given.
+export function pickerOptions<
+    T extends Pick<BooksCustomers, 'id' | 'display_name'> & { code?: string },
+>(rows: readonly T[], opts: { term: string; selfId: string }): T[] {
     const options: T[] = []
-    for (const row of rows) {
+    for (const row of codeFirst(rows, opts.term, r => r.code)) {
         if (options.length === PICKER_LIMIT) break
         if (row.id === opts.selfId) continue
-        if (term !== '' && !row.display_name.toLowerCase().includes(term)) continue
+        if (!matchesNameOrCode(opts.term, row.display_name, row.code)) continue
         options.push(row)
     }
     return options

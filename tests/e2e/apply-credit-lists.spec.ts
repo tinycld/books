@@ -186,7 +186,7 @@ test.describe('apply-credit: lists and Receive payment', () => {
             memo: uniqueMemo('Apply customer credit memo'),
         })
         await page.goBack()
-        await expect(page).toHaveURL(customerPath(made.customerId))
+        await expect(page).toHaveURL(await customerPath(page, made.customerId))
         await expect(page.getByTestId('customer-transactions')).toBeVisible()
 
         const open = page.getByTestId('customer-balance-open')
@@ -210,7 +210,7 @@ test.describe('apply-credit: lists and Receive payment', () => {
         // Overdue falls by the overdue invoice's balance; Open does not move; the memo row
         // reads Applied.
         await page.goBack()
-        await expect(page).toHaveURL(customerPath(made.customerId))
+        await expect(page).toHaveURL(await customerPath(page, made.customerId))
         await expect(overdueFigure).toHaveText('$0.00')
         await expect(open).toHaveText('$0.00')
         await expect.poll(async () => (await rowCells(page, memo.id)).Status).toBe('Applied')

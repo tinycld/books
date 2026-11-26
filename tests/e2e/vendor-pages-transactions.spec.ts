@@ -176,7 +176,7 @@ async function openFromRow(page: Page, name: string) {
 // Back from a pushed document to the vendor page kept under it, on its Transactions tab.
 async function backToVendor(page: Page, id: string) {
     await page.goBack()
-    await expect(page).toHaveURL(vendorPath(id))
+    await expect(page).toHaveURL(await vendorPath(page, id))
     await expect(page.getByTestId('vendor-transactions')).toBeVisible()
 }
 
@@ -288,7 +288,7 @@ test.describe('vendor-pages: vendor transactions', () => {
             await pickSelect(page, 'pay-bills-paid-from', CHECKING)
             await page.getByTestId('pay-bills-pay').click()
             await postedNumber(page)
-            await expect(page).toHaveURL(vendorPath(id))
+            await expect(page).toHaveURL(await vendorPath(page, id))
             await expect(page.getByTestId('vendor-transactions')).toBeVisible()
 
             // A posted vendor credit of $80.00, from the page's menu.
@@ -477,7 +477,7 @@ test.describe('vendor-pages: vendor transactions', () => {
 
         // A vendor with a plain void bill and a corrected bill.
         await createVendor(page, { name: `${prefix} void` })
-        const id = openVendorId(page)
+        const id = await openVendorId(page)
         await chooseNew(page, 'vendor-new-bill')
         await fillBill(page, { amount: '60.00', due: today })
         await postBill(page)

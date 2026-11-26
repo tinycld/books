@@ -48,6 +48,8 @@ function checkedAccountNumber(number: string, vendorId: string): string {
 
 function vendor(seed: VendorSeed): VendorFixtureRecord {
     const row: VendorFixtureRecord = {
+        // The server makes the code from the name (server/record_codes.go).
+        code: '',
         company: '',
         first_name: '',
         last_name: '',

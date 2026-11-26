@@ -23,7 +23,7 @@ const host = hostDefSchema.parse({
         'id',
         'type',
         'name',
-        'sku',
+        'vendor_part_no',
         'sales_description',
         'price',
         'income_account',
@@ -56,7 +56,7 @@ const host = hostDefSchema.parse({
             required: true,
         },
         { key: 'name', label: 'Name', kind: 'text', storage: 'column', required: true },
-        { key: 'sku', label: 'SKU', kind: 'text', storage: 'column' },
+        { key: 'vendor_part_no', label: 'Vendor part no.', kind: 'text', storage: 'column' },
         {
             key: 'sales_description',
             label: 'Sales description',
@@ -195,7 +195,7 @@ function withSkuHidden(): FormDefinition {
     const base = defaultDefinitionFor(host)
     return {
         ...base,
-        fields: base.fields.map(f => (f.key === 'sku' ? { ...f, hidden: true } : f)),
+        fields: base.fields.map(f => (f.key === 'vendor_part_no' ? { ...f, hidden: true } : f)),
     }
 }
 
@@ -273,9 +273,9 @@ describe('productDefinitionFor', () => {
     })
 
     for (const type of PRODUCT_TYPE_KEYS) {
-        it(`keeps a field an admin hid (sku) hidden for ${type}`, () => {
+        it(`keeps a field an admin hid (vendor_part_no) hidden for ${type}`, () => {
             const result = productDefinitionFor(withSkuHidden(), type, host, 'edit')
-            expect(hiddenKeys(result)).toContain('sku')
+            expect(hiddenKeys(result)).toContain('vendor_part_no')
         })
 
         it(`never hides type or name for ${type}`, () => {

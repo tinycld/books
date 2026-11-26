@@ -33,10 +33,10 @@ export function PartyMenuSlot({ menu }: { menu: ReactNode }) {
     )
 }
 
-export function MutedLine({ value }: { value: string | undefined }) {
+export function MutedLine({ value, testID }: { value: string | undefined; testID?: string }) {
     if (!isShownLine(value)) return null
     return (
-        <Text numberOfLines={1} className="text-xs text-muted-foreground">
+        <Text testID={testID} numberOfLines={1} className="text-xs text-muted-foreground">
             {value}
         </Text>
     )

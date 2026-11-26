@@ -85,6 +85,14 @@ const AFTER_AUDIT: string[] = [
     '2100000045_books_reconcile_lines_sequence.js',
 ]
 
+// Record codes add a code field to the customers, vendors and products, and the products'
+// SKU becomes their vendor part number; none of them is a line collection the audit view
+// reads, so they also run after it.
+const AFTER_AUDIT_FIELDS: string[] = [
+    '2100000046_add_books_record_codes.js',
+    '2100000047_rename_books_products_sku.js',
+]
+
 // The migrations between the inventory migration and the audit view, in their order.
 const BEFORE_AUDIT: string[] = [...RECONCILE, ...REPORT, ...DASHBOARD, ...SHORTCUTS]
 
@@ -137,7 +145,7 @@ describe('pb-migrations prefixes', () => {
         expect(SHORTCUTS).toHaveLength(1)
         expect(numberOf(SHORTCUTS[0])).toBeGreaterThan(numberOf(DASHBOARD[0]))
         const afterAudit = MIGRATIONS.filter(file => numberOf(file) > numberOf(AUDIT))
-        expect(afterAudit).toEqual(AFTER_AUDIT)
+        expect(afterAudit).toEqual([...AFTER_AUDIT, ...AFTER_AUDIT_FIELDS])
         for (const file of AFTER_AUDIT) expect(sourceOf(file)).not.toContain("name: '")
         const afterInventory = MIGRATIONS.filter(
             file => numberOf(file) > numberOf(INVENTORY) && numberOf(file) < numberOf(AUDIT)
@@ -236,7 +244,11 @@ describe('pb-migrations prefixes', () => {
         expect(MIGRATIONS).not.toContain('2100000027_create_books_audit_log.js')
         expect(MIGRATIONS).not.toContain('2100000029_create_books_audit_log.js')
         expect(MIGRATIONS).not.toContain('2100000030_create_books_audit_log.js')
-        expect(MIGRATIONS.filter(file => !AFTER_AUDIT.includes(file)).at(-1)).toBe(AUDIT)
+        expect(
+            MIGRATIONS.filter(
+                file => !AFTER_AUDIT.includes(file) && !AFTER_AUDIT_FIELDS.includes(file)
+            ).at(-1)
+        ).toBe(AUDIT)
         const matches = sourceOf('2100000030_create_books_bank_matches.js')
         const read = auditLineCollections().filter(collection =>
             matches.includes(`name: '${collection}'`)
@@ -257,7 +269,11 @@ describe('pb-migrations prefixes', () => {
         expect(MIGRATIONS).not.toContain('2100000034_create_books_audit_log.js')
         expect(MIGRATIONS).not.toContain('2100000037_create_books_audit_log.js')
         expect(numberOf(AUDIT)).toBeGreaterThan(numberOf('2100000037_create_books_deposits.js'))
-        expect(MIGRATIONS.filter(file => !AFTER_AUDIT.includes(file)).at(-1)).toBe(AUDIT)
+        expect(
+            MIGRATIONS.filter(
+                file => !AFTER_AUDIT.includes(file) && !AFTER_AUDIT_FIELDS.includes(file)
+            ).at(-1)
+        ).toBe(AUDIT)
         expect(auditLineCollections()).toEqual(
             expect.arrayContaining(['books_deposit_items', 'books_deposit_lines'])
         )

@@ -116,8 +116,8 @@ func registerProductGuards(app core.App) {
 }
 
 // validateProduct stores the name trimmed, then checks the type change, the
-// bundle's empty own columns or the item's accounts, and the name among all
-// products. stored is the record before an update, nil on a create.
+// bundle's empty own columns or the item's accounts, the code
+// (record_codes.go) and the name among all products. stored is the record before an update, nil on a create.
 func validateProduct(app core.App, stored, r *core.Record) error {
 	name := strings.TrimSpace(r.GetString("name"))
 	r.Set("name", name)
@@ -163,6 +163,9 @@ func validateProduct(app core.App, stored, r *core.Record) error {
 			return refuse(msgBundleHasNoOwn)
 		}
 	} else if err := validateProductAccounts(app, stored, r); err != nil {
+		return err
+	}
+	if err := validateRecordCode(app, productCode, stored, r); err != nil {
 		return err
 	}
 	// name_key belongs to the guard: it overwrites whatever the request sent.

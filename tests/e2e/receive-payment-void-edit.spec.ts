@@ -113,7 +113,7 @@ test.describe('receive-payment: void and edit', () => {
         // reads $250.00 (the row's only money texts are Original and Open balance, both
         // $250.00; the Payment cell is an empty input), and ticking it pays $250.00.
         await page.goBack()
-        await expect(page).toHaveURL(customerPath(customerId))
+        await expect(page).toHaveURL(await customerPath(page, customerId))
         await receivePaymentFor(page, customerId, name)
         const reopened = paymentRow(page, invoice.id)
         await expect(reopened).toBeVisible()

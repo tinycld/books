@@ -13,6 +13,7 @@ import {
     uniqueName,
 } from './customer-form-helpers'
 import { tabTo } from './keyboard-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 
 // The customer page's Contacts tab (customer-pages checkpoint 5, spec §3.6): adding,
 // editing, making primary and deleting the people at a customer, from the keyboard on a
@@ -40,8 +41,8 @@ const ROW_ID = /^customer-contact-([a-z0-9]{15})$/
 type ContactValues = { name: string; role?: string; email?: string; phone?: string }
 
 // The id of the customer whose page is open, read from the URL.
-function openCustomerId(page: Page) {
-    return new URL(page.url()).pathname.split('/').pop() ?? ''
+function openCustomerId(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'customers')
 }
 
 // The window at which the customer page sits beside the names column (the record surface),
@@ -286,7 +287,7 @@ test.describe('customer-pages: contacts tab', () => {
         // The second customer's page opens on Transactions, so its contacts never load.
         await createCustomer(page, { name: otherName })
         await createCustomer(page, { name })
-        const id = openCustomerId(page)
+        const id = await openCustomerId(page)
         await contactsTab.click()
         await expect(page.getByTestId('customer-contacts-empty')).toBeVisible()
         const firstId = await addContact(page, { name: first, primary: true })
@@ -303,7 +304,7 @@ test.describe('customer-pages: contacts tab', () => {
         const contacts = await holdLoads(page, CONTACTS_URL)
         await searchCustomers(page, name)
         await customerEntry(page, name).click()
-        await expect(page).toHaveURL(customerPath(id))
+        await expect(page).toHaveURL(await customerPath(page, id))
         await contactsTab.click()
         await expect.poll(() => contacts.held.length).toBeGreaterThan(0)
         await expect(page.getByTestId('customer-contacts-loading')).toBeVisible()

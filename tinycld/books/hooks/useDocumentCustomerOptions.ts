@@ -29,6 +29,7 @@ export function useDocumentCustomerOptions(term: string, isOpen: boolean) {
                 .select(({ c }) => ({
                     id: c.id,
                     display_name: c.display_name,
+                    code: c.code,
                     parentRow: materialize(
                         q
                             .from({ parent: customersCollection })
@@ -45,6 +46,7 @@ export function useDocumentCustomerOptions(term: string, isOpen: boolean) {
     const customers = (query.data ?? []).map(row => ({
         id: row.id,
         display_name: row.display_name,
+        code: row.code,
         parentName: row.parentRow?.display_name,
     }))
     const options = documentCustomerOptions({ customers, term })

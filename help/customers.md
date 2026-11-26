@@ -9,9 +9,9 @@ A customer is a person or a company that you sell to. To see your customers, cho
 
 ## Find a customer
 
-To find a customer in the list, type in the search field above the list. The list shows the customers whose display name, company, email or phone contains the text. In the list search, `%`, `_` and `\` split the text into parts that must all appear, and the list search ignores case for the letters A to Z only, while the app search ignores all case and accents. A sub-customer that matches keeps its parent in view. The list loads more customers as you scroll down.
+To find a customer in the list, type in the search field above the list. The list shows the customers whose code, display name, company, email or phone contains the text. In the list search, `%`, `_` and `\` split the text into parts that must all appear, and the list search ignores case for the letters A to Z only, while the app search ignores all case and accents. A sub-customer that matches keeps its parent in view. The list loads more customers as you scroll down.
 
-To find a customer from anywhere in the app, use the app search. Search finds customers by display name, company or email. It matches words that start with what you type, so “north” finds “Northwind Traders” but “wind” does not, and it ignores case and accents. Choose a result to open that customer.
+To find a customer from anywhere in the app, use the app search. Search finds customers by code, display name, company or email. It matches words that start with what you type, so “north” finds “Northwind Traders” but “wind” does not, and it ignores case and accents. Choose a result to open that customer.
 
 ## Create a customer
 
@@ -32,6 +32,17 @@ To edit a customer, choose its row in the list, or open the menu on its row and 
 To throw your changes away, choose Cancel or press Esc, then choose Discard. If you try to leave a customer that has changes that are not saved, Books asks "Discard changes?" first. Choose Keep editing to go back to the page, or Discard to leave without saving. When nothing is changed, Esc goes back to the list.
 
 On a very wide window, an open customer's page shows beside the list of names, and the list stays in use. A new customer opens in a panel beside the list. On a smaller window or a phone, the customer opens as its own page over the list. If you make the window wider or narrower, the open customer moves between the two and keeps what you typed.
+
+## Codes
+
+Each customer has a code: a short name that you type to find the customer quickly. A code has 2 to 15 capital letters, digits or dashes, and starts with a letter or digit. For example, the code of Aspen Ridge Dental is `ARD`.
+
+- When you type the name of a new customer, Books fills in the Code field. The code is the first letter of each word in the name, or the whole word when the name has one word. When another customer has that code, Books adds `-2`, `-3` and so on.
+- To use a different code, type it in the Code field. Books then keeps your code when you change the name. Letters change to capital letters as you type.
+- When you leave the Code field empty, Books makes the code from the name when you save.
+- No two customers can have the same code. A vendor or a product can have the same code as a customer. A sub-customer cannot have the code of another customer.
+- To find a customer, type its code in any field where you choose a customer, in the list search, or in the app search.
+- The address of the customer's page ends with its code. When you change the code, links that you saved with the old code no longer open the customer.
 
 ## A customer's transactions
 

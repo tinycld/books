@@ -1,8 +1,10 @@
 import { and, eq } from '@tanstack/db'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useStore } from '@tinycld/core/lib/pocketbase'
+import { router, useIsFocused } from 'expo-router'
 import { useEffect, useRef } from 'react'
-import { documentKey, entryKey, parseRecordKey } from '../lib/record-key'
+import type { CodedCollectionName } from '../lib/record-code'
+import { codeUrlKey, documentKey, entryKey, parseCodeKey, parseRecordKey } from '../lib/record-key'
 import { useRouteKeyStore } from '../stores/route-key-store'
 
 // The numbered document collections whose route takes a URL key (lib/record-key.ts), with
@@ -27,6 +29,13 @@ const DOCUMENT_SCREENS = {
 export type DocumentCollectionName = keyof typeof DOCUMENT_SCREENS
 
 const ENTRY_SCREENS = { journal: 'entries/[id]', transfer: 'transfers/[id]' } as const
+
+// The collections whose route takes a code (lib/record-code.ts), with the stack's screen name.
+const CODE_SCREENS = {
+    books_customers: 'customers/[id]',
+    books_vendors: 'vendors/[id]',
+    books_products: 'products/[id]',
+} as const satisfies Record<CodedCollectionName, string>
 
 // Once the record is read, records which id the key names (route-key-store), so the
 // stack and the lists find this screen by the record id.
@@ -73,6 +82,65 @@ export function useDocumentRouteId(
     if (id) return id
     if (!isReady) return undefined
     return urlKey
+}
+
+// A route opened by a code follows its record's code: after the code changes, the URL
+// takes the new code, so a reload and a copied link open the record. A code typed in
+// another case is the same code (the router does not tell the two paths apart), and a
+// route opened by an id keeps the id. `router.setParams` acts on the focused route, so a
+// screen under another one (a customer page under its invoice) follows once it is on top
+// again, never by moving the screen above it.
+function useFollowCode(collectionName: CodedCollectionName, key: string, id: string) {
+    const isFocused = useIsFocused()
+    const [collection] = useStore(collectionName)
+    const { data } = useLiveQuery({
+        query: q =>
+            id === '' ? undefined : q.from({ row: collection }).where(({ row }) => eq(row.id, id)),
+        queryKey: ['books.code-route-follow', collectionName, id],
+    })
+    const row = data?.[0]
+    const ownKey = row ? codeUrlKey(row) : ''
+    useEffect(() => {
+        if (!isFocused || ownKey === '' || ownKey === id) return
+        if (ownKey !== key.toUpperCase()) router.setParams({ id: ownKey })
+    }, [isFocused, ownKey, id, key])
+}
+
+// The record id a customer, vendor or product route's key names, or undefined while it is
+// read. A code key (any case) reads the record of that code, and the route keeps the
+// record it first read when the code changes; an id key names its record itself. A key
+// that names no record gives the key back, so the screen shows its own not-found state.
+export function useCodeRouteId(
+    collectionName: CodedCollectionName,
+    key: string | undefined
+): string | undefined {
+    const urlKey = key ?? ''
+    const parsed = parseCodeKey(urlKey)
+    const [collection] = useStore(collectionName)
+    const { data, isReady } = useLiveQuery({
+        query: q => {
+            if (parsed.kind !== 'code') return undefined
+            return q.from({ row: collection }).where(({ row }) => eq(row.code, parsed.code))
+        },
+        queryKey: ['books.code-route-record', collectionName, urlKey],
+    })
+    const id = useFirstRead(urlKey, data?.[0]?.id)
+    useRememberKey(CODE_SCREENS[collectionName], urlKey, id)
+    useFollowCode(collectionName, urlKey, parsed.kind === 'code' ? (id ?? '') : '')
+    if (parsed.kind === 'id') return parsed.id
+    if (id) return id
+    if (!isReady) return undefined
+    return urlKey
+}
+
+// The URL key of a stored customer, vendor or product at a navigation, one time (never
+// rendered from): its code, or its id while it has none.
+export function useStoredCodeKey(collectionName: CodedCollectionName): (id: string) => string {
+    const [collection] = useStore(collectionName)
+    return id => {
+        const row = collection.get(id)
+        return row ? codeUrlKey(row) : id
+    }
 }
 
 // The id of the entry an entry route's key names (`books/entries/<n>` for a journal

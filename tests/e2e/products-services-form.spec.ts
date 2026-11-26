@@ -132,9 +132,9 @@ test.describe('products-services: product form', () => {
 
         await openNewProduct(page, 'service')
         const name = uniqueName(`Part ${viewportName(page)}`)
-        const sku = `SKU-${stampDigits()}`
+        const vendorPartNo = `VPN-${stampDigits()}`
         await field(page, 'name').fill(name)
-        await field(page, 'sku').fill(sku)
+        await field(page, 'vendor_part_no').fill(vendorPartNo)
 
         // A new Service starts not taxable; the user turns it on.
         await expect(taxableSwitch(page)).toBeVisible()
@@ -166,7 +166,7 @@ test.describe('products-services: product form', () => {
         await pickOption(page, 'type', 'Non-inventory')
         await expect(title).toHaveText('New non-inventory item')
         await expect(field(page, 'name')).toHaveValue(name)
-        await expect(field(page, 'sku')).toHaveValue(sku)
+        await expect(field(page, 'vendor_part_no')).toHaveValue(vendorPartNo)
         await expect(page.getByTestId('form-input-income_account')).toContainText(CONSULTING_INCOME)
         for (const cell of purchaseCells(page)) await expect(cell).toBeVisible()
         await expect(field(page, 'cost')).toHaveValue('310.00')

@@ -12,6 +12,7 @@ import {
     selectItems,
     stampDigits,
 } from './products-services-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 
 // The product page (the surface below 1360 px). Both tests run on desktop only: the page
 // logic is the same code on a phone (the phone page is checkpoint 11's test 9).
@@ -54,7 +55,7 @@ test.describe('products-services: product page', () => {
         await expect(expenseItems).toHaveCount(0)
         await expect(title).toHaveText('Edit non-inventory item')
 
-        const id = new URL(page.url()).pathname.split('/').pop() ?? ''
+        const id = await recordIdFromUrl(page, 'products')
         const patch = page.waitForRequest(
             r => r.method() === 'PATCH' && isRecordUrl(id)(new URL(r.url()))
         )

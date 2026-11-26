@@ -99,7 +99,7 @@ async function openWithKey(page: Page, open: Locator, id: string, name: string, 
     await expect(open).toBeFocused()
     await page.keyboard.press(key)
     await expect(customerSurface(page)).toBeVisible()
-    await expect(page).toHaveURL(customerPath(id))
+    await expect(page).toHaveURL(await customerPath(page, id))
     await expect(page.getByTestId('customer-title')).toHaveText(name)
     await page.getByTestId('customer-back').click()
     await expectListShown(page)

@@ -1,6 +1,6 @@
 import type { BooksCustomers } from '../types'
 
-export type PartyField = 'id' | 'display_name' | 'company' | 'email' | 'phone' | 'inactive'
+export type PartyField = 'id' | 'display_name' | 'code' | 'company' | 'email' | 'phone' | 'inactive'
 
 // A vendor row carries the same columns with the same types.
 export type PartyRecord = Pick<BooksCustomers, PartyField>
@@ -18,17 +18,18 @@ export type PartyListCopy = {
     emptyHint: string
 }
 
-// Shared by the header and every row, so the columns line up. Name and Email shrink
-// with an ellipsis but keep a minimum width, so neither collapses to blank.
+// Shared by the header and every row, so the columns line up. Code, Name and Email
+// shrink with an ellipsis but keep a minimum width, so none collapses to blank.
 export const PARTY_COLUMNS = {
-    name: { flexGrow: 3, flexShrink: 1, flexBasis: 0, minWidth: 180 },
-    email: { flexGrow: 2, flexShrink: 1, flexBasis: 0, minWidth: 140 },
+    code: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 72 },
+    name: { flexGrow: 3, flexShrink: 1, flexBasis: 0, minWidth: 160 },
+    email: { flexGrow: 2, flexShrink: 1, flexBasis: 0, minWidth: 120 },
     phone: { width: 150, flexShrink: 0 },
     menu: { width: 44, flexShrink: 0 },
 } as const
 
 // Below this the table scrolls sideways.
-export const PARTY_TABLE_MIN_WIDTH = 540
+export const PARTY_TABLE_MIN_WIDTH = 572
 
 export const PARTY_ROW_HEIGHT = 56
 
@@ -37,7 +38,7 @@ export const PARTY_NAME_ROW_HEIGHT = 48
 export const PARTY_NAME_ONLY_CELL = { flex: 1, minWidth: 0 } as const
 
 // Pads the header so it lines up with the rows; with the column minimums it stays inside
-// the table's 540 px minimum width. A row puts the same left padding inside its open
+// the table's 572 px minimum width. A row puts the same left padding inside its open
 // button (so the press area reaches the row's edge) and the right padding on the row.
 export const PARTY_ROW_CLASS = 'flex-row items-center pl-4 pr-2'
 
@@ -72,7 +73,7 @@ export function recordCardHeight(lines: readonly (string | undefined)[], fontSca
 }
 
 export function partyCardHeight(party: PartyRecord, fontScale = 1): number {
-    return recordCardHeight([companyLine(party), party.email, party.phone], fontScale)
+    return recordCardHeight([party.code, companyLine(party), party.email, party.phone], fontScale)
 }
 
 export function partyTitle(party: Pick<PartyRecord, 'display_name'>): string {

@@ -14,6 +14,7 @@ function customer(seed: Partial<TreeCustomer>): TreeCustomer {
     return {
         id: 'c1',
         display_name: 'Harborview Kitchen',
+        code: '',
         company: '',
         email: '',
         phone: '',
@@ -153,19 +154,25 @@ describe('customerCardHeight', () => {
 })
 
 describe('table columns', () => {
-    it('shares the column sizes between header and rows, with a 540 px table', () => {
-        expect(CUSTOMERS_TABLE_MIN_WIDTH).toBe(540)
+    it('shares the column sizes between header and rows, with a 572 px table', () => {
+        expect(CUSTOMERS_TABLE_MIN_WIDTH).toBe(572)
+        expect(CUSTOMER_COLUMNS.code).toEqual({
+            flexGrow: 1,
+            flexShrink: 1,
+            flexBasis: 0,
+            minWidth: 72,
+        })
         expect(CUSTOMER_COLUMNS.name).toEqual({
             flexGrow: 3,
             flexShrink: 1,
             flexBasis: 0,
-            minWidth: 180,
+            minWidth: 160,
         })
         expect(CUSTOMER_COLUMNS.email).toEqual({
             flexGrow: 2,
             flexShrink: 1,
             flexBasis: 0,
-            minWidth: 140,
+            minWidth: 120,
         })
         expect(CUSTOMER_COLUMNS.phone).toEqual({ width: 150, flexShrink: 0 })
         expect(CUSTOMER_COLUMNS.menu).toEqual({ width: 44, flexShrink: 0 })

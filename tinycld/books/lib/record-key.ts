@@ -58,3 +58,23 @@ export function entryKey(entry: KeyedEntry): string {
     if (isNumberedEntryRoute(entry) && hasOwnNumber(entry)) return String(entry.sequence)
     return entry.id
 }
+
+// What a customer, vendor or product route's key names: its code (lib/record-code.ts), or
+// a record id. An id holds 15 lower-case letters and digits; a code is upper case, so a
+// key in another case is a code typed by hand, and is read upper-cased.
+export type CodeKey = { kind: 'code'; code: string } | { kind: 'id'; id: string }
+
+const RECORD_ID = /^[a-z0-9]{15}$/
+
+export function parseCodeKey(key: string): CodeKey {
+    if (RECORD_ID.test(key)) return { kind: 'id', id: key }
+    return { kind: 'code', code: key.toUpperCase() }
+}
+
+// The URL key a customer, vendor or product opens by: its code, or its id while it has
+// none, or when the code (15 digits) has the shape of an id and a route would read it as one.
+export function codeUrlKey(row: { id: string; code?: string }): string {
+    const code = row.code ?? ''
+    if (code === '' || parseCodeKey(code).kind === 'id') return row.id
+    return code
+}

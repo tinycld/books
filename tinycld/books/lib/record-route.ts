@@ -21,12 +21,20 @@ export function newRecordPath(listPath: string, params?: Record<string, string>)
 
 // The record the URL opens. The child stack's route is the only record of it.
 // A list path holds only letters and `/`, so it needs no escaping in the pattern.
+// The URL key of the record `pathname` opens under `listPath` ('' for none or `new`), and
+// the name the stack gives its screen.
+export function recordKeyFromPath(listPath: string, pathname: string) {
+    const segment = new RegExp(`/${listPath}/([^/]+)/?$`).exec(pathname)?.[1] ?? ''
+    const screenName = `${listPath.replace(/^books\//, '')}/[id]`
+    return { key: segment === 'new' ? '' : segment, screenName }
+}
+
 export function openRecordFromPath(listPath: string, pathname: string): OpenRecord {
     const segment = new RegExp(`/${listPath}/([^/]+)/?$`).exec(pathname)?.[1]
     if (!segment) return { kind: 'none' }
     if (segment === 'new') return { kind: 'new' }
-    // The segment is the record's URL key; a number turns into the id its route read.
-    const screenName = `${listPath.replace(/^books\//, '')}/[id]`
+    // The segment is the record's URL key; a number or a code turns into the id its route read.
+    const { screenName } = recordKeyFromPath(listPath, pathname)
     return { kind: 'id', id: recordIdForKey(screenName, segment) }
 }
 

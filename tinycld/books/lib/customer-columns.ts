@@ -11,6 +11,7 @@ import { type ColumnsParse, optionalText, parseColumns } from './record-columns'
  */
 export const customerColumnsSchema = z.strictObject({
     display_name: optionalText,
+    code: optionalText,
     company: optionalText,
     first_name: optionalText,
     last_name: optionalText,
@@ -43,6 +44,7 @@ export function customerColumnsFrom(
 // start, so the form would stay dirty.
 export const EMPTY_CUSTOMER_FIELDS: Required<CustomerColumns> = {
     display_name: '',
+    code: '',
     company: '',
     first_name: '',
     last_name: '',

@@ -26,6 +26,7 @@ export function useVendorsQuery(filters: ListFilters) {
                           {
                               isActive: eq(vendor.inactive, false),
                               text: [
+                                  vendor.code,
                                   vendor.display_name,
                                   vendor.company,
                                   vendor.email,

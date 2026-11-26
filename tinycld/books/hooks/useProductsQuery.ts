@@ -23,7 +23,12 @@ export function useProductsQuery(filters: ListFilters) {
                       listFilter(
                           {
                               isActive: eq(product.inactive, false),
-                              text: [product.name, product.sku, product.sales_description],
+                              text: [
+                                  product.code,
+                                  product.name,
+                                  product.vendor_part_no,
+                                  product.sales_description,
+                              ],
                           },
                           filters
                       )

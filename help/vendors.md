@@ -9,9 +9,9 @@ A vendor is a person or a company that you buy from. To see your vendors, choose
 
 ## Find a vendor
 
-To find a vendor in the list, type in the search field above the list. The list shows the vendors whose display name, company, email or phone contains the text. In the list search, `%`, `_` and `\` split the text into parts that must all appear, and the list search ignores case for the letters A to Z only, while the app search ignores all case and accents. The list loads more vendors as you scroll down.
+To find a vendor in the list, type in the search field above the list. The list shows the vendors whose code, display name, company, email or phone contains the text. In the list search, `%`, `_` and `\` split the text into parts that must all appear, and the list search ignores case for the letters A to Z only, while the app search ignores all case and accents. The list loads more vendors as you scroll down.
 
-To find a vendor from anywhere in the app, use the app search. Search finds vendors by display name, company, email or legal name. Search never finds a vendor by its tax ID. It matches words that start with what you type, so “harb” finds “Harbor Freight Logistics” but “bor” does not, and it ignores case and accents. Choose a result to open that vendor.
+To find a vendor from anywhere in the app, use the app search. Search finds vendors by code, display name, company, email or legal name. Search never finds a vendor by its tax ID. It matches words that start with what you type, so “harb” finds “Harbor Freight Logistics” but “bor” does not, and it ignores case and accents. Choose a result to open that vendor.
 
 ## Create a vendor
 
@@ -28,6 +28,17 @@ To edit a vendor, choose its row in the list to open the vendor's page, or open 
 To throw your changes away, choose Cancel or press Esc, then choose Discard. If you try to leave a vendor that has changes that are not saved, Books asks "Discard changes?" first. Choose Keep editing to go back to the page, or Discard to leave without saving. When nothing is changed, Esc goes back to the list.
 
 On a very wide window, an open vendor's page shows beside the list of names, and the list stays in use. A new vendor opens in a panel beside the list. On a smaller window or a phone, the vendor opens as its own page over the list. If you make the window wider or narrower, the open vendor moves between the two and keeps what you typed.
+
+## Codes
+
+Each vendor has a code: a short name that you type to find the vendor quickly. A code has 2 to 15 capital letters, digits or dashes, and starts with a letter or digit. For example, the code of Aspen Ridge Dental is `ARD`.
+
+- When you type the name of a new vendor, Books fills in the Code field. The code is the first letter of each word in the name, or the whole word when the name has one word. When another vendor has that code, Books adds `-2`, `-3` and so on.
+- To use a different code, type it in the Code field. Books then keeps your code when you change the name. Letters change to capital letters as you type.
+- When you leave the Code field empty, Books makes the code from the name when you save.
+- No two vendors can have the same code. A customer or a product can have the same code as a vendor.
+- To find a vendor, type its code in any field where you choose a vendor, in the list search, or in the app search.
+- The address of the vendor's page ends with its code. When you change the code, links that you saved with the old code no longer open the vendor.
 
 ## Payment terms and account number
 

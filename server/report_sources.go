@@ -586,7 +586,7 @@ func productsSource() reports.Source {
 		Key: "books.products", Collection: "books_products", Label: "Products and services",
 		Fields: []reports.Field{
 			{Key: "name", Label: "Name", Type: reports.Text, Aggregates: reports.MinMax},
-			{Key: "sku", Label: "SKU", Type: reports.Text},
+			{Key: "vendor_part_no", Label: "Vendor part no.", Type: reports.Text},
 			{Key: "type", Label: "Type", Type: reports.Select, Options: []reports.Option{
 				{Value: "service", Label: "Service"},
 				{Value: "non_inventory", Label: "Non-inventory"},

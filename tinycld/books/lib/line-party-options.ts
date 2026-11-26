@@ -1,23 +1,24 @@
 import type { SearchPickerOption } from '../components/SearchPicker'
+import { codeFirst, matchesNameOrCode } from './record-code'
 
 // The Name of a journal line: one customer or one vendor, never both.
 
-type Party = { id: string; display_name: string }
+// A stored party that became inactive is listed by its name alone (no code).
+type Party = { id: string; display_name: string; code?: string }
 
 export type LinePartyKind = 'customer' | 'vendor'
 
 const GROUPS: Record<LinePartyKind, string> = { customer: 'Customers', vendor: 'Vendors' }
 
 function groupOptions(kind: LinePartyKind, parties: readonly Party[], term: string) {
-    const needle = term.trim().toLowerCase()
-    return parties
-        .filter(party => needle === '' || party.display_name.toLowerCase().includes(needle))
+    const listed = parties
+        .filter(party => matchesNameOrCode(term, party.display_name, party.code))
         .sort((a, b) => a.display_name.localeCompare(b.display_name))
-        .map(party => ({
-            id: `${kind}:${party.id}`,
-            label: party.display_name,
-            group: GROUPS[kind],
-        }))
+    return codeFirst(listed, term, party => party.code).map(party => ({
+        id: `${kind}:${party.id}`,
+        label: party.display_name,
+        group: GROUPS[kind],
+    }))
 }
 
 // The party a line stored when its picker mounted, with its display name ('' while its
@@ -39,7 +40,8 @@ function withStored(
 
 /**
  * The Name picker's options: customers under "Customers", then vendors under "Vendors",
- * each by display name, kept when the name contains the search term (any case). An
+ * each by display name, kept when the name or code contains the search term (any case),
+ * those whose code starts with it first. An
  * option id is `customer:<id>` or `vendor:<id>`. `stored`, the party the line held when
  * its picker mounted, is listed once in its group even when it is no longer active.
  */

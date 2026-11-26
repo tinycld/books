@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from '@playwright/test'
 import { tabTo } from './keyboard-helpers'
 import { localDay, vendorWithBills } from './pay-bills-helpers'
+import { codeRouteKeys } from './record-key-helpers'
 import {
     createVendor,
     DESKTOP,
@@ -112,7 +113,9 @@ async function openDetailsFromRowMenu(page: Page, name: string) {
     const id = await vendorIdOf(page, name)
     await page.getByTestId(`vendor-menu-${id}`).click()
     await page.getByTestId('vendor-menu-edit').click()
-    await expect(page).toHaveURL(new RegExp(`/books/vendors/${id}\\?tab=details$`))
+    await expect(page).toHaveURL(
+        new RegExp(`/books/vendors/${await codeRouteKeys(page, 'vendors', id)}\\?tab=details$`)
+    )
     await expect(page.getByTestId('vendor-tab-details')).toHaveAttribute('aria-selected', 'true')
     return id
 }
@@ -157,9 +160,11 @@ test.describe('vendor-pages: vendor page', () => {
         await page.getByTestId('vendor-save').click()
 
         // Save opens the new vendor's page.
-        await expect(page).toHaveURL(/\/books\/vendors\/(?!new)[a-z0-9]{15}(\?.*)?$/)
+        await expect(page).toHaveURL(
+            /\/books\/vendors\/(?!new(\?|$))([a-z0-9]{15}|[A-Z0-9][A-Z0-9-]{1,14})(\?.*)?$/
+        )
         await expect(title).toHaveText(name)
-        const id = openVendorId(page)
+        const id = await openVendorId(page)
         await expect(page.getByTestId('vendor-company')).toHaveText(company)
         const address = page.getByTestId('vendor-address')
         await expect(address).toContainText('12 Harbor Way')
@@ -175,7 +180,7 @@ test.describe('vendor-pages: vendor page', () => {
         await page.getByTestId('vendor-back').click()
         await expect(page).toHaveURL(LIST_URL)
         await openFromRow(page, name)
-        await expect(page).toHaveURL(vendorPath(id))
+        await expect(page).toHaveURL(await vendorPath(page, id))
 
         // The row menu's Edit opens the page on Details.
         await openDetailsFromRowMenu(page, name)
@@ -211,7 +216,7 @@ test.describe('vendor-pages: vendor page', () => {
             .getByRole('option')
             .filter({ has: page.getByText(name, { exact: true }) })
             .click()
-        await expect(page).toHaveURL(vendorPath(id))
+        await expect(page).toHaveURL(await vendorPath(page, id))
         await expect(title).toHaveText(name)
     })
 
@@ -240,7 +245,9 @@ test.describe('vendor-pages: vendor page', () => {
         await expect(companyInput).toHaveValue(company)
 
         await page.keyboard.press('Alt+4')
-        await expect(page).toHaveURL(new RegExp(`/books/vendors/${id}\\?tab=notes$`))
+        await expect(page).toHaveURL(
+            new RegExp(`/books/vendors/${await codeRouteKeys(page, 'vendors', id)}\\?tab=notes$`)
+        )
         await expect(notesInput).toBeFocused()
         await page.keyboard.type(note)
         await expect(saveBar).toBeVisible()
@@ -257,7 +264,9 @@ test.describe('vendor-pages: vendor page', () => {
 
         await page.keyboard.press('ControlOrMeta+s')
         await expect(saveBar).toBeHidden()
-        await expect(page).toHaveURL(new RegExp(`/books/vendors/${id}\\?tab=details$`))
+        await expect(page).toHaveURL(
+            new RegExp(`/books/vendors/${await codeRouteKeys(page, 'vendors', id)}\\?tab=details$`)
+        )
 
         // The stored values, read again after a reload.
         await page.reload()
@@ -312,7 +321,7 @@ test.describe('vendor-pages: vendor page', () => {
         await searchVendors(page, prefix)
         await vendorEntry(page, nameA).click()
         await expect(page.getByTestId('vendor-title')).toHaveText(nameA)
-        const idA = openVendorId(page)
+        const idA = await openVendorId(page)
         const isPatchOfA = isRecordUrl(idA)
         const written: Record<string, unknown>[] = []
         page.on('response', response => {
@@ -358,7 +367,7 @@ test.describe('vendor-pages: vendor page', () => {
         await expect(dialog.title).toBeVisible()
         await dialog.keepEditing.click()
         await expect(dialog.title).toBeHidden()
-        await expect(page).toHaveURL(vendorPath(idA))
+        await expect(page).toHaveURL(await vendorPath(page, idA))
         await expect(notesInput).toHaveValue(secondNote)
 
         // Beside the names column, another row asks first.
@@ -368,7 +377,7 @@ test.describe('vendor-pages: vendor page', () => {
         await expect(dialog.title).toBeVisible()
         await dialog.keepEditing.click()
         await expect(dialog.title).toBeHidden()
-        await expect(page).toHaveURL(vendorPath(idA))
+        await expect(page).toHaveURL(await vendorPath(page, idA))
         await expect(notesInput).toHaveValue(secondNote)
 
         // The browser's Back asks first.
@@ -376,7 +385,7 @@ test.describe('vendor-pages: vendor page', () => {
         await expect(dialog.title).toBeVisible()
         await dialog.keepEditing.click()
         await expect(dialog.title).toBeHidden()
-        await expect(page).toHaveURL(vendorPath(idA))
+        await expect(page).toHaveURL(await vendorPath(page, idA))
         await expect(notesInput).toHaveValue(secondNote)
 
         // An open dialog takes Escape first: the page, its edits and the bar stay.
@@ -389,7 +398,7 @@ test.describe('vendor-pages: vendor page', () => {
         await expect(contactDialog).toBeHidden()
         await expect(saveBar).toBeVisible()
         await expect(dialog.title).toHaveCount(0)
-        await expect(page).toHaveURL(vendorPath(idA))
+        await expect(page).toHaveURL(await vendorPath(page, idA))
 
         // Saved, the back button leaves with no question.
         await page.getByTestId('vendor-save').click()
@@ -414,7 +423,7 @@ test.describe('vendor-pages: vendor page', () => {
         const name = uniqueName('Vendor more')
         await createVendor(page, { name })
         await openFromRow(page, name)
-        const id = openVendorId(page)
+        const id = await openVendorId(page)
 
         // Make inactive, then Make active.
         await chooseMore(page, 'vendor-more-inactive')
@@ -452,7 +461,7 @@ test.describe('vendor-pages: vendor page', () => {
         // An open menu takes Escape first: the menu closes, the page stays.
         await page.keyboard.press('Escape')
         await expect(toggle).toHaveCount(0)
-        await expect(page).toHaveURL(vendorPath(id))
+        await expect(page).toHaveURL(await vendorPath(page, id))
         await expect(title).toHaveText(name)
 
         // On a phone More is an icon button at the header's top right (another component):
@@ -467,7 +476,7 @@ test.describe('vendor-pages: vendor page', () => {
         await expect(page.getByTestId('vendor-more-history')).toBeVisible()
         await page.keyboard.press('Escape')
         await expect(toggle).toHaveCount(0)
-        await expect(page).toHaveURL(vendorPath(id))
+        await expect(page).toHaveURL(await vendorPath(page, id))
         await expect(title).toHaveText(name)
         await page.setViewportSize(DESKTOP)
         await expect(more).toContainText('More')
@@ -526,7 +535,7 @@ test.describe('vendor-pages: vendor page', () => {
         const id = await vendorIdOf(page, name)
         const row = vendorEntry(page, name)
         await row.click()
-        await expect(page).toHaveURL(vendorPath(id))
+        await expect(page).toHaveURL(await vendorPath(page, id))
 
         // The page beside a column of names: no back button, no email column.
         await expect(page.getByTestId('vendor-title')).toHaveText(name)

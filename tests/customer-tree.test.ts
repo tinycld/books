@@ -8,7 +8,7 @@ import {
 } from '../tinycld/books/lib/customer-tree'
 
 function treeCustomer(seed: Pick<TreeCustomer, 'id' | 'display_name'> & Partial<TreeCustomer>) {
-    return { company: '', email: '', phone: '', parent: '', inactive: false, ...seed }
+    return { code: '', company: '', email: '', phone: '', parent: '', inactive: false, ...seed }
 }
 
 describe('pickerOptions', () => {

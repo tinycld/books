@@ -10,6 +10,7 @@ import { createCustomer, customerPath } from './customer-form-helpers'
 import { INVOICE_URL, invoiceIdFromUrl, lineCellTestId, pickLineProduct } from './invoice-helpers'
 import { createProduct } from './products-services-helpers'
 import { uniqueName } from './record-form-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 import {
     chooseReceiptSelect,
     pickReceiptLineProduct,
@@ -148,7 +149,7 @@ async function startTransaction(page: Page, item: string, path: string, customer
 // Back from a document to the customer page kept under it.
 async function backToCustomer(page: Page, customerId: string) {
     await page.goBack()
-    await expect(page).toHaveURL(customerPath(customerId))
+    await expect(page).toHaveURL(await customerPath(page, customerId))
     await expect(page.getByTestId('customer-transactions')).toBeVisible()
 }
 
@@ -172,7 +173,7 @@ export async function createSaleCustomer(page: Page): Promise<{ id: string; name
         page.getByTestId('books-list-card-customers').filter({ visible: true })
     ).toBeVisible()
     await createCustomer(page, { name })
-    return { id: new URL(page.url()).pathname.split('/').pop() ?? '', name }
+    return { id: await recordIdFromUrl(page, 'customers'), name }
 }
 
 /**

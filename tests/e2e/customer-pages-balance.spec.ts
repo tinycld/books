@@ -19,7 +19,7 @@ import {
 import { localToday } from './invoice-helpers'
 import { fillInvoice, postInvoice } from './receive-payment-helpers'
 import { holdLoads } from './record-form-helpers'
-import { expectRecordUrl } from './record-key-helpers'
+import { expectRecordUrl, recordIdFromUrl } from './record-key-helpers'
 
 // The customer page's Open and Overdue figures and its New transaction menu
 // (customer-pages checkpoint 3, spec §3.2 and §3.3). Every test creates its own customers
@@ -45,8 +45,8 @@ const MENU_ITEMS = [
 const PAGE_GUTTER = 16
 
 // The id of the customer whose page is open, read from the URL.
-function openCustomerId(page: Page) {
-    return new URL(page.url()).pathname.split('/').pop() ?? ''
+function openCustomerId(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'customers')
 }
 
 function figures(page: Page) {
@@ -115,14 +115,14 @@ test.describe('customer-pages: balance and new transaction', () => {
         const phone = `(555) 016-${stampDigits()}`
 
         await createCustomer(page, { name: nameP })
-        const idP = openCustomerId(page)
+        const idP = await openCustomerId(page)
         await page.getByTestId('customer-more').click()
         await page.getByTestId('customer-more-add-sub').click()
         await field(page, 'display_name').fill(nameS)
         await page.getByTestId('customer-save').click()
         await expect(page).toHaveURL(customerPageUrl)
         await expect(title).toHaveText(nameS)
-        const idS = openCustomerId(page)
+        const idS = await openCustomerId(page)
 
         await expect(open).toHaveText('$0.00')
         await expect(openLabel).toHaveText('Open')
@@ -147,7 +147,7 @@ test.describe('customer-pages: balance and new transaction', () => {
             dueDate: '2026-11-02',
         })
         await page.goBack()
-        await expect(page).toHaveURL(customerPath(idS))
+        await expect(page).toHaveURL(await customerPath(page, idS))
         await expect(field(page, 'phone')).toHaveValue(phone)
         await expect(saveBar).toBeVisible()
         await expect(open).toHaveText('$100.00')
@@ -162,7 +162,7 @@ test.describe('customer-pages: balance and new transaction', () => {
             dueDate: await localToday(page),
         })
         await page.goBack()
-        await expect(page).toHaveURL(customerPath(idS))
+        await expect(page).toHaveURL(await customerPath(page, idS))
         await expect(open).toHaveText('$350.00')
         await expect(overdue).toHaveText('$100.00')
 
@@ -179,13 +179,13 @@ test.describe('customer-pages: balance and new transaction', () => {
         await page.getByTestId('void-confirm').click()
         await expect(page.getByTestId('invoice-badge')).toHaveText('Void')
         await page.goBack()
-        await expect(page).toHaveURL(customerPath(idS))
+        await expect(page).toHaveURL(await customerPath(page, idS))
         await expect(open).toHaveText('$100.00')
         await expect(overdue).toHaveText('$100.00')
 
         // A parent's figures are its own: P has no invoice.
         await page.getByTestId('customer-parent-link').click()
-        await expect(page).toHaveURL(customerPath(idP))
+        await expect(page).toHaveURL(await customerPath(page, idP))
         await expect(title).toHaveText(nameP)
         await expect(open).toHaveText('$0.00')
         await expect(overdue).toHaveText('$0.00')
@@ -242,7 +242,7 @@ test.describe('customer-pages: balance and new transaction', () => {
         const newTransaction = page.getByTestId('customer-new-transaction')
         const name = uniqueName('Balance phone')
         await createCustomer(page, { name })
-        const id = openCustomerId(page)
+        const id = await openCustomerId(page)
         await page.setViewportSize(PHONE)
 
         // The figures side by side under the name, then a full-width New transaction.

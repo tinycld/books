@@ -887,7 +887,7 @@ func runDepositCase(t *testing.T, c depositCase) {
 	if err := setFields(t, app, "books_accounts", accounts["inactive"].Id, map[string]any{"inactive": true}); err != nil {
 		t.Fatal(err)
 	}
-	customer := mkCustomer(t, app, "Harborview Dental", "")
+	customer := saveRecord(t, app, "books_customers", map[string]any{"display_name": "Harborview Dental", "code": "HD"})
 
 	itemCount, lineCount := c.ItemCount, c.LineCount
 	if itemCount == 0 {

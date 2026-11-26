@@ -6,10 +6,14 @@ import {
     newRecordPath,
     openRecordFromPath,
     type RecordRoute,
+    recordKeyFromPath,
     recordPath,
 } from '../lib/record-route'
+import { useRecordIdForKey } from '../stores/route-key-store'
 
-export function useRecordNavigation(listPath: string) {
+// `keyOf` turns a record id into its URL key (a code); the open record is still matched
+// by id (record-route.ts reads a key back through the route-key store).
+export function useRecordNavigation(listPath: string, keyOf: (id: string) => string = id => id) {
     const orgHref = useOrgHref()
     const { pathname } = useUrl()
     const current = openRecordFromPath(listPath, pathname)
@@ -28,13 +32,13 @@ export function useRecordNavigation(listPath: string) {
         // its scroll and its unsaved edits, instead of replacing the route with itself.
         open: (id: string) => {
             if (isOpen(id)) return
-            go(recordPath(listPath, id))
+            go(recordPath(listPath, keyOf(id)))
         },
         // Opens the record with search params (a page's `tab`). The open record keeps its
         // route for the same reason as `open`; the caller selects its tab.
         openWith: (id: string, params: Record<string, string>) => {
             if (isOpen(id)) return
-            go(recordPath(listPath, id, params))
+            go(recordPath(listPath, keyOf(id), params))
         },
         openNew: (params?: Record<string, string>) => go(newRecordPath(listPath, params)),
         // Dismisses to the list even after a deep link with no history to go back through.
@@ -75,6 +79,10 @@ export function useIsShowingNewRecord(listPath: string) {
 
 // The record the URL opens under `listPath`; `openId` is its id, or '' when none or new.
 export function useOpenRecord(listPath: string) {
-    const open = openRecordFromPath(listPath, useUrl().pathname)
-    return { open, openId: open.kind === 'id' ? open.id : '' }
+    const { pathname } = useUrl()
+    const open = openRecordFromPath(listPath, pathname)
+    const { key, screenName } = recordKeyFromPath(listPath, pathname)
+    // Live, so the list marks the open record once its route read the id behind the key.
+    const openId = useRecordIdForKey(screenName, key)
+    return { open, openId: open.kind === 'id' ? openId : '' }
 }

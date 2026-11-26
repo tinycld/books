@@ -2,13 +2,14 @@ import { CUSTOMERS_PATH } from '../lib/customer-route'
 import { documentStackRouteName } from '../lib/document-routes'
 import { screensAboveTarget } from '../lib/stack-screens'
 import { useRecordNavigation } from './useRecordNavigation'
+import { useStoredCodeKey } from './useRouteRecordId'
 import { usePopScreens, useStackPositionAtCall } from './useStackScreens'
 
 // The customer page's screen in the Books stack (`customers/[id]`).
 const CUSTOMER_SCREEN = documentStackRouteName({ routeBase: CUSTOMERS_PATH })
 
 export function useCustomerNavigation() {
-    const nav = useRecordNavigation(CUSTOMERS_PATH)
+    const nav = useRecordNavigation(CUSTOMERS_PATH, useStoredCodeKey('books_customers'))
     return {
         open: nav.open,
         openNew: (parentId?: string) => nav.openNew(parentId ? { parent: parentId } : undefined),

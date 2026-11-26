@@ -20,12 +20,14 @@ import (
 // does not know, or a collection a token cannot reach fails here.
 
 type cliField struct {
-	Name     string   `json:"name"`
-	Type     string   `json:"type"`
-	Required bool     `json:"required"`
-	ReadOnly bool     `json:"readOnly"`
-	Enum     []string `json:"enum"`
-	Ref      string   `json:"ref"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Required bool   `json:"required"`
+	ReadOnly bool   `json:"readOnly"`
+	// Generated: required by the schema, made by the server when left out.
+	Generated bool     `json:"generated"`
+	Enum      []string `json:"enum"`
+	Ref       string   `json:"ref"`
 }
 
 type cliResource struct {
@@ -170,8 +172,12 @@ func TestCLIResources_MatchTheCollections(t *testing.T) {
 				t.Errorf("%s.%s: the CLI says %q, the collection field is %q (%s)", res.Name, declared.Name, declared.Type, wantType, f.Type())
 			}
 			// A read-only field is set by the server, so the caller is never
-			// asked for it, whatever the schema requires.
-			if !declared.ReadOnly && declared.Required != required {
+			// asked for it, whatever the schema requires. A generated field is
+			// required by the schema and made by the server when left out.
+			if declared.Generated && !required {
+				t.Errorf("%s.%s: the CLI says generated, and the collection does not require it", res.Name, declared.Name)
+			}
+			if !declared.ReadOnly && !declared.Generated && declared.Required != required {
 				t.Errorf("%s.%s: the CLI says required = %v, the collection says %v", res.Name, declared.Name, declared.Required, required)
 			}
 			if !slices.Equal(declared.Enum, values) {
@@ -466,13 +472,13 @@ func TestCLIResources_EveryResourceRoundTrip(t *testing.T) {
 			`"address":{"line1":"9 Mill Rd","line2":"","city":"","region":"","postal_code":"","country":""},`+
 			`"expense_account":"clisupplies0001","track_1099":true,"legal_name":"Paper Supply LLC","tax_id_type":"ein","tax_id":"12-3456789"}`,
 			`"expense_account":"clisupplies0001"`, `"tax_id":"12-3456789"`),
-		add("books_products", `{"id":"cliservice00001","type":"service","name":"Consulting hour","sku":"CONS-1","price":15000,`+
+		add("books_products", `{"id":"cliservice00001","type":"service","name":"Consulting hour","vendor_part_no":"CONS-1","price":15000,`+
 			`"income_account":"cliincome000001","taxable":false}`,
 			`"price":15000`, `"currency":"USD"`, `"income_account":"cliincome000001"`),
 		add("books_products", `{"id":"clibundle000001","type":"bundle","name":"Starter pack"}`, `"type":"bundle"`),
 		// An Inventory item with opening stock; the server fills the accounts
 		// left empty and keeps the stock totals.
-		add("books_products", `{"id":"cliinventory001","type":"inventory","name":"Widget","sku":"W-1","price":2500,`+
+		add("books_products", `{"id":"cliinventory001","type":"inventory","name":"Widget","vendor_part_no":"W-1","price":2500,`+
 			`"income_account":"cliincome000001","preferred_vendor":"clivendor000001","reorder_point":5,`+
 			`"opening_quantity":10,"opening_value":12000,"opening_date":"2026-01-01"}`,
 			`"type":"inventory"`, `"purchases":true`, `"quantity_on_hand":10`, `"stock_value":12000`, `"opening_date":"2026-01-01"`),

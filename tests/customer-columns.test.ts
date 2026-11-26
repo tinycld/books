@@ -15,6 +15,7 @@ import { TAX_IDS } from '../tinycld/books/lib/tax-rates-fixture'
 
 const BUILTIN_COLUMNS = [
     'display_name',
+    'code',
     'company',
     'first_name',
     'last_name',
@@ -178,6 +179,7 @@ describe('EMPTY_CUSTOMER_COLUMNS', () => {
     it('stores every text column empty, no parent, no addresses, not exempt and active', () => {
         expect(EMPTY_CUSTOMER_COLUMNS).toEqual({
             display_name: '',
+            code: '',
             company: '',
             first_name: '',
             last_name: '',

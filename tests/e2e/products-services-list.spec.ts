@@ -50,13 +50,13 @@ test.describe('products-services: list', () => {
     }) => {
         await openBooksAtDefaultViewport(page)
         const prefix = uniqueName(`Cols ${viewportName(page)}`)
-        const sku = `HW-${stampDigits()}`
+        const vendorPartNo = `HW-${stampDigits()}`
         const name = `${prefix} AP`
         const kit = `${prefix} kit`
         await createProduct(page, {
             type: 'non_inventory',
             name,
-            sku,
+            vendorPartNo,
             price: '189',
             cost: '121.40',
             expenseAccount: '6200 Software Subscriptions',
@@ -67,7 +67,7 @@ test.describe('products-services: list', () => {
         await searchProducts(page, prefix)
         const id = await productIdOf(page, name)
         const kitId = await productIdOf(page, kit)
-        await expect(page.getByTestId(`product-cell-sku-${id}`)).toHaveText(sku)
+        await expect(page.getByTestId(`product-cell-vendor-part-no-${id}`)).toHaveText(vendorPartNo)
         await expect(page.getByTestId(`product-cell-type-${id}`)).toHaveText('Non-inventory')
         await expect(page.getByTestId(`product-cell-price-${id}`)).toHaveText('$189.00')
         await expect(page.getByTestId(`product-cell-cost-${id}`)).toHaveText('$121.40')
@@ -96,8 +96,8 @@ test.describe('products-services: list', () => {
     }) => {
         await openBooksAtDefaultViewport(page)
         const name = uniqueName(`Card ${viewportName(page)}`)
-        const sku = `SKU-${stampDigits()}`
-        await createProduct(page, { type: 'non_inventory', name, sku, price: '189' })
+        const vendorPartNo = `VPN-${stampDigits()}`
+        await createProduct(page, { type: 'non_inventory', name, vendorPartNo, price: '189' })
 
         await page.setViewportSize(PHONE)
         await openProductsList(page)
@@ -110,7 +110,7 @@ test.describe('products-services: list', () => {
         const card = productEntry(page, name)
         await expect(card.getByText(name, { exact: true })).toBeVisible()
         await expect(card.getByText('Non-inventory · $189.00', { exact: true })).toBeVisible()
-        await expect(card.getByText(sku, { exact: true })).toBeVisible()
+        await expect(card.getByText(vendorPartNo, { exact: true })).toBeVisible()
 
         await openButton(page, name).click()
         await expect(page.getByTestId('product-page')).toBeVisible()

@@ -11,6 +11,7 @@ import { createCustomer, customerPath, uniqueName } from './customer-form-helper
 import { lineCellTestId, uniqueMemo } from './invoice-helpers'
 import { shown } from './pay-bills-helpers'
 import { fillInvoice, localDay, nonTaxableService, postInvoice } from './receive-payment-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 
 // Shared steps of the apply-credit specs (apply credit spec §4.6): every test makes its own
 // customer, posts its own invoices and its own credit memo through the UI with unique memos,
@@ -92,7 +93,7 @@ export async function customerWithInvoiceAndMemo(
 }> {
     const name = uniqueName(input.label)
     await createCustomer(page, { name })
-    const customerId = new URL(page.url()).pathname.split('/').pop() ?? ''
+    const customerId = await recordIdFromUrl(page, 'customers')
     const source = input.memo.fromInvoice
     const order = input.invoices.map((_, index) => index)
     // The source invoice goes last, so its read view is on screen when the memo starts.
@@ -101,7 +102,7 @@ export async function customerWithInvoiceAndMemo(
     for (const [step, index] of posting.entries()) {
         if (step > 0) {
             await page.goBack()
-            await expect(page).toHaveURL(customerPath(customerId))
+            await expect(page).toHaveURL(await customerPath(page, customerId))
             await expect(page.getByTestId('customer-transactions')).toBeVisible()
         }
         const memo = uniqueMemo(`${input.label} invoice ${index + 1}`)

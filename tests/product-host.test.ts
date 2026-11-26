@@ -23,7 +23,8 @@ const ALL_COLUMNS = {
     id: true,
     type: true,
     name: true,
-    sku: true,
+    code: true,
+    vendor_part_no: true,
     sales_description: true,
     price: true,
     income_account: true,
@@ -53,8 +54,9 @@ const ALL_COLUMNS = {
 // [key, label, kind, required, component]
 const BUILTINS = [
     ['type', 'Type', 'custom', true, 'ProductTypeField'],
-    ['name', 'Name', 'text', true, undefined],
-    ['sku', 'SKU', 'text', false, undefined],
+    ['name', 'Name', 'custom', true, 'ProductNameField'],
+    ['code', 'Code', 'custom', false, 'ProductCodeField'],
+    ['vendor_part_no', 'Vendor part no.', 'text', false, undefined],
     ['sales_description', 'Sales description', 'textarea', false, undefined],
     ['items', 'Bundle items', 'table', false, undefined],
     ['quantity_on_hand', 'Quantity on hand', 'custom', false, 'QuantityOnHandField'],
@@ -75,7 +77,7 @@ const BUILTINS = [
 
 const HALF_WIDTH = [
     'name',
-    'sku',
+    'vendor_part_no',
     'price',
     'income_account',
     'cost',
@@ -135,6 +137,8 @@ describe('books:product forms host', () => {
         const custom = parsedHost().builtin.filter(b => b.kind === 'custom')
         expect(custom.map(b => b.key)).toEqual([
             'type',
+            'name',
+            'code',
             'quantity_on_hand',
             'price',
             'income_account',
@@ -207,6 +211,8 @@ describe('books:product forms host', () => {
         expect(new Set(named)).toEqual(
             new Set([
                 'ProductTypeField',
+                'ProductNameField',
+                'ProductCodeField',
                 'BundleProductCell',
                 'MoneyField',
                 'IncomeAccountField',

@@ -26,7 +26,7 @@ import {
 } from './customer-form-helpers'
 import { lineCellTestId, localToday, pickLineProduct, uniqueMemo } from './invoice-helpers'
 import { nonTaxableService, postInvoice } from './receive-payment-helpers'
-import { expectRecordUrl } from './record-key-helpers'
+import { expectRecordUrl, recordIdFromUrl } from './record-key-helpers'
 
 // Credit memos elsewhere in Books (credit memo spec §3.10): the customer page's
 // Transactions tab (its Credit memos chip, rows, cards, statuses and empty text), the Open
@@ -70,8 +70,8 @@ function productName(id: string) {
 const ACCESS_POINT = productName(PRODUCT_IDS.accessPoint)
 
 // The id of the customer whose page is open, read from the URL.
-function openCustomerId(page: Page) {
-    return new URL(page.url()).pathname.split('/').pop() ?? ''
+function openCustomerId(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'customers')
 }
 
 function transaction(page: Page, id: string) {
@@ -135,7 +135,7 @@ async function openTransactionsTab(page: Page) {
 // Back from a document to the customer page kept under it.
 async function backToCustomer(page: Page, customerId: string) {
     await page.goBack()
-    await expect(page).toHaveURL(customerPath(customerId))
+    await expect(page).toHaveURL(await customerPath(page, customerId))
     await expect(page.getByTestId('customer-transactions')).toBeVisible()
 }
 
@@ -261,7 +261,7 @@ test.describe('credit-memo-form: elsewhere in Books', () => {
 
         await createCustomer(page, { name: emptyName })
         await createCustomer(page, { name })
-        const customerId = openCustomerId(page)
+        const customerId = await openCustomerId(page)
 
         // A posted memo of 250.00, a draft, and a posted memo then voided (V, confirm), each
         // from the customer's New transaction menu.
@@ -338,10 +338,10 @@ test.describe('credit-memo-form: elsewhere in Books', () => {
         // A customer with no documents: the chip's empty text. Back to the customer page
         // first, so the customers list opens from its back button.
         for (let step = 0; step < 3; step++) {
-            if (customerPath(customerId).test(new URL(page.url()).pathname)) break
+            if ((await customerPath(page, customerId)).test(new URL(page.url()).pathname)) break
             await page.goBack()
         }
-        await expect(page).toHaveURL(customerPath(customerId))
+        await expect(page).toHaveURL(await customerPath(page, customerId))
         await openCustomer(page, emptyName)
         await expect(page.getByTestId('customer-title')).toHaveText(emptyName)
         await openTransactionsTab(page)
@@ -357,7 +357,7 @@ test.describe('credit-memo-form: elsewhere in Books', () => {
         const setup = await context.newPage()
         await openBooks(setup, DESKTOP)
         await createCustomer(setup, { name })
-        const customerId = openCustomerId(setup)
+        const customerId = await openCustomerId(setup)
         const posted = await memoFromCustomer(setup, customerId, {
             rate: '250.00',
             memo: uniqueMemo('Credit memo retry'),
@@ -406,7 +406,7 @@ test.describe('credit-memo-form: elsewhere in Books', () => {
         await openBooks(page, DESKTOP)
         const name = uniqueName('Credit memo tax')
         await createCustomer(page, { name })
-        const customerId = openCustomerId(page)
+        const customerId = await openCustomerId(page)
         const today = await localToday(page)
 
         // An invoice of 1,000.00 of a taxable product under the state rate.

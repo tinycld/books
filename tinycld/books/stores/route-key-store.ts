@@ -23,6 +23,12 @@ export const useRouteKeyStore = create<RouteKeyState>()(set => ({
         }),
 }))
 
+// The same, live: a list that marks the open record re-renders once the route has read
+// which id the URL's key names.
+export function useRecordIdForKey(screenName: string, key: string): string {
+    return useRouteKeyStore(s => s.ids[slot(screenName, key)] ?? key)
+}
+
 // The record id a screen's key names: the id the route read for a number, or the key
 // itself (an id, or a number no route has read yet).
 export function recordIdForKey(screenName: string, key: string): string {

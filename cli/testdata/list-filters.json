@@ -54,21 +54,21 @@
             "name": "customers-every-flag",
             "resource": "customers",
             "args": ["--parent", "nothinghasthis1", "--search", "nothinghasthis1"],
-            "filter": "inactive = false && parent = \"nothinghasthis1\" && (display_name ~ \"nothinghasthis1\" || company ~ \"nothinghasthis1\" || email ~ \"nothinghasthis1\")",
+            "filter": "inactive = false && parent = \"nothinghasthis1\" && (code ~ \"nothinghasthis1\" || display_name ~ \"nothinghasthis1\" || company ~ \"nothinghasthis1\" || email ~ \"nothinghasthis1\")",
             "sort": "sort_key,id"
         },
         {
             "name": "vendors-every-flag",
             "resource": "vendors",
             "args": ["--search", "nothinghasthis1"],
-            "filter": "inactive = false && (display_name ~ \"nothinghasthis1\" || company ~ \"nothinghasthis1\" || email ~ \"nothinghasthis1\")",
+            "filter": "inactive = false && (code ~ \"nothinghasthis1\" || display_name ~ \"nothinghasthis1\" || company ~ \"nothinghasthis1\" || email ~ \"nothinghasthis1\")",
             "sort": "sort_key,id"
         },
         {
             "name": "products-every-flag",
             "resource": "products",
             "args": ["--type", "service", "--search", "nothinghasthis1"],
-            "filter": "inactive = false && type = \"service\" && (name ~ \"nothinghasthis1\" || sku ~ \"nothinghasthis1\")",
+            "filter": "inactive = false && type = \"service\" && (code ~ \"nothinghasthis1\" || name ~ \"nothinghasthis1\" || vendor_part_no ~ \"nothinghasthis1\")",
             "sort": "sort_key,id"
         },
         {

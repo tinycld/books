@@ -23,6 +23,7 @@ import {
     nonTaxableService,
     postInvoice,
 } from './receive-payment-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 import {
     draftInvoiceFor,
     openSales,
@@ -74,8 +75,8 @@ function rowOrder(page: Page): Promise<string[]> {
     })
 }
 
-function customerIdFromUrl(page: Page): string {
-    return new URL(page.url()).pathname.split('/').pop() ?? ''
+function customerIdFromUrl(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'customers')
 }
 
 // A parent customer and a sub-customer of it, made through the customer form's Parent
@@ -84,7 +85,7 @@ async function parentAndSubCustomer(page: Page) {
     const prefix = uniqueName('Filters')
     const parent = { name: `${prefix} Parent`, id: '' }
     await createCustomer(page, { name: parent.name })
-    parent.id = customerIdFromUrl(page)
+    parent.id = await customerIdFromUrl(page)
 
     const sub = { name: `${prefix} Sub`, id: '' }
     await openNewCustomer(page)
@@ -96,9 +97,11 @@ async function parentAndSubCustomer(page: Page) {
     await expect(parentSearch).toBeHidden()
     await expect(page.getByTestId('customer-parent')).toContainText(parent.name)
     await page.getByTestId('customer-save').click()
-    await expect(page).toHaveURL(/\/books\/customers\/(?!new)[a-z0-9]{15}(\?|$)/)
+    await expect(page).toHaveURL(
+        /\/books\/customers\/(?!new(\?|$))([a-z0-9]{15}|[A-Z0-9][A-Z0-9-]{1,14})(\?|$)/
+    )
     await expect(page.getByTestId('customer-title')).toHaveText(sub.name)
-    sub.id = customerIdFromUrl(page)
+    sub.id = await customerIdFromUrl(page)
     return { parent, sub }
 }
 
@@ -120,7 +123,7 @@ async function postedAndDraftFromCustomerPage(page: Page, customerId: string) {
     await fillInvoice(page, { dueDate: today, rate: '150.00' })
     const { id: posted } = await postInvoice(page)
     await page.goBack()
-    await expect(page).toHaveURL(customerPath(customerId))
+    await expect(page).toHaveURL(await customerPath(page, customerId))
 
     await newInvoiceFromCustomerPage(page, customerId)
     await pickLineProduct(page, 0, nonTaxableService())
@@ -130,7 +133,7 @@ async function postedAndDraftFromCustomerPage(page: Page, customerId: string) {
     await expect(page.getByTestId('invoice-title')).toHaveText('Draft invoice')
     const draft = await invoiceIdFromUrl(page)
     await page.goBack()
-    await expect(page).toHaveURL(customerPath(customerId))
+    await expect(page).toHaveURL(await customerPath(page, customerId))
     return { posted, draft }
 }
 

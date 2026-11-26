@@ -266,6 +266,7 @@ function purchaseLineFields(parent: string, parentLabel: string): AuditFieldMap 
 // A customer's or vendor's contact fields.
 const PARTY_NAME_FIELDS: AuditFieldMap = {
     display_name: text('Display name'),
+    code: text('Code'),
     company: text('Company'),
     first_name: text('First name'),
     last_name: text('Last name'),
@@ -755,7 +756,8 @@ const AUDIT_FIELD_MAPS = {
     books_products: {
         type: select('Type', optionsOf(PRODUCT_TYPES)),
         name: text('Name'),
-        sku: text('SKU'),
+        code: text('Code'),
+        vendor_part_no: text('Vendor part no.'),
         sales_description: text('Sales description'),
         price: money('Price'),
         income_account: relation('Income account', 'books_accounts'),

@@ -27,7 +27,7 @@ import {
 } from './invoice-helpers'
 import { openNewAction } from './new-menu-helpers'
 import { fillInvoice, nonTaxableService, postInvoice } from './receive-payment-helpers'
-import { expectNotRecordUrl, expectRecordUrl } from './record-key-helpers'
+import { expectNotRecordUrl, expectRecordUrl, recordIdFromUrl } from './record-key-helpers'
 import {
     chooseReceiptSelect,
     pickReceiptLineProduct,
@@ -59,8 +59,8 @@ const MENU_ITEMS = [
 const ROW_ID = /^customer-transaction-([a-z0-9]{15})$/
 
 // The id of the customer whose page is open, read from the URL.
-function openCustomerId(page: Page) {
-    return new URL(page.url()).pathname.split('/').pop() ?? ''
+function openCustomerId(page: Page): Promise<string> {
+    return recordIdFromUrl(page, 'customers')
 }
 
 // The ids of the tab's rows (table) or cards (phone), in screen order, in one snapshot.
@@ -127,7 +127,7 @@ async function startTransaction(page: Page, item: string, path: string, customer
 // Back from a document to the customer page kept under it, on its Transactions tab.
 async function backToCustomer(page: Page, customerId: string) {
     await page.goBack()
-    await expect(page).toHaveURL(customerPath(customerId))
+    await expect(page).toHaveURL(await customerPath(page, customerId))
     await expect(page.getByTestId('customer-transactions')).toBeVisible()
 }
 
@@ -143,7 +143,7 @@ test.describe('customer-pages: transactions tab', () => {
 
         // A new customer opens on Transactions, empty, with New transaction.
         await createCustomer(page, { name })
-        const id = openCustomerId(page)
+        const id = await openCustomerId(page)
         await expect(transactionsTab).toHaveAttribute('aria-selected', 'true')
         await expect(page.getByTestId('customer-transactions-empty')).toContainText(
             'No transactions for this customer yet'
@@ -240,7 +240,7 @@ test.describe('customer-pages: transactions tab', () => {
         await transaction(page, openId).click()
         await expectRecordUrl(page, 'invoices', openId)
         await page.goBack()
-        await expect(page).toHaveURL(customerPath(id))
+        await expect(page).toHaveURL(await customerPath(page, id))
         await expect(transactionsTab).toHaveAttribute('aria-selected', 'true')
         await expect(page.getByTestId('customer-transactions-filter-invoice')).toHaveAttribute(
             'aria-pressed',
@@ -253,7 +253,7 @@ test.describe('customer-pages: transactions tab', () => {
         await expect(page.getByTestId('customers-list')).toBeVisible()
         await searchCustomers(page, name)
         await customerEntry(page, name).click()
-        await expect(page).toHaveURL(customerPath(id))
+        await expect(page).toHaveURL(await customerPath(page, id))
         await expect(transactionsTab).toHaveAttribute('aria-selected', 'true')
         await expect(page.getByTestId('customer-transactions-filter-all')).toHaveAttribute(
             'aria-pressed',
@@ -268,7 +268,7 @@ test.describe('customer-pages: transactions tab', () => {
 
         // A customer with only an invoice: the Estimates chip has no match; Show all.
         await createCustomer(page, { name: nameB })
-        const idB = openCustomerId(page)
+        const idB = await openCustomerId(page)
         const today = await localToday(page)
         await startTransaction(page, 'customer-new-invoice', 'invoices', idB)
         await fillInvoice(page, { dueDate: today, rate: '150.00' })

@@ -203,11 +203,11 @@ func TestProduct_GuardOverwritesNameKey(t *testing.T) {
 // key saved with no hook and no validation still cannot land.
 func TestProductSchema_NameKeyIsUniqueWithoutTheGuard(t *testing.T) {
 	app := newBooksApp(t)
-	first := map[string]any{"type": "service", "name": "Harborview", "currency": "USD", "name_key": "harborview"}
+	first := map[string]any{"type": "service", "name": "Harborview", "currency": "USD", "name_key": "harborview", "code": "HV"}
 	if err := rawSave(t, app, "books_products", first); err != nil {
 		t.Fatalf("save the first product: %v", err)
 	}
-	second := map[string]any{"type": "service", "name": "Harbor View", "currency": "USD", "name_key": "harborview"}
+	second := map[string]any{"type": "service", "name": "Harbor View", "currency": "USD", "name_key": "harborview", "code": "HV-2"}
 	err := rawSave(t, app, "books_products", second)
 	if err == nil {
 		t.Fatal("a second product with name_key harborview was stored")
@@ -227,9 +227,9 @@ func TestProduct_SKUMayRepeat(t *testing.T) {
 	income := mkIncomeAccount(t, app)
 	for _, name := range []string{"Patch cable", "Patch cord"} {
 		if _, err := newProduct(app, map[string]any{
-			"type": "non_inventory", "name": name, "sku": "HW-CAT6", "income_account": income.Id,
+			"type": "non_inventory", "name": name, "vendor_part_no": "HW-CAT6", "income_account": income.Id,
 		}); err != nil {
-			t.Fatalf("%s with SKU HW-CAT6 was refused: %v", name, err)
+			t.Fatalf("%s with vendor part number HW-CAT6 was refused: %v", name, err)
 		}
 	}
 	requireProductCount(t, app, 2)
@@ -301,11 +301,11 @@ func TestProduct_IncomeAccountThatBecameInactiveIsKeptOnAnotherChange(t *testing
 	income := mkIncomeAccount(t, app)
 	p := mkService(t, app, "Payroll setup", income)
 	makeAccountInactive(t, app, income)
-	if err := setFields(t, app, "books_products", p.Id, map[string]any{"sku": "SVC-PAY"}); err != nil {
-		t.Fatalf("a SKU change on a product whose income account became inactive was refused: %v", err)
+	if err := setFields(t, app, "books_products", p.Id, map[string]any{"vendor_part_no": "SVC-PAY"}); err != nil {
+		t.Fatalf("a vendor part number change on a product whose income account became inactive was refused: %v", err)
 	}
 	stored := reload(t, app, "books_products", p.Id)
-	if stored.GetString("sku") != "SVC-PAY" || stored.GetString("income_account") != income.Id {
+	if stored.GetString("vendor_part_no") != "SVC-PAY" || stored.GetString("income_account") != income.Id {
 		t.Fatalf("stored product = %v", stored.PublicExport())
 	}
 }
@@ -462,7 +462,7 @@ func TestProduct_ServiceBecomesNonInventoryKeepingEveryValue(t *testing.T) {
 	income := mkIncomeAccount(t, app)
 	rent := mkAccount(t, app, "Rent", "expense", "rent_lease")
 	p, err := newProduct(app, map[string]any{
-		"type": "service", "name": "Workstation setup", "sku": "SVC-WS", "sales_description": "Set up one workstation.",
+		"type": "service", "name": "Workstation setup", "vendor_part_no": "SVC-WS", "sales_description": "Set up one workstation.",
 		"price": 15000, "income_account": income.Id, "purchases": true, "purchase_description": "Imaging license.",
 		"cost": 2500, "expense_account": rent.Id,
 	})
@@ -474,7 +474,7 @@ func TestProduct_ServiceBecomesNonInventoryKeepingEveryValue(t *testing.T) {
 	}
 	stored := reload(t, app, "books_products", p.Id)
 	want := map[string]any{
-		"type": "non_inventory", "name": "Workstation setup", "sku": "SVC-WS", "sales_description": "Set up one workstation.",
+		"type": "non_inventory", "name": "Workstation setup", "vendor_part_no": "SVC-WS", "sales_description": "Set up one workstation.",
 		"price": 15000, "income_account": income.Id, "purchases": true, "purchase_description": "Imaging license.",
 		"cost": 2500, "expense_account": rent.Id, "currency": "USD",
 	}
@@ -508,8 +508,8 @@ func TestProduct_NegativePriceAndFractionalCostAreSchemaRefusals(t *testing.T) {
 
 func TestProduct_LengthsAreRefusedOnTheirField(t *testing.T) {
 	cases := map[string]map[string]any{
-		"name": {"name": strings.Repeat("x", 201)},
-		"sku":  {"name": "Payroll setup", "sku": strings.Repeat("1", 101)},
+		"name":           {"name": strings.Repeat("x", 201)},
+		"vendor_part_no": {"name": "Payroll setup", "vendor_part_no": strings.Repeat("1", 101)},
 	}
 	for field, value := range cases {
 		t.Run(field, func(t *testing.T) {
@@ -808,10 +808,10 @@ func TestProductRules_ByLevel(t *testing.T) {
 			viewContent:   `"name":"Harborview"`,
 			createBody:    fmt.Sprintf(`{"type":"service","name":"Acme","income_account":%q}`, income.Id),
 			createContent: `"name":"Acme"`,
-			updateBody:    `{"sku":"x"}`,
+			updateBody:    `{"vendor_part_no":"x"}`,
 			unchanged: func(t testing.TB, app core.App) {
-				if got := reload(t, app, "books_products", harbor.Id).GetString("sku"); got != "" {
-					t.Errorf("a read-only user changed the product's sku to %q", got)
+				if got := reload(t, app, "books_products", harbor.Id).GetString("vendor_part_no"); got != "" {
+					t.Errorf("a read-only user changed the product's vendor_part_no to %q", got)
 				}
 				requireProductCount(t, app, 1)
 			},

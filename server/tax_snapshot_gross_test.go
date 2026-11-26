@@ -123,7 +123,7 @@ func TestTaxLineGrossSchema(t *testing.T) {
 	app := newBooksApp(t)
 	agency := mkTaxAgency(t, app, "Colorado DOR", mkLiabilityAccount(t, app, "Sales tax payable"))
 	rate := mkTaxRate(t, app, "Colorado state", 29000, agency)
-	customer := mkCustomer(t, app, "Harborview Dental", "")
+	customer := saveRecord(t, app, "books_customers", map[string]any{"display_name": "Harborview Dental", "code": "HD"})
 	inv := mkInvoiceRow(t, app, customer, map[string]any{"status": "posted", "tax_rate": rate.Id})
 
 	line := func(position int, fields map[string]any) (*core.Record, error) {

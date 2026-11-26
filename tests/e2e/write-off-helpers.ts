@@ -2,6 +2,7 @@ import { expect, type Page, type Route } from '@playwright/test'
 import { createCustomer, uniqueName } from './customer-form-helpers'
 import { INVOICE_URL, openInvoiceBySearch, uniqueMemo } from './invoice-helpers'
 import { fillInvoice, localDay, postInvoice } from './receive-payment-helpers'
+import { recordIdFromUrl } from './record-key-helpers'
 
 // Shared steps of the write-off specs (write-off spec §4.6): every test makes its own
 // customer and posts its own invoice through the UI with a unique memo, and opens it again
@@ -30,7 +31,7 @@ export async function invoiceToWriteOff(
     const customer = uniqueName(label)
     const memo = uniqueMemo(label)
     await createCustomer(page, { name: customer })
-    const customerId = new URL(page.url()).pathname.split('/').pop() ?? ''
+    const customerId = await recordIdFromUrl(page, 'customers')
     await page.getByTestId('customer-new-transaction').click()
     await page.getByTestId('customer-new-invoice').click()
     await expect(page).toHaveURL(new RegExp(`/books/invoices/new\\?customer=${customerId}$`))

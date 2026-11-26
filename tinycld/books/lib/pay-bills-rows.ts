@@ -107,7 +107,7 @@ export function hiddenPaidCount(
         .length
 }
 
-export type PayBillsVendorOption = { id: string; label: string }
+export type PayBillsVendorOption = { id: string; label: string; code: string }
 
 /**
  * The Vendor filter's options: every active vendor, and every vendor with an open bill (an
@@ -115,7 +115,7 @@ export type PayBillsVendorOption = { id: string; label: string }
  * filterable), an inactive one labelled "<name> (inactive)". By display name.
  */
 export function payBillsVendorOptions(
-    vendors: readonly { id: string; display_name: string; inactive: boolean }[],
+    vendors: readonly { id: string; display_name: string; code?: string; inactive: boolean }[],
     openBillVendorIds: readonly string[]
 ): PayBillsVendorOption[] {
     const withOpenBill = new Set(openBillVendorIds)
@@ -125,5 +125,6 @@ export function payBillsVendorOptions(
         .map(vendor => ({
             id: vendor.id,
             label: vendor.inactive ? `${vendor.display_name} (inactive)` : vendor.display_name,
+            code: vendor.code ?? '',
         }))
 }

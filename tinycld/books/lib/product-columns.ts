@@ -11,7 +11,8 @@ import { type ColumnsParse, optionalText, parseColumns } from './record-columns'
 export const productColumnsSchema = z.strictObject({
     type: z.enum(PRODUCT_TYPE_KEYS).optional(),
     name: optionalText,
-    sku: optionalText,
+    code: optionalText,
+    vendor_part_no: optionalText,
     sales_description: optionalText,
     price: z.number().optional(),
     income_account: optionalText,
@@ -83,7 +84,8 @@ export function productColumnsFor(
 export const EMPTY_PRODUCT_FIELDS: Required<ProductColumns> = {
     type: 'service',
     name: '',
-    sku: '',
+    code: '',
+    vendor_part_no: '',
     sales_description: '',
     price: 0,
     income_account: '',

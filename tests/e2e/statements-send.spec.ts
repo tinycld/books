@@ -91,7 +91,7 @@ async function scrollRowAway(page: Page, customer: StatementCustomer) {
 }
 
 async function expectBackOnCustomer(page: Page, customer: StatementCustomer) {
-    await expect(page).toHaveURL(customerPath(customer.id))
+    await expect(page).toHaveURL(await customerPath(page, customer.id))
     await expect(page.getByTestId('customer-transactions')).toBeVisible()
 }
 
@@ -313,7 +313,7 @@ test.describe('statements: preview and send', () => {
         await parts.more.click()
         await parts.save.click()
         await expect(toast(page, '1 statement saved')).toBeVisible()
-        await expect(page).toHaveURL(customerPath(customer.id))
+        await expect(page).toHaveURL(await customerPath(page, customer.id))
         const rows = await statementsOf(page, customer.id)
         expect(rows).toHaveLength(1)
         expect(rows[0].customer).toBe(customer.id)

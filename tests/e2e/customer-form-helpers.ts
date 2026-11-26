@@ -1,4 +1,6 @@
+import type { Page } from '@playwright/test'
 import { type RecordKind, recordFormHelpers } from './record-form-helpers'
+import { codeRoutePath } from './record-key-helpers'
 
 // Shared by the customer-form e2e specs: the record-form helpers bound to customers.
 
@@ -75,8 +77,8 @@ export const expectCustomerEditSaved = customers.expectEditSaved
 export const customerPageUrl = customers.recordPageUrl
 
 // One customer's page, with or without a query (`?tab=details`).
-export function customerPath(id: string) {
-    return new RegExp(`/books/customers/${id}(\\?[^#]*)?$`)
+export function customerPath(page: Page, id: string) {
+    return codeRoutePath(page, 'customers', id)
 }
 export const discardDialog = customers.discardDialog
 export const customersBase = customers.base

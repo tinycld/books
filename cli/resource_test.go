@@ -47,6 +47,8 @@ func TestLoadResourcesRefusesAMistake(t *testing.T) {
 		{"name that is not an identifier", `"name":"name","type"`, `"name":"name = 1 || id","type"`, "lower-case letters"},
 		{"system field", `"name":"name","type"`, `"name":"id","type"`, "system field"},
 		{"required and read-only", `"type":"string"`, `"type":"string","required":true,"readOnly":true`, "cannot be required"},
+		{"required and generated", `"type":"string"`, `"type":"string","required":true,"generated":true`, "cannot be required"},
+		{"read-only and generated", `"type":"string"`, `"type":"string","readOnly":true,"generated":true`, "cannot be read-only"},
 		{"enum on a bool", `"type":"string"`, `"type":"bool","enum":["a"]`, "only a string field has an enum"},
 		{"no collection", `"collection":"books_things"`, `"collection":""`, "are required"},
 		{"sort that is no field", `"sort":"id"`, `"sort":"-title"`, `sort names "-title"`},

@@ -342,18 +342,18 @@ func searchParties(ctx context.Context, app core.App, match string, window int, 
 }
 
 type productHit struct {
-	ID       string `db:"id"`
-	Name     string `db:"name"`
-	Sku      string `db:"sku"`
-	Type     string `db:"type"`
-	Inactive bool   `db:"inactive"`
+	ID           string `db:"id"`
+	Name         string `db:"name"`
+	VendorPartNo string `db:"vendor_part_no"`
+	Type         string `db:"type"`
+	Inactive     bool   `db:"inactive"`
 }
 
 // The index holds the sales description but not the purchase one: the sales
 // text is what a customer reads and what a person recalls an item by.
 var productsQuery = indexQuery{
 	index: productsIndex, table: "books_products",
-	columns: "c.id, c.name, c.sku, c.type, c.inactive", order: "c.sort_key, c.id",
+	columns: "c.id, c.name, c.vendor_part_no, c.type, c.inactive", order: "c.sort_key, c.id",
 }
 
 func searchProducts(ctx context.Context, app core.App, match string, window int) ([]search.Row, int, error) {
@@ -364,7 +364,7 @@ func searchProducts(ctx context.Context, app core.App, match string, window int)
 	}
 	rows := make([]search.Row, 0, len(hits))
 	for _, h := range hits {
-		subtitle := h.Sku
+		subtitle := h.VendorPartNo
 		if subtitle == "" {
 			subtitle = productTypeLabel(h.Type)
 		}

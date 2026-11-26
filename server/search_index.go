@@ -20,7 +20,8 @@ import (
 // 2100000024_create_books_vendor_refunds.js, the refund receipts' by
 // 2100000025_create_books_refund_receipts.js, the write-offs' by
 // 2100000027_create_books_write_offs.js, and the deposits' by
-// 2100000037_create_books_deposits.js.
+// 2100000037_create_books_deposits.js; the code column of the customers', vendors'
+// and products' by 2100000046_add_books_record_codes.js.
 const (
 	accountsIndex       = "fts_books_accounts"
 	entriesIndex        = "fts_books_journal_entries"
@@ -49,9 +50,9 @@ const (
 var searchIndexes = []fts.Config{
 	{Slug: "books", Collection: "books_accounts", Table: accountsIndex, Columns: ftsColumns("name", "number", "description")},
 	{Slug: "books", Collection: "books_journal_entries", Table: entriesIndex, Columns: ftsColumns("number", "memo")},
-	{Slug: "books", Collection: "books_customers", Table: customersIndex, Columns: ftsColumns("display_name", "company", "email")},
-	{Slug: "books", Collection: "books_vendors", Table: vendorsIndex, Columns: ftsColumns("display_name", "company", "email", "legal_name")},
-	{Slug: "books", Collection: "books_products", Table: productsIndex, Columns: ftsColumns("name", "sku", "sales_description")},
+	{Slug: "books", Collection: "books_customers", Table: customersIndex, Columns: ftsColumns("code", "display_name", "company", "email")},
+	{Slug: "books", Collection: "books_vendors", Table: vendorsIndex, Columns: ftsColumns("code", "display_name", "company", "email", "legal_name")},
+	{Slug: "books", Collection: "books_products", Table: productsIndex, Columns: ftsColumns("code", "name", "vendor_part_no", "sales_description")},
 	{Slug: "books", Collection: "books_invoices", Table: invoicesIndex, Columns: ftsColumns("number", "memo", "message")},
 	{Slug: "books", Collection: "books_sales_receipts", Table: salesReceiptsIndex, Columns: ftsColumns("number", "reference_no", "memo", "message")},
 	{Slug: "books", Collection: "books_estimates", Table: estimatesIndex, Columns: ftsColumns("number", "memo", "message")},

@@ -165,8 +165,8 @@ async function createPair(page: Page, label: string, afterSave = async () => {})
         nameB,
         rowA: page.getByTestId(`vendor-row-${idA}`),
         rowB: page.getByTestId(`vendor-row-${idB}`),
-        urlA: vendorPath(idA),
-        urlB: vendorPath(idB),
+        urlA: await vendorPath(page, idA),
+        urlB: await vendorPath(page, idB),
     }
 }
 
@@ -537,7 +537,7 @@ test.describe('vendor-form: side panel', () => {
         await expect(panel).toBeVisible()
         await page.getByTestId('vendor-tab-details').click()
         await expect(field(page, 'display_name')).toHaveValue(nameE)
-        const idE = openVendorId(page)
+        const idE = await openVendorId(page)
         const held = await holdVendorWrite(page, idE, 'DELETE')
         await page.getByTestId('vendor-more').click()
         await page.getByTestId('vendor-more-delete').click()

@@ -22,6 +22,7 @@ export const CUSTOMER_HOST_KEY = 'books:customer'
 const LAYOUT = {
     pages: [{ key: 'main', title: 'Customer' }],
     fields: {
+        code: { width: 'quarter' },
         first_name: { width: 'half' },
         last_name: { width: 'half' },
         email: { width: 'half' },
@@ -59,6 +60,7 @@ export const VENDOR_HOST_KEY = 'books:vendor'
 const VENDOR_LAYOUT = {
     pages: [{ key: 'main', title: 'Vendor' }],
     fields: {
+        code: { width: 'quarter' },
         first_name: { width: 'half' },
         last_name: { width: 'half' },
         email: { width: 'half' },
@@ -85,7 +87,7 @@ const VENDOR_LAYOUT = {
 
 export const PRODUCT_HOST_KEY = 'books:product'
 
-// The default Product or service form: one page, with Name and SKU, Sales price and
+// The default Product or service form: one page, with Name and vendor part number, Sales price and
 // Income account, and Cost and Expense account side by side wherever the form is 640 px
 // wide or more. The purchase fields hide while "I purchase this from a vendor" is off;
 // that is a rule of the form, so admins see it and may change it in Settings → Forms.
@@ -97,7 +99,8 @@ const PRODUCT_LAYOUT = {
     pages: [{ key: 'main', title: 'Product or service' }],
     fields: {
         name: { width: 'half' },
-        sku: { width: 'half' },
+        code: { width: 'quarter' },
+        vendor_part_no: { width: 'half' },
         price: { width: 'half' },
         income_account: { width: 'half' },
         taxable: { description: 'Charge sales tax on this item when it is sold.' },
@@ -382,6 +385,7 @@ const hosts: FormHostDefInput[] = [
         columns: [
             'id',
             'display_name',
+            'code',
             'company',
             'first_name',
             'last_name',
@@ -407,12 +411,26 @@ const hosts: FormHostDefInput[] = [
             'updated',
         ],
         builtin: [
+            // The name's change handler suggests the code (forms/record-code-fields.tsx).
             {
                 key: 'display_name',
                 label: 'Display name',
-                kind: 'text',
+                kind: 'custom',
                 storage: 'column',
                 required: true,
+                component: 'CustomerNameField',
+                chrome: 'cell',
+            },
+            // Empty is allowed: the server then makes the code from the name
+            // (server/record_codes.go).
+            {
+                key: 'code',
+                label: 'Code',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'CustomerCodeField',
+                chrome: 'cell',
             },
             {
                 key: 'company',
@@ -559,6 +577,7 @@ const hosts: FormHostDefInput[] = [
         columns: [
             'id',
             'display_name',
+            'code',
             'company',
             'first_name',
             'last_name',
@@ -584,12 +603,26 @@ const hosts: FormHostDefInput[] = [
             'updated',
         ],
         builtin: [
+            // The name's change handler suggests the code (forms/record-code-fields.tsx).
             {
                 key: 'display_name',
                 label: 'Display name',
-                kind: 'text',
+                kind: 'custom',
                 storage: 'column',
                 required: true,
+                component: 'VendorNameField',
+                chrome: 'cell',
+            },
+            // Empty is allowed: the server then makes the code from the name
+            // (server/record_codes.go).
+            {
+                key: 'code',
+                label: 'Code',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'VendorCodeField',
+                chrome: 'cell',
             },
             {
                 key: 'company',
@@ -735,7 +768,8 @@ const hosts: FormHostDefInput[] = [
             'id',
             'type',
             'name',
-            'sku',
+            'code',
+            'vendor_part_no',
             'sales_description',
             'price',
             'income_account',
@@ -771,8 +805,34 @@ const hosts: FormHostDefInput[] = [
                 component: 'ProductTypeField',
                 chrome: 'cell',
             },
-            { key: 'name', label: 'Name', kind: 'text', storage: 'column', required: true },
-            { key: 'sku', label: 'SKU', kind: 'text', storage: 'column', required: false },
+            // The name's change handler suggests the code (forms/record-code-fields.tsx).
+            {
+                key: 'name',
+                label: 'Name',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                component: 'ProductNameField',
+                chrome: 'cell',
+            },
+            // Empty is allowed: the server then makes the code from the name
+            // (server/record_codes.go).
+            {
+                key: 'code',
+                label: 'Code',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'ProductCodeField',
+                chrome: 'cell',
+            },
+            {
+                key: 'vendor_part_no',
+                label: 'Vendor part no.',
+                kind: 'text',
+                storage: 'column',
+                required: false,
+            },
             {
                 key: 'sales_description',
                 label: 'Sales description',

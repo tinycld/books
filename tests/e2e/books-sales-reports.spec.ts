@@ -40,7 +40,7 @@ import {
 } from './customer-form-helpers'
 import { INVOICE_URL, lineCellTestId, pickLineProduct } from './invoice-helpers'
 import { createProduct, openProductsList, productEntries } from './products-services-helpers'
-import { expectRecordUrl } from './record-key-helpers'
+import { expectRecordUrl, recordIdFromUrl } from './record-key-helpers'
 import {
     chooseReceiptSelect,
     pickReceiptLineProduct,
@@ -289,7 +289,7 @@ test.describe('sales-reports: Sales by Customer', () => {
         const parent = customer.name
         await postSubInvoice(page, service, '50.00', '$500.00')
         await page.goBack()
-        await expect(page).toHaveURL(customerPath(customer.id))
+        await expect(page).toHaveURL(await customerPath(page, customer.id))
         await expect(page.getByTestId('customer-title')).toHaveText(parent)
 
         // Two sub-customers whose name order (A, B) is the reverse of their sales order: B
@@ -303,7 +303,7 @@ test.describe('sales-reports: Sales by Customer', () => {
         await page.goBack()
         await expect(page.getByTestId('customer-title')).toHaveText(small)
         await page.getByTestId('customer-parent-link').click()
-        await expect(page).toHaveURL(customerPath(customer.id))
+        await expect(page).toHaveURL(await customerPath(page, customer.id))
         await addSubCustomer(page, big)
         await postSubInvoice(page, service, '100.00', '$1,000.00')
 
@@ -485,7 +485,7 @@ async function addSubCustomer(page: Page, name: string) {
 // From the open customer's page: posts an invoice, dated today, of `product` at quantity 10
 // and `rate`, once the form shows the line's `amount`.
 async function postSubInvoice(page: Page, product: string, rate: string, amount: string) {
-    const customerId = new URL(page.url()).pathname.split('/').pop() ?? ''
+    const customerId = await recordIdFromUrl(page, 'customers')
     await page.getByTestId('customer-new-transaction').click()
     await page.getByTestId('customer-new-invoice').click()
     await expect(page).toHaveURL(new RegExp(`/books/invoices/new\\?customer=${customerId}$`))
@@ -503,7 +503,7 @@ async function postSubInvoice(page: Page, product: string, rate: string, amount:
 // number and its Subtotal as the read view prints it.
 async function postServiceReceipt(page: Page, customerId: string, product: string) {
     await page.goBack()
-    await expect(page).toHaveURL(customerPath(customerId))
+    await expect(page).toHaveURL(await customerPath(page, customerId))
     await page.getByTestId('customer-new-transaction').click()
     await page.getByTestId('customer-new-sales-receipt').click()
     await expect(page).toHaveURL(new RegExp(`/books/sales-receipts/new\\?customer=${customerId}$`))

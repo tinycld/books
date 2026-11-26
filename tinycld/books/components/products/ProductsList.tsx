@@ -50,6 +50,7 @@ const productHeightOf = (product: ProductListFields, fontScale: number) =>
 function ProductTableHeader({ testID }: { testID: string }) {
     return (
         <ListHeaderRow testID={testID}>
+            <ListHeaderCell label="Code" style={PRODUCT_COLUMNS.code} />
             <ListHeaderCell label="Name" style={PRODUCT_COLUMNS.name} />
             <ListHeaderCell label="Type" style={PRODUCT_COLUMNS.type} />
             <ListHeaderCell label="Sales price" style={PRODUCT_COLUMNS.price} align="right" />
