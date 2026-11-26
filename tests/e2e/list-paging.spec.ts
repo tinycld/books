@@ -33,9 +33,17 @@ import { openVendorsList, searchVendors, vendorEntries, vendorEntry } from './ve
 
 const two = (n: number) => String(n).padStart(2, '0')
 
-// The names that hold every piece, ignoring case: what a search cut into `pieces` finds.
-const holdingAll = (names: readonly string[], pieces: readonly string[]) =>
-    names.filter(name => pieces.every(piece => name.toLowerCase().includes(piece.toLowerCase())))
+// The names of the rows where every piece is in the name or the code, ignoring case: what
+// a search cut into `pieces` finds (the other searched columns of these rows are empty).
+type Searched = { name: string; code: string }
+const holdingAll = (rows: readonly Searched[], pieces: readonly string[]) =>
+    rows
+        .filter(row =>
+            pieces.every(piece =>
+                [row.name, row.code].some(text => text.toLowerCase().includes(piece.toLowerCase()))
+            )
+        )
+        .map(row => row.name)
 
 // Taller than a first page of 50 rows, so the table has nothing to scroll.
 const TALL_DESKTOP = { width: 1280, height: 3000 }
@@ -54,7 +62,7 @@ const filterOf = (url: URL | undefined) => url?.searchParams.get('filter') ?? ''
 const isCursor = (url: URL) => filterOf(url).includes('sort_key >')
 const isListPage = (url: URL) => url.searchParams.get('sort') === 'sort_key,id'
 const textFilter = (term: string) =>
-    `display_name ~ "%${term}%" || company ~ "%${term}%" || email ~ "%${term}%" || phone ~ "%${term}%"`
+    `code ~ "%${term}%" || display_name ~ "%${term}%" || company ~ "%${term}%" || email ~ "%${term}%" || phone ~ "%${term}%"`
 
 // The first page's request for a search: sorted, no cursor, filtered on the term. The
 // search helpers wait until the list has answered the search, so the request is out.
@@ -81,13 +89,17 @@ test.describe('vendors list pages from the server', () => {
     const lowerFable = `zz paging ${stamp} fable`
     // The names a search with Show inactive off can find.
     const activeNames: string[] = []
+    // The server gives each vendor a code (from its name), which the search also matches.
+    const activeRows: Searched[] = []
 
     test.beforeAll(async () => {
         const pb = await superuserClient()
         const create = async (display_name: string, inactive = false) => {
             const row = await pb.collection('books_vendors').create({ display_name, inactive })
             seeded.push({ collection: 'books_vendors', id: row.id })
-            if (!inactive) activeNames.push(display_name)
+            if (inactive) return
+            activeNames.push(display_name)
+            activeRows.push({ name: display_name, code: row.code })
         }
         // Created in reverse order, so the order the list shows is the server's sort.
         for (let n = 57; n >= 1; n--) await create(vendor(`Vendor ${two(n)}`))
@@ -172,7 +184,7 @@ test.describe('vendors list pages from the server', () => {
             },
         ]
         for (const { term, pieces, otherWay } of cutTerms) {
-            const expected = holdingAll(activeNames, pieces)
+            const expected = holdingAll(activeRows, pieces)
             expect(expected.length).not.toBe(activeNames.filter(name => otherWay.test(name)).length)
             await searchVendors(page, term)
             for (const name of expected) await expect(vendorEntry(page, name)).toBeVisible()
@@ -327,7 +339,7 @@ test.describe('products list pages from the server', () => {
         const searched = searchRequest(seen, stamp)
         expect(searched?.searchParams.get('perPage')).toBe('51')
         expect(filterOf(searched)).toBe(
-            `((name ~ "%${stamp}%" || sku ~ "%${stamp}%" || sales_description ~ "%${stamp}%") && inactive = false)`
+            `((code ~ "%${stamp}%" || name ~ "%${stamp}%" || vendor_part_no ~ "%${stamp}%" || sales_description ~ "%${stamp}%") && inactive = false)`
         )
         expect(seen.some(isCursor)).toBe(false)
         await expect
