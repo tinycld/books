@@ -270,6 +270,7 @@ const DRAFT_LINE: BooksBillLines = {
     rate: 0,
     amount: 41_286,
     position: 0,
+    po_line: '',
     created: DRAFT_ROW.created,
     updated: DRAFT_ROW.updated,
 }

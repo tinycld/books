@@ -19,9 +19,10 @@ import (
 // 2100000023_create_books_vendor_credits.js, the vendor refunds' by
 // 2100000024_create_books_vendor_refunds.js, the refund receipts' by
 // 2100000025_create_books_refund_receipts.js, the write-offs' by
-// 2100000027_create_books_write_offs.js, and the deposits' by
-// 2100000037_create_books_deposits.js; the code column of the customers', vendors'
-// and products' by 2100000046_add_books_record_codes.js.
+// 2100000027_create_books_write_offs.js, the deposits' by
+// 2100000037_create_books_deposits.js, and the purchase orders' by
+// 2100000048_create_books_purchase_orders.js; the code column of the
+// customers', vendors' and products' by 2100000046_add_books_record_codes.js.
 const (
 	accountsIndex       = "fts_books_accounts"
 	entriesIndex        = "fts_books_journal_entries"
@@ -41,6 +42,7 @@ const (
 	refundReceiptsIndex = "fts_books_refund_receipts"
 	writeOffsIndex      = "fts_books_write_offs"
 	depositsIndex       = "fts_books_deposits"
+	purchaseOrdersIndex = "fts_books_purchase_orders"
 )
 
 // searchIndexes keep each FTS row in step with its record. The columns repeat
@@ -66,6 +68,7 @@ var searchIndexes = []fts.Config{
 	{Slug: "books", Collection: "books_refund_receipts", Table: refundReceiptsIndex, Columns: ftsColumns("number", "reference_no", "memo", "message")},
 	{Slug: "books", Collection: writeOffsCollection, Table: writeOffsIndex, Columns: ftsColumns("number", "memo")},
 	{Slug: "books", Collection: depositsCollection, Table: depositsIndex, Columns: ftsColumns("number", "memo")},
+	{Slug: "books", Collection: purchaseOrdersCollection, Table: purchaseOrdersIndex, Columns: ftsColumns("number", "memo", "message")},
 }
 
 // ftsColumns indexes each field under its own name.

@@ -229,6 +229,38 @@ func TestLifecycle_ASmallCompany(t *testing.T) {
 
 // The expected numbers must be able to fail: one changed account, one changed
 // day and one changed amount each give a ledger that the literals refuse.
+// Spec §3.1: the document layer's third lifecycle. A purchase order is open or
+// closed and editable only while open; it is a kind of the layer, found by its
+// collection.
+func TestLifecycle_TheOrderLifecycleOfThePurchaseOrder(t *testing.T) {
+	if lifecycleOrder != "order" {
+		t.Errorf("lifecycleOrder = %q, want order", lifecycleOrder)
+	}
+	if purchaseOrderKind.Lifecycle != lifecycleOrder || purchaseOrderKind.DocType != docTypePurchaseOrder ||
+		docTypePurchaseOrder != "purchase_order" {
+		t.Errorf("purchaseOrderKind lifecycle %q doc type %q, want order and purchase_order",
+			purchaseOrderKind.Lifecycle, purchaseOrderKind.DocType)
+	}
+	if purchaseOrderKind.Party != partyVendor || purchaseOrderKind.HostKey != "books:purchase_order" ||
+		purchaseOrderKind.LinesCollection != "books_purchase_order_lines" || purchaseOrderKind.ParentField != "purchase_order" {
+		t.Errorf("purchaseOrderKind party %q host %q lines %q parent %q, want vendor, books:purchase_order, books_purchase_order_lines, purchase_order",
+			purchaseOrderKind.Party, purchaseOrderKind.HostKey, purchaseOrderKind.LinesCollection, purchaseOrderKind.ParentField)
+	}
+	for status, want := range map[string]bool{"open": true, statusClosed: false, statusDraft: false, statusPosted: false} {
+		if got := purchaseOrderKind.isEditableStatus(status); got != want {
+			t.Errorf("purchaseOrderKind.isEditableStatus(%q) = %v, want %v", status, got, want)
+		}
+	}
+	kind, ok := salesDocKindOf("books_purchase_orders")
+	if !ok || kind.Collection != "books_purchase_orders" || kind.Lifecycle != lifecycleOrder {
+		t.Errorf("salesDocKindOf(books_purchase_orders) = %q %q %v, want the purchase order kind", kind.Collection, kind.Lifecycle, ok)
+	}
+	// The other kinds keep their lifecycle.
+	if estimateKind.Lifecycle != lifecycleQuote || billKind.Lifecycle != lifecyclePosting {
+		t.Errorf("estimate %q bill %q, want quote and posting", estimateKind.Lifecycle, billKind.Lifecycle)
+	}
+}
+
 func TestLifecycle_EachChangedInputFails(t *testing.T) {
 	account, day, amount := lifecycleDefault, lifecycleDefault, lifecycleDefault
 	account.secondSaleToSavings = true

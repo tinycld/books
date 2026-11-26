@@ -162,6 +162,21 @@ describe('statement doc type', () => {
     })
 })
 
+// The seeded `purchase_order` row (booksseqpurchor) gets the "Purchase orders" card; a
+// purchase order takes its number when it is first saved and never posts (purchase order
+// spec §3.5, §3.14).
+describe('purchase_order doc type', () => {
+    it('names the Numbering card "Purchase orders", says saved and previews the next purchase order', () => {
+        expect(DOC_TYPES.purchase_order).toEqual({
+            label: 'Purchase orders',
+            noun: 'purchase order',
+        })
+        expect(docTypeLabel('purchase_order')).toBe('Purchase orders')
+        expect(nextNumberPreview('purchase_order', '', '1001')).toBe('Next purchase order: 1001')
+        expect(sequenceHelper('purchase_order')).toContain('purchase orders saved from now on')
+    })
+})
+
 describe('sequenceHelper', () => {
     it('says a new estimate prefix applies to estimates saved from now on', () => {
         expect(sequenceHelper('estimate')).toBe(

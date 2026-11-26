@@ -85,6 +85,8 @@ function bill(seed: BillSeed): BillRecord {
         entry: '',
         replaces: '',
         replaced_by: '',
+        // No seeded bill is made from a purchase order (2100000048).
+        purchase_order: '',
         posted_by: '',
         posted_at: '',
         voided_by: '',
@@ -183,6 +185,7 @@ function lines(billId: string, tag: string, seeds: LineSeed[]): BillLineFixtureR
         quantity: 0,
         rate: 0,
         amount: 0,
+        po_line: '',
         created: STAMP,
         updated: STAMP,
         ...seed,

@@ -43,10 +43,17 @@ const msgVendorOnVendorCredits = "%s is on vendor credits. Make it inactive inst
 // reference error.
 const msgVendorOnVendorRefunds = "%s is on vendor refunds. Make it inactive instead."
 
+// msgVendorOnPurchaseOrders refuses deleting a vendor that a purchase order,
+// open or closed, names (purchase order spec §3.14). The order's vendor is a
+// required relation, so PocketBase would refuse the delete with a generic
+// reference error.
+const msgVendorOnPurchaseOrders = "%s is on purchase orders. Make it inactive instead."
+
 // The vendor guard reads other vendors and the expense account inside
 // serialized, so no other write can commit between the check and the write
 // it allows. The delete guard counts the bills, the expenses, the vendor
-// credits, the vendor refunds and the journal lines that name the vendor
+// credits, the vendor refunds, the purchase orders and the journal lines that
+// name the vendor
 // inside serialized, so no
 // document or line write can commit between the count and the delete.
 func registerVendorGuard(app core.App) {
@@ -59,7 +66,8 @@ func registerVendorGuard(app core.App) {
 }
 
 // checkVendorDelete counts the vendor's bills, then its expenses, then its
-// vendor credits, then its vendor refunds, then its deposit lines, before its
+// vendor credits, then its vendor refunds, then its purchase orders, then its
+// deposit lines, before its
 // journal lines: a posted
 // document's entry names
 // the vendor on every line, and the document text says what holds the vendor.
@@ -91,6 +99,13 @@ func checkVendorDelete(tx core.App, vendor *core.Record) error {
 	}
 	if refunds > 0 {
 		return refuseNamed(msgVendorOnVendorRefunds, vendor.GetString("display_name"))
+	}
+	orders, err := tx.CountRecords(purchaseOrdersCollection, dbx.HashExp{"vendor": vendor.Id})
+	if err != nil {
+		return fmt.Errorf("books: count the purchase orders of vendor %s: %w", vendor.Id, err)
+	}
+	if orders > 0 {
+		return refuseNamed(msgVendorOnPurchaseOrders, vendor.GetString("display_name"))
 	}
 	if err := refusePartyOnDeposits(tx, "vendor", vendor); err != nil {
 		return err

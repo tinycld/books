@@ -7,6 +7,7 @@ export const DOC_TYPES: Record<string, { label: string; noun: string }> = {
     refund_receipt: { label: 'Refund receipts', noun: 'refund receipt' },
     estimate: { label: 'Estimates', noun: 'estimate' },
     bill: { label: 'Bills', noun: 'bill' },
+    purchase_order: { label: 'Purchase orders', noun: 'purchase order' },
     expense: { label: 'Expenses', noun: 'expense' },
     vendor_credit: { label: 'Vendor credits', noun: 'vendor credit' },
     payment: { label: 'Payments', noun: 'payment' },
@@ -19,13 +20,13 @@ export const DOC_TYPES: Record<string, { label: string; noun: string }> = {
 }
 
 // Documents that never post take their numbers when they are saved.
-const NUMBERED_ON_SAVE = new Set(['estimate', 'statement'])
+const NUMBERED_ON_SAVE = new Set(['estimate', 'purchase_order', 'statement'])
 
 export function docTypeLabel(docType: string): string {
     return DOC_TYPES[docType]?.label ?? docType
 }
 
-// Estimates and statements never post, so their numbers are taken when they are saved;
+// Estimates, purchase orders and statements never post, so their numbers are taken when they are saved;
 // journal entries keep the word "entries" rather than their label.
 export function sequenceHelper(docType: string): string {
     const what = docType === 'journal' ? 'entries' : docTypeLabel(docType).toLowerCase()

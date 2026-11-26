@@ -54,6 +54,7 @@ import { JOURNAL_SEED } from './lib/journal-entries-fixture'
 import { BILL_PAYMENT_SEED, PAY_BILLS_SEED_BILLS } from './lib/pay-bills-fixture'
 import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
 import { PURCHASE_LIST_SEED } from './lib/purchase-lists-fixture'
+import { PURCHASE_ORDER_LINES, PURCHASE_ORDERS } from './lib/purchase-orders-fixture'
 import { PAYMENT_SEED } from './lib/receive-payment-fixture'
 import { RECONCILE_SEED } from './lib/reconcile-fixture'
 import { RECONCILIATION_REPORT_SEED } from './lib/reconciliation-report-fixture'
@@ -332,6 +333,8 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedVendorContacts(pb)
     await seedDeclinedEstimates(pb, customerIds)
     const billIds = await seedBills(pb, ctx, accountIds)
+    // The orders have their own sequence, so no other seeded number moves.
+    await seedPurchaseOrders(pb, ctx, accountIds)
     await seedBillPayments(pb, ctx, accountIds)
     const expenseIds = await seedExpenses(pb, ctx, accountIds)
     const creditIds = await seedVendorCredits(pb, ctx, accountIds)
@@ -1657,6 +1660,53 @@ export async function seedBills(
         await postSeedDocument(pb, 'books_bills', created.id, ctx.user.id)
     }
     return billIds
+}
+
+// The five fixture orders, as the order form saves them (purchase order spec §4 seed): the
+// header first, then each line, in fixture order, so the server numbers them 1001 to 1005.
+// Every order is created open and no bill names one yet, so the fixture's closed orders and
+// received values are the reference's, not the seed's. The server sets the number, the
+// sequence, the totals and every open value, and the line saves put the Inventory item's
+// two on order ("on PO"). A superuser create keeps `created_by` (server/fields.go
+// stampActor), so the seeded user is named, as seedBills names it.
+export async function seedPurchaseOrders(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>
+): Promise<void> {
+    for (const order of PURCHASE_ORDERS) {
+        const created = await pb.collection('books_purchase_orders').create({
+            id: order.id,
+            vendor: order.vendor,
+            status: 'open',
+            date: order.date,
+            mailing_address: order.mailing_address,
+            email: order.email,
+            ship_to: order.ship_to,
+            message: order.message,
+            memo: order.memo,
+            created_by: ctx.user.id,
+        })
+        for (const line of PURCHASE_ORDER_LINES.filter(row => row.purchase_order === order.id)) {
+            const account = seededAccountId(
+                accountIds,
+                line.account_number,
+                `purchase order line ${line.id}`
+            )
+            const typed =
+                line.kind === 'account'
+                    ? { account, amount: line.amount }
+                    : { product: line.product, quantity: line.quantity, rate: line.rate }
+            await pb.collection('books_purchase_order_lines').create({
+                id: line.id,
+                purchase_order: created.id,
+                position: line.position,
+                kind: line.kind,
+                description: line.description,
+                ...typed,
+            })
+        }
+    }
 }
 
 // Pays the bills PAY_BILLS_SEED_BILLS posted, per BILL_PAYMENT_SEED, through the write Pay

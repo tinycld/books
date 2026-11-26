@@ -14,6 +14,7 @@ func TestSalesDocKindOf_FindsEveryKindByItsCollection(t *testing.T) {
 		"invoiceKind": invoiceKind, "salesReceiptKind": salesReceiptKind, "estimateKind": estimateKind,
 		"creditMemoKind": creditMemoKind, "refundReceiptKind": refundReceiptKind,
 		"billKind": billKind, "expenseKind": expenseKind, "vendorCreditKind": vendorCreditKind,
+		"purchaseOrderKind": purchaseOrderKind,
 	}
 	for name, want := range kinds {
 		got, ok := salesDocKindOf(want.Collection)

@@ -518,7 +518,7 @@
                 { "flag": "status", "field": "status", "help": "only bills with this status: draft, posted or void" },
                 { "flag": "vendor", "field": "vendor", "help": "only the bills of the vendor with this id" }
             ],
-            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "form", "fields", "sort_key"],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "form", "fields", "sort_key", "purchase_order"],
             "deleteHelp": "Only a draft can be deleted. Void a posted bill with `void`: it stays in the books with its number, and its amounts no longer count.",
             "fields": [
                 { "name": "vendor", "type": "id", "ref": "vendors", "required": true, "help": "the vendor you owe" },
@@ -546,7 +546,7 @@
                     "collection": "books_bill_lines",
                     "parent": "bill",
                     "sort": "position,id",
-                    "omit": ["bill", "position"],
+                    "omit": ["bill", "position", "po_line"],
                     "computed": [
                         { "field": "amount", "when": "kind", "is": ["item"] }
                     ],

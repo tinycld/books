@@ -58,8 +58,23 @@ func TestSearchIndex_TablesHoldTheConfiguredColumns(t *testing.T) {
 			t.Errorf("%s indexes %s: %v", cfg.Table, cfg.Collection, err)
 		}
 	}
-	if len(searchIndexes) != 18 {
-		t.Fatalf("%d indexes, want one per search source (18)", len(searchIndexes))
+	if len(searchIndexes) != 19 {
+		t.Fatalf("%d indexes, want one per search source (19)", len(searchIndexes))
+	}
+	if purchaseOrdersIndex != "fts_books_purchase_orders" {
+		t.Errorf("purchaseOrdersIndex = %q, want fts_books_purchase_orders", purchaseOrdersIndex)
+	}
+	for _, cfg := range searchIndexes {
+		if cfg.Table != purchaseOrdersIndex {
+			continue
+		}
+		var cols []string
+		for _, c := range cfg.Columns {
+			cols = append(cols, c.FTS+"="+c.Field)
+		}
+		if got := strings.Join(cols, ","); got != "number=number,memo=memo,message=message" {
+			t.Errorf("fts_books_purchase_orders columns %s, want number, memo, message", got)
+		}
 	}
 	for _, cfg := range searchIndexes {
 		if cfg.Table != "fts_books_deposits" {
@@ -109,6 +124,7 @@ func TestSearchIndex_TablesHoldTheConfiguredColumns(t *testing.T) {
 		"fts_books_vendor_refunds":  "books_vendor_refunds",
 		"fts_books_write_offs":      "books_write_offs",
 		"fts_books_deposits":        "books_deposits",
+		"fts_books_purchase_orders": "books_purchase_orders",
 	} {
 		var indexed []string
 		for _, cfg := range searchIndexes {

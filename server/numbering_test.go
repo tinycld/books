@@ -459,13 +459,14 @@ func TestJournalEntryOrigin_HasDocument(t *testing.T) {
 
 func TestDocTypes_MatchTheMigrations(t *testing.T) {
 	app := newBooksApp(t)
-	// Estimates never post and a statement is not a journal entry, so only the
-	// sequences know the estimate and statement doc types. The lists are
-	// compared sorted: where a new doc type lands in the select is not a rule.
+	// Estimates and purchase orders never post and a statement is not a journal
+	// entry, so only the sequences know the estimate, purchase order and
+	// statement doc types. The lists are compared sorted: where a new doc type
+	// lands in the select is not a rule.
 	entryTypes := []string{"journal", "transfer", "invoice", "sales_receipt", "bill", "expense", "payment", "bill_payment", "credit_memo", "vendor_credit", "vendor_refund", "refund_receipt", "write_off", "deposit", "inventory_adjustment"}
 	want := map[string][]string{
 		"books_journal_entries": slices.Sorted(slices.Values(entryTypes)),
-		"books_doc_sequences":   slices.Sorted(slices.Values(append(slices.Clone(entryTypes), "estimate", "statement"))),
+		"books_doc_sequences":   slices.Sorted(slices.Values(append(slices.Clone(entryTypes), "estimate", "purchase_order", "statement"))),
 	}
 	for _, name := range []string{"books_journal_entries", "books_doc_sequences"} {
 		want := want[name]

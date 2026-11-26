@@ -78,6 +78,9 @@ func entryNouns(docType string) (noun, this, draft string) {
 	case docTypeEstimate:
 		// An estimate has no draft: it is numbered when it is created.
 		return "Estimate", "This estimate", "Estimate"
+	case docTypePurchaseOrder:
+		// A purchase order has no draft: it is numbered when it is created.
+		return "Purchase order", "This purchase order", "Purchase order"
 	}
 	return "Journal entry", "This journal entry", "Draft journal entry"
 }

@@ -21,6 +21,10 @@ import {
 // forms host (forms/hosts.ts) seeds it too.
 export const MEMO_HINT = 'Only your team sees this. Saved as the journal entry memo.'
 
+// The purchase order's forms host (forms/hosts.ts); the Go line guard reads the same key
+// (server/purchase_orders.go).
+export const PURCHASE_ORDER_HOST_KEY = 'books:purchase_order'
+
 export type SalesDocKey =
     | 'invoice'
     | 'sales_receipt'

@@ -52,6 +52,8 @@ const AUDIT = '2100000043_create_books_audit_log.js'
 
 const INVENTORY = '2100000038_create_books_inventory.js'
 
+const PURCHASE_ORDERS = '2100000048_create_books_purchase_orders.js'
+
 const RECONCILE_SUFFIX = '_create_books_reconciliations.js'
 
 const RECONCILE = MIGRATIONS.filter(file => file.endsWith(RECONCILE_SUFFIX))
@@ -91,6 +93,10 @@ const AFTER_AUDIT: string[] = [
 const AFTER_AUDIT_FIELDS: string[] = [
     '2100000046_add_books_record_codes.js',
     '2100000047_rename_books_products_sku.js',
+    // Purchase order spec §3.14, §4: the orders and their lines run after the view, and
+    // because Books v0.0.1 shipped 2100000043, this migration rebuilds the view itself so
+    // that it reads the order lines and the purchase order sends (see the test below).
+    PURCHASE_ORDERS,
 ]
 
 // The migrations between the inventory migration and the audit view, in their order.
@@ -108,10 +114,20 @@ function sourceOf(file: string): string {
     return readFileSync(join(MIGRATIONS_DIR, file), 'utf8')
 }
 
+// The rows of a migration's top-level `const <name> = [ … ]` list, each row's quoted
+// strings in order.
+function listRows(file: string, name: string): string[][] {
+    const list = new RegExp(`const ${name} = \\[([\\s\\S]*?)\\n\\]`).exec(sourceOf(file))?.[1] ?? ''
+    return [...list.matchAll(/\[([^[\]]*)\]/g)].map(row =>
+        [...(row[1] ?? '').matchAll(/'([^']*)'/g)].map(value => value[1] ?? '')
+    )
+}
+
 // The line collections the audit view reads: the first name of each row of its LINES list.
 function auditLineCollections(): string[] {
-    const list = /const LINES = \[([\s\S]*?)\n\]/.exec(sourceOf(AUDIT))?.[1] ?? ''
-    return [...list.matchAll(/\[\s*'(books_\w+)'/g)].map(match => match[1] ?? '')
+    return listRows(AUDIT, 'LINES')
+        .map(row => row[0] ?? '')
+        .filter(name => name.startsWith('books_'))
 }
 
 // The migrations that create the collection: those that give a collection its name.
@@ -300,5 +316,30 @@ describe('pb-migrations prefixes', () => {
         ])
         expect(numberOf('2100000034_create_books_document_sends.js')).toBeLessThan(numberOf(AUDIT))
         expect(auditLineCollections()).toContain('books_document_sends')
+    })
+
+    // Purchase order spec §3.14: the audit view reads the order lines (their parent is
+    // the order) and the purchase order sends, as it reads the estimate's. Books v0.0.1
+    // shipped 2100000043, so 2100000048 rebuilds the view with those rows added to its
+    // LINES and SEND_PARENTS rows, after it creates the order lines; 2100000043 stays as
+    // released. That the rebuilt view still reads every shipped line collection is
+    // TestAuditLogParents' (server/report_audit_log_test.go), which runs on the view.
+    it('rebuilds the audit log view in 2100000048 with the order lines and the purchase order sends', () => {
+        expect(listRows(AUDIT, 'LINES').map(row => row[0])).not.toContain(
+            'books_purchase_order_lines'
+        )
+        expect(listRows(AUDIT, 'SEND_PARENTS').map(row => row[0])).not.toContain('purchase_order')
+        const source = sourceOf(PURCHASE_ORDERS)
+        expect(source).toMatch(
+            /\[\s*'books_purchase_order_lines',\s*'books_purchase_orders',\s*'purchase_order'\s*\]/
+        )
+        expect(source).toMatch(/\[\s*'purchase_order',\s*'books_purchase_orders'\s*\]/)
+        const created = source.indexOf("name: 'books_purchase_order_lines'")
+        const rebuilt = source.search(/viewQuery\s*=|viewQuery:/)
+        expect(created).toBeGreaterThan(-1)
+        expect(rebuilt, 'the rebuild sets the view query after the lines exist').toBeGreaterThan(
+            created
+        )
+        expect(source).toContain("findCollectionByNameOrId('books_audit_log')")
     })
 })

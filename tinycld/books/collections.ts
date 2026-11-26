@@ -343,8 +343,9 @@ export function registerCollections(
     // No relations: the list loads one page of products at a time; a bundle's
     // rows, the product picker and the account pickers read their own
     // collections. The guard sets name_key and sort_key, and the server stamps currency.
-    // The costing replay writes quantity_on_hand and stock_value; the product form writes
-    // the other inventory columns.
+    // The costing replay writes quantity_on_hand and stock_value, and the purchase order
+    // guard quantity_on_po (2100000048); the product form writes the other inventory
+    // columns.
     const books_products = newCollection('books_products', {
         omitOnInsert: [
             'created',
@@ -354,6 +355,7 @@ export function registerCollections(
             'currency',
             'quantity_on_hand',
             'stock_value',
+            'quantity_on_po',
         ] as const,
         ...onDemand,
         collectionOptions: indexed,
@@ -653,6 +655,48 @@ export function registerCollections(
     // the server computes a product line's and refuses one sent with it.
     const books_bill_lines = newCollection('books_bill_lines', {
         omitOnInsert: ['created', 'updated'] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // As the estimate's (purchase order spec §4): server-owned fields below the omit
+    // line (the number at the first save, the totals and the open amount at every
+    // write, the close stamps at Close or when every line is received, the creator),
+    // no relations (the order screen reads its vendor, accounts, products, users and
+    // bills through their own queries).
+    const books_purchase_orders = newCollection('books_purchase_orders', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'number',
+            'sequence',
+            'subtotal',
+            'total',
+            'open_amount',
+            'revision',
+            'currency',
+            'closed_reason',
+            'closed_by',
+            'closed_at',
+            'created_by',
+            'sort_key',
+        ] as const,
+        ...onDemand,
+        collectionOptions: indexed,
+    })
+
+    // As the bill line's, amount stays insertable: an account line's amount is typed by
+    // the writer; the server computes a product line's. The received, billed and open
+    // values are the server's (server/purchase_order_receipts.go).
+    const books_purchase_order_lines = newCollection('books_purchase_order_lines', {
+        omitOnInsert: [
+            'created',
+            'updated',
+            'received',
+            'billed',
+            'open_quantity',
+            'open_amount',
+        ] as const,
         ...onDemand,
         collectionOptions: indexed,
     })
@@ -1169,6 +1213,8 @@ export function registerCollections(
         books_estimate_responses,
         books_bills,
         books_bill_lines,
+        books_purchase_orders,
+        books_purchase_order_lines,
         books_expenses,
         books_expense_lines,
         books_payments,

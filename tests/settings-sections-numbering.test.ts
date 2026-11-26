@@ -17,15 +17,22 @@ describe('numbering settings section', () => {
     })
 })
 
-// The values migration 2100000001 sets on the seeded books_doc_sequences row with this id:
+const SETTINGS_MIGRATION = '2100000001_create_books_settings.js'
+
+// Books v0.0.1 shipped 2100000001, so a sequence row added after it is seeded by the
+// unit's own migration (CLAUDE.md: a shipped migration is immutable).
+const PURCHASE_ORDERS_MIGRATION = '2100000048_create_books_purchase_orders.js'
+
+function migrationSource(file: string): string {
+    return readFileSync(join(__dirname, '..', 'pb-migrations', file), 'utf8')
+}
+
+// The values a migration sets on the seeded books_doc_sequences row with this id:
 // `<record>.set('id', '<id>')`, then that record's other `.set(...)` calls.
-function seededSequence(id: string): Record<string, string> {
-    const source = readFileSync(
-        join(__dirname, '..', 'pb-migrations', '2100000001_create_books_settings.js'),
-        'utf8'
-    )
+function seededSequence(id: string, file = SETTINGS_MIGRATION): Record<string, string> {
+    const source = migrationSource(file)
     const record = source.match(new RegExp(`(\\w+)\\.set\\('id', '${id}'\\)`))?.[1]
-    if (!record) throw new Error(`migration 2100000001 seeds no sequence row ${id}`)
+    if (!record) throw new Error(`migration ${file} seeds no sequence row ${id}`)
     const sets = source.matchAll(
         new RegExp(`\\b${record}\\.set\\('(\\w+)', ('[^']*'|\\d+)\\)`, 'g')
     )
@@ -49,6 +56,32 @@ describe('the Vendor credits numbering card', () => {
         expect(docTypeLabel(row.doc_type ?? '')).toBe('Vendor credits')
         expect(nextNumberPreview(row.doc_type ?? '', row.prefix ?? '', row.next_number ?? '')).toBe(
             'Next vendor credit: 1001'
+        )
+    })
+})
+
+// Purchase order spec §3.14, §4: the seeded `purchase_order` row is the "Purchase orders"
+// card, with no prefix, next 1001. Migration 2100000048 seeds it; the shipped 2100000001
+// stays as v0.0.1 released it.
+describe('the Purchase orders numbering card', () => {
+    it('is seeded by 2100000048 as booksseqpurchor: purchase_order, no prefix, next 1001', () => {
+        expect(seededSequence('booksseqpurchor', PURCHASE_ORDERS_MIGRATION)).toEqual({
+            id: 'booksseqpurchor',
+            doc_type: 'purchase_order',
+            prefix: '',
+            next_number: '1001',
+        })
+    })
+
+    it('is not seeded by the shipped 2100000001', () => {
+        expect(migrationSource(SETTINGS_MIGRATION)).not.toContain('booksseqpurchor')
+    })
+
+    it('reads "Purchase orders" and previews "Next purchase order: 1001"', () => {
+        const row = seededSequence('booksseqpurchor', PURCHASE_ORDERS_MIGRATION)
+        expect(docTypeLabel(row.doc_type ?? '')).toBe('Purchase orders')
+        expect(nextNumberPreview(row.doc_type ?? '', row.prefix ?? '', row.next_number ?? '')).toBe(
+            'Next purchase order: 1001'
         )
     })
 })

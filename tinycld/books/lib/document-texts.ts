@@ -548,3 +548,114 @@ export const ESTIMATE_MESSAGES = {
     deleteBody: string
     deleteAction: string
 }
+
+// The purchase order's texts (purchase order spec, Messages). The first group is shown by
+// the client and refused by the server with the same words (server/purchase_orders.go and
+// server/purchase_order_receipts.go; the vendor, account and product texts of a bill's
+// post are the bill's, in server/bills.go and server/purchase_lines.go);
+// tests/document-messages.test.ts fails when they drift. PocketBase adds a final period
+// to a server text that has none. `%d` is the line's number in its table, `%s` an amount,
+// a quantity, a bill's number or an order's number as the key's comment says. A
+// purchase order's party is a vendor: the `customer…` keys of the shared layer hold the
+// vendor's texts. It has no percent lines and no bundles; the type's texts for them are
+// the invoice's and never show. It never posts, so it has no void text.
+export const PURCHASE_ORDER_MESSAGES = {
+    totalNegative: 'A purchase order total cannot be below zero.',
+    totalTooLarge: 'The purchase order total is more than Books can store.',
+    tooManyLines: 'A purchase order holds at most 250 lines.',
+    customerInactive: BILL_MESSAGES.customerInactive,
+    // The vendor's delete refusal (server/vendors.go); `%s` is the vendor's name.
+    customerOnInvoices: '%s is on purchase orders. Make it inactive instead.',
+    accountInactive: BILL_MESSAGES.accountInactive,
+    accountNotExpense: BILL_MESSAGES.accountNotExpense,
+    productInactive: BILL_MESSAGES.productInactive,
+    productNotPurchased: BILL_MESSAGES.productNotPurchased,
+    accountAmountZero: BILL_MESSAGES.accountAmountZero,
+    // The edit refusals of a line that posted bills name: the first `%s` is what the bills
+    // hold (a quantity, or an amount in money text), the second the same bound.
+    belowReceived: 'Product line %d: %s are received. The quantity cannot be below %s.',
+    belowBilled: 'Account line %d: %s is billed. The amount cannot be below %s.',
+    // A line a bill line names is not removed; `%s` is the bill's number.
+    productLineOnBill: 'Product line %d is on bill %s and cannot be removed.',
+    accountLineOnBill: 'Account line %d is on bill %s and cannot be removed.',
+    productLineOnDraftBill: 'Product line %d is on a draft bill and cannot be removed.',
+    accountLineOnDraftBill: 'Account line %d is on a draft bill and cannot be removed.',
+    productKept: 'Product line %d: a line that a bill names keeps its product.',
+    accountKept: 'Account line %d: a line that a bill names keeps its account.',
+    vendorKept: 'Bills are made from this purchase order, so its vendor cannot change.',
+    // The delete refusal; `%s` is the order's number.
+    hasBills: 'Purchase order %s has bills. Close it instead.',
+    closedNoEdit: 'A closed purchase order cannot be edited.',
+    closedLines: 'The lines of a closed purchase order cannot change.',
+    adminOnly: 'Only a Books admin closes or reopens a purchase order.',
+    receivedReopen:
+        'A purchase order that closed because every line is received opens again from its bills.',
+
+    // Client only.
+    percentTarget: INVOICE_MESSAGES.percentTarget,
+    needItemLine: BILL_MESSAGES.needItemLine,
+    quantityNotPositive: INVOICE_MESSAGES.quantityNotPositive,
+    quantityDecimals: INVOICE_MESSAGES.quantityDecimals,
+    quantityTooLarge: INVOICE_MESSAGES.quantityTooLarge,
+    rateMalformed: INVOICE_MESSAGES.rateMalformed,
+    rateTooLarge: INVOICE_MESSAGES.rateTooLarge,
+    // books_purchase_order_lines.rate has min 0, as a bill line's.
+    rateNegative: BILL_MESSAGES.rateNegative,
+    percentRange: INVOICE_MESSAGES.percentRange,
+    percentDecimals: INVOICE_MESSAGES.percentDecimals,
+    noAccess: 'You need bookkeeper access to create purchase orders',
+    notFound: 'This purchase order does not exist',
+    // The read view's notice at `?edit=1` of a closed order (spec §3.12).
+    cannotEdit: 'A closed purchase order cannot be edited.',
+    loadFailed: 'Books could not load this purchase order.',
+    customerLoadFailed: BILL_MESSAGES.customerLoadFailed,
+    bundleEmpty: INVOICE_MESSAGES.bundleEmpty,
+    bundleLoadFailed: INVOICE_MESSAGES.bundleLoadFailed,
+    pdfUnsaved: 'Save the purchase order to see its PDF',
+    // A purchase order has no draft: the notice offers its bar's Save.
+    pdfUnsavedSave: 'Save',
+    pdfStale: INVOICE_MESSAGES.pdfStale,
+    // The bill form's notice at `?purchase_order=` of an order that does not exist, is
+    // closed or has no open line (spec §3.12).
+    nothingLeft: 'This purchase order has nothing left to copy to a bill.',
+    // The Copy to bill dialog (spec §3.7); `%s` is the open quantity or amount.
+    chooseLine: 'Choose at least one line.',
+    overOpen: 'More than the %s still open.',
+    // The delete confirm: its title (`%s` is the number), body and action.
+    deleteTitle: 'Delete purchase order %s?',
+    deleteBody: "This can't be undone.",
+    deleteAction: 'Delete purchase order',
+    // The Close confirm's title (`%s` is the number) and action (spec §3.6).
+    closeTitle: 'Close purchase order %s?',
+    closeAction: 'Close purchase order',
+    empty: 'No purchase orders yet',
+} as const satisfies DocumentMessages & {
+    accountInactive: string
+    accountNotExpense: string
+    productInactive: string
+    productNotPurchased: string
+    accountAmountZero: string
+    belowReceived: string
+    belowBilled: string
+    productLineOnBill: string
+    accountLineOnBill: string
+    productLineOnDraftBill: string
+    accountLineOnDraftBill: string
+    productKept: string
+    accountKept: string
+    vendorKept: string
+    hasBills: string
+    closedNoEdit: string
+    closedLines: string
+    adminOnly: string
+    receivedReopen: string
+    nothingLeft: string
+    chooseLine: string
+    overOpen: string
+    deleteTitle: string
+    deleteBody: string
+    deleteAction: string
+    closeTitle: string
+    closeAction: string
+    empty: string
+}

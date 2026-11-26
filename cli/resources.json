@@ -188,6 +188,7 @@
                 { "name": "inactive", "type": "bool", "help": "an inactive product is hidden from pickers and keeps its history" },
                 { "name": "taxable", "type": "bool", "help": "sales of this product are taxed" },
                 { "name": "quantity_on_hand", "type": "number", "readOnly": true, "help": "inventory item only: the quantity in stock, kept by the server from the posted stock transactions" },
+                { "name": "quantity_on_po", "type": "number", "readOnly": true, "help": "the sum of the open quantities of the product's lines on open purchase orders, kept by the server" },
                 { "name": "stock_value", "type": "integer", "readOnly": true, "help": "inventory item only: the value of the stock in cents, kept by the server from the posted stock transactions" },
                 { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books, set by the server" }
             ]

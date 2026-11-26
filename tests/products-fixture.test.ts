@@ -6,6 +6,7 @@ import {
     PRODUCT_IDS,
     PRODUCTS,
 } from '../tinycld/books/lib/products-services-fixture'
+import { PURCHASE_ORDER_INVENTORY_PRODUCT } from '../tinycld/books/lib/purchase-orders-fixture'
 import { SEED_ACCOUNTS } from '../tinycld/books/lib/seed-accounts'
 
 function seedAccount(number: string) {
@@ -23,12 +24,33 @@ function countOf(predicate: (row: (typeof PRODUCTS)[number]) => boolean) {
 }
 
 describe('products fixture', () => {
-    it('seeds 12 services, 8 non-inventory items (5 purchasing) and 4 bundles', () => {
-        expect(PRODUCTS).toHaveLength(24)
+    it('seeds 12 services, 8 non-inventory items (5 purchasing), 1 inventory item and 4 bundles', () => {
+        expect(PRODUCTS).toHaveLength(25)
         expect(countOf(row => row.type === 'service')).toBe(12)
         expect(countOf(row => row.type === 'non_inventory')).toBe(8)
         expect(countOf(row => row.type === 'non_inventory' && row.purchases)).toBe(5)
+        expect(countOf(row => row.type === 'inventory')).toBe(1)
         expect(countOf(row => row.type === 'bundle')).toBe(4)
+    })
+
+    // Purchase order spec §4 seed: the Inventory item of order 1004 is one more seeded
+    // product. It names no asset or cost-of-goods account: the seeded chart has neither, and
+    // the server's product guard fills both (server/product_stock.go validateInventoryItem).
+    it('seeds the Thermal label printer as the one active, purchasing Inventory item', () => {
+        const printer = productById(PURCHASE_ORDER_INVENTORY_PRODUCT.id)
+        expect(printer).toMatchObject({
+            id: 'prodlabelprt001',
+            type: 'inventory',
+            name: 'Thermal label printer',
+            vendor_part_no: '',
+            purchases: true,
+            purchase_description: 'Thermal label printer, 4 x 6 in, USB and Ethernet.',
+            cost: 28_900,
+            inactive: false,
+            opening_quantity: 0,
+        })
+        expect(printer.expense_account_number).toBe('')
+        expect(printer.asset_account).toBe('')
     })
 
     it("uses only the migration's product types", () => {

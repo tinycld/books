@@ -7,6 +7,10 @@ export const DOCUMENT_NOTE_LABELS = {
     memo: 'Internal memo (not printed)',
 } as const
 
+// A vendor kind's message (a purchase order, spec §3.4): the vendor reads it on the
+// document and its PDF.
+export const VENDOR_MESSAGE_LABEL = 'Message to vendor (printed)'
+
 // A kind with no message to the customer (a bill prints nothing) has only the memo, so
 // its label needs no "not printed" to tell the two notes apart.
 export const MEMO_ONLY_LABEL = 'Memo'

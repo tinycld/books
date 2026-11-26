@@ -253,6 +253,8 @@ function useBillWrites(): DocumentWrites {
         // of that shape; the shared layer carries them untyped.
         insertRecord: input =>
             billsCollection.insert({
+                // A bill this form starts names no purchase order (2100000048).
+                purchase_order: '',
                 ...(input.columns as BillInsertColumns),
                 replaces: input.replaces,
                 id: input.id,
@@ -280,7 +282,8 @@ function useBillWrites(): DocumentWrites {
         },
         lineOps: (billId, mapper) =>
             purchaseLineOps(mapper, {
-                insert: record => linesCollection.insert({ ...record, bill: billId }),
+                // A line this form adds names no purchase order line (2100000048).
+                insert: record => linesCollection.insert({ po_line: '', ...record, bill: billId }),
                 update: (lineId, record) =>
                     linesCollection.update(lineId, draft => {
                         Object.assign(draft, record)

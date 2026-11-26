@@ -297,5 +297,6 @@ export function emptyOpenPurchaseOrdersResult(): RunResult {
     return { ...openPurchaseOrdersResult(), rows: [totalRow([])] }
 }
 
-// The Vendor filter of the `report-filtered` state.
-export const OPEN_PURCHASE_ORDERS_FILTER_PICK = ['Northwest Paper Co.']
+// The Vendor filter of the `report-filtered` state: the vendor of the partly received
+// order 1003.
+export const OPEN_PURCHASE_ORDERS_FILTER_PICK = ['Lumen & Ledger Coworking']

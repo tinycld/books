@@ -35,6 +35,7 @@ const sentRowSchema = z.looseObject({
     document: z.string(),
     number: z.string(),
     customer: z.string(),
+    vendor: z.string(),
     to: z.string(),
     cc: z.string(),
     subject: z.string(),

@@ -61,6 +61,7 @@ export const INVOICE_PRODUCTS = [
         opening_date: '',
         quantity_on_hand: 0,
         stock_value: 0,
+        quantity_on_po: 0,
         taxable: false,
         inactive: false,
         currency: INVOICE_CURRENCY,

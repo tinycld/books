@@ -17,6 +17,11 @@ import { CUSTOMER_BALANCE_SEED } from '../tinycld/books/lib/customer-balance-fix
 import { CUSTOMERS } from '../tinycld/books/lib/customer-form-fixture'
 import { REVIEW_SEED_ENTRIES, REVIEW_SEED_STATEMENT } from '../tinycld/books/lib/for-review-fixture'
 import { GENERAL_LEDGER_LONG_SECTION } from '../tinycld/books/lib/general-ledger-fixture'
+import {
+    PURCHASE_ORDER_INVENTORY_PRODUCT,
+    PURCHASE_ORDER_LINES,
+    PURCHASE_ORDERS,
+} from '../tinycld/books/lib/purchase-orders-fixture'
 import { RECONCILE_SEED } from '../tinycld/books/lib/reconcile-fixture'
 import { RECONCILIATION_REPORT_SEED } from '../tinycld/books/lib/reconciliation-report-fixture'
 import {
@@ -1867,6 +1872,163 @@ describe('seedDeposits', () => {
             )
         )
         expect(at(items[0])).toBeGreaterThan(at(receiptPosts[0]))
+    })
+})
+
+// Purchase order spec §4 (seed): the Inventory item of order 1004 is created with the
+// other products, active, with its income account. It sends no asset or expense account:
+// the server's Inventory guard fills both (server/product_stock.go validateInventoryItem).
+describe('seedProducts', () => {
+    it('creates the Thermal label printer once, as an active Inventory item with its income account', async () => {
+        // seedProducts takes the PocketBase client; the recorder answers the calls it makes.
+        const seedProducts = (seedModule as Record<string, unknown>).seedProducts
+        expect(typeof seedProducts).toBe('function')
+        if (typeof seedProducts !== 'function') return
+        const { pb, writes } = recordingPb()
+        await seedProducts(pb, seededAccounts())
+        const printers = writes.filter(
+            w =>
+                w.collection === 'books_products' &&
+                w.op === 'create' &&
+                w.id === PURCHASE_ORDER_INVENTORY_PRODUCT.id
+        )
+        expect(printers).toHaveLength(1)
+        const printer = printers[0]?.data ?? {}
+        expect(printer).toMatchObject({
+            type: 'inventory',
+            name: 'Thermal label printer',
+            purchases: true,
+            cost: 28_900,
+            inactive: false,
+        })
+        expect(printer.asset_account ?? '').toBe('')
+        expect(printer.expense_account ?? '').toBe('')
+        expect(printer.income_account ?? '').not.toBe('')
+        const deactivated = writes.filter(
+            w =>
+                w.collection === 'books_products' &&
+                w.op === 'update' &&
+                w.id === PURCHASE_ORDER_INVENTORY_PRODUCT.id &&
+                w.data.inactive === true
+        )
+        expect(deactivated).toEqual([])
+    })
+})
+
+// Purchase order spec §4 (seed): five open orders in fixture order, after the bills, so
+// the server numbers them 1001 to 1005; no bill names them yet. The server sets the
+// number, the sequence, the totals and every open value; the seed sends none of them.
+const ORDER_SERVER_FIELDS = [
+    'number',
+    'sequence',
+    'open_amount',
+    'closed_reason',
+    'closed_by',
+    'closed_at',
+]
+const ORDER_LINE_SERVER_FIELDS = ['received', 'billed', 'open_quantity', 'open_amount']
+
+describe('seedPurchaseOrders', () => {
+    it('runs after seedBills in the seed', () => {
+        const source = readFileSync(seedPath, 'utf8')
+        const body = source.slice(source.indexOf('export default async function seed('))
+        const bills = body.indexOf('seedBills(')
+        const orders = body.indexOf('seedPurchaseOrders(')
+        expect(bills).toBeGreaterThan(-1)
+        expect(orders).toBeGreaterThan(bills)
+    })
+
+    it('creates the five fixture orders as open, in fixture order, each with its lines and no bill', async () => {
+        const seedPurchaseOrders = (seedModule as Record<string, unknown>).seedPurchaseOrders
+        expect(typeof seedPurchaseOrders).toBe('function')
+        if (typeof seedPurchaseOrders !== 'function') return
+        const { pb, writes } = recordingPb()
+        const accounts = seededAccounts()
+        await seedPurchaseOrders(pb, { user: USER }, accounts)
+
+        const headers = writes.filter(
+            w => w.collection === 'books_purchase_orders' && w.op === 'create'
+        )
+        expect(
+            headers.map(w => ({
+                vendor: w.data.vendor,
+                date: String(w.data.date).slice(0, 10),
+                status: w.data.status,
+            }))
+        ).toEqual(
+            PURCHASE_ORDERS.map(order => ({
+                vendor: order.vendor,
+                date: order.date,
+                status: 'open',
+            }))
+        )
+        expect(headers.map(w => w.data.vendor)[2]).toBe('vendlumenledgr1')
+        for (const header of headers) {
+            for (const field of ORDER_SERVER_FIELDS) {
+                expect(header.data, `${header.id} sends ${field}`).not.toHaveProperty(field)
+            }
+            expect(finalStatus(writes, 'books_purchase_orders', header.id)).toBe('open')
+        }
+
+        const lines = writes.filter(w => w.collection === 'books_purchase_order_lines')
+        const at = (w: Write | undefined) => (w ? writes.indexOf(w) : -1)
+        PURCHASE_ORDERS.forEach((order, i) => {
+            const header = headers[i]
+            const own = lines.filter(w => w.data.purchase_order === header?.id)
+            const expected = PURCHASE_ORDER_LINES.filter(
+                line => line.purchase_order === order.id
+            ).map(line =>
+                line.kind === 'item'
+                    ? {
+                          kind: 'item',
+                          position: line.position,
+                          product: line.product,
+                          description: line.description,
+                          quantity: line.quantity,
+                          rate: line.rate,
+                      }
+                    : {
+                          kind: 'account',
+                          position: line.position,
+                          account: accounts.get(line.account_number),
+                          description: line.description,
+                          amount: line.amount,
+                      }
+            )
+            expect(
+                own.map(w =>
+                    w.data.kind === 'item'
+                        ? {
+                              kind: w.data.kind,
+                              position: w.data.position,
+                              product: w.data.product,
+                              description: w.data.description,
+                              quantity: w.data.quantity,
+                              rate: w.data.rate,
+                          }
+                        : {
+                              kind: w.data.kind,
+                              position: w.data.position,
+                              account: w.data.account,
+                              description: w.data.description,
+                              amount: w.data.amount,
+                          }
+                ),
+                order.id
+            ).toEqual(expected)
+            for (const line of own) {
+                expect(at(line)).toBeGreaterThan(at(header))
+                for (const field of ORDER_LINE_SERVER_FIELDS) {
+                    expect(line.data, `${line.id} sends ${field}`).not.toHaveProperty(field)
+                }
+            }
+        })
+        expect(lines).toHaveLength(PURCHASE_ORDER_LINES.length)
+        expect(
+            writes.filter(
+                w => w.collection === 'books_bills' || w.collection === 'books_bill_lines'
+            )
+        ).toEqual([])
     })
 })
 

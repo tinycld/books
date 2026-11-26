@@ -24,6 +24,18 @@ function docTypeSelects() {
     )
 }
 
+const SETTINGS_MIGRATION = '2100000001_create_books_settings.js'
+const SENDS_MIGRATION = '2100000034_create_books_document_sends.js'
+const PURCHASE_ORDERS_MIGRATION = '2100000048_create_books_purchase_orders.js'
+
+// The literal values list of each doc_type field that one migration declares on one
+// collection (a field with no literal list, such as a down step's filter, has none).
+function docTypeValuesIn(file: string, collection: string): string[][] {
+    return migrationFields(file, 'doc_type')
+        .filter(declared => declared.collection === collection)
+        .flatMap(({ field }) => (/values:\s*\[\s*'/.test(field) ? [fieldValues(field)] : []))
+}
+
 function valuesOf(collection: string): string[] {
     return docTypeSelects()
         .filter(select => select.collection === collection)
@@ -111,6 +123,56 @@ describe('doc_type select values against the client lists', () => {
         for (const view of views) {
             expect([...view.values].sort(), `${view.file} ${view.collection}`).toEqual(entryValues)
         }
+    })
+
+    // Purchase order spec §4: Books v0.0.1 shipped 2100000001 (the sequence) and
+    // 2100000034 (the document sends), so they stay as released and the unit's own
+    // migration 2100000048 declares each doc_type again (PocketBase's fields.add replaces
+    // a field by name) with the shipped values and purchase_order. A purchase order never
+    // posts, so no journal entry, line or view select holds it.
+    it('adds purchase_order to the sequence and send selects in 2100000048, not in the shipped migrations', () => {
+        for (const [collection, shipped] of [
+            ['books_doc_sequences', SETTINGS_MIGRATION],
+            ['books_document_sends', SENDS_MIGRATION],
+        ] as const) {
+            const released = docTypeValuesIn(shipped, collection)
+            expect(released, `${shipped} ${collection}`).toHaveLength(1)
+            const before = released[0] ?? []
+            expect(before, `${shipped} ${collection}`).not.toContain('purchase_order')
+            expect(
+                docTypeValuesIn(PURCHASE_ORDERS_MIGRATION, collection).map(values =>
+                    [...values].sort()
+                ),
+                `${PURCHASE_ORDERS_MIGRATION} ${collection}`
+            ).toContainEqual([...before, 'purchase_order'].sort())
+        }
+        expect(DOC_TYPE).toContainEqual({ value: 'purchase_order', label: 'Purchase order' })
+        for (const ledger of [
+            'books_journal_entries',
+            'books_journal_lines',
+            'books_cash_basis_lines',
+            'books_deposit_items',
+        ]) {
+            expect(valuesOf(ledger), ledger).not.toContain('purchase_order')
+        }
+    })
+
+    // Purchase order spec §4: a purchase order's send names its vendor. The optional
+    // vendor relation of books_document_sends (cascade: deleting the vendor deletes its
+    // sends) is added by 2100000048; the shipped 2100000034 has none.
+    it('adds the optional cascading vendor relation of the sends in 2100000048, not in 2100000034', () => {
+        expect(
+            migrationFields(SENDS_MIGRATION, 'vendor').filter(
+                declared => declared.collection === 'books_document_sends'
+            )
+        ).toEqual([])
+        const added = migrationFields(PURCHASE_ORDERS_MIGRATION, 'vendor').filter(
+            declared => declared.collection === 'books_document_sends'
+        )
+        expect(added).toHaveLength(1)
+        const field = added[0]?.field ?? ''
+        expect(field).toMatch(/cascadeDelete:\s*true/)
+        expect(field).not.toMatch(/required:\s*true/)
     })
 
     // Inventory design (ADR 3): migrations 2100000001 and 2100000002 are edited in place;

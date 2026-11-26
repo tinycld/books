@@ -7,10 +7,8 @@
 // zero to cents, as the server writes it. A purchase order has no tax, so `subtotal` and
 // `total` are both the sum of every line of both tables.
 //
-// The collections do not exist yet. PurchaseOrderRecord and PurchaseOrderLineRecord are
-// LOCAL types that mirror the spec's Data section (§4). The migration checkpoint
-// (2100000048) must replace them with the generated `BooksPurchaseOrders` /
-// `BooksPurchaseOrderLines` through `satisfies`, so a row that drifts from the schema
+// The rows are typed by the generated `BooksPurchaseOrders` / `BooksPurchaseOrderLines`
+// (migration 2100000048) through `satisfies`, so a row that drifts from the schema
 // fails tsc.
 //
 // A line names its account by seed account number (`account_number`), as the bill fixture
@@ -18,13 +16,16 @@
 //
 // `received`, `billed`, `open_quantity` and `open_amount` are what the server writes once
 // the linked bills of PURCHASE_ORDER_BILLS are saved and posted (spec §3.8). The fixture
-// checks them against those bills at load.
+// checks them against those bills at load with the server's open formula
+// (lib/purchase-order-status.ts).
 
+import type { BooksPurchaseOrderLines, BooksPurchaseOrders } from '../types'
 import { BILL_USER_IDS } from './bill-form-fixture'
 import { COMPANY_SETTINGS } from './books-settings-fixture'
 import { INVOICE_USER_NAMES } from './invoice-form-fixture'
 import { PRODUCT_IDS, PRODUCTS } from './products-services-fixture'
 import { PURCHASE_ACCOUNT_TYPES } from './purchase-line-columns'
+import { orderLineOpenAmount, orderLineOpenQuantity } from './purchase-order-status'
 import { SEED_ACCOUNTS } from './seed-accounts'
 import { VENDOR_IDS, VENDORS } from './vendor-form-fixture'
 
@@ -34,58 +35,18 @@ export const PURCHASE_ORDER_TODAY = '2026-11-25'
 
 const STAMP = '2026-11-25 09:00:00.000Z'
 
-export type PurchaseOrderStatus = 'open' | 'closed'
-export type PurchaseOrderClosedReason = '' | 'manual' | 'received'
-export type PurchaseOrderLineKind = 'account' | 'item'
+export type PurchaseOrderStatus = BooksPurchaseOrders['status']
+export type PurchaseOrderClosedReason = BooksPurchaseOrders['closed_reason']
+export type PurchaseOrderLineKind = BooksPurchaseOrderLines['kind']
 
-// Mirrors spec §4 `books_purchase_orders`; the migration checkpoint replaces it.
-export type PurchaseOrderRecord = {
-    id: string
-    vendor: string
-    status: PurchaseOrderStatus
-    number: string
-    sequence: number
-    date: string
+// The generated type holds the JSON columns as `any`, which would reach every reader of
+// a fixture row untyped, so the fixture keeps them typed.
+export type PurchaseOrderRecord = Omit<BooksPurchaseOrders, 'mailing_address' | 'fields'> & {
     mailing_address: (typeof VENDORS)[number]['address']
-    email: string
-    ship_to: string
-    message: string
-    memo: string
-    subtotal: number
-    total: number
-    open_amount: number
-    currency: string
-    closed_reason: PurchaseOrderClosedReason
-    closed_by: string
-    closed_at: string
-    created_by: string
-    revision: number
-    form: string
     fields: null
-    sort_key: string
-    created: string
-    updated: string
 }
 
-// Mirrors spec §4 `books_purchase_order_lines`; the migration checkpoint replaces it.
-export type PurchaseOrderLineRecord = {
-    id: string
-    purchase_order: string
-    kind: PurchaseOrderLineKind
-    account: string
-    product: string
-    description: string
-    quantity: number
-    rate: number
-    amount: number
-    position: number
-    received: number
-    billed: number
-    open_quantity: number
-    open_amount: number
-    created: string
-    updated: string
-}
+export type PurchaseOrderLineRecord = BooksPurchaseOrderLines
 
 // `account_number` is a fixture column the seed maps to `account`.
 export type PurchaseOrderLineFixtureRecord = Omit<PurchaseOrderLineRecord, 'account'> & {
@@ -96,8 +57,10 @@ export type PurchaseOrderLineFixtureRecord = Omit<PurchaseOrderLineRecord, 'acco
 export const PURCHASE_ORDER_USER_IDS = BILL_USER_IDS
 export const PURCHASE_ORDER_USER_NAMES = INVOICE_USER_NAMES
 
-// The vendors the seeded book holds that no VENDOR_IDS key names.
-const NORTHWEST_PAPER = 'vendnwpaper0001'
+// The vendors the seeded book holds that no VENDOR_IDS key names. Order 1003 is Lumen &
+// Ledger Coworking's, not Northwest Paper Co.'s: the purchase list specs count Northwest's
+// rows (purchase-lists-filters, -keyboard and -reader).
+const LUMEN_LEDGER = 'vendlumenledgr1'
 const HARBOR_FREIGHT = 'vendharborfl001'
 const CASCADE_FUEL = 'vendcascadeff01'
 
@@ -107,9 +70,9 @@ export const PURCHASE_ORDER_IDS = {
     closedReceived: 'po1001summit001',
     // Closed 1002, Cascade Fuel & Fleet: closed by hand with one line partly received.
     closedManual: 'po1002cascade01',
-    // Open 1003, Northwest Paper Co.: partly received by one posted bill; three lines are
-    // still open ("Received 4 of 10", "Billed $120.00 of $300.00").
-    partly: 'po1003nwpaper01',
+    // Open 1003, Lumen & Ledger Coworking: partly received by one posted bill; three
+    // lines are still open ("Received 4 of 10", "Billed $120.00 of $300.00").
+    partly: 'po1003lumenled1',
     // Open 1004, Office Supply World: nothing received; one account line and three
     // product lines, one of them an Inventory item with no Vendor part no.
     open: 'po1004offsup001',
@@ -119,23 +82,21 @@ export const PURCHASE_ORDER_IDS = {
 
 const IDS = PURCHASE_ORDER_IDS
 
-// The Inventory item of order 1004 (spec §4 seed). The seeded book has no Inventory
-// product yet: the seed checkpoint creates this one with the fields the server's product
-// guard needs for an Inventory item (asset and cost-of-goods accounts, opening quantity
-// 0), after it greps the product, stock and report specs that count the seeded products.
-// It has no Vendor part no., so its lines show no second line (spec §3.4).
-export const PURCHASE_ORDER_INVENTORY_PRODUCT = {
-    id: 'prodlabelprt001',
-    type: 'inventory',
-    name: 'Thermal label printer',
-    vendor_part_no: '',
-    purchases: true,
-    purchase_description: 'Thermal label printer, 4 x 6 in, USB and Ethernet.',
-    cost: 28_900,
-} as const
+// The Inventory item of order 1004 (spec §4 seed): a row of the seeded products
+// (products-services-fixture), which the seed creates with the others. It has no Vendor
+// part no., so its lines show no second line (spec §3.4).
+function inventoryProduct() {
+    const row = PRODUCTS.find(product => product.id === PRODUCT_IDS.labelPrinter)
+    if (row?.type !== 'inventory') {
+        throw new Error('purchase order fixture: the seeded products hold no Inventory item')
+    }
+    return row
+}
 
-// What the seed and the reference read about a product on a line: the seeded products
-// (products-services-fixture) and the Inventory item above.
+export const PURCHASE_ORDER_INVENTORY_PRODUCT = inventoryProduct()
+
+// What the seed and the reference read about a product on a line: the active seeded
+// products with purchasing on, the Inventory item among them.
 export type PurchaseOrderProduct = {
     id: string
     type: string
@@ -145,17 +106,16 @@ export type PurchaseOrderProduct = {
     cost: number
 }
 
-export const PURCHASE_ORDER_PRODUCTS: PurchaseOrderProduct[] = [
-    ...PRODUCTS.filter(row => row.purchases && !row.inactive).map(row => ({
-        id: row.id,
-        type: row.type,
-        name: row.name,
-        vendor_part_no: row.vendor_part_no,
-        purchase_description: row.purchase_description,
-        cost: row.cost,
-    })),
-    PURCHASE_ORDER_INVENTORY_PRODUCT,
-]
+export const PURCHASE_ORDER_PRODUCTS: PurchaseOrderProduct[] = PRODUCTS.filter(
+    row => row.purchases && !row.inactive
+).map(row => ({
+    id: row.id,
+    type: row.type,
+    name: row.name,
+    vendor_part_no: row.vendor_part_no,
+    purchase_description: row.purchase_description,
+    cost: row.cost,
+}))
 
 // A new order's Ship to (spec §3.3): the business name and address of Settings →
 // Company, one per line.
@@ -231,7 +191,7 @@ export const PURCHASE_ORDERS = [
     }),
     order({
         id: IDS.partly,
-        vendor: NORTHWEST_PAPER,
+        vendor: LUMEN_LEDGER,
         status: 'open',
         number: '1003',
         date: '2026-11-03',
@@ -268,7 +228,7 @@ export const PURCHASE_ORDERS = [
         created_by: PURCHASE_ORDER_USER_IDS.omar,
         created: '2026-11-10 19:02:00.000Z',
     }),
-] satisfies PurchaseOrderRecord[]
+] satisfies BooksPurchaseOrders[]
 
 export const PURCHASE_ORDER_SEED_IDS = PURCHASE_ORDERS.map(row => row.id)
 
@@ -448,7 +408,7 @@ export const PURCHASE_ORDER_LINES = [
             open_amount: 97_120,
         },
     ]),
-] satisfies PurchaseOrderLineFixtureRecord[]
+] satisfies (Omit<BooksPurchaseOrderLines, 'account'> & { account_number: string })[]
 
 // One bill made from an order (spec §3.8): its lines name order lines (`po_line`) with the
 // quantity (product line) or amount (account line) the bill takes. The seed saves each
@@ -580,8 +540,10 @@ for (const line of PURCHASE_ORDER_LINES) {
     if (received !== line.received || billed !== line.billed) {
         throw new Error(`purchase order fixture: line ${line.id} does not match its posted bills`)
     }
-    const openQuantity = line.kind === 'item' ? Math.max(line.quantity - line.received, 0) : 0
-    const openAmount = Math.max(line.amount - line.billed, 0)
+    // The server's open formula: a product line's open amount is its open quantity at
+    // the line's rate, an account line's is what is not billed.
+    const openQuantity = orderLineOpenQuantity(line)
+    const openAmount = orderLineOpenAmount(line)
     if (openQuantity !== line.open_quantity || openAmount !== line.open_amount) {
         throw new Error(`purchase order fixture: line ${line.id} open values do not add up`)
     }

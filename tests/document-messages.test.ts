@@ -16,6 +16,7 @@ import {
     CREDIT_MEMO_MESSAGES,
     ESTIMATE_MESSAGES,
     EXPENSE_MESSAGES,
+    PURCHASE_ORDER_MESSAGES,
     REFUND_RECEIPT_MESSAGES,
     VENDOR_CREDIT_MESSAGES,
 } from '../tinycld/books/lib/document-texts'
@@ -31,6 +32,7 @@ import {
     SALES_RECEIPT_KIND,
     VENDOR_CREDIT_KIND,
 } from '../tinycld/books/lib/sales-document-kinds'
+import { SHIP_TO_MAX_LINES, SHIP_TO_MESSAGES } from '../tinycld/books/lib/ship-to'
 
 const invoiceRefusalTarget = (message: string) => documentRefusalTarget(message, INVOICE_KIND)
 
@@ -957,4 +959,100 @@ describe('bigFigureText', () => {
     it('is the total as money', () => {
         expect(bigFigureText(documentTotals([item(1, 24_356)], null), 'USD')).toBe('$243.56')
     })
+})
+
+// The purchase order's texts the client and the server both show (purchase order spec,
+// Messages), whose Go constants live in server/purchase_orders.go and
+// server/purchase_order_receipts.go. `%s` and `%d` are compared as written.
+const PURCHASE_ORDER_SHARED = [
+    'Product line %d: %s are received. The quantity cannot be below %s.',
+    'Account line %d: %s is billed. The amount cannot be below %s.',
+    'Product line %d is on bill %s and cannot be removed.',
+    'Account line %d is on bill %s and cannot be removed.',
+    'Product line %d is on a draft bill and cannot be removed.',
+    'Account line %d is on a draft bill and cannot be removed.',
+    'Product line %d: a line that a bill names keeps its product.',
+    'Account line %d: a line that a bill names keeps its account.',
+    'Bills are made from this purchase order, so its vendor cannot change.',
+    'Purchase order %s has bills. Close it instead.',
+    'A closed purchase order cannot be edited.',
+    'The lines of a closed purchase order cannot change.',
+    'Only a Books admin closes or reopens a purchase order.',
+    'A purchase order that closed because every line is received opens again from its bills.',
+] as const
+
+// The delete guards of the parties a purchase order names: the vendor's in
+// server/vendors.go, the product's in server/products.go, the account's in
+// server/accounts.go. The client shows them as the server sends them.
+const PURCHASE_ORDER_DELETE_GUARDS = [
+    '%s is on purchase orders. Make it inactive instead.',
+    'This product or service is on 1 purchase order. Make it inactive instead.',
+    'This product or service is on %d purchase orders. Make it inactive instead.',
+    'This account is on 1 purchase order and cannot be deleted. Make it inactive instead.',
+    'This account is on %d purchase orders and cannot be deleted. Make it inactive instead.',
+] as const
+
+// The client-only texts (no server twin); the first is the bill's line rule worded by the
+// shown tables.
+const PURCHASE_ORDER_CLIENT_ONLY = [
+    'Add at least one account or product line',
+    'You need bookkeeper access to create purchase orders',
+    'This purchase order does not exist',
+    'Books could not load this purchase order.',
+] as const
+
+function purchaseOrderServerSource(files: string[]) {
+    const server = join(__dirname, '..', 'server')
+    return files.map(file => readFileSync(join(server, file), 'utf8')).join('\n')
+}
+
+function holdsGoString(source: string, text: string) {
+    return source.includes(`"${text}"`) || source.includes(`"${withoutFinalPeriod(text)}"`)
+}
+
+describe('PURCHASE_ORDER_MESSAGES', () => {
+    it('holds every shared text the server refuses with', () => {
+        expect(PURCHASE_ORDER_MESSAGES).toBeDefined()
+        const client = Object.values(PURCHASE_ORDER_MESSAGES ?? {}).map(text =>
+            withoutFinalPeriod(String(text))
+        )
+        for (const text of PURCHASE_ORDER_SHARED) {
+            expect(client, text).toContain(withoutFinalPeriod(text))
+        }
+    })
+
+    it('holds the client-only texts', () => {
+        const client = Object.values(PURCHASE_ORDER_MESSAGES ?? {}).map(text => String(text))
+        for (const text of PURCHASE_ORDER_CLIENT_ONLY) expect(client, text).toContain(text)
+    })
+})
+
+describe('server/purchase_orders.go', () => {
+    for (const text of PURCHASE_ORDER_SHARED) {
+        it(`holds "${text}" verbatim as a Go string`, () => {
+            const source = purchaseOrderServerSource([
+                'purchase_orders.go',
+                'purchase_order_receipts.go',
+            ])
+            expect(holdsGoString(source, text), text).toBe(true)
+        })
+    }
+
+    // Spec §3.3: Ship to holds at most 5 lines. The client's rule (SHIP_TO_SCHEMA of
+    // lib/ship-to.ts) and the server's header guard refuse with one text; the Go string
+    // may spell the bound as %d.
+    it('holds the Ship to line bound text of lib/ship-to.ts as a Go string', () => {
+        const source = purchaseOrderServerSource(['purchase_orders.go'])
+        const text = SHIP_TO_MESSAGES.tooManyLines
+        const spelled = text.replace(String(SHIP_TO_MAX_LINES), '%d')
+        expect(text).toBe('Ship to can be at most 5 lines')
+        expect(holdsGoString(source, text) || holdsGoString(source, spelled), text).toBe(true)
+    })
+
+    for (const text of PURCHASE_ORDER_DELETE_GUARDS) {
+        it(`holds the delete guard "${text}" verbatim as a Go string`, () => {
+            const source = purchaseOrderServerSource(['vendors.go', 'products.go', 'accounts.go'])
+            expect(holdsGoString(source, text), text).toBe(true)
+        })
+    }
 })

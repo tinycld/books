@@ -83,6 +83,10 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 		"books_bill_lines": {
 			ExtractLabel: func(r *core.Record) string { return billLineLabel(app, r) },
 		},
+		purchaseOrdersCollection: {ExtractLabel: purchaseOrderLabel, Redact: []string{"sort_key"}},
+		purchaseOrderLinesCollection: {
+			ExtractLabel: func(r *core.Record) string { return purchaseOrderLineLabel(app, r) },
+		},
 		"books_expenses": {ExtractLabel: expenseLabel, Redact: []string{"sort_key"}},
 		"books_expense_lines": {
 			ExtractLabel: func(r *core.Record) string { return expenseLineLabel(app, r) },
@@ -156,7 +160,8 @@ func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 }
 
 // auditParentFields maps each line collection to the field that names its
-// document. The books_audit_log view (migration 2100000043) reads the same
+// document. The books_audit_log view (migration 2100000043, rebuilt by
+// 2100000048 with the purchase order lines) reads the same
 // collections to give a line's audit row its document, and Register declares them
 // as the view's sources, because a line write can change that document. A
 // document send is filed as a line of the document it sent; the view reads
@@ -181,6 +186,7 @@ var auditParentFields = map[string]string{
 	depositItemsCollection:             "deposit",
 	depositLinesCollection:             "deposit",
 	inventoryAdjustmentLinesCollection: "adjustment",
+	purchaseOrderLinesCollection:       "purchase_order",
 	documentSendsCollection:            "document",
 }
 
@@ -208,6 +214,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_bills", Label: "Bill"},
 		{Value: "books_expenses", Label: "Expense"},
 		{Value: vendorCreditsCollection, Label: "Vendor credit"},
+		{Value: purchaseOrdersCollection, Label: "Purchase order"},
 		{Value: "books_payments", Label: "Payment"},
 		{Value: billPaymentsCollection, Label: "Bill payment"},
 		{Value: vendorRefundsCollection, Label: "Vendor refund"},
@@ -222,6 +229,7 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_bill_lines", Label: "Bill line"},
 		{Value: "books_expense_lines", Label: "Expense line"},
 		{Value: vendorCreditLinesCollection, Label: "Vendor credit line"},
+		{Value: purchaseOrderLinesCollection, Label: "Purchase order line"},
 		{Value: "books_payment_applications", Label: "Payment application"},
 		{Value: billPaymentLinesCollection, Label: "Bill payment line"},
 		{Value: vendorCreditApplicationsCollection, Label: "Vendor credit application"},
@@ -431,6 +439,26 @@ func billLineLabel(app core.App, r *core.Record) string {
 		return fmt.Sprintf("%s: line %d", bill, r.GetInt("position")+1)
 	}
 	return bill + ": " + lineRowLabel(billKind, withLine(lines, r), r)
+}
+
+// purchaseOrderLabel names a purchase order by its number: "Purchase order
+// 1004". An order is numbered at its first save, so it has no draft label.
+func purchaseOrderLabel(r *core.Record) string {
+	noun, this, _ := entryNouns(docTypePurchaseOrder)
+	if n := r.GetString("number"); n != "" {
+		return noun + " " + n
+	}
+	return this
+}
+
+// purchaseOrderLineLabel names an order's line by its order and its position:
+// "Purchase order 1004: line 2".
+func purchaseOrderLineLabel(app core.App, r *core.Record) string {
+	order := r.GetString("purchase_order")
+	if rec, err := app.FindRecordById(purchaseOrdersCollection, order); err == nil {
+		order = purchaseOrderLabel(rec)
+	}
+	return fmt.Sprintf("%s: line %d", order, r.GetInt("position")+1)
 }
 
 // expenseLabel names an expense by its number: "Expense 1004". A draft has no

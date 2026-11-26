@@ -117,6 +117,16 @@ describe('productTypeLine', () => {
     })
 })
 
+// Purchase order spec §4 seed: the seeded Inventory item (prodlabelprt001) is one more
+// row of the product list, with its cost shown because purchasing is on.
+describe('the seeded Inventory item row', () => {
+    it('shows the Inventory type and its $289.00 cost', () => {
+        const printer = productById('prodlabelprt001')
+        expect(productTypeLine(printer).startsWith('Inventory')).toBe(true)
+        expect(productCostText(printer)).toBe('$289.00')
+    })
+})
+
 describe('productCardHeight', () => {
     it('is 76 with a vendor part number and 60 without one at font scale 1', () => {
         expect(productCardHeight(ACCESS_POINT)).toBe(76)
