@@ -117,7 +117,7 @@ func documentStockInputs(tx core.App, kind salesDocKind, doc *core.Record, lines
 // salesDocStockLines writes the stock moves of doc while it posts and answers
 // the journal lines of their cost, which the caller adds to the document's own
 // entry, and the moves, which take the document's number once it has one
-// (numberStockMoves). The moves of the document a correction replaces go with
+// (numberPostedMoves). The moves of the document a correction replaces go with
 // its re-costs (postDocumentStock). A kind with no stock role answers nil.
 func salesDocStockLines(tx core.App, kind salesDocKind, doc, original *core.Record, lines []*core.Record, totals documentTotalsResult) ([]postingLine, []*core.Record, error) {
 	if kind.Stock == "" {

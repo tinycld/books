@@ -45,6 +45,18 @@ import {
     GENERAL_LEDGER_PARTY_SEED,
 } from './lib/general-ledger-fixture'
 import {
+    adjustmentLinesOf,
+    adjustmentOf,
+    BIN_IDS,
+    BIN_TRANSFERS,
+    BINS,
+    INVENTORY_ITEMS,
+    inventoryItem,
+    NO_BIN,
+    SEED_ADJUSTMENT_IDS,
+    SEED_RECEIPTS,
+} from './lib/inventory-adjust-fixture'
+import {
     CUSTOMER_TERMS_PATCHES,
     INVOICE_IDS,
     INVOICE_LINES,
@@ -390,6 +402,11 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     // 1002: after every other bill seed, so every earlier seeded bill keeps its number, and
     // before the bank match seed, which must see every seeded document.
     await seedPurchaseOrderBills(pb, ctx, accountIds)
+    // The bins, Inventory items, scanner bills and inventory adjustments (inventory-adjust
+    // spec §4 Seed): after every other bill seed, so every earlier seeded bill and
+    // adjustment keeps its number, and before the bank match seed, which must see every
+    // seeded document.
+    await seedInventory(pb, ctx, accountIds)
     // After every document seed, so its check that each of its two statement lines has
     // exactly one suggestion sees every seeded document (the review statement is imported
     // before any document posts). Its categorization posts one journal entry, last, so no
@@ -1804,6 +1821,139 @@ export async function seedPurchaseOrderBills(
         closed_by: ctx.user.id,
         revision: revision + 1,
     })
+}
+
+// The bins, the four Inventory items, the scanner's bills, three inventory adjustments and
+// the newest move between bins (inventory-adjust spec §4 Seed), in the order the server
+// needs. Every bin is created active, because the line and item guards refuse an inactive
+// bin; Back room is made inactive last, with the scanner's increase still in it. Each item
+// is created as seedProducts creates a product, with its default bin and opening stock, so
+// the server posts its opening adjustment in that bin. The replaced adjustment posts
+// before the one that names it in `replaces`, whose post voids it. The seed is a
+// superuser, so stampActor stamps nothing: each post names the seed user in `posted_by`
+// (the replaced adjustment is voided as that poster) and the transfer in `created_by`.
+// The seed reads no number: screens and tests find the rows by memo.
+export async function seedInventory(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>
+): Promise<void> {
+    const binIds = new Map<string, string>()
+    for (const bin of BINS) {
+        const created = await pb
+            .collection('books_bins')
+            .create({ id: bin.id, name: bin.name, note: bin.note, inactive: false })
+        binIds.set(bin.id, created.id)
+    }
+    const binOf = (id: string) => {
+        if (id === NO_BIN) return NO_BIN
+        const created = binIds.get(id)
+        if (created === undefined) throw new Error(`seed: bin ${id} is not in BINS`)
+        return created
+    }
+
+    const itemIds = new Map<string, string>()
+    for (const item of INVENTORY_ITEMS) {
+        const {
+            quantity_on_hand: _onHand,
+            stock_value: _value,
+            quantity_on_po: _onPo,
+            low_stock: _low,
+            currency: _currency,
+            inactive: _inactive,
+            default_bin,
+            ...row
+        } = item
+        const income_account = seededAccountId(accountIds, '4000', `product ${item.id}`)
+        const created = await pb.collection('books_products').create({
+            ...row,
+            default_bin: binOf(default_bin),
+            income_account,
+            expense_account: '',
+            inactive: false,
+        })
+        itemIds.set(item.id, created.id)
+    }
+    const itemOf = (id: string) => {
+        const created = itemIds.get(id)
+        if (created === undefined) throw new Error(`seed: item ${id} is not in INVENTORY_ITEMS`)
+        return created
+    }
+
+    for (const receipt of SEED_RECEIPTS) {
+        const vendor = VENDORS.find(row => row.id === receipt.vendor)
+        if (vendor === undefined) {
+            throw new Error(
+                `seed: bill ${receipt.id} names vendor ${receipt.vendor}, not in VENDORS`
+            )
+        }
+        const created = await pb.collection('books_bills').create({
+            id: receipt.id,
+            vendor: receipt.vendor,
+            status: 'draft',
+            date: receipt.date,
+            due_date: dueDateFor(receipt.date, vendor.terms) ?? receipt.date,
+            terms: vendor.terms,
+            memo: receipt.memo,
+            mailing_address: vendor.address,
+        })
+        await pb.collection('books_bill_lines').create({
+            bill: created.id,
+            position: 0,
+            kind: 'item',
+            description: inventoryItem(receipt.product).purchase_description,
+            product: itemOf(receipt.product),
+            quantity: receipt.quantity,
+            rate: receipt.rate,
+        })
+        await postSeedDocument(pb, 'books_bills', created.id, ctx.user.id)
+    }
+
+    const adjustments = pb.collection('books_inventory_adjustments')
+    const createAdjustment = async (id: string, replaces: string) => {
+        const fixture = adjustmentOf(id)
+        const created = await adjustments.create({
+            id: fixture.id,
+            kind: 'manual',
+            status: 'draft',
+            date: fixture.date,
+            memo: fixture.memo,
+            replaces,
+        })
+        for (const line of adjustmentLinesOf(id)) {
+            await pb.collection('books_inventory_adjustment_lines').create({
+                id: line.id,
+                adjustment: created.id,
+                product: itemOf(line.product),
+                position: line.position,
+                quantity: line.quantity,
+                value: line.value,
+                bin: binOf(line.bin),
+            })
+        }
+        return created.id
+    }
+    const postAdjustment = (id: string) =>
+        adjustments.update(id, { status: 'posted', posted_by: ctx.user.id })
+    const replacedId = await createAdjustment(SEED_ADJUSTMENT_IDS.replaced, '')
+    await postAdjustment(replacedId)
+    const postedId = await createAdjustment(SEED_ADJUSTMENT_IDS.posted, replacedId)
+    await postAdjustment(postedId)
+    await createAdjustment(SEED_ADJUSTMENT_IDS.draft, '')
+
+    const newest = [...BIN_TRANSFERS].sort((a, b) => b.created.localeCompare(a.created))[0]
+    if (newest === undefined) throw new Error('seed: BIN_TRANSFERS holds no move between bins')
+    await pb.collection('books_bin_transfers').create({
+        id: newest.id,
+        product: itemOf(newest.product),
+        from_bin: binOf(newest.from_bin),
+        to_bin: binOf(newest.to_bin),
+        quantity: newest.quantity,
+        memo: newest.memo,
+        created_by: ctx.user.id,
+    })
+
+    await pb.collection('books_bins').update(binOf(BIN_IDS.backRoom), { inactive: true })
 }
 
 // Pays the bills PAY_BILLS_SEED_BILLS posted, per BILL_PAYMENT_SEED, through the write Pay

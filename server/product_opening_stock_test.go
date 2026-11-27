@@ -95,6 +95,42 @@ func TestInventoryItem_OpeningStockChangeReplacesTheAdjustment(t *testing.T) {
 	requireOnHand(t, env.app, widget, 0, 0)
 }
 
+// Spec §4: replaces names a posted manual adjustment, so only a person's
+// correction links the two (TestInventoryAdjustment_ACorrectionReplacesItsOriginalInOnePost).
+// The re-post Books makes for an opening-stock change links neither: the old
+// opening adjustment is void with no replaced_by, the new one has no replaces.
+func TestInventoryItem_OpeningStockRepostLinksNoReplacement(t *testing.T) {
+	env := newItemEnv(t)
+	widget, err := newProduct(env.app, inventoryItem(env, map[string]any{
+		"opening_quantity": 10, "opening_value": 4000, "opening_date": "2026-01-01",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := openingOf(t, env.app, widget)
+	if first == nil {
+		t.Fatal("no opening adjustment")
+	}
+	if err := setFields(t, env.app, "books_products", widget.Id, map[string]any{"opening_quantity": 12}); err != nil {
+		t.Fatalf("change the opening quantity: %v", err)
+	}
+	second := openingOf(t, env.app, widget)
+	if second == nil || second.Id == first.Id {
+		t.Fatal("the opening adjustment was not replaced")
+	}
+	old := reload(t, env.app, inventoryAdjustmentsCollection, first.Id)
+	if old.GetString("status") != statusVoid {
+		t.Errorf("the first opening adjustment is %s, want void", old.GetString("status"))
+	}
+	if got := old.GetString("replaced_by"); got != "" {
+		t.Errorf("the void opening adjustment has replaced_by %q, want empty (Books made the re-post)", got)
+	}
+	if got := reload(t, env.app, inventoryAdjustmentsCollection, second.Id).GetString("replaces"); got != "" {
+		t.Errorf("the new opening adjustment has replaces %q, want empty (Books made the re-post)", got)
+	}
+	requireOnHand(t, env.app, widget, 12, 4000)
+}
+
 // The opening adjustment is a posting: the close date holds for it, and a
 // refused opening leaves no item behind.
 func TestInventoryItem_OpeningStockInAClosedPeriodIsRefused(t *testing.T) {

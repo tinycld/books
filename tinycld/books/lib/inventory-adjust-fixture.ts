@@ -78,7 +78,7 @@ export const BINS: BinRecord[] = [
     {
         id: BIN_IDS.backRoom,
         name: 'Back room',
-        note: 'Closed in October 2026. Move what is left to Aisle 3, shelf B before the year-end count.',
+        note: 'Closed in November 2026. Move what is left to Aisle 3, shelf B before the year-end count.',
         inactive: true,
         created: STAMP,
         updated: STAMP,
@@ -171,8 +171,9 @@ export const INVENTORY_ITEMS: InventoryItemRecord[] = [
         purchases: true,
         purchase_description: 'Thermal receipt paper, 80 mm x 70 m.',
         reorder_point: 12,
-        opening_quantity: 30,
-        opening_value: 5_850,
+        // Low from its opening stock: 3 is at or below the reorder point.
+        opening_quantity: 3,
+        opening_value: 585,
         opening_date: '2026-07-01',
         quantity_on_hand: 3,
         stock_value: 585,
@@ -208,7 +209,7 @@ export const INVENTORY_ITEMS: InventoryItemRecord[] = [
         id: ITEM.tape,
         type: 'inventory',
         name: 'Packing tape, heavy duty, 48 mm x 100 m, clear, case of 36 rolls for the shipping bench',
-        code: 'TAPE-HD-48-CLR-36',
+        code: 'TAPE-HD-48-C36',
         vendor_part_no: 'OSW-TAPE-48100-C36',
         price: 8_900,
         cost: 5_250,
@@ -319,7 +320,12 @@ export const BIN_TRANSFERS: BinTransferRecord[] = [
 // ---- Stock moves ----
 
 // `document_number` is the number of the move's document. Opening stock has the number
-// of its opening inventory adjustment: every posted adjustment has one.
+// of its opening inventory adjustment: every posted adjustment has one. A move the seed
+// writes holds the number the server stamps on it (stampStockMoveNumbers): the seeded
+// bills follow the 13 earlier seeded bills (1014 to 1016), and the seeded adjustments
+// take IA-1 to IA-5 in the order seedInventory posts them (the openings of the labels,
+// the paper roll and the tape, then the replaced and the posted adjustment). The other
+// rows are the reference's only.
 export type StockMoveRecord = Pick<
     BooksStockMoves,
     | 'id'
@@ -340,13 +346,15 @@ export type StockMoveRecord = Pick<
 export const ADJUSTMENT_IDS = {
     // Books made it for the opening stock of the shipping labels.
     opening: 'iadjopening0010',
-    // Void 11: the posted adjustment that 12 corrected ("Replaced by").
+    // Void IA-4: the posted adjustment that IA-5 corrected ("Replaced by").
     replaced: 'iadjvoid0000011',
-    // Posted 12: a decrease in a bin and an increase at a cost.
+    // Posted IA-5: a decrease in a bin and an increase at a cost.
     posted: 'iadjposted00012',
-    // Books made it when the cost of Bill 318 changed.
+    // Books made it when the cost of Bill 318 changed. Reference only: the seed does not
+    // write it.
     recost: 'iadjrecost00013',
-    // Posted 14: found stock at no cost, so it has no journal entry.
+    // Posted, found stock at no cost, so it has no journal entry. Reference only: the seed
+    // does not write it.
     noValue: 'iadjnovalue0014',
     // A draft of four lines: a decrease, a revaluation, an increase with no cost typed and
     // a decrease that takes its bin below zero.
@@ -380,7 +388,7 @@ const LABEL_MOVES = movesOf([
         quantity: 40,
         value: 46_000,
         bin: BIN_IDS.aisle3,
-        document_number: '10',
+        document_number: 'IA-1',
     },
     {
         id: 'smovlabel000002',
@@ -452,7 +460,7 @@ const LABEL_MOVES = movesOf([
         quantity: -4,
         value: -4_600,
         bin: BIN_IDS.aisle3,
-        document_number: '12',
+        document_number: 'IA-5',
     },
 ])
 
@@ -466,8 +474,8 @@ const SCANNER_MOVES = movesOf([
         document: 'billstockmov305',
         quantity: 6,
         value: 38_400,
-        bin: BIN_IDS.backRoom,
-        document_number: '305',
+        bin: BIN_IDS.aisle3,
+        document_number: '1014',
     },
     {
         id: 'smovscan0000002',
@@ -478,7 +486,7 @@ const SCANNER_MOVES = movesOf([
         document: 'invstockmov1057',
         quantity: -4,
         value: -25_600,
-        bin: BIN_IDS.backRoom,
+        bin: BIN_IDS.aisle3,
         document_number: '1057',
     },
     {
@@ -491,7 +499,7 @@ const SCANNER_MOVES = movesOf([
         quantity: 6,
         value: 39_900,
         bin: BIN_IDS.aisle3,
-        document_number: '322',
+        document_number: '1015',
     },
     {
         id: 'smovscan0000004',
@@ -502,8 +510,8 @@ const SCANNER_MOVES = movesOf([
         document: ADJ.posted,
         quantity: 2,
         value: 13_600,
-        bin: BIN_IDS.aisle3,
-        document_number: '12',
+        bin: BIN_IDS.backRoom,
+        document_number: 'IA-5',
     },
     {
         id: 'smovscan0000005',
@@ -515,7 +523,7 @@ const SCANNER_MOVES = movesOf([
         quantity: 4,
         value: 27_200,
         bin: BIN_IDS.aisle3,
-        document_number: '331',
+        document_number: '1016',
     },
 ])
 
@@ -648,7 +656,8 @@ export const ADJUSTMENTS: AdjustmentRecord[] = [
         id: ADJ.opening,
         status: 'posted',
         kind: 'opening',
-        number: '10',
+        // The first adjustment seedInventory posts, as its stock move carries it.
+        number: 'IA-1',
         date: '2026-07-01',
         account_name: 'Opening Balance Equity',
         memo: 'Opening stock of Shipping labels, 4 x 6 in, roll of 500',
@@ -659,7 +668,7 @@ export const ADJUSTMENTS: AdjustmentRecord[] = [
     adjustment({
         id: ADJ.replaced,
         status: 'void',
-        number: '11',
+        number: 'IA-4',
         date: '2026-11-03',
         memo: 'Cycle count, aisle 3',
         voided_at: '2026-11-03 16:42:00.000Z',
@@ -670,7 +679,7 @@ export const ADJUSTMENTS: AdjustmentRecord[] = [
     adjustment({
         id: ADJ.posted,
         status: 'posted',
-        number: '12',
+        number: 'IA-5',
         date: '2026-11-03',
         memo: 'Cycle count, aisle 3. Four label rolls were water damaged; two scanners were found unpacked in the receiving cage and never billed.',
         value_change: 9_000,
@@ -680,7 +689,8 @@ export const ADJUSTMENTS: AdjustmentRecord[] = [
         id: ADJ.recost,
         status: 'posted',
         kind: 'recost',
-        number: '13',
+        // Reference only (the seed does not write it): a number no seeded row uses.
+        number: 'IA-6',
         date: '2026-11-10',
         source: 'books_bills',
         document: 'billstockmov318',
@@ -691,7 +701,8 @@ export const ADJUSTMENTS: AdjustmentRecord[] = [
     adjustment({
         id: ADJ.noValue,
         status: 'posted',
-        number: '14',
+        // Reference only (the seed does not write it): a number no seeded row uses.
+        number: 'IA-7',
         date: '2026-11-18',
         memo: 'Two cases found behind the bench',
         has_entry: false,
@@ -753,7 +764,7 @@ export const ADJUSTMENT_LINES: AdjustmentLineRecord[] = [
         bin: BIN_IDS.aisle3,
         posted_value: -4_600,
     }),
-    // An increase at a cost.
+    // An increase at a cost, in Back room, which the seed makes inactive after the post.
     line({
         id: 'ialnposted00002',
         adjustment: ADJ.posted,
@@ -761,7 +772,7 @@ export const ADJUSTMENT_LINES: AdjustmentLineRecord[] = [
         position: 2,
         quantity: 2,
         value: 13_600,
-        bin: BIN_IDS.aisle3,
+        bin: BIN_IDS.backRoom,
         posted_value: 13_600,
     }),
     // A revaluation: no quantity, so no bin.
@@ -827,6 +838,115 @@ export function adjustmentLinesOf(id: string): AdjustmentLineRecord[] {
     )
 }
 
+// ---- The seed (spec §4 Seed): what seedInventory writes, and what the server makes of it ----
+
+// The vendor of the seeded scanner bills: an active seeded vendor (vendor-form-fixture)
+// that no spec and no other fixture names, so no payable figure a spec asserts moves.
+export const SEED_RECEIPT_VENDOR = 'vendevergrnpay1'
+
+// One posted bill of one item line. The id is the `document` of its receipt move.
+export type SeedReceipt = {
+    id: string
+    vendor: string
+    date: string
+    memo: string
+    product: string
+    quantity: number
+    rate: number
+}
+
+// The three receipts of the scanner's FIFO history, each as a bill at the receipt's unit
+// cost.
+function seedReceipts(): SeedReceipt[] {
+    return SCANNER_MOVES.filter(move => move.kind === 'receipt').map(move => {
+        const rate = move.value / move.quantity
+        if (!Number.isInteger(rate)) {
+            throw new Error(`inventory fixture: receipt ${move.id} has no whole-cent unit cost`)
+        }
+        return {
+            id: move.document,
+            vendor: SEED_RECEIPT_VENDOR,
+            date: move.date,
+            memo: `Barcode scanners received ${move.date}`,
+            product: move.product,
+            quantity: move.quantity,
+            rate,
+        }
+    })
+}
+
+export const SEED_RECEIPTS: SeedReceipt[] = seedReceipts()
+
+// The adjustments the seed writes, in its order: the replaced one, the correction that
+// names it in `replaces`, and the draft.
+export const SEED_ADJUSTMENT_IDS = {
+    replaced: ADJ.replaced,
+    posted: ADJ.posted,
+    draft: ADJ.draft,
+} as const
+
+// Screens and tests find the seeded adjustments by memo: the seed reads no number.
+export const SEED_POSTED_MEMO = adjustmentOf(ADJ.posted).memo
+export const SEED_DRAFT_MEMO = adjustmentOf(ADJ.draft).memo
+
+export type SeedStock = Pick<InventoryItemRecord, 'quantity_on_hand' | 'stock_value' | 'low_stock'>
+
+const receivedScanners = SEED_RECEIPTS.reduce(
+    (sum, receipt) => ({
+        quantity: sum.quantity + receipt.quantity,
+        value: sum.value + receipt.quantity * receipt.rate,
+    }),
+    { quantity: 0, value: 0 }
+)
+
+function seededLine(id: string): AdjustmentLineRecord {
+    const row = ADJUSTMENT_LINES.find(item => item.id === id)
+    if (!row) throw new Error(`inventory fixture: unknown adjustment line ${id}`)
+    return row
+}
+
+// The scanner's increase of the posted adjustment: +2 at 13,600 in Back room.
+const scannerIncrease = seededLine('ialnposted00002')
+
+// What the server writes on each seeded item once seedInventory has run, keyed by item id.
+export const SEED_STOCK: Record<string, SeedStock> = {
+    // 40 at 46,000 less 4 at the FIFO cost of 1,150.
+    [ITEM.labels]: { quantity_on_hand: 36, stock_value: 41_400, low_stock: false },
+    // Its opening stock alone: 3 is at or below the reorder point of 12.
+    [ITEM.paperRoll]: { quantity_on_hand: 3, stock_value: 585, low_stock: true },
+    [ITEM.tape]: { quantity_on_hand: 18.5, stock_value: 97_125, low_stock: false },
+    // The three receipts plus the increase.
+    [ITEM.scanner]: {
+        quantity_on_hand: receivedScanners.quantity + scannerIncrease.quantity,
+        stock_value: receivedScanners.value + scannerIncrease.value,
+        low_stock: false,
+    },
+}
+
+export type SeedBinStock = Pick<BinStockRecord, 'product' | 'bin' | 'quantity'>
+
+// The bin rows the server keeps once seedInventory has run: one row for each item and bin.
+// Openings and receipts land in the item's default bin; the labels moved 4 to Front
+// counter; the scanner's increase is in Back room, which the seed makes inactive after.
+export const SEED_BIN_STOCK: SeedBinStock[] = [
+    { product: ITEM.labels, bin: BIN_IDS.aisle3, quantity: 32 },
+    { product: ITEM.labels, bin: BIN_IDS.frontCounter, quantity: 4 },
+    { product: ITEM.paperRoll, bin: BIN_IDS.frontCounter, quantity: 3 },
+    { product: ITEM.scanner, bin: BIN_IDS.aisle3, quantity: receivedScanners.quantity },
+    { product: ITEM.scanner, bin: scannerIncrease.bin, quantity: scannerIncrease.quantity },
+    { product: ITEM.tape, bin: NO_BIN, quantity: 18.5 },
+]
+
+for (const [product, stock] of Object.entries(SEED_STOCK)) {
+    const inBins = SEED_BIN_STOCK.filter(row => row.product === product).reduce(
+        (sum, row) => sum + Math.round(row.quantity * 100),
+        0
+    )
+    if (inBins !== Math.round(stock.quantity_on_hand * 100)) {
+        throw new Error(`inventory fixture: the seeded bins of ${product} do not add up`)
+    }
+}
+
 // The texts the screens show (spec §3); the server's own refusals are in
 // server/inventory_adjustments.go and are shown as they come.
 export const INVENTORY_TEXTS = {
@@ -852,7 +972,7 @@ export const INVENTORY_TEXTS = {
     reportEmpty: 'No stock in a bin location',
     // A server refusal of a post, shown on its line ("Line n: …").
     lineRefusal: 'Line 3: A quantity increase cannot have a value below 0.',
-    voidBody: 'Void inventory adjustment 12? Its stock change is taken back.',
+    voidBody: `Void inventory adjustment ${adjustmentOf(ADJ.posted).number}? Its stock change is taken back.`,
     openingNotice:
         'Books made this adjustment for the opening stock of Shipping labels, 4 x 6 in, roll of 500. To change it, change the item’s opening stock.',
     recostNotice: 'Books made this adjustment when the cost of Bill 318 changed.',

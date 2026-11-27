@@ -263,7 +263,10 @@ function mountedAmounts(page: Page) {
 // accounts), so a seeded account can sit below the mounted rows. Scroll the last
 // mounted account to the top until the account's amount input mounts, starting
 // from the top of the grid so an account above the mounted rows is reached too. A
-// grid that ends without it fails on the poll's message.
+// grid that ends without it fails on the poll's message. The scroll to the top must
+// be instant: react-native-web replaces the scroll node's own scrollTo with an
+// animated one, and rows read during that animation are a frame of a moving list (a
+// target mounted mid-scroll unmounts before the next step). Setting scrollTop jumps.
 async function reach(page: Page, id: string) {
     const target = amount(page, id)
     if ((await target.count()) > 0) return
@@ -274,7 +277,7 @@ async function reach(page: Page, id: string) {
             while (node && !['auto', 'scroll'].includes(getComputedStyle(node).overflowY)) {
                 node = node.parentElement
             }
-            node?.scrollTo({ top: 0 })
+            if (node) node.scrollTop = 0
         })
     await expect(page.getByTestId('opening-band-asset')).toBeAttached()
     while ((await target.count()) === 0) {

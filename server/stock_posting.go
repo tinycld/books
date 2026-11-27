@@ -270,9 +270,23 @@ func stockCostLines(moves []*core.Record) []postingLine {
 // stockDriftLines are the journal lines of what the ledger does not hold yet
 // of moves: each move's value less its posted value.
 func stockDriftLines(moves []*core.Record) []postingLine {
-	return stockLedgerLines(moves, func(m *core.Record) int64 {
-		return int64(m.GetInt("value")) - int64(m.GetInt("posted_value"))
-	})
+	return stockLedgerLines(moves, moveDrift)
+}
+
+// stockDrift is the sum of what the ledger does not hold yet of moves: the
+// change of their stock value that stockDriftLines posts on their asset
+// accounts.
+func stockDrift(moves []*core.Record) int64 {
+	var sum int64
+	for _, m := range moves {
+		sum += moveDrift(m)
+	}
+	return sum
+}
+
+// moveDrift is move m's value less its posted value.
+func moveDrift(m *core.Record) int64 {
+	return int64(m.GetInt("value")) - int64(m.GetInt("posted_value"))
 }
 
 func stockLedgerLines(moves []*core.Record, amount func(m *core.Record) int64) []postingLine {

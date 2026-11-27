@@ -166,7 +166,7 @@ func postSalesDoc(tx core.App, kind salesDocKind, doc *core.Record, now time.Tim
 	doc.Set("number", entry.GetString("number"))
 	doc.Set("sequence", entry.GetInt("sequence"))
 	doc.Set("entry", entry.Id)
-	if err := numberStockMoves(tx, stockMoves, doc.GetString("number")); err != nil {
+	if err := numberPostedMoves(tx, stockMoves, kind.Collection, doc.Id, doc.GetString("number")); err != nil {
 		return err
 	}
 	doc.Set("posted_at", now)

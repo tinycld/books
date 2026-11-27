@@ -212,29 +212,58 @@ func removeStockMoves(tx core.App, source, document string) ([]*core.Record, err
 // number fields do.
 const maxDocumentNumber = 40
 
-// numberStockMoves gives moves, the stock moves of one posted document as
-// postDocumentStock answers them, the document's number
+// stampStockMoveNumbers writes number on every stock move of the document (a
+// row of the collection source) in one bound UPDATE
 // (books_stock_moves.document_number). A document takes its number in its post
-// after its moves are written, so the moves get it here. The write skips
-// PocketBase's validation, which reads each relation of the row again: the
-// post of a document of many lines would read them all a second time
-// (purchase_stock_cost_test.go). Only the number changes, and its length is
-// checked here. A replay keeps the number (recomputeProductStock writes only
-// the value columns).
-func numberStockMoves(tx core.App, moves []*core.Record, number string) error {
-	if len([]rune(number)) > maxDocumentNumber {
-		return fmt.Errorf("books: the document number %q is longer than %d characters", number, maxDocumentNumber)
+// after its moves are written (postDocument numbers the entry that holds their
+// cost), so the moves get it here: one statement for the document, not one for
+// each move (purchase_stock_cost_test.go). A number longer than the field holds
+// is cut to maxDocumentNumber characters. A replay keeps the number
+// (recomputeProductStock writes only the value columns).
+func stampStockMoveNumbers(tx core.App, source, document, number string) error {
+	_, err := tx.DB().NewQuery("UPDATE books_stock_moves SET document_number = {:number} WHERE source = {:source} AND document = {:document}").
+		Bind(dbx.Params{"number": storedDocumentNumber(number), "source": source, "document": document}).
+		Execute()
+	if err != nil {
+		return fmt.Errorf("books: write the document number of the stock moves of %s %s: %w", source, document, err)
+	}
+	return nil
+}
+
+// numberPostedMoves stamps the number of the posted document on its stock
+// moves (stampStockMoveNumbers) and on moves, the records of them the post
+// holds (postDocumentStock's answer). markStockPosted saved each of those
+// records whose value is not 0 in this transaction, and PocketBase sends that
+// realtime update after the commit with the record as it is then, so the
+// update carries the number. The bound UPDATE sends no realtime event, so a
+// move of value 0, which markStockPosted did not save, is saved here with its
+// number: a client that holds it gets the number live too.
+func numberPostedMoves(tx core.App, moves []*core.Record, source, document, number string) error {
+	if len(moves) == 0 {
+		return nil
+	}
+	if err := stampStockMoveNumbers(tx, source, document, number); err != nil {
+		return err
 	}
 	for _, m := range moves {
-		if m.GetString("document_number") == number {
+		m.Set("document_number", storedDocumentNumber(number))
+		if m.GetInt("value") != 0 {
 			continue
 		}
-		m.Set("document_number", number)
 		if err := tx.SaveNoValidate(m); err != nil {
 			return fmt.Errorf("books: write the document number of a stock move: %w", err)
 		}
 	}
 	return nil
+}
+
+// storedDocumentNumber is number as books_stock_moves.document_number holds
+// it: at most maxDocumentNumber characters.
+func storedDocumentNumber(number string) string {
+	if runes := []rune(number); len(runes) > maxDocumentNumber {
+		return string(runes[:maxDocumentNumber])
+	}
+	return number
 }
 
 // stockMoveProducts are the products of moves, each once, in order.
