@@ -149,6 +149,13 @@
             "sort": "-date,-created,id"
         },
         {
+            "name": "purchase-orders-every-flag",
+            "resource": "purchase-orders",
+            "args": ["--status", "open", "--vendor", "nothinghasthis1", "--search", "nothinghasthis1"],
+            "filter": "status = \"open\" && vendor = \"nothinghasthis1\" && (number ~ \"nothinghasthis1\" || memo ~ \"nothinghasthis1\")",
+            "sort": "-date,-created,id"
+        },
+        {
             "name": "expenses-every-flag",
             "resource": "expenses",
             "args": ["--status", "posted", "--vendor", "nothinghasthis1", "--search", "nothinghasthis1"],

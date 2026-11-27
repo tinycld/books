@@ -160,7 +160,12 @@ export type DocumentListTab = {
     // A credit memo's or a vendor credit's amount is negative on a signed tab, and sorts by
     // its signed value.
     isSigned: boolean
+    // The shipped report the tab's toolbar links (`DocumentListToolbar`), drawn when the
+    // reader has it; its test id is `<area prefix>-<testIdSuffix>`.
+    report?: TabReport
 }
+
+export type TabReport = { shippedKey: string; label: string; testIdSuffix: string }
 
 // The key a tab's search, chip, range, party, sort, selection and window are kept under.
 export function tabStateKey(tab: Pick<DocumentListTab, 'area' | 'key'>): string {

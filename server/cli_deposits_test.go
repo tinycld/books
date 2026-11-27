@@ -268,6 +268,7 @@ func TestCLIDocuments_RowLimitsAreTheServers(t *testing.T) {
 		"bills.lines":                 maxDocumentLines,
 		"expenses.lines":              maxDocumentLines,
 		"vendor-credits.lines":        maxDocumentLines,
+		"purchase-orders.lines":       maxDocumentLines,
 		"payments.applications":       maxPaymentApplications,
 		"bill-payments.lines":         maxBillPaymentLines,
 		"vendor-refunds.lines":        maxVendorRefundLines,

@@ -1,0 +1,19 @@
+{
+    "terms": [
+        { "key": "due_on_receipt", "days": 0 },
+        { "key": "net_10", "days": 10 },
+        { "key": "net_15", "days": 15 },
+        { "key": "net_30", "days": 30 },
+        { "key": "net_60", "days": 60 }
+    ],
+    "due_dates": [
+        { "name": "due on receipt", "date": "2026-11-15", "terms": "due_on_receipt", "due": "2026-11-15" },
+        { "name": "net 10 across a year end", "date": "2026-12-31", "terms": "net_10", "due": "2027-01-10" },
+        { "name": "net 15 from a month end", "date": "2026-01-31", "terms": "net_15", "due": "2026-02-15" },
+        { "name": "net 30 from a month end", "date": "2026-01-31", "terms": "net_30", "due": "2026-03-02" },
+        { "name": "net 60", "date": "2026-11-15", "terms": "net_60", "due": "2027-01-14" },
+        { "name": "net 10 across a leap day", "date": "2028-02-20", "terms": "net_10", "due": "2028-03-01" },
+        { "name": "no terms", "date": "2026-11-15", "terms": "", "due": "2026-11-15" },
+        { "name": "an unknown term", "date": "2026-11-15", "terms": "net_90", "due": "2026-11-15" }
+    ]
+}

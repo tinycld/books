@@ -2,10 +2,17 @@
 // route, the kinds it lists, its columns, chips and sortable columns, and its New action.
 // Free of React Native and icon imports: the e2e helpers import it in Node.
 
-import type { DocumentListTab, ListChip, ListColumnKey, ListSortKey } from './document-list'
+import type {
+    DocumentListTab,
+    ListChip,
+    ListColumnKey,
+    ListSortKey,
+    TabReport,
+} from './document-list'
 import { BASE_SORT_KEYS, listChips as chips } from './list-chips'
 import { areaTabOf } from './list-tabs'
 import { NEW_ACTIONS } from './new-actions'
+import { OPEN_PURCHASE_ORDERS_SHIPPED_KEY } from './shipped-reports'
 import type { VendorTransactionFilter, VendorTransactionKind } from './vendor-transactions'
 
 const ALL_KINDS: readonly VendorTransactionKind[] = [
@@ -51,6 +58,7 @@ function kindTab(
         columns: readonly ListColumnKey[]
         chips: readonly ListChip[]
         sortKeys?: readonly ListSortKey[]
+        report?: TabReport
     }
 ): DocumentListTab {
     return {
@@ -66,6 +74,7 @@ function kindTab(
         chips: tab.chips,
         sortKeys: [...BASE_SORT_KEYS, ...(tab.sortKeys ?? [])],
         isSigned: false,
+        report: tab.report,
     }
 }
 
@@ -95,7 +104,8 @@ export const PURCHASE_TABS: readonly DocumentListTab[] = [
         chips: chips('All', 'Open', 'Overdue', 'Paid', 'Draft', 'Void'),
         sortKeys: ['due', 'balance'],
     }),
-    // Purchase order spec §3.9: Open is the order's stored `open_amount`.
+    // Purchase order spec §3.9: Open is the order's stored `open_amount`. The toolbar
+    // links the Open Purchase Orders report (§3.10).
     kindTab('purchase_order', {
         key: 'purchase-orders',
         label: 'Purchase orders',
@@ -103,6 +113,11 @@ export const PURCHASE_TABS: readonly DocumentListTab[] = [
         columns: ['date', 'number', 'vendor', 'open', 'total', 'status'],
         chips: chips('All', 'Open', 'Closed'),
         sortKeys: ['open'],
+        report: {
+            shippedKey: OPEN_PURCHASE_ORDERS_SHIPPED_KEY,
+            label: 'Open Purchase Orders',
+            testIdSuffix: 'open-orders-report',
+        },
     }),
     kindTab('expense', {
         key: 'expenses',

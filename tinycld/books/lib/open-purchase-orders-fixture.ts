@@ -18,6 +18,7 @@ import {
     type PurchaseOrderLineFixtureRecord,
     type PurchaseOrderRecord,
 } from './purchase-orders-fixture'
+import { documentKey } from './record-key'
 import { SEED_ACCOUNTS } from './seed-accounts'
 import { VENDORS } from './vendor-form-fixture'
 
@@ -32,9 +33,9 @@ const CURRENCY = PURCHASE_ORDER_CURRENCY
 export type OpenOrdersOrder = 'name' | 'open'
 
 // The params as the shipped spec declares them (spec §3.10): Period on the order date
-// (All dates until the reader picks one), Vendor, Order.
+// (All dates by default), Vendor, Order.
 export const OPEN_PURCHASE_ORDERS_PARAMS: ParamDef[] = [
-    { id: 'period', type: 'dateRange', label: 'Period' },
+    { id: 'period', type: 'dateRange', label: 'Period', default: { preset: 'allDates' } },
     {
         id: 'vendors',
         type: 'choice',
@@ -181,7 +182,7 @@ function orderRows(order: PurchaseOrderRecord, vendorRowId: string): ResultRow[]
         depth: 2,
         label: openOrderLineLabel(line),
         section: row.id,
-        open: `books/purchase-orders/${order.id}`,
+        open: `books/purchase-orders/${documentKey(order)}`,
         cells: cellsOf([line]),
     }))
     return [row, ...details]
@@ -260,6 +261,7 @@ function resolvedParams(input: ResultInput): ResolvedParam[] {
     const vendors: ResolvedParam = input.vendors
         ? { id: 'vendors', type: 'choice', list: ids }
         : { id: 'vendors', type: 'choice', unset: true }
+    // All dates is a set range with no bounds, as the server resolves the preset.
     return [
         { id: 'period', type: 'dateRange' },
         vendors,

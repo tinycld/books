@@ -5,15 +5,17 @@ tags: [expenses, purchases, bills, "bill payments", "vendor credits", "vendor re
 order: 39
 ---
 
-To find a bill or an expense, choose Expenses in the sidebar. The Expenses area lists every bill, expense, bill payment, vendor credit and vendor refund, and you can search, filter, sort and act on them from the list.
+To find a bill or an expense, choose Expenses in the sidebar. The Expenses area lists every bill, purchase order, expense, bill payment, vendor credit and vendor refund, and you can search, filter, sort and act on them from the list.
 
 ## Tabs
 
-The Expenses area has six tabs: All purchases lists every kind, and the Bills, Expenses, Bill payments, Vendor credits and Vendor refunds tabs each list one kind. Each tab keeps its own search, status chip, date range, vendor and sort while the app is open. A void document that a correction replaced is not listed; the correction carries its number.
+The Expenses area has seven tabs: All purchases lists every kind, and the Bills, Purchase orders, Expenses, Bill payments, Vendor credits and Vendor refunds tabs each list one kind. Each tab keeps its own search, status chip, date range, vendor and sort while the app is open. A void document that a correction replaced is not listed; the correction carries its number.
 
-To start a new transaction, choose New. On a kind tab it starts that kind ("New bill", "New expense", "Pay bills", "New vendor credit" or "New vendor refund"); on All purchases it opens a menu of the five. If you have read-only access, New is hidden.
+To start a new transaction, choose New. On a kind tab it starts that kind ("New bill", "New purchase order", "New expense", "Pay bills", "New vendor credit" or "New vendor refund"); on All purchases it opens the New menu. If you have read-only access, New is hidden.
 
 On All purchases, a vendor credit's amount shows as a negative figure, because it lowers what you owe. On the Vendor credits tab, Total and Balance show as positive figures.
+
+The Purchase orders tab lists your purchase orders with the Open column: the amount of each order that is not billed yet. Its chips are All, Open and Closed, and its toolbar links the Open Purchase Orders report. See [Purchase orders](help://books:purchase-orders).
 
 ## Search
 
@@ -21,7 +23,7 @@ Type a document number, a reference number (the vendor's bill or credit number, 
 
 ## Filters
 
-- **Status chips**: choose one chip to list only the documents with that status, for example Open, Overdue, Paid, Unapplied or Draft. All lists every status. On the Bills tab, Open also lists Partly paid and Overdue bills. On All purchases, Open lists the bills and vendor credits with a balance left, and Closed lists the rest of the posted documents.
+- **Status chips**: choose one chip to list only the documents with that status, for example Open, Overdue, Paid, Unapplied or Draft. All lists every status. On the Bills tab, Open also lists Partly paid and Overdue bills. On All purchases, Open lists the bills and vendor credits with a balance left and the open purchase orders, and Closed lists the rest of the posted documents and the closed purchase orders.
 - **Date range**: choose This month, Last month, This quarter, This fiscal year or Last fiscal year to list the documents dated in that period. All dates removes the limit.
 - **Vendor picker**: choose a vendor to list only that vendor's documents. Inactive vendors are in the picker too. All vendors removes the filter.
 
@@ -29,7 +31,7 @@ When nothing matches, choose Clear filters to reset the search, the chip, the da
 
 ## Sort
 
-The list starts with the newest date first. To sort by a column, choose its header: the first press sorts low to high (oldest first for a date), the next press turns it around. Date, No. and the amount sort on every tab; Bills also sorts by Due date and Balance, and Vendor credits by Balance. Type, Vendor, Category, Reference no. and Status do not sort. On All purchases the amount sorts with a vendor credit as a negative figure. On a phone, or in a narrow window where the list shows cards, use the Sort menu in the toolbar instead.
+The list starts with the newest date first. To sort by a column, choose its header: the first press sorts low to high (oldest first for a date), the next press turns it around. Date, No. and the amount sort on every tab; Bills also sorts by Due date and Balance, Purchase orders by Open, and Vendor credits by Balance. Type, Vendor, Category, Reference no. and Status do not sort. On All purchases the amount sorts with a vendor credit as a negative figure. On a phone, or in a narrow window where the list shows cards, use the Sort menu in the toolbar instead.
 
 ## The Category column
 
@@ -50,6 +52,7 @@ Each row ends with a More actions button. Its row menu holds Open and the action
 - **Bill payment**: Void, View journal entry.
 - **Vendor credit**: Apply to bills and Record refund (when unapplied credit is left), Void, Copy, View journal entry.
 - **Vendor refund**: Void, View journal entry.
+- **Purchase order**: Copy to bill (while a line is open), Edit, Send…, Download PDF, Copy, Close (a Books admin only), and Delete (only when no bill names the order). A closed order's menu holds Download PDF and Copy; Reopen is on the order's own page.
 
 A void document's row menu holds Copy (for a bill, an expense or a vendor credit) and View journal entry. A draft's row menu holds Open and Delete draft. With read-only access, the row menu holds Open and View journal entry only.
 
@@ -61,6 +64,8 @@ If you can edit the books, each row has a tick box, and the table's header box t
 
 - **Delete drafts** deletes the ticked drafts. A bill payment is never a draft.
 - **Void** voids the ticked posted documents of every kind.
+
+On the Purchase orders tab, Batch actions holds Send and Download PDF only: a purchase order is never a draft and never posts.
 
 The confirm dialog says how many of the ticked documents the action applies to and how many it skips, for example "Delete 3 drafts? 2 selected documents are not drafts and stay." When the action applies to none of them, the dialog says so and has no confirm button. After the action, the banner reads how many were done and how many the server refused, with the first refusal's reason. The documents that were done leave the selection; the refused ones stay ticked. A change of tab, chip, search, date range or vendor clears the selection; a new sort keeps it. In the cards layout the Batch actions menu also holds Select all and Clear selection.
 
@@ -79,6 +84,6 @@ Beside an open document, in the narrow column of a very wide window, the list ke
 | Tick or clear the focused row | X or Space |
 | Tick or clear all loaded rows | A |
 | New (on All purchases, the New menu) | N |
-| All purchases, Bills, Expenses, Bill payments, Vendor credits, Vendor refunds | 1, 2, 3, 4, 5, 6 |
+| All purchases, Bills, Purchase orders, Expenses, Bill payments, Vendor credits, Vendor refunds | 1, 2, 3, 4, 5, 6, 7 |
 
-To work with one kind of document, see [Bills](help://books:bills), [Expenses](help://books:expenses), [Pay bills](help://books:pay-bills), [Vendor credits](help://books:vendor-credits) and [Vendor refunds](help://books:vendor-refunds).
+To work with one kind of document, see [Bills](help://books:bills), [Purchase orders](help://books:purchase-orders), [Expenses](help://books:expenses), [Pay bills](help://books:pay-bills), [Vendor credits](help://books:vendor-credits) and [Vendor refunds](help://books:vendor-refunds).

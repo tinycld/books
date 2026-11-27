@@ -74,7 +74,8 @@ Each type of transaction has its own group of commands:
 - `tinycld books credit-memos`: [credit memos](help://books:credit-memos); `invoice` names the invoice that the credit is for
 - `tinycld books refund-receipts`: [refund receipts](help://books:refund-receipts); `refund_from` is the bank account that the money leaves
 - `tinycld books estimates`: [estimates](help://books:estimates), an offer to a customer. An estimate posts nothing
-- `tinycld books bills`: [bills](help://books:bills), what you owe a vendor
+- `tinycld books bills`: [bills](help://books:bills), what you owe a vendor; `purchase_order` names the purchase order a bill was made from, and `po_line` on a line names the order line it bills
+- `tinycld books purchase-orders`: [purchase orders](help://books:purchase-orders), what you order from a vendor. A purchase order posts nothing: see "To work with a purchase order"
 - `tinycld books expenses`: [expenses](help://books:expenses), a purchase that is paid at once; `paid_from` is the bank or credit card account that the money left
 - `tinycld books vendor-credits`: [vendor credits](help://books:vendor-credits)
 - `tinycld books payments`: [payments](help://books:receive-payment) that a customer makes for invoices
@@ -198,7 +199,7 @@ An `open_items` statement has no period. A `balance_forward` statement needs `st
 
 Put the id of the [Inventory item](help://books:inventory) in `product` of an `item` line, as for a service. When the transaction is posted, Books takes the quantity out of the stock and writes the cost to the journal entry; `entry` prints it. A credit memo or a refund receipt puts the quantity back. A draft moves no stock.
 
-Books does not stop a sale of more than you have: the quantity on hand goes below zero. `tinycld books products show <id>` prints `quantity_on_hand` and `stock_value`.
+Books does not stop a sale of more than you have: the quantity on hand goes below zero. `tinycld books products show <id>` prints `quantity_on_hand` and `stock_value`, and `quantity_on_po`: the quantity that is ordered on open purchase orders and not received yet.
 
 ## To see the journal entry of a transaction
 
@@ -221,7 +222,7 @@ echo '{"date": "2026-07-15", "memo": "Owner investment", "lines": [
 
 Without `--post`, the transaction is a draft: it does not count in the books until it is posted. Books stores the transaction and its lines in one step. When it refuses a line, it stores nothing, and the message names the line: `lines[1]` is the second line.
 
-Three types have no draft. A bill payment and a write-off are posted by `add`, and an estimate is pending at once: they have no `--post` and no `post`.
+Four types have no draft. A bill payment and a write-off are posted by `add`, an estimate is pending at once, and a purchase order is open at once: they have no `--post` and no `post`.
 
 To see the fields of a transaction and of its lines, run `tinycld books schema journal-entries add`. Each type has its own: `tinycld books schema deposits add`, `tinycld books schema credit-memos apply`.
 
@@ -257,6 +258,29 @@ echo '{"date": "2026-07-21", "due_date": "2026-08-20"}' | tinycld books estimate
 An estimate moves no stock. `accept` and `reject` record the customer's answer; `reopen` makes the estimate pending again. Books closes an estimate when an invoice is made from it. A closed estimate cannot be changed or deleted.
 
 `convert` makes a draft invoice with the customer, the billing address, the email address, the tax rate and the lines of the estimate, and prints it. It does not copy the memo or the message. The JSON gives the invoice's own fields: `date` and `due_date` are required, and `lines` replaces the lines of the estimate. Books closes the estimate in the same step, and one estimate makes one invoice. Post the invoice with `tinycld books invoices post`.
+
+## To work with a purchase order
+
+A purchase order has no draft: `add` makes it open, and Books numbers it at once. `edit` changes an open one in place. It has no `post` and no `void`, and it posts nothing to the books. A line has a `kind`, as a line of a bill: `account` (an account and an `amount`) or `item` (a product or service, a quantity and a rate).
+
+```
+echo '{"vendor": "<vendor id>", "date": "2026-07-20", "lines": [
+  {"kind": "item", "product": "<product id>", "quantity": 10, "rate": 12140},
+  {"kind": "account", "account": "<expense account id>", "amount": 30000, "description": "Annual license"}
+]}' | tinycld books purchase-orders add --input -
+tinycld books purchase-orders show <id>
+tinycld books purchase-orders copy-to-bill <id>
+echo '{"date": "2026-07-28", "due_date": "2026-08-27"}' | tinycld books purchase-orders copy-to-bill <id> --input -
+echo '{"date": "2026-07-28", "due_date": "2026-08-27", "lines": [{"po_line": "<order line id>", "quantity": 4}]}' | tinycld books purchase-orders copy-to-bill <id> --input - --post
+tinycld books purchase-orders close <id>
+tinycld books purchase-orders reopen <id>
+```
+
+`copy-to-bill` makes a draft bill for the order's vendor, with the order's `mailing_address`, and prints it. Without `lines` in the JSON, the bill takes every open line: an `item` line at its `open_quantity`, an `account` line at its `open_amount`. Each bill line names its order line in `po_line`, and the bill names the order in `purchase_order`. To bill a part, give `lines`: each row names an order line in `po_line` and gives its `quantity` (an `item` line) or its `amount` (an `account` line); the bill line takes the kind, the product or account, the description and the rate of the order line. The JSON gives the bill's own fields: `date` and `due_date` are required in it. `--input` is optional: without it, the bill is dated today, takes the vendor's `terms` and the `due_date` they give, and takes every open line. `--post` posts the bill in the same step. The order stays open, so one order can make many bills.
+
+`show` prints what is still open. On each line, `received` is the quantity and `billed` the amount on posted bills, and `open_quantity` and `open_amount` are what is left. The order's `open_amount` is the sum of its lines' while it is open. A draft bill changes none of them: Books counts a bill when it is posted, and counts it out again when it is voided, deleted or corrected to less. When nothing is open on any line, Books closes the order: `closed_reason` is `received`.
+
+`close` closes an open order by hand (`closed_reason` is `manual`): nothing more can be copied to a bill. `reopen` opens it again. Only a Books admin can close or reopen an order. An order that Books closed because every line is received has no `reopen`: it opens again by itself when one of its bills is voided, deleted or corrected to less. `close` asks first; `--yes` answers. `delete` removes an order that no bill was made from; Books refuses it for an order with bills: close it instead. You cannot send a purchase order or download its PDF from the command line; do it in the app.
 
 ## To run a report
 

@@ -78,7 +78,8 @@ describe('help/purchase-lists.md', () => {
         ['tick', ['X', 'Space']],
         ['tick all', ['A']],
         ['new', ['N']],
-        ['the tabs', ['1', '2', '3', '4', '5', '6']],
+        // Purchase orders spec §3.9: the Purchase orders tab makes seven tabs.
+        ['the tabs', ['1', '2', '3', '4', '5', '6', '7']],
     ])('the key table names the %s keys', (_action, keys) => {
         const row = keyCells.find(cell => keys.every(key => cell.has(key)))
         expect(row, `a key cell with ${keys.join(', ')}`).toBeDefined()

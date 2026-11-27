@@ -926,7 +926,8 @@ export const BILL_DOCUMENT: DocumentKind = {
         correction: (source, lines) =>
             billCorrectionValues(billRowOf(source), lines.filter(isPurchaseLine)),
         // Copy to bill (`?purchase_order`): the lines the dialog chose, or every open line
-        // when no choice is stored (billLinesFromChoice); the header from the order's vendor.
+        // when no choice is stored (billLinesFromChoice); the order's vendor and mailing
+        // address, and the vendor's terms (billValuesFromOrder).
         fromSource: (source, _lines, today, party) => {
             if (source.key !== 'purchase_order') {
                 throw new Error(`a bill is not made from a ${source.key}`)

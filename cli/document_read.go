@@ -27,6 +27,10 @@ func newDocumentCmd(c *client.Client, doc *document) *cobra.Command {
 	switch doc.Lifecycle {
 	case lifecycleQuote:
 		group.AddCommand(newDocumentEditCmd(c, doc), newQuoteAcceptCmd(c, doc), newQuoteStatusCmd(c, doc, quoteReject), newQuoteStatusCmd(c, doc, quoteReopen), newQuoteDeleteCmd(c, doc))
+	case lifecycleOrder:
+		// Books refuses the delete of an order that documents were made from,
+		// with the text that says to close it.
+		group.AddCommand(newDocumentEditCmd(c, doc), newOrderCloseCmd(c, doc), newOrderReopenCmd(c, doc), newGuardedDeleteCmd(c, &doc.resource, nil))
 	case lifecyclePosted:
 		// No draft: nothing to post and nothing to delete.
 		if doc.corrects() {

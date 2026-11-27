@@ -159,12 +159,21 @@ func TestPurchaseCorrectionLeavesOutTheAmountBooksComputes(t *testing.T) {
 				t.Fatal(err)
 			}
 			url := "/api/collections/" + tc.lines + "/records"
-			account, _ := json.Marshal(map[string]any{"account": "acctsoftware001", "amount": 4500, "description": "Design tools", "kind": "account", "position": 0, "product": "", "quantity": 0, "rate": 0, tc.parent: "buynew000000001"})
-			item, _ := json.Marshal(map[string]any{"account": "", "description": "", "kind": "item", "position": 1, "product": "prodwidget00001", "quantity": 4, "rate": 500, tc.parent: "buynew000000001"})
+			account := map[string]any{"account": "acctsoftware001", "amount": 4500, "description": "Design tools", "kind": "account", "position": 0, "product": "", "quantity": 0, "rate": 0, tc.parent: "buynew000000001"}
+			item := map[string]any{"account": "", "description": "", "kind": "item", "position": 1, "product": "prodwidget00001", "quantity": 4, "rate": 500, tc.parent: "buynew000000001"}
+			// A bill line carries its purchase order line (spec §3.13); the
+			// correction copies it, empty here, and the server moves it when it
+			// posts (§3.8).
+			if tc.name == "bills" {
+				account["po_line"] = ""
+				item["po_line"] = ""
+			}
+			accountBody, _ := json.Marshal(account)
+			itemBody, _ := json.Marshal(item)
 			got := `[` +
 				`{"method":"POST","url":"/api/collections/` + tc.collection + `/records","body":{` + want.header + `}},` +
-				`{"method":"POST","url":"` + url + `","body":` + string(account) + `},` +
-				`{"method":"POST","url":"` + url + `","body":` + string(item) + `},` +
+				`{"method":"POST","url":"` + url + `","body":` + string(accountBody) + `},` +
+				`{"method":"POST","url":"` + url + `","body":` + string(itemBody) + `},` +
 				`{"method":"PATCH","url":"/api/collections/` + tc.collection + `/records/buynew000000001","body":{"revision":1,"status":"posted"}}]`
 			if sent := sentBatch(t, f, 0); sent != got {
 				t.Errorf("the batch:\n%s\nwant:\n%s", sent, got)

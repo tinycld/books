@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { REPORT_GROUPS, reportGroup } from '../tinycld/books/lib/report-groups'
+import { OPEN_PURCHASE_ORDERS_SHIPPED_KEY } from '../tinycld/books/lib/shipped-reports'
 
 describe('reportGroup', () => {
     it('puts a saved report (no shipped key) in Saved, the last group', () => {
@@ -14,5 +15,12 @@ describe('reportGroup', () => {
     it('puts the statements with Sales and the 1099s with Expenses', () => {
         expect(reportGroup('books.statement_open_items')).toBe('sales')
         expect(reportGroup('books.form_1099')).toBe('expenses')
+    })
+
+    it('puts the Open Purchase Orders with Expenses, beside the Expenses by Vendor', () => {
+        expect(reportGroup(OPEN_PURCHASE_ORDERS_SHIPPED_KEY)).toBe(
+            reportGroup('books.expenses_by_vendor')
+        )
+        expect(reportGroup(OPEN_PURCHASE_ORDERS_SHIPPED_KEY)).toBe('expenses')
     })
 })

@@ -6,7 +6,7 @@
 import type { FormValues } from '@tinycld/core/lib/forms/logic'
 import type { TableRow } from '@tinycld/core/lib/forms/values'
 import type { BooksBills, BooksPurchaseOrders, BooksVendors } from '../types'
-import type { CustomerAddress } from './address'
+import { type CustomerAddress, formatAddressLines, isCustomerAddress } from './address'
 import { dueDateFor } from './document-dates'
 import type { DocumentTotalRow } from './document-total-rows'
 import { formatMoney, MINUS } from './money'
@@ -194,13 +194,21 @@ export function billCorrectionValues(
     }
 }
 
+// The order's mailing address when it holds one (a valid address with a line that is not
+// empty), else null.
+function orderAddress(value: unknown): CustomerAddress | null {
+    if (!isCustomerAddress(value)) return null
+    return formatAddressLines(value).length > 0 ? value : null
+}
+
 // Copy to bill (`?purchase_order=<id>`, purchase order spec §3.8): a new draft for the
-// order's vendor with Mailing address, Terms and the due date they give from the vendor's
-// current record as a pick fills them, dated today, with no vendor's bill no. and an empty
-// memo, and the lines `lines` gives (billLinesFromChoice: the chosen lines, or every open
-// line). It names the order it is made from.
+// order's vendor with the order's Mailing address (the vendor's current address when the
+// order has none), and Terms and the due date they give from the vendor's current record
+// as a pick fills them, dated today, with no vendor's bill no. and an empty memo, and the
+// lines `lines` gives (billLinesFromChoice: the chosen lines, or every open line). It
+// names the order it is made from.
 export function billValuesFromOrder(
-    order: Pick<BooksPurchaseOrders, 'id' | 'vendor'>,
+    order: Pick<BooksPurchaseOrders, 'id' | 'vendor' | 'mailing_address'>,
     lines: PurchaseTableRows,
     today: string,
     vendor: VendorBillFill
@@ -217,5 +225,10 @@ export function billValuesFromOrder(
         purchase_order: order.id,
     }
     const { mailing_address, terms, due_date } = vendorBillFills(vendor, false, blank)
-    return { ...blank, mailing_address, terms, due_date }
+    return {
+        ...blank,
+        mailing_address: orderAddress(order.mailing_address) ?? mailing_address,
+        terms,
+        due_date,
+    }
 }

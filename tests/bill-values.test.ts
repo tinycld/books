@@ -9,6 +9,7 @@ import {
 } from '../tinycld/books/lib/bill-form-fixture'
 import {
     billCorrectionValues,
+    billValuesFromOrder,
     copyBillValues,
     newBillValues,
     vendorBillFills,
@@ -232,6 +233,49 @@ describe('copyBillValues', () => {
             { subtotal: BILL_KIND.lineTables[0]?.subtotal, cents: 14_855 },
             { subtotal: BILL_KIND.lineTables[1]?.subtotal, cents: 76_140 },
         ])
+    })
+})
+
+// Copy to bill (purchase order spec §3.8): the bill starts from the order's vendor and
+// mailing address; only Terms and the due date they give come from the vendor's record.
+describe('billValuesFromOrder', () => {
+    const ORDER_ADDRESS = {
+        line1: '77 Annex Road',
+        line2: 'Dock 2',
+        city: 'Oakland',
+        region: 'CA',
+        postal_code: '94607',
+        country: 'US',
+    }
+    const NO_LINES = { account_lines: [], item_lines: [] }
+
+    it("takes the order's mailing address, not the vendor's, with the vendor's terms", () => {
+        const values = billValuesFromOrder(
+            { id: 'poorder00000001', vendor: OFFICE_SUPPLY.id, mailing_address: ORDER_ADDRESS },
+            NO_LINES,
+            BILL_TODAY,
+            OFFICE_SUPPLY
+        )
+        expect(values.mailing_address).toEqual(ORDER_ADDRESS)
+        expect(values.terms).toBe('net_15')
+        expect(values.due_date).toBe('2026-11-28')
+        expect(values.purchase_order).toBe('poorder00000001')
+    })
+
+    it("takes the vendor's mailing address when the order has none", () => {
+        const values = billValuesFromOrder(
+            { id: 'poorder00000001', vendor: OFFICE_SUPPLY.id, mailing_address: null },
+            NO_LINES,
+            BILL_TODAY,
+            OFFICE_SUPPLY
+        )
+        expect(values.mailing_address).toMatchObject({
+            line1: '4120 Commerce Boulevard',
+            city: 'Los Angeles',
+            region: 'CA',
+            postal_code: '90040',
+        })
+        expect(values.terms).toBe('net_15')
     })
 })
 

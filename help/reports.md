@@ -515,6 +515,27 @@ The report does not update by itself: under the chips it shows the note "This re
 
 On a phone, each row shows the name on the first line, then Reportable, Excluded and All payments on the second. A long name or payment wraps to at most three lines, and a figure is never cut. Customize and Export are under **⋯**.
 
+## Read the Open Purchase Orders report
+
+To see what you ordered and did not receive yet, open Reports and choose Open Purchase Orders. You can also press Open Purchase Orders in the toolbar of the Purchase orders tab (Expenses), or press Reports at the top of the Vendors list, then Open Purchase Orders. A purchase order is not in your books, so no other report counts it. See [Purchase orders](help://books:purchase-orders).
+
+The report lists the open lines of the open purchase orders, grouped by vendor, then by order, for example "1004 · 2026-11-03". A product line is open while some of its quantity is not received; an account line while some of its amount is not billed. A closed order does not show, and a draft bill changes nothing until it posts. Each line shows its product or account and its description, then:
+
+- Ordered, Received and Open: the quantities of a product line. The vendor and order rows add them up. They are blank on an account line, on a group that has no product line, and on the Total row.
+- Open amount: what is still open on the line. The vendor and order rows add it up, and the Total row at the end adds every line.
+
+To open a line's purchase order, press the line.
+
+To change the period, press the Period chip. It filters by the order date, and the default is All dates. When no open line is in the period, the report shows "No open purchase orders".
+
+To show only some vendors, press Add filter, then Vendor, and pick one or more vendors. Then press Apply. To remove the filter, press the × on the Vendor chip.
+
+To change the order, press the Order chip. Name, the default, orders the vendors by name. Largest open amount puts the largest Open amount first.
+
+The report stays current: it reads the order lines, not the journal lines, and shows no **Refresh** button.
+
+On a phone, each line shows its name and Open amount on the first line, then Ordered, Received and Open on the second. An account line has no quantities, so it shows the first line only. A figure is never cut. Customize and Export are under **⋯**.
+
 ## Reports that you refresh
 
 Six Books reports read every journal line, so they do not run again each time the books change: the General Ledger, Transaction Detail by Account, the Trial Balance, the Balance Sheet, the Journal and the Profit and Loss by Month. Under the chips, each of them shows the note "This report does not update by itself. Press Refresh to see new changes." and a **Refresh** button. The Expenses by Vendor reads every posted expense line on the basis you choose, so it shows the same note and **Refresh** button too. The 1099 Summary and Detail reads posted payment lines too, with no basis to choose, so it also shows the note and **Refresh** button.
@@ -523,7 +544,7 @@ To see the changes made after you opened the report, press **Refresh**, or press
 
 Transaction Detail by Account opened from a figure, in the panel at the side, has its own **Refresh** button.
 
-The Profit and Loss, the Customer Balance, the Vendor Balance, the A/R Aging, the A/P Aging, the sales reports, the Sales Tax Liability, the Audit Log, the Reconciliation Report and the two statement reports stay current: they run again when the books change, and show no **Refresh** button. When someone saves a change to the columns, the filters or the layout of the Profit and Loss, the Customer Balance, the Vendor Balance, the Audit Log or Statement: Balance Forward, that report does not update by itself any more and shows **Refresh**. A change to only the title or the description keeps it current.
+The Profit and Loss, the Customer Balance, the Vendor Balance, the A/R Aging, the A/P Aging, the sales reports, the Sales Tax Liability, the Open Purchase Orders, the Audit Log, the Reconciliation Report and the two statement reports stay current: they run again when the books change, and show no **Refresh** button. When someone saves a change to the columns, the filters or the layout of the Profit and Loss, the Customer Balance, the Vendor Balance, the Audit Log or Statement: Balance Forward, that report does not update by itself any more and shows **Refresh**. A change to only the title or the description keeps it current.
 
 A report that you build over journal lines, or that shows columns from journal lines, or over the Audit log, does not update by itself. A copy that you keep with Save as of one of the six reports above, of the Profit and Loss, of the Customer Balance, of the Vendor Balance, of the Expenses by Vendor, of the 1099 Summary and Detail, of the Audit Log or of Statement: Balance Forward does not update by itself either. Each shows the same note and **Refresh** button. A copy of the A/R Aging, of the A/P Aging, of a sales report, of the Sales Tax Liability or of Statement: Open Items stays current.
 
@@ -537,7 +558,7 @@ The Audit Log lists every change that people made to Books records: when, who, w
 
 ## Who sees Books reports
 
-Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month, Transaction Detail by Account, the Sales Tax Liability, the Customer Balance, the A/R Aging, the A/P Aging, the Vendor Balance, the Expenses by Vendor, the 1099 Summary and Detail, Sales by Customer, Sales by Product/Service, the Reconciliation Report and the Audit Log, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
+Every user with Books read access sees the Trial Balance, the General Ledger, the Balance Sheet, the Journal, the Profit and Loss, the Profit and Loss by Month, Transaction Detail by Account, the Sales Tax Liability, the Customer Balance, the A/R Aging, the A/P Aging, the Vendor Balance, the Expenses by Vendor, the 1099 Summary and Detail, Sales by Customer, Sales by Product/Service, the Open Purchase Orders, the Reconciliation Report and the Audit Log, in every role, guests with Books access included. Books gives each of these users a viewer share of each report, and keeps the shares in step with Books access. When you give a user Books access, the user gets the share. When you remove the access, the share is removed. A user who has been offboarded has no share. Books gives no share to a user without Books access. An editor share that someone gives by hand stays until someone removes it.
 
 A reader can change the chips and Customize for the run, copy a link with Copy link, and keep a copy with Save as. Each reader sees only the data that the reader can access.
 
@@ -548,6 +569,8 @@ To make your own report from Books data, such as accounts, journal entries, jour
 A report that you build over journal lines, or that shows columns from journal lines, does not update by itself (see "Reports that you refresh" above).
 
 The sales tax data is in four sources: Sales tax lines, Tax agencies, Tax rates and Sales documents. Sales tax lines has one row for each document and tax rate, written when the document is posted. Sales documents holds the invoices, the sales receipts, the credit memos and the refund receipts together. In Sales documents, a credit memo has the Kind "Credit memo" and a refund receipt the Kind "Refund receipt", and their Subtotal, Tax and Total are positive, as they are on the document. A credit memo lowers what the customer owes, so a report that adds totals across kinds must filter by Kind, for example to invoices and sales receipts only. A voided document keeps its tax lines, so filter on the document's status to count only posted documents. For example, start from Sales tax lines to build the tax of each customer.
+
+The purchase orders are in two sources: Purchase orders (one row for each order, with its Status and Open amount) and Purchase order lines (one row for each line, with what is received, billed and open). Products has the field On purchase order: the quantity on open purchase orders that is not received yet.
 
 ## Statement reports
 

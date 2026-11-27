@@ -61,6 +61,8 @@ var booksSourceKeys = []string{
 	"books.journal_lines",
 	"books.payable_items",
 	"books.products",
+	"books.purchase_order_lines",
+	"books.purchase_orders",
 	"books.receivable_items",
 	"books.reconciled_lines",
 	"books.reconciliations",
@@ -714,6 +716,7 @@ func expectedCatalog(t *testing.T) []wantSource {
 				{key: "quantity_on_hand", typ: reports.Number, aggs: reports.SumAll},
 				money("stock_value"),
 				{key: "reorder_point", typ: reports.Number, aggs: reports.MinMax},
+				{key: "quantity_on_po", typ: reports.Number, aggs: reports.SumAll},
 			},
 			links: []wantLink{
 				toOne("income_account", "books.accounts", "income_account"),
@@ -1753,6 +1756,8 @@ func TestSettingsSource(t *testing.T) {
 // record type to the record filter.
 // books.audit_log was recorded again when purchase-orders added its Purchase
 // order and Purchase order line record types.
+// books.open_purchase_orders was recorded when purchase-orders shipped it,
+// with its detail opening the order by its number key.
 var shippedSpecSHA256 = map[string]string{
 	"books.trial_balance":             "c4658b6cccf9ce33c811e1c05210c9b2025fdc02474d79c14971e8206d4ed845",
 	"books.general_ledger":            "67c9c096f3c741d0ba726bbca28999f11ba625a8b4ca6c85590826d38ed672a7",
@@ -1772,6 +1777,7 @@ var shippedSpecSHA256 = map[string]string{
 	"books.audit_log":                 "762b4af2bba3af594b97f4127eb4ea3487db37ddb52222279acdc0c19967617c",
 	"books.statement_balance_forward": "c0459c2938192ce4421c0fcea148832ee465ca8c3f664c6cea21a018b5ee45ed",
 	"books.statement_open_items":      "95a8a5e99e84aeebf65467f85aa1b94a0549dd7e5653ec20814401943789d9a7",
+	"books.open_purchase_orders":      "1d6a39da1021b9e038dba4a50df4e68b66fb495bf918a3f74fb59b50865a8886",
 }
 
 func TestSourceAdditionsKeepShippedSpecs(t *testing.T) {
@@ -1781,6 +1787,7 @@ func TestSourceAdditionsKeepShippedSpecs(t *testing.T) {
 		salesTaxLiabilityShipped(), customerBalanceShipped(), arAgingShipped(), apAgingShipped(),
 		vendorBalanceShipped(), expensesByVendorShipped(), salesByCustomerShipped(), salesByProductShipped(),
 		auditLogShipped(), statementBalanceForwardShipped(), statementOpenItemsShipped(),
+		openPurchaseOrdersReport(),
 	}
 	if len(shipped) != len(shippedSpecSHA256) {
 		t.Errorf("%d shipped reports, %d recorded sums", len(shipped), len(shippedSpecSHA256))
