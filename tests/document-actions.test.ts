@@ -7,6 +7,7 @@ import {
     DOCUMENT_READ_KEYS,
     DOCUMENT_READ_LABELS,
     DOCUMENT_TAB_KEYS,
+    documentReadActionDisabled,
     documentReadActions,
     payBillOffered,
     receivePaymentOffered,
@@ -66,7 +67,51 @@ describe('DOCUMENT_READ_KEYS', () => {
             write_off: 'w',
             send: 's',
             link: 'Alt+l',
+            // A purchase order's (purchase order spec §3.2): Copy to bill B, Close X,
+            // Reopen U. Delete is a More row with no letter key.
+            copy_to_bill: 'b',
+            close: 'x',
+            reopen: 'u',
         })
+    })
+
+    it('gives Delete no letter key, only its words', () => {
+        expect(Object.hasOwn(DOCUMENT_READ_KEYS, 'delete')).toBe(false)
+        expect(DOCUMENT_READ_LABELS.delete).toBe('Delete')
+        expect(DOCUMENT_READ_LABELS.copy_to_bill).toBe('Copy to bill')
+        expect(DOCUMENT_READ_LABELS.close).toBe('Close')
+        expect(DOCUMENT_READ_LABELS.reopen).toBe('Reopen')
+    })
+})
+
+// The read bar's disabled state (purchase order spec §3.12): an action that writes is
+// disabled while writes are unavailable (offline, a blocked server), as the save bar's
+// buttons; Download PDF only waits for its own download.
+describe('documentReadActionDisabled', () => {
+    const IDLE = {
+        writesAvailable: true,
+        isVoiding: false,
+        isDownloading: false,
+        isLinkOffered: true,
+    }
+    const BLOCKED = { ...IDLE, writesAvailable: false }
+    const WRITES = ['copy_to_bill', 'close', 'reopen', 'delete', 'void', 'send'] as const
+
+    it.each(WRITES)('disables %s while writes are blocked', action => {
+        expect(documentReadActionDisabled(action, BLOCKED)).toBe(true)
+    })
+
+    it.each(WRITES)('enables %s while writes are available and nothing runs', action => {
+        expect(documentReadActionDisabled(action, IDLE)).toBe(false)
+    })
+
+    it('keeps Download PDF enabled while writes are blocked, and disables it while it downloads', () => {
+        expect(documentReadActionDisabled('pdf', BLOCKED)).toBe(false)
+        expect(documentReadActionDisabled('pdf', { ...IDLE, isDownloading: true })).toBe(true)
+    })
+
+    it('disables Void while its void runs', () => {
+        expect(documentReadActionDisabled('void', { ...IDLE, isVoiding: true })).toBe(true)
     })
 })
 
@@ -283,6 +328,10 @@ describe('the sales receipt read view', () => {
             send: 's',
             link: 'Alt+l',
             pdf: '$mod+p',
+            copy_to_bill: 'b',
+            close: 'x',
+            reopen: 'u',
+            delete: '',
         })
         expect(DOCUMENT_TAB_KEYS).toEqual({ edit: 'Alt+1', pdf: 'Alt+2' })
     })

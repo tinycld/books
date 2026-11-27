@@ -12,6 +12,7 @@ import {
     ESTIMATE_MESSAGES,
     EXPENSE_MESSAGES,
     INVOICE_MESSAGES,
+    PURCHASE_ORDER_MESSAGES,
     REFUND_RECEIPT_MESSAGES,
     SALES_RECEIPT_MESSAGES,
     VENDOR_CREDIT_MESSAGES,
@@ -20,6 +21,10 @@ import {
 // The memo's hint on a kind that posts: the memo goes on the journal entry. The bill's
 // forms host (forms/hosts.ts) seeds it too.
 export const MEMO_HINT = 'Only your team sees this. Saved as the journal entry memo.'
+
+// The purchase order's forms host (forms/hosts.ts); the Go line guard reads the same key
+// (server/purchase_orders.go).
+export const PURCHASE_ORDER_HOST_KEY = 'books:purchase_order'
 
 export type SalesDocKey =
     | 'invoice'
@@ -30,10 +35,12 @@ export type SalesDocKey =
     | 'expense'
     | 'vendor_credit'
     | 'refund_receipt'
+    | 'purchase_order'
 
 // How a kind's statuses run (lib/document-lifecycle.ts): `posting` (draft → posted →
-// void) or `quote` (pending / accepted / rejected → closed, never posted).
-export type DocumentLifecycle = 'posting' | 'quote'
+// void), `quote` (pending / accepted / rejected → closed, never posted) or `order` (open →
+// closed, never posted and never a draft).
+export type DocumentLifecycle = 'posting' | 'quote' | 'order'
 
 // The party a document is with: its header field, which also names it on every journal
 // line the document posts.
@@ -171,6 +178,9 @@ export type SalesDocumentKind = {
     // form shows them with the refusal (a bill, spec §3.4 "dropped at save"). False: they
     // stay dropped (the sales kinds' forms, as they always were).
     keepsEmptyLinesOnRefusal: boolean
+    // Whether a product line shows the product's Vendor part no. as a second line under its
+    // name (forms/purchase-line-cells.tsx): a purchase order's only (purchase order spec Q17).
+    showsVendorPartNo: boolean
 }
 
 export const INVOICE_KIND: SalesDocumentKind = {
@@ -197,6 +207,7 @@ export const INVOICE_KIND: SalesDocumentKind = {
     lineTables: SALES_LINE_TABLES,
     features: SALES_FEATURES,
     keepsEmptyLinesOnRefusal: false,
+    showsVendorPartNo: false,
 }
 
 export const SALES_RECEIPT_KIND: SalesDocumentKind = {
@@ -224,6 +235,7 @@ export const SALES_RECEIPT_KIND: SalesDocumentKind = {
     lineTables: SALES_LINE_TABLES,
     features: SALES_FEATURES,
     keepsEmptyLinesOnRefusal: false,
+    showsVendorPartNo: false,
 }
 
 // A credit memo (credit memo spec §3.1): the invoice's mirror. Its big figure and last
@@ -253,6 +265,7 @@ export const CREDIT_MEMO_KIND: SalesDocumentKind & { messages: typeof CREDIT_MEM
     lineTables: SALES_LINE_TABLES,
     features: SALES_FEATURES,
     keepsEmptyLinesOnRefusal: false,
+    showsVendorPartNo: false,
 }
 
 // A refund receipt (refund receipt spec §3.1): the sales receipt's mirror, money paid back
@@ -286,6 +299,7 @@ export const REFUND_RECEIPT_KIND: SalesDocumentKind & {
     lineTables: SALES_LINE_TABLES,
     features: SALES_FEATURES,
     keepsEmptyLinesOnRefusal: false,
+    showsVendorPartNo: false,
 }
 
 // Its messages keep their own type, so a reader of a quote-only text (cannotConvert)
@@ -319,6 +333,7 @@ export const ESTIMATE_KIND: SalesDocumentKind & { messages: typeof ESTIMATE_MESS
     lineTables: SALES_LINE_TABLES,
     features: SALES_FEATURES,
     keepsEmptyLinesOnRefusal: false,
+    showsVendorPartNo: false,
 }
 
 // A bill (spec §3.1): the purchase kind of the layer. Its party is a vendor, it has two
@@ -359,6 +374,60 @@ export const BILL_KIND: SalesDocumentKind & { messages: typeof BILL_MESSAGES } =
         attachments: true,
     },
     keepsEmptyLinesOnRefusal: true,
+    showsVendorPartNo: false,
+}
+
+// A purchase order's features (purchase order spec §3.1): a message to the vendor, an
+// email, a PDF and the vendor's address; no tax and no attachments.
+export const PURCHASE_ORDER_FEATURES: DocumentFeatures = {
+    tax: false,
+    message: true,
+    email: true,
+    pdf: true,
+    partyAddress: true,
+    attachments: false,
+}
+
+// A purchase order (purchase order spec §3.1): the order lifecycle (open → closed, never
+// posted), the bill's vendor and two line tables. Like an estimate, the server numbers it
+// at the first save. Its messages keep their own type, so a reader of an order-only text
+// (closedNoEdit, hasBills) needs no fallback.
+export const PURCHASE_ORDER_KIND: SalesDocumentKind & {
+    messages: typeof PURCHASE_ORDER_MESSAGES
+} = {
+    key: 'purchase_order',
+    lifecycle: 'order',
+    hostKey: PURCHASE_ORDER_HOST_KEY,
+    testId: 'purchase-order',
+    routeBase: 'books/purchase-orders',
+    noun: 'Purchase order',
+    thisNoun: 'This purchase order',
+    // Never shown: an order has no draft, and a stored order's title is "Purchase order <n>".
+    draftTitle: 'Purchase order',
+    newTitle: 'New purchase order',
+    shortcutGroup: 'Purchase order',
+    figure: { label: 'Total', testId: 'total-figure' },
+    // Total is the last row already; the read view's Billed and Open follow it
+    // (DocumentKind.readTotals).
+    lastTotal: null,
+    customerRequired: true,
+    // An order never posts, so its memo goes on no journal entry.
+    noteHints: {
+        message: 'Shown on the purchase order and its PDF.',
+        memo: 'Only your team sees this.',
+    },
+    messages: PURCHASE_ORDER_MESSAGES,
+    // The server gives the number at the first save, so every PDF has one
+    // (server/pdf_purchase_order.go).
+    pdfStem: number => `purchase-order-${number}`,
+    // The second band row: Order date and Ship to.
+    bandSplitAt: 'date',
+    helpTopic: 'books:purchase-orders',
+    party: 'vendor',
+    lineTables: PURCHASE_LINE_TABLES,
+    features: PURCHASE_ORDER_FEATURES,
+    keepsEmptyLinesOnRefusal: true,
+    showsVendorPartNo: true,
 }
 
 // An expense (expense spec §3.1): money already paid from a bank or credit card account,
@@ -400,6 +469,7 @@ export const EXPENSE_KIND: SalesDocumentKind & { messages: typeof EXPENSE_MESSAG
         attachments: true,
     },
     keepsEmptyLinesOnRefusal: true,
+    showsVendorPartNo: false,
 }
 
 // A vendor credit (vendor credit spec §3.1): a credit a vendor gave, the bill's mirror. The
@@ -443,4 +513,5 @@ export const VENDOR_CREDIT_KIND: SalesDocumentKind & {
         attachments: true,
     },
     keepsEmptyLinesOnRefusal: true,
+    showsVendorPartNo: false,
 }

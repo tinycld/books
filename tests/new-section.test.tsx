@@ -79,6 +79,37 @@ describe('New section', () => {
         )
     })
 
+    // Purchase order spec §2: the Vendors group draws Purchase order after Vendor and
+    // before Bill, and opens the order's new form.
+    it('draws Purchase order between Vendor and Bill and opens books/purchase-orders/new', async () => {
+        seedSidebar({ level: 'bookkeeper' })
+        useBooksUIStore.setState({ isNewOpen: true })
+        const { container } = renderSidebar()
+        await waitFor(() =>
+            expect(byTestId(container, 'books-sidebar-new-purchase-order')).not.toBeNull()
+        )
+
+        const vendors = idsWith(container, 'books-sidebar-new-').filter(id =>
+            ['vendor', 'purchase-order', 'bill'].some(key => id === `books-sidebar-new-${key}`)
+        )
+        expect(vendors).toEqual([
+            'books-sidebar-new-vendor',
+            'books-sidebar-new-purchase-order',
+            'books-sidebar-new-bill',
+        ])
+        const order = byTestId(container, 'books-sidebar-new-purchase-order') as HTMLElement
+        expect(order.textContent).toBe('Purchase order')
+        expect((order.parentElement as HTMLElement).getAttribute('testid')).toBe(
+            'books-sidebar-new-group-vendors'
+        )
+
+        fireEvent.click(order)
+
+        expect(vi.mocked(router.push).mock.calls.map(call => call[0])).toEqual([
+            '/a/books/purchase-orders/new',
+        ])
+    })
+
     it('opens the form of a pressed action', async () => {
         seedSidebar({ level: 'bookkeeper' })
         useBooksUIStore.setState({ isNewOpen: true })

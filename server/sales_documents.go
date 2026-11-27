@@ -19,10 +19,13 @@ import (
 // The lifecycles of a sales document kind (the client's DocumentLifecycle,
 // lib/sales-document-kinds.ts). A posting document is a draft, then posted,
 // then void; a quote is pending, accepted or rejected while the customer
-// decides, and closed once an invoice is made from it. A quote never posts.
+// decides, and closed once an invoice is made from it. A quote never posts. An
+// order (a purchase order) is open, then closed by an admin or when its bills
+// receive every line; it never posts either.
 const (
 	lifecyclePosting = "posting"
 	lifecycleQuote   = "quote"
+	lifecycleOrder   = "order"
 )
 
 // The parties a document names: the header field that holds it and the field
@@ -41,12 +44,13 @@ const (
 // invoiceKind (invoices.go), salesReceiptKind (sales_receipts.go),
 // estimateKind (estimates.go), creditMemoKind (credit_memos.go),
 // refundReceiptKind (refund_receipts.go), billKind (bills.go), expenseKind
-// (expenses.go) and vendorCreditKind (vendor_credits.go) are the kinds.
+// (expenses.go), vendorCreditKind (vendor_credits.go) and purchaseOrderKind
+// (purchase_orders.go) are the kinds.
 type salesDocKind struct {
 	// DocType is the doc type of the kind's sequence and of the entry it posts.
 	DocType string
-	// Lifecycle is lifecyclePosting or lifecycleQuote: which statuses a person
-	// edits, and whether the document posts.
+	// Lifecycle is lifecyclePosting, lifecycleQuote or lifecycleOrder: which
+	// statuses a person edits, and whether the document posts.
 	Lifecycle string
 	// Collection, LinesCollection and TaxLinesCollection are the header, line
 	// and posted tax line collections; ParentField is the field of a line and
@@ -114,6 +118,21 @@ type salesDocKind struct {
 	// CheckDelete runs inside a delete's transaction before the status check
 	// (an estimate an invoice names is refused); nil is no check.
 	CheckDelete func(tx core.App, stored *core.Record) error
+	// CheckLine runs the kind's own rules of a line write of an editable
+	// document, after its cells and product are checked; place names the line
+	// (lineRowPlace). stored is the line before an update, nil on a create. A
+	// purchase order refuses an inactive account and an edit that a bill's
+	// lines forbid. nil is no check.
+	CheckLine func(tx core.App, stored, r *core.Record, place linePlace) error
+	// CheckLineDelete runs the kind's own rule of a line delete of an editable
+	// document (a purchase order keeps a line a bill line names); nil is no
+	// check.
+	CheckLineDelete func(tx core.App, line *core.Record, place linePlace) error
+	// AfterLines runs in the transaction of a line write, after Books restated
+	// the document from its lines (restateSalesDoc): a purchase order refreshes
+	// its open values and the quantity on purchase orders of its products. nil
+	// is no step.
+	AfterLines func(tx core.App, docID string) error
 	// Withdraw runs when a posting document stops standing: its draft is
 	// deleted, or it is voided (an invoice reopens its estimate). It does not
 	// run when a correction's post replaces the document (Replace does); nil
@@ -166,7 +185,7 @@ var salesDocKinds []salesDocKind
 func init() {
 	salesDocKinds = []salesDocKind{
 		invoiceKind, salesReceiptKind, estimateKind, creditMemoKind,
-		refundReceiptKind, billKind, expenseKind, vendorCreditKind,
+		refundReceiptKind, billKind, expenseKind, vendorCreditKind, purchaseOrderKind,
 	}
 }
 
@@ -183,12 +202,18 @@ func salesDocKindOf(collection string) (salesDocKind, bool) {
 
 // isEditableStatus reports whether a person may change a document in status
 // and its lines: a posting document only while it is a draft, a quote until
-// it is closed.
+// it is closed, an order while it is open. A kind of no known lifecycle edits
+// nothing; registerSalesDocGuards refuses to bind one.
 func (k salesDocKind) isEditableStatus(status string) bool {
-	if k.Lifecycle == lifecycleQuote {
+	switch k.Lifecycle {
+	case lifecyclePosting:
+		return status == statusDraft
+	case lifecycleQuote:
 		return status != statusClosed
+	case lifecycleOrder:
+		return status == statusOpen
 	}
-	return status == statusDraft
+	return false
 }
 
 // balanceKind is the balance kind of a kind that tracks a balance; a kind
@@ -262,6 +287,12 @@ const maxDocumentLines = 250
 // document is restated one time, after the batch's last write
 // (sales_document_deferral.go).
 func registerSalesDocGuards(app core.App, kind salesDocKind) {
+	switch kind.Lifecycle {
+	case lifecyclePosting, lifecycleQuote, lifecycleOrder:
+	default:
+		// A programming error: no guard would know which statuses are editable.
+		panic(fmt.Sprintf("books: %s has the unknown lifecycle %q", kind.Collection, kind.Lifecycle))
+	}
 	bindSerializedGuardThen(app, kind.Collection, func(tx core.App, stored, r *core.Record) error {
 		return validateSalesDoc(tx, kind, stored, r)
 	}, kind.AfterCreate)
@@ -289,7 +320,7 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 			return err
 		}
 		docID := e.Record.GetString(kind.ParentField)
-		if isRestating(e.App, kind, docID) {
+		if isRestating(e.App, kind, docID) || isRefreshing(e.App, kind, docID) {
 			return nil
 		}
 		// The owner of the batch restates the document one time (sales_document_deferral.go).
@@ -362,9 +393,15 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 	// that is not closed) states the revision it saw (revision.go). A posting
 	// kind also stamps who posted or voided, on the transition only, as
 	// entries do: the update rule refuses these fields in a person's body. A
-	// quote has neither.
+	// quote has neither. An order's status changes only by a Books admin's
+	// Close or Reopen, which stamps who closed it (checkOrderStatusRequest).
 	app.OnRecordUpdateRequest(kind.Collection).BindFunc(func(e *core.RecordRequestEvent) error {
 		from, to := e.Record.Original().GetString("status"), e.Record.GetString("status")
+		if kind.Lifecycle == lifecycleOrder && from != to {
+			if err := checkOrderStatusRequest(e, to); err != nil {
+				return err
+			}
+		}
 		done, err := checkRequestRevision(e, kind.isEditableStatus(from), kind.Msgs.RevisionConflict)
 		if err != nil {
 			return err
@@ -380,6 +417,14 @@ func registerSalesDocGuards(app core.App, kind salesDocKind) {
 		}
 		return e.Next()
 	})
+	if kind.Lifecycle == lifecycleOrder {
+		bindPurchaseOrderHooks(app, kind)
+	}
+	// Bound after the delete guard, so the order of a deleted draft is computed
+	// again inside the guard's transaction, after its lines are gone.
+	if kind.Collection == billsCollection {
+		bindBillOrderRefresh(app)
+	}
 }
 
 // The marks of a document whose rows Books is writing itself: the restatement
@@ -440,15 +485,23 @@ func refuseDocumentDay(field string, err error) error {
 // the quote lifecycle (createQuote, transitionQuote in estimates.go). A
 // posting document's create is a draft: it stamps the id and the currency and
 // runs the draft guards; its update follows the posting lifecycle
-// (transitionSalesDoc). An invoice's create also stamps its public token, and
-// its update keeps the stored one (invoice_link.go). stored is the record
-// before an update, nil on a create.
+// (transitionSalesDoc). An order's create and update follow the order
+// lifecycle (createOrder, transitionOrder in purchase_orders.go). An
+// invoice's create also stamps its public token, and its update keeps the
+// stored one (invoice_link.go). stored is the record before an update, nil on
+// a create.
 func validateSalesDoc(tx core.App, kind salesDocKind, stored, r *core.Record) error {
-	if kind.Lifecycle == lifecycleQuote {
+	switch kind.Lifecycle {
+	case lifecycleQuote:
 		if stored != nil {
 			return transitionQuote(tx, kind, stored, r)
 		}
 		return createQuote(tx, kind, r)
+	case lifecycleOrder:
+		if stored != nil {
+			return transitionOrder(tx, kind, stored, r, time.Now())
+		}
+		return createOrder(tx, kind, r)
 	}
 	if stored != nil {
 		if kind.DocType == docTypeInvoice {
@@ -507,22 +560,40 @@ func startRevision(tx core.App, kind salesDocKind, r *core.Record) {
 // quoteBooksFields are Books' own on a quote only: an estimate's invoice is
 // written by the conversion, while a credit memo's invoice is the link a
 // person chooses (checkCreditMemoInvoice holds it).
+//
+// orderBooksFields are Books' own on an order: the open amount and the close
+// stamp are written by the order's Close and Reopen (transitionOrder) and by
+// refreshPurchaseOrder. created_by is stamped from the create request
+// (stampOrderCreator), so it is kept, not refused, on a new order.
 var (
 	salesDocNewBooksFields  = []string{"entry", "replaced_by", "posted_at", "posted_by", "voided_at", "voided_by", "balance", "written_off", "applied"}
 	salesDocKeptBooksFields = []string{"number", "sequence", "currency", "entry", "replaces", "replaced_by", "posted_at", "voided_at", "voided_by", "balance", "written_off", "applied"}
 	quoteBooksFields        = []string{"invoice"}
+	orderBooksFields        = []string{"open_amount", "closed_reason", "closed_at", "closed_by"}
+	orderKeptBooksFields    = []string{"created_by"}
 )
 
-// booksFieldsOf adds the kind's own Books fields to a shared list.
-func booksFieldsOf(kind salesDocKind, shared []string) []string {
-	if kind.Lifecycle == lifecycleQuote {
+// booksFieldsOf adds the kind's own Books fields to a shared list; kept adds
+// those that are only kept (never refused on a new document).
+func booksFieldsOf(kind salesDocKind, shared []string, kept bool) []string {
+	switch kind.Lifecycle {
+	case lifecycleQuote:
 		return slices.Concat(shared, quoteBooksFields)
+	case lifecycleOrder:
+		if kept {
+			return slices.Concat(shared, orderBooksFields, orderKeptBooksFields)
+		}
+		return slices.Concat(shared, orderBooksFields)
 	}
 	return shared
 }
 
+// checkNewSalesDoc refuses a new document that sets a field only Books
+// writes. A quote and an order take their number and sequence from their
+// sequence at create, over whatever the record carries; a posting document is
+// numbered when it posts, so a new one carries none.
 func checkNewSalesDoc(kind salesDocKind, r *core.Record) error {
-	names := booksFieldsOf(kind, salesDocNewBooksFields)
+	names := booksFieldsOf(kind, salesDocNewBooksFields, false)
 	if kind.Lifecycle == lifecyclePosting {
 		names = append([]string{"number", "sequence"}, names...)
 	}
@@ -547,7 +618,7 @@ func checkNewSalesDoc(kind salesDocKind, r *core.Record) error {
 
 func checkSalesDocBooksFieldsKept(kind salesDocKind, stored, r *core.Record) error {
 	var changed []string
-	for _, name := range booksFieldsOf(kind, salesDocKeptBooksFields) {
+	for _, name := range booksFieldsOf(kind, salesDocKeptBooksFields, true) {
 		if r.Collection().Fields.GetByName(name) == nil {
 			continue
 		}
@@ -596,7 +667,10 @@ func bindTaxLineGuards(app core.App, kind salesDocKind) {
 // salesDocUnlinks are a document's links PocketBase clears on its own when the
 // row they name is deleted (a user, a form), by collection. That unlink is the
 // only change a posted or void document accepts besides its void.
-var salesDocUnlinks = map[string]string{"posted_by": "users", "voided_by": "users", "form": "forms"}
+// An order's created_by and closed_by are users too.
+var salesDocUnlinks = map[string]string{
+	"posted_by": "users", "voided_by": "users", "form": "forms", "created_by": "users", "closed_by": "users",
+}
 
 // voidSalesDocEditable are the only fields a void changes; a correction's post
 // also sets replaced_by on the document it replaces, and the 0 balance (and a
@@ -1019,6 +1093,11 @@ func validateSalesDocLine(tx core.App, kind salesDocKind, stored, r *core.Record
 		}
 		return nil
 	}
+	// refreshPurchaseOrder writes an order line's open values, on an open or a
+	// closed order (purchase_order_receipts.go).
+	if stored != nil && isRefreshing(tx, kind, docID) {
+		return checkRefreshedLine(stored, r)
+	}
 	typedAmount := r.GetString("kind") == lineKindAccount
 	if !typedAmount && stored == nil && r.GetInt("amount") != 0 {
 		return refuse(msgLineAmountByBooks)
@@ -1062,6 +1141,11 @@ func validateSalesDocLine(tx core.App, kind salesDocKind, stored, r *core.Record
 		if err := checkLineProduct(tx, stored, r, place.String()); err != nil {
 			return err
 		}
+		if kind.CheckLine != nil {
+			if err := kind.CheckLine(tx, stored, r, place); err != nil {
+				return err
+			}
+		}
 		// The schema's max would refuse the amount first, with its own text.
 		amount := ownLineAmount(r)
 		if amount > maxAmount || amount < -maxAmount {
@@ -1077,11 +1161,17 @@ func validateSalesDocLine(tx core.App, kind salesDocKind, stored, r *core.Record
 	}
 	lines := withLine(others, r)
 	index := slices.IndexFunc(lines, func(l *core.Record) bool { return l.Id == r.Id })
-	if err := checkLineCells(tx, kind, r, lineRowPlace(kind, lines, r), findAccount(tx)); err != nil {
+	place := lineRowPlace(kind, lines, r)
+	if err := checkLineCells(tx, kind, r, place, findAccount(tx)); err != nil {
 		return err
 	}
-	if err := checkLineProduct(tx, stored, r, lineRowLabel(kind, lines, r)); err != nil {
+	if err := checkLineProduct(tx, stored, r, place.String()); err != nil {
 		return err
+	}
+	if kind.CheckLine != nil {
+		if err := kind.CheckLine(tx, stored, r, place); err != nil {
+			return err
+		}
 	}
 	totals, err := salesDocTotals(tx, kind, doc, lineInputs(lines))
 	if err != nil {
@@ -1253,13 +1343,26 @@ func checkSalesDocLineDelete(tx core.App, kind salesDocKind, line *core.Record) 
 	if !kind.isEditableStatus(doc.GetString("status")) {
 		return refuse("%s", kind.Msgs.LineNotDraft)
 	}
-	// The owner checks the lines the batch leaves (sales_document_deferral.go).
+	// The owner checks the lines the batch leaves (sales_document_deferral.go);
+	// the line is named by its position, as a deferred write is.
 	if isDeferring(tx, kind, doc.Id) {
-		return nil
+		if kind.CheckLineDelete == nil {
+			return nil
+		}
+		place, err := deferredLinePlace(tx, kind, doc.Id, line)
+		if err != nil {
+			return err
+		}
+		return kind.CheckLineDelete(tx, line, place)
 	}
 	stored, err := salesDocLines(tx, kind, doc.Id)
 	if err != nil {
 		return err
+	}
+	if kind.CheckLineDelete != nil {
+		if err := kind.CheckLineDelete(tx, line, lineRowPlace(kind, stored, line)); err != nil {
+			return err
+		}
 	}
 	left := slices.DeleteFunc(stored, func(l *core.Record) bool { return l.Id == line.Id })
 	totals, err := salesDocTotals(tx, kind, doc, lineInputs(left))
@@ -1273,7 +1376,8 @@ func checkSalesDocLineDelete(tx core.App, kind salesDocKind, line *core.Record) 
 // its stored lines and header tax, and saves each line whose amount changed
 // and the document. An account line's amount is the typed one, so it never
 // changes here. The line guard lets the amounts through while the document is
-// marked restating; the header guard lets Books' own save through.
+// marked restating; the header guard lets Books' own save through. The kind's
+// AfterLines then runs in the same transaction.
 func restateSalesDoc(tx core.App, kind salesDocKind, docID string) (documentTotalsResult, error) {
 	doc, err := tx.FindRecordById(kind.Collection, docID)
 	if err != nil {
@@ -1294,10 +1398,21 @@ func restateSalesDoc(tx core.App, kind salesDocKind, docID string) (documentTota
 		return documentTotalsResult{}, err
 	}
 	setSalesDocTotals(kind, doc, totals)
-	// The header guard would read the lines again to set these same totals.
-	defer ownWrite(tx, kind.Collection, doc.Id)()
-	if err := tx.Save(doc); err != nil {
+	if err := saveOwnTotals(tx, kind, doc); err != nil {
 		return documentTotalsResult{}, err
 	}
+	if kind.AfterLines != nil {
+		if err := kind.AfterLines(tx, docID); err != nil {
+			return documentTotalsResult{}, err
+		}
+	}
 	return totals, nil
+}
+
+// saveOwnTotals saves the document's restated totals. The header guard would
+// read the lines again to set these same totals, so it lets Books' own save
+// through (ownWrite).
+func saveOwnTotals(tx core.App, kind salesDocKind, doc *core.Record) error {
+	defer ownWrite(tx, kind.Collection, doc.Id)()
+	return tx.Save(doc)
 }

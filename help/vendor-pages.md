@@ -20,6 +20,7 @@ If the vendor owes you (for example, a vendor credit larger than the open bills)
 
 To start a transaction for this vendor, choose **New transaction**, or press ⌥N, and pick one of:
 
+- **Purchase order**: an order to the vendor, before the vendor bills you. See [Purchase orders](help://books:purchase-orders).
 - **Bill**: see [Bills](help://books:bills).
 - **Pay bills**: pay this vendor's open bills.
 - **Expense**: a purchase you paid at once.
@@ -39,17 +40,18 @@ The page has four tabs. To select one from anywhere on the page, a text field in
 
 ## The Transactions list
 
-The Transactions tab lists the vendor's bills, expenses, bill payments, vendor credits and vendor refunds, newest first. Each row shows the date, the type, the number, the due date (bills only), the total and the status. A vendor credit's total shows with a minus sign, such as −$250.00, because it lowers what you owe. A draft has no number yet. A void document stays in the list with the Void status; when you correct a document, only the correction is listed.
+The Transactions tab lists the vendor's bills, purchase orders, expenses, bill payments, vendor credits and vendor refunds, newest first. Each row shows the date, the type, the number, the due date (bills only), the total and the status. A purchase order is not in your books, so it does not change Open or Overdue. A vendor credit's total shows with a minus sign, such as −$250.00, because it lowers what you owe. A draft has no number yet. A void document stays in the list with the Void status; when you correct a document, only the correction is listed.
 
 The statuses are:
 
 - A bill is Draft, Paid (nothing open), Partly paid (part of the total open), Overdue (all of the total open, due before today), Open or Void.
+- A purchase order is Open, Partly received (some of it is received or billed on posted bills) or Closed.
 - An expense is Draft, Paid or Void.
 - A bill payment is Paid or Void.
 - A vendor credit is Draft, Unapplied (some of its credit is not used yet), Closed (all of its credit is used) or Void.
 - A vendor refund is Draft, Received or Void.
 
-To see one type only, choose its chip above the list: Bills, Expenses, Bill payments, Vendor credits or Vendor refunds. Choose All, or Show all when a chip has no rows, to see every type again. Choose a row to open its document; go back to return to the page.
+To see one type only, choose its chip above the list: Bills, Purchase orders, Expenses, Bill payments, Vendor credits or Vendor refunds. Choose All, or Show all when a chip has no rows, to see every type again. Choose a row to open its document; go back to return to the page.
 
 ## Contacts
 

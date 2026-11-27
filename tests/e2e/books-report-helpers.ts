@@ -629,19 +629,25 @@ export function reportSnapshot(page: Page): Promise<ReportSnapshot> {
         // heading's value is the words before that transform.
         const untransformedText = (element: Element) =>
             (element.textContent ?? '').replace(/\s+/g, ' ').trim()
-        const header = document.querySelector('[data-testid="report-document-header"]')
+        // A stacked screen keeps a hidden report in the DOM: read the shown one only.
+        const shownAll = (selector: string) =>
+            [...document.querySelectorAll(selector)].filter(element => element.checkVisibility())
+        const shown = (selector: string) =>
+            [...document.querySelectorAll(selector)].find(element => element.checkVisibility()) ??
+            null
+        const header = shown('[data-testid="report-document-header"]')
         const business =
             textOf(header)
                 .split('\n')
                 .map(line => line.trim())
                 .find(line => line !== '') ?? ''
         const headings: Record<string, string> = {}
-        for (const heading of document.querySelectorAll('[data-testid^="report-heading-"]')) {
+        for (const heading of shownAll('[data-testid^="report-heading-"]')) {
             const id = (heading.getAttribute('data-testid') ?? '').slice('report-heading-'.length)
             if (id === 'row') continue
             headings[id] = untransformedText(heading)
         }
-        const table = document.querySelector('[data-testid="report-table"]')
+        const table = shown('[data-testid="report-table"]')
         const cells = new Map<string, Record<string, string>>()
         for (const cell of table?.querySelectorAll('[data-testid^="report-cell-"]') ?? []) {
             const rest = (cell.getAttribute('data-testid') ?? '').slice('report-cell-'.length)
@@ -676,8 +682,8 @@ export function reportSnapshot(page: Page): Promise<ReportSnapshot> {
         }
         return {
             business,
-            title: textOf(document.querySelector('[data-testid="report-document-title"]')),
-            header: textOf(document.querySelector('[data-testid="report-document-period"]')),
+            title: textOf(shown('[data-testid="report-document-title"]')),
+            header: textOf(shown('[data-testid="report-document-period"]')),
             headings,
             rows,
         }

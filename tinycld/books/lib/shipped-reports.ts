@@ -16,6 +16,9 @@ export const VENDOR_BALANCE_SHIPPED_KEY = 'books.vendor_balance'
 export const EXPENSES_BY_VENDOR_SHIPPED_KEY = 'books.expenses_by_vendor'
 // server/report_form_1099.go registers the 1099 Summary and Detail.
 export const FORM_1099_SHIPPED_KEY = 'books.form_1099'
+// server/report_purchase_orders.go registers the Open Purchase Orders, which the
+// Purchase orders tab's toolbar and the Vendors list's Reports menu link.
+export const OPEN_PURCHASE_ORDERS_SHIPPED_KEY = 'books.open_purchase_orders'
 export const SALES_BY_CUSTOMER_SHIPPED_KEY = 'books.sales_by_customer'
 export const SALES_BY_PRODUCT_SHIPPED_KEY = 'books.sales_by_product'
 // server/report_statements.go: the rows of a customer statement's PDF.

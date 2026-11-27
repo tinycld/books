@@ -39,6 +39,7 @@ const ALL_COLUMNS = {
     opening_value: true,
     opening_date: true,
     quantity_on_hand: true,
+    quantity_on_po: true,
     stock_value: true,
     taxable: true,
     inactive: true,

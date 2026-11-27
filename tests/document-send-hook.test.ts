@@ -54,6 +54,7 @@ function sendRow(id: string, document: string): BooksDocumentSends & Record<stri
         document,
         number: '1004',
         customer: CUSTOMER,
+        vendor: '',
         to: TO,
         cc: '',
         subject: 'Invoice 1004 from Hartwell Supply Co.',

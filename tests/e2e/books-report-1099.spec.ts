@@ -670,13 +670,14 @@ test.describe('report-1099: entry points and phone rows', () => {
         await expect
             .poll(() => reportsMenuItems(page), {
                 message:
-                    'the menu holds Vendor Balance, A/P Aging, Expenses by Vendor, 1099 Summary and Detail in order',
+                    'the menu holds Vendor Balance, A/P Aging, Expenses by Vendor, 1099 Summary and Detail, Open Purchase Orders in order',
             })
             .toEqual([
                 'vendors-reports-balance',
                 'vendors-reports-aging',
                 'vendors-reports-expenses',
                 'vendors-reports-1099',
+                'vendors-reports-purchase-orders',
             ])
         const form1099 = page.getByTestId('vendors-reports-1099').filter({ visible: true })
         await expect(form1099).toHaveText(REPORT_1099_TITLE)

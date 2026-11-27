@@ -1205,7 +1205,7 @@ test.describe('expense-form: across Books', () => {
 const SAVE_REFUSAL = 'Books could not save this setting.'
 const ITEM_HEADING = 'Product and service details'
 const PURCHASE_LINES_NOTE =
-    'Which line tables new bills, expenses and vendor credits show. A form still shows a table its record already has lines in.'
+    'Which line tables new bills, expenses, vendor credits and purchase orders show. A form still shows a table its record already has lines in.'
 
 // Every line row of a table anywhere on the page, so a table that is not drawn counts 0.
 function anyLineRows(page: Page, table: 'account_lines' | 'item_lines') {

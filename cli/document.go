@@ -36,6 +36,11 @@ const (
 	// voided. With a `replaces` field, `edit` corrects it as it does a posted
 	// document of a posting type; without one, the type has no `edit`.
 	lifecyclePosted = "posted"
+	// lifecycleOrder is the life of an order to a vendor that posts nothing: it
+	// is open from its first save, and closed by Books when every line is
+	// received or by a Books admin. Documents of another type are made from it,
+	// one after another, until it closes.
+	lifecycleOrder = "order"
 )
 
 // journalDocument is the type of the journal entry Books writes for a posted
@@ -52,6 +57,15 @@ const (
 	statusAccepted = "accepted"
 	statusRejected = "rejected"
 	statusClosed   = "closed"
+
+	statusOpen = "open"
+)
+
+// The read-only fields of a row of an order that say what is still open: the
+// quantity of a row whose amount Books computes, and the amount of another.
+const (
+	openQuantityField = "open_quantity"
+	openAmountField   = "open_amount"
 )
 
 // maxDocumentLines is the most rows one line table of a document may have,
@@ -218,8 +232,59 @@ type conversion struct {
 	// document it was made from. Books reads it to close the source.
 	Link string `json:"link"`
 	// Copy names the header fields that go from the source to the new
-	// document. The line tables go as they are.
+	// document. The line tables go as they are, or, with Partial, the open
+	// rows at what is open.
 	Copy []string `json:"copy"`
+	// Word is the command word. "": convert.
+	Word string `json:"word"`
+	// LineLink is the writable field of a new row that holds the id of the
+	// source row it was made from (a bill line names its purchase order line).
+	// Only a partial conversion has one.
+	LineLink string `json:"lineLink"`
+	// Partial marks a conversion that leaves the source open: one source makes
+	// many documents, each of what is still open or of the rows the input
+	// names. Only an order has one, and it needs LineLink.
+	Partial bool `json:"partial"`
+}
+
+// defaultConvertWord is the command word of a conversion that names none.
+const defaultConvertWord = "convert"
+
+// word is the command word of the conversion.
+func (c *conversion) word() string {
+	if c.Word == "" {
+		return defaultConvertWord
+	}
+	return c.Word
+}
+
+// groupWords are the command words newDocumentCmd gives the type, less its
+// conversion's: a conversion word must be none of them.
+func groupWords(doc *document) []string {
+	words := []string{"list", "show", "add"}
+	for i := range doc.Views {
+		words = append(words, doc.Views[i].Word)
+	}
+	switch doc.Lifecycle {
+	case lifecycleQuote:
+		words = append(words, "edit", "accept", "reject", "reopen", "delete")
+	case lifecycleOrder:
+		words = append(words, "edit", "close", "reopen", "delete")
+	case lifecyclePosted:
+		if doc.corrects() {
+			words = append(words, "edit")
+		}
+		words = append(words, "void")
+	default:
+		words = append(words, "edit", "post", "void", "delete")
+	}
+	if doc.Entry != "" {
+		words = append(words, "entry")
+	}
+	if doc.applyTable() != nil {
+		words = append(words, "apply", "unapply")
+	}
+	return words
 }
 
 // hasRevision reports whether the type counts its saves. The server takes a
@@ -236,8 +301,16 @@ func (d *document) initialStatus() string {
 		return statusPending
 	case lifecyclePosted:
 		return statusPosted
+	case lifecycleOrder:
+		return statusOpen
 	}
 	return statusDraft
+}
+
+// changedUntilClosed reports whether a document of the type posts nothing and
+// is changed in place until it is closed: a quote or an order.
+func (d *document) changedUntilClosed() bool {
+	return d.Lifecycle == lifecycleQuote || d.Lifecycle == lifecycleOrder
 }
 
 // hasDraft reports whether a document of the type starts as a draft that
@@ -249,14 +322,14 @@ func (d *document) hasDraft() bool {
 // corrects reports whether `edit` of a posted document of the type makes a new
 // one that replaces it.
 func (d *document) corrects() bool {
-	return d.Lifecycle != lifecycleQuote && d.field("replaces") != nil
+	return !d.changedUntilClosed() && d.field("replaces") != nil
 }
 
 // editedInPlace reports whether `edit` changes a document with this status
-// itself. A posted document is corrected by a new one; a quote is changed
-// until it is closed.
+// itself. A posted document is corrected by a new one; a quote or an order is
+// changed until it is closed.
 func (d *document) editedInPlace(status string) bool {
-	if d.Lifecycle == lifecycleQuote {
+	if d.changedUntilClosed() {
 		return status != statusClosed
 	}
 	return d.hasDraft() && status == statusDraft
@@ -410,6 +483,10 @@ func checkDocument(doc *document, names map[string]bool) error {
 		if !doc.hasRevision() {
 			return fmt.Errorf("a quote has a read-only integer revision")
 		}
+	case lifecycleOrder:
+		if err := checkOrder(doc, status); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("unknown lifecycle %q", doc.Lifecycle)
 	}
@@ -470,6 +547,38 @@ func checkDocument(doc *document, names map[string]bool) error {
 	return nil
 }
 
+// checkOrder checks what the commands of an order read: its status, the
+// reason Books stores when it closes, the revision that `edit` and `close`
+// state, and what each of its rows still has open.
+func checkOrder(doc *document, status *field) error {
+	if status == nil || !status.ReadOnly || !slices.Equal(status.Enum, []string{statusOpen, statusClosed}) {
+		return fmt.Errorf("an order has a read-only status with the values open, closed")
+	}
+	if f := doc.field("closed_reason"); f == nil || !f.ReadOnly || f.Type != typeString {
+		return fmt.Errorf("an order has a read-only string closed_reason")
+	}
+	if doc.Entry != "" || len(doc.Fixed) > 0 {
+		return fmt.Errorf("an order posts nothing: it has no entry and no fixed value")
+	}
+	if !doc.hasRevision() {
+		return fmt.Errorf("an order has a read-only integer revision")
+	}
+	for i := range doc.Lines {
+		table := &doc.Lines[i]
+		if table.ReadOnly {
+			continue
+		}
+		res := table.asResource()
+		if f := res.field(openQuantityField); f == nil || !f.ReadOnly || f.Type != typeNumber {
+			return fmt.Errorf("line table %q: an order's row has a read-only number %s", table.Key, openQuantityField)
+		}
+		if f := res.field(openAmountField); f == nil || !f.ReadOnly || f.Type != typeInteger {
+			return fmt.Errorf("line table %q: an order's row has a read-only integer %s", table.Key, openAmountField)
+		}
+	}
+	return nil
+}
+
 // checkConversion checks the rule of a `convert` command against the type it
 // makes: every value the command copies has a place there.
 func checkConversion(doc *document, all []document) error {
@@ -477,9 +586,28 @@ func checkConversion(doc *document, all []document) error {
 	if conv == nil {
 		return nil
 	}
-	// The command refuses a closed source, and only a quote closes.
-	if doc.Lifecycle != lifecycleQuote {
-		return fmt.Errorf("convert is only for a document with the lifecycle %q", lifecycleQuote)
+	// A quote closes when one document is made from it; an order stays open
+	// and makes one document after another. Nothing else is converted.
+	switch doc.Lifecycle {
+	case lifecycleQuote:
+		if conv.Partial {
+			return fmt.Errorf("partial is for an order: a quote closes when one %s is made from it", conv.To)
+		}
+	case lifecycleOrder:
+		if !conv.Partial {
+			return fmt.Errorf("the convert of an order is partial: the order stays open and makes many documents")
+		}
+	default:
+		return fmt.Errorf("convert is only for a document with the lifecycle %q or %q", lifecycleQuote, lifecycleOrder)
+	}
+	if conv.Partial && conv.LineLink == "" {
+		return fmt.Errorf("partial needs lineLink: the field of a new row that names the row it was made from")
+	}
+	if !conv.Partial && conv.LineLink != "" {
+		return fmt.Errorf("lineLink %q is for a partial convert", conv.LineLink)
+	}
+	if word := conv.word(); !viewWord.MatchString(word) || slices.Contains(groupWords(doc), word) {
+		return fmt.Errorf("word %q is not lower-case letters and -, or is a command of the group", word)
 	}
 	var to *document
 	for i := range all {
@@ -513,6 +641,16 @@ func checkConversion(doc *document, all []document) error {
 				return fmt.Errorf("%s.%s has no writable field %q of the type %s", to.Name, table.Key, f.Name, f.Type)
 			}
 		}
+		if conv.Partial {
+			ref := rowRef(doc.Name, table.Key)
+			if f := into.asResource().field(conv.LineLink); f == nil || f.ReadOnly || f.Type != typeID || f.Ref != ref {
+				return fmt.Errorf("lineLink names %q, which is not a writable id of %s in %s.%s", conv.LineLink, ref, to.Name, table.Key)
+			}
+		}
+	}
+	// `--post` posts what a partial convert makes, in the same step.
+	if conv.Partial && !to.hasDraft() {
+		return fmt.Errorf("partial makes a draft %s to post, and %s has no draft", to.Singular, to.Name)
 	}
 	// The input is checked against the target's tables, and the rows come
 	// from the source's: a table the source lacks would drop the caller's rows.
@@ -713,26 +851,39 @@ func checkLines(table *lineTable, value any) ([]map[string]any, error) {
 	if len(list) > table.maxRows() {
 		return nil, usagef("%q has %d rows: the most is %d", table.Key, len(list), table.maxRows())
 	}
-	res := table.asResource()
 	rows := make([]map[string]any, 0, len(list))
 	for i, item := range list {
 		row, ok := item.(map[string]any)
 		if !ok {
 			return nil, usagef("%s[%d] must be an object", table.Key, i)
 		}
-		if err := checkInput(res, row, true); err != nil {
-			return nil, usagef("%s[%d]: %v", table.Key, i, err)
-		}
-		text := func(name string) string {
-			s, _ := row[name].(string)
-			return s
-		}
-		for _, rule := range table.Computed {
-			if _, given := row[rule.Field]; given && rule.matches(text) {
-				return nil, usagef("%s[%d]: Books computes %q of a row with the %s %q: leave it out", table.Key, i, rule.Field, rule.When, text(rule.When))
-			}
+		if err := checkRow(table, i, row); err != nil {
+			return nil, err
 		}
 		rows = append(rows, row)
 	}
 	return rows, nil
+}
+
+// checkRow checks one row of an input as a new row of the table: its fields,
+// and no field that Books computes for it. i is its place, for the refusal.
+func checkRow(table *lineTable, i int, row map[string]any) error {
+	if err := checkInput(table.asResource(), row, true); err != nil {
+		return usagef("%s[%d]: %v", table.Key, i, err)
+	}
+	text := rowText(row)
+	for _, rule := range table.Computed {
+		if _, given := row[rule.Field]; given && rule.matches(text) {
+			return usagef("%s[%d]: Books computes %q of a row with the %s %q: leave it out", table.Key, i, rule.Field, rule.When, text(rule.When))
+		}
+	}
+	return nil
+}
+
+// rowText reads a field of an input row as text.
+func rowText(row map[string]any) func(string) string {
+	return func(name string) string {
+		s, _ := row[name].(string)
+		return s
+	}
 }

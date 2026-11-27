@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { recordTypeLabel } from '../tinycld/books/lib/audit-log'
 import {
     auditOpenLabel,
     auditRecordHref,
@@ -12,6 +13,7 @@ import {
     ESTIMATE_KIND,
     EXPENSE_KIND,
     INVOICE_KIND,
+    PURCHASE_ORDER_KIND,
     REFUND_RECEIPT_KIND,
     SALES_RECEIPT_KIND,
     VENDOR_CREDIT_KIND,
@@ -37,6 +39,13 @@ const DOCUMENTS = [
     { collection: 'books_bills', kind: BILL_KIND, path: 'books/bills' },
     { collection: 'books_expenses', kind: EXPENSE_KIND, path: 'books/expenses' },
     { collection: 'books_vendor_credits', kind: VENDOR_CREDIT_KIND, path: 'books/vendor-credits' },
+    // Purchase order spec §3.14: an order's history (and its lines', filed under it) opens
+    // the order's read view.
+    {
+        collection: 'books_purchase_orders',
+        kind: PURCHASE_ORDER_KIND,
+        path: 'books/purchase-orders',
+    },
 ]
 
 // Records with a screen of their own: the filled path, never the `[id]` route pattern.
@@ -355,6 +364,17 @@ describe('auditOpenLabel', () => {
         expect(auditOpenLabel('books_products')).toBe('Open product or service')
         expect(auditOpenLabel('books_bill_payments')).toBe('Open bill payment')
         expect(auditOpenLabel('books_reconciliations')).toBe('Open reconciliation')
+    })
+
+    // Purchase order spec §3.14: the order and its lines are audited with their own record
+    // type labels, and an order's Open names the order.
+    it('labels a purchase order and its lines, and opens the order', () => {
+        expect(recordTypeLabel('books_purchase_orders')).toBe('Purchase order')
+        expect(recordTypeLabel('books_purchase_order_lines')).toBe('Purchase order line')
+        expect(auditOpenLabel('books_purchase_orders')).toBe('Open purchase order')
+        expect(auditRecordHref('books_purchase_orders', ID, { id: ID })).toBe(
+            `books/purchase-orders/${ID}`
+        )
     })
 
     it.each(GROUPS)('$collection: $label', ({ collection, label }) => {

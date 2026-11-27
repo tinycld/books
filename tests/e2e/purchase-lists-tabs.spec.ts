@@ -158,14 +158,22 @@ test.describe('purchase-lists: tabs and rows', () => {
         await expect(navLabel(page)).toHaveClass(/font-semibold/)
         await expect(visible(page, 'purchases-new')).toHaveText('New bill')
 
-        // All purchases' New is a menu of the five kinds, in NEW_ACTIONS order.
+        // All purchases' New is a menu of the six kinds, in NEW_ACTIONS order (purchase
+        // order spec §3.9 adds New purchase order first).
         await openPurchaseTab(page, 'all')
         const newButton = visible(page, 'purchases-new')
         await expect(newButton).toHaveText('New')
         await newButton.click()
         await expect
             .poll(() => newMenuItems(page))
-            .toEqual(['bill', 'pay-bills', 'expense', 'vendor-credit', 'vendor-refund'])
+            .toEqual([
+                'purchase-order',
+                'bill',
+                'pay-bills',
+                'expense',
+                'vendor-credit',
+                'vendor-refund',
+            ])
 
         // Pay bills covers the list; Back returns to it.
         await page.getByTestId('purchases-new-pay-bills').click()

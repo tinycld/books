@@ -376,5 +376,26 @@
         },
         "subject": "Estimate 1002 from Cedar Ledger Co",
         "bodyHtml": "<p>Hello Aspen Ridge Landscaping,</p><p>Attached is estimate 1002 from Cedar Ledger Co.</p><p>Estimate date: Nov 2, 2026<br>Total: $300.00</p><p>View this estimate online:<br><a href=\"\"></a></p><p>To ask about this estimate, reply to this email.</p>"
+    },
+    {
+        "name": "purchase order 1004 of the fixture: greets the vendor, a message, no block of dates and amounts, no link",
+        "input": {
+            "kind": "purchase_order",
+            "number": "1004",
+            "customerName": "Office Supply World",
+            "businessName": "Hartwell Supply Co.",
+            "businessPhone": "+1 214 555 1234",
+            "date": "Nov 3, 2026",
+            "dueDate": "",
+            "expirationDate": "",
+            "total": "$318.00",
+            "balance": "",
+            "balanceIsZero": false,
+            "message": "Please ship by Nov 20 & call ahead.",
+            "link": "",
+            "canRespond": false
+        },
+        "subject": "Purchase order 1004 from Hartwell Supply Co.",
+        "bodyHtml": "<p>Hello Office Supply World,</p><p>Attached is purchase order 1004 from Hartwell Supply Co.</p><p>Please ship by Nov 20 &amp; call ahead.</p><p>To ask about this purchase order, reply to this email or call +1 214 555 1234.</p>"
     }
 ]

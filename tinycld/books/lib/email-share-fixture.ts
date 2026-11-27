@@ -320,6 +320,8 @@ function send(
         Partial<DocumentSendRecord>
 ): DocumentSendRecord {
     return {
+        // A customer's send names no vendor (2100000034).
+        vendor: '',
         cc: '',
         subject: SEND_TARGETS.invoice.subject,
         body: SEND_TARGETS.invoice.bodyHtml,

@@ -65,6 +65,7 @@ var productReferences = []productReference{
 	{collection: expenseLinesCollection, field: "product", distinct: "expense", message: productOnExpensesMessage},
 	{collection: vendorCreditLinesCollection, field: "product", distinct: "vendor_credit", message: productOnVendorCreditsMessage},
 	{collection: inventoryAdjustmentLinesCollection, field: "product", distinct: "adjustment", message: productOnAdjustmentsMessage},
+	{collection: purchaseOrderLinesCollection, field: "product", distinct: "purchase_order", message: productOnPurchaseOrdersMessage},
 }
 
 // The delete refusals of a product on invoice lines, counted by invoice, on
@@ -72,7 +73,8 @@ var productReferences = []productReference{
 // by credit memo, on refund receipt lines, counted by refund receipt, on
 // estimate lines, counted by estimate, on bill lines, counted by bill, on
 // expense lines, counted by expense, on vendor credit lines, counted by
-// vendor credit, and on inventory adjustment lines, counted by adjustment.
+// vendor credit, on inventory adjustment lines, counted by adjustment, and on
+// purchase order lines, counted by purchase order.
 const (
 	msgProductOnOneVendorCredit  = "This product or service is on 1 vendor credit. Make it inactive instead."
 	msgProductOnVendorCredits    = "This product or service is on %d vendor credits. Make it inactive instead."
@@ -90,6 +92,8 @@ const (
 	msgProductOnRefundReceipts   = "This product or service is on %d refund receipts. Make it inactive instead."
 	msgProductOnOneEstimate      = "This product or service is on 1 estimate. Make it inactive instead."
 	msgProductOnEstimates        = "This product or service is on %d estimates. Make it inactive instead."
+	msgProductOnOnePurchaseOrder = "This product or service is on 1 purchase order. Make it inactive instead."
+	msgProductOnPurchaseOrders   = "This product or service is on %d purchase orders. Make it inactive instead."
 )
 
 // The product and bundle row guards read other products and the accounts
@@ -142,6 +146,15 @@ func validateProduct(app core.App, stored, r *core.Record) error {
 		}
 	}
 	if err := checkStockTotalsKept(app, stored, r); err != nil {
+		return err
+	}
+	// Books' own write of the quantity on purchase orders skips the other
+	// checks, and checkOnPOWrite refuses it when it changes anything else
+	// (purchase_order_receipts.go).
+	if isOnPOWrite(app, stored, r) {
+		return checkOnPOWrite(stored, r)
+	}
+	if err := checkOnPOKept(stored, r); err != nil {
 		return err
 	}
 	if kind == "inventory" {
@@ -377,6 +390,15 @@ func productOnEstimatesMessage(count int) string {
 		return msgProductOnOneEstimate
 	}
 	return fmt.Sprintf(msgProductOnEstimates, count)
+}
+
+// productOnPurchaseOrdersMessage counts purchase orders, open or closed, not
+// their product lines.
+func productOnPurchaseOrdersMessage(count int) string {
+	if count == 1 {
+		return msgProductOnOnePurchaseOrder
+	}
+	return fmt.Sprintf(msgProductOnPurchaseOrders, count)
 }
 
 // productOnBillsMessage counts bills, draft, posted or void, not their

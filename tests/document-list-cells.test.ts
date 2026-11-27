@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { DocumentListRow } from '../tinycld/books/lib/document-list'
 import {
+    CARD_OPEN_LINE_HEIGHT,
     cardLines,
     cellText,
     isMutedCell,
+    listCardHeight,
     nameRowLines,
 } from '../tinycld/books/lib/document-list-cells'
 import type { CategoryNames } from '../tinycld/books/lib/purchase-category'
-import { purchaseTabOf } from '../tinycld/books/lib/purchase-lists'
+import { purchaseTabOf, vendorTransactionsTab } from '../tinycld/books/lib/purchase-lists'
 import { formatDay } from '../tinycld/books/lib/register-range'
 import { customerTransactionsTab, salesTabOf } from '../tinycld/books/lib/sales-lists'
 
@@ -392,5 +394,89 @@ describe('purchase cells', () => {
         expect(lines.title).toContain('Northwest Paper Co.')
         expect(lines.amount).toBe('$400.00')
         expect(lines.status).toBe('Unapplied')
+    })
+})
+
+// A purchase order's card on the Purchase orders tab has a third line, "Open $x", while its
+// open amount is above zero; the All purchases card (and the vendor page's) is "type and
+// number, then party and date" with no third line (purchase order spec §3.9). A card's
+// height follows its lines: padding 24, then two text lines of 48 at the font scale, and
+// the Open line's CARD_OPEN_LINE_HEIGHT (20) at the font scale.
+describe('the third card line of a purchase order and the card height', () => {
+    const PURCHASE_ORDERS_TAB = purchaseTabOf('purchase-orders')
+    const ALL_PURCHASES = purchaseTabOf('all')
+    const BILLS = purchaseTabOf('bills')
+    const VENDOR_ALL = vendorTransactionsTab('all')
+    const FONT_SCALE = 1.5
+    const TWO_LINES = 24 + 48 * FONT_SCALE
+    const THREE_LINES = 24 + (48 + 20) * FONT_SCALE
+
+    const openOrder = listRow({
+        kind: 'purchase_order',
+        number: '1004',
+        sequence: 1004,
+        partyName: 'Office Supply World',
+        date: '2026-11-10',
+        total: 31_800,
+        balance: 31_800,
+        recordStatus: 'open',
+        status: { label: 'Open', tone: 'warning' },
+        openLines: 2,
+    })
+
+    const closedOrder = listRow({
+        kind: 'purchase_order',
+        number: '1001',
+        sequence: 1001,
+        partyName: 'Summit IT Services',
+        date: '2026-11-02',
+        total: 50_000,
+        balance: 0,
+        recordStatus: 'closed',
+        status: { label: 'Closed', tone: 'muted' },
+        openLines: 0,
+    })
+
+    const openBill = listRow({
+        kind: 'bill',
+        number: '1057',
+        sequence: 1057,
+        partyName: 'Zenith Telecom',
+        date: '2026-11-12',
+        dueDate: '2026-12-12',
+        total: 18_950,
+        balance: 18_950,
+    })
+
+    it('draws "Open $318.00" on the Purchase orders tab for an order with an open amount', () => {
+        expect(cardLines(openOrder, PURCHASE_ORDERS_TAB, 'USD').open).toBe('Open $318.00')
+    })
+
+    it('draws no Open line for the same order on All purchases, nor on the vendor page', () => {
+        const lines = cardLines(openOrder, ALL_PURCHASES, 'USD')
+        expect(lines.open).toBe('')
+        expect(lines.title).toBe('Purchase order 1004')
+        expect(lines.detail).toBe(`Office Supply World · ${formatDay('2026-11-10')}`)
+        expect(cardLines(openOrder, VENDOR_ALL, 'USD').open).toBe('')
+    })
+
+    it('makes the open order card on the Purchase orders tab 20 × font scale taller', () => {
+        expect(CARD_OPEN_LINE_HEIGHT).toBe(20)
+        expect(listCardHeight(openOrder, PURCHASE_ORDERS_TAB, FONT_SCALE)).toBe(THREE_LINES)
+    })
+
+    it('keeps a closed order card on the Purchase orders tab at two lines', () => {
+        expect(cardLines(closedOrder, PURCHASE_ORDERS_TAB, 'USD').open).toBe('')
+        expect(listCardHeight(closedOrder, PURCHASE_ORDERS_TAB, FONT_SCALE)).toBe(TWO_LINES)
+    })
+
+    it('keeps a bill card at two lines on its tab and on All purchases', () => {
+        expect(listCardHeight(openBill, BILLS, FONT_SCALE)).toBe(TWO_LINES)
+        expect(listCardHeight(openBill, ALL_PURCHASES, FONT_SCALE)).toBe(TWO_LINES)
+    })
+
+    it('gives the open order card on All purchases and the vendor page no extra height', () => {
+        expect(listCardHeight(openOrder, ALL_PURCHASES, FONT_SCALE)).toBe(TWO_LINES)
+        expect(listCardHeight(openOrder, VENDOR_ALL, FONT_SCALE)).toBe(TWO_LINES)
     })
 })

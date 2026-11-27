@@ -17,6 +17,9 @@ export const billColumnsSchema = z.strictObject({
     due_date: optionalText,
     ref_no: optionalText,
     memo: optionalText,
+    // The purchase order a bill is made from (purchase order spec §3.8). Not drawn as a
+    // field: the save writes it from the form's source link.
+    purchase_order: optionalText,
 })
 
 export type BillColumns = z.infer<typeof billColumnsSchema>
@@ -26,7 +29,8 @@ export function billColumnsFrom(columns: Record<string, unknown>): ColumnsParse<
 }
 
 // The base of an insert, so a column the form left out is stored empty. A new bill is
-// always a draft; `replaces` is set by a correction.
+// always a draft; `replaces` is set by a correction, `purchase_order` by a bill made from
+// an order or a correction of one.
 export const EMPTY_BILL_COLUMNS: Required<BillColumns> & {
     status: 'draft'
     replaces: string
@@ -38,6 +42,7 @@ export const EMPTY_BILL_COLUMNS: Required<BillColumns> & {
     due_date: '',
     ref_no: '',
     memo: '',
+    purchase_order: '',
     status: 'draft',
     replaces: '',
 }

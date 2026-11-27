@@ -42,11 +42,13 @@ To choose which line tables new bills, expenses and vendor credits show, open Se
 - Accounts only: a new bill, expense or vendor credit shows Account details only.
 - Products only: a new bill, expense or vendor credit shows Product and service details only.
 
-A table that the setting hides still shows on a bill, expense or vendor credit that already has lines in it, so editing an older one never loses lines. For more, see [Bills](help://books:bills), [Expenses](help://books:expenses) and [Vendor credits](help://books:vendor-credits).
+The same setting decides the tables of a new purchase order.
+
+A table that the setting hides still shows on a bill, expense, vendor credit or purchase order that already has lines in it, so editing an older one never loses lines. For more, see [Bills](help://books:bills), [Expenses](help://books:expenses), [Vendor credits](help://books:vendor-credits) and [Purchase orders](help://books:purchase-orders).
 
 ## Numbering
 
-To change how entries are numbered, open Settings and choose Numbering. Each document type has a card with a prefix and a next number, such as Invoices and Estimates. A new prefix applies to entries posted from now on (on the Estimates card, to estimates saved from now on, because an estimate takes its number when you first save it), and numbers already issued do not change. The next number can move forward only, so it never repeats a number. If a number is already used, Books shows a message under Next number.
+To change how entries are numbered, open Settings and choose Numbering. Each document type has a card with a prefix and a next number, such as Invoices and Estimates. A new prefix applies to entries posted from now on (on the Estimates and Purchase orders cards, to estimates and purchase orders saved from now on, because each takes its number when you first save it), and numbers already issued do not change. The next number can move forward only, so it never repeats a number. If a number is already used, Books shows a message under Next number.
 
 The **Statements** card numbers customer statements. A statement takes its number when it is saved, so a preview uses none, and its next number cannot be set at or below the number of a stored statement. See [Customer statements](help://books:statements).
 

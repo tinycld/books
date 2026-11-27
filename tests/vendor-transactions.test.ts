@@ -5,12 +5,19 @@ import {
     transactionTotalText,
 } from '../tinycld/books/lib/party-transactions'
 import {
+    PURCHASE_ORDER_IDS,
+    PURCHASE_ORDER_LINES,
+    PURCHASE_ORDERS,
+} from '../tinycld/books/lib/purchase-orders-fixture'
+import {
     billPaymentRow,
     billRow,
     expenseRow,
+    purchaseOrderRow,
     VENDOR_TRANSACTION_FILTERS,
     VENDOR_TRANSACTION_ROUTES,
     VENDOR_TRANSACTION_TEXTS,
+    VENDOR_TRANSACTION_TYPE_LABELS,
     type VendorTransactionKind,
     type VendorTransactionRow,
     vendorCreditRow,
@@ -275,6 +282,51 @@ describe('vendorRefundRow', () => {
     })
 })
 
+// Purchase order spec §3.9: a purchase order on the vendor page is a row of kind
+// purchase_order with its number, date, no due date, its total and its badge (Open, Partly
+// received, Closed: `purchaseOrderBadge` over the order's lines).
+describe('purchaseOrderRow', () => {
+    function orderRowOf(id: string): VendorTransactionRow {
+        const order = PURCHASE_ORDERS.find(candidate => candidate.id === id)
+        if (!order) throw new Error(`no fixture order ${id}`)
+        const lines = PURCHASE_ORDER_LINES.filter(line => line.purchase_order === id)
+        return purchaseOrderRow(order, lines)
+    }
+
+    it('maps an order to one row of kind purchase_order, with no due date and its total', () => {
+        expect(orderRowOf(PURCHASE_ORDER_IDS.open)).toMatchObject({
+            id: PURCHASE_ORDER_IDS.open,
+            key: '1004',
+            kind: 'purchase_order',
+            number: '1004',
+            date: '2026-11-06',
+            dueDate: '',
+            total: 157_740,
+        })
+        expect(transactionTotalText(orderRowOf(PURCHASE_ORDER_IDS.open), 'USD')).toBe('$1,577.40')
+    })
+
+    it.each([
+        [PURCHASE_ORDER_IDS.open, { label: 'Open', tone: 'info' }],
+        [PURCHASE_ORDER_IDS.draftBill, { label: 'Open', tone: 'info' }],
+        [PURCHASE_ORDER_IDS.partly, { label: 'Partly received', tone: 'warning' }],
+        [PURCHASE_ORDER_IDS.closedManual, { label: 'Closed', tone: 'muted' }],
+        [PURCHASE_ORDER_IDS.closedReceived, { label: 'Closed', tone: 'muted' }],
+    ])('gives %s the badge %o', (id, status) => {
+        expect(orderRowOf(id).status).toEqual(status)
+    })
+
+    it('opens the order by its number at books/purchase-orders', () => {
+        expect(vendorTransactionHref(orderRowOf(PURCHASE_ORDER_IDS.partly))).toBe(
+            'books/purchase-orders/1003'
+        )
+    })
+
+    it('types the row "Purchase order"', () => {
+        expect(VENDOR_TRANSACTION_TYPE_LABELS.purchase_order).toBe('Purchase order')
+    })
+})
+
 describe('vendorTransactionHref', () => {
     const rows: [VendorTransactionRow, string][] = [
         [billRow(BILL, TODAY), 'books/bills/1001'],
@@ -300,6 +352,7 @@ describe('vendorTransactionHref', () => {
     it('names one route per kind', () => {
         expect(VENDOR_TRANSACTION_ROUTES).toEqual({
             bill: 'books/bills',
+            purchase_order: 'books/purchase-orders',
             expense: 'books/expenses',
             bill_payment: 'books/bill-payments',
             vendor_credit: 'books/vendor-credits',
@@ -315,6 +368,7 @@ describe('VENDOR_TRANSACTION_TEXTS', () => {
 
     const sentences: [VendorTransactionKind, string][] = [
         ['bill', 'No bills for this vendor'],
+        ['purchase_order', 'No purchase orders for this vendor'],
         ['expense', 'No expenses for this vendor'],
         ['bill_payment', 'No bill payments for this vendor'],
         ['vendor_credit', 'No vendor credits for this vendor'],
@@ -329,10 +383,12 @@ describe('VENDOR_TRANSACTION_TEXTS', () => {
 })
 
 describe('VENDOR_TRANSACTION_FILTERS', () => {
+    // Purchase order spec §3.9: the chip Purchase orders, after Bills as the tab is.
     it('lists the chips in strip order', () => {
         expect(VENDOR_TRANSACTION_FILTERS).toEqual([
             { key: 'all', label: 'All' },
             { key: 'bill', label: 'Bills' },
+            { key: 'purchase_order', label: 'Purchase orders' },
             { key: 'expense', label: 'Expenses' },
             { key: 'bill_payment', label: 'Bill payments' },
             { key: 'vendor_credit', label: 'Vendor credits' },

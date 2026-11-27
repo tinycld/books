@@ -121,6 +121,11 @@ func TestCLIResources_OnlyAnAddressFieldIsTypedAddress(t *testing.T) {
 	if got, _, _ := cliTypeOf("books_customers", &core.JSONField{Name: "billing_address"}); got != "address" {
 		t.Errorf("billing_address: type = %q, want address", got)
 	}
+	// A purchase order's mailing_address is the vendor's address in the shape
+	// of 2100000004, checked by isAddress (purchaseOrderKind.AddressField).
+	if got, _, _ := cliTypeOf("books_purchase_orders", &core.JSONField{Name: "mailing_address"}); got != "address" {
+		t.Errorf("mailing_address of purchase orders: type = %q, want address", got)
+	}
 	if got, _, _ := cliTypeOf("books_vendors", &core.JSONField{Name: "billing_address"}); got != "unsupported json" {
 		t.Errorf("billing_address of vendors: type = %q, want unsupported json", got)
 	}
@@ -128,7 +133,8 @@ func TestCLIResources_OnlyAnAddressFieldIsTypedAddress(t *testing.T) {
 
 // addressFields are the JSON columns the server checks with isAddress, by
 // collection: the sources are validateCustomer (customers.go), validateVendor
-// (vendors.go) and AddressField of each salesDocKind (sales_documents.go).
+// (vendors.go) and AddressField of each salesDocKind (sales_documents.go and
+// purchase_orders.go).
 func addressFields() map[string][]string {
 	fields := map[string][]string{
 		"books_customers": {"billing_address", "shipping_address"},
@@ -136,7 +142,7 @@ func addressFields() map[string][]string {
 	}
 	for _, kind := range []salesDocKind{
 		invoiceKind, salesReceiptKind, creditMemoKind, refundReceiptKind, estimateKind,
-		billKind, expenseKind, vendorCreditKind,
+		billKind, expenseKind, vendorCreditKind, purchaseOrderKind,
 	} {
 		if kind.AddressField != "" {
 			fields[kind.Collection] = append(fields[kind.Collection], kind.AddressField)

@@ -31,6 +31,8 @@ import type {
     BooksPaymentApplications,
     BooksPayments,
     BooksProducts,
+    BooksPurchaseOrderLines,
+    BooksPurchaseOrders,
     BooksRefundReceipts,
     BooksSalesReceipts,
     BooksTaxRates,
@@ -61,6 +63,11 @@ export type DocumentScreenInput = {
     // memo it pays out (Refund credit). The route passes one source at most.
     salesReceipt?: string
     creditMemo?: string
+    // On a bill's new form: the purchase order it is made from (Copy to bill).
+    purchaseOrder?: string
+    // A purchase order's `?edit=1`: a writer opens the form of an open order
+    // (documentScreenState). Every other kind leaves it out.
+    isEdit?: boolean
 }
 
 // The columns every kind's header row has, as the generated invoice type names them,
@@ -107,9 +114,10 @@ type EstimateKindFields = { kind: 'estimate' } & Pick<
     BooksEstimates,
     'expiration_date' | 'accepted_by' | 'accepted_date' | 'invoice' | 'public_token'
 >
+// `purchase_order` is the order the bill is made from ('' for none), its source link.
 type BillKindFields = { kind: 'bill' } & Pick<
     BooksBills,
-    'vendor' | 'terms' | 'due_date' | 'ref_no' | 'mailing_address'
+    'vendor' | 'terms' | 'due_date' | 'ref_no' | 'mailing_address' | 'purchase_order'
 >
 export type ExpenseKindFields = { kind: 'expense' } & Pick<
     BooksExpenses,
@@ -128,6 +136,18 @@ export type RefundReceiptKindFields = { kind: 'refund_receipt' } & Pick<
     BooksRefundReceipts,
     'payment_method' | 'reference_no' | 'refund_from' | 'sales_receipt' | 'credit_memo'
 >
+export type PurchaseOrderKindFields = { kind: 'purchase_order' } & Pick<
+    BooksPurchaseOrders,
+    | 'vendor'
+    | 'mailing_address'
+    | 'ship_to'
+    | 'open_amount'
+    | 'closed_reason'
+    | 'closed_at'
+    | 'closed_by'
+    | 'created_by'
+    | 'created'
+>
 export type DocumentKindFields =
     | InvoiceKindFields
     | SalesReceiptKindFields
@@ -137,6 +157,7 @@ export type DocumentKindFields =
     | CreditMemoKindFields
     | VendorCreditKindFields
     | RefundReceiptKindFields
+    | PurchaseOrderKindFields
 
 // A header row without the people and the rate it names: the source of a correction or
 // a copy.
@@ -178,6 +199,9 @@ export type DocumentRecord = SharedColumns & {
               vendorRow: Pick<BooksVendors, 'display_name'> | undefined
               // The open amount the server keeps (total less the posted bill payments).
               balance: BooksBills['balance']
+              // The purchase order the bill was made from ("From purchase order <n>"; the
+              // bill's read and its form link); undefined for a bill from no order.
+              orderRow: Pick<BooksPurchaseOrders, 'number'> | undefined
           })
         | (ExpenseKindFields & {
               vendorRow: Pick<BooksVendors, 'display_name'> | undefined
@@ -197,6 +221,18 @@ export type DocumentRecord = SharedColumns & {
               creditMemoRow:
                   | Pick<BooksCreditMemos, 'number' | 'status' | 'balance' | 'date'>
                   | undefined
+          })
+        | (PurchaseOrderKindFields & {
+              vendorRow: Pick<BooksVendors, 'display_name'> | undefined
+              createdBy: Pick<Users, 'name'> | undefined
+              closedBy: Pick<Users, 'name'> | undefined
+              // What the posted bills of each line received and billed, and what is still
+              // open, which the server keeps: the badge (Partly received), the Billed total
+              // and the read actions (Copy to bill needs an open line) read them.
+              lineReceipts: readonly Pick<
+                  BooksPurchaseOrderLines,
+                  'kind' | 'received' | 'billed' | 'open_quantity' | 'open_amount'
+              >[]
           })
     postedBy: Pick<Users, 'name'> | undefined
     voidedBy: Pick<Users, 'name'> | undefined
@@ -250,8 +286,8 @@ export function copyNeedsPartyRow(
 // default expense account (only then does the first account line start with it;
 // undefined without `?vendor`); for an expense, the same and the ids of the active bank
 // and credit card accounts (a copy keeps its source's Paid from only when it is one of
-// them); for a vendor credit, the bill's; for a refund receipt, how Refund from is chosen
-// and what a payout correction's original pays out.
+// them); for a vendor credit and a purchase order, the bill's; for a refund receipt, how
+// Refund from is chosen and what a payout correction's original pays out.
 export type DocumentStart =
     | { kind: 'invoice' }
     | { kind: 'sales_receipt'; deposit: CopyDeposit }
@@ -265,6 +301,14 @@ export type DocumentStart =
           activePaidFromIds: ReadonlySet<string>
       }
     | { kind: 'vendor_credit'; purchaseLines: PurchaseLines; vendorAccountListed?: boolean }
+    | {
+          kind: 'purchase_order'
+          purchaseLines: PurchaseLines
+          vendorAccountListed?: boolean
+          // A new order's Ship to (shipToStartOf of the Company settings); its data source
+          // always sets it, a unit test's start may leave it out (no Ship to).
+          shipTo?: string
+      }
     | {
           kind: 'refund_receipt'
           refundFrom: CopyDeposit
@@ -309,7 +353,15 @@ export type PurchaseReadLine = PurchaseLineRow & {
     productRow: BooksProducts | undefined
     accountRow: Pick<BooksAccounts, 'number' | 'name'> | undefined
 }
-export type DocumentReadLine = SalesReadLine | PurchaseReadLine
+// A purchase order's line also holds what its posted bills received and billed and what
+// is still open, which the server keeps (server/purchase_order_receipts.go).
+export type PurchaseOrderReadLine = PurchaseReadLine &
+    Pick<BooksPurchaseOrderLines, 'received' | 'billed' | 'open_quantity' | 'open_amount'>
+export type DocumentReadLine = SalesReadLine | PurchaseReadLine | PurchaseOrderReadLine
+
+export function isOrderReadLine(line: DocumentReadLine): line is PurchaseOrderReadLine {
+    return isPurchaseLine(line) && 'open_quantity' in line
+}
 
 export function isPurchaseReadLine(line: DocumentReadLine): line is PurchaseReadLine {
     return isPurchaseLine(line)
@@ -389,8 +441,10 @@ export type DocumentScreenReads = {
     estimateSource: DocumentRead<EstimateSource | undefined>
     estimateSourceLines: DocumentRead<DocumentLineRow[]>
     // The source a new form is made from (`?invoice` on a credit memo, `?sales_receipt` or
-    // `?credit_memo` on a refund receipt), or that a new correction of a linked document
-    // names, and its lines in order. Idle (ready and empty) on every other form and kind.
+    // `?credit_memo` on a refund receipt, `?purchase_order` on a bill), or that a new
+    // correction of a linked document names, and its lines in order (a purchase order's
+    // lines are in its row, PurchaseOrderLinkSource). Idle (ready and empty) on every other
+    // form and kind.
     linkSource: DocumentRead<LinkSource | undefined>
     linkSourceLines: DocumentRead<DocumentLineRow[]>
     taxLines: DocumentRead<DocumentTaxLine[]>

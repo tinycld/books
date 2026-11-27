@@ -5,8 +5,12 @@ import { log } from '@tinycld/core/lib/logger'
 import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useRef } from 'react'
 import { useFormContext } from 'react-hook-form'
-import { Platform } from 'react-native'
-import { useDocumentFormScope } from '../components/documents/document-form-context'
+import { Platform, Text, View } from 'react-native'
+import {
+    type DocumentFormScope,
+    NO_ORDER_LINKS,
+    useDocumentFormScope,
+} from '../components/documents/document-form-context'
 import { ProductPicker } from '../components/products/ProductPicker'
 import { SearchPicker, useSearchPicker } from '../components/SearchPicker'
 import { useFormAccounts } from '../hooks/useFormAccounts'
@@ -24,8 +28,22 @@ import {
     cellTestId,
     currentRow,
     LineAmountCell,
+    LineDescriptionCell,
     MoneyTextCell,
 } from './document-line-cells'
+
+/**
+ * Whether a line's Product or Account picker is read only (spec §3.8): a bill's line from
+ * a purchase order (it names an order line, `po_line`), or an order's line that a bill
+ * names (DocumentFormScope.orderLinks). The server keeps their product or account.
+ */
+function isOrderLinkedLine(table: TableCellContext | undefined, scope: DocumentFormScope) {
+    if (!table) return false
+    const poLine = table.row.po_line
+    if (typeof poLine === 'string' && poLine !== '') return true
+    const links = scope.orderLinks ?? NO_ORDER_LINKS
+    return links.lines[table.row.id] !== undefined
+}
 
 // A bill's line cells (spec §3.4): the Account cell of an account line, the Product or
 // service cell and the Amount of a product line, and the typed Amount of an account line.
@@ -102,16 +120,19 @@ function accountTriggerLabel(
  * (purchaseAccountOptions). A stored account the list no longer offers shows, marked
  * "(inactive)" when it is. The chart is the form's one accounts query (useFormAccounts):
  * while it loads the menu says so; a failed load shows Retry in the menu. A pick moves
- * focus to the line's next cell.
+ * focus to the line's next cell. Read only on a line a purchase order links
+ * (isOrderLinkedLine).
  */
 export function LineAccountCell({
     fieldKey,
     label,
     value,
     onChange,
-    disabled,
+    disabled: isFormDisabled,
     table,
 }: BuiltinFieldProps) {
+    const scope = useDocumentFormScope()
+    const disabled = isFormDisabled || isOrderLinkedLine(table, scope)
     const id = textOf(value)
     const picker = useSearchPicker()
     const accounts = useFormAccounts()
@@ -228,18 +249,23 @@ function usePurchaseProductPick({ fieldKey, onChange, table }: BuiltinFieldProps
  * Product or service on a product line: active Service and Non-inventory products with
  * "I purchase this" on (ProductPicker, purpose 'purchases'). A pick fills an empty
  * Description with the purchase description and an empty Rate with the cost, then moves
- * focus to Description.
+ * focus to Description. Read only on a line a purchase order links (isOrderLinkedLine).
  */
 export function LinePurchaseProductCell(props: BuiltinFieldProps) {
-    const { fieldKey, label, value, disabled, table } = props
+    const { fieldKey, label, value, table } = props
     const pick = usePurchaseProductPick(props)
     const onPick = (id: string) => {
         void pick(id)
     }
     const id = textOf(value)
     const opensOnFocus = useOpensWhenAdded(fieldKey, table, id === '')
+    // The kind says whether its line names the Vendor part no. (a purchase order's, spec Q17).
+    const scope = useDocumentFormScope()
+    const showsPartNo = scope.kind.showsVendorPartNo
+    const disabled = props.disabled || isOrderLinkedLine(table, scope)
     return (
         <ProductPicker
+            showsPartNo={showsPartNo}
             purpose="purchases"
             types={PURCHASE_ITEM_TYPES}
             value={id}
@@ -252,6 +278,28 @@ export function LinePurchaseProductCell(props: BuiltinFieldProps) {
             onBlur={table?.noteBlur}
             opensOnFocus={opensOnFocus}
         />
+    )
+}
+
+function LinkedLineText({ text }: { text: string | undefined }) {
+    if (!text) return null
+    return <Text className="mt-1 text-xs text-muted-foreground">{text}</Text>
+}
+
+/**
+ * Description of a purchase line: the lines' Description cell (LineDescriptionCell), and
+ * under it, on a purchase order's line that a bill names, what its posted bills received
+ * ("Received 4 of 10") or billed ("Billed $120.00 of $300.00"; OrderFormLinks.lines).
+ */
+export function LinePurchaseDescriptionCell(props: BuiltinFieldProps) {
+    const { orderLinks } = useDocumentFormScope()
+    const rowId = props.table?.row.id ?? ''
+    const text = (orderLinks ?? NO_ORDER_LINKS).lines[rowId]
+    return (
+        <View>
+            <LineDescriptionCell {...props} />
+            <LinkedLineText text={text} />
+        </View>
     )
 }
 

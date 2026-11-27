@@ -270,6 +270,7 @@ const DRAFT_LINE: BooksBillLines = {
     rate: 0,
     amount: 41_286,
     position: 0,
+    po_line: '',
     created: DRAFT_ROW.created,
     updated: DRAFT_ROW.updated,
 }
@@ -290,7 +291,9 @@ function billRecordOf(row: BooksBills): DocumentRecord {
             due_date: row.due_date,
             ref_no: row.ref_no,
             mailing_address: row.mailing_address,
+            purchase_order: row.purchase_order,
             vendorRow: undefined,
+            orderRow: undefined,
             balance: row.balance,
         },
         postedBy: undefined,

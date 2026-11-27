@@ -217,6 +217,8 @@ func reportSources() []reports.Source {
 		settingsSource(),
 		reconciliationsSource(),
 		reconciledLinesSource(),
+		purchaseOrdersSource(),
+		purchaseOrderLinesSource(),
 	}
 	for i := range sources {
 		sources[i].FiscalStartMonth = booksFiscalStart
@@ -601,6 +603,9 @@ func productsSource() reports.Source {
 			{Key: "quantity_on_hand", Label: "Quantity on hand", Type: reports.Number, Aggregates: reports.SumAll},
 			{Key: "stock_value", Label: "Stock value", Type: reports.Money, Aggregates: reports.SumAll, Currency: "currency"},
 			{Key: "reorder_point", Label: "Reorder point", Type: reports.Number, Aggregates: reports.MinMax},
+			// The open quantity of the product's lines on open purchase
+			// orders, as refreshOnPO keeps it (purchase_order_receipts.go).
+			{Key: "quantity_on_po", Label: "On purchase order", Type: reports.Number, Aggregates: reports.SumAll},
 		},
 		Links: []reports.Link{
 			{Key: "income_account", Label: "Income account", Target: "books.accounts", Cardinality: reports.ToOne, Field: "income_account"},

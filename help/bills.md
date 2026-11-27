@@ -91,13 +91,21 @@ You can edit a bill that payments pay. When you post the edit, its payments move
 
 You can also edit a bill that vendor credits are applied to. When you post the edit, the credits move to the edit with the payments. Books refuses the edit when its total is below the payments and credits together ("Payments and credits of $300.00 are applied to this bill. Its total cannot be below that.") or when it changes the vendor ("Vendor credits are applied to this bill, so its vendor cannot change.").
 
+## A bill from a purchase order
+
+To bill what a vendor sent against a purchase order, open the order and choose Copy to bill. The new bill starts with the order's vendor, mailing address and the lines you chose. See [Purchase orders](help://books:purchase-orders).
+
+A bill from a purchase order shows "From purchase order 1004" under Vendor on the form, and under the Posted-by stamp on a posted bill; choose it to open the order. The bill keeps its order, and its Vendor cannot change. On a line from the order, the Product or Account cannot change; you can change the Description, Qty, Rate and Amount, add other lines, or remove a line from the order (it then stays open on the order). Nothing changes on the order until the bill posts. A void, a delete of the draft or an edit of the bill counts the order again.
+
+If the order was closed by hand, Books refuses the bill's first save: "Purchase order 1004 is closed. Reopen it to copy it to a bill." A copy of a bill carries no order link.
+
 ## Attach the vendor's bill
 
 To keep the vendor's bill (a PDF or a photo) with the bill, add it in the Attachments section under Memo, on the form or on a posted bill. An edit moves the original's files to the posted edit; a copy starts with none. See [Attachments](help://books:attachments).
 
 ## The Purchase lines setting
 
-To choose which tables a new bill shows, open Settings → Purchases and set **Purchase lines** on the Bills, expenses and vendor credits card: Accounts and products (the default), Accounts only, or Products only. The same setting decides the tables of a new expense and a new vendor credit. Only a Books admin can change Purchase lines; everyone else sees the setting.
+To choose which tables a new bill shows, open Settings → Purchases and set **Purchase lines** on the Bills, expenses and vendor credits card: Accounts and products (the default), Accounts only, or Products only. The same setting decides the tables of a new expense, a new vendor credit and a new purchase order. Only a Books admin can change Purchase lines; everyone else sees the setting.
 
 The setting only changes what the form shows. A table that the setting hides still shows on a bill that already has lines in it (a saved draft, an edit or a copy), so you never lose lines. Once a table shows on a form, it stays until you leave the form, even after you remove its last line. A posted bill shows every table that has lines. See [Settings](help://books:settings).
 

@@ -2,14 +2,22 @@
 // route, the kinds it lists, its columns, chips and sortable columns, and its New action.
 // Free of React Native and icon imports: the e2e helpers import it in Node.
 
-import type { DocumentListTab, ListChip, ListColumnKey, ListSortKey } from './document-list'
+import type {
+    DocumentListTab,
+    ListChip,
+    ListColumnKey,
+    ListSortKey,
+    TabReport,
+} from './document-list'
 import { BASE_SORT_KEYS, listChips as chips } from './list-chips'
 import { areaTabOf } from './list-tabs'
 import { NEW_ACTIONS } from './new-actions'
+import { OPEN_PURCHASE_ORDERS_SHIPPED_KEY } from './shipped-reports'
 import type { VendorTransactionFilter, VendorTransactionKind } from './vendor-transactions'
 
 const ALL_KINDS: readonly VendorTransactionKind[] = [
     'bill',
+    'purchase_order',
     'expense',
     'bill_payment',
     'vendor_credit',
@@ -19,6 +27,7 @@ const ALL_KINDS: readonly VendorTransactionKind[] = [
 // The New action of each kind, by its NEW_ACTIONS id: a bill payment is made on Pay Bills.
 const NEW_ACTION_IDS: Record<VendorTransactionKind, string> = {
     bill: 'bill',
+    purchase_order: 'purchase_order',
     expense: 'expense',
     bill_payment: 'pay_bills',
     vendor_credit: 'vendor_credit',
@@ -27,6 +36,7 @@ const NEW_ACTION_IDS: Record<VendorTransactionKind, string> = {
 
 const NEW_LABELS: Record<VendorTransactionKind, string> = {
     bill: 'New bill',
+    purchase_order: 'New purchase order',
     expense: 'New expense',
     bill_payment: 'Pay bills',
     vendor_credit: 'New vendor credit',
@@ -48,6 +58,7 @@ function kindTab(
         columns: readonly ListColumnKey[]
         chips: readonly ListChip[]
         sortKeys?: readonly ListSortKey[]
+        report?: TabReport
     }
 ): DocumentListTab {
     return {
@@ -63,6 +74,7 @@ function kindTab(
         chips: tab.chips,
         sortKeys: [...BASE_SORT_KEYS, ...(tab.sortKeys ?? [])],
         isSigned: false,
+        report: tab.report,
     }
 }
 
@@ -91,6 +103,21 @@ export const PURCHASE_TABS: readonly DocumentListTab[] = [
         columns: ['date', 'number', 'vendor', 'due', 'balance', 'total', 'status'],
         chips: chips('All', 'Open', 'Overdue', 'Paid', 'Draft', 'Void'),
         sortKeys: ['due', 'balance'],
+    }),
+    // Purchase order spec §3.9: Open is the order's stored `open_amount`. The toolbar
+    // links the Open Purchase Orders report (§3.10).
+    kindTab('purchase_order', {
+        key: 'purchase-orders',
+        label: 'Purchase orders',
+        noun: 'purchase orders',
+        columns: ['date', 'number', 'vendor', 'open', 'total', 'status'],
+        chips: chips('All', 'Open', 'Closed'),
+        sortKeys: ['open'],
+        report: {
+            shippedKey: OPEN_PURCHASE_ORDERS_SHIPPED_KEY,
+            label: 'Open Purchase Orders',
+            testIdSuffix: 'open-orders-report',
+        },
     }),
     kindTab('expense', {
         key: 'expenses',

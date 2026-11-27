@@ -253,9 +253,9 @@ test.describe
             await expectSavedToList(page)
 
             await expectOnHand(page, '0')
-            // The e2e chart has no Cost of goods sold account, so the new form names none and
-            // the save gives the item the one the server makes (ensureCostOfGoodsSold). The
-            // saved item's select names it by number and name, as the entry lines do.
+            // The seeded Inventory item made the server add 5000 Cost of goods sold to the e2e
+            // chart, so the new form names it as the expense default and the save keeps it.
+            // The saved item's select names it by number and name, as the entry lines do.
             const cogsSelect = field(page, 'expense_account')
             await expect(cogsSelect).toHaveText(/^\d+ \S/)
             cogsAccount = (await cogsSelect.innerText()).trim()

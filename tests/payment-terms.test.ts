@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { vendorBillFills } from '../tinycld/books/lib/bill-values'
 import {
     PAYMENT_TERM_KEYS,
     PAYMENT_TERM_OPTIONS,
@@ -65,6 +66,52 @@ describe('PAYMENT_TERM_OPTIONS', () => {
         const none: PaymentTermKey = ''
         expect(PAYMENT_TERM_OPTIONS[0].value).toBe(none)
     })
+})
+
+// cli/testdata/payment-terms.json is shared with cli/payment_terms_test.go: the CLI's
+// copy-to-bill with no --input copies the term days and the bill due-date rule by
+// hand (cli/document_convert.go paymentTermDays, dueDateFor). This half holds the file
+// to the app; the Go half holds the copy to the file.
+type SharedTermCases = {
+    terms: { key: string; days: number }[]
+    due_dates: { name: string; date: string; terms: string; due: string }[]
+}
+
+const SHARED: SharedTermCases = JSON.parse(
+    readFileSync(join(__dirname, '..', 'cli', 'testdata', 'payment-terms.json'), 'utf8')
+)
+
+function isTermKey(value: string): value is PaymentTermKey {
+    return PAYMENT_TERM_OPTIONS.some(option => option.value === value)
+}
+
+describe('the shared CLI term cases', () => {
+    it('their terms are PAYMENT_TERMS, with the same days', () => {
+        expect(SHARED.terms).toEqual(PAYMENT_TERMS.map(({ key, days }) => ({ key, days })))
+    })
+
+    // An unknown term cannot reach the form (the terms union refuses it); its case is
+    // the Go copy's only.
+    const formCases = SHARED.due_dates.flatMap(row =>
+        isTermKey(row.terms) ? [{ ...row, terms: row.terms }] : []
+    )
+
+    it('cover a month end, no terms and an unknown term', () => {
+        expect(SHARED.due_dates.some(row => row.date.endsWith('-31'))).toBe(true)
+        expect(SHARED.due_dates.some(row => row.terms === '')).toBe(true)
+        expect(SHARED.due_dates.some(row => !isTermKey(row.terms))).toBe(true)
+    })
+
+    for (const row of formCases) {
+        it(`${row.name}: a vendor pick fills the case's due date`, () => {
+            const fills = vendorBillFills(
+                { id: 'vendor000000001', address: null, terms: row.terms, expense_account: '' },
+                false,
+                { date: row.date, account_lines: [] }
+            )
+            expect(fills.due_date).toBe(row.due)
+        })
+    }
 })
 
 describe('migration drift', () => {

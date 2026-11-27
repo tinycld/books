@@ -93,6 +93,34 @@ describe('NewMenu', () => {
         )
     })
 
+    // The real registry: Purchase order sits between Vendor and Bill in the Vendors column
+    // (purchase order spec §2); its id is written with dashes (components/NewMenu.tsx).
+    it('draws Purchase order after Vendor and before Bill and opens books/purchase-orders/new from it', () => {
+        const { onSelect } = renderOpenMenu(newMenuForAccess(access, NEW_ACTIONS))
+        const vendor = byTestId(document.body, 'books-new-vendor')
+        const order = byTestId(document.body, 'books-new-purchase-order')
+        const bill = byTestId(document.body, 'books-new-bill')
+        expect(vendor).not.toBeNull()
+        expect(order).not.toBeNull()
+        expect(bill).not.toBeNull()
+        if (!vendor || !order || !bill) return
+        expect(order.textContent).toContain('Purchase order')
+        expect(
+            vendor.compareDocumentPosition(order) & Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy()
+        expect(order.compareDocumentPosition(bill) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+        fireEvent.click(order)
+        expect(onSelect).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'purchase_order', href: 'books/purchase-orders/new' })
+        )
+    })
+
+    it('gives a reader no Purchase order', () => {
+        const reader = newMenuForAccess(accessFromRow({ level: 'read_only' }, true), NEW_ACTIONS)
+        const ids = reader.flatMap(column => column.actions.map(action => action.id))
+        expect(ids).not.toContain('purchase_order')
+    })
+
     // The real registry: Expense follows Bill in the Vendors column (expense spec §2).
     it('draws Expense right after Bill and opens books/expenses/new from it', () => {
         const { onSelect } = renderOpenMenu(newMenuForAccess(access, NEW_ACTIONS))

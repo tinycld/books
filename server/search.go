@@ -129,11 +129,15 @@ func searchBooks(app core.App, userID string, q search.Query) (search.Result, er
 	if err != nil {
 		return search.Result{}, err
 	}
+	purchaseOrders, purchaseOrderTotal, err := searchSalesDocs(ctx, app, purchaseOrderSearch, q.Include, q.Exclude, window)
+	if err != nil {
+		return search.Result{}, err
+	}
 	rows := interleave(accounts, entries, customers, vendors, products, invoices, receipts, creditMemos, refundReceipts,
-		estimates, bills, expenses, vendorCredits, payments, billPayments, vendorRefunds, writeOffs, deposits)
+		estimates, bills, expenses, vendorCredits, payments, billPayments, vendorRefunds, writeOffs, deposits, purchaseOrders)
 	total := accountTotal + entryTotal + customerTotal + vendorTotal + productTotal + invoiceTotal + receiptTotal +
 		creditMemoTotal + refundReceiptTotal + estimateTotal + billTotal + expenseTotal + vendorCreditTotal + paymentTotal +
-		billPaymentTotal + vendorRefundTotal + writeOffTotal + depositTotal
+		billPaymentTotal + vendorRefundTotal + writeOffTotal + depositTotal + purchaseOrderTotal
 	return search.Result{Rows: page(rows, offset, limit), Total: total}, nil
 }
 
@@ -485,6 +489,15 @@ var estimateSearch = salesDocSearch{
 // memo, or the vendor's display name, company, email and legal name.
 var billSearch = salesDocSearch{
 	table: billKind.Collection, index: billsIndex, docType: docTypeBill, kind: "bill",
+	partyField: "vendor", partyTable: "books_vendors", partyIdx: vendorsIndex,
+}
+
+// purchaseOrderSearch names its vendor: "Purchase order 1004 · Office Supply
+// World". An order has its number from its first save, so it has no draft
+// title. A word matches the order's number, memo and message, or the vendor's
+// display name, company, email and legal name.
+var purchaseOrderSearch = salesDocSearch{
+	table: purchaseOrdersCollection, index: purchaseOrdersIndex, docType: docTypePurchaseOrder, kind: "purchase_order",
 	partyField: "vendor", partyTable: "books_vendors", partyIdx: vendorsIndex,
 }
 

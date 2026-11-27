@@ -21,8 +21,9 @@ interface VendorTransactionsTabProps {
 }
 
 /**
- * The vendor page's default tab (vendor pages §3.5): every bill, expense, bill payment,
- * vendor credit and vendor refund of the vendor, newest first, with type chips. The chip
+ * The vendor page's default tab (vendor pages §3.5): every bill, purchase order, expense,
+ * bill payment, vendor credit and vendor refund of the vendor, newest first, with type
+ * chips (Purchase orders among them, purchase order spec §3.9). The chip
  * is local to the tab and starts at All whenever the page mounts. The empty state's New
  * transaction opens the header's menu.
  */

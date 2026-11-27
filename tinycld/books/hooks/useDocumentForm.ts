@@ -28,10 +28,18 @@ import { textOf } from '../lib/form-values'
 import { noLinesText, purchaseTablesShown } from '../lib/purchase-lines'
 import { type PayoutLimits, payoutLimitsOf, refundPayoutRule } from '../lib/refund-payout'
 import { todayIso } from '../lib/register-range'
-import type { SalesDocumentKind } from '../lib/sales-document-kinds'
+import type { DocumentLifecycle, SalesDocumentKind } from '../lib/sales-document-kinds'
 import { useDocumentSaveStore } from '../stores/document-save-store'
 import { type DocumentStart, type PayoutMemo, recordColumnsOf } from './document-data'
 import type { DocumentScreenData } from './useDocumentScreen'
+
+// A lifecycle whose Status has Accepted by and Accepted date (an estimate's); keyed by
+// DocumentLifecycle, so a new lifecycle fails tsc until it has its answer.
+const HAS_ACCEPTANCE: Record<DocumentLifecycle, boolean> = {
+    posting: false,
+    quote: true,
+    order: false,
+}
 
 // documentSchema bounds every text built-in of a sales document with the kind's own words
 // ("Reference no. can be at most 40 characters"). Core's field schema reads a built-in's
@@ -129,9 +137,9 @@ function documentRecordSchema(
 }
 
 // The built-ins of a new form's, a correction's, a copy's or an invoice-from-estimate's
-// values: `replaces`, `estimate`, a credit memo's `invoice` and a refund receipt's
-// `sales_receipt` and `credit_memo` are no fields of the form (the save writes them), so
-// the engine never files them among the custom fields.
+// values: `replaces`, `estimate`, a credit memo's `invoice`, a refund receipt's
+// `sales_receipt` and `credit_memo` and a bill's `purchase_order` are no fields of the form
+// (the save writes them), so the engine never files them among the custom fields.
 function builtinValuesOf(values: DocumentStartValues): DocumentStartValues {
     const builtins: DocumentStartValues = { ...values }
     delete builtins.replaces
@@ -139,6 +147,7 @@ function builtinValuesOf(values: DocumentStartValues): DocumentStartValues {
     delete builtins.invoice
     delete builtins.sales_receipt
     delete builtins.credit_memo
+    delete builtins.purchase_order
     return builtins
 }
 
@@ -165,8 +174,9 @@ export const LINE_COUNT_ERROR_KEY = 'line-count'
 // no Purchase lines setting shows every table it has. A purchase kind (its start carries
 // `purchaseLines`) shows a table when the setting includes it or the document the form
 // starts with already has a line in it (purchaseTablesShown); `rows` are the form's
-// starting table rows (a new form's start values, a stored document's lines).
-function shownLineTablesOf(
+// starting table rows (a new form's start values, a stored document's lines). A purchase
+// order follows the bill's rule (purchase order spec §3.4, Q13).
+export function shownLineTablesOf(
     kind: SalesDocumentKind,
     start: DocumentStart | undefined,
     rows: Record<string, unknown>
@@ -317,7 +327,7 @@ export function useDocumentForm(documentKind: DocumentKind, input: FormInput) {
     // on the watched Status; the save clears them (useDocumentSave).
     const status = useWatch({ control: chosen.form.control, name: 'status' })
     const isAcceptanceHidden =
-        kind.lifecycle === 'quote' && !acceptanceShown(typeof status === 'string' ? status : '')
+        HAS_ACCEPTANCE[kind.lifecycle] && !acceptanceShown(typeof status === 'string' ? status : '')
     // A line table the form does not show (a bill's or an expense's, by the Purchase
     // lines setting) is hidden the same way; host line tables that may be hidden are not
     // required.

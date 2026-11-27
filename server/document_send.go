@@ -34,6 +34,7 @@ const (
 	msgDocumentDraft            = "A draft cannot be sent."
 	msgDocumentVoid             = "A void document cannot be sent."
 	msgDocumentClosed           = "A closed estimate cannot be sent."
+	msgDocumentPOClosed         = "A closed purchase order cannot be sent."
 	msgDocumentAddress          = "Enter a valid email address."
 	msgDocumentBatchText        = "A batch send cannot carry a subject or a message."
 	msgDocumentSubject          = "Enter a subject."
@@ -105,8 +106,15 @@ type documentSendFailure struct {
 
 // sendableStatus is "" when a document of kind in status can be sent (spec
 // §3.1), else the refusal: a posting kind sends when posted, an estimate when
-// pending, accepted or rejected.
+// pending, accepted or rejected, a purchase order when open (purchase order
+// spec §3.6).
 func sendableStatus(kind, status string) string {
+	if kind == docTypePurchaseOrder {
+		if status == statusOpen {
+			return ""
+		}
+		return msgDocumentPOClosed
+	}
 	if kind == docTypeEstimate {
 		switch status {
 		case statusPending, statusAccepted, statusRejected:
@@ -382,7 +390,9 @@ func newDocumentSendRow(
 	row.Set("doc_type", kind)
 	row.Set("document", doc.Id)
 	row.Set("number", doc.GetString("number"))
+	// The party the send went to: a purchase order's vendor, else the customer.
 	row.Set("customer", doc.GetString("customer"))
+	row.Set("vendor", doc.GetString("vendor"))
 	row.Set("to", to)
 	row.Set("cc", strings.Join(cc, ", "))
 	row.Set("subject", texts.subject)

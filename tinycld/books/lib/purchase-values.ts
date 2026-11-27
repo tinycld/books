@@ -40,13 +40,23 @@ export function purchaseStartLines(setting: PurchaseLines): PurchaseTableRows {
 }
 
 // A stored document's lines as the rows of its two tables, in position order, each with a
-// new id: the form inserts them as lines of a new document, never as the source's rows.
-export function purchaseLinesWithNewIds(lines: readonly PurchaseLineRow[]): PurchaseTableRows {
+// new id: the form inserts them as lines of a new document, never as the source's rows. A
+// copy names no purchase order (purchase order spec §3.8), so a bill line's order line is
+// left out unless `keepOrderLinks` (a correction, which carries the links: the server moves
+// them when it posts).
+export function purchaseLinesWithNewIds(
+    lines: readonly PurchaseLineRow[],
+    keepOrderLinks = false
+): PurchaseTableRows {
     const rowsOfKind = (kind: PurchaseLineRow['kind']) =>
         tableRowsOf(
             lines.filter(line => line.kind === kind),
             PURCHASE_LINE_MAPPER
-        ).map(row => ({ ...row, id: newRecordId() }))
+        ).map(({ po_line, ...row }) => ({
+            ...row,
+            ...(keepOrderLinks && po_line !== undefined ? { po_line } : {}),
+            id: newRecordId(),
+        }))
     return { account_lines: rowsOfKind('account'), item_lines: rowsOfKind('item') }
 }
 

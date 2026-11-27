@@ -83,6 +83,8 @@ const NAMES = [
     'books_stock_layers',
     'books_inventory_adjustments',
     'books_inventory_adjustment_lines',
+    'books_purchase_orders',
+    'books_purchase_order_lines',
 ]
 
 const INVENTORY = [
@@ -216,6 +218,7 @@ describe('registerCollections', () => {
             'currency',
             'quantity_on_hand',
             'stock_value',
+            'quantity_on_po',
         ])
         expect(calls.get('books_bundle_items')?.omitOnInsert).toEqual(['created', 'updated'])
     })

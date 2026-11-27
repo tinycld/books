@@ -90,6 +90,8 @@ func oauthPackage() oauth.Package {
 			"books_refund_receipt_sale_lines":  ro,
 			"books_bills":                      rw,
 			"books_bill_lines":                 rw,
+			"books_purchase_orders":            rw,
+			"books_purchase_order_lines":       rw,
 			"books_expenses":                   rw,
 			"books_expense_lines":              rw,
 			"books_attachments":                rw,

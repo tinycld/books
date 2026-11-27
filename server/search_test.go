@@ -1210,6 +1210,70 @@ func TestSearch_FindsEstimates(t *testing.T) {
 	requireOnly([]string{"orthodontics"}, "estimate:"+braces.Id)
 }
 
+func purchaseOrderRows(rows []search.Row) map[string]search.Row {
+	out := map[string]search.Row{}
+	for _, r := range rows {
+		if strings.HasPrefix(r.ID, "purchase_order:") {
+			out[r.ID] = r
+		}
+	}
+	return out
+}
+
+// Spec §3.9: search finds purchase orders by number, memo, message and the
+// vendor's name. A row opens the order (id purchase_order:<id>, kind
+// purchase_order) and is titled "Purchase order <n> · <Vendor>".
+func TestSearch_FindsPurchaseOrders(t *testing.T) {
+	app := newBooksApp(t)
+	registerLedger(app)
+	registerSearchIndex(&pocketbase.PocketBase{App: app})
+	registerSalesDocGuards(app, purchaseOrderKind)
+	bindHostsByKey(t, app, purchaseOrderKind.HostKey)
+	be := billEnvOn(t, ledgerEnvOn(t, app))
+
+	annex := mkPO(t, app, be.summit, map[string]any{"memo": "annex quokka rewiring"})
+	dock := mkPO(t, app, be.summit, map[string]any{"message": "Deliver to the zebrafinch dock"})
+	mkPO(t, app, be.summit, nil)
+	refresh := mkPO(t, app, be.officeSupply, nil)
+
+	titles := map[string]string{
+		"purchase_order:" + annex.Id:   "Purchase order 1001 · Summit IT Services",
+		"purchase_order:" + dock.Id:    "Purchase order 1002 · Summit IT Services",
+		"purchase_order:" + refresh.Id: "Purchase order 1004 · Office Supply World",
+	}
+	requireOnly := func(terms []string, ids ...string) {
+		t.Helper()
+		res, err := searchBooks(app, be.users.readOnly.Id, search.Query{Include: terms, Limit: 20})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows := purchaseOrderRows(res.Rows)
+		if len(rows) != len(ids) {
+			t.Errorf("%q found purchase order rows %v, want %d", terms, rows, len(ids))
+		}
+		for _, id := range ids {
+			r, ok := rows[id]
+			if !ok {
+				t.Errorf("%q did not find %s", terms, id)
+				continue
+			}
+			if r.Title != titles[id] || r.Fields["kind"] != "purchase_order" {
+				t.Errorf("%q row %s title %q kind %v, want %q, purchase_order", terms, id, r.Title, r.Fields["kind"], titles[id])
+			}
+		}
+	}
+
+	requireOnly([]string{"1004"}, "purchase_order:"+refresh.Id)
+	requireOnly([]string{"office", "supply"}, "purchase_order:"+refresh.Id)
+	requireOnly([]string{"quokka"}, "purchase_order:"+annex.Id)
+	requireOnly([]string{"zebrafinch"}, "purchase_order:"+dock.Id)
+
+	res, err := searchBooks(app, be.users.none.Id, search.Query{Include: []string{"quokka"}, Limit: 20})
+	if err != nil || len(purchaseOrderRows(res.Rows)) != 0 {
+		t.Errorf("a user with no Books access found %v, err %v", rowIDs(res.Rows), err)
+	}
+}
+
 func billRows(rows []search.Row) map[string]search.Row {
 	out := map[string]search.Row{}
 	for _, r := range rows {

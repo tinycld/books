@@ -159,6 +159,8 @@ export interface DocumentReadLinesProps {
     lines: DocumentReadLine[]
     currency: string
     isPhone: boolean
+    // The document's id: a purchase order reads its draft bills by it.
+    documentId: string
 }
 
 /**

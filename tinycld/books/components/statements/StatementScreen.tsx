@@ -442,3 +442,13 @@ export function StatementScreen({ id }: { id: string }) {
         </ScopeProvider>
     )
 }
+
+// The statement route whose number-key read failed (useDocumentRouteId): the screen's load
+// error with Retry, before the screen has a statement id.
+export function StatementRouteLoadError({ onRetry }: { onRetry: () => void }) {
+    return (
+        <View pointerEvents="auto" className="flex-1 bg-background">
+            <LoadError onRetry={onRetry} />
+        </View>
+    )
+}

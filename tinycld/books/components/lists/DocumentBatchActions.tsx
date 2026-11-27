@@ -4,9 +4,11 @@ import { Menu } from '@tinycld/core/ui/menu'
 import { useIsFocused } from 'expo-router'
 import { CheckSquare } from 'lucide-react-native'
 import { Pressable } from 'react-native'
+import type { BatchPdfDownload } from '../../hooks/useBatchPdfDownload'
 import type { BatchSend } from '../../hooks/useBatchSend'
 import type { DocumentBatch } from '../../hooks/useDocumentBatch'
 import type { useListSelection } from '../../hooks/useListSelection'
+import type { BatchMenuAction } from '../../lib/document-batch'
 import { useDocumentListStore } from '../../stores/document-list-store'
 
 const TRIGGER_STYLE = { minHeight: 44 }
@@ -30,15 +32,77 @@ interface ItemsProps {
     isCards: boolean
     hasTicks: boolean
     testIdPrefix: string
+    // The tab's Batch actions menu rows (`batchActionsOf`).
+    actions: readonly BatchMenuAction[]
     selection: Selection
     batch: DocumentBatch
     batchSend: BatchSend
+    batchPdf: BatchPdfDownload
+}
+
+interface DraftItemsProps {
+    isVisible: boolean
+    canAct: boolean
+    testIdPrefix: string
+    batch: DocumentBatch
+}
+
+// Delete drafts and Void, which open the batch's confirm dialog; a tab whose documents are
+// never drafts and never post (Purchase orders) has neither.
+function DraftItems({ isVisible, canAct, testIdPrefix, batch }: DraftItemsProps) {
+    if (!isVisible) return null
+    const deleteDrafts = () => batch.open('delete_drafts')
+    const voidAll = () => batch.open('void')
+    return (
+        <>
+            <Menu.Item
+                testID={`${testIdPrefix}-batch-delete-drafts`}
+                label="Delete drafts"
+                isDisabled={!canAct}
+                onSelect={deleteDrafts}
+            />
+            <Menu.Item
+                testID={`${testIdPrefix}-batch-void`}
+                label="Void"
+                isDisabled={!canAct}
+                onSelect={voidAll}
+            />
+        </>
+    )
+}
+
+interface PdfItemProps {
+    isVisible: boolean
+    batchPdf: BatchPdfDownload
+    testIdPrefix: string
+}
+
+// The row "Download PDF" (purchase order spec §3.9): offered while a ticked row has a PDF;
+// it waits for a running download.
+function PdfItem({ isVisible, batchPdf, testIdPrefix }: PdfItemProps) {
+    if (!isVisible || !batchPdf.isOffered) return null
+    return (
+        <Menu.Item
+            testID={`${testIdPrefix}-batch-pdf`}
+            label="Download PDF"
+            isDisabled={batchPdf.isPending}
+            onSelect={batchPdf.start}
+        />
+    )
 }
 
 // The row "Send" (email-share spec §3.3 "Batch"): offered for a writer while a ticked row is
 // sent-able (useBatchSend `isOffered`); it waits for writes and for a running send.
-function SendItem({ batchSend, testIdPrefix }: { batchSend: BatchSend; testIdPrefix: string }) {
-    if (!batchSend.isOffered) return null
+function SendItem({
+    isVisible,
+    batchSend,
+    testIdPrefix,
+}: {
+    isVisible: boolean
+    batchSend: BatchSend
+    testIdPrefix: string
+}) {
+    if (!isVisible || !batchSend.isOffered) return null
     return (
         <Menu.Item
             testID={`${testIdPrefix}-batch-send`}
@@ -53,11 +117,12 @@ function SendItem({ batchSend, testIdPrefix }: { batchSend: BatchSend; testIdPre
 // it slides out. With cards the menu also selects all and clears; the actions wait for a
 // tick, for writes and for a running batch.
 function BatchItems(props: ItemsProps) {
-    const { isOpen, isCards, hasTicks, testIdPrefix, selection, batch, batchSend } = props
+    const { isOpen, isCards, hasTicks, testIdPrefix, actions, selection, batch } = props
     if (!isOpen) return null
     const canAct = hasTicks && batch.canStart
-    const deleteDrafts = () => batch.open('delete_drafts')
-    const voidAll = () => batch.open('void')
+    const hasDraftItems = actions.includes('delete_drafts')
+    const hasSend = actions.includes('send')
+    const hasPdf = actions.includes('pdf')
     const selectAll = () => selection.tickAll()
     const clear = () => selection.clear()
     const cardItems = isCards ? (
@@ -78,19 +143,14 @@ function BatchItems(props: ItemsProps) {
     return (
         <>
             {cardItems}
-            <Menu.Item
-                testID={`${testIdPrefix}-batch-delete-drafts`}
-                label="Delete drafts"
-                isDisabled={!canAct}
-                onSelect={deleteDrafts}
+            <DraftItems
+                isVisible={hasDraftItems}
+                canAct={canAct}
+                testIdPrefix={testIdPrefix}
+                batch={batch}
             />
-            <Menu.Item
-                testID={`${testIdPrefix}-batch-void`}
-                label="Void"
-                isDisabled={!canAct}
-                onSelect={voidAll}
-            />
-            <SendItem batchSend={batchSend} testIdPrefix={testIdPrefix} />
+            <SendItem isVisible={hasSend} batchSend={props.batchSend} testIdPrefix={testIdPrefix} />
+            <PdfItem isVisible={hasPdf} batchPdf={props.batchPdf} testIdPrefix={testIdPrefix} />
         </>
     )
 }
@@ -133,24 +193,31 @@ interface DocumentBatchActionsProps {
     isCards: boolean
     // The list area's test-id prefix (`<prefix>-batch-actions`, `<prefix>-batch-void`, …).
     testIdPrefix: string
+    // The tab's Batch actions menu rows (`batchActionsOf`).
+    actions: readonly BatchMenuAction[]
     selection: Selection
     batch: DocumentBatch
     batchSend: BatchSend
+    batchPdf: BatchPdfDownload
 }
 
 /**
- * The toolbar's Batch actions (spec §3 "Batch actions"): a core Menu with Delete drafts and
- * Void, which open the batch's confirm dialog, and Send while a ticked row is sent-able,
- * which opens the batch Send dialog (BatchSendDialog). Not drawn for a reader, in the names
- * column or in an area without row actions (`controls.showBatch`).
+ * The toolbar's Batch actions (spec §3 "Batch actions"): a core Menu with the tab's rows
+ * (`batchActionsOf`): Delete drafts and Void, which open the batch's confirm dialog; Send
+ * while a ticked row is sent-able, which opens the batch Send dialog (BatchSendDialog); and,
+ * on the Purchase orders tab, Download PDF while a ticked row has a PDF
+ * (useBatchPdfDownload). Not drawn for a reader, in the names column or in an area without
+ * row actions (`controls.showBatch`).
  */
 export function DocumentBatchActions({
     isVisible,
     isCards,
     testIdPrefix,
+    actions,
     selection,
     batch,
     batchSend,
+    batchPdf,
 }: DocumentBatchActionsProps) {
     const { isOpen, setOpen } = useBatchMenuOpen()
     // A tick on a loaded row; the header box's state counts only those.
@@ -172,9 +239,11 @@ export function DocumentBatchActions({
                 isCards={isCards}
                 hasTicks={hasTicks}
                 testIdPrefix={testIdPrefix}
+                actions={actions}
                 selection={selection}
                 batch={batch}
                 batchSend={batchSend}
+                batchPdf={batchPdf}
             />
         </Menu>
     )

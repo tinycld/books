@@ -1,22 +1,33 @@
-import { useEffect, useState } from 'react'
+import { useFocusEffect } from 'expo-router'
+import { useCallback, useEffect, useState } from 'react'
 import { View } from 'react-native'
 import type { DocumentScreenInput } from '../../hooks/document-data'
 import { type DocumentScreenData, useDocumentScreen } from '../../hooks/useDocumentScreen'
 import { type DocumentTab, documentTabOf } from '../../lib/document-routes'
 import { ESTIMATE_KIND } from '../../lib/sales-document-kinds'
 import { formSessionKey, useAttachmentsStore } from '../../stores/attachments-store'
+import { useCopyToBillStore } from '../../stores/copy-to-bill-store'
 import { DocumentForm } from './DocumentForm'
 import { DocumentLoadError } from './DocumentLoadError'
 import { DocumentLoading } from './DocumentLoading'
 import { DocumentNotice } from './DocumentNotice'
-import { DocumentReadView } from './DocumentReadView'
+import { DocumentReadView, type ReadNoticeView } from './DocumentReadView'
 import { DocumentKindContext, useDocumentKind } from './document-kind-context'
 import type { DocumentKind } from './document-kinds'
 
-// `read` comes with the record loaded; the check keeps the type honest.
-function ReadState({ data, tab }: { data: DocumentScreenData; tab: DocumentTab }) {
+// `read` comes with the record loaded; the check keeps the type honest. `notice` is a line
+// under the title (a closed order's `?edit=1`: it cannot be edited).
+function ReadState({
+    data,
+    tab,
+    notice,
+}: {
+    data: DocumentScreenData
+    tab: DocumentTab
+    notice?: ReadNoticeView
+}) {
     if (!data.record) return <DocumentLoading />
-    return <DocumentReadView data={data} record={data.record} tab={tab} />
+    return <DocumentReadView data={data} record={data.record} tab={tab} notice={notice} />
 }
 
 interface ScreenStateProps {
@@ -46,7 +57,11 @@ function ScreenState({
         noAccess: `${testId}-no-access`,
         cannotEdit: `${testId}-cannot-edit`,
         cannotConvert: `${testId}-cannot-convert`,
+        closedNotice: `${testId}-closed-notice`,
     }
+    // A closed order's `?edit=1` (purchase order spec §3.12): its read view, with the kind's
+    // words that it cannot be edited.
+    const closedNotice = { testID: ids.closedNotice, message: messages.cannotEdit }
     // Only an invoice is made from an estimate; the estimate's words say it cannot be.
     const { cannotConvert } = ESTIMATE_KIND.messages
     // A source the kind refuses (DocumentKind.sourceNotice: a credit memo's invoice, a
@@ -70,6 +85,8 @@ function ScreenState({
             return <DocumentNotice testID={cannotStart.testId} message={cannotStart.message} />
         case 'read':
             return <ReadState data={data} tab={tab} />
+        case 'closed-edit':
+            return <ReadState data={data} tab={tab} notice={closedNotice} />
         case 'form':
             return (
                 <DocumentForm
@@ -117,6 +134,37 @@ function useFormAttachmentSession(documentKind: DocumentKind, formKey: string): 
     return sessionKey
 }
 
+// The states in which no read view of the document draws, so none can take a list row's
+// Copy to bill request for it.
+const UNREADABLE_STATES: ReadonlySet<DocumentScreenData['state']> = new Set([
+    'error',
+    'not-found',
+    'no-access',
+])
+
+// A list row's Copy to bill asks this document's read view for its dialog
+// (useOpenOrderWithCopyToBill), and pushes this screen. The request is dropped, so a later
+// visit does not open the dialog unasked, when the document shows its load error, not-found
+// or no-access instead, and when this screen loses the focus or unmounts (Back while the
+// order loads) with the request it gained the focus with still not taken. A request that
+// comes while this screen already has the focus is for the screen the row pushes, so this
+// screen's blur leaves it.
+function useDropUnreadCopyToBill(id: string | null, state: DocumentScreenData['state']) {
+    const isUnreadable = UNREADABLE_STATES.has(state)
+    useEffect(() => {
+        if (id === null || !isUnreadable) return
+        useCopyToBillStore.getState().dropPending(id)
+    }, [id, isUnreadable])
+    useFocusEffect(
+        useCallback(() => {
+            if (id === null) return
+            const store = useCopyToBillStore.getState()
+            if (store.pendingOrder !== id) return
+            return () => store.dropPending(id)
+        }, [id])
+    )
+}
+
 /**
  * A sales document route's one screen: it loads the document of the kind (or nothing, on
  * a new form) and shows the state `documentScreenState` names, on the tab the `tab` param
@@ -138,6 +186,7 @@ export function DocumentScreen({
     const [reloads, setReloads] = useState(0)
     const attachmentSession = useFormAttachmentSession(documentKind, data.formKey)
     const focusesFirstField = useOpensForm(data.state)
+    useDropUnreadCopyToBill(input.id, data.state)
     // The store can be behind the server (a realtime message that did not arrive), and a
     // form built from it would be refused again, so the rows are read again first. A
     // failed read rejects before the count moves: the form stays, with what is typed in

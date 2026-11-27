@@ -5,19 +5,27 @@
 
 import type { FormValues } from '@tinycld/core/lib/forms/logic'
 import type { TableRow } from '@tinycld/core/lib/forms/values'
-import type { BooksBills, BooksVendors } from '../types'
-import type { CustomerAddress } from './address'
+import type { BooksBills, BooksPurchaseOrders, BooksVendors } from '../types'
+import { type CustomerAddress, formatAddressLines, isCustomerAddress } from './address'
 import { dueDateFor } from './document-dates'
 import type { DocumentTotalRow } from './document-total-rows'
 import { formatMoney, MINUS } from './money'
 import type { PurchaseLineRow } from './purchase-line-columns'
 import type { PurchaseLines } from './purchase-lines'
-import { purchaseLinesWithNewIds, purchaseStartLines, vendorAccountFill } from './purchase-values'
+import {
+    type PurchaseTableRows,
+    purchaseLinesWithNewIds,
+    purchaseStartLines,
+    vendorAccountFill,
+} from './purchase-values'
 
-// The `books:bill` host's built-in values, keyed as the engine keys them. `replaces` is no
-// built-in: a correction's save writes it with the new bill.
+// The `books:bill` host's built-in values, keyed as the engine keys them. `replaces` and
+// `purchase_order` are no built-ins: a correction's save writes `replaces` with the new
+// bill, and a bill made from an order (or a correction of one) holds `purchase_order` as
+// its source link, which the save writes.
 export type BillFormValues = FormValues & {
     replaces?: string
+    purchase_order?: string
     vendor: string
     mailing_address: CustomerAddress | null
     terms: BooksBills['terms']
@@ -84,7 +92,15 @@ export function newBillValues(input: {
 
 type SourceBill = Pick<
     BooksBills,
-    'id' | 'vendor' | 'mailing_address' | 'terms' | 'date' | 'due_date' | 'ref_no' | 'memo'
+    | 'id'
+    | 'vendor'
+    | 'mailing_address'
+    | 'terms'
+    | 'date'
+    | 'due_date'
+    | 'ref_no'
+    | 'memo'
+    | 'purchase_order'
 >
 
 // Read view "Copy" (`?copy=<id>`): a new draft for the same vendor with the lines of both
@@ -156,11 +172,14 @@ export function billReadTotals(
 }
 
 // Read view "Edit" (`?replaces=<id>`): a correction keeps every value of the posted bill,
-// its vendor's bill no. included, with new line ids, and names the bill it replaces.
+// its vendor's bill no. included, with new line ids, and names the bill it replaces. A
+// correction of a bill from a purchase order carries the order and each line's order line
+// (purchase order spec §3.8): the server moves them when it posts.
 export function billCorrectionValues(
     bill: SourceBill,
     lines: readonly PurchaseLineRow[]
 ): BillFormValues {
+    const order = bill.purchase_order ? { purchase_order: bill.purchase_order } : {}
     return {
         vendor: bill.vendor,
         mailing_address: bill.mailing_address ?? null,
@@ -168,8 +187,48 @@ export function billCorrectionValues(
         date: bill.date,
         due_date: bill.due_date,
         ref_no: bill.ref_no,
-        ...purchaseLinesWithNewIds(lines),
+        ...purchaseLinesWithNewIds(lines, true),
         memo: bill.memo,
         replaces: bill.id,
+        ...order,
+    }
+}
+
+// The order's mailing address when it holds one (a valid address with a line that is not
+// empty), else null.
+function orderAddress(value: unknown): CustomerAddress | null {
+    if (!isCustomerAddress(value)) return null
+    return formatAddressLines(value).length > 0 ? value : null
+}
+
+// Copy to bill (`?purchase_order=<id>`, purchase order spec §3.8): a new draft for the
+// order's vendor with the order's Mailing address (the vendor's current address when the
+// order has none), and Terms and the due date they give from the vendor's current record
+// as a pick fills them, dated today, with no vendor's bill no. and an empty memo, and the
+// lines `lines` gives (billLinesFromChoice: the chosen lines, or every open line). It
+// names the order it is made from.
+export function billValuesFromOrder(
+    order: Pick<BooksPurchaseOrders, 'id' | 'vendor' | 'mailing_address'>,
+    lines: PurchaseTableRows,
+    today: string,
+    vendor: VendorBillFill
+): BillFormValues {
+    const blank: BillFormValues = {
+        vendor: order.vendor,
+        mailing_address: null,
+        terms: '',
+        date: today,
+        due_date: today,
+        ref_no: '',
+        ...lines,
+        memo: '',
+        purchase_order: order.id,
+    }
+    const { mailing_address, terms, due_date } = vendorBillFills(vendor, false, blank)
+    return {
+        ...blank,
+        mailing_address: orderAddress(order.mailing_address) ?? mailing_address,
+        terms,
+        due_date,
     }
 }

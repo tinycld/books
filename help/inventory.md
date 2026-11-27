@@ -42,6 +42,10 @@ These transactions change the quantity on hand when you post them:
 
 A draft changes nothing. When you void a transaction, Books takes its stock change back.
 
+## On purchase order
+
+A [purchase order](help://books:purchase-orders) does not change the quantity on hand: the stock comes in only when you post the bill made from the order. Until then, Books counts the quantity on PO of each product: the quantity on the open purchase orders that is not received yet. When a posted bill receives a line of an order, or an order is closed, the quantity on PO goes down. To see it, build a report over Products with its field On purchase order (see [Reports](help://books:reports)), or run `tinycld books products show` (see [Command line](help://books:command-line)).
+
 ## Bundles with Inventory items
 
 A bundle can hold Inventory items. When you pick the bundle on an invoice or a sales receipt, Books adds one line for each item in the bundle, so the sale takes each Inventory item from its own quantity on hand.

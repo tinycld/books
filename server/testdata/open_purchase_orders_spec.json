@@ -1,0 +1,50 @@
+{
+    "title": "Open Purchase Orders",
+    "description": "What is ordered and not yet received, by vendor and purchase order.",
+    "emptyText": "No open purchase orders",
+    "params": [
+        { "id": "period", "type": "dateRange", "label": "Period", "default": { "preset": "allDates" } },
+        {
+            "id": "vendors",
+            "type": "choice",
+            "label": "Vendor",
+            "multiple": true,
+            "header": "Vendor: {label}",
+            "optionsFrom": {
+                "source": "books.vendors",
+                "value": [{ "field": "id" }],
+                "label": [{ "field": "display_name" }]
+            }
+        },
+        {
+            "id": "order",
+            "type": "choice",
+            "label": "Order",
+            "options": [
+                { "value": "name", "label": "Name" },
+                { "value": "open", "label": "Largest open amount" }
+            ],
+            "default": "name"
+        }
+    ],
+    "display": {
+        "oneLine": { "minWidth": "700px" },
+        "columns": {
+            "name": { "whiteSpace": "normal", "lineClamp": 3 },
+            "open_amount": { "minWidth": "max-content" }
+        },
+        "layouts": [
+            {
+                "width": "mobile",
+                "tracks": 3,
+                "cells": [
+                    { "col": "name", "line": 1, "span": 2 },
+                    { "col": "open_amount", "line": 1 },
+                    { "col": "ordered", "line": 2 },
+                    { "col": "received", "line": 2 },
+                    { "col": "open", "line": 2 }
+                ]
+            }
+        ]
+    }
+}

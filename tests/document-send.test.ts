@@ -254,11 +254,21 @@ describe('batchSendCounts', () => {
             listRow('payment', 'posted', { email: '' }),
             listRow('write_off', 'posted', { email: '' }),
         ]
-        expect(batchSendCounts(rows)).toEqual({ sendable: 7, noAddress: 3, notSendable: 8 })
+        expect(batchSendCounts(rows)).toEqual({
+            sendable: 7,
+            noAddress: 3,
+            notSendable: 8,
+            closed: 0,
+        })
     })
 
     it('counts no row for an empty selection', () => {
-        expect(batchSendCounts([])).toEqual({ sendable: 0, noAddress: 0, notSendable: 0 })
+        expect(batchSendCounts([])).toEqual({
+            sendable: 0,
+            noAddress: 0,
+            notSendable: 0,
+            closed: 0,
+        })
     })
 
     it('a draft with no address counts as not sendable, not as no address', () => {
@@ -266,6 +276,26 @@ describe('batchSendCounts', () => {
             sendable: 0,
             noAddress: 0,
             notSendable: 1,
+            closed: 0,
+        })
+    })
+
+    // Purchase order spec §3.1: an order is open or closed, never a draft or void, so a
+    // closed order counts as closed, with or without an address; a closed estimate does not.
+    it('a closed purchase order counts as closed, not as not sendable', () => {
+        const order = { kind: 'purchase_order' } as const
+        const rows = [
+            listRow('estimate', 'open', order),
+            listRow('estimate', 'closed', order),
+            listRow('estimate', 'closed', { ...order, email: '' }),
+            listRow('estimate', 'closed'),
+            listRow('invoice', 'draft'),
+        ]
+        expect(batchSendCounts(rows)).toEqual({
+            sendable: 1,
+            noAddress: 0,
+            notSendable: 2,
+            closed: 2,
         })
     })
 })
@@ -275,7 +305,9 @@ describe('batchSendCounts', () => {
 // label (null when the dialog has only Close) and whether the confirm is enabled.
 describe('batchSendCopy', () => {
     it('12 ticked, 9 sendable: the title, the body, the skipped line and "Send 9", enabled', () => {
-        expect(batchSendCopy({ sendable: 9, noAddress: 2, notSendable: 1 }, true)).toEqual({
+        expect(
+            batchSendCopy({ sendable: 9, noAddress: 2, notSendable: 1, closed: 0 }, true)
+        ).toEqual({
             title: 'Send 12 documents?',
             body: 'Each goes to the email address on the document.',
             skipped: '3 are skipped: 2 have no email address, 1 is a draft or void.',
@@ -286,13 +318,15 @@ describe('batchSendCopy', () => {
     })
 
     it('one skipped row with no address: the singular skipped line', () => {
-        expect(batchSendCopy({ sendable: 2, noAddress: 1, notSendable: 0 }, true).skipped).toBe(
-            '1 is skipped: 1 has no email address.'
-        )
+        expect(
+            batchSendCopy({ sendable: 2, noAddress: 1, notSendable: 0, closed: 0 }, true).skipped
+        ).toBe('1 is skipped: 1 has no email address.')
     })
 
     it('one document: "Send 1 document?" and "Send 1", with no skipped line', () => {
-        expect(batchSendCopy({ sendable: 1, noAddress: 0, notSendable: 0 }, true)).toEqual({
+        expect(
+            batchSendCopy({ sendable: 1, noAddress: 0, notSendable: 0, closed: 0 }, true)
+        ).toEqual({
             title: 'Send 1 document?',
             body: 'Each goes to the email address on the document.',
             skipped: null,
@@ -304,31 +338,48 @@ describe('batchSendCopy', () => {
 
     it('no skipped row: no skipped line', () => {
         expect(
-            batchSendCopy({ sendable: 4, noAddress: 0, notSendable: 0 }, true).skipped
+            batchSendCopy({ sendable: 4, noAddress: 0, notSendable: 0, closed: 0 }, true).skipped
         ).toBeNull()
     })
 
     it('no sendable row: "Send 0", disabled', () => {
-        const copy = batchSendCopy({ sendable: 0, noAddress: 2, notSendable: 1 }, true)
+        const copy = batchSendCopy({ sendable: 0, noAddress: 2, notSendable: 1, closed: 0 }, true)
         expect(copy.confirmLabel).toBe('Send 0')
         expect(copy.isConfirmEnabled).toBe(false)
         expect(copy.skipped).toBe('3 are skipped: 2 have no email address, 1 is a draft or void.')
     })
 
+    // Purchase order spec §3.1: an order has no draft and no void, so a closed one is named
+    // closed; the other kinds keep "a draft or void".
+    it('closed purchase orders: "1 is closed" and "2 are closed"', () => {
+        expect(
+            batchSendCopy({ sendable: 1, noAddress: 1, notSendable: 0, closed: 1 }, true).skipped
+        ).toBe('2 are skipped: 1 has no email address, 1 is closed.')
+        expect(
+            batchSendCopy({ sendable: 1, noAddress: 0, notSendable: 0, closed: 2 }, true).skipped
+        ).toBe('2 are skipped: 2 are closed.')
+    })
+
+    it('a closed order beside a draft bill: each named in its own words', () => {
+        const copy = batchSendCopy({ sendable: 0, noAddress: 0, notSendable: 2, closed: 1 }, true)
+        expect(copy.title).toBe('Send 3 documents?')
+        expect(copy.skipped).toBe('3 are skipped: 2 are drafts or void, 1 is closed.')
+    })
+
     it('201 sendable: the refusal "Select at most 200 documents." and a disabled confirm', () => {
-        const copy = batchSendCopy({ sendable: 201, noAddress: 0, notSendable: 0 }, true)
+        const copy = batchSendCopy({ sendable: 201, noAddress: 0, notSendable: 0, closed: 0 }, true)
         expect(copy.refusal).toBe('Select at most 200 documents.')
         expect(copy.isConfirmEnabled).toBe(false)
     })
 
     it('200 sendable: no refusal, enabled', () => {
-        const copy = batchSendCopy({ sendable: 200, noAddress: 0, notSendable: 0 }, true)
+        const copy = batchSendCopy({ sendable: 200, noAddress: 0, notSendable: 0, closed: 0 }, true)
         expect(copy.refusal).toBeNull()
         expect(copy.isConfirmEnabled).toBe(true)
     })
 
     it('email not set up: the body "Email sending is not set up." and Close alone', () => {
-        const copy = batchSendCopy({ sendable: 9, noAddress: 2, notSendable: 1 }, false)
+        const copy = batchSendCopy({ sendable: 9, noAddress: 2, notSendable: 1, closed: 0 }, false)
         expect(copy.body).toBe('Email sending is not set up.')
         expect(copy.confirmLabel).toBeNull()
         expect(copy.isConfirmEnabled).toBe(false)

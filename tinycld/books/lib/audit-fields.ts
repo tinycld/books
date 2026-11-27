@@ -97,6 +97,15 @@ const ESTIMATE_STATUS = [
     { value: 'rejected', label: 'Rejected' },
     { value: 'closed', label: 'Closed' },
 ]
+const PURCHASE_ORDER_STATUS = [
+    { value: 'open', label: 'Open' },
+    { value: 'closed', label: 'Closed' },
+]
+// Why an order closed (2100000048): by an admin, or the server when every line is received.
+const PURCHASE_ORDER_CLOSED_REASON = [
+    { value: 'manual', label: 'Closed by hand' },
+    { value: 'received', label: 'Every line received' },
+]
 const TERMS = optionsOf(PAYMENT_TERMS)
 const PAYMENT_METHOD = optionsOf(PAYMENT_METHODS)
 const ACCOUNT_TYPE = optionsOf(ACCOUNT_TYPES)
@@ -128,6 +137,7 @@ export const DOC_TYPE = [
     { value: 'refund_receipt', label: 'Refund receipt' },
     { value: 'estimate', label: 'Estimate' },
     { value: 'bill', label: 'Bill' },
+    { value: 'purchase_order', label: 'Purchase order' },
     { value: 'expense', label: 'Expense' },
     { value: 'vendor_credit', label: 'Vendor credit' },
     { value: 'payment', label: 'Payment' },
@@ -379,6 +389,7 @@ const AUDIT_FIELD_MAPS = {
         mailing_address: text('Mailing address'),
         ref_no: text('Vendor’s bill no.'),
         balance: money('Open balance'),
+        purchase_order: relation('Purchase order', 'books_purchase_orders'),
     },
     books_expenses: {
         vendor: relation('Vendor', 'books_vendors'),
@@ -394,6 +405,31 @@ const AUDIT_FIELD_MAPS = {
         date: day('Credit date'),
         ref_no: text('Vendor’s credit no.'),
         balance: money('Unapplied credit'),
+    },
+    books_purchase_orders: {
+        vendor: relation('Vendor', 'books_vendors'),
+        status: select('Status', PURCHASE_ORDER_STATUS),
+        number: text('Number'),
+        sequence: text('Sequence'),
+        date: day('Order date'),
+        mailing_address: text('Mailing address'),
+        email: text('Email'),
+        ship_to: text('Ship to'),
+        message: text('Message'),
+        memo: text('Memo'),
+        subtotal: money('Subtotal'),
+        total: money('Total'),
+        open_amount: money('Open amount'),
+        currency: text('Currency'),
+        closed_reason: select('Closed because', PURCHASE_ORDER_CLOSED_REASON),
+        closed_by: relation('Closed by', 'users'),
+        closed_at: datetime('Closed at'),
+        created_by: relation('Created by', 'users'),
+        revision: text('Revision'),
+        form: internal('Form'),
+        fields: internal('Custom fields'),
+        sort_key: internal('Sort key'),
+        ...STAMPS,
     },
     books_vendor_credit_applications: {
         vendor_credit: relation('Vendor credit', 'books_vendor_credits'),
@@ -537,6 +573,7 @@ const AUDIT_FIELD_MAPS = {
         document: internal('Document'),
         number: text('No.'),
         customer: relation('Customer', 'books_customers'),
+        vendor: relation('Vendor', 'books_vendors'),
         to: text('To'),
         cc: text('Cc'),
         subject: text('Subject'),
@@ -674,9 +711,20 @@ const AUDIT_FIELD_MAPS = {
     books_estimate_lines: salesLineFields('estimate', 'Estimate'),
     books_credit_memo_lines: salesLineFields('credit_memo', 'Credit memo'),
     books_refund_receipt_lines: salesLineFields('refund_receipt', 'Refund receipt'),
-    books_bill_lines: purchaseLineFields('bill', 'Bill'),
+    books_bill_lines: {
+        ...purchaseLineFields('bill', 'Bill'),
+        po_line: relation('Purchase order line', 'books_purchase_order_lines'),
+    },
     books_expense_lines: purchaseLineFields('expense', 'Expense'),
     books_vendor_credit_lines: purchaseLineFields('vendor_credit', 'Vendor credit'),
+    // The server writes received, billed and the open values (2100000048).
+    books_purchase_order_lines: {
+        ...purchaseLineFields('purchase_order', 'Purchase order'),
+        received: text('Received'),
+        billed: money('Billed'),
+        open_quantity: text('Open quantity'),
+        open_amount: money('Open amount'),
+    },
     books_journal_lines: {
         entry: relation('Journal entry', 'books_journal_entries'),
         account: relation('Account', 'books_accounts'),
@@ -773,6 +821,7 @@ const AUDIT_FIELD_MAPS = {
         opening_date: day('Opening stock as of'),
         quantity_on_hand: text('Quantity on hand'),
         stock_value: money('Stock value'),
+        quantity_on_po: text('Quantity on purchase orders'),
         inactive: bool('Inactive'),
         currency: text('Currency'),
         taxable: bool('Taxable'),

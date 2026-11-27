@@ -62,6 +62,13 @@ function amountOf(row: DocumentListRow, tab: DocumentListTab, currency: string):
     return formatMoney(Math.abs(row.total), currency)
 }
 
+// A purchase order's Open cell: its stored open amount (`balance`), or "—" once it is
+// closed (purchase order spec §3.9; a closed order stores 0).
+function openText(row: DocumentListRow, currency: string): string {
+    if (row.recordStatus === 'closed') return DASH
+    return formatMoney(row.balance, currency)
+}
+
 // Every amount draws in `currency` (the Books settings'), not the row's own. A draft and a
 // void document show their stored balance. The Category cell names its account or product
 // from `categoryNames` (`usePurchaseCategories`).
@@ -94,6 +101,8 @@ export function cellText(
             return dayOrDash(row.expires)
         case 'balance':
             return formatMoney(row.balance, currency)
+        case 'open':
+            return openText(row, currency)
         case 'amount':
             return amountOf(row, tab, currency)
         case 'total':
@@ -117,28 +126,55 @@ function cardDue(row: DocumentListRow): string {
     return `Due ${formatDay(row.dueDate)}`
 }
 
+// A purchase order's third card line, "Open $318.00", on the Purchase orders tab (a tab of
+// the one kind) while its open amount is above zero (purchase order spec §3.9); '' for every
+// other row and on a tab of several kinds (All purchases, a vendor page), whose card has two
+// lines.
+function hasCardOpenLine(row: DocumentListRow, tab: DocumentListTab): boolean {
+    const isOrderTab = tab.kinds.length === 1 && tab.kinds[0] === 'purchase_order'
+    return isOrderTab && row.kind === 'purchase_order' && row.balance > 0
+}
+
+function cardOpenLine(row: DocumentListRow, tab: DocumentListTab, currency: string): string {
+    if (!hasCardOpenLine(row, tab)) return ''
+    return `Open ${formatMoney(row.balance, currency)}`
+}
+
 // A card on a tab of several kinds: type and number, then party and date. A card on a
-// kind tab: number and party, then the date (and "Due <date>" for an invoice or a bill). A
-// part that is empty (a draft's number, a missing party) is left out, not drawn as "—". A
-// card shows no category.
+// kind tab: number and party, then the date (and "Due <date>" for an invoice or a bill); a
+// purchase order's: vendor, then number and date (spec §3.9). A part that is empty (a
+// draft's number, a missing party) is left out, not drawn as "—". A card shows no
+// category. `open` is a purchase order's third line on the Purchase orders tab, '' for the
+// other rows and tabs.
 export function cardLines(
     row: DocumentListRow,
     tab: DocumentListTab,
     currency: string
-): { title: string; amount: string; detail: string } {
+): { title: string; amount: string; detail: string; open: string } {
     const amount = amountOf(row, tab, currency)
     const date = formatDay(row.date)
+    const open = cardOpenLine(row, tab, currency)
     if (tab.kinds.length > 1) {
         return {
             title: `${kindLabel(row.kind)} ${row.number}`.trim(),
             amount,
             detail: joinShown([row.partyName, date]),
+            open,
+        }
+    }
+    if (row.kind === 'purchase_order') {
+        return {
+            title: row.partyName || kindLabel(row.kind),
+            amount,
+            detail: joinShown([row.number, date]),
+            open,
         }
     }
     return {
         title: joinShown([row.number, row.partyName]) || kindLabel(row.kind),
         amount,
         detail: joinShown([date, cardDue(row)]),
+        open,
     }
 }
 
@@ -168,7 +204,16 @@ export function columnStyle(key: ListColumnKey, area: ListAreaKey): ViewStyle {
     return { flexGrow: grow, flexShrink: 1, flexBasis: 0, minWidth, alignItems }
 }
 
-// Every card has two lines of text, so all cards are one height at a font scale.
-export function listCardHeight(_row: DocumentListRow, fontScale: number): number {
-    return CARD_PADDING + CARD_TEXT_HEIGHT * fontScale
+// A card has two lines of text, and a purchase order's with an open amount on the Purchase
+// orders tab a third, small one (`cardLines` `open`, drawn in text-xs: its 16 px line and
+// the card's 4 px gap).
+export const CARD_OPEN_LINE_HEIGHT = 20
+
+export function listCardHeight(
+    row: DocumentListRow,
+    tab: DocumentListTab,
+    fontScale: number
+): number {
+    const openLine = hasCardOpenLine(row, tab) ? CARD_OPEN_LINE_HEIGHT : 0
+    return CARD_PADDING + (CARD_TEXT_HEIGHT + openLine) * fontScale
 }

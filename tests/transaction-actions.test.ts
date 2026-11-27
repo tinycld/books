@@ -36,12 +36,19 @@ describe('transactionActions', () => {
         ])
     })
 
-    it('lists exactly Bill, Pay bills, Expense, Vendor credit and Vendor refund for a vendor, in NEW_ACTIONS order', () => {
-        const vendorIds = ['bill', 'pay_bills', 'expense', 'vendor_credit', 'vendor_refund']
+    it('lists exactly Purchase order, Bill, Pay bills, Expense, Vendor credit and Vendor refund for a vendor, in NEW_ACTIONS order', () => {
+        const vendorIds = [
+            'purchase_order',
+            'bill',
+            'pay_bills',
+            'expense',
+            'vendor_credit',
+            'vendor_refund',
+        ]
         const inNewActionsOrder = NEW_ACTIONS.map(action => action.id).filter(id =>
             vendorIds.includes(id)
         )
-        expect(inNewActionsOrder).toHaveLength(5)
+        expect(inNewActionsOrder).toHaveLength(6)
         const actions = transactionActions('vendor')
         expect(actions.map(a => a.id)).toEqual(inNewActionsOrder)
         expect(actions.map(a => a.testId)).toEqual(
@@ -106,6 +113,9 @@ describe('transactionHref', () => {
     it('opens a vendor transaction with the vendor param', () => {
         expect(transactionHref('vendor', 'pay_bills', 'v1')).toBe('books/pay-bills?vendor=v1')
         expect(transactionHref('vendor', 'bill', 'v1')).toBe('books/bills/new?vendor=v1')
+        expect(transactionHref('vendor', 'purchase_order', 'v1')).toBe(
+            'books/purchase-orders/new?vendor=v1'
+        )
     })
 
     it('refuses an action that does not take the party, as it refuses an unknown id', () => {

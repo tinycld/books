@@ -30,8 +30,9 @@ import {
 // Not covered here: read-only users (the disabled chooser, the reader's titles and the
 // Close-only footer) cannot be driven, because no read-only Books member is seeded;
 // `chosenProductType`, `productTitle` and `recordFooter` are unit-tested. The e2e book has
-// no Product sales and no Cost of goods sold account, so the Non-inventory income default
-// and the expense default are tests/product-defaults.test.ts.
+// no Product sales account, so the Non-inventory income default is
+// tests/product-defaults.test.ts. Its one Cost of goods sold account (5000, which the
+// server made for the seeded Inventory item) is the expense default of a new product.
 //
 // The accounts-error test refuses the books_accounts read with `route.fulfill` and
 // reloads on the open new form, so the new route's accounts query is not served from
@@ -147,8 +148,8 @@ test.describe('products-services: product form', () => {
         await purchasesSwitch(page).click()
         for (const cell of purchaseCells(page)) await expect(cell).toBeVisible()
 
-        // The seed has no Cost of goods sold account, so the expense default is empty and
-        // the account picked here is not a default.
+        // The expense default is 5000 Cost of goods sold; the user picks another account,
+        // so the value kept below is the user's, not a default.
         await expense.click()
         await expect(expenseItems.first()).toHaveText('None')
         await expect(expenseItems.filter({ hasText: SOFTWARE })).not.toHaveCount(0)

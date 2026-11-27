@@ -2,6 +2,7 @@ import type { FormHostUi } from '@tinycld/core/lib/forms/host-ui'
 import { MONEY_VALUE_SCHEMA } from '../lib/money-input'
 import { QUANTITY_VALUE_SCHEMA } from '../lib/quantity-input'
 import { recordCodeSchema } from '../lib/record-code'
+import { SHIP_TO_SCHEMA } from '../lib/ship-to'
 import { ExpenseAccountField, IncomeAccountField } from './account-fields'
 import { EmailField, PhoneField, PlainAddressField, WebsiteField } from './contact-fields'
 import { ParentCustomerField, ShippingAddressField } from './customer-fields'
@@ -52,9 +53,11 @@ import { BundleProductCell, ProductTypeField } from './product-fields'
 import {
     LineAccountCell,
     LineItemAmountCell,
+    LinePurchaseDescriptionCell,
     LinePurchaseProductCell,
     LineTypedAmountCell,
 } from './purchase-line-cells'
+import { ShipToField } from './purchase-order-fields'
 import {
     CustomerCodeField,
     CustomerNameField,
@@ -118,6 +121,7 @@ const ui: FormHostUi = {
         VendorRefField,
         LineAccountCell,
         LinePurchaseProductCell,
+        LinePurchaseDescriptionCell,
         LineTypedAmountCell,
         LineItemAmountCell,
         AssetAccountField,
@@ -132,6 +136,7 @@ const ui: FormHostUi = {
         VendorCodeField,
         ProductNameField,
         ProductCodeField,
+        ShipToField,
     },
     // The money and quantity inputs' rules run through the forms engine, at save and
     // between saves, so a refused value blocks the save and its message is the cell's
@@ -142,6 +147,7 @@ const ui: FormHostUi = {
         CustomerCodeField: recordCodeSchema,
         VendorCodeField: recordCodeSchema,
         ProductCodeField: recordCodeSchema,
+        ShipToField: SHIP_TO_SCHEMA,
     },
 }
 

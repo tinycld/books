@@ -10,6 +10,8 @@ import {
     creditMemoBadge,
     isFormStatus,
     isReadOnlyStatus,
+    orderCloseBody,
+    orderReadActions,
     paidBadge,
     quoteReadActions,
     statusBadgeOf,
@@ -332,6 +334,133 @@ describe('creditMemoBadge', () => {
         expect(creditMemoBadge('void', 25_000, 25_000, 0)).toBeUndefined()
         expect(creditMemoBadge('void', 0, 25_000, 0)).toBeUndefined()
         expect(creditMemoBadge('void', 10_000, 25_000, 15_000)).toBeUndefined()
+    })
+})
+
+// The order lifecycle (purchase order spec §3.1): a purchase order is open or closed, never
+// posts and has no draft. A writer edits an open order (with Edit, `?edit=1`); a closed
+// order is read only and is not deleted.
+describe('the order lifecycle', () => {
+    it('opens the form on an open order and never on a closed one', () => {
+        expect(isFormStatus('order', 'open')).toBe(true)
+        expect(isFormStatus('order', 'closed')).toBe(false)
+    })
+
+    it('reads a closed order as read only and an open one as editable', () => {
+        expect(isReadOnlyStatus('order', 'closed')).toBe(true)
+        expect(isReadOnlyStatus('order', 'open')).toBe(false)
+    })
+
+    it('deletes an open order and never a closed one', () => {
+        expect(canDeleteStatus('order', 'open')).toBe(true)
+        expect(canDeleteStatus('order', 'closed')).toBe(false)
+    })
+
+    it('draws Open as info and Closed as muted', () => {
+        expect(statusBadgeOf('order', 'open')).toEqual({ label: 'Open', tone: 'info' })
+        expect(statusBadgeOf('order', 'closed')).toEqual({ label: 'Closed', tone: 'muted' })
+    })
+
+    it('gives the other lifecycles no answer for an order status', () => {
+        expect(isFormStatus('quote', 'open')).toBe(false)
+        expect(isFormStatus('posting', 'open')).toBe(false)
+        expect(statusBadgeOf('posting', 'open')).toBeNull()
+        expect(statusBadgeOf('quote', 'open')).toBeNull()
+    })
+})
+
+// The read view's actions of a purchase order (spec §3.6), in the spec's order: a writer on
+// an open order gets Copy to bill (with an open line), Edit, Send…, Copy, Download PDF and
+// Delete; a Books admin also Close. A writer on a closed order gets Copy and Download PDF;
+// an admin also Reopen on an order closed by hand. A reader gets Download PDF.
+describe('orderReadActions', () => {
+    const WRITER = { canWrite: true, isAdmin: false }
+    const ADMIN = { canWrite: true, isAdmin: true }
+    const READER = { canWrite: false, isAdmin: false }
+    const OPEN = { status: 'open', closedReason: '' } as const
+    const MANUAL = { status: 'closed', closedReason: 'manual' } as const
+    const RECEIVED = { status: 'closed', closedReason: 'received' } as const
+
+    it('gives a writer on an open order with an open line Copy to bill first, then Edit, Send…, Copy, Download PDF and Delete', () => {
+        expect(orderReadActions({ ...OPEN, ...WRITER, hasOpenLine: true })).toEqual([
+            'copy_to_bill',
+            'edit',
+            'send',
+            'copy',
+            'pdf',
+            'delete',
+        ])
+    })
+
+    it('gives a writer on an open order with no open line no Copy to bill', () => {
+        expect(orderReadActions({ ...OPEN, ...WRITER, hasOpenLine: false })).toEqual([
+            'edit',
+            'send',
+            'copy',
+            'pdf',
+            'delete',
+        ])
+    })
+
+    it('gives a Books admin on an open order Close as well', () => {
+        expect(orderReadActions({ ...OPEN, ...ADMIN, hasOpenLine: true })).toEqual([
+            'copy_to_bill',
+            'edit',
+            'send',
+            'copy',
+            'pdf',
+            'delete',
+            'close',
+        ])
+        expect(orderReadActions({ ...OPEN, ...ADMIN, hasOpenLine: false })).toEqual([
+            'edit',
+            'send',
+            'copy',
+            'pdf',
+            'delete',
+            'close',
+        ])
+    })
+
+    it.each([
+        true,
+        false,
+    ])('gives a writer on a closed order Copy and Download PDF only (open line: %s)', hasOpenLine => {
+        expect(orderReadActions({ ...MANUAL, ...WRITER, hasOpenLine })).toEqual(['copy', 'pdf'])
+        expect(orderReadActions({ ...RECEIVED, ...WRITER, hasOpenLine })).toEqual(['copy', 'pdf'])
+    })
+
+    it.each([
+        true,
+        false,
+    ])('gives a Books admin Reopen on an order closed by hand only (open line: %s)', hasOpenLine => {
+        expect(orderReadActions({ ...MANUAL, ...ADMIN, hasOpenLine })).toEqual([
+            'copy',
+            'pdf',
+            'reopen',
+        ])
+        expect(orderReadActions({ ...RECEIVED, ...ADMIN, hasOpenLine })).toEqual(['copy', 'pdf'])
+    })
+
+    it.each([OPEN, MANUAL, RECEIVED])('gives a reader Download PDF only (%o)', state => {
+        expect(orderReadActions({ ...state, ...READER, hasOpenLine: true })).toEqual(['pdf'])
+        expect(orderReadActions({ ...state, ...READER, hasOpenLine: false })).toEqual(['pdf'])
+    })
+})
+
+// The Close dialog's body (purchase order spec §3.6, Q6): how many lines are still open and
+// what they come to, in the shared money text.
+describe('orderCloseBody', () => {
+    it('counts the open lines and their amount', () => {
+        expect(orderCloseBody(2, 31_800, 'USD')).toBe(
+            '2 lines are still open ($318.00). Nothing more can be copied to a bill.'
+        )
+    })
+
+    it('says "1 line is still open" for one line', () => {
+        expect(orderCloseBody(1, 4_500, 'USD')).toBe(
+            '1 line is still open ($45.00). Nothing more can be copied to a bill.'
+        )
     })
 })
 

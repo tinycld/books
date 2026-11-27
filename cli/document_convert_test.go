@@ -194,7 +194,7 @@ func TestLoadDocumentsChecksAConversionAndKeep(t *testing.T) {
 		{"a conversion to itself", `"to": "invoices"`, `"to": "estimates"`, `to names "estimates", which is not another document`},
 		{"a conversion with a link a caller sets", `"link": "estimate"`, `"link": "customer"`, `link names "customer", which is not a read-only id of estimates in invoices`},
 		{"a conversion that copies a field the target has not", `"copy": ["customer", "bill_to", "email", "tax_rate"]`, `"copy": ["customer", "expiration_date"]`, `copy names "expiration_date"`},
-		{"a conversion of a document that never closes", `"keep": ["estimate"]`, `"keep": ["estimate"], "convert": {"to": "estimates", "link": "customer", "copy": []}`, `convert is only for a document with the lifecycle "quote"`},
+		{"a conversion of a document that never closes", `"keep": ["estimate"]`, `"keep": ["estimate"], "convert": {"to": "estimates", "link": "customer", "copy": []}`, `convert is only for a document with the lifecycle "quote" or "order"`},
 		// The input is checked against the target's tables; a caller's rows for
 		// a table the source lacks would be dropped with no error.
 		{"a conversion to a writable line table the source lacks", "\"sort\": \"position,id\",\n                    \"readOnly\": true,\n                    \"omit\": [\"invoice\", \"position\", \"date\", \"currency\"],", "\"sort\": \"position,id\",\n                    \"omit\": [\"invoice\", \"position\", \"date\", \"currency\"],", `invoices.tax_lines has no source line table in estimates`},

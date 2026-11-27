@@ -28,6 +28,7 @@ import { SEARCH_DELAY_MS } from '../lib/list-search'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
 import { navigationModeFor, openRecordFromPath, targetModeFor } from '../lib/record-route'
 import { selectionScope, useDocumentListStore } from '../stores/document-list-store'
+import { useBatchPdfDownload } from './useBatchPdfDownload'
 import { useBatchSend } from './useBatchSend'
 import { useBooksAccess } from './useBooksAccess'
 import { useDocumentBatch } from './useDocumentBatch'
@@ -232,12 +233,16 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
         owner,
         rows: list.rows,
         canWrite,
+        isAdmin: access.isAdmin,
         openRow,
     })
     const batch = useDocumentBatch({ listKey, rows: list.rows, selection })
     // The Batch actions menu's Send, its dialog and its result banner (email-share spec
-    // §3.3 "Batch"); only a sent-able ticked row offers it, so a purchase list never does.
+    // §3.3 "Batch"); only a sent-able ticked row offers it (a sales document or a purchase
+    // order).
     const batchSend = useBatchSend({ listKey, rows: list.rows, selection })
+    // The Batch actions menu's Download PDF: the ticked rows' PDFs in one file.
+    const batchPdf = useBatchPdfDownload({ rows: list.rows, selection })
     // A row action's refusal or a batch's result; the list's load error shows before it.
     const actionBanner = useDocumentListStore(state => state.banner)
 
@@ -248,6 +253,7 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
         appliedFilters,
         sort,
         canWrite,
+        isAdmin: access.isAdmin,
         controls,
         tableMinWidth: minWidth,
         scope,
@@ -256,6 +262,7 @@ export function useDocumentListScreen(tab: DocumentListTab, layout: ListLayout) 
         rowActions,
         batch,
         batchSend,
+        batchPdf,
         actionBanner,
         dismissBanner: () => store.setBanner(null),
         newMenu,

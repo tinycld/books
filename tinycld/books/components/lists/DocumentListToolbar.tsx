@@ -2,11 +2,13 @@ import { PickMenu } from '@tinycld/core/ui/pick-menu'
 import type { ReactNode, RefObject } from 'react'
 import { ScrollView, type TextInputInstance, View } from 'react-native'
 import type { useDocumentListScreen } from '../../hooks/useDocumentListScreen'
-import type { DocumentListTab } from '../../lib/document-list'
+import { useShippedReportHref } from '../../hooks/useShippedReportHref'
+import type { DocumentListTab, TabReport } from '../../lib/document-list'
 import { RANGE_ITEMS, sortMenuItems } from '../../lib/document-list-menus'
 import { areaOf, type ListArea } from '../../lib/list-areas'
 import { ListFilterChips } from '../ListFilterChips'
 import { SearchField } from '../ListToolbar'
+import { ShippedReportButton } from '../reports/ShippedReportButton'
 import { DocumentPartyFilter } from './DocumentPartyFilter'
 
 type Screen = ReturnType<typeof useDocumentListScreen>
@@ -121,6 +123,25 @@ function Search({
     )
 }
 
+function ReportLink({ report, area }: { report: TabReport; area: ListArea }) {
+    // Null while the report loads, when its read fails and when the reader has none: then
+    // the button is not drawn and the toolbar stays usable.
+    const href = useShippedReportHref(report.shippedKey)
+    return (
+        <ShippedReportButton
+            href={href}
+            label={report.label}
+            testID={`${area.testIdPrefix}-${report.testIdSuffix}`}
+        />
+    )
+}
+
+// The tab's report link (`DocumentListTab.report`); nothing on a tab with none.
+function TabReportLink({ tab, area }: { tab: DocumentListTab; area: ListArea }) {
+    if (tab.report === undefined) return null
+    return <ReportLink report={tab.report} area={area} />
+}
+
 interface DocumentListToolbarProps {
     screen: Screen
     tab: DocumentListTab
@@ -134,9 +155,10 @@ interface DocumentListToolbarProps {
 /**
  * The full list's toolbar (the Sales lists design spec §3): the search field,
  * the status chips, the date-range menu and the party picker (the area's customer or
- * vendor), with the Sort menu when the list draws cards. Wide, they share one wrapping
- * row; on a phone the search takes the first row, the chips scroll sideways on the second,
- * and the date range, the party and the sort share a third that scrolls sideways. The
+ * vendor), with the Sort menu when the list draws cards and the tab's report link when it
+ * has one. Wide, they share one wrapping row; on a phone the search takes the first row,
+ * the chips scroll sideways on the second, and the date range, the party, the sort and the
+ * report link share a third that scrolls sideways. The
  * 320 px names column has none of it (`showFilters`). It draws in every state, so a filter
  * that led to a refused or empty list can still be changed.
  */
@@ -163,6 +185,7 @@ export function DocumentListToolbar({
                         <RangeMenu screen={screen} area={area} />
                         <PartyFilter screen={screen} area={area} isPhone />
                         <SortMenu screen={screen} tab={tab} area={area} isVisible={drawsCards} />
+                        <TabReportLink tab={tab} area={area} />
                     </View>
                 </ScrollView>
             </View>
@@ -180,6 +203,7 @@ export function DocumentListToolbar({
             <RangeMenu screen={screen} area={area} />
             <PartyFilter screen={screen} area={area} isPhone={false} />
             <SortMenu screen={screen} tab={tab} area={area} isVisible={drawsCards} />
+            <TabReportLink tab={tab} area={area} />
             {batchAtEnd}
         </View>
     )

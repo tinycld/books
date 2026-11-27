@@ -11,9 +11,11 @@ import {
     type ListRead,
     listedClause,
     rangeClauses,
+    searchClauses,
     searchFieldClauses,
     sortField,
 } from '../lib/document-list'
+import { searchPieces } from '../lib/list-search'
 import type { LiveRecovery } from '../lib/live-recovery'
 
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
@@ -58,10 +60,15 @@ export function usePurchaseListQueries(input: ListQueryInput) {
         'books_vendor_credit_lines',
         'books_vendors'
     )
+    const [purchaseOrdersCollection, purchaseOrderLinesCollection] = useStore(
+        'books_purchase_orders',
+        'books_purchase_order_lines'
+    )
 
     const hasVendor = vendor !== ''
     const readsCategory = tab.columns.includes('category')
     const runsBills = chipRuns(tab, chip, 'bill')
+    const runsPurchaseOrders = chipRuns(tab, chip, 'purchase_order')
     const runsExpenses = chipRuns(tab, chip, 'expense')
     const runsBillPayments = chipRuns(tab, chip, 'bill_payment')
     const runsVendorCredits = chipRuns(tab, chip, 'vendor_credit')
@@ -129,6 +136,65 @@ export function usePurchaseListQueries(input: ListQueryInput) {
             }))
         },
         queryKey: linesKey(queryKey('bill', runsBillsLined), true),
+    })
+
+    // A purchase order with its vendor, its lines' receipts (the Partly received badge,
+    // `purchaseOrderBadge`, and the Close dialog's open line count) and its first bill (any
+    // status: the server refuses the delete of an order that a bill names), each through
+    // `materialize()` in the same query. An order is never void or replaced, so it has no
+    // listed clause, so its query has a `where` only when a filter is set (as the estimates'
+    // query of the sales lists); its search matches the number and the memo.
+    const hasOrderWhere =
+        chip !== 'all' || range !== null || hasVendor || searchPieces(search).length > 0
+    const purchaseOrdersQuery = useLiveQuery({
+        query: q => {
+            if (!runsPurchaseOrders) return undefined
+            const field = sortField('purchase_order', sort.key)
+            const from = q.from({ o: purchaseOrdersCollection })
+            const filtered = hasOrderWhere
+                ? from.where(({ o }) =>
+                      allOf([
+                          ...chipClauses(tab, chip, 'purchase_order', o, today),
+                          ...rangeClauses(o, range),
+                          ...(hasVendor ? [eq(o.vendor, vendor)] : []),
+                          ...searchClauses(o, search),
+                      ])
+                  )
+                : from
+            return filtered
+                .orderBy(({ o }) => o[field], kindDirection(tab, 'purchase_order', sort))
+                .orderBy(({ o }) => o.created, 'desc')
+                .limit(n)
+                .select(({ o }) => ({
+                    ...o,
+                    vendorRow: materialize(
+                        q
+                            .from({ v: vendorsCollection })
+                            .where(({ v }) => eq(v.id, o.vendor))
+                            .findOne()
+                    ),
+                    lineReceipts: materialize(
+                        q
+                            .from({ l: purchaseOrderLinesCollection })
+                            .where(({ l }) => eq(l.purchase_order, o.id))
+                            .select(({ l }) => ({
+                                kind: l.kind,
+                                received: l.received,
+                                billed: l.billed,
+                                open_quantity: l.open_quantity,
+                                open_amount: l.open_amount,
+                            }))
+                    ),
+                    firstBill: materialize(
+                        q
+                            .from({ b: billsCollection })
+                            .where(({ b }) => eq(b.purchase_order, o.id))
+                            .select(({ b }) => ({ id: b.id }))
+                            .findOne()
+                    ),
+                }))
+        },
+        queryKey: queryKey('purchase_order', runsPurchaseOrders),
     })
 
     const expenseRows = (q: InitialQueryBuilder) => {
@@ -329,6 +395,7 @@ export function usePurchaseListQueries(input: ListQueryInput) {
     return {
         bills: runsBillsPlain ? billsPlainQuery.data : undefined,
         billsWithLines: runsBillsLined ? billsLinedQuery.data : undefined,
+        purchaseOrders: runsPurchaseOrders ? purchaseOrdersQuery.data : undefined,
         expenses: runsExpensesPlain ? expensesPlainQuery.data : undefined,
         expensesWithLines: runsExpensesLined ? expensesLinedQuery.data : undefined,
         billPayments: runsBillPayments ? billPaymentsQuery.data : undefined,
@@ -338,6 +405,11 @@ export function usePurchaseListQueries(input: ListQueryInput) {
         reads: [
             readOf(runsBillsPlain, billsPlainQuery, [billsCollection]),
             readOf(runsBillsLined, billsLinedQuery, [billsCollection, billLinesCollection]),
+            readOf(runsPurchaseOrders, purchaseOrdersQuery, [
+                purchaseOrdersCollection,
+                purchaseOrderLinesCollection,
+                billsCollection,
+            ]),
             readOf(runsExpensesPlain, expensesPlainQuery, [expensesCollection]),
             readOf(runsExpensesLined, expensesLinedQuery, [
                 expensesCollection,

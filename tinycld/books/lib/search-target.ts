@@ -4,7 +4,7 @@ import { recordIdForKey } from '../stores/route-key-store'
 // journal entry screen, the transfer screen, the customer screen, the vendor
 // screen, the product screen, the invoice screen, the sales receipt screen, the
 // credit memo screen (drafts included for the three documents), the refund receipt screen
-// (drafts included), the estimate screen, the
+// (drafts included), the estimate screen, the purchase order screen, the
 // bill, expense and vendor credit screens (drafts included), the payment screen (drafts
 // included), the bill payment read view, the vendor refund screen (drafts included), the
 // write-off page, and the deposit screen (drafts included).
@@ -27,6 +27,7 @@ const PATHS = new Map([
     ['credit_memo', 'books/credit-memos/[id]'],
     ['refund_receipt', 'books/refund-receipts/[id]'],
     ['estimate', 'books/estimates/[id]'],
+    ['purchase_order', 'books/purchase-orders/[id]'],
     ['bill', 'books/bills/[id]'],
     ['expense', 'books/expenses/[id]'],
     ['vendor_credit', 'books/vendor-credits/[id]'],

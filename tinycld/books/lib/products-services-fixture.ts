@@ -7,7 +7,8 @@
 // chart: 4000 Consulting Income is the one income account; 6200 Software
 // Subscriptions and 6210 Design Tools are the expense accounts; 6900 Old Petty
 // Cash is inactive, so the business laptop names an account that became inactive
-// after it was saved. The seed adds no account (design gate G7).
+// after it was saved. The seed adds no account (design gate G7); the server adds the
+// Inventory item's (INVENTORY below).
 
 import type { BooksBundleItems, BooksProducts } from '../types'
 import type { ColumnOf } from './fixture-columns'
@@ -84,7 +85,10 @@ function checkedRow(row: ProductFixtureRecord): ProductFixtureRecord {
     if (!isBundle && row.income_account_number === '') {
         throw new Error(`product fixture: ${row.id} has no income account`)
     }
-    if (row.purchases && row.expense_account_number === '') {
+    // An Inventory item with no cost of goods sold account takes the chart's
+    // (server/product_stock.go validateInventoryItem), so only the other types need one.
+    const needsExpenseAccount = row.purchases && row.type !== 'inventory'
+    if (needsExpenseAccount && row.expense_account_number === '') {
         throw new Error(`product fixture: ${row.id} purchases with no expense account`)
     }
     return row
@@ -111,7 +115,10 @@ function product(seed: ProductSeed): ProductFixtureRecord {
         opening_date: '',
         quantity_on_hand: 0,
         stock_value: 0,
-        // A new Non-inventory item starts taxable, a Service not; a bundle never is.
+        // The server counts it from the open purchase order lines (2100000048).
+        quantity_on_po: 0,
+        // A Non-inventory item is taxable; a Service, the Inventory item and a bundle are
+        // not (the sales tax fixture's rule, tests/tax-rates-fixture.test.ts).
         taxable: seed.type === 'non_inventory',
         inactive: false,
         currency: 'USD',
@@ -147,6 +154,8 @@ export const PRODUCT_IDS = {
     consultation: 'prodconsult0001',
     // Non-inventory with purchasing off but a stored cost: the Cost cell is blank.
     paper: 'prodpapercase01',
+    // The one Inventory item, on purchase order 1004.
+    labelPrinter: 'prodlabelprt001',
     // Bundles.
     officeNetwork: 'bndlofficenet01',
     homeOffice: 'bndlhomeoffic01',
@@ -331,6 +340,22 @@ const NON_INVENTORY = [
     }),
 ]
 
+// The Inventory item of purchase order 1004 (purchase order spec §4 seed). It has no
+// Vendor part no. and no opening stock, and names no asset or cost of goods sold
+// account: the seeded chart has neither, and the server's product guard gives an
+// Inventory item with none the chart's 1300 Inventory asset and 5000 Cost of goods sold
+// (server/stock_posting.go ensureInventoryAsset, ensureCostOfGoodsSold). No bill names it.
+const INVENTORY = [
+    product({
+        id: PRODUCT_IDS.labelPrinter,
+        type: 'inventory',
+        name: 'Thermal label printer',
+        purchases: true,
+        purchase_description: 'Thermal label printer, 4 x 6 in, USB and Ethernet.',
+        cost: 28_900,
+    }),
+]
+
 const BUNDLES = [
     product({
         id: PRODUCT_IDS.officeNetwork,
@@ -359,7 +384,12 @@ const BUNDLES = [
     }),
 ]
 
-export const PRODUCTS = [...SERVICES, ...NON_INVENTORY, ...BUNDLES] satisfies ProductFixtureRecord[]
+export const PRODUCTS = [
+    ...SERVICES,
+    ...NON_INVENTORY,
+    ...INVENTORY,
+    ...BUNDLES,
+] satisfies ProductFixtureRecord[]
 
 const PRODUCT_TYPE_BY_ID = new Map(PRODUCTS.map(row => [row.id, row.type]))
 

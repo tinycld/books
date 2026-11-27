@@ -56,6 +56,11 @@ var documentKinds = map[string]documentKind{
 		Build:      buildRefundReceiptDocument,
 		FileName:   refundReceiptFileName,
 	},
+	docTypePurchaseOrder: {
+		Collection: purchaseOrdersCollection,
+		Build:      buildPurchaseOrderDocument,
+		FileName:   purchaseOrderFileName,
+	},
 	"statement": {
 		Collection: statementsCollection,
 		BuildAs:    buildStatementDocument,

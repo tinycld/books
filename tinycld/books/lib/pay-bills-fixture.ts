@@ -92,6 +92,8 @@ function bill(seed: BillSeed): PayBillsBill {
         entry: '',
         replaces: '',
         replaced_by: '',
+        // No seeded bill is made from a purchase order (2100000048).
+        purchase_order: '',
         posted_by: PAY_BILLS_USER_IDS.ana,
         posted_at: `${seed.date} 16:00:00.000Z`,
         voided_by: '',

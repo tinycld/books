@@ -44,8 +44,9 @@ const (
 )
 
 // accountLineReferences are the document tables that hold an account, in the
-// order their refusals are checked. A bill's, an expense's or a vendor
-// credit's product line names no account (its account is the product's
+// order their refusals are checked; a purchase order's account lines count by
+// order. A bill's, an expense's, a vendor credit's or a purchase order's
+// product line names no account (its account is the product's
 // expense account, which the product guard holds).
 var accountLineReferences = []accountLineReference{
 	{
@@ -70,6 +71,11 @@ var accountLineReferences = []accountLineReference{
 		collection: vendorCreditLinesCollection, field: "account", distinct: "vendor_credit",
 		one:  "This account is on 1 vendor credit and cannot be deleted. Make it inactive instead.",
 		many: "This account is on %d vendor credits and cannot be deleted. Make it inactive instead.",
+	},
+	{
+		collection: purchaseOrderLinesCollection, field: "account", distinct: "purchase_order",
+		one:  "This account is on 1 purchase order and cannot be deleted. Make it inactive instead.",
+		many: "This account is on %d purchase orders and cannot be deleted. Make it inactive instead.",
 	},
 }
 

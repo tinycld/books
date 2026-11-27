@@ -24,4 +24,5 @@ export const DOCUMENT_COLLECTIONS: Record<
     vendor_refund: 'books_vendor_refunds',
     write_off: 'books_write_offs',
     deposit: 'books_deposits',
+    purchase_order: 'books_purchase_orders',
 }

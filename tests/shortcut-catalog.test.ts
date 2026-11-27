@@ -113,6 +113,20 @@ describe('newTargets', () => {
         expect(label('receive_payment')).toBe('Receive payment')
     })
 
+    // Purchase order spec §2: the catalog lists "New purchase order" after "New vendor" and
+    // before "New bill", at the order's new route, for writers.
+    it('lists New purchase order between New vendor and New bill', () => {
+        const refs = NEW_TARGETS.map(target => target.shortcut.ref)
+        const order = NEW_TARGETS.find(target => target.shortcut.ref === 'purchase_order')
+        expect(order).toMatchObject({
+            label: 'New purchase order',
+            href: 'books/purchase-orders/new',
+            needsWrite: true,
+        })
+        expect(refs.indexOf('purchase_order')).toBe(refs.indexOf('vendor') + 1)
+        expect(refs.indexOf('bill')).toBe(refs.indexOf('purchase_order') + 1)
+    })
+
     it('leaves out an action that is not available', () => {
         const targets = newTargets([
             action('a', 'Alpha'),

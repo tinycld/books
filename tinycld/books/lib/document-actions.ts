@@ -36,6 +36,10 @@ export type DocumentReadAction =
     | 'entry'
     | 'invoice'
     | 'pdf'
+    | 'copy_to_bill'
+    | 'close'
+    | 'reopen'
+    | 'delete'
 
 // The read view's letter keys: single letters, so they never fire while a text field has
 // focus. Download PDF has ⌘P (DOCUMENT_PDF_KEY), on the form as well.
@@ -60,6 +64,12 @@ export const DOCUMENT_READ_KEYS = {
     // Not a single letter: the estimate form's Copy customer link is ⌥L
     // (QUOTE_FORM_KEYS.copyLink, lib/entry-shortcuts.ts), and the same action keeps its key.
     link: 'Alt+l',
+    // A purchase order's (purchase order spec §3.2): Copy to bill B, Close X, Reopen U. Not
+    // O for Reopen: the document list beside a read view keeps O for Open row
+    // (lib/list-shortcuts.ts). Delete is a More row with no letter key.
+    copy_to_bill: 'b',
+    close: 'x',
+    reopen: 'u',
 } as const
 
 // The read view's words for each action; a sales list's row menu shows the same.
@@ -80,6 +90,10 @@ export const DOCUMENT_READ_LABELS: Record<DocumentReadAction, string> = {
     entry: 'View journal entry',
     invoice: 'Open invoice',
     pdf: 'Download PDF',
+    copy_to_bill: 'Copy to bill',
+    close: 'Close',
+    reopen: 'Reopen',
+    delete: 'Delete',
 }
 
 export type DocumentReadKeyAction = keyof typeof DOCUMENT_READ_KEYS
@@ -88,10 +102,41 @@ export type DocumentReadKeyAction = keyof typeof DOCUMENT_READ_KEYS
 // keys, so the browser's Print never opens.
 export const DOCUMENT_PDF_KEY = '$mod+p'
 
-// Every read-view action's key.
+// Every read-view action's key; '' for an action with none (Delete, a More row).
 export const DOCUMENT_READ_ACTION_KEYS: Record<DocumentReadAction, string> = {
     ...DOCUMENT_READ_KEYS,
     pdf: DOCUMENT_PDF_KEY,
+    delete: '',
+}
+
+// The read actions that write (purchase order spec §3.12): each is disabled while writes
+// are unavailable, as the save bar's buttons.
+const WRITING_READ_ACTIONS: ReadonlySet<DocumentReadAction> = new Set([
+    'copy_to_bill',
+    'close',
+    'reopen',
+    'delete',
+    'void',
+    'send',
+])
+
+// Whether a read action's button takes no press. A writing action waits for writes to be
+// available; Void also for its own void; Download PDF only for its own download; Copy
+// customer link while a void runs or while its link is not offered (useCopyDocumentLink);
+// every other action, which only opens a screen or a dialog, while a void runs.
+export function documentReadActionDisabled(
+    action: DocumentReadAction,
+    state: {
+        writesAvailable: boolean
+        isVoiding: boolean
+        isDownloading: boolean
+        isLinkOffered: boolean
+    }
+): boolean {
+    if (action === 'pdf') return state.isDownloading
+    if (action === 'link') return state.isVoiding || !state.isLinkOffered
+    if (WRITING_READ_ACTIONS.has(action) && !state.writesAvailable) return true
+    return state.isVoiding
 }
 
 // The tabs under the title: Edit (form) or Details (read view), and PDF view.

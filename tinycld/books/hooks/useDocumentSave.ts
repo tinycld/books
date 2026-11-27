@@ -19,15 +19,25 @@ import {
     labelledLineRefusal,
     tableLineRefusal,
 } from '../lib/document-messages'
-import { type DocumentTab, documentNewHref, documentPath } from '../lib/document-routes'
+import {
+    type DocumentTab,
+    documentEditPath,
+    documentNewHref,
+    documentPath,
+} from '../lib/document-routes'
+import { isSendKind } from '../lib/document-send'
 import { documentLinesForSave } from '../lib/document-values'
 import { acceptanceShown } from '../lib/estimate-status'
 import { type HiddenFields, hiddenRefusalKeys, refusalMessage } from '../lib/record-refusals'
 import { columnsOrThrow, type RefusalForm, runLocked, startFailed } from '../lib/record-save'
 import { messageOnlyRefusal } from '../lib/refusal'
 import { assertRevisionSeen, documentConflictText, isRevisionConflict } from '../lib/revision'
-import { DOCUMENT_PARTIES, INVOICE_KIND, type SalesDocumentKind } from '../lib/sales-document-kinds'
-import { isSendDocType } from '../lib/send-doc-types'
+import {
+    DOCUMENT_PARTIES,
+    type DocumentLifecycle,
+    INVOICE_KIND,
+    type SalesDocumentKind,
+} from '../lib/sales-document-kinds'
 import { createTablePlans, tablesWriteSteps } from '../lib/table-writes'
 import { useDocumentSaveStore } from '../stores/document-save-store'
 import { useDocumentSendStore } from '../stores/document-send-store'
@@ -309,6 +319,51 @@ function postMode({ andNew, send }: { andNew: boolean; send: boolean }): SaveMod
 
 const QUOTE_SAVE: QuoteSaveMode = { close: false, andNew: false, convert: false, send: false }
 
+// What a save does by the kind's lifecycle (keyed by DocumentLifecycle, so a new lifecycle
+// fails tsc until it has its answers):
+// - `holdsEverySave`: the save store holds the document through every write, not only a
+//   post, so the optimistic row never swaps the form (a quote, an order: neither has a
+//   draft, so a first save is already the stored record the screen shows read only for a
+//   reader);
+// - `editRoute`: a saved document's form is its read view's route with `?edit=1` (an
+//   order, purchase order spec §3.2), not the route alone;
+// - `closesToRead`: Save & close opens the saved document's read view (an order), not the
+//   screen's way back;
+// - `hasQuoteRules`: the estimate's Status rules (Accepted by and Accepted date);
+// - `checksLinesOnSave`: every save runs Post's line-count rule (an order: it has no draft,
+//   and a save needs at least one line, purchase order spec §3.3).
+type LifecycleSave = {
+    holdsEverySave: boolean
+    editRoute: boolean
+    closesToRead: boolean
+    hasQuoteRules: boolean
+    checksLinesOnSave: boolean
+}
+
+const LIFECYCLE_SAVES: Record<DocumentLifecycle, LifecycleSave> = {
+    posting: {
+        holdsEverySave: false,
+        editRoute: false,
+        closesToRead: false,
+        hasQuoteRules: false,
+        checksLinesOnSave: false,
+    },
+    quote: {
+        holdsEverySave: true,
+        editRoute: false,
+        closesToRead: false,
+        hasQuoteRules: true,
+        checksLinesOnSave: false,
+    },
+    order: {
+        holdsEverySave: true,
+        editRoute: true,
+        closesToRead: true,
+        hasQuoteRules: false,
+        checksLinesOnSave: true,
+    },
+}
+
 function newProgress(): Progress {
     return { drafted: false, revision: 0 }
 }
@@ -422,9 +477,11 @@ function hasFieldErrors(state: DocumentFormState): boolean {
 export function useDocumentSave(state: DocumentFormState, options: DocumentSaveOptions = {}) {
     const { kind, document: documentKind } = state
     const writes = documentKind.data.useWrites()
+    const reloadRows = documentKind.data.useReload()
     const texts = saveTexts(kind)
-    // The kind as the send route names it; null for a kind that is never sent (a bill).
-    const sendKind = isSendDocType(kind.key) ? kind.key : null
+    // The kind as the send dialog names it; null for a kind that is never sent from its form
+    // (a bill, and a purchase order, which is sent from its read view).
+    const sendKind = isSendKind(kind.key) ? kind.key : null
     const lineColumns = lineColumnsOf(documentKind)
     const orgHref = useOrgHref()
     const surfaceRef = useRef<ViewInstance>(null)
@@ -506,10 +563,39 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     // the tab the post was made from.)
     // The saved document's URL key: after a post the store holds the posted row, so the
     // read view opens on its number.
-    const savedHref = (id: string, mode: SaveMode) =>
-        orgHref(documentPath(kind, writes.storedKey(id), mode.post ? 'edit' : options.tab))
+    // An order's form is its `?edit=1` route.
+    const lifecycleSaves = LIFECYCLE_SAVES[kind.lifecycle]
+    const savedHref = (id: string, mode: SaveMode) => {
+        const tab = mode.post ? 'edit' : options.tab
+        const key = writes.storedKey(id)
+        const path = lifecycleSaves.editRoute
+            ? documentEditPath(kind, key, tab)
+            : documentPath(kind, key, tab)
+        return orgHref(path)
+    }
+
+    // Save & close of an order opens its read view (spec §3.2); every other kind's goes the
+    // screen's way back.
+    const closeAfter = (id: string) => {
+        if (!lifecycleSaves.closesToRead) {
+            options.leave?.()
+            return
+        }
+        router.replace(orgHref(documentPath(kind, writes.storedKey(id))))
+    }
 
     const release = (id: string) => useDocumentSaveStore.getState().release(id)
+    // The store holds a created document as the batch answered its create, before the
+    // server restated its totals from the lines later in the same batch. A Save & new of a
+    // quote or an order leaves with no screen subscribed to the document, so the restate's
+    // realtime update reaches nothing, and a later read by id is served that stale row.
+    // A reload refetches the live queries and drops the rows they do not confirm, so the
+    // next read fetches the stored document (a list that shows it gets its new totals).
+    const dropUnseenCreate = () => {
+        reloadRows().catch(error =>
+            log.error(texts.logContext, error, { operation: 'reload-after-create' })
+        )
+    }
     // Drops the send that Post and send or Save and send queued for this document.
     const cancelQueued = (id: string) => useDocumentSendStore.getState().cancelQueued(id)
     // Save and send of a stored document with no change: its form's Send dialog
@@ -545,7 +631,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         if (mode.convert) {
             if (state.isNew) replaceWithSaved(id, mode)
             router.push(orgHref(documentNewHref(INVOICE_KIND, { estimate: id })))
-        } else if (mode.close) options.leave?.()
+        } else if (mode.close) closeAfter(id)
         else if (mode.andNew) {
             router.replace(orgHref(postAndNewHref(kind, state.openedWithParty)))
         } else if (state.isNew) replaceWithSaved(id, mode)
@@ -600,6 +686,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         },
         onSuccess: (_data, { id, mode }) => {
             state.create.form.reset(state.create.form.getValues())
+            if (mode.andNew && !mode.post) dropUnseenCreate()
             navigateAfter(id, mode)
         },
         onError: (error, { id, rows, link, lines, progress, restoreLines }) => {
@@ -756,7 +843,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     // Accepted date are hidden off Accepted, so they are saved empty (the server clears
     // them as well). Set here, at the save, so the hidden values never change on their own.
     const clearHiddenAcceptance = () => {
-        if (kind.lifecycle !== 'quote') return
+        if (!lifecycleSaves.hasQuoteRules) return
         const status = state.form.getValues('status')
         if (acceptanceShown(typeof status === 'string' ? status : '')) return
         for (const key of ACCEPTANCE_KEYS) {
@@ -766,7 +853,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
         }
     }
 
-    // A post, every quote save, and the first save of an invoice made from an estimate
+    // A post, every quote and order save, and the first save of an invoice made from an estimate
     // hold the document before its first write (set synchronously, so the very render the
     // optimistic write triggers sees it); the mutation releases it. The last: that save
     // closes the estimate, and the closed estimate's update would swap the form for the
@@ -776,7 +863,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     // (SendDocumentDialog's `recordId`). A refused write cancels it (the mutations'
     // `onError`); a client refusal returns before this, so it queues nothing.
     const holdFor = (id: string, mode: SaveMode) => {
-        const isHeld = mode.post || kind.lifecycle === 'quote' || state.estimate !== ''
+        const isHeld = mode.post || lifecycleSaves.holdsEverySave || state.estimate !== ''
         if (isHeld) useDocumentSaveStore.getState().hold(id)
         if (mode.send && sendKind !== null) {
             useDocumentSendStore.getState().queue({ kind: sendKind, id })
@@ -868,7 +955,7 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
     // after a stored Expiration date. Run after the patch, which builds the schema of the
     // current values, so every save checks both and shows the errors with the others.
     const quoteRulesHold = () => {
-        if (kind.lifecycle !== 'quote') return Promise.resolve(true)
+        if (!lifecycleSaves.hasQuoteRules) return Promise.resolve(true)
         return state.form.trigger([...QUOTE_RULE_KEYS])
     }
 
@@ -933,9 +1020,10 @@ export function useDocumentSave(state: DocumentFormState, options: DocumentSaveO
             restoreLines = dropEmptyLines()
             fillDepositFallback()
             clearHiddenAcceptance()
-            // Post validates with its own rule added (at least one Item line); the
-            // record schema reads the mode when it runs.
-            if (mode.post) state.saveMode.current = 'post'
+            // Post validates with its own rule added (at least one Item line), as does
+            // each save of a kind that checks its lines on save; the record schema reads
+            // the mode when it runs.
+            if (mode.post || lifecycleSaves.checksLinesOnSave) state.saveMode.current = 'post'
             try {
                 const started = await startSave(mode, restoreLines)
                 // Not started: the form's own check refused it (or nothing changed), so

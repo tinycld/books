@@ -1,5 +1,6 @@
 import type { Shortcut } from '@tinycld/core/lib/shortcuts'
 import type { EntryActionId } from './entry-actions'
+import type { DocumentLifecycle } from './sales-document-kinds'
 
 // The keys of the transfer and journal entry forms (both draw EntryActionBar) and of their
 // read views. Pure, so the key map and when each key may fire are unit-tested.
@@ -40,6 +41,21 @@ export const QUOTE_FORM_KEYS: Record<QuoteKeyAction, string> = {
     deleteRecord: '$mod+Backspace',
     convert: 'Alt+i',
     copyLink: 'Alt+l',
+}
+
+// A document form's save keys by its kind's lifecycle: a posting kind's DocumentActionBar
+// keys, the quote's DocumentSaveBar keys on a quote and an order (purchase order spec §3.2;
+// an order also has no draft and no post).
+export function formKeysOf(
+    lifecycle: DocumentLifecycle
+): Record<FormKeyAction, string> | Record<QuoteKeyAction, string> {
+    switch (lifecycle) {
+        case 'posting':
+            return FORM_KEYS
+        case 'quote':
+        case 'order':
+            return QUOTE_FORM_KEYS
+    }
 }
 
 // The send keys of a document form (email-share spec §3.3 "Form"): Post and send on a

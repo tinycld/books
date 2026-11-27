@@ -72,6 +72,7 @@ describe('LIST_AREAS', () => {
 
     it('gives the Expenses New items their NEW_ACTIONS id with "_" as "-" as id suffix', () => {
         expect(LIST_AREAS.purchases.newItems.map(item => item.idSuffix)).toEqual([
+            'purchase-order',
             'bill',
             'pay-bills',
             'expense',
@@ -93,7 +94,9 @@ describe('hasRowActions', () => {
 describe('areaTabOf', () => {
     it('gives the tab with the key, in each area', () => {
         expect(areaTabOf(LIST_AREAS.sales, 'credit-memos')).toBe(SALES_TABS[5])
-        expect(areaTabOf(LIST_AREAS.purchases, 'vendor-refunds')).toBe(PURCHASE_TABS[5])
+        // Purchase orders after Bills moves Vendor refunds to the seventh tab.
+        expect(areaTabOf(LIST_AREAS.purchases, 'vendor-refunds')).toBe(PURCHASE_TABS[6])
+        expect(areaTabOf(LIST_AREAS.purchases, 'purchase-orders')).toBe(PURCHASE_TABS[2])
     })
 
     it("gives the area's first tab for an unknown key, in each area", () => {

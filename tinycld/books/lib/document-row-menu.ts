@@ -86,13 +86,19 @@ type NotRowMenuAction =
     | 'refund'
     | 'refund_credit'
     | 'link'
+    | 'copy_to_bill'
+    | 'close'
+    | 'reopen'
+    | 'delete'
 
 // A read-view action as a row-menu action: every one but Edit, Pay bill (a bill's) and
 // Record refund (a vendor credit's), which are never on a sales list, Refund and Refund
 // credit, which the row menu does not offer (readActionsOf sets neither), Apply, which
 // the menu puts first for a credit memo by its own rule (`rowApplyCreditOffered`), so an
-// invoice row never takes the invoice's Apply credit from the read view's actions, and
-// Copy customer link, which the row menu does not offer (email-share plan checkpoint 4).
+// invoice row never takes the invoice's Apply credit from the read view's actions,
+// Copy customer link, which the row menu does not offer (email-share plan checkpoint 4),
+// and a purchase order's Copy to bill, Close, Reopen and Delete, which are never on a
+// sales list (orderReadActions offers them).
 function isRowMenuAction(
     action: DocumentReadAction
 ): action is Exclude<DocumentReadAction, NotRowMenuAction> {
@@ -103,7 +109,11 @@ function isRowMenuAction(
         action !== 'record_refund' &&
         action !== 'refund' &&
         action !== 'refund_credit' &&
-        action !== 'link'
+        action !== 'link' &&
+        action !== 'copy_to_bill' &&
+        action !== 'close' &&
+        action !== 'reopen' &&
+        action !== 'delete'
     )
 }
 

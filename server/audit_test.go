@@ -246,6 +246,35 @@ func TestAudit_LabelsAnEstimateAndItsLines(t *testing.T) {
 	}
 }
 
+// Spec §3.14: a purchase order's audit row is "Purchase order 1004"; a line's
+// row follows its order ("Purchase order 1004: line 2"). An order has its
+// number from its first save, so it has no draft label.
+func TestAudit_LabelsAPurchaseOrderAndItsLines(t *testing.T) {
+	pe := newPOEnv(t)
+	audited := auditedCollections(pe.app)
+	orders, ok := audited["books_purchase_orders"]
+	if !ok {
+		t.Fatal("books_purchase_orders is not audited")
+	}
+	lines, ok := audited["books_purchase_order_lines"]
+	if !ok {
+		t.Fatal("books_purchase_order_lines is not audited")
+	}
+	for i := 0; i < 3; i++ {
+		mkPO(t, pe.app, pe.summit, nil)
+	}
+	r := mkPO(t, pe.app, pe.officeSupply, nil)
+	mkPOLine(t, pe.app, r, 0, accountLine(pe.software, 4500))
+	line := mkPOLine(t, pe.app, r, 1, productLine(pe.accessPoint, 6, 12140))
+
+	if got, want := orders.ExtractLabel(reload(t, pe.app, "books_purchase_orders", r.Id)), "Purchase order 1004"; got != want {
+		t.Errorf("purchase order label = %q, want %q", got, want)
+	}
+	if got, want := lines.ExtractLabel(reload(t, pe.app, "books_purchase_order_lines", line.Id)), "Purchase order 1004: line 2"; got != want {
+		t.Errorf("purchase order line label = %q, want %q", got, want)
+	}
+}
+
 // A customer's answer through the link is audited, named by its estimate and
 // its decision ("Estimate 1001: declined").
 func TestAudit_LabelsAnEstimateResponse(t *testing.T) {

@@ -114,9 +114,11 @@ export async function openApAging(page: Page): Promise<void> {
  * filterToCustomers does for the Customer param: an unset Vendor has no chip (core lists it
  * under Add filter), so the first name starts from Add filter and each later one from the
  * chip, each found through the picker's search. It then waits until the URL holds the pick,
- * the document header prints "Vendor: " with every name, and the mounted group rows are
- * only those vendors, with the Total: core keeps the previous run's rows until the new run
- * lands. The vendors' rows are closed.
+ * the document header prints "Vendor: " with every name, and the mounted top-level group
+ * rows (depth 0) are only those vendors, with the Total: core keeps the previous run's rows
+ * until the new run lands. Only the top level is compared, so a report whose vendor group
+ * holds sub-groups (Open Purchase Orders: Vendor, then Purchase order) passes too. In a
+ * single-level vendor report the vendors' rows are closed.
  */
 export async function filterToVendors(page: Page, names: readonly string[]): Promise<void> {
     for (const [index, name] of names.entries()) {
@@ -127,7 +129,8 @@ export async function filterToVendors(page: Page, names: readonly string[]): Pro
         })
     }
     await expect.poll(() => new URL(page.url()).searchParams.get('p-vendors')).not.toBeNull()
-    const header = page.getByTestId('report-header-param-vendors')
+    // A stacked screen keeps a hidden report, with its own header, in the DOM.
+    const header = page.getByTestId('report-header-param-vendors').filter({ visible: true })
     await expect(header).toContainText('Vendor: ')
     for (const name of names) await expect(header).toContainText(name)
     const wanted = [...names].sort((a, b) => a.localeCompare(b))
@@ -136,7 +139,7 @@ export async function filterToVendors(page: Page, names: readonly string[]): Pro
         reportSnapshot,
         snapshot => {
             const groups = snapshot.rows
-                .filter(row => row.kind === 'group')
+                .filter(row => row.kind === 'group' && row.depth === 0)
                 .map(row => row.label)
                 .sort((a, b) => a.localeCompare(b))
             const hasTotal = snapshot.rows.some(row => row.kind === 'total')

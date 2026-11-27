@@ -92,6 +92,14 @@ export const NEW_ACTIONS: NewAction[] = [
         available: true,
     },
     {
+        id: 'purchase_order',
+        label: 'Purchase order',
+        href: 'books/purchase-orders/new',
+        column: 'vendors',
+        available: true,
+        takesVendor: true,
+    },
+    {
         id: 'bill',
         label: 'Bill',
         href: 'books/bills/new',

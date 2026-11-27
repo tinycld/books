@@ -6,6 +6,7 @@ import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
 import { type EMPTY_EXPENSE_COLUMNS, expenseColumnsFrom } from '../lib/expense-columns'
 import { mergeRecoveries } from '../lib/live-recovery'
+import { withNoOrderLine } from '../lib/purchase-line-columns'
 import { documentKey } from '../lib/record-key'
 import { columnsOrThrow } from '../lib/record-save'
 import { EXPENSE_KIND } from '../lib/sales-document-kinds'
@@ -215,6 +216,10 @@ function useExpenseScreenReads(
         queryKey: ['books.expense.source-lines', ids.sourceLinesId],
     })
     const formStart = useExpenseFormStart(input)
+    const lineRows = linesQuery.data
+    const lines = useMemo(() => withNoOrderLine(lineRows), [lineRows])
+    const sourceLineRows = sourceLinesQuery.data
+    const sourceLines = useMemo(() => withNoOrderLine(sourceLineRows), [sourceLineRows])
     return {
         record: documentRead(id, expenseQuery, record, [
             expensesCollection,
@@ -222,18 +227,15 @@ function useExpenseScreenReads(
             accountsCollection,
             usersCollection,
         ]),
-        lines: documentRead(id, linesQuery, linesQuery.data ?? [], [
+        lines: documentRead(id, linesQuery, lines, [
             linesCollection,
             productsCollection,
             accountsCollection,
         ]),
         source: documentRead(ids.sourceId, sourceQuery, source, [expensesCollection]),
-        sourceLines: documentRead(
-            ids.sourceLinesId,
-            sourceLinesQuery,
-            sourceLinesQuery.data ?? [],
-            [linesCollection]
-        ),
+        sourceLines: documentRead(ids.sourceLinesId, sourceLinesQuery, sourceLines, [
+            linesCollection,
+        ]),
         ...NO_ESTIMATE_SOURCE,
         ...NO_LINK_SOURCE,
         ...NO_DOCUMENT_PAYMENTS,

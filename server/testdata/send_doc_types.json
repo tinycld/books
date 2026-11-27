@@ -1,0 +1,10 @@
+{
+    "kinds": [
+        { "kind": "invoice", "title": "Invoice", "noun": "invoice" },
+        { "kind": "estimate", "title": "Estimate", "noun": "estimate" },
+        { "kind": "sales_receipt", "title": "Sales receipt", "noun": "sales receipt" },
+        { "kind": "credit_memo", "title": "Credit memo", "noun": "credit memo" },
+        { "kind": "refund_receipt", "title": "Refund receipt", "noun": "refund receipt" },
+        { "kind": "purchase_order", "title": "Purchase order", "noun": "purchase order" }
+    ]
+}

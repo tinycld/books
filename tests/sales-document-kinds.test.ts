@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
+import { documentFormTitle } from '../tinycld/books/lib/document-form-title'
 import { documentTotals } from '../tinycld/books/lib/document-lines'
 import { bigFigureText } from '../tinycld/books/lib/document-messages'
+import { messageLabelFor } from '../tinycld/books/lib/document-notes'
 import {
     CREDIT_MEMO_MESSAGES,
+    PURCHASE_ORDER_MESSAGES,
     REFUND_RECEIPT_MESSAGES,
     VENDOR_CREDIT_MESSAGES,
 } from '../tinycld/books/lib/document-texts'
@@ -16,6 +19,9 @@ import {
     INVOICE_KIND,
     MEMO_HINT,
     PURCHASE_LINE_TABLES,
+    PURCHASE_ORDER_FEATURES,
+    PURCHASE_ORDER_HOST_KEY,
+    PURCHASE_ORDER_KIND,
     REFUND_RECEIPT_KIND,
     SALES_FEATURES,
     SALES_LINE_TABLES,
@@ -200,6 +206,107 @@ describe('ESTIMATE_KIND', () => {
 
     it('names its PDF by its number', () => {
         expect(ESTIMATE_KIND.pdfStem('1001')).toBe('estimate-1001')
+    })
+})
+
+// The purchase order kind (purchase order spec §3.1, §3.3-§3.6; plan Decisions "TS names").
+describe('PURCHASE_ORDER_KIND', () => {
+    it('is the order lifecycle with the purchase order names', () => {
+        expect(PURCHASE_ORDER_KIND.key).toBe('purchase_order')
+        expect(PURCHASE_ORDER_KIND.lifecycle).toBe('order')
+        expect(PURCHASE_ORDER_KIND.hostKey).toBe(PURCHASE_ORDER_HOST_KEY)
+        expect(PURCHASE_ORDER_KIND.hostKey).toBe('books:purchase_order')
+        expect(PURCHASE_ORDER_KIND.testId).toBe('purchase-order')
+        expect(PURCHASE_ORDER_KIND.routeBase).toBe('books/purchase-orders')
+        expect(PURCHASE_ORDER_KIND.noun).toBe('Purchase order')
+        expect(PURCHASE_ORDER_KIND.newTitle).toBe('New purchase order')
+        expect(PURCHASE_ORDER_KIND.shortcutGroup).toBe('Purchase order')
+        expect(PURCHASE_ORDER_KIND.helpTopic).toBe('books:purchase-orders')
+    })
+
+    it('has a required vendor and the purchase line tables', () => {
+        expect(PURCHASE_ORDER_KIND.party).toBe('vendor')
+        expect(PURCHASE_ORDER_KIND.customerRequired).toBe(true)
+        expect(PURCHASE_ORDER_KIND.lineTables).toBe(PURCHASE_LINE_TABLES)
+    })
+
+    it('has no tax and no attachments, and a message, an email, a PDF and the address', () => {
+        expect(PURCHASE_ORDER_FEATURES).toEqual({
+            tax: false,
+            message: true,
+            email: true,
+            pdf: true,
+            partyAddress: true,
+            attachments: false,
+        })
+        expect(PURCHASE_ORDER_KIND.features).toBe(PURCHASE_ORDER_FEATURES)
+    })
+
+    it('shows Total as the big figure, draws no last totals row and splits the band at Order date', () => {
+        expect(PURCHASE_ORDER_KIND.figure.label).toBe('Total')
+        expect(PURCHASE_ORDER_KIND.lastTotal).toBeNull()
+        expect(PURCHASE_ORDER_KIND.bandSplitAt).toBe('date')
+    })
+
+    it('names its PDF by its number, as the server does', () => {
+        expect(PURCHASE_ORDER_KIND.pdfStem('1004')).toBe('purchase-order-1004')
+    })
+
+    it("hints the vendor's message and the team's memo (spec §3.4)", () => {
+        expect(PURCHASE_ORDER_KIND.noteHints).toEqual({
+            message: 'Shown on the purchase order and its PDF.',
+            memo: 'Only your team sees this.',
+        })
+    })
+
+    it('reads its messages from PURCHASE_ORDER_MESSAGES', () => {
+        expect(PURCHASE_ORDER_KIND.messages).toBe(PURCHASE_ORDER_MESSAGES)
+    })
+
+    // Like an estimate, the server numbers the order at its first save: the form's title
+    // is the new title until then, "Purchase order 1004" after.
+    it('titles the form "New purchase order", then by its stored number', () => {
+        expect(documentFormTitle(PURCHASE_ORDER_KIND, '', false, '')).toBe('New purchase order')
+        expect(documentFormTitle(PURCHASE_ORDER_KIND, '', true, '1004')).toBe('Purchase order 1004')
+    })
+})
+
+// The Vendor part no. line under a product line's name (purchase order spec Q17): the shared
+// line cells ask the kind (spec §3.1), never a kind's key; only the purchase order shows it.
+describe('showsVendorPartNo', () => {
+    it('is on for the purchase order', () => {
+        expect(PURCHASE_ORDER_KIND.showsVendorPartNo).toBe(true)
+    })
+
+    it.each([
+        INVOICE_KIND,
+        SALES_RECEIPT_KIND,
+        CREDIT_MEMO_KIND,
+        REFUND_RECEIPT_KIND,
+        ESTIMATE_KIND,
+        BILL_KIND,
+        EXPENSE_KIND,
+        VENDOR_CREDIT_KIND,
+    ])('is off for $key', kind => {
+        expect(kind.showsVendorPartNo).toBe(false)
+    })
+})
+
+// The layer's message label is read from the kind's party (spec §3.1): a vendor kind with
+// a message reads "Message to vendor (printed)", a customer kind "Message to customer
+// (printed)".
+describe('messageLabelFor', () => {
+    it('reads the vendor label on the purchase order', () => {
+        expect(messageLabelFor(PURCHASE_ORDER_KIND)).toBe('Message to vendor (printed)')
+    })
+
+    it.each([
+        INVOICE_KIND,
+        SALES_RECEIPT_KIND,
+        ESTIMATE_KIND,
+        CREDIT_MEMO_KIND,
+    ])('keeps the customer label on $key', kind => {
+        expect(messageLabelFor(kind)).toBe('Message to customer (printed)')
     })
 })
 

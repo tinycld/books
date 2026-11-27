@@ -60,6 +60,8 @@ export type {
     BooksPaymentDayTotals,
     BooksPayments,
     BooksProducts,
+    BooksPurchaseOrderLines,
+    BooksPurchaseOrders,
     BooksReconciledLines,
     BooksReconcileLines,
     BooksReconciliationLines,

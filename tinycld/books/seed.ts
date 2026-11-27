@@ -14,6 +14,7 @@ import { BANK_SEED } from './lib/bank-connection-fixture'
 import { DEPOSIT_SEED } from './lib/bank-deposit-fixture'
 import { BANK_IMPORT_SEED_STATEMENT } from './lib/bank-import-mapping-fixture'
 import { BILL_LINES, BILL_SEED_IDS, BILLS } from './lib/bill-form-fixture'
+import { COMPANY_SETTINGS } from './lib/books-settings-fixture'
 import {
     CREDIT_MEMO_LINES,
     CREDIT_MEMO_SEED_DRAFT_ID,
@@ -23,6 +24,7 @@ import {
 import { CUSTOMER_BALANCE_SEED } from './lib/customer-balance-fixture'
 import { CUSTOMERS } from './lib/customer-form-fixture'
 import { CUSTOMER_PAGE_CONTACTS } from './lib/customer-page-fixture'
+import { dueDateFor } from './lib/document-dates'
 import {
     CONVERTED_INVOICE,
     CONVERTED_INVOICE_LINES,
@@ -54,6 +56,12 @@ import { JOURNAL_SEED } from './lib/journal-entries-fixture'
 import { BILL_PAYMENT_SEED, PAY_BILLS_SEED_BILLS } from './lib/pay-bills-fixture'
 import { BUNDLE_ITEMS, PRODUCTS } from './lib/products-services-fixture'
 import { PURCHASE_LIST_SEED } from './lib/purchase-lists-fixture'
+import {
+    PURCHASE_ORDER_BILLS,
+    PURCHASE_ORDER_IDS,
+    PURCHASE_ORDER_LINES,
+    PURCHASE_ORDERS,
+} from './lib/purchase-orders-fixture'
 import { PAYMENT_SEED } from './lib/receive-payment-fixture'
 import { RECONCILE_SEED } from './lib/reconcile-fixture'
 import { RECONCILIATION_REPORT_SEED } from './lib/reconciliation-report-fixture'
@@ -135,6 +143,9 @@ interface SeedContext {
 // The one settings row, made by migration 2100000001.
 const SETTINGS_ROW_ID = 'bookssettings01'
 const SEED_BUSINESS_NAME = 'Hartwell Supply Co.'
+// The Company address, which a new purchase order's Ship to starts with (purchase order
+// spec §3.3) after the business name, as the purchase orders fixture's DEFAULT_SHIP_TO.
+const SEED_BUSINESS_ADDRESS = COMPANY_SETTINGS.address
 
 // [account key, debit, credit] in cents
 type SeedLine = [string, number, number]
@@ -261,8 +272,10 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     // The settings row keeps setup_started and setup_completed false, so the seeded book (which already has accounts) shows the wizard's populated-book path.
     // The business name is required to save the Company form, and reports and the customer
     // pages print it. It is seeded so no e2e has to write it: specs on parallel workers read it.
+    // The address is seeded for the same reason: a new purchase order's Ship to reads it.
     await pb.collection('books_settings').update(SETTINGS_ROW_ID, {
         business_name: SEED_BUSINESS_NAME,
+        address: SEED_BUSINESS_ADDRESS,
     })
     const year = new Date().getFullYear()
     const ids = new Map<string, string>()
@@ -332,6 +345,8 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     await seedVendorContacts(pb)
     await seedDeclinedEstimates(pb, customerIds)
     const billIds = await seedBills(pb, ctx, accountIds)
+    // The orders have their own sequence, so no other seeded number moves.
+    await seedPurchaseOrders(pb, ctx, accountIds)
     await seedBillPayments(pb, ctx, accountIds)
     const expenseIds = await seedExpenses(pb, ctx, accountIds)
     const creditIds = await seedVendorCredits(pb, ctx, accountIds)
@@ -371,6 +386,10 @@ export default async function seed(pb: PocketBase, ctx: SeedContext): Promise<vo
     // every other document seed, so the earlier seeded receipts keep their numbers, and
     // before the bank match seed, which must see every seeded document.
     await seedDeposits(pb, ctx, accountIds, salesReceiptIds)
+    // The bills of the purchase orders (purchase order spec §4 seed), then the Close of
+    // 1002: after every other bill seed, so every earlier seeded bill keeps its number, and
+    // before the bank match seed, which must see every seeded document.
+    await seedPurchaseOrderBills(pb, ctx, accountIds)
     // After every document seed, so its check that each of its two statement lines has
     // exactly one suggestion sees every seeded document (the review statement is imported
     // before any document posts). Its categorization posts one journal entry, last, so no
@@ -1657,6 +1676,134 @@ export async function seedBills(
         await postSeedDocument(pb, 'books_bills', created.id, ctx.user.id)
     }
     return billIds
+}
+
+// The five fixture orders, as the order form saves them (purchase order spec §4 seed): the
+// header first, then each line, in fixture order, so the server numbers them 1001 to 1005.
+// Every order is created open and no bill names one yet, so the fixture's closed orders and
+// received values are the reference's, not the seed's. The server sets the number, the
+// sequence, the totals and every open value, and the line saves put the Inventory item's
+// two on order ("on PO"). A superuser create keeps `created_by` (server/fields.go
+// stampActor), so the seeded user is named, as seedBills names it.
+export async function seedPurchaseOrders(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>
+): Promise<void> {
+    for (const order of PURCHASE_ORDERS) {
+        const created = await pb.collection('books_purchase_orders').create({
+            id: order.id,
+            vendor: order.vendor,
+            status: 'open',
+            date: order.date,
+            mailing_address: order.mailing_address,
+            email: order.email,
+            ship_to: order.ship_to,
+            message: order.message,
+            memo: order.memo,
+            created_by: ctx.user.id,
+        })
+        for (const line of PURCHASE_ORDER_LINES.filter(row => row.purchase_order === order.id)) {
+            const account = seededAccountId(
+                accountIds,
+                line.account_number,
+                `purchase order line ${line.id}`
+            )
+            const typed =
+                line.kind === 'account'
+                    ? { account, amount: line.amount }
+                    : { product: line.product, quantity: line.quantity, rate: line.rate }
+            await pb.collection('books_purchase_order_lines').create({
+                id: line.id,
+                purchase_order: created.id,
+                position: line.position,
+                kind: line.kind,
+                description: line.description,
+                ...typed,
+            })
+        }
+    }
+}
+
+// The bills of PURCHASE_ORDER_BILLS (purchase order spec §4 seed, §3.8), saved as Copy to
+// bill saves one: a draft that names its order, with the order's vendor, mailing address
+// and the vendor's terms, then a line for each fixture line that names its order line
+// (`po_line`) with the order line's product and rate and the bill's quantity, or its
+// account and the bill's amount. The posted ones are posted (postSeedDocument), so the
+// server writes each order's received, billed and open values and closes 1001 as
+// received. 1002 is then closed by hand, as an admin's Close does it: after its bill
+// posts, with the revision the seed reads just before (as postSeedDocument does). A
+// superuser write keeps the body's `closed_by` (server/fields.go stampActor).
+export async function seedPurchaseOrderBills(
+    pb: PocketBase,
+    ctx: SeedContext,
+    accountIds: Map<string, string>
+): Promise<void> {
+    for (const bill of PURCHASE_ORDER_BILLS) {
+        const order = PURCHASE_ORDERS.find(row => row.id === bill.purchase_order)
+        if (order === undefined) {
+            throw new Error(
+                `seed: bill ${bill.id} names order ${bill.purchase_order}, not in PURCHASE_ORDERS`
+            )
+        }
+        const vendor = VENDORS.find(row => row.id === order.vendor)
+        if (vendor === undefined) {
+            throw new Error(`seed: order ${order.id} names vendor ${order.vendor}, not in VENDORS`)
+        }
+        const created = await pb.collection('books_bills').create({
+            vendor: order.vendor,
+            status: 'draft',
+            date: bill.date,
+            due_date: dueDateFor(bill.date, vendor.terms) ?? bill.date,
+            terms: vendor.terms,
+            mailing_address: order.mailing_address,
+            purchase_order: order.id,
+        })
+        const positions = { item: 0, account: 0 }
+        for (const line of bill.lines) {
+            const orderLine = PURCHASE_ORDER_LINES.find(row => row.id === line.po_line)
+            if (orderLine === undefined) {
+                throw new Error(
+                    `seed: bill ${bill.id} names order line ${line.po_line}, not in PURCHASE_ORDER_LINES`
+                )
+            }
+            const typed =
+                orderLine.kind === 'account'
+                    ? {
+                          account: seededAccountId(
+                              accountIds,
+                              orderLine.account_number,
+                              `bill ${bill.id} line ${line.po_line}`
+                          ),
+                          amount: line.amount,
+                      }
+                    : { product: orderLine.product, quantity: line.quantity, rate: orderLine.rate }
+            await pb.collection('books_bill_lines').create({
+                bill: created.id,
+                position: positions[orderLine.kind],
+                kind: orderLine.kind,
+                description: orderLine.description,
+                po_line: line.po_line,
+                ...typed,
+            })
+            positions[orderLine.kind] += 1
+        }
+        if (bill.status === 'posted') {
+            await postSeedDocument(pb, 'books_bills', created.id, ctx.user.id)
+        }
+    }
+    const orders = pb.collection('books_purchase_orders')
+    const { revision } = await orders.getOne<{ revision: number }>(
+        PURCHASE_ORDER_IDS.closedManual,
+        {
+            fields: 'revision',
+        }
+    )
+    await orders.update(PURCHASE_ORDER_IDS.closedManual, {
+        status: 'closed',
+        closed_by: ctx.user.id,
+        revision: revision + 1,
+    })
 }
 
 // Pays the bills PAY_BILLS_SEED_BILLS posted, per BILL_PAYMENT_SEED, through the write Pay

@@ -559,6 +559,8 @@ var auditParentOf = map[string]string{
 	// A send opens the document it sent, by its doc_type (email-share plan
 	// decision 2); the fixture's send is of an invoice.
 	documentSendsCollection: "books_invoices",
+	// A purchase order's line opens its order (purchase order spec §3.14).
+	"books_purchase_order_lines": "books_purchase_orders",
 }
 
 // lineFixture makes a new document of a line collection and one row under it,
@@ -674,10 +676,51 @@ func lineFixture(t *testing.T, app core.App, lines string) (parent, line *core.R
 			"status": "draft", "kind": "manual", "date": "2026-11-10", "account": account.Id, "currency": "USD",
 		})
 		line = saveRecord(t, app, lines, map[string]any{"adjustment": parent.Id, "product": product.Id, "quantity": "1", "value": 100, "position": 0})
+	case "books_purchase_order_lines":
+		parent = auditPurchaseOrder(t, app, n)
+		line = saveRecord(t, app, lines, map[string]any{"purchase_order": parent.Id, "kind": "account", "account": account.Id, "amount": 100, "position": 0})
 	default:
 		t.Fatalf("no fixture for %s", lines)
 	}
 	return parent, line
+}
+
+// auditPurchaseOrder is an open purchase order for a new vendor, on an app with
+// no hooks bound.
+func auditPurchaseOrder(t *testing.T, app core.App, n uint64) *core.Record {
+	t.Helper()
+	vendor := saveRecord(t, app, "books_vendors", map[string]any{
+		"display_name": fmt.Sprintf("Office Supply World %d", n), "name_key": fmt.Sprintf("office supply world %d", n), "code": fmt.Sprintf("OW-%d", n),
+	})
+	return saveRecord(t, app, "books_purchase_orders", map[string]any{
+		"vendor": vendor.Id, "status": "open", "date": "2026-11-10", "number": "1004", "currency": "USD",
+	})
+}
+
+// Purchase order spec §3.14: a purchase order's send names the order through
+// its doc_type, as an estimate's send does, so its audit row opens the order's
+// history, from the live send and from a deleted send's snapshot.
+func TestAuditLogPurchaseOrderSendParent(t *testing.T) {
+	app := newBooksApp(t)
+	send := func() (*core.Record, *core.Record) {
+		order := auditPurchaseOrder(t, app, userSeq.Add(1))
+		return order, saveRecord(t, app, documentSendsCollection, map[string]any{
+			"doc_type": docTypePurchaseOrder, "document": order.Id, "number": "1004",
+			"vendor": order.GetString("vendor"), "to": "orders@officesupplyworld.test",
+		})
+	}
+
+	order, live := send()
+	row := mkAuditRow(t, app, auditRowInput{action: "created", resourceType: documentSendsCollection, resourceID: live.Id, label: "a purchase order send", created: auditAt(1)})
+	requireParents(t, viewRow(t, app, row.Id), "books_purchase_orders", order.Id, "books_purchase_orders", order.Id)
+
+	goneOrder, gone := send()
+	if err := app.Delete(gone); err != nil {
+		t.Fatalf("delete the send: %v", err)
+	}
+	deleted := mkAuditRow(t, app, auditRowInput{action: "deleted", resourceType: documentSendsCollection, resourceID: gone.Id, label: "a deleted purchase order send", created: auditAt(2),
+		snapshot: map[string]any{"document": goneOrder.Id, "doc_type": docTypePurchaseOrder}})
+	requireParents(t, viewRow(t, app, deleted.Id), "books_purchase_orders", goneOrder.Id, "books_purchase_orders", goneOrder.Id)
 }
 
 // viewRow reads an audit row through the books_audit_log view.

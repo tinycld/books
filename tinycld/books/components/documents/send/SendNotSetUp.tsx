@@ -1,12 +1,18 @@
 import { Dialog } from '@tinycld/core/ui/dialog'
 import type { SendKind } from '../../../lib/document-send'
+import { DOCUMENT_PARTIES } from '../../../lib/sales-document-kinds'
 import { DocumentInlineNotice } from '../DocumentInlineNotice'
 import { SendLinkButtons } from './SendLinkButtons'
-import { hasCustomerLink } from './send-kinds'
+import { hasCustomerLink, SEND_DOCUMENT_KINDS } from './send-kinds'
 
 const NOT_SET_UP_LINK =
     'Email sending is not set up. Share the customer link or the PDF with your customer.'
-const NOT_SET_UP_PDF = 'Email sending is not set up. Download the PDF and send it to your customer.'
+
+// A kind with no customer page names its own party: a purchase order's vendor.
+function notSetUpPdf(kind: SendKind): string {
+    const party = DOCUMENT_PARTIES[SEND_DOCUMENT_KINDS[kind].party].label.toLowerCase()
+    return `Email sending is not set up. Download the PDF and send it to your ${party}.`
+}
 
 interface SendNotSetUpProps {
     isVisible: boolean
@@ -31,7 +37,7 @@ export function SendNotSetUp({
     onClose,
 }: SendNotSetUpProps) {
     if (!isVisible) return null
-    const message = hasCustomerLink(kind) ? NOT_SET_UP_LINK : NOT_SET_UP_PDF
+    const message = hasCustomerLink(kind) ? NOT_SET_UP_LINK : notSetUpPdf(kind)
     return (
         <>
             <Dialog.Body>

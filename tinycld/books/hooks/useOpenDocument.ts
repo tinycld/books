@@ -1,6 +1,6 @@
 import { useOrgHref } from '@tinycld/core/lib/org-routes'
 import { router } from 'expo-router'
-import { documentPath, documentStackRouteName } from '../lib/document-routes'
+import { documentNewHref, documentPath, documentStackRouteName } from '../lib/document-routes'
 import type { SalesDocumentKind } from '../lib/sales-document-kinds'
 import { screensAboveTarget } from '../lib/stack-screens'
 import { usePopScreens, useStackPosition, useStackPositionAtCall } from './useStackScreens'
@@ -26,6 +26,21 @@ export function useOpenDocument(kind: LinkKind, id: string) {
             return
         }
         router.push(orgHref(documentPath(kind, id)))
+    }
+}
+
+type NewFormInput = Parameters<typeof documentNewHref>[1]
+
+/**
+ * Opens a kind's new form started from another document (Copy to bill: a bill from a
+ * purchase order, purchase order spec §3.7): pushed, so Back returns here. A new form has
+ * no record id, so it never pops back to a new form below: that form started from what was
+ * chosen before (it reads the start once, at mount), and this one starts from `input`.
+ */
+export function useOpenNewDocument(kind: LinkKind): (input: NewFormInput) => void {
+    const orgHref = useOrgHref()
+    return input => {
+        router.push(orgHref(documentNewHref(kind, input)))
     }
 }
 

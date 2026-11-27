@@ -1,5 +1,16 @@
+import {
+    BasicIndex,
+    createCollection,
+    createLiveQueryCollection,
+    eq,
+    localOnlyCollectionOptions,
+    type Ref,
+} from '@tanstack/db'
 import { describe, expect, it } from 'vitest'
 import {
+    chipClause,
+    chipRuns,
+    type DocumentListRow,
     emptyTexts,
     kindLabel,
     type ListKind,
@@ -8,6 +19,7 @@ import {
     tableMinWidthFor,
     tabStateKey,
 } from '../tinycld/books/lib/document-list'
+import { cellText } from '../tinycld/books/lib/document-list-cells'
 import { LIST_AREAS } from '../tinycld/books/lib/list-areas'
 import { NEW_ACTIONS } from '../tinycld/books/lib/new-actions'
 import {
@@ -17,7 +29,15 @@ import {
     purchaseTabOf,
     vendorTransactionsTab,
 } from '../tinycld/books/lib/purchase-lists'
+import {
+    PURCHASE_ORDER_BILLS,
+    PURCHASE_ORDER_IDS,
+    PURCHASE_ORDER_LINES,
+    PURCHASE_ORDER_TODAY,
+    PURCHASE_ORDERS,
+} from '../tinycld/books/lib/purchase-orders-fixture'
 import { salesTabOf } from '../tinycld/books/lib/sales-lists'
+import { purchaseOrderRow } from '../tinycld/books/lib/vendor-transactions'
 
 // The Expenses area's tabs (the Purchase lists design spec §2, §3 "Rows and
 // columns", "Search and filters", "Sort"; checkpoint 1 Decisions).
@@ -31,7 +51,14 @@ const EXPECTED_TABS = [
         key: 'all',
         label: 'All purchases',
         path: 'books/purchases',
-        kinds: ['bill', 'expense', 'bill_payment', 'vendor_credit', 'vendor_refund'],
+        kinds: [
+            'bill',
+            'purchase_order',
+            'expense',
+            'bill_payment',
+            'vendor_credit',
+            'vendor_refund',
+        ],
         columns: ['date', 'type', 'number', 'vendor', 'category', 'amount', 'status'],
         chips: chips('All', 'Open', 'Overdue', 'Closed', 'Draft', 'Void'),
         sortKeys: ['date', 'number', 'amount'],
@@ -46,6 +73,18 @@ const EXPECTED_TABS = [
         chips: chips('All', 'Open', 'Overdue', 'Paid', 'Draft', 'Void'),
         sortKeys: ['date', 'number', 'amount', 'due', 'balance'],
         writerMinWidth: 886,
+    },
+    {
+        key: 'purchase-orders',
+        label: 'Purchase orders',
+        path: 'books/purchase-orders',
+        kinds: ['purchase_order'],
+        columns: ['date', 'number', 'vendor', 'open', 'total', 'status'],
+        chips: chips('All', 'Open', 'Closed'),
+        sortKeys: ['date', 'number', 'amount', 'open'],
+        // The list's own rule over the shared column minimums with Open at 100 (the spec's
+        // 677 is the scratch route's table, which draws no tick box or row menu).
+        writerMinWidth: 44 + 108 + 64 + 150 + 100 + 116 + 128 + 44 + 8,
     },
     {
         key: 'expenses',
@@ -89,7 +128,15 @@ const EXPECTED_TABS = [
     },
 ] as const
 
+// Purchase order spec §3.9: the All purchases New menu gains "New purchase order", in the
+// NEW_ACTIONS order (Purchase order before Bill).
 const EXPECTED_NEW_ITEMS = [
+    {
+        kind: 'purchase_order',
+        label: 'New purchase order',
+        href: 'books/purchase-orders/new',
+        idSuffix: 'purchase-order',
+    },
     { kind: 'bill', label: 'New bill', href: 'books/bills/new', idSuffix: 'bill' },
     { kind: 'bill_payment', label: 'Pay bills', href: 'books/pay-bills', idSuffix: 'pay-bills' },
     { kind: 'expense', label: 'New expense', href: 'books/expenses/new', idSuffix: 'expense' },
@@ -108,7 +155,7 @@ const EXPECTED_NEW_ITEMS = [
 ] as const
 
 describe('PURCHASE_TABS', () => {
-    it('has the six tabs in tab order, all in the purchases area', () => {
+    it('has the seven tabs in tab order, Purchase orders after Bills, all in the purchases area', () => {
         expect(PURCHASE_TABS.map(tab => tab.key)).toEqual(EXPECTED_TABS.map(tab => tab.key))
         expect(PURCHASE_TABS.map(tab => tab.area)).toEqual(EXPECTED_TABS.map(() => 'purchases'))
     })
@@ -144,6 +191,7 @@ describe('PURCHASE_TABS', () => {
 
     it('finds the tab of each kind', () => {
         expect(purchaseTabForKind('bill').key).toBe('bills')
+        expect(purchaseTabForKind('purchase_order').key).toBe('purchase-orders')
         expect(purchaseTabForKind('expense').key).toBe('expenses')
         expect(purchaseTabForKind('bill_payment').key).toBe('bill-payments')
         expect(purchaseTabForKind('vendor_credit').key).toBe('vendor-credits')
@@ -221,6 +269,7 @@ describe('emptyTexts of the purchase tabs', () => {
 describe('kindLabel', () => {
     it.each([
         ['bill', 'Bill'],
+        ['purchase_order', 'Purchase order'],
         ['expense', 'Expense'],
         ['bill_payment', 'Bill payment'],
         ['vendor_credit', 'Vendor credit'],
@@ -239,6 +288,7 @@ describe('listDocumentHref', () => {
     const ID = 'doc000000000001'
     it.each([
         ['bill', `books/bills/${ID}`],
+        ['purchase_order', `books/purchase-orders/${ID}`],
         ['expense', `books/expenses/${ID}`],
         ['bill_payment', `books/bill-payments/${ID}`],
         ['vendor_credit', `books/vendor-credits/${ID}`],
@@ -254,11 +304,19 @@ describe('listDocumentHref', () => {
 })
 
 describe('vendorTransactionsTab', () => {
-    it('lists five kinds for all and one for a kind, signed, with the All chip only', () => {
+    it('lists six kinds for all and one for a kind, signed, with the All chip only', () => {
         const all = vendorTransactionsTab('all')
         expect([...all.kinds].sort()).toEqual(
-            ['bill', 'bill_payment', 'expense', 'vendor_credit', 'vendor_refund'].sort()
+            [
+                'bill',
+                'bill_payment',
+                'expense',
+                'purchase_order',
+                'vendor_credit',
+                'vendor_refund',
+            ].sort()
         )
+        expect([...vendorTransactionsTab('purchase_order').kinds]).toEqual(['purchase_order'])
         expect(all.isSigned).toBe(true)
         expect(all.area).toBe('purchases')
         expect([...all.chips]).toEqual(chips('All'))
@@ -266,5 +324,92 @@ describe('vendorTransactionsTab', () => {
         const credits = vendorTransactionsTab('vendor_credit')
         expect([...credits.kinds]).toEqual(['vendor_credit'])
         expect(credits.isSigned).toBe(true)
+    })
+})
+
+// Purchase order spec §3.9 (Q11): All purchases lists purchase orders, typed "Purchase
+// order", with the total as the Amount (not signed) and the badge Open, Partly received or
+// Closed; its Open chip holds the open orders and its Closed chip the closed ones, and no
+// other chip runs the orders' query.
+describe('a purchase order on All purchases', () => {
+    const ALL = purchaseTabOf('all')
+    const IDS = PURCHASE_ORDER_IDS
+
+    function orderListRow(id: string): DocumentListRow {
+        const order = PURCHASE_ORDERS.find(candidate => candidate.id === id)
+        if (!order) throw new Error(`no fixture order ${id}`)
+        const lines = PURCHASE_ORDER_LINES.filter(line => line.purchase_order === id)
+        return {
+            ...purchaseOrderRow(order, lines),
+            sequence: order.sequence,
+            partyId: order.vendor,
+            partyName: '',
+            memo: order.memo,
+            reference: '',
+            expires: '',
+            balance: order.open_amount,
+            entry: '',
+            convertedInvoice: '',
+            recordStatus: order.status,
+            category: { kind: 'none' },
+            email: order.email,
+            hasBills: PURCHASE_ORDER_BILLS.some(bill => bill.purchase_order === id),
+        }
+    }
+
+    it('types the row "Purchase order" and shows its total unsigned as the Amount', () => {
+        const row = orderListRow(IDS.open)
+        expect(cellText(row, 'type', ALL, 'USD')).toBe('Purchase order')
+        expect(cellText(row, 'amount', ALL, 'USD')).toBe('$1,577.40')
+        expect(cellText(orderListRow(IDS.closedManual), 'amount', ALL, 'USD')).toBe('$344.00')
+    })
+
+    it('shows the status Open, Partly received or Closed', () => {
+        expect(cellText(orderListRow(IDS.open), 'status', ALL, 'USD')).toBe('Open')
+        expect(cellText(orderListRow(IDS.partly), 'status', ALL, 'USD')).toBe('Partly received')
+        expect(cellText(orderListRow(IDS.closedReceived), 'status', ALL, 'USD')).toBe('Closed')
+    })
+
+    it('runs the orders under All, Open and Closed only', () => {
+        expect(ALL.kinds).toContain('purchase_order')
+        for (const chip of ['all', 'open', 'closed']) {
+            expect(chipRuns(ALL, chip, 'purchase_order'), chip).toBe(true)
+        }
+        for (const chip of ['overdue', 'draft', 'void']) {
+            expect(chipRuns(ALL, chip, 'purchase_order'), chip).toBe(false)
+        }
+    })
+
+    async function keptBy(chipId: string): Promise<string[]> {
+        const store = createCollection(
+            localOnlyCollectionOptions({
+                id: `all-purchases-orders-${Math.random()}`,
+                getKey: (row: (typeof PURCHASE_ORDERS)[number]) => row.id,
+                initialData: [...PURCHASE_ORDERS],
+                autoIndex: 'eager' as const,
+                defaultIndexType: BasicIndex,
+            })
+        )
+        const live = createLiveQueryCollection({
+            query: q =>
+                q.from({ row: store }).where(({ row }) => {
+                    const clause = chipClause(
+                        ALL,
+                        chipId,
+                        'purchase_order',
+                        row as unknown as Ref<{ id: string; status: string }>,
+                        PURCHASE_ORDER_TODAY
+                    )
+                    return clause ?? eq(1, 1)
+                }),
+            startSync: true,
+        })
+        await live.preload()
+        return live.toArray.map(row => (row as { id: string }).id).sort()
+    }
+
+    it('keeps the open orders under Open and the closed ones under Closed', async () => {
+        expect(await keptBy('open')).toEqual([IDS.partly, IDS.open, IDS.draftBill].sort())
+        expect(await keptBy('closed')).toEqual([IDS.closedReceived, IDS.closedManual].sort())
     })
 })

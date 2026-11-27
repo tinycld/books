@@ -2,14 +2,27 @@
 // documents an action applies to, the words of its confirm dialog, and the result banner's
 // text. Pure, so each rule is unit-tested.
 
-import type { DocumentListRow } from './document-list'
+import type { DocumentListRow, DocumentListTab } from './document-list'
 
 export type BatchAction = 'delete_drafts' | 'void'
+
+// The rows of the Batch actions menu: the confirm actions, Send (offered while a ticked
+// row is sent-able, `batchSendOffered`) and Download PDF.
+export type BatchMenuAction = BatchAction | 'send' | 'pdf'
+
+// The Batch actions menu of a tab. The Purchase orders tab offers Send and Download PDF
+// (purchase order spec §3.9): an order is never a draft and never posts, so Delete drafts
+// and Void would take none of its rows. Every other tab offers Delete drafts, Void and Send.
+export function batchActionsOf(tab: Pick<DocumentListTab, 'kinds'>): BatchMenuAction[] {
+    const isOrders = tab.kinds.every(kind => kind === 'purchase_order')
+    if (isOrders) return ['send', 'pdf']
+    return ['delete_drafts', 'void', 'send']
+}
 
 // Delete drafts applies to the drafts of every kind but a bill payment, which is never a
 // draft and has no delete. Void applies to posted documents of every kind but an estimate,
 // which has no void. No batch action reaches a write-off (write-off spec §5, Q13): it is
-// voided on its own page.
+// voided on its own page, nor a purchase order, which is open or closed.
 function appliesTo(action: BatchAction, row: DocumentListRow): boolean {
     if (row.kind === 'write_off') return false
     if (action === 'delete_drafts') {

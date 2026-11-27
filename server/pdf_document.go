@@ -24,6 +24,7 @@ const (
 	lineSubtotal                       // the sum of the item and percent rows since the last subtotal
 	lineDescription                    // text only, no amounts
 	linePercent                        // a percent of the line above: its percent in Quantity, no rate
+	lineAccount                        // a purchase account line: its text in Description and its amount, no quantity or rate
 )
 
 // maxPDFLines bounds one document's rows so a runaway caller cannot pin a
@@ -47,6 +48,12 @@ type pdfDocument struct {
 	Totals        []pdfAmount // after the tax lines; the last prints bold
 	BigAmount     pdfAmount   // top right; Label "" prints none
 	Notes         string      // free text; line breaks kept
+	// PartNoColumn prints the "Vendor part no." column after Item, from each
+	// line's PartNo; only a purchase order sets it.
+	PartNoColumn bool
+	// NoSubtotal leaves the Subtotal row out of the summary, for a kind whose
+	// Total is its only figure (a purchase order has no tax).
+	NoSubtotal bool
 	// Statement is a customer statement's table, printed in place of Lines and
 	// the summary; nil for every other document.
 	Statement *pdfStatement
@@ -84,11 +91,15 @@ type pdfCompany struct{ Name, Address, Phone, Email, Website string }
 type pdfParty struct {
 	Label, Name, Company string
 	Address              *postalAddress
+	// Text is a free-text block printed one line per line after the name and
+	// the address (a purchase order's Ship to).
+	Text string
 }
 
 type pdfLine struct {
 	Kind        pdfLineKind
 	Item        string // product or service name
+	PartNo      string // the product's Vendor part no., printed when the document has PartNoColumn
 	Description string
 	Quantity    string // printed as given: the kind decides its precision
 	RateCents   int64
@@ -211,6 +222,8 @@ type pdfView struct {
 	BigAmount     pdfText
 	Notes         []string
 	Brand         pdfBrand
+	// PartNoColumn prints the "Vendor part no." column (pdfDocument.PartNoColumn).
+	PartNoColumn bool
 	// Statement is printed in place of Rows and Summary when set.
 	Statement *pdfStatementView
 }
@@ -243,9 +256,9 @@ type pdfBlock struct {
 }
 
 type pdfRow struct {
-	Kind                         string // "item", "subtotal" or "description": the row's CSS class
-	Item, Quantity, Rate, Amount string
-	Description                  []string
+	Kind                                 string // "item", "subtotal" or "description": the row's CSS class
+	Item, PartNo, Quantity, Rate, Amount string
+	Description                          []string
 }
 
 type pdfBrand struct {
@@ -261,6 +274,7 @@ func pdfViewOf(doc pdfDocument, org branding.Org) pdfView {
 	v := pdfView{
 		Title: doc.Title, Number: doc.Number, Payment: strings.TrimSpace(doc.Payment),
 		Source: strings.TrimSpace(doc.Source), Period: strings.TrimSpace(doc.Period), Brand: brandOf(org),
+		PartNoColumn: doc.PartNoColumn,
 	}
 	for _, d := range doc.Dates {
 		v.Dates = append(v.Dates, pdfText{Label: d.Label, Text: formatDay(d.Day)})
@@ -284,6 +298,7 @@ func pdfViewOf(doc pdfDocument, org branding.Org) pdfView {
 			block.Lines = append(block.Lines, p.Company)
 		}
 		block.Lines = append(block.Lines, formatAddressLines(p.Address)...)
+		block.Lines = append(block.Lines, lines(p.Text)...)
 		v.Parties = append(v.Parties, block)
 	}
 	if doc.BigAmount.Label != "" {
@@ -297,7 +312,9 @@ func pdfViewOf(doc pdfDocument, org branding.Org) pdfView {
 	for _, l := range doc.Lines {
 		v.Rows = append(v.Rows, rowOf(l, money))
 	}
-	v.Summary = append(v.Summary, pdfText{Label: "Subtotal", Text: money(doc.SubtotalCents)})
+	if !doc.NoSubtotal {
+		v.Summary = append(v.Summary, pdfText{Label: "Subtotal", Text: money(doc.SubtotalCents)})
+	}
 	for _, t := range doc.TaxLines {
 		v.Summary = append(v.Summary, pdfText{
 			Label: fmt.Sprintf("%s (%s)", t.Name, ratePercentText(t.RatePpm)),
@@ -355,6 +372,8 @@ func rowOf(l pdfLine, money func(int64) string) pdfRow {
 		}
 	case lineDescription:
 		return pdfRow{Kind: "description", Description: lines(l.Description)}
+	case lineAccount:
+		return pdfRow{Kind: "item", Description: lines(l.Description), Amount: money(l.AmountCents)}
 	case linePercent:
 		return pdfRow{
 			Kind:        "item",
@@ -367,6 +386,7 @@ func rowOf(l pdfLine, money func(int64) string) pdfRow {
 		return pdfRow{
 			Kind:        "item",
 			Item:        l.Item,
+			PartNo:      l.PartNo,
 			Description: lines(l.Description),
 			Quantity:    l.Quantity,
 			Rate:        money(l.RateCents),

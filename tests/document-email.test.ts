@@ -28,6 +28,7 @@ describe('documentEmail', () => {
             'credit_memo',
             'estimate',
             'invoice',
+            'purchase_order',
             'refund_receipt',
             'sales_receipt',
         ])

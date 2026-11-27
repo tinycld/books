@@ -510,6 +510,7 @@
             "collection": "books_bills",
             "lifecycle": "posting",
             "entry": "entry",
+            "keep": ["purchase_order"],
             "sort": "-date,-created,id",
             "label": "number",
             "columns": ["date", "number", "vendor", "status", "total", "balance"],
@@ -537,7 +538,8 @@
                 { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" },
                 { "name": "entry", "type": "id", "ref": "journal-entries", "readOnly": true, "help": "the journal entry Books wrote when the bill was posted; `entry` prints it" },
                 { "name": "replaces", "type": "id", "ref": "bills", "readOnly": true, "help": "the posted bill this one corrects; `edit` of a posted bill sets it" },
-                { "name": "replaced_by", "type": "id", "ref": "bills", "readOnly": true, "help": "the bill that corrects this one" }
+                { "name": "replaced_by", "type": "id", "ref": "bills", "readOnly": true, "help": "the bill that corrects this one" },
+                { "name": "purchase_order", "type": "id", "ref": "purchase-orders", "readOnly": true, "help": "the purchase order the bill was made from; `purchase-orders copy-to-bill` sets it, the bill keeps it, and a correction made with `edit` carries it" }
             ],
             "lines": [
                 {
@@ -557,7 +559,69 @@
                         { "name": "description", "type": "string", "help": "the text of the line" },
                         { "name": "quantity", "type": "number", "help": "the quantity of an item line, with at most 2 decimals" },
                         { "name": "rate", "type": "integer", "help": "the cost of one unit of an item line, in cents" },
-                        { "name": "amount", "type": "integer", "help": "the amount of an account line, in cents; Books computes it for an item line, so leave it out there" }
+                        { "name": "amount", "type": "integer", "help": "the amount of an account line, in cents; Books computes it for an item line, so leave it out there" },
+                        { "name": "po_line", "type": "id", "ref": "purchase-orders.lines", "help": "the purchase order line this line bills; a line of the bill's purchase order, of the same kind. Books counts what posted bills take from it" }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "purchase-orders",
+            "singular": "purchase order",
+            "summary": "Purchase orders: what you order from a vendor; it posts nothing",
+            "collection": "books_purchase_orders",
+            "lifecycle": "order",
+            "sort": "-date,-created,id",
+            "label": "number",
+            "columns": ["date", "number", "vendor", "status", "total", "open_amount"],
+            "search": ["number", "memo"],
+            "filters": [
+                { "flag": "status", "field": "status", "help": "only purchase orders with this status: open or closed" },
+                { "flag": "vendor", "field": "vendor", "help": "only the purchase orders of the vendor with this id" }
+            ],
+            "omit": ["sequence", "closed_by", "closed_at", "created_by", "form", "fields", "sort_key"],
+            "deleteHelp": "Books refuses to delete a purchase order that bills were made from: close it instead.",
+            "fields": [
+                { "name": "vendor", "type": "id", "ref": "vendors", "required": true, "help": "the vendor you order from" },
+                { "name": "date", "type": "string", "required": true, "help": "the date of the order, as YYYY-MM-DD" },
+                { "name": "mailing_address", "type": "address", "help": "the vendor's address on the order; `copy-to-bill` gives it to the bill" },
+                { "name": "email", "type": "string", "help": "the vendor's address the order is sent to" },
+                { "name": "ship_to", "type": "string", "help": "where the vendor ships to, one line of the address for each line of text" },
+                { "name": "message", "type": "string", "help": "a message to the vendor, printed on the order" },
+                { "name": "memo", "type": "string", "help": "a note for the books; the vendor does not see it" },
+                { "name": "status", "type": "string", "readOnly": true, "enum": ["open", "closed"], "help": "open or closed; Books closes an order when every line is received, and `close` and `reopen` change it" },
+                { "name": "closed_reason", "type": "string", "readOnly": true, "enum": ["manual", "received"], "help": "why the order is closed: manual (`close`) or received (every line is received)" },
+                { "name": "number", "type": "string", "readOnly": true, "help": "the number of the order; Books gives it when the order is added" },
+                { "name": "subtotal", "type": "integer", "readOnly": true, "help": "the sum of the lines, in cents; Books computes it" },
+                { "name": "total", "type": "integer", "readOnly": true, "help": "the total of the order, in cents; Books computes it" },
+                { "name": "open_amount", "type": "integer", "readOnly": true, "help": "the sum of the lines' open amounts, in cents, while the order is open; 0 when it is closed" },
+                { "name": "revision", "type": "integer", "readOnly": true, "help": "the count of saves; the commands send it so two callers cannot overwrite each other" },
+                { "name": "currency", "type": "string", "readOnly": true, "help": "the currency of the books" }
+            ],
+            "convert": { "to": "bills", "link": "purchase_order", "copy": ["vendor", "mailing_address"], "word": "copy-to-bill", "lineLink": "po_line", "partial": true },
+            "lines": [
+                {
+                    "key": "lines",
+                    "singular": "line",
+                    "collection": "books_purchase_order_lines",
+                    "parent": "purchase_order",
+                    "sort": "position,id",
+                    "omit": ["purchase_order", "position"],
+                    "computed": [
+                        { "field": "amount", "when": "kind", "is": ["item"] }
+                    ],
+                    "fields": [
+                        { "name": "kind", "type": "string", "required": true, "enum": ["account", "item"], "help": "account: an amount on an account; item: a product or service with a quantity and a rate" },
+                        { "name": "account", "type": "id", "ref": "accounts", "help": "the account of an account line: an expense, other expense or cost of goods account" },
+                        { "name": "product", "type": "id", "ref": "products", "help": "the product or service of an item line" },
+                        { "name": "description", "type": "string", "help": "the text of the line" },
+                        { "name": "quantity", "type": "number", "help": "the quantity of an item line, with at most 2 decimals" },
+                        { "name": "rate", "type": "integer", "help": "the cost of one unit of an item line, in cents" },
+                        { "name": "amount", "type": "integer", "help": "the amount of an account line, in cents; Books computes it for an item line, so leave it out there" },
+                        { "name": "received", "type": "number", "readOnly": true, "help": "the quantity of an item line on posted bills; Books computes it" },
+                        { "name": "billed", "type": "integer", "readOnly": true, "help": "the amount on posted bills, in cents; Books computes it" },
+                        { "name": "open_quantity", "type": "number", "readOnly": true, "help": "the quantity of an item line that is not received yet; Books computes it" },
+                        { "name": "open_amount", "type": "integer", "readOnly": true, "help": "the amount that is not billed yet, in cents; Books computes it" }
                     ]
                 }
             ]

@@ -519,3 +519,111 @@ func TestCLIDocuments_ResendOfAStoredBatch(t *testing.T) {
 		t.Errorf("the draft's revision = %d, want 2", got)
 	}
 }
+
+// The writes of `tinycld books purchase-orders` (cli/document_purchase_order_test.go
+// asserts the same bodies against the fake) on the real server: add, show,
+// edit, close by an admin, copy-to-bill of a closed order refused with the
+// server's text, reopen, copy-to-bill in part with --post (the order's numbers
+// change), and delete of an order with no bill.
+func TestCLIDocuments_PurchaseOrderRoundTrip(t *testing.T) {
+	// The commands exist in documents.json, so TestCLIDocuments_MatchTheCollections
+	// and TestCLIDocuments_OAuthAllowsEveryCollection hold them to the schema.
+	var found *cliDocument
+	docs := loadCLIDocuments(t)
+	for i := range docs {
+		if docs[i].Name == "purchase-orders" {
+			found = &docs[i]
+		}
+	}
+	if found == nil || found.Collection != "books_purchase_orders" || found.Lifecycle != "order" ||
+		len(found.Lines) != 1 || found.Lines[0].Collection != "books_purchase_order_lines" || found.Lines[0].Parent != "purchase_order" {
+		t.Fatalf("cli/documents.json purchase-orders = %+v, want books_purchase_orders, lifecycle order, lines over books_purchase_order_lines", found)
+	}
+	pb := newPOBillEnv(t)
+	enableBatch(t, pb.app)
+	token := tokenFor(t, pb.users.bookkeeper)
+	admin := tokenFor(t, pb.users.admin)
+	const order, spare, bill = "clipurchase0001", "clipurchase0002", "clibillfrompo01"
+	const itemLine, acctLine = "clipoline000001", "clipoline000002"
+	header := func(id string) string {
+		return cliOp("POST", "books_purchase_orders", "", fmt.Sprintf(`{"date":"2026-11-03","id":%q,"status":"open","vendor":%q}`, id, pb.officeSupply.Id))
+	}
+	lines := "books_purchase_order_lines"
+	billOps := func(id string, post bool, quantity int) []string {
+		ops := []string{
+			cliOp("POST", "books_bills", "", fmt.Sprintf(`{"date":"2026-11-06","due_date":"2026-12-06","id":%q,"purchase_order":%q,"status":"draft","vendor":%q}`, id, order, pb.officeSupply.Id)),
+			rowOp("books_bill_lines", "bill", id, 0, fmt.Sprintf(`"kind":"item","po_line":%q,"product":%q,"quantity":%d,"rate":12140`, itemLine, pb.accessPoint.Id, quantity)),
+		}
+		if post {
+			ops = append(ops, cliOp("PATCH", "books_bills", id, `{"revision":1,"status":"posted"}`))
+		}
+		return ops
+	}
+	// The correction `bills edit` sends of the posted bill (cli/document_edit.go
+	// correctionInput): every stored value, the line with its po_line, and the
+	// header's purchase_order when the bills entry keeps it.
+	const correction = "clibillcorrect1"
+	correctionOps := func(keep bool) []string {
+		kept := ""
+		if keep {
+			kept = fmt.Sprintf(`,"purchase_order":%q`, order)
+		}
+		return []string{
+			cliOp("POST", "books_bills", "", fmt.Sprintf(`{"date":"2026-11-06","due_date":"2026-12-06","id":%q,"memo":"Corrected"%s,"ref_no":"","replaces":%q,"status":"draft","terms":"","vendor":%q}`,
+				correction, kept, bill, pb.officeSupply.Id)),
+			rowOp("books_bill_lines", "bill", correction, 0, fmt.Sprintf(`"account":"","description":"","kind":"item","po_line":%q,"product":%q,"quantity":3,"rate":12140`, itemLine, pb.accessPoint.Id)),
+			cliOp("PATCH", "books_bills", correction, `{"revision":1,"status":"posted"}`),
+		}
+	}
+	apiSeq(t, pb.app, apiCalls(
+		// add: the order is open at once; Books numbers it and keeps its totals.
+		[]apiReq{docBatch(token, header(order),
+			editRowOp(lines, "purchase_order", order, itemLine, 0, fmt.Sprintf(`"kind":"item","product":%q,"quantity":10,"rate":12140`, pb.accessPoint.Id)),
+			editRowOp(lines, "purchase_order", order, acctLine, 1, fmt.Sprintf(`"account":%q,"amount":30000,"description":"Annual license","kind":"account"`, pb.software.Id)))},
+		showDoc(token, "books_purchase_orders", order,
+			[]string{`"status":"open"`, `"number":"1001"`, `"total":151400`, `"open_amount":151400`},
+			lines, "purchase_order", []string{`"totalItems":2`, `"open_quantity":10`, `"open_amount":121400`, `"open_amount":30000`}),
+		[]apiReq{
+			// edit: an open order is changed in place, with the next revision.
+			{method: "PATCH", url: recordURL("books_purchase_orders", order), token: token, want: 200, body: `{"memo":"Rear dock","revision":2}`,
+				content: []string{`"memo":"Rear dock"`, `"status":"open"`}},
+			// close (an admin), then copy-to-bill is refused with the server's text.
+			{method: "PATCH", url: recordURL("books_purchase_orders", order), token: admin, want: 200, body: `{"revision":3,"status":"closed"}`,
+				content: []string{`"status":"closed"`, `"closed_reason":"manual"`}},
+			refusedBatch(token, []string{"Purchase order 1001 is closed. Reopen it to copy it to a bill."}, billOps(bill, false, 4)...),
+			{method: "GET", url: recordURL("books_bills", bill), token: token, want: 404},
+			// reopen (an admin): the order is open again, with no close stamp.
+			{method: "PATCH", url: recordURL("books_purchase_orders", order), token: admin, want: 200, body: `{"status":"open"}`,
+				content: []string{`"status":"open"`, `"closed_reason":""`}},
+			// copy-to-bill in part, with --post: 4 of 10 received.
+			docBatch(token, billOps(bill, true, 4)...),
+			{method: "GET", url: recordURL("books_bills", bill), token: token, want: 200,
+				content: []string{`"status":"posted"`, `"purchase_order":"` + order + `"`}},
+			{method: "GET", url: recordURL("books_purchase_orders", order), token: token, want: 200,
+				content: []string{`"status":"open"`, `"open_amount":102840`}},
+			{method: "GET", url: recordURL(lines, itemLine), token: token, want: 200,
+				content: []string{`"received":4`, `"open_quantity":6`, `"open_amount":72840`}},
+			// bills edit of the posted bill: a correction to 3 received, as
+			// cli/document_purchase_order_test.go TestBillCorrectionKeepsThePurchaseOrderLinks
+			// sends it. With no purchase_order on the header the server refuses
+			// the order line (the defect of a bills entry with no keep).
+			refusedBatch(token, []string{"Line 1 names a line of another purchase order."}, correctionOps(false)...),
+			{method: "GET", url: recordURL("books_bills", correction), token: token, want: 404},
+			// The correction carries the links (spec §3.8): the server moves
+			// them when it posts, and the order's numbers follow the correction.
+			docBatch(token, correctionOps(true)...),
+			{method: "GET", url: recordURL("books_bills", correction), token: token, want: 200,
+				content: []string{`"status":"posted"`, `"purchase_order":"` + order + `"`, `"replaces":"` + bill + `"`}},
+			{method: "GET", url: recordURL(lines, itemLine), token: token, want: 200,
+				content: []string{`"received":3`, `"open_quantity":7`, `"open_amount":84980`}},
+			{method: "GET", url: recordURL("books_purchase_orders", order), token: token, want: 200,
+				content: []string{`"status":"open"`, `"open_amount":114980`}},
+			// delete: an order with no bill.
+			docBatch(token, header(spare),
+				rowOp(lines, "purchase_order", spare, 0, fmt.Sprintf(`"account":%q,"amount":5000,"kind":"account"`, pb.software.Id))),
+			{method: "DELETE", url: recordURL("books_purchase_orders", spare), token: token, want: 204},
+			{method: "GET", url: recordURL("books_purchase_orders", spare), token: token, want: 404},
+		},
+	)...)
+	requireNoDrift(t, pb.app)
+}

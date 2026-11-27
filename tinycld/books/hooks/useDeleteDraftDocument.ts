@@ -6,11 +6,12 @@ import type { ListKind } from '../lib/document-list'
  * Delete of a draft of any list kind but a bill payment (never a draft), shared by the
  * forms and the lists: the kind's collection `delete(id)`, one request (the server deletes
  * the lines, and a payment's applications, with the row). A write-off is never a draft and
- * is never deleted, so it throws: no menu offers it. Returns the pbtsdb transaction for a
- * `useMutation` generator to yield.
+ * is never deleted, so it throws: no menu offers it. An open purchase order is deleted the
+ * same way (it has no draft; the server refuses one that a bill names). Returns the pbtsdb
+ * transaction for a `useMutation` generator to yield.
  */
 export function useDeleteDraftDocument(): (
-    kind: Exclude<ListKind, 'bill_payment'>,
+    kind: Exclude<ListKind, 'bill_payment'> | 'purchase_order',
     id: string
 ) => Transaction {
     const [invoices, estimates, receipts, payments, memos, refunds] = useStore(
@@ -21,11 +22,12 @@ export function useDeleteDraftDocument(): (
         'books_credit_memos',
         'books_refund_receipts'
     )
-    const [bills, expenses, vendorCredits, vendorRefunds] = useStore(
+    const [bills, expenses, vendorCredits, vendorRefunds, purchaseOrders] = useStore(
         'books_bills',
         'books_expenses',
         'books_vendor_credits',
-        'books_vendor_refunds'
+        'books_vendor_refunds',
+        'books_purchase_orders'
     )
     return (kind, id) => {
         switch (kind) {
@@ -51,6 +53,8 @@ export function useDeleteDraftDocument(): (
                 return vendorCredits.delete(id)
             case 'vendor_refund':
                 return vendorRefunds.delete(id)
+            case 'purchase_order':
+                return purchaseOrders.delete(id)
         }
     }
 }

@@ -57,6 +57,10 @@ var shippedNotLive = map[string]bool{
 	// It reads the reconciled lines of finished reconciliations, rows that
 	// change only on a finish or an undo: it stays live.
 	"books.reconciliation_report": false,
+	// Purchase-orders spec §3.10: its rows are the open lines of open orders,
+	// which change with the order lines, the orders, and the vendors, products
+	// and accounts that label them; it reads no journal line, so it stays live.
+	"books.open_purchase_orders": false,
 }
 
 // requireManual fails unless res is a manual run: marked, and with no topic.

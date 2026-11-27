@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 	"github.com/pocketbase/pocketbase/tools/hook"
@@ -47,12 +48,16 @@ type dsEnv struct {
 	users   levelUsers
 	logPath string
 	sender  *dsSender
+	// The vendor and the expense account of the purchase orders doc saves,
+	// made at the first one.
+	orderVendor, orderAccount *core.Record
 }
 
-// newDSEnv is a registered app with the five sales document hosts bound, the
-// refund receipt book (Harborview Dental, Monthly bookkeeping, the bank and
-// income accounts), one user per Books level, the business named with a phone
-// and an email, and the server address set.
+// newDSEnv is a registered app with the five sales document hosts and the
+// purchase order host bound, the refund receipt book (Harborview Dental,
+// Monthly bookkeeping, the bank and income accounts), one user per Books
+// level, the business named with a phone and an email, and the server address
+// set.
 func newDSEnv(t *testing.T) *dsEnv {
 	t.Helper()
 	reports.ResetForTesting()
@@ -60,8 +65,9 @@ func newDSEnv(t *testing.T) *dsEnv {
 	logPath := filepath.Join(t.TempDir(), "email.jsonl")
 	t.Setenv("TINYCLD_EMAIL_LOG", logPath)
 	app, _ := newRegisteredApp(t)
-	// Core keeps one set of bound hosts per app, so the five are bound in one call.
-	bindHostsByKey(t, app, invoiceHostKey, estimateHostKey, salesReceiptHostKey, creditMemoHostKey, refundReceiptHostKey)
+	// Core keeps one set of bound hosts per app, so the six are bound in one call.
+	bindHostsByKey(t, app, invoiceHostKey, estimateHostKey, salesReceiptHostKey, creditMemoHostKey, refundReceiptHostKey,
+		purchaseOrderHostKey)
 	rr := refundReceiptEnvOn(t, app)
 	s := reload(t, app, "books_settings", settingsID)
 	s.Set("business_name", dsBusiness)
@@ -154,6 +160,21 @@ func (env *dsEnv) doc(t *testing.T, kind, status string, fields map[string]any) 
 		got := reload(t, app, "books_estimates", est.Id)
 		if got.GetString("status") != status {
 			t.Fatalf("estimate status = %q, want %q", got.GetString("status"), status)
+		}
+		return got
+	case "purchase_order":
+		if env.orderVendor == nil {
+			env.orderVendor = mkVendor(t, app, "Lakeside Office Goods")
+			env.orderAccount = mkNumberedAccount(t, app, "Office Supplies", "6160", "expense", "dues_subscriptions")
+		}
+		order := mkPO(t, app, env.orderVendor, fields)
+		mkPOLine(t, app, order, 0, accountLine(env.orderAccount, 45000))
+		if status == statusClosed {
+			closeOrderBySQL(t, app, order.Id)
+		}
+		got := reload(t, app, "books_purchase_orders", order.Id)
+		if got.GetString("status") != status {
+			t.Fatalf("purchase order status = %q, want %q", got.GetString("status"), status)
 		}
 		return got
 	default:
@@ -1057,5 +1078,118 @@ func TestDocumentSend_CaptureLog(t *testing.T) {
 	}
 	if m.ReplyTo != env.users.bookkeeper.Email() {
 		t.Errorf("reply_to = %q, want %q", m.ReplyTo, env.users.bookkeeper.Email())
+	}
+}
+
+// closeOrderBySQL closes the order as an admin's Close leaves it, written
+// past the guards (the Close route is not what these tests check).
+func closeOrderBySQL(t *testing.T, app core.App, orderID string) {
+	t.Helper()
+	if _, err := app.DB().NewQuery(
+		"UPDATE books_purchase_orders SET status = 'closed', closed_reason = 'manual', open_amount = 0 WHERE id = {:id}").
+		Bind(dbx.Params{"id": orderID}).Execute(); err != nil {
+		t.Fatalf("close the order: %v", err)
+	}
+}
+
+// dsOrderTo is the Email of the purchase order a send test saves.
+const dsOrderTo = "orders@northwind-supply.example"
+
+// purchaseOrder saves open order 1004 for Northwind Supply with its Email and
+// one account line of 250.00 on 6150 Shop Supplies, through every guard.
+func (env *dsEnv) purchaseOrder(t *testing.T) (order, vendor *core.Record) {
+	t.Helper()
+	if _, err := env.app.DB().NewQuery("UPDATE books_doc_sequences SET next_number = 1004 WHERE id = {:id}").
+		Bind(dbx.Params{"id": poSequenceID}).Execute(); err != nil {
+		t.Fatalf("move the purchase order sequence to 1004: %v", err)
+	}
+	vendor = mkVendor(t, env.app, "Northwind Supply")
+	supplies := mkNumberedAccount(t, env.app, "Shop Supplies", "6150", "expense", "dues_subscriptions")
+	order = mkPO(t, env.app, vendor, map[string]any{"email": dsOrderTo})
+	mkPOLine(t, env.app, order, 0, accountLine(supplies, 25000))
+	order = reload(t, env.app, "books_purchase_orders", order.Id)
+	if order.GetString("number") != "1004" || order.GetString("status") != "open" {
+		t.Fatalf("order number %q status %q, want open 1004", order.GetString("number"), order.GetString("status"))
+	}
+	return order, vendor
+}
+
+// Spec §3.6 Email: a purchase order is sent to its vendor: the stored row
+// names the vendor and no customer, the subject is "Purchase order 1004 from
+// <business name>", the order's PDF is the one attachment, and the email has
+// no online link.
+func TestDocumentSend_APurchaseOrderGoesToItsVendor(t *testing.T) {
+	env := newDSEnv(t)
+	order, vendor := env.purchaseOrder(t)
+	item := dsItem{Kind: "purchase_order", ID: order.Id, To: dsOrderTo}
+	row := requireSentOne(t, env.post(t, item), item)
+
+	id, _ := row["id"].(string)
+	stored := reload(t, env.app, documentSendsCollection, id)
+	want := map[string]string{
+		"doc_type": "purchase_order", "document": order.Id, "number": "1004",
+		"vendor": vendor.Id, "customer": "", "to": dsOrderTo,
+		"subject": "Purchase order 1004 from " + dsBusiness, "sent_by": env.users.bookkeeper.Id,
+	}
+	for field, w := range want {
+		if got := stored.GetString(field); got != w {
+			t.Errorf("stored %s = %q, want %q", field, got, w)
+		}
+	}
+
+	requests := env.sender.to(dsOrderTo)
+	if len(requests) != 1 {
+		t.Fatalf("%d requests to %s, want 1", len(requests), dsOrderTo)
+	}
+	r := requests[0]
+	if r.Subject != "Purchase order 1004 from "+dsBusiness {
+		t.Errorf("Subject = %q, want %q", r.Subject, "Purchase order 1004 from "+dsBusiness)
+	}
+	if len(r.Attachments) != 1 {
+		t.Fatalf("%d attachments, want the order's PDF alone", len(r.Attachments))
+	}
+	a := r.Attachments[0]
+	if a.Name != "purchase-order-1004.pdf" || a.ContentType != "application/pdf" {
+		t.Errorf("attachment %q of type %q, want purchase-order-1004.pdf of type application/pdf", a.Name, a.ContentType)
+	}
+	if pdf, err := base64.StdEncoding.DecodeString(a.Content); err != nil || !strings.HasPrefix(string(pdf), "%PDF") {
+		t.Errorf("the attachment is not a base64 PDF (err %v)", err)
+	}
+	for part, body := range map[string]string{"HTMLBody": r.HTMLBody, "TextBody": r.TextBody} {
+		if strings.Contains(body, dsAppURL) || strings.Contains(body, "href") || strings.Contains(body, order.Id) {
+			t.Errorf("%s holds a link to the order:\n%s", part, body)
+		}
+	}
+}
+
+// Spec §3.6: Send… is offered on an open order only; the route refuses a
+// closed order with no email and no stored row.
+func TestDocumentSend_AClosedPurchaseOrderIsNotSent(t *testing.T) {
+	env := newDSEnv(t)
+	order, _ := env.purchaseOrder(t)
+	closeOrderBySQL(t, env.app, order.Id)
+	item := dsItem{Kind: "purchase_order", ID: order.Id, To: dsOrderTo}
+	requireFailed(t, env.post(t, item), item, "A closed purchase order cannot be sent.")
+	if n := env.sender.calls(); n != 0 {
+		t.Errorf("%d emails sent for a closed order, want 0", n)
+	}
+	if n, _ := env.app.CountRecords(documentSendsCollection); n != 0 {
+		t.Errorf("%d send rows after the refusal, want 0", n)
+	}
+}
+
+// Spec §3.7: a Books reader cannot send a purchase order.
+func TestDocumentSend_AReaderCannotSendAPurchaseOrder(t *testing.T) {
+	env := newDSEnv(t)
+	order, _ := env.purchaseOrder(t)
+	one := dsBody(dsItem{Kind: "purchase_order", ID: order.Id, To: dsOrderTo})
+	client := newSRClient(t, env.app)
+	srRequireRefusal(t, "a Books reader", client.do(tokenFor(t, env.users.readOnly), http.MethodPost, dsSendURL, one),
+		http.StatusForbidden, "You do not have write access to Books.")
+	if n := env.sender.calls(); n != 0 {
+		t.Errorf("%d emails sent for a reader's send, want 0", n)
+	}
+	if n, _ := env.app.CountRecords(documentSendsCollection); n != 0 {
+		t.Errorf("%d send rows after the refusal, want 0", n)
 	}
 }

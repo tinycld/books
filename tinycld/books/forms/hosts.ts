@@ -1,7 +1,7 @@
 import type { FormHostDefInput } from '@tinycld/core/lib/forms/host'
 import { BUNDLE_ITEM_COLUMNS } from '../lib/bundle-items'
 import { DOCUMENT_LINE_COLUMNS, DOCUMENT_ROW_KINDS } from '../lib/document-line-columns'
-import { DOCUMENT_NOTE_LABELS, MEMO_ONLY_LABEL } from '../lib/document-notes'
+import { DOCUMENT_NOTE_LABELS, MEMO_ONLY_LABEL, VENDOR_MESSAGE_LABEL } from '../lib/document-notes'
 import { EXPENSE_REF_HINT, VENDOR_CREDIT_REF_HINT, VENDOR_REF_HINT } from '../lib/document-texts'
 import {
     ACCOUNT_ROW_KIND,
@@ -9,7 +9,12 @@ import {
     PURCHASE_ITEM_COLUMNS,
     PURCHASE_ITEM_ROW_KIND,
 } from '../lib/purchase-line-columns'
-import { INVOICE_KIND, MEMO_HINT, SALES_RECEIPT_KIND } from '../lib/sales-document-kinds'
+import {
+    INVOICE_KIND,
+    MEMO_HINT,
+    PURCHASE_ORDER_HOST_KEY,
+    SALES_RECEIPT_KIND,
+} from '../lib/sales-document-kinds'
 
 export const CUSTOMER_HOST_KEY = 'books:customer'
 
@@ -264,6 +269,25 @@ const BILL_LAYOUT = {
         due_date: { width: 'quarter' },
         ref_no: { width: 'quarter', description: VENDOR_REF_HINT },
         memo: { description: MEMO_HINT },
+    },
+    rules: [],
+} satisfies FormHostDefInput['layout']
+
+// The default Purchase order form (purchase order spec §3.3): one page. The header band's
+// first row holds Vendor, Mailing address and Email, a third each, the full row below
+// 640 px; its second holds Order date (a quarter) and Ship to (a half). Custom fields
+// follow Ship to; the account lines, the product lines, the message to the vendor and
+// the internal memo follow.
+const PURCHASE_ORDER_LAYOUT = {
+    pages: [{ key: 'main', title: 'Purchase order' }],
+    fields: {
+        vendor: { width: 'third', narrowWidth: 'full' },
+        mailing_address: { width: 'third', narrowWidth: 'full' },
+        email: { width: 'third', narrowWidth: 'full' },
+        date: { width: 'quarter' },
+        ship_to: { width: 'half' },
+        message: { description: 'Shown on the purchase order and its PDF.' },
+        memo: { description: 'Only your team sees this.' },
     },
     rules: [],
 } satisfies FormHostDefInput['layout']
@@ -785,6 +809,7 @@ const hosts: FormHostDefInput[] = [
             'opening_date',
             'quantity_on_hand',
             'stock_value',
+            'quantity_on_po',
             'taxable',
             'inactive',
             'currency',
@@ -1752,6 +1777,111 @@ const hosts: FormHostDefInput[] = [
         ],
         insertCustomBefore: 'account_lines',
         layout: BILL_LAYOUT,
+    },
+    {
+        key: PURCHASE_ORDER_HOST_KEY,
+        label: 'Purchase order',
+        collection: 'books_purchase_orders',
+        formColumn: 'form',
+        fieldsColumn: 'fields',
+        // No files: a purchase order has no attachments (spec §3.1).
+        // Every column, the server-written ones too: a custom key must never shadow a
+        // column.
+        columns: [
+            'id',
+            'vendor',
+            'status',
+            'number',
+            'sequence',
+            'date',
+            'mailing_address',
+            'email',
+            'ship_to',
+            'message',
+            'memo',
+            'subtotal',
+            'total',
+            'open_amount',
+            'currency',
+            'closed_reason',
+            'closed_by',
+            'closed_at',
+            'created_by',
+            'revision',
+            'form',
+            'fields',
+            'sort_key',
+            'created',
+            'updated',
+        ],
+        builtin: [
+            {
+                key: 'vendor',
+                label: 'Vendor',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                locked: true,
+                component: 'VendorField',
+                chrome: 'cell',
+            },
+            {
+                key: 'mailing_address',
+                label: 'Mailing address',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'MailingAddressField',
+                chrome: 'cell',
+            },
+            {
+                key: 'email',
+                label: 'Email',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                // Always an input and a Tab stop (spec §3.3): the vendor pick fills it and
+                // moves the focus to it.
+                component: 'EmailField',
+                chrome: 'cell',
+            },
+            {
+                key: 'date',
+                label: 'Order date',
+                kind: 'custom',
+                storage: 'column',
+                required: true,
+                locked: true,
+                component: 'DocumentDateField',
+                chrome: 'cell',
+            },
+            {
+                key: 'ship_to',
+                label: 'Ship to',
+                kind: 'custom',
+                storage: 'column',
+                required: false,
+                component: 'ShipToField',
+                chrome: 'cell',
+            },
+            ...PURCHASE_LINE_BUILTINS,
+            {
+                key: 'message',
+                label: VENDOR_MESSAGE_LABEL,
+                kind: 'textarea',
+                storage: 'column',
+                required: false,
+            },
+            {
+                key: 'memo',
+                label: DOCUMENT_NOTE_LABELS.memo,
+                kind: 'textarea',
+                storage: 'column',
+                required: false,
+            },
+        ],
+        insertCustomBefore: 'account_lines',
+        layout: PURCHASE_ORDER_LAYOUT,
     },
     {
         key: EXPENSE_HOST_KEY,

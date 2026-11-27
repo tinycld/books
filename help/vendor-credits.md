@@ -108,7 +108,7 @@ To keep the vendor's credit note (a PDF or a photo) with the vendor credit, add 
 
 ## The Purchase lines setting
 
-The Purchase lines setting in Settings → Purchases decides which tables a new vendor credit shows, as it does for a new bill and a new expense: Accounts and products (the default), Accounts only, or Products only. A table that the setting hides still shows on a vendor credit that already has lines in it. See [Settings](help://books:settings).
+The Purchase lines setting in Settings → Purchases decides which tables a new vendor credit shows, as it does for a new bill, a new expense and a new purchase order: Accounts and products (the default), Accounts only, or Products only. A table that the setting hides still shows on a vendor credit that already has lines in it. See [Settings](help://books:settings).
 
 ## Cash basis
 
