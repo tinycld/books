@@ -40,6 +40,7 @@ func Register(app *pocketbase.PocketBase) {
 	registerWriteOffGuards(app)
 	registerDepositGuards(app)
 	registerInventoryAdjustmentGuards(app)
+	registerBinGuards(app)
 	registerPartyBalances()
 	registerDashboardViews()
 	registerEstimateResponses(app)

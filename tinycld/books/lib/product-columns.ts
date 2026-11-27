@@ -27,6 +27,8 @@ export const productColumnsSchema = z.strictObject({
     opening_value: z.number().optional(),
     opening_date: optionalText,
     reorder_point: z.number().optional(),
+    // '' is No bin. low_stock is not a key: the server keeps it, and refuses a write.
+    default_bin: optionalText,
 })
 
 export type ProductColumns = z.infer<typeof productColumnsSchema>
@@ -100,6 +102,7 @@ export const EMPTY_PRODUCT_FIELDS: Required<ProductColumns> = {
     opening_value: 0,
     opening_date: '',
     reorder_point: 0,
+    default_bin: '',
 }
 
 // The base of an insert, so a column the form left out is stored empty. The `satisfies`

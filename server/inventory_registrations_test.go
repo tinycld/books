@@ -24,6 +24,9 @@ func TestOAuth_InventoryCollectionsAreScoped(t *testing.T) {
 		"books_inventory_adjustment_lines": rw,
 		"books_stock_moves":                ro,
 		"books_stock_layers":               ro,
+		binsCollection:                     rw,
+		binTransfersCollection:             rw,
+		binStockCollection:                 ro,
 	} {
 		got, ok := collections[c]
 		if !ok {

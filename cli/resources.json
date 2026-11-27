@@ -159,7 +159,7 @@
             "columns": ["code", "name", "type", "vendor_part_no", "price", "inactive"],
             "search": ["code", "name", "vendor_part_no"],
             "filters": [{ "flag": "type", "field": "type", "help": "only products of this type: service, non_inventory, inventory or bundle" }],
-            "omit": ["form", "fields", "sort_key"],
+            "omit": ["form", "fields", "sort_key", "default_bin", "low_stock"],
             "deleteHelp": "The server refuses to delete a product that a bundle or a transaction line uses. Make it inactive with `deactivate`.",
             "fields": [
                 {

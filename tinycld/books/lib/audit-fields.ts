@@ -660,15 +660,41 @@ const AUDIT_FIELD_MAPS = {
         voided_at: datetime('Voided at'),
         voided_by: relation('Voided by', 'users'),
         sort_key: internal('Sort key'),
+        // The server writes value_change at the post and replaced_by when a correction
+        // posts; replaces is set on create only.
+        value_change: money('Total value change'),
+        replaces: relation('Replaces', 'books_inventory_adjustments'),
+        replaced_by: relation('Replaced by', 'books_inventory_adjustments'),
         ...STAMPS,
     },
     books_inventory_adjustment_lines: {
         adjustment: relation('Inventory adjustment', 'books_inventory_adjustments'),
         product: relation('Product or service', 'books_products'),
+        bin: relation('Bin location', 'books_bins'),
         quantity: text('Quantity change'),
         value: money('Value change'),
         position: internal('Position'),
         ...STAMPS,
+    },
+    // The server trims the name and fills sort_key (server/bins.go).
+    books_bins: {
+        name: text('Name'),
+        note: text('Note'),
+        inactive: bool('Inactive'),
+        sort_key: internal('Sort key'),
+        ...STAMPS,
+    },
+    // Never edited or deleted; created_by is stamped from the request's user. An empty
+    // bin is No bin.
+    books_bin_transfers: {
+        product: relation('Product or service', 'books_products'),
+        from_bin: relation('From bin', 'books_bins'),
+        to_bin: relation('To bin', 'books_bins'),
+        quantity: text('Quantity'),
+        memo: text('Memo'),
+        created_by: relation('Moved by', 'users'),
+        id: internal('Record ID'),
+        created: internal('Created'),
     },
     books_attachments: {
         bill: relation('Bill', 'books_bills'),
@@ -822,6 +848,9 @@ const AUDIT_FIELD_MAPS = {
         quantity_on_hand: text('Quantity on hand'),
         stock_value: money('Stock value'),
         quantity_on_po: text('Quantity on purchase orders'),
+        // The server keeps low_stock (reorder point above 0 and on hand at or below it).
+        default_bin: relation('Default bin', 'books_bins'),
+        low_stock: bool('Low stock'),
         inactive: bool('Inactive'),
         currency: text('Currency'),
         taxable: bool('Taxable'),

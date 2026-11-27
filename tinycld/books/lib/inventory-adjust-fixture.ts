@@ -10,12 +10,8 @@
 // The book's costing method is FIFO (books-settings-fixture). The values here are what the
 // server writes once the documents below are posted in date order.
 //
-// Schema: `books_bins`, `books_bin_stock`, `books_bin_transfers` and the new columns of
-// `books_products`, `books_stock_moves`, `books_inventory_adjustments` and
-// `books_inventory_adjustment_lines` do not exist yet. CHECKPOINT 1 (the migration) must
-// replace every interface marked "checkpoint 1" below with the generated type
-// (`BooksBins`, `BooksBinStock`, `BooksBinTransfers`, and the plain `Books…` row types in
-// place of the `& …Columns` intersections), so tsc checks each column.
+// Every row type is the generated type of its collection (migration 2100000049 adds the
+// bin collections and columns), so tsc checks each column.
 
 import type { ParamDef, ReportSpec } from '@tinycld/core/reports/lib/spec'
 import type {
@@ -25,6 +21,9 @@ import type {
     RunResult,
 } from '@tinycld/core/reports/lib/types'
 import type {
+    BooksBinStock,
+    BooksBins,
+    BooksBinTransfers,
     BooksInventoryAdjustmentLines,
     BooksInventoryAdjustments,
     BooksProducts,
@@ -45,15 +44,8 @@ const STAMP = '2026-11-27 09:00:00.000Z'
 
 // ---- Bins ----
 
-// checkpoint 1: replace with the generated `BooksBins` (less the hidden `sort_key`).
-export interface BinRecord {
-    id: string
-    name: string
-    note: string
-    inactive: boolean
-    created: string
-    updated: string
-}
+// The server fills the hidden `sort_key`, so the fixture leaves it out.
+export type BinRecord = Omit<BooksBins, 'sort_key'>
 
 export const BIN_IDS = {
     aisle3: 'binaisle3shelfb',
@@ -104,12 +96,6 @@ export function binLabel(id: string): string {
 
 // ---- Inventory items ----
 
-// checkpoint 1: these two columns join the generated `BooksProducts`.
-interface ProductBinColumns {
-    default_bin: string
-    low_stock: boolean
-}
-
 // The columns the seed writes and the screens of this unit read. The seed adds these
 // rows beside products-services-fixture's (the label printer among them, with no stock).
 export type InventoryItemRecord = Pick<
@@ -132,8 +118,9 @@ export type InventoryItemRecord = Pick<
     | 'quantity_on_po'
     | 'inactive'
     | 'currency'
-> &
-    ProductBinColumns
+    | 'default_bin'
+    | 'low_stock'
+>
 
 export const INVENTORY_ITEM_IDS = {
     // 36 on hand in two bins; every kind of stock move. The item page's example.
@@ -273,14 +260,8 @@ export function inventoryItem(id: string): InventoryItemRecord {
 
 // ---- Stock in bins ----
 
-// checkpoint 1: replace with the generated `BooksBinStock`.
-export interface BinStockRecord {
-    id: string
-    product: string
-    // '' is No bin.
-    bin: string
-    quantity: number
-}
+// A `bin` of '' is No bin.
+export type BinStockRecord = BooksBinStock
 
 export const BIN_STOCK: BinStockRecord[] = [
     { id: 'bstklabelaisle3', product: ITEM.labels, bin: BIN_IDS.aisle3, quantity: 32 },
@@ -310,17 +291,7 @@ for (const item of INVENTORY_ITEMS) {
 
 // ---- Moves between bins ----
 
-// checkpoint 1: replace with the generated `BooksBinTransfers`.
-export interface BinTransferRecord {
-    id: string
-    product: string
-    from_bin: string
-    to_bin: string
-    quantity: number
-    memo: string
-    created_by: string
-    created: string
-}
+export type BinTransferRecord = BooksBinTransfers
 
 export const BIN_TRANSFERS: BinTransferRecord[] = [
     {
@@ -347,13 +318,8 @@ export const BIN_TRANSFERS: BinTransferRecord[] = [
 
 // ---- Stock moves ----
 
-// checkpoint 1: these two columns join the generated `BooksStockMoves`.
-interface StockMoveBinColumns {
-    bin: string
-    // The number of the move's document ('' when it has none: opening stock).
-    document_number: string
-}
-
+// `document_number` is the number of the move's document. Opening stock has the number
+// of its opening inventory adjustment: every posted adjustment has one.
 export type StockMoveRecord = Pick<
     BooksStockMoves,
     | 'id'
@@ -367,8 +333,9 @@ export type StockMoveRecord = Pick<
     | 'value'
     | 'quantity_after'
     | 'value_after'
-> &
-    StockMoveBinColumns
+    | 'bin'
+    | 'document_number'
+>
 
 export const ADJUSTMENT_IDS = {
     // Books made it for the opening stock of the shipping labels.
@@ -413,7 +380,7 @@ const LABEL_MOVES = movesOf([
         quantity: 40,
         value: 46_000,
         bin: BIN_IDS.aisle3,
-        document_number: '',
+        document_number: '10',
     },
     {
         id: 'smovlabel000002',
@@ -633,26 +600,16 @@ export function stockLayersOf(product: string): StockLayerRecord[] {
 
 // ---- Inventory adjustments ----
 
-// checkpoint 1: these three columns join the generated `BooksInventoryAdjustments`.
-interface AdjustmentNewColumns {
-    // The sum of its stock moves' values, written at the post.
-    value_change: number
-    replaces: string
-    replaced_by: string
-}
-
 // `account_name` is a fixture column: '' is the chart's Inventory shrinkage account, which
 // the server creates at the first post, so the seed has no id or number to name it by.
-export type AdjustmentRecord = Omit<BooksInventoryAdjustments, 'account' | 'sort_key' | 'entry'> &
-    AdjustmentNewColumns & {
-        account_name: string
-        // True when the post wrote a journal entry (the seed leaves `entry` to the server).
-        has_entry: boolean
-    }
+// `value_change` is the sum of its stock moves' values, written at the post.
+export type AdjustmentRecord = Omit<BooksInventoryAdjustments, 'account' | 'sort_key' | 'entry'> & {
+    account_name: string
+    // True when the post wrote a journal entry (the seed leaves `entry` to the server).
+    has_entry: boolean
+}
 
-// checkpoint 1: `bin` joins the generated `BooksInventoryAdjustmentLines`.
 export type AdjustmentLineRecord = BooksInventoryAdjustmentLines & {
-    bin: string
     // What Books posted for the line (its stock move's value); 0 on a draft.
     posted_value: number
 }

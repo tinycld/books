@@ -48,12 +48,16 @@ import (
 // sent it.
 func auditedCollections(app core.App) map[string]*audit.CollectionConfig {
 	return map[string]*audit.CollectionConfig{
-		"books_accounts":        {ExtractLabel: auditAccountLabel},
-		"books_customers":       {ExtractLabel: audit.LabelFromField("display_name"), Redact: []string{"sort_key"}},
-		"books_vendors":         {ExtractLabel: audit.LabelFromField("display_name"), Redact: []string{"tax_id", "sort_key"}},
-		"books_products":        {ExtractLabel: audit.LabelFromField("name"), Redact: []string{"sort_key"}},
-		"books_party_contacts":  {ExtractLabel: audit.LabelFromField("name")},
-		"books_bundle_items":    {ExtractLabel: func(r *core.Record) string { return bundleItemLabel(app, r) }},
+		"books_accounts":       {ExtractLabel: auditAccountLabel},
+		"books_customers":      {ExtractLabel: audit.LabelFromField("display_name"), Redact: []string{"sort_key"}},
+		"books_vendors":        {ExtractLabel: audit.LabelFromField("display_name"), Redact: []string{"tax_id", "sort_key"}},
+		"books_products":       {ExtractLabel: audit.LabelFromField("name"), Redact: []string{"sort_key"}},
+		"books_party_contacts": {ExtractLabel: audit.LabelFromField("name")},
+		"books_bundle_items":   {ExtractLabel: func(r *core.Record) string { return bundleItemLabel(app, r) }},
+		binsCollection:         {ExtractLabel: audit.LabelFromField("name"), Redact: []string{"sort_key"}},
+		binTransfersCollection: {
+			ExtractLabel: func(r *core.Record) string { return binTransferLabel(app, r) },
+		},
 		"books_tax_agencies":    {ExtractLabel: audit.LabelFromField("name"), Redact: []string{"sort_key"}},
 		"books_tax_rates":       {ExtractLabel: audit.LabelFromField("name"), Redact: []string{"sort_key"}},
 		"books_journal_entries": {ExtractLabel: entryLabel},
@@ -246,6 +250,8 @@ func auditRecordTypeOptions() []reports.Option {
 		{Value: "books_party_contacts", Label: "Contact"},
 		{Value: "books_products", Label: "Product or service"},
 		{Value: "books_bundle_items", Label: "Bundle item"},
+		{Value: binsCollection, Label: "Bin location"},
+		{Value: binTransfersCollection, Label: "Move between bins"},
 		{Value: "books_tax_agencies", Label: "Tax agency"},
 		{Value: "books_tax_rates", Label: "Tax rate"},
 		{Value: "books_bank_connections", Label: "Bank connection"},
@@ -635,6 +641,12 @@ func billPaymentLineLabel(app core.App, r *core.Record) string {
 // to its id, so the audit row is still written.
 func bundleItemLabel(app core.App, r *core.Record) string {
 	return productName(app, r.GetString("bundle")) + ": " + productName(app, r.GetString("product"))
+}
+
+// binTransferLabel names a move between bins by its item: "Move between bins:
+// Thermal label printer".
+func binTransferLabel(app core.App, r *core.Record) string {
+	return "Move between bins: " + productName(app, r.GetString("product"))
 }
 
 func productName(app core.App, id string) string {

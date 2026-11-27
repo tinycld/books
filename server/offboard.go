@@ -22,7 +22,9 @@ import (
 // A purchase order's created_by and closed_by name who keeps the order going,
 // not who wrote a ledger row: with a successor (reassign mode) they move to
 // the successor, as RegisterReassignable would move them; in the other modes
-// they stay, since delete_my_data must not delete the company's orders.
+// they stay, since delete_my_data must not delete the company's orders. A move
+// between bins' created_by moves the same way: the move is the company's stock
+// history and is never deleted.
 //
 // Core names the handler in any error it returns, so the messages here carry
 // no package prefix.
@@ -31,6 +33,10 @@ func registerOffboard() {
 		if plan.Mode == offboard.ModeReassign {
 			if err := reassignPurchaseOrderStamps(tx, leaver.Id, plan.SuccessorUserID); err != nil {
 				return err
+			}
+			if _, err := tx.DB().NewQuery(sqlReassignBinTransferCreatedBy).
+				Bind(dbx.Params{"to": plan.SuccessorUserID, "from": leaver.Id}).Execute(); err != nil {
+				return fmt.Errorf("reassign the moves between bins' created_by: %w", err)
 			}
 		}
 		grants, err := tx.FindAllRecords("books_admins", dbx.HashExp{"user": leaver.Id})
@@ -63,6 +69,9 @@ func registerOffboard() {
 const (
 	sqlReassignPOCreatedBy = "UPDATE books_purchase_orders SET created_by = {:to} WHERE created_by = {:from}"
 	sqlReassignPOClosedBy  = "UPDATE books_purchase_orders SET closed_by = {:to} WHERE closed_by = {:from}"
+	// A move between bins has no update rule and no guard of its own update, so
+	// the bound SQL is the one write of it after its create.
+	sqlReassignBinTransferCreatedBy = "UPDATE books_bin_transfers SET created_by = {:to} WHERE created_by = {:from}"
 )
 
 // reassignPurchaseOrderStamps moves the orders' stamps from the leaver to the

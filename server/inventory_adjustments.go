@@ -72,10 +72,13 @@ func adjustmentLineFault(qty, value int64) string {
 
 // adjustmentLineInput is one line of an adjustment Books makes: a signed
 // quantity change and a signed value change in cents, either of which may be 0.
+// Bin is the line's bin location ("" is No bin); only an opening line names
+// one (syncOpeningStock: the item's default bin of the save that posts it).
 type adjustmentLineInput struct {
 	Product  string
 	Quantity float64
 	Value    int64
+	Bin      string
 }
 
 // systemAdjustment is an adjustment Books makes itself. Source and Document
@@ -127,6 +130,7 @@ func newSystemAdjustment(tx core.App, a systemAdjustment) (*core.Record, error) 
 		line.Set("product", l.Product)
 		line.Set("quantity", l.Quantity)
 		line.Set("value", l.Value)
+		line.Set("bin", l.Bin)
 		line.Set("position", i)
 		if err := tx.Save(line); err != nil {
 			return nil, fmt.Errorf("books: write an inventory adjustment line: %w", err)
@@ -175,6 +179,8 @@ func postAdjustmentReplacing(tx core.App, r *core.Record, replaces string, now t
 	}
 	actor := r.GetString("posted_by")
 	var posting []postingLine
+	// The adjustment's own stock moves; a re-cost has none.
+	var own []*core.Record
 	if r.GetString("kind") == adjustmentKindRecost {
 		moves, err := documentStockMoves(tx, r.GetString("source"), r.GetString("document"))
 		if err != nil {
@@ -193,11 +199,11 @@ func postAdjustmentReplacing(tx core.App, r *core.Record, replaces string, now t
 		if err != nil {
 			return err
 		}
-		moves, err := postDocumentStock(tx, actor, inventoryAdjustmentsCollection, r.Id, replaces, r.GetString("date"), inputs)
+		own, err = postDocumentStock(tx, actor, inventoryAdjustmentsCollection, r.Id, replaces, r.GetString("date"), inputs)
 		if err != nil {
 			return err
 		}
-		posting = stockCostLines(moves)
+		posting = stockCostLines(own)
 	}
 	if len(posting) == 0 {
 		if err := checkStockDay(tx, actor, r.GetString("date"), now); err != nil {
@@ -220,6 +226,9 @@ func postAdjustmentReplacing(tx core.App, r *core.Record, replaces string, now t
 		r.Set("number", entry.GetString("number"))
 		r.Set("sequence", entry.GetInt("sequence"))
 		r.Set("entry", entry.Id)
+	}
+	if err := numberStockMoves(tx, own, r.GetString("number")); err != nil {
+		return err
 	}
 	r.Set("posted_at", now)
 	r.Set("sort_key", salesDocSortKey(r))
@@ -321,6 +330,11 @@ func adjustmentStockInputs(tx core.App, r *core.Record, lines []*core.Record, ac
 		in := stockMoveInput{
 			Product: product.Id, Kind: kind, Source: inventoryAdjustmentsCollection, Document: r.Id, Line: l.Id,
 			Date: r.GetString("date"), Qty: qty, AssetAccount: asset, OffsetAccount: account,
+		}
+		// The opening line holds the default bin of the item's own save, which
+		// the stored product row does not hold yet (syncOpeningStock).
+		if kind == stockKindOpening {
+			in.Bin, in.BinNamed = l.GetString("bin"), true
 		}
 		if fault := adjustmentLineFault(qty, value); fault != "" {
 			return nil, refuse(msgAdjustmentLineFault, i+1, fault)

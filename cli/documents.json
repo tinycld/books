@@ -1145,7 +1145,7 @@
                 { "flag": "status", "field": "status", "help": "only inventory adjustments with this status: draft, posted or void" },
                 { "flag": "kind", "field": "kind", "help": "only inventory adjustments of this kind: manual, opening or recost" }
             ],
-            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "sort_key"],
+            "omit": ["sequence", "posted_at", "posted_by", "voided_at", "voided_by", "sort_key", "value_change", "replaces", "replaced_by"],
             "deleteHelp": "Only a draft can be deleted. Void a posted inventory adjustment with `void`: it stays in the books with its number, and the stock is as it was before it.",
             "fields": [
                 { "name": "date", "type": "string", "required": true, "help": "the date of the adjustment, as YYYY-MM-DD" },
@@ -1167,7 +1167,7 @@
                     "parent": "adjustment",
                     "sort": "position,id",
                     "max": 500,
-                    "omit": ["adjustment", "position"],
+                    "omit": ["adjustment", "position", "bin"],
                     "fields": [
                         { "name": "product", "type": "id", "ref": "products", "required": true, "help": "the Inventory item" },
                         { "name": "quantity", "type": "number", "help": "the change of the quantity, with at most 2 decimals: above 0 into stock, below 0 out of stock, 0 for a change of value only" },

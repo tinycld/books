@@ -70,7 +70,11 @@ func syncOpeningStock(tx core.App, r *core.Record) error {
 			Kind: adjustmentKindOpening, Date: r.GetString("opening_date"), Actor: actor,
 			Source: "books_products", Document: r.Id, Memo: "Opening stock of " + r.GetString("name"),
 			Replaces: replaces,
-			Lines:    []adjustmentLineInput{{Product: r.Id, Quantity: qty, Value: int64(r.GetInt("opening_value"))}},
+			// The default bin of this save: the stored row still holds the
+			// one before it (spec §3.1, the bin at the time it posts).
+			Lines: []adjustmentLineInput{{
+				Product: r.Id, Quantity: qty, Value: int64(r.GetInt("opening_value")), Bin: r.GetString("default_bin"),
+			}},
 		})
 		if err != nil {
 			return err
@@ -80,7 +84,8 @@ func syncOpeningStock(tx core.App, r *core.Record) error {
 }
 
 // takeStockTotals gives r, which the caller's save writes next, the totals the
-// store wrote on the stored row in this transaction.
+// store wrote on the stored row in this transaction, and the low-stock answer
+// of its quantity on hand.
 func takeStockTotals(tx core.App, r *core.Record) error {
 	fresh, err := tx.FindRecordById("books_products", r.Id)
 	if err != nil {
@@ -88,6 +93,8 @@ func takeStockTotals(tx core.App, r *core.Record) error {
 	}
 	r.Set("quantity_on_hand", fresh.GetFloat("quantity_on_hand"))
 	r.Set("stock_value", fresh.GetInt("stock_value"))
+	// By r's reorder point: the write may change it too.
+	r.Set("low_stock", isLowStock(r.GetFloat("reorder_point"), fresh.GetFloat("quantity_on_hand")))
 	return nil
 }
 

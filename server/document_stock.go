@@ -116,15 +116,16 @@ func documentStockInputs(tx core.App, kind salesDocKind, doc *core.Record, lines
 
 // salesDocStockLines writes the stock moves of doc while it posts and answers
 // the journal lines of their cost, which the caller adds to the document's own
-// entry. The moves of the document a correction replaces go with its re-costs
-// (postDocumentStock). A kind with no stock role answers nil.
-func salesDocStockLines(tx core.App, kind salesDocKind, doc, original *core.Record, lines []*core.Record, totals documentTotalsResult) ([]postingLine, error) {
+// entry, and the moves, which take the document's number once it has one
+// (numberStockMoves). The moves of the document a correction replaces go with
+// its re-costs (postDocumentStock). A kind with no stock role answers nil.
+func salesDocStockLines(tx core.App, kind salesDocKind, doc, original *core.Record, lines []*core.Record, totals documentTotalsResult) ([]postingLine, []*core.Record, error) {
 	if kind.Stock == "" {
-		return nil, nil
+		return nil, nil, nil
 	}
 	inputs, err := documentStockInputs(tx, kind, doc, lines, totals)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	replaces := ""
 	if original != nil {
@@ -132,12 +133,12 @@ func salesDocStockLines(tx core.App, kind salesDocKind, doc, original *core.Reco
 	}
 	moves, err := postDocumentStock(tx, doc.GetString("posted_by"), kind.Collection, doc.Id, replaces, doc.GetString("date"), inputs)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if kind.Stock == stockReceipt {
 		// The kind's line accounts debit the asset account with the line's
 		// amount, which is the move's value.
-		return nil, nil
+		return nil, moves, nil
 	}
-	return stockCostLines(moves), nil
+	return stockCostLines(moves), moves, nil
 }

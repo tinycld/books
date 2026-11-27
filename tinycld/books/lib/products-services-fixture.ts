@@ -117,6 +117,10 @@ function product(seed: ProductSeed): ProductFixtureRecord {
         stock_value: 0,
         // The server counts it from the open purchase order lines (2100000048).
         quantity_on_po: 0,
+        // No bin, and not low: what a new row of migration 2100000049 reads. The server
+        // keeps low_stock.
+        default_bin: '',
+        low_stock: false,
         // A Non-inventory item is taxable; a Service, the Inventory item and a bundle are
         // not (the sales tax fixture's rule, tests/tax-rates-fixture.test.ts).
         taxable: seed.type === 'non_inventory',

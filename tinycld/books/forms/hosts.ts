@@ -810,6 +810,8 @@ const hosts: FormHostDefInput[] = [
             'quantity_on_hand',
             'stock_value',
             'quantity_on_po',
+            'default_bin',
+            'low_stock',
             'taxable',
             'inactive',
             'currency',

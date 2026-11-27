@@ -214,3 +214,56 @@ describe('Reconciliation report collections with the real pbtsdb', () => {
         expect(pb.filters.some(filter => filter.includes('recn00000000001'))).toBe(true)
     })
 })
+
+// Inventory-adjust spec §4: an item's bin stock is read on demand by product,
+// with materialize() of each row's bin; a No-bin row (bin "") keeps its row.
+describe('Bin collections with the real pbtsdb', () => {
+    it('registers the three bin collections', () => {
+        const books = realBooks()
+        expect(books.books_bins).toBeDefined()
+        expect(books.books_bin_stock).toBeDefined()
+        expect(books.books_bin_transfers).toBeDefined()
+    })
+
+    it("loads one item's bin stock on demand, with the bin of each row", async () => {
+        const { books, pb } = realBooksWithUsers()
+        pb.tables.books_bins = [
+            { id: 'binaisle3000001', name: 'Aisle 3', note: '', inactive: false },
+        ]
+        pb.tables.books_bin_stock = [
+            {
+                id: 'binstock0000001',
+                product: 'prodwidget00001',
+                bin: 'binaisle3000001',
+                quantity: 12,
+            },
+            { id: 'binstock0000002', product: 'prodwidget00001', bin: '', quantity: 10 },
+            {
+                id: 'binstock0000003',
+                product: 'prodgadget00001',
+                bin: 'binaisle3000001',
+                quantity: 4,
+            },
+        ]
+        const query = createLiveQueryCollection(q =>
+            q
+                .from({ row: books.books_bin_stock })
+                .where(({ row }) => eq(row.product, 'prodwidget00001'))
+                .select(({ row }) => ({
+                    ...row,
+                    location: materialize(
+                        q
+                            .from({ b: books.books_bins })
+                            .where(({ b }) => eq(b.id, row.bin))
+                            .findOne()
+                    ),
+                }))
+        )
+        await query.preload()
+        const rows = new Map(query.toArray.map(r => [r.id, r]))
+        expect([...rows.keys()].sort()).toEqual(['binstock0000001', 'binstock0000002'])
+        expect(rows.get('binstock0000001')?.location?.name).toBe('Aisle 3')
+        expect(rows.get('binstock0000002')?.location).toBeUndefined()
+        expect(pb.filters.some(filter => filter.includes('prodwidget00001'))).toBe(true)
+    })
+})

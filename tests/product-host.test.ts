@@ -41,6 +41,8 @@ const ALL_COLUMNS = {
     quantity_on_hand: true,
     quantity_on_po: true,
     stock_value: true,
+    default_bin: true,
+    low_stock: true,
     taxable: true,
     inactive: true,
     currency: true,
@@ -281,12 +283,15 @@ describe('books:product forms host', () => {
     })
 
     // The form never writes the quantity on hand (Books counts it), so a new product
-    // has no starting value for it.
-    it('starts a new product with every built-in other than the bundle items and the quantity on hand', () => {
+    // has no starting value for it. default_bin is a column the client writes but has no
+    // built-in yet: the Default bin built-in comes with the item page's Details tab (a
+    // later checkpoint), which then removes the extra key here.
+    it('starts a new product with every built-in other than the bundle items and the quantity on hand, plus the column-only default bin', () => {
         const keys = parsedHost()
             .builtin.map(b => b.key)
             .filter(key => key !== 'items' && key !== 'quantity_on_hand')
-        expect(Object.keys(EMPTY_PRODUCT_FIELDS).sort()).toEqual([...keys].sort())
+        expect(keys).not.toContain('default_bin')
+        expect(Object.keys(EMPTY_PRODUCT_FIELDS).sort()).toEqual([...keys, 'default_bin'].sort())
     })
 
     it('keeps the customer and vendor hosts', () => {

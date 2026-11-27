@@ -56,6 +56,9 @@ var serverOnly = map[string]bool{
 	// from the audited documents and inventory adjustments (ADR 3).
 	"books_stock_moves":  true,
 	"books_stock_layers": true,
+	// The bin stock is written by every stock move and every move between bins,
+	// each of which is audited or a replay of one (inventory-adjust spec §4).
+	"books_bin_stock": true,
 }
 
 // personalOnly are the collections that hold one user's own screen arrangement.
@@ -1058,6 +1061,7 @@ func TestRegister_BindsEachPartOnce(t *testing.T) {
 	registerWriteOffGuards(parts)
 	registerDepositGuards(parts)
 	registerInventoryAdjustmentGuards(parts)
+	registerBinGuards(parts)
 	registerEstimateResponses(parts)
 	registerAudit(&pocketbase.PocketBase{App: parts})
 	registerSearchIndex(&pocketbase.PocketBase{App: parts})

@@ -85,6 +85,9 @@ const NAMES = [
     'books_inventory_adjustment_lines',
     'books_purchase_orders',
     'books_purchase_order_lines',
+    'books_bins',
+    'books_bin_stock',
+    'books_bin_transfers',
 ]
 
 const INVENTORY = [
@@ -93,6 +96,10 @@ const INVENTORY = [
     'books_inventory_adjustments',
     'books_inventory_adjustment_lines',
 ]
+
+// Inventory-adjust spec §4 and the brief's Do 7: the bin rows are read from their
+// own collections, with no relations and no alwaysFetchRelations.
+const BINS = ['books_bins', 'books_bin_stock', 'books_bin_transfers']
 
 function register() {
     const calls = new Map<string, Record<string, unknown>>()
@@ -141,6 +148,15 @@ describe('registerCollections', () => {
             'voided_at',
             'sort_key',
         ])
+    })
+
+    it('declares the bin collections with no relations to fetch', () => {
+        const { calls } = register()
+        for (const name of BINS) {
+            expect(calls.has(name), name).toBe(true)
+            expect(calls.get(name)?.relations, name).toBeUndefined()
+            expect(calls.get(name)?.alwaysFetchRelations, name).toBeUndefined()
+        }
     })
 
     it('declares the relations the ledger screens read', () => {
@@ -205,9 +221,10 @@ describe('registerCollections', () => {
     })
 
     // The guard sets name_key and sort_key, the server stamps currency and the costing
-    // replay writes quantity_on_hand and stock_value, so the client never sends them on a
-    // product; a bundle row sends every column it has. The product form writes the other
-    // inventory columns.
+    // replay writes quantity_on_hand and stock_value, the PO guard writes quantity_on_po
+    // and the product guard keeps low_stock, so the client never sends them on a product;
+    // a bundle row sends every column it has. The product form writes the other inventory
+    // columns, default_bin among them.
     it('never inserts a product or bundle row column the server sets', () => {
         const { calls } = register()
         expect(calls.get('books_products')?.omitOnInsert).toEqual([
@@ -219,6 +236,7 @@ describe('registerCollections', () => {
             'quantity_on_hand',
             'stock_value',
             'quantity_on_po',
+            'low_stock',
         ])
         expect(calls.get('books_bundle_items')?.omitOnInsert).toEqual(['created', 'updated'])
     })

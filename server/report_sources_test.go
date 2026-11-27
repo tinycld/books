@@ -1756,6 +1756,8 @@ func TestSettingsSource(t *testing.T) {
 // record type to the record filter.
 // books.audit_log was recorded again when purchase-orders added its Purchase
 // order and Purchase order line record types.
+// books.audit_log was recorded again when inventory-adjust added its Bin
+// location and Move between bins record types.
 // books.open_purchase_orders was recorded when purchase-orders shipped it,
 // with its detail opening the order by its number key.
 var shippedSpecSHA256 = map[string]string{
@@ -1774,7 +1776,7 @@ var shippedSpecSHA256 = map[string]string{
 	"books.expenses_by_vendor":        "d75522fb1eb74e3ddb0e1c25499b7e7b5efea49639a99ae317c197e383c6037f",
 	"books.sales_by_customer":         "a1814d08b15a4ee1385f9ddd05e45c330f209ea61acbab008750339ae791a77b",
 	"books.sales_by_product":          "fe28d32dd0292f0344905c0147f1b8dd10d4d49e40feaf20fcbfcedcf7cc99b3",
-	"books.audit_log":                 "762b4af2bba3af594b97f4127eb4ea3487db37ddb52222279acdc0c19967617c",
+	"books.audit_log":                 "5f500348d41281446830e0a9faa7257562833c49f33dee52dce52932932f0201",
 	"books.statement_balance_forward": "c0459c2938192ce4421c0fcea148832ee465ca8c3f664c6cea21a018b5ee45ed",
 	"books.statement_open_items":      "95a8a5e99e84aeebf65467f85aa1b94a0549dd7e5653ec20814401943789d9a7",
 	"books.open_purchase_orders":      "1d6a39da1021b9e038dba4a50df4e68b66fb495bf918a3f74fb59b50865a8886",

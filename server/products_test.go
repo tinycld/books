@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pocketbase/dbx"
 	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
@@ -1089,4 +1090,80 @@ func TestProduct_DeleteRefusedWhileOnVendorCreditLines(t *testing.T) {
 	requireMessageOnlyRefusal(t, ve.app.Delete(reload(t, ve.app, "books_products", ve.patchCable.Id)),
 		"This product or service is on 2 vendor credits. Make it inactive instead.")
 	reload(t, ve.app, "books_products", ve.patchCable.Id)
+}
+
+// Inventory-adjust spec §3.7, §4: an Inventory item's default bin is an active
+// bin; no other product type has one.
+func TestProduct_DefaultBinRules(t *testing.T) {
+	env := newItemEnv(t)
+	aisle := mkBin(t, env.app, "Aisle 3", false)
+	backRoom := mkBin(t, env.app, "Back room", true)
+
+	_, err := newProduct(env.app, inventoryItem(env, map[string]any{"name": "Old widget", "default_bin": backRoom.Id}))
+	requireRefusalText(t, err, "Back room is inactive. Choose another bin location.")
+	widget, err := newProduct(env.app, inventoryItem(env, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	requireRefusalText(t, setFields(t, env.app, "books_products", widget.Id, map[string]any{"default_bin": backRoom.Id}),
+		"Back room is inactive. Choose another bin location.")
+	if err := setFields(t, env.app, "books_products", widget.Id, map[string]any{"default_bin": aisle.Id}); err != nil {
+		t.Fatalf("an Inventory item refuses an active default bin: %v", err)
+	}
+	if got := reload(t, env.app, "books_products", widget.Id).GetString("default_bin"); got != aisle.Id {
+		t.Errorf("default_bin = %q, want Aisle 3", got)
+	}
+
+	_, err = newProduct(env.app, map[string]any{
+		"type": "non_inventory", "name": "Paper", "income_account": env.revenue.Id, "default_bin": aisle.Id,
+	})
+	requireRefusalText(t, err, "Only an Inventory item has a default bin.")
+	service := mkService(t, env.app, "Setup", env.revenue)
+	requireRefusalText(t, setFields(t, env.app, "books_products", service.Id, map[string]any{"default_bin": aisle.Id}),
+		"Only an Inventory item has a default bin.")
+}
+
+// Inventory-adjust spec §3.10, §4: Books keeps low_stock; a client write of it
+// is refused and changes nothing.
+func TestProduct_LowStockIsBooksOwn(t *testing.T) {
+	env := newItemEnv(t)
+	_, err := newProduct(env.app, inventoryItem(env, map[string]any{"low_stock": true}))
+	requireRefusalText(t, err, "Books keeps this value.")
+	widget, err := newProduct(env.app, inventoryItem(env, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	requireRefusalText(t, setFields(t, env.app, "books_products", widget.Id, map[string]any{"low_stock": true}),
+		"Books keeps this value.")
+	if reload(t, env.app, "books_products", widget.Id).GetBool("low_stock") {
+		t.Error("the refused write left low_stock on")
+	}
+}
+
+// Inventory-adjust spec §4: productReferences gains the moves between bins, so
+// an item that was moved between bins cannot be deleted. The refusal counts
+// the moves, in the form of its sibling refusals.
+func TestProduct_DeleteRefusedWhileOnABinTransfer(t *testing.T) {
+	env := newItemEnv(t)
+	widget, err := newProduct(env.app, inventoryItem(env, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	aisle := mkBin(t, env.app, "Aisle 3", false)
+	rawInsert(t, env.app, "books_bin_transfers", dbx.Params{
+		"id": "bxfrproduct0001", "product": widget.Id, "from_bin": "", "to_bin": aisle.Id, "quantity": 1,
+	})
+	deleteWidget := func() error { return env.app.Delete(reload(t, env.app, "books_products", widget.Id)) }
+	apiErr := apiErrorOf(t, deleteWidget())
+	if apiErr.Status != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", apiErr.Status)
+	}
+	requireMessageOnlyRefusal(t, deleteWidget(),
+		"This product or service is on 1 move between bin locations. Make it inactive instead.")
+	rawInsert(t, env.app, "books_bin_transfers", dbx.Params{
+		"id": "bxfrproduct0002", "product": widget.Id, "from_bin": aisle.Id, "to_bin": "", "quantity": 1,
+	})
+	requireMessageOnlyRefusal(t, deleteWidget(),
+		"This product or service is on 2 moves between bin locations. Make it inactive instead.")
+	reload(t, env.app, "books_products", widget.Id)
 }

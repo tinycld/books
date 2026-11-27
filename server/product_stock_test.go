@@ -1,6 +1,7 @@
 package books
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/pocketbase/dbx"
@@ -193,6 +194,134 @@ func TestBundle_HoldsAnInventoryItem(t *testing.T) {
 	if _, err := saveNew(env.app, "books_bundle_items", map[string]any{"bundle": bundle.Id, "product": widget.Id, "quantity": 2}); err != nil {
 		t.Errorf("a bundle refuses an Inventory item: %v", err)
 	}
+}
+
+// moveItemStock posts a manual adjustment of qty units of the item (in for
+// 1.00 each, or out at cost when qty is below 0).
+func moveItemStock(t testing.TB, env *ledgerEnv, product *core.Record, qty float64) {
+	t.Helper()
+	line := adjustmentLineInput{Product: product.Id, Quantity: qty}
+	if qty > 0 {
+		line.Value = int64(qty * 100)
+	}
+	err := env.app.RunInTransaction(func(tx core.App) error {
+		_, err := newSystemAdjustment(tx, systemAdjustment{
+			Kind: adjustmentKindManual, Date: "2026-07-01", Actor: env.users.bookkeeper.Id,
+			Lines: []adjustmentLineInput{line},
+		})
+		return err
+	})
+	if err != nil {
+		t.Fatalf("move %v of %s: %v", qty, product.GetString("name"), err)
+	}
+}
+
+func requireLowStock(t testing.TB, app core.App, product *core.Record, want bool, when string) {
+	t.Helper()
+	r := reload(t, app, "books_products", product.Id)
+	if got := r.GetBool("low_stock"); got != want {
+		t.Errorf("%s: low_stock = %v with %v on hand and reorder point %v, want %v",
+			when, got, r.GetFloat("quantity_on_hand"), r.GetFloat("reorder_point"), want)
+	}
+}
+
+// Inventory-adjust spec §3.10: an item is low when its reorder point is above
+// 0 and its quantity on hand is at or below it. The stock move writes it.
+func TestInventoryItem_LowStockFollowsTheQuantityOnHand(t *testing.T) {
+	cases := []struct {
+		name         string
+		reorderPoint float64
+		onHand       float64
+		want         bool
+	}{
+		{"reorder point 0", 0, 0, false},
+		{"reorder point 0 with stock", 0, 4, false},
+		{"on hand above the reorder point", 10, 12, false},
+		{"on hand at the reorder point", 10, 10, true},
+		{"on hand below the reorder point", 10, 4, true},
+		{"on hand below zero", 10, -2, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newItemEnv(t)
+			widget, err := newProduct(env.app, inventoryItem(env, map[string]any{"reorder_point": tc.reorderPoint}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Above the point first, so the case's own move is what writes it.
+			moveItemStock(t, env, widget, 20)
+			requireLowStock(t, env.app, widget, false, "with 20 on hand")
+			if delta := tc.onHand - 20; delta != 0 {
+				moveItemStock(t, env, widget, delta)
+			}
+			requireLowStock(t, env.app, widget, tc.want, tc.name)
+		})
+	}
+}
+
+// Inventory-adjust spec §3.10 (Q5): quantity on PO does not count.
+func TestInventoryItem_LowStockLeavesOutTheQuantityOnPO(t *testing.T) {
+	// newPOEnv's no-posting check does not fit here: the stock-in posts.
+	env := newLedgerEnv(t)
+	registerSalesDocGuards(env.app, purchaseOrderKind)
+	bindHostsByKey(t, env.app, purchaseOrderKind.HostKey)
+	registerInventoryAdjustmentGuards(env.app)
+	pe := &poEnv{billEnv: billEnvOn(t, env)}
+	widget, err := newProduct(pe.app, inventoryItem(pe.ledgerEnv, map[string]any{"reorder_point": 10}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	moveItemStock(t, pe.ledgerEnv, widget, 8)
+	requireLowStock(t, pe.app, widget, true, "with 8 on hand")
+	order := mkPO(t, pe.app, pe.officeSupply, nil)
+	mkPOLine(t, pe.app, order, 0, productLine(widget, 5, 300))
+	requireOnPO(t, pe.app, widget, 5)
+	requireLowStock(t, pe.app, widget, true, "with 8 on hand and 5 on PO")
+}
+
+// Inventory-adjust spec §4: a change of the reorder point writes low_stock,
+// with no stock move.
+func TestInventoryItem_LowStockFollowsTheReorderPoint(t *testing.T) {
+	env := newItemEnv(t)
+	widget, err := newProduct(env.app, inventoryItem(env, map[string]any{"reorder_point": 5}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	moveItemStock(t, env, widget, 8)
+	requireLowStock(t, env.app, widget, false, "8 on hand, reorder point 5")
+	for _, step := range []struct {
+		point float64
+		want  bool
+	}{{10, true}, {8, true}, {7.5, false}, {0, false}} {
+		if err := setFields(t, env.app, "books_products", widget.Id, map[string]any{"reorder_point": step.point}); err != nil {
+			t.Fatalf("set the reorder point to %v: %v", step.point, err)
+		}
+		requireLowStock(t, env.app, widget, step.want, fmt.Sprintf("reorder point %v", step.point))
+	}
+	if n, _ := env.app.CountRecords(stockMovesCollection); n != 1 {
+		t.Errorf("%d stock moves after the reorder point changes, want the one stock-in", n)
+	}
+}
+
+// Inventory-adjust spec §4: the opening stock's write of the totals carries
+// low_stock too (takeStockTotals), so the item's own save does not put the
+// answer of before back.
+func TestInventoryItem_LowStockFollowsTheOpeningStock(t *testing.T) {
+	env := newItemEnv(t)
+	widget, err := newProduct(env.app, inventoryItem(env, map[string]any{
+		"reorder_point": 12, "opening_quantity": 3, "opening_value": 300, "opening_date": "2026-07-01",
+	}))
+	if err != nil {
+		t.Fatalf("save an item with opening stock: %v", err)
+	}
+	if !widget.GetBool("low_stock") {
+		t.Error("the saved record holds low_stock off, want on as the stored row")
+	}
+	requireLowStock(t, env.app, widget, true, "opening quantity 3, reorder point 12")
+	if err := setFields(t, env.app, "books_products", widget.Id, map[string]any{"opening_quantity": 20, "opening_value": 2000}); err != nil {
+		t.Fatalf("change the opening stock: %v", err)
+	}
+	requireLowStock(t, env.app, widget, false, "opening quantity 20, reorder point 12")
 }
 
 // A write that loaded the item before a posting moved its stock does not put

@@ -1,0 +1,7 @@
+{
+    "nameTaken": "A bin location named %s exists.",
+    "inUse": "%s has stock or history. Make it inactive instead.",
+    "sameBins": "Choose two different bin locations.",
+    "holds": "%s holds %s. Move %s or fewer.",
+    "holdsNone": "%s holds none of this item."
+}
