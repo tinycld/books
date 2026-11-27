@@ -4,6 +4,7 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
+import { withNoOrderLine } from '../lib/purchase-line-columns'
 import { documentKey } from '../lib/record-key'
 import { columnsOrThrow } from '../lib/record-save'
 import { VENDOR_CREDIT_KIND } from '../lib/sales-document-kinds'
@@ -195,24 +196,25 @@ function useVendorCreditScreenReads(
         queryKey: [`${LOG_CONTEXT}.source-lines`, ids.sourceLinesId],
     })
     const formStart = useVendorCreditFormStart(input)
+    const lineRows = linesQuery.data
+    const lines = useMemo(() => withNoOrderLine(lineRows), [lineRows])
+    const sourceLineRows = sourceLinesQuery.data
+    const sourceLines = useMemo(() => withNoOrderLine(sourceLineRows), [sourceLineRows])
     return {
         record: documentRead(id, creditQuery, record, [
             creditsCollection,
             vendorsCollection,
             usersCollection,
         ]),
-        lines: documentRead(id, linesQuery, linesQuery.data ?? [], [
+        lines: documentRead(id, linesQuery, lines, [
             linesCollection,
             productsCollection,
             accountsCollection,
         ]),
         source: documentRead(ids.sourceId, sourceQuery, source, [creditsCollection]),
-        sourceLines: documentRead(
-            ids.sourceLinesId,
-            sourceLinesQuery,
-            sourceLinesQuery.data ?? [],
-            [linesCollection]
-        ),
+        sourceLines: documentRead(ids.sourceLinesId, sourceLinesQuery, sourceLines, [
+            linesCollection,
+        ]),
         ...NO_ESTIMATE_SOURCE,
         ...NO_LINK_SOURCE,
         ...NO_DOCUMENT_PAYMENTS,

@@ -22,7 +22,7 @@ import {
     View,
 } from 'react-native'
 import { DocumentSourceLink } from '../components/documents/DocumentSourceLink'
-import { useDocumentFormScope } from '../components/documents/document-form-context'
+import { NO_ORDER_LINKS, useDocumentFormScope } from '../components/documents/document-form-context'
 import { AddressField } from '../components/forms/AddressField'
 import { SearchPicker, useSearchPicker } from '../components/SearchPicker'
 import { customerPartyOf } from '../hooks/document-data'
@@ -41,6 +41,7 @@ import {
     NO_CUSTOMER_TEXT,
     NO_PARTY_TEXT,
     NO_VENDOR_TEXT,
+    PURCHASE_ORDER_MESSAGES,
 } from '../lib/document-texts'
 import { textOf } from '../lib/form-values'
 import type { PaymentTermKey } from '../lib/payment-terms'
@@ -502,11 +503,16 @@ export function vendorPickerProps({
  * (useVendorPick) and moves focus on to the next field control (the band's links are no
  * field controls). A kind whose vendor is optional offers "No vendor" first, and its
  * empty trigger reads "No vendor" muted. Focused once at open (usePartyFocus), on web
- * only; native opens it by tap.
+ * only; native opens it by tap. The vendor is fixed, drawn disabled and out of the Tab
+ * order, on a bill made from a purchase order (sourceLink.locksParty) and on an order a
+ * bill names (orderLinks.locksVendor, spec §3.8); a failed read of the order's bills shows
+ * its error with Retry under it.
  */
 export function VendorField({ value, onChange, disabled, label }: BuiltinFieldProps) {
     const id = textOf(value)
     const scope = useDocumentFormScope()
+    const orderLinks = scope.orderLinks ?? NO_ORDER_LINKS
+    const isDisabled = disabled || scope.sourceLink.locksParty || orderLinks.locksVendor
     const party = DOCUMENT_PARTIES[scope.kind.party]
     const fieldKey = party.field
     const picker = useSearchPicker()
@@ -530,7 +536,7 @@ export function VendorField({ value, onChange, disabled, label }: BuiltinFieldPr
         label,
         id,
         triggerLabel,
-        disabled,
+        disabled: isDisabled,
         options,
     })
     return (
@@ -545,6 +551,39 @@ export function VendorField({ value, onChange, disabled, label }: BuiltinFieldPr
                 onPicked={focus.focusNext}
             />
             <CustomerLoadError isVisible={showsLoadError} onRetry={retry} />
+            <OrderBillsLoadError
+                isVisible={orderLinks.loadFailed}
+                onRetry={orderLinks.retry}
+                testID={`${testID}-bills-error`}
+            />
+        </View>
+    )
+}
+
+// Under an order's Vendor: the read of the order's bills failed, so its linked lines and
+// its Vendor are fixed as its posted bills say until Retry reads them.
+function OrderBillsLoadError({
+    isVisible,
+    onRetry,
+    testID,
+}: {
+    isVisible: boolean
+    onRetry: () => void
+    testID: string
+}) {
+    if (!isVisible) return null
+    return (
+        <View
+            accessibilityRole="alert"
+            testID={testID}
+            className="mt-1 flex-row items-center gap-2"
+        >
+            <Text className="min-w-0 flex-1 text-xs text-danger">
+                {PURCHASE_ORDER_MESSAGES.billsLoadFailed}
+            </Text>
+            <Button variant="outline" size="sm" style={TAP} onPress={onRetry}>
+                <ButtonText>Retry</ButtonText>
+            </Button>
         </View>
     )
 }
@@ -822,12 +861,14 @@ export function DayField({
 
 // Invoice date: a change also sets Due date from the terms, when there are terms. On an
 // invoice that names an estimate the Customer is text, not an input, and on a payout the
-// Customer is disabled (its link locks the party), so the date takes the form's first
-// focus (web only, as Customer's).
+// Customer is disabled (its link locks the party), as is the Vendor of a bill made from a
+// purchase order and of an order a bill names, so the date takes the form's first focus
+// (web only, as Customer's).
 export function DocumentDateField(props: BuiltinFieldProps) {
     const { getValues, setValue } = useFormContext<FormValues>()
-    const { estimateId, sourceLink, focusesFirstField } = useDocumentFormScope()
-    const isPartyFixed = estimateId !== '' || sourceLink.locksParty
+    const { estimateId, sourceLink, focusesFirstField, orderLinks } = useDocumentFormScope()
+    const locksVendor = orderLinks?.locksVendor ?? false
+    const isPartyFixed = estimateId !== '' || sourceLink.locksParty || locksVendor
     const isFirstField = isPartyFixed && focusesFirstField && Platform.OS === 'web'
     const onChange = (next: string) => {
         props.onChange(next)

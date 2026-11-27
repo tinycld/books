@@ -122,17 +122,58 @@ export type MadePurchaseOrder = { id: string; number: string }
 
 export type PurchaseOrderInput = {
     vendor: string
-    amount: string
+    // Account line 1's amount. Without one, account line 1 is removed and the order holds
+    // product lines only.
+    amount?: string
+    // Account line 1's description.
+    accountDescription?: string
     memo: string
     message?: string
     // One product line: a seeded product with purchasing on, and its quantity.
     product?: { name: string; quantity: string }
+    // More product lines after `product`, in this order.
+    products?: { name: string; quantity: string }[]
+    // More account lines after line 1: the account's "<number> <name>" label and amount.
+    accounts?: { account: string; amount: string }[]
+}
+
+async function removeLine(page: Page, table: PurchaseOrderTable, rowId: string) {
+    const count = await purchaseOrderLineRows(page, table).count()
+    await visibleOrderPart(page, `form-table-${table}-menu-${rowId}`).click()
+    await page.getByTestId(`form-table-${table}-menu-remove`).click()
+    await expect(purchaseOrderLineRows(page, table)).toHaveCount(count - 1)
+}
+
+async function addAccountLines(page: Page, lines: readonly { account: string; amount: string }[]) {
+    for (const extra of lines) {
+        const count = await purchaseOrderLineRows(page, 'account_lines').count()
+        await visibleOrderPart(page, 'form-table-account_lines-add').click()
+        await expect(purchaseOrderLineRows(page, 'account_lines')).toHaveCount(count + 1)
+        const row = await purchaseOrderLineRowId(page, 'account_lines', count)
+        await pickFromSearchPicker(
+            page,
+            billCellTestId('account_lines', row, 'account'),
+            extra.account
+        )
+        await purchaseOrderCell(page, 'account_lines', row)('amount').fill(extra.amount)
+    }
+}
+
+async function addProductLines(page: Page, lines: readonly { name: string; quantity: string }[]) {
+    for (const product of lines) {
+        const count = await purchaseOrderLineRows(page, 'item_lines').count()
+        await visibleOrderPart(page, 'form-table-item_lines-add').click()
+        await expect(purchaseOrderLineRows(page, 'item_lines')).toHaveCount(count + 1)
+        const row = await purchaseOrderLineRowId(page, 'item_lines', count)
+        await pickFromSearchPicker(page, billCellTestId('item_lines', row, 'product'), product.name)
+        await purchaseOrderCell(page, 'item_lines', row)('quantity').fill(product.quantity)
+    }
 }
 
 // Books must already be open. Makes an open order through the form (clicks allowed):
-// the vendor, whose default expense account fills account line 1, that line's amount, an
-// optional product line, message and the memo; Save & close. Ends on the order's read
-// view.
+// the vendor, whose default expense account fills account line 1, that line's amount and
+// description (or no account line 1), more account lines, the product lines, message and
+// the memo; Save & close. Ends on the order's read view.
 export async function makePurchaseOrder(
     page: Page,
     order: PurchaseOrderInput
@@ -140,18 +181,18 @@ export async function makePurchaseOrder(
     await openNewPurchaseOrder(page)
     await pickPurchaseOrderVendor(page, order.vendor)
     const line = await purchaseOrderLineRowId(page, 'account_lines', 0)
-    await purchaseOrderCell(page, 'account_lines', line)('amount').fill(order.amount)
-    if (order.product) {
-        await visibleOrderPart(page, 'form-table-item_lines-add').click()
-        await expect(purchaseOrderLineRows(page, 'item_lines')).toHaveCount(1)
-        const row = await purchaseOrderLineRowId(page, 'item_lines', 0)
-        await pickFromSearchPicker(
-            page,
-            billCellTestId('item_lines', row, 'product'),
-            order.product.name
-        )
-        await purchaseOrderCell(page, 'item_lines', row)('quantity').fill(order.product.quantity)
+    const first = purchaseOrderCell(page, 'account_lines', line)
+    if (order.amount === undefined) {
+        await removeLine(page, 'account_lines', line)
+    } else {
+        if (order.accountDescription !== undefined) {
+            await first('description').fill(order.accountDescription)
+        }
+        await first('amount').fill(order.amount)
     }
+    await addAccountLines(page, order.accounts ?? [])
+    const products = [...(order.product ? [order.product] : []), ...(order.products ?? [])]
+    await addProductLines(page, products)
     if (order.message !== undefined) {
         await page.getByTestId('form-input-message').fill(order.message)
     }
@@ -161,4 +202,81 @@ export async function makePurchaseOrder(
     await expect(visibleOrderPart(page, 'purchase-order-read-only')).toBeVisible()
     const number = await purchaseOrderNumberOf(page)
     return { id: await purchaseOrderIdFromUrl(page), number }
+}
+
+// Copy to bill (purchase order spec §3.7, §3.8), checkpoint 4. The dialog is a core
+// Dialog, a Sheet with no dialog role on a phone: it is found by its test id.
+
+// The bill form started from an order: `books/bills/new?purchase_order=<id>`.
+export const BILL_FROM_ORDER_URL = /\/books\/bills\/new\?purchase_order=[^&#]+$/
+
+export function copyToBillDialog(page: Page): Locator {
+    return visibleOrderPart(page, 'copy-to-bill-dialog')
+}
+
+// The dialog's rows in screen order; each row's order line id is in its test id.
+export function copyToBillRowsOf(page: Page): Locator {
+    return copyToBillDialog(page).locator('[data-testid^="copy-to-bill-row-"]')
+}
+
+// The dialog's row of the line named `name` (a product's name, or an account's
+// "<number> <name>").
+export function copyToBillRowNamed(page: Page, name: string): Locator {
+    return copyToBillRowsOf(page).filter({ has: page.getByText(name, { exact: true }) })
+}
+
+export async function copyToBillLineId(row: Locator): Promise<string> {
+    const testId = await row.getAttribute('data-testid')
+    if (!testId) throw new Error('a Copy to bill row has no test id')
+    return testId.slice('copy-to-bill-row-'.length)
+}
+
+// A part of a dialog row by its order line id: its tick box, its Qty or Amount to bill,
+// or the hint under that input.
+export function copyToBillPart(page: Page, part: 'tick' | 'input' | 'hint', lineId: string) {
+    return page.getByTestId(`copy-to-bill-${part}-${lineId}`).filter({ visible: true })
+}
+
+// The order's read view must show, on an open order with an open line. Copy to bill
+// from its button; waits for the dialog and for the focus in its first row's input.
+export async function openCopyToBill(page: Page) {
+    await visibleOrderPart(page, 'purchase-order-read-copy-to-bill').click()
+    await expect(copyToBillDialog(page)).toBeVisible()
+    const first = await copyToBillLineId(copyToBillRowsOf(page).first())
+    await expect(copyToBillPart(page, 'input', first)).toBeFocused()
+}
+
+// The visible bill form (an order's read view can stay mounted under it).
+export function visibleBillForm(page: Page): Locator {
+    return visibleOrderPart(page, 'bill-form')
+}
+
+// The dialog must be open. Create bill by the dialog's submit key (⌘↵); waits for the
+// bill form that shows "From purchase order <number>".
+export async function submitCopyToBill(page: Page, number: string) {
+    await page.keyboard.press('ControlOrMeta+Enter')
+    await expect(copyToBillDialog(page)).toHaveCount(0)
+    await expect(page).toHaveURL(BILL_FROM_ORDER_URL)
+    await expect(visibleBillForm(page)).toBeVisible()
+    await expect(visibleOrderPart(page, 'bill-from-purchase-order')).toHaveText(
+        `From purchase order ${number}`
+    )
+}
+
+// The order's read view must show, on an open order with an open line. Copies every row
+// at its start value to a new bill; ends on the bill form.
+export async function copyOrderToBill(page: Page, number: string) {
+    await openCopyToBill(page)
+    await submitCopyToBill(page, number)
+}
+
+// Whether a control cannot be used: it is not drawn, is disabled, or is no Tab stop (a
+// picker drawn as plain text).
+export async function isLocked(target: Locator): Promise<boolean> {
+    if ((await target.count()) === 0) return true
+    return target.first().evaluate(el => {
+        const disabled = (el as HTMLButtonElement).disabled === true
+        const ariaDisabled = el.getAttribute('aria-disabled') === 'true'
+        return disabled || ariaDisabled || (el as HTMLElement).tabIndex < 0
+    })
 }

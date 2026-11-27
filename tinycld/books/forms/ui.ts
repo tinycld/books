@@ -53,6 +53,7 @@ import { BundleProductCell, ProductTypeField } from './product-fields'
 import {
     LineAccountCell,
     LineItemAmountCell,
+    LinePurchaseDescriptionCell,
     LinePurchaseProductCell,
     LineTypedAmountCell,
 } from './purchase-line-cells'
@@ -120,6 +121,7 @@ const ui: FormHostUi = {
         VendorRefField,
         LineAccountCell,
         LinePurchaseProductCell,
+        LinePurchaseDescriptionCell,
         LineTypedAmountCell,
         LineItemAmountCell,
         AssetAccountField,

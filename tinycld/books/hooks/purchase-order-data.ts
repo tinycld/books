@@ -4,6 +4,7 @@ import { useStore } from '@tinycld/core/lib/pocketbase'
 import { useRecord } from '@tinycld/core/lib/use-record'
 import { materialize } from 'pbtsdb'
 import { useMemo } from 'react'
+import { withNoOrderLine } from '../lib/purchase-line-columns'
 import {
     type EMPTY_PURCHASE_ORDER_COLUMNS,
     purchaseOrderColumnsFrom,
@@ -236,6 +237,10 @@ function usePurchaseOrderScreenReads(
         queryKey: ['books.purchase-order.source-lines', ids.sourceLinesId],
     })
     const formStart = usePurchaseOrderFormStart(input)
+    const lineRows = linesQuery.data
+    const lines = useMemo(() => withNoOrderLine(lineRows), [lineRows])
+    const sourceLineRows = sourceLinesQuery.data
+    const sourceLines = useMemo(() => withNoOrderLine(sourceLineRows), [sourceLineRows])
     return {
         record: documentRead(id, orderQuery, record, [
             ordersCollection,
@@ -243,18 +248,15 @@ function usePurchaseOrderScreenReads(
             usersCollection,
             linesCollection,
         ]),
-        lines: documentRead(id, linesQuery, linesQuery.data ?? [], [
+        lines: documentRead(id, linesQuery, lines, [
             linesCollection,
             productsCollection,
             accountsCollection,
         ]),
         source: documentRead(ids.sourceId, sourceQuery, source, [ordersCollection]),
-        sourceLines: documentRead(
-            ids.sourceLinesId,
-            sourceLinesQuery,
-            sourceLinesQuery.data ?? [],
-            [linesCollection]
-        ),
+        sourceLines: documentRead(ids.sourceLinesId, sourceLinesQuery, sourceLines, [
+            linesCollection,
+        ]),
         ...NO_ESTIMATE_SOURCE,
         ...NO_LINK_SOURCE,
         ...NO_DOCUMENT_PAYMENTS,

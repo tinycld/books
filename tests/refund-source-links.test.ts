@@ -12,7 +12,16 @@ import {
     refundReceiptOffered,
 } from '../tinycld/books/lib/document-actions'
 import { documentScreenState } from '../tinycld/books/lib/document-screen-state'
-import { payoutUnappliedText, refundSourceLabel } from '../tinycld/books/lib/document-source-links'
+import {
+    linkSourceLabel,
+    linkSourcePartyOf,
+    payoutUnappliedText,
+    purchaseOrderLinkLabel,
+    refundSourceLabel,
+    sourceLinkRules,
+    sourceParamOf,
+} from '../tinycld/books/lib/document-source-links'
+import { PURCHASE_ORDER_IDS, PURCHASE_ORDERS } from '../tinycld/books/lib/purchase-orders-fixture'
 import { SALES_FEATURES } from '../tinycld/books/lib/sales-document-kinds'
 import { SALES_RECEIPT_IDS, SALES_RECEIPTS } from '../tinycld/books/lib/sales-receipt-form-fixture'
 
@@ -42,6 +51,61 @@ describe('refundSourceLabel', () => {
 // The payout's link holds only the memo's words; the unapplied credit is plain text drawn
 // right after the link (spec §3.3, reference payout-1280). The browser joins the two texts
 // with no separator, so the detail carries its own leading space.
+// A bill's link to the purchase order it is made from (purchase order spec §3.7, §3.8, Q10).
+describe('the purchase order source link', () => {
+    function orderSource() {
+        const row = PURCHASE_ORDERS.find(order => order.id === PURCHASE_ORDER_IDS.open)
+        if (!row) throw new Error('no open purchase order in the fixture')
+        return { key: 'purchase_order' as const, row: { ...row, lines: [], choice: undefined } }
+    }
+
+    it('keeps the order and locks the vendor: no Remove link', () => {
+        expect(sourceLinkRules({ key: 'purchase_order', id: PURCHASE_ORDER_IDS.open })).toEqual({
+            canRemove: false,
+            locksParty: true,
+        })
+    })
+
+    it('leaves the other links as they were', () => {
+        expect(sourceLinkRules({ key: 'credit_memo', id: 'm' })).toEqual({
+            canRemove: false,
+            locksParty: true,
+        })
+        expect(sourceLinkRules({ key: 'invoice', id: 'i' })).toEqual({
+            canRemove: true,
+            locksParty: false,
+        })
+        expect(sourceLinkRules({ key: 'sales_receipt', id: 's' })).toEqual({
+            canRemove: true,
+            locksParty: false,
+        })
+        expect(sourceLinkRules({ key: '', id: '' })).toEqual({
+            canRemove: false,
+            locksParty: false,
+        })
+    })
+
+    it('reads ?purchase_order as the link a new bill starts with', () => {
+        expect(sourceParamOf({ purchaseOrder: 'po1004offsup001' })).toEqual({
+            key: 'purchase_order',
+            id: 'po1004offsup001',
+        })
+        expect(sourceParamOf({})).toEqual({ key: '', id: '' })
+    })
+
+    it("gives the order's vendor as the party of the link", () => {
+        const source = orderSource()
+        expect(source.row.vendor).not.toBe('')
+        expect(linkSourcePartyOf(source)).toBe(source.row.vendor)
+    })
+
+    it('words the link "From purchase order <n>"', () => {
+        expect(purchaseOrderLinkLabel('1004')).toBe('From purchase order 1004')
+        const source = orderSource()
+        expect(linkSourceLabel(source)).toBe(`From purchase order ${source.row.number}`)
+    })
+})
+
 describe('payoutUnappliedText', () => {
     it("gives the unapplied credit in the book's money, with a leading space", () => {
         expect(payoutUnappliedText(25_000, 'USD')).toBe(' · $250.00 unapplied')

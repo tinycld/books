@@ -51,7 +51,8 @@ export const PURCHASE_ACCOUNT_COLUMNS: readonly HostTableColumn[] = [
         kind: 'text',
         required: false,
         hidden: false,
-        component: 'LineDescriptionCell',
+        // A linked order line says what is billed under it (spec §3.8).
+        component: 'LinePurchaseDescriptionCell',
         flex: ACCOUNT_DESCRIPTION_FLEX,
     },
     {
@@ -84,7 +85,8 @@ export const PURCHASE_ITEM_COLUMNS: readonly HostTableColumn[] = [
         kind: 'text',
         required: false,
         hidden: false,
-        component: 'LineDescriptionCell',
+        // A linked order line says what is received under it (spec §3.8).
+        component: 'LinePurchaseDescriptionCell',
         flex: DESCRIPTION_FLEX,
     },
     {
@@ -154,14 +156,37 @@ export type PurchaseLineRow = Pick<
     | 'rate'
     | 'amount'
     | 'position'
->
+> & {
+    // A bill line's purchase order line (purchase order spec §3.8); no other kind's line
+    // has one: it and a bill line with none hold ''.
+    po_line: BooksBillLines['po_line']
+}
+
+// The stored lines of a kind whose lines name no purchase order line (an expense, a vendor
+// credit, a purchase order: their collections have no `po_line`), as PurchaseLineRow reads
+// them: `po_line` ''.
+export function withNoOrderLine<L extends object>(
+    lines: readonly L[] | undefined
+): (L & { po_line: string })[] {
+    return (lines ?? []).map(line => ({ ...line, po_line: '' }))
+}
 
 // What a row writes; the bill's data source adds the parent field (`bill`). An account
-// line writes its typed amount; a product line writes none, as the server computes it.
-export type PurchaseLineValues = Omit<PurchaseLineRow, 'id' | 'amount'> & { amount?: number }
+// line writes its typed amount; a product line writes none, as the server computes it. Only
+// a row from a purchase order writes `po_line` (the other kinds' lines have no such column).
+export type PurchaseLineValues = Omit<PurchaseLineRow, 'id' | 'amount' | 'po_line'> & {
+    amount?: number
+    po_line?: string
+}
 
 function textCell(value: unknown): string {
     return typeof value === 'string' ? value : ''
+}
+
+// The order line a row names, as a part of the row or record: only a non-empty one, so a
+// line of a kind with no `po_line` column never gets the key.
+function orderLinkOf(value: unknown): { po_line?: string } {
+    return typeof value === 'string' && value !== '' ? { po_line: value } : {}
 }
 
 function moneyCents(value: unknown): number {
@@ -170,7 +195,8 @@ function moneyCents(value: unknown): number {
 
 // A cell a kind does not draw is null in the row and 0 or '' in the record. The form
 // checks the typed amount and rate before it saves; text that slips past is written as 0
-// and the server's own bounds still apply.
+// and the server's own bounds still apply. A bill line's purchase order line (`po_line`)
+// rides on the row as a cell no column draws, and is written with it.
 export const PURCHASE_LINE_MAPPER: TableRowMapper<PurchaseLineRow, PurchaseLineValues> = {
     toRow: line =>
         line.kind === 'account'
@@ -179,6 +205,7 @@ export const PURCHASE_LINE_MAPPER: TableRowMapper<PurchaseLineRow, PurchaseLineV
                   account: line.account,
                   description: line.description,
                   amount: centsToText(line.amount),
+                  ...orderLinkOf(line.po_line),
               }
             : {
                   kind: line.kind,
@@ -187,10 +214,15 @@ export const PURCHASE_LINE_MAPPER: TableRowMapper<PurchaseLineRow, PurchaseLineV
                   quantity: line.quantity,
                   rate: centsToText(line.rate),
                   amount: line.amount,
+                  ...orderLinkOf(line.po_line),
               },
     positionOf: line => line.position,
     toRecord: (row, position) => {
-        const base = { description: textCell(row.description), position }
+        const base = {
+            description: textCell(row.description),
+            position,
+            ...orderLinkOf(row.po_line),
+        }
         if (row.kind === 'account') {
             return {
                 ...base,

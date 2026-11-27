@@ -12,7 +12,7 @@ type RouteKind = Pick<SalesDocumentKind, 'routeBase'>
 // was opened with it. `estimate` starts an invoice from that estimate (Convert to invoice);
 // `invoice` starts a credit memo from that invoice (Create credit memo); `sales_receipt`
 // and `credit_memo` start a refund receipt from that sales receipt (Refund) or credit memo
-// (Refund credit).
+// (Refund credit); `purchase_order` starts a bill from that purchase order (Copy to bill).
 export function documentNewHref(
     kind: RouteKind,
     input: {
@@ -25,6 +25,7 @@ export function documentNewHref(
         invoice?: string
         sales_receipt?: string
         credit_memo?: string
+        purchase_order?: string
     }
 ): string {
     const params = new URLSearchParams()
@@ -35,6 +36,7 @@ export function documentNewHref(
         'invoice',
         'sales_receipt',
         'credit_memo',
+        'purchase_order',
         'fresh',
         'customer',
         'vendor',

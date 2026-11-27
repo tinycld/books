@@ -137,9 +137,9 @@ function documentRecordSchema(
 }
 
 // The built-ins of a new form's, a correction's, a copy's or an invoice-from-estimate's
-// values: `replaces`, `estimate`, a credit memo's `invoice` and a refund receipt's
-// `sales_receipt` and `credit_memo` are no fields of the form (the save writes them), so
-// the engine never files them among the custom fields.
+// values: `replaces`, `estimate`, a credit memo's `invoice`, a refund receipt's
+// `sales_receipt` and `credit_memo` and a bill's `purchase_order` are no fields of the form
+// (the save writes them), so the engine never files them among the custom fields.
 function builtinValuesOf(values: DocumentStartValues): DocumentStartValues {
     const builtins: DocumentStartValues = { ...values }
     delete builtins.replaces
@@ -147,6 +147,7 @@ function builtinValuesOf(values: DocumentStartValues): DocumentStartValues {
     delete builtins.invoice
     delete builtins.sales_receipt
     delete builtins.credit_memo
+    delete builtins.purchase_order
     return builtins
 }
 

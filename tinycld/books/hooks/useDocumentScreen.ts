@@ -5,7 +5,7 @@ import { newRecordId } from 'pbtsdb/core'
 import { useEffect, useMemo, useState } from 'react'
 import type { DocumentKind } from '../components/documents/document-kinds'
 import { type DocumentScreenState, documentScreenState } from '../lib/document-screen-state'
-import { type LinkSource, sourceParamOf } from '../lib/document-source-links'
+import { type LinkSource, linkSourcePartyOf, sourceParamOf } from '../lib/document-source-links'
 import { defaultMessageFor } from '../lib/document-values'
 import { type LiveRecovery, mergeRecoveries } from '../lib/live-recovery'
 import { todayIso } from '../lib/register-range'
@@ -22,9 +22,10 @@ export type { DocumentScreenInput } from './document-data'
 const NO_RECOVERY: LiveRecovery = { queries: [], sources: [] }
 
 // The party a new form starts with: a copy's source party, the estimate's customer on an
-// invoice made from one, the source's customer on a form made from its source link (a
-// credit memo's invoice, a refund's sales receipt or credit memo), else the route's party
-// param (`?customer`, or `?vendor` on a kind whose party is a vendor).
+// invoice made from one, the source's party on a form made from its source link (the
+// customer of a credit memo's invoice or a refund's sales receipt or credit memo, the
+// vendor of a bill's purchase order), else the route's party param (`?customer`, or
+// `?vendor` on a kind whose party is a vendor).
 function newPartyIdOf(
     input: DocumentScreenInput,
     partyField: DocumentPartyKey,
@@ -40,8 +41,11 @@ function newPartyIdOf(
 
 // A new route's form key: each start mounts its own form.
 function newFormKey(input: DocumentScreenInput): string {
-    const { fresh, replaces, copy, estimate, invoice, salesReceipt, creditMemo } = input
+    const { fresh, replaces, copy, estimate, invoice, salesReceipt, creditMemo, purchaseOrder } =
+        input
     const starts = [fresh, replaces, copy, estimate, invoice, salesReceipt, creditMemo]
+    // Appended only when set, so every other route keeps its key.
+    if (purchaseOrder) starts.push(purchaseOrder)
     return `new:${starts.map(start => start ?? '').join(':')}`
 }
 
@@ -133,12 +137,13 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
     // shows a refused read as an error with Retry.
     const partyField = DOCUMENT_PARTIES[documentKind.doc.party].field
     const sourcePartyId = source ? documentPartyIdOf(source) : undefined
-    const linkCustomer = linkSource?.row.customer ?? ''
+    // The source's party: a purchase order's vendor, any other source's customer.
+    const linkParty = linkSource ? linkSourcePartyOf(linkSource) : undefined
     const newPartyId = newPartyIdOf(
         input,
         partyField,
         sourcePartyId,
-        { estimate: estimateSource?.customer, source: linkSource?.row.customer },
+        { estimate: estimateSource?.customer, source: linkParty },
         isFromSource
     )
     const partyId = (isNew ? newPartyId : record && documentPartyIdOf(record)) ?? ''
@@ -187,8 +192,8 @@ export function useDocumentScreen(documentKind: DocumentKind, input: DocumentScr
     const ownsEstimate =
         isFromEstimate && writtenId !== undefined && estimateSource?.invoice === writtenId
     // A source saved without a customer (a walk-in sales receipt) starts the form with none;
-    // a source whose customer cannot be read has no values to start from.
-    const hasLinkParty = linkCustomer === '' || copyParty !== undefined
+    // a source whose party cannot be read has no values to start from.
+    const hasLinkParty = (linkParty ?? '') === '' || copyParty !== undefined
     // A source that does not exist, or whose customer cannot be read, cannot start the form
     // (null); else the kind's answer (DocumentKind.sourceAllowed), until the form has shown
     // (useShownSourceForm).

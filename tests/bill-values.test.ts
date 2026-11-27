@@ -187,6 +187,7 @@ function linesOf(billId: string): PurchaseLineRow[] {
         rate: line.rate,
         amount: line.amount,
         position: line.position,
+        po_line: line.po_line,
     }))
 }
 

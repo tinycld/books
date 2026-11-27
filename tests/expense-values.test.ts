@@ -84,6 +84,7 @@ function linesOf(expenseId: string): PurchaseLineRow[] {
         rate: line.rate,
         amount: line.amount,
         position: line.position,
+        po_line: '',
     }))
 }
 

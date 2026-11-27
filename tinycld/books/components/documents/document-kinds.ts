@@ -34,10 +34,12 @@ import {
     type BillFormValues,
     billCorrectionValues,
     billReadTotals,
+    billValuesFromOrder,
     copyBillValues,
     newBillValues,
     vendorBillFills,
 } from '../../lib/bill-values'
+import { billLinesFromChoice } from '../../lib/copy-to-bill'
 import {
     CREDIT_MEMO_APPLICATION,
     type CreditApplicationKind,
@@ -102,7 +104,7 @@ import {
     EMPTY_PURCHASE_ORDER_COLUMNS,
     purchaseOrderColumnsFrom,
 } from '../../lib/purchase-order-columns'
-import { purchaseOrderBadge } from '../../lib/purchase-order-status'
+import { orderHasOpenLine, purchaseOrderBadge } from '../../lib/purchase-order-status'
 import {
     copyPurchaseOrderValues,
     newPurchaseOrderValues,
@@ -157,6 +159,7 @@ import {
     vendorCreditVendorFills,
 } from '../../lib/vendor-credit-values'
 import type { BooksVendors } from '../../types'
+import { BillFromOrderLink, BillOrderLinkRow } from './BillOrderLink'
 import { BillReadDetails } from './BillReadDetails'
 import { CreditMemoReadFrame, VendorCreditReadFrame } from './CreditApplySection'
 import { CreditMemoLinkRow } from './CreditMemoLinkRow'
@@ -167,6 +170,7 @@ import { ExpensePaymentRow, ExpenseReadDetails } from './ExpenseReadDetails'
 import { InvoiceApplyFrame } from './InvoiceApplyFrame'
 import { InvoiceFromEstimateLink, InvoiceReadDetails } from './InvoiceReadDetails'
 import { InvoiceSections } from './InvoiceSections'
+import { PurchaseOrderBills } from './PurchaseOrderBills'
 import { PurchaseOrderReadDetails, PurchaseOrderStamps } from './PurchaseOrderReadDetails'
 import { orderLinesCardsBelow, PurchaseOrderReadLines } from './PurchaseOrderReadLines'
 import { PurchaseReadLines } from './PurchaseReadLines'
@@ -402,8 +406,12 @@ export type DocumentKind = {
     // stamps.
     ReadFrame?: ComponentType<DocumentReadFrameProps>
     // A row of the form's band between its first row and the date (a credit memo's invoice
-    // link). It reads the form's scope; a kind without it draws the band in one piece.
+    // link), or the field `formBandRowBefore` names. It reads the form's scope; a kind
+    // without it draws the band in one piece.
     FormBandRow?: ComponentType
+    // The band field the FormBandRow is drawn before: 'date' when absent; a bill's is
+    // 'terms', the first field of its ruled row.
+    formBandRowBefore?: string
     // Each line table's spec, keyed by the table's key (`doc.lineTables`).
     lineSpecs: Record<string, DocumentLineSpec>
     // The read view's lines; DocumentReadLines when absent.
@@ -917,8 +925,34 @@ export const BILL_DOCUMENT: DocumentKind = {
             ),
         correction: (source, lines) =>
             billCorrectionValues(billRowOf(source), lines.filter(isPurchaseLine)),
+        // Copy to bill (`?purchase_order`): the lines the dialog chose, or every open line
+        // when no choice is stored (billLinesFromChoice); the header from the order's vendor.
+        fromSource: (source, _lines, today, party) => {
+            if (source.key !== 'purchase_order') {
+                throw new Error(`a bill is not made from a ${source.key}`)
+            }
+            const { row } = source
+            const lines = billLinesFromChoice(row.lines, row.choice)
+            return billValuesFromOrder(row, lines, today, billVendorOf(party))
+        },
     },
+    sourceLinkKeys: ['purchase_order'],
+    // An open order with at least one open line is copied (spec §3.12); a closed one, or
+    // one with nothing open, is not.
+    sourceAllowed: source =>
+        source.key === 'purchase_order' &&
+        source.row.status === 'open' &&
+        orderHasOpenLine(source.row.lines),
+    sourceNotice: () => ({
+        testId: `${BILL_KIND.testId}-cannot-start`,
+        message: PURCHASE_ORDER_KIND.messages.nothingLeft,
+    }),
     ReadDetails: BillReadDetails,
+    // "From purchase order <n>" under the Posted-by stamp, and in the form's band before
+    // Terms (spec §3.8).
+    ReadStampRow: BillFromOrderLink,
+    FormBandRow: BillOrderLinkRow,
+    formBandRowBefore: 'terms',
     ReadLines: PurchaseReadLines,
     lineSpecs: PURCHASE_LINE_SPECS,
     // Mailing address, Terms and Due date, and the first account line's empty Account.
@@ -997,6 +1031,8 @@ export const PURCHASE_ORDER_DOCUMENT: DocumentKind = {
     },
     ReadDetails: PurchaseOrderReadDetails,
     ReadStampRow: PurchaseOrderStamps,
+    // The bills that name the order (spec §3.6).
+    ReadSection: PurchaseOrderBills,
     ReadLines: PurchaseOrderReadLines,
     lineSpecs: PURCHASE_LINE_SPECS,
     // Mailing address and Email, and the first account line's empty Account.

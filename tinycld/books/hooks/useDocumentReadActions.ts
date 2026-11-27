@@ -45,6 +45,7 @@ import { useWriteOffStore } from '../stores/write-off-store'
 import type { DocumentRecord } from './document-data'
 import { useBooksAccess } from './useBooksAccess'
 import { useCopyDocumentLink } from './useCopyDocumentLink'
+import { useCopyToBill } from './useCopyToBill'
 import { deleteDialogTexts, useDocumentDelete, useScreenHoldRelease } from './useDocumentDelete'
 import { useOpenDocument } from './useOpenDocument'
 import { useOpenFromReadView, useOpenInPlaceOfReadView } from './useOpenFromReadView'
@@ -74,6 +75,12 @@ function invoiceTokenOf(record: ReadRecord): string {
 // The invoice made from a closed estimate; '' for any other record.
 function invoiceIdOf(record: ReadRecord): string {
     return record.kindFields.kind === 'estimate' ? record.kindFields.invoice : ''
+}
+
+// The id of a purchase order, whose Copy to bill reads it (useCopyToBill); '' for any other
+// record, which reads nothing.
+function orderIdOf(record: ReadRecord): string {
+    return record.kindFields.kind === 'purchase_order' ? record.id : ''
 }
 
 // The vendor of a vendor credit; '' for any other record, which offers no Record refund.
@@ -229,7 +236,10 @@ function lifecycleActionsOf(
  * the record, so Back returns to it; a payout's Void dialog says the credit memo's credit is
  * unapplied again. Write off (a writer on a posted invoice with an open balance) opens the
  * write-off dialog through `useWriteOffStore` with `owner`, the `useId()` of the read view
- * that mounts the dialog. Send… (a writer on a sent-able document, sendOffered) opens the
+ * that mounts the dialog. Copy to bill (a writer on an open purchase order with an open
+ * line) opens the Copy to bill dialog through `useCopyToBill(orderId).open` with the same
+ * `owner`.
+ * Send… (a writer on a sent-able document, sendOffered) opens the
  * Send dialog through `useDocumentSendStore` with the same `owner`; Copy customer link (a
  * writer on a posted invoice with a token) copies its link through useCopyDocumentLink and
  * is disabled while writes are not available. Edit and Copy (the kind's own `new` form) replace the read view (a
@@ -275,6 +285,7 @@ export function useDocumentReadActions(
     const openApplyDialog = useApplyCreditStore(state => state.open)
     const openWriteOff = useWriteOffStore(state => state.open)
     const openSend = useDocumentSendStore(state => state.open)
+    const copyToBill = useCopyToBill(orderIdOf(record))
     const copyLink = useCopyDocumentLink('invoice', invoiceTokenOf(record))
     const sendKind = record.kindFields.kind
     // Close and Reopen are a Books admin's (spec §3.6); the access row is the one every Books
@@ -299,9 +310,12 @@ export function useDocumentReadActions(
         ? { send: () => openSend({ kind: sendKind, id: record.id }, owner) }
         : {}
     // The actions this read view has a handler for; an offered action without one is not
-    // drawn (a purchase order's Copy to bill, Close and Reopen come with their dialogs).
+    // drawn (a purchase order's Close and Reopen come with their dialogs).
     const run: Partial<Record<DocumentReadAction, () => void>> = {
         ...sendRun,
+        // The Copy to bill dialog over this read view (spec §3.7), which the read view mounts
+        // with the same `owner`; its Create bill pushes the bill form, so Back returns here.
+        copy_to_bill: () => copyToBill.open(owner),
         // The apply dialog, drawn by the credit's or the invoice's read frame (vendor credit
         // spec §3.9, apply credit spec §3.2, §3.3), opened with this record's id.
         apply_credit: () => openApplyDialog(record.id),

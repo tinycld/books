@@ -18,6 +18,11 @@ import { lineTableSubtotals } from '../tinycld/books/lib/document-values'
 import { EXPENSE_IDS, EXPENSE_LINES, EXPENSES } from '../tinycld/books/lib/expense-form-fixture'
 import { maxStoredAmount } from '../tinycld/books/lib/money-text'
 import {
+    PURCHASE_ORDER_IDS,
+    PURCHASE_ORDER_LINES,
+    PURCHASE_ORDERS,
+} from '../tinycld/books/lib/purchase-orders-fixture'
+import {
     BILL_KIND,
     CREDIT_MEMO_KIND,
     EXPENSE_KIND,
@@ -39,6 +44,8 @@ import type {
     BooksExpenseLines,
     BooksExpenses,
     BooksProducts,
+    BooksPurchaseOrderLines,
+    BooksPurchaseOrders,
     BooksSettings,
     BooksVendorCreditLines,
     BooksVendorCredits,
@@ -504,6 +511,12 @@ describe('useDocumentScreen(BILL_DOCUMENT)', () => {
         sort_key: '',
     }))
     const NO_PRODUCTS: BooksProducts[] = []
+    const ORDER_LINE_ROWS: BooksPurchaseOrderLines[] = PURCHASE_ORDER_LINES.map(
+        ({ account_number, ...line }) => ({
+            ...line,
+            account: account_number ? accountId(account_number) : '',
+        })
+    )
 
     // The posted bill's payments (pay-bills spec §3.9, §4.4): one posted bill payment pays
     // part of it, and a void one paid it before. Only the posted one is listed.
@@ -562,12 +575,15 @@ describe('useDocumentScreen(BILL_DOCUMENT)', () => {
     }
 
     // The registry after seedBooks: the bill collections, each refusing its first load of
-    // the row (or the lines of the bill) a test names.
+    // the row (or the lines of the bill) a test names, and the purchase orders a bill reads
+    // its order from (the bill's one query materializes the order's row).
     function seed(
         opts: { level?: 'read_only' | 'bookkeeper' } & Refusals & {
                 settingsFailsOnce?: boolean
                 settingsNeverReady?: boolean
                 paymentLinesNeverReady?: boolean
+                orders?: BooksPurchaseOrders[]
+                orderLines?: BooksPurchaseOrderLines[]
             } = {}
     ) {
         seedBooks({
@@ -585,6 +601,11 @@ describe('useDocumentScreen(BILL_DOCUMENT)', () => {
         const vendors = onDemandStore<BooksVendors>('books_vendors', VENDOR_ROWS, opts.vendor)
         onDemandStore<BooksProducts>('books_products', NO_PRODUCTS)
         onDemandStore<BooksBillPayments>('books_bill_payments', PAYMENT_ROWS)
+        onDemandStore<BooksPurchaseOrders>('books_purchase_orders', opts.orders ?? PURCHASE_ORDERS)
+        onDemandStore<BooksPurchaseOrderLines>(
+            'books_purchase_order_lines',
+            opts.orderLines ?? ORDER_LINE_ROWS
+        )
         const paymentLines = opts.paymentLinesNeverReady
             ? neverReadyStore<BooksBillPaymentLines>('books_bill_payment_lines')
             : onDemandStore<BooksBillPaymentLines>(
@@ -751,6 +772,91 @@ describe('useDocumentScreen(BILL_DOCUMENT)', () => {
             expect(hook.result.current.lines?.length).toBeGreaterThan(0)
         })
         expect(hook.result.current.state).toBe('loading')
+    })
+
+    // A bill from a purchase order (purchase order spec §3.12): `?purchase_order` of an
+    // order that does not exist, is closed, or has no open line is the layer's cannot-start
+    // notice "This purchase order has nothing left to copy to a bill."; an open order with
+    // an open line starts the form from it.
+    describe('from a purchase order', () => {
+        const NOTHING_LEFT = 'This purchase order has nothing left to copy to a bill.'
+        // An open order whose every line is received (no seeded order is): order 1004 with
+        // nothing left open.
+        const RECEIVED_ID = 'po9999received1'
+
+        const openOrder = PURCHASE_ORDERS.find(row => row.id === PURCHASE_ORDER_IDS.open)
+        if (!openOrder) throw new Error('no open order 1004 in the fixture')
+        const RECEIVED_ORDER: BooksPurchaseOrders = {
+            ...openOrder,
+            id: RECEIVED_ID,
+            number: '9999',
+            sequence: 9999,
+            open_amount: 0,
+        }
+        const RECEIVED_LINES: BooksPurchaseOrderLines[] = ORDER_LINE_ROWS.filter(
+            line => line.purchase_order === PURCHASE_ORDER_IDS.open
+        ).map(line => ({
+            ...line,
+            id: `rcv${line.id.slice(3)}`,
+            purchase_order: RECEIVED_ID,
+            received: line.quantity,
+            billed: line.amount,
+            open_quantity: 0,
+            open_amount: 0,
+        }))
+
+        function seedOrders() {
+            seed({
+                orders: [...PURCHASE_ORDERS, RECEIVED_ORDER],
+                orderLines: [...ORDER_LINE_ROWS, ...RECEIVED_LINES],
+            })
+        }
+
+        it('gives the bill kind the cannot-start notice with its text', () => {
+            expect(BILL_DOCUMENT.sourceLinkKeys ?? []).toContain('purchase_order')
+            expect(BILL_DOCUMENT.sourceNotice?.('purchase_order')).toEqual({
+                testId: 'bill-cannot-start',
+                message: NOTHING_LEFT,
+            })
+        })
+
+        it.each([
+            ['an order that does not exist', 'pomissingorder1'],
+            ['an order closed by hand', PURCHASE_ORDER_IDS.closedManual],
+            ['an order closed as received', PURCHASE_ORDER_IDS.closedReceived],
+            ['an open order with every line received', RECEIVED_ID],
+        ])('is cannot-start for %s, with the notice text', async (_label, orderId) => {
+            seedOrders()
+            const hook = renderScreen({ id: null, purchaseOrder: orderId })
+            await waitFor(() => expect(hook.result.current.state).toBe('cannot-start'))
+            expect(hook.result.current.sourceNotice).toEqual({
+                testId: 'bill-cannot-start',
+                message: NOTHING_LEFT,
+            })
+        })
+
+        it('starts the form from an open order with an open line, its vendor and its lines', async () => {
+            seedOrders()
+            const hook = renderScreen({ id: null, purchaseOrder: PURCHASE_ORDER_IDS.open })
+            await waitFor(() => expect(hook.result.current.state).toBe('form'))
+            const values = hook.result.current.startValues
+            expect(values).toMatchObject({
+                vendor: openOrder.vendor,
+                purchase_order: PURCHASE_ORDER_IDS.open,
+                memo: '',
+            })
+            const named = (key: 'account_lines' | 'item_lines') =>
+                ((values?.[key] ?? []) as { po_line?: string }[]).map(row => row.po_line)
+            const own = ORDER_LINE_ROWS.filter(
+                line => line.purchase_order === PURCHASE_ORDER_IDS.open
+            )
+            expect(named('account_lines')).toEqual(
+                own.filter(line => line.kind === 'account').map(line => line.id)
+            )
+            expect(named('item_lines')).toEqual(
+                own.filter(line => line.kind === 'item').map(line => line.id)
+            )
+        })
     })
 })
 

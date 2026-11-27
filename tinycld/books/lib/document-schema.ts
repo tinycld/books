@@ -59,7 +59,9 @@ function isTooLong(value: unknown): boolean {
     return [...textOf(value)].length > MAX_TEXT
 }
 
-function quantityMessage(value: unknown, messages: DocumentMessages): string | null {
+// A line's quantity: above 0, at most MAX_QUANTITY, at most 2 decimals. The Copy to bill
+// dialog's Qty to bill takes the same rule (lib/copy-to-bill.ts).
+export function quantityMessage(value: unknown, messages: DocumentMessages): string | null {
     if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
         return messages.quantityNotPositive
     }
@@ -92,8 +94,9 @@ function percentMessage(value: unknown, messages: DocumentMessages): string | nu
 }
 
 // An account line's typed Amount: well formed, not 0, and inside the line limit. An
-// empty amount is core's "Amount is required" (the account kind requires it).
-function accountAmountMessage(value: unknown, currency: string): string | null {
+// empty amount is core's "Amount is required" (the account kind requires it). The Copy to
+// bill dialog's Amount to bill takes the same rule (lib/copy-to-bill.ts).
+export function accountAmountMessage(value: unknown, currency: string): string | null {
     if (value === null || value === undefined) return null
     if (typeof value !== 'string') return ACCOUNT_AMOUNT_MESSAGES.malformed
     if (value.trim() === '') return null

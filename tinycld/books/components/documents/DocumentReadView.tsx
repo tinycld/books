@@ -57,6 +57,7 @@ import { EntryBackLink } from '../entries/EntryHeader'
 import { VoidDialog } from '../entries/VoidDialog'
 import { WriteOffDialog } from '../write-offs/WriteOffDialog'
 import { AttachmentsSection } from './AttachmentsSection'
+import { CopyToBillDialog } from './CopyToBillDialog'
 import { RemoveApplicationDialog } from './DocumentApplications'
 import { DocumentDetail } from './DocumentDetail'
 import { DocumentHeader } from './DocumentHeader'
@@ -513,6 +514,20 @@ function ReadWriteOffDialog({ owner, isVisible }: { owner: string; isVisible: bo
     return <WriteOffDialog owner={owner} />
 }
 
+// The Copy to bill dialog of this read view; only a purchase order offers Copy to bill.
+function ReadCopyToBillDialog({
+    owner,
+    currency,
+    isVisible,
+}: {
+    owner: string
+    currency: string
+    isVisible: boolean
+}) {
+    if (!isVisible) return null
+    return <CopyToBillDialog owner={owner} currency={currency} />
+}
+
 // The Send dialog of this read view (email-share spec §3.2): a writer on a sent-able kind
 // (Send… opens it with this screen's owner). A Post and send of this document queues its
 // send, which opens here once the document can be sent (`sendOffered`: posted, or an open
@@ -731,6 +746,7 @@ export function DocumentReadView({ data, record, tab, notice }: DocumentReadView
     const isPdfTab = tab === 'pdf'
     const isPosting = doc.lifecycle === 'posting'
     const isInvoice = record.kindFields.kind === 'invoice'
+    const isPurchaseOrder = record.kindFields.kind === 'purchase_order'
     const isExpired = expiredOnOf(record, todayIso()) !== null
     const readOnlyId = `${doc.testId}-read-only`
     const attachments = doc.features.attachments ? (
@@ -764,7 +780,12 @@ export function DocumentReadView({ data, record, tab, notice }: DocumentReadView
                 date={date}
                 tax={tax}
             />
-            <ReadLines lines={data.lines} currency={data.currency} isPhone={isPhone} />
+            <ReadLines
+                lines={data.lines}
+                currency={data.currency}
+                isPhone={isPhone}
+                documentId={record.id}
+            />
             <ReadFooter
                 isPhone={isPhone}
                 totals={totals}
@@ -849,6 +870,11 @@ export function DocumentReadView({ data, record, tab, notice }: DocumentReadView
                 <VoidDialog {...read.voidDialog} />
                 <DeleteDraftDialog {...read.deleteDialog} />
                 <ReadWriteOffDialog owner={owner} isVisible={isInvoice} />
+                <ReadCopyToBillDialog
+                    owner={owner}
+                    currency={data.currency}
+                    isVisible={isPurchaseOrder}
+                />
                 <ReadSendDialog
                     owner={owner}
                     record={record}

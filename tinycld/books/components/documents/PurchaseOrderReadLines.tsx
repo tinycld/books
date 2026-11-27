@@ -6,7 +6,9 @@ import {
     isOrderReadLine,
     type PurchaseOrderReadLine as ReadLine,
 } from '../../hooks/document-data'
+import { usePurchaseOrderBills } from '../../hooks/usePurchaseOrderBills'
 import { formatMoney } from '../../lib/money'
+import { draftNoteText } from '../../lib/purchase-order-bills'
 import type { DocumentLineTable } from '../../lib/sales-document-kinds'
 import { type CellWidth, showsTableCards, tableMinWidth } from '../../lib/table-fit'
 import { DOCUMENT_READ_TRAILING_WIDTH, type DocumentReadLinesProps } from './DocumentReadLines'
@@ -107,15 +109,25 @@ function NameCell({ line, style }: { line: ReadLine; style: object }) {
     )
 }
 
-// Open is medium weight while above zero (spec §3.6), "—" at zero.
-function OpenCell({ line, currency, style }: { line: ReadLine; currency: string; style: object }) {
+// A line with the note of what the order's draft bills hold of it ('' when none does).
+type NotedLine = ReadLine & { draftNote: string }
+
+function DraftNote({ text }: { text: string }) {
+    if (text === '') return null
+    return <Text className="text-right text-xs text-muted-foreground">{text}</Text>
+}
+
+// Open is medium weight while above zero (spec §3.6), "—" at zero; the draft-bill note
+// under it.
+function OpenCell({ line, currency, style }: { line: NotedLine; currency: string; style: object }) {
     const text = openText(line, currency)
     const weight = text === DASH ? '' : 'font-medium'
     const textClass = `text-right text-sm tabular-nums text-foreground ${weight}`
     return (
-        <Text style={style} className={textClass}>
-            {text}
-        </Text>
+        <View style={style}>
+            <Text className={textClass}>{text}</Text>
+            <DraftNote text={line.draftNote} />
+        </View>
     )
 }
 
@@ -145,7 +157,7 @@ function GridHeader({ tableKey }: { tableKey: string }) {
 }
 
 interface LineProps {
-    line: ReadLine
+    line: NotedLine
     currency: string
 }
 
@@ -237,6 +249,7 @@ function Card({ line, index, rowLabel, currency }: CardProps) {
             <PartNo text={partNo} />
             <CardLine text={line.description} />
             <CardLine text={counts} isStrong />
+            <CardLine text={line.draftNote} />
             <CardLine text={rate} />
         </View>
     )
@@ -244,7 +257,7 @@ function Card({ line, index, rowLabel, currency }: CardProps) {
 
 interface TableProps {
     table: DocumentLineTable
-    lines: ReadLine[]
+    lines: NotedLine[]
     currency: string
     isCards: boolean
 }
@@ -283,19 +296,32 @@ function ReadTable({ table, lines, currency, isCards }: TableProps) {
 
 /**
  * A purchase order's lines, read only, with what its posted bills received and billed and
- * what is still open (spec §3.6): one table per line table that has lines, under the form's
- * heading. Each table is a grid while the view's measured width holds its minimum, and a
+ * what is still open (spec §3.6), and under Open what its draft bills hold ("4 on a draft
+ * bill"; usePurchaseOrderBills, the Bills section's read, whose error row and Retry the
+ * section shows; no note while it loads or failed): one table per line table that has
+ * lines, under the form's heading. Each table is a grid while the view's measured width holds its minimum, and a
  * card per line below it (and on a phone), so it never scrolls sideways.
  */
-export function PurchaseOrderReadLines({ lines, currency, isPhone }: DocumentReadLinesProps) {
+export function PurchaseOrderReadLines({
+    lines,
+    currency,
+    isPhone,
+    documentId,
+}: DocumentReadLinesProps) {
     const { doc, lineSpecs } = useDocumentKind()
     const { width, onLayout } = useContainerWidth()
     const orderLines = lines.filter(isOrderReadLine)
+    const bills = usePurchaseOrderBills(documentId)
+    const drafts = bills.isReady ? bills.draftLines : []
+    const noted = orderLines.map(line => ({
+        ...line,
+        draftNote: draftNoteText(line, drafts, currency),
+    }))
     const linesId = `${doc.testId}-lines`
     const measured = width > 0 ? width : null
     const tables = doc.lineTables.map(table => {
         const kinds = new Set(lineSpecs[table.key]?.rowKinds.map(rowKind => rowKind.key))
-        const own = orderLines.filter(line => kinds.has(line.kind))
+        const own = noted.filter(line => kinds.has(line.kind))
         const minWidth = tableMinWidthOf(table.key)
         const isCards = showsTableCards({ isPhone, width: measured, minWidth, gutter: 0 })
         return (

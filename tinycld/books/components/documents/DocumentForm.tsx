@@ -36,6 +36,7 @@ import type { DocumentScreenData } from '../../hooks/useDocumentScreen'
 import { useDocumentShortcuts } from '../../hooks/useDocumentShortcuts'
 import { useFormLeaveGuard } from '../../hooks/useFormLeaveGuard'
 import { usePdfDownload } from '../../hooks/usePdfDownload'
+import { useOrderFormLinks } from '../../hooks/usePurchaseOrderBills'
 import { invoiceLinkLabel } from '../../lib/credit-memo-link'
 import { DOCUMENT_PDF_KEY } from '../../lib/document-actions'
 import {
@@ -54,6 +55,7 @@ import { isSendKind, type SendKind } from '../../lib/document-send'
 import {
     linkSourceLabel,
     payoutUnappliedText,
+    purchaseOrderLinkLabel,
     refundSourceLabel,
     type SourceLinkKey,
 } from '../../lib/document-source-links'
@@ -63,6 +65,7 @@ import { TOO_LARGE_TEXT } from '../../lib/entry-lines'
 import { focusScreenControl } from '../../lib/focus-return'
 import { formatMoney } from '../../lib/money'
 import { purchaseTabOf } from '../../lib/purchase-lists'
+import { withKeptOrderLines } from '../../lib/purchase-order-bills'
 import type { PayoutLimits } from '../../lib/refund-payout'
 import { todayIso } from '../../lib/register-range'
 import { documentConflictText } from '../../lib/revision'
@@ -99,6 +102,8 @@ import {
     type DocumentFormScope,
     DocumentLinesContext,
     type DocumentLinesView,
+    NO_ORDER_LINKS,
+    useDocumentFormScope,
 } from './document-form-context'
 import { useDocumentKind } from './document-kind-context'
 import type { DocumentKind } from './document-kinds'
@@ -141,14 +146,15 @@ function drawnHintsOf(
 type BandCuts = { row: string | null; ruled: string | null }
 
 // The band's fields in up to three parts (plan decision, checkpoint 4): with both cuts,
-// the fields before the row, the fields from the row up to the ruled row (`dates`), and
-// the ruled row; with only the row's cut, the fields before it and the rest, unruled (a
-// credit memo's band); with only `ruled`, the fields before it and the ruled row.
+// the fields before the row, the fields from the row up to the ruled row (`dates`, empty
+// when the row is drawn right before the ruled row: a bill's), and the ruled row; with
+// only the row's cut, the fields before it and the rest, unruled (a credit memo's band);
+// with only `ruled`, the fields before it and the ruled row.
 function bandPartsOf(bandFields: DefinitionFields, cuts: BandCuts) {
     const at = (key: string | null) => (key ? bandFields.findIndex(f => f.key === key) : -1)
     const rowAt = at(cuts.row)
     const ruledAt = at(cuts.ruled)
-    if (rowAt >= 0 && ruledAt > rowAt) {
+    if (rowAt >= 0 && ruledAt >= rowAt) {
         return {
             band: bandFields.slice(0, rowAt),
             dates: bandFields.slice(rowAt, ruledAt),
@@ -287,14 +293,17 @@ interface RendererProps {
 }
 
 // No `scroll`: the screen owns the one scroll view. `summary="root"`: field errors show
-// inline only, and the screen's own summary shows server refusals.
+// inline only, and the screen's own summary shows server refusals. A purchase order's
+// lines that a bill names are kept (withKeptOrderLines).
 function PartRenderer({ state, definition, testID }: RendererProps) {
+    const linked = (useDocumentFormScope().orderLinks ?? NO_ORDER_LINKS).lines
+    const ui = useMemo(() => withKeptOrderLines(state.ui, linked), [state.ui, linked])
     if (definition.fields.length === 0) return null
     return (
         <FormRenderer
             layout="sections"
             host={state.host}
-            ui={state.ui}
+            ui={ui}
             definition={definition}
             form={state.form}
             context={state.context}
@@ -307,8 +316,9 @@ function PartRenderer({ state, definition, testID }: RendererProps) {
 
 const BAND_CLASS = 'rounded-xl border border-border bg-surface-secondary p-4'
 
-// The built-in a kind's FormBandRow is drawn before: its Tab stops come after the first
-// row's (the Customer's links) and before the date's.
+// The built-in a kind's FormBandRow is drawn before, unless the kind names another
+// (DocumentKind.formBandRowBefore): its Tab stops come after the first row's (the
+// Customer's links) and before the date's.
 const FORM_BAND_ROW_BEFORE = 'date'
 
 // The stored estimate whose customer decline the band shows: its id and its SAVED status.
@@ -675,12 +685,15 @@ function FormSendDialog({
 const PDF_HINT = formatHint(DOCUMENT_PDF_KEY).text
 
 // The stored document's own row of the source its link names: a credit memo's
-// `invoiceRow`, a refund's `salesReceiptRow` or `creditMemoRow`; undefined when the record
-// names another source (or none), or the row is not read.
+// `invoiceRow`, a refund's `salesReceiptRow` or `creditMemoRow`, a bill's `orderRow`;
+// undefined when the record names another source (or none), or the row is not read.
 function storedLinkLabelOf(record: DocumentScreenData['record'], id: string): string | undefined {
     const fields = record?.kindFields
     if (fields?.kind === 'credit_memo' && fields.invoice === id) {
         return fields.invoiceRow ? invoiceLinkLabel(fields.invoiceRow) : undefined
+    }
+    if (fields?.kind === 'bill' && fields.purchase_order === id) {
+        return fields.orderRow ? purchaseOrderLinkLabel(fields.orderRow.number) : undefined
     }
     if (fields?.kind !== 'refund_receipt') return undefined
     if (fields.sales_receipt === id && fields.salesReceiptRow) {
@@ -718,6 +731,9 @@ function sourceLinkLabelOf(
     const source = data.linkSource?.row.id === id ? data.linkSource : undefined
     if (source) return linkSourceLabel(source)
     if (key === 'invoice') return ''
+    // The order is not read yet (a correction reads the order of the bill it replaces as
+    // its link source, bill-data.ts).
+    if (key === 'purchase_order') return purchaseOrderLinkLabel('').trimEnd()
     return refundSourceLabel({ key, number: '', status: '' }).trimEnd()
 }
 
@@ -971,6 +987,9 @@ export function DocumentForm({
         [state.definition, state.host]
     )
     const replacesPosted = data.isCorrection
+    // A stored purchase order's lines and Vendor that its bills fix (spec §3.8).
+    const linkedOrderId = kind.key === 'purchase_order' ? (data.record?.id ?? '') : ''
+    const orderLinks = useOrderFormLinks(linkedOrderId, data.lines, data.currency)
     const scope = useMemo<DocumentFormScope>(
         () => ({
             kind,
@@ -989,6 +1008,7 @@ export function DocumentForm({
             hints,
             focusesFirstField,
             replacesPosted,
+            orderLinks,
         }),
         [
             kind,
@@ -1007,6 +1027,7 @@ export function DocumentForm({
             hints,
             focusesFirstField,
             replacesPosted,
+            orderLinks,
         ]
     )
     const totals = useDocumentTotals(form, scope)
@@ -1090,8 +1111,11 @@ export function DocumentForm({
         canDownloadPdf: pdf.canDownload,
         downloadPdf: pdf.run,
     })
-    // A kind with a row inside the band (FormBandRow) cuts it before the date too.
-    const bandRowBefore = documentKind.FormBandRow ? FORM_BAND_ROW_BEFORE : null
+    // A kind with a row inside the band (FormBandRow) cuts it before the date too, or
+    // before the field the kind names (a bill's Terms).
+    const bandRowBefore = documentKind.FormBandRow
+        ? (documentKind.formBandRowBefore ?? FORM_BAND_ROW_BEFORE)
+        : null
     const bandSplitAt = kind.bandSplitAt
     const parts = useMemo(() => {
         if (!state.definition) return null

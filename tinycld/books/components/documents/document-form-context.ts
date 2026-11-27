@@ -66,6 +66,30 @@ export type DocumentFormScope = {
     // the quantity on hand of its items and comes back when the correction posts
     // (lib/stock-warning.ts).
     replacesPosted: boolean
+    // A purchase order form's lines that a bill names (useOrderFormLinks); absent on every
+    // other kind, where readers take NO_ORDER_LINKS.
+    orderLinks?: OrderFormLinks
+}
+
+// What the bills of a purchase order fix in its form (spec §3.8): the order lines a bill
+// line names (their picker is read only and their row says what is received or billed), and
+// whether a bill names the order (its Vendor is read only). While the bills read loads or
+// has failed, the lines whose posted bills received or billed any are the linked ones, and
+// a failed read also fixes the Vendor and shows its error with Retry under it.
+export type OrderFormLinks = {
+    // The line under each linked line's Description ("Received 4 of 10", "Billed $120.00 of
+    // $300.00"), by the order line's id; a line no bill names has no entry.
+    lines: Readonly<Record<string, string>>
+    locksVendor: boolean
+    loadFailed: boolean
+    retry: () => void
+}
+
+export const NO_ORDER_LINKS: OrderFormLinks = {
+    lines: {},
+    locksVendor: false,
+    loadFailed: false,
+    retry: () => {},
 }
 
 export const DocumentFormContext = createContext<DocumentFormScope | null>(null)

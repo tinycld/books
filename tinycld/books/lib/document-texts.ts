@@ -608,6 +608,9 @@ export const PURCHASE_ORDER_MESSAGES = {
     // The read view's notice at `?edit=1` of a closed order (spec §3.12).
     cannotEdit: 'A closed purchase order cannot be edited.',
     loadFailed: 'Books could not load this purchase order.',
+    // The read of the order's bills failed: the read view's Bills section and the form's
+    // row under Vendor (spec §3.6, §3.8).
+    billsLoadFailed: 'Books could not load the bills of this purchase order.',
     customerLoadFailed: BILL_MESSAGES.customerLoadFailed,
     bundleEmpty: INVOICE_MESSAGES.bundleEmpty,
     bundleLoadFailed: INVOICE_MESSAGES.bundleLoadFailed,
@@ -652,6 +655,7 @@ export const PURCHASE_ORDER_MESSAGES = {
     nothingLeft: string
     chooseLine: string
     overOpen: string
+    billsLoadFailed: string
     deleteTitle: string
     deleteBody: string
     deleteAction: string

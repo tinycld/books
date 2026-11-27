@@ -63,6 +63,8 @@ export type DocumentScreenInput = {
     // memo it pays out (Refund credit). The route passes one source at most.
     salesReceipt?: string
     creditMemo?: string
+    // On a bill's new form: the purchase order it is made from (Copy to bill).
+    purchaseOrder?: string
     // A purchase order's `?edit=1`: a writer opens the form of an open order
     // (documentScreenState). Every other kind leaves it out.
     isEdit?: boolean
@@ -112,9 +114,10 @@ type EstimateKindFields = { kind: 'estimate' } & Pick<
     BooksEstimates,
     'expiration_date' | 'accepted_by' | 'accepted_date' | 'invoice' | 'public_token'
 >
+// `purchase_order` is the order the bill is made from ('' for none), its source link.
 type BillKindFields = { kind: 'bill' } & Pick<
     BooksBills,
-    'vendor' | 'terms' | 'due_date' | 'ref_no' | 'mailing_address'
+    'vendor' | 'terms' | 'due_date' | 'ref_no' | 'mailing_address' | 'purchase_order'
 >
 export type ExpenseKindFields = { kind: 'expense' } & Pick<
     BooksExpenses,
@@ -196,6 +199,9 @@ export type DocumentRecord = SharedColumns & {
               vendorRow: Pick<BooksVendors, 'display_name'> | undefined
               // The open amount the server keeps (total less the posted bill payments).
               balance: BooksBills['balance']
+              // The purchase order the bill was made from ("From purchase order <n>"; the
+              // bill's read and its form link); undefined for a bill from no order.
+              orderRow: Pick<BooksPurchaseOrders, 'number'> | undefined
           })
         | (ExpenseKindFields & {
               vendorRow: Pick<BooksVendors, 'display_name'> | undefined
@@ -435,8 +441,10 @@ export type DocumentScreenReads = {
     estimateSource: DocumentRead<EstimateSource | undefined>
     estimateSourceLines: DocumentRead<DocumentLineRow[]>
     // The source a new form is made from (`?invoice` on a credit memo, `?sales_receipt` or
-    // `?credit_memo` on a refund receipt), or that a new correction of a linked document
-    // names, and its lines in order. Idle (ready and empty) on every other form and kind.
+    // `?credit_memo` on a refund receipt, `?purchase_order` on a bill), or that a new
+    // correction of a linked document names, and its lines in order (a purchase order's
+    // lines are in its row, PurchaseOrderLinkSource). Idle (ready and empty) on every other
+    // form and kind.
     linkSource: DocumentRead<LinkSource | undefined>
     linkSourceLines: DocumentRead<DocumentLineRow[]>
     taxLines: DocumentRead<DocumentTaxLine[]>
