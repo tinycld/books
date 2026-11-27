@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest'
 import type { DocumentListRow, ListKind } from '../tinycld/books/lib/document-list'
 import { documentRowMenuItems } from '../tinycld/books/lib/document-row-menu'
 import {
+    isVoidableListRow,
     type ListRowAction,
     listRowActionHref,
     listRowMenuItems,
     listRowMenuLabel,
     listVoidTexts,
+    type VoidableListRow,
 } from '../tinycld/books/lib/list-row-menu'
 import { PAY_BILLS_MESSAGES } from '../tinycld/books/lib/pay-bills-texts'
 import { PAYMENT_MESSAGES } from '../tinycld/books/lib/payment-texts'
@@ -105,21 +107,25 @@ describe('listRowActionHref', () => {
     })
 })
 
+function voidableRow(kind: VoidableListRow['kind']): VoidableListRow {
+    return { ...row(kind), kind }
+}
+
 describe('listVoidTexts', () => {
-    const CASES: [string, DocumentListRow, ReturnType<typeof listVoidTexts>][] = [
+    const CASES: [string, VoidableListRow, ReturnType<typeof listVoidTexts>][] = [
         [
             'a payment has the payment body',
-            row('payment'),
+            voidableRow('payment'),
             { body: PAYMENT_MESSAGES.voidBody, confirmLabel: 'Void payment', noun: 'payment' },
         ],
         [
             'an invoice has no body and the Void <noun> label',
-            row('invoice'),
+            voidableRow('invoice'),
             { body: undefined, confirmLabel: 'Void invoice', noun: 'invoice' },
         ],
         [
             'a bill payment has the Pay Bills texts',
-            row('bill_payment'),
+            voidableRow('bill_payment'),
             {
                 body: PAY_BILLS_MESSAGES.voidBody,
                 confirmLabel: PAY_BILLS_MESSAGES.voidConfirm,
@@ -130,5 +136,15 @@ describe('listVoidTexts', () => {
 
     it.each(CASES)('%s', (_name, listRow, expected) => {
         expect(listVoidTexts(listRow)).toEqual(expected)
+    })
+
+    it('takes no purchase order row: tsc refuses one, as an order never posts', () => {
+        const voidOfOrder = () => {
+            // @ts-expect-error A purchase order is no kind that Void reaches.
+            return listVoidTexts(row('purchase_order'))
+        }
+        expect(voidOfOrder).toBeTypeOf('function')
+        expect(isVoidableListRow(row('purchase_order'))).toBe(false)
+        expect(isVoidableListRow(row('bill'))).toBe(true)
     })
 })

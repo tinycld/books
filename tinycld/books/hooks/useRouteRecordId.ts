@@ -11,7 +11,7 @@ import { useRouteKeyStore } from '../stores/route-key-store'
 
 // The numbered document collections whose route takes a URL key (lib/record-key.ts), with
 // the name the stack gives the route's screen.
-const DOCUMENT_SCREENS = {
+export const DOCUMENT_SCREENS = {
     books_invoices: 'invoices/[id]',
     books_estimates: 'estimates/[id]',
     books_purchase_orders: 'purchase-orders/[id]',
@@ -31,7 +31,7 @@ const DOCUMENT_SCREENS = {
 
 export type DocumentCollectionName = keyof typeof DOCUMENT_SCREENS
 
-const ENTRY_SCREENS = { journal: 'entries/[id]', transfer: 'transfers/[id]' } as const
+export const ENTRY_SCREENS = { journal: 'entries/[id]', transfer: 'transfers/[id]' } as const
 
 // The collections whose route takes a code (lib/record-code.ts), with the stack's screen name.
 const CODE_SCREENS = {

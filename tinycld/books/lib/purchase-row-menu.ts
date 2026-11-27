@@ -221,8 +221,9 @@ function copyHref(kind: VendorTransactionKind, id: string): string | null {
     return null
 }
 
-// The Void dialog's words for a purchase kind, the ones that kind's read view shows.
-export function purchaseVoidTexts(kind: VendorTransactionKind): {
+// The Void dialog's words for a purchase kind, the ones that kind's read view shows. A
+// purchase order never posts, so neither its menu nor Void offers a void: it is no kind here.
+export function purchaseVoidTexts(kind: Exclude<VendorTransactionKind, 'purchase_order'>): {
     body: string
     confirmLabel: string
     noun: string
@@ -238,8 +239,6 @@ export function purchaseVoidTexts(kind: VendorTransactionKind): {
         const { texts } = VENDOR_REFUND_FLOW
         return { body: texts.voidBody, confirmLabel: texts.voidConfirm, noun: texts.voidNoun }
     }
-    // A purchase order never posts, so neither its menu nor Void offers a void.
-    if (kind === 'purchase_order') throw new Error('A purchase order is never voided.')
     const doc = DOCUMENT_KINDS[kind]
     const noun = doc.noun.toLowerCase()
     return { body: doc.messages.voidBody, confirmLabel: `Void ${noun}`, noun }

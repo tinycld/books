@@ -27,17 +27,16 @@ function usePartyOptions(area: ListArea, term: string, isOpen: boolean) {
         query: q => {
             if (!isOpen) return undefined
             const from = q.from({ p: partyCollection })
-            if (pieces.length === 0) {
+            const [firstPiece, ...otherPieces] = pieces
+            if (firstPiece === undefined) {
                 return from.orderBy(({ p }) => p.display_name).limit(PICKER_LIMIT)
             }
             return from
-                .where(({ p }) =>
-                    allOf(
-                        pieces.map(piece =>
-                            or(ilike(p.display_name, `%${piece}%`), ilike(p.code, `%${piece}%`))
-                        )
-                    )
-                )
+                .where(({ p }) => {
+                    const inNameOrCode = (piece: string) =>
+                        or(ilike(p.display_name, `%${piece}%`), ilike(p.code, `%${piece}%`))
+                    return allOf([inNameOrCode(firstPiece), ...otherPieces.map(inNameOrCode)])
+                })
                 .orderBy(({ p }) => p.display_name)
         },
         queryKey: [`${area.logContext}.${area.party.noun}-filter`, isOpen, ...pieces],

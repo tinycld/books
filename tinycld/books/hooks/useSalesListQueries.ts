@@ -12,6 +12,7 @@ import {
     listedClause,
     rangeClauses,
     searchClauses,
+    someClauses,
     sortField,
 } from '../lib/document-list'
 import { searchPieces } from '../lib/list-search'
@@ -102,12 +103,14 @@ export function useSalesListQueries(input: ListQueryInput) {
             const from = q.from({ e: estimatesCollection })
             const filtered = hasEstimateWhere
                 ? from.where(({ e }) =>
-                      allOf([
-                          ...chipClauses(tab, chip, 'estimate', e, today),
-                          ...rangeClauses(e, range),
-                          ...(hasCustomer ? [eq(e.customer, customer)] : []),
-                          ...searchClauses(e, search),
-                      ])
+                      allOf(
+                          someClauses([
+                              ...chipClauses(tab, chip, 'estimate', e, today),
+                              ...rangeClauses(e, range),
+                              ...(hasCustomer ? [eq(e.customer, customer)] : []),
+                              ...searchClauses(e, search),
+                          ])
+                      )
                   )
                 : from
             return filtered
@@ -253,11 +256,13 @@ export function useSalesListQueries(input: ListQueryInput) {
             const from = q.from({ w: writeOffsCollection })
             const filtered = hasWriteOffWhere
                 ? from.where(({ w }) =>
-                      allOf([
-                          ...rangeClauses(w, range),
-                          ...(hasCustomer ? [eq(w.customer, customer)] : []),
-                          ...searchClauses(w, search),
-                      ])
+                      allOf(
+                          someClauses([
+                              ...rangeClauses(w, range),
+                              ...(hasCustomer ? [eq(w.customer, customer)] : []),
+                              ...searchClauses(w, search),
+                          ])
+                      )
                   )
                 : from
             return filtered

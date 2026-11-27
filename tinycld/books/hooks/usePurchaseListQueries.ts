@@ -13,6 +13,7 @@ import {
     rangeClauses,
     searchClauses,
     searchFieldClauses,
+    someClauses,
     sortField,
 } from '../lib/document-list'
 import { searchPieces } from '../lib/list-search'
@@ -153,12 +154,14 @@ export function usePurchaseListQueries(input: ListQueryInput) {
             const from = q.from({ o: purchaseOrdersCollection })
             const filtered = hasOrderWhere
                 ? from.where(({ o }) =>
-                      allOf([
-                          ...chipClauses(tab, chip, 'purchase_order', o, today),
-                          ...rangeClauses(o, range),
-                          ...(hasVendor ? [eq(o.vendor, vendor)] : []),
-                          ...searchClauses(o, search),
-                      ])
+                      allOf(
+                          someClauses([
+                              ...chipClauses(tab, chip, 'purchase_order', o, today),
+                              ...rangeClauses(o, range),
+                              ...(hasVendor ? [eq(o.vendor, vendor)] : []),
+                              ...searchClauses(o, search),
+                          ])
+                      )
                   )
                 : from
             return filtered

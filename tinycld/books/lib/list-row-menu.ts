@@ -3,7 +3,7 @@
 // `purchaseRowMenuItems` / `purchaseRowActionHref` for a purchase row. Pure, so the list
 // hooks and the menu share one choice.
 
-import { type DocumentListRow, isSalesKind, kindLabel } from './document-list'
+import { type DocumentListRow, isSalesKind, kindLabel, type ListKind } from './document-list'
 import {
     documentRowMenuItems,
     ROW_MENU_LABELS,
@@ -64,10 +64,17 @@ function salesVoidBodyOf(row: DocumentListRow): string | undefined {
     return undefined
 }
 
+// The kinds a list's Void reaches: every kind but the purchase order, which never posts.
+export type VoidableListRow = DocumentListRow & { kind: Exclude<ListKind, 'purchase_order'> }
+
+export function isVoidableListRow(row: DocumentListRow): row is VoidableListRow {
+    return row.kind !== 'purchase_order'
+}
+
 // The Void dialog's words for a row: a purchase kind's read view texts
 // (`purchaseVoidTexts`); for a sales kind the document's noun and its body
 // (`salesVoidBodyOf`).
-export function listVoidTexts(row: DocumentListRow): {
+export function listVoidTexts(row: VoidableListRow): {
     body: string | undefined
     confirmLabel: string
     noun: string

@@ -5,6 +5,7 @@ import { router } from 'expo-router'
 import { orderCloseBody } from '../lib/document-lifecycle'
 import { type DocumentListRow, draftKindOf, type ListKind } from '../lib/document-list'
 import {
+    isVoidableListRow,
     type ListRowAction,
     listRowActionHref,
     listRowMenuItems,
@@ -222,7 +223,8 @@ export function useDocumentRowActions({
 
     const access = { canWrite, isAdmin }
     // Only a Void target's words are read: a purchase order has no Void texts.
-    const voidRow = target?.action === 'void' ? target.row : undefined
+    const voidRow =
+        target?.action === 'void' && isVoidableListRow(target.row) ? target.row : undefined
     const voidTexts = voidRow === undefined ? null : listVoidTexts(voidRow)
     const isVoidOffered = isStillOffered(target, 'void', rows, access)
     const isDeleteOffered =
